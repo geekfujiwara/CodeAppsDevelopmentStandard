@@ -124,28 +124,83 @@
     ```
   - ソリューション作成済み  
 
+### config ファイル定義
+
+#### solution.json（ソリューション定義）
+```json
+{
+  "publisher": {
+    "name": "Contoso",
+    "prefix": "cts"
+  },
+  "solution": {
+    "uniqueName": "ContosoCodeApp",
+    "version": "1.0.0.0"
+  }
+}
+### appconfig.json（アプリ構成定義）
+```json
+{
+  "appId": "xxxxx-950c-4292-9ec1-8c77333dea25",
+  "appDisplayName": "AppName",
+  "description": "This is an app description",
+  "environmentId": "xxxxxx-xxxx-xxxx-xxxx-667765dd2502",
+  "buildPath": "dist",
+  "buildEntryPoint": "index.html",
+  "logoPath": "Default",
+  "localAppUrl": "",
+  "connectionReferences": {},
+  "databaseReferences": {}
+}
+```
+
+### ロゴ
+- アプリのイメージに合ったロゴをsvgで出力する。
+
 ### 手順詳細
-1. 認証設定
+1. 新しいプロジェクトを作成
 ```PowerShell
-pac auth create --environment {environment id}
+mkdir MyCodeApp
+cd MyCodeApp
+npm init -y```
+
+2. 必要な依存関係を追加
+```PowerShell
+npm install @powerapps/component-framework --save
+npm install vite typescript --save-dev
 ```
 
-2. 依存関係インストール & 初期化
-```PowerShell
-npm install
-pac code init --displayName 'Hello World'
+3. プロジェクト構成
+```/src
+  index.html
+  main.tsx
+  PowerProvider.tsx
+/vite.config.ts
+/package.json
 ```
 
-3. ローカル実行
+4. Power Apps SDK 初期化
+```PowerShell
+PowerProvider.tsx に initialize() 関数を追加し、Power Apps ホストとの通信を確立。
+```
+5. pac CLI でアプリ初期化
+```PowerShell
+pac code init --displayName 'My Scratch App'
+```
+6. ローカル実行
 ```PowerShell
 npm run dev | pac code run
 ```
-4. ビルド & デプロイ
+
+7. ビルド & デプロイ
 ```PowerShell
 npm run build | pac code push
 ```
-
 成功すると、Power Apps の URL が返り、アプリを実行可能。
+
+### ベストプラクティス
+- TypeScript + React を推奨
+- .editorconfig + ESLint + Prettier でコード品質維持
 
 ### トラブルシューティング
 
