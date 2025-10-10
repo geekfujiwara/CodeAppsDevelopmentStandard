@@ -8,8 +8,8 @@
 ---
 
 ## 章一覧
-1. 開発環境の準備
-2. プロジェクト構成と命名規則
+1. プロジェクトの初期化
+2. フォルダ構成と命名規則
 3. 基本方針
 4. UI/UX 標準（デザインガイドライン）
 5. セキュリティと認証
@@ -23,7 +23,7 @@
 
 ---
 
-## 1. 開発環境の準備
+## 1. プロジェクトの初期化
 - [開発環境の準備](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-an-app-from-scratch) を参考にする。
 
 ---
@@ -104,7 +104,9 @@
 - 
 
 ## 12. Code Apps 公開手順（pac CLI + config）
-プロジェクトの作成からアプリの初期化、公開の手順は以下を参考にする。
-[Microsoft Learn: How to: Create a code app from scratch](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-an-app-from-scratch)
-
+1. 公開の手順は以下を参考にする。
+  [Microsoft Learn: How to: Create a code app from scratch](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-an-app-from-scratch)
+2. 最初にローカルで実行して動作を確認する
+3. 次にPower Apps 環境上でローカル実行し、問題なく実行できることを確認する。
+4. Power Apps 環境にPushして本番環境で実行する。
 
