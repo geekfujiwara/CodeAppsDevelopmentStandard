@@ -96,7 +96,9 @@
   - すべてのファイルのエラーが修正されるまで繰り返し実行する。
 2. Power Apps Code Apps のベストプラクティスに基づいたテストプランを作成する
   - [ベストプラクティスはこちら](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-an-app-from-scratch)を参考にする。
-
+3. 応用テスト
+- Jest単体テスト + Playwright UIテスト
+  - カバレッジ目標: 80%以上
 ---
 
 ## 8. バージョン管理とリリース
