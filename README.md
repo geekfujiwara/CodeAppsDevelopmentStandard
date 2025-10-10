@@ -29,7 +29,7 @@
 ---
 
 ## 2. フォルダ構成と命名規則
-- [フォルダ構成]と命名規則(https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-an-app-from-scratch) を参考にする。
+- [フォルダ構成と命名規則](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-an-app-from-scratch) を参考にする。
 
 ---
 ## 3. 基本方針
