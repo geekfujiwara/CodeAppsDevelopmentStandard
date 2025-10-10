@@ -95,9 +95,9 @@
 ---
 
 ## 7. テストとデバッグ（AI活用）
-- Jest 単体テスト、Playwright UIテスト  
-- カバレッジ目標: 80%以上  
-- AIによるテストケース生成  
+- エラーが発生している場合、各ファイルの依存関係を確認し、エラーの修正順番をプランする
+- プランに基づき、すべてのエラーを修正する。
+- すべてのファイルのエラーが修正されるまで繰り返し実行する。 
 
 ---
 
@@ -115,15 +115,19 @@
 
 ---
 
-## 10. Code Apps 公開手順（pac CLI + config）
-プロジェクトの作成からアプリの初期化、公開の手順は以下を参考にする。
-[Microsoft Learn: How to: Create a code app from scratch](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-an-app-from-scratch)
-
-### ロゴ
+## 10. ロゴ
 - アプリのイメージに合ったロゴをsvgで出力する。
 
-### トラブルシューティング
+## 11. トラブルシューティング
 
 - 「fetching your app」や「App timed out」エラー
     - npm run build 実行確認
     - PowerProvider.tsx の問題確認
+- AIの行っている処理がループしてしまう場合は、問題をリストアップして一つ一つ対処案を考え、対処行う。
+- 
+
+## 12. Code Apps 公開手順（pac CLI + config）
+プロジェクトの作成からアプリの初期化、公開の手順は以下を参考にする。
+[Microsoft Learn: How to: Create a code app from scratch](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-an-app-from-scratch)
+
+
