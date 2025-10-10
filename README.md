@@ -24,40 +24,18 @@
 ---
 
 ## 1. 開発環境の準備
-- [開発環境の準備](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-an-app-from-scratch) を参考にして、環境を準備する。
+- [開発環境の準備](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-an-app-from-scratch) を参考にする。
 
 ---
 
-## 2. プロジェクト構成と命名規則
-- **標準ディレクトリ構成**:
-
-`/src`
-
-`/components`
-
-`/services`
-
-`/models`
-
-`/tests`
-
-`/config`
-
-- コンポーネント名: PascalCase  
-- 変数名: camelCase  
-- ファイル拡張子: `.tsx` (React), `.ts` (TypeScript)  
-
-
-- **命名規則**:  
-  - コンポーネント名: PascalCase  
-  - 変数名: camelCase  
-  - ファイル拡張子: `.tsx` (React), `.ts` (TypeScript)  
+## 2. フォルダ構成と命名規則
+- [フォルダ構成]と命名規則(https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-an-app-from-scratch) を参考にする。
 
 ---
-## 3. コード品質
-- ESLint + Prettier 導入  
-- Pull Request レビュー必須  
-- AIによるコード生成・レビュー補助（セキュリティ・パフォーマンス）  
+## 3. 基本方針
+- すべてを実装せず、必要最低限のカスタマージャーニーのみ設計し、それを実装する。
+- 実装したカスタマージャーニーと実装していない項目は、ドキュメント( `README.MD` と `ToDoList.MD` )に反映する。
+- 操作を行うたびに、ドキュメントに反映する。
 
 ---
 
