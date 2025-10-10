@@ -22,11 +22,7 @@
 ---
 
 ## 1. 開発環境の準備
-- **必須ツール**: Visual Studio Code, Node.js (LTS), Power Platform CLI (pac)  
-- **拡張機能**: Power Platform Tools, ESLint, Prettier  
-- **初期設定**:  
-  - `npm install` により依存関係を管理  
-  - `.editorconfig` をリポジトリに配置  
+- [開発環境の準備](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-an-app-from-scratch) を参考にして、環境を準備する。
 
 ---
 
