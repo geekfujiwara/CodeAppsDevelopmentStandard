@@ -5,13 +5,15 @@
 
 この標準は、Microsoft公式ドキュメント（[Power Apps code apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)）と[PowerAppsCodeAppsリポジトリ](https://github.com/microsoft/PowerAppsCodeApps)のベストプラクティスに基づき、**要件理解から公開まで**の包括的な開発プロセスと、**モダンなデザインテンプレート**を含む開発指針です。
 
-### 🎯 実装推奨順序
-1. **PowerProvider実装** (最優先)
-2. **基本レイアウト構築** (サイドバー・ヘッダー)
-3. **データ統合** (Power Platform コネクタ)
-4. **テスト環境構築** (Jest + Playwright)
-5. **CI/CD パイプライン** (GitHub Actions)
-6. **監視・ログシステム** (Application Insights)
+### 🎯 実装推奨順序 (Power Apps SDK ファースト)
+1. **PowerProvider 実装** (最優先) - SDK 初期化 → ローカル動作確認 → Power Apps デプロイ
+2. **基本レイアウト構築** (Fluent UI コンポーネント)
+3. **モックデータ実装** (開発・テスト用)
+4. **コネクタ統合** (Office 365 → SQL → カスタム API)
+5. **テスト環境構築** (Vitest + React Testing Library)
+6. **CI/CD パイプライン** (GitHub Actions + pac CLI)
+
+> **重要**: `@microsoft/power-apps` SDK の初期化が成功することを最初に確認してください。SDK が正常に動作しない場合、Power Apps 内で利用できません。
 
 ## 目次
 
@@ -33,12 +35,19 @@
 ### 🛠️ 技術基盤
 - [必須実装要件](#必須実装要件)
 - [アーキテクチャパターン](#アーキテクチャパターン)
+- [推奨技術スタック](#推奨技術スタック)
 - [パフォーマンス最適化](#パフォーマンス最適化)
 
 ### 🔍 品質保証
 - [テスト戦略](#テスト戦略)
 - [デバッグ手法](#デバッグ手法)
 - [AI活用ガイドライン](#ai活用ガイドライン)
+
+### ⚡ Power Apps Code Apps 統合 (最重要)
+- [プラットフォーム概要](#power-apps-code-apps-プラットフォーム概要)
+- [MVP 実装ガイド](#mvp-実装ガイド)
+- [コネクタ利用パターン](#サンプル実装)
+- [検証・テスト](#検証・テスト)
 
 ## 前提条件
 
@@ -57,6 +66,364 @@
 
 ---
 
+## ⚡ Power Apps Code Apps 統合 (最重要)
+
+### Power Apps Code Apps プラットフォーム概要
+
+Power Apps Code Apps は、React アプリケーションを Power Platform 内で動作させるためのプラットフォームです。独自の HTTP サーバやカスタム認証は不要で、`@microsoft/power-apps` SDK を使用してプラットフォーム機能を利用します。
+
+#### 🎯 実際の統合方式 (Microsoft 公式)
+1. **Power Platform SDK 初期化** (`@microsoft/power-apps/app` の `initialize()`)
+2. **静的データ開発** (UI/UX 先行開発)
+3. **コネクタ統合** (`useConnector()` フックでデータ接続)
+4. **ローカル開発** (`pac code run` でテスト)
+5. **Power Apps デプロイ** (`pac code push` で公開)
+
+#### 📋 実装要件 (StaticAssetTracker パターン)
+
+**1. Power Platform SDK 初期化**
+- `@microsoft/power-apps` パッケージ使用
+- `initialize()` 関数でプラットフォーム初期化のみ
+- **認証は完全に Power Platform が自動処理** (カスタム認証コード不要)
+
+**2. 静的データによる開発**
+- まず `src/data/` に静的データを配置
+- UI/UX コンポーネントを完全実装
+- 実データ統合前にユーザビリティ検証
+
+**3. データ接続 (段階的移行)**
+- 第1段階: 静的データ (`const assets = staticAssets`)
+- 第2段階: `useConnector()` フックで Power Platform コネクタ
+- Office 365、SQL Database、SharePoint 等の標準コネクタ利用
+
+**4. 認証・セキュリティ**
+- **カスタム認証実装は不要**
+- Power Platform 環境が全認証を処理
+- アプリは認証済みユーザーとして動作
+- データアクセス権限は Power Platform コネクタが制御
+
+**5. 開発・デプロイ**
+- ローカル: `npm run dev` (Vite + pac code run の同時起動)
+- 本番: `pac code push` で Power Apps 環境にデプロイ
+- **Azure Functions や App Service は不要**
+
+### MVP 実装ガイド
+
+#### Step 1: プロジェクト初期化
+
+**実装項目チェックリスト:**
+- [ ] React + TypeScript プロジェクト作成
+- [ ] `@microsoft/power-apps` SDK インストール
+- [ ] PowerProvider コンポーネント実装
+- [ ] 基本的な React アプリ構造作成
+- [ ] ローカル開発環境設定
+
+**PowerProvider 実装例 (Microsoft 公式パターン):**
+```typescript
+// src/PowerProvider.tsx
+import { initialize } from "@microsoft/power-apps/app";
+import { useEffect, type ReactNode } from "react";
+
+interface PowerProviderProps {
+    children: ReactNode;
+}
+
+export default function PowerProvider({ children }: PowerProviderProps) {
+    useEffect(() => {
+        const initApp = async () => {
+            try {
+                await initialize();
+                console.log('Power Platform SDK initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize Power Platform SDK:', error);
+            }
+        };
+        
+        initApp();
+    }, []);
+
+    return <>{children}</>;
+}
+```
+
+**重要**: これは Microsoft の公式サンプル (StaticAssetTracker, FluentSample) で使われている標準パターンです。カスタム認証や追加のエラーハンドリングは不要です。
+
+**メインアプリ初期化 (Microsoft 公式パターン):**
+```typescript
+// src/main.tsx
+import { createRoot } from 'react-dom/client';
+import App from './App.tsx';
+import './index.css';
+import { StrictMode } from 'react';
+import PowerProvider from './PowerProvider.tsx';
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <PowerProvider>
+      <App />
+    </PowerProvider>
+  </StrictMode>
+);
+```
+
+**App.tsx の実装例:**
+```typescript
+// src/App.tsx  
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import Index from "./pages/Index";
+
+const queryClient = new QueryClient();
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <Index />
+    </TooltipProvider>
+  </QueryClientProvider>
+);
+
+export default App;
+```
+
+**重要**: 
+- PowerProvider は最外側で SDK を初期化
+- App.tsx で UI ライブラリとクエリクライアント設定
+- pages/Index.tsx でメイン機能実装
+
+#### Step 2: ローカル開発・検証
+
+**開発サーバ起動:**
+```bash
+# 依存関係インストール
+npm install
+
+# ビルド確認
+npm run build
+
+# Power Apps Code 初期化
+pac code init
+
+# ローカル開発開始 (Vite + pac code run)
+npm run dev
+```
+
+**package.json スクリプト例 (Microsoft 公式パターン):**
+```json
+{
+  "scripts": {
+    "dev": "start vite && start pac code run",
+    "build": "vite build",
+    "build:dev": "vite build --mode development", 
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@microsoft/power-apps": "^0.3.1",
+    "@radix-ui/react-*": "^1.x.x",
+    "@tanstack/react-query": "^5.x.x",
+    "class-variance-authority": "^0.7.x",
+    "clsx": "^2.x.x",
+    "lucide-react": "^0.x.x",
+    "tailwind-merge": "^2.x.x"
+  }
+}
+```
+
+**重要**: 
+- `dev` スクリプトで `vite` と `pac code run` を同時起動
+- `build:dev` で開発モード用ビルド
+- shadcn/ui エコシステムの依存関係を含める
+
+#### Step 3: データコネクタ統合 (オプション)
+
+**Office 365 コネクタ例:**
+```typescript
+// src/hooks/useOffice365.ts
+import { useConnector } from '@microsoft/power-apps';
+
+export const useOffice365 = () => {
+  const office365 = useConnector('office365users');
+  const outlook = useConnector('office365outlook');
+  
+  const getCurrentUser = async () => {
+    try {
+      const result = await office365.MyProfile();
+      return result.data;
+    } catch (error) {
+      console.error('Failed to get current user:', error);
+      return null;
+    }
+  };
+  
+  return { getCurrentUser, office365, outlook };
+};
+```
+
+#### Step 4: Power Apps 環境デプロイ
+
+**デプロイコマンド:**
+```bash
+# Power Apps 環境にプッシュ
+pac code push
+```
+
+**成功時の出力例:**
+```
+Successfully deployed Code App to Power Apps environment
+App URL: https://apps.powerapps.com/play/[app-id]
+```
+
+### サンプル実装
+
+#### コネクタ利用例
+
+**Office 365 ユーザー情報取得:**
+```typescript
+// src/components/UserProfile.tsx
+import { useEffect, useState } from 'react';
+import { useOffice365 } from '../hooks/useOffice365';
+
+export const UserProfile = () => {
+  const [user, setUser] = useState(null);
+  const { getCurrentUser } = useOffice365();
+  
+  useEffect(() => {
+    const loadUser = async () => {
+      const userData = await getCurrentUser();
+      setUser(userData);
+    };
+    
+    loadUser();
+  }, []);
+  
+  if (!user) return <div>Loading...</div>;
+  
+  return (
+    <div>
+      <h2>{user.DisplayName}</h2>
+      <p>Email: {user.Mail}</p>
+      <p>Department: {user.Department}</p>
+    </div>
+  );
+};
+```
+
+**SQL データベース操作:**
+```typescript
+// src/hooks/useSqlData.ts
+import { useConnector } from '@microsoft/power-apps';
+
+export const useSqlData = () => {
+  const sqlConnector = useConnector('sql');
+  
+  const getProjects = async (skip = 0, take = 10) => {
+    try {
+      const result = await sqlConnector.getTable('Projects', {
+        skip,
+        take,
+        orderBy: 'CreatedDate desc'
+      });
+      return result.data;
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+      return [];
+    }
+  };
+  
+  return { getProjects };
+};
+```
+
+**モック データから実データへの移行:**
+```typescript
+// 開発時: モックデータ使用
+import { mockUsers } from '../mockData/office365Data';
+const users = mockUsers;
+
+// 本番: 実コネクタ使用
+const { office365 } = useOffice365();
+const users = await office365.SearchUser(searchTerm, 50);
+```
+
+### 検証・テスト
+
+#### MVP 検証チェックリスト
+
+**ローカル検証:**
+- [ ] `pac code init` が成功する
+- [ ] `npm run dev` でローカル開発サーバが起動する
+- [ ] Power Platform SDK が正常に初期化される
+- [ ] React アプリが正常に表示される
+- [ ] ブラウザコンソールにエラーが出ない
+
+**Power Apps デプロイ検証:**
+- [ ] `pac code push` が成功する
+- [ ] Power Apps URL でアクセスできる
+- [ ] Power Platform 環境内で正常動作する
+- [ ] コネクタが正常に接続される (使用時)
+
+#### テストケース実装
+
+```typescript
+// tests/PowerProvider.test.tsx
+import { render, screen } from '@testing-library/react';
+import { vi } from 'vitest';
+import PowerProvider from '../src/PowerProvider';
+
+// Power Apps SDK のモック
+vi.mock('@microsoft/power-apps/app', () => ({
+  initialize: vi.fn().mockResolvedValue(undefined)
+}));
+
+describe('PowerProvider', () => {
+  test('子コンポーネントがレンダリングされる', () => {
+    render(
+      <PowerProvider>
+        <div>Test Child</div>
+      </PowerProvider>
+    );
+    
+    expect(screen.getByText('Test Child')).toBeInTheDocument();
+  });
+  
+  test('SDK初期化が呼ばれる', async () => {
+    const { initialize } = await import('@microsoft/power-apps/app');
+    
+    render(
+      <PowerProvider>
+        <div>Test</div>
+      </PowerProvider>
+    );
+    
+    expect(initialize).toHaveBeenCalled();
+  });
+});
+```
+
+#### 統合テスト
+
+```typescript
+// tests/integration/connector.test.ts
+import { renderHook } from '@testing-library/react';
+import { useOffice365 } from '../src/hooks/useOffice365';
+
+// 注意: 実際のコネクタテストは Power Apps 環境が必要
+describe('Office 365 Connector Integration', () => {
+  test('フックが正常に初期化される', () => {
+    const { result } = renderHook(() => useOffice365());
+    
+    expect(result.current.getCurrentUser).toBeDefined();
+  });
+});
+```
+
+---
+
 ## 📋 開発プロセス全体 (8フェーズ)
 
 ### 1. 要件理解・プロジェクト計画
@@ -72,14 +439,16 @@ graph TD
 ```
 
 ### 1.2 要件収集チェックリスト
+- [ ] **Power Platform 統合要件** (最優先): 必要なコネクタ、データソース、権限
 - [ ] **ビジネス目標**: アプリケーションの目的と期待される成果
 - [ ] **ユーザーペルソナ**: 主要ユーザーの特性と利用シーン
 - [ ] **機能要件**: 必要な機能の詳細仕様
 - [ ] **非機能要件**: パフォーマンス、セキュリティ、可用性
-- [ ] **UI/UX要件**: デザインガイドライン、ブランディング
-- [ ] **データ要件**: 連携システム、データソース
-- [ ] **セキュリティ要件**: 認証、認可、データ保護
-- [ ] **運用要件**: 監視、バックアップ、災害復旧
+- [ ] **UI/UX要件**: Fluent UI デザインガイドライン、ブランディング
+- [ ] **データ要件**: Office 365、SQL Database、SharePoint 等のデータソース
+- [ ] **セキュリティ要件**: Power Platform セキュリティポリシー準拠
+- [ ] **運用要件**: Power Platform 管理、ライセンス管理
+- [ ] **Power Apps 環境要件**: 環境設定、Code Apps 有効化、コネクタ設定
 
 ### 1.3 プロジェクト計画テンプレート
 ```markdown
@@ -101,10 +470,11 @@ graph TD
 ## マイルストーン
 | フェーズ | 期間 | 成果物 |
 |---------|------|--------|
-| 要件定義 | Week1-2 | 要件定義書 |
-| 設計 | Week3 | 設計仕様書 |
-| 開発 | Week4-6 | MVP実装 |
-| テスト | Week7 | テスト完了 |
+| 要件定義 | Week1-2 | 要件定義書 + コネクタ要件 |
+| 設計 | Week3 | 設計仕様書 + UI設計 |
+| Power Apps SDK MVP | Week4 | PowerProvider + pac デプロイ確認 |
+| 開発 | Week5-6 | フル機能実装 + コネクタ統合 |
+| テスト | Week7 | テスト完了 + Power Platform テスト |
 | デプロイ | Week8 | 本番リリース |
 ```
 
@@ -118,13 +488,22 @@ graph TD
 node --version
 
 # Power Platform CLI インストール
-pac install
+pac install latest
 
-# プロジェクト初期化
-pac code init --displayName "アプリ名" --environment "環境ID"
+# Vite + React + TypeScript プロジェクト作成
+npm create vite@latest my-code-app -- --template react-ts
+cd my-code-app
+
+# Power Apps Code Apps SDK インストール
+npm install @microsoft/power-apps
+
+# Power Platform 統合初期化
+pac code init
 ```
 
-**Step 2: VS Code 拡張機能**
+**Step 2: VS Code 設定**
+
+**.vscode/extensions.json:**
 ```json
 {
   "recommendations": [
@@ -136,6 +515,22 @@ pac code init --displayName "アプリ名" --environment "環境ID"
   ]
 }
 ```
+
+**.vscode/settings.json (Microsoft 公式パターン):**
+```json
+{
+  "files.exclude": {
+    "**/.github": true,
+    "**/.vscode": true,
+    "**/.cursor": true
+  }
+}
+```
+
+**推奨設定:**
+- Power Platform Tools 拡張を必須とする
+- 不要なディレクトリを非表示にして開発効率向上
+- TypeScript と Tailwind CSS のサポート有効化
 
 ### 2.2 テンプレート選択ガイド
 
@@ -151,48 +546,95 @@ pac code init --displayName "アプリ名" --environment "環境ID"
 
 #### 3.1 アーキテクチャパターン
 
-**推奨アーキテクチャ: Clean Architecture + MVP**
+**推奨アーキテクチャ: Microsoft 公式パターン**
 ```
 src/
-├── components/           # UI コンポーネント
-│   ├── common/          # 共通コンポーネント
-│   ├── layout/          # レイアウトコンポーネント
-│   └── features/        # 機能別コンポーネント
-├── services/            # ビジネスロジック
-│   ├── api/            # API アクセス
-│   ├── data/           # データ処理
-│   └── auth/           # 認証処理
-├── models/             # データモデル
-├── utils/              # ユーティリティ
+├── components/          # UI コンポーネント (shadcn/ui ベース)
+│   ├── ui/             # shadcn/ui プリミティブ
+│   ├── AssetCard.tsx   # 機能固有コンポーネント
+│   └── AssetDetail.tsx # ビジネスコンポーネント
+├── data/               # 静的データ (開発・テスト用)
+│   ├── assets.ts       # サンプルデータ
+│   └── owners.ts       # マスタデータ
 ├── hooks/              # カスタムフック
-├── constants/          # 定数
+│   └── useConnectors.ts # Power Platform コネクタ統合
+├── lib/                # ユーティリティライブラリ
+│   └── utils.ts        # 共通関数
+├── pages/              # ページコンポーネント
+│   └── Index.tsx       # メインページ
 ├── types/              # TypeScript型定義
-└── assets/             # 静的リソース
+│   └── asset.ts        # ビジネスモデル
+├── App.tsx             # メインアプリケーション
+├── PowerProvider.tsx   # Power Platform SDK 初期化
+└── main.tsx            # エントリーポイント
 ```
 
-### 3.2 設計原則
+**設計原則 (StaticAssetTracker パターン):**
+1. **静的データから開始**: 実コネクタ統合前にUI/UXを完成
+2. **shadcn/ui 活用**: 高品質なUIコンポーネント
+3. **TanStack Query**: サーバ状態管理とキャッシュ
+4. **段階的移行**: 静的データ → モックAPI → 実コネクタ
 
-**SOLID原則の適用**
-- **Single Responsibility**: 単一責任の原則
-- **Open/Closed**: 開放/閉鎖の原則
-- **Liskov Substitution**: リスコフ置換の原則
-- **Interface Segregation**: インターフェース分離の原則
-- **Dependency Inversion**: 依存関係逆転の原則
+### 3.2 推奨技術スタック
+
+**必須技術 (Microsoft 公式サンプル準拠):**
+- **@microsoft/power-apps**: Power Platform SDK (^0.3.1)
+- **React 18**: フロントエンドフレームワーク
+- **TypeScript**: 型安全性とコード品質
+- **Vite**: 高速ビルドツールとデバッグ環境
+
+**UI ライブラリ (StaticAssetTracker パターン):**
+- **shadcn/ui**: 高品質UIコンポーネント
+- **Radix UI**: アクセシブルなプリミティブ
+- **Tailwind CSS**: ユーティリティファーストCSS
+- **Lucide React**: 一貫したアイコンセット
+
+**状態管理・データフェッチ:**
+- **TanStack Query**: サーバ状態管理とキャッシュ
+- **React Hook Form**: フォーム状態管理
+- **Zod**: スキーマバリデーション
+
+**開発ツール:**
+- **ESLint**: コード品質チェック
+- **Prettier**: コードフォーマット (推奨)
+- **PostCSS**: CSS処理とTailwind統合
+
+### 3.3 設計原則
+
+**Power Apps Code Apps 特有の原則:**
+1. **静的データファースト**: 実データ統合前のUI完成
+2. **段階的コネクタ統合**: 静的 → モック → 実データ
+3. **Power Platform ネイティブ**: SDK とコネクタ活用
+4. **レスポンシブデザイン**: デスクトップ・モバイル対応
+
+**SOLID原則の適用:**
+- **Single Responsibility**: コンポーネント単一責任
+- **Open/Closed**: 拡張可能・変更閉鎖設計
+- **Interface Segregation**: 小さく特化したhooks作成
 
 ### 4. 開発・実装
 
-#### 4.1 開発フロー
+#### 4.1 開発フロー (Power Apps Code Apps)
 
 ```mermaid
 graph LR
-    A[feature/*ブランチ作成] --> B[ローカル開発]
-    B --> C[単体テスト]
-    C --> D[コードレビュー]
-    D --> E[develop統合]
-    E --> F[結合テスト]
-    F --> G[main統合]
-    G --> H[本番デプロイ]
+    A[feature/*ブランチ作成] --> B[PowerProvider実装]
+    B --> C[ローカル開発・テスト]
+    C --> D[pac code push テスト]
+    D --> E[基本機能実装]
+    E --> F[コネクタ統合]
+    F --> G[単体テスト]
+    G --> H[コードレビュー]
+    H --> I[develop統合]
+    I --> J[結合テスト]
+    J --> K[main統合]
+    K --> L[Power Apps デプロイ]
 ```
+
+**重要**: 
+- PowerProvider の SDK 初期化が成功することを最初に確認
+- `pac code run` でローカル動作確認後、機能開発開始
+- コネクタは段階的に追加 (Office 365 → SQL → カスタム API)
 
 ### 4.2 コーディング規約
 
@@ -264,28 +706,71 @@ graph LR
 
 #### 6.1 デプロイメントパイプライン
 
-**GitHub Actions設定 (.github/workflows/deploy.yml)**
+**GitHub Actions設定 (Power Apps Code Apps 用)**
 ```yaml
+# .github/workflows/deploy-power-apps.yml
 name: Deploy to Power Apps
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+
 jobs:
-  deploy:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '18'
-      - run: npm ci
-      - run: npm run build
-      - run: npm run test
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Lint check
+        run: npm run lint
+      
+      - name: Build application
+        run: npm run build
+      
+      - name: Build development version
+        run: npm run build:dev
+
+  deploy:
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build for production
+        run: npm run build
+      
+      - name: Install Power Platform CLI
+        run: |
+          npm install -g @microsoft/powerplatform-cli
+      
       - name: Deploy to Power Apps
         run: pac code push
         env:
-          PAC_CLI_URL: ${{ secrets.PAC_CLI_URL }}
+          POWERPLATFORM_TENANT_ID: ${{ secrets.POWERPLATFORM_TENANT_ID }}
+          POWERPLATFORM_CLIENT_ID: ${{ secrets.POWERPLATFORM_CLIENT_ID }}
+          POWERPLATFORM_CLIENT_SECRET: ${{ secrets.POWERPLATFORM_CLIENT_SECRET }}
 ```
+
+**重要**: 
+- Power Platform CLI を使用した自動デプロイ
+- StaticAssetTracker パターンに基づく build と build:dev
+- 認証は Service Principal を使用
 
 ### 7. 運用・保守
 
