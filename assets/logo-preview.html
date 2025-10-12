@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Apps Logo Preview</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 2rem;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            padding: 2rem;
+        }
+        h1 {
+            color: #0078D4;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .logo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        .logo-item {
+            text-align: center;
+            padding: 1.5rem;
+            border: 2px solid #e0e7ff;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+        .logo-item h3 {
+            color: #374151;
+            margin-bottom: 1rem;
+        }
+        .logo-item img {
+            margin: 1rem 0;
+        }
+        .usage-examples {
+            margin-top: 3rem;
+        }
+        .example {
+            background: #f1f5f9;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+        }
+        .preview-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: #0078D4;
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Power Apps Code Apps - Logo Collection</h1>
+        
+        <div class="logo-grid">
+            <div class="logo-item">
+                <h3>Large Logo (128x128)</h3>
+                <img src="logo-large.svg" alt="Large Logo" width="128" height="128">
+                <p>マーケティング・ドキュメント用<br>高解像度版</p>
+            </div>
+            
+            <div class="logo-item">
+                <h3>Standard Logo (64x64)</h3>
+                <img src="logo.svg" alt="Standard Logo" width="64" height="64">
+                <p>アプリヘッダー・UI統合用<br>標準サイズ</p>
+            </div>
+            
+            <div class="logo-item">
+                <h3>Favicon (32x32)</h3>
+                <img src="favicon.svg" alt="Favicon" width="32" height="32">
+                <p>ブラウザタブ・小サイズ表示用<br>コンパクト版</p>
+            </div>
+        </div>
+
+        <div class="preview-header">
+            <img src="logo.svg" alt="Code App Logo" width="32" height="32">
+            <h2 style="margin: 0;">My Code App - サンプルヘッダー</h2>
+        </div>
+
+        <div class="usage-examples">
+            <h2>💻 実装例</h2>
+            
+            <div class="example">
+                <h3>1. PAC CLI 初期化時の設定</h3>
+                <div class="code-block">
+pac code init --displayName "My Code App" -l "./assets/logo.svg"
+                </div>
+            </div>
+
+            <div class="example">
+                <h3>2. React コンポーネントでの利用</h3>
+                <div class="code-block">
+import React from 'react';
+
+export const AppHeader: React.FC = () => {
+  return (
+    &lt;header className="flex items-center gap-3 p-4 bg-blue-600 text-white"&gt;
+      &lt;img 
+        src="/assets/logo.svg" 
+        alt="Code App Logo" 
+        className="w-8 h-8"
+      /&gt;
+      &lt;h1 className="text-xl font-semibold"&gt;My Code App&lt;/h1&gt;
+    &lt;/header&gt;
+  );
+};
+                </div>
+            </div>
+
+            <div class="example">
+                <h3>3. HTML での直接利用</h3>
+                <div class="code-block">
+&lt;head&gt;
+  &lt;link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"&gt;
+  &lt;title&gt;My Code App&lt;/title&gt;
+&lt;/head&gt;
+                </div>
+            </div>
+
+            <div class="example">
+                <h3>4. TailwindCSS テーマ統合</h3>
+                <div class="code-block">
+// tailwind.config.js
+module.exports = {
+  theme: {
+    extend: {
+      colors: {
+        'code-apps': {
+          primary: '#0078D4',    // ロゴメインカラー
+          secondary: '#005A9E',  // ロゴボーダー
+          accent: '#FFD700',     // ライトニング
+        }
+      }
+    }
+  }
+}
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 2rem; text-align: center; color: #6b7280;">
+            <p>🎨 これらのロゴは Power Apps Code Apps 開発標準に完全統合されています</p>
+            <p>Microsoft Power Platform ブランディングガイドラインに準拠</p>
+        </div>
+    </div>
+</body>
+</html>

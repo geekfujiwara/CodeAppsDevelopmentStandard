@@ -1,0 +1,20 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Compact version for favicon -->
+  <circle cx="16" cy="16" r="15" fill="#0078D4" stroke="#005A9E" stroke-width="1"/>
+  
+  <!-- Code Brackets -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round">
+    <path d="M8 10 L5 13 L5 19 L8 22"/>
+    <path d="M24 10 L27 13 L27 19 L24 22"/>
+  </g>
+  
+  <!-- Lightning -->
+  <path d="M13 8 L11 14 L15 14 L12 24 L19 13 L15 13 L17 8 Z" 
+        fill="#FFD700" stroke="#FFA500" stroke-width="0.3"/>
+  
+  <!-- Small gear -->
+  <g transform="translate(22, 9) scale(0.6)">
+    <circle cx="0" cy="0" r="4" fill="#FFFFFF"/>
+    <circle cx="0" cy="0" r="2" fill="#0078D4"/>
+  </g>
+</svg>

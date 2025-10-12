@@ -1,0 +1,38 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="32" cy="32" r="30" fill="#0078D4" stroke="#005A9E" stroke-width="2"/>
+  
+  <!-- Code Brackets -->
+  <g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round">
+    <!-- Left Bracket -->
+    <path d="M18 20 L12 26 L12 38 L18 44" fill="none"/>
+    <!-- Right Bracket -->
+    <path d="M46 20 L52 26 L52 38 L46 44" fill="none"/>
+  </g>
+  
+  <!-- Power Apps Lightning -->
+  <g fill="#FFD700">
+    <path d="M26 16 L22 28 L28 28 L24 48 L38 26 L30 26 L34 16 Z" 
+          stroke="#FFA500" stroke-width="0.5"/>
+  </g>
+  
+  <!-- Gear/Cog for Apps -->
+  <g fill="#FFFFFF" transform="translate(42, 18)">
+    <circle cx="0" cy="0" r="8" fill="#0078D4"/>
+    <circle cx="0" cy="0" r="4" fill="#FFFFFF"/>
+    <g fill="#0078D4">
+      <rect x="-1" y="-10" width="2" height="4" rx="1"/>
+      <rect x="-1" y="6" width="2" height="4" rx="1"/>
+      <rect x="-10" y="-1" width="4" height="2" rx="1"/>
+      <rect x="6" y="-1" width="4" height="2" rx="1"/>
+      <rect x="-7.5" y="-7.5" width="3" height="3" rx="1" transform="rotate(45)"/>
+      <rect x="4.5" y="-7.5" width="3" height="3" rx="1" transform="rotate(45)"/>
+      <rect x="-7.5" y="4.5" width="3" height="3" rx="1" transform="rotate(45)"/>
+      <rect x="4.5" y="4.5" width="3" height="3" rx="1" transform="rotate(45)"/>
+    </g>
+  </g>
+  
+  <!-- Text "CA" for Code Apps -->
+  <text x="32" y="52" font-family="Segoe UI, sans-serif" font-size="8" font-weight="bold" 
+        text-anchor="middle" fill="#FFFFFF">CA</text>
+</svg>

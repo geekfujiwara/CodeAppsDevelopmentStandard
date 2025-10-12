@@ -12,7 +12,7 @@
 | 項目 | **Power Apps Code Apps** (本標準) | **PCF** (Power Apps Component Framework) |
 |------|-----------------------------------|-------------------------------------------|
 | **用途** | **完全なアプリケーション** | 単一コンポーネント |
-| **開発方式** | React フルスタックアプリ | TypeScript コンポーネント |
+| **開発方式** | React、Vue などのフルスタックアプリ | TypeScript コンポーネント |
 | **公開方法** | **`pac code push`** | `pac pcf push` |
 | **実行環境** | Power Apps 内でアプリとして動作 | Power Apps 内でコンポーネントとして埋め込み |
 | **SDK** | `@microsoft/power-apps` | `powerapps-component-framework` |
@@ -292,6 +292,191 @@ graph TD
 ⏱️ 予想時間: 15分
 ❓ PowerProvider実装を開始しますか？
 ```
+
+### 🎨 **Code Apps ロゴ・アイコン統合**
+
+#### **プロジェクトロゴ設計**
+
+開発プロジェクト用に最適化されたCode Appsロゴを提供：
+
+```
+assets/
+├── logo.svg          # メインロゴ (64x64)
+├── favicon.svg       # ファビコン (32x32)
+└── logo-variants/    # サイズ別バリエーション
+```
+
+**ロゴの構成要素:**
+- 🔵 **Microsoft ブルー背景** (`#0078D4`) - Power Platform 一貫性
+- ⚡ **ライトニングアイコン** - Power Apps の象徴
+- `< >` **コード括弧** - 開発・Code Apps アイデンティティ
+- ⚙️ **ギアアイコン** - アプリケーション機能
+- **"CA"テキスト** - Code Apps 略称
+
+#### **MVPフェーズでの利用**
+
+**1. pac code init での自動設定**
+```bash
+# プロジェクト初期化時にロゴを指定
+pac code init --displayName "My Code App" -l "./assets/logo.svg"
+
+# power.config.json に自動登録
+{
+  "appInfo": {
+    "displayName": "My Code App",
+    "logoPath": "./assets/logo.svg"
+  }
+}
+```
+
+**2. Vite プロジェクトでの統合**
+```typescript
+// vite.config.ts
+export default defineConfig({
+  // ファビコン設定
+  publicDir: 'public',
+  // ...
+});
+```
+
+```html
+<!-- public/index.html -->
+<head>
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <title>My Code App</title>
+</head>
+```
+
+**3. React コンポーネントでの利用**
+```typescript
+// src/components/AppHeader.tsx
+import React from 'react';
+
+export const AppHeader: React.FC = () => {
+  return (
+    <header className="flex items-center gap-3 p-4 bg-blue-600 text-white">
+      <img 
+        src="/assets/logo.svg" 
+        alt="Code App Logo" 
+        className="w-8 h-8"
+      />
+      <h1 className="text-xl font-semibold">My Code App</h1>
+    </header>
+  );
+};
+```
+
+#### **ブランディング統合パターン**
+
+**4. TailwindCSS テーマ連携**
+```javascript
+// tailwind.config.js
+module.exports = {
+  theme: {
+    extend: {
+      colors: {
+        'code-apps': {
+          primary: '#0078D4',    // ロゴメインカラー
+          secondary: '#005A9E',  // ロゴボーダー
+          accent: '#FFD700',     // ライトニング
+        }
+      }
+    }
+  }
+}
+```
+
+**5. Loading Spinner カスタマイズ**
+```typescript
+// src/components/LoadingSpinner.tsx
+import React from 'react';
+
+export const LoadingSpinner: React.FC = () => {
+  return (
+    <div className="flex flex-col items-center justify-center p-8">
+      <div className="relative">
+        <img 
+          src="/assets/logo.svg" 
+          alt="Loading..." 
+          className="w-16 h-16 animate-pulse"
+        />
+        <div className="absolute inset-0 border-4 border-code-apps-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+      <p className="mt-4 text-code-apps-primary font-medium">Loading Code App...</p>
+    </div>
+  );
+};
+```
+
+#### **Power Apps 公開時の最適化**
+
+**6. マニフェスト最適化**
+```json
+// power.config.json (自動生成・参考)
+{
+  "appInfo": {
+    "displayName": "My Code App",
+    "description": "Modern Code App built with React + TailwindCSS",
+    "logoPath": "./assets/logo.svg",
+    "version": "1.0.0"
+  },
+  "branding": {
+    "primaryColor": "#0078D4",
+    "accentColor": "#FFD700"
+  }
+}
+```
+
+**7. 404・エラーページ統合**
+```typescript
+// src/pages/ErrorPage.tsx
+import React from 'react';
+
+export const ErrorPage: React.FC<{ error: string }> = ({ error }) => {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+      <img 
+        src="/assets/logo.svg" 
+        alt="Code App" 
+        className="w-24 h-24 mb-6 opacity-50"
+      />
+      <h1 className="text-2xl font-bold text-gray-800 mb-2">接続エラー</h1>
+      <p className="text-gray-600 mb-6 text-center max-w-md">
+        {error}
+      </p>
+      <button 
+        onClick={() => window.location.reload()}
+        className="px-6 py-2 bg-code-apps-primary text-white rounded-lg hover:bg-code-apps-secondary transition-colors"
+      >
+        再試行
+      </button>
+    </div>
+  );
+};
+```
+
+#### **開発フローでの自動統合**
+
+MVPフェーズで既に利用可能にするための設定：
+
+```bash
+# 1. プロジェクト作成時
+mkdir my-code-app
+cd my-code-app
+npm create vite@latest . -- --template react-ts
+
+# 2. アセットディレクトリ作成とロゴ配置
+mkdir -p public/assets
+# ロゴファイルをコピー
+
+# 3. Code Apps 初期化（ロゴ付き）
+pac code init --displayName "My Code App" -l "./public/assets/logo.svg"
+
+# 4. 開発開始
+npm run dev
+```
+
+これにより、MVPフェーズの開始時点で既にプロフェッショナルなロゴとブランディングが統合された状態でCode Appsの開発を開始できます。
 
 #### **Phase 2: MVP開発**
 ```
