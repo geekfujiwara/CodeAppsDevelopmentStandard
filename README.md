@@ -19,7 +19,7 @@
 
 ### 🎯 実装推奨順序 (Code Apps ファースト)
 1. **PowerProvider 実装** (最優先) - Code Apps SDK 初期化 → ローカル動作確認 → **Code Apps として** Power Apps デプロイ
-2. **基本レイアウト構築** (Fluent UI コンポーネント)
+2. **基本レイアウト構築** (shadcn/ui + TailwindCSS)
 3. **モックデータ実装** (開発・テスト用)
 4. **コネクタ統合** (Office 365 → SQL → カスタム API)
 5. **テスト環境構築** (Vitest + React Testing Library)
@@ -29,18 +29,15 @@
 
 ## 目次
 
-### 📋 開発プロセス全体 (8フェーズ)
-1. [要件理解・プロジェクト計画](#1-要件理解・プロジェクト計画)
-2. [環境構築・テンプレート選択](#2-環境構築・テンプレート選択)  
-3. [設計・アーキテクチャ](#3-設計・アーキテクチャ)
-4. [開発・実装](#4-開発・実装)
-5. [テスト・品質保証](#5-テスト・品質保証)
-6. [デプロイ・公開](#6-デプロイ・公開)
-7. [運用・保守](#7-運用・保守)
-8. [継続的改善](#8-継続的改善)
+### 📋 Code Apps 開発フロー
+1. [環境構築・PowerProvider実装](#2-環境構築・テンプレート選択)  
+2. [レイアウト・UI開発](#レイアウト・ui開発)
+3. [コネクタ統合・データ接続](#コネクタ統合・データ接続)
+4. [テスト・デプロイ](#テスト・デプロイ)
 
 ### 🎨 デザインシステム
-- [モダンデザインテンプレート](#モダンデザインテンプレート)
+- [TailwindCSS デザインシステム](#tailwindcss-デザインシステム)
+- [美しいデザインテンプレート](#美しいデザインテンプレート)
 - [UI インタラクション設計](#ui-インタラクション設計)
 - [ダークモード・ライトモード対応](#ダークモード・ライトモード対応)
 - [レスポンシブデザイン](#レスポンシブデザイン)
@@ -91,7 +88,7 @@
 #### 🎯 実際の統合方式 (Microsoft 公式)
 1. **Power Platform SDK 初期化** (`@microsoft/power-apps/app` の `initialize()`)
 2. **静的データ開発** (UI/UX 先行開発)
-3. **コネクタ統合** (`useConnector()` フックでデータ接続)
+3. **コネクタ統合** (`connector()` 関数でデータ接続)
 4. **ローカル開発** (`pac code run` でテスト)
 5. **Power Apps デプロイ** (`pac code push` で公開)
 
@@ -109,7 +106,7 @@
 
 **3. データ接続 (段階的移行)**
 - 第1段階: 静的データ (`const assets = staticAssets`)
-- 第2段階: `useConnector()` フックで Power Platform コネクタ
+- 第2段階: `connector()` 関数で Power Platform コネクタ統合
 - Office 365、SQL Database、SharePoint 等の標準コネクタ利用
 
 **4. 認証・セキュリティ**
@@ -211,6 +208,111 @@ export default App;
 - App.tsx で UI ライブラリとクエリクライアント設定
 - pages/Index.tsx でメイン機能実装
 
+### Office 365 Users コネクター統合パターン
+
+**ユーザー認証・情報取得の実装:**
+```typescript
+// src/hooks/useCurrentUser.ts
+import { useQuery } from '@tanstack/react-query';
+import { connector } from '@microsoft/power-apps';
+
+export interface UserProfile {
+  id: string;
+  displayName: string;
+  mail: string;
+  userPrincipalName: string;
+  jobTitle?: string;
+  department?: string;
+  officeLocation?: string;
+}
+
+export const useCurrentUser = () => {
+  return useQuery({
+    queryKey: ['currentUser'],
+    queryFn: async (): Promise<UserProfile> => {
+      try {
+        // Office 365 Users コネクターを使用してログインユーザー情報を取得
+        const office365Connector = connector('shared_office365users');
+        
+        // MyProfile API を使用して現在のユーザー情報を取得
+        const response = await office365Connector.invoke('MyProfile', {});
+        
+        return {
+          id: response.Id,
+          displayName: response.DisplayName,
+          mail: response.Mail,
+          userPrincipalName: response.UserPrincipalName,
+          jobTitle: response.JobTitle,
+          department: response.Department,
+          officeLocation: response.OfficeLocation,
+        };
+      } catch (error) {
+        console.error('Failed to fetch user profile:', error);
+        // フォールバック用のダミーデータ
+        return {
+          id: 'unknown',
+          displayName: 'ゲストユーザー',
+          mail: 'guest@example.com',
+          userPrincipalName: 'guest@example.com',
+        };
+      }
+    },
+    staleTime: 5 * 60 * 1000, // 5分間キャッシュ
+    retry: 2,
+  });
+};
+```
+
+**ユーザープロフィール取得の拡張版:**
+```typescript
+// src/services/UserService.ts
+import { connector } from '@microsoft/power-apps';
+
+export class UserService {
+  private static office365Connector = connector('shared_office365users');
+
+  // 現在のユーザー情報を取得
+  static async getCurrentUser(): Promise<UserProfile> {
+    const response = await this.office365Connector.invoke('MyProfile', {});
+    return this.mapUserResponse(response);
+  }
+
+  // ユーザー写真を取得
+  static async getUserPhoto(userId?: string): Promise<string | null> {
+    try {
+      const photoResponse = await this.office365Connector.invoke('UserPhoto', {
+        id: userId || 'me'
+      });
+      return photoResponse.photoUrl || null;
+    } catch (error) {
+      console.warn('User photo not available:', error);
+      return null;
+    }
+  }
+
+  // 複数ユーザー情報を検索
+  static async searchUsers(query: string): Promise<UserProfile[]> {
+    const response = await this.office365Connector.invoke('SearchUser', {
+      searchTerm: query,
+      top: 10
+    });
+    return response.value?.map(this.mapUserResponse) || [];
+  }
+
+  private static mapUserResponse(response: any): UserProfile {
+    return {
+      id: response.Id,
+      displayName: response.DisplayName,
+      mail: response.Mail,
+      userPrincipalName: response.UserPrincipalName,
+      jobTitle: response.JobTitle,
+      department: response.Department,
+      officeLocation: response.OfficeLocation,
+    };
+  }
+}
+```
+
 #### Step 2: ローカル開発・検証
 
 **開発サーバ起動:**
@@ -259,18 +361,18 @@ npm run dev
 **重要**: 
 - `dev` スクリプトで `vite` と `pac code run` を同時起動
 - `build:dev` で開発モード用ビルド
-- shadcn/ui エコシステムの依存関係を含める
+- shadcn/ui コンポーネントライブラリとTailwindCSS設定を含む
 
 #### Step 3: データコネクタ統合 (オプション)
 
 **Office 365 コネクタ例:**
 ```typescript
 // src/hooks/useOffice365.ts
-import { useConnector } from '@microsoft/power-apps';
+import { connector } from '@microsoft/power-apps';
 
 export const useOffice365 = () => {
-  const office365 = useConnector('office365users');
-  const outlook = useConnector('office365outlook');
+  const office365 = connector('shared_office365users');
+  const outlook = connector('shared_office365outlook');
   
   const getCurrentUser = async () => {
     try {
@@ -349,10 +451,10 @@ export const UserProfile = () => {
 **SQL データベース操作:**
 ```typescript
 // src/hooks/useSqlData.ts
-import { useConnector } from '@microsoft/power-apps';
+import { connector } from '@microsoft/power-apps';
 
 export const useSqlData = () => {
-  const sqlConnector = useConnector('sql');
+  const sqlConnector = connector('shared_sql');
   
   const getProjects = async (skip = 0, take = 10) => {
     try {
@@ -460,62 +562,17 @@ describe('Office 365 Connector Integration', () => {
 
 ---
 
-## 📋 開発プロセス全体 (8フェーズ)
+## 📋 Code Apps 開発フロー
 
-### 1. 要件理解・プロジェクト計画
+### 環境構築・PowerProvider実装
 
-### 1.1 要件定義プロセス
-```mermaid
-graph TD
-    A[ビジネス要件収集] --> B[機能要件定義]
-    B --> C[非機能要件定義]
-    C --> D[技術制約確認]
-    D --> E[プロジェクト計画策定]
-    E --> F[開発チーム編成]
-```
+**必須要件チェック:**
+- [ ] Power Platform 環境で Code Apps が有効化済み
+- [ ] 必要なコネクタ（Office 365 Users等）がアクセス可能
+- [ ] Power Apps Premium ライセンス確認済み
+- [ ] 開発環境のアクセス権限設定完了
 
-### 1.2 要件収集チェックリスト
-- [ ] **Power Platform 統合要件** (最優先): 必要なコネクタ、データソース、権限
-- [ ] **ビジネス目標**: アプリケーションの目的と期待される成果
-- [ ] **ユーザーペルソナ**: 主要ユーザーの特性と利用シーン
-- [ ] **機能要件**: 必要な機能の詳細仕様
-- [ ] **非機能要件**: パフォーマンス、セキュリティ、可用性
-- [ ] **UI/UX要件**: Fluent UI デザインガイドライン、ブランディング
-- [ ] **データ要件**: Office 365、SQL Database、SharePoint 等のデータソース
-- [ ] **セキュリティ要件**: Power Platform セキュリティポリシー準拠
-- [ ] **運用要件**: Power Platform 管理、ライセンス管理
-- [ ] **Power Apps 環境要件**: 環境設定、Code Apps 有効化、コネクタ設定
-
-### 1.3 プロジェクト計画テンプレート
-```markdown
-# プロジェクト名: [Code Apps アプリケーション名]
-
-## プロジェクト概要
-- **目的**: 
-- **開発対象**: Power Apps Code Apps (PCF ではありません)
-- **スコープ**: 
-- **期間**: 
-- **予算**: 
-
-## チーム構成
-- **プロダクトオーナー**: 
-- **開発リーダー**: 
-- **Code Apps 開発者**: 
-- **デザイナー**: 
-- **テスター**: 
-
-## マイルストーン
-| フェーズ | 期間 | 成果物 |
-|---------|------|--------|
-| 要件定義 | Week1-2 | 要件定義書 + Code Apps 要件 + コネクタ要件 |
-| 設計 | Week3 | 設計仕様書 + UI設計 |
-| Code Apps SDK MVP | Week4 | PowerProvider + **Code Apps として** pac デプロイ確認 |
-| 開発 | Week5-6 | フル機能実装 + コネクタ統合 |
-| テスト | Week7 | テスト完了 + Power Platform テスト |
-| デプロイ | Week8 | **Code Apps として** 本番リリース |
-```
-
-### 2. 環境構築・テンプレート選択
+### プロジェクト初期化
 
 #### 2.1 開発環境セットアップ手順
 
@@ -585,9 +642,9 @@ pac pcf init
 | レポーティング | Report Template | 帳票、エクスポート |
 | カスタム | Blank Template | 完全カスタマイズ |
 
-### 3. 設計・アーキテクチャ
+### レイアウト・UI開発
 
-#### 3.1 アーキテクチャパターン
+#### アーキテクチャパターン
 
 **推奨アーキテクチャ: Microsoft 公式パターン**
 ```
@@ -658,7 +715,7 @@ src/
 - **Open/Closed**: 拡張可能・変更閉鎖設計
 - **Interface Segregation**: 小さく特化したhooks作成
 
-### 4. 開発・実装
+### コネクタ統合・データ接続
 
 #### 4.1 開発フロー (Power Apps Code Apps)
 
@@ -723,7 +780,7 @@ graph LR
 }
 ```
 
-### 5. テスト・品質保証
+### テスト・デプロイ
 
 #### 5.1 テスト戦略
 
@@ -748,19 +805,16 @@ graph LR
 | 統合テスト | RTL | 70%以上 |
 | E2Eテスト | Playwright | 主要フロー100% |
 
-### 6. デプロイ・公開
+**Code Apps デプロイ:**
+```bash
+# ローカルテスト
+npm run dev
 
-#### 6.1 デプロイメントパイプライン
+# ビルド
+npm run build
 
-**GitHub Actions設定 (Power Apps Code Apps 用)**
-```yaml
-# .github/workflows/deploy-power-apps.yml
-name: Deploy to Power Apps
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+# Power Apps に Code Apps として公開
+pac code push
 
 jobs:
   build-and-test:
@@ -821,42 +875,1367 @@ jobs:
 - StaticAssetTracker パターンに基づく build と build:dev
 - 認証は Service Principal を使用
 
-### 7. 運用・保守
+---
 
-#### 7.1 監視・ログ戦略
+## 🎨 TailwindCSS デザインシステム
 
-**Application Insights 設定**
-```typescript
-import { ApplicationInsights } from '@microsoft/applicationinsights-web';
+### カラーシステム設計
 
-const appInsights = new ApplicationInsights({
-  config: {
-    instrumentationKey: process.env.REACT_APP_APPINSIGHTS_KEY,
-    enableAutoRouteTracking: true,
-    enableCorsCorrelation: true
-  }
-});
-
-appInsights.loadAppInsights();
-export { appInsights };
+**カスタムカラーパレット (企業ブランド対応):**
+```javascript
+// tailwind.config.js
+module.exports = {
+  theme: {
+    extend: {
+      colors: {
+        // ブランドカラー
+        brand: {
+          50: '#f0f9ff',
+          100: '#e0f2fe',
+          200: '#bae6fd',
+          300: '#7dd3fc',
+          400: '#38bdf8',
+          500: '#0ea5e9',  // メインブランドカラー
+          600: '#0284c7',
+          700: '#0369a1',
+          800: '#075985',
+          900: '#0c4a6e',
+        },
+        // セマンティックカラー
+        success: {
+          50: '#f0fdf4',
+          100: '#dcfce7',
+          500: '#22c55e',
+          600: '#16a34a',
+          900: '#14532d',
+        },
+        warning: {
+          50: '#fffbeb',
+          100: '#fef3c7',
+          500: '#f59e0b',
+          600: '#d97706',
+          900: '#78350f',
+        },
+        error: {
+          50: '#fef2f2',
+          100: '#fee2e2',
+          500: '#ef4444',
+          600: '#dc2626',
+          900: '#7f1d1d',
+        },
+        // UI カラー (shadcn/ui 準拠)
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: 'hsl(var(--card))',
+        'card-foreground': 'hsl(var(--card-foreground))',
+        popover: 'hsl(var(--popover))',
+        'popover-foreground': 'hsl(var(--popover-foreground))',
+        primary: 'hsl(var(--primary))',
+        'primary-foreground': 'hsl(var(--primary-foreground))',
+        secondary: 'hsl(var(--secondary))',
+        'secondary-foreground': 'hsl(var(--secondary-foreground))',
+        muted: 'hsl(var(--muted))',
+        'muted-foreground': 'hsl(var(--muted-foreground))',
+        accent: 'hsl(var(--accent))',
+        'accent-foreground': 'hsl(var(--accent-foreground))',
+        destructive: 'hsl(var(--destructive))',
+        'destructive-foreground': 'hsl(var(--destructive-foreground))',
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+      },
+    },
+  },
+}
 ```
 
-### 8. 継続的改善
+### タイポグラフィシステム
 
-#### 8.1 パフォーマンス分析
+**フォント階層とスケール:**
+```javascript
+// tailwind.config.js
+module.exports = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Menlo', 'Monaco', 'monospace'],
+      },
+      fontSize: {
+        'xs': ['0.75rem', { lineHeight: '1rem' }],
+        'sm': ['0.875rem', { lineHeight: '1.25rem' }],
+        'base': ['1rem', { lineHeight: '1.5rem' }],
+        'lg': ['1.125rem', { lineHeight: '1.75rem' }],
+        'xl': ['1.25rem', { lineHeight: '1.75rem' }],
+        '2xl': ['1.5rem', { lineHeight: '2rem' }],
+        '3xl': ['1.875rem', { lineHeight: '2.25rem' }],
+        '4xl': ['2.25rem', { lineHeight: '2.5rem' }],
+        '5xl': ['3rem', { lineHeight: '1' }],
+        '6xl': ['3.75rem', { lineHeight: '1' }],
+      },
+      fontWeight: {
+        light: '300',
+        normal: '400',
+        medium: '500',
+        semibold: '600',
+        bold: '700',
+        extrabold: '800',
+      },
+    },
+  },
+}
+```
 
-**Core Web Vitals 監視**
-- **LCP (Largest Contentful Paint)**: 2.5秒以下
-- **FID (First Input Delay)**: 100ms以下
-- **CLS (Cumulative Layout Shift)**: 0.1以下
+### スペーシング・グリッドシステム
+
+**一貫したスペーシング:**
+```css
+/* カスタムスペーシングクラス */
+.space-xs { @apply p-2; }      /* 8px */
+.space-sm { @apply p-3; }      /* 12px */
+.space-md { @apply p-4; }      /* 16px */
+.space-lg { @apply p-6; }      /* 24px */
+.space-xl { @apply p-8; }      /* 32px */
+.space-2xl { @apply p-12; }    /* 48px */
+
+/* マージンヘルパー */
+.margin-xs { @apply m-2; }
+.margin-sm { @apply m-3; }
+.margin-md { @apply m-4; }
+.margin-lg { @apply m-6; }
+.margin-xl { @apply m-8; }
+
+/* フレックス・グリッドヘルパー */
+.flex-center { @apply flex items-center justify-center; }
+.flex-between { @apply flex items-center justify-between; }
+.flex-start { @apply flex items-center justify-start; }
+.grid-responsive { @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6; }
+```
+
+### シャドウ・エレベーションシステム
+
+**階層表現のためのシャドウ:**
+```javascript
+// tailwind.config.js
+module.exports = {
+  theme: {
+    extend: {
+      boxShadow: {
+        'soft': '0 2px 4px rgba(0, 0, 0, 0.05)',
+        'medium': '0 4px 6px rgba(0, 0, 0, 0.07)',
+        'large': '0 10px 15px rgba(0, 0, 0, 0.1)',
+        'xl': '0 20px 25px rgba(0, 0, 0, 0.15)',
+        'inner-soft': 'inset 0 2px 4px rgba(0, 0, 0, 0.06)',
+        'glow': '0 0 20px rgba(59, 130, 246, 0.15)',
+        'glow-green': '0 0 20px rgba(34, 197, 94, 0.15)',
+        'glow-red': '0 0 20px rgba(239, 68, 68, 0.15)',
+      },
+    },
+  },
+}
+```
+
+## 🎨 美しいデザインテンプレート
+
+### カードコンポーネントテンプレート
+
+**基本カード:**
+```tsx
+// components/ui/Card.tsx
+import { cn } from "@/lib/utils";
+
+interface CardProps {
+  children: React.ReactNode;
+  className?: string;
+  variant?: 'default' | 'elevated' | 'outlined' | 'filled';
+  padding?: 'none' | 'sm' | 'md' | 'lg';
+}
+
+export const Card: React.FC<CardProps> = ({
+  children,
+  className,
+  variant = 'default',
+  padding = 'md'
+}) => {
+  return (
+    <div className={cn(
+      // 基本スタイル
+      "bg-card text-card-foreground rounded-lg border transition-all duration-200",
+      
+      // バリアント
+      {
+        'border-border shadow-soft hover:shadow-medium': variant === 'default',
+        'border-border shadow-large hover:shadow-xl': variant === 'elevated',
+        'border-2 border-primary/20 shadow-none': variant === 'outlined',
+        'bg-primary/5 border-primary/20': variant === 'filled',
+      },
+      
+      // パディング
+      {
+        'p-0': padding === 'none',
+        'p-3': padding === 'sm',
+        'p-6': padding === 'md',
+        'p-8': padding === 'lg',
+      },
+      
+      className
+    )}>
+      {children}
+    </div>
+  );
+};
+```
+
+**統計カードテンプレート:**
+```tsx
+// components/ui/StatCard.tsx
+import { LucideIcon } from 'lucide-react';
+import { Card } from '@/components/ui/Card';
+
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  change?: string;
+  changeType?: 'positive' | 'negative' | 'neutral';
+  icon: LucideIcon;
+  description?: string;
+}
+
+export const StatCard: React.FC<StatCardProps> = ({
+  title,
+  value,
+  change,
+  changeType = 'neutral',
+  icon: Icon,
+  description
+}) => {
+  return (
+    <Card variant="elevated" className="hover:scale-105 transition-transform">
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="text-3xl font-bold text-foreground">{value}</p>
+          {change && (
+            <div className={cn(
+              "text-sm font-medium flex items-center space-x-1",
+              {
+                'text-success-600': changeType === 'positive',
+                'text-error-600': changeType === 'negative',
+                'text-muted-foreground': changeType === 'neutral',
+              }
+            )}>
+              <span>{change}</span>
+            </div>
+          )}
+          {description && (
+            <p className="text-xs text-muted-foreground">{description}</p>
+          )}
+        </div>
+        <div className="p-3 bg-primary/10 rounded-lg">
+          <Icon className="h-6 w-6 text-primary" />
+        </div>
+      </div>
+    </Card>
+  );
+};
+```
+
+### データ表示テンプレート
+
+**美しいテーブルテンプレート:**
+```tsx
+// components/ui/DataTable.tsx
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Search, Filter, MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+interface Column {
+  key: string;
+  label: string;
+  sortable?: boolean;
+  render?: (value: any, row: any) => React.ReactNode;
+}
+
+interface DataTableProps {
+  data: any[];
+  columns: Column[];
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  actions?: (row: any) => React.ReactNode;
+  onRowClick?: (row: any) => void;
+}
+
+export const DataTable: React.FC<DataTableProps> = ({
+  data,
+  columns,
+  searchable = true,
+  searchPlaceholder = "検索...",
+  actions,
+  onRowClick
+}) => {
+  const [search, setSearch] = React.useState("");
+  
+  const filteredData = React.useMemo(() => {
+    if (!search) return data;
+    return data.filter(row => 
+      Object.values(row).some(value => 
+        String(value).toLowerCase().includes(search.toLowerCase())
+      )
+    );
+  }, [data, search]);
+
+  return (
+    <Card className="w-full">
+      {/* ヘッダー */}
+      {searchable && (
+        <div className="p-6 border-b border-border">
+          <div className="flex items-center space-x-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={searchPlaceholder}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10 bg-background"
+              />
+            </div>
+            <Button variant="outline" className="space-x-2">
+              <Filter className="h-4 w-4" />
+              <span>フィルター</span>
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* テーブル */}
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              {columns.map((column) => (
+                <TableHead key={column.key} className="font-semibold">
+                  {column.label}
+                </TableHead>
+              ))}
+              {actions && <TableHead className="w-12"></TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredData.map((row, index) => (
+              <TableRow 
+                key={index}
+                className={`hover:bg-muted/50 transition-colors ${
+                  onRowClick ? 'cursor-pointer' : ''
+                }`}
+                onClick={() => onRowClick?.(row)}
+              >
+                {columns.map((column) => (
+                  <TableCell key={column.key}>
+                    {column.render ? 
+                      column.render(row[column.key], row) : 
+                      row[column.key]
+                    }
+                  </TableCell>
+                ))}
+                {actions && (
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {actions(row)}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* フッター */}
+      {filteredData.length === 0 && (
+        <div className="p-12 text-center">
+          <p className="text-muted-foreground">データがありません</p>
+        </div>
+      )}
+    </Card>
+  );
+};
+```
+
+**リストアイテムテンプレート:**
+```tsx
+// components/ui/ListItem.tsx
+import { Card } from "@/components/ui/Card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ChevronRight } from "lucide-react";
+
+interface ListItemProps {
+  avatar?: string;
+  fallback?: string;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  status?: {
+    text: string;
+    variant?: 'default' | 'secondary' | 'destructive' | 'outline';
+  };
+  actions?: React.ReactNode;
+  onClick?: () => void;
+}
+
+export const ListItem: React.FC<ListItemProps> = ({
+  avatar,
+  fallback,
+  title,
+  subtitle,
+  description,
+  status,
+  actions,
+  onClick
+}) => {
+  return (
+    <Card 
+      className={`hover:shadow-medium transition-all ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+    >
+      <div className="flex items-center space-x-4">
+        {/* アバター */}
+        {(avatar || fallback) && (
+          <Avatar className="h-12 w-12">
+            <AvatarImage src={avatar} alt={title} />
+            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+              {fallback}
+            </AvatarFallback>
+          </Avatar>
+        )}
+
+        {/* コンテンツ */}
+        <div className="flex-1 space-y-1">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-foreground">{title}</h3>
+            {status && (
+              <Badge variant={status.variant || 'default'}>
+                {status.text}
+              </Badge>
+            )}
+          </div>
+          {subtitle && (
+            <p className="text-sm text-primary font-medium">{subtitle}</p>
+          )}
+          {description && (
+            <p className="text-sm text-muted-foreground">{description}</p>
+          )}
+        </div>
+
+        {/* アクション */}
+        <div className="flex items-center space-x-2">
+          {actions}
+          {onClick && (
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+};
+```
+
+### ダッシュボード・レイアウトテンプレート
+
+**統計カード（KPI表示）:**
+```tsx
+// components/ui/StatsCard.tsx
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/badge";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+
+interface StatsCardProps {
+  title: string;
+  value: string | number;
+  change?: {
+    value: number;
+    type: 'increase' | 'decrease' | 'neutral';
+    period?: string;
+  };
+  description?: string;
+  icon?: React.ReactNode;
+}
+
+export const StatsCard: React.FC<StatsCardProps> = ({
+  title,
+  value,
+  change,
+  description,
+  icon
+}) => {
+  const getTrendIcon = () => {
+    if (!change) return null;
+    switch (change.type) {
+      case 'increase':
+        return <TrendingUp className="h-4 w-4 text-green-500" />;
+      case 'decrease':
+        return <TrendingDown className="h-4 w-4 text-red-500" />;
+      default:
+        return <Minus className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
+  const getChangeColor = () => {
+    if (!change) return '';
+    switch (change.type) {
+      case 'increase':
+        return 'text-green-600 bg-green-50 dark:bg-green-900/20';
+      case 'decrease':
+        return 'text-red-600 bg-red-50 dark:bg-red-900/20';
+      default:
+        return 'text-muted-foreground bg-muted';
+    }
+  };
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <div className="flex items-baseline space-x-2">
+            <h3 className="text-2xl font-bold text-foreground">{value}</h3>
+            {change && (
+              <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getChangeColor()}`}>
+                {getTrendIcon()}
+                <span>{change.value > 0 ? '+' : ''}{change.value}%</span>
+              </div>
+            )}
+          </div>
+          {description && (
+            <p className="text-sm text-muted-foreground mt-1">{description}</p>
+          )}
+          {change?.period && (
+            <p className="text-xs text-muted-foreground mt-1">{change.period}</p>
+          )}
+        </div>
+        {icon && (
+          <div className="flex-shrink-0 p-3 bg-primary/10 rounded-lg">
+            {icon}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+};
+```
+
+**グリッドレイアウト:**
+```tsx
+// components/layout/DashboardGrid.tsx
+import { DollarSign, Users, TrendingUp, Activity } from "lucide-react";
+
+export const DashboardGrid: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {children}
+    </div>
+  );
+};
+
+// 使用例
+<DashboardGrid>
+  <StatsCard
+    title="総売上"
+    value="¥1,234,567"
+    change={{ value: 12.5, type: 'increase', period: '前月比' }}
+    icon={<DollarSign className="h-6 w-6 text-primary" />}
+  />
+  <StatsCard
+    title="新規顧客"
+    value="156"
+    change={{ value: -2.1, type: 'decrease', period: '前週比' }}
+    icon={<Users className="h-6 w-6 text-primary" />}
+  />
+</DashboardGrid>
+```
+
+**チャート・グラフエリア:**
+```tsx
+// components/ui/ChartContainer.tsx
+import { Card } from "@/components/ui/Card";
+
+interface ChartContainerProps {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+}
+
+export const ChartContainer: React.FC<ChartContainerProps> = ({
+  title,
+  subtitle,
+  children,
+  actions
+}) => {
+  return (
+    <Card className="col-span-full lg:col-span-2">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+          {subtitle && (
+            <p className="text-sm text-muted-foreground">{subtitle}</p>
+          )}
+        </div>
+        {actions && <div className="flex space-x-2">{actions}</div>}
+      </div>
+      <div className="h-64 md:h-80">
+        {children}
+      </div>
+    </Card>
+  );
+};
+```
+
+### ヘッダー・レイアウトテンプレート
+
+**アプリケーションヘッダー（プロフィール・ハンバーガーメニュー付き）:**
+```tsx
+// components/layout/AppHeader.tsx
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useTheme } from '@/hooks/useTheme';
+import { 
+  Menu, 
+  Settings, 
+  LogOut, 
+  Sun, 
+  Moon, 
+  Monitor,
+  User,
+  Bell,
+  Search
+} from 'lucide-react';
+import { Input } from '@/components/ui/input';
+
+interface AppHeaderProps {
+  onMenuToggle: () => void;
+  title: string;
+  showSearch?: boolean;
+  notifications?: number;
+}
+
+export const AppHeader: React.FC<AppHeaderProps> = ({
+  onMenuToggle,
+  title,
+  showSearch = true,
+  notifications = 0
+}) => {
+  const { data: user } = useCurrentUser();
+  const { theme, setTheme } = useTheme();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const getThemeIcon = () => {
+    switch (theme) {
+      case 'light': return <Sun className="h-4 w-4" />;
+      case 'dark': return <Moon className="h-4 w-4" />;
+      default: return <Monitor className="h-4 w-4" />;
+    }
+  };
+
+  const getUserInitials = () => {
+    if (!user?.displayName) return 'U';
+    const names = user.displayName.split(' ');
+    return names.length >= 2 
+      ? `${names[0][0]}${names[names.length - 1][0]}`
+      : names[0][0];
+  };
+
+  return (
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="flex h-16 items-center px-4 gap-4">
+        {/* ハンバーガーメニュー */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onMenuToggle}
+          className="md:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+
+        {/* アプリタイトル */}
+        <div className="flex items-center space-x-2">
+          <h1 className="text-lg font-semibold text-foreground">{title}</h1>
+        </div>
+
+        {/* 検索バー（中央） */}
+        {showSearch && (
+          <div className="flex-1 max-w-sm mx-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="検索..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-muted/50"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* 右側メニュー */}
+        <div className="flex items-center space-x-2 ml-auto">
+          {/* 通知ベル */}
+          <Button variant="ghost" size="icon" className="relative">
+            <Bell className="h-5 w-5" />
+            {notifications > 0 && (
+              <Badge 
+                variant="destructive" 
+                className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center text-xs p-0"
+              >
+                {notifications > 9 ? '9+' : notifications}
+              </Badge>
+            )}
+          </Button>
+
+          {/* テーマ切り替え */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                {getThemeIcon()}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setTheme('light')}>
+                <Sun className="mr-2 h-4 w-4" />
+                ライト
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('dark')}>
+                <Moon className="mr-2 h-4 w-4" />
+                ダーク
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('system')}>
+                <Monitor className="mr-2 h-4 w-4" />
+                システム
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* ユーザープロフィール */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={user?.photoUrl} alt={user?.displayName} />
+                  <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                    {getUserInitials()}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none">
+                    {user?.displayName || 'ゲストユーザー'}
+                  </p>
+                  <p className="text-xs leading-none text-muted-foreground">
+                    {user?.mail || 'guest@example.com'}
+                  </p>
+                  {user?.jobTitle && (
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user.jobTitle}
+                    </p>
+                  )}
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <User className="mr-2 h-4 w-4" />
+                プロフィール
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Settings className="mr-2 h-4 w-4" />
+                設定
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-red-600">
+                <LogOut className="mr-2 h-4 w-4" />
+                ログアウト
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </header>
+  );
+};
+```
+
+**完全なアプリケーションレイアウト:**
+```tsx
+// components/layout/AppLayout.tsx
+import { useState } from 'react';
+import { AppHeader } from './AppHeader';
+import { AppSidebar } from './AppSidebar';
+import { cn } from '@/lib/utils';
+
+interface AppLayoutProps {
+  children: React.ReactNode;
+  title: string;
+  sidebarItems: SidebarItem[];
+}
+
+export const AppLayout: React.FC<AppLayoutProps> = ({
+  children,
+  title,
+  sidebarItems
+}) => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* ヘッダー */}
+      <AppHeader
+        title={title}
+        onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+      />
+
+      <div className="flex h-[calc(100vh-4rem)]">
+        {/* サイドバー（デスクトップ） */}
+        <aside className={cn(
+          "hidden md:flex flex-col border-r border-border bg-card transition-all duration-300",
+          sidebarCollapsed ? "w-16" : "w-64"
+        )}>
+          <AppSidebar
+            items={sidebarItems}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          />
+        </aside>
+
+        {/* モバイルサイドバーオーバーレイ */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <div 
+              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+              onClick={() => setSidebarOpen(false)}
+            />
+            <aside className="absolute left-0 top-0 h-full w-64 border-r border-border bg-card">
+              <AppSidebar
+                items={sidebarItems}
+                onItemSelect={() => setSidebarOpen(false)}
+              />
+            </aside>
+          </div>
+        )}
+
+        {/* メインコンテンツ */}
+        <main className="flex-1 overflow-auto">
+          <div className="container mx-auto p-6">
+            {children}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+};
+```
+
+**レスポンシブサイドバー:**
+```tsx
+// components/layout/AppSidebar.tsx
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+
+export interface SidebarItem {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  href?: string;
+  badge?: string;
+  children?: SidebarItem[];
+}
+
+interface AppSidebarProps {
+  items: SidebarItem[];
+  collapsed?: boolean;
+  activeItem?: string;
+  onItemSelect?: (id: string) => void;
+  onToggleCollapse?: () => void;
+}
+
+export const AppSidebar: React.FC<AppSidebarProps> = ({
+  items,
+  collapsed = false,
+  activeItem,
+  onItemSelect,
+  onToggleCollapse
+}) => {
+  const [expandedItems, setExpandedItems] = useState<string[]>([]);
+
+  const toggleExpanded = (itemId: string) => {
+    setExpandedItems(prev =>
+      prev.includes(itemId)
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    );
+  };
+
+  const handleItemClick = (item: SidebarItem) => {
+    if (item.children) {
+      toggleExpanded(item.id);
+    } else {
+      onItemSelect?.(item.id);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* サイドバーヘッダー */}
+      <div className="flex items-center justify-between p-4 border-b border-border">
+        {!collapsed && (
+          <h2 className="text-lg font-semibold text-foreground">メニュー</h2>
+        )}
+        {onToggleCollapse && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleCollapse}
+            className="h-8 w-8"
+          >
+            {collapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </Button>
+        )}
+      </div>
+
+      {/* ナビゲーションメニュー */}
+      <ScrollArea className="flex-1">
+        <nav className="space-y-2 p-4">
+          {items.map((item) => (
+            <SidebarMenuItem
+              key={item.id}
+              item={item}
+              collapsed={collapsed}
+              isActive={activeItem === item.id}
+              isExpanded={expandedItems.includes(item.id)}
+              onSelect={() => handleItemClick(item)}
+            />
+          ))}
+        </nav>
+      </ScrollArea>
+    </div>
+  );
+};
+
+const SidebarMenuItem: React.FC<{
+  item: SidebarItem;
+  collapsed: boolean;
+  isActive: boolean;
+  isExpanded: boolean;
+  onSelect: () => void;
+}> = ({ item, collapsed, isActive, isExpanded, onSelect }) => {
+  return (
+    <div>
+      <Button
+        variant={isActive ? "default" : "ghost"}
+        className={cn(
+          "w-full justify-start space-x-3 h-10",
+          collapsed && "px-3 justify-center"
+        )}
+        onClick={onSelect}
+      >
+        <span className="flex-shrink-0">{item.icon}</span>
+        {!collapsed && (
+          <>
+            <span className="truncate flex-1 text-left">{item.label}</span>
+            {item.badge && (
+              <Badge variant="secondary" className="text-xs">
+                {item.badge}
+              </Badge>
+            )}
+          </>
+        )}
+      </Button>
+
+      {/* サブメニュー */}
+      {!collapsed && item.children && isExpanded && (
+        <div className="ml-6 mt-2 space-y-1">
+          {item.children.map((child) => (
+            <Button
+              key={child.id}
+              variant="ghost"
+              className="w-full justify-start text-sm h-8"
+              onClick={() => onSelect()}
+            >
+              <span className="flex-shrink-0 mr-3">{child.icon}</span>
+              <span className="truncate">{child.label}</span>
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+**レイアウト使用例（メインページ）:**
+```tsx
+// src/pages/Index.tsx - 完全なレイアウト統合例
+import { AppLayout } from '@/components/layout/AppLayout';
+import { DashboardGrid } from '@/components/layout/DashboardGrid';
+import { StatsCard } from '@/components/ui/StatsCard';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { 
+  Home, 
+  Users, 
+  Settings, 
+  FileText, 
+  BarChart,
+  DollarSign,
+  TrendingUp 
+} from 'lucide-react';
+
+const sidebarItems = [
+  {
+    id: 'dashboard',
+    label: 'ダッシュボード',
+    icon: <Home className="h-4 w-4" />,
+  },
+  {
+    id: 'users',
+    label: 'ユーザー管理',
+    icon: <Users className="h-4 w-4" />,
+    badge: '12',
+  },
+  {
+    id: 'reports',
+    label: 'レポート',
+    icon: <BarChart className="h-4 w-4" />,
+    children: [
+      {
+        id: 'sales-report',
+        label: '売上レポート',
+        icon: <DollarSign className="h-4 w-4" />,
+      },
+      {
+        id: 'analytics',
+        label: 'アナリティクス',
+        icon: <TrendingUp className="h-4 w-4" />,
+      }
+    ]
+  },
+  {
+    id: 'documents',
+    label: 'ドキュメント',
+    icon: <FileText className="h-4 w-4" />,
+  },
+  {
+    id: 'settings',
+    label: '設定',
+    icon: <Settings className="h-4 w-4" />,
+  },
+];
+
+export default function Index() {
+  const { data: user, isLoading } = useCurrentUser();
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-screen">読み込み中...</div>;
+  }
+
+  return (
+    <AppLayout title="Power Apps Code Apps" sidebarItems={sidebarItems}>
+      {/* ウェルカムメッセージ */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-foreground mb-2">
+          おかえりなさい、{user?.displayName || 'ゲスト'}さん
+        </h1>
+        <p className="text-muted-foreground">
+          今日も一日よろしくお願いします。
+        </p>
+      </div>
+
+      {/* KPIダッシュボード */}
+      <DashboardGrid>
+        <StatsCard
+          title="総売上"
+          value="¥1,234,567"
+          change={{ value: 12.5, type: 'increase', period: '前月比' }}
+          icon={<DollarSign className="h-6 w-6 text-primary" />}
+        />
+        <StatsCard
+          title="新規顧客"
+          value="156"
+          change={{ value: -2.1, type: 'decrease', period: '前週比' }}
+          icon={<Users className="h-6 w-6 text-primary" />}
+        />
+        <StatsCard
+          title="完了タスク"
+          value="89%"
+          change={{ value: 5.3, type: 'increase', period: '今月' }}
+          icon={<TrendingUp className="h-6 w-6 text-primary" />}
+        />
+        <StatsCard
+          title="アクティブユーザー"
+          value="1,423"
+          description="オンライン: 234"
+          icon={<BarChart className="h-6 w-6 text-primary" />}
+        />
+      </DashboardGrid>
+
+      {/* その他のコンテンツ */}
+      <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 追加のダッシュボードコンテンツ */}
+      </div>
+    </AppLayout>
+  );
+}
+```
+
+**App.tsx での統合:**
+```tsx
+// src/App.tsx - レイアウト統合版
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "@/components/theme/ThemeContext";
+import Index from "./pages/Index";
+
+const queryClient = new QueryClient();
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <Index />
+      </TooltipProvider>
+    </ThemeProvider>
+  </QueryClientProvider>
+);
+
+export default App;
+```
+
+### ナビゲーションテンプレート
+
+**美しいサイドバーナビゲーション:**
+```tsx
+// components/layout/Sidebar.tsx
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { LucideIcon } from "lucide-react";
+
+interface SidebarItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  href?: string;
+  badge?: string;
+  children?: SidebarItem[];
+}
+
+interface SidebarProps {
+  items: SidebarItem[];
+  activeItem: string;
+  onItemSelect: (id: string) => void;
+  collapsed?: boolean;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  items,
+  activeItem,
+  onItemSelect,
+  collapsed = false
+}) => {
+  return (
+    <div className={cn(
+      "bg-card border-r border-border transition-all duration-300",
+      collapsed ? "w-16" : "w-64"
+    )}>
+      <ScrollArea className="h-full">
+        <nav className="space-y-2 p-4">
+          {items.map((item) => (
+            <SidebarItem
+              key={item.id}
+              item={item}
+              isActive={activeItem === item.id}
+              onSelect={onItemSelect}
+              collapsed={collapsed}
+            />
+          ))}
+        </nav>
+      </ScrollArea>
+    </div>
+  );
+};
+
+const SidebarItem: React.FC<{
+  item: SidebarItem;
+  isActive: boolean;
+  onSelect: (id: string) => void;
+  collapsed: boolean;
+}> = ({ item, isActive, onSelect, collapsed }) => {
+  const Icon = item.icon;
+  
+  return (
+    <Button
+      variant={isActive ? "default" : "ghost"}
+      className={cn(
+        "w-full justify-start space-x-3",
+        collapsed && "px-3"
+      )}
+      onClick={() => onSelect(item.id)}
+    >
+      <Icon className="h-4 w-4 flex-shrink-0" />
+      {!collapsed && (
+        <>
+          <span className="truncate">{item.label}</span>
+          {item.badge && (
+            <span className="ml-auto bg-primary/20 text-primary text-xs px-2 py-1 rounded-full">
+              {item.badge}
+            </span>
+          )}
+        </>
+      )}
+    </Button>
+  );
+};
+```
+
+### フォームテンプレート
+
+**美しいフォームレイアウト:**
+```tsx
+// components/ui/FormTemplate.tsx
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+
+interface FormFieldProps {
+  label: string;
+  error?: string;
+  required?: boolean;
+  children: React.ReactNode;
+}
+
+export const FormField: React.FC<FormFieldProps> = ({
+  label,
+  error,
+  required,
+  children
+}) => {
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm font-medium text-foreground">
+        {label}
+        {required && <span className="text-error-500 ml-1">*</span>}
+      </Label>
+      {children}
+      {error && (
+        <p className="text-sm text-error-500">{error}</p>
+      )}
+    </div>
+  );
+};
+
+export const FormTemplate: React.FC<{
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  actions: React.ReactNode;
+}> = ({ title, description, children, actions }) => {
+  return (
+    <Card variant="elevated" padding="lg" className="max-w-2xl mx-auto">
+      <div className="space-y-6">
+        {/* ヘッダー */}
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-foreground">{title}</h2>
+          {description && (
+            <p className="text-muted-foreground">{description}</p>
+          )}
+        </div>
+        
+        {/* フォームフィールド */}
+        <div className="space-y-6">
+          {children}
+        </div>
+        
+        {/* アクション */}
+        <div className="flex justify-end space-x-3 pt-4 border-t border-border">
+          {actions}
+        </div>
+      </div>
+    </Card>
+  );
+};
+```
 
 ## 🎨 UI インタラクション設計
 
-### モーダル利用ガイドライン
+### モーダル優先設計ガイドライン
 
-**基本方針: ポップアップではなくモーダルを使用**
+**🚨 重要方針: ポップアップ完全禁止、モーダル必須使用**
 
-Code Apps では、ユーザー体験の一貫性とアクセシビリティを向上させるため、ブラウザのポップアップではなく shadcn/ui のモーダルコンポーネントを使用します。
+Code Apps では、ユーザー体験の一貫性、アクセシビリティ、デザインの統一性を確保するため、**すべてのポップアップ系UIを禁止**し、TailwindCSS + shadcn/ui ベースの美しいモーダルコンポーネントを必須使用します。
+
+**❌ 絶対に使用禁止:**
+- `window.alert()`
+- `window.confirm()`
+- `window.prompt()`
+- ブラウザネイティブダイアログ
+- サードパーティポップアップライブラリ
+
+**✅ 必須使用:**
+- shadcn/ui Dialog コンポーネント
+- TailwindCSS による美しいスタイリング
+- アクセシブルなモーダル実装
+- 一貫したデザインシステム
 
 #### モーダル実装例
 
@@ -961,29 +2340,40 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 };
 ```
 
-**フォームモーダルの実装例:**
+**美しいフォームモーダルテンプレート:**
 ```typescript
 // components/FormModal.tsx
-import { Modal } from "@/components/ui/modal";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { useForm } from "react-hook-form";
+import { User, Mail, Phone } from "lucide-react";
 
 interface FormModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: any) => void;
   title: string;
+  description?: string;
 }
 
 export const FormModal: React.FC<FormModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
-  title
+  title,
+  description
 }) => {
-  const { register, handleSubmit, reset } = useForm();
+  const { register, handleSubmit, reset, formState: { errors } } = useForm();
 
   const handleFormSubmit = (data: any) => {
     onSubmit(data);
@@ -992,41 +2382,202 @@ export const FormModal: React.FC<FormModalProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={title}
-      actions={
-        <>
-          <Button variant="outline" onClick={onClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md bg-card border-border shadow-xl">
+        <DialogHeader className="space-y-3">
+          <DialogTitle className="text-xl font-semibold text-foreground flex items-center space-x-2">
+            <User className="h-5 w-5 text-primary" />
+            <span>{title}</span>
+          </DialogTitle>
+          {description && (
+            <DialogDescription className="text-muted-foreground">
+              {description}
+            </DialogDescription>
+          )}
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+          {/* 名前フィールド */}
+          <div className="space-y-2">
+            <Label htmlFor="name" className="text-sm font-medium text-foreground">
+              名前 <Badge variant="destructive" className="ml-1 text-xs">必須</Badge>
+            </Label>
+            <div className="relative">
+              <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="name"
+                {...register("name", { required: "名前は必須です" })}
+                placeholder="田中太郎"
+                className="pl-10 bg-background border-input focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            {errors.name && (
+              <p className="text-sm text-error-500">{errors.name.message}</p>
+            )}
+          </div>
+
+          {/* メールフィールド */}
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-sm font-medium text-foreground">
+              メールアドレス <Badge variant="destructive" className="ml-1 text-xs">必須</Badge>
+            </Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="email"
+                type="email"
+                {...register("email", { 
+                  required: "メールアドレスは必須です",
+                  pattern: {
+                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                    message: "有効なメールアドレスを入力してください"
+                  }
+                })}
+                placeholder="tanaka@example.com"
+                className="pl-10 bg-background border-input focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            {errors.email && (
+              <p className="text-sm text-error-500">{errors.email.message}</p>
+            )}
+          </div>
+
+          {/* 電話番号フィールド */}
+          <div className="space-y-2">
+            <Label htmlFor="phone" className="text-sm font-medium text-foreground">
+              電話番号 <Badge variant="secondary" className="ml-1 text-xs">任意</Badge>
+            </Label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="phone"
+                {...register("phone")}
+                placeholder="03-1234-5678"
+                className="pl-10 bg-background border-input focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+          </div>
+        </form>
+
+        <DialogFooter className="space-x-2 pt-4">
+          <Button 
+            variant="outline" 
+            onClick={onClose}
+            className="border-border hover:bg-secondary"
+          >
             キャンセル
           </Button>
-          <Button type="submit" form="modal-form">
+          <Button 
+            type="submit" 
+            onClick={handleSubmit(handleFormSubmit)}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all"
+          >
             保存
           </Button>
-        </>
-      }
-    >
-      <form id="modal-form" onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">名前</Label>
-          <Input
-            id="name"
-            {...register("name", { required: true })}
-            placeholder="名前を入力してください"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="email">メールアドレス</Label>
-          <Input
-            id="email"
-            type="email"
-            {...register("email", { required: true })}
-            placeholder="email@example.com"
-          />
-        </div>
-      </form>
-    </Modal>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+```
+
+**高度な確認モーダルテンプレート:**
+```typescript
+// components/AdvancedConfirmModal.tsx
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { AlertTriangle, Trash2, CheckCircle, XCircle } from "lucide-react";
+
+interface ConfirmModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  type?: 'danger' | 'warning' | 'info' | 'success';
+  confirmText?: string;
+  cancelText?: string;
+}
+
+export const AdvancedConfirmModal: React.FC<ConfirmModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  type = 'info',
+  confirmText = '確認',
+  cancelText = 'キャンセル'
+}) => {
+  const iconMap = {
+    danger: Trash2,
+    warning: AlertTriangle,
+    info: CheckCircle,
+    success: CheckCircle,
+  };
+
+  const colorMap = {
+    danger: 'text-error-500',
+    warning: 'text-warning-500',
+    info: 'text-primary',
+    success: 'text-success-500',
+  };
+
+  const bgColorMap = {
+    danger: 'bg-error-50 dark:bg-error-950',
+    warning: 'bg-warning-50 dark:bg-warning-950',
+    info: 'bg-primary/10',
+    success: 'bg-success-50 dark:bg-success-950',
+  };
+
+  const Icon = iconMap[type];
+
+  const handleConfirm = () => {
+    onConfirm();
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md bg-card border-border shadow-xl">
+        <DialogHeader className="space-y-4">
+          <div className={`mx-auto w-12 h-12 rounded-full ${bgColorMap[type]} flex items-center justify-center`}>
+            <Icon className={`h-6 w-6 ${colorMap[type]}`} />
+          </div>
+          <DialogTitle className="text-center text-lg font-semibold text-foreground">
+            {title}
+          </DialogTitle>
+          <DialogDescription className="text-center text-muted-foreground">
+            {message}
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogFooter className="space-x-2 pt-4">
+          <Button 
+            variant="outline" 
+            onClick={onClose}
+            className="flex-1 border-border hover:bg-secondary"
+          >
+            {cancelText}
+          </Button>
+          <Button 
+            variant={type === 'danger' ? 'destructive' : 'default'}
+            onClick={handleConfirm}
+            className="flex-1 shadow-md hover:shadow-lg transition-all"
+          >
+            {confirmText}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 ```
@@ -3156,6 +4707,372 @@ export function usePowerAppsData<T>(
 
   return { data, loading, error, refresh };
 }
+```
+
+### アニメーション・インタラクションテンプレート
+
+**スムーズなトランジション設定:**
+```tsx
+// tailwind.config.js の animation 拡張
+module.exports = {
+  theme: {
+    extend: {
+      animation: {
+        'fade-in': 'fadeIn 0.3s ease-in-out',
+        'slide-in': 'slideIn 0.3s ease-out',
+        'scale-in': 'scaleIn 0.2s ease-out',
+        'bounce-gentle': 'bounceGentle 0.6s ease-out',
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        slideIn: {
+          '0%': { transform: 'translateY(-10px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        scaleIn: {
+          '0%': { transform: 'scale(0.95)', opacity: '0' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+        bounceGentle: {
+          '0%, 20%, 50%, 80%, 100%': { transform: 'translateY(0)' },
+          '40%': { transform: 'translateY(-4px)' },
+          '60%': { transform: 'translateY(-2px)' },
+        },
+      },
+    },
+  },
+};
+```
+
+**インタラクティブボタンテンプレート:**
+```tsx
+// components/ui/InteractiveButton.tsx
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
+
+interface InteractiveButtonProps {
+  children: React.ReactNode;
+  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
+  size?: 'default' | 'sm' | 'lg' | 'icon';
+  loading?: boolean;
+  success?: boolean;
+  error?: boolean;
+  onClick?: () => void;
+  className?: string;
+}
+
+export const InteractiveButton: React.FC<InteractiveButtonProps> = ({
+  children,
+  loading = false,
+  success = false,
+  error = false,
+  className,
+  ...props
+}) => {
+  return (
+    <Button
+      className={cn(
+        "transition-all duration-300",
+        "hover:scale-105 active:scale-95",
+        "focus:ring-2 focus:ring-primary focus:ring-offset-2",
+        success && "bg-green-500 hover:bg-green-600 text-white",
+        error && "bg-red-500 hover:bg-red-600 text-white",
+        loading && "opacity-70 cursor-not-allowed",
+        className
+      )}
+      disabled={loading}
+      {...props}
+    >
+      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {children}
+    </Button>
+  );
+};
+```
+
+**ホバーカードテンプレート:**
+```tsx
+// components/ui/HoverCard.tsx
+import { Card } from "@/components/ui/Card";
+import { cn } from "@/lib/utils";
+
+interface HoverCardProps {
+  children: React.ReactNode;
+  className?: string;
+  elevated?: boolean;
+  interactive?: boolean;
+}
+
+export const HoverCard: React.FC<HoverCardProps> = ({
+  children,
+  className,
+  elevated = false,
+  interactive = true
+}) => {
+  return (
+    <Card
+      className={cn(
+        "transition-all duration-300 ease-out",
+        interactive && [
+          "hover:shadow-large hover:scale-[1.02]",
+          "hover:border-primary/20",
+          "cursor-pointer",
+        ],
+        elevated && "shadow-medium",
+        className
+      )}
+    >
+      {children}
+    </Card>
+  );
+};
+```
+
+**ローディング状態テンプレート:**
+```tsx
+// components/ui/LoadingStates.tsx
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card } from "@/components/ui/Card";
+
+export const TableSkeleton: React.FC = () => (
+  <Card>
+    <div className="space-y-4">
+      <Skeleton className="h-8 w-full" />
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex space-x-4">
+          <Skeleton className="h-12 w-12 rounded-full" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-4 w-[250px]" />
+            <Skeleton className="h-4 w-[200px]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  </Card>
+);
+
+export const CardSkeleton: React.FC = () => (
+  <Card>
+    <Skeleton className="h-48 w-full mb-4" />
+    <Skeleton className="h-4 w-[250px] mb-2" />
+    <Skeleton className="h-4 w-[200px]" />
+  </Card>
+);
+```
+
+### Office 365 レイアウト統合 ベストプラクティス
+
+**認証・レイアウト統合指針:**
+1. **Office 365 Users コネクター**: ログイン時の自動ユーザー情報取得
+2. **レスポンシブヘッダー**: プロフィール表示、通知、テーマ切り替え
+3. **ハンバーガーメニュー**: モバイル対応サイドバー
+4. **ユーザー写真取得**: フォールバック対応
+5. **エラーハンドリング**: コネクター失敗時の適切な処理
+
+**コネクター設定（Power Apps 側）:**
+```json
+// Power Apps での Office 365 Users コネクター設定
+{
+  "connectors": [
+    {
+      "name": "Office 365 Users",
+      "id": "shared_office365users",
+      "permissions": [
+        "User.Read",
+        "User.ReadBasic.All"
+      ]
+    }
+  ]
+}
+```
+
+**拡張ユーザーフック（写真取得対応）:**
+```tsx
+// src/hooks/useCurrentUser.ts - 拡張版
+import { useQuery, useQueries } from '@tanstack/react-query';
+import { UserService } from '@/services/UserService';
+
+export const useCurrentUserWithPhoto = () => {
+  const [userQuery, photoQuery] = useQueries({
+    queries: [
+      {
+        queryKey: ['currentUser'],
+        queryFn: () => UserService.getCurrentUser(),
+        staleTime: 5 * 60 * 1000,
+      },
+      {
+        queryKey: ['userPhoto'],
+        queryFn: () => UserService.getUserPhoto(),
+        staleTime: 30 * 60 * 1000, // 写真は30分キャッシュ
+        enabled: false, // ユーザー情報取得後に実行
+      }
+    ]
+  });
+
+  // ユーザー情報取得完了後、写真を取得
+  React.useEffect(() => {
+    if (userQuery.data && !photoQuery.data && !photoQuery.isFetching) {
+      photoQuery.refetch();
+    }
+  }, [userQuery.data]);
+
+  return {
+    user: userQuery.data,
+    photo: photoQuery.data,
+    isLoading: userQuery.isLoading,
+    error: userQuery.error || photoQuery.error,
+  };
+};
+```
+
+**エラーバウンダリー:**
+```tsx
+// src/components/ErrorBoundary.tsx
+import { Component, ReactNode } from 'react';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+export class ErrorBoundary extends Component<
+  { children: ReactNode },
+  ErrorBoundaryState
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('Office 365 コネクター エラー:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+          <Card className="max-w-md w-full text-center p-6">
+            <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">接続エラーが発生しました</h2>
+            <p className="text-muted-foreground mb-4">
+              Office 365 への接続に問題が発生しています。
+            </p>
+            <Button 
+              onClick={() => window.location.reload()}
+              className="space-x-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>再試行</span>
+            </Button>
+          </Card>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+```
+
+**完全なアプリ構成例:**
+```tsx
+// src/main.tsx - 完全版
+import { createRoot } from 'react-dom/client';
+import App from './App.tsx';
+import './index.css';
+import { StrictMode } from 'react';
+import PowerProvider from './PowerProvider.tsx';
+import { ErrorBoundary } from './components/ErrorBoundary.tsx';
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <ErrorBoundary>
+      <PowerProvider>
+        <App />
+      </PowerProvider>
+    </ErrorBoundary>
+  </StrictMode>
+);
+```
+
+### Code Apps 設計システム ベストプラクティス
+
+**Power Apps Code Apps 統合指針:**
+1. **Office 365 統合**: ユーザー情報自動取得、写真表示、認証不要
+2. **shadcn/ui + TailwindCSS**: 一貫したデザインシステム
+3. **レスポンシブレイアウト**: ヘッダー・サイドバー・メインコンテナ構成
+4. **ダークモード対応**: システム・ライト・ダーク自動切り替え
+5. **モーダル中心設計**: ブラウザポップアップ完全禁止
+
+**推奨コンポーネント構成例:**
+```tsx
+// components/index.ts - 美しい設計システムエクスポート
+export { Card, CardHeader, CardContent, CardFooter } from './ui/Card';
+export { Button, InteractiveButton } from './ui/button';
+export { Input, Label, Textarea } from './ui/form';
+export { Dialog, DialogContent, DialogHeader } from './ui/dialog';
+export { DataTable, ListItem } from './ui/DataTable';
+export { StatsCard, ChartContainer } from './ui/StatsCard';
+export { Sidebar, DashboardGrid } from './layout';
+export { ThemeProvider, useTheme } from './theme/ThemeContext';
+export { Modal, FormModal, ConfirmModal } from './ui/modal';
+export { HoverCard, LoadingStates } from './ui/InteractiveComponents';
+```
+
+**スタイリング命名規則:**
+- **色**: `text-foreground`, `bg-background`, `border-border`
+- **サイズ**: `text-sm/base/lg`, `p-4`, `space-x-2`
+- **状態**: `hover:`, `focus:`, `active:`, `disabled:`
+- **レスポンシブ**: `md:`, `lg:`, `xl:`
+- **ダークモード**: `dark:bg-gray-800`, `dark:text-white`
+
+**コンポーネント設計原則:**
+```tsx
+// 正しいコンポーネント設計例
+export const BeautifulComponent: React.FC<Props> = ({
+  variant = 'default',
+  size = 'medium',
+  children,
+  className,
+  ...props
+}) => {
+  return (
+    <div
+      className={cn(
+        // ベーススタイル
+        "rounded-lg border transition-all duration-300",
+        // バリアント
+        variant === 'primary' && "bg-primary text-primary-foreground",
+        variant === 'secondary' && "bg-secondary text-secondary-foreground",
+        // サイズ
+        size === 'small' && "p-2 text-sm",
+        size === 'medium' && "p-4 text-base",
+        size === 'large' && "p-6 text-lg",
+        // インタラクション
+        "hover:shadow-medium focus:outline-none focus:ring-2 focus:ring-primary",
+        // ダークモード
+        "dark:border-gray-700 dark:bg-gray-800",
+        // カスタムクラス
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+};
 ```
 
 #### コンテキストプロバイダー
