@@ -3,17 +3,29 @@
 
 ## 概要
 
-この標準は、Microsoft公式ドキュメント（[Power Apps code apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)）と[PowerAppsCodeAppsリポジトリ](https://github.com/microsoft/PowerAppsCodeApps)のベストプラクティスに基づき、**要件理解から公開まで**の包括的な開発プロセスと、**モダンなデザインテンプレート**を含む開発指針です。
+この標準は、**Power Apps Code Apps** （PCF ではありません）のための開発指針です。Microsoft公式ドキュメント（[Power Apps code apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)）と[PowerAppsCodeAppsリポジトリ](https://github.com/microsoft/PowerAppsCodeApps)のベストプラクティスに基づき、**要件理解から公開まで**の包括的な開発プロセスと、**モダンなデザインテンプレート**を含む開発指針です。
 
-### 🎯 実装推奨順序 (Power Apps SDK ファースト)
-1. **PowerProvider 実装** (最優先) - SDK 初期化 → ローカル動作確認 → Power Apps デプロイ
+### 🚨 重要: PCF と Code Apps の違い
+
+| 項目 | **Power Apps Code Apps** (本標準) | **PCF** (Power Apps Component Framework) |
+|------|-----------------------------------|-------------------------------------------|
+| **用途** | **完全なアプリケーション** | 単一コンポーネント |
+| **開発方式** | React フルスタックアプリ | TypeScript コンポーネント |
+| **公開方法** | **`pac code push`** | `pac pcf push` |
+| **実行環境** | Power Apps 内でアプリとして動作 | Power Apps 内でコンポーネントとして埋め込み |
+| **SDK** | `@microsoft/power-apps` | `powerapps-component-framework` |
+
+> **この標準は Power Apps Code Apps 専用です。PCF コンポーネント開発ではありません。**
+
+### 🎯 実装推奨順序 (Code Apps ファースト)
+1. **PowerProvider 実装** (最優先) - Code Apps SDK 初期化 → ローカル動作確認 → **Code Apps として** Power Apps デプロイ
 2. **基本レイアウト構築** (Fluent UI コンポーネント)
 3. **モックデータ実装** (開発・テスト用)
 4. **コネクタ統合** (Office 365 → SQL → カスタム API)
 5. **テスト環境構築** (Vitest + React Testing Library)
 6. **CI/CD パイプライン** (GitHub Actions + pac CLI)
 
-> **重要**: `@microsoft/power-apps` SDK の初期化が成功することを最初に確認してください。SDK が正常に動作しない場合、Power Apps 内で利用できません。
+> **重要**: `@microsoft/power-apps` SDK は **Code Apps 専用** です。PCF 用ではありません。SDK が正常に動作しない場合、Power Apps 内で **Code Apps として** 利用できません。
 
 ## 目次
 
@@ -29,6 +41,8 @@
 
 ### 🎨 デザインシステム
 - [モダンデザインテンプレート](#モダンデザインテンプレート)
+- [UI インタラクション設計](#ui-インタラクション設計)
+- [ダークモード・ライトモード対応](#ダークモード・ライトモード対応)
 - [レスポンシブデザイン](#レスポンシブデザイン)
 - [アクセシビリティ](#アクセシビリティ)
 
@@ -43,7 +57,7 @@
 - [デバッグ手法](#デバッグ手法)
 - [AI活用ガイドライン](#ai活用ガイドライン)
 
-### ⚡ Power Apps Code Apps 統合 (最重要)
+### ⚡ Power Apps Code Apps 統合 (最重要・PCF ではありません)
 - [プラットフォーム概要](#power-apps-code-apps-プラットフォーム概要)
 - [MVP 実装ガイド](#mvp-実装ガイド)
 - [コネクタ利用パターン](#サンプル実装)
@@ -70,7 +84,9 @@
 
 ### Power Apps Code Apps プラットフォーム概要
 
-Power Apps Code Apps は、React アプリケーションを Power Platform 内で動作させるためのプラットフォームです。独自の HTTP サーバやカスタム認証は不要で、`@microsoft/power-apps` SDK を使用してプラットフォーム機能を利用します。
+**Power Apps Code Apps** は、React アプリケーションを **完全なアプリケーションとして** Power Platform 内で動作させるためのプラットフォームです。PCF (コンポーネント開発) ではなく、**アプリ全体を Code Apps として公開** します。独自の HTTP サーバやカスタム認証は不要で、`@microsoft/power-apps` SDK を使用してプラットフォーム機能を利用します。
+
+> **注意**: これは PCF コンポーネント開発ではありません。React アプリを **Power Apps Code Apps** として公開する開発です。
 
 #### 🎯 実際の統合方式 (Microsoft 公式)
 1. **Power Platform SDK 初期化** (`@microsoft/power-apps/app` の `initialize()`)
@@ -224,12 +240,18 @@ npm run dev
   },
   "dependencies": {
     "@microsoft/power-apps": "^0.3.1",
-    "@radix-ui/react-*": "^1.x.x",
+    "@radix-ui/react-dialog": "^1.x.x",
+    "@radix-ui/react-dropdown-menu": "^1.x.x",
+    "@radix-ui/react-avatar": "^1.x.x",
     "@tanstack/react-query": "^5.x.x",
+    "react-hook-form": "^7.x.x",
     "class-variance-authority": "^0.7.x",
     "clsx": "^2.x.x",
     "lucide-react": "^0.x.x",
     "tailwind-merge": "^2.x.x"
+  },
+  "devDependencies": {
+    "tailwindcss-animate": "^1.x.x"
   }
 }
 ```
@@ -264,19 +286,30 @@ export const useOffice365 = () => {
 };
 ```
 
-#### Step 4: Power Apps 環境デプロイ
+#### Step 4: Power Apps 環境デプロイ (Code Apps として)
 
-**デプロイコマンド:**
+**重要: PCF ではなく Code Apps としてデプロイ**
+
+**Code Apps デプロイコマンド:**
 ```bash
-# Power Apps 環境にプッシュ
+# Power Apps 環境に Code Apps として公開
 pac code push
+```
+
+**❌ 間違い (PCF用コマンド):**
+```bash
+# これは PCF 用です。Code Apps では使用しないでください
+pac pcf push  
 ```
 
 **成功時の出力例:**
 ```
 Successfully deployed Code App to Power Apps environment
 App URL: https://apps.powerapps.com/play/[app-id]
+Your Code App is now available as a full application in Power Apps
 ```
+
+> **確認ポイント**: デプロイ後、Power Apps で **アプリ一覧** に表示されます（コンポーネントライブラリではありません）。
 
 ### サンプル実装
 
@@ -361,11 +394,14 @@ const users = await office365.SearchUser(searchTerm, 50);
 - [ ] React アプリが正常に表示される
 - [ ] ブラウザコンソールにエラーが出ない
 
-**Power Apps デプロイ検証:**
-- [ ] `pac code push` が成功する
+**Code Apps デプロイ検証:**
+- [ ] `pac code push` で **Code Apps として** デプロイが成功する
+- [ ] Power Apps の **アプリ一覧** に表示される (コンポーネントライブラリではない)
 - [ ] Power Apps URL でアクセスできる
-- [ ] Power Platform 環境内で正常動作する
+- [ ] Power Platform 環境内で **完全なアプリケーションとして** 正常動作する
 - [ ] コネクタが正常に接続される (使用時)
+
+> **確認方法**: [make.powerapps.com](https://make.powerapps.com) → アプリ → あなたの Code Apps が一覧に表示される
 
 #### テストケース実装
 
@@ -452,10 +488,11 @@ graph TD
 
 ### 1.3 プロジェクト計画テンプレート
 ```markdown
-# プロジェクト名: [アプリケーション名]
+# プロジェクト名: [Code Apps アプリケーション名]
 
 ## プロジェクト概要
 - **目的**: 
+- **開発対象**: Power Apps Code Apps (PCF ではありません)
 - **スコープ**: 
 - **期間**: 
 - **予算**: 
@@ -463,19 +500,19 @@ graph TD
 ## チーム構成
 - **プロダクトオーナー**: 
 - **開発リーダー**: 
-- **開発者**: 
+- **Code Apps 開発者**: 
 - **デザイナー**: 
 - **テスター**: 
 
 ## マイルストーン
 | フェーズ | 期間 | 成果物 |
 |---------|------|--------|
-| 要件定義 | Week1-2 | 要件定義書 + コネクタ要件 |
+| 要件定義 | Week1-2 | 要件定義書 + Code Apps 要件 + コネクタ要件 |
 | 設計 | Week3 | 設計仕様書 + UI設計 |
-| Power Apps SDK MVP | Week4 | PowerProvider + pac デプロイ確認 |
+| Code Apps SDK MVP | Week4 | PowerProvider + **Code Apps として** pac デプロイ確認 |
 | 開発 | Week5-6 | フル機能実装 + コネクタ統合 |
 | テスト | Week7 | テスト完了 + Power Platform テスト |
-| デプロイ | Week8 | 本番リリース |
+| デプロイ | Week8 | **Code Apps として** 本番リリース |
 ```
 
 ### 2. 環境構築・テンプレート選択
@@ -494,11 +531,17 @@ pac install latest
 npm create vite@latest my-code-app -- --template react-ts
 cd my-code-app
 
-# Power Apps Code Apps SDK インストール
+# Power Apps Code Apps SDK インストール (PCF 用ではありません)
 npm install @microsoft/power-apps
 
-# Power Platform 統合初期化
+# Code Apps として初期化 (PCF init ではありません)
 pac code init
+```
+
+**❌ 間違い (PCF 初期化コマンド):**
+```powershell
+# これは PCF 用です。Code Apps では使用しないでください
+pac pcf init
 ```
 
 **Step 2: VS Code 設定**
@@ -583,11 +626,12 @@ src/
 - **TypeScript**: 型安全性とコード品質
 - **Vite**: 高速ビルドツールとデバッグ環境
 
-**UI ライブラリ (StaticAssetTracker パターン):**
-- **shadcn/ui**: 高品質UIコンポーネント
+**UI ライブラリ (StaticAssetTracker + テーマ対応パターン):**
+- **shadcn/ui**: 高品質UIコンポーネント（Dialog, DropdownMenu など）
 - **Radix UI**: アクセシブルなプリミティブ
-- **Tailwind CSS**: ユーティリティファーストCSS
-- **Lucide React**: 一貫したアイコンセット
+- **Tailwind CSS**: ユーティリティファーストCSS + ダークモード対応
+- **Lucide React**: 一貫したアイコンセット（Sun, Moon など）
+- **tailwindcss-animate**: スムーズなテーマ切り替えアニメーション
 
 **状態管理・データフェッチ:**
 - **TanStack Query**: サーバ状態管理とキャッシュ
@@ -605,7 +649,9 @@ src/
 1. **静的データファースト**: 実データ統合前のUI完成
 2. **段階的コネクタ統合**: 静的 → モック → 実データ
 3. **Power Platform ネイティブ**: SDK とコネクタ活用
-4. **レスポンシブデザイン**: デスクトップ・モバイル対応
+4. **モーダル中心 UI**: ブラウザポップアップ不使用
+5. **テーマ対応設計**: ダーク・ライト・システム設定切り替え
+6. **レスポンシブデザイン**: デスクトップ・モバイル対応
 
 **SOLID原則の適用:**
 - **Single Responsibility**: コンポーネント単一責任
@@ -759,8 +805,10 @@ jobs:
         run: |
           npm install -g @microsoft/powerplatform-cli
       
-      - name: Deploy to Power Apps
-        run: pac code push
+      - name: Deploy to Power Apps (Code Apps として)
+        run: |
+          echo "Deploying as Code Apps (not PCF component)"
+          pac code push
         env:
           POWERPLATFORM_TENANT_ID: ${{ secrets.POWERPLATFORM_TENANT_ID }}
           POWERPLATFORM_CLIENT_ID: ${{ secrets.POWERPLATFORM_CLIENT_ID }}
@@ -768,7 +816,8 @@ jobs:
 ```
 
 **重要**: 
-- Power Platform CLI を使用した自動デプロイ
+- `pac code push` で **Code Apps として** 自動デプロイ
+- PCF 用の `pac pcf push` は使用しません
 - StaticAssetTracker パターンに基づく build と build:dev
 - 認証は Service Principal を使用
 
@@ -801,18 +850,507 @@ export { appInsights };
 - **FID (First Input Delay)**: 100ms以下
 - **CLS (Cumulative Layout Shift)**: 0.1以下
 
+## 🎨 UI インタラクション設計
+
+### モーダル利用ガイドライン
+
+**基本方針: ポップアップではなくモーダルを使用**
+
+Code Apps では、ユーザー体験の一貫性とアクセシビリティを向上させるため、ブラウザのポップアップではなく shadcn/ui のモーダルコンポーネントを使用します。
+
+#### モーダル実装例
+
+**基本的なモーダル実装:**
+```typescript
+// components/ui/modal.tsx (shadcn/ui ベース)
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+}
+
+export const Modal: React.FC<ModalProps> = ({
+  isOpen,
+  onClose,
+  title,
+  children,
+  actions
+}) => {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+          {children}
+        </div>
+        {actions && (
+          <DialogFooter>
+            {actions}
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
+```
+
+**確認モーダルの実装例:**
+```typescript
+// components/ConfirmationModal.tsx
+import { Modal } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
+
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+}
+
+export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmText = "確認",
+  cancelText = "キャンセル"
+}) => {
+  const handleConfirm = () => {
+    onConfirm();
+    onClose();
+  };
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      actions={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            {cancelText}
+          </Button>
+          <Button onClick={handleConfirm}>
+            {confirmText}
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </Modal>
+  );
+};
+```
+
+**フォームモーダルの実装例:**
+```typescript
+// components/FormModal.tsx
+import { Modal } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useForm } from "react-hook-form";
+
+interface FormModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: any) => void;
+  title: string;
+}
+
+export const FormModal: React.FC<FormModalProps> = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  title
+}) => {
+  const { register, handleSubmit, reset } = useForm();
+
+  const handleFormSubmit = (data: any) => {
+    onSubmit(data);
+    reset();
+    onClose();
+  };
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      actions={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            キャンセル
+          </Button>
+          <Button type="submit" form="modal-form">
+            保存
+          </Button>
+        </>
+      }
+    >
+      <form id="modal-form" onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">名前</Label>
+          <Input
+            id="name"
+            {...register("name", { required: true })}
+            placeholder="名前を入力してください"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="email">メールアドレス</Label>
+          <Input
+            id="email"
+            type="email"
+            {...register("email", { required: true })}
+            placeholder="email@example.com"
+          />
+        </div>
+      </form>
+    </Modal>
+  );
+};
+```
+
+### モーダル使用ガイドライン
+
+**推奨される使用場面:**
+- ✅ 確認ダイアログ（削除確認、保存確認など）
+- ✅ フォーム入力（新規作成、編集など）
+- ✅ 詳細情報表示
+- ✅ 設定画面
+- ✅ 画像・ファイルプレビュー
+
+**避けるべき使用:**
+- ❌ ブラウザの `window.alert()`
+- ❌ ブラウザの `window.confirm()`
+- ❌ ブラウザの `window.prompt()`
+- ❌ 新しいウィンドウ/タブでの表示
+
+## 🌓 ダークモード・ライトモード対応
+
+### テーマ切り替えシステム
+
+Code Apps では、ユーザビリティ向上のためダークモード・ライトモードの切り替えを標準実装します。
+
+#### テーマプロバイダー実装
+
+**ThemeContext の作成:**
+```typescript
+// contexts/ThemeContext.tsx
+import React, { createContext, useContext, useEffect, useState } from 'react';
+
+type Theme = 'dark' | 'light' | 'system';
+
+type ThemeProviderProps = {
+  children: React.ReactNode;
+  defaultTheme?: Theme;
+  storageKey?: string;
+};
+
+type ThemeProviderState = {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+};
+
+const initialState: ThemeProviderState = {
+  theme: 'system',
+  setTheme: () => null,
+};
+
+const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
+
+export function ThemeProvider({
+  children,
+  defaultTheme = 'system',
+  storageKey = 'code-app-ui-theme',
+  ...props
+}: ThemeProviderProps) {
+  const [theme, setTheme] = useState<Theme>(
+    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
+  );
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+
+    root.classList.remove('light', 'dark');
+
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
+        .matches
+        ? 'dark'
+        : 'light';
+
+      root.classList.add(systemTheme);
+      return;
+    }
+
+    root.classList.add(theme);
+  }, [theme]);
+
+  const value = {
+    theme,
+    setTheme: (theme: Theme) => {
+      localStorage.setItem(storageKey, theme);
+      setTheme(theme);
+    },
+  };
+
+  return (
+    <ThemeProviderContext.Provider {...props} value={value}>
+      {children}
+    </ThemeProviderContext.Provider>
+  );
+}
+
+export const useTheme = () => {
+  const context = useContext(ThemeProviderContext);
+
+  if (context === undefined)
+    throw new Error('useTheme must be used within a ThemeProvider');
+
+  return context;
+};
+```
+
+**テーマ切り替えコンポーネント:**
+```typescript
+// components/ThemeToggle.tsx
+import { Moon, Sun } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useTheme } from "@/contexts/ThemeContext";
+
+export function ThemeToggle() {
+  const { setTheme } = useTheme();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="icon">
+          <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <span className="sr-only">テーマを切り替える</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => setTheme("light")}>
+          ライトモード
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("dark")}>
+          ダークモード
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("system")}>
+          システム設定に従う
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+```
+
+**App.tsx での統合:**
+```typescript
+// App.tsx
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import Index from "./pages/Index";
+
+const queryClient = new QueryClient();
+
+const App = () => (
+  <ThemeProvider defaultTheme="system" storageKey="code-app-ui-theme">
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <div className="min-h-screen bg-background text-foreground">
+          <Toaster />
+          <Sonner />
+          <Index />
+        </div>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
+);
+
+export default App;
+```
+
+### CSS 変数によるテーマ定義
+
+**globals.css でのテーマ設定:**
+```css
+/* globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 94.1%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+```
+
+**Tailwind Config でのテーマ設定:**
+```javascript
+// tailwind.config.js
+module.exports = {
+  darkMode: ["class"],
+  content: [
+    './pages/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    './app/**/*.{ts,tsx}',
+    './src/**/*.{ts,tsx}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+      },
+    },
+  },
+  plugins: [require("tailwindcss-animate")],
+}
+```
+
+### テーマ対応ガイドライン
+
+**必須実装項目:**
+- [ ] ThemeProvider をアプリのルートに配置
+- [ ] テーマ切り替えボタンをヘッダーに配置
+- [ ] ダークモード・ライトモード・システム設定の3つのオプション
+- [ ] ローカルストレージにユーザー設定を保存
+- [ ] CSS変数ベースのテーマシステム
+
+**推奨設定:**
+- デフォルト: システム設定に従う
+- 切り替え: ドロップダウンメニュー形式
+- アイコン: Sun (ライト) / Moon (ダーク)
+- アニメーション: smooth transition
+
 ## 🎨 モダンデザインテンプレート
 
 ### デザインシステム概要
 
-最新のUXトレンドを取り入れた、Power Apps Code Apps専用のモダンデザインテンプレートです。レスポンシブデザイン、アクセシビリティ、美しいビジュアルデザインを統合しています。
+最新のUXトレンドを取り入れた、Power Apps Code Apps専用のモダンデザインテンプレートです。ダークモード・ライトモード対応、モーダルベースのインタラクション、レスポンシブデザイン、アクセシビリティを統合しています。
 
 ### デザイン原則
 1. **シンプリシティ**: 直感的で理解しやすいインターフェース
-2. **一貫性**: 統一されたデザイン言語
-3. **アクセシビリティ**: WCAG 2.1 AA準拠
-4. **レスポンシブ**: あらゆるデバイスで最適化
-5. **パフォーマンス**: 高速読み込みとスムーズな操作
+2. **一貫性**: 統一されたデザイン言語とテーマシステム
+3. **アクセシビリティ**: WCAG 2.1 AA準拠、ダークモード対応
+4. **モーダル中心設計**: ポップアップ不使用、モーダルベースのインタラクション
+5. **テーマ適応性**: ライト・ダーク・システム設定対応
+6. **レスポンシブ**: あらゆるデバイスで最適化
+7. **パフォーマンス**: 高速読み込みとスムーズな操作
 
 ### レイアウトテンプレート
 
@@ -951,21 +1489,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 };
 ```
 
-#### 2. ヘッダーコンポーネント
+#### 2. ヘッダーコンポーネント (テーマ切り替え統合)
 
 ```tsx
 // src/components/layout/Header.tsx
 import React from 'react';
-import { 
-  Button,
-  Text,
-  Avatar,
-  Popover,
-  PopoverTrigger,
-  PopoverSurface,
-  makeStyles,
-  tokens
-} from '@fluentui/react-components';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { 
   Navigation24Regular,
   Person24Regular,
@@ -973,16 +1504,44 @@ import {
   SignOut24Regular
 } from '@fluentui/react-icons';
 
-const useStyles = makeStyles({
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    height: '60px',
-  },
-  leftSection: {
-    display: 'flex',
+interface HeaderProps {
+  onToggleSidebar: () => void;
+  isSidebarOpen: boolean;
+}
+
+export const Header: React.FC<HeaderProps> = ({
+  onToggleSidebar,
+  isSidebarOpen
+}) => {
+  return (
+    <header className="flex items-center justify-between w-full h-16 px-6 bg-card border-b border-border">
+      <div className="flex items-center space-x-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggleSidebar}
+          className="md:hidden"
+        >
+          <Navigation24Regular />
+        </Button>
+        <h1 className="text-xl font-semibold text-foreground">
+          Code Apps アプリケーション
+        </h1>
+      </div>
+
+      <div className="flex items-center space-x-4">
+        {/* テーマ切り替えボタン */}
+        <ThemeToggle />
+        
+        {/* ユーザーアバター */}
+        <Avatar className="h-8 w-8">
+          <AvatarImage src="/placeholder-avatar.jpg" alt="User" />
+          <AvatarFallback>U</AvatarFallback>
+        </Avatar>
+      </div>
+    </header>
+  );
+};
     alignItems: 'center',
     gap: '16px',
   },
