@@ -3,7 +3,9 @@
 
 ## 概要
 
-この標準は、**Power Apps Code Apps** （PCF ではありません）のための開発指針です。Microsoft公式ドキュメント（[Power Apps code apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)）と[PowerAppsCodeAppsリポジトリ](https://github.com/microsoft/PowerAppsCodeApps)のベストプラクティスに基づき、**要件理解から公開まで**の包括的な開発プロセスと、**モダンなデザインテンプレート**を含む開発指針です。
+この標準は、**Power Apps Code Apps** （PCF ではありません）のための包括的な開発指針です。Microsoft公式ドキュメント（[Power Apps code apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)）と[PowerAppsCodeAppsリポジトリ](https://github.com/microsoft/PowerAppsCodeApps)のベストプラクティスに基づき、**要件理解から公開まで**の完全な開発プロセスと、**TailwindCSS モダンデザインシステム**を統合した実践的なガイドです。
+
+**Power Apps Code Apps** は、React、Vue などのポピュラーなフレームワークを使用してカスタムWebアプリを構築し、UI とロジックの完全な制御を保ちながら Power Platform で実行できる開発プラットフォームです。Microsoft Entra 認証、1,500+ コネクター、管理プラットフォームポリシー準拠により、安全で迅速なイノベーションを実現します。
 
 ### 🚨 重要: PCF と Code Apps の違い
 
@@ -17,17 +19,140 @@
 
 > **この標準は Power Apps Code Apps 専用です。PCF コンポーネント開発ではありません。**
 
-### 🎯 実装推奨順序 (Code Apps ファースト)
-1. **PowerProvider 実装** (最優先) - Code Apps SDK 初期化 → ローカル動作確認 → **Code Apps として** Power Apps デプロイ
-2. **基本レイアウト構築** (shadcn/ui + TailwindCSS)
-3. **モックデータ実装** (開発・テスト用)
-4. **コネクタ統合** (Office 365 → SQL → カスタム API)
-5. **テスト環境構築** (Vitest + React Testing Library)
-6. **CI/CD パイプライン** (GitHub Actions + pac CLI)
+### 🎯 段階的開発フロー (AI ガイド付き)
 
-> **重要**: `@microsoft/power-apps` SDK は **Code Apps 専用** です。PCF 用ではありません。SDK が正常に動作しない場合、Power Apps 内で **Code Apps として** 利用できません。
+この開発標準では、**段階的な開発アプローチ**を採用し、各段階でAIが次のアクションを提案します：
+
+#### **Phase 1: MVP 開発・検証** 
+```mermaid
+graph LR
+    A[プロジェクト作成] --> B[PowerProvider実装]
+    B --> C[基本UI構築]
+    C --> D[ローカル実行]
+    D --> E[Power Apps デプロイ]
+    E --> F[MVP完了]
+```
+- **AI提案例**: *"MVPモデルを開発しました。ローカルで実行しますか？"*
+- **次のアクション**: *"ローカルで実行完了しました。問題なく実行できた場合、まずはMVPをPower Apps本番環境にデプロイしますか？"*
+
+#### **Phase 2: 機能拡張・データ統合**
+```mermaid
+graph LR
+    A[MVP完了] --> B{データソース選択}
+    B -->|推奨| C[Office 365 Users]
+    B -->|高機能| D[Dataverse]
+    B -->|外部DB| E[Azure SQL]
+    C --> F[認証・ユーザー管理実装]
+    D --> G[CRUD操作実装]
+    E --> H[リレーショナル機能実装]
+```
+- **AI提案例**: *"機能拡張として、Dataverseに接続しますか？"*
+- **次のアクション**: *"Dataverseに接続しました。次はほかの機能を開発しますか？機能としてはユーザー管理・権限制御がおすすめです"*
+
+#### **Phase 3: 本格運用・最適化**
+```mermaid
+graph LR
+    A[データ統合完了] --> B[テスト自動化]
+    B --> C[パフォーマンス最適化]
+    C --> D[CI/CD構築]
+    D --> E[監視・ログ実装]
+    E --> F[本格運用開始]
+```
+- **AI提案例**: *"機能開発が完了しました。テスト自動化を実装しますか？"*
+- **次のアクション**: *"CI/CDパイプラインを構築して自動デプロイを設定しますか？"*
+
+### 🤖 **AI ガイダンス システム設計**
+
+各段階で以下の構造化された提案を行います：
+
+#### **1. 現在の状態確認**
+```typescript
+interface DevelopmentState {
+  currentPhase: 'setup' | 'mvp' | 'integration' | 'optimization';
+  completedSteps: string[];
+  availableActions: NextAction[];
+  recommendedPath: 'beginner' | 'intermediate' | 'advanced';
+}
+```
+
+#### **2. 次のアクション提案**
+```typescript
+interface NextAction {
+  action: string;
+  description: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  estimatedTime: string;
+  prerequisites: string[];
+  benefits: string[];
+}
+```
+
+#### **3. 段階的ガイダンス例**
+
+**MVP 段階:**
+```json
+{
+  "message": "プロジェクト初期化が完了しました。",
+  "nextActions": [
+    {
+      "action": "PowerProvider実装",
+      "description": "Power Apps SDK初期化コンポーネントを実装",
+      "difficulty": "easy",
+      "estimatedTime": "15分",
+      "command": "AI実装支援を開始しますか？"
+    }
+  ]
+}
+```
+
+**データ統合段階:**
+```json
+{
+  "message": "MVPが正常に動作しています。",
+  "nextActions": [
+    {
+      "action": "Office 365 Users 統合",
+      "description": "ユーザー情報取得・認証強化",
+      "difficulty": "easy",
+      "estimatedTime": "30分",
+      "benefits": ["ユーザー管理", "プロファイル表示", "組織階層"]
+    },
+    {
+      "action": "Dataverse 統合",
+      "description": "データベース機能・CRUD操作",
+      "difficulty": "medium", 
+      "estimatedTime": "1-2時間",
+      "benefits": ["データ永続化", "リレーション", "高度なクエリ"]
+    },
+    {
+      "action": "Azure SQL 統合",
+      "description": "外部データベース接続・複雑なクエリ",
+      "difficulty": "hard",
+      "estimatedTime": "2-4時間",
+      "benefits": ["既存システム統合", "高性能クエリ", "ストアドプロシージャ"]
+    }
+  ]
+}
+```
+
+### 📋 **実装推奨順序 (詳細)**
+1. **環境構築 & PowerProvider** → *"SDK初期化完了しました。基本UIを作成しますか？"*
+2. **基本レイアウト構築** → *"UIが完成しました。ローカルでテストしますか？"*
+3. **ローカル検証** → *"正常に動作しています。Power Appsにデプロイしますか？"*
+4. **Power Apps デプロイ** → *"MVPデプロイ完了！データソース統合を開始しますか？"*
+5. **データソース選択・統合** → *"データ接続完了！追加機能を実装しますか？"*
+6. **機能拡張** → *"機能開発完了！品質向上のためテストを追加しますか？"*
+7. **テスト・最適化** → *"テスト完了！CI/CDで自動化しますか？"*
+8. **本格運用準備** → *"本格運用の準備が整いました！"*
+
+> **重要**: 各段階でAIが開発者のスキルレベルと時間制約に応じて最適な次のステップを提案し、効率的な開発を支援します。
 
 ## 目次
+
+### 🤖 AI ガイド付き開発フロー
+- [段階的開発アプローチ](#段階的開発フロー-ai-ガイド付き)
+- [AIガイダンスシステム](#ai-ガイダンス-システム設計)
+- [開発状態管理](#開発状態とアクション提案)
 
 ### 📋 Code Apps 開発フロー
 1. [環境構築・PowerProvider実装](#2-環境構築・テンプレート選択)  
@@ -60,30 +185,241 @@
 - [コネクタ利用パターン](#サンプル実装)
 - [検証・テスト](#検証・テスト)
 
-## 前提条件
+## 前提条件 (Microsoft 公式要件)
 
 ### 開発環境の準備
 
-**必須ツール:**
-- [Visual Studio Code](https://code.visualstudio.com/)
-- [Node.js](https://nodejs.org/) (LTS版)
-- [Git](https://git-scm.com/)
-- [Power Platform CLI](https://learn.microsoft.com/en-us/power-platform/developer/cli/introduction)
+**必須開発ツール:**
+- ✅ [Visual Studio Code](https://code.visualstudio.com/)
+- ✅ [Node.js](https://nodejs.org/) (LTS版)
+- ✅ [Git](https://git-scm.com/)
+- ✅ [Power Platform CLI](https://learn.microsoft.com/en-us/power-platform/developer/cli/introduction)
 
-**環境設定:**
-1. Power Platform管理センターでCode Appsを有効化
-2. エンドユーザーに[Power Apps Premiumライセンス](https://www.microsoft.com/power-platform/products/power-apps/pricing)を付与
-3. 開発環境の設定とアクセス権限の確認
+> **重要**: これらの開発ツールはコマンドラインで利用可能である必要があります
+
+### Power Platform 環境設定
+
+**1. Code Apps 機能の有効化**
+```bash
+# Power Platform 管理センター (admin.powerplatform.microsoft.com) で実行:
+1. 管理 → 環境 → 対象環境を選択
+2. 設定 → 製品 → 機能 → "Power Apps code apps"
+3. "Code Apps を有効にする" トグルをオンに設定
+4. 保存
+```
+
+**2. エンドユーザーライセンス要件**
+- **必須**: [Power Apps Premium ライセンス](https://www.microsoft.com/power-platform/products/power-apps/pricing)
+- Code Apps を実行するすべてのエンドユーザーにライセンスが必要
+
+**3. 管理者権限の確認**
+- Power Platform 管理者または環境管理者権限
+- 環境設定変更とコネクション作成権限
+- グループとルールに基づくアクセス制御設定
 
 ---
 
 ## ⚡ Power Apps Code Apps 統合 (最重要)
 
-### Power Apps Code Apps プラットフォーム概要
+### Power Apps Code Apps プラットフォーム概要 (Microsoft 公式)
 
-**Power Apps Code Apps** は、React アプリケーションを **完全なアプリケーションとして** Power Platform 内で動作させるためのプラットフォームです。PCF (コンポーネント開発) ではなく、**アプリ全体を Code Apps として公開** します。独自の HTTP サーバやカスタム認証は不要で、`@microsoft/power-apps` SDK を使用してプラットフォーム機能を利用します。
+**Power Apps Code Apps** は、Visual Studio Code 等の統合開発環境でWebアプリを構築するすべてのスキルレベルの開発者が、管理プラットフォーム上で効率的にビジネスアプリを構築・実行できるように設計されたプラットフォームです。React、Vue などのポピュラーなフレームワークを使用し、UI とロジックの完全な制御を保持できます。
 
-> **注意**: これは PCF コンポーネント開発ではありません。React アプリを **Power Apps Code Apps** として公開する開発です。
+#### 🚀 **主要機能**
+- **Microsoft Entra 認証・認可**: 自動セキュリティ管理
+- **1,500+ コネクター**: Power Platform データソースへの JavaScript から直接アクセス
+- **簡単公開・ホスティング**: Power Platform での基幹業務Webアプリ配布
+- **管理ポリシー準拠**: アプリ共有制限、条件付きアクセス、データ損失防止など
+- **ALM 簡素化**: デプロイと応用ライフサイクル管理
+
+#### 🎯 **開発・実行フロー**
+1. **ローカル開発**: Visual Studio Code で React/Vue アプリ開発
+2. **Power Platform統合**: `@microsoft/power-apps` SDK でプラットフォーム機能統合
+3. **本番デプロイ**: 専用本番環境への安全で迅速な配布
+
+> **重要**: これは PCF コンポーネント開発ではありません。完全なWebアプリケーションを **Power Apps Code Apps** として構築・公開する開発プラットフォームです。
+
+---
+
+## 🚀 開発状態とアクション提案
+
+この標準では、開発の各段階でAIが適切な次のアクションを提案し、効率的な開発をガイドします：
+
+### **段階別ガイダンス フローチャート**
+
+```mermaid
+graph TD
+    A[開発開始] --> B{環境構築済み?}
+    B -->|No| C[環境セットアップ実行]
+    B -->|Yes| D[プロジェクト初期化]
+    
+    C --> D
+    D --> E[PowerProvider実装]
+    E --> F[基本UI構築]
+    F --> G[ローカル実行テスト]
+    
+    G --> H{正常動作?}
+    H -->|No| I[デバッグ支援]
+    H -->|Yes| J[Power Apps デプロイ]
+    
+    I --> G
+    J --> K{MVP完了?}
+    K -->|Yes| L{機能拡張方向}
+    
+    L -->|ユーザー管理| M[Office 365 Users統合]
+    L -->|データ管理| N[Dataverse統合]  
+    L -->|外部DB| O[Azure SQL統合]
+    L -->|API統合| P[カスタムAPI統合]
+    
+    M --> Q[追加機能開発]
+    N --> Q
+    O --> Q
+    P --> Q
+    
+    Q --> R{品質向上?}
+    R -->|Yes| S[テスト自動化]
+    S --> T[CI/CD構築]
+    T --> U[本格運用開始]
+```
+
+### **AI 提案メッセージ テンプレート**
+
+#### **Phase 1: 初期セットアップ**
+```
+✅ 環境構築が完了しました！
+🎯 次のアクション: PowerProvider実装
+📝 説明: Power Apps SDKとの接続を確立します
+⏱️ 予想時間: 15分
+❓ PowerProvider実装を開始しますか？
+```
+
+#### **Phase 2: MVP開発**
+```
+✅ PowerProvider実装が完了しました！
+🎯 次のアクション: 基本UI構築
+📝 説明: shadcn/ui + TailwindCSSでモダンなUIを作成します
+⏱️ 予想時間: 30-60分
+❓ 基本レイアウトとコンポーネントを作成しますか？
+```
+
+#### **Phase 3: 動作検証**
+```
+✅ 基本UI構築が完了しました！
+🎯 次のアクション: ローカル実行テスト
+📝 説明: 開発環境でアプリケーションをテストします
+⏱️ 予想時間: 10分
+❓ ローカル環境でアプリを実行しますか？
+```
+
+#### **Phase 4: デプロイメント**
+```
+✅ ローカルテストが成功しました！
+🎯 次のアクション: Power Apps環境へデプロイ
+📝 説明: 本番環境でCode Appsとして公開します
+⏱️ 予想時間: 15分
+❓ Power Apps環境にデプロイしますか？
+```
+
+#### **Phase 5: 機能拡張選択**
+```
+🎉 MVP完了おめでとうございます！
+🎯 次の機能拡張を選択してください:
+
+1️⃣ Office 365 Users統合 (難易度: 易、時間: 30分)
+   → ユーザー情報、プロファイル表示、組織階層
+
+2️⃣ Dataverse統合 (難易度: 中、時間: 1-2時間)  
+   → データ永続化、CRUD操作、リレーション
+
+3️⃣ Azure SQL統合 (難易度: 高、時間: 2-4時間)
+   → 既存システム統合、高性能クエリ
+
+❓ どの機能を実装しますか？
+```
+
+#### **Phase 6: 継続開発**
+```
+✅ [選択した機能]の統合が完了しました！
+🎯 推奨される次のステップ:
+
+• 🔧 追加機能開発 (他のコネクター統合)
+• 🧪 テスト自動化 (品質向上)  
+• 🚀 CI/CDパイプライン (自動デプロイ)
+• 📊 監視・ログ実装 (運用最適化)
+
+❓ 次はどの領域を強化しますか？
+```
+
+### **スキルレベル別推奨パス**
+
+#### **初心者向け (Beginner Path)**
+```
+1. 環境構築 → PowerProvider → 基本UI → ローカルテスト → デプロイ
+2. Office 365 Users統合 (最も簡単)
+3. 基本的なテスト追加
+4. 段階的な機能拡張
+```
+
+#### **中級者向け (Intermediate Path)**  
+```
+1. 標準MVP開発
+2. Dataverse統合 + CRUD操作
+3. TanStack Query実装
+4. 自動テスト + CI/CD
+```
+
+#### **上級者向け (Advanced Path)**
+```
+1. 高速MVP開発
+2. 複数データソース統合 (Dataverse + Azure SQL)
+3. 高度なアーキテクチャパターン
+4. 本格的な運用監視実装
+```
+
+### **進捗追跡インターフェース**
+
+開発状態を追跡し、適切な提案を行うための構造：
+
+```typescript
+interface ProjectProgress {
+  // 現在の開発段階
+  currentPhase: 'setup' | 'mvp' | 'integration' | 'optimization' | 'production';
+  
+  // 完了した項目
+  completedSteps: {
+    environmentSetup: boolean;
+    powerProviderImpl: boolean;
+    basicUI: boolean;
+    localTesting: boolean;
+    powerAppsDeployment: boolean;
+    dataIntegration: DataIntegrationType[];
+    testAutomation: boolean;
+    cicdSetup: boolean;
+  };
+  
+  // 開発者スキルレベル
+  developerLevel: 'beginner' | 'intermediate' | 'advanced';
+  
+  // 利用可能時間
+  availableTime: 'quick' | 'standard' | 'extended';
+  
+  // 推奨する次のアクション
+  recommendedActions: NextActionSuggestion[];
+}
+
+interface NextActionSuggestion {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  estimatedTime: string;
+  prerequisites: string[];
+  benefits: string[];
+  implementationGuide: string;
+}
+```
+
+これにより、AIは開発者の現在の状況を正確に把握し、最適な次のステップを提案できます。
 
 #### 🎯 実際の統合方式 (Microsoft 公式)
 1. **Power Platform SDK 初期化** (`@microsoft/power-apps/app` の `initialize()`)
@@ -208,22 +544,51 @@ export default App;
 - App.tsx で UI ライブラリとクエリクライアント設定
 - pages/Index.tsx でメイン機能実装
 
-### Office 365 Users コネクター統合パターン
+## Power Platform コネクター統合 (Microsoft 公式仕様)
 
-**ユーザー認証・情報取得の実装:**
+### データ接続の基本フロー
+
+**Step 1: Power Apps でコネクション作成**
+```bash
+# 1. Power Apps (make.powerapps.com) でコネクション作成
+# 2. PAC CLI で接続情報取得
+pac connection list
+
+# 出力例:
+# Connection ID: aaaaaaaa000011112222bbbbbbbbbbbb  
+# API Name: shared_office365users
+```
+
+**Step 2: Code Apps にデータソース追加**
+```bash
+# 非表形式データソース (Office 365 Users など)
+pac code add-data-source -a "shared_office365users" -c "aaaaaaaa000011112222bbbbbbbbbbbb"
+
+# 表形式データソース (SQL, SharePoint など)  
+pac code add-data-source -a "shared_sql" -c "bbbbbbbb111122223333cccccccccccc" -t "[dbo].[Users]" -d "database.windows.net,dbname"
+
+# ストアドプロシージャー
+pac code add-data-source -a "shared_sql" -c "bbbbbbbb111122223333cccccccccccc" -d "database.windows.net,dbname" -sp "[dbo].[GetUserById]"
+
+# 自動生成されるファイル:
+# /generated/services/Office365UsersService.ts
+# /generated/models/Office365UsersModel.ts
+```
+
+### Office 365 Users 統合パターン (Microsoft 公式)
+
+**生成されたサービスを使用:**
 ```typescript
 // src/hooks/useCurrentUser.ts
 import { useQuery } from '@tanstack/react-query';
-import { connector } from '@microsoft/power-apps';
+import { Office365UsersService } from '../generated/services/Office365UsersService';
 
 export interface UserProfile {
-  id: string;
-  displayName: string;
-  mail: string;
-  userPrincipalName: string;
+  id?: string;
+  displayName?: string;
   jobTitle?: string;
-  department?: string;
-  officeLocation?: string;
+  userPrincipalName?: string;
+  photo?: string;
 }
 
 export const useCurrentUser = () => {
@@ -231,28 +596,51 @@ export const useCurrentUser = () => {
     queryKey: ['currentUser'],
     queryFn: async (): Promise<UserProfile> => {
       try {
-        // Office 365 Users コネクターを使用してログインユーザー情報を取得
-        const office365Connector = connector('shared_office365users');
+        // Microsoft 公式 API パターン
+        const profile = (await Office365UsersService.MyProfile_V2(
+          "id,displayName,jobTitle,userPrincipalName"
+        )).data;
         
-        // MyProfile API を使用して現在のユーザー情報を取得
-        const response = await office365Connector.invoke('MyProfile', {});
+        // ユーザー写真取得の試行
+        let photo = null;
+        if (profile?.id || profile?.userPrincipalName) {
+          try {
+            const photoData = (await Office365UsersService.UserPhoto_V2(
+              profile.id || profile.userPrincipalName
+            )).data;
+            
+            if (photoData) {
+              photo = `data:image/jpeg;base64,${photoData}`;
+            }
+          } catch (photoError) {
+            // フォールバック: userPrincipalName で再試行
+            if (profile.userPrincipalName && profile.userPrincipalName !== profile.id) {
+              try {
+                const fallbackPhoto = (await Office365UsersService.UserPhoto_V2(
+                  profile.userPrincipalName
+                )).data;
+                if (fallbackPhoto) {
+                  photo = `data:image/jpeg;base64,${fallbackPhoto}`;
+                }
+              } catch {
+                console.log('ユーザー写真が利用できません');
+              }
+            }
+          }
+        }
         
         return {
-          id: response.Id,
-          displayName: response.DisplayName,
-          mail: response.Mail,
-          userPrincipalName: response.UserPrincipalName,
-          jobTitle: response.JobTitle,
-          department: response.Department,
-          officeLocation: response.OfficeLocation,
+          id: profile?.id,
+          displayName: profile?.displayName,
+          jobTitle: profile?.jobTitle,
+          userPrincipalName: profile?.userPrincipalName,
+          photo
         };
       } catch (error) {
         console.error('Failed to fetch user profile:', error);
-        // フォールバック用のダミーデータ
+        // フォールバック
         return {
-          id: 'unknown',
           displayName: 'ゲストユーザー',
-          mail: 'guest@example.com',
           userPrincipalName: 'guest@example.com',
         };
       }
@@ -263,54 +651,312 @@ export const useCurrentUser = () => {
 };
 ```
 
-**ユーザープロフィール取得の拡張版:**
+### Azure SQL Server 統合 (Microsoft 公式)
+
+#### 前提条件とセットアップ
+
+**必要な前提条件:**
+- Azure サブスクリプション
+- Power Platform 環境 (Code Apps 有効化済み)
+- Visual Studio Code + Power Platform Tools 拡張機能
+- SQL Server (mssql) VS Code 拡張機能
+- Node.js (LTS版)
+
+#### Azure SQL Database セットアップ
+
+**1. Azure SQL Server & Database 作成**
+```bash
+# Azure ポータルで以下を設定
+リソースグループ: rg-codeapps-dev
+サーバー名: sql-codeapps-dev
+データベース名: sqldb-codeapps-dev
+認証方法: Microsoft Entra ID のみ
+接続方法: パブリック エンドポイント
+ファイアウォール: Azure サービスアクセス許可 + クライアント IP 追加
+```
+
+**2. VS Code でのデータベーステーブル作成**
+```sql
+-- Projects テーブル作成 (Microsoft サンプル)
+CREATE TABLE [dbo].[Projects](
+    [ProjectId] [int] IDENTITY(1,1) NOT NULL,
+    [Name] [nvarchar](255) NOT NULL,
+    [Description] [nvarchar](max) NULL,
+    [StartDate] [date] NULL,
+    [EndDate] [date] NULL,
+    [Status] [nvarchar](50) NOT NULL DEFAULT ('Planning'),
+    [Priority] [nvarchar](20) NOT NULL DEFAULT ('Medium'),
+    [Budget] [decimal](18, 2) NULL,
+    [ProjectManagerEmail] [nvarchar](255) NOT NULL,
+    [CreatedBy] [nvarchar](255) NOT NULL,
+    [CreatedDate] [datetime2](7) NOT NULL DEFAULT (getutcdate()),
+    [IsActive] [bit] NOT NULL DEFAULT (1),
+    CONSTRAINT [PK_Projects] PRIMARY KEY ([ProjectId])
+);
+
+-- ストアドプロシージャ作成
+CREATE PROCEDURE [dbo].[GetAllProjects]
+AS
+BEGIN
+    SELECT [ProjectId], [Name], [Description], [StartDate], [EndDate],
+           [Status], [Priority], [Budget], [ProjectManagerEmail],
+           [CreatedBy], [CreatedDate], [IsActive]
+    FROM [dbo].[Projects]
+    WHERE [IsActive] = 1
+    ORDER BY [CreatedDate] DESC;
+END
+```
+
+#### Power Platform 統合
+
+**3. SQL Server コネクション作成**
+```bash
+# Power Apps (make.powerapps.com) で実行
+1. Connections → + New Connection → SQL Server
+2. 認証タイプ: Microsoft Entra ID Integrated
+3. Create & サインイン
+```
+
+**4. Code Apps プロジェクト初期化**
+```bash
+# Vite アプリ作成 (ポート3000固定)
+mkdir C:\CodeApps -Force; cd C:\CodeApps
+npm create vite@latest ProjectManagementApp -- --template react-ts
+cd C:\CodeApps\ProjectManagementApp
+npm install
+npm i --save-dev @types/node
+
+# vite.config.ts 設定 (ポート3000必須)
+server: { host: "::", port: 3000 }
+
+# Power Platform 認証 & 初期化
+pac auth create
+pac env select -env <ENVIRONMENT_URL>
+pac code init --displayName "Project Management App"
+npm install --save-dev @microsoft/power-apps
+
+# package.json 更新
+"dev": "start pac code run && vite"
+```
+
+**5. ストアドプロシージャをデータソースとして追加**
+```bash
+# コネクション ID 確認
+pac connection list
+
+# ストアドプロシージャを Code Apps に追加
+pac code add-data-source -a "shared_sql" -c "[CONNECTION-ID]" \
+  -d "[SQL-SERVER].database.windows.net,[DATABASE]" \
+  -sp "dbo.GetAllProjects"
+
+# 生成されるファイル:
+# generated/services/GetAllProjectsService.ts
+# generated/models/GetAllProjectsModel.ts
+```
+
+#### TypeScript 実装パターン
+
+**6. React + Fluent UI データグリッド実装**
 ```typescript
-// src/services/UserService.ts
-import { connector } from '@microsoft/power-apps';
+// src/components/ProjectsTable.tsx
+import { useEffect, useState, useCallback } from 'react';
+import { DataGrid, Spinner, MessageBar } from '@fluentui/react-components';
+import { GetAllProjectsService } from '../generated/services/GetAllProjectsService';
 
-export class UserService {
-  private static office365Connector = connector('shared_office365users');
+type ProjectItem = {
+  ProjectId?: number;
+  Name?: string;
+  Description?: string;
+  StartDate?: string;
+  EndDate?: string;
+  Status?: string;
+  Priority?: string;
+  Budget?: number;
+  ProjectManagerEmail?: string;
+};
 
-  // 現在のユーザー情報を取得
-  static async getCurrentUser(): Promise<UserProfile> {
-    const response = await this.office365Connector.invoke('MyProfile', {});
-    return this.mapUserResponse(response);
-  }
+export const ProjectsTable: React.FC = () => {
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // ユーザー写真を取得
-  static async getUserPhoto(userId?: string): Promise<string | null> {
+  const fetchProjects = useCallback(async () => {
     try {
-      const photoResponse = await this.office365Connector.invoke('UserPhoto', {
-        id: userId || 'me'
-      });
-      return photoResponse.photoUrl || null;
+      setLoading(true);
+      setError(null);
+      
+      const result = await GetAllProjectsService.GetAllProjects();
+      
+      if (result.success && result.data?.ResultSets?.Table1) {
+        const projectsData = Array.isArray(result.data.ResultSets.Table1)
+          ? result.data.ResultSets.Table1 as ProjectItem[]
+          : [result.data.ResultSets.Table1] as ProjectItem[];
+        setProjects(projectsData);
+      } else {
+        setError('データの読み込みに失敗しました');
+      }
     } catch (error) {
-      console.warn('User photo not available:', error);
-      return null;
+      setError('予期しないエラーが発生しました');
+      console.error('Error fetching projects:', error);
+    } finally {
+      setLoading(false);
     }
-  }
+  }, []);
 
-  // 複数ユーザー情報を検索
-  static async searchUsers(query: string): Promise<UserProfile[]> {
-    const response = await this.office365Connector.invoke('SearchUser', {
-      searchTerm: query,
-      top: 10
-    });
-    return response.value?.map(this.mapUserResponse) || [];
-  }
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
 
-  private static mapUserResponse(response: any): UserProfile {
-    return {
-      id: response.Id,
-      displayName: response.DisplayName,
-      mail: response.Mail,
-      userPrincipalName: response.UserPrincipalName,
-      jobTitle: response.JobTitle,
-      department: response.Department,
-      officeLocation: response.OfficeLocation,
-    };
-  }
-}
+  if (loading) return <Spinner label="データを読み込み中..." />;
+  if (error) return <MessageBar intent="error">{error}</MessageBar>;
+
+  return (
+    <DataGrid items={projects} sortable>
+      {/* DataGrid カラム実装 */}
+    </DataGrid>
+  );
+};
+```
+
+**7. 依存関係とFluent UI統合**
+```bash
+# React 18 & Fluent UI インストール (必須)
+npm install react@^18.0.0 react-dom@^18.0.0 \
+  @types/react@^18.0.0 @types/react-dom@^18.0.0
+npm install @fluentui/react-components
+```
+
+```typescript
+// src/main.tsx - FluentProvider 追加
+import { FluentProvider, webLightTheme } from '@fluentui/react-components';
+import PowerProvider from './PowerProvider';
+import ProjectsTable from './ProjectsTable';
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <PowerProvider>
+      <FluentProvider theme={webLightTheme}>
+        <ProjectsTable />
+      </FluentProvider>
+    </PowerProvider>
+  </StrictMode>
+);
+```
+
+#### 制約事項と注意点
+
+**重要な制約:**
+- **ポート3000固定**: Power SDK は開発時にポート3000を要求
+- **tsconfig設定**: `verbatimModuleSyntax: false` が必要 (Power SDK 制限)
+- **React 18必須**: Fluent UI との互換性のため
+- **ストアドプロシージャ推奨**: 複雑なクエリはストアドプロシージャで実装
+- **Microsoft Entra ID**: SQL Server 認証は Microsoft Entra ID のみサポート
+
+**トラブルシューティング:**
+```bash
+# ポート3000が使用中の場合
+netstat -ano | findstr :3000
+taskkill /PID [PID] /F
+
+# SQL接続エラーの場合
+# 1. Azure SQL ファイアウォール設定確認
+# 2. Microsoft Entra ID 認証設定確認  
+# 3. VS Code SQL拡張機能で手動接続テスト
+```
+
+**SQL Server コネクション設定:**
+```bash
+# 1. Power Apps で SQL Server コネクション作成
+# 2. PAC CLI でテーブル追加
+pac code add-data-source -a "shared_sql" -c "connection-id" -t "[dbo].[Employees]" -d "server.database.windows.net,database"
+
+# 生成されるファイル:
+# /generated/services/EmployeesService.ts
+# /generated/models/EmployeesModel.ts
+```
+
+**生成されたSQLサービスの使用:**
+```typescript
+// src/hooks/useEmployees.ts
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { EmployeesService } from '../generated/services/EmployeesService';
+import type { Employees } from '../generated/models/EmployeesModel';
+
+export const useEmployees = () => {
+  const queryClient = useQueryClient();
+
+  // 従業員一覧取得
+  const getEmployees = async () => {
+    try {
+      const result = await EmployeesService.getall();
+      return result || [];
+    } catch (error) {
+      console.error('Failed to fetch employees:', error);
+      throw error;
+    }
+  };
+
+  // 従業員作成
+  const createEmployee = async (employeeData: Partial<Employees>) => {
+    try {
+      const result = await EmployeesService.create(employeeData);
+      return result;
+    } catch (error) {
+      console.error('Failed to create employee:', error);
+      throw error;
+    }
+  };
+
+  // 従業員更新（変更フィールドのみ）
+  const updateEmployee = async (id: string, changedFields: Partial<Employees>) => {
+    try {
+      await EmployeesService.update(id, changedFields);
+    } catch (error) {
+      console.error(`Failed to update employee ${id}:`, error);
+      throw error;
+    }
+  };
+
+  // 従業員削除
+  const deleteEmployee = async (id: string) => {
+    try {
+      await EmployeesService.delete(id);
+    } catch (error) {
+      console.error(`Failed to delete employee ${id}:`, error);
+      throw error;
+    }
+  };
+
+  return {
+    getEmployees,
+    createEmployee,
+    updateEmployee,
+    deleteEmployee
+  };
+};
+
+// React Query フック
+export const useEmployeesQuery = () => {
+  const { getEmployees } = useEmployees();
+  
+  return useQuery({
+    queryKey: ['employees'],
+    queryFn: getEmployees,
+    staleTime: 10 * 60 * 1000, // 10分間キャッシュ
+  });
+};
+
+export const useCreateEmployeeMutation = () => {
+  const { createEmployee } = useEmployees();
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: createEmployee,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+    },
+  });
+};
 ```
 
 #### Step 2: ローカル開発・検証
@@ -365,14 +1011,37 @@ npm run dev
 
 #### Step 3: データコネクタ統合 (オプション)
 
-**Office 365 コネクタ例:**
-```typescript
-// src/hooks/useOffice365.ts
-import { connector } from '@microsoft/power-apps';
+### 公式サポートコネクター一覧
 
-export const useOffice365 = () => {
-  const office365 = connector('shared_office365users');
-  const outlook = connector('shared_office365outlook');
+**Microsoft 公式サポート済みコネクター:**
+- ✅ **SQL Server** (`shared_sql`)
+- ✅ **SharePoint** (`shared_sharepoint`)  
+- ✅ **Office 365 Users** (`shared_office365users`)
+- ✅ **Office 365 Groups** (`shared_office365groups`)
+- ✅ **Azure Data Explorer** (`shared_kusto`)
+- ✅ **OneDrive for Business** (`shared_onedriveforbusiness`)
+- ✅ **Power Apps for Makers** (`shared_powerappsforappmakers`)
+- ✅ **Microsoft Teams** (`shared_teams`)
+- ✅ **MSN Weather** (`shared_msnweather`)
+- ✅ **Microsoft Translator V2** (`shared_microsofttranslator`)
+- ✅ **Dataverse** (CRUD 操作)
+
+**コネクタ設定例:**
+```bash
+# Office 365 Users
+pac code add-data-source -a "shared_office365users" -c "<connection-id>"
+
+# SQL Server  
+pac code add-data-source -a "shared_sql" -c "<connection-id>" -t "[dbo].[TableName]" -d "<server,database>"
+
+# SharePoint
+pac code add-data-source -a "shared_sharepoint" -c "<connection-id>" -t "<list-id>" -d "<site-url>"
+
+# Microsoft Teams
+pac code add-data-source -a "shared_teams" -c "<connection-id>"
+
+# MSN Weather
+pac code add-data-source -a "shared_msnweather" -c "<connection-id>"
   
   const getCurrentUser = async () => {
     try {
@@ -472,6 +1141,699 @@ export const useSqlData = () => {
   
   return { getProjects };
 };
+```
+
+**Dataverse 統合 (Microsoft 公式仕様):**
+
+**Step 1: PAC CLI でデータソースを追加:**
+```bash
+# Dataverse テーブルをコードアプリに追加
+pac code add-data-source -a dataverse -t accounts
+pac code add-data-source -a dataverse -t contacts
+pac code add-data-source -a dataverse -t cr123_customtable
+
+# 生成されるファイル:
+# /generated/services/AccountsService.ts
+# /generated/models/AccountsModel.ts
+# /generated/services/ContactsService.ts  
+# /generated/models/ContactsModel.ts
+```
+
+**Step 2: 生成されたサービスを使用:**
+```typescript
+// src/hooks/useDataverse.ts
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { AccountsService } from '../generated/services/AccountsService';
+import { ContactsService } from '../generated/services/ContactsService';
+import type { Accounts } from '../generated/models/AccountsModel';
+import type { Contacts } from '../generated/models/ContactsModel';
+
+// クエリオプションのインターフェース (Microsoft 公式)
+interface IGetAllOptions {
+  maxPageSize?: number;    // ページあたりの最大レコード数
+  select?: string[];       // 取得するフィールド
+  filter?: string;         // OData フィルター
+  orderBy?: string[];      // ソート
+  top?: number;           // 最大取得数
+  skip?: number;          // スキップ数
+  skipToken?: string;     // ページネーション用トークン
+}
+
+export const useDataverseAccounts = () => {
+  const queryClient = useQueryClient();
+
+  // アカウント一覧取得
+  const getAccounts = async (options?: IGetAllOptions) => {
+    try {
+      const result = await AccountsService.getAll(options);
+      return result.data || [];
+    } catch (error) {
+      console.error('Failed to fetch accounts:', error);
+      throw error;
+    }
+  };
+
+  // 単一アカウント取得
+  const getAccount = async (accountId: string) => {
+    try {
+      const result = await AccountsService.get(accountId);
+      return result.data;
+    } catch (error) {
+      console.error(`Failed to fetch account ${accountId}:`, error);
+      throw error;
+    }
+  };
+
+  // アカウント作成
+  const createAccount = async (accountData: Omit<Accounts, 'accountid'>) => {
+    try {
+      const result = await AccountsService.create(accountData);
+      return result.data;
+    } catch (error) {
+      console.error('Failed to create account:', error);
+      throw error;
+    }
+  };
+
+  // アカウント更新 (変更フィールドのみ)
+  const updateAccount = async (accountId: string, changes: Partial<Accounts>) => {
+    try {
+      await AccountsService.update(accountId, changes);
+    } catch (error) {
+      console.error(`Failed to update account ${accountId}:`, error);
+      throw error;
+    }
+  };
+
+  // アカウント削除
+  const deleteAccount = async (accountId: string) => {
+    try {
+      await AccountsService.delete(accountId);
+    } catch (error) {
+      console.error(`Failed to delete account ${accountId}:`, error);
+      throw error;
+    }
+  };
+
+  return {
+    getAccounts,
+    getAccount,
+    createAccount,
+    updateAccount,
+    deleteAccount
+  };
+};
+
+export const useDataverseContacts = () => {
+  const queryClient = useQueryClient();
+
+  // 連絡先一覧取得
+  const getContacts = async (options?: IGetAllOptions) => {
+    try {
+      const result = await ContactsService.getAll(options);
+      return result.data || [];
+    } catch (error) {
+      console.error('Failed to fetch contacts:', error);
+      throw error;
+    }
+  };
+
+  // 単一連絡先取得
+  const getContact = async (contactId: string) => {
+    try {
+      const result = await ContactsService.get(contactId);
+      return result.data;
+    } catch (error) {
+      console.error(`Failed to fetch contact ${contactId}:`, error);
+      throw error;
+    }
+  };
+
+  // 連絡先作成
+  const createContact = async (contactData: Omit<Contacts, 'contactid'>) => {
+    try {
+      const result = await ContactsService.create(contactData);
+      return result.data;
+    } catch (error) {
+      console.error('Failed to create contact:', error);
+      throw error;
+    }
+  };
+
+  // 連絡先更新 (変更フィールドのみ)
+  const updateContact = async (contactId: string, changes: Partial<Contacts>) => {
+    try {
+      await ContactsService.update(contactId, changes);
+    } catch (error) {
+      console.error(`Failed to update contact ${contactId}:`, error);
+      throw error;
+    }
+  };
+
+  // 連絡先削除
+  const deleteContact = async (contactId: string) => {
+    try {
+      await ContactsService.delete(contactId);
+    } catch (error) {
+      console.error(`Failed to delete contact ${contactId}:`, error);
+      throw error;
+    }
+  };
+
+  return {
+    getContacts,
+    getContact,
+    createContact,
+    updateContact,
+    deleteContact
+  };
+};
+
+// React Query 統合フック (Microsoft 公式パターン)
+export const useAccountsQuery = (options?: IGetAllOptions) => {
+  const { getAccounts } = useDataverseAccounts();
+  
+  return useQuery({
+    queryKey: ['dataverse', 'accounts', options],
+    queryFn: () => getAccounts(options),
+    staleTime: 5 * 60 * 1000, // 5分間キャッシュ
+  });
+};
+
+export const useAccountQuery = (accountId: string) => {
+  const { getAccount } = useDataverseAccounts();
+  
+  return useQuery({
+    queryKey: ['dataverse', 'accounts', accountId],
+    queryFn: () => getAccount(accountId),
+    enabled: !!accountId,
+  });
+};
+
+export const useCreateAccountMutation = () => {
+  const { createAccount } = useDataverseAccounts();
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (accountData: Omit<Accounts, 'accountid'>) => createAccount(accountData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dataverse', 'accounts'] });
+    },
+  });
+};
+
+export const useUpdateAccountMutation = () => {
+  const { updateAccount } = useDataverseAccounts();
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ accountId, changes }: { accountId: string; changes: Partial<Accounts> }) => 
+      updateAccount(accountId, changes),
+    onSuccess: (_, { accountId }) => {
+      queryClient.invalidateQueries({ queryKey: ['dataverse', 'accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['dataverse', 'accounts', accountId] });
+    },
+  });
+};
+
+export const useDeleteAccountMutation = () => {
+  const { deleteAccount } = useDataverseAccounts();
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (accountId: string) => deleteAccount(accountId),
+    onSuccess: (_, accountId) => {
+      queryClient.invalidateQueries({ queryKey: ['dataverse', 'accounts'] });
+      queryClient.removeQueries({ queryKey: ['dataverse', 'accounts', accountId] });
+    },
+  });
+};
+```
+
+**実用的なコンポーネント例 (Microsoft 公式パターン):**
+```typescript
+// src/components/AccountManager.tsx
+import { useState } from 'react';
+import { useAccountsQuery, useCreateAccountMutation, useUpdateAccountMutation } from '@/hooks/useDataverse';
+import type { Accounts } from '../generated/models/AccountsModel';
+
+export const AccountManager = () => {
+  // アカウント一覧取得（フィールド制限とフィルター付き）
+  const { data: accounts, isLoading, error } = useAccountsQuery({
+    select: ['name', 'accountnumber', 'address1_city', 'telephone1'],
+    filter: "address1_country eq 'USA'",
+    orderBy: ['name asc'],
+    top: 50
+  });
+
+  // ミューテーション
+  const createAccountMutation = useCreateAccountMutation();
+  const updateAccountMutation = useUpdateAccountMutation();
+
+  // 新規アカウント作成
+  const handleCreateAccount = async (accountData: Partial<Accounts>) => {
+    try {
+      // システム管理フィールドは除外
+      const newAccount = {
+        name: accountData.name!,
+        statecode: 0, // Active
+        accountnumber: accountData.accountnumber,
+        telephone1: accountData.telephone1,
+        address1_city: accountData.address1_city
+        // accountid, ownerid などは含めない
+      };
+
+      const result = await createAccountMutation.mutateAsync(newAccount as Omit<Accounts, 'accountid'>);
+      
+      if (result) {
+        console.log('Account created:', result);
+      }
+    } catch (error) {
+      console.error('Failed to create account:', error);
+    }
+  };
+
+  // アカウント更新（変更フィールドのみ）
+  const handleUpdateAccount = async (accountId: string, changes: Partial<Accounts>) => {
+    try {
+      // 変更されたフィールドのみを送信
+      const updateData = {
+        name: changes.name,
+        telephone1: changes.telephone1
+        // 変更していないフィールドは含めない
+      };
+
+      await updateAccountMutation.mutateAsync({
+        accountId,
+        changes: updateData
+      });
+      
+      console.log('Account updated successfully');
+    } catch (error) {
+      console.error('Failed to update account:', error);
+    }
+  };
+
+  if (isLoading) return <div className="p-4">アカウントを読み込み中...</div>;
+  if (error) return <div className="p-4 text-red-500">エラー: {error.message}</div>;
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold">アカウント管理</h2>
+      
+      {accounts?.map((account: Accounts) => (
+        <div key={account.accountid} className="p-4 border rounded-lg">
+          <h3 className="font-semibold">{account.name}</h3>
+          <p className="text-gray-600">番号: {account.accountnumber}</p>
+          <p className="text-gray-600">都市: {account.address1_city}</p>
+          <p className="text-gray-600">電話: {account.telephone1}</p>
+        </div>
+      ))}
+      
+      {createAccountMutation.isPending && (
+        <div className="text-blue-500">作成中...</div>
+      )}
+    </div>
+  );
+};
+```
+
+**カスタムエンティティの操作例:**
+```typescript
+// src/hooks/useProjectManagement.ts - カスタムエンティティ例
+import { useDataverseEntities, useCreateDataverseEntity } from '@/hooks/useDataverse';
+
+// カスタムエンティティ: プロジェクト管理
+export const useProjectManagement = () => {
+  // プロジェクト一覧（カスタムエンティティ: new_project）
+  const useProjects = () => useDataverseEntities('new_projects', {
+    $select: 'new_projectid,new_name,new_description,new_startdate,new_enddate,new_status',
+    $orderby: 'new_startdate desc'
+  });
+
+  // タスク一覧（カスタムエンティティ: new_task）
+  const useProjectTasks = (projectId: string) => useDataverseEntities('new_tasks', {
+    $select: 'new_taskid,new_name,new_description,new_duedate,new_status,new_assignedto',
+    $filter: `_new_projectid_value eq ${projectId}`,
+    $orderby: 'new_duedate asc'
+  });
+
+  // プロジェクト作成
+  const useCreateProject = () => useCreateDataverseEntity('new_projects');
+
+  return {
+    useProjects,
+    useProjectTasks,
+    useCreateProject
+  };
+};
+
+// タイプセーフなインターfaces定義
+export interface Contact extends DataverseEntity {
+  contactid: string;
+  firstname?: string;
+  lastname?: string;
+  fullname?: string;
+  emailaddress1?: string;
+  telephone1?: string;
+  birthdate?: string;
+  accountid?: string;
+}
+
+export interface Account extends DataverseEntity {
+  accountid: string;
+  name: string;
+  websiteurl?: string;
+  telephone1?: string;
+  emailaddress1?: string;
+}
+
+// タイプセーフな使用例
+export const ContactsList = () => {
+  const { data: contacts, isLoading, error } = useDataverseEntities('contacts', {
+    $select: 'contactid,firstname,lastname,emailaddress1,telephone1',
+    $orderby: 'lastname asc',
+    $top: 100
+  });
+
+  const createContactMutation = useCreateDataverseEntity('contacts');
+
+  const handleCreateContact = async (contactData: Partial<Contact>) => {
+    try {
+      await createContactMutation.mutateAsync({
+        firstname: contactData.firstname,
+        lastname: contactData.lastname,
+        emailaddress1: contactData.emailaddress1,
+        telephone1: contactData.telephone1
+      });
+    } catch (error) {
+      console.error('連絡先作成エラー:', error);
+      // ユーザーフレンドリーなエラーメッセージ表示
+    }
+  };
+
+  if (isLoading) return <div className="p-4">連絡先を読み込み中...</div>;
+  if (error) return <div className="p-4 text-red-500">エラーが発生しました: {error.message}</div>;
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold">連絡先一覧</h2>
+      {contacts?.map((contact: Contact) => (
+        <div key={contact.contactid} className="p-4 border rounded-lg">
+          <h3 className="font-semibold">
+            {contact.firstname} {contact.lastname}
+          </h3>
+          {contact.emailaddress1 && (
+            <p className="text-gray-600">Email: {contact.emailaddress1}</p>
+          )}
+          {contact.telephone1 && (
+            <p className="text-gray-600">Tel: {contact.telephone1}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+```
+
+### コネクタ統合のベストプラクティス
+
+**1. データソース管理のワークフロー:**
+```bash
+# データソース追加
+pac code add-data-source -a "shared_office365users" -c "<connection-id>"
+
+# 生成されたファイル確認
+ls generated/services/   # Office365UsersService.ts
+ls generated/models/     # Office365UsersModel.ts
+
+# スキーマ変更時の対応
+pac code delete-data-source -a "shared_sql" -ds "TableName"
+pac code add-data-source -a "shared_sql" -c "<connection-id>" -t "[dbo].[TableName]" -d "<server,database>"
+
+# 不要なデータソース削除
+pac code delete-data-source -a "shared_sharepoint" -ds "ListName"
+```
+
+**2. パフォーマンス最適化:**
+```typescript
+// 適切なキャッシュ戦略
+export const useOptimizedData = () => {
+  return useQuery({
+    queryKey: ['data', 'optimized'],
+    queryFn: fetchData,
+    staleTime: 10 * 60 * 1000,  // 10分キャッシュ
+    cacheTime: 30 * 60 * 1000,  // 30分保持
+    refetchOnWindowFocus: false, // ウィンドウフォーカス時の再取得無効
+  });
+};
+
+// バッチ処理とページネーション
+const processBatch = async (items: any[], batchSize = 10) => {
+  const batches = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    batches.push(items.slice(i, i + batchSize));
+  }
+  
+  for (const batch of batches) {
+    await Promise.all(batch.map(item => processItem(item)));
+    // バッチ間の待機で API レート制限回避
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+};
+```
+
+**3. エラーハンドリングパターン:**
+```typescript
+// 包括的なエラーハンドリング
+export const useRobustDataFetch = () => {
+  return useQuery({
+    queryKey: ['data'],
+    queryFn: async () => {
+      try {
+        return await DataService.getData();
+      } catch (error: any) {
+        // コネクション固有のエラー処理
+        if (error?.status === 401) {
+          throw new Error('認証が必要です。Power Apps で再度サインインしてください。');
+        }
+        if (error?.status === 403) {
+          throw new Error('アクセス権限がありません。管理者にお問い合わせください。');
+        }
+        if (error?.status >= 500) {
+          throw new Error('サーバーエラーが発生しました。しばらく待ってから再試行してください。');
+        }
+        throw new Error(`データ取得エラー: ${error?.message || 'Unknown error'}`);
+      }
+    },
+    retry: (failureCount, error: any) => {
+      // 4xx エラーはリトライしない
+      if (error?.status >= 400 && error?.status < 500) {
+        return false;
+      }
+      // 3回までリトライ
+      return failureCount < 3;
+    },
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
+};
+```
+
+**重要な実装ポイント (Microsoft 公式仕様):**
+
+**1. SDK 初期化の確認:**
+```typescript
+// src/App.tsx - 必須の初期化パターン
+import { useEffect, useState } from 'react';
+import { initialize } from '@microsoft/power-apps/app';
+
+export default function App() {
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        await initialize(); // SDK 初期化を待機
+        setIsInitialized(true);
+      } catch (err) {
+        setError('Failed to initialize Power Apps SDK');
+        console.error('SDK initialization failed:', err);
+      }
+    };
+    
+    init();
+  }, []);
+
+  // 初期化完了まで待機
+  if (!isInitialized) {
+    return <div>Power Apps SDK を初期化中...</div>;
+  }
+
+  if (error) {
+    return <div>エラー: {error}</div>;
+  }
+
+  return <YourMainComponent />;
+}
+```
+
+**2. Dataverse テーブル追加のワークフロー:**
+```bash
+# 1. 環境に接続
+pac auth create --url https://yourenvironment.crm.dynamics.com
+
+# 2. Code Apps プロジェクトに Dataverse テーブルを追加
+pac code add-data-source -a dataverse -t accounts
+pac code add-data-source -a dataverse -t contacts
+pac code add-data-source -a dataverse -t cr123_projects  # カスタムテーブル
+
+# 3. 自動生成されるファイル確認
+ls generated/services/   # AccountsService.ts, ContactsService.ts
+ls generated/models/     # AccountsModel.ts, ContactsModel.ts
+```
+
+**3. フィールド制限とパフォーマンス:**
+```typescript
+// 常に select パラメータでフィールドを制限
+const options: IGetAllOptions = {
+  select: ['name', 'accountnumber', 'telephone1'], // 必要なフィールドのみ
+  filter: "statecode eq 0", // アクティブのみ
+  top: 100 // 適切な上限設定
+};
+
+// すべてのフィールドを取得するのは避ける
+// const badOptions = { }; // これは避ける
+```
+
+### 表形式データソースの高度な活用
+
+**SharePoint リスト統合:**
+```bash
+# SharePoint リストの追加
+pac code add-data-source -a "shared_sharepoint" -c "<connection-id>" -t "<list-guid>" -d "<site-url>"
+
+# Dataset name と Table ID の取得方法:
+# 1. Canvas アプリでコネクションをギャラリーに接続
+# 2. アプリを公開・実行
+# 3. ブラウザ開発者ツールでネットワークタブを確認
+# 4. APIM リクエストから値を抽出:
+# https://.../sharepoint/<Connection-ID>/datasets/<Dataset-name>/tables/<Table-ID>/items
+```
+
+**ストアドプロシージャー活用:**
+```bash
+# ストアドプロシージャーをデータソースとして追加
+pac code add-data-source -a "shared_sql" -c "<connection-id>" -d "<server,database>" -sp "[dbo].[GetUserReports]"
+
+# 生成されるサービス例:
+# GetUserReportsService.ts
+```
+
+```typescript
+// src/hooks/useStoredProcedures.ts
+import { GetUserReportsService } from '../generated/services/GetUserReportsService';
+
+export const useUserReports = () => {
+  const getUserReports = async (userId: string, startDate: string, endDate: string) => {
+    try {
+      // ストアドプロシージャーのパラメータ渡し
+      const result = await GetUserReportsService.execute({
+        UserId: userId,
+        StartDate: startDate,
+        EndDate: endDate
+      });
+      return result;
+    } catch (error) {
+      console.error('Failed to execute stored procedure:', error);
+      throw error;
+    }
+  };
+
+  return { getUserReports };
+};
+```
+
+**Azure Data Explorer (Kusto) 統合:**
+```bash
+# Kusto データソース追加
+pac code add-data-source -a "shared_kusto" -c "<connection-id>"
+```
+
+```typescript
+// src/hooks/useKustoQuery.ts
+import { KustoService } from '../generated/services/KustoService';
+
+export const useKustoAnalytics = () => {
+  const runKustoQuery = async (query: string) => {
+    try {
+      const result = await KustoService.query({
+        Query: query,
+        Database: 'analytics-db'
+      });
+      return result.data;
+    } catch (error) {
+      console.error('Kusto query failed:', error);
+      throw error;
+    }
+  };
+
+  // 使用例: ログ分析
+  const getErrorLogs = async (timeRange: string) => {
+    const query = `
+      LogsTable
+      | where TimeGenerated > ago(${timeRange})
+      | where Level == "Error"
+      | summarize count() by bin(TimeGenerated, 1h)
+      | order by TimeGenerated desc
+    `;
+    
+    return runKustoQuery(query);
+  };
+
+  return { runKustoQuery, getErrorLogs };
+};
+```
+
+**4. トラブルシューティング:**
+```typescript
+// 接続診断ヘルパー
+export const diagnoseConnections = async () => {
+  const results = [];
+  
+  try {
+    // Office 365 Users 接続テスト
+    const profile = await Office365UsersService.MyProfile();
+    results.push({ service: 'Office365Users', status: 'OK', data: profile });
+  } catch (error) {
+    results.push({ service: 'Office365Users', status: 'ERROR', error: error.message });
+  }
+
+  try {
+    // SQL 接続テスト  
+    const sqlTest = await SqlService.getall();
+    results.push({ service: 'SQL', status: 'OK', count: sqlTest?.length || 0 });
+  } catch (error) {
+    results.push({ service: 'SQL', status: 'ERROR', error: error.message });
+  }
+
+  return results;
+};
+
+// 開発環境でのみ実行
+if (process.env.NODE_ENV === 'development') {
+  diagnoseConnections().then(console.log);
+}
+```
+
+**5. 現在未対応の機能:**
+```typescript
+// Microsoft 公式ドキュメントより、以下は未対応:
+// - 新規コネクション作成 (PAC CLI 経由)
+// - 一部コネクターの高度な機能
+// - リアルタイム通知・Webhook
+// - バルク操作の最適化
+```
 ```
 
 **モック データから実データへの移行:**
@@ -644,38 +2006,108 @@ pac pcf init
 
 ### レイアウト・UI開発
 
-#### アーキテクチャパターン
+## Code Apps アーキテクチャ (Microsoft 公式)
 
-**推奨アーキテクチャ: Microsoft 公式パターン**
+### 開発時アーキテクチャ
+
+**3層構造の Code Apps 開発環境:**
+
+```mermaid
+graph TB
+    subgraph "開発環境"
+        A[Your Code<br/>HTML/TypeScript/JavaScript SPA]
+        B[Power Apps SDK<br/>@microsoft/power-apps]
+        C[Power Platform CLI<br/>pac code commands]
+    end
+    
+    subgraph "生成ファイル"
+        D[power.config.json<br/>メタデータ設定]
+        E[generated/services/<br/>自動生成サービス]
+        F[generated/models/<br/>自動生成モデル]
+    end
+    
+    A --> B
+    B --> D
+    C --> D
+    C --> E
+    C --> F
 ```
-src/
-├── components/          # UI コンポーネント (shadcn/ui ベース)
-│   ├── ui/             # shadcn/ui プリミティブ
-│   ├── AssetCard.tsx   # 機能固有コンポーネント
-│   └── AssetDetail.tsx # ビジネスコンポーネント
-├── data/               # 静的データ (開発・テスト用)
-│   ├── assets.ts       # サンプルデータ
-│   └── owners.ts       # マスタデータ
-├── hooks/              # カスタムフック
-│   └── useConnectors.ts # Power Platform コネクタ統合
-├── lib/                # ユーティリティライブラリ
-│   └── utils.ts        # 共通関数
-├── pages/              # ページコンポーネント
-│   └── Index.tsx       # メインページ
-├── types/              # TypeScript型定義
-│   └── asset.ts        # ビジネスモデル
-├── App.tsx             # メインアプリケーション
-├── PowerProvider.tsx   # Power Platform SDK 初期化
-└── main.tsx            # エントリーポイント
+
+**Microsoft 公式アーキテクチャ構成要素:**
+
+| コンポーネント | 説明 | 役割 |
+|---------------|------|------|
+| **Your Code** | HTML/TypeScript/JavaScript SPA | アプリケーションロジック・UI |
+| **Power Apps SDK** | `@microsoft/power-apps` npm package | API提供・モデル/サービス管理 |
+| **Power Platform CLI** | `pac code` コマンド群 | ビルド・デプロイ・データソース管理 |
+| **power.config.json** | SDK生成メタデータファイル | Power Platform接続・公開情報 |
+| **Generated Models/Services** | 自動生成TypeScriptファイル | コネクター用型定義・サービス |
+
+### 実行時アーキテクチャ
+
+**3層 Runtime 構成:**
+
+```mermaid
+graph TB
+    subgraph "Power Apps 環境"
+        A[Power Apps Host<br/>認証・アプリロード・エラー表示]
+        B[Power Apps SDK<br/>API・生成モデル・サービス]
+        C[Your Code<br/>ビジネスロジック]
+    end
+    
+    subgraph "Power Platform"
+        D[Connectors<br/>Office 365・SQL・Dataverse]
+        E[Authentication<br/>自動ユーザー認証]
+        F[Environment<br/>環境管理]
+    end
+    
+    A --> E
+    A --> F
+    B --> D
+    C --> B
 ```
 
-**設計原則 (StaticAssetTracker パターン):**
-1. **静的データから開始**: 実コネクタ統合前にUI/UXを完成
-2. **shadcn/ui 活用**: 高品質なUIコンポーネント
-3. **TanStack Query**: サーバ状態管理とキャッシュ
-4. **段階的移行**: 静的データ → モックAPI → 実コネクタ
+**実行時の責任分離:**
 
-### 3.2 推奨技術スタック
+- **Power Apps Host**: エンドユーザー認証、アプリケーションロード、エラーメッセージ表示
+- **Power Apps SDK**: API提供、生成されたモデル・サービス、Power Platform コネクター通信
+- **Your Code**: ビジネスロジック、UI レンダリング、ユーザーインタラクション
+
+### 推奨プロジェクト構造 (Microsoft 公式準拠)
+
+```
+code-app-project/
+├── src/
+│   ├── components/          # React UI コンポーネント
+│   │   ├── ui/             # shadcn/ui プリミティブ
+│   │   ├── layout/         # レイアウトコンポーネント
+│   │   └── features/       # 機能固有コンポーネント
+│   ├── generated/          # PAC CLI 自動生成 (編集禁止)
+│   │   ├── models/         # TypeScript型定義
+│   │   └── services/       # コネクターサービス
+│   ├── hooks/              # カスタム React フック
+│   ├── lib/                # ユーティリティライブラリ
+│   ├── types/              # アプリ固有型定義
+│   ├── data/               # 静的���ータ (開発用)
+│   ├── App.tsx             # メインアプリケーション
+│   ├── PowerProvider.tsx   # SDK 初期化プロバイダー
+│   └── main.tsx            # エントリーポイント
+├── public/                 # 静的アセット
+├── power.config.json       # Power Platform 設定 (自動生成)
+├── package.json            # npm 依存関係
+├── vite.config.ts          # Vite ビルド設定
+└── tailwind.config.js      # TailwindCSS 設定
+```
+
+**重要な設計原則:**
+
+1. **SPA (Single Page Application) 必須**: Code Apps は SPA のみサポート
+2. **SDK ファースト**: `@microsoft/power-apps` SDK による Power Platform 統合
+3. **自動生成ファイル**: `generated/` フォルダは PAC CLI が管理（手動編集禁止）
+4. **power.config.json**: SDK とCLI が使用する設定ファイル（アプリコードから直接操作しない）
+5. **コネクター管理**: PAC CLI コマンドでデータソース追加・削除
+
+### 推奨技術スタック
 
 **必須技術 (Microsoft 公式サンプル準拠):**
 - **@microsoft/power-apps**: Power Platform SDK (^0.3.1)
@@ -4122,30 +5554,48 @@ export class SecurityChecker {
 - SDKがPower Platformコネクタへのアクセスを提供
 - ホストが認証・承認・アプリ読み込みを管理
 
-## 制限事項（2025年現在）
+## 制限事項・サポート状況 (Microsoft 公式・2025年現在)
 
-### 現在サポートされていない機能
+### ❌ **現在サポートされていない機能**
 
+**セキュリティ・ポリシー:**
 - **Content Security Policy (CSP)** サポート
-- **Storage SAS IP制限** サポート  
-- **Power Platform Git統合**
-- **Dataverseソリューション** 統合
-- **Power Platform パイプライン** 使用
+- **Storage Shared Access Signature (SAS) IP制限** サポート  
+
+**開発・デプロイメント:**
+- **Power Platform Git 統合**
+- **Dataverse ソリューション** 統合
+- **Power Platform パイプライン** 使用による配布
+
+**プラットフォーム統合:**
 - **Power Apps モバイルアプリ** での実行
-- **Azure Application Insights** のネイティブ統合
+- **Power Apps for Windows** での実行
+- **Azure Application Insights** ネイティブ統合 (汎用Webアプリとしては追加可能)
 
-### 管理機能サポート状況
+**API アクセス:**
+- ✅ **Power Platform コネクター外部API** 呼び出し可能
 
-✅ **サポート済み:**
-- エンドユーザー同意ダイアログ
-- 共有制限（Canvas アプリと同じ）
-- アプリ検疫
-- データ損失防止ポリシー
-- 条件付きアクセス
-- 管理者同意抑制
-- テナント分離
-- Azure B2B（外部ユーザーアクセス）
-- 正常性メトリクス
+### ✅ **管理プラットフォーム機能サポート状況**
+
+| 管理機能 | サポート状況 | 詳細 |
+|---------|-------------|------|
+| **コネクター権限同意ダイアログ** | ✅ 完全サポート | エンドユーザーに表示 |
+| **共有制限** | ✅ Canvas アプリと同等 | 既存のアプリ共有制限を継承 |
+| **アプリ検疫** | ✅ 完全サポート | セキュリティスキャンによる自動検疫 |
+| **データ損失防止ポリシー** | ✅ アプリ起動時適用 | DLP ポリシー違反時は起動ブロック |
+| **条件付きアクセス** | ✅ 個別アプリ単位 | アプリごとの細かい制御 |
+| **管理者同意抑制** | ✅ OAuth対応 | Microsoft・カスタムコネクター両対応 |
+| **テナント分離** | ✅ 完全サポート | セキュリティ境界の維持 |
+| **Azure B2B 外部ユーザー** | ✅ Canvas アプリと同等 | 外部ユーザーアクセス可能 |
+| **正常性メトリクス** | ✅ 管理センター・メーカーポータル両対応 | 運用ヘルスメトリクス提供 |
+
+### 🔒 **重要なセキュリティ考慮事項**
+
+**アプリコード公開性:**
+- Code Apps は公開エンドポイントでホストされます
+- **機密データをアプリコード内に保存禁止**
+- ユーザーデータは適切なデータソースに保存
+- 認証・認可チェック後にデータ取得実行
 
 ## システム設定
 
