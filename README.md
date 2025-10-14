@@ -9,19 +9,38 @@
 
 > **この標準は Power Apps Code Apps 専用です。PCF コンポーネント開発ではありません。**
 
-### 🎯 段階的開発フロー
+### 🎯 統一された段階的開発フロー
 
-この開発標準では、**段階的な開発アプローチ**を採用し、各段階でAIが次のアクションを提案します：
+この開発標準では、**重複を排除した統一的な開発アプローチ**を採用し、各段階で一貫したAI提案による開発サイクルを実現します：
+
+```mermaid
+graph LR
+    A[Phase 0: 環境準備] --> B[Phase 1: Vite+React+TypeScript基盤]
+    B --> C[Phase 2: UI・デザインシステム統合]
+    C --> D[Phase 3: Power Apps環境テスト]
+    D --> E[Phase 4: デプロイ]
+    E --> F[Phase 5: 機能拡張・データ統合]
+    F --> G[継続開発サイクル]
+```
+
+**統一された開発サイクル**:
+
+- **Phase 0 → Phase 1**: *"Vite + React + TypeScript プロジェクト作成を開始しますか？"*
+- **Phase 1 → Phase 2**: *"UI基盤・デザインシステム構築を開始しますか？"*
+- **Phase 2 → Phase 3**: *"Phase 3のPower Apps環境テストを開始しますか？"*
+- **Phase 3 → Phase 4**: *"Phase 4のデプロイ準備を開始しますか？"*
+- **Phase 4 → Phase 5**: *"Phase 5の機能拡張・データソース統合を開始しますか？"*
+- **Phase 5 → 継続**: *"継続的な機能拡張開発サイクルを開始しますか？"*
 
 #### **Phase 0: 環境準備**
 ```mermaid
 graph LR
-    A[開発ツールインストール] --> B[Power Platform環境確認]
-    B --> C[VS Code設定]
+    A[開発ツール準備] --> B[Power Platform環境確認]
+    B --> C[VS Code + 拡張機能設定]
     C --> D[環境準備完了]
 ```
-- **概要**: 開発に必要なツールとPower Platform環境の準備
-- **AI提案例**: *"開発環境をセットアップしました。プロジェクト作成を開始しますか？"*
+- **概要**: 開発に必要なツール・環境の一括準備
+- **次へ**: Phase 0 → Phase 1
 
 #### **Phase 1: プロジェクト環境構築・PowerProvider・SDK初期化**
 ```mermaid
@@ -32,63 +51,272 @@ graph LR
     D --> E[エラーチェック]
     E --> F[基盤完了]
 ```
-- **概要**: Vite + React + TypeScriptプロジェクトの初期化とPower Apps Code Apps対応設定、PowerProviderとSDK初期化の実装
-- **技術要素**: 
-  - Vite + React + TypeScript プロジェクト初期化
-  - Power Apps Code Apps 対応の設定（vite.config.ts、package.json）
-  - PowerProvider実装とメインアプリコンポーネント統合
-  - 必要なユーティリティ関数とReactインポートの修正
-- **AI提案例**: *"Vite + React + TypeScript環境とPowerProvider実装が完了しました。エラーチェックを実行しますか？"*
-- **次のアクション**: *"SDK初期化エラーなし！UI基盤・デザインシステム構築を開始しますか？"*
+
+> **🎯 最重要設定項目**: Vite + React + TypeScriptプロジェクト初期化とPower Apps Code Apps対応設定
+
+**完全統合手順**:
+
+1. **プロジェクト初期化**
+```bash
+# 1. Vite + React + TypeScript プロジェクト作成
+npm create vite@latest my-code-app -- --template react-ts
+cd my-code-app
+
+# 2. Power Apps Code Apps SDK インストール
+npm install @microsoft/power-apps
+
+# 3. PAC CLI でCode Apps初期化
+pac code init --displayName "My Code App"
+```
+
+2. **vite.config.ts 設定（必須）**
+```typescript
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react-swc";
+
+export default defineConfig({
+  base: "./",  // 🚨重要: Power Apps デプロイ必須設定
+  server: { host: "::", port: 3000 },
+  plugins: [react()],
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+  }
+});
+```
+
+3. **PowerProvider.tsx 実装（Microsoft公式パターン）**
+```typescript
+import { initialize } from "@microsoft/power-apps/app";
+import { useEffect, type ReactNode } from "react";
+
+interface PowerProviderProps {
+    children: ReactNode;
+}
+
+export default function PowerProvider({ children }: PowerProviderProps) {
+    useEffect(() => {
+        const initApp = async () => {
+            try {
+                await initialize();
+                console.log('Power Platform SDK initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize Power Platform SDK:', error);
+            }
+        };
+        
+        initApp();
+    }, []);
+
+    return <>{children}</>;
+}
+```
+
+4. **package.json スクリプト設定**
+```json
+{
+  "scripts": {
+    "dev": "start vite && start pac code run",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  }
+}
+```
+
+5. **統合エラーチェック**
+```bash
+# TypeScript・ビルド・リンターを一括チェック
+npm run build && npm run lint && npx tsc --noEmit
+```
+
+**次へ**: Phase 1 → Phase 2
 
 #### **Phase 2: UI基盤・デザインシステム・MVP構築**
+
 ```mermaid
 graph LR
-    A[メインアプリコンポーネント作成] --> B[レイアウト実装]
-    B --> C[デザインシステム統合]
-    C --> D[MVP機能実装]
-    D --> E[ビルド・エラーチェック]
-    E --> F[ローカル実行]
-    F --> G[MVP完了]
+    A[デザインシステム統合] --> B[レイアウト実装]
+    B --> C[MVP機能実装]
+    C --> D[統合テスト]
+    D --> E[Phase 2完了]
 ```
-- **概要**: メインアプリコンポーネントとレイアウト作成、デザインシステムの統合、要件に基づいたMVP機能の実装
-- **技術要素**:
-  - メインアプリコンポーネントとレイアウトシステム
-  - UI基盤とデザインシステム（TailwindCSS/Fluent UI等）
-  - 要件に基づいた設計に従ったMVP機能実装
-  - **PowerProvider・Power Apps接続部分は変更禁止**（統合部分保護）
-- **AI提案例**: *"UI基盤とMVP機能を実装しました。ビルド・エラーチェックを実行しますか？"*
-- **次のアクション**: *"エラーなし！Power Apps環境での実行を開始しますか？"*
+
+**統一デザインシステム（重複排除版）**:
+
+1. **shadcn/ui + TailwindCSS 統合セットアップ**
+
+```bash
+# shadcn/ui初期化（TailwindCSS自動設定）
+npx shadcn-ui@latest init
+
+# Power Apps 基本UIコンポーネント
+npx shadcn-ui@latest add button card input select table
+```
+
+2. **Power Apps 公式テーマ統合 (src/globals.css)**
+
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Power Platform 公式カラーパレット */
+  --power-blue: #4072B3;
+  --power-blue-light: #6088C6;
+  --power-blue-lighter: #AEC4E5;
+  --power-red: #EB8686;
+  --power-gray: #C0C0C0;
+  
+  /* shadcn/ui 統合テーマ */
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --primary: 210 40% 44%; /* Power Blue */
+  --primary-foreground: 210 40% 98%;
+}
+
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --primary: 210 40% 60%;
+}
+```
+
+3. **統合レイアウトコンポーネント (src/components/Layout/MainLayout.tsx)**
+
+```typescript
+import { PowerProvider } from '../PowerProvider';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+
+export default function MainLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <PowerProvider>
+      <div className="min-h-screen bg-background">
+        <header className="border-b bg-primary/5 px-6 py-4">
+          <h1 className="text-xl font-semibold text-primary">Power Apps Code App</h1>
+        </header>
+        <main className="container mx-auto p-6">
+          <Card className="p-6">{children}</Card>
+        </main>
+      </div>
+    </PowerProvider>
+  );
+}
+```
+
+4. **App.tsx 最終統合**
+
+```typescript
+import MainLayout from './components/Layout/MainLayout';
+import './globals.css';
+
+export default function App() {
+  return (
+    <MainLayout>
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold">Welcome to Power Apps</h2>
+        <p className="text-muted-foreground">統合デザインシステム完了</p>
+      </div>
+    </MainLayout>
+  );
+}
+```
+
+**統合エラーチェック**: `npm run build && npm run lint`
+
+**次へ**: Phase 2 → Phase 3
 
 #### **Phase 3: Power Apps環境からローカル実行**
+
 ```mermaid
 graph LR
-    A[ビルド実行] --> B[エラー・警告チェック]
-    B --> C[Power Appsローカル実行]
-    C --> D[動作確認]
-    D --> E[実行完了]
+    A[ビルド・エラーチェック] --> B[Power Appsローカル実行]
+    B --> C[動作確認・テスト]
+    C --> D[実行成功]
 ```
-- **AI提案例**: *"Power Apps環境でのローカル実行が成功しました。デプロイ準備をしますか？"*
+
+**統合実行コマンド**:
+
+```bash
+# ビルド・エラーチェック・ローカル実行を一括実行
+npm run build && npm run lint && npm run dev
+```
+
+**次へ**: Phase 3 → Phase 4
 
 #### **Phase 4: Power Apps環境へのデプロイ**
-```mermaid
-graph LR
-    A[ビルド実行] --> B[エラー・警告チェック]
-    B --> C[デプロイ実行]
-    C --> D[未実装機能記載]
-    D --> E[デプロイ完了]
-```
-- **AI提案例**: *"デプロイが完了しました。未実装機能をREADME.mdに記載しますか？"*
 
-#### **Phase 5: 機能拡張**
 ```mermaid
 graph LR
-    A[データソース接続] --> B[未実装機能開発]
-    B --> C[ユーザーへの開発提案]
-    C --> D[機能拡張完了]
+    A[最終ビルド] --> B[デプロイ実行]
+    B --> C[動作確認]
+    C --> D[デプロイ完了]
 ```
-- **AI提案例**: *"データソース接続が完了しました。どの未実装機能から開発しますか？"*
-- **次のアクション**: *"機能拡張が完了しました。次の開発サイクルを開始しますか？"*
+
+**統合デプロイコマンド**:
+
+```bash
+# 本番ビルド・デプロイ実行
+npm run build && pac code push
+```
+
+**次へ**: Phase 4 → Phase 5
+
+#### **Phase 5: 機能拡張・データソース統合**
+
+```mermaid
+graph LR
+    A[コネクタ接続] --> B[機能実装]
+    B --> C[テスト・デプロイ]
+    C --> D[拡張完了]
+```
+
+**統合データソース接続パターン**:
+
+```typescript
+// Office 365 + SQL Server 統合パターン
+import { useConnectors } from '@microsoft/power-apps';
+
+export function useIntegratedData() {
+  const { office365Users, sqlConnector } = useConnectors();
+  
+  const fetchUserData = async (userId: string) => {
+    const user = await office365Users.getUser(userId);
+    const userData = await sqlConnector.query(`
+      SELECT * FROM Users WHERE Email = '${user.mail}'
+    `);
+    return { ...user, ...userData[0] };
+  };
+  
+  return { fetchUserData };
+}
+```
+
+**次へ**: Phase 5 → 継続開発サイクル
+
+---
+
+## 📈 **統一された開発フロー概要**
+
+**重複排除・一貫性確保済み**:
+```
+Phase 0: 環境準備 
+    ↓ 統一AI提案
+Phase 1: Vite+React+TypeScript+PowerProvider統合 
+    ↓ 統一AI提案  
+Phase 2: shadcn/ui+TailwindCSS統合デザインシステム
+    ↓ 統一AI提案
+Phase 3: Power Apps環境実行テスト
+    ↓ 統一AI提案
+Phase 4: 統合デプロイ
+    ↓ 統一AI提案
+Phase 5: データソース統合・機能拡張
+    ↓ 継続開発サイクル
+```
+
+**統一エラーチェック**: `npm run build && npm run lint && npx tsc --noEmit`
 
 ### 🔍 **各フェーズ共通のエラーチェック・品質保証手順**
 
@@ -136,25 +364,17 @@ pac code push  # 本番デプロイ
 
 #### ✅ **全フェーズ共通チェックリスト**
 
-**基本品質チェック**
-- [ ] TypeScript エラー: 0件
-- [ ] ESLint エラー: 0件
-- [ ] ビルドエラー: 0件
-- [ ] ランタイムエラー: 0件
+## 🔍 **統合品質チェックリスト**
 
-**Power Platform統合チェック**
-- [ ] PowerProvider初期化: 正常
-- [ ] コネクター接続: 正常
-- [ ] 認証・認可: 正常
-- [ ] データ操作: 正常
+### 各フェーズ共通チェック項目
 
-**デプロイメントチェック**  
-- [ ] ローカル動作: 正常
-- [ ] 本番ビルド: 成功
-- [ ] Power Apps デプロイ: 成功
-- [ ] 本番動作: 正常
+**統合エラーチェック**: `npm run build && npm run lint && npx tsc --noEmit`
 
-**AI品質提案**: *"全チェック項目をクリアしました！次のフェーズに進みますか？"*
+- [ ] **コード品質**: TypeScript・ESLint・ビルドエラー 0件
+- [ ] **Power Platform統合**: PowerProvider初期化・コネクター接続 正常  
+- [ ] **動作確認**: ローカル実行・本番ビルド・デプロイ 成功
+
+**AI品質提案**: *"全チェック項目クリア！次フェーズを開始しますか？"*
 
 ### 🤖 **AI ガイダンス システム設計**
 
@@ -255,7 +475,7 @@ interface NextAction {
 ### 📋 Code Apps 開発フロー
 
 0. [Phase 0: 環境準備](#phase-0-環境準備)
-1. [Phase 1: プロジェクト作成・PowerProvider実装](#phase-1-プロジェクト作成powerprovider実装)
+1. [Phase 1: プロジェクト環境構築・PowerProvider・SDK初期化](#phase-1-プロジェクト環境構築powerproviderSDK初期化)
 2. [Phase 2: MVP構築](#phase-2-mvp構築)
 3. [Phase 3: Power Apps環境からローカル実行](#phase-3-power-apps環境からローカル実行)
 4. [Phase 4: Power Apps環境へのデプロイ](#phase-4-power-apps環境へのデプロイ)
@@ -441,9 +661,9 @@ dotnet tool install --global Microsoft.PowerApps.CLI.Tool
 
 ---
 
-## Phase 1: プロジェクト作成・PowerProvider実装
+### ⚠️ 重要：Phase 1の詳細手順は上記の統合版を参照してください
 
-### 🚀 プロジェクト作成・PowerProvider実装・エラーチェック
+> **注意**: この詳細セクションは重複のため、上記のPhase 1統合版をご利用ください。
 
 #### 1. プロジェクト作成・初期化
 ```pwsh
@@ -3042,33 +3262,16 @@ jobs:
 
 ---
 
-## 🎨 TailwindCSS デザインシステム
+## 🎨 デザインシステム統合
 
-### カラーシステム設計
+> **参照**: デザインシステムの詳細設定は **Phase 2: UI基盤・デザインシステム・MVP構築** セクションの統合版をご確認ください。
 
-**カスタムカラーパレット (企業ブランド対応):**
-```javascript
-// tailwind.config.js
-module.exports = {
-  theme: {
-    extend: {
-      colors: {
-        // ブランドカラー
-        brand: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',  // メインブランドカラー
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
-        },
-        // セマンティックカラー
-        success: {
-          50: '#f0fdf4',
+**統一設定概要**:
+- **shadcn/ui + TailwindCSS**: 推奨デザインシステム
+- **Power Platform カラーパレット**: 公式ブランド色対応
+- **ダークモード対応**: CSS変数による統合テーマ
+
+**クイック参照**:
           100: '#dcfce7',
           500: '#22c55e',
           600: '#16a34a',
