@@ -13,19 +13,29 @@
 
 この開発標準では、**段階的な開発アプローチ**を採用し、各段階でAIが次のアクションを提案します：
 
-#### **Phase 1: MVP 開発・検証** 
+#### **Phase 1: プロジェクト作成・PowerProvider実装**
 ```mermaid
 graph LR
-    A[プロジェクト作成] --> B[PowerProvider実装]
-    B --> C[基本UI構築]
-    C --> D[ローカル実行]
-    D --> E[Power Apps デプロイ]
-    E --> F[MVP完了]
+    A[プロジェクト作成] --> B[依存関係インストール]
+    B --> C[PowerProvider実装]
+    C --> D[Power Apps統合初期化]
+    D --> E[基盤完了]
+```
+- **AI提案例**: *"プロジェクトを作成しました。PowerProviderを実装しますか？"*
+- **次のアクション**: *"PowerProvider実装が完了しました。MVPの開発を開始しますか？"*
+
+#### **Phase 2: MVP開発・検証** 
+```mermaid
+graph LR
+    A[基本UI構築] --> B[モックデータ実装]
+    B --> C[ローカル実行・テスト]
+    C --> D[Power Apps デプロイ]
+    D --> E[MVP完了]
 ```
 - **AI提案例**: *"MVPモデルを開発しました。ローカルで実行しますか？"*
 - **次のアクション**: *"ローカルで実行完了しました。問題なく実行できた場合、まずはMVPをPower Apps本番環境にデプロイしますか？"*
 
-#### **Phase 2: 機能拡張・データ統合**
+#### **Phase 3: 機能拡張・データ統合**
 ```mermaid
 graph LR
     A[MVP完了] --> B{データソース選択}
@@ -39,7 +49,7 @@ graph LR
 - **AI提案例**: *"機能拡張として、Dataverseに接続しますか？"*
 - **次のアクション**: *"Dataverseに接続しました。次はほかの機能を開発しますか？機能としてはユーザー管理・権限制御がおすすめです"*
 
-#### **Phase 3: 本格運用・最適化**
+#### **Phase 4: 本格運用・最適化**
 ```mermaid
 graph LR
     A[データ統合完了] --> B[テスト自動化]
@@ -50,6 +60,72 @@ graph LR
 ```
 - **AI提案例**: *"機能開発が完了しました。テスト自動化を実装しますか？"*
 - **次のアクション**: *"CI/CDパイプラインを構築して自動デプロイを設定しますか？"*
+
+### 🔍 **各フェーズ共通のエラーチェック・品質保証手順**
+
+#### **Phase 3: データ統合・機能拡張時のエラーチェック**
+
+```pwsh
+# 1. データ接続エラーチェック
+# コネクター接続状態確認
+pac connector list
+
+# 2. TypeScript型定義チェック  
+# データモデルの型整合性確認
+npx tsc --noEmit
+
+# 3. 統合テスト実行
+npm run test  # if configured
+npm run build # 統合後のビルド確認
+
+# 4. Power Platform接続テスト
+# - コネクター動作確認
+# - データ取得・更新テスト
+# - 認証・権限確認
+```
+
+#### **Phase 4: 本格運用・最適化時の品質チェック**
+
+```pwsh
+# 1. 性能テスト
+npm run build  # 最適化ビルド
+npm run preview  # 本番環境シミュレーション
+
+# 2. セキュリティチェック
+npm audit  # 脆弱性チェック
+npm audit fix  # 自動修正
+
+# 3. コード品質チェック
+npm run lint  # ESLint
+npm run test  # ユニットテスト
+npm run build  # 本番ビルド
+
+# 4. デプロイ前最終チェック
+pac code push --dry-run  # デプロイ前確認
+pac code push  # 本番デプロイ
+```
+
+#### ✅ **全フェーズ共通チェックリスト**
+
+**基本品質チェック**
+- [ ] TypeScript エラー: 0件
+- [ ] ESLint エラー: 0件
+- [ ] ビルドエラー: 0件
+- [ ] ランタイムエラー: 0件
+
+**Power Platform統合チェック**
+- [ ] PowerProvider初期化: 正常
+- [ ] コネクター接続: 正常
+- [ ] 認証・認可: 正常
+- [ ] データ操作: 正常
+
+**デプロイメントチェック**  
+- [ ] ローカル動作: 正常
+- [ ] 本番ビルド: 成功
+- [ ] Power Apps デプロイ: 成功
+- [ ] 本番動作: 正常
+
+**AI品質提案**: *"全チェック項目をクリアしました！次のフェーズに進みますか？"*
 
 ### 🤖 **AI ガイダンス システム設計**
 
@@ -125,15 +201,19 @@ interface NextAction {
 }
 ```
 
-### 📋 **実装推奨順序 (詳細)**
-1. **環境構築 & PowerProvider** → *"SDK初期化完了しました。基本UIを作成しますか？"*
-2. **基本レイアウト構築** → *"UIが完成しました。ローカルでテストしますか？"*
-3. **ローカル検証** → *"正常に動作しています。Power Appsにデプロイしますか？"*
-4. **Power Apps デプロイ** → *"MVPデプロイ完了！データソース統合を開始しますか？"*
-5. **データソース選択・統合** → *"データ接続完了！追加機能を実装しますか？"*
-6. **機能拡張** → *"機能開発完了！品質向上のためテストを追加しますか？"*
-7. **テスト・最適化** → *"テスト完了！CI/CDで自動化しますか？"*
-8. **本格運用準備** → *"本格運用の準備が整いました！"*
+### 📋 **実装推奨順序 (エラーチェック統合版)**
+1. **環境準備** → *"開発環境をセットアップしました。プロジェクト作成を開始しますか？"*
+2. **プロジェクト作成 & PowerProvider実装** → *"SDK初期化完了しました。🔍エラーチェックを実行しますか？"*
+3. **Phase 1 エラーチェック** → *"エラーなし！MVP開発を開始しますか？"*
+4. **基本UI構築** → *"UIが完成しました。ローカルでテストしますか？"*
+5. **ローカル検証** → *"正常に動作しています。🔍エラーチェックを実行しますか？"*
+6. **Phase 2 エラーチェック** → *"エラーなし！Power Appsにデプロイしますか？"*
+7. **Power Apps デプロイ** → *"MVPデプロイ完了！データソース統合を開始しますか？"*
+8. **データソース選択・統合** → *"データ接続完了！🔍統合テストを実行しますか？"*
+9. **Phase 3 エラーチェック** → *"統合テスト完了！追加機能を実装しますか？"*
+10. **機能拡張** → *"機能開発完了！🔍品質チェックを実行しますか？"*
+11. **Phase 4 品質チェック** → *"品質チェック完了！本格運用準備をしますか？"*
+12. **本格運用準備** → *"本格運用の準備が整いました！"*
 
 > **重要**: 各段階でAIが開発者のスキルレベルと時間制約に応じて最適な次のステップを提案し、効率的な開発を支援します。
 
@@ -145,10 +225,19 @@ interface NextAction {
 - [開発状態管理](#開発状態とアクション提案)
 
 ### 📋 Code Apps 開発フロー
-1. [環境構築・PowerProvider実装](#2-環境構築・テンプレート選択)  
-2. [レイアウト・UI開発](#レイアウト・ui開発)
-3. [コネクタ統合・データ接続](#コネクタ統合・データ接続)
-4. [テスト・デプロイ](#テスト・デプロイ)
+
+- [前提条件: 環境準備・セットアップ](#前提条件-環境準備セットアップ)
+1. [Phase 1: プロジェクト作成・PowerProvider実装](#phase-1-プロジェクト作成powerprovider実装)
+2. [Phase 2: MVP開発・検証](#phase-2-mvp開発検証)
+3. [Phase 3: 機能拡張・データ統合](#phase-3-機能拡張データ統合)
+4. [Phase 4: 本格運用・最適化](#phase-4-本格運用最適化)
+
+### 🔍 エラーチェック・品質保証
+
+- [各フェーズ共通のエラーチェック手順](#各フェーズ共通のエラーチェック品質保証手順)
+- [Phase 1 エラーチェック](#phase-1-完了時のエラーチェック修正手順)
+- [Phase 2 エラーチェック](#phase-2-完了時のエラーチェック修正手順)  
+- [全フェーズ共通チェックリスト](#全フェーズ共通チェックリスト)
 
 ### 🎨 デザインシステム
 - [TailwindCSS デザインシステム](#tailwindcss-デザインシステム)
@@ -271,6 +360,347 @@ graph TD
     S --> T[CI/CD構築]
     T --> U[本格運用開始]
 ```
+
+---
+
+## 前提条件: 環境準備・セットアップ
+
+### 📋 必須環境のセットアップ
+
+FluentSampleを参考にした確実な環境構築手順：
+
+#### 1. 開発ツールのインストール
+```pwsh
+# Visual Studio Code + Power Platform Tools拡張機能
+winget install Microsoft.VisualStudioCode
+# VS Code起動後、拡張機能で「Power Platform Tools」をインストール
+
+# Node.js (LTS版) + npm
+winget install OpenJS.NodeJS.LTS
+
+# Git for Windows
+winget install Git.Git
+
+# Power Apps CLI
+dotnet tool install --global Microsoft.PowerApps.CLI.Tool
+```
+
+#### 2. Power Platform環境の確認
+- **Power Apps環境（Code Apps有効化済み）**の準備
+- **Power Apps Premium ライセンス**の確認
+- **環境管理者権限**の確認
+
+#### 3. VS Code設定
+```bash
+# Power Platformパネルを開く
+# View → Command Palette → "Power Platform"
+# Power Platformアカウントにログイン
+# Code Apps有効な環境を選択・確認
+```
+
+#### 4. 環境準備完了チェック
+- [ ] VS Code + Power Platform Tools拡張機能
+- [ ] Node.js (LTS) + npm
+- [ ] Git
+- [ ] Power Apps CLI (`pac` コマンド実行可能)
+- [ ] Power Platform認証済み
+- [ ] Code Apps環境選択済み
+
+### 🎯 AI提案例
+- *"開発環境をセットアップしました。Power Platform環境に接続できていますか？"*
+- *"環境準備が完了しました。MVPの開発を開始しますか？"*
+
+---
+
+## Phase 1: プロジェクト作成・PowerProvider実装
+
+### 🚀 FluentSample準拠のプロジェクト作成手順
+
+#### 1. プロジェクト作成・初期化
+```pwsh
+# サンプルプロジェクトの取得
+git clone https://github.com/microsoft/PowerAppsCodeApps.git
+cd PowerAppsCodeApps/samples/FluentSample
+code .
+```
+
+#### 2. 依存関係インストール・ビルド
+```pwsh
+npm install
+npm run build
+```
+**重要**: 必ず`npm run build`を実行してプロジェクトが正常にコンパイルされることを確認
+
+**package.json のスクリプト設定確認:**
+```json
+{
+  "scripts": {
+    "dev": "start vite && start pac code run",  // 重要: 自動でPAC Code Runを起動
+    "build": "vite build",
+    "build:dev": "vite build --mode development",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  }
+}
+```
+
+#### 3. vite.config.ts の設定確認
+```typescript
+// vite.config.ts - StaticAssetTracker準拠の設定
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react-swc";
+import path from "path";
+
+export default defineConfig({
+  base: "./",  // 重要: Power Apps デプロイのための相対パス設定
+  server: {
+    host: "::",
+    port: 3000,
+  },
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+});
+```
+
+#### 4. PowerProvider.tsx実装
+```typescript
+// PowerProvider.tsx - Power Apps SDK初期化の基盤（StaticAssetTracker準拠）
+import { initialize } from "@microsoft/power-apps/app";
+import { useEffect, type ReactNode } from "react";
+
+interface PowerProviderProps {
+    children: ReactNode;
+}
+
+export default function PowerProvider({ children }: PowerProviderProps) {
+    useEffect(() => {
+        const initApp = async () => {
+            try {
+                await initialize();
+                console.log('Power Platform SDK initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize Power Platform SDK:', error);
+            }
+        };
+        
+        initApp();
+    }, []);
+
+    return <>{children}</>;
+}
+```
+
+**main.tsx での使用方法:**
+```typescript
+import { createRoot } from 'react-dom/client';
+import App from './App.tsx';
+import './index.css';
+import { StrictMode } from 'react';
+import PowerProvider from './PowerProvider.tsx';
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <PowerProvider>
+      <App />
+    </PowerProvider>
+  </StrictMode>
+);
+```
+
+#### 5. Power Apps Code統合初期化
+```pwsh
+pac code init
+```
+Power Apps SDKの初期化により、ローカル開発とPower Platform統合を可能にする
+
+### 🔧 PowerProvider設計ガイドライン
+
+#### 絶対に守るべきルール
+1. **PowerProvider.tsxは変更禁止**
+   - `initialize()`関数による非同期SDK初期化パターンを保持
+   - エラーハンドリング構造は変更しない
+   - 構造変更・追加ロジックは禁止
+
+2. **SDK初期化パターン（StaticAssetTracker準拠）**
+   ```typescript
+   // 必須パターン: 非同期初期化
+   useEffect(() => {
+       const initApp = async () => {
+           try {
+               await initialize();
+               console.log('Power Platform SDK initialized successfully');
+           } catch (error) {
+               console.error('Failed to initialize Power Platform SDK:', error);
+           }
+       };
+       
+       initApp();
+   }, []);
+   ```
+
+3. **コネクター実装パターン**
+   ```typescript
+   // 開発時: mockDataで開発
+   import { mockUsers, mockCalendarEvents } from '../mockData/office365Data';
+   
+   // 本番時: useConnectorで切り替え
+   import { useConnector } from '@microsoft/power-apps';
+   const office365 = useConnector('office365users');
+   const sqlConnector = useConnector('sql');
+   ```
+
+4. **型定義の厳密管理**
+   ```typescript
+   interface Office365User {
+     id: string;
+     displayName: string;
+     mail: string;
+     // 公式ドキュメントに準拠した型定義
+   }
+   ```
+
+### 🎯 AI提案例
+- *"プロジェクトを作成しました。PowerProviderを実装しますか？"*
+- *"PowerProvider.tsxを実装しました。Power Apps統合を初期化しますか？"*
+- *"基盤の準備が完了しました。エラーチェックを実行しますか？"*
+
+### 🔍 Phase 1 完了時のエラーチェック・修正手順
+
+#### 1. TypeScript エラーチェック
+```pwsh
+# TypeScript コンパイルエラーの確認
+npx tsc --noEmit
+
+# エラーがある場合の対処
+# - 型定義の不整合を修正
+# - import文の確認
+# - PowerProvider.tsxの型定義確認
+```
+
+#### 2. ESLint チェック
+```pwsh
+# コード品質・構文エラーの確認
+npm run lint
+
+# 自動修正可能なエラーの修正
+npm run lint -- --fix
+```
+
+#### 3. ビルドエラーチェック
+```pwsh
+# 本番ビルドでのエラー確認
+npm run build
+
+# 開発モードビルドでのエラー確認
+npm run build:dev
+```
+
+#### 4. VS Code エラーパネルの確認
+- **Problems パネル**でエラー・警告を確認
+- **PowerProvider.tsx**の赤線エラーを解消
+- **vite.config.ts**の設定エラーを修正
+
+#### ✅ Phase 1 完了チェックリスト
+- [ ] TypeScript エラー: 0件
+- [ ] ESLint エラー: 0件  
+- [ ] ビルドエラー: 0件
+- [ ] VS Code Problems パネル: エラーなし
+- [ ] `pac code init` 正常完了
+- [ ] PowerProvider.tsx 正常動作
+
+**AI提案**: *"Phase 1のエラーチェックが完了しました。すべて正常でしたらMVP開発を開始しますか？"*
+
+---
+
+## Phase 2: MVP開発・検証
+
+### 🚀 基本UI構築からデプロイまで
+
+#### 1. ローカル実行・検証
+```pwsh
+npm run dev
+```
+- Vite devサーバーとPAC Code Runが自動起動
+- ブラウザで`http://localhost:3000`にアクセス
+- 正常動作を確認
+
+#### 2. Power Apps環境へのデプロイ（任意）
+```pwsh
+pac code push
+```
+- 成功するとPower Apps URLが返却
+- [https://make.powerapps.com](https://make.powerapps.com)でアプリ確認可能
+
+### 🎯 AI提案例
+- *"基本UIを構築しました。ローカルで実行しますか？"*
+- *"MVPが完成しました。動作確認を行いますか？"*
+- *"ローカル実行が成功しました。エラーチェックを実行してからデプロイしますか？"*
+
+### 🔍 Phase 2 完了時のエラーチェック・修正手順
+
+#### 1. ランタイムエラーチェック
+```pwsh
+# ローカル実行での動作確認
+npm run dev
+
+# ブラウザの開発者ツールでエラー確認
+# - Console エラーをすべて解消
+# - Network タブでリクエストエラー確認
+# - PowerProvider 初期化ログ確認
+```
+
+#### 2. 機能動作テスト
+```pwsh
+# 基本機能のテスト手順
+# 1. アプリケーションの読み込み確認
+# 2. ナビゲーション動作確認  
+# 3. UI コンポーネント表示確認
+# 4. Power Platform SDK 初期化確認
+```
+
+#### 3. デプロイ前チェック
+```pwsh
+# 本番ビルドエラーチェック
+npm run build
+
+# dist フォルダの生成確認
+# - index.html の存在確認
+# - assets フォルダの確認
+# - 相対パス設定の確認
+```
+
+#### 4. Power Apps デプロイテスト
+```pwsh
+# Power Apps環境への安全なデプロイ
+pac code push
+
+# デプロイ後の動作確認
+# - Power Apps URL でのアクセス確認
+# - ローカルと同じ動作確認
+# - エラーログ確認
+```
+
+#### ✅ Phase 2 完了チェックリスト
+- [ ] ローカル実行: 正常動作
+- [ ] ブラウザConsole: エラーなし  
+- [ ] 基本機能: すべて動作
+- [ ] 本番ビルド: 成功
+- [ ] Power Apps デプロイ: 成功
+- [ ] 本番環境: 正常動作
+
+**AI提案**: *"Phase 2のMVPが正常に動作しています。機能拡張・データ統合を開始しますか？"*
+
+### ⚠️ トラブルシューティング
+- "fetching your app"で停止する場合:
+  1. `npm run build`の実行確認
+  2. PowerProvider.tsxのエラー確認  
+  3. 環境の必要コネクター有効化確認
+
+---
 
 ### **AI 提案メッセージ テンプレート**
 
