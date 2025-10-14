@@ -20,30 +20,44 @@ graph LR
     B --> C[VS Code設定]
     C --> D[環境準備完了]
 ```
+- **概要**: 開発に必要なツールとPower Platform環境の準備
 - **AI提案例**: *"開発環境をセットアップしました。プロジェクト作成を開始しますか？"*
 
-#### **Phase 1: プロジェクト作成・PowerProvider実装**
+#### **Phase 1: プロジェクト環境構築・PowerProvider・SDK初期化**
 ```mermaid
 graph LR
-    A[プロジェクト作成] --> B[依存関係インストール]
+    A[Vite+React+TypeScript初期化] --> B[Power Apps Code Apps設定]
     B --> C[PowerProvider実装]
-    C --> D[Power Apps統合初期化]
+    C --> D[SDK初期化・統合]
     D --> E[エラーチェック]
     E --> F[基盤完了]
 ```
-- **AI提案例**: *"PowerProvider実装が完了しました。エラーチェックを実行しますか？"*
-- **次のアクション**: *"エラーなし！MVP構築を開始しますか？"*
+- **概要**: Vite + React + TypeScriptプロジェクトの初期化とPower Apps Code Apps対応設定、PowerProviderとSDK初期化の実装
+- **技術要素**: 
+  - Vite + React + TypeScript プロジェクト初期化
+  - Power Apps Code Apps 対応の設定（vite.config.ts、package.json）
+  - PowerProvider実装とメインアプリコンポーネント統合
+  - 必要なユーティリティ関数とReactインポートの修正
+- **AI提案例**: *"Vite + React + TypeScript環境とPowerProvider実装が完了しました。エラーチェックを実行しますか？"*
+- **次のアクション**: *"SDK初期化エラーなし！UI基盤・デザインシステム構築を開始しますか？"*
 
-#### **Phase 2: MVP構築**
+#### **Phase 2: UI基盤・デザインシステム・MVP構築**
 ```mermaid
 graph LR
-    A[要件に基づいた設計] --> B[MVP機能実装]
-    B --> C[ビルド実行]
-    C --> D[エラー・警告チェック]
-    D --> E[ローカル実行]
-    E --> F[MVP完了]
+    A[メインアプリコンポーネント作成] --> B[レイアウト実装]
+    B --> C[デザインシステム統合]
+    C --> D[MVP機能実装]
+    D --> E[ビルド・エラーチェック]
+    E --> F[ローカル実行]
+    F --> G[MVP完了]
 ```
-- **AI提案例**: *"MVP機能を実装しました。ビルド・エラーチェックを実行しますか？"*
+- **概要**: メインアプリコンポーネントとレイアウト作成、デザインシステムの統合、要件に基づいたMVP機能の実装
+- **技術要素**:
+  - メインアプリコンポーネントとレイアウトシステム
+  - UI基盤とデザインシステム（TailwindCSS/Fluent UI等）
+  - 要件に基づいた設計に従ったMVP機能実装
+  - **PowerProvider・Power Apps接続部分は変更禁止**（統合部分保護）
+- **AI提案例**: *"UI基盤とMVP機能を実装しました。ビルド・エラーチェックを実行しますか？"*
 - **次のアクション**: *"エラーなし！Power Apps環境での実行を開始しますか？"*
 
 #### **Phase 3: Power Apps環境からローカル実行**
