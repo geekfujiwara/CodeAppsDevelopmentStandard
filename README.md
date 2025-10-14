@@ -1,25 +1,15 @@
 # Power Apps Code Apps 開発標準
 
-
 ## 概要
-
-この標準は、**Power Apps Code Apps** （PCF ではありません）のための包括的な開発指針です。Microsoft公式ドキュメント（[Power Apps code apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)）と[PowerAppsCodeAppsリポジトリ](https://github.com/microsoft/PowerAppsCodeApps)のベストプラクティスに基づき、**要件理解から公開まで**の開発プロセスと、**モダンデザインシステム**を統合した実践的な開発ガイドラインです。
 
 **Power Apps Code Apps** は、React、Vue などのポピュラーなフレームワークを使用してカスタムWebアプリを構築し、UI とロジックの完全な制御を保ちながら Power Platform で実行できる開発プラットフォームです。Microsoft Entra 認証、1,500+ コネクター、管理プラットフォームポリシー準拠により、安全で迅速なイノベーションを実現します。
 
-### 🚨 重要: PCF と Code Apps の違い
-
-| 項目 | **Power Apps Code Apps** (本標準) | **PCF** (Power Apps Component Framework) |
-|------|-----------------------------------|-------------------------------------------|
-| **用途** | **完全なアプリケーション** | 単一コンポーネント |
-| **開発方式** | React、Vue などのフルスタックアプリ | TypeScript コンポーネント |
-| **公開方法** | **`pac code push`** | `pac pcf push` |
-| **実行環境** | Power Apps 内でアプリとして動作 | Power Apps 内でコンポーネントとして埋め込み |
-| **SDK** | `@microsoft/power-apps` | `powerapps-component-framework` |
+- この標準は、**Power Apps Code Apps** のための開発指針です。
+- Microsoft 公式ドキュメント（[Power Apps code apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)）と[PowerAppsCodeAppsリポジトリ](https://github.com/microsoft/PowerAppsCodeApps)のベストプラクティスに基づき、**要件理解から公開まで**の開発プロセスと、**モダンデザインシステム**を統合した実践的な開発ガイドラインです。
 
 > **この標準は Power Apps Code Apps 専用です。PCF コンポーネント開発ではありません。**
 
-### 🎯 段階的開発フロー (AI ガイド付き)
+### 🎯 段階的開発フロー
 
 この開発標準では、**段階的な開発アプローチ**を採用し、各段階でAIが次のアクションを提案します：
 
@@ -219,7 +209,7 @@ interface NextAction {
 
 ---
 
-## ⚡ Power Apps Code Apps 統合 (最重要)
+## ⚡ Power Apps Code Apps 統合
 
 ### Power Apps Code Apps プラットフォーム概要 (Microsoft 公式)
 
@@ -289,7 +279,6 @@ graph TD
 ✅ 環境構築が完了しました！
 🎯 次のアクション: PowerProvider実装
 📝 説明: Power Apps SDKとの接続を確立します
-⏱️ 予想時間: 15分
 ❓ PowerProvider実装を開始しますか？
 ```
 
@@ -483,7 +472,6 @@ npm run dev
 ✅ PowerProvider実装が完了しました！
 🎯 次のアクション: 基本UI構築
 📝 説明: shadcn/ui + TailwindCSSでモダンなUIを作成します
-⏱️ 予想時間: 30-60分
 ❓ 基本レイアウトとコンポーネントを作成しますか？
 ```
 
@@ -492,7 +480,6 @@ npm run dev
 ✅ 基本UI構築が完了しました！
 🎯 次のアクション: ローカル実行テスト
 📝 説明: 開発環境でアプリケーションをテストします
-⏱️ 予想時間: 10分
 ❓ ローカル環境でアプリを実行しますか？
 ```
 
@@ -501,7 +488,6 @@ npm run dev
 ✅ ローカルテストが成功しました！
 🎯 次のアクション: Power Apps環境へデプロイ
 📝 説明: 本番環境でCode Appsとして公開します
-⏱️ 予想時間: 15分
 ❓ Power Apps環境にデプロイしますか？
 ```
 
