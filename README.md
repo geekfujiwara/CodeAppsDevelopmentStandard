@@ -56,68 +56,137 @@ graph LR
 
 **完全統合手順**:
 
-1. **プロジェクト初期化**
+**Microsoft公式ドキュメント完全準拠手順:**
+
+### **Step 1: Vite App初期化**
 ```bash
-# 1. Vite + React + TypeScript プロジェクト作成
-npm create vite@latest my-code-app -- --template react-ts
-cd my-code-app
-
-# 2. Power Apps Code Apps SDK インストール
-npm install @microsoft/power-apps
-
-# 3. PAC CLI でCode Apps初期化
-pac code init --displayName "My Code App"
+mkdir C:\CodeApps -Force
+cd C:\CodeApps
+npm create vite@latest AppFromScratch -- --template react-ts
+cd C:\CodeApps\AppFromScratch
+npm install
 ```
 
-2. **vite.config.ts 設定（必須）**
-```typescript
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
+**注意事項** (Microsoft公式より):
+- create-viteのインストールに同意する
+- パッケージ名 `appfromscratch` をEnterで受け入れる  
+- フレームワーク選択: React
+- バリアント選択: TypeScript
 
+```bash
+# Node型定義をインストール (必須)
+npm i --save-dev @types/node
+```
+
+### **Step 2: Code App初期化**
+```bash
+# 1. Power Platform認証
+pac auth create
+
+# 2. 環境選択
+pac env select -env <環境のURL>
+
+# 3. Code Apps初期化
+pac code init --displayName "App From Scratch"
+
+# 4. Power SDK インストール
+npm install --save "@microsoft/power-apps"
+```
+
+2. **vite.config.ts 設定（Microsoft公式準拠）**
+```typescript
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import * as path from 'path'
+
+// https://vite.dev/config/
 export default defineConfig({
   base: "./",  // 🚨重要: Power Apps デプロイ必須設定
-  server: { host: "::", port: 3000 },
+  server: {
+    host: "::",
+    port: 3000,  // Power SDK requires port 3000
+  },
   plugins: [react()],
-  build: {
-    outDir: 'dist',
-    assetsDir: 'assets',
-  }
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
 });
 ```
 
-3. **PowerProvider.tsx 実装（Microsoft公式パターン）**
-```typescript
-import { initialize } from "@microsoft/power-apps/app";
-import { useEffect, type ReactNode } from "react";
+### **Step 4: PowerProvider.tsx追加**
 
-interface PowerProviderProps {
-    children: ReactNode;
-}
-
-export default function PowerProvider({ children }: PowerProviderProps) {
-    useEffect(() => {
-        const initApp = async () => {
-            try {
-                await initialize();
-                console.log('Power Platform SDK initialized successfully');
-            } catch (error) {
-                console.error('Failed to initialize Power Platform SDK:', error);
-            }
-        };
-        
-        initApp();
-    }, []);
-
-    return <>{children}</>;
-}
+**Microsoft公式**: `src`フォルダーに`PowerProvider.tsx`を追加
+```
+公式コード取得元: github.com/microsoft/PowerAppsCodeApps/docs/assets/PowerProvider.tsx
 ```
 
-4. **package.json スクリプト設定**
+### **Step 5: main.tsx更新**
+
+**Microsoft公式手順**:
+
+1. **importを追加**:
+```typescript
+import PowerProvider from './PowerProvider.tsx'
+```
+
+2. **既存コードを変更**:
+```typescript
+// 変更前:
+<StrictMode>
+  <App />
+</StrictMode>,
+
+// 変更後:
+<StrictMode>
+  <PowerProvider>
+    <App />
+  </PowerProvider>
+</StrictMode>,
+```
+
+### **Step 6: テスト実行**
+
+**Microsoft公式**:
+```bash
+npm run dev
+```
+
+**結果確認**:
+- Power SDK serverが起動
+- 提供されたURLを同じブラウザプロファイルで開く
+- Power Apps内でVite Reactアプリが動作
+
+### **Step 3: package.json スクリプト更新**
+
+**Microsoft公式手順**: `package.json`の既存行を変更
+```json
+// 変更前:
+"dev": "vite"
+
+// 変更後:
+"dev": "start pac code run && vite"
+```
+
+**完全なscriptsセクション**:
 ```json
 {
   "scripts": {
-    "dev": "start vite && start pac code run",
-    "build": "vite build",
+    "dev": "start pac code run && vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  }
+}
+```
+
+**macOS注意事項** (Microsoft公式より):
+```json
+{
+  "scripts": {
+    "dev": "vite && pac code run",  // startコマンド削除
+    "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   }
@@ -144,7 +213,38 @@ graph LR
 
 **統一デザインシステム（重複排除版）**:
 
-1. **shadcn/ui + TailwindCSS 統合セットアップ**
+### **Step 1: アプリアイコン・ロゴ作成**
+
+**アイコン作成手順**:
+```bash
+# public/assets ディレクトリ作成
+mkdir -p public/assets
+
+# アイコンファイル配置（以下のいずれかの方法）
+# 方法1: 既存ロゴがある場合
+# logo.svg, logo.png を public/assets/ にコピー
+
+# 方法2: 無料アイコン生成ツール使用
+# - Canva (https://canva.com)
+# - LogoMaker (https://logomaker.com)  
+# - Flaticon (https://flaticon.com)
+```
+
+**推奨アイコンサイズ**:
+- **SVGロゴ**: `logo.svg` (スケーラブル、推奨)
+- **PNGアイコン**: `128x128px`, `256x256px`
+- **ファビコン**: `favicon.ico` (32x32px)
+
+**Code Apps登録時のロゴ指定**:
+```bash
+# アイコン付きでCode Apps初期化（初回時のみ）
+pac code init --displayName "My Code App" -l "./public/assets/logo.svg"
+
+# 既存アプリのアイコン更新
+pac code update -l "./public/assets/logo.svg"
+```
+
+### **Step 2: shadcn/ui + TailwindCSS 統合セットアップ**
 
 ```bash
 # shadcn/ui初期化（TailwindCSS自動設定）
@@ -154,7 +254,7 @@ npx shadcn-ui@latest init
 npx shadcn-ui@latest add button card input select table
 ```
 
-2. **Power Apps 公式テーマ統合 (src/globals.css)**
+### **Step 3: Power Apps 公式テーマ統合 (src/globals.css)**
 
 ```css
 @tailwind base;
@@ -183,7 +283,7 @@ npx shadcn-ui@latest add button card input select table
 }
 ```
 
-3. **統合レイアウトコンポーネント (src/components/Layout/MainLayout.tsx)**
+### **Step 4: 統合レイアウトコンポーネント (src/components/Layout/MainLayout.tsx)**
 
 ```typescript
 import { PowerProvider } from '../PowerProvider';
@@ -195,7 +295,19 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     <PowerProvider>
       <div className="min-h-screen bg-background">
         <header className="border-b bg-primary/5 px-6 py-4">
-          <h1 className="text-xl font-semibold text-primary">Power Apps Code App</h1>
+          <div className="flex items-center gap-3">
+            {/* アプリロゴ表示 */}
+            <img 
+              src="/assets/logo.svg" 
+              alt="App Logo" 
+              className="h-8 w-8"
+              onError={(e) => {
+                // SVGが見つからない場合、PNGにフォールバック
+                (e.target as HTMLImageElement).src = "/assets/logo.png";
+              }}
+            />
+            <h1 className="text-xl font-semibold text-primary">Power Apps Code App</h1>
+          </div>
         </header>
         <main className="container mx-auto p-6">
           <Card className="p-6">{children}</Card>
@@ -206,7 +318,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
-4. **App.tsx 最終統合**
+### **Step 5: App.tsx 最終統合**
 
 ```typescript
 import MainLayout from './components/Layout/MainLayout';
@@ -1232,9 +1344,13 @@ MVPフェーズで既に利用可能にするための設定：
 
 ```bash
 # 1. プロジェクト作成時
-mkdir my-code-app
-cd my-code-app
-npm create vite@latest . -- --template react-ts
+# Microsoft公式手順準拠
+mkdir C:\CodeApps -Force
+cd C:\CodeApps
+npm create vite@latest AppFromScratch -- --template react-ts
+cd C:\CodeApps\AppFromScratch
+npm install
+npm i --save-dev @types/node
 
 # 2. アセットディレクトリ作成とロゴ配置
 mkdir -p public/assets
@@ -2899,15 +3015,21 @@ node --version
 # Power Platform CLI インストール
 pac install latest
 
-# Vite + React + TypeScript プロジェクト作成
-npm create vite@latest my-code-app -- --template react-ts
-cd my-code-app
+# Microsoft公式手順準拠: Vite + React + TypeScript プロジェクト作成
+mkdir C:\CodeApps -Force
+cd C:\CodeApps
+npm create vite@latest AppFromScratch -- --template react-ts
+cd C:\CodeApps\AppFromScratch
+npm install
+npm i --save-dev @types/node
 
-# Power Apps Code Apps SDK インストール (PCF 用ではありません)
-npm install @microsoft/power-apps
+# Power Platform認証・環境選択 (必須)
+pac auth create
+pac env select -env <環境URL>
 
-# Code Apps として初期化 (PCF init ではありません)
-pac code init
+# Code Apps 初期化・SDK インストール (PCF用ではありません)
+pac code init --displayName "App From Scratch"
+npm install --save "@microsoft/power-apps"
 ```
 
 **❌ 間違い (PCF 初期化コマンド):**
