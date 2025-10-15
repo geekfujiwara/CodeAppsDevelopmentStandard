@@ -1612,43 +1612,149 @@ export default App;
 - App.tsx で UI ライブラリとクエリクライアント設定
 - pages/Index.tsx でメイン機能実装
 
-## Power Platform コネクター統合 (Microsoft 公式仕様)
+## Power Platform コネクター統合 (Microsoft 公式仕様準拠)
 
-### データ接続の基本フロー
+> **参考ドキュメント**: [コード アプリをデータに接続する](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-data)
 
-**Step 1: Power Apps でコネクション作成**
+### 📋 **サポートされているコネクター (公式サポート)**
+
+- **SQL Server** / **Azure SQL Database**
+- **SharePoint** / **OneDrive for Business**
+- **Office 365 Users** / **Office 365 Groups**
+- **Azure Data Explorer** / **Microsoft Teams**
+- **MSN Weather** / **Microsoft Translator V2**
+- **Power Apps for Maker** / **Dataverse** (CRUD操作)
+
+### 🔧 **Step 1: Power Apps での接続作成とユーザー設定**
+
+#### **1.1 Power Apps 接続ページへアクセス**
+
+**アクセス手順**:
 ```bash
-# 1. Power Apps (make.powerapps.com) でコネクション作成
-# 2. PAC CLI で接続情報取得
+# 1. Power Apps ポータルにアクセス
+# URL: https://make.powerapps.com/
+# 2. 左側ナビゲーションから「接続」ページを開く
+```
+
+#### **1.2 新しい接続の作成**
+
+**Office 365 ユーザー接続の例**:
+```bash
+# Power Apps UI での操作手順:
+# 1. [+ 新しい接続] ボタンをクリック
+# 2. [Office 365 ユーザー] を検索・選択
+# 3. [作成] ボタンをクリック
+# 4. Microsoft アカウントでサインイン
+# 5. アクセス許可を承認
+
+# 注意: 既存のOffice 365 ユーザー接続がある場合は再利用可能
+```
+
+**SQL Server接続の例 (オプション)**:
+```bash
+# Power Apps UI での操作手順:
+# 1. [+ 新しい接続] ボタンをクリック
+# 2. [SQL Server] を検索・選択
+# 3. 認証タイプを選択:
+#    - Windows認証
+#    - SQL Server認証
+#    - Azure AD統合認証 (推奨)
+# 4. 接続情報を入力:
+#    - サーバー名: your-server.database.windows.net
+#    - データベース名: YourDatabase
+# 5. [作成] ボタンをクリック
+```
+
+### 🔍 **Step 2: 接続メタデータの取得**
+
+#### **2.1 PAC CLI による接続一覧取得**
+
+```bash
+# 利用可能な接続を一覧表示
 pac connection list
 
 # 出力例:
-# Connection ID: aaaaaaaa000011112222bbbbbbbbbbbb  
-# API Name: shared_office365users
+# ┌─────────────────────────────────┬───────────────────────┬──────────────────────────────────┐
+# │ Display Name                    │ API Name              │ Connection Id                    │
+# ├─────────────────────────────────┼───────────────────────┼──────────────────────────────────┤
+# │ Office 365 Users               │ shared_office365users │ aaaaaaaa000011112222bbbbbbbbbbbb │
+# │ SQL Server                     │ shared_sql            │ bbbbbbbb111122223333cccccccccccc │
+# └─────────────────────────────────┴───────────────────────┴──────────────────────────────────┘
 ```
 
-**Step 2: Code Apps にデータソース追加**
+#### **2.2 Power Apps UIによる接続ID取得**
+
 ```bash
-# 非表形式データソース (Office 365 Users など)
+# Power Apps での操作手順:
+# 1. 接続一覧で目的の接続をクリック
+# 2. ブラウザのURLを確認
+#    例: /connections/[API名]/[接続ID]/details
+# 3. API名と接続IDをコピー
+```
+
+### ⚡ **Step 3: Code Apps にデータソースを追加**
+
+#### **3.1 非表形式データソース追加**
+
+```bash
+# Office 365 Users の例
 pac code add-data-source -a "shared_office365users" -c "aaaaaaaa000011112222bbbbbbbbbbbb"
 
-# 表形式データソース (SQL, SharePoint など)  
-pac code add-data-source -a "shared_sql" -c "bbbbbbbb111122223333cccccccccccc" -t "[dbo].[Users]" -d "database.windows.net,dbname"
-
-# ストアドプロシージャー
-pac code add-data-source -a "shared_sql" -c "bbbbbbbb111122223333cccccccccccc" -d "database.windows.net,dbname" -sp "[dbo].[GetUserById]"
-
-# 自動生成されるファイル:
-# /generated/services/Office365UsersService.ts
-# /generated/models/Office365UsersModel.ts
+# 実行結果:
+# ✅ データソース追加完了
+# 📁 生成されたファイル:
+#    - src/generated/services/Office365UsersService.ts
+#    - src/generated/models/Office365UsersModel.ts
 ```
 
-### Office 365 Users 統合パターン (Microsoft 公式)
+#### **3.2 表形式データソース追加 (オプション)**
 
-**生成されたサービスを使用:**
+```bash
+# SQL Server テーブルの例
+pac code add-data-source \
+  -a "shared_sql" \
+  -c "bbbbbbbb111122223333cccccccccccc" \
+  -t "[dbo].[Users]" \
+  -d "your-server.database.windows.net,YourDatabase"
+
+# SharePoint リストの例  
+pac code add-data-source \
+  -a "shared_sharepointonline" \
+  -c "cccccccc222233334444dddddddddddd" \
+  -t "CustomList" \
+  -d "https://contoso.sharepoint.com/sites/TeamSite,12345678-1234-5678-9abc-123456789abc"
+```
+
+#### **3.3 ストアドプロシージャ追加 (オプション)**
+
+```bash
+# SQL Server ストアドプロシージャの例
+pac code add-data-source \
+  -a "shared_sql" \
+  -c "bbbbbbbb111122223333cccccccccccc" \
+  -d "your-server.database.windows.net,YourDatabase" \
+  -sp "[dbo].[GetUserById]"
+```
+
+### 🗑️ **データソース削除 (必要時)**
+
+```bash
+# データソース削除
+pac code delete-data-source -a "shared_office365users" -ds "Office365Users"
+
+# 重要: 接続のスキーマが変更された場合、
+#       データソースを削除してから再追加する必要があります
+```
+
+### 🚀 **Step 4: アプリでの接続呼び出し実装**
+
+#### **4.1 Office 365 Users 実装パターン (Microsoft 公式)**
+
+**React Hook での実装**:
+
 ```typescript
 // src/hooks/useCurrentUser.ts
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import { Office365UsersService } from '../generated/services/Office365UsersService';
 
 export interface UserProfile {
@@ -1660,48 +1766,725 @@ export interface UserProfile {
 }
 
 export const useCurrentUser = () => {
-  return useQuery({
-    queryKey: ['currentUser'],
-    queryFn: async (): Promise<UserProfile> => {
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
       try {
-        // Microsoft 公式 API パターン
+        setLoading(true);
+        
+        // Microsoft 公式 API パターン - プロフィール取得
         const profile = (await Office365UsersService.MyProfile_V2(
           "id,displayName,jobTitle,userPrincipalName"
         )).data;
         
-        // ユーザー写真取得の試行
-        let photo = null;
-        if (profile?.id || profile?.userPrincipalName) {
-          try {
-            const photoData = (await Office365UsersService.UserPhoto_V2(
-              profile.id || profile.userPrincipalName
-            )).data;
-            
-            if (photoData) {
-              photo = `data:image/jpeg;base64,${photoData}`;
-            }
-          } catch (photoError) {
-            // フォールバック: userPrincipalName で再試行
-            if (profile.userPrincipalName && profile.userPrincipalName !== profile.id) {
+        setUser(profile);
+        
+            if (profile.userPrincipalName) {
               try {
-                const fallbackPhoto = (await Office365UsersService.UserPhoto_V2(
+                photoData = (await Office365UsersService.UserPhoto_V2(
                   profile.userPrincipalName
                 )).data;
-                if (fallbackPhoto) {
-                  photo = `data:image/jpeg;base64,${fallbackPhoto}`;
-                }
               } catch {
                 console.log('ユーザー写真が利用できません');
               }
             }
           }
+          
+          if (photoData) {
+            setUser(prev => ({ 
+              ...prev, 
+              ...profile, 
+              photo: `data:image/jpeg;base64,${photoData}` 
+            }));
+          }
         }
-        
-        return {
-          id: profile?.id,
-          displayName: profile?.displayName,
-          jobTitle: profile?.jobTitle,
-          userPrincipalName: profile?.userPrincipalName,
+      } catch (err) {
+        console.error('Failed to fetch user profile:', err);
+        setError('プロフィールの取得に失敗しました');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
+  return { user, loading, error };
+};
+```
+
+**コンポーネントでの使用例**:
+
+```typescript
+// src/components/UserProfile.tsx  
+import React from 'react';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+
+export const UserProfile: React.FC = () => {
+  const { user, loading, error } = useCurrentUser();
+
+  if (loading) return <div>プロフィール読み込み中...</div>;
+  if (error) return <div>エラー: {error}</div>;
+  if (!user) return <div>プロフィールが見つかりません</div>;
+
+  return (
+    <div className="user-profile">
+      {user.photo && (
+        <img 
+          src={user.photo} 
+          alt="User Avatar" 
+          className="w-12 h-12 rounded-full"
+        />
+      )}
+      <div>
+        <h3>{user.displayName}</h3>
+        <p>{user.jobTitle}</p>
+        <p>{user.userPrincipalName}</p>
+      </div>
+    </div>
+  );
+};
+```
+
+#### **4.2 表形式データソース実装パターン (SQL Server)**
+
+```typescript
+// src/hooks/useProjects.ts - SQL Server テーブル操作
+import { useState, useEffect } from 'react';
+import { MobileDeviceInventoryService } from '../generated/services/MobileDeviceInventoryService';
+
+export const useDeviceInventory = () => {
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // 全件取得
+  const fetchDevices = async () => {
+    try {
+      const result = await MobileDeviceInventoryService.getall();
+      setDevices(result.data);
+    } catch (error) {
+      console.error('デバイス一覧取得エラー:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 新規作成
+  const createDevice = async (deviceData: any) => {
+    try {
+      await MobileDeviceInventoryService.create(deviceData);
+      await fetchDevices(); // 再読み込み
+    } catch (error) {
+      console.error('デバイス作成エラー:', error);
+    }
+  };
+
+  // 更新
+  const updateDevice = async (id: string, changes: any) => {
+    try {
+      await MobileDeviceInventoryService.update(id, changes);
+      setDevices(prevDevices => 
+        prevDevices.map(device => 
+          device.id === id ? { ...device, ...changes } : device
+        )
+      );
+    } catch (error) {
+      console.error('デバイス更新エラー:', error);
+    }
+  };
+
+  // 削除
+  const deleteDevice = async (id: string) => {
+    try {
+      await MobileDeviceInventoryService.delete(id);
+      setDevices(prev => prev.filter(device => device.id !== id));
+    } catch (error) {
+      console.error('デバイス削除エラー:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchDevices();
+  }, []);
+
+  return {
+    devices,
+    loading,
+    createDevice,
+    updateDevice,
+    deleteDevice,
+    refresh: fetchDevices
+  };
+};
+```
+
+### 🧪 **Step 5: ローカルテストと実行**
+
+```bash
+# ローカル開発サーバー起動
+npm run dev
+
+# ブラウザで確認: http://localhost:3000
+# コネクターが正常に動作することを確認
+```
+
+### 🚀 **Step 6: Power Apps へのデプロイ**
+
+```bash
+# アプリをビルドしてPower Appsにプッシュ
+npm run build
+pac code push
+
+# デプロイ完了後:
+# 1. Power Apps ポータルでアプリを確認
+# 2. 実際の環境でコネクター接続をテスト
+# 3. ユーザーにアクセス権限を付与
+```
+
+### ⚠️ **重要な注意事項**
+
+- **初回リリースでは既存接続のみ利用可能**: PAC CLIによる新しい接続作成は今後のリリースで対応予定
+- **スキーマ変更時**: 接続のスキーマが変更された場合は、データソースを削除してから再追加が必要
+- **表形式データの取得**: データセット名とテーブルIDが不明な場合は、キャンバスアプリ経由でブラウザーのネットワークインスペクターから取得可能
+
+## 🗃️ **Dataverse 接続統合 (Microsoft 公式仕様)**
+
+> **参考ドキュメント**: [Connect your code app to Dataverse](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/connect-to-dataverse)
+
+### 📋 **前提条件**
+
+- **Power Apps Code Apps SDK**: `@microsoft/power-apps` (npm package)
+- **PAC CLI**: バージョン 1.46 以上
+- **Dataverse 有効化環境**: Power Platform環境にDataverseが有効化されている
+- **PAC CLI 認証**: 環境に正しく接続されている
+
+### ⚡ **Dataverse データソース追加**
+
+#### **基本追加コマンド**
+
+```bash
+# 特定のDataverseテーブルをデータソースとして追加
+pac code add-data-source -a dataverse -t <table-logical-name>
+
+# 例: Accountsテーブル（取引先企業）の追加
+pac code add-data-source -a dataverse -t accounts
+
+# 例: Contactsテーブル（取引先担当者）の追加
+pac code add-data-source -a dataverse -t contacts
+
+# 例: カスタムテーブルの追加
+pac code add-data-source -a dataverse -t cr_customtable
+```
+
+#### **生成されるファイル**
+
+```bash
+# 追加後に自動生成されるファイル:
+src/generated/services/AccountsService.ts    # CRUD操作メソッド
+src/generated/models/AccountsModel.ts        # 型定義・データモデル
+```
+
+### � **Dataverse CRUD操作実装パターン**
+
+#### **セットアップ: SDK初期化の確認**
+
+```typescript
+// src/App.tsx - Power Apps SDK初期化待機
+import { useEffect, useState } from 'react';
+import { initialize } from '@microsoft/power-apps';
+
+export default function App() {
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Power Apps SDK の非同期初期化
+    const init = async () => {
+      try {
+        await initialize(); // SDK初期化完了まで待機
+        setIsInitialized(true); // データ操作の準備完了
+      } catch (err) {
+        setError('Power Apps SDK の初期化に失敗しました');
+        setLoading(false);
+      }
+    };
+
+    init();
+  }, []);
+
+  // SDK初期化完了まではデータ操作を無効化
+  useEffect(() => {
+    if (!isInitialized) return;
+    // ここでデータ読み取りロジックを配置
+    setLoading(false);
+  }, [isInitialized]);
+
+  if (loading) return <div>Power Apps SDK 初期化中...</div>;
+  if (error) return <div>エラー: {error}</div>;
+
+  return (
+    <div>
+      {/* アプリのメインコンテンツ */}
+    </div>
+  );
+}
+```
+
+#### **インポートと型定義**
+
+```typescript
+// 生成されたサービスとモデルのインポート
+import { AccountsService } from './generated/services/AccountsService';
+import type { Accounts } from './generated/models/AccountsModel';
+```
+
+#### **Create (作成) 操作**
+
+```typescript
+// src/hooks/useAccounts.ts
+import { useState } from 'react';
+import { AccountsService } from '../generated/services/AccountsService';
+import type { Accounts } from '../generated/models/AccountsModel';
+
+export const useAccounts = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 新規取引先企業作成
+  const createAccount = async (accountData: Partial<Accounts>) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // 読み取り専用フィールドを除外して作成
+      const newAccount = {
+        name: accountData.name,
+        accountnumber: accountData.accountnumber,
+        telephone1: accountData.telephone1,
+        address1_city: accountData.address1_city,
+        statecode: 0, // アクティブ状態
+        // 注意: accountid, ownerid などの自動生成フィールドは含めない
+      };
+
+      const result = await AccountsService.create(
+        newAccount as Omit<Accounts, 'accountid'>
+      );
+
+      if (result.data) {
+        console.log('取引先企業が作成されました:', result.data);
+        return result.data;
+      }
+    } catch (err) {
+      const errorMessage = '取引先企業の作成に失敗しました';
+      console.error(errorMessage, err);
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { createAccount, loading, error };
+};
+```
+
+#### **Read (読み取り) 操作**
+
+```typescript
+// 単一レコード取得
+const getAccount = async (accountId: string) => {
+  try {
+    const result = await AccountsService.get(accountId);
+    if (result.data) {
+      console.log('取引先企業を取得:', result.data);
+      return result.data;
+    }
+  } catch (err) {
+    console.error('取引先企業の取得に失敗:', err);
+    throw err;
+  }
+};
+
+// 複数レコード取得（フィルタ・ソート対応）
+const getAllAccounts = async () => {
+  try {
+    const options = {
+      select: ['name', 'accountnumber', 'address1_city', 'telephone1'], // 必要なフィールドのみ
+      filter: "address1_country eq 'Japan'", // ODataフィルター
+      orderBy: ['name asc'], // ソート指定
+      top: 100, // 取得上限
+      maxPageSize: 50, // ページサイズ
+    };
+
+    const result = await AccountsService.getAll(options);
+    if (result.data) {
+      console.log(`${result.data.length}件の取引先企業を取得`);
+      return result.data;
+    }
+    return [];
+  } catch (err) {
+    console.error('取引先企業一覧の取得に失敗:', err);
+    return [];
+  }
+};
+```
+
+#### **Update (更新) 操作**
+
+```typescript
+// 取引先企業の部分更新
+const updateAccount = async (accountId: string, changes: Partial<Accounts>) => {
+  try {
+    setLoading(true);
+    
+    // 変更されたフィールドのみを含める（重要）
+    const updateData = {
+      name: changes.name,
+      telephone1: changes.telephone1,
+      // 変更されていないフィールドは含めない
+    };
+
+    await AccountsService.update(accountId, updateData);
+    console.log('取引先企業が更新されました');
+    
+    return true;
+  } catch (err) {
+    console.error('取引先企業の更新に失敗:', err);
+    setError('更新に失敗しました');
+    throw err;
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+#### **Delete (削除) 操作**
+
+```typescript
+// 取引先企業の削除
+const deleteAccount = async (accountId: string) => {
+  try {
+    setLoading(true);
+    
+    await AccountsService.delete(accountId);
+    console.log('取引先企業が削除されました');
+    
+    return true;
+  } catch (err) {
+    console.error('取引先企業の削除に失敗:', err);
+    setError('削除に失敗しました');
+    throw err;
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+### 🎯 **サポートされている機能**
+
+- ✅ **CRUD操作**: Create, Read, Update, Delete
+- ✅ **委任クエリ**: Filter, Sort, Top
+- ✅ **ページング**: maxPageSize, skipToken対応
+- ✅ **ODataクエリ**: select, filter, orderBy
+
+### ⚠️ **未サポート機能**
+
+- ❌ **選択リストの表示名取得**: フォーマット済み値の取得
+- ❌ **参照フィールド**: Lookup fields (多態的参照含む)
+- ❌ **Dataverse アクション・関数**: カスタム処理
+- ❌ **FetchXML**: 複雑なクエリ構文
+- ❌ **代替キー**: プライマリキー以外でのアクセス
+
+## 🔗 **Azure SQL Database 接続統合 (Microsoft 公式仕様)**
+
+> **参考ドキュメント**: [Connect your code app to Azure SQL](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/connect-to-azure-sql)
+
+### 📋 **前提条件**
+
+- **Azureサブスクリプション**: Azure SQL Database作成権限
+- **Azure ポータル**: アクセス権限
+- **Power Platform環境**: Code Apps有効化済み
+- **開発環境**: Visual Studio Code + Node.js LTS
+- **拡張機能**: Power Platform Tools + SQL Server (mssql)
+
+### 🏗️ **Step 1: Azure SQL Server & Database セットアップ**
+
+#### **1.1 Azure SQL Database 作成**
+
+```bash
+# Azure ポータル手順 (https://portal.azure.com/#create/Microsoft.AzureSQL):
+# 1. 「SQL database」→「Single database」→「Create」
+# 2. Resource Group: rg-codeapps-dev (新規作成)
+# 3. Database Name: sqldb-codeapps-dev  
+# 4. Server: sql-codeapps-dev (新規作成)
+# 5. Authentication: Microsoft Entra-only authentication (推奨)
+# 6. Compute: General Purpose - Serverless (開発用)
+# 7. Networking: Public endpoint, Azure services = Yes, Client IP = Yes
+```
+
+#### **1.2 VS Code データベース接続**
+
+```bash
+# SQL Server (mssql) 拡張機能での接続:
+# 1. Ctrl + Shift + X → SQL Server (mssql) インストール
+# 2. Ctrl + Alt + D → 「+ Add Connection」
+# 3. 「Browse Azure」→ Subscription → Server → Database 選択
+# 4. Authentication: Microsoft Entra ID - Universal with MFA support
+# 5. 「Sign In」→「Connect」
+```
+
+#### **1.3 サンプルスキーマ作成**
+
+```sql
+-- Projects テーブル・ストアドプロシージャ作成 (Ctrl + Shift + E で実行)
+
+-- 既存オブジェクト削除 (安全な再実行)
+IF OBJECT_ID('dbo.GetAllProjects', 'P') IS NOT NULL DROP PROCEDURE dbo.GetAllProjects;
+IF OBJECT_ID('dbo.Projects', 'U') IS NOT NULL DROP TABLE dbo.Projects;
+GO
+
+-- Projects テーブル
+CREATE TABLE [dbo].[Projects](
+    [ProjectId] [int] IDENTITY(1,1) NOT NULL,
+    [Name] [nvarchar](255) NOT NULL,
+    [Description] [nvarchar](max) NULL,
+    [StartDate] [date] NULL,
+    [EndDate] [date] NULL,
+    [Status] [nvarchar](50) NOT NULL DEFAULT ('Planning'),
+    [Priority] [nvarchar](20) NOT NULL DEFAULT ('Medium'),
+    [Budget] [decimal](18, 2) NULL,
+    [ProjectManagerEmail] [nvarchar](255) NOT NULL,
+    [CreatedBy] [nvarchar](255) NOT NULL,
+    [CreatedDate] [datetime2](7) NOT NULL DEFAULT (getutcdate()),
+    [IsActive] [bit] NOT NULL DEFAULT (1),
+    CONSTRAINT [PK_Projects] PRIMARY KEY ([ProjectId])
+);
+GO
+
+-- 制約追加
+ALTER TABLE [dbo].[Projects] ADD CONSTRAINT [CK_Projects_Status] 
+CHECK ([Status] IN ('Planning', 'Active', 'On Hold', 'Completed', 'Cancelled'));
+ALTER TABLE [dbo].[Projects] ADD CONSTRAINT [CK_Projects_Priority] 
+CHECK ([Priority] IN ('Low', 'Medium', 'High', 'Critical'));
+GO
+
+-- ストアドプロシージャ: 全プロジェクト取得
+CREATE PROCEDURE [dbo].[GetAllProjects]
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT [ProjectId], [Name], [Description], [StartDate], [EndDate],
+           [Status], [Priority], [Budget], [ProjectManagerEmail],
+           [CreatedBy], [CreatedDate], [IsActive]
+    FROM [dbo].[Projects]
+    WHERE [IsActive] = 1
+    ORDER BY [CreatedDate] DESC;
+END
+GO
+
+-- サンプルデータ
+INSERT INTO [dbo].[Projects] ([Name], [Description], [StartDate], [EndDate], [Status], [Priority], [Budget], [ProjectManagerEmail], [CreatedBy]) VALUES
+('Website Redesign', 'Complete redesign of company website with modern UI/UX', '2025-06-01', '2025-08-31', 'Active', 'High', 75000.00, 'sarah.johnson@company.com', 'admin@company.com'),
+('Mobile App Development', 'Develop iOS and Android mobile application', '2025-07-01', '2025-12-31', 'Planning', 'Critical', 150000.00, 'mike.chen@company.com', 'admin@company.com'),
+('Database Migration', 'Migrate legacy database to cloud', '2025-05-15', '2025-09-30', 'Active', 'Medium', 50000.00, 'lisa.williams@company.com', 'admin@company.com');
+GO
+```
+
+### 🔗 **Step 2: Power Platform SQL Server 接続作成**
+
+```bash
+# Power Apps での接続作成:
+# 1. https://make.powerapps.com/ → 環境選択
+# 2. 「接続」→「+ 新しい接続」
+# 3. 「SQL Server」選択
+# 4. Authentication type: Microsoft Entra ID Integrated
+# 5. 「作成」→ 認証承認
+```
+
+### ⚡ **Step 3: Code Apps ストアドプロシージャ統合**
+
+```bash
+# 接続ID確認
+pac connection list
+
+# ストアドプロシージャ追加
+pac code add-data-source \
+  -a "shared_sql" \
+  -c "[接続ID]" \
+  -d "sql-codeapps-dev.database.windows.net,sqldb-codeapps-dev" \
+  -sp "dbo.GetAllProjects"
+
+# 生成ファイル:
+# src/generated/services/GetAllProjectsService.ts
+# src/generated/models/GetAllProjectsModel.ts
+```
+
+### 🚀 **Step 4: React + Fluent UI 実装**
+
+#### **4.1 依存関係インストール**
+
+```bash
+# React 18 + Fluent UI
+npm install react@^18.0.0 react-dom@^18.0.0 @types/react@^18.0.0 @types/react-dom@^18.0.0
+npm install @fluentui/react-components
+```
+
+#### **4.2 プロジェクトテーブル実装**
+
+```typescript
+// src/components/ProjectsTable.tsx - Azure SQL データ表示
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  DataGrid, DataGridHeader, DataGridRow, DataGridHeaderCell,
+  DataGridCell, DataGridBody, TableColumnDefinition,
+  Spinner, MessageBar, Badge
+} from '@fluentui/react-components';
+import { GetAllProjectsService } from '../generated/services/GetAllProjectsService';
+
+type ProjectItem = {
+  ProjectId?: number;
+  Name?: string;
+  Status?: string;
+  Priority?: string;
+  StartDate?: string;
+  EndDate?: string;
+};
+
+const COLUMNS: TableColumnDefinition<ProjectItem>[] = [
+  {
+    columnId: 'name',
+    renderHeaderCell: () => 'プロジェクト名',
+    renderCell: (item) => item.Name || '',
+  },
+  {
+    columnId: 'status', 
+    renderHeaderCell: () => 'ステータス',
+    renderCell: (item) => <StatusBadge status={item.Status || ''} />,
+  },
+  {
+    columnId: 'priority',
+    renderHeaderCell: () => '優先度', 
+    renderCell: (item) => <PriorityBadge priority={item.Priority || ''} />,
+  },
+];
+
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
+  const getProps = () => {
+    switch (status?.toLowerCase()) {
+      case 'active': return { appearance: 'filled' as const, color: 'brand' as const };
+      case 'completed': return { appearance: 'filled' as const, color: 'success' as const };
+      default: return { appearance: 'outline' as const, color: 'subtle' as const };
+    }
+  };
+  return <Badge {...getProps()}>{status}</Badge>;
+};
+
+const PriorityBadge: React.FC<{ priority: string }> = ({ priority }) => {
+  const getProps = () => {
+    switch (priority?.toLowerCase()) {
+      case 'critical': return { appearance: 'filled' as const, color: 'danger' as const };
+      case 'high': return { appearance: 'filled' as const, color: 'important' as const };
+      default: return { appearance: 'outline' as const, color: 'subtle' as const };
+    }
+  };
+  return <Badge {...getProps()}>{priority}</Badge>;
+};
+
+const ProjectsTable: React.FC = () => {
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchProjects = useCallback(async () => {
+    try {
+      setLoading(true);
+      const result = await GetAllProjectsService.GetAllProjects();
+      
+      if (result.success && result.data?.ResultSets?.Table1) {
+        const data = Array.isArray(result.data.ResultSets.Table1)
+          ? result.data.ResultSets.Table1 as ProjectItem[]
+          : [result.data.ResultSets.Table1] as ProjectItem[];
+        setProjects(data);
+      } else {
+        setError('データの読み込みに失敗しました');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  if (loading) return <Spinner label="読み込み中..." />;
+  if (error) return <MessageBar intent="error">{error}</MessageBar>;
+  if (projects.length === 0) return <MessageBar intent="info">データがありません</MessageBar>;
+
+  return (
+    <div style={{ padding: '20px' }}>
+      <h2>Azure SQL プロジェクト ({projects.length}件)</h2>
+      <DataGrid
+        items={projects}
+        columns={COLUMNS}
+        sortable={true}
+        getRowId={(item) => item.ProjectId?.toString() || 'unknown'}
+      >
+        <DataGridHeader>
+          <DataGridRow>
+            {({ renderHeaderCell }) => <DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>}
+          </DataGridRow>
+        </DataGridHeader>
+        <DataGridBody>
+          {({ item, rowId }) => (
+            <DataGridRow key={rowId}>
+              {({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}
+            </DataGridRow>
+          )}
+        </DataGridBody>
+      </DataGrid>
+    </div>
+  );
+};
+
+export default React.memo(ProjectsTable);
+```
+
+### 🧪 **Step 5: テスト・デプロイ**
+
+```bash
+# ローカルテスト
+npm run dev
+# 同意ダイアログで「許可」→ Azure SQL データ表示確認
+
+# デプロイ
+npm run build
+pac code push
+```
+
+### ⚠️ **トラブルシューティング**
+
+#### **接続エラー**
+- **ファイアウォール**: Azure services = Yes, Client IP追加
+- **認証**: Microsoft Entra ID - Universal with MFA
+- **ネットワーク**: `Test-NetConnection -ComputerName "server.database.windows.net" -Port 1433`
+
+#### **Runtime エラー**
+- **接続確認**: Power Platform で SQL Server接続の動作確認
+- **同意**: アプリ初回起動時の権限許可必須
+- **環境**: ブラウザーとPower Platform環境の一致確認
+
+### �📚 **追加リソース**
+
+- **Azure SQLの詳細ガイド**: [コード アプリを Azure SQL に接続する](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-azure-sql)
+- **Dataverse統合**: [コード アプリを Dataverse に接続する](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/connect-to-dataverse)
+- **PAC CLI リファレンス**: [pac code コマンド](https://learn.microsoft.com/ja-jp/power-platform/developer/cli/reference/code)
           photo
         };
       } catch (error) {
