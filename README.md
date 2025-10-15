@@ -807,7 +807,6 @@ npm run build
 
 #### 3. vite.config.ts の設定確認
 ```typescript
-// vite.config.ts - StaticAssetTracker準拠の設定
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
@@ -829,7 +828,7 @@ export default defineConfig({
 
 #### 4. PowerProvider.tsx実装
 ```typescript
-// PowerProvider.tsx - Power Apps SDK初期化の基盤（StaticAssetTracker準拠）
+// PowerProvider.tsx - Power Apps SDK初期化の基盤
 import { initialize } from "@microsoft/power-apps/app";
 import { useEffect, type ReactNode } from "react";
 
@@ -886,7 +885,7 @@ Power Apps SDKの初期化により、ローカル開発とPower Platform統合�
    - エラーハンドリング構造は変更しない
    - 構造変更・追加ロジックは禁止
 
-2. **SDK初期化パターン（StaticAssetTracker準拠）**
+2. **SDK初期化パターン**
    ```typescript
    // 必須パターン: 非同期初期化
    useEffect(() => {
@@ -1497,7 +1496,7 @@ interface NextActionSuggestion {
 4. **ローカル開発** (`pac code run` でテスト)
 5. **Power Apps デプロイ** (`pac code push` で公開)
 
-#### 📋 実装要件 (StaticAssetTracker パターン)
+#### 📋 実装要件
 
 **1. Power Platform SDK 初期化**
 - `@microsoft/power-apps` パッケージ使用
@@ -1510,7 +1509,7 @@ interface NextActionSuggestion {
 - 実データ統合前にユーザビリティ検証
 
 **3. データ接続 (段階的移行)**
-- 第1段階: 静的データ (`const assets = staticAssets`)
+- 第1段階: 静的データ (`const assets`)
 - 第2段階: `connector()` 関数で Power Platform コネクタ統合
 - Office 365、SQL Database、SharePoint 等の標準コネクタ利用
 
@@ -1564,7 +1563,7 @@ export default function PowerProvider({ children }: PowerProviderProps) {
 }
 ```
 
-**重要**: これは Microsoft の公式サンプル (StaticAssetTracker, FluentSample) で使われている標準パターンです。カスタム認証や追加のエラーハンドリングは不要です。
+**重要**: これは Microsoft の公式サンプルで使われている標準パターンです。カスタム認証や追加のエラーハンドリングは不要です。
 
 **メインアプリ初期化 (Microsoft 公式パターン):**
 ```typescript
@@ -3190,7 +3189,7 @@ code-app-project/
 - **TypeScript**: 型安全性とコード品質
 - **Vite**: 高速ビルドツールとデバッグ環境
 
-**UI ライブラリ (StaticAssetTracker + テーマ対応パターン):**
+**UI ライブラリ (テーマ対応パターン):**
 - **shadcn/ui**: 高品質UIコンポーネント（Dialog, DropdownMenu など）
 - **Radix UI**: アクセシブルなプリミティブ
 - **Tailwind CSS**: ユーティリティファーストCSS + ダークモード対応
@@ -3379,8 +3378,6 @@ jobs:
 **重要**: 
 - `pac code push` で **Code Apps として** 自動デプロイ
 - PCF 用の `pac pcf push` は使用しません
-- StaticAssetTracker パターンに基づく build と build:dev
-- 認証は Service Principal を使用
 
 ---
 
