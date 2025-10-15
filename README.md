@@ -2453,6 +2453,310 @@ pac code push
 - **Azure SQLの詳細ガイド**: [コード アプリを Azure SQL に接続する](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-azure-sql)
 - **Dataverse統合**: [コード アプリを Dataverse に接続する](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/connect-to-dataverse)
 - **PAC CLI リファレンス**: [pac code コマンド](https://learn.microsoft.com/ja-jp/power-platform/developer/cli/reference/code)
+
+## 🌐 **外部API アクセスガイドライン**
+
+### 🚨 **重要: Power Apps 環境での CORS 制限**
+
+Power Apps Code Apps は Power Platform 環境で実行されるため、外部APIへの直接アクセスには **CORS (Cross-Origin Resource Sharing)** 制限があります。
+
+#### **📋 アクセス方法の区分**
+
+| アクセス対象 | 推奨方法 | 理由 |
+|-------------|---------|------|
+| **Power Platform コネクター** | ✅ 直接アクセス | CORS制限なし、認証自動処理 |
+| **外部API (REST/GraphQL)** | ⚠️ CORSプロキシ経由 | Power Platform環境からの CORS 制限回避 |
+| **Azure Functions/Logic Apps** | ✅ 直接アクセス可能 | 適切な CORS 設定により可能 |
+
+### 🔄 **CORSプロキシ実装パターン**
+
+#### **方式1: Azure Functions プロキシ (推奨)**
+
+```typescript
+// Azure Functions プロキシ実装例
+// functions/api/external-proxy/index.ts
+import { AzureFunction, Context, HttpRequest } from '@azure/functions';
+
+const httpTrigger: AzureFunction = async (context: Context, req: HttpRequest): Promise<void> => {
+    // CORS ヘッダー設定
+    context.res = {
+        headers: {
+            'Access-Control-Allow-Origin': 'https://apps.powerapps.com',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        }
+    };
+
+    if (req.method === 'OPTIONS') {
+        context.res.status = 200;
+        return;
+    }
+
+    try {
+        const targetUrl = req.query.url || req.body?.url;
+        const method = req.query.method || req.body?.method || 'GET';
+        
+        const response = await fetch(targetUrl, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'PowerApps-CodeApp-Proxy/1.0',
+                ...(req.body?.headers || {})
+            },
+            body: method !== 'GET' ? JSON.stringify(req.body?.data) : undefined
+        });
+
+        const data = await response.json();
+        
+        context.res = {
+            ...context.res,
+            status: response.status,
+            body: data
+        };
+    } catch (error) {
+        context.res = {
+            ...context.res,
+            status: 500,
+            body: { error: 'プロキシエラー', details: error.message }
+        };
+    }
+};
+
+export default httpTrigger;
+```
+
+#### **方式2: Logic Apps HTTP トリガー**
+
+```json
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "triggers": {
+            "manual": {
+                "type": "Request",
+                "kind": "Http",
+                "inputs": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "url": { "type": "string" },
+                            "method": { "type": "string" },
+                            "headers": { "type": "object" },
+                            "body": { "type": "object" }
+                        }
+                    }
+                }
+            }
+        },
+        "actions": {
+            "HTTP_Request": {
+                "type": "Http",
+                "inputs": {
+                    "method": "@triggerBody()['method']",
+                    "uri": "@triggerBody()['url']",
+                    "headers": "@triggerBody()['headers']",
+                    "body": "@triggerBody()['body']"
+                }
+            },
+            "Response": {
+                "type": "Response",
+                "inputs": {
+                    "statusCode": "@outputs('HTTP_Request')['statusCode']",
+                    "headers": {
+                        "Access-Control-Allow-Origin": "https://apps.powerapps.com",
+                        "Content-Type": "application/json"
+                    },
+                    "body": "@outputs('HTTP_Request')['body']"
+                }
+            }
+        }
+    }
+}
+```
+
+### ⚡ **React 実装パターン**
+
+#### **CORSプロキシ用カスタムフック**
+
+```typescript
+// src/hooks/useExternalApi.ts
+import { useState, useCallback } from 'react';
+
+interface ExternalApiConfig {
+    proxyUrl: string; // Azure Functions または Logic Apps のエンドポイント
+    timeout?: number;
+}
+
+interface ApiRequest {
+    url: string;
+    method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+    headers?: Record<string, string>;
+    data?: any;
+}
+
+export const useExternalApi = (config: ExternalApiConfig) => {
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const callApi = useCallback(async <T = any>(request: ApiRequest): Promise<T> => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            const response = await fetch(config.proxyUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    url: request.url,
+                    method: request.method || 'GET',
+                    headers: request.headers,
+                    data: request.data
+                }),
+                signal: AbortSignal.timeout(config.timeout || 10000)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            return data as T;
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : '不明なエラー';
+            setError(errorMessage);
+            throw new Error(errorMessage);
+        } finally {
+            setLoading(false);
+        }
+    }, [config.proxyUrl, config.timeout]);
+
+    return { callApi, loading, error };
+};
+```
+
+#### **使用例: 外部API連携コンポーネント**
+
+```typescript
+// src/components/ExternalApiExample.tsx
+import React, { useState, useEffect } from 'react';
+import { useExternalApi } from '../hooks/useExternalApi';
+
+interface WeatherData {
+    location: string;
+    temperature: number;
+    description: string;
+}
+
+const ExternalApiExample: React.FC = () => {
+    const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+    
+    // CORSプロキシ経由でのAPI接続
+    const { callApi, loading, error } = useExternalApi({
+        proxyUrl: 'https://your-function-app.azurewebsites.net/api/external-proxy',
+        timeout: 15000
+    });
+
+    const fetchWeather = async () => {
+        try {
+            const data = await callApi<WeatherData>({
+                url: 'https://api.openweathermap.org/data/2.5/weather',
+                method: 'GET',
+                headers: {
+                    'X-API-Key': process.env.REACT_APP_WEATHER_API_KEY || ''
+                }
+            });
+            setWeatherData(data);
+        } catch (err) {
+            console.error('天気データ取得エラー:', err);
+        }
+    };
+
+    useEffect(() => {
+        fetchWeather();
+    }, []);
+
+    if (loading) return <div>読み込み中...</div>;
+    if (error) return <div>エラー: {error}</div>;
+
+    return (
+        <div>
+            <h3>外部API連携例</h3>
+            {weatherData ? (
+                <div>
+                    <p>場所: {weatherData.location}</p>
+                    <p>気温: {weatherData.temperature}°C</p>
+                    <p>天気: {weatherData.description}</p>
+                </div>
+            ) : (
+                <p>天気データがありません</p>
+            )}
+        </div>
+    );
+};
+
+export default ExternalApiExample;
+```
+
+### 🛡️ **セキュリティ考慮事項**
+
+#### **プロキシサーバーのセキュリティ**
+
+- **認証**: Azure AD 認証によるプロキシアクセス制限
+- **レート制限**: DOS 攻撃防止のためのリクエスト制限
+- **ログ記録**: API アクセスログの記録・監視
+- **APIキー保護**: プロキシサーバー側での機密情報管理
+
+#### **実装例: セキュアプロキシ**
+
+```typescript
+// セキュリティ強化版プロキシ
+const secureHttpTrigger: AzureFunction = async (context: Context, req: HttpRequest) => {
+    // 1. Origin 検証
+    const allowedOrigins = ['https://apps.powerapps.com', 'https://make.powerapps.com'];
+    const origin = req.headers.origin;
+    if (!allowedOrigins.includes(origin)) {
+        context.res = { status: 403, body: 'Forbidden origin' };
+        return;
+    }
+
+    // 2. レート制限 (Redis Cache利用)
+    const clientId = req.headers['x-client-id'] || req.ip;
+    const rateLimit = await checkRateLimit(clientId);
+    if (!rateLimit.allowed) {
+        context.res = { status: 429, body: 'Rate limit exceeded' };
+        return;
+    }
+
+    // 3. URL ホワイトリスト検証
+    const targetUrl = req.body?.url;
+    const allowedDomains = ['api.openweathermap.org', 'jsonplaceholder.typicode.com'];
+    const urlDomain = new URL(targetUrl).hostname;
+    if (!allowedDomains.includes(urlDomain)) {
+        context.res = { status: 403, body: 'Domain not allowed' };
+        return;
+    }
+
+    // 4. API 実行・ログ記録
+    try {
+        const result = await executeApiRequest(req.body);
+        await logApiRequest(clientId, targetUrl, result.status);
+        
+        context.res = {
+            headers: {
+                'Access-Control-Allow-Origin': origin,
+                'Access-Control-Allow-Credentials': 'true'
+            },
+            body: result.data
+        };
+    } catch (error) {
+        await logApiError(clientId, targetUrl, error);
+        context.res = { status: 500, body: 'Internal server error' };
+    }
+};
+```
+
           photo
         };
       } catch (error) {
@@ -7380,6 +7684,7 @@ export class SecurityChecker {
 
 **API アクセス:**
 - ✅ **Power Platform コネクター外部API** 呼び出し可能
+- ⚠️ **外部API直接アクセス**: CORSプロキシ経由必須（詳細は外部APIアクセスガイドライン参照）
 
 ### ✅ **管理プラットフォーム機能サポート状況**
 
