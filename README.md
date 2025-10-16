@@ -1610,47 +1610,271 @@ graph LR
 
 #### **1.1 Mockデータ構造設計**
 
-**Office 365 Users Mock データ例:**
+**Office 365 Users Mock データ例 (Microsoft公式スキーマ準拠):**
 ```typescript
 // src/mockData/office365Data.ts
-export interface UserProfile {
-  id: string;
-  displayName: string;
-  mail: string;
-  jobTitle?: string;
-  department?: string;
-  officeLocation?: string;
-  businessPhones: string[];
+// Microsoft FluentSample準拠のOffice 365 Userスキーマ
+export interface User {
+  Id: string;
+  AccountEnabled: boolean;
+  BusinessPhones: string[];
+  City: string;
+  CompanyName: string;
+  Country: string;
+  Department: string;
+  DisplayName: string;
+  GivenName: string;
+  JobTitle: string;
+  Mail: string;
+  MailNickname: string;
+  mobilePhone?: string;
+  OfficeLocation: string;
+  PostalCode: string;
+  Surname: string;
+  TelephoneNumber: string;
+  UserPrincipalName: string;
 }
 
-export const mockUsers: UserProfile[] = [
+export const mockUsers: User[] = [
   {
-    id: "user1",
-    displayName: "田中 太郎", 
-    mail: "tanaka@contoso.com",
-    jobTitle: "プロジェクトマネージャー",
-    department: "IT部門",
-    officeLocation: "東京オフィス",
-    businessPhones: ["+81-3-1234-5678"]
+    Id: "550e8400-e29b-41d4-a716-446655440001",
+    AccountEnabled: true,
+    BusinessPhones: ["+81-3-1234-5678"],
+    City: "東京",
+    CompanyName: "コントソ株式会社",
+    Country: "日本",
+    Department: "エンジニアリング",
+    DisplayName: "田中 太郎",
+    GivenName: "太郎",
+    JobTitle: "シニアソフトウェアエンジニア",
+    Mail: "tanaka.taro@contoso.co.jp",
+    MailNickname: "tarot",
+    mobilePhone: "+81-90-1234-5678",
+    OfficeLocation: "東京オフィス 3階",
+    PostalCode: "100-0001",
+    Surname: "田中",
+    TelephoneNumber: "+81-3-1234-5678",
+    UserPrincipalName: "tanaka.taro@contoso.co.jp"
   },
   {
-    id: "user2",
-    displayName: "佐藤 花子",
-    mail: "sato@contoso.com", 
-    jobTitle: "開発エンジニア",
-    department: "開発部門",
-    officeLocation: "大阪オフィス",
-    businessPhones: ["+81-6-9876-5432"]
+    Id: "550e8400-e29b-41d4-a716-446655440002",
+    AccountEnabled: true,
+    BusinessPhones: ["+81-6-9876-5432"],
+    City: "大阪",
+    CompanyName: "コントソ株式会社",
+    Country: "日本",
+    Department: "プロダクト管理",
+    DisplayName: "佐藤 花子",
+    GivenName: "花子",
+    JobTitle: "シニアプロダクトマネージャー",
+    Mail: "sato.hanako@contoso.co.jp",
+    MailNickname: "hanakos",
+    mobilePhone: "+81-90-9876-5432",
+    OfficeLocation: "大阪オフィス 5階",
+    PostalCode: "530-0001",
+    Surname: "佐藤",
+    TelephoneNumber: "+81-6-9876-5432",
+    UserPrincipalName: "sato.hanako@contoso.co.jp"
+  },
+  {
+    Id: "550e8400-e29b-41d4-a716-446655440003",
+    AccountEnabled: true,
+    BusinessPhones: ["+81-52-1111-2222"],
+    City: "名古屋",
+    CompanyName: "コントソ株式会社",
+    Country: "日本",
+    Department: "デザイン",
+    DisplayName: "山田 次郎",
+    GivenName: "次郎",
+    JobTitle: "プリンシパルUXデザイナー",
+    Mail: "yamada.jiro@contoso.co.jp",
+    MailNickname: "jiroy",
+    mobilePhone: "+81-90-1111-2222",
+    OfficeLocation: "名古屋オフィス 2階",
+    PostalCode: "460-0001",
+    Surname: "山田",
+    TelephoneNumber: "+81-52-1111-2222",
+    UserPrincipalName: "yamada.jiro@contoso.co.jp"
+  },
+  {
+    Id: "550e8400-e29b-41d4-a716-446655440004",
+    AccountEnabled: true,
+    BusinessPhones: ["+81-45-3333-4444"],
+    City: "横浜",
+    CompanyName: "コントソ株式会社",
+    Country: "日本",
+    Department: "マーケティング",
+    DisplayName: "鈴木 美咲",
+    GivenName: "美咲",
+    JobTitle: "マーケティングディレクター",
+    Mail: "suzuki.misaki@contoso.co.jp",
+    MailNickname: "misakis",
+    mobilePhone: "+81-90-3333-4444",
+    OfficeLocation: "横浜オフィス 4階",
+    PostalCode: "220-0001",
+    Surname: "鈴木",
+    TelephoneNumber: "+81-45-3333-4444",
+    UserPrincipalName: "suzuki.misaki@contoso.co.jp"
+  },
+  {
+    Id: "550e8400-e29b-41d4-a716-446655440005",
+    AccountEnabled: false, // 無効アカウント例
+    BusinessPhones: ["+81-75-5555-6666"],
+    City: "京都",
+    CompanyName: "コントソ株式会社",
+    Country: "日本",
+    Department: "人事",
+    DisplayName: "高橋 健太",
+    GivenName: "健太",
+    JobTitle: "HRビジネスパートナー",
+    Mail: "takahashi.kenta@contoso.co.jp",
+    MailNickname: "kentat",
+    mobilePhone: "+81-90-5555-6666",
+    OfficeLocation: "京都オフィス 1階",
+    PostalCode: "600-0001",
+    Surname: "高橋",
+    TelephoneNumber: "+81-75-5555-6666",
+    UserPrincipalName: "takahashi.kenta@contoso.co.jp"
   }
 ];
 
-export const mockCalendarEvents = [
+// Microsoft公式準拠のヘルパー関数
+export const getUserById = (id: string): User | undefined => {
+  return mockUsers.find(user => user.Id === id);
+};
+
+export const searchUsers = (query: string, top: number = 50): User[] => {
+  if (!query.trim()) {
+    return [];
+  }
+  
+  const lowercaseQuery = query.toLowerCase();
+  const filtered = mockUsers.filter(user => 
+    user.DisplayName?.toLowerCase().includes(lowercaseQuery) ||
+    user.Mail?.toLowerCase().includes(lowercaseQuery) ||
+    user.Department?.toLowerCase().includes(lowercaseQuery) ||
+    user.JobTitle?.toLowerCase().includes(lowercaseQuery) ||
+    user.GivenName?.toLowerCase().includes(lowercaseQuery) ||
+    user.Surname?.toLowerCase().includes(lowercaseQuery)
+  );
+  
+  return filtered.slice(0, top);
+};
+
+export const getUsersByDepartment = (department: string): User[] => {
+  return mockUsers.filter(user => user.Department === department);
+};
+
+// 現在のユーザー (MyProfile機能用)
+export const mockCurrentUser: User = mockUsers[0];
+
+// カレンダーイベントとメール用の追加インターフェース
+export interface CalendarEvent {
+  id: string;
+  subject: string;
+  start: {
+    dateTime: string;
+    timeZone: string;
+  };
+  end: {
+    dateTime: string;
+    timeZone: string;
+  };
+  organizer: {
+    emailAddress: {
+      name: string;
+      address: string;
+    };
+  };
+  attendees?: Array<{
+    emailAddress: {
+      name: string;
+      address: string;
+    };
+    type: string;
+  }>;
+}
+
+export const mockCalendarEvents: CalendarEvent[] = [
   {
-    id: "event1",
-    subject: "プロジェクト会議",
+    id: "event-001",
+    subject: "週次プロジェクト会議",
     start: { dateTime: "2025-10-16T10:00:00", timeZone: "Asia/Tokyo" },
     end: { dateTime: "2025-10-16T11:00:00", timeZone: "Asia/Tokyo" },
-    organizer: { emailAddress: { name: "田中 太郎", address: "tanaka@contoso.com" }}
+    organizer: { 
+      emailAddress: { 
+        name: "田中 太郎", 
+        address: "tanaka.taro@contoso.co.jp" 
+      }
+    },
+    attendees: [
+      {
+        emailAddress: { name: "佐藤 花子", address: "sato.hanako@contoso.co.jp" },
+        type: "required"
+      },
+      {
+        emailAddress: { name: "山田 次郎", address: "yamada.jiro@contoso.co.jp" },
+        type: "optional"
+      }
+    ]
+  },
+  {
+    id: "event-002",
+    subject: "デザインレビュー",
+    start: { dateTime: "2025-10-17T14:00:00", timeZone: "Asia/Tokyo" },
+    end: { dateTime: "2025-10-17T15:30:00", timeZone: "Asia/Tokyo" },
+    organizer: { 
+      emailAddress: { 
+        name: "山田 次郎", 
+        address: "yamada.jiro@contoso.co.jp" 
+      }
+    }
+  }
+];
+
+export interface Email {
+  id: string;
+  subject: string;
+  from: {
+    emailAddress: {
+      name: string;
+      address: string;
+    };
+  };
+  receivedDateTime: string;
+  bodyPreview: string;
+  isRead: boolean;
+  importance: 'low' | 'normal' | 'high';
+}
+
+export const mockEmails: Email[] = [
+  {
+    id: "email-001",
+    subject: "プロジェクト進捗レポート",
+    from: {
+      emailAddress: {
+        name: "佐藤 花子",
+        address: "sato.hanako@contoso.co.jp"
+      }
+    },
+    receivedDateTime: "2025-10-16T08:30:00Z",
+    bodyPreview: "今週のプロジェクト進捗をお知らせします。主要なマイルストーンは予定通り...",
+    isRead: false,
+    importance: 'high'
+  },
+  {
+    id: "email-002", 
+    subject: "来週の会議室予約について",
+    from: {
+      emailAddress: {
+        name: "鈴木 美咲",
+        address: "suzuki.misaki@contoso.co.jp"
+      }
+    },
+    receivedDateTime: "2025-10-16T09:15:00Z",
+    bodyPreview: "来週の会議室予約状況をご確認ください...",
+    isRead: true,
+    importance: 'normal'
   }
 ];
 ```
