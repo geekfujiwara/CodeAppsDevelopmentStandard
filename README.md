@@ -9,9 +9,58 @@
 
 > **この標準は Power Apps Code Apps 専用です。PCF コンポーネント開発ではありません。**
 
-### 🎯 統一された段階的開発フロー
+## 📝 **重要なお知らせとライセンス**
 
-この開発標準では、**重複を排除した統一的な開発アプローチ**を採用し、各段階で一貫したAI提案による開発サイクルを実現します：
+### **📈 定期更新について**
+この開発標準は **Geek** が Power Apps Code Apps の技術進歩と実践経験に基づき**定期的に更新**しています。最新のMicrosoft公式仕様やベストプラクティスを反映し、より実用的で効率的な開発手順の提供を心がけています。
+
+### **⚖️ MITライセンス - 自由利用可能**
+この開発標準は **MITライセンス** のもとで公開されており、以下が自由に行えます：
+
+✅ **商用利用** - 企業プロジェクトでの利用
+✅ **転用・改変** - 組織のニーズに合わせた修正・拡張  
+✅ **再配布** - チーム内外での共有・配布
+✅ **私用** - 個人的な学習・開発での利用
+
+**⚠️ 重要**: サポートや保証は提供されません。利用は**自己責任**でお願いいたします。
+
+### **🐛 問題報告・修正依頼**
+開発標準に問題や改善点を発見された場合は、GitHub の **Issues** からお気軽にご報告ください：
+
+**🔗 Issues URL**: [https://github.com/geekfujiwara/CodeAppsDevelopmentStandard/issues](https://github.com/geekfujiwara/CodeAppsDevelopmentStandard/issues)
+
+- 技術的な問題や誤記の報告
+- 新しい機能や手順の提案
+- 実践での改善アイデアの共有
+
+### **💬 感想・コメント歓迎**
+この開発標準を使用されたご感想やコメントは、**GeekfujiwaraのX (旧Twitter)** まで、ぜひお聞かせください！
+
+**🔗 X (Twitter)**: [@geekfujiwara](https://twitter.com/geekfujiwara)
+
+- 開発標準を使用した感想
+- 実際のプロジェクトでの活用事例
+- 改善提案や質問
+- Power Apps Code Apps に関する情報交換
+
+**📢 皆様からのフィードバックが、この開発標準をより良いものにしていきます！**
+
+## 🎯 **この開発標準で実現できること**
+
+**この Power Apps Code Apps 開発標準により以下が実現されます:**
+
+✅ **統一された開発フロー** - Phase 0〜5の体系的アプローチによる効率的な開発進行
+✅ **矛盾のない技術スタック** - Microsoft公式パターン準拠による安定した基盤
+✅ **実践的なトラブルシューティング** - よくある問題の解決法による開発時間短縮
+✅ **包括的品質保証** - 各Phase完了時の厳密チェックによる高品質アプリ
+✅ **効率的なAIガイダンス** - 開発状況に応じた適切な提案による学習効果
+✅ **安全なデータ統合** - スキーマ確認からリアルデータ移行まで安心の手順
+
+**結果**: 確実で効率的な Power Apps Code Apps 開発サイクルが確立されます。
+
+## 🎯 **統一された段階的開発フロー**
+
+この開発標準では、**Microsoftの公式ドキュメントとGeekの経験に基づく実績的な開発アプローチ**を採用し、各段階で一貫したAI提案による開発サイクルを実現します：
 
 ```mermaid
 graph LR
@@ -54,9 +103,7 @@ graph LR
 
 > **🎯 最重要設定項目**: Vite + React + TypeScriptプロジェクト初期化とPower Apps Code Apps対応設定
 
-**完全統合手順**:
-
-**Microsoft公式ドキュメント完全準拠手順:**
+**統合開発手順**:
 
 ### **Step 1: Vite App初期化**
 ```bash
@@ -169,7 +216,7 @@ npm run dev
 "dev": "start pac code run && vite"
 ```
 
-**完全なscriptsセクション**:
+**scriptsセクション**:
 ```json
 {
   "scripts": {
@@ -248,10 +295,10 @@ pac code update -l "./public/assets/logo.svg"
 
 ```bash
 # shadcn/ui初期化（TailwindCSS自動設定）
-npx shadcn-ui@latest init
+npx shadcn@latest init
 
 # Power Apps 基本UIコンポーネント
-npx shadcn-ui@latest add button card input select table
+npx shadcn@latest add button card input select table
 ```
 
 ### **Step 3: Power Apps 公式テーマ統合 (src/globals.css)**
@@ -384,6 +431,43 @@ graph LR
     B --> C[テスト・デプロイ]
     C --> D[拡張完了]
 ```
+
+> **⚠️ 重要: SDK初期化とコネクター接続のタイミング**
+> 
+> DataverseやOffice 365コネクターなどに接続する場合、**Power Apps SDKの初期化が完了してから**コネクターに接続する必要があります。SDKの初期化前にコネクターを使用すると、認証エラーや接続エラーが発生する可能性があります。
+>
+> ```typescript
+> import { PowerProvider, usePowerPlatform } from '@microsoft/power-apps';
+> import { useConnectors } from '@microsoft/power-apps';
+> 
+> export function App() {
+>   const { isInitialized } = usePowerPlatform();
+>   const { office365Users, dataverse } = useConnectors();
+> 
+>   useEffect(() => {
+>     // ✅ SDK初期化完了後にコネクターを使用
+>     if (isInitialized) {
+>       loadUserData();
+>     }
+>   }, [isInitialized]);
+> 
+>   const loadUserData = async () => {
+>     try {
+>       const users = await office365Users.getUsers();
+>       // コネクター処理...
+>     } catch (error) {
+>       console.error('コネクター接続エラー:', error);
+>     }
+>   };
+> 
+>   // SDK初期化中は読み込み表示
+>   if (!isInitialized) {
+>     return <div>Power Platform初期化中...</div>;
+>   }
+> 
+>   return <YourApp />;
+> }
+> ```
 
 **統合データソース接続パターン**:
 
@@ -645,7 +729,7 @@ interface NextAction {
 2. **Power Platform統合**: `@microsoft/power-apps` SDK でプラットフォーム機能統合
 3. **本番デプロイ**: 専用本番環境への安全で迅速な配布
 
-> **重要**: これは PCF コンポーネント開発ではありません。完全なWebアプリケーションを **Power Apps Code Apps** として構築・公開する開発プラットフォームです。
+> **重要**: これは PCF コンポーネント開発ではありません。本格的なWebアプリケーションを **Power Apps Code Apps** として構築・公開する開発プラットフォームです。
 
 ---
 
@@ -741,9 +825,7 @@ dotnet tool install --global Microsoft.PowerApps.CLI.Tool
 
 ---
 
-### ⚠️ 重要：Phase 1の詳細手順は上記の統合版を参照してください
-
-> **注意**: この詳細セクションは重複のため、上記のPhase 1統合版をご利用ください。
+---
 
 #### 1. プロジェクト作成・初期化
 ```pwsh
@@ -1469,11 +1551,11 @@ interface NextActionSuggestion {
 **1. Power Platform SDK 初期化**
 - `@microsoft/power-apps` パッケージ使用
 - `initialize()` 関数でプラットフォーム初期化のみ
-- **認証は完全に Power Platform が自動処理** (カスタム認証コード不要)
+- **認証は Power Platform が自動処理** (カスタム認証コード不要)
 
 **2. 静的データによる開発**
 - まず `src/data/` に静的データを配置
-- UI/UX コンポーネントを完全実装
+- UI/UX コンポーネントを実装
 - 実データ統合前にユーザビリティ検証
 
 **3. データ接続 (段階的移行)**
@@ -2135,6 +2217,147 @@ INSERT INTO [dbo].[Projects] ([Name], [Description], [Status], [Priority], [Budg
 4. 「保存」してテーブル作成完了
 ```
 
+## 🔧 **Dataverse接続設定手順とトラブルシューティング**
+
+### **データソース追加の正しい手順**
+
+#### **Step 1: データソース追加**
+```powershell
+# Dataverseテーブルを追加
+pac code add-data-source -a dataverse -t your_table_name
+
+# 例: プロジェクトテーブルを追加
+pac code add-data-source -a dataverse -t geek_projecrt
+```
+
+#### **Step 2: 生成ファイルの確認と修正**
+
+⚠️ **重要な問題**: `pac code add-data-source`で生成されたサービスファイルの`dataSourceName`が`______`（アンダースコア）になり、実際のデータソース名にマッピングされない問題があります。
+
+**問題のあるコード (自動生成):**
+```typescript
+// src/generated/services/Geek_projecrtsService.ts
+export class Geek_projecrtsService {
+  private static readonly dataSourceName = '______';  // ← 問題
+  // ...
+}
+```
+
+**正しい修正 (手動):**
+```typescript
+// src/generated/services/Geek_projecrtsService.ts  
+export class Geek_projecrtsService {
+  private static readonly dataSourceName = 'geek_projecrts';  // ← 修正
+  // ...
+}
+```
+
+#### **Step 3: dataSourcesInfoとの整合性確認**
+
+生成されたデータソース名は`dataSourcesInfo`オブジェクトのキー名と一致する必要があります：
+
+```typescript
+// .power/appschemas/dataSourcesInfo.ts
+export const dataSourcesInfo = {
+  "geek_projecrts": {              // ← サービスファイルで使用する名前
+    "tableId": "",
+    "version": "",
+    "primaryKey": "geek_projecrtid",
+    "dataSourceType": "Dataverse",
+    "apis": {}
+  },
+  "office365users": { ... }
+}
+```
+
+### **トラブルシューティングガイド**
+
+#### **エラー 1: Data source not found**
+```
+❌ エラー: Dataverse API call failed: Error: Retrieve multiple records operation failed: 
+Data source not found: ______
+```
+
+**原因**: サービスファイルの`dataSourceName`が正しくない
+
+**解決方法**:
+1. 生成されたサービスファイルを確認
+2. `dataSourceName`を`dataSourcesInfo`のキー名に修正
+3. ビルドと再デプロイ
+
+#### **エラー 2: SDK初期化前のコネクター使用**
+```
+❌ エラー: Cannot read properties of undefined (reading 'getRecords')
+```
+
+**原因**: Power Apps SDK初期化前にDataverseコネクターを使用
+
+**解決方法**: SDK初期化確認パターンを使用
+```typescript
+import { usePowerPlatform } from '@microsoft/power-apps';
+
+export function DataverseComponent() {
+  const { isInitialized } = usePowerPlatform();
+  
+  useEffect(() => {
+    if (isInitialized) {
+      loadDataverseData();  // ✅ 初期化後に実行
+    }
+  }, [isInitialized]);
+  
+  if (!isInitialized) {
+    return <div>Power Platform初期化中...</div>;
+  }
+  
+  return <YourComponent />;
+}
+```
+
+#### **エラー 3: 認証エラー**
+```
+❌ エラー: Unauthorized access to Dataverse
+```
+
+**解決方法**:
+1. Power Platform環境の権限確認
+2. Dataverse接続の再認証
+3. 環境変数の確認
+
+### **動作確認方法**
+
+#### **成功パターン**
+```
+✅ ブラウザコンソール出力:
+📡 Calling Geek_projecrtsService.getAll()...
+📦 Dataverse getAll result: { success: true, dataLength: 5 }
+```
+
+#### **デバッグ手順**
+```typescript
+// デバッグ用コンソール出力
+console.log('📡 Calling Geek_projecrtsService.getAll()...');
+const result = await Geek_projecrtsService.getAll();
+console.log('📦 Dataverse getAll result:', { 
+  success: result !== null, 
+  dataLength: result?.length || 0 
+});
+```
+
+### **再生成時の注意事項**
+
+⚠️ **重要**: `pac code add-data-source`を再実行すると、手動修正が**上書き**されます。
+
+**対処法**:
+1. 再生成後に必ずサービスファイルを確認
+2. `dataSourceName`を正しい値に再修正
+3. チーム開発時は修正手順をドキュメント化
+
+**修正チェックリスト**:
+- [ ] `Geek_projecrtsService.ts`の`dataSourceName`修正
+- [ ] `dataSourcesInfo.ts`との整合性確認  
+- [ ] ビルドエラーなし
+- [ ] ブラウザコンソールでの動作確認
+
 ### 🔍 **接続確認とメタデータ取得**
 
 #### **PAC CLI による接続一覧確認:**
@@ -2583,7 +2806,7 @@ export const handleConnectorError = (error: any, connectorName: string) => {
 };
 ```
 
-#### **3.3 完全統合テスト手順**
+#### **3.3 統合テスト手順**
 
 **ローカルテスト (Mock → Real データ切り替え)**
 ```bash
@@ -2670,6 +2893,365 @@ pac code push
 - [ ] Power Platform統合テスト完了
 - [ ] エンドユーザーテスト完了
 - [ ] パフォーマンス確認完了
+
+## 🧪 **モックデータからリアルデータ移行テスト（重要）**
+
+### **📋 移行テストチェックリスト**
+
+モックデータからリアルデータに変更した際には、以下の項目を必ずテストしてください：
+
+#### **🔍 データスキーマ検証**
+
+**Office 365 コネクター:**
+- [ ] **スキーマ整合性**: モックデータとOffice 365 APIのスキーマが一致しているか
+  ```typescript
+  // ✅ 確認項目: 実際のAPI応答がモックと同じ構造か
+  console.log('Office 365 API Response:', JSON.stringify(realUser, null, 2));
+  console.log('Mock Data Structure:', JSON.stringify(mockUser, null, 2));
+  ```
+
+- [ ] **プロパティ名の一致**: `displayName`, `mail`, `jobTitle`, `department` 等
+- [ ] **データ型の確認**: 文字列、配列、boolean、日付型が正しいか
+- [ ] **null/undefined処理**: 実際のAPIで空値が返される場合の処理
+
+**Dataverse コネクター:**
+- [ ] **テーブルスキーマ**: Dataverseテーブルのカラム名・型がモックと一致
+  ```typescript
+  // ✅ 確認: Dataverse実データのスキーマ
+  console.log('Dataverse Entity:', JSON.stringify(realProject, null, 2));
+  ```
+
+- [ ] **主キーの正確性**: `Id`フィールドの形式（GUID vs 数値）
+- [ ] **選択肢フィールド**: StatusやPriorityの値がモックと一致
+- [ ] **関連レコード**: Lookup/関連テーブルのデータ構造
+
+**SQL Server コネクター:**
+- [ ] **データベーススキーマ**: テーブル構造がモック定義と一致
+  ```sql
+  -- ✅ 確認: 実際のテーブル構造
+  SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE 
+  FROM INFORMATION_SCHEMA.COLUMNS 
+  WHERE TABLE_NAME = 'Projects';
+  ```
+
+- [ ] **カラム名の一致**: 大文字小文字、アンダースコア、キャメルケース
+- [ ] **データ型互換性**: VARCHAR, INT, DATETIME, DECIMAL等
+- [ ] **NULL制約**: NOT NULL制約がモック仕様と一致
+
+#### **🎨 UI表示検証**
+
+**データ表示の正確性:**
+- [ ] **全フィールド表示**: モックで表示していた全項目がリアルデータでも表示
+- [ ] **日本語文字化け**: 日本語データが正しく表示されるか
+- [ ] **数値フォーマット**: 通貨、日付、パーセンテージの表示形式
+- [ ] **画像・ファイル**: プロフィール画像やアイコンが正しく表示
+
+**リストビュー検証:**
+- [ ] **ソート機能**: 名前、日付、ステータス等のソートが動作
+- [ ] **フィルター機能**: 検索・絞り込みがリアルデータで動作
+- [ ] **ページング**: 大量データでのページング動作
+- [ ] **空データ処理**: データが0件の場合の表示
+
+**詳細ビュー検証:**
+- [ ] **詳細画面**: 個別レコードの詳細表示が正常
+- [ ] **編集フォーム**: フォーム項目がリアルデータ構造に対応
+- [ ] **バリデーション**: 必須項目、文字数制限等が正しく動作
+
+#### **📝 フォーム関連テスト（重要）**
+
+**新規作成フォームテスト:**
+- [ ] **フィールド構造**: モックデータ定義とリアルAPIスキーマが一致
+  ```typescript
+  // ✅ 確認項目: 新規作成フォームの全フィールド
+  const createFormFields = [
+    'displayName', 'jobTitle', 'department', 'mail', 
+    'businessPhones', 'officeLocation', 'city', 'country'
+  ];
+  // リアルAPIで作成可能な全フィールドがフォームに含まれているか
+  ```
+
+- [ ] **必須フィールド**: リアル環境での必須項目がフォームで適切に設定
+- [ ] **デフォルト値**: 新規作成時のデフォルト値がリアル環境に適合
+- [ ] **選択肢データ**: ドロップダウン等の選択肢がリアルデータから取得
+- [ ] **Auto-Complete**: ユーザー入力時の候補表示がリアルデータベース
+- [ ] **関連データ取得**: 部署一覧、役職一覧等がリアルソースから取得
+
+**編集フォームテスト:**
+- [ ] **既存データ表示**: リアルデータがフォームに正確に読み込まれる
+  ```typescript
+  // ✅ 確認項目: 編集フォームでのデータ読み込み
+  console.log('Original Data:', originalRecord);
+  console.log('Form Initial Values:', formInitialValues);
+  // 全フィールドが正確にフォームに反映されているか
+  ```
+
+- [ ] **部分更新**: 変更した項目のみがリアルデータベースに保存される
+- [ ] **競合制御**: 同時編集時の適切な競合処理
+- [ ] **変更検知**: 未保存変更の警告表示
+- [ ] **リアルタイム検証**: 入力中のリアルタイムバリデーション
+- [ ] **関連データ更新**: 関連レコードの自動更新
+
+**フォーム共通テスト:**
+- [ ] **データ型変換**: 文字列⇔数値⇔日付の適切な変換
+  ```typescript
+  // ✅ データ型マッピング確認
+  const typeMapping = {
+    'budget': 'number',      // 予算: 数値型
+    'dueDate': 'Date',       // 期限: 日付型  
+    'priority': 'string',    // 優先度: 文字列型
+    'isActive': 'boolean'    // 有効: 真偽値型
+  };
+  ```
+
+- [ ] **文字エンコーディング**: 日本語文字の正確な保存・表示
+- [ ] **特殊文字処理**: 記号、絵文字、改行等の適切な処理
+- [ ] **ファイルアップロード**: 画像やドキュメントのアップロード機能
+- [ ] **複数値フィールド**: 配列データ（電話番号、タグ等）の処理
+
+#### **🎯 コネクター別フォームテスト**
+
+**Office 365 フォームテスト:**
+- [ ] **ユーザープロフィール作成**: Office 365環境での新規ユーザー作成
+- [ ] **プロフィール更新**: 既存ユーザーの情報更新
+- [ ] **組織情報連携**: 部署、管理者情報の自動取得・設定
+- [ ] **ライセンス管理**: ユーザーライセンスの割り当て・変更
+- [ ] **グループ所属**: セキュリティグループ、配布リストの管理
+
+**Dataverse フォームテスト:**
+- [ ] **エンティティ作成**: カスタムエンティティでの新規レコード作成
+  ```typescript
+  // ✅ Dataverse作成テスト
+  const projectData = {
+    name: 'テストプロジェクト',
+    description: '移行テスト用プロジェクト',
+    statuscode: 1,           // ステータス選択肢
+    prioritycode: 100000002, // 優先度選択肢
+    estimatedbudget: 5000000 // 通貨フィールド
+  };
+  ```
+
+- [ ] **ルックアップフィールド**: 関連レコードの選択・表示
+- [ ] **選択肢フィールド**: OptionSetの値が正確に保存
+- [ ] **計算フィールド**: 計算式が適切に動作
+- [ ] **ワークフロー連携**: フォーム送信時のワークフロー実行
+
+**SQL Server フォームテスト:**
+- [ ] **テーブル作成**: SQL Serverでの新規レコード挿入
+  ```sql
+  -- ✅ SQL Server作成テスト
+  INSERT INTO Projects (Name, Description, Status, Priority, Budget, CreatedDate)
+  VALUES ('移行テストプロジェクト', 'フォームからのテスト作成', 'Planning', 'High', 3000000, GETDATE());
+  ```
+
+- [ ] **制約チェック**: NOT NULL、UNIQUE、CHECK制約の動作
+- [ ] **外部キー**: 関連テーブルとの整合性
+- [ ] **トランザクション**: 複数テーブル更新の原子性
+- [ ] **ストアドプロシージャ**: 複雑な業務ロジックの実行
+
+#### **🔧 フォームバリデーションテスト**
+
+**クライアントサイドバリデーション:**
+- [ ] **必須チェック**: 必須フィールドの空白チェック
+- [ ] **形式チェック**: メールアドレス、電話番号の形式検証
+- [ ] **文字数チェック**: 最小・最大文字数の制限
+- [ ] **数値範囲**: 予算、年齢等の数値範囲チェック
+- [ ] **日付妥当性**: 開始日≤終了日等の日付ロジック
+
+**サーバーサイドバリデーション:**
+- [ ] **重複チェック**: メールアドレス、ID等の一意性確認
+- [ ] **権限チェック**: 作成・編集権限の確認
+- [ ] **ビジネスルール**: 業務固有の制約事項
+- [ ] **整合性チェック**: 関連データとの整合性確認
+
+#### **📱 フォームUI/UXテスト**
+
+**応答性テスト:**
+- [ ] **保存速度**: フォーム送信後3秒以内での応答
+- [ ] **バリデーション速度**: リアルタイム検証の応答性
+- [ ] **データ読み込み**: 編集フォーム表示時間
+- [ ] **大量データ**: 選択肢が1000件以上の場合の性能
+
+**ユーザビリティテスト:**
+- [ ] **エラー表示**: わかりやすいエラーメッセージ
+- [ ] **成功通知**: 保存完了の明確な通知
+- [ ] **進行状況**: 長時間処理での進捗表示
+- [ ] **自動保存**: 一定間隔での下書き保存
+- [ ] **復元機能**: ブラウザクラッシュ時の入力内容復元
+
+#### **🧪 フォーム移行テスト実行手順**
+
+**Step 1: フォーム機能の棚卸し**
+```typescript
+// src/tests/formMigration.test.ts
+describe('Form Migration Tests', () => {
+  // 新規作成フォームテスト
+  test('Create Form - All fields work with real data', async () => {
+    const formData = {
+      // モックデータ構造と同じフィールド
+      displayName: 'テストユーザー',
+      jobTitle: 'テストエンジニア',
+      department: 'IT部門',
+      mail: 'test@company.com'
+    };
+    
+    const result = await createUser(formData);
+    expect(result.success).toBe(true);
+    expect(result.data.id).toBeDefined();
+  });
+  
+  // 編集フォームテスト  
+  test('Edit Form - Loads and saves real data correctly', async () => {
+    const existingUser = await getUser('test-user-id');
+    const updatedData = { ...existingUser, jobTitle: '更新された職種' };
+    
+    const result = await updateUser(existingUser.id, updatedData);
+    expect(result.success).toBe(true);
+    expect(result.data.jobTitle).toBe('更新された職種');
+  });
+});
+```
+
+**Step 2: フォーム別動作確認**
+```bash
+# 各フォームでの実動作テスト
+npm run test:forms:create   # 新規作成フォーム
+npm run test:forms:edit     # 編集フォーム  
+npm run test:forms:bulk     # 一括操作フォーム
+npm run test:forms:import   # データインポートフォーム
+```
+
+**Step 3: エンドツーエンドテスト**
+```typescript
+// e2e/formWorkflow.test.ts  
+test('Complete form workflow with real data', async () => {
+  // 1. 新規作成
+  await page.click('[data-testid="create-button"]');
+  await page.fill('[name="displayName"]', 'E2Eテストユーザー');
+  await page.click('[type="submit"]');
+  
+  // 2. 作成確認
+  await expect(page.locator('.success-message')).toBeVisible();
+  
+  // 3. 編集
+  await page.click('[data-testid="edit-button"]');
+  await page.fill('[name="jobTitle"]', '更新された職種');
+  await page.click('[type="submit"]');
+  
+  // 4. 更新確認  
+  await expect(page.locator('.success-message')).toBeVisible();
+});
+```
+
+この詳細なフォームテストにより、モックデータからリアルデータへの移行時に、全てのフォーム機能が正常に動作することを確実に検証できます。
+
+#### **⚡ 機能動作テスト**
+
+**CRUD操作テスト:**
+- [ ] **作成（Create）**: 新規データ作成がリアル環境で動作
+- [ ] **読み取り（Read）**: データ取得・表示が正常
+- [ ] **更新（Update）**: データ編集・保存が正常
+- [ ] **削除（Delete）**: データ削除が正常（※要注意）
+
+**検索・フィルター機能:**
+- [ ] **キーワード検索**: 実際のデータで検索機能が動作
+- [ ] **高度な検索**: 複数条件での絞り込み
+- [ ] **オートコンプリート**: 候補表示機能
+
+**統合機能テスト:**
+- [ ] **クロスコネクター**: Office 365 + SQL等の複合処理
+- [ ] **データ同期**: 複数ソース間のデータ整合性
+- [ ] **リアルタイム更新**: データ変更の即座反映
+
+#### **🚨 エラーハンドリング検証**
+
+**接続エラー対応:**
+- [ ] **認証エラー**: 権限不足時の適切なエラー表示
+- [ ] **ネットワークエラー**: 接続断時の処理
+- [ ] **データ不整合**: 想定外のデータ形式への対応
+
+**ユーザビリティ:**
+- [ ] **ローディング表示**: データ取得中の適切な表示
+- [ ] **エラーメッセージ**: わかりやすいエラー通知
+- [ ] **リトライ機能**: 失敗時の再試行オプション
+
+#### **📊 パフォーマンステスト**
+
+**レスポンス時間:**
+- [ ] **初期表示**: 5秒以内でのデータ表示
+- [ ] **検索応答**: 3秒以内での検索結果表示
+- [ ] **ページング**: スムーズなページ切り替え
+
+**大量データ対応:**
+- [ ] **100件以上**: 大量データでの表示性能
+- [ ] **1000件以上**: 検索・フィルター性能
+- [ ] **メモリ使用量**: ブラウザでのメモリリーク確認
+
+### **🔧 移行テスト実行手順**
+
+#### **Step 1: 段階的切り替えテスト**
+```typescript
+// src/config/dataSource.ts - 切り替え用設定
+export const DATA_SOURCE_CONFIG = {
+  useRealData: process.env.NODE_ENV === 'production', // 環境による自動切り替え
+  office365: {
+    useMock: false, // リアルデータ使用
+    mockFallback: true // エラー時はモック使用
+  },
+  dataverse: {
+    useMock: false,
+    mockFallback: true
+  },
+  sql: {
+    useMock: false,
+    mockFallback: true
+  }
+};
+```
+
+#### **Step 2: A/Bテスト比較**
+```typescript
+// 同じ画面でモックとリアルデータを比較表示
+const ComparisonTest = () => {
+  const [showMock, setShowMock] = useState(true);
+  
+  return (
+    <div className="flex gap-4">
+      <div className="w-1/2">
+        <h3>Mock Data</h3>
+        <UserListMock />
+      </div>
+      <div className="w-1/2">
+        <h3>Real Data</h3>
+        <UserListReal />
+      </div>
+    </div>
+  );
+};
+```
+
+#### **Step 3: 自動テスト実行**
+```bash
+# 移行テスト用のテストスイート実行
+npm run test:migration
+
+# 各コネクター別テスト
+npm run test:office365
+npm run test:dataverse  
+npm run test:sql
+
+# 統合テスト
+npm run test:integration
+```
+
+### **⚠️ 移行時の重要な注意事項**
+
+1. **バックアップ**: 本番データを扱う場合は必ずバックアップを取得
+2. **段階的移行**: 一度に全コネクターを切り替えず、段階的に実施
+3. **モニタリング**: 移行後しばらくはエラーログを注意深く監視
+4. **ロールバック計画**: 問題発生時の元に戻す手順を準備
+5. **ユーザーテスト**: 技術的テストだけでなく、実際のユーザーでの動作確認
+
+この移行テストを完了することで、モックデータとリアルデータ間でのギャップを最小化し、本番環境での安定動作を確保できます。
 
 ### 🗑️ **データソース削除 (必要時)**
 
@@ -2921,6 +3503,553 @@ pac code add-data-source -a dataverse -t cr_customtable
 src/generated/services/AccountsService.ts    # CRUD操作メソッド
 src/generated/models/AccountsModel.ts        # 型定義・データモデル
 ```
+
+## 📋 **Dataverse接続前の必須手順: スキーマ確認とドキュメント化**
+
+> **⚠️ 重要**: モックデータからDataverseリアルデータに移行する際は、以下の手順を**必ず**実行してください。スキーマの不一致により、データの読み書きエラーや選択肢値の不整合が発生する可能性があります。
+
+### **Step 1: customizations.xmlファイルの取得**
+
+#### **Power Apps ポータルからのソリューションエクスポート**
+```bash
+# 1. Power Apps Maker Portal (make.powerapps.com) にアクセス
+# 2. ソリューション → 対象ソリューションを選択
+# 3. エクスポート → 「アンマネージド」を選択
+# 4. ZIPファイルをダウンロード・展開
+# 5. customizations.xml ファイルを取得
+```
+
+**取得するファイル:**
+- `customizations.xml` - Dataverseテーブル定義とスキーマ情報
+- 場所: ソリューションZIP > `customizations.xml`
+
+### **Step 2: Dataverseスキーマ抽出ユーティリティの実行**
+
+#### **PowerShellスクリプトによる自動抽出**
+
+**Extract-DataverseChoices.ps1 の作成:**
+```powershell
+# プロジェクトルートに保存
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$XmlPath,
+    
+    [Parameter(Mandatory=$false)]
+    [string]$EntityName = "your_table_name"  # 実際のテーブル名に変更
+)
+
+# XMLを読み込み（UTF-8エンコーディング）
+Write-Host "Reading XML file..." -ForegroundColor Cyan
+$xmlContent = Get-Content -Path $XmlPath -Encoding UTF8 -Raw
+
+# XMLをパース
+[xml]$xml = $xmlContent
+
+# エンティティを検索
+$entities = $xml.ImportExportXml.Entities.Entity
+
+Write-Host "`nSearching for entity: $EntityName" -ForegroundColor Yellow
+
+foreach ($entity in $entities) {
+    $entityLogicalName = $entity.EntityInfo.entity.Name
+    
+    if ($entityLogicalName -eq $EntityName) {
+        Write-Host "`nFound entity: $entityLogicalName" -ForegroundColor Green
+        
+        # 属性を取得
+        $attributes = $entity.EntityInfo.entity.attributes.attribute
+        
+        # 全属性の表示
+        Write-Host "`nAll Attributes:" -ForegroundColor Cyan
+        foreach ($attr in $attributes) {
+            $attrName = $attr.Name
+            $attrType = $attr.Type
+            $displayName = $attr.displaynames.displayname | Where-Object { $_.languagecode -eq '1041' } | Select-Object -ExpandProperty description
+            Write-Host "  $attrName ($attrType) - $displayName" -ForegroundColor White
+        }
+        
+        # Picklist属性のみをフィルター
+        $picklistAttributes = $attributes | Where-Object { $_.Type -eq 'picklist' }
+        
+        Write-Host "`nChoice (Picklist) Attributes Found: $($picklistAttributes.Count)" -ForegroundColor Cyan
+        
+        foreach ($attr in $picklistAttributes) {
+            $attrName = $attr.Name
+            $attrDisplayName = $attr.displaynames.displayname | Where-Object { $_.languagecode -eq '1041' } | Select-Object -ExpandProperty description
+            
+            Write-Host "`n=== $attrName ($attrDisplayName) ===" -ForegroundColor Yellow
+            
+            # optionset要素を取得
+            if ($attr.optionset) {
+                $options = $attr.optionset.options.option
+                
+                if ($options) {
+                    Write-Host "Choice Values:" -ForegroundColor Cyan
+                    foreach ($option in $options) {
+                        $value = $option.value
+                        $label = $option.labels.label | Where-Object { $_.languagecode -eq '1041' } | Select-Object -ExpandProperty description
+                        Write-Host "  $value : $label" -ForegroundColor White
+                    }
+                } else {
+                    Write-Host "  No options defined (global optionset?)" -ForegroundColor Gray
+                }
+            } else {
+                Write-Host "  No optionset element found" -ForegroundColor Gray
+            }
+        }
+    }
+}
+
+Write-Host "`nDone!" -ForegroundColor Green
+```
+
+#### **スクリプト実行例**
+```powershell
+# スクリプトを実行してスキーマ情報を抽出
+.\Extract-DataverseChoices.ps1 -XmlPath "C:\Users\your-name\Desktop\customizations.xml" -EntityName "geek_project_task"
+
+# 実行結果例:
+# Reading XML file...
+# 
+# Searching for entity: geek_project_task
+# 
+# Found entity: geek_project_task
+# 
+# All Attributes:
+#   geek_project_taskid (uniqueidentifier) - プロジェクト タスク
+#   geek_name (string) - 名前
+#   geek_priority (picklist) - 優先度
+#   geek_status (picklist) - 状態
+#   geek_category (picklist) - カテゴリ
+# 
+# Choice (Picklist) Attributes Found: 3
+# 
+# === geek_priority (優先度) ===
+# Choice Values:
+#   0 : Critical
+#   1 : High
+#   2 : Medium
+#   3 : Low
+# 
+# === geek_status (状態) ===
+# Choice Values:
+#   0 : Completed
+#   1 : InProgress
+#   2 : NotStarted
+# 
+# === geek_category (カテゴリ) ===
+# Choice Values:
+#   0 : Planning
+#   1 : Development
+#   2 : Testing
+#   3 : Deployment
+```
+
+### **Step 3: TypeScriptスキーマ定義の作成**
+
+#### **抽出情報に基づくTypeScript型定義**
+
+**src/types/dataverse.ts の作成:**
+```typescript
+/**
+ * Dataverse スキーマ定義
+ * 
+ * 生成元: customizations.xml (geek_project_task エンティティ)
+ * 生成日時: 2025-01-17
+ * エンティティ名: geek_project_task
+ */
+
+// メインエンティティインターフェース
+export interface ProjectTask {
+  // 主キー (GUID)
+  geek_project_taskid: string;
+  
+  // 基本フィールド
+  geek_name: string;                    // 名前 (必須)
+  geek_description?: string;            // 説明 (任意)
+  
+  // Choice (選択肢) フィールド
+  geek_priority: TaskPriority;          // 優先度
+  geek_status: TaskStatus;              // 状態  
+  geek_category: TaskCategory;          // カテゴリ
+  
+  // 日付フィールド
+  geek_duedate?: Date;                  // 期限日
+  createdon: Date;                      // 作成日時 (システム)
+  modifiedon: Date;                     // 更新日時 (システム)
+  
+  // ルックアップフィールド (他テーブルとの関連)
+  geek_projectid?: string;              // プロジェクトへの参照
+  ownerid: string;                      // 所有者 (必須)
+}
+
+// Choice値の型定義 (customizations.xmlから抽出)
+export type TaskPriority = 0 | 1 | 2 | 3;  // Critical | High | Medium | Low
+export type TaskStatus = 0 | 1 | 2;        // Completed | InProgress | NotStarted  
+export type TaskCategory = 0 | 1 | 2 | 3;  // Planning | Development | Testing | Deployment
+
+// Choice値のマッピング (表示用)
+export const TaskPriorityLabels: Record<TaskPriority, string> = {
+  0: 'Critical',
+  1: 'High', 
+  2: 'Medium',
+  3: 'Low'
+};
+
+export const TaskStatusLabels: Record<TaskStatus, string> = {
+  0: 'Completed',
+  1: 'InProgress', 
+  2: 'NotStarted'
+};
+
+export const TaskCategoryLabels: Record<TaskCategory, string> = {
+  0: 'Planning',
+  1: 'Development',
+  2: 'Testing', 
+  3: 'Deployment'
+};
+
+// 逆引きマッピング (フォーム用)
+export const TaskPriorityReverseMap: Record<string, TaskPriority> = {
+  'Critical': 0,
+  'High': 1,
+  'Medium': 2,
+  'Low': 3
+};
+
+export const TaskStatusReverseMap: Record<string, TaskStatus> = {
+  'Completed': 0,
+  'InProgress': 1,
+  'NotStarted': 2
+};
+
+export const TaskCategoryReverseMap: Record<string, TaskCategory> = {
+  'Planning': 0,
+  'Development': 1,
+  'Testing': 2,
+  'Deployment': 3
+};
+
+// 新規作成用のインターフェース (システムフィールド除外)
+export interface CreateProjectTaskRequest {
+  geek_name: string;
+  geek_description?: string;
+  geek_priority: TaskPriority;
+  geek_status: TaskStatus;
+  geek_category: TaskCategory;
+  geek_duedate?: Date;
+  geek_projectid?: string;
+  ownerid: string;
+}
+
+// 更新用のインターフェース (部分更新対応)
+export interface UpdateProjectTaskRequest {
+  geek_name?: string;
+  geek_description?: string;
+  geek_priority?: TaskPriority;
+  geek_status?: TaskStatus;
+  geek_category?: TaskCategory;
+  geek_duedate?: Date;
+}
+```
+
+### **Step 4: Dataverse接続コードの更新**
+
+#### **スキーマに準拠したCRUD操作実装**
+
+**src/services/dataverseService.ts の作成:**
+```typescript
+import { useConnector } from '@microsoft/power-apps';
+import type { 
+  ProjectTask, 
+  CreateProjectTaskRequest, 
+  UpdateProjectTaskRequest,
+  TaskPriority,
+  TaskStatus,
+  TaskCategory
+} from '@/types/dataverse';
+
+export const useDataverseProjectTasks = () => {
+  const dataverseConnector = useConnector('dataverse');
+
+  // 全タスク取得
+  const getAllTasks = async (): Promise<ProjectTask[]> => {
+    try {
+      const result = await dataverseConnector.getRecords('geek_project_task', {
+        select: [
+          'geek_project_taskid',
+          'geek_name', 
+          'geek_description',
+          'geek_priority',
+          'geek_status',
+          'geek_category',
+          'geek_duedate',
+          'createdon',
+          'modifiedon',
+          'geek_projectid',
+          'ownerid'
+        ].join(','),
+        orderBy: 'createdon desc'
+      });
+      
+      return result.data || [];
+    } catch (error) {
+      console.error('Dataverse getAllTasks error:', error);
+      throw new Error(`タスク一覧の取得に失敗しました: ${error.message}`);
+    }
+  };
+
+  // 新規タスク作成  
+  const createTask = async (taskData: CreateProjectTaskRequest): Promise<ProjectTask> => {
+    try {
+      // Choice値の検証
+      validateChoiceValues(taskData);
+      
+      const result = await dataverseConnector.createRecord('geek_project_task', taskData);
+      
+      return result.data;
+    } catch (error) {
+      console.error('Dataverse createTask error:', error);
+      throw new Error(`タスクの作成に失敗しました: ${error.message}`);
+    }
+  };
+
+  // タスク更新
+  const updateTask = async (taskId: string, updateData: UpdateProjectTaskRequest): Promise<ProjectTask> => {
+    try {
+      if (updateData.geek_priority !== undefined || 
+          updateData.geek_status !== undefined || 
+          updateData.geek_category !== undefined) {
+        validateChoiceValues(updateData);
+      }
+      
+      const result = await dataverseConnector.updateRecord('geek_project_task', taskId, updateData);
+      
+      return result.data;
+    } catch (error) {
+      console.error('Dataverse updateTask error:', error);
+      throw new Error(`タスクの更新に失敗しました: ${error.message}`);
+    }
+  };
+
+  // タスク削除
+  const deleteTask = async (taskId: string): Promise<void> => {
+    try {
+      await dataverseConnector.deleteRecord('geek_project_task', taskId);
+    } catch (error) {
+      console.error('Dataverse deleteTask error:', error);
+      throw new Error(`タスクの削除に失敗しました: ${error.message}`);
+    }
+  };
+
+  // Choice値の検証関数
+  const validateChoiceValues = (data: CreateProjectTaskRequest | UpdateProjectTaskRequest) => {
+    if (data.geek_priority !== undefined && ![0, 1, 2, 3].includes(data.geek_priority)) {
+      throw new Error(`無効な優先度: ${data.geek_priority}`);
+    }
+    if (data.geek_status !== undefined && ![0, 1, 2].includes(data.geek_status)) {
+      throw new Error(`無効な状態: ${data.geek_status}`);
+    }
+    if (data.geek_category !== undefined && ![0, 1, 2, 3].includes(data.geek_category)) {
+      throw new Error(`無効なカテゴリ: ${data.geek_category}`);
+    }
+  };
+
+  return {
+    getAllTasks,
+    createTask,
+    updateTask,
+    deleteTask
+  };
+};
+```
+
+### **Step 5: UIコンポーネントの更新**
+
+#### **Choice値に対応したフォームコンポーネント**
+
+**src/components/TaskForm.tsx の作成:**
+```typescript
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import type { 
+  CreateProjectTaskRequest, 
+  UpdateProjectTaskRequest,
+  TaskPriority,
+  TaskStatus, 
+  TaskCategory
+} from '@/types/dataverse';
+import { 
+  TaskPriorityLabels, 
+  TaskStatusLabels, 
+  TaskCategoryLabels 
+} from '@/types/dataverse';
+
+interface TaskFormProps {
+  onSubmit: (data: CreateProjectTaskRequest | UpdateProjectTaskRequest) => Promise<void>;
+  initialData?: Partial<CreateProjectTaskRequest>;
+  isEdit?: boolean;
+}
+
+export const TaskForm: React.FC<TaskFormProps> = ({ 
+  onSubmit, 
+  initialData = {}, 
+  isEdit = false 
+}) => {
+  const [formData, setFormData] = useState({
+    geek_name: initialData.geek_name || '',
+    geek_description: initialData.geek_description || '',
+    geek_priority: initialData.geek_priority ?? 1, // Default: High
+    geek_status: initialData.geek_status ?? 2,     // Default: NotStarted
+    geek_category: initialData.geek_category ?? 0, // Default: Planning
+    geek_duedate: initialData.geek_duedate ? new Date(initialData.geek_duedate).toISOString().split('T')[0] : '',
+    ownerid: initialData.ownerid || ''
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const submitData = {
+      ...formData,
+      geek_duedate: formData.geek_duedate ? new Date(formData.geek_duedate) : undefined
+    };
+
+    await onSubmit(submitData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium mb-1">タスク名 *</label>
+        <Input
+          value={formData.geek_name}
+          onChange={(e) => setFormData({ ...formData, geek_name: e.target.value })}
+          required
+          placeholder="タスク名を入力"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">説明</label>
+        <Textarea
+          value={formData.geek_description}
+          onChange={(e) => setFormData({ ...formData, geek_description: e.target.value })}
+          placeholder="タスクの詳細を入力"
+        />
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">優先度</label>
+          <Select
+            value={formData.geek_priority.toString()}
+            onValueChange={(value) => setFormData({ ...formData, geek_priority: parseInt(value) as TaskPriority })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(TaskPriorityLabels).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">状態</label>
+          <Select
+            value={formData.geek_status.toString()}
+            onValueChange={(value) => setFormData({ ...formData, geek_status: parseInt(value) as TaskStatus })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(TaskStatusLabels).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">カテゴリ</label>
+          <Select
+            value={formData.geek_category.toString()}
+            onValueChange={(value) => setFormData({ ...formData, geek_category: parseInt(value) as TaskCategory })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(TaskCategoryLabels).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">期限日</label>
+        <Input
+          type="date"
+          value={formData.geek_duedate}
+          onChange={(e) => setFormData({ ...formData, geek_duedate: e.target.value })}
+        />
+      </div>
+
+      <Button type="submit" className="w-full">
+        {isEdit ? 'タスクを更新' : 'タスクを作成'}
+      </Button>
+    </form>
+  );
+};
+```
+
+### **📋 必須チェックリスト: Dataverse接続前**
+
+#### **開発者への依頼事項**
+- [ ] **customizations.xmlファイル取得**: Power Apps ポータルからソリューションエクスポート
+- [ ] **スキーマ抽出実行**: PowerShellスクリプトでテーブル構造・Choice値を抽出
+- [ ] **TypeScript型定義作成**: 抽出情報に基づくインターフェース定義
+- [ ] **Choice値マッピング**: 数値⇔表示名の変換テーブル作成
+- [ ] **CRUD操作更新**: 実際のスキーマに対応したDataverseサービス実装
+- [ ] **UIフォーム更新**: Choice値をドロップダウンで選択可能なフォーム
+- [ ] **型安全性確認**: TypeScriptコンパイルエラー0件
+- [ ] **統合テスト**: モックデータ→リアルデータ切り替えテスト
+
+### **⚠️ よくある問題と対処法**
+
+#### **1. Choice値の不一致エラー**
+```
+❌ エラー例: "Invalid option value '4' for attribute 'geek_priority'"
+✅ 対処法: customizations.xmlから正確なChoice値を抽出・更新
+```
+
+#### **2. 必須フィールドエラー**  
+```
+❌ エラー例: "Required attribute 'geek_name' is missing"
+✅ 対処法: XMLのIsValidForCreate属性でRequired判定・フォーム必須設定
+```
+
+#### **3. データ型不一致エラー**
+```
+❌ エラー例: "Date format error for 'geek_duedate'"
+✅ 対処法: ISO8601形式（YYYY-MM-DDTHH:mm:ssZ）での日付送信
+```
+
+この手順により、Dataverseとの接続で発生する一般的なスキーマ不整合エラーを事前に防止し、安全にモックデータからリアルデータへ移行できます。
 
 ### � **Dataverse CRUD操作実装パターン**
 
@@ -4952,7 +6081,7 @@ const users = await office365.SearchUser(searchTerm, 50);
 - [ ] `pac code push` で **Code Apps として** デプロイが成功する
 - [ ] Power Apps の **アプリ一覧** に表示される (コンポーネントライブラリではない)
 - [ ] Power Apps URL でアクセスできる
-- [ ] Power Platform 環境内で **完全なアプリケーションとして** 正常動作する
+- [ ] Power Platform 環境内で **アプリケーションとして** 正常動作する
 - [ ] コネクタが正常に接続される (使用時)
 
 > **確認方法**: [make.powerapps.com](https://make.powerapps.com) → アプリ → あなたの Code Apps が一覧に表示される
@@ -5098,7 +6227,7 @@ pac pcf init
 | データ管理 | CRUD Template | フォーム、一覧、検索 |
 | ワークフロー | Business Process | プロセス管理、承認 |
 | レポーティング | Report Template | 帳票、エクスポート |
-| カスタム | Blank Template | 完全カスタマイズ |
+| カスタム | Blank Template | フルカスタマイズ |
 
 ### レイアウト・UI開発
 
@@ -6211,7 +7340,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 };
 ```
 
-**完全なアプリケーションレイアウト:**
+**アプリケーションレイアウト:**
 ```tsx
 // components/layout/AppLayout.tsx
 import { useState } from 'react';
@@ -6429,7 +7558,7 @@ const SidebarMenuItem: React.FC<{
 
 **レイアウト使用例（メインページ）:**
 ```tsx
-// src/pages/Index.tsx - 完全なレイアウト統合例
+// src/pages/Index.tsx - レイアウト統合例
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardGrid } from '@/components/layout/DashboardGrid';
 import { StatsCard } from '@/components/ui/StatsCard';
@@ -6729,7 +7858,7 @@ export const FormTemplate: React.FC<{
 
 ### モーダル優先設計ガイドライン
 
-**🚨 重要方針: ポップアップ完全禁止、モーダル必須使用**
+**🚨 重要方針: ポップアップ禁止、モーダル必須使用**
 
 Code Apps では、ユーザー体験の一貫性、アクセシビリティ、デザインの統一性を確保するため、**すべてのポップアップ系UIを禁止**し、TailwindCSS + shadcn/ui ベースの美しいモーダルコンポーネントを必須使用します。
 
@@ -8657,13 +9786,13 @@ export class SecurityChecker {
 
 | 管理機能 | サポート状況 | 詳細 |
 |---------|-------------|------|
-| **コネクター権限同意ダイアログ** | ✅ 完全サポート | エンドユーザーに表示 |
+| **コネクター権限同意ダイアログ** | ✅ サポート | エンドユーザーに表示 |
 | **共有制限** | ✅ Canvas アプリと同等 | 既存のアプリ共有制限を継承 |
-| **アプリ検疫** | ✅ 完全サポート | セキュリティスキャンによる自動検疫 |
+| **アプリ検疫** | ✅ サポート | セキュリティスキャンによる自動検疫 |
 | **データ損失防止ポリシー** | ✅ アプリ起動時適用 | DLP ポリシー違反時は起動ブロック |
 | **条件付きアクセス** | ✅ 個別アプリ単位 | アプリごとの細かい制御 |
 | **管理者同意抑制** | ✅ OAuth対応 | Microsoft・カスタムコネクター両対応 |
-| **テナント分離** | ✅ 完全サポート | セキュリティ境界の維持 |
+| **テナント分離** | ✅ サポート | セキュリティ境界の維持 |
 | **Azure B2B 外部ユーザー** | ✅ Canvas アプリと同等 | 外部ユーザーアクセス可能 |
 | **正常性メトリクス** | ✅ 管理センター・メーカーポータル両対応 | 運用ヘルスメトリクス提供 |
 
@@ -9514,9 +10643,9 @@ export class ErrorBoundary extends Component<
 }
 ```
 
-**完全なアプリ構成例:**
+**アプリ構成例:**
 ```tsx
-// src/main.tsx - 完全版
+// src/main.tsx
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
@@ -9542,7 +10671,7 @@ createRoot(document.getElementById("root")!).render(
 2. **shadcn/ui + TailwindCSS**: 一貫したデザインシステム
 3. **レスポンシブレイアウト**: ヘッダー・サイドバー・メインコンテナ構成
 4. **ダークモード対応**: システム・ライト・ダーク自動切り替え
-5. **モーダル中心設計**: ブラウザポップアップ完全禁止
+5. **モーダル中心設計**: ブラウザポップアップ禁止
 
 **推奨コンポーネント構成例:**
 ```tsx
@@ -9639,3 +10768,274 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 };
 ```
+
+---
+
+## 🚀 **統合開発手順 - 最新版**
+
+> **最終更新**: 2025年1月17日
+> **対象**: Power Apps Code Apps 開発標準 v2.0
+
+### **📋 開発フロー概要 - 矛盾排除版**
+
+```mermaid
+graph TD
+    A[Phase 0: 環境準備] --> B{開発ツール確認}
+    B --> C[Phase 1: プロジェクト基盤構築]
+    C --> D{PowerProvider初期化}
+    D --> E[Phase 2: UI・デザインシステム]
+    E --> F{shadcn/ui統合}
+    F --> G[Phase 3: ローカル統合テスト]
+    G --> H{動作確認完了}
+    H --> I[Phase 4: Power Apps デプロイ]
+    I --> J{本番環境動作確認}
+    J --> K[Phase 5: データ統合・拡張]
+    K --> L[継続開発サイクル]
+    
+    style A fill:#e1f5fe
+    style C fill:#f3e5f5
+    style E fill:#e8f5e8
+    style G fill:#fff3e0
+    style I fill:#fce4ec
+    style K fill:#f1f8e9
+```
+
+### **🎯 統一コマンド体系**
+
+#### **必須エラーチェックコマンド (全Phase共通)**
+```bash
+# 統合エラーチェック - 必須実行
+npm run build && npm run lint && npx tsc --noEmit
+```
+
+#### **Phase別統合コマンド**
+```bash
+# Phase 1: プロジェクト基盤
+npm create vite@latest AppName -- --template react-ts
+npm install && npm i --save-dev @types/node
+pac code init --displayName "App Name"
+npm install --save "@microsoft/power-apps"
+
+# Phase 2: UI統合  
+npx shadcn@latest init
+npx shadcn@latest add button card input select table
+
+# Phase 3: 統合テスト
+npm run build && npm run dev
+
+# Phase 4: デプロイ
+npm run build && pac code push
+
+# Phase 5: データ統合
+# → Dataverse: customizations.xml取得 → スキーマ抽出 → 型定義作成
+# → Office 365: useConnector('office365users')
+# → SQL Server: useConnector('sql')
+```
+
+### **⚠️ 重要: 矛盾解決済み項目**
+
+#### **1. PowerProvider実装パターン (統一版)**
+```typescript
+// 最終確定版 - 変更禁止
+import { initialize } from "@microsoft/power-apps/app";
+import { useEffect, type ReactNode } from "react";
+
+interface PowerProviderProps {
+    children: ReactNode;
+}
+
+export default function PowerProvider({ children }: PowerProviderProps) {
+    useEffect(() => {
+        const initApp = async () => {
+            try {
+                await initialize();
+                console.log('✅ Power Platform SDK initialized');
+            } catch (error) {
+                console.error('❌ SDK initialization failed:', error);
+            }
+        };
+        
+        initApp();
+    }, []);
+
+    return <>{children}</>;
+}
+```
+
+#### **2. vite.config.ts 設定 (統一版)**
+```typescript
+// 最終確定版 - Microsoft公式準拠
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import * as path from 'path'
+
+export default defineConfig({
+  base: "./",  // Power Apps デプロイ必須
+  server: {
+    host: "::",
+    port: 3000,  // Power SDK固定ポート
+  },
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+});
+```
+
+#### **3. package.json Scripts (統一版)**
+```json
+{
+  "scripts": {
+    "dev": "start pac code run && vite",
+    "build": "tsc -b && vite build", 
+    "lint": "eslint .",
+    "preview": "vite preview"
+  }
+}
+```
+
+### **🔧 データ統合パターン (Phase 5)**
+
+#### **Dataverse統合手順**
+```bash
+# 1. スキーマ確認 (必須)
+# Power Apps ポータル → ソリューション → エクスポート → customizations.xml
+
+# 2. PowerShell スキーマ抽出
+.\Extract-DataverseChoices.ps1 -XmlPath "customizations.xml" -EntityName "your_table"
+
+# 3. TypeScript型定義作成
+# → src/types/dataverse.ts にインターフェース定義
+# → Choice値マッピング作成
+
+# 4. useConnector実装
+const dataverseConnector = useConnector('dataverse');
+```
+
+#### **Office 365統合手順**
+```typescript
+// 統一パターン
+import { useConnector } from '@microsoft/power-apps';
+
+export const useOffice365Users = () => {
+  const connector = useConnector('office365users');
+  
+  const getUsers = async () => {
+    try {
+      return await connector.getUserProfiles();
+    } catch (error) {
+      console.error('Office 365 connection error:', error);
+      throw error;
+    }
+  };
+  
+  return { getUsers };
+};
+```
+
+### **📊 品質保証チェックリスト - 統合版**
+
+#### **Phase 1完了チェック**
+- [ ] TypeScript エラー: 0件
+- [ ] ESLint エラー: 0件
+- [ ] ビルドエラー: 0件
+- [ ] PowerProvider正常動作
+- [ ] `pac code init`成功
+
+#### **Phase 2完了チェック**
+- [ ] shadcn/ui統合完了
+- [ ] TailwindCSS動作確認
+- [ ] レスポンシブデザイン確認
+- [ ] ローカル実行成功
+
+#### **Phase 3完了チェック**
+- [ ] Power Apps環境統合成功
+- [ ] SDK初期化確認
+- [ ] ブラウザコンソールエラー0件
+- [ ] 全機能動作確認
+
+#### **Phase 4完了チェック**  
+- [ ] 本番ビルド成功
+- [ ] Power Apps デプロイ成功
+- [ ] 本番環境動作確認
+- [ ] エンドユーザーテスト完了
+
+#### **Phase 5完了チェック**
+- [ ] データソース接続成功
+- [ ] CRUD操作動作確認
+- [ ] 型安全性確保
+- [ ] エラーハンドリング実装
+
+### **🚨 よくある問題と解決法 - 統合版**
+
+#### **"fetching your app"で停止**
+```bash
+# 解決手順
+1. npm run build # ビルド確認
+2. PowerProvider.tsx の構文エラーチェック
+3. vite.config.ts の base: "./" 設定確認
+4. pac code run の再起動
+```
+
+#### **Dataverse接続エラー**
+```bash
+# 解決手順  
+1. customizations.xml からスキーマ確認
+2. Choice値の数値マッピング修正
+3. 必須フィールドの設定確認
+4. useConnector('dataverse') 初期化確認
+```
+
+#### **TypeScript型エラー**
+```bash
+# 解決手順
+1. npx tsc --noEmit で詳細確認
+2. @types/node インストール確認
+3. tsconfig.json設定確認
+4. import文の構文確認
+```
+
+### **🎯 AI提案メッセージ - 統合版**
+
+```typescript
+// 開発状態管理インターフェース
+interface DevelopmentProgress {
+  currentPhase: 0 | 1 | 2 | 3 | 4 | 5;
+  completedSteps: string[];
+  nextRecommendedAction: string;
+  estimatedTimeRemaining: string;
+  skillLevel: 'beginner' | 'intermediate' | 'advanced';
+}
+
+// AI提案例
+const aiSuggestions = {
+  phase0: "環境準備が完了しました。Phase 1のプロジェクト作成を開始しますか？",
+  phase1: "PowerProvider実装が完了しました。エラーチェックを実行しますか？",
+  phase2: "UI統合が完了しました。Power Apps環境テストを開始しますか？", 
+  phase3: "ローカル実行が成功しました。本番デプロイを実行しますか？",
+  phase4: "デプロイが完了しました。データ統合を開始しますか？",
+  phase5: "機能拡張が完了しました。次の開発サイクルを開始しますか？"
+};
+```
+
+### **📈 継続開発サイクル**
+
+```bash
+# 機能追加の標準フロー
+1. 要件定義 → モックデータ作成
+2. UIコンポーネント開発
+3. データ統合 (useConnector)
+4. テスト実行 (npm run build && npm run lint)
+5. デプロイ (pac code push)
+6. 本番確認
+
+# 品質向上サイクル
+1. パフォーマンス最適化
+2. アクセシビリティ改善
+3. セキュリティ強化
+4. CI/CD自動化
+```
+
+
