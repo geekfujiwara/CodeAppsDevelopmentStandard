@@ -5,7 +5,7 @@
 **Power Apps Code Apps** は、React、Vue などのポピュラーなフレームワークを使用してカスタムWebアプリを構築し、UI とロジックの完全な制御を保ちながら Power Platform で実行できる開発プラットフォームです。Microsoft Entra 認証、1,500+ コネクター、管理プラットフォームポリシー準拠により、安全で迅速なイノベーションを実現します。
 
 - この標準は、**Power Apps Code Apps** のための開発指針です。
-- Microsoft 公式ドキュメント（[Power Apps code apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)）と[PowerAppsCodeAppsリポジトリ](https://github.com/microsoft/PowerAppsCodeApps)のベストプラクティスに基づき、**要件理解から公開まで**の開発プロセスと、**モダンデザインシステム**を統合した実践的な開発ガイドラインです。
+- Microsoft 公式ドキュメント（[Power Apps code apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)）と[PowerAppsCodeAppsリポジトリ](https://github.com/microsoft/PowerAppsCodeApps)、と**Geekの経験**に基づき、**要件理解から公開まで**の開発プロセスと、**モダンデザインシステム**を統合した実践的な開発ガイドラインです。
 
 > **この標準は Power Apps Code Apps 専用です。PCF コンポーネント開発ではありません。**
 
@@ -66,9 +66,9 @@
 
 **結果**: 確実で効率的な Power Apps Code Apps 開発サイクルが確立されます。
 
-## 🎯 **統一された段階的開発フロー**
+## 🎯 **開発フロー**
 
-この開発標準では、**Microsoftの公式ドキュメントとGeekの経験に基づく実績的な開発アプローチ**を採用し、各段階で一貫したAI提案による開発サイクルを実現します：
+この開発標準では、**Microsoftの公式ドキュメント**と**Geekの経験**に基づく実績的な開発アプローチ**を採用し、各段階で一貫したAI提案による開発サイクルを実現します：
 
 ```mermaid
 graph LR
