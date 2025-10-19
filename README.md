@@ -80,14 +80,14 @@ graph LR
     F --> G[継続開発サイクル]
 ```
 
-**統一された開発サイクル**:
+**開発サイクル**:
 
-- **Phase 0 → Phase 1**: *"Vite + React + TypeScript プロジェクト作成を開始しますか？"*
-- **Phase 1 → Phase 2**: *"UI基盤・デザインシステム構築を開始しますか？"*
-- **Phase 2 → Phase 3**: *"Phase 3のPower Apps環境テストを開始しますか？"*
-- **Phase 3 → Phase 4**: *"Phase 4のデプロイ準備を開始しますか？"*
-- **Phase 4 → Phase 5**: *"Phase 5の機能拡張・データソース統合を開始しますか？"*
-- **Phase 5 → 継続**: *"継続的な機能拡張開発サイクルを開始しますか？"*
+- **Phase 0 → Phase 1**: *"Vite + React + TypeScript プロジェクト作成"*
+- **Phase 1 → Phase 2**: *"UI基盤・デザインシステム構築"*
+- **Phase 2 → Phase 3**: *"Phase 3のPower Apps環境テスト"*
+- **Phase 3 → Phase 4**: *"Phase 4のデプロイ"*
+- **Phase 4 → Phase 5**: *"Phase 5の機能拡張・データソース統合"*
+- **Phase 5 → 継続**: *"継続的な機能拡張開発サイクル"*
 
 #### **Phase 0: 環境準備**
 ```mermaid
