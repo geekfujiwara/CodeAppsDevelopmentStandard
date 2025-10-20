@@ -444,36 +444,178 @@ graph LR
 > 
 > DataverseやOffice 365コネクターなどに接続する場合、**Power Apps SDKの初期化が完了してから**コネクターに接続する必要があります。SDKの初期化前にコネクターを使用すると、認証エラーや接続エラーが発生する可能性があります。
 >
+> **❌ よくあるエラー:**
+> ```
+> Error fetching SystemUsers: PowerDataRuntimeError: An unknown error occurred: 
+> PowerDataRuntime is not initialized. Please call initializeRuntime() first.
+> ```
+>
+> このエラーは、**PowerDataRuntime（Power Apps SDK）が初期化される前に Dataverse テーブルにアクセスしようとした**場合に発生します。
+>
+> **✅ 正しい実装パターン:**
 > ```typescript
 > import { PowerProvider, usePowerPlatform } from '@microsoft/power-apps';
-> import { useConnectors } from '@microsoft/power-apps';
+> import { useEffect, useState } from 'react';
 > 
 > export function App() {
 >   const { isInitialized } = usePowerPlatform();
->   const { office365Users, dataverse } = useConnectors();
+>   const [systemUsers, setSystemUsers] = useState([]);
+>   const [error, setError] = useState<string | null>(null);
 > 
 >   useEffect(() => {
->     // ✅ SDK初期化完了後にコネクターを使用
->     if (isInitialized) {
->       loadUserData();
+>     // ✅ SDK初期化完了後にDataverseテーブルを取得
+>     if (!isInitialized) {
+>       console.log('Power Apps SDK 初期化中...');
+>       return; // 初期化が完了するまで何もしない
 >     }
+> 
+>     // SDK初期化完了後にデータ取得
+>     loadSystemUsers();
 >   }, [isInitialized]);
 > 
->   const loadUserData = async () => {
+>   const loadSystemUsers = async () => {
 >     try {
->       const users = await office365Users.getUsers();
->       // コネクター処理...
->     } catch (error) {
->       console.error('コネクター接続エラー:', error);
+>       // Dataverse SystemUsers テーブルへのアクセス
+>       const result = await SystemUsersService.getAll({ 
+>         select: ['systemuserid', 'fullname', 'internalemailaddress'],
+>         top: 50 
+>       });
+>       
+>       if (result.isSuccess && result.value) {
+>         setSystemUsers(result.value);
+>       } else {
+>         throw new Error('SystemUsers の取得に失敗しました');
+>       }
+>     } catch (err) {
+>       console.error('Error fetching SystemUsers:', err);
+>       setError(err.message);
 >     }
 >   };
 > 
->   // SDK初期化中は読み込み表示
+>   // ❌ 初期化前にコンポーネントをレンダリングしない
 >   if (!isInitialized) {
->     return <div>Power Platform初期化中...</div>;
+>     return (
+>       <div className="flex items-center justify-center h-screen">
+>         <div className="text-center">
+>           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+>           <p className="mt-4 text-gray-600">Power Platform 初期化中...</p>
+>         </div>
+>       </div>
+>     );
 >   }
 > 
->   return <YourApp />;
+>   if (error) {
+>     return (
+>       <div className="p-6">
+>         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+>           <h3 className="text-red-800 font-semibold">エラーが発生しました</h3>
+>           <p className="text-red-600">{error}</p>
+>         </div>
+>       </div>
+>     );
+>   }
+> 
+>   return <YourApp systemUsers={systemUsers} />;
+> }
+> ```
+>
+> **主要なポイント:**
+> - ✅ `usePowerPlatform().isInitialized` で初期化状態をチェック
+> - ✅ `isInitialized === false` の間は Loading 表示
+> - ✅ `isInitialized === true` になってから Dataverse テーブルにアクセス
+> - ✅ `useEffect` の依存配列に `isInitialized` を含める
+> - ❌ 初期化前に `SystemUsersService.getAll()` などを呼び出さない
+>
+> **カスタムフックでの実装例:**
+> ```typescript
+> // src/hooks/useSystemUsers.ts
+> import { useState, useEffect, useCallback } from 'react';
+> import { usePowerPlatform } from '@microsoft/power-apps';
+> import { SystemUsersService } from '../generated/services/SystemUsersService';
+> import type { SystemUsers } from '../generated/models/SystemUsersModel';
+> 
+> export const useSystemUsers = () => {
+>   const { isInitialized } = usePowerPlatform();
+>   const [users, setUsers] = useState<SystemUsers[]>([]);
+>   const [loading, setLoading] = useState(true);
+>   const [error, setError] = useState<string | null>(null);
+> 
+>   const loadUsers = useCallback(async () => {
+>     // ❌ 初期化前は実行しない
+>     if (!isInitialized) {
+>       console.warn('SDK not initialized yet');
+>       return;
+>     }
+> 
+>     try {
+>       setLoading(true);
+>       setError(null);
+>       
+>       const result = await SystemUsersService.getAll({
+>         select: ['systemuserid', 'fullname', 'internalemailaddress', 'isdisabled'],
+>         filter: 'isdisabled eq false',
+>         orderBy: 'fullname asc',
+>         top: 100
+>       });
+>       
+>       if (result.isSuccess && result.value) {
+>         setUsers(result.value);
+>       } else {
+>         throw new Error('ユーザー一覧の取得に失敗しました');
+>       }
+>     } catch (err) {
+>       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+>       console.error('Error fetching SystemUsers:', err);
+>       setError(errorMessage);
+>     } finally {
+>       setLoading(false);
+>     }
+>   }, [isInitialized]);
+> 
+>   // SDK初期化完了後に自動でデータ取得
+>   useEffect(() => {
+>     if (isInitialized) {
+>       loadUsers();
+>     }
+>   }, [isInitialized, loadUsers]);
+> 
+>   return { users, loading, error, refetch: loadUsers, isInitialized };
+> };
+> ```
+>
+> **コンポーネントでの使用例:**
+> ```typescript
+> import { useSystemUsers } from '../hooks/useSystemUsers';
+> 
+> export function UsersPage() {
+>   const { users, loading, error, isInitialized } = useSystemUsers();
+> 
+>   // SDK初期化中
+>   if (!isInitialized) {
+>     return <div>Power Platform 初期化中...</div>;
+>   }
+> 
+>   // データ読み込み中
+>   if (loading) {
+>     return <div>ユーザー読み込み中...</div>;
+>   }
+> 
+>   // エラー発生
+>   if (error) {
+>     return <div>エラー: {error}</div>;
+>   }
+> 
+>   // データ表示
+>   return (
+>     <div>
+>       <h1>システムユーザー ({users.length})</h1>
+>       {users.map(user => (
+>         <div key={user.systemuserid}>
+>           {user.fullname} - {user.internalemailaddress}
+>         </div>
+>       ))}
+>     </div>
+>   );
 > }
 > ```
 
@@ -965,10 +1107,16 @@ Power Apps SDKの初期化により、ローカル開発とPower Platform統合�
    // 開発時: mockDataで開発
    import { mockUsers, mockCalendarEvents } from '../mockData/office365Data';
    
-   // 本番時: useConnectorで切り替え
+   // ⚠️ 注意: 以下の useConnector パターンは古い方法です
+   // 本番時は Phase 3 で説明する自動生成サービスクラスを使用してください
+   // 例: Office365UsersService.MyProfile_V2() など
    import { useConnector } from '@microsoft/power-apps';
-   const office365 = useConnector('office365users');
-   const sqlConnector = useConnector('sql');
+   const office365 = useConnector('office365users'); // ❌ 非推奨
+   const sqlConnector = useConnector('sql'); // ❌ 非推奨
+   
+   // ✅ 推奨: Phase 3 で説明する自動生成サービスクラス
+   // import { Office365UsersService } from '../generated/services/Office365UsersService';
+   // const result = await Office365UsersService.MyProfile_V2();
    ```
 
 4. **型定義の厳密管理**
@@ -1151,6 +1299,76 @@ pac code push
 - Office 365 Users、Dataverse、Azure SQL等の接続
 - コネクター設定・認証設定
 - データモデル定義
+
+**✅ 正しいコネクター統合パターン (Phase 3 で詳述):**
+
+**Office 365 Users コネクター:**
+```bash
+# 1. Power Apps で接続作成
+# 2. サービスクラス生成
+pac code add-data-source -a "shared_office365users" -c "接続ID"
+
+# 3. カスタムフック作成
+# src/hooks/useOffice365.ts
+# - Office365UsersService.MyProfile_V2() 使用
+# - Office365UsersService.SearchUserV2() 使用
+# - エラーハンドリング実装
+
+# 4. コンポーネントから使用
+# const { getMyProfile, searchUsers } = useOffice365Users();
+```
+
+**Dataverse コネクター:**
+```bash
+# 1. Power Apps で接続作成（手動）
+# Power Apps Maker Portal (make.powerapps.com) で:
+# a. 「データ」 > 「接続」 > 「+ 新しい接続」
+# b. 「Microsoft Dataverse」を選択
+# c. 認証完了と接続確認
+
+# 2. 接続IDを取得
+# a. 作成した接続をクリック
+# b. ブラウザのURLから接続IDをコピー
+# URL形式: /connections/shared_commondataserviceforapps/{接続ID}/details
+
+# 3. ユーザーに接続IDを確認
+# 開発時は以下を確認:
+# - 接続ID (GUID形式): a1b2c3d4-e5f6-7890-1234-567890abcdef
+
+# 4. サービスクラス生成
+pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
+pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "accounts"
+
+# 5. customizations.xml からスキーマ確認（カスタムテーブルの場合）
+.\Extract-DataverseChoices.ps1 -XmlPath ".\customizations.xml" -EntityName "{論理名}"
+
+# 6. カスタムフック作成
+# src/hooks/useDataverse{TableName}.ts
+# - {Prefix}_{TableName}Service を使用
+# - CRUD 操作実装 (create, update, delete, get, getAll)
+# - Choice フィールドの型マッピング
+# - usePowerPlatform().isInitialized でSDK初期化チェック
+
+# 7. コンポーネントから使用
+# const { tasks, createTask, updateTask, deleteTask } = useDataverse{TableName}();
+
+# スキーマ名のプレースホルダー:
+# - サービスクラス: {Prefix}_{TableName}Service (例: Geek_project_tasksService)
+# - dataSourceName: {prefix}_{table_name} (例: geek_project_tasks)
+# - プライマリキー: {prefix}_{table_name}id (例: geek_project_taskid)
+
+# 標準テーブル:
+# - SystemUsers: systemusers (ユーザー一覧)
+# - Accounts: accounts (取引先企業)
+# - Contacts: contacts (取引先担当者)
+```
+
+**主要なポイント:**
+- ✅ `pac code add-data-source` で自動生成されたサービスクラスを使用
+- ✅ カスタムフックでビジネスロジックをカプセル化
+- ✅ TypeScript 型定義で型安全性を確保
+- ✅ IOperationResult の isSuccess でエラーチェック
+- ❌ 直接 `useConnector('office365users')` は使用しない (非推奨)
 
 #### 2. 未実装機能のユーザーへの開発提案
 - 優先順位の提案
@@ -2389,91 +2607,699 @@ pac connection list
 # └─────────────────────────────────┴───────────────────────┴──────────────────────────────────┘
 ```
 
-#### **2.2 Power Apps UIによる接続ID取得**
+#### **2.2 Power Apps UIによる接続ID取得（必須手順）**
+
+> **⚠️ 重要**: `pac code add-data-source` コマンドを実行するには、**接続ID（Connection ID）** が必要です。以下の手順で取得してください。
+
+**手順 1: Power Apps ポータルで接続を手動作成**
 
 ```bash
-# Power Apps での操作手順:
-# 1. 接続一覧で目的の接続をクリック
-# 2. ブラウザのURLを確認
-#    例: /connections/[API名]/[接続ID]/details
-# 3. API名と接続IDをコピー
+# Power Apps Maker Portal (make.powerapps.com) にアクセス
+# 1. 左メニュー > 「データ」 > 「接続」をクリック
+# 2. 「+ 新しい接続」をクリック
+# 3. 接続したいコネクターを選択:
+#    - Dataverse (Microsoft Dataverse)
+#    - Office 365 Users
+#    - SQL Server
+#    など
+# 4. 認証情報を入力して接続を作成
+# 5. 「接続の作成が完了しました」を確認
 ```
+
+**手順 2: 接続IDをURLから取得**
+
+```bash
+# Power Apps ポータルでの操作:
+# 1. 「データ」 > 「接続」 一覧で目的の接続をクリック
+# 2. ブラウザのアドレスバーのURLを確認
+# 3. URLから接続IDをコピー
+
+# URL形式:
+https://make.powerapps.com/environments/{環境ID}/connections/{API名}/{接続ID}/details
+
+# 例 (Dataverseの場合):
+https://make.powerapps.com/environments/12345678-abcd-1234-efgh-123456789abc/connections/shared_commondataserviceforapps/a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6/details
+
+# この場合の接続ID:
+a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+```
+
+**手順 3: API名と接続IDを記録**
+
+```bash
+# 取得する情報:
+# - API名: shared_commondataserviceforapps (Dataverseの場合)
+# - 接続ID: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6 (例)
+
+# コネクター別のAPI名:
+# - Dataverse: shared_commondataserviceforapps
+# - Office 365 Users: shared_office365users
+# - SQL Server: shared_sql
+# - SharePoint: shared_sharepointonline
+# - Outlook: shared_office365outlook
+```
+
+**手順 4: ユーザーに接続情報を確認**
+
+開発時には、以下をユーザーに確認してください:
+
+```markdown
+## 接続情報の確認
+
+以下の情報を提供してください:
+
+### Dataverse 接続
+1. Power Apps ポータル (make.powerapps.com) にアクセス
+2. 「データ」 > 「接続」 > 「Microsoft Dataverse」を選択
+3. ブラウザのURLから接続IDをコピー
+4. 接続ID: [ここに貼り付け]
+
+### 接続ID取得のスクリーンショット
+[ブラウザのURLバーのスクリーンショットを添付]
+```
+
+**手順 5: pac code add-data-source コマンド実行**
+
+```bash
+# 取得した接続IDを使用してデータソースを追加
+
+# Dataverse の場合:
+pac code add-data-source -a "shared_commondataserviceforapps" -c "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+
+# Office 365 Users の場合:
+pac code add-data-source -a "shared_office365users" -c "接続ID"
+
+# SQL Server の場合:
+pac code add-data-source -a "shared_sql" -c "接続ID"
+```
+
+**手順 6: Dataverse テーブルを追加**
+
+Dataverse の場合、テーブルを指定して追加することも可能です:
+
+```bash
+# SystemUsers テーブルを追加
+pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "systemusers"
+
+# カスタムテーブルを追加
+pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "geek_project_task"
+
+# Accounts (取引先企業) テーブルを追加
+pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "accounts"
+
+# Contacts (取引先担当者) テーブルを追加
+pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "contacts"
+```
+
+**生成されるファイル:**
+
+```bash
+# コマンド実行後、以下のファイルが自動生成されます:
+
+# SystemUsers テーブルの場合:
+src/generated/services/SystemusersService.ts
+src/generated/models/SystemusersModel.ts
+
+# カスタムテーブルの場合:
+src/generated/services/Geek_project_tasksService.ts
+src/generated/models/Geek_project_tasksModel.ts
+```
+
+**⚠️ よくあるエラーと対処法:**
+
+```bash
+# エラー 1: 接続IDが見つからない
+Error: Connection with id 'xxx' not found
+
+対処法:
+1. Power Apps ポータルで接続が正しく作成されているか確認
+2. URLから接続IDを正確にコピー
+3. 環境が正しく選択されているか確認 (pac env select)
+
+# エラー 2: 認証エラー
+Error: Unauthorized
+
+対処法:
+1. pac auth list で認証状態を確認
+2. pac auth create で再認証
+3. Power Apps ポータルでログイン状態を確認
+
+# エラー 3: テーブルが見つからない
+Error: Table 'tablename' not found
+
+対処法:
+1. テーブルの論理名を確認（小文字、アンダースコア）
+2. customizations.xml でテーブル名を確認
+3. Dataverse でテーブルが公開されているか確認
+```
+
+**チェックリスト:**
+
+- [ ] Power Apps ポータルで接続を手動作成
+- [ ] ブラウザのURLから接続IDを取得
+- [ ] API名を確認（shared_commondataserviceforapps 等）
+- [ ] `pac auth list` で認証状態を確認
+- [ ] `pac env select` で環境を選択
+- [ ] `pac code add-data-source` コマンドを実行
+- [ ] 生成されたサービスファイルを確認
+- [ ] `npm run build` でビルド成功を確認
 
 ### ⚡ **Phase 3: Mockデータからリアルデータへの移行**
 
-#### **3.1 重要な修正: Microsoft公式APIパターン**
+> **📖 詳細なデータソース接続手順は Phase 5 を参照してください**
 
-**❌ 従来の間違ったアプローチ:**
-```bash
-# 生成されたサービスクラスの利用 (非推奨)
-pac code add-data-source -a "shared_office365users" -c "connection-id"
-# → Office365UsersService.ts を import して使用
-```
+#### **3.1 Power Apps SDK による統一接続パターン**
 
-**✅ Microsoft公式の正しいアプローチ:**
+> **⚠️ 重要原則**: Power Apps Code Apps では、**必ず Power Apps SDK経由で自動生成されたサービスクラス**を使用してデータソースに接続します。これにより、Power Apps のユーザー認証とセキュリティが保証されます。
+
+**✅ 唯一の正しいアプローチ（Power Apps SDK使用）:**
+
 ```typescript
-// Power Apps接続は作成するが、pac code add-data-source は使用しない
-// 代わりに useConnector フックを直接使用
+// ❌ 他の接続方法は使用しない:
+// - Dataverse Web API (fetch) - CORS制限、認証問題
+// - Xrm.WebApi - Model-driven Apps専用
+// - Power Fx評価 - Canvas Apps環境専用
+// - 直接REST API - 認証とセキュリティの問題
 
-import { useConnector } from '@microsoft/power-apps';
+// ✅ Power Apps SDK経由のサービスクラスのみ使用:
+import { SystemUsersService } from '../generated/services/SystemUsersService';
+import { Office365UsersService } from '../generated/services/Office365UsersService';
 
-// Office 365 Users接続
-const office365Connector = useConnector('office365users');
-
-// SQL Server接続  
-const sqlConnector = useConnector('sql');
-
-// Outlook接続
-const outlookConnector = useConnector('office365outlook');
+// Power Apps SDK がユーザー認証を自動処理
+const result = await SystemUsersService.getAll({
+  select: ['systemuserid', 'fullname', 'internalemailaddress'],
+  filter: 'isdisabled eq false',
+  top: 50
+});
 ```
 
-#### **3.2 正しい統合手順 (FluentSampleパターン)**
+#### **3.2 基本的なデータソース追加フロー**
 
-**Step 1: Power Platform で接続作成のみ**
+**Step 1: 接続作成とサービスクラス生成**
 ```bash
-# Power Apps Maker Portal (make.powerapps.com) で:
-# 1. データ > 接続 > 新しい接続
-# 2. Office 365 Users, SQL Server, Outlook等を作成
-# 3. 認証完了と接続確認
-# 
-# ⚠️ 重要: pac code add-data-source コマンドは実行しない
+# 1. Power Apps ポータルで接続を手動作成
+# 2. ブラウザのURLから接続IDを取得
+# 3. pac code コマンドでサービスクラスを自動生成
+
+# Dataverse (SystemUsers テーブル)
+pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
+
+# Office 365 Users
+pac code add-data-source -a "shared_office365users" -c "{接続ID}"
 ```
 
-**Step 2: useConnectorフックで直接接続**
+**Step 2: SDK初期化確認と使用**
+```typescript
+import { usePowerPlatform } from '@microsoft/power-apps';
+import { SystemUsersService } from '../generated/services/SystemUsersService';
+
+export function DataversePage() {
+  const { isInitialized } = usePowerPlatform();
+
+  useEffect(() => {
+    if (!isInitialized) return; // SDK初期化待機
+    
+    // ✅ SDK初期化後にサービスクラス使用
+    const loadData = async () => {
+      const result = await SystemUsersService.getAll();
+      if (result.isSuccess && result.value) {
+        setUsers(result.value);
+      }
+    };
+    loadData();
+  }, [isInitialized]);
+
+  if (!isInitialized) {
+    return <div>Power Apps SDK 初期化中...</div>;
+  }
+  
+  return <div>{/* データ表示 */}</div>;
+}
+```
+
+**主要なポイント:**
+- ✅ **Power Apps SDK経由のみ使用** - ユーザー認証が自動処理される
+- ✅ **自動生成サービスクラス** - `pac code add-data-source` で生成
+- ✅ **SDK初期化チェック** - `usePowerPlatform().isInitialized` で確認
+- ✅ **TypeScript型安全性** - 自動生成された型定義を使用
+- ❌ **他の接続方法は使用禁止** - 認証・セキュリティ問題のため
+
+#### **3.3 完全なデータソース接続ガイド**
+
+**詳細な手順は Phase 5 を参照:**
+- 接続ID の取得方法（Power Apps ポータルのURL）
+- コネクター別の追加手順（Dataverse, Office 365, SQL Server）
+- Dataverse テーブルの追加（SystemUsers, Accounts, Contacts等）
+- カスタムテーブルの追加（customizations.xml 使用）
+- トラブルシューティング（接続エラー、SDK初期化エラー）
+
+> **→ [Phase 5: データソース統合の詳細](#phase-5-機能拡張) を参照**
+
+---
+
+## 🗃️ **Dataverse 接続統合 (Microsoft 公式仕様)**
+
+> **参考ドキュメント**: [Connect your code app to Dataverse](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/connect-to-dataverse)
+
+### ⚠️ **重要: PowerDataRuntime 初期化の必須要件**
+
+Dataverse テーブル（例: SystemUsers, Accounts, Contacts など）にアクセスする際は、**必ず Power Apps SDK の初期化が完了してから**データ操作を行う必要があります。
+
+> **詳細な実装パターンと初期化方法は Phase 5 を参照してください。**
+
+---
+
+## 🔧 **Dataverse接続設定手順とトラブルシューティング**
+    searchTerm?: string, 
+    top?: number, 
+    isSearchTermRequired?: boolean, 
+    skipToken?: string
+  ): Promise<IOperationResult<EntityListResponse_IReadOnlyList_User>> {
+    const params = { searchTerm, top, isSearchTermRequired, skipToken };
+    const result = await Office365UsersService.client.executeAsync(
+      {
+        connectorOperation: {
+          tableName: Office365UsersService.dataSourceName,
+          operationName: 'SearchUserV2',
+          parameters: params
+        },
+      });
+    return result;
+  }
+
+  /**
+   * Get manager (V2)
+   * Retrieves the profile of the specified user's manager.
+   */
+  public static async Manager_V2(id: string, $select?: string): Promise<IOperationResult<GraphUser_V1>> {
+    const params: { id: string, $select?: string } = { id, $select };
+    const result = await Office365UsersService.client.executeAsync<{ id: string, $select?: string }, GraphUser_V1>(
+      {
+        connectorOperation: {
+          tableName: Office365UsersService.dataSourceName,
+          operationName: 'Manager_V2',
+          parameters: params
+        },
+      });
+    return result;
+  }
+
+  /**
+   * Get direct reports (V2)
+   * Retrieves the user profiles of the specified user's direct reports.
+   */
+  public static async DirectReports_V2(
+    id: string, 
+    $select?: string, 
+    $top?: number
+  ): Promise<IOperationResult<{ value: GraphUser_V1[] }>> {
+    const params: { id: string, $select?: string, $top?: number } = { id, $select, $top };
+    const result = await Office365UsersService.client.executeAsync(
+      {
+        connectorOperation: {
+          tableName: Office365UsersService.dataSourceName,
+          operationName: 'DirectReports_V2',
+          parameters: params
+        },
+      });
+    return result;
+  }
+}
+```
+
+**主要なポイント:**
+- ✅ すべてのメソッドが `static` で定義される
+- ✅ `dataSourceName` は自動的に設定される
+- ✅ `getClient(dataSourcesInfo)` で Power Platform クライアントを取得
+- ✅ `executeAsync()` で非同期にコネクター操作を実行
+- ✅ TypeScript型定義が自動生成される
+
+#### **3.3 カスタムフックでサービスクラスをラップ**
+
+**Step 1: Office 365 Users カスタムフック作成**
 ```typescript
 // src/hooks/useOffice365.ts
-import { useConnector } from '@microsoft/power-apps';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { Office365UsersService } from '../generated/services/Office365UsersService';
+import type { GraphUser_V1 } from '../generated/models/Office365UsersModel';
 
 export const useOffice365Users = () => {
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<GraphUser_V1[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  const connector = useConnector('office365users');
 
-  const loadUsers = async () => {
+  // 現在のユーザープロファイル取得
+  const getMyProfile = useCallback(async () => {
     try {
       setLoading(true);
-      const result = await connector.getUserProfiles();
-      setUsers(result.data || []);
       setError(null);
+      const result = await Office365UsersService.MyProfile_V2();
+      
+      if (result.isSuccess && result.value) {
+        return result.value;
+      } else {
+        throw new Error('プロファイル取得に失敗しました');
+      }
     } catch (err) {
-      setError(err.message);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      throw err;
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  // ユーザー検索
+  const searchUsers = useCallback(async (searchTerm: string, top: number = 10) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await Office365UsersService.SearchUserV2(searchTerm, top, false);
+      
+      if (result.isSuccess && result.value) {
+        setUsers(result.value.value || []);
+        return result.value.value;
+      } else {
+        throw new Error('ユーザー検索に失敗しました');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 特定ユーザーのプロファイル取得
+  const getUserProfile = useCallback(async (userId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await Office365UsersService.UserProfile_V2(userId);
+      
+      if (result.isSuccess && result.value) {
+        return result.value;
+      } else {
+        throw new Error('ユーザー情報の取得に失敗しました');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // マネージャー情報取得
+  const getManager = useCallback(async (userId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await Office365UsersService.Manager_V2(userId);
+      
+      if (result.isSuccess && result.value) {
+        return result.value;
+      } else {
+        throw new Error('マネージャー情報の取得に失敗しました');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 直属の部下取得
+  const getDirectReports = useCallback(async (userId: string, top: number = 50) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await Office365UsersService.DirectReports_V2(userId, undefined, top);
+      
+      if (result.isSuccess && result.value) {
+        return result.value.value || [];
+      } else {
+        throw new Error('部下情報の取得に失敗しました');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { 
+    users,
+    loading, 
+    error,
+    getMyProfile,
+    searchUsers,
+    getUserProfile,
+    getManager,
+    getDirectReports
   };
-
-  useEffect(() => {
-    loadUsers();
-  }, [connector]);
-
-  return { users, loading, error, refetch: loadUsers };
 };
 ```
 
-**Step 3: SQLコネクター正しい利用方法**
+**Step 2: Reactコンポーネントでの使用例**
+```typescript
+// src/pages/Office365Page.tsx
+import React, { useState, useEffect } from 'react';
+import { useOffice365Users } from '../hooks/useOffice365';
+import type { GraphUser_V1 } from '../generated/models/Office365UsersModel';
+
+export const Office365Page: React.FC = () => {
+  const { 
+    users, 
+    loading, 
+    error, 
+    getMyProfile, 
+    searchUsers, 
+    getUserProfile,
+    getManager,
+    getDirectReports
+  } = useOffice365Users();
+
+  const [myProfile, setMyProfile] = useState<GraphUser_V1 | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUser, setSelectedUser] = useState<GraphUser_V1 | null>(null);
+  const [manager, setManager] = useState<GraphUser_V1 | null>(null);
+  const [directReports, setDirectReports] = useState<GraphUser_V1[]>([]);
+
+  // 初期化時に自分のプロファイルを取得
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const profile = await getMyProfile();
+        setMyProfile(profile);
+      } catch (err) {
+        console.error('プロファイル取得エラー:', err);
+      }
+    };
+    loadProfile();
+  }, [getMyProfile]);
+
+  // ユーザー検索処理
+  const handleSearch = async () => {
+    if (!searchTerm.trim()) return;
+    try {
+      await searchUsers(searchTerm, 20);
+    } catch (err) {
+      console.error('検索エラー:', err);
+    }
+  };
+
+  // ユーザー選択時の詳細取得
+  const handleUserSelect = async (userId: string) => {
+    try {
+      const [userProfile, userManager, reports] = await Promise.all([
+        getUserProfile(userId),
+        getManager(userId).catch(() => null), // マネージャーがいない場合もある
+        getDirectReports(userId).catch(() => []) // 部下がいない場合もある
+      ]);
+
+      setSelectedUser(userProfile);
+      setManager(userManager);
+      setDirectReports(reports);
+    } catch (err) {
+      console.error('ユーザー詳細取得エラー:', err);
+    }
+  };
+
+  if (loading && !myProfile) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2">Loading...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-6">Office 365 Users</h1>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
+      {/* 自分のプロファイル表示 */}
+      {myProfile && (
+        <div className="bg-white shadow rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">My Profile</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-600">Display Name</p>
+              <p className="font-medium">{myProfile.displayName}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Email</p>
+              <p className="font-medium">{myProfile.mail || myProfile.userPrincipalName}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Job Title</p>
+              <p className="font-medium">{myProfile.jobTitle || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Department</p>
+              <p className="font-medium">{myProfile.department || 'N/A'}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ユーザー検索 */}
+      <div className="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4">Search Users</h2>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="Enter name or email..."
+            className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={handleSearch}
+            disabled={loading}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? 'Searching...' : 'Search'}
+          </button>
+        </div>
+
+        {/* 検索結果 */}
+        {users.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <h3 className="font-semibold">Search Results ({users.length})</h3>
+            {users.map((user) => (
+              <div
+                key={user.id}
+                onClick={() => handleUserSelect(user.id!)}
+                className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
+              >
+                <p className="font-medium">{user.displayName}</p>
+                <p className="text-sm text-gray-600">{user.mail || user.userPrincipalName}</p>
+                {user.jobTitle && (
+                  <p className="text-sm text-gray-500">{user.jobTitle}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 選択したユーザーの詳細 */}
+      {selectedUser && (
+        <div className="bg-white shadow rounded-lg p-6">
+          <h2 className="text-xl font-semibold mb-4">User Details</h2>
+          
+          {/* 基本情報 */}
+          <div className="mb-6">
+            <h3 className="font-semibold mb-2">Basic Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">Display Name</p>
+                <p className="font-medium">{selectedUser.displayName}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Email</p>
+                <p className="font-medium">{selectedUser.mail || selectedUser.userPrincipalName}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Job Title</p>
+                <p className="font-medium">{selectedUser.jobTitle || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Department</p>
+                <p className="font-medium">{selectedUser.department || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Office Location</p>
+                <p className="font-medium">{selectedUser.officeLocation || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Mobile Phone</p>
+                <p className="font-medium">{selectedUser.mobilePhone || 'N/A'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* マネージャー情報 */}
+          {manager && (
+            <div className="mb-6">
+              <h3 className="font-semibold mb-2">Manager</h3>
+              <div className="p-4 border rounded-lg bg-gray-50">
+                <p className="font-medium">{manager.displayName}</p>
+                <p className="text-sm text-gray-600">{manager.mail || manager.userPrincipalName}</p>
+                {manager.jobTitle && (
+                  <p className="text-sm text-gray-500">{manager.jobTitle}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 直属の部下 */}
+          {directReports.length > 0 && (
+            <div>
+              <h3 className="font-semibold mb-2">Direct Reports ({directReports.length})</h3>
+              <div className="space-y-2">
+                {directReports.map((report) => (
+                  <div key={report.id} className="p-4 border rounded-lg bg-gray-50">
+                    <p className="font-medium">{report.displayName}</p>
+                    <p className="text-sm text-gray-600">{report.mail || report.userPrincipalName}</p>
+                    {report.jobTitle && (
+                      <p className="text-sm text-gray-500">{report.jobTitle}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+**主要なポイント:**
+- ✅ **自動生成サービスクラス** を直接使用
+- ✅ **カスタムフック** でビジネスロジックをカプセル化
+- ✅ **TypeScript型定義** で型安全性を確保
+- ✅ **エラーハンドリング** を各操作で実装
+- ✅ **ローディング状態** を適切に管理
+
+#### **3.4 SQL Server コネクターの統合パターン**
 ```typescript
 // src/hooks/useSqlProjects.ts  
 import { useConnector } from '@microsoft/power-apps';
@@ -2550,121 +3376,66 @@ export const useSqlProjects = () => {
 };
 ```
 
-#### **3.2 Mockデータからコネクター呼び出しへの置換**
+#### **3.5 Mockデータからコネクター呼び出しへの置換**
 
-**Office 365 Users の変更例 (Microsoft公式パターン):**
+**Office 365 Users の変更例:**
 ```typescript
 // src/pages/Office365Page.tsx (リアルデータ版)
 import React, { useState, useEffect } from 'react';
-// ❌ 間違い: import { Office365UsersService } from '../generated/services/Office365UsersService';
-// ✅ 正しい: useConnectorフックを直接使用
-import { useConnector } from '@microsoft/power-apps';
+import { useOffice365Users } from '../hooks/useOffice365';
+import type { GraphUser_V1 } from '../generated/models/Office365UsersModel';
 
 export const Office365Page: React.FC = () => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // ✅ Microsoft公式パターン: useConnectorフックを使用
-  const office365Connector = useConnector('office365users');
+  const { getMyProfile, searchUsers, loading, error } = useOffice365Users();
+  const [myProfile, setMyProfile] = useState<GraphUser_V1 | null>(null);
 
   useEffect(() => {
-    const loadRealUsers = async () => {
+    const loadProfile = async () => {
       try {
-        setLoading(true);
-        setError(null);
-        
-        // ✅ 正しいAPI呼び出し (FluentSampleパターン)
-        const result = await office365Connector.getUserProfiles();
-        
-        if (result && result.data) {
-          setUsers(result.data || []);
-        } else {
-          setError('ユーザーデータの取得に失敗しました');
-        }
+        const profile = await getMyProfile();
+        setMyProfile(profile);
       } catch (err) {
-        console.error('Office 365 Users API Error:', err);
-        setError(`接続エラーが発生しました: ${err.message || 'Unknown error'}`);
-      } finally {
-        setLoading(false);
+        console.error('プロファイル取得エラー:', err);
       }
     };
+    loadProfile();
+  }, [getMyProfile]);
 
-    loadRealUsers();
-  }, [office365Connector]);
-
-  if (loading) return (
-    <div className="flex items-center justify-center p-8">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      <span className="ml-2">Loading Office 365 users...</span>
-    </div>
-  );
-  
-  if (error) return (
-    <div className="p-6">
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <h3 className="text-red-800 font-semibold">Connection Error</h3>
-        <p className="text-red-600">{error}</p>
+  if (loading && !myProfile) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2">Loading Office 365 profile...</span>
       </div>
-    </div>
-  );
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h3 className="text-red-800 font-semibold">Connection Error</h3>
+          <p className="text-red-600">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Office 365 Users ({users.length} users)</h1>
-      <div className="grid gap-4">
-        {users.map((user: any) => (
-          <div key={user.id} className="border rounded-lg p-4 bg-white shadow hover:shadow-md transition-shadow">
-            <h3 className="font-semibold text-lg">{user.displayName}</h3>
-            <p className="text-gray-600">{user.jobTitle || '職位未設定'}</p>
-            <p className="text-sm text-blue-600">{user.mail}</p>
-            <p className="text-xs text-gray-400">{user.department || '部署未設定'}</p>
-            {user.businessPhones && user.businessPhones.length > 0 && (
-              <p className="text-xs text-gray-500">📞 {user.businessPhones[0]}</p>
-            )}
-          </div>
-        ))}
-      </div>
+      <h1 className="text-2xl font-bold mb-4">Office 365 User Profile</h1>
+      {myProfile && (
+        <div className="border rounded-lg p-4 bg-white shadow">
+          <h3 className="font-semibold text-lg">{myProfile.displayName}</h3>
+          <p className="text-gray-600">{myProfile.jobTitle || '職位未設定'}</p>
+          <p className="text-sm text-blue-600">{myProfile.mail || myProfile.userPrincipalName}</p>
+          <p className="text-xs text-gray-400">{myProfile.department || '部署未設定'}</p>
+        </div>
+      )}
     </div>
   );
 };
 ```
-
-**SQL Server データの変更例 (Microsoft公式パターン):**
-```typescript  
-// src/pages/SqlPage.tsx (リアルデータ版)
-import React, { useState, useEffect } from 'react';
-// ❌ 間違い: import { ProjectsService } from '../generated/services/ProjectsService';
-// ✅ 正しい: useConnectorフックを使用
-import { useConnector } from '@microsoft/power-apps';
-
-export const SqlPage: React.FC = () => {
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [totalCount, setTotalCount] = useState(0);
-  
-  // ✅ Microsoft公式パターン: useConnectorフックを使用
-  const sqlConnector = useConnector('sql');
-
-  const loadRealProjects = async (skip: number = 0, take: number = 10) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // ✅ 正しいSQL API呼び出し (FluentSampleパターン)
-      const result = await sqlConnector.getTable('Projects', {
-        skip,
-        take,
-        orderBy: 'CreatedDate desc'
-      });
-      
-      if (result && result.data) {
-        setProjects(result.data);
-        setTotalCount(result.totalCount || result.data.length);
-      } else {
-        setError('プロジェクトデータの取得に失敗しました');
-      }
     } catch (err) {
       console.error('SQL Server API Error:', err);
       setError(`データベース接続エラー: ${err.message || 'Unknown error'}`);
@@ -2814,7 +3585,7 @@ export const handleConnectorError = (error: any, connectorName: string) => {
 };
 ```
 
-#### **3.3 統合テスト手順**
+#### **3.8 統合テスト手順**
 
 **ローカルテスト (Mock → Real データ切り替え)**
 ```bash
@@ -2824,11 +3595,21 @@ npm run build
 npm run dev
 # → Mockデータ版で全機能テスト
 
-# 2. useConnector統合テスト
-# → Office 365, SQL接続をコードで切り替え
-# → エラーハンドリングテスト
+# 2. Power Platform接続作成
+# Power Apps Maker Portal で:
+# - Office 365 Users 接続作成
+# - Dataverse 接続作成
+# - SQL Server 接続作成 (必要に応じて)
 
-# 3. Power Platform環境テスト  
+# 3. サービスクラス生成
+pac code add-data-source -a "shared_office365users" -c "接続ID"
+pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID"
+
+# 4. 自動生成されたサービスクラスを使用
+# src/hooks/ にカスタムフックを実装
+# src/pages/ でコンポーネントから呼び出し
+
+# 5. Power Platform環境テスト  
 pac code init  # 初回のみ
 pac code run   # ローカル + Power Platform統合
 # → 認証ダイアログ確認
@@ -2837,19 +3618,21 @@ pac code run   # ローカル + Power Platform統合
 
 **⚠️ 重要なトラブルシューティング:**
 ```bash
-# FluentSampleで推奨される確認項目:
+# 推奨される確認項目:
 # 1. npm run build が成功していること
 # 2. PowerProvider.tsx にエラーがないこと  
 # 3. 環境で必要なコネクターが有効になっていること
-# 4. "fetching your app" で止まる場合は上記を確認
+# 4. dataSourcesInfo.ts にコネクター情報が含まれていること
+# 5. サービスクラスの dataSourceName が正しいこと
 
 # よくある問題と解決方法:
 # - App timed out → PowerProvider実装確認
 # - Connection failed → Power Apps接続確認
-# - Data not loading → useConnector呼び出し確認
+# - Data source not found → dataSourceName の値を確認
+# - Data not loading → IOperationResult.isSuccess を確認
 ```
 
-#### **3.4 本番デプロイ手順**
+#### **3.9 本番デプロイ手順**
 
 ```bash
 # 最終ビルド & デプロイ
@@ -2860,16 +3643,104 @@ pac code push
 # 1. Power Apps URL の取得
 # 2. make.powerapps.com でアプリ確認
 # 3. エンドユーザーでの動作テスト
+# 4. すべてのコネクター操作が正常動作することを確認
 ```
 
-#### **3.5 Microsoft公式パターン準拠チェックリスト**
+**デプロイ後の確認項目:**
+- [ ] アプリが正常に起動する
+- [ ] Office 365 Users データが取得できる
+- [ ] Dataverse データの CRUD 操作が正常動作
+- [ ] エラーハンドリングが適切に動作
+- [ ] Loading 状態が適切に表示される
+- [ ] すべての画面で認証エラーが発生しない
 
-**✅ FluentSample準拠確認項目:**
+#### **3.6 コネクター統合のベストプラクティス**
+
+**✅ Microsoft推奨のコネクター統合パターン:**
 
 **コード品質:**
-- [ ] `useConnector` フック使用 (生成サービス不使用)  
-- [ ] 適切なエラーハンドリング実装
-- [ ] Loading状態の適切な表示
+- [ ] **自動生成サービスクラス** を使用 (Office365UsersService, DataverseService等)
+- [ ] **カスタムフック** でビジネスロジックをカプセル化
+- [ ] 適切な **TypeScript型定義** を活用
+- [ ] **エラーハンドリング** を各操作で実装
+- [ ] **Loading状態** の適切な表示
+- [ ] **IOperationResult** の `isSuccess` プロパティでエラーチェック
+
+**統合確認項目:**
+- [ ] `pac code add-data-source` で正しくサービスクラスを生成
+- [ ] `dataSourcesInfo.ts` にコネクター情報が含まれている
+- [ ] `getClient(dataSourcesInfo)` でクライアントを取得
+- [ ] Power Apps環境で接続が正常に作成されている
+- [ ] ローカル開発で `pac code run` が正常動作
+
+**デプロイ前チェック:**
+- [ ] すべてのコネクター操作でエラーハンドリング実装
+- [ ] Loading/Error状態のUI表示を実装
+- [ ] `npm run build` が成功
+- [ ] `pac code push` でデプロイ成功
+- [ ] Power Apps環境でアプリが正常起動
+
+#### **3.7 エラーハンドリングのベストプラクティス**
+
+```typescript
+// src/utils/connectorErrorHandler.ts
+import type { IOperationResult } from '@microsoft/power-apps/data';
+
+/**
+ * コネクター操作結果のエラーハンドリング
+ */
+export const handleOperationResult = <T>(
+  result: IOperationResult<T>,
+  connectorName: string
+): T => {
+  if (!result.isSuccess) {
+    const errorMessage = result.error?.message || 'Unknown error';
+    console.error(`${connectorName} Error:`, result.error);
+    
+    // よくあるエラーパターンの処理
+    if (errorMessage.includes('Unauthorized')) {
+      throw new Error(`${connectorName}への認証が必要です。Power Apps で接続を確認してください。`);
+    }
+    
+    if (errorMessage.includes('Network')) {
+      throw new Error('ネットワーク接続を確認してください。');
+    }
+    
+    if (errorMessage.includes('Not Found')) {
+      throw new Error('データが見つかりません。');
+    }
+    
+    throw new Error(`${connectorName}への接続でエラーが発生しました: ${errorMessage}`);
+  }
+  
+  return result.value!;
+};
+
+/**
+ * カスタムフックでの使用例
+ */
+export const useOffice365WithErrorHandling = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const getMyProfile = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await Office365UsersService.MyProfile_V2();
+      return handleOperationResult(result, 'Office 365 Users');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { getMyProfile, loading, error };
+};
+```
 - [ ] TypeScript型安全性の確保
 
 **データ接続:**
@@ -3479,38 +4350,359 @@ pac code push
 
 > **参考ドキュメント**: [Connect your code app to Dataverse](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/connect-to-dataverse)
 
+### ⚠️ **重要: PowerDataRuntime 初期化の必須要件**
+
+Dataverse テーブル（例: SystemUsers, Accounts, Contacts など）にアクセスする際は、**必ず Power Apps SDK の初期化が完了してから**データ操作を行う必要があります。
+
+**❌ よくあるエラー:**
+```
+Error fetching SystemUsers: PowerDataRuntimeError: An unknown error occurred: 
+PowerDataRuntime is not initialized. Please call initializeRuntime() first.
+```
+
+**原因:**
+- Power Apps SDK（PowerDataRuntime）が初期化される前に Dataverse サービスクラスのメソッドを呼び出した
+- `usePowerPlatform().isInitialized` の状態確認をせずにデータ取得を試みた
+- コンポーネントのマウント時に即座にデータフェッチを実行した
+
+**✅ 正しい実装パターン:**
+```typescript
+import { usePowerPlatform } from '@microsoft/power-apps';
+import { useEffect, useState } from 'react';
+import { SystemUsersService } from '../generated/services/SystemUsersService';
+
+export function DataversePage() {
+  const { isInitialized } = usePowerPlatform();
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // ❌ 初期化前は何もしない
+    if (!isInitialized) {
+      console.log('Waiting for Power Apps SDK initialization...');
+      return;
+    }
+
+    // ✅ 初期化完了後にデータ取得
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const result = await SystemUsersService.getAll({
+          select: ['systemuserid', 'fullname', 'internalemailaddress'],
+          filter: 'isdisabled eq false',
+          top: 50
+        });
+
+        if (result.isSuccess && result.value) {
+          setUsers(result.value);
+        } else {
+          throw new Error('SystemUsers の取得に失敗しました');
+        }
+      } catch (err) {
+        console.error('Error fetching SystemUsers:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [isInitialized]); // 依存配列に isInitialized を含める
+
+  // SDK 初期化中
+  if (!isInitialized) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Power Apps SDK 初期化中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // データ読み込み中
+  if (loading) {
+    return <div>データ読み込み中...</div>;
+  }
+
+  // エラー発生
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <h3 className="text-red-800 font-semibold">エラー</h3>
+        <p className="text-red-600">{error}</p>
+      </div>
+    );
+  }
+
+  // データ表示
+  return (
+    <div>
+      <h1>システムユーザー ({users.length})</h1>
+      {users.map(user => (
+        <div key={user.systemuserid}>
+          {user.fullname} - {user.internalemailaddress}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+**カスタムフックでの実装（推奨パターン）:**
+```typescript
+// src/hooks/useDataverseTable.ts
+import { useState, useEffect, useCallback } from 'react';
+import { usePowerPlatform } from '@microsoft/power-apps';
+
+export const useDataverseTable = <T,>(
+  serviceClass: any,
+  options?: { select?: string[]; filter?: string; orderBy?: string; top?: number }
+) => {
+  const { isInitialized } = usePowerPlatform();
+  const [data, setData] = useState<T[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    // ❌ SDK未初期化時は実行しない
+    if (!isInitialized) {
+      console.warn('SDK not initialized, skipping fetch');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const result = await serviceClass.getAll(options);
+
+      if (result.isSuccess && result.value) {
+        setData(result.value);
+      } else {
+        throw new Error('データの取得に失敗しました');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Dataverse fetch error:', err);
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [isInitialized, serviceClass, options]);
+
+  useEffect(() => {
+    if (isInitialized) {
+      fetchData();
+    }
+  }, [isInitialized, fetchData]);
+
+  return { data, loading, error, refetch: fetchData, isInitialized };
+};
+
+// 使用例
+import { SystemUsersService } from '../generated/services/SystemUsersService';
+
+export function UsersPage() {
+  const { data: users, loading, error, isInitialized } = useDataverseTable(
+    SystemUsersService,
+    {
+      select: ['systemuserid', 'fullname', 'internalemailaddress'],
+      filter: 'isdisabled eq false',
+      top: 100
+    }
+  );
+
+  if (!isInitialized) return <div>初期化中...</div>;
+  if (loading) return <div>読み込み中...</div>;
+  if (error) return <div>エラー: {error}</div>;
+
+  return <div>{/* ユーザー表示 */}</div>;
+}
+```
+
+**チェックリスト:**
+- [ ] `usePowerPlatform()` で `isInitialized` 状態を取得
+- [ ] `isInitialized === false` の間は Loading 表示
+- [ ] `useEffect` の依存配列に `isInitialized` を含める
+- [ ] Dataverse サービスクラスの呼び出しは `isInitialized === true` 後のみ
+- [ ] エラーハンドリングを適切に実装
+
 ### 📋 **前提条件**
 
 - **Power Apps Code Apps SDK**: `@microsoft/power-apps` (npm package)
 - **PAC CLI**: バージョン 1.46 以上
 - **Dataverse 有効化環境**: Power Platform環境にDataverseが有効化されている
 - **PAC CLI 認証**: 環境に正しく接続されている
+- **PowerProvider 実装**: アプリのルートに PowerProvider がラップされている
 
-### ⚡ **Dataverse データソース追加**
+### ⚡ **Dataverse データソース追加（完全ガイド）**
 
-#### **基本追加コマンド**
+#### **方法1: 接続IDを使用した追加（推奨）**
+
+> **⚠️ 重要**: Dataverse テーブルをデータソースとして追加するには、**Power Apps ポータルで接続を手動作成し、接続IDを取得**する必要があります。
+
+**Step 1: Power Apps ポータルでDataverse接続を作成**
 
 ```bash
-# 特定のDataverseテーブルをデータソースとして追加
+# 1. Power Apps Maker Portal (make.powerapps.com) にアクセス
+# 2. 左メニュー > 「データ」 > 「接続」
+# 3. 「+ 新しい接続」をクリック
+# 4. 「Microsoft Dataverse」を検索して選択
+# 5. 「作成」をクリック（認証は自動で完了）
+# 6. 接続が正常に作成されたことを確認
+```
+
+**Step 2: 接続IDを取得**
+
+```bash
+# Power Apps ポータルで:
+# 1. 「データ」 > 「接続」 > 「Microsoft Dataverse」をクリック
+# 2. ブラウザのアドレスバーのURLを確認
+# 3. URLから接続IDをコピー
+
+# URL形式:
+https://make.powerapps.com/environments/{環境ID}/connections/shared_commondataserviceforapps/{接続ID}/details
+
+# 例:
+https://make.powerapps.com/environments/12345678-abcd-1234-efgh-123456789abc/connections/shared_commondataserviceforapps/a1b2c3d4-e5f6-7890-1234-567890abcdef/details
+
+# 接続ID: a1b2c3d4-e5f6-7890-1234-567890abcdef
+```
+
+**Step 3: pac code add-data-source コマンド実行**
+
+```bash
+# ユーザーに接続IDを確認した後、以下のコマンドを実行
+
+# SystemUsers テーブルを追加
+pac code add-data-source -a "shared_commondataserviceforapps" -c "a1b2c3d4-e5f6-7890-1234-567890abcdef" -t "systemusers"
+
+# Accounts (取引先企業) テーブルを追加
+pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "accounts"
+
+# Contacts (取引先担当者) テーブルを追加
+pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "contacts"
+
+# カスタムテーブルを追加（例: geek_project_task）
+pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "geek_project_task"
+```
+
+**コマンドパラメータ:**
+- `-a`: API名（Dataverseの場合は `shared_commondataserviceforapps`）
+- `-c`: 接続ID（Power Apps ポータルのURLから取得）
+- `-t`: テーブルの論理名（小文字、アンダースコア区切り）
+
+**Step 4: 生成されたファイルを確認**
+
+```bash
+# コマンド実行後、以下のファイルが自動生成されます:
+
+# SystemUsers テーブルの場合:
+src/generated/services/SystemusersService.ts
+src/generated/models/SystemusersModel.ts
+
+# Accounts テーブルの場合:
+src/generated/services/AccountsService.ts
+src/generated/models/AccountsModel.ts
+
+# カスタムテーブル（geek_project_task）の場合:
+src/generated/services/Geek_project_tasksService.ts
+src/generated/models/Geek_project_tasksModel.ts
+```
+
+#### **方法2: 簡易追加（接続が既に存在する場合）**
+
+```bash
+# Dataverse接続が既に作成されている場合、テーブル名のみで追加可能
 pac code add-data-source -a dataverse -t <table-logical-name>
 
-# 例: Accountsテーブル（取引先企業）の追加
+# 例: Accountsテーブルの追加
 pac code add-data-source -a dataverse -t accounts
 
-# 例: Contactsテーブル（取引先担当者）の追加
+# 例: Contactsテーブルの追加
 pac code add-data-source -a dataverse -t contacts
 
-# 例: カスタムテーブルの追加
-pac code add-data-source -a dataverse -t cr_customtable
+# ⚠️ 注意: この方法はデフォルトのDataverse接続を使用します
+# 接続が見つからない場合はエラーになるため、方法1を推奨します
 ```
 
-#### **生成されるファイル**
+#### **ユーザーへの依頼テンプレート**
 
+開発時にユーザーに接続IDを確認する際は、以下のテンプレートを使用してください:
+
+```markdown
+## Dataverse 接続ID の取得方法
+
+以下の手順で接続IDを取得し、提供してください:
+
+### 手順
+1. Power Apps ポータル (https://make.powerapps.com) にアクセス
+2. 左メニュー > 「データ」 > 「接続」をクリック
+3. 「Microsoft Dataverse」接続をクリック
+4. ブラウザのアドレスバーのURLをコピー
+5. URLから接続ID（GUID形式）を抽出
+
+### URL例
+https://make.powerapps.com/environments/xxx/connections/shared_commondataserviceforapps/**[ここが接続ID]**/details
+
+### 接続ID
+[ここに貼り付けてください]
+
+### スクリーンショット
+[URLバーのスクリーンショットを添付してください]
+```
+
+#### **⚠️ よくあるエラーと対処法**
+
+**エラー 1: 接続が見つからない**
 ```bash
-# 追加後に自動生成されるファイル:
-src/generated/services/AccountsService.ts    # CRUD操作メソッド
-src/generated/models/AccountsModel.ts        # 型定義・データモデル
+Error: Connection with id 'xxx' not found
+
+対処法:
+1. Power Apps ポータルでDataverse接続が作成されているか確認
+2. URLから接続IDを正確にコピー（ハイフンを含むGUID形式）
+3. pac env select で正しい環境を選択しているか確認
 ```
+
+**エラー 2: テーブルが見つからない**
+```bash
+Error: Table 'tablename' not found
+
+対処法:
+1. テーブルの論理名を確認（小文字、アンダースコア）
+   - 正: systemusers, accounts, contacts
+   - 誤: SystemUsers, Account, Contact
+2. customizations.xml でテーブル名を確認
+3. Dataverse でテーブルが公開されているか確認
+```
+
+**エラー 3: データソースが見つからない（実行時エラー）**
+```bash
+Error: Data source 'systemusers' not found
+PowerDataRuntimeError: PowerDataRuntime is not initialized
+
+対処法:
+1. pac code add-data-source コマンドが正常に完了したか確認
+2. src/generated/services にサービスファイルが生成されているか確認
+3. npm run build でビルド成功を確認
+4. usePowerPlatform().isInitialized の確認を実装
+```
+
+#### **チェックリスト**
+
+- [ ] Power Apps ポータルでDataverse接続を手動作成
+- [ ] ブラウザのURLから接続ID（GUID）を取得
+- [ ] ユーザーに接続IDを確認（必要に応じて）
+- [ ] `pac auth list` で認証状態を確認
+- [ ] `pac env select` で正しい環境を選択
+- [ ] `pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "テーブル名"` を実行
+- [ ] src/generated フォルダにサービスファイルが生成されたことを確認
+- [ ] `npm run build` でビルド成功を確認
+- [ ] コンポーネントで `usePowerPlatform().isInitialized` をチェック
+- [ ] `pac code push` でデプロイして動作確認
 
 ## 📋 **Dataverse接続前の必須手順: スキーマ確認とドキュメント化**
 
@@ -3525,11 +4717,12 @@ src/generated/models/AccountsModel.ts        # 型定義・データモデル
 # 3. エクスポート → 「アンマネージド」を選択
 # 4. ZIPファイルをダウンロード・展開
 # 5. customizations.xml ファイルを取得
+# 6. ファイルをワークスペースのルートディレクトリに配置
 ```
 
 **取得するファイル:**
 - `customizations.xml` - Dataverseテーブル定義とスキーマ情報
-- 場所: ソリューションZIP > `customizations.xml`
+- 配置場所: **プロジェクトのワークスペースルート** (例: `C:\CodeApps\YourProject\customizations.xml`)
 
 ### **Step 2: Dataverseスキーマ抽出ユーティリティの実行**
 
@@ -3613,8 +4806,8 @@ Write-Host "`nDone!" -ForegroundColor Green
 
 #### **スクリプト実行例**
 ```powershell
-# スクリプトを実行してスキーマ情報を抽出
-.\Extract-DataverseChoices.ps1 -XmlPath "C:\Users\your-name\Desktop\customizations.xml" -EntityName "geek_project_task"
+# スクリプトを実行してスキーマ情報を抽出（ワークスペースルートのファイルを使用）
+.\Extract-DataverseChoices.ps1 -XmlPath ".\customizations.xml" -EntityName "geek_project_task"
 
 # 実行結果例:
 # Reading XML file...
@@ -3761,15 +4954,160 @@ export interface UpdateProjectTaskRequest {
 }
 ```
 
-### **Step 4: Dataverse接続コードの更新**
+### **Step 4: Dataverse サービスクラスの生成と接続**
 
-#### **スキーマに準拠したCRUD操作実装**
+#### **4.1 pac code コマンドでサービスクラスを生成**
 
-**src/services/dataverseService.ts の作成:**
+```bash
+# Power Apps で Dataverse 接続を作成後、サービスクラスを生成
+pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID"
+
+# 以下のファイルが自動生成されます:
+# - src/generated/services/{テーブル名}Service.ts
+# - src/generated/models/{テーブル名}Model.ts
+```
+
+#### **4.2 自動生成される Dataverse サービスクラスの構造**
+
+**例: Geek_project_tasksService.ts (自動生成)**
 ```typescript
-import { useConnector } from '@microsoft/power-apps';
+/*!
+ * Copyright (C) Microsoft Corporation. All rights reserved.
+ * This file is autogenerated. Do not edit this file directly.
+ */
+
+import { dataSourcesInfo } from '../../../.power/appschemas/dataSourcesInfo';
+import type { IOperationResult } from '@microsoft/power-apps/data';
+import { getClient } from '@microsoft/power-apps/data';
+import type { IGetOptions, IGetAllOptions } from '../models/CommonModels';
+import type { Geek_project_tasks } from '../models/Geek_project_tasksModel';
+
+export class Geek_project_tasksService {
+  // ⚠️ 重要: dataSourceName はテーブルの論理名（小文字・アンダースコア）
+  private static readonly dataSourceName = 'geek_project_tasks';
+
+  private static readonly client = getClient(dataSourcesInfo);
+
+  /**
+   * レコード作成
+   * @param record 新規レコードデータ（ID以外）
+   * @returns 作成されたレコード
+   */
+  public static async create(
+    record: Omit<Geek_project_tasks, 'geek_project_taskid'>
+  ): Promise<IOperationResult<Geek_project_tasks>> {
+    const result = await Geek_project_tasksService.client.createRecordAsync<
+      Omit<Geek_project_tasks, 'geek_project_taskid'>, 
+      Geek_project_tasks
+    >(
+      Geek_project_tasksService.dataSourceName,
+      record
+    );
+    return result;
+  }
+
+  /**
+   * レコード更新
+   * @param id レコードID
+   * @param changedFields 変更するフィールド（部分更新）
+   * @returns 更新されたレコード
+   */
+  public static async update(
+    id: string, 
+    changedFields: Partial<Omit<Geek_project_tasks, 'geek_project_taskid'>>
+  ): Promise<IOperationResult<Geek_project_tasks>> {
+    const result = await Geek_project_tasksService.client.updateRecordAsync<
+      Partial<Omit<Geek_project_tasks, 'geek_project_taskid'>>, 
+      Geek_project_tasks
+    >(
+      Geek_project_tasksService.dataSourceName,
+      id.toString(),
+      changedFields
+    );
+    return result;
+  }
+
+  /**
+   * レコード削除
+   * @param id レコードID
+   */
+  public static async delete(id: string): Promise<void> {
+    await Geek_project_tasksService.client.deleteRecordAsync(
+      Geek_project_tasksService.dataSourceName,
+      id.toString()
+    );
+  }
+
+  /**
+   * 単一レコード取得
+   * @param id レコードID
+   * @param options 取得オプション（select, expand等）
+   * @returns レコードデータ
+   */
+  public static async get(
+    id: string, 
+    options?: IGetOptions
+  ): Promise<IOperationResult<Geek_project_tasks>> {
+    const result = await Geek_project_tasksService.client.retrieveRecordAsync<Geek_project_tasks>(
+      Geek_project_tasksService.dataSourceName,
+      id.toString(),
+      options
+    );
+    return result;
+  }
+
+  /**
+   * 複数レコード取得
+   * @param options 取得オプション（filter, select, orderBy, top等）
+   * @returns レコード配列
+   */
+  public static async getAll(
+    options?: IGetAllOptions
+  ): Promise<IOperationResult<Geek_project_tasks[]>> {
+    const result = await Geek_project_tasksService.client.retrieveMultipleRecordsAsync<Geek_project_tasks>(
+      Geek_project_tasksService.dataSourceName,
+      options
+    );
+    return result;
+  }
+}
+```
+
+**重要なポイント:**
+- ✅ クラス名: `{スキーマ名プレフィックス}_{テーブル名}Service` (例: `Geek_project_tasksService`)
+- ✅ dataSourceName: テーブルの論理名（小文字・アンダースコア）
+- ✅ すべてのメソッドが `static` で定義される
+- ✅ TypeScript型定義が自動生成される
+- ✅ CRUD操作が完備: `create`, `update`, `delete`, `get`, `getAll`
+
+#### **4.3 テーブルスキーマ名の確認方法**
+
+**customizations.xml からスキーマ名を取得:**
+```powershell
+# PowerShell スクリプトでエンティティ情報を確認
+.\Extract-DataverseChoices.ps1 -XmlPath ".\customizations.xml" -EntityName "geek_project_task"
+
+# 出力例:
+# Found entity: geek_project_task
+# Schema name (prefix_logicalname): geek_project_task
+# Primary ID field: geek_project_taskid
+```
+
+**スキーマ名のルール:**
+- パブリッシャープレフィックス + アンダースコア + テーブル名
+- 例: `geek_project_task` → プレフィックス `geek`, テーブル名 `project_task`
+- サービスクラス名: `Geek_project_tasksService` (複数形)
+- dataSourceName: `geek_project_tasks` (小文字・複数形)
+
+#### **4.4 カスタムフックでサービスクラスをラップ**
+
+**src/hooks/useDataverseProjectTasks.ts の作成:**
+**src/hooks/useDataverseProjectTasks.ts の作成:**
+```typescript
+import { useState, useCallback } from 'react';
+import { Geek_project_tasksService } from '../generated/services/Geek_project_tasksService';
+import type { Geek_project_tasks } from '../generated/models/Geek_project_tasksModel';
 import type { 
-  ProjectTask, 
   CreateProjectTaskRequest, 
   UpdateProjectTaskRequest,
   TaskPriority,
@@ -3778,12 +5116,17 @@ import type {
 } from '@/types/dataverse';
 
 export const useDataverseProjectTasks = () => {
-  const dataverseConnector = useConnector('dataverse');
+  const [tasks, setTasks] = useState<Geek_project_tasks[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // 全タスク取得
-  const getAllTasks = async (): Promise<ProjectTask[]> => {
+  const getAllTasks = useCallback(async () => {
     try {
-      const result = await dataverseConnector.getRecords('geek_project_task', {
+      setLoading(true);
+      setError(null);
+      
+      const result = await Geek_project_tasksService.getAll({
         select: [
           'geek_project_taskid',
           'geek_name', 
@@ -3796,75 +5139,166 @@ export const useDataverseProjectTasks = () => {
           'modifiedon',
           'geek_projectid',
           'ownerid'
-        ].join(','),
+        ],
         orderBy: 'createdon desc'
       });
       
-      return result.data || [];
-    } catch (error) {
-      console.error('Dataverse getAllTasks error:', error);
-      throw new Error(`タスク一覧の取得に失敗しました: ${error.message}`);
+      if (result.isSuccess && result.value) {
+        setTasks(result.value);
+        return result.value;
+      } else {
+        throw new Error('タスク一覧の取得に失敗しました');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Dataverse getAllTasks error:', err);
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
+
+  // 単一タスク取得
+  const getTask = useCallback(async (taskId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const result = await Geek_project_tasksService.get(taskId);
+      
+      if (result.isSuccess && result.value) {
+        return result.value;
+      } else {
+        throw new Error('タスクの取得に失敗しました');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Dataverse getTask error:', err);
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // 新規タスク作成  
-  const createTask = async (taskData: CreateProjectTaskRequest): Promise<ProjectTask> => {
+  const createTask = useCallback(async (taskData: CreateProjectTaskRequest) => {
     try {
+      setLoading(true);
+      setError(null);
+      
       // Choice値の検証
       validateChoiceValues(taskData);
       
-      const result = await dataverseConnector.createRecord('geek_project_task', taskData);
+      // IDフィールドを除外してレコード作成
+      const recordData: Omit<Geek_project_tasks, 'geek_project_taskid'> = {
+        geek_name: taskData.geek_name,
+        geek_description: taskData.geek_description,
+        geek_priority: taskData.geek_priority,
+        geek_status: taskData.geek_status,
+        geek_category: taskData.geek_category,
+        geek_duedate: taskData.geek_duedate,
+        geek_projectid: taskData.geek_projectid,
+        ownerid: taskData.ownerid
+      };
       
-      return result.data;
-    } catch (error) {
-      console.error('Dataverse createTask error:', error);
-      throw new Error(`タスクの作成に失敗しました: ${error.message}`);
+      const result = await Geek_project_tasksService.create(recordData);
+      
+      if (result.isSuccess && result.value) {
+        // タスク一覧を再取得
+        await getAllTasks();
+        return result.value;
+      } else {
+        throw new Error('タスクの作成に失敗しました');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Dataverse createTask error:', err);
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [getAllTasks]);
 
   // タスク更新
-  const updateTask = async (taskId: string, updateData: UpdateProjectTaskRequest): Promise<ProjectTask> => {
+  const updateTask = useCallback(async (
+    taskId: string, 
+    updateData: UpdateProjectTaskRequest
+  ) => {
     try {
+      setLoading(true);
+      setError(null);
+      
+      // Choice値の検証（更新時）
       if (updateData.geek_priority !== undefined || 
           updateData.geek_status !== undefined || 
           updateData.geek_category !== undefined) {
         validateChoiceValues(updateData);
       }
       
-      const result = await dataverseConnector.updateRecord('geek_project_task', taskId, updateData);
+      const result = await Geek_project_tasksService.update(taskId, updateData);
       
-      return result.data;
-    } catch (error) {
-      console.error('Dataverse updateTask error:', error);
-      throw new Error(`タスクの更新に失敗しました: ${error.message}`);
+      if (result.isSuccess && result.value) {
+        // タスク一覧を再取得
+        await getAllTasks();
+        return result.value;
+      } else {
+        throw new Error('タスクの更新に失敗しました');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Dataverse updateTask error:', err);
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [getAllTasks]);
 
   // タスク削除
-  const deleteTask = async (taskId: string): Promise<void> => {
+  const deleteTask = useCallback(async (taskId: string) => {
     try {
-      await dataverseConnector.deleteRecord('geek_project_task', taskId);
-    } catch (error) {
-      console.error('Dataverse deleteTask error:', error);
-      throw new Error(`タスクの削除に失敗しました: ${error.message}`);
+      setLoading(true);
+      setError(null);
+      
+      await Geek_project_tasksService.delete(taskId);
+      
+      // タスク一覧を再取得
+      await getAllTasks();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Dataverse deleteTask error:', err);
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [getAllTasks]);
 
   // Choice値の検証関数
   const validateChoiceValues = (data: CreateProjectTaskRequest | UpdateProjectTaskRequest) => {
-    if (data.geek_priority !== undefined && ![0, 1, 2, 3].includes(data.geek_priority)) {
+    if ('geek_priority' in data && data.geek_priority !== undefined && 
+        ![0, 1, 2, 3].includes(data.geek_priority)) {
       throw new Error(`無効な優先度: ${data.geek_priority}`);
     }
-    if (data.geek_status !== undefined && ![0, 1, 2].includes(data.geek_status)) {
+    if ('geek_status' in data && data.geek_status !== undefined && 
+        ![0, 1, 2].includes(data.geek_status)) {
       throw new Error(`無効な状態: ${data.geek_status}`);
     }
-    if (data.geek_category !== undefined && ![0, 1, 2, 3].includes(data.geek_category)) {
+    if ('geek_category' in data && data.geek_category !== undefined && 
+        ![0, 1, 2, 3].includes(data.geek_category)) {
       throw new Error(`無効なカテゴリ: ${data.geek_category}`);
     }
   };
 
   return {
+    tasks,
+    loading,
+    error,
     getAllTasks,
+    getTask,
     createTask,
     updateTask,
     deleteTask
@@ -3872,7 +5306,220 @@ export const useDataverseProjectTasks = () => {
 };
 ```
 
-### **Step 5: UIコンポーネントの更新**
+**主要なポイント:**
+- ✅ **自動生成サービスクラス** (`Geek_project_tasksService`) を使用
+- ✅ **IOperationResult** の `isSuccess` でエラーチェック
+- ✅ **Choice フィールドの検証** を実装
+- ✅ **部分更新** に対応（updateメソッド）
+- ✅ **エラーハンドリング** を各操作で実装
+
+### **Step 5: UIコンポーネントでの使用**
+
+**src/pages/ProjectTasksPage.tsx の作成:**
+```typescript
+import React, { useEffect, useState } from 'react';
+import { useDataverseProjectTasks } from '../hooks/useDataverseProjectTasks';
+import type { Geek_project_tasks } from '../generated/models/Geek_project_tasksModel';
+import type { CreateProjectTaskRequest, UpdateProjectTaskRequest } from '@/types/dataverse';
+import { 
+  TaskPriorityMap, 
+  TaskStatusMap, 
+  TaskCategoryMap,
+  TaskPriorityReverseMap,
+  TaskStatusReverseMap,
+  TaskCategoryReverseMap
+} from '@/types/dataverse';
+
+export const ProjectTasksPage: React.FC = () => {
+  const { 
+    tasks, 
+    loading, 
+    error, 
+    getAllTasks, 
+    createTask, 
+    updateTask, 
+    deleteTask 
+  } = useDataverseProjectTasks();
+
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Geek_project_tasks | null>(null);
+
+  // 初期読み込み
+  useEffect(() => {
+    getAllTasks();
+  }, [getAllTasks]);
+
+  // タスク作成処理
+  const handleCreateTask = async (formData: CreateProjectTaskRequest) => {
+    try {
+      await createTask(formData);
+      setIsCreateModalOpen(false);
+    } catch (err) {
+      console.error('タスク作成エラー:', err);
+    }
+  };
+
+  // タスク更新処理
+  const handleUpdateTask = async (taskId: string, updateData: UpdateProjectTaskRequest) => {
+    try {
+      await updateTask(taskId, updateData);
+      setEditingTask(null);
+    } catch (err) {
+      console.error('タスク更新エラー:', err);
+    }
+  };
+
+  // タスク削除処理
+  const handleDeleteTask = async (taskId: string) => {
+    if (confirm('このタスクを削除してもよろしいですか?')) {
+      try {
+        await deleteTask(taskId);
+      } catch (err) {
+        console.error('タスク削除エラー:', err);
+      }
+    }
+  };
+
+  // ステータス変更処理
+  const handleStatusChange = async (task: Geek_project_tasks, newStatus: number) => {
+    try {
+      await updateTask(task.geek_project_taskid, { geek_status: newStatus });
+    } catch (err) {
+      console.error('ステータス変更エラー:', err);
+    }
+  };
+
+  if (loading && tasks.length === 0) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2">Loading tasks...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Project Tasks</h1>
+        <button
+          onClick={() => setIsCreateModalOpen(true)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          + New Task
+        </button>
+      </div>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
+      {/* タスク一覧 */}
+      <div className="grid gap-4">
+        {tasks.map((task) => (
+          <div key={task.geek_project_taskid} className="bg-white shadow rounded-lg p-6">
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold">{task.geek_name}</h3>
+                {task.geek_description && (
+                  <p className="text-gray-600 mt-2">{task.geek_description}</p>
+                )}
+                
+                {/* Choice フィールド表示 */}
+                <div className="flex gap-2 mt-4">
+                  {/* 優先度バッジ */}
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    task.geek_priority === 0 ? 'bg-red-100 text-red-800' :
+                    task.geek_priority === 1 ? 'bg-orange-100 text-orange-800' :
+                    task.geek_priority === 2 ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-green-100 text-green-800'
+                  }`}>
+                    {TaskPriorityMap[task.geek_priority]}
+                  </span>
+
+                  {/* ステータスバッジ */}
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    task.geek_status === 0 ? 'bg-green-100 text-green-800' :
+                    task.geek_status === 1 ? 'bg-blue-100 text-blue-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {TaskStatusMap[task.geek_status]}
+                  </span>
+
+                  {/* カテゴリバッジ */}
+                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                    {TaskCategoryMap[task.geek_category]}
+                  </span>
+                </div>
+
+                {/* 期限表示 */}
+                {task.geek_duedate && (
+                  <p className="text-sm text-gray-500 mt-2">
+                    期限: {new Date(task.geek_duedate).toLocaleDateString('ja-JP')}
+                  </p>
+                )}
+              </div>
+
+              {/* アクションボタン */}
+              <div className="flex gap-2 ml-4">
+                {/* ステータス変更 */}
+                {task.geek_status !== 0 && (
+                  <button
+                    onClick={() => handleStatusChange(task, 0)}
+                    disabled={loading}
+                    className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50"
+                  >
+                    完了
+                  </button>
+                )}
+                
+                {/* 編集 */}
+                <button
+                  onClick={() => setEditingTask(task)}
+                  disabled={loading}
+                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+                >
+                  編集
+                </button>
+                
+                {/* 削除 */}
+                <button
+                  onClick={() => handleDeleteTask(task.geek_project_taskid)}
+                  disabled={loading}
+                  className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 disabled:opacity-50"
+                >
+                  削除
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {tasks.length === 0 && !loading && (
+        <div className="text-center py-12 text-gray-500">
+          <p>タスクがありません</p>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            最初のタスクを作成
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+**主要なポイント:**
+- ✅ **自動生成された型定義** を使用 (`Geek_project_tasks`)
+- ✅ **Choice マッピング** でユーザーフレンドリーな表示
+- ✅ **CRUD 操作** をすべて実装
+- ✅ **エラー表示** と **Loading 状態** を適切に管理
+- ✅ **Dataverseスキーマ** に完全準拠
 
 #### **Choice値に対応したフォームコンポーネント**
 
@@ -4024,6 +5671,153 @@ export const TaskForm: React.FC<TaskFormProps> = ({
   );
 };
 ```
+
+### **📋 Dataverse統合のベストプラクティス**
+
+#### **スキーマ名の取得とサービスクラス生成**
+
+**1. customizations.xml からテーブル情報を取得:**
+```powershell
+# テーブルのスキーマ名を確認
+.\Extract-DataverseChoices.ps1 -XmlPath ".\customizations.xml" -EntityName "{論理名}"
+
+# 例: プロジェクトタスクテーブルの場合
+.\Extract-DataverseChoices.ps1 -XmlPath ".\customizations.xml" -EntityName "geek_project_task"
+
+# 出力例:
+# Schema name: geek_project_task
+# Publisher prefix: geek
+# Table logical name: project_task
+# Primary ID field: geek_project_taskid
+```
+
+**2. pac code コマンドでサービスクラスを生成:**
+```bash
+# Dataverse接続作成後
+pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}"
+
+# 生成されるファイル:
+# src/generated/services/{スキーマ名プレフィックス}_{テーブル名}Service.ts
+# 例: Geek_project_tasksService.ts
+```
+
+**3. サービスクラスの命名規則:**
+- **クラス名**: `{Prefix}_{TableName}Service` (先頭大文字、複数形)
+  - 例: `Geek_project_tasksService`
+- **dataSourceName**: `{prefix}_{table_name}` (小文字、複数形)
+  - 例: `geek_project_tasks`
+- **プライマリキー**: `{prefix}_{table_name}id`
+  - 例: `geek_project_taskid`
+
+#### **テーブルスキーマ名のプレースホルダー**
+
+開発時は以下のプレースホルダーを使用し、実際のスキーマ名に置き換えてください:
+
+```typescript
+// ❌ プレースホルダー（開発時）
+import { {Prefix}_{TableName}Service } from '../generated/services/{Prefix}_{TableName}Service';
+import type { {Prefix}_{TableName} } from '../generated/models/{Prefix}_{TableName}Model';
+
+// サービスクラス使用
+const result = await {Prefix}_{TableName}Service.getAll();
+
+// ✅ 実際の例（Geek_project_tasksの場合）
+import { Geek_project_tasksService } from '../generated/services/Geek_project_tasksService';
+import type { Geek_project_tasks } from '../generated/models/Geek_project_tasksModel';
+
+// サービスクラス使用
+const result = await Geek_project_tasksService.getAll();
+```
+
+**フィールド名のプレースホルダー:**
+```typescript
+// プレースホルダー形式
+{prefix}_{fieldname}     // 通常のフィールド
+{prefix}_{tablename}id   // プライマリキー
+
+// 実例（geek プレフィックス）
+geek_name               // 名前フィールド
+geek_description        // 説明フィールド
+geek_priority           // 優先度（Choice）
+geek_project_taskid     // プライマリキー
+```
+
+#### **Choice フィールドの型マッピング**
+
+```typescript
+// customizations.xml から抽出された Choice 値
+export type TaskPriority = 0 | 1 | 2 | 3;
+export type TaskStatus = 0 | 1 | 2;
+export type TaskCategory = 0 | 1 | 2 | 3;
+
+// 表示名マッピング（UIで使用）
+export const TaskPriorityMap: Record<TaskPriority, string> = {
+  0: 'Critical',
+  1: 'High',
+  2: 'Medium',
+  3: 'Low'
+};
+
+// 逆引きマッピング（フォーム送信時に使用）
+export const TaskPriorityReverseMap: Record<string, TaskPriority> = {
+  'Critical': 0,
+  'High': 1,
+  'Medium': 2,
+  'Low': 3
+};
+```
+
+#### **必須チェックリスト: Dataverse接続前**
+
+**開発者への依頼事項:**
+- [ ] **customizations.xmlファイル取得**: Power Apps ポータルからソリューションエクスポート
+- [ ] **customizations.xmlをワークスペースルートに配置**: `.\customizations.xml`
+- [ ] **スキーマ抽出実行**: PowerShellスクリプトでテーブル構造・Choice値を抽出
+- [ ] **テーブルスキーマ名の確認**: `{prefix}_{tablename}` 形式を特定
+- [ ] **pac code add-data-source 実行**: サービスクラスの自動生成
+- [ ] **TypeScript型定義作成**: 抽出情報に基づくインターフェース定義
+- [ ] **Choice値マッピング**: 数値⇔表示名の変換テーブル作成
+- [ ] **カスタムフック作成**: サービスクラスをラップ
+- [ ] **UIフォーム更新**: Choice値をドロップダウンで選択可能なフォーム
+- [ ] **型安全性確認**: TypeScriptコンパイルエラー0件
+- [ ] **統合テスト**: モックデータ→リアルデータ切り替えテスト
+
+### **⚠️ よくある問題と対処法**
+
+#### **1. Choice値の不一致エラー**
+```
+❌ エラー例: "Invalid option value '4' for attribute 'geek_priority'"
+✅ 対処法: customizations.xmlから正確なChoice値を抽出・更新
+```
+
+#### **2. 必須フィールドエラー**  
+```
+❌ エラー例: "Required attribute 'geek_name' is missing"
+✅ 対処法: XMLのIsValidForCreate属性でRequired判定・フォーム必須設定
+```
+
+#### **3. データ型不一致エラー**
+```
+❌ エラー例: "Date format error for 'geek_duedate'"
+✅ 対処法: ISO8601形式（YYYY-MM-DDTHH:mm:ssZ）での日付送信
+```
+
+#### **4. dataSourceName エラー**
+```
+❌ エラー例: "Data source '______' not found"
+✅ 対処法: サービスクラスの dataSourceName を dataSourcesInfo.ts の実際の名前に修正
+```
+
+#### **5. サービスクラスが生成されない**
+```
+❌ 問題: pac code add-data-source 実行後もファイルが生成されない
+✅ 対処法: 
+  - Power Apps で接続が正しく作成されているか確認
+  - 接続IDが正しいか確認
+  - pac auth list で認証状態を確認
+```
+
+この手順により、Dataverseとの接続で発生する一般的なスキーマ不整合エラーを事前に防止し、安全にモックデータからリアルデータへ移行できます。
 
 ### **📋 必須チェックリスト: Dataverse接続前**
 
@@ -10911,8 +12705,8 @@ export default defineConfig({
 # 1. スキーマ確認 (必須)
 # Power Apps ポータル → ソリューション → エクスポート → customizations.xml
 
-# 2. PowerShell スキーマ抽出
-.\Extract-DataverseChoices.ps1 -XmlPath "customizations.xml" -EntityName "your_table"
+# 2. PowerShell スキーマ抽出（ワークスペースルートに配置）
+.\Extract-DataverseChoices.ps1 -XmlPath ".\customizations.xml" -EntityName "your_table"
 
 # 3. TypeScript型定義作成
 # → src/types/dataverse.ts にインターフェース定義
@@ -10978,6 +12772,57 @@ export const useOffice365Users = () => {
 
 ### **🚨 よくある問題と解決法 - 統合版**
 
+#### **"PowerDataRuntime is not initialized" エラー**
+```
+エラー例:
+Error fetching SystemUsers: PowerDataRuntimeError: An unknown error occurred: 
+PowerDataRuntime is not initialized. Please call initializeRuntime() first.
+```
+
+**原因:**
+- Power Apps SDK の初期化前に Dataverse テーブルにアクセスした
+- `usePowerPlatform().isInitialized` の確認を怠った
+
+**解決手順:**
+```typescript
+// ✅ 正しいパターン
+import { usePowerPlatform } from '@microsoft/power-apps';
+
+export function DataversePage() {
+  const { isInitialized } = usePowerPlatform();
+  const [data, setData] = useState([]);
+
+  useEffect(() => {
+    if (!isInitialized) {
+      console.log('SDK初期化中...');
+      return; // 初期化完了まで待機
+    }
+
+    // SDK初期化後にデータ取得
+    const loadData = async () => {
+      const result = await YourService.getAll();
+      if (result.isSuccess) {
+        setData(result.value);
+      }
+    };
+    loadData();
+  }, [isInitialized]); // 依存配列に含める
+
+  // SDK初期化中は Loading 表示
+  if (!isInitialized) {
+    return <div>Power Apps SDK 初期化中...</div>;
+  }
+
+  return <div>{/* データ表示 */}</div>;
+}
+```
+
+**チェックリスト:**
+- [ ] `usePowerPlatform()` で初期化状態を取得
+- [ ] `isInitialized === false` の間は Loading 表示
+- [ ] `useEffect` の依存配列に `isInitialized` を含める
+- [ ] Dataverse サービスの呼び出しは初期化後のみ
+
 #### **"fetching your app"で停止**
 ```bash
 # 解決手順
@@ -10990,10 +12835,11 @@ export const useOffice365Users = () => {
 #### **Dataverse接続エラー**
 ```bash
 # 解決手順  
-1. customizations.xml からスキーマ確認
-2. Choice値の数値マッピング修正
-3. 必須フィールドの設定確認
-4. useConnector('dataverse') 初期化確認
+1. SDK初期化確認（usePowerPlatform().isInitialized）
+2. customizations.xml からスキーマ確認
+3. Choice値の数値マッピング修正
+4. 必須フィールドの設定確認
+5. dataSourceName の値を確認（dataSourcesInfo.ts と一致するか）
 ```
 
 #### **TypeScript型エラー**
