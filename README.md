@@ -1320,9 +1320,74 @@ Power Apps SDK を使用することで、以下が自動的に処理されま�
 
 ---
 
-## **📋 Step 1: 接続の手動作成 (Power Apps ポータル)**
+## **📋 手順概要**
 
-### **1.1 Power Apps ポータルでの接続作成**
+データソース接続は以下の7ステップで実施します:
+
+```mermaid
+graph TD
+    A[Step 1: Power Apps ポータルで接続作成] --> B[Step 2: ブラウザURLから接続ID取得]
+    B --> C[Step 3: pac code add-data-source 実行]
+    C --> D[Step 4: 自動生成されたサービスクラス確認]
+    D --> E[Step 5: SDK初期化確認パターン実装]
+    E --> F[Step 6: カスタムフック作成]
+    F --> G[Step 7: Reactコンポーネントで使用]
+```
+
+### **クイックスタート例**
+
+**Office 365 Users コネクター:**
+```bash
+# Step 1-2: Power Apps ポータルで接続作成 → 接続ID取得
+# Step 3: サービスクラス生成
+pac code add-data-source -a "shared_office365users" -c "{接続ID}"
+
+# Step 4-5: 生成されたファイル確認
+# src/generated/services/Office365UsersService.ts
+# src/generated/models/Office365UsersModel.ts
+```
+
+**Dataverse (SystemUsers):**
+```bash
+# Step 3: SystemUsers テーブル追加
+pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
+
+# Step 4-5: 生成されたファイル確認
+# src/generated/services/SystemusersService.ts
+# src/generated/models/SystemusersModel.ts
+```
+
+**使用例 (Step 6-7):**
+```typescript
+import { usePowerPlatform } from '@microsoft/power-apps';
+import { SystemUsersService } from '../generated/services/SystemUsersService';
+
+export function UsersPage() {
+  const { isInitialized } = usePowerPlatform();
+  const [users, setUsers] = useState([]);
+
+  useEffect(() => {
+    if (!isInitialized) return; // SDK初期化待機
+    
+    const loadUsers = async () => {
+      const result = await SystemUsersService.getAll();
+      if (result.isSuccess && result.value) {
+        setUsers(result.value);
+      }
+    };
+    loadUsers();
+  }, [isInitialized]);
+
+  if (!isInitialized) return <div>初期化中...</div>;
+  return <div>{/* データ表示 */}</div>;
+}
+```
+
+---
+
+## **📋 詳細手順 (トラブルシューティング含む)**
+
+### **Step 1: 接続の手動作成 (Power Apps ポータル)**
 
 すべてのコネクターは、まず Power Apps ポータルで手動作成する必要があります。
 
@@ -1355,13 +1420,19 @@ Power Apps SDK を使用することで、以下が自動的に処理されま�
 5. **接続の確認**
    - 接続一覧で「接続済み」ステータスを確認
 
+**🔧 トラブルシューティング:**
+
+| 問題 | 原因 | 対策 |
+|------|------|------|
+| 「接続できません」エラー | 認証情報が無効 | 認証をやり直す |
+| 接続が一覧に表示されない | 環境が異なる | 正しい環境を選択 |
+| 権限エラー | ユーザー権限不足 | 環境管理者に権限を依頼 |
+
 ---
 
-## **📋 Step 2: 接続ID の取得**
+### **Step 2: 接続ID の取得**
 
 pac code add-data-source コマンドを実行するには、**接続ID** が必要です。
-
-### **2.1 ブラウザURLから接続IDを取得**
 
 **手順:**
 
@@ -1388,7 +1459,7 @@ pac code add-data-source コマンドを実行するには、**接続ID** が必
 4. **接続ID をコピー**
    - 上記URLの場合: `a1b2c3d4-e5f6-7890-1234-567890abcdef`
 
-### **2.2 コネクター別の API 名**
+**コネクター別の API 名:**
 
 | コネクター | API 名 |
 |-----------|--------|
@@ -1398,11 +1469,18 @@ pac code add-data-source コマンドを実行するには、**接続ID** が必
 | SQL Server | `shared_sql` |
 | Office 365 Outlook | `shared_office365` |
 
+**🔧 トラブルシューティング:**
+
+| 問題 | 原因 | 対策 |
+|------|------|------|
+| URLに接続IDが表示されない | 古いポータルUI | ブラウザを更新、別の接続をクリックして戻る |
+| 接続IDをコピーできない | ブラウザの問題 | URLを手動で選択してコピー |
+
 ---
 
-## **📋 Step 3: pac code add-data-source コマンド実行**
+### **Step 3: pac code add-data-source コマンド実行**
 
-### **3.1 基本コマンド構文**
+**基本コマンド構文:**
 
 ```bash
 pac code add-data-source -a "{API名}" -c "{接続ID}" [-t "{テーブル名}"]
@@ -1413,7 +1491,7 @@ pac code add-data-source -a "{API名}" -c "{接続ID}" [-t "{テーブル名}"]
 - `-c` (--connection-id): 接続ID (Step 2で取得)
 - `-t` (--table): テーブル名 (Dataverseの場合のみ必須)
 
-### **3.2 Office 365 Users コネクター**
+**Office 365 Users の例:**
 
 ```bash
 # Office 365 Users サービスクラスを生成
@@ -1470,29 +1548,90 @@ pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -
 
 # Tasks (タスク)
 pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "tasks"
-```
 
-### **3.5 Dataverse: カスタムテーブル**
-
-```bash
-# カスタムテーブルの場合は論理名を指定 (小文字、アンダースコア区切り)
-# 例: geek_project_task テーブル
+# カスタムテーブル (例: geek_project_task)
 pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "geek_project_task"
 ```
 
-**生成されるサービスクラス名:**
+**生成されるサービスクラス名規則:**
 - テーブル論理名: `geek_project_task`
 - サービスクラス: `Geek_project_tasksService` (先頭大文字、末尾にs追加)
 
+**🔧 トラブルシューティング:**
+
+| 問題 | 原因 | 対策 |
+|------|------|------|
+| `Connection not found` | 接続IDが無効 | Step 2で接続IDを再確認 |
+| `Table not found` | テーブル論理名が間違い | 小文字・アンダースコア区切りを確認 |
+| `Authentication failed` | pac認証が期限切れ | `pac auth create` で再認証 |
+| ファイルが生成されない | コマンド実行エラー | エラーメッセージを確認 |
+
 ---
 
-## **📋 Step 4: PowerDataRuntime 初期化確認**
+### **Step 4: 自動生成されたサービスクラスの確認**
 
-### **⚠️ 重要: SDK 初期化の必須要件**
+pac code add-data-source 実行後、以下のファイルが自動生成されます。
 
-Power Apps SDK を使用する前に、**必ず PowerDataRuntime の初期化完了を確認**してください。
+**生成されるファイル構造:**
 
-### **4.1 初期化確認パターン**
+```
+src/
+  generated/
+    services/
+      Office365UsersService.ts        # Office 365 Users
+      SystemusersService.ts            # Dataverse: SystemUsers
+      AccountsService.ts               # Dataverse: Accounts
+      Geek_project_tasksService.ts     # カスタムテーブル
+    models/
+      Office365UsersModel.ts
+      SystemusersModel.ts
+      AccountsModel.ts
+      Geek_project_tasksModel.ts
+```
+
+**サービスクラスの基本構造 (例: Office365UsersService):**
+
+```typescript
+export class Office365UsersService {
+  private static readonly dataSourceName = 'office365users';
+  private static readonly client = getClient(dataSourcesInfo);
+
+  public static async MyProfile_V2($select?: string): Promise<IOperationResult<GraphUser_V1>> {
+    const params: { $select?: string } = { $select };
+    const result = await Office365UsersService.client.executeAsync<{ $select?: string }, GraphUser_V1>({
+      connectorOperation: {
+        tableName: Office365UsersService.dataSourceName,
+        operationName: 'MyProfile_V2',
+        parameters: params
+      },
+    });
+    return result;
+  }
+  // ... その他のメソッド
+}
+```
+
+**重要なポイント:**
+- ✅ すべてのメソッドが `static` (インスタンス化不要)
+- ✅ `IOperationResult<T>` で統一されたレスポンス型
+- ✅ TypeScript型定義が自動生成
+- ✅ Power Apps SDK の `getClient()` を使用
+
+**🔧 トラブルシューティング:**
+
+| 問題 | 原因 | 対策 |
+|------|------|------|
+| 生成されたファイルが見つからない | コマンド実行失敗 | エラーメッセージを確認 |
+| TypeScriptエラーが出る | 型定義の不一致 | `npm run build` でビルドエラーを確認 |
+| メソッドが見つからない | コネクターバージョン違い | 生成されたファイルを直接確認 |
+
+---
+
+### **Step 5: PowerDataRuntime 初期化確認パターン実装**
+
+**⚠️ 重要:** Power Apps SDK を使用する前に、**必ず PowerDataRuntime の初期化完了を確認**してください。
+
+**基本パターン:**
 
 ```typescript
 import { usePowerPlatform } from '@microsoft/power-apps';
@@ -1528,41 +1667,47 @@ export function DataPage() {
 }
 ```
 
-### **4.2 初期化エラーのトラブルシューティング**
+**PowerProvider の設定確認:**
 
-**エラーメッセージ:**
+```typescript
+// src/main.tsx
+import { PowerProvider } from '@microsoft/power-apps';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <PowerProvider>  {/* ← 必須 */}
+    <App />
+  </PowerProvider>
+);
 ```
-PowerDataRuntime is not initialized
+
+**🔧 トラブルシューティング:**
+
+| エラーメッセージ | 原因 | 対策 |
+|----------------|------|------|
+| `PowerDataRuntime is not initialized` | SDK未初期化 | `usePowerPlatform().isInitialized` を確認 |
+| `PowerProvider not found` | PowerProvider未設定 | main.tsx で PowerProvider を追加 |
+| 初期化が完了しない | `pac code run` 未実行 | `pac code run` でアプリを起動 |
+
+**初期化確認のデバッグ:**
+
+```typescript
+const { isInitialized } = usePowerPlatform();
+
+useEffect(() => {
+  console.log('SDK初期化状態:', isInitialized);
+}, [isInitialized]);
+
+// npm run dev → isInitialized: false (Power Platform統合なし)
+// pac code run → isInitialized: true (Power Platform統合あり)
 ```
-
-**原因と対策:**
-
-1. **PowerProvider が未設定**
-   ```typescript
-   // src/main.tsx
-   import { PowerProvider } from '@microsoft/power-apps';
-   
-   ReactDOM.createRoot(document.getElementById('root')!).render(
-     <PowerProvider>  {/* ← 必須 */}
-       <App />
-     </PowerProvider>
-   );
-   ```
-
-2. **初期化前にサービスクラスを呼び出し**
-   - `usePowerPlatform().isInitialized` を必ず確認
-
-3. **pac code run が起動していない**
-   ```bash
-   npm run dev  # → Vite dev server のみ（SDK初期化なし）
-   pac code run # → Power Platform統合あり（SDK初期化あり）
-   ```
 
 ---
 
-## **📋 Step 5: サービスクラスの使用パターン**
+### **Step 6: カスタムフック作成**
 
-### **5.1 Office 365 Users: カスタムフック実装**
+ビジネスロジックをカスタムフックにカプセル化します。
+
+**Office 365 Users カスタムフック:**
 
 ```typescript
 // src/hooks/useOffice365Users.ts
@@ -1653,6 +1798,50 @@ export const useSystemUsers = () => {
       if (result.isSuccess && result.value) {
         setUsers(result.value);
       } else {
+        throw new Error('ユーザー検索に失敗しました');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [isInitialized]);
+
+  return { getMyProfile, searchUsers, loading, error, isInitialized };
+};
+```
+
+**Dataverse: SystemUsers カスタムフック:**
+
+```typescript
+// src/hooks/useSystemUsers.ts
+import { useState, useEffect, useCallback } from 'react';
+import { usePowerPlatform } from '@microsoft/power-apps';
+import { SystemUsersService } from '../generated/services/SystemUsersService';
+
+export const useSystemUsers = () => {
+  const { isInitialized } = usePowerPlatform();
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchUsers = useCallback(async () => {
+    if (!isInitialized) return;
+
+    try {
+      setLoading(true);
+      const result = await SystemUsersService.getAll({
+        select: ['systemuserid', 'fullname', 'internalemailaddress'],
+        filter: 'isdisabled eq false',
+        orderBy: 'fullname asc',
+        top: 50
+      });
+
+      if (result.isSuccess && result.value) {
+        setUsers(result.value);
+      } else {
         throw new Error('ユーザーの取得に失敗しました');
       }
     } catch (err) {
@@ -1673,7 +1862,13 @@ export const useSystemUsers = () => {
 };
 ```
 
-### **5.3 Reactコンポーネントでの使用**
+---
+
+### **Step 7: Reactコンポーネントでの使用**
+
+カスタムフックを使用してReactコンポーネントを実装します。
+
+**基本的な使用例:**
 
 ```typescript
 // src/pages/UsersPage.tsx
@@ -1708,52 +1903,60 @@ export const UsersPage: React.FC = () => {
 };
 ```
 
+**🔧 トラブルシューティング:**
+
+| 問題 | 原因 | 対策 |
+|------|------|------|
+| データが表示されない | `isInitialized` が false | `pac code run` で起動しているか確認 |
+| エラーが表示される | サービスクラスのエラー | `result.isSuccess` を確認、エラーログを確認 |
+| 型エラーが出る | 自動生成された型と不一致 | 生成されたModel.tsファイルを確認 |
+
 ---
 
-## **📋 Step 6: Dataverse カスタムテーブル - スキーマ名の確認**
+## **📋 まとめ: データソース接続の完全フロー**
 
-Dataverse カスタムテーブルを使用する場合、**スキーマ名を事前に確認**する必要があります。
+**7つのステップで完了:**
 
-### **6.1 customizations.xml からのスキーマ抽出**
+1. ✅ **Power Apps ポータルで接続作成** → 認証完了
+2. ✅ **ブラウザURLから接続ID取得** → コピー
+3. ✅ **pac code add-data-source 実行** → サービスクラス自動生成
+4. ✅ **自動生成されたファイル確認** → src/generated/ 配下を確認
+5. ✅ **PowerDataRuntime 初期化確認** → `isInitialized` チェック
+6. ✅ **カスタムフック作成** → ビジネスロジックをカプセル化
+7. ✅ **Reactコンポーネントで使用** → UI実装
 
-**PowerShell スクリプト (Extract-DataverseChoices.ps1):**
+**重要原則:**
+- ✅ **Power Apps SDK 経由のみ使用** - ユーザー認証が自動処理
+- ❌ **他の接続方法は使用禁止** - Web API、Power Fx、直接REST APIは使用しない
+- ✅ **必ず isInitialized を確認** - 初期化前のアクセスはエラー
+- ✅ **IOperationResult で結果確認** - `isSuccess` プロパティで成功/失敗を判定
+- ✅ **カスタムフックでカプセル化** - 再利用可能なロジック実装
 
-```powershell
-param(
-    [string]$XmlPath = "customizations.xml",
-    [string]$EntityName = "geek_project_task"
-)
+**実行コマンドまとめ:**
 
-[xml]$xml = Get-Content $XmlPath
-$ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
-$ns.AddNamespace("c", "http://schemas.microsoft.com/crm/2011/Metadata")
+```bash
+# 1. 認証 (初回のみ)
+pac auth create
 
-$entity = $xml.SelectSingleNode("//c:Entity[c:Name='$EntityName']", $ns)
+# 2. Office 365 Users 追加
+pac code add-data-source -a "shared_office365users" -c "{接続ID}"
 
-if ($null -eq $entity) {
-    Write-Host "Entity not found: $EntityName" -ForegroundColor Red
-    exit
-}
+# 3. Dataverse テーブル追加
+pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
 
-Write-Host "`n=== $EntityName スキーマ情報 ===" -ForegroundColor Green
+# 4. アプリ実行 (Power Platform統合)
+pac code run
 
-# 全属性を表示
-$attributes = $entity.SelectNodes(".//c:attribute", $ns)
-foreach ($attr in $attributes) {
-    $logicalName = $attr.SelectSingleNode("c:LogicalName", $ns).'#text'
-    $type = $attr.SelectSingleNode("c:Type", $ns).'#text'
-    Write-Host "  - $logicalName ($type)"
-}
+# 5. ビルド
+npm run build
 
-# Choice (Picklist) 属性を詳細表示
-$picklists = $entity.SelectNodes(".//c:attribute[c:Type='Picklist']", $ns)
-foreach ($picklist in $picklists) {
-    $logicalName = $picklist.SelectSingleNode("c:LogicalName", $ns).'#text'
-    Write-Host "`n  Choice: $logicalName" -ForegroundColor Cyan
-    
-    $options = $picklist.SelectNodes(".//c:option", $ns)
-    foreach ($option in $options) {
-        $value = $option.SelectSingleNode("c:Value", $ns).'#text'
+# 6. デプロイ
+pac code push
+```
+
+---
+
+### **未実装機能開発・ユーザー提案**        $value = $option.SelectSingleNode("c:Value", $ns).'#text'
         $label = $option.SelectSingleNode(".//c:Label[@languagecode='1033']", $ns).'#text'
         Write-Host "    $value : $label"
     }
