@@ -195,7 +195,6 @@ graph LR
 >
 > **ロゴとデザインのリファレンス:**
 > - **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)** - デザイン仕様と実装方法
-> - **[ロゴ表示の修正方法](./docs/LOGO_DISPLAY_FIX.md)** - 表示問題のトラブルシューティング
 
 **Phase 2の概要:**
 - shadcn/ui + TailwindCSSのセットアップ
@@ -338,3 +337,4 @@ useEffect(() => {
 ```
 
 **次へ**: Phase 5 → 継続開発サイクル
+
