@@ -131,7 +131,9 @@ graph LR
     C --> D[環境準備完了]
 ```
 
-> **📘 詳細リファレンス**: [Phase 0 リファレンス](./PHASE0_ENVIRONMENT_SETUP.md)
+> **📘 必ず以下のリファレンスを確認して実行してください**:
+>
+> [Phase 0 リファレンス](./PHASE0_ENVIRONMENT_SETUP.md)
 
 **Phase 0の概要:**
 - Node.js・Power Platform CLIのインストール
@@ -155,7 +157,9 @@ graph LR
     B --> C[プロジェクト基盤完成]
 ```
 
-> **📘 詳細リファレンス**: [Phase 1 リファレンス](./PHASE1_PROJECT_SETUP.md)
+> **📘 必ず以下のリファレンスを確認して実行してください**:
+>
+> [Phase 1 リファレンス](./PHASE1_PROJECT_SETUP.md)
 
 **Phase 1の概要:**
 - Vite + React + TypeScriptプロジェクト作成
@@ -191,8 +195,10 @@ graph LR
     D --> E[Phase 2完了]
 ```
 
-> - **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)**
+> **📘 必ず以下のリファレンスを確認して実行してください**:
+> 
 > - **[Phase 2 リファレンス](./PHASE2_UI_DESIGN_SYSTEM.md)**
+> - **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)**
 
 **Phase 2の概要:**
 - shadcn/ui + TailwindCSSのセットアップ
@@ -228,7 +234,9 @@ graph LR
     C --> D[実行成功]
 ```
 
-> **📘 詳細リファレンス**: [Phase 3 リファレンス](./PHASE3_LOCAL_TESTING.md)
+> **📘 必ず以下のリファレンスを確認して実行してください**:
+> 
+>  [Phase 3 リファレンス](./PHASE3_LOCAL_TESTING.md)
 
 **Phase 3の概要:**
 - ローカル環境でのアプリ実行
@@ -258,8 +266,9 @@ graph LR
     B --> C[動作確認]
     C --> D[デプロイ完了]
 ```
-
-> **📘 詳細リファレンス**: [Phase 4 リファレンス](./PHASE4_DEPLOYMENT.md)
+> **📘 必ず以下のリファレンスを確認して実行してください**:
+>
+> [Phase 4 リファレンス](./PHASE4_DEPLOYMENT.md)
 
 **Phase 4の概要:**
 - 本番ビルドの実行
@@ -290,8 +299,12 @@ graph LR
     C --> D[拡張完了]
 ```
 
-> **📘 詳細リファレンス**: [Phase 5 リファレンス](./PHASE5_DATA_INTEGRATION.md)
+> **📘 必ず以下のリファレンスを確認して実行してください**:
 >
+> [Phase 5 リファレンス](./PHASE5_DATA_INTEGRATION.md)
+>
+> 以下は必要に応じて参照してください
+> 
 > **Dataverse実装リファレンス:**
 > - **[Lookupフィールド実装ガイド](./docs/LOOKUP_FIELD_GUIDE.md)** - Lookup完全実装
 > - **[Dataverseスキーマリファレンス](./docs/DATAVERSE_SCHEMA_REFERENCE.md)** - スキーマ定義とChoice値
@@ -332,6 +345,18 @@ useEffect(() => {
 ```
 
 **次へ**: Phase 5 → 継続開発サイクル
+
+### 継続開発サイクル 
+
+**継続開発サイクル**では以下の点を行います:
+
+- 実装済み機能のリストアップ
+- 改善点の提案
+- 拡張機能の提案
+
+各観点は **ImprovementProposal.MD** としてドキュメント化し、段階的に対応します。 
+
+以上
 
 
 
