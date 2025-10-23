@@ -2,14 +2,22 @@
 
 ## 📋 概要
 
-このPhaseでは、shadcn/ui + TailwindCSSを統合し、Power Appsの公式デザインシステムに準拠したモダンなUIを構築します。
+このPhaseでは、shadcn/ui + TailwindCSSを統合し、モダンで統一されたデザインシステムに基づいたUIを構築します。
 
 **主な実施内容:**
 - アプリロゴの作成と配置
 - shadcn/ui + TailwindCSSのセットアップ
-- Power Apps公式カラーパレットの統合
-- レイアウトコンポーネントの実装
+- 統一されたカラーパレット・タイポグラフィの適用
+- レイアウトコンポーネント（CommonHeader, SideMenu）の実装
+- ダークモード・ライトモード対応
 - MVPアプリケーションの構築
+
+**デザインシステムの特徴:**
+- CSS変数ベースのテーマシステム
+- ダークモード完全対応
+- レスポンシブデザイン（モバイルファースト）
+- 一貫したスペーシング・タイポグラフィ
+- アクセシビリティ対応
 
 ---
 
@@ -17,22 +25,26 @@
 
 > **📘 詳細な実装手順**: 以下のステップバイステップガイドを参照してください。
 >
-> **ロゴとデザインのリファレンス:**
+> **ロゴのリファレンス:**
 > - **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)** - デザイン仕様と実装方法
 > - **[ロゴ表示の修正方法](./docs/LOGO_DISPLAY_FIX.md)** - 表示問題のトラブルシューティング
+>
+> **デザインシステムの詳細は本ドキュメント内に完全収録されています。**
 
 **実施するStep（概要）:**
 1. **アプリアイコン・ロゴ作成** - ロゴファイルの準備と配置
 2. **shadcn/ui統合** - デザインシステムのセットアップ
-3. **Power Appsテーマ統合** - 公式カラーの適用
-4. **レイアウト実装** - MainLayoutコンポーネント作成
-5. **MVP機能実装** - 要件に基づいた設計に従って実装
-6. **エラーチェック** - TypeScript・ESLint・ビルド確認
+3. **デザインシステム統合** - カラー・タイポグラフィ・スペーシングの適用
+4. **レイアウト実装** - CommonHeader, SideMenu, MainLayoutコンポーネント作成
+5. **ダークモード対応** - テーマ切り替えシステム実装
+6. **MVP機能実装** - 要件に基づいた設計に従って実装
+7. **エラーチェック** - TypeScript・ESLint・ビルド確認
 
 **重要な注意事項:**
 - ⚠️ PowerProvider.tsxは変更しない
 - ⚠️ Power Apps接続部分は変更しない
 - ✅ MVP機能部分のみを実装する
+- ✅ 本ドキュメントのデザイン原則に従う
 
 **統合コマンド（すべてのチェック）:**
 ```bash
@@ -42,8 +54,9 @@ npm run build && npm run lint
 
 **Phase 2 完了条件:**
 - ✅ shadcn/uiコンポーネントが使用できる
-- ✅ Power Apps公式カラーが適用されている
-- ✅ 統一されたレイアウトが実装されている
+- ✅ 統一されたカラーシステムが適用されている
+- ✅ CommonHeader + SideMenuのレイアウトが実装されている
+- ✅ ダークモード・ライトモード切り替えが機能する
 - ✅ MVP機能が実装されている
 - ✅ PowerProvider.tsxは変更していない
 - ✅ `npm run dev` でローカル起動できる
@@ -131,7 +144,7 @@ pac code update --logo "./public/assets/logo.svg"
 - 正方形比率（1:1）が最適
 
 > **📘 詳細なロゴ実装ガイド**  
-> ロゴのデザイン仕様、実装パターン、トラブルシューティングは [LOGO_MASTER_GUIDE.md](./LOGO_MASTER_GUIDE.md) を参照してください。
+> ロゴのデザイン仕様、実装パターン、トラブルシューティングは [LOGO_MASTER_GUIDE.md](./docs/LOGO_MASTER_GUIDE.md) を参照してください。
 
 ---
 
@@ -222,7 +235,9 @@ npx shadcn@latest add badge avatar progress
 
 ---
 
-### **Step 3: Power Apps 公式テーマ統合**
+### **Step 3: デザインシステム統合**
+
+このステップでは、カラーシステム、タイポグラフィ、スペーシングを統一して設定します。
 
 #### 3-1. globals.cssを編集
 
@@ -234,21 +249,14 @@ npx shadcn@latest add badge avatar progress
 @tailwind utilities;
 
 :root {
-  /* Power Platform 公式カラーパレット */
-  --power-blue: #4072B3;
-  --power-blue-light: #6088C6;
-  --power-blue-lighter: #AEC4E5;
-  --power-red: #EB8686;
-  --power-gray: #C0C0C0;
-  
-  /* shadcn/ui 統合テーマ */
+  /* 基本カラー */
   --background: 0 0% 100%;
   --foreground: 222.2 84% 4.9%;
   --card: 0 0% 100%;
   --card-foreground: 222.2 84% 4.9%;
   --popover: 0 0% 100%;
   --popover-foreground: 222.2 84% 4.9%;
-  --primary: 210 40% 44%;        /* Power Blue */
+  --primary: 222.2 47.4% 11.2%;
   --primary-foreground: 210 40% 98%;
   --secondary: 210 40% 96.1%;
   --secondary-foreground: 222.2 47.4% 11.2%;
@@ -260,7 +268,7 @@ npx shadcn@latest add badge avatar progress
   --destructive-foreground: 210 40% 98%;
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
-  --ring: 210 40% 44%;           /* Power Blue */
+  --ring: 222.2 47.4% 11.2%;
   --radius: 0.5rem;
 }
 
@@ -271,7 +279,7 @@ npx shadcn@latest add badge avatar progress
   --card-foreground: 210 40% 98%;
   --popover: 222.2 84% 4.9%;
   --popover-foreground: 210 40% 98%;
-  --primary: 210 40% 60%;        /* Power Blue Light */
+  --primary: 210 40% 98%;
   --primary-foreground: 222.2 47.4% 11.2%;
   --secondary: 217.2 32.6% 17.5%;
   --secondary-foreground: 210 40% 98%;
@@ -287,7 +295,73 @@ npx shadcn@latest add badge avatar progress
 }
 ```
 
-#### 3-2. カラーパレットの説明
+#### 3-2. セマンティックカラーの定義
+
+**用途別のカラー設定:**
+
+| 用途 | カラー | Tailwind クラス |
+|------|--------|-----------------|
+| 成功・完了 | Green | `text-green-600` `bg-green-50` `dark:bg-green-950/20` |
+| 進行中 | Blue | `text-blue-600` `bg-blue-50` `dark:bg-blue-950/20` |
+| 警告 | Yellow | `text-yellow-600` `bg-yellow-50` `dark:bg-yellow-950/20` |
+| エラー・遅延 | Red | `text-red-600` `bg-red-50` `dark:bg-red-950/20` |
+| 進捗率 | Purple | `text-purple-600` `bg-purple-50` `dark:bg-purple-950/20` |
+| 情報 | Muted | `text-muted-foreground` `bg-muted` |
+
+**ダークモード対応の例:**
+```tsx
+// ライト・ダーク両対応のバッジ
+<div className="bg-green-50 dark:bg-green-950/20">
+  <span className="text-green-600 dark:text-green-400">完了</span>
+</div>
+```
+
+#### 3-3. タイポグラフィシステム
+
+**見出しスタイル:**
+```tsx
+// ページタイトル (h1)
+<h1 className="text-3xl font-bold text-foreground">
+  ページタイトル
+</h1>
+
+// セクションタイトル (h2)
+<h2 className="text-2xl font-semibold text-foreground">
+  セクションタイトル
+</h2>
+
+// カードタイトル (h3)
+<h3 className="text-lg font-semibold text-foreground">
+  カードタイトル
+</h3>
+
+// サイドメニューセクションヘッダー
+<h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
+  セクション名
+</h3>
+```
+
+**本文スタイル:**
+```tsx
+// 通常テキスト
+<p className="text-base text-foreground">通常の本文</p>
+
+// 小さいテキスト（補足情報）
+<p className="text-sm text-muted-foreground">補足情報</p>
+
+// 極小テキスト（ラベル）
+<p className="text-xs text-muted-foreground">ラベル</p>
+```
+
+#### 3-4. スペーシングシステム
+
+**一貫したスペーシング:**
+- `space-y-2`: 要素間の小さい間隔（8px）
+- `space-y-4`: 要素間の中間隔（16px）
+- `space-y-6`: 要素間の大きい間隔（24px）
+- `gap-4`: グリッドアイテム間の間隔（16px）
+- `p-4`: パディング（16px）
+- `p-6`: 大きめのパディング（24px）
 
 **Power Platform公式カラー:**
 
@@ -314,112 +388,504 @@ npx shadcn@latest add badge avatar progress
 
 ---
 
-### **Step 4: 統合レイアウトコンポーネント**
+### **Step 4: レイアウトコンポーネント実装**
 
-#### 4-1. MainLayout.tsxを作成
+このステップでは、CommonHeader、SideMenu、MainLayoutの3つのレイアウトコンポーネントを実装します。
 
-**ファイルパス:** `src/components/Layout/MainLayout.tsx`
+#### 4-1. 基本レイアウト構造
 
-```typescript
+**推奨レイアウト構成:**
+```
+┌─────────────────────────────────────────────────────┐
+│ CommonHeader (固定ヘッダー - 64px)                   │
+├──────────┬──────────────────────────────────────────┤
+│          │                                          │
+│ SideMenu │ Main Content Area                        │
+│ (256px)  │ (動的コンテンツ)                          │
+│          │                                          │
+│          │                                          │
+└──────────┴──────────────────────────────────────────┘
+```
+
+**重要な寸法:**
+
+| 要素 | 高さ/幅 | クラス |
+|------|---------|--------|
+| ヘッダー | 64px (h-16) | `h-16` |
+| サイドメニュー | 256px | `w-64` |
+| メインコンテンツの高さ | calc(100vh - 4rem) | `h-[calc(100vh-4rem)]` |
+| メインコンテンツのトップ余白 | 64px (pt-16) | `pt-16` |
+
+#### 4-2. CommonHeader コンポーネント
+
+**ファイルパス:** `src/components/Layout/CommonHeader.tsx`
+
+```tsx
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Menu } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
-export default function MainLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen bg-background">
-      {/* ヘッダー */}
-      <header className="border-b bg-primary/5 px-6 py-4">
-        <div className="flex items-center gap-3">
-          {/* アプリロゴ表示 */}
-          <img 
-            src="/assets/logo.svg" 
-            alt="App Logo" 
-            className="h-8 w-8"
-            onError={(e) => {
-              // SVGが見つからない場合、PNGにフォールバック
-              (e.target as HTMLImageElement).src = "/assets/logo.png";
-            }}
-          />
-          <h1 className="text-xl font-semibold text-primary">
-            Power Apps Code App
-          </h1>
-        </div>
-      </header>
-
-      {/* メインコンテンツ */}
-      <main className="container mx-auto p-6">
-        <Card className="p-6">
-          {children}
-        </Card>
-      </main>
-
-      {/* フッター（オプション） */}
-      <footer className="border-t py-4 text-center text-sm text-muted-foreground">
-        © 2024 Power Apps Code App
-      </footer>
-    </div>
-  );
+interface CommonHeaderProps {
+  onMenuToggle: () => void;
+  title?: string;
+  subtitle?: string;
 }
-```
 
-#### 4-2. レイアウトのカスタマイズ
-
-**サイドバー付きレイアウト:**
-```typescript
-export default function MainLayout({ children }: { children: React.ReactNode }) {
+export const CommonHeader: React.FC<CommonHeaderProps> = ({
+  onMenuToggle,
+  title = "アプリ名",
+  subtitle = "説明"
+}) => {
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* サイドバー */}
-      <aside className="w-64 border-r bg-card p-4">
-        <nav className="space-y-2">
-          <Button variant="ghost" className="w-full justify-start">
-            ホーム
-          </Button>
-          <Button variant="ghost" className="w-full justify-start">
-            データ管理
-          </Button>
-        </nav>
-      </aside>
-
-      {/* メインエリア */}
-      <div className="flex-1">
-        <header className="border-b px-6 py-4">
-          <h1 className="text-xl font-semibold">Power Apps</h1>
-        </header>
-        <main className="p-6">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
-}
-```
-
-**レスポンシブレイアウト:**
-```typescript
-export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b px-4 py-3 md:px-6 md:py-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-lg md:text-xl font-semibold">Power Apps</h1>
-          
-          {/* モバイルメニューボタン */}
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur-md supports-[backdrop-filter]:bg-card/80 shadow-sm">
+      <div className="flex h-16 items-center justify-between px-4 md:px-6">
+        {/* 左側: メニューボタン + タイトル */}
+        <div className="flex items-center space-x-4">
           <Button 
             variant="ghost" 
             size="icon"
-            className="md:hidden"
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            onClick={onMenuToggle}
           >
             <Menu className="h-5 w-5" />
           </Button>
+          <div className="flex flex-col">
+            <span className="font-semibold text-foreground">{title}</span>
+            <span className="text-xs text-muted-foreground">{subtitle}</span>
+          </div>
         </div>
-      </header>
 
-      <main className="container mx-auto px-4 py-6 md:px-6">
-        {children}
+        {/* 右側: テーマトグル + プロフィール */}
+        <div className="flex items-center space-x-2">
+          <ThemeToggle />
+          <Avatar className="h-8 w-8">
+            <AvatarImage src="/assets/avatar.png" />
+            <AvatarFallback>U</AvatarFallback>
+          </Avatar>
+        </div>
+      </div>
+    </header>
+  );
+};
+```
+
+**特徴:**
+- **固定位置**: `sticky top-0 z-50`
+- **半透明背景**: `bg-card/95 backdrop-blur-md`
+- **ガラスモーフィズム効果**: `backdrop-blur-md`
+- **影**: `shadow-sm`
+
+#### 4-3. SideMenu コンポーネント
+
+**ファイルパス:** `src/components/Layout/SideMenu.tsx`
+
+```tsx
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { Home, Users, Settings, FileText } from 'lucide-react';
+
+interface SideMenuProps {
+  isOpen: boolean;
+  onClose?: () => void;
+}
+
+export const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
+  return (
+    <aside className={cn(
+      "fixed left-0 top-16 h-[calc(100vh-4rem)] bg-card border-r border-border transition-all duration-300 z-40",
+      isOpen ? "w-64" : "w-0"
+    )}>
+      <div className={cn("h-full flex flex-col overflow-y-auto", !isOpen && "hidden")}>
+        <div className="flex-1">
+          <div className="p-4 space-y-6">
+            {/* ホームセクション */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
+                ホーム
+              </h3>
+              <Button variant="ghost" className="w-full justify-start">
+                <Home className="h-4 w-4 mr-2" />
+                ダッシュボード
+              </Button>
+            </div>
+
+            {/* プロジェクトセクション */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
+                プロジェクト
+              </h3>
+              <Button variant="ghost" className="w-full justify-start">
+                <FileText className="h-4 w-4 mr-2" />
+                タスク一覧
+              </Button>
+              <Button variant="ghost" className="w-full justify-start">
+                <Users className="h-4 w-4 mr-2" />
+                メンバー
+              </Button>
+            </div>
+
+            {/* その他セクション */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
+                その他
+              </h3>
+              <Button variant="ghost" className="w-full justify-start">
+                <Settings className="h-4 w-4 mr-2" />
+                設定
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* フッター */}
+        <div className="border-t border-border p-4">
+          <div className="text-xs text-muted-foreground">
+            <div className="font-semibold">アプリ名</div>
+            <div>v1.0.0</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+};
+```
+
+**特徴:**
+- **固定位置**: `fixed left-0 top-16`
+- **アニメーション**: `transition-all duration-300`
+- **開閉制御**: `w-64` / `w-0`
+- **セクション分け**: ホーム、プロジェクト、その他
+
+#### 4-4. MainLayout 統合コンポーネント
+
+**ファイルパス:** `src/components/Layout/MainLayout.tsx`
+
+```tsx
+import { useState } from 'react';
+import { CommonHeader } from './CommonHeader';
+import { SideMenu } from './SideMenu';
+import { cn } from '@/lib/utils';
+
+interface MainLayoutProps {
+  children: React.ReactNode;
+}
+
+export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* ヘッダー */}
+      <CommonHeader 
+        onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+        title="アプリ名"
+        subtitle="サブタイトル"
+      />
+
+      {/* サイドメニュー */}
+      <SideMenu 
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+
+      {/* メインコンテンツ */}
+      <main className={cn(
+        "transition-all duration-300 pt-16",
+        sidebarOpen ? "ml-64" : "ml-0"
+      )}>
+        <div className="h-[calc(100vh-4rem)] overflow-y-auto">
+          <div className="container mx-auto p-6">
+            {children}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+```
+
+---
+
+### **Step 5: ダークモード・ライトモード対応**
+
+このステップでは、ThemeContext、ThemeProvider、ThemeToggleコンポーネントを実装してテーマ切り替え機能を追加します。
+
+#### 5-1. ThemeContext の作成
+
+**ファイルパス:** `src/contexts/ThemeContext.tsx`
+
+```tsx
+import React, { createContext, useContext, useEffect, useState } from 'react';
+
+type Theme = 'dark' | 'light' | 'system';
+
+type ThemeProviderProps = {
+  children: React.ReactNode;
+  defaultTheme?: Theme;
+  storageKey?: string;
+};
+
+type ThemeProviderState = {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+};
+
+const initialState: ThemeProviderState = {
+  theme: 'system',
+  setTheme: () => null,
+};
+
+const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
+
+export function ThemeProvider({
+  children,
+  defaultTheme = 'system',
+  storageKey = 'code-app-ui-theme',
+  ...props
+}: ThemeProviderProps) {
+  const [theme, setTheme] = useState<Theme>(
+    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
+  );
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light';
+      root.classList.add(systemTheme);
+      return;
+    }
+
+    root.classList.add(theme);
+  }, [theme]);
+
+  const value = {
+    theme,
+    setTheme: (theme: Theme) => {
+      localStorage.setItem(storageKey, theme);
+      setTheme(theme);
+    },
+  };
+
+  return (
+    <ThemeProviderContext.Provider {...props} value={value}>
+      {children}
+    </ThemeProviderContext.Provider>
+  );
+}
+
+export const useTheme = () => {
+  const context = useContext(ThemeProviderContext);
+
+  if (context === undefined)
+    throw new Error('useTheme must be used within a ThemeProvider');
+
+  return context;
+};
+```
+
+#### 5-2. ThemeToggle コンポーネント
+
+**ファイルパス:** `src/components/ThemeToggle.tsx`
+
+```tsx
+import { Moon, Sun } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useTheme } from "@/contexts/ThemeContext";
+
+export function ThemeToggle() {
+  const { setTheme } = useTheme();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <span className="sr-only">テーマ切り替え</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => setTheme("light")}>
+          ライト
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("dark")}>
+          ダーク
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("system")}>
+          システム設定
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+```
+
+#### 5-3. App.tsx での統合
+
+**ファイルパス:** `src/App.tsx`
+
+```tsx
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import { Toaster } from "@/components/ui/toaster";
+import { MainLayout } from "@/components/Layout/MainLayout";
+import "./globals.css";
+
+const App = () => (
+  <ThemeProvider defaultTheme="system" storageKey="code-app-ui-theme">
+    <MainLayout>
+      {/* アプリのコンテンツ */}
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">ダッシュボード</h1>
+        <p className="text-muted-foreground">
+          Code Apps へようこそ
+        </p>
+      </div>
+    </MainLayout>
+    <Toaster />
+  </ThemeProvider>
+);
+
+export default App;
+```
+
+#### 5-4. テーマ対応のベストプラクティス
+
+**ダークモード対応のコンポーネント例:**
+```tsx
+// 成功バッジ（ライト・ダーク対応）
+<div className="bg-green-50 dark:bg-green-950/20">
+  <span className="text-green-600 dark:text-green-400">完了</span>
+</div>
+
+// 警告カード（ライト・ダーク対応）
+<Card className="border-yellow-200 dark:border-yellow-900">
+  <CardContent className="bg-yellow-50 dark:bg-yellow-950/20">
+    <p className="text-yellow-800 dark:text-yellow-200">警告メッセージ</p>
+  </CardContent>
+</Card>
+
+// プログレスバー（ライト・ダーク対応）
+<div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+  <div className="h-full bg-purple-600 dark:bg-purple-400 transition-all" style={{ width: '60%' }} />
+</div>
+```
+
+---
+
+### **Step 6: MVP機能実装**
+
+#### 6-1. ダッシュボードページの実装例
+
+**ファイルパス:** `src/pages/Dashboard.tsx`
+
+```tsx
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Users, CheckCircle, Clock, TrendingUp } from 'lucide-react';
+
+export const Dashboard = () => {
+  return (
+    <div className="space-y-6">
+      {/* ウェルカムメッセージ */}
+      <div>
+        <h1 className="text-3xl font-bold text-foreground">
+          ダッシュボード
+        </h1>
+        <p className="text-muted-foreground mt-2">
+          プロジェクトの概要と進捗状況
+        </p>
+      </div>
+
+      {/* 統計カードグリッド */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 総ユーザー数 */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">総ユーザー</p>
+                <p className="text-3xl font-bold">1,234</p>
+              </div>
+              <Users className="h-10 w-10 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 完了タスク */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">完了タスク</p>
+                <p className="text-3xl font-bold text-green-600">89</p>
+              </div>
+              <CheckCircle className="h-10 w-10 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 進行中タスク */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">進行中</p>
+                <p className="text-3xl font-bold text-blue-600">45</p>
+              </div>
+              <Clock className="h-10 w-10 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 進捗率 */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">進捗率</p>
+                <p className="text-3xl font-bold text-purple-600">78%</p>
+              </div>
+              <TrendingUp className="h-10 w-10 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* プロジェクトリスト */}
+      <Card>
+        <CardHeader>
+          <CardTitle>最近のプロジェクト</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
+                <h3 className="font-semibold">プロジェクト {i}</h3>
+                <p className="text-sm text-muted-foreground">説明テキスト...</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+```
+
+---
+
+### **Step 7: エラーチェック**
       </main>
     </div>
   );
@@ -503,6 +969,30 @@ import './globals.css'  // App.tsxでインポートする場合
 
 ---
 
+### **Step 7: エラーチェック**
+
+**必須チェック項目:**
+
+```bash
+# TypeScript型チェック
+npm run build
+
+# ESLint チェック
+npm run lint
+
+# ローカル起動確認
+npm run dev
+```
+
+**チェックポイント:**
+- ✅ TypeScript エラーが0件
+- ✅ ESLint 警告・エラーが0件
+- ✅ ビルドが成功する
+- ✅ ローカルで正しく表示される
+- ✅ ダークモード切り替えが機能する
+
+---
+
 ## ✅ Phase 2 完了チェックリスト
 
 ### ロゴ・アセット
@@ -514,41 +1004,69 @@ import './globals.css'  // App.tsxでインポートする場合
 - [ ] `npx shadcn@latest init` が完了している
 - [ ] `tailwind.config.js` が生成されている
 - [ ] `components.json` が生成されている
-- [ ] 基本UIコンポーネント（button, card等）が追加されている
+- [ ] 基本UIコンポーネント（button, card, avatar, dialog等）が追加されている
 
-### スタイル設定
-- [ ] `src/globals.css` にPower Appsカラーパレットが設定されている
+### デザインシステム統合
+- [ ] `src/globals.css` にカラーシステムが設定されている
 - [ ] TailwindCSSのディレクティブ（@tailwind）が記述されている
 - [ ] CSS変数がライトモード・ダークモード両方で定義されている
+- [ ] セマンティックカラーが適切に使用されている
 
-### コンポーネント
+### レイアウトコンポーネント
+- [ ] `src/contexts/ThemeContext.tsx` が作成されている
+- [ ] `src/components/ThemeToggle.tsx` が作成されている
+- [ ] `src/components/Layout/CommonHeader.tsx` が作成されている
+- [ ] `src/components/Layout/SideMenu.tsx` が作成されている
 - [ ] `src/components/Layout/MainLayout.tsx` が作成されている
-- [ ] レイアウトにロゴが表示される
-- [ ] ヘッダー・メイン・フッター構造が実装されている
+- [ ] ヘッダーにテーマ切り替えボタンが配置されている
+- [ ] サイドメニューの開閉が機能する
+
+### ダークモード対応
+- [ ] ThemeProvider が App.tsx でラップされている
+- [ ] テーマ切り替えボタンがヘッダーに表示される
+- [ ] ライト・ダーク・システム設定の3つのオプションが選択できる
+- [ ] テーマ設定がローカルストレージに保存される
+- [ ] すべてのコンポーネントがダークモード対応している
 
 ### アプリ統合
-- [ ] `src/App.tsx` が `MainLayout` を使用している
+- [ ] `src/App.tsx` が `ThemeProvider` と `MainLayout` を使用している
 - [ ] `globals.css` がインポートされている
 - [ ] shadcn/uiコンポーネントが使用されている
+- [ ] MVPとして最小限の機能が実装されている
 
 ### 動作確認
 - [ ] `npm run dev` でローカル起動できる
 - [ ] デザインが正しく表示される
-- [ ] Power Appsカラーが適用されている
-- [ ] レスポンシブデザインが機能する
+- [ ] ダークモード・ライトモード切り替えが機能する
+- [ ] レスポンシブデザインが機能する（モバイル・タブレット・デスクトップ）
+- [ ] ヘッダーが固定表示される
+- [ ] サイドメニューがスムーズに開閉する
 
 ### ビルド確認
 - [ ] `npm run build` が成功する
 - [ ] `npm run lint` でエラーが表示されない
+- [ ] TypeScript型エラーが0件
+- [ ] PowerProvider.tsxは変更していない
+
+### デザイン品質確認
+- [ ] カラーシステムが一貫して使用されている
+- [ ] タイポグラフィが統一されている
+- [ ] スペーシングが適切に設定されている
+- [ ] ホバー・フォーカス状態が実装されている
+- [ ] アニメーション・トランジションがスムーズ
 
 ---
 
 ## 📚 関連リファレンス
 
-- **[ロゴ実装マスターガイド](./LOGO_MASTER_GUIDE.md)** - ロゴの詳細実装
-- **[ロゴ表示修正ガイド](./LOGO_DISPLAY_FIX.md)** - トラブルシューティング
+### ロゴ実装
+- **[LOGO_MASTER_GUIDE.md](./docs/LOGO_MASTER_GUIDE.md)** - ロゴの詳細実装
+- **[LOGO_DISPLAY_FIX.md](./docs/LOGO_DISPLAY_FIX.md)** - トラブルシューティング
+
+### 外部ドキュメント
 - [shadcn/ui 公式ドキュメント](https://ui.shadcn.com/)
 - [TailwindCSS 公式ドキュメント](https://tailwindcss.com/)
+- [Lucide Icons](https://lucide.dev/)
 
 ---
 
@@ -558,88 +1076,105 @@ Phase 2が完了したら、次は **Phase 3: Power Apps環境からローカル
 
 👉 **[Phase 3 リファレンス](./PHASE3_LOCAL_TESTING.md)** に進む
 
-> **参照**: デザインシステムの詳細設定は **Phase 2: UI基盤・デザインシステム・MVP構築** セクションの統合版をご確認ください。
+---
 
-**統一設定概要**:
-- **shadcn/ui + TailwindCSS**: 推奨デザインシステム
-- **Power Platform カラーパレット**: 公式ブランド色対応
-- **ダークモード対応**: CSS変数による統合テーマ
+## 💡 ベストプラクティス
 
-**クイック参照**:
-          100: '#dcfce7',
-          500: '#22c55e',
-          600: '#16a34a',
-          900: '#14532d',
-        },
-        warning: {
-          50: '#fffbeb',
-          100: '#fef3c7',
-          500: '#f59e0b',
-          600: '#d97706',
-          900: '#78350f',
-        },
-        error: {
-          50: '#fef2f2',
-          100: '#fee2e2',
-          500: '#ef4444',
-          600: '#dc2626',
-          900: '#7f1d1d',
-        },
-        // UI カラー (shadcn/ui 準拠)
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        card: 'hsl(var(--card))',
-        'card-foreground': 'hsl(var(--card-foreground))',
-        popover: 'hsl(var(--popover))',
-        'popover-foreground': 'hsl(var(--popover-foreground))',
-        primary: 'hsl(var(--primary))',
-        'primary-foreground': 'hsl(var(--primary-foreground))',
-        secondary: 'hsl(var(--secondary))',
-        'secondary-foreground': 'hsl(var(--secondary-foreground))',
-        muted: 'hsl(var(--muted))',
-        'muted-foreground': 'hsl(var(--muted-foreground))',
-        accent: 'hsl(var(--accent))',
-        'accent-foreground': 'hsl(var(--accent-foreground))',
-        destructive: 'hsl(var(--destructive))',
-        'destructive-foreground': 'hsl(var(--destructive-foreground))',
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-      },
-    },
-  },
-}
-```
+### 1. デザインの一貫性
+- **カラー**: セマンティックカラーを統一して使用
+- **タイポグラフィ**: 見出しレベルを適切に使用
+- **スペーシング**: `space-y-*` や `gap-*` を一貫して使用
+- **コンポーネント**: shadcn/uiコンポーネントを優先使用
 
-### タイポグラフィシステム
+### 2. ダークモード対応
+- すべての新規コンポーネントで `dark:` プレフィックスを使用
+- カラーは必ずライト・ダークの両方を定義
+- テストはライトモード・ダークモードの両方で実施
 
-**フォント階層とスケール:**
-```javascript
-// tailwind.config.js
-module.exports = {
-  theme: {
-    extend: {
-      fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Menlo', 'Monaco', 'monospace'],
-      },
-      fontSize: {
-        'xs': ['0.75rem', { lineHeight: '1rem' }],
-        'sm': ['0.875rem', { lineHeight: '1.25rem' }],
-        'base': ['1rem', { lineHeight: '1.5rem' }],
-        'lg': ['1.125rem', { lineHeight: '1.75rem' }],
-        'xl': ['1.25rem', { lineHeight: '1.75rem' }],
-        '2xl': ['1.5rem', { lineHeight: '2rem' }],
-        '3xl': ['1.875rem', { lineHeight: '2.25rem' }],
-        '4xl': ['2.25rem', { lineHeight: '2.5rem' }],
-        '5xl': ['3rem', { lineHeight: '1' }],
-        '6xl': ['3.75rem', { lineHeight: '1' }],
-      },
-      fontWeight: {
-        light: '300',
-        normal: '400',
-        medium: '500',
-        semibold: '600',
+### 3. レスポンシブデザイン
+- モバイルファーストで設計
+- ブレークポイント: `md:` (768px), `lg:` (1024px), `xl:` (1280px)
+- グリッドレイアウトで柔軟な配置
+
+### 4. パフォーマンス
+- 画像は最適化されたサイズを使用
+- 不要なコンポーネントの再レンダリングを避ける
+- ローディング状態を適切に表示
+
+### 5. アクセシビリティ
+- 適切な `aria-label` を設定
+- キーボードナビゲーションをサポート
+- 色だけに頼らない情報伝達
+
+---
+
+## 🎨 デザインシステムのカスタマイズ
+
+プロジェクト固有のデザイン要件がある場合は、本ドキュメントのデザインシステムをベースにカスタマイズしてください。
+
+**カスタマイズ可能な要素:**
+- プライマリカラー
+- フォントファミリー
+- ボーダー半径
+- シャドウ深度
+- アニメーション速度
+
+**カスタマイズ手順:**
+1. `globals.css` の CSS変数を編集
+2. `tailwind.config.js` でTailwind設定を拡張
+3. コンポーネントで新しい値を使用
+4. ライト・ダークモード両方で動作確認
+
+---
+
+🎉 **Phase 2完了おめでとうございます！**
+
+モダンで美しく、実用的なデザインシステムが構築されました。次は Phase 3 でローカル環境でのテストとデバッグに進みましょう！
+
+---
+
+## � 補足: DESIGN_GUIDEの重要トピック
+
+Phase 2の実装を完了したら、以下のDESIGN_GUIDEのトピックも参照してください:
+
+### 🎯 UI インタラクション設計
+
+**モーダル優先設計:**
+- ❌ `window.alert()`, `window.confirm()`, `window.prompt()` は使用禁止
+- ✅ shadcn/ui Dialog コンポーネントを必須使用
+- 詳細: [DESIGN_GUIDE.md - UI インタラクション設計](./docs/DESIGN_GUIDE.md#-ui-インタラクション設計)
+
+### 📊 統計カード・データ表示
+
+**実装パターン:**
+- 統計カード (KPI表示)
+- データテーブル
+- リストアイテム
+- チャートコンテナ
+
+詳細: [DESIGN_GUIDE.md - コンポーネント](./docs/DESIGN_GUIDE.md#コンポーネント)
+
+### 📁 CSVインポート要件
+
+Ganttプロジェクトで確立されたCSVインポート機能を実装する場合:
+- テンプレート構造
+- バリデーションルール
+- インポートフロー
+- 運用上の注意
+
+詳細: [DESIGN_GUIDE.md - CSVインポート要件](./docs/DESIGN_GUIDE.md#csvインポート要件)
+
+### 🎨 アニメーション・トランジション
+
+- フェードイン・スライドイン効果
+- スムーズなトランジション
+- ローディングインジケーター
+
+詳細: [DESIGN_GUIDE.md - アニメーション](./docs/DESIGN_GUIDE.md#アニメーション)
+
+---
+
+**次のステップ:** Phase 3でローカル環境でのテストとDataverse統合を進めましょう！
         bold: '700',
         extrabold: '800',
       },

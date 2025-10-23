@@ -59,18 +59,131 @@ npm run build && npm run lint
 
 ## 🎯 Phase 5の目標
 
-```mermaid
-graph LR
-    A[コネクタ接続] --> B[機能実装]
-    B --> C[テスト・デプロイ]
-    C --> D[拡張完了]
-```
+**Phase 5では、モックデータから実データへの完全移行を実現します。**
 
 **完了条件:**
 - ✅ データソースが正常に接続されている
 - ✅ Dataverseテーブルからデータを取得できる
 - ✅ CRUD操作が正常に動作する
 - ✅ エラーハンドリングが適切に実装されている
+- ✅ モックデータが完全に削除されている
+
+---
+
+## 🏗️ リアルデータ接続のアーキテクチャ
+
+### アーキテクチャ概要
+
+Power Apps Code Appsにおける実データ接続は、以下の4つのステップで実現されます。
+
+```mermaid
+graph TB
+    subgraph "Step 1: 接続ID取得"
+        A1[Power Appsポータル] --> A2[コネクター接続作成]
+        A2 --> A3[URLから接続IDコピー]
+    end
+    
+    subgraph "Step 2: スキーマ取得"
+        B1[ソリューションエクスポート] --> B2[customization.xmlを抽出]
+        B2 --> B3[ワークスペースルートに配置]
+    end
+    
+    subgraph "Step 3: サービスクラス生成"
+        C1[pac code add-data-source] --> C2[TypeScript型定義生成]
+        C2 --> C3[Power Apps SDK統合]
+    end
+    
+    subgraph "Step 4: データ統合"
+        D1[モックデータ削除] --> D2[サービスクラス呼び出し]
+        D2 --> D3[Dataverseデータ表示]
+    end
+    
+    A3 --> C1
+    B3 --> C1
+    C3 --> D1
+    
+    style A3 fill:#e3f2fd
+    style B3 fill:#e8f5e9
+    style C3 fill:#fff3e0
+    style D3 fill:#f3e5f5
+```
+
+### データフロー
+
+```mermaid
+sequenceDiagram
+    participant User as ユーザー
+    participant Portal as Power Appsポータル
+    participant CLI as PAC CLI
+    participant App as Code Apps
+    participant SDK as Power Apps SDK
+    participant DV as Dataverse
+    
+    User->>Portal: 1. コネクター接続作成
+    Portal-->>User: 接続ID (URLから取得)
+    
+    User->>Portal: 2. ソリューションエクスポート
+    Portal-->>User: customization.xml
+    
+    User->>CLI: 3. pac code add-data-source
+    Note over CLI: 接続ID + customization.xml使用
+    CLI-->>App: TypeScriptサービスクラス生成
+    
+    User->>App: 4. モックデータ削除
+    App->>SDK: サービスクラス経由でデータ要求
+    SDK->>DV: OData APIリクエスト
+    DV-->>SDK: データ返却
+    SDK-->>App: TypeScript型付きデータ
+    App-->>User: UIに実データ表示
+```
+
+### 4ステップの詳細
+
+| ステップ | 実施内容 | 成果物 | 所要時間 |
+|---------|---------|-------|---------|
+| **1. 接続ID取得** | Power Appsポータルで手動接続作成 → URLから接続IDをコピー | 接続ID (GUID形式) | 2-3分 |
+| **2. スキーマ取得** | ソリューションをエクスポート → customization.xmlをワークスペースルートに配置 | customization.xml | 5分 |
+| **3. サービスクラス生成** | `pac code add-data-source` 実行 → Power Apps SDKベースのTypeScriptコード自動生成 | サービスクラス (.ts) | 1-2分 |
+| **4. データ統合** | モックデータ削除 → サービスクラス呼び出しでDataverseデータ取得 | 実データ表示 | 10-30分 |
+
+### 重要な技術要素
+
+#### Power Apps SDK の役割
+
+```typescript
+// Power Apps SDKが提供する主要な機能
+import { usePowerPlatform } from '@microsoft/power-apps';
+import type { IOperationResult } from '@microsoft/power-apps/data';
+
+// 1. SDK初期化状態の確認
+const { isInitialized } = usePowerPlatform();
+
+// 2. サービスクラスを通じたデータアクセス
+const result: IOperationResult<SystemUsers[]> = await SystemUsersService.getAll({
+  select: ['systemuserid', 'fullname'],
+  filter: 'isdisabled eq false'
+});
+
+// 3. 型安全なエラーハンドリング
+if (result.isSuccess && result.value) {
+  // データ取得成功
+  console.log(result.value);
+} else {
+  // エラー処理
+  console.error(result.error);
+}
+```
+
+#### customization.xml の重要性
+
+`customization.xml` には以下の重要なスキーマ情報が含まれています:
+
+- **テーブル定義**: 論理名、物理名、主キー
+- **フィールド定義**: データ型、必須/任意、最大長
+- **Choice値**: オプションセットの値とラベル
+- **リレーションシップ**: Lookup/1対多/多対多の関係
+
+この情報を基に、`pac code add-data-source` がTypeScript型定義を自動生成します。
 
 ---
 
@@ -128,60 +241,280 @@ export function App() {
 
 ## 📝 Phase 5の実装手順
 
-### Step 1: データソース接続の準備
+### Step 1: 接続IDの取得
 
-> **📘 詳細リファレンス**  
-> Dataverseスキーマの取得方法は **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** を参照してください。
+**Power Appsポータルで接続を作成し、URLから接続IDを取得します。**
 
-**1-1. 接続の手動作成**
+#### 1-1. Power Appsポータルで接続を作成
 
-Power Appsポータルでコネクター接続を作成します。
+1. **Power Apps Maker Portalにアクセス**
+   ```
+   https://make.powerapps.com
+   ```
 
-1. [Power Apps](https://make.powerapps.com) にアクセス
-2. 左メニュー →「接続」
-3. 「+新しい接続」をクリック
-4. 使用するコネクター（Dataverse等）を選択
-5. 認証情報を入力して接続を作成
+2. **環境を選択**
+   - 画面右上で適切な環境を選択
 
-**1-2. 接続IDの取得**
+3. **接続ページに移動**
+   - 左側メニュー: **データ** → **接続**
 
-```bash
+4. **新しい接続を作成**
+   - 「**+ 新しい接続**」ボタンをクリック
+   - 検索ボックスで「**Dataverse**」を検索
+   - 「**Microsoft Dataverse**」を選択
+   - 「**作成**」ボタンをクリック
+
+5. **認証完了を確認**
+   - サインインが求められた場合は認証を完了
+   - 接続が作成されると「接続」ページに表示されます
+
+#### 1-2. URLから接続IDを取得 ⭐重要
+
+接続IDは**ブラウザのURLから直接取得**します。
+
+**手順:**
+
+1. 作成した接続をクリックして詳細ページを開く
+2. ブラウザのアドレスバーのURLを確認
+3. URLの末尾にあるGUID形式の文字列が接続ID
+
+**URLの例:**
+```
+https://make.powerapps.com/environments/12345678-abcd-1234-abcd-123456789012/connections/shared_commondataserviceforapps/a1b2c3d4-e5f6-7890-abcd-ef1234567890/details
+                                                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                                                                                              これが接続ID
+```
+
+**接続IDのフォーマット:**
+```
+a1b2c3d4-e5f6-7890-abcd-ef1234567890
+```
+
+**📋 接続IDをメモ帳にコピーしてください。Step 3で使用します。**
+
+#### 1-3. (代替方法) PAC CLIでの確認
+
+コマンドラインで接続を確認することもできます:
+
+```powershell
 # 接続一覧を表示
 pac connector list
 
 # 出力例:
-# Connector Display Name: Dataverse
+# Connector Display Name: Microsoft Dataverse
 # Connector Name: shared_commondataserviceforapps  
-# Connection Id: 12345678-90ab-cdef-1234-567890abcdef
+# Connection Id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
 ```
 
-### Step 2: データソース追加コマンド実行
+> **💡 ヒント**: URLからの取得が最も確実な方法です。
 
-```bash
-# Dataverse接続を追加
-pac code add-data-source \
-  --connector "shared_commondataserviceforapps" \
-  --connection-id "<接続ID>"
+---
 
-# 実行例:
-pac code add-data-source \
-  --connector "shared_commondataserviceforapps" \
-  --connection-id "12345678-90ab-cdef-1234-567890abcdef"
+### Step 2: Dataverseスキーマの取得
+
+**ソリューションファイルから `customization.xml` を取得し、ワークスペースのルートフォルダに配置します。**
+
+> **📘 詳細リファレンス**  
+> Dataverseスキーマの取得方法の詳細は **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./docs/HOW_TO_GET_DATAVERSE_SCHEMA.md)** を参照してください。
+
+#### 2-1. ソリューションのエクスポート
+
+1. **Power Apps Maker Portalにアクセス**
+   ```
+   https://make.powerapps.com
+   ```
+
+2. **ソリューションページに移動**
+   - 左側メニュー: **ソリューション**
+
+3. **対象のソリューションを選択**
+   - 使用するテーブルが含まれているソリューションを選択
+   - カスタムテーブルを使用する場合は、そのテーブルを含むソリューションを選択
+
+4. **ソリューションをエクスポート**
+   - ソリューションを選択した状態で「**エクスポート**」をクリック
+   - 「**アンマネージド**」を選択
+   - 「**エクスポート**」ボタンをクリック
+
+5. **ZIPファイルをダウンロード**
+   - エクスポートが完了すると、ZIPファイルがダウンロードされます
+
+#### 2-2. customization.xml の抽出
+
+1. **ZIPファイルを解凍**
+   - ダウンロードしたZIPファイルを解凍
+
+2. **customization.xml を見つける**
+   ```
+   解凍フォルダ/
+   └── Customizations/
+       └── customization.xml  ← これをコピー
+   ```
+
+3. **ワークスペースのルートに配置** ⭐重要
+   ```
+   YourCodeAppsProject/    ← ワークスペースルート
+   ├── customization.xml   ← ここに配置
+   ├── src/
+   ├── public/
+   ├── package.json
+   └── vite.config.ts
+   ```
+
+**配置コマンド例 (PowerShell):**
+```powershell
+# ダウンロードフォルダからコピー
+Copy-Item "C:\Users\YourName\Downloads\ExtractedSolution\Customizations\customization.xml" -Destination ".\customization.xml"
+
+# 配置確認
+Get-Item .\customization.xml
 ```
 
-**生成されるファイル:**
+#### 2-3. customization.xml の内容確認
+
+ファイルには以下のような情報が含まれています:
+
+```xml
+<ImportExportXml>
+  <Entities>
+    <Entity Name="geek_project_task">
+      <EntityInfo>
+        <entity Name="geek_project_task">
+          <LocalizedNames>
+            <LocalizedName description="プロジェクトタスク" languagecode="1041" />
+          </LocalizedNames>
+          <attributes>
+            <attribute PhysicalName="geek_name" LogicalName="geek_name" Type="nvarchar" />
+            <attribute PhysicalName="geek_assignedto" LogicalName="geek_assignedto" Type="lookup" />
+          </attributes>
+        </entity>
+      </EntityInfo>
+    </Entity>
+  </Entities>
+</ImportExportXml>
+```
+
+この情報を基に、次のStepでTypeScript型定義が生成されます。
+
+---
+
+### Step 3: サービスクラスの生成
+
+**`pac code add-data-source` コマンドで、Power Apps SDKベースのTypeScriptサービスクラスを自動生成します。**
+
+#### 3-1. データソース追加コマンド実行
+
+**基本コマンド:**
+```powershell
+pac code add-data-source `
+  --connector "shared_commondataserviceforapps" `
+  --connection-id "<Step 1で取得した接続ID>"
+```
+
+**実行例:**
+```powershell
+pac code add-data-source `
+  --connector "shared_commondataserviceforapps" `
+  --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+```
+
+**テーブルを指定する場合:**
+```powershell
+# SystemUsersテーブルのみ生成
+pac code add-data-source `
+  --connector "shared_commondataserviceforapps" `
+  --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
+  --table "systemusers"
+
+# カスタムテーブル (geek_project_task) を生成
+pac code add-data-source `
+  --connector "shared_commondataserviceforapps" `
+  --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
+  --table "geek_project_task"
+```
+
+#### 3-2. 生成されるファイル
+
+コマンド実行後、以下のファイルが自動生成されます:
+
 ```
 src/
 └── generated/
+    ├── models/
+    │   ├── SystemUsersModel.ts           # SystemUsers型定義
+    │   └── GeekProjectTasksModel.ts      # カスタムテーブル型定義
     └── services/
-        ├── SystemUsersService.ts      # SystemUsersテーブル用
-        ├── GeekProjectTasksService.ts # カスタムテーブル用
-        └── ...
+        ├── SystemUsersService.ts         # SystemUsersサービスクラス
+        └── GeekProjectTasksService.ts    # カスタムテーブルサービスクラス
 ```
 
-### Step 3: カスタムフックの作成
+#### 3-3. 生成されたコードの確認
 
-#### 3-1. 基本的なカスタムフック
+**Model例 (SystemUsersModel.ts):**
+```typescript
+export interface SystemUsers {
+  systemuserid: string;
+  fullname: string;
+  internalemailaddress: string;
+  isdisabled: boolean;
+  // ... 他のフィールド
+}
+```
+
+**Service例 (SystemUsersService.ts):**
+```typescript
+import { getClient } from '@microsoft/power-apps/data';
+import type { IOperationResult } from '@microsoft/power-apps/data';
+import type { SystemUsers } from '../models/SystemUsersModel';
+
+export class SystemUsersService {
+  static async getAll(options?: {
+    select?: string[];
+    filter?: string;
+    orderBy?: string;
+    top?: number;
+    expand?: Array<{ navigationProperty: string; select?: string[] }>;
+  }): Promise<IOperationResult<SystemUsers[]>> {
+    const client = getClient();
+    // Power Apps SDK経由でデータ取得
+    return await client.retrieveMultipleRecords('systemuser', options);
+  }
+
+  static async getById(id: string): Promise<IOperationResult<SystemUsers>> {
+    const client = getClient();
+    return await client.retrieveRecord('systemuser', id);
+  }
+
+  // ... create, update, delete メソッド
+}
+```
+
+#### 3-4. ビルドとLint確認
+
+生成されたコードをビルドして確認します:
+
+```powershell
+# ビルド
+npm run build
+
+# Lint確認
+npm run lint
+
+# 両方を実行
+npm run build; npm run lint
+```
+
+エラーがなければ、サービスクラスの生成は完了です。
+
+---
+
+---
+
+### Step 4: モックデータの削除とDataverseデータ統合
+
+**カスタムフックとReactコンポーネントを実装し、モックデータを完全に削除してDataverseの実データに接続します。**
+
+#### 4-1. カスタムフックの作成
 
 **ファイルパス:** `src/hooks/useSystemUsers.ts`
 
@@ -198,9 +531,9 @@ export const useSystemUsers = () => {
   const [error, setError] = useState<string | null>(null);
 
   const loadUsers = useCallback(async () => {
-    // ❌ 初期化前は実行しない
+    // ❌ SDK初期化前は実行しない
     if (!isInitialized) {
-      console.warn('SDK not initialized yet');
+      console.warn('Power Apps SDK not initialized yet');
       return;
     }
 
@@ -208,6 +541,7 @@ export const useSystemUsers = () => {
       setLoading(true);
       setError(null);
       
+      // ✅ Power Apps SDK経由でデータ取得
       const result = await SystemUsersService.getAll({
         select: ['systemuserid', 'fullname', 'internalemailaddress', 'isdisabled'],
         filter: 'isdisabled eq false',
@@ -215,10 +549,11 @@ export const useSystemUsers = () => {
         top: 100
       });
       
+      // ✅ IOperationResult で型安全なエラーハンドリング
       if (result.isSuccess && result.value) {
         setUsers(result.value);
       } else {
-        throw new Error('ユーザー一覧の取得に失敗しました');
+        throw new Error(result.error?.message || 'ユーザー一覧の取得に失敗しました');
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -246,10 +581,162 @@ export const useSystemUsers = () => {
 };
 ```
 
-#### 3-2. CRUD操作を含むカスタムフック
+**重要なポイント:**
+- ✅ `usePowerPlatform().isInitialized` でSDK初期化状態を確認
+- ✅ `IOperationResult.isSuccess` で型安全なエラーハンドリング
+- ✅ `useEffect` の依存配列に `isInitialized` を含める
+- ❌ 初期化前にサービスクラスのメソッドを呼び出さない
+
+#### 4-2. Reactコンポーネントでの使用
+
+**ファイルパス:** `src/pages/UsersPage.tsx`
 
 ```typescript
-export const useDataverseTable = <T>(serviceName: string) => {
+import { useSystemUsers } from '../hooks/useSystemUsers';
+import { Card } from '@/components/ui/card';
+
+export function UsersPage() {
+  const { users, loading, error, isInitialized } = useSystemUsers();
+
+  // 1. SDK初期化中の表示
+  if (!isInitialized) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Power Platform 初期化中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. データ読み込み中の表示
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4">ユーザー読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. エラー発生時の表示
+  if (error) {
+    return (
+      <Card className="p-6 bg-red-50 border-red-200">
+        <h3 className="text-red-800 font-semibold">エラーが発生しました</h3>
+        <p className="text-red-600">{error}</p>
+      </Card>
+    );
+  }
+
+  // 4. データ表示 (モックデータではなく実データ)
+  return (
+    <div className="space-y-4 p-6">
+      <h2 className="text-2xl font-bold">ユーザー一覧 (Dataverse)</h2>
+      <p className="text-sm text-muted-foreground">
+        全 {users.length} 件のユーザー
+      </p>
+      <div className="grid gap-4">
+        {users.map(user => (
+          <Card key={user.systemuserid} className="p-4">
+            <h3 className="font-semibold">{user.fullname}</h3>
+            <p className="text-sm text-muted-foreground">{user.internalemailaddress}</p>
+            <p className="text-xs text-muted-foreground">ID: {user.systemuserid}</p>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+#### 4-3. モックデータの完全削除
+
+以下のモックデータファイルを削除してください:
+
+**削除対象:**
+```
+src/
+├── data/
+│   ├── mockUsers.ts          ← 削除
+│   ├── mockTasks.ts          ← 削除
+│   └── mockData.json         ← 削除
+├── hooks/
+│   └── useMockData.ts        ← 削除 (Dataverse用のhookに置き換え)
+└── utils/
+    └── mockDataGenerator.ts  ← 削除
+```
+
+**削除コマンド (PowerShell):**
+```powershell
+# モックデータフォルダを削除
+Remove-Item -Path ".\src\data" -Recurse -Force
+
+# モック用のhookを削除 (必要に応じて)
+Remove-Item -Path ".\src\hooks\useMockData.ts" -Force
+```
+
+**App.tsxの更新例:**
+
+```typescript
+// ❌ Before: モックデータ使用
+import { mockUsers } from './data/mockUsers';
+
+function App() {
+  const [users] = useState(mockUsers);
+  // ...
+}
+
+// ✅ After: Dataverseデータ使用
+import { useSystemUsers } from './hooks/useSystemUsers';
+
+function App() {
+  const { users, loading, error, isInitialized } = useSystemUsers();
+  
+  if (!isInitialized) return <div>初期化中...</div>;
+  if (loading) return <div>読み込み中...</div>;
+  if (error) return <div>エラー: {error}</div>;
+  
+  // 実データを使用
+  return <div>{users.map(u => <div key={u.systemuserid}>{u.fullname}</div>)}</div>;
+}
+```
+
+#### 4-4. 動作確認
+
+1. **ローカルで確認**
+   ```powershell
+   npm run dev
+   ```
+   - ブラウザで http://localhost:5173 を開く
+   - Dataverseからデータが表示されることを確認
+
+2. **ブラウザコンソールで確認**
+   - F12を押して開発者ツールを開く
+   - Console タブで以下を確認:
+     ```
+     Power Apps SDK 初期化中...
+     Power Apps SDK initialized successfully
+     Fetched 10 SystemUsers from Dataverse
+     ```
+
+3. **エラーがないことを確認**
+   - コンソールにエラーが表示されていないこと
+   - データが正しく表示されていること
+
+#### 4-5. CRUD操作の実装 (必要に応じて)
+
+データの作成・更新・削除が必要な場合は、以下のように実装します:
+
+```typescript
+// hooks/useDataverseTable.ts
+export const useDataverseTable = <T>(
+  serviceName: string,
+  Service: any
+) => {
   const { isInitialized } = usePowerPlatform();
   const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(false);
@@ -262,15 +749,17 @@ export const useDataverseTable = <T>(serviceName: string) => {
     setLoading(true);
     try {
       const result = await Service.getAll(options);
-      if (result.isSuccess) {
+      if (result.isSuccess && result.value) {
         setItems(result.value);
+      } else {
+        throw new Error(result.error?.message || 'データ取得失敗');
       }
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
-  }, [isInitialized]);
+  }, [isInitialized, Service]);
 
   // 作成
   const createItem = useCallback(async (data: Partial<T>) => {
@@ -282,11 +771,12 @@ export const useDataverseTable = <T>(serviceName: string) => {
         await fetchItems(); // 再読み込み
         return result.value;
       }
+      throw new Error(result.error?.message || '作成失敗');
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      return null;
     }
-    return null;
-  }, [isInitialized, fetchItems]);
+  }, [isInitialized, fetchItems, Service]);
 
   // 更新
   const updateItem = useCallback(async (id: string, data: Partial<T>) => {
@@ -298,11 +788,12 @@ export const useDataverseTable = <T>(serviceName: string) => {
         await fetchItems(); // 再読み込み
         return true;
       }
+      throw new Error(result.error?.message || '更新失敗');
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      return false;
     }
-    return false;
-  }, [isInitialized, fetchItems]);
+  }, [isInitialized, fetchItems, Service]);
 
   // 削除
   const deleteItem = useCallback(async (id: string) => {
@@ -314,11 +805,12 @@ export const useDataverseTable = <T>(serviceName: string) => {
         await fetchItems(); // 再読み込み
         return true;
       }
+      throw new Error(result.error?.message || '削除失敗');
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      return false;
     }
-    return false;
-  }, [isInitialized, fetchItems]);
+  }, [isInitialized, fetchItems, Service]);
 
   useEffect(() => {
     if (isInitialized) {
@@ -339,131 +831,311 @@ export const useDataverseTable = <T>(serviceName: string) => {
 };
 ```
 
-### Step 4: Reactコンポーネントでの使用
-
-#### 4-1. 基本的な使用例
+**使用例:**
 
 ```typescript
-import { useSystemUsers } from '../hooks/useSystemUsers';
-import { Card } from '@/components/ui/card';
-
-export function UsersPage() {
-  const { users, loading, error, isInitialized } = useSystemUsers();
-
-  // SDK初期化中
-  if (!isInitialized) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Power Platform 初期化中...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // データ読み込み中
-  if (loading) {
-    return <div>ユーザー読み込み中...</div>;
-  }
-
-  // エラー発生
-  if (error) {
-    return (
-      <Card className="p-6 bg-red-50 border-red-200">
-        <h3 className="text-red-800 font-semibold">エラーが発生しました</h3>
-        <p className="text-red-600">{error}</p>
-      </Card>
-    );
-  }
-
-  // データ表示
-  return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold">ユーザー一覧</h2>
-      <div className="grid gap-4">
-        {users.map(user => (
-          <Card key={user.systemuserid} className="p-4">
-            <h3 className="font-semibold">{user.fullname}</h3>
-            <p className="text-sm text-muted-foreground">{user.internalemailaddress}</p>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
-```
-
-#### 4-2. CRUD操作を含む例
-
-```typescript
-import { useState } from 'react';
 import { useDataverseTable } from '../hooks/useDataverseTable';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { GeekProjectTasksService } from '../generated/services/GeekProjectTasksService';
 
-export function TasksPage() {
-  const { items: tasks, loading, create, update, delete: deleteTask } = useDataverseTable('tasks');
-  const [newTaskName, setNewTaskName] = useState('');
+function TasksPage() {
+  const { 
+    items: tasks, 
+    loading, 
+    create, 
+    update, 
+    delete: deleteTask 
+  } = useDataverseTable('geek_project_task', GeekProjectTasksService);
 
   const handleCreate = async () => {
-    await create({ name: newTaskName });
-    setNewTaskName('');
+    await create({ geek_name: '新しいタスク', geek_status: 100000000 });
   };
 
-  const handleUpdate = async (id: string) => {
-    await update(id, { status: 'completed' });
+  const handleComplete = async (taskId: string) => {
+    await update(taskId, { geek_status: 100000001 });
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('本当に削除しますか?')) {
-      await deleteTask(id);
+  const handleDelete = async (taskId: string) => {
+    if (confirm('削除しますか?')) {
+      await deleteTask(taskId);
     }
   };
 
-  if (loading) return <div>読み込み中...</div>;
-
-  return (
-    <div className="space-y-4">
-      {/* 新規作成フォーム */}
-      <div className="flex gap-2">
-        <Input 
-          value={newTaskName}
-          onChange={(e) => setNewTaskName(e.target.value)}
-          placeholder="新しいタスク"
-        />
-        <Button onClick={handleCreate}>追加</Button>
-      </div>
-
-      {/* タスク一覧 */}
-      {tasks.map(task => (
-        <div key={task.id} className="flex items-center justify-between p-4 border rounded">
-          <span>{task.name}</span>
-          <div className="flex gap-2">
-            <Button onClick={() => handleUpdate(task.id)}>完了</Button>
-            <Button variant="destructive" onClick={() => handleDelete(task.id)}>削除</Button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  // ... UI実装
 }
 ```
 
 ---
 
-## 🔍 Lookupフィールドの実装
+---
 
-Lookupフィールド（リレーション）の実装には特別な処理が必要です。
+## � 実装例
 
-> **📘 完全実装ガイド**  
-> Lookupフィールドの詳細な実装方法は **[LOOKUP_FIELD_GUIDE.md](./LOOKUP_FIELD_GUIDE.md)** を参照してください。
+### 例1: SystemUsersテーブルの統合
 
-**基本的な実装例:**
+**目的:** Dataverseの標準テーブル (SystemUsers) からユーザー一覧を取得して表示
+
+**実装手順:**
+
+1. **接続作成とID取得**
+   - Power Appsポータルで Dataverse 接続を作成
+   - URLから接続ID取得: `a1b2c3d4-e5f6-7890-abcd-ef1234567890`
+
+2. **サービスクラス生成**
+   ```powershell
+   pac code add-data-source `
+     --connector "shared_commondataserviceforapps" `
+     --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
+     --table "systemusers"
+   ```
+
+3. **カスタムフック作成** (`src/hooks/useSystemUsers.ts`)
+   ```typescript
+   import { useState, useEffect, useCallback } from 'react';
+   import { usePowerPlatform } from '@microsoft/power-apps';
+   import { SystemUsersService } from '../generated/services/SystemUsersService';
+   
+   export const useSystemUsers = () => {
+     const { isInitialized } = usePowerPlatform();
+     const [users, setUsers] = useState([]);
+     const [loading, setLoading] = useState(true);
+     const [error, setError] = useState(null);
+   
+     const loadUsers = useCallback(async () => {
+       if (!isInitialized) return;
+       
+       try {
+         const result = await SystemUsersService.getAll({
+           select: ['systemuserid', 'fullname', 'internalemailaddress'],
+           filter: 'isdisabled eq false'
+         });
+         
+         if (result.isSuccess && result.value) {
+           setUsers(result.value);
+         }
+       } catch (err) {
+         setError(err.message);
+       } finally {
+         setLoading(false);
+       }
+     }, [isInitialized]);
+   
+     useEffect(() => {
+       if (isInitialized) loadUsers();
+     }, [isInitialized, loadUsers]);
+   
+     return { users, loading, error, isInitialized };
+   };
+   ```
+
+4. **コンポーネント実装**
+   ```typescript
+   export function UsersPage() {
+     const { users, loading, error, isInitialized } = useSystemUsers();
+     
+     if (!isInitialized) return <div>初期化中...</div>;
+     if (loading) return <div>読み込み中...</div>;
+     if (error) return <div>エラー: {error}</div>;
+     
+     return (
+       <div>
+         <h2>ユーザー一覧 ({users.length}件)</h2>
+         {users.map(u => (
+           <div key={u.systemuserid}>{u.fullname} - {u.internalemailaddress}</div>
+         ))}
+       </div>
+     );
+   }
+   ```
+
+---
+
+### 例2: カスタムテーブル (Project Tasks) の統合
+
+**目的:** カスタムテーブルでCRUD操作を実装
+
+**前提条件:**
+- カスタムテーブル `geek_project_task` が作成済み
+- フィールド: `geek_name` (タスク名), `geek_status` (ステータス)
+
+**実装手順:**
+
+1. **customization.xml 配置**
+   - ソリューションをエクスポート
+   - `customization.xml` をワークスペースルートに配置
+
+2. **サービスクラス生成**
+   ```powershell
+   pac code add-data-source `
+     --connector "shared_commondataserviceforapps" `
+     --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
+     --table "geek_project_task"
+   ```
+
+3. **カスタムフック作成** (`src/hooks/useProjectTasks.ts`)
+   ```typescript
+   import { useState, useEffect, useCallback } from 'react';
+   import { usePowerPlatform } from '@microsoft/power-apps';
+   import { GeekProjectTasksService } from '../generated/services/GeekProjectTasksService';
+   
+   export const useProjectTasks = () => {
+     const { isInitialized } = usePowerPlatform();
+     const [tasks, setTasks] = useState([]);
+     const [loading, setLoading] = useState(false);
+     const [error, setError] = useState(null);
+   
+     const loadTasks = useCallback(async () => {
+       if (!isInitialized) return;
+       
+       setLoading(true);
+       try {
+         const result = await GeekProjectTasksService.getAll({
+           select: ['geek_project_taskid', 'geek_name', 'geek_status'],
+           orderBy: 'createdon desc'
+         });
+         
+         if (result.isSuccess && result.value) {
+           setTasks(result.value);
+         }
+       } catch (err) {
+         setError(err.message);
+       } finally {
+         setLoading(false);
+       }
+     }, [isInitialized]);
+   
+     const createTask = useCallback(async (name: string) => {
+       if (!isInitialized) return false;
+       
+       try {
+         const result = await GeekProjectTasksService.create({
+           geek_name: name,
+           geek_status: 100000000 // 新規
+         });
+         
+         if (result.isSuccess) {
+           await loadTasks();
+           return true;
+         }
+       } catch (err) {
+         setError(err.message);
+       }
+       return false;
+     }, [isInitialized, loadTasks]);
+   
+     const updateTask = useCallback(async (id: string, status: number) => {
+       if (!isInitialized) return false;
+       
+       try {
+         const result = await GeekProjectTasksService.update(id, {
+           geek_status: status
+         });
+         
+         if (result.isSuccess) {
+           await loadTasks();
+           return true;
+         }
+       } catch (err) {
+         setError(err.message);
+       }
+       return false;
+     }, [isInitialized, loadTasks]);
+   
+     const deleteTask = useCallback(async (id: string) => {
+       if (!isInitialized) return false;
+       
+       try {
+         const result = await GeekProjectTasksService.delete(id);
+         
+         if (result.isSuccess) {
+           await loadTasks();
+           return true;
+         }
+       } catch (err) {
+         setError(err.message);
+       }
+       return false;
+     }, [isInitialized, loadTasks]);
+   
+     useEffect(() => {
+       if (isInitialized) loadTasks();
+     }, [isInitialized, loadTasks]);
+   
+     return { tasks, loading, error, createTask, updateTask, deleteTask };
+   };
+   ```
+
+4. **コンポーネント実装**
+   ```typescript
+   import { useState } from 'react';
+   import { useProjectTasks } from '../hooks/useProjectTasks';
+   
+   export function TasksPage() {
+     const { tasks, loading, createTask, updateTask, deleteTask } = useProjectTasks();
+     const [newTaskName, setNewTaskName] = useState('');
+   
+     const handleCreate = async () => {
+       if (newTaskName.trim()) {
+         await createTask(newTaskName);
+         setNewTaskName('');
+       }
+     };
+   
+     const handleComplete = async (taskId: string) => {
+       await updateTask(taskId, 100000001); // 完了
+     };
+   
+     const handleDelete = async (taskId: string) => {
+       if (confirm('削除しますか?')) {
+         await deleteTask(taskId);
+       }
+     };
+   
+     if (loading) return <div>読み込み中...</div>;
+   
+     return (
+       <div>
+         <h2>プロジェクトタスク</h2>
+         
+         {/* 新規作成 */}
+         <div>
+           <input
+             value={newTaskName}
+             onChange={(e) => setNewTaskName(e.target.value)}
+             placeholder="新しいタスク"
+           />
+           <button onClick={handleCreate}>追加</button>
+         </div>
+   
+         {/* タスク一覧 */}
+         {tasks.map(task => (
+           <div key={task.geek_project_taskid}>
+             <span>{task.geek_name}</span>
+             <button onClick={() => handleComplete(task.geek_project_taskid)}>完了</button>
+             <button onClick={() => handleDelete(task.geek_project_taskid)}>削除</button>
+           </div>
+         ))}
+       </div>
+     );
+   }
+   ```
+
+---
+
+### 例3: Lookupフィールドの処理
+
+**目的:** タスクに担当者 (Lookup to SystemUsers) を設定
+
+**前提条件:**
+- `geek_project_task` テーブルに Lookup フィールド `geek_AssignedTo` が存在
+
+> **📘 詳細ガイド**  
+> Lookupフィールドの完全な実装方法は **[LOOKUP_FIELD_GUIDE.md](./docs/LOOKUP_FIELD_GUIDE.md)** を参照してください。
+
+**実装例:**
 
 ```typescript
-// $expandでLookupフィールドを展開
-const result = await ProjectTasksService.getAll({
+// Lookupフィールドを$expandで展開して取得
+const result = await GeekProjectTasksService.getAll({
   select: ['geek_project_taskid', 'geek_name', '_geek_assignedto_value'],
   expand: [
     {
@@ -473,27 +1145,305 @@ const result = await ProjectTasksService.getAll({
   ]
 });
 
-// 展開されたデータを使用
+// データ整形
 const tasks = result.value.map(task => ({
   id: task.geek_project_taskid,
   name: task.geek_name,
   assignedToId: task._geek_assignedto_value,
-  assignedToName: task.geek_AssignedTo?.fullname
+  assignedToName: task.geek_AssignedTo?.fullname || '未割り当て'
 }));
+
+// 担当者を設定
+await GeekProjectTasksService.update(taskId, {
+  'geek_AssignedTo@odata.bind': `/systemusers(${userId})`
+});
 ```
 
 ---
 
-## 📚 関連リファレンス
+---
 
-### Dataverse実装
-- **[LOOKUP_FIELD_GUIDE.md](./docs/LOOKUP_FIELD_GUIDE.md)** - Lookupフィールド完全ガイド
-- **[DATAVERSE_SCHEMA_REFERENCE.md](./docs/DATAVERSE_SCHEMA_REFERENCE.md)** - スキーマ定義とChoice値
-- **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./docs/HOW_TO_GET_DATAVERSE_SCHEMA.md)** - スキーマ取得方法
+## � トラブルシューティング
 
-### トラブルシューティング
-- **[DATAVERSE_TROUBLESHOOTING.md](./docs/DATAVERSE_TROUBLESHOOTING.md)** - よくある問題と解決法
-- **[DATAVERSE_DEBUG.md](./docs/DATAVERSE_DEBUG.md)** - デバッグ方法
+### よくある問題と解決法
+
+#### 問題1: PowerDataRuntime is not initialized
+
+**エラーメッセージ:**
+```
+PowerDataRuntimeError: An unknown error occurred: 
+PowerDataRuntime is not initialized. Please call initializeRuntime() first.
+```
+
+**原因:**  
+Power Apps SDKの初期化が完了する前にDataverseにアクセスしようとした
+
+**解決方法:**
+```typescript
+import { usePowerPlatform } from '@microsoft/power-apps';
+
+export function App() {
+  const { isInitialized } = usePowerPlatform();
+
+  // ✅ 初期化完了を待つ
+  if (!isInitialized) {
+    return <div>初期化中...</div>;
+  }
+
+  // ✅ 初期化完了後にコンポーネントをレンダリング
+  return <YourDataComponent />;
+}
+```
+
+---
+
+#### 問題2: 接続IDが見つからない
+
+**症状:**  
+`pac code add-data-source` 実行時に「接続が見つかりません」エラー
+
+**原因:**
+- 接続IDが間違っている
+- 環境が異なる
+- 接続が削除された
+
+**解決方法:**
+
+1. **Power Appsポータルで再確認**
+   - https://make.powerapps.com → データ → 接続
+   - 接続をクリックしてURLから接続IDを再取得
+   ```
+   https://make.powerapps.com/.../connections/shared_commondataserviceforapps/a1b2c3d4-e5f6-7890-abcd-ef1234567890/details
+                                                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   ```
+
+2. **環境を確認**
+   ```powershell
+   # 現在の環境を確認
+   pac org who
+   
+   # 環境を切り替え
+   pac org select --environment <環境ID>
+   ```
+
+3. **接続を再作成**
+   - Power Appsポータルで接続を削除
+   - 新しい接続を作成
+   - 新しい接続IDで再試行
+
+---
+
+#### 問題3: customization.xml が見つからない
+
+**症状:**  
+`pac code add-data-source` 実行時にスキーマ情報が取得できない
+
+**原因:**
+- `customization.xml` がワークスペースルートに配置されていない
+- ファイル名が間違っている
+
+**解決方法:**
+
+1. **ファイル配置を確認**
+   ```powershell
+   # ファイルの存在確認
+   Get-Item .\customization.xml
+   
+   # 配置場所が正しいか確認
+   Get-Location  # ワークスペースルートにいることを確認
+   ```
+
+2. **正しい配置場所:**
+   ```
+   YourCodeAppsProject/    ← ここがルート
+   ├── customization.xml   ← ここに配置
+   ├── src/
+   ├── package.json
+   └── vite.config.ts
+   ```
+
+3. **ソリューションを再エクスポート**
+   - Power Appsポータル → ソリューション
+   - 対象ソリューションを選択 → エクスポート
+   - アンマネージドを選択
+   - ZIPを解凍 → Customizations/customization.xml をコピー
+
+---
+
+#### 問題4: データが取得できない (空配列が返る)
+
+**症状:**  
+エラーは出ないが、データが0件
+
+**原因と解決方法:**
+
+**原因1: filterが厳しすぎる**
+```typescript
+// ❌ 全てフィルタで除外されている
+const result = await SystemUsersService.getAll({
+  filter: 'isdisabled eq false and fullname eq "存在しない名前"'
+});
+
+// ✅ フィルタを緩める or 削除
+const result = await SystemUsersService.getAll({
+  filter: 'isdisabled eq false'
+});
+```
+
+**原因2: テーブルにデータが存在しない**
+```powershell
+# Power Appsポータルで確認
+# https://make.powerapps.com → データ → テーブル → 該当テーブル
+```
+
+**原因3: セキュリティロールの権限不足**
+- Dataverseのセキュリティロール設定を確認
+- 読み取り権限が付与されているか確認
+
+---
+
+#### 問題5: IOperationResult.isSuccess が false
+
+**症状:**  
+`result.isSuccess` が常に `false` を返す
+
+**デバッグ方法:**
+
+```typescript
+const result = await SystemUsersService.getAll();
+
+if (!result.isSuccess) {
+  // ✅ エラー詳細を確認
+  console.error('Error Code:', result.error?.code);
+  console.error('Error Message:', result.error?.message);
+  console.error('Error Details:', result.error?.details);
+  console.error('Full Error:', JSON.stringify(result.error, null, 2));
+}
+```
+
+**よくあるエラーコードと解決法:**
+
+| エラーコード | 原因 | 解決方法 |
+|------------|------|---------|
+| `0x80040217` | レコードが存在しない | IDを確認、削除済みの可能性 |
+| `0x80048306` | 権限不足 | セキュリティロールを確認 |
+| `0x8004037a` | ビジネスルール違反 | 必須フィールドを確認 |
+| `0x80040220` | 重複検出ルール | レコードが既に存在 |
+
+---
+
+#### 問題6: Lookupフィールドが null
+
+**症状:**  
+Lookupフィールドを取得しようとすると `null` になる
+
+**原因:**
+- `$expand` を使用していない
+- navigationProperty名が間違っている
+
+**解決方法:**
+
+```typescript
+// ❌ expandなしでは _geek_assignedto_value (GUID) のみ取得
+const result = await GeekProjectTasksService.getAll({
+  select: ['geek_name', '_geek_assignedto_value']
+});
+// task.geek_AssignedTo は undefined
+
+// ✅ $expandでLookupデータを展開
+const result = await GeekProjectTasksService.getAll({
+  select: ['geek_name', '_geek_assignedto_value'],
+  expand: [
+    {
+      navigationProperty: 'geek_AssignedTo',  // 大文字小文字に注意
+      select: ['systemuserid', 'fullname']
+    }
+  ]
+});
+// task.geek_AssignedTo.fullname でアクセス可能
+```
+
+> **📘 詳細ガイド**  
+> Lookupフィールドのトラブルシューティングは **[LOOKUP_FIELD_GUIDE.md](./docs/LOOKUP_FIELD_GUIDE.md)** を参照してください。
+
+---
+
+#### 問題7: Choice (オプションセット) の値が数値で表示される
+
+**症状:**  
+ステータスが `100000000` のような数値で表示される
+
+**原因:**  
+Choiceフィールドは内部的に整数値で管理されている
+
+**解決方法:**
+
+```typescript
+// Choice値のマッピングを定義
+const STATUS_LABELS = {
+  100000000: '新規',
+  100000001: '進行中',
+  100000002: '完了',
+  100000003: 'キャンセル'
+} as const;
+
+// コンポーネントで使用
+function TaskCard({ task }) {
+  const statusLabel = STATUS_LABELS[task.geek_status] || '不明';
+  
+  return (
+    <div>
+      <h3>{task.geek_name}</h3>
+      <p>ステータス: {statusLabel}</p>
+    </div>
+  );
+}
+```
+
+> **📘 スキーマリファレンス**  
+> Choice値の定義は **[DATAVERSE_SCHEMA_REFERENCE.md](./docs/DATAVERSE_SCHEMA_REFERENCE.md)** を参照してください。
+
+---
+
+### デバッグ方法
+
+#### ブラウザコンソールでの確認
+
+```typescript
+// 初期化状態を確認
+console.log('SDK Initialized:', isInitialized);
+
+// データ取得結果を確認
+const result = await SystemUsersService.getAll();
+console.log('Result:', result);
+console.log('Is Success:', result.isSuccess);
+console.log('Value:', result.value);
+console.log('Error:', result.error);
+
+// データ件数を確認
+console.log('Data count:', result.value?.length);
+```
+
+#### Network タブでの確認
+
+1. F12で開発者ツールを開く
+2. **Network** タブを選択
+3. データ取得操作を実行
+4. OData APIリクエストを確認
+
+**確認ポイント:**
+- リクエストURL: `/api/data/v9.2/systemusers`
+- Status Code: 200 (成功)
+- Response: 返されたJSONデータ
+
+#### Power Apps Monitorでの確認
+
+1. Power Apps Maker Portal → モニター
+2. Code Appsを起動
+3. 実行されたODataクエリを確認
+
+> **📘 詳細なデバッグ方法**  
+> **[DATAVERSE_DEBUG.md](./docs/DATAVERSE_DEBUG.md)** と **[DATAVERSE_TROUBLESHOOTING.md](./docs/DATAVERSE_TROUBLESHOOTING.md)** を参照してください。
 
 ---
 
@@ -527,127 +1477,171 @@ const tasks = result.value.map(task => ({
 
 ---
 
-## 🔄 次のステップ
+## � 関連リファレンス
+
+### Dataverse実装
+- **[LOOKUP_FIELD_GUIDE.md](./docs/LOOKUP_FIELD_GUIDE.md)** - Lookupフィールド完全ガイド
+- **[DATAVERSE_SCHEMA_REFERENCE.md](./docs/DATAVERSE_SCHEMA_REFERENCE.md)** - スキーマ定義とChoice値
+- **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./docs/HOW_TO_GET_DATAVERSE_SCHEMA.md)** - スキーマ取得方法
+
+### トラブルシューティング
+- **[DATAVERSE_TROUBLESHOOTING.md](./docs/DATAVERSE_TROUBLESHOOTING.md)** - よくある問題と解決法
+- **[DATAVERSE_DEBUG.md](./docs/DATAVERSE_DEBUG.md)** - デバッグ方法
+
+---
+
+## ✅ Phase 5 完了チェックリスト
+
+### Step 1: 接続ID取得
+- [ ] Power Appsポータルで Dataverse 接続が作成されている
+- [ ] 接続をクリックして詳細ページを開いた
+- [ ] ブラウザURLから接続IDをコピーした
+- [ ] 接続IDがGUID形式 (例: `a1b2c3d4-e5f6-7890-abcd-ef1234567890`) である
+
+### Step 2: スキーマ取得
+- [ ] Power Appsポータルでソリューションをエクスポートした
+- [ ] ZIPファイルを解凍した
+- [ ] `customization.xml` をワークスペースルートに配置した
+- [ ] `Get-Item .\customization.xml` でファイル存在を確認した
+
+### Step 3: サービスクラス生成
+- [ ] `pac code add-data-source` コマンドが成功した
+- [ ] `src/generated/models/` にModel定義が生成されている
+- [ ] `src/generated/services/` にServiceクラスが生成されている
+- [ ] `npm run build` が成功した
+- [ ] `npm run lint` でエラーがない
+
+### Step 4: データ統合
+- [ ] カスタムフックを作成した
+- [ ] `usePowerPlatform().isInitialized` チェックを実装した
+- [ ] `IOperationResult.isSuccess` でエラーハンドリングを実装した
+- [ ] Reactコンポーネントでカスタムフックを使用した
+- [ ] モックデータファイルを削除した
+- [ ] モックデータへの参照を削除した
+
+### 動作確認
+- [ ] ローカル環境でアプリが起動する (`npm run dev`)
+- [ ] SDK初期化中の表示が正しく表示される
+- [ ] データ読み込み中の表示が正しく表示される
+- [ ] Dataverseから実データが取得できる
+- [ ] データが正しくUIに表示される
+- [ ] エラーハンドリングが正常に動作する
+- [ ] ブラウザコンソールにエラーが出ていない
+
+### CRUD操作 (該当する場合)
+- [ ] データの作成が成功する
+- [ ] データの更新が成功する
+- [ ] データの削除が成功する
+- [ ] 操作後にデータが再読み込みされる
+
+### Power Apps環境での確認
+- [ ] `pac code build` が成功する
+- [ ] `pac code push` が成功する
+- [ ] Power Apps環境でアプリが正常に起動する
+- [ ] Power Apps環境で実データが表示される
+
+---
+
+## �🔄 次のステップ
 
 Phase 5が完了したら、継続的な機能拡張サイクルに入ります。
 
 **継続開発サイクル:**
-1. 新機能の要件定義
-2. データモデルの設計
-3. カスタムフックの実装
-4. UIコンポーネントの実装
-5. テスト
-6. デプロイ（Phase 4に戻る）
 
-👉 必要に応じて Phase 4（デプロイ）に戻り、新機能をリリースします。
-
-すべてのコネクターは、まず Power Apps ポータルで手動作成する必要があります。
-
-**手順:**
-
-1. **Power Apps Maker Portal にアクセス**
-   ```
-   https://make.powerapps.com
-   ```
-
-2. **環境を選択**
-   - 画面右上で適切な環境を選択
-
-3. **接続を作成**
-   - 左メニュー: **データ** > **接続**
-   - **+ 新しい接続** をクリック
-   - 必要なコネクターを検索・選択:
-     * **Microsoft Dataverse**
-     * **Office 365 Users**
-     * **SharePoint**
-     * **SQL Server**
-     * その他
-
-4. **認証を完了**
-   - コネクターごとの認証方法に従って認証
-   - Dataverse: 自動認証
-   - Office 365: Microsoft アカウントでサインイン
-   - SQL Server: 接続文字列または Windows 認証
-
-5. **接続の確認**
-   - 接続一覧で「接続済み」ステータスを確認
-
-**🔧 トラブルシューティング:**
-
-| 問題 | 原因 | 対策 |
-|------|------|------|
-| 「接続できません」エラー | 認証情報が無効 | 認証をやり直す |
-| 接続が一覧に表示されない | 環境が異なる | 正しい環境を選択 |
-| 権限エラー | ユーザー権限不足 | 環境管理者に権限を依頼 |
-
----
-
-### **Step 2: 接続ID の取得**
-
-pac code add-data-source コマンドを実行するには、**接続ID** が必要です。
-
-**手順:**
-
-1. **Power Apps ポータルで接続一覧を表示**
-   ```
-   https://make.powerapps.com → データ → 接続
-   ```
-
-2. **対象の接続をクリック**
-   - 例: 「Microsoft Dataverse」をクリック
-
-3. **ブラウザのアドレスバーのURLを確認**
-
-   **URL形式:**
-   ```
-   https://make.powerapps.com/environments/{環境ID}/connections/{API名}/{接続ID}/details
-   ```
-
-   **実際の例:**
-   ```
-   https://make.powerapps.com/environments/12345678-abcd-1234-efgh-123456789abc/connections/shared_commondataserviceforapps/a1b2c3d4-e5f6-7890-1234-567890abcdef/details
-   ```
-
-4. **接続ID をコピー**
-   - 上記URLの場合: `a1b2c3d4-e5f6-7890-1234-567890abcdef`
-
-**コネクター別の API 名:**
-
-| コネクター | API 名 |
-|-----------|--------|
-| Microsoft Dataverse | `shared_commondataserviceforapps` |
-| Office 365 Users | `shared_office365users` |
-| SharePoint | `shared_sharepointonline` |
-| SQL Server | `shared_sql` |
-| Office 365 Outlook | `shared_office365` |
-
-**🔧 トラブルシューティング:**
-
-| 問題 | 原因 | 対策 |
-|------|------|------|
-| URLに接続IDが表示されない | 古いポータルUI | ブラウザを更新、別の接続をクリックして戻る |
-| 接続IDをコピーできない | ブラウザの問題 | URLを手動で選択してコピー |
-
----
-
-### **Step 3: pac code add-data-source コマンド実行**
-
-**基本コマンド構文:**
-
-```bash
-pac code add-data-source -a "{API名}" -c "{接続ID}" [-t "{テーブル名}"]
+```mermaid
+graph LR
+    A[要件定義] --> B[データモデル設計]
+    B --> C[カスタムフック実装]
+    C --> D[UI実装]
+    D --> E[テスト]
+    E --> F[デプロイ]
+    F --> A
+    
+    style A fill:#e3f2fd
+    style B fill:#e8f5e9
+    style C fill:#fff3e0
+    style D fill:#f3e5f5
+    style E fill:#fce4ec
+    style F fill:#e0f2f1
 ```
 
-**パラメータ:**
-- `-a` (--api): コネクターのAPI名
-- `-c` (--connection-id): 接続ID (Step 2で取得)
-- `-t` (--table): テーブル名 (Dataverseの場合のみ必須)
+**具体的な次のアクション:**
 
-**Office 365 Users の例:**
+1. **新機能の要件定義**
+   - ユーザーストーリーの作成
+   - 必要なデータの特定
+   - UI/UXデザイン
 
-```bash
-# Office 365 Users サービスクラスを生成
-pac code add-data-source -a "shared_office365users" -c "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+2. **データモデルの設計**
+   - 新しいテーブルの作成 (必要に応じて)
+   - リレーションシップの定義
+   - ビジネスルールの設定
+
+3. **カスタムフックの実装**
+   - 新しいサービスクラスの生成
+   - ビジネスロジックの実装
+   - エラーハンドリングの追加
+
+4. **UIコンポーネントの実装**
+   - Reactコンポーネントの作成
+   - デザインシステムの適用
+   - レスポンシブ対応
+
+5. **テスト**
+   - ローカルでの動作確認
+   - エッジケースのテスト
+   - エラーハンドリングの確認
+
+6. **デプロイ (Phase 4に戻る)**
+   - `pac code build`
+   - `pac code push`
+   - Power Apps環境での動作確認
+
+---
+
+## 💡 ベストプラクティス
+
+### コード品質
+- ✅ TypeScript型定義を活用する
+- ✅ エラーハンドリングを徹底する
+- ✅ ローディング状態を適切に管理する
+- ✅ コンポーネントを小さく保つ
+- ✅ カスタムフックでロジックを分離する
+
+### パフォーマンス
+- ✅ `select` で必要なフィールドのみ取得する
+- ✅ `filter` でデータを絞り込む
+- ✅ `top` で取得件数を制限する
+- ✅ 不要な再レンダリングを避ける (`useMemo`, `useCallback`)
+- ✅ Lookup展開は必要な場合のみ使用する
+
+### セキュリティ
+- ✅ Dataverseのセキュリティロールを適切に設定する
+- ✅ フィールドレベルセキュリティを活用する
+- ✅ ビジネスルールで入力値を検証する
+- ✅ クライアント側で機密情報を保持しない
+
+### 保守性
+- ✅ コードにコメントを追加する
+- ✅ 定数を別ファイルに分離する
+- ✅ ユーティリティ関数を再利用する
+- ✅ ドキュメントを更新する
+- ✅ バージョン管理を活用する
+
+---
+
+🎉 **Phase 5完了おめでとうございます！**
+
+モックデータから実データへの移行が完了し、Power Apps Code Appsで本格的なビジネスアプリケーションが稼働しています。
+
+**今後の展開:**
+- 📊 レポート機能の追加
+- 🔔 通知機能の実装
+- 📱 モバイル対応の強化
+- 🔗 外部サービスとの統合
+- 🚀 パフォーマンス最適化
+
+継続的に改善を重ね、ユーザーに価値を提供し続けましょう！
 ```
 
 **生成されるファイル:**
