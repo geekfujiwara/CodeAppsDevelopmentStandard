@@ -191,10 +191,10 @@ graph LR
     D --> E[Phase 2完了]
 ```
 
-> **📘 詳細リファレンス**: [Phase 2 リファレンス](./PHASE2_UI_DESIGN_SYSTEM.md)
->
 > **ロゴとデザインのリファレンス:**
+> 
 > - **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)** - デザイン仕様と実装方法
+> - **📘 詳細リファレンス**: [Phase 2 リファレンス](./PHASE2_UI_DESIGN_SYSTEM.md)
 
 **Phase 2の概要:**
 - shadcn/ui + TailwindCSSのセットアップ
@@ -334,5 +334,6 @@ useEffect(() => {
 ```
 
 **次へ**: Phase 5 → 継続開発サイクル
+
 
 
