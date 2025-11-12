@@ -181,4 +181,5 @@ pac code list
 
 Phase 4が完了したら、次は **Phase 5: 機能拡張・データソース統合** に進みます。
 
-👉 **[Phase 5 リファレンス](./PHASE5_DATA_INTEGRATION.md)** に進む
+👉 **[Phase 5 機能拡張・データソース統合](./PHASE5_DATA_INTEGRATION.md)** に進む
+
