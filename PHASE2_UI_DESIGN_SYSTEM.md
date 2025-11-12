@@ -103,22 +103,6 @@ public/
 
 #### 1-2. ロゴファイルの準備
 
-**方法1: 既存ロゴを使用**
-```bash
-# 既存のロゴファイルをコピー
-copy "C:\path\to\logo.svg" "public\assets\logo.svg"
-copy "C:\path\to\logo.png" "public\assets\logo.png"
-```
-
-**方法2: 無料アイコン生成ツールを使用**
-
-| ツール | URL | 特徴 |
-|-------|-----|------|
-| Canva | https://canva.com | テンプレート豊富、初心者向け |
-| LogoMaker | https://logomaker.com | シンプル操作 |
-| Flaticon | https://flaticon.com | アイコン素材豊富 |
-| Figma | https://figma.com | プロ向け、SVG出力可能 |
-
 **推奨アイコンサイズ:**
 - **SVGロゴ**: `logo.svg` (スケーラブル、推奨)
 - **PNGアイコン**: `128x128px`, `256x256px`
@@ -4944,6 +4928,7 @@ const aiSuggestions = {
 3. セキュリティ強化
 4. CI/CD自動化
 ```
+
 
 
 
