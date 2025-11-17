@@ -1,8 +1,8 @@
-# Phase 2: UI・デザインシステム統合
+# Phase 2: テンプレートデザインシステムを活用した機能拡張
 
 ## 📋 概要
 
-このPhaseでは、**CodeAppsStarterテンプレート**のデザインシステムを参照・活用し、プロジェクト要件に合わせてカスタマイズを実施します。
+このPhaseでは、**CodeAppsStarterテンプレート**のデザインシステムを参照・活用し、プロジェクト要件に合わせた機能拡張を実施します。
 
 **基本方針: テンプレート参照型開発**
 - 実装コードはテンプレートを参照
@@ -86,8 +86,8 @@ npm run build && npm run lint
 
 ## 📖 関連ドキュメント
 
-- **[PHASE1: プロジェクトセットアップ](./PHASE1_PROJECT_SETUP.md)** - 前Phase
-- **[PHASE3: ローカルテスト](./PHASE3_LOCAL_TESTING.md)** - 次Phase
+- **[PHASE1: テンプレートセットアップ](./PHASE1_PROJECT_SETUP.md)** - 前Phase
+- **[PHASE3: データソース統合](./PHASE3_DATA_INTEGRATION.md)** - 次Phase
 - **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)** - ロゴカスタマイズ詳細
 - **[テーマカスタマイズガイド](./docs/THEME_CUSTOMIZATION_GUIDE.md)** - テーマ変更詳細
 - **[shadcn/ui拡張ガイド](./docs/SHADCN_UI_EXTENSION_GUIDE.md)** - UI拡張詳細
@@ -108,7 +108,7 @@ npm run build && npm run lint
 
 3. **開発標準内ガイド**
    - **[docs/INDEX.md](./docs/INDEX.md)** - 技術ガイド一覧
-   - **[PHASE3: ローカルテスト](./PHASE3_LOCAL_TESTING.md)** - デバッグ手順
+   - **[PHASE1: ローカルテスト参考](./PHASE1_LOCAL_TESTING.md)** - デバッグ手順
 📁 CodeAppsStarter/tailwind.config.js     # テーマ設定
 📁 CodeAppsStarter/src/index.css          # CSS変数・ベーススタイル
 

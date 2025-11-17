@@ -1,4 +1,4 @@
-# Phase 5: 機能拡張・データソース統合
+# Phase 3: データソース統合
 
 ## 📋 概要
 
@@ -9,7 +9,7 @@
 - Dataverseテーブルへのアクセス
 - カスタムフックの作成
 - UI統合とエラーハンドリング
-- 機能拡張の実装
+- Phase 2で実装した機能へのデータ統合
 
 ---
 
@@ -41,7 +41,7 @@ pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t
 npm run build && npm run lint
 ```
 
-### **Phase 5 完了条件:**
+### **Phase 3 完了条件:**
 
 - ✅ Power Appsポータルでコネクター接続が作成されている
 - ✅ 接続IDが正しく取得できている
@@ -57,9 +57,9 @@ npm run build && npm run lint
 
 ---
 
-## 🎯 Phase 5の目標
+## 🎯 Phase 3の目標
 
-**Phase 5では、モックデータから実データへの完全移行を実現します。**
+**Phase 3では、モックデータから実データへの完全移行を実現します。**
 
 **完了条件:**
 - ✅ データソースが正常に接続されている
@@ -239,7 +239,7 @@ export function App() {
 
 ---
 
-## 📝 Phase 5の実装手順
+## 📝 Phase 3の実装手順
 
 ### Step 1: 接続IDの取得
 
