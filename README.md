@@ -172,25 +172,19 @@ graph LR
 **統合コマンド:**
 ```bash
 # テンプレートセットアップと初回デプロイ（プロジェクト名を指定）
-git clone https://github.com/geekfujiwara/CodeAppsStarter.git
+git clone https://github.com/geekfujiwara/CodeAppsStarter
 mv CodeAppsStarter [プロジェクト名]
 cd [プロジェクト名]
 npm install
-pac auth create
-pac code init --displayName "[アプリ表示名]"
-npm run build && pac code push
 ```
 
 **例：**
 ```bash
 # 具体例
-git clone https://github.com/geekfujiwara/CodeAppsStarter.git
+git clone https://github.com/geekfujiwara/CodeAppsStarter
 mv CodeAppsStarter TaskManager
 cd TaskManager
 npm install
-pac auth create
-pac code init --displayName "タスクマネージャー"
-npm run build && pac code push
 ```
 
 **完了条件:**
@@ -240,8 +234,6 @@ graph LR
 ```bash
 # ローカル動作確認
 npm run dev
-# ビルド・リント確認
-npm run build && npm run lint
 ```
 
 **次へ**: Phase 2 → Phase 3
@@ -262,15 +254,19 @@ graph LR
 >  [Phase 3 リファレンス](./PHASE3_LOCAL_TESTING.md)
 
 **Phase 3の概要:**
-- ローカル環境でのアプリ実行
-- Power Apps環境での動作確認
-- 統合テストの実施
+- Power Apps環境の初期化とローカル開発環境の構築
+- ローカル環境でのPower Apps認証付きアプリ実行
+- Power Apps環境での動作確認と統合テスト
+- 本格的な開発開始前の環境検証
 
 **統合コマンド:**
 ```bash
 # ローカル実行（Power Apps認証環境）
+pac code init --environment [environmentid] --displayName "[アプリ表示名]"
 npm run dev
 ```
+
+**重要**: `pac code init`でPower Apps環境を初期化してから`npm run dev`を実行することで、ローカル開発時もPower Apps認証が有効になります。StarterテンプレートのPower Apps統合機能により、本番環境と同じ認証フローでの開発・テストが可能です。
 
 **完了条件:**
 - ✅ ローカルで正常に起動する
@@ -295,10 +291,10 @@ graph LR
 > [Phase 4 リファレンス](./PHASE4_DEPLOYMENT.md)
 
 **Phase 4の概要:**
-- テンプレートからの改修内容確認
-- 本番ビルドの実行
-- 更新版アプリのPower Apps環境デプロイ
-- 新機能の動作確認
+- テンプレートベースの改修内容確認と品質チェック
+- 段階的ビルド実行によるエラー事前検出
+- 安全な更新版アプリのPower Apps環境デプロイ
+- 本番環境での新機能動作確認と既存機能継続性検証
 
 **統合コマンド:**
 ```bash
@@ -308,6 +304,8 @@ npm run build
 # 2. ビルド成功後、デプロイ実行
 pac code push
 ```
+
+**安全な分割実行**: ビルドとデプロイを分離することで、TypeScriptエラー、リントエラー、ビルドエラーを確実に確認・解決してからデプロイを実行できます。これにより、デプロイ失敗やタイムアウトエラーを事前に防止できます。
 
 **完了条件:**
 - ✅ 改修された機能がビルドできる
