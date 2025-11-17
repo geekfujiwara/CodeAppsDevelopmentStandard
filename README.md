@@ -268,8 +268,8 @@ graph LR
 
 **統合コマンド:**
 ```bash
-# ビルド・リント・ローカル実行を一括実行
-npm run build && npm run lint && npm run dev
+# ローカル実行（Power Apps認証環境）
+npm run dev
 ```
 
 **完了条件:**
@@ -302,8 +302,11 @@ graph LR
 
 **統合コマンド:**
 ```bash
-# ビルド・デプロイを一括実行
-npm run build && pac code push
+# 1. ビルド実行（エラー確認）
+npm run build
+
+# 2. ビルド成功後、デプロイ実行
+pac code push
 ```
 
 **完了条件:**
