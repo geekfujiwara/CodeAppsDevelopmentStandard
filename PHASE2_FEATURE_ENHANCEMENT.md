@@ -2,7 +2,107 @@
 
 ## 📋 概要
 
-このPhaseでは、**CodeAppsStarterテンプレート**を基盤として、プロジェクト要件に合わせた機能拡張を実施します。テンプレートが提供する高品質なデザインシステムと実装パターンを最大限活用し、効率的かつ一貫性のある開発を実現します。
+このPhaseでは、**Phase 1でデプロイ済みのCodeAppsStarterテンプレート**を基盤として、プロジェクト要件に合わせた機能拡張を実施します。テンプレートが提供する高品質なデザインシステムと実装パターンを最大限活用し、効率的かつ一貫性のある開発を実現します。
+
+> **🚨 Phase 2開始の前提条件**
+>
+> **このPhaseを開始する前に、必ずPhase 1（テンプレートデプロイ）が完了していることを確認してください。**
+>
+> **Phase 1完了の確認項目:**
+> - ✅ CodeAppsStarterテンプレートがPower Apps環境にデプロイされている
+> - ✅ テンプレートが本番環境で正常に動作している
+> - ✅ テンプレートに機能追加していない（純粋なテンプレート状態）
+> - ✅ ビルド・デプロイプロセスが確立している
+>
+> **なぜPhase 1完了が必須か:**
+> 1. 動作確認済みの基盤が確立されている
+> 2. カスタム機能追加時の問題切り分けが容易
+> 3. テンプレートの品質を維持したまま拡張可能
+> 4. ロールバック先（純粋なテンプレート状態）が明確
+
+---
+
+## 🔍 Phase 2開始前の必須調査
+
+> **⚠️ 重要: 機能実装を開始する前に、必ずこの調査を実施してください**
+
+### **Starterテンプレートのデザインサンプル・UIパターン調査**
+
+**新機能を実装する前に、CodeAppsStarterテンプレートで類似機能や再利用可能なパターンを必ず調査してください。**
+
+**調査手順:**
+
+#### **Step 1: テンプレートリポジトリへアクセス**
+
+1. **[CodeAppsStarter Repository](https://github.com/geekfujiwara/CodeAppsStarter)** を開く
+2. リポジトリの構造を確認
+
+#### **Step 2: 実装例の確認**
+
+**確認すべきディレクトリ:**
+
+| ディレクトリ | 確認内容 | URL |
+|------------|---------|-----|
+| **src/app/** | ページ実装パターン | [src/app/](https://github.com/geekfujiwara/CodeAppsStarter/tree/main/src/app) |
+| **src/components/ui/** | UIコンポーネント | [src/components/ui/](https://github.com/geekfujiwara/CodeAppsStarter/tree/main/src/components/ui) |
+| **src/components/layout/** | レイアウトパターン | [src/components/layout/](https://github.com/geekfujiwara/CodeAppsStarter/tree/main/src/components/layout) |
+| **src/lib/** | ユーティリティ関数 | [src/lib/](https://github.com/geekfujiwara/CodeAppsStarter/tree/main/src/lib) |
+
+#### **Step 3: 類似機能の検索**
+
+**実装したい機能に対して確認:**
+
+✅ **ページレイアウト** - 類似した画面構成があるか?
+- 参照: `src/app/page.tsx`, `src/app/layout.tsx`
+
+✅ **データ表示** - テーブル・カード・リスト表示の実装例は?
+- 参照: `src/components/ui/table.tsx`, `src/components/ui/card.tsx`
+
+✅ **フォーム入力** - 入力フォーム・バリデーションの実装例は?
+- 参照: `src/components/ui/input.tsx`, `src/components/ui/form.tsx`
+
+✅ **モーダル・ダイアログ** - ポップアップ表示の実装例は?
+- 参照: `src/components/ui/dialog.tsx`, `src/components/ui/alert-dialog.tsx`
+
+✅ **ナビゲーション** - メニュー・タブの実装例は?
+- 参照: `src/components/layout/`, `src/components/ui/tabs.tsx`
+
+#### **Step 4: コードの理解**
+
+**見つけた実装例について:**
+
+1. **コードを読む** - 実装方法を理解
+2. **使用されているコンポーネントを確認** - shadcn/uiコンポーネントの使い方
+3. **スタイリングパターンを確認** - Tailwind CSSクラスの使用方法
+4. **状態管理を確認** - React hooksの使用パターン
+
+#### **Step 5: 再利用可能性の判断**
+
+**判断基準:**
+
+| 状況 | アクション |
+|------|----------|
+| ✅ **完全一致** | そのままコピー&プロジェクトに合わせて調整 |
+| ✅ **類似パターン** | 実装方法を参考に新規作成 |
+| ✅ **コンポーネントのみ** | UIコンポーネントを再利用してロジックは新規作成 |
+| ⚠️ **該当なし** | テンプレートのスタイルガイドに沿って新規作成 |
+
+### **調査完了チェックリスト**
+
+機能実装を開始する前に、以下を確認してください:
+
+- [ ] CodeAppsStarterリポジトリを確認した
+- [ ] `src/app/` のページ実装例を確認した
+- [ ] `src/components/ui/` のUIコンポーネントを確認した
+- [ ] 実装したい機能に類似するパターンを探した
+- [ ] 再利用可能なコンポーネントをリストアップした
+- [ ] テンプレートの実装方法を理解した
+
+**この調査により:**
+- ✅ 開発時間が大幅に短縮される
+- ✅ テンプレート品質を維持した一貫性のあるUIが実現
+- ✅ ベストプラクティスに沿った実装が可能
+- ✅ メンテナンス性の高いコードベースが構築される
 
 ---
 
