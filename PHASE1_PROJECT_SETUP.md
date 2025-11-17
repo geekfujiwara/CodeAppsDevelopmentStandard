@@ -1,41 +1,46 @@
-# Phase 1: プロジェクト環境構築・PowerProvider・SDK初期化
+# Phase 1: テンプレートベース開発環境セットアップ
 
 ## 📋 概要
 
-このPhaseでは、Vite + React + TypeScript プロジェクトの初期化と、Power Apps Code Apps対応の設定を行います。
+このPhaseでは、CodeAppsStarterテンプレートを使用したプロジェクトのセットアップと、Power Apps環境への初回デプロイまでを実施します。
 
 **主な実施内容:**
-- Vite Reactプロジェクトの作成
+- CodeAppsStarterテンプレートのクローンとセットアップ
 - Power Apps Code Apps初期化
-- PowerProviderの実装
-- SDK初期化と統合
-- 基本的な動作確認
+- 依存関係のインストール
+- ローカル動作確認
+- Power Apps環境への初回デプロイ (`pac code push`)
 
 ---
 
 ## 🚀 クイックリファレンス
 
 **実施するStep（概要）:**
-1. **プロジェクト作成・初期化** - Vite + React + TypeScript
-2. **依存関係インストール** - `npm install` と初回ビルド
-3. **vite.config.ts設定** - Power Apps対応設定
-4. **PowerProvider.tsx実装** - SDK初期化コンポーネント
-5. **main.tsx統合** - PowerProviderの組み込み
-6. **pac code init** - Power Apps Code統合
-7. **エラーチェック** - TypeScript・ESLint・ビルド確認
+1. **テンプレートクローン** - CodeAppsStarterリポジトリの複製
+2. **依存関係インストール** - `npm install`
+3. **ローカル動作確認** - `npm run dev` でテンプレート機能確認
+4. **Power Apps認証** - `pac auth create` で環境認証
+5. **Code Apps初期化** - `pac code init` でアプリ作成
+6. **Power Apps デプロイ** - `pac code push` で初回デプロイ
 
-**統合コマンド（すべてのチェック）:**
+**統合コマンド（セットアップ）:**
 ```bash
-# ビルド・リント・型チェックを一括実行
-npm run build && npm run lint && npx tsc --noEmit
+# テンプレートセットアップとデプロイ（プロジェクト名を指定）
+git clone https://github.com/geekfujiwara/CodeAppsStarter.git && mv CodeAppsStarter [プロジェクト名] && cd [プロジェクト名] && npm install && pac auth create && pac code init --displayName "[アプリ表示名]" && npm run build && pac code push
+```
+
+**例：**
+```bash
+# 具体例
+git clone https://github.com/geekfujiwara/CodeAppsStarter.git && mv CodeAppsStarter TaskManager && cd TaskManager && npm install && pac auth create && pac code init --displayName "タスクマネージャー" && npm run build && pac code push
 ```
 
 **Phase 1 完了条件:**
-- ✅ TypeScript エラー: 0件
-- ✅ ESLint エラー: 0件
-- ✅ ビルドエラー: 0件
-- ✅ `pac code init` 正常完了
-- ✅ PowerProvider.tsx 正常動作
+- ✅ テンプレートが正常に動作する
+- ✅ Power Platform認証が完了している
+- ✅ `pac code push` が正常完了する
+- ✅ Power Apps環境でアプリが表示される
+- ✅ テンプレートの機能がPower Apps環境で動作する
 
 > **📘 詳細な実装手順**: 以下のステップバイステップガイドを参照してください。
 
@@ -45,74 +50,138 @@ npm run build && npm run lint && npx tsc --noEmit
 
 ```mermaid
 graph LR
-    A[Vite+React+TypeScript初期化] --> B[Power Apps Code Apps設定]
-    B --> C[PowerProvider実装]
-    C --> D[SDK初期化・統合]
-    D --> E[エラーチェック]
-    E --> F[基盤完了]
+    A[テンプレートクローン] --> B[依存関係インストール]
+    B --> C[ローカル動作確認]
+    C --> D[Power Apps認証]
+    D --> E[Code Apps初期化]
+    E --> F[初回デプロイ]
+    F --> G[テンプレートアプリ完成]
 ```
 
 **完了条件:**
-- ✅ Viteプロジェクトが正常にビルドできる
-- ✅ Power Apps SDKが正常に初期化される
-- ✅ ローカルでアプリが起動する
-- ✅ Power Apps環境でアプリが表示される
+- ✅ テンプレートがローカルで動作する
+- ✅ Power Platform認証が完了している
+- ✅ Power Apps環境でテンプレートアプリが動作する
+- ✅ 次フェーズでの改修準備が完了している
 
 ---
 
 ## 📝 Step詳細
 
-### **Step 1: Vite App初期化**
+### **Step 1: テンプレートのセットアップ**
 
-#### 1-1. プロジェクトディレクトリ作成
+#### 1-1. プロジェクトディレクトリ準備
 
 ```bash
+# 作業ディレクトリの作成と移動
 mkdir C:\CodeApps -Force
 cd C:\CodeApps
 ```
 
-#### 1-2. Viteプロジェクト作成
+#### 1-2. テンプレートのクローンとフォルダ名変更
 
 ```bash
-npm create vite@latest AppFromScratch -- --template react-ts
-cd C:\CodeApps\AppFromScratch
+# CodeAppsStarterテンプレートをクローン
+git clone https://github.com/geekfujiwara/CodeAppsStarter.git
+
+# プロジェクト名を決定（例：MyApp、CustomerPortal、TaskManager等）
+# フォルダ名を任意のプロジェクト名に変更
+mv CodeAppsStarter [プロジェクト名]
+cd [プロジェクト名]
+```
+
+**例：**
+```bash
+# 具体例
+git clone https://github.com/geekfujiwara/CodeAppsStarter.git
+mv CodeAppsStarter MyCustomerPortal
+cd MyCustomerPortal
+```
+
+**プロジェクト名の決定ガイドライン:**
+- 英数字、ハイフン、アンダースコアのみ使用
+- 日本語文字は使用しない（フォルダ名として）
+- わかりやすいプロジェクト名を選択
+
+**推奨例:**
+- `TaskManager` - タスク管理アプリ
+- `CustomerPortal` - 顧客ポータル
+- `InventorySystem` - 在庫管理システム
+- `SalesTracker` - 売上追跡システム
+
+**取得されるテンプレート内容:**
+- Vite + React + TypeScript の基盤設定済み
+- Power Apps SDK統合済み
+- shadcn/ui コンポーネント設定済み
+- Tailwind CSS設定済み
+- サンプル実装（ダッシュボード、フォーム、ギャラリーなど）
+
+#### 1-3. 依存関係のインストール
+
+```bash
+# 依存関係をインストール
 npm install
 ```
 
-**注意事項** (Microsoft公式より):
-- create-viteのインストールに同意する（初回のみ）
-- パッケージ名 `appfromscratch` をEnterで受け入れる
-- フレームワーク選択: **React**
-- バリアント選択: **TypeScript**
-
-#### 1-3. Node型定義のインストール
-
-```bash
-# Node型定義をインストール (必須)
-npm i --save-dev @types/node
-```
-
-**なぜ必要？**
-- Vite設定ファイルで`path`モジュールを使用するため
-- TypeScriptコンパイルエラーを防ぐため
+**インストールされる主要パッケージ:**
+- `@microsoft/power-apps` - Power Apps SDK
+- `@tanstack/react-query` - データフェッチライブラリ
+- `@radix-ui/*` - shadcn/ui基盤コンポーネント
+- `tailwindcss` - CSSフレームワーク
 
 ---
 
-### **Step 2: Code App初期化**
+### **Step 2: ローカル動作確認**
 
-#### 2-1. Power Platform認証
+#### 2-1. 開発サーバーの起動
 
 ```bash
+# ローカル開発サーバーを起動
+npm run dev
+```
+
+**実行内容:**
+- Vite開発サーバーが起動（通常 http://localhost:5173）
+- ブラウザが自動的に開く
+- テンプレートアプリの動作確認
+
+#### 2-2. テンプレート機能の確認
+
+**確認すべき機能:**
+1. **ダッシュボード** - Learn API を使用した統計表示
+2. **ギャラリー** - 検索・フィルター機能付きアイテム一覧
+3. **フォーム** - モーダル形式での入力フォーム
+4. **プロジェクト管理** - カンバンボード、ガントチャートなどの実装例
+5. **テーマ切り替え** - ダークモード対応
+6. **レスポンシブ** - モバイル・タブレット対応確認
+
+**注意事項:**
+- この段階では外部API（Learn API）を使用しているため、インターネット接続が必要
+- すべての機能が正常に動作することを確認してください
+
+---
+
+### **Step 3: Power Platform認証**
+
+#### 3-1. Power Platform CLI認証
+
+```bash
+# Power Platform環境への認証
 pac auth create
 ```
 
 **実行内容:**
 - ブラウザが開き、Microsoft アカウントでサインイン
 - Power Platform環境へのアクセス権限を付与
+- 認証プロファイルが作成される
 
-#### 2-2. 環境選択
+#### 3-2. 対象環境の選択
 
 ```bash
+# 利用可能な環境を確認
+pac env list
+
+# 対象環境を選択
 pac env select --environment <環境のURL>
 ```
 
@@ -126,223 +195,121 @@ pac env select --environment <環境のURL>
 pac env select --environment https://your-org.crm7.dynamics.com
 ```
 
-#### 2-3. Code Apps初期化
+---
+
+### **Step 4: Code Apps初期化**
+
+#### 4-1. Power Apps Code Apps初期化
 
 ```bash
-pac code init --displayName "App From Scratch"
+# Code Appsアプリケーションを初期化
+pac code init --displayName "[アプリの表示名]"
+```
+
+**例：**
+```bash
+# プロジェクトに合わせた表示名を設定
+pac code init --displayName "カスタマーポータル"
+pac code init --displayName "タスクマネージャー"
+pac code init --displayName "在庫管理システム"
 ```
 
 **実行内容:**
 - `.pac` フォルダが作成される
 - Power Apps Code Appsの設定ファイルが生成される
-- アプリが環境に登録される
+- アプリが Power Apps環境に登録される
 
-**オプション:**
+**オプション設定（推奨）:**
 ```bash
-# ロゴ付きで初期化
-pac code init --displayName "My App" --logo "./public/assets/logo.svg"
-
-# 既存アプリのロゴを更新
-pac code update --logo "./public/assets/logo.svg"
+# ロゴ付きで初期化（assetsフォルダにロゴがある場合）
+pac code init --displayName "CodeAppsStarterテンプレート" --logo "./public/vite.svg"
 ```
 
-#### 2-4. Power Apps SDK インストール
+#### 4-2. 初期化確認
 
 ```bash
-npm install --save "@microsoft/power-apps"
+# Code Appsの状態確認
+pac code list
 ```
 
-**インストール内容:**
-- `@microsoft/power-apps` パッケージ
-- Power Apps SDKのランタイム
-- データソース接続用のAPI
+**期待される出力:**
+- 作成されたアプリの情報が表示される
+- 環境内でのアプリIDが確認できる
 
 ---
 
-### **Step 3: vite.config.ts 設定**
+### **Step 5: Power Apps環境への初回デプロイ**
 
-#### 3-1. vite.config.ts を編集
+#### 5-1. 本番ビルドの実行
 
-**ファイルパス:** `vite.config.ts`
-
-```typescript
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import * as path from 'path'
-
-// https://vite.dev/config/
-export default defineConfig({
-  base: "./",  // 🚨重要: Power Apps デプロイ必須設定
-  server: {
-    host: "::",
-    port: 3000,  // Power SDK requires port 3000
-  },
-  plugins: [react()],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
-});
+```bash
+# 本番用ビルドを実行
+npm run build
 ```
 
-**重要な設定項目:**
+**実行内容:**
+- TypeScriptコンパイル
+- アセット最適化
+- `dist/` フォルダに本番用ファイルを生成
 
-| 設定項目 | 値 | 理由 |
-|---------|-----|------|
-| `base` | `"./"` | Power Appsデプロイ時の相対パス解決に必須 |
-| `server.port` | `3000` | Power Apps SDKが要求するポート番号 |
-| `server.host` | `"::"` | 外部からのアクセスを許可（Power Apps環境からの接続用） |
-| `resolve.alias` | `@: ./src` | インポートパスの短縮（shadcn/ui等で使用） |
+#### 5-2. デプロイの実行
 
-**注意:**
-- `base: "./"`を設定しないと、デプロイ後にアセットが読み込まれない
-- ポート3000以外を使用すると、Power Apps SDKが正常に動作しない
+```bash
+# Power Apps環境へデプロイ
+pac code push
+```
+
+**デプロイプロセス:**
+1. `dist/` フォルダの内容をPower Apps環境にアップロード
+2. アプリをPower Apps環境に登録・更新
+3. ユーザーがアクセス可能な状態にする
+
+#### 5-3. デプロイ確認
+
+**Power Apps環境での確認:**
+1. [Power Apps](https://make.powerapps.com) にアクセス
+2. 「アプリ」セクションで作成したアプリを確認
+3. アプリを開いてテンプレート機能が動作することを確認
+
+**確認すべき項目:**
+- ✅ アプリが正常に起動する
+- ✅ ダッシュボードが表示される
+- ✅ ナビゲーションが機能する
+- ✅ Learn API からのデータが取得・表示される
+- ✅ フォーム機能が動作する
+- ✅ テーマ切り替えが機能する
 
 ---
 
-### **Step 4: PowerProvider.tsx追加**
+### **Step 6: テンプレートアプリの動作確認**
 
-#### 4-1. PowerProvider.tsxファイルを作成
+#### 6-1. 基本機能テスト
 
-**ファイルパス:** `src/PowerProvider.tsx`
+**ダッシュボード:**
+- 統計カードの表示確認
+- Learn API データの取得確認
 
-**取得元:**
-- Microsoft公式リポジトリ: [PowerProvider.tsx](https://github.com/microsoft/PowerAppsCodeApps/blob/main/docs/assets/PowerProvider.tsx)
+**ギャラリー機能:**
+- 検索機能の動作確認
+- フィルター機能の動作確認
+- ページネーションの確認
 
-**PowerProviderの役割:**
-1. **Power Apps SDKの初期化**
-   - `PowerDataRuntime`の初期化
-   - コネクター接続の準備
-   - 認証状態の管理
+**プロジェクト管理:**
+- カンバンボードの操作確認
+- ガントチャートの動作確認
+- タスク優先順位管理の確認
 
-2. **初期化状態の管理**
-   - ローディング状態の表示
-   - エラーハンドリング
-   - 初期化完了後のアプリ表示
+#### 6-2. レスポンシブ対応確認
 
-3. **コンテキストの提供**
-   - 子コンポーネントへのSDKアクセス
-   - データソース接続の共有
+**確認デバイス:**
+- デスクトップ表示
+- タブレット表示
+- モバイル表示
 
-**基本構造:**
-```typescript
-import { createContext, useEffect, useState } from 'react';
-
-export const PowerContext = createContext<PowerDataRuntime | null>(null);
-
-export default function PowerProvider({ children }: { children: React.ReactNode }) {
-  const [powerRuntime, setPowerRuntime] = useState<PowerDataRuntime | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  useEffect(() => {
-    // Power Apps SDK初期化ロジック
-    const initialize = async () => {
-      try {
-        const runtime = await initializePowerDataRuntime();
-        setPowerRuntime(runtime);
-        setIsInitialized(true);
-      } catch (error) {
-        console.error('Power Apps SDK initialization failed:', error);
-      }
-    };
-    initialize();
-  }, []);
-
-  if (!isInitialized) {
-    return <div>Loading Power Apps SDK...</div>;
-  }
-
-  return (
-    <PowerContext.Provider value={powerRuntime}>
-      {children}
-    </PowerContext.Provider>
-  );
-}
-```
-
----
-
-### **Step 5: main.tsx更新**
-
-#### 5-1. PowerProviderをインポート
-
-**ファイルパス:** `src/main.tsx`
-
-```typescript
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
-import PowerProvider from './PowerProvider.tsx'  // 追加
-```
-
-#### 5-2. App コンポーネントをラップ
-
-**変更前:**
-```typescript
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
-```
-
-**変更後:**
-```typescript
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <PowerProvider>
-      <App />
-    </PowerProvider>
-  </StrictMode>,
-)
-```
-
-**なぜ必要？**
-- すべての子コンポーネントでPower Apps SDKにアクセスできるようにする
-- データソース接続を一元管理する
-- 初期化エラーを適切にハンドリングする
-
----
-
-### **Step 6: package.json スクリプト更新**
-
-#### 6-1. devスクリプトを変更
-
-**ファイルパス:** `package.json`
-
-**Windows:**
-```json
-{
-  "scripts": {
-    "dev": "start pac code run && vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  }
-}
-```
-
-**macOS/Linux:**
-```json
-{
-  "scripts": {
-    "dev": "vite && pac code run",  // startコマンド不要
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  }
-}
-```
-
-**スクリプトの動作:**
-1. `pac code run` - Power Apps SDKサーバーを起動
-2. `vite` - Vite開発サーバーを起動
-
-**Windowsで `start` が必要な理由:**
-- `pac code run`をバックグラウンドで実行するため
-- 同時に`vite`を起動するため
+**確認項目:**
+- サイドバーナビゲーションの折りたたみ
+- レイアウトの適切な調整
+- タッチ操作の動作
 
 ---
 
@@ -407,38 +374,74 @@ pac env select --environment <環境のURL>
 - [ ] `npm install` が正常に完了している
 - [ ] `@types/node` がインストールされている
 
-### Power Apps設定
+## ✅ Phase 1 完了チェックリスト
+
+### テンプレート環境
+- [ ] CodeAppsStarterテンプレートがクローンされている
+- [ ] `npm install` が正常に完了している
+- [ ] `npm run dev` でローカルサーバーが起動する
+- [ ] テンプレートの全機能がローカルで動作する
+
+### Power Platform設定
 - [ ] `pac auth create` で認証が完了している
 - [ ] `pac env select` で環境が選択されている
 - [ ] `pac code init` でアプリが作成されている
-- [ ] `@microsoft/power-apps` がインストールされている
+- [ ] アプリがPower Apps環境に登録されている
 
-### ファイル設定
-- [ ] `vite.config.ts` に `base: "./"` が設定されている
-- [ ] `vite.config.ts` に `server.port: 3000` が設定されている
-- [ ] `src/PowerProvider.tsx` が作成されている
-- [ ] `src/main.tsx` に `PowerProvider` が追加されている
-- [ ] `package.json` の `dev` スクリプトが更新されている
+### デプロイ確認
+- [ ] `npm run build` が正常に完了する
+- [ ] `pac code push` が正常に完了する
+- [ ] Power Apps環境でアプリが起動する
+- [ ] テンプレートの機能がPower Apps環境で動作する
 
-### 動作確認
-- [ ] `npm run dev` でサーバーが起動する
-- [ ] http://localhost:3000 にアクセスできる
-- [ ] Power Apps環境でアプリが表示される
-- [ ] ブラウザコンソールにエラーが表示されない
+### 機能動作確認
+- [ ] ダッシュボードが正常に表示される
+- [ ] ギャラリー・フィルター機能が動作する
+- [ ] フォーム機能が動作する
+- [ ] プロジェクト管理ツール（カンバン等）が動作する
+- [ ] テーマ切り替えが機能する
+- [ ] レスポンシブデザインが適切に動作する
 
-### ビルド確認
-- [ ] `npm run build` が成功する
-- [ ] `npm run lint` でエラーが表示されない
-- [ ] `npx tsc --noEmit` でTypeScriptエラーがない
+---
+
+## 🔧 トラブルシューティング
+
+### テンプレートクローン時のエラー
+
+**エラー: "Repository not found"**
+```bash
+# 解決策: URLを確認してクローン
+git clone https://github.com/geekfujiwara/CodeAppsStarter.git
+```
+
+### デプロイ時のエラー
+
+**エラー: "Build failed"**
+```bash
+# 解決策: 依存関係を再インストール
+npm ci
+npm run build
+```
+
+**エラー: "pac code push failed"**
+```bash
+# 解決策: 認証を確認し、再度実行
+pac auth list
+pac env select --environment <環境のURL>
+pac code push
+```
 
 ---
 
 ## 📚 関連リファレンス
 
+### テンプレート情報
+- [CodeAppsStarter リポジトリ](https://github.com/geekfujiwara/CodeAppsStarter)
+- [テンプレート内の使い方ガイド](https://github.com/geekfujiwara/CodeAppsStarter#テンプレートの使い方)
+
 ### 公式ドキュメント
 - [Power Apps Code Apps 公式ドキュメント](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/)
 - [PAC CLI リファレンス](https://learn.microsoft.com/ja-jp/power-platform/developer/cli/reference/code)
-- [Vite 公式ドキュメント](https://vitejs.dev/)
 
 ### 内部リファレンス
 - **[docs/README.md](./docs/README.md)** - ドキュメント一覧とナビゲーション
@@ -449,5 +452,10 @@ pac env select --environment <環境のURL>
 ## 🔄 次のステップ
 
 Phase 1が完了したら、次は **Phase 2: UI基盤・デザインシステム・MVP構築** に進みます。
+
+**重要な変更点:**
+- Phase 1でテンプレートアプリが完成した状態になります
+- Phase 2では、このテンプレートを元に具体的な要件に合わせてアプリを改修していきます
+- これまでのスクラッチ開発からテンプレートベースの改修型開発に移行します
 
 👉 **[Phase 2 リファレンス](./PHASE2_UI_DESIGN_SYSTEM.md)** に進む

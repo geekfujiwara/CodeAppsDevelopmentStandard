@@ -1,103 +1,263 @@
-# アプリケーションロゴ - マスターガイド
+# ロゴ・アイコン実装マスターガイド
 
-**Gantt Chart Project Manager**の公式ロゴドキュメント  
-**最終更新**: 2025年10月21日
+> **📘 CodeAppsStarterテンプレート専用ガイド**  
+> このドキュメントでは、CodeAppsStarterテンプレートでのロゴ・アイコン実装方法と、カスタムSVGアイコン作成手順を説明します。
 
----
-
-## 📋 目次
-
-1. [概要](#概要)
-2. [デザイン仕様](#デザイン仕様)
-3. [使用方法](#使用方法)
-4. [実装例](#実装例)
-5. [ブランドガイドライン](#ブランドガイドライン)
-6. [アセット一覧](#アセット一覧)
-7. [技術的トラブルシューティング](#技術的トラブルシューティング)
+**最終更新**: 2025年11月17日  
+**対象**: Phase 2: デザインシステム統合・カスタマイズ
 
 ---
 
-## 概要
+## 🎨 テンプレートロゴ実装参照ガイド
 
-Gantt Chart Project Managerのブランドアイデンティティを表現するロゴです。Microsoft Fluent Design Systemに準拠しつつ、ガントチャートの視覚的要素を取り入れています。
+### 📖 テンプレート参照リンク
 
-### デザインコンセプト
+**ロゴ・アイコン実装例:**
+- 🔗 **[App Logo Component](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/components/app-logo.tsx)** - ロゴコンポーネント実装
+- 🔗 **[Header Logo Usage](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/components/header.tsx)** - ヘッダーでのロゴ使用例  
+- 🔗 **[Sidebar Logo Usage](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/components/sidebar.tsx)** - サイドバーでのロゴ使用例
+- 🔗 **[Logo Assets](https://github.com/geekfujiwara/CodeAppsStarter/tree/main/public)** - ロゴファイル配置例
 
-1. **ガントチャートの視覚化** - 水平バーでタスクの期間を表現
-2. **Microsoft Design Language準拠** - Fluent Design配色とモダンな外観
-3. **プロジェクト管理の象徴** - カレンダーアイコンとタイムライングリッド
+**アイコンシステム:**
+- 🔗 **[Icons Directory](https://github.com/geekfujiwara/CodeAppsStarter/tree/main/src/components/icons)** - カスタムアイコン実装例
+- 🔗 **[Lucide React Integration](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/components/ui/icons.tsx)** - アイコンライブラリ統合
 
----
+### ロゴカスタマイズ手順
 
-## デザイン仕様
+#### Step 1: テンプレートのロゴ実装を参照
 
-### ロゴファイル
+```bash
+# テンプレートのロゴコンポーネントをコピー
+cp CodeAppsStarter/src/components/app-logo.tsx ./src/components/
+cp CodeAppsStarter/public/logo.svg ./public/assets/
 
-| ファイル | サイズ | 用途 |
-|---------|--------|------|
-| `public/logo.svg` | 120×120px | アプリアイコン、スプラッシュスクリーン |
-| `public/favicon.svg` | 32×32px | ブラウザタブ、ファビコン |
-
-### カラーパレット
-
-#### プライマリーカラー
-- **Microsoft Blue**: `#0078D4` - メインブランドカラー
-- **Deep Blue**: `#106EBE` - グラデーション用
-
-#### アクセントカラー（ガントチャートバー）
-| 色 | HEX | 用途 |
-|---|-----|------|
-| Cyan | `#50E6FF` | タスク1（高優先度） |
-| Green | `#96D726` | タスク2（進行中） |
-| Orange | `#FFB900` | タスク3（計画中） |
-| Teal | `#00B294` | 完了状態 |
-| Red-Orange | `#F7630C` | 警告・遅延 |
-
-### デザイン要素
-
-#### ガントチャートバー（3本）
-- **バー1（Cyan→Blue）**: 高優先度タスク
-- **バー2（Green→Teal）**: 進行中タスク
-- **バー3（Orange→Red）**: 計画中タスク
-
-#### 背景
-- 白い丸形背景（`opacity: 0.95`）
-- Microsoft Blueのグラデーション
-- 適度なシャドウと深度
-
-#### グリッド線
-- タイムライン構造を示唆
-- プロジェクト管理の象徴
-
----
-
-## 使用方法
-
-### HTML（ファビコン）
-
-```html
-<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-<link rel="apple-touch-icon" href="/logo.svg" />
+# プロジェクト専用ロゴに置換
+# ./public/assets/logo.svg を独自ロゴで置換
 ```
 
-### Reactコンポーネント
+#### Step 2: Power Apps ロゴ登録
 
-```tsx
-import { AppLogo } from '@/components/AppLogo';
-
-// 基本使用
-<AppLogo />
-
-// カスタマイズ
-<AppLogo size={60} showText={true} className="my-custom-class" />
-
-// アイコンのみ
-<AppLogo size={32} showText={false} />
+```bash
+# ロゴファイルをPower Appsに登録
+pac code update --logo "./public/assets/logo.svg"
 ```
 
-### Props
+#### Step 3: テンプレート内ロゴ参照の更新
 
-| Prop | Type | Default | Description |
+テンプレートのロゴコンポーネント使用箇所を確認・更新:
+```bash
+# テンプレート内のロゴ使用箇所を確認
+grep -r "logo" CodeAppsStarter/src/components/
+grep -r "AppLogo" CodeAppsStarter/src/
+```
+
+---
+
+## 🎨 カスタムSVGアイコン作成ガイド（開発標準実装）
+
+### アイコンSVGコンポーネント作成
+
+#### 基本SVGアイコンテンプレート
+
+```typescript
+// src/components/icons/CustomIcon.tsx
+import React from 'react';
+
+interface IconProps {
+  size?: number;
+  className?: string;
+  color?: string;
+}
+
+export const CustomIcon: React.FC<IconProps> = ({ 
+  size = 24, 
+  className = "", 
+  color = "currentColor" 
+}) => {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      className={className}
+      viewBox="0 0 24 24" 
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* カスタムSVGパスをここに追加 */}
+      <path 
+        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" 
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+};
+```
+
+#### プロジェクト固有アイコンシステム
+
+```typescript
+// src/components/icons/index.ts
+export { CustomIcon } from './CustomIcon';
+export { ProjectIcon } from './ProjectIcon';
+export { StatusIcon } from './StatusIcon';
+
+// テンプレートのLucide Reactアイコンも活用
+export { 
+  Home, 
+  Users, 
+  Settings, 
+  FileText,
+  Plus,
+  Edit,
+  Trash2,
+  Search,
+  Filter,
+  ChevronDown
+} from 'lucide-react';
+```
+
+#### アイコン使用例
+
+```typescript
+// コンポーネント内でのアイコン使用
+import { CustomIcon, Home, Users } from '@/components/icons';
+
+export function NavigationMenu() {
+  return (
+    <nav className="space-y-2">
+      <button className="flex items-center space-x-2 p-2 rounded hover:bg-accent">
+        <Home className="h-4 w-4" />
+        <span>ホーム</span>
+      </button>
+      <button className="flex items-center space-x-2 p-2 rounded hover:bg-accent">
+        <CustomIcon size={16} className="text-muted-foreground" />
+        <span>カスタム機能</span>
+      </button>
+    </nav>
+  );
+}
+```
+
+### SVGアイコン最適化
+
+#### パフォーマンス最適化
+
+```typescript
+// アイコンのメモ化
+import { memo } from 'react';
+
+export const OptimizedIcon = memo(({ size, color, className }: IconProps) => {
+  return (
+    <svg 
+      width={size} 
+      height={size}
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+    >
+      <path 
+        d="..." 
+        stroke={color}
+        strokeWidth="2"
+      />
+    </svg>
+  );
+});
+```
+
+#### ダークモード対応SVG
+
+```typescript
+// CSS変数を活用したダークモード対応
+export const ThemedIcon: React.FC<IconProps> = ({ size = 24, className }) => {
+  return (
+    <svg 
+      width={size} 
+      height={size}
+      className={className}
+      viewBox="0 0 24 24"
+    >
+      <path 
+        d="..."
+        fill="currentColor"
+        className="text-foreground dark:text-foreground"
+      />
+    </svg>
+  );
+};
+```
+
+---
+
+## 🚨 トラブルシューティング
+
+### ロゴ表示の問題
+
+**問題1: テンプレートでロゴが表示されない**
+```bash
+# ファイルパス確認
+ls -la public/assets/logo.svg
+
+# 開発サーバー再起動
+npm run dev
+```
+
+**問題2: Power Apps でロゴが更新されない**
+```bash
+# 強制更新
+pac code push --force
+```
+
+**問題3: SVGアイコンが正しく表示されない**
+```typescript
+// viewBox設定の確認
+<svg viewBox="0 0 24 24">  // 正しい設定
+
+// fill/stroke属性の確認  
+<path fill="currentColor" />  // カラー継承
+```
+
+---
+
+## 📚 関連ドキュメント
+
+- **[Phase 2: デザインシステム統合](../PHASE2_UI_DESIGN_SYSTEM.md)** - メインガイド
+- **[CodeAppsStarterテンプレート](https://github.com/geekfujiwara/CodeAppsStarter)** - 参照元テンプレート
+- **[Lucide React](https://lucide.dev/)** - アイコンライブラリ公式ドキュメント
+
+---
+
+## 📝 注意事項
+
+- **テンプレート実装の参照**: ロゴ・アイコン実装時は必ずテンプレートの実装を確認
+- **SVGアイコンの最適化**: パフォーマンスとアクセシビリティを考慮した実装
+- **ダークモード対応**: すべてのアイコンでテーマ対応を実装
+- **一貫したアイコンサイズ**: テンプレートのサイズガイドラインを踏襲
+
+**一般的な参照方法:**
+```typescript
+// ヘッダーコンポーネント等で使用されている例
+<img src="/vite.svg" alt="App Logo" className="h-8 w-8" />
+```
+
+---
+
+## プロジェクト固有ロゴへの変更
+
+### Step 1: ロゴファイルの準備
+
+**推奨ファイル構成:**
+```
+public/
+└── assets/
+    ├── logo.svg          # メインロゴ（推奨）
+    ├── logo.png          # フォールバック用
+    ├── logo-text.svg     # テキスト付きロゴ
+    └── favicon.ico       # 新しいファビコン
+```
 |------|------|---------|-------------|
 | `size` | `number` | `40` | ロゴのサイズ（px） |
 | `showText` | `boolean` | `true` | テキストラベルの表示/非表示 |
@@ -273,9 +433,170 @@ inkscape logo.svg --export-png=logo.png --export-width=512
 
 ## 技術的トラブルシューティング
 
-### 問題: ロゴが表示されない
+## 技術的トラブルシューティング
 
-**原因**: SVG内の固定IDが複数インスタンスで衝突
+### 問題1: テンプレートでロゴが表示されない
+
+**症状**: 新しいロゴに変更したが、テンプレート内で表示されない
+
+**原因と解決策:**
+```bash
+# 1. ファイルパスの確認
+ls -la public/assets/logo.svg
+
+# 2. ブラウザキャッシュのクリア
+# Ctrl+Shift+R (ハードリロード)
+
+# 3. Vite開発サーバーの再起動
+npm run dev
+```
+
+### 問題2: Power Appsでロゴが反映されない
+
+**症状**: `pac code update --logo` 実行後も古いロゴが表示される
+
+**解決策:**
+```bash
+# 1. ロゴファイルの存在確認
+ls -la ./public/assets/logo.svg
+
+# 2. Power Apps認証の確認
+pac auth list
+
+# 3. 強制アップデート
+pac code push --force
+
+# 4. Power Appsアプリ一覧での確認
+# https://make.powerapps.com でアプリアイコンを確認
+```
+
+### 問題3: ダークモードでロゴが見えない
+
+**症状**: ダークモードで暗い背景に暗いロゴが表示される
+
+**解決策:**
+```css
+/* 1. CSSでダークモード対応 */
+.dark img[src*="logo"] {
+  filter: invert(1) brightness(1.2);
+}
+
+/* 2. または専用のダークモードロゴを使用 */
+.dark .logo-light { display: none; }
+.dark .logo-dark { display: block; }
+```
+
+```typescript
+// 3. Reactでの動的切り替え
+import { useTheme } from '@/hooks/use-theme';
+
+export const AppLogo = () => {
+  const { theme } = useTheme();
+  
+  return (
+    <img 
+      src={theme === 'dark' ? '/assets/logo-dark.svg' : '/assets/logo.svg'}
+      alt="App Logo"
+      className="h-8 w-8"
+    />
+  );
+};
+```
+
+### 問題4: モバイルでロゴが小さすぎる
+
+**解決策:**
+```typescript
+// レスポンシブサイズ調整
+export const AppLogo = () => {
+  return (
+    <img 
+      src="/assets/logo.svg"
+      alt="App Logo" 
+      className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10"
+    />
+  );
+};
+```
+
+### 問題5: SVGロゴのカラーカスタマイズ
+
+**インラインSVGでの色変更:**
+```typescript
+// SVGを直接ReactComponentとして使用
+import Logo from '/assets/logo.svg?react';
+
+export const CustomizableLogo = ({ color = 'currentColor' }) => {
+  return (
+    <Logo 
+      className="h-8 w-8" 
+      style={{ color }}
+    />
+  );
+};
+```
+
+---
+
+## ベストプラクティス
+
+### 1. パフォーマンス最適化
+
+```typescript
+// 1. 遅延読み込み
+const LazyLogo = lazy(() => import('@/components/AppLogo'));
+
+// 2. メモ化
+const AppLogo = memo(({ size, showText }: LogoProps) => {
+  return (
+    <img 
+      src="/assets/logo.svg"
+      alt="App Logo"
+      width={size}
+      height={size}
+      loading="lazy"
+    />
+  );
+});
+```
+
+### 2. アクセシビリティ
+
+```typescript
+// 適切なalt属性とaria-label
+export const AppLogo = ({ size = 32, showText = false }) => {
+  return (
+    <div role="img" aria-label="アプリケーションロゴ">
+      <img 
+        src="/assets/logo.svg"
+        alt={showText ? "" : "アプリケーションロゴ"}
+        width={size}
+        height={size}
+        aria-hidden={showText ? "true" : "false"}
+      />
+      {showText && (
+        <span className="sr-only">アプリケーション名</span>
+      )}
+    </div>
+  );
+};
+```
+
+### 3. SEO対応
+
+```html
+<!-- index.html -->
+<link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
+<link rel="apple-touch-icon" href="/assets/logo.png" />
+<meta property="og:image" content="/assets/logo.png" />
+```
+
+---
+
+## 関連ドキュメント
+
+- **[Phase 2: UI基盤・デザインシステム](../PHASE2_UI_DESIGN_SYSTEM.md)** - デザインシステム統合
+- **[ロゴ表示の修正方法](./LOGO_DISPLAY_FIX.md)** - トラブルシューティング詳細
 
 複数のロゴインスタンスが同じページに存在する場合、SVG内の`id`属性が重複し、ブラウザが正しくレンダリングできません。
 

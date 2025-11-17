@@ -1,50 +1,53 @@
-# Phase 2: UI基盤・デザインシステム・MVP構築
+# Phase 2: UI・デザインシステム統合
 
 ## 📋 概要
 
-このPhaseでは、shadcn/ui + TailwindCSSを統合し、モダンで統一されたデザインシステムに基づいたUIを構築します。
+このPhaseでは、**CodeAppsStarterテンプレート**のデザインシステムを参照・活用し、プロジェクト要件に合わせてカスタマイズを実施します。
 
-**主な実施内容:**
-- アプリロゴの作成と配置
-- shadcn/ui + TailwindCSSのセットアップ
-- 統一されたカラーパレット・タイポグラフィの適用
-- レイアウトコンポーネント（CommonHeader, SideMenu）の実装
-- ダークモード・ライトモード対応
-- MVPアプリケーションの構築
-
-**デザインシステムの特徴:**
-- CSS変数ベースのテーマシステム
-- ダークモード完全対応
-- レスポンシブデザイン（モバイルファースト）
-- 一貫したスペーシング・タイポグラフィ
-- アクセシビリティ対応
+**基本方針: テンプレート参照型開発**
+- 実装コードはテンプレートを参照
+- ブランドカスタマイズのみ本開発標準で実施
+- コード重複を避け、メンテナンスコストを削減
+- テンプレート品質を活用した高速開発
 
 ---
 
-## 🚀 クイックリファレンス
+## 🎯 実施内容
 
-> **📘 詳細な実装手順**: 以下のステップバイステップガイドを参照してください。
->
-> **ロゴのリファレンス:**
-> - **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)** - デザイン仕様と実装方法
-> - **[ロゴ表示の修正方法](./docs/LOGO_DISPLAY_FIX.md)** - 表示問題のトラブルシューティング
->
-> **デザインシステムの詳細は本ドキュメント内に完全収録されています。**
+### 1. テンプレートデザインシステムの確認
+CodeAppsStarterテンプレートのデザイン基盤を理解し、プロジェクト要件とのマッピングを行います。
 
-**実施するStep（概要）:**
-1. **アプリアイコン・ロゴ作成** - ロゴファイルの準備と配置
-2. **shadcn/ui統合** - デザインシステムのセットアップ
-3. **デザインシステム統合** - カラー・タイポグラフィ・スペーシングの適用
-4. **レイアウト実装** - CommonHeader, SideMenu, MainLayoutコンポーネント作成
-5. **ダークモード対応** - テーマ切り替えシステム実装
-6. **MVP機能実装** - 要件に基づいた設計に従って実装
-7. **エラーチェック** - TypeScript・ESLint・ビルド確認
+**参照先:**
+- 📖 **[CodeAppsStarter README.md](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/README.md)** - デザインシステム概要
+- 📖 **[shadcn/ui + Tailwind CSS設定](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/tailwind.config.js)** - テーマ設定
+- 📖 **[グローバルCSS](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/app/globals.css)** - CSS変数・ベーススタイル
 
-**重要な注意事項:**
-- ⚠️ PowerProvider.tsxは変更しない
-- ⚠️ Power Apps接続部分は変更しない
-- ✅ MVP機能部分のみを実装する
-- ✅ 本ドキュメントのデザイン原則に従う
+### 2. ブランド要素のカスタマイズ
+プロジェクト固有のブランド要素を適用します。
+
+**カスタマイズガイド:**
+- **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)** - ロゴ変更・SVGアイコン作成
+- **[テーマカスタマイズガイド](./docs/THEME_CUSTOMIZATION_GUIDE.md)** - 色・フォント・テーマ変更
+
+### 3. UIコンポーネントの活用
+テンプレートのUIコンポーネントを参照して機能実装を行います。
+
+**参照先:**
+- 📖 **[UIコンポーネント集](https://github.com/geekfujiwara/CodeAppsStarter/tree/main/src/components/ui)** - shadcn/ui実装例
+- 📖 **[ページコンポーネント](https://github.com/geekfujiwara/CodeAppsStarter/tree/main/src/app)** - レイアウト・ページ実装例
+- **[shadcn/ui拡張ガイド](./docs/SHADCN_UI_EXTENSION_GUIDE.md)** - カスタムコンポーネント作成
+
+### 4. レスポンシブデザインの確認
+テンプレートのレスポンシブ設計を確認し、必要に応じてカスタマイズします。
+
+**参照先:**
+- 📖 **[レスポンシブレイアウト](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/components/layout/)** - レイアウト実装例
+- 📖 **[Tailwind CSS設定](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/tailwind.config.js)** - ブレイクポイント設定
+- ✅ **テンプレート品質維持**: 既存のデザインシステムを最大活用
+- ✅ **リファレンス主導**: テンプレートの実装を参照してプロジェクト適用
+- ✅ **shadcn/ui活用**: テンプレートのUIコンポーネントを基盤使用
+- ⚠️ **PowerProvider.tsxは変更しない**
+- ⚠️ **Power Apps接続部分は変更しない**
 
 **統合コマンド（すべてのチェック）:**
 ```bash
@@ -53,178 +56,326 @@ npm run build && npm run lint
 ```
 
 **Phase 2 完了条件:**
-- ✅ shadcn/uiコンポーネントが使用できる
-- ✅ 統一されたカラーシステムが適用されている
-- ✅ CommonHeader + SideMenuのレイアウトが実装されている
-- ✅ ダークモード・ライトモード切り替えが機能する
-- ✅ MVP機能が実装されている
-- ✅ PowerProvider.tsxは変更していない
-- ✅ `npm run dev` でローカル起動できる
-- ✅ すべてのエラーチェックに合格
+- ✅ テンプレートの機能・デザインを理解し要件マッピングが完了
+---
+
+## ✅ 成果物・完了基準
+
+### 必須成果物
+1. **ブランド適用完了**
+   - ロゴ・アプリ名の変更
+   - プロジェクト固有色の適用
+
+2. **テンプレート機能の確認**
+   - UIコンポーネントの動作確認
+   - レスポンシブデザインの確認
+
+3. **カスタマイズ実装**
+   - プロジェクト要件に合わせたUI調整
+   - 必要に応じた新機能追加
+
+### 完了基準
+- [ ] テンプレートデザインシステムの理解完了
+- [ ] ブランド要素（ロゴ、色、名前）の適用完了
+- [ ] UIコンポーネントの要件適合確認完了
+- [ ] レスポンシブデザインの動作確認完了
+- [ ] TypeScript・ESLintエラーゼロ
+- [ ] 本番環境での表示確認完了
 
 ---
 
-## 🎯 Phase 2の目標
+## 📖 関連ドキュメント
 
-```mermaid
-graph LR
-    A[デザインシステム統合] --> B[レイアウト実装]
-    B --> C[MVP機能実装]
-    C --> D[統合テスト]
-    D --> E[Phase 2完了]
-```
-
-**完了条件:**
-- ✅ shadcn/uiコンポーネントが使用できる
-- ✅ 統一されたレイアウトが実装されている
-- ✅ MVPとして最小限の機能が動作する
+- **[PHASE1: プロジェクトセットアップ](./PHASE1_PROJECT_SETUP.md)** - 前Phase
+- **[PHASE3: ローカルテスト](./PHASE3_LOCAL_TESTING.md)** - 次Phase
+- **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)** - ロゴカスタマイズ詳細
+- **[テーマカスタマイズガイド](./docs/THEME_CUSTOMIZATION_GUIDE.md)** - テーマ変更詳細
+- **[shadcn/ui拡張ガイド](./docs/SHADCN_UI_EXTENSION_GUIDE.md)** - UI拡張詳細
 
 ---
 
-## 📝 Step詳細
+## 🔧 トラブルシューティング
 
-### **Step 1: アプリアイコン・ロゴ作成**
+問題が発生した場合は、以下を参照してください：
 
-#### 1-1. assetsディレクトリ作成
+1. **テンプレート参照**
+   - 📖 **[CodeAppsStarter Issues](https://github.com/geekfujiwara/CodeAppsStarter/issues)** - 既知の問題・解決策
 
+2. **技術ドキュメント**
+   - **[Next.js公式ドキュメント](https://nextjs.org/docs)**
+   - **[shadcn/ui公式ドキュメント](https://ui.shadcn.com/)**
+   - **[Tailwind CSS公式ドキュメント](https://tailwindcss.com/docs)**
+
+3. **開発標準内ガイド**
+   - **[docs/INDEX.md](./docs/INDEX.md)** - 技術ガイド一覧
+   - **[PHASE3: ローカルテスト](./PHASE3_LOCAL_TESTING.md)** - デバッグ手順
+📁 CodeAppsStarter/tailwind.config.js     # テーマ設定
+📁 CodeAppsStarter/src/index.css          # CSS変数・ベーススタイル
+
+# 実装例
+📁 CodeAppsStarter/src/components/        # カスタムコンポーネント実装
+📁 CodeAppsStarter/src/pages/             # ページ実装例
+```
+
+#### 1-3. 要件とテンプレートのマッピング
+
+**変更が必要な項目を特定:**
+- [ ] **アプリ名**: 現在「Code Apps Starter」→ プロジェクト名に変更
+- [ ] **ロゴ**: Viteロゴ → プロジェクト専用ロゴに変更  
+- [ ] **ナビゲーション**: テンプレートのメニュー構成 → 要件に合わせて調整
+- [ ] **機能**: Learn API機能 → プロジェクト要件の機能に置換・拡張
+- [ ] **UI要素**: テンプレートの色・文言 → ブランド要素に変更
+
+#### 1-3. 改修計画の作成
+
+- 📖 **[Form](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/components/ui/form.tsx)** - フォーム管理
+
+**ページコンポーネント:**
+- 📖 **[Dashboard](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/pages/Dashboard.tsx)** - ダッシュボード実装例
+- 📖 **[Gallery](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/pages/Gallery.tsx)** - ギャラリー実装例
+- 📖 **[Forms](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/pages/Forms.tsx)** - フォーム実装例
+- 📖 **[Projects](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/pages/Projects.tsx)** - プロジェクト管理実装例
+
+**レイアウトコンポーネント:**
+- 📖 **[AppSidebar](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/components/AppSidebar.tsx)** - サイドバー実装
+- 📖 **[AppHeader](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/components/AppHeader.tsx)** - ヘッダー実装
+- 📖 **[ThemeToggle](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/components/ThemeToggle.tsx)** - テーマ切替
+
+**テーマシステム:**
+- 📖 **[Tailwind Config](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/tailwind.config.js)** - テーマ設定
+- 📖 **[CSS Variables](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/index.css)** - CSS変数定義
+- 📖 **[Utils](https://github.com/geekfujiwara/CodeAppsStarter/blob/main/src/lib/utils.ts)** - ユーティリティ関数
+
+#### 2-2. カスタマイズ手順
+
+**ステップ1: テンプレートコードを参照してプロジェクトにコピー**
 ```bash
-# public/assets ディレクトリ作成
-mkdir -p public/assets
+# テンプレートの実装を参照して新しいコンポーネントを作成
+# 例: CustomerCardコンポーネントをCardコンポーネントを参照して作成
+cp CodeAppsStarter/src/components/ui/card.tsx src/components/CustomerCard.tsx
 ```
 
-**ディレクトリ構造:**
-```
-public/
-└── assets/
-    ├── logo.svg      # メインロゴ（推奨）
-    ├── logo.png      # フォールバック用
-    └── favicon.ico   # ファビコン
-```
-
-#### 1-2. ロゴファイルの準備
-
-**推奨アイコンサイズ:**
-- **SVGロゴ**: `logo.svg` (スケーラブル、推奨)
-- **PNGアイコン**: `128x128px`, `256x256px`
-- **ファビコン**: `favicon.ico` (32x32px)
-
-#### 1-3. Code Apps登録時のロゴ指定
-
-**初回登録時:**
+**ステップ2: ブランド要素のカスタマイズ**
 ```bash
-pac code init --displayName "My Code App" --logo "./public/assets/logo.svg"
-```
+# アプリ名変更
+package.jsonの"name"を変更
+index.htmlの<title>を変更
 
-**既存アプリのロゴ更新:**
-```bash
+# ロゴ変更
+ロゴファイルをpublic/assets/に配置
 pac code update --logo "./public/assets/logo.svg"
 ```
-
-**注意事項:**
-- SVG形式が推奨（スケーラブル）
-- ファイルサイズは1MB以下
-- 透過背景推奨
-- 正方形比率（1:1）が最適
 
 > **📘 詳細なロゴ実装ガイド**  
 > ロゴのデザイン仕様、実装パターン、トラブルシューティングは [LOGO_MASTER_GUIDE.md](./docs/LOGO_MASTER_GUIDE.md) を参照してください。
 
 ---
 
-### **Step 2: shadcn/ui + TailwindCSS 統合セットアップ**
+### **Step 3: テンプレート機能の改修**
 
-#### 2-1. shadcn/ui初期化
+#### 3-1. 不要な機能の削除・無効化
 
-```bash
-npx shadcn@latest init
+**例：Learn APIを使用した機能を無効化**
+```typescript
+// テンプレートのLearn API機能を一時的に無効化またはプレースホルダーに変更
+// src/services/learnApi.ts を確認・修正
 ```
 
-**対話式プロンプト:**
-```
-Would you like to use TypeScript? › Yes
-Which style would you like to use? › Default
-Which color would you like to use as base color? › Slate
-Where is your global CSS file? › src/globals.css
-Would you like to use CSS variables for colors? › Yes
-Where is your tailwind.config.js located? › tailwind.config.js
-Configure the import alias for components: › @/components
-Configure the import alias for utils: › @/lib/utils
-Are you using React Server Components? › No
-```
+#### 3-2. ナビゲーション構成の変更
 
-**自動的に作成されるファイル:**
-- `tailwind.config.js` - TailwindCSS設定
-- `src/globals.css` - グローバルスタイル
-- `components.json` - shadcn/ui設定
-- `src/lib/utils.ts` - ユーティリティ関数
-
-**自動的にインストールされるパッケージ:**
-```json
-{
-  "dependencies": {
-    "class-variance-authority": "^x.x.x",
-    "clsx": "^x.x.x",
-    "tailwind-merge": "^x.x.x"
-  },
-  "devDependencies": {
-    "tailwindcss": "^x.x.x",
-    "tailwindcss-animate": "^x.x.x",
-    "autoprefixer": "^x.x.x",
-    "postcss": "^x.x.x"
-  }
-}
+**サイドバーメニューのカスタマイズ:**
+```typescript
+// src/components/Sidebar.tsx
+// メニュー項目を要件に合わせて変更
+const menuItems = [
+  { name: 'ダッシュボード', href: '/', icon: Home },
+  { name: '顧客管理', href: '/customers', icon: Users },
+  { name: '注文履歴', href: '/orders', icon: ShoppingCart },
+  // テンプレートのメニューから要件に合わせて変更
+];
 ```
 
-#### 2-2. 基本UIコンポーネントの追加
+#### 3-3. 既存ページの内容変更
 
-```bash
-# Power Apps開発でよく使う基本コンポーネント
-npx shadcn@latest add button card input select table
-```
-
-**追加されるコンポーネント:**
-- `button` - ボタン
-- `card` - カードコンテナ
-- `input` - テキスト入力
-- `select` - ドロップダウン
-- `table` - テーブル
-
-**コンポーネントの格納場所:**
-```
-src/
-└── components/
-    └── ui/
-        ├── button.tsx
-        ├── card.tsx
-        ├── input.tsx
-        ├── select.tsx
-        └── table.tsx
-```
-
-**追加のコンポーネント（必要に応じて）:**
-```bash
-# フォーム関連
-npx shadcn@latest add form label textarea checkbox radio-group
-
-# ナビゲーション
-npx shadcn@latest add tabs navigation-menu
-
-# フィードバック
-npx shadcn@latest add alert dialog toast
-
-# データ表示
-npx shadcn@latest add badge avatar progress
+**ダッシュボードページの改修例:**
+```typescript
+// src/pages/Dashboard.tsx
+// Learn API統計 → プロジェクト固有の統計に変更
+const dashboardStats = [
+  { title: '総顧客数', value: '1,234', change: '+12%' },
+  { title: '今月の注文', value: '567', change: '+8%' },
+  // テンプレートの統計からプロジェクトに合わせて変更
+];
 ```
 
 ---
 
-### **Step 3: デザインシステム統合**
+### **Step 4: 新機能の追加実装**
 
-このステップでは、カラーシステム、タイポグラフィ、スペーシングを統一して設定します。
+#### 4-1. 新しいページコンポーネント作成
 
-#### 3-1. globals.cssを編集
+**例：顧客管理ページの追加**
+```typescript
+// src/pages/Customers.tsx
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
-**ファイルパス:** `src/globals.css`
+export const CustomersPage = () => {
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">顧客管理</h1>
+        <Button>新規顧客追加</Button>
+      </div>
+      {/* テンプレートのデザインシステムを活用した新機能 */}
+    </div>
+  );
+};
+```
+
+#### 4-2. ルーティングの追加
+
+```typescript
+// src/App.tsx またはルーター設定ファイル
+import { CustomersPage } from './pages/Customers';
+
+// ルート設定に新しいページを追加
+```
+
+#### 4-3. データフェッチの実装
+
+**テンプレートのReact Query パターンを活用:**
+```typescript
+// src/hooks/useCustomers.ts
+import { useQuery } from '@tanstack/react-query';
+
+export const useCustomers = () => {
+  return useQuery({
+    queryKey: ['customers'],
+    queryFn: async () => {
+      // プロジェクト固有のAPI呼び出し
+      // またはMicrosoft Graph API、Dataverse等
+    },
+  });
+};
+```
+
+---
+
+### **Step 5: UIコンポーネントのカスタマイズ**
+
+#### 5-1. カラーテーマの調整
+
+**テンプレートのTailwind設定をカスタマイズ:**
+```javascript
+// tailwind.config.js
+module.exports = {
+  theme: {
+    extend: {
+      colors: {
+        // プロジェクト固有のブランドカラーを追加
+        brand: {
+          50: '#f0f9ff',
+          500: '#0ea5e9',
+          600: '#0284c7',
+        }
+      },
+    },
+  },
+};
+```
+
+#### 5-2. 既存コンポーネントのスタイル調整
+
+**例：カードコンポーネントのカスタマイズ**
+```typescript
+// src/components/CustomCard.tsx
+import { Card } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+
+export const CustomCard = ({ className, ...props }) => {
+  return (
+    <Card 
+      className={cn(
+        // テンプレートのベーススタイルに追加スタイルを適用
+        "border-brand-200 hover:border-brand-300 transition-colors",
+        className
+      )} 
+      {...props} 
+    />
+  );
+};
+```
+
+---
+
+### **Step 6: 統合テスト・動作確認**
+
+#### 6-1. 改修内容の動作確認
+
+```bash
+# ローカル環境で動作確認
+npm run dev
+```
+
+**確認項目:**
+- [ ] 新しいブランド要素が適用されている
+- [ ] 改修した機能が正常に動作する
+- [ ] 追加した新機能が動作する
+- [ ] テンプレートの既存機能が引き続き動作する
+- [ ] レスポンシブデザインが維持されている
+- [ ] ダークモード切り替えが機能する
+
+#### 6-2. エラーハンドリングの確認
+
+**各機能でのエラー処理:**
+- API接続失敗時の表示
+- 入力バリデーション
+- 権限エラーの処理
+
+---
+
+### **Step 7: エラーチェック・最終確認**
+
+#### 7-1. ビルドテスト
+
+```bash
+# TypeScript型チェック
+npx tsc --noEmit
+
+# ESLintチェック
+npm run lint
+
+# 本番ビルドテスト
+npm run build
+```
+
+#### 7-2. 機能テスト
+
+**テンプレートの基本機能:**
+- [ ] サイドバーナビゲーションが動作する
+- [ ] ダークモード切り替えが機能する
+- [ ] レスポンシブデザインが正常に動作する
+
+**改修・追加した機能:**
+- [ ] 新しいページが正常に表示される
+- [ ] カスタマイズしたコンポーネントが動作する
+- [ ] ブランド要素が適切に表示される
+
+#### 7-3. Power Apps連携確認
+
+```bash
+# Power Apps環境との接続テスト
+pac code run
+# ブラウザで http://localhost:3000 にアクセス
+```
+
+**PowerProvider接続確認:**
+- [ ] PowerProviderが正常に初期化される
+- [ ] Power Apps SDKエラーが発生しない
+- [ ] ブラウザコンソールにエラーがない
+
+---
 
 ```css
 @tailwind base;
@@ -978,65 +1129,54 @@ npm run dev
 
 ## ✅ Phase 2 完了チェックリスト
 
-### ロゴ・アセット
-- [ ] `public/assets/` ディレクトリが作成されている
-- [ ] `logo.svg` または `logo.png` が配置されている
-- [ ] `pac code init` または `pac code update` でロゴが登録されている
+### 要件分析・計画
+- [ ] テンプレート機能の理解が完了している
+- [ ] 要件との比較分析が完了している
+- [ ] 改修計画が明確になっている
 
-### shadcn/ui設定
-- [ ] `npx shadcn@latest init` が完了している
-- [ ] `tailwind.config.js` が生成されている
-- [ ] `components.json` が生成されている
-- [ ] 基本UIコンポーネント（button, card, avatar, dialog等）が追加されている
+### ブランド適用
+- [ ] プロジェクト名がpackage.json、index.htmlに設定されている
+- [ ] ロゴファイルが `public/assets/` に配置されている
+- [ ] `pac code update --logo` でロゴが登録されている
+- [ ] テンプレート内のロゴ参照が更新されている
 
-### デザインシステム統合
-- [ ] `src/globals.css` にカラーシステムが設定されている
-- [ ] TailwindCSSのディレクティブ（@tailwind）が記述されている
-- [ ] CSS変数がライトモード・ダークモード両方で定義されている
-- [ ] セマンティックカラーが適切に使用されている
+### 機能改修
+- [ ] 不要なテンプレート機能が削除・無効化されている
+- [ ] ナビゲーション構成が要件に合わせて変更されている
+- [ ] 既存ページの内容が要件に合わせて改修されている
+- [ ] テンプレートの基本機能が引き続き動作する
 
-### レイアウトコンポーネント
-- [ ] `src/contexts/ThemeContext.tsx` が作成されている
-- [ ] `src/components/ThemeToggle.tsx` が作成されている
-- [ ] `src/components/Layout/CommonHeader.tsx` が作成されている
-- [ ] `src/components/Layout/SideMenu.tsx` が作成されている
-- [ ] `src/components/Layout/MainLayout.tsx` が作成されている
-- [ ] ヘッダーにテーマ切り替えボタンが配置されている
-- [ ] サイドメニューの開閉が機能する
+### 新機能追加
+- [ ] 必要な新しいページコンポーネントが作成されている
+- [ ] ルーティングが適切に設定されている
+- [ ] データフェッチパターンがテンプレートの方式を活用している
+- [ ] 新機能がテンプレートのデザインシステムに適合している
 
-### ダークモード対応
-- [ ] ThemeProvider が App.tsx でラップされている
-- [ ] テーマ切り替えボタンがヘッダーに表示される
-- [ ] ライト・ダーク・システム設定の3つのオプションが選択できる
-- [ ] テーマ設定がローカルストレージに保存される
-- [ ] すべてのコンポーネントがダークモード対応している
-
-### アプリ統合
-- [ ] `src/App.tsx` が `ThemeProvider` と `MainLayout` を使用している
-- [ ] `globals.css` がインポートされている
-- [ ] shadcn/uiコンポーネントが使用されている
-- [ ] MVPとして最小限の機能が実装されている
+### UIカスタマイズ
+- [ ] プロジェクト固有のカラーテーマが設定されている
+- [ ] 既存コンポーネントが適切にカスタマイズされている
+- [ ] ブランド要素が一貫して適用されている
+- [ ] レスポンシブデザインが維持されている
 
 ### 動作確認
-- [ ] `npm run dev` でローカル起動できる
-- [ ] デザインが正しく表示される
-- [ ] ダークモード・ライトモード切り替えが機能する
-- [ ] レスポンシブデザインが機能する（モバイル・タブレット・デスクトップ）
-- [ ] ヘッダーが固定表示される
-- [ ] サイドメニューがスムーズに開閉する
+- [ ] 改修した機能が正常に動作する
+- [ ] 追加した新機能が正常に動作する
+- [ ] テンプレートの既存機能が引き続き動作する
+- [ ] ダークモード切り替えが機能する
+- [ ] レスポンシブデザインが適切に動作する
 
-### ビルド確認
+### 技術確認
+- [ ] `npx tsc --noEmit` でTypeScriptエラーが0件
+- [ ] `npm run lint` でESLintエラーが0件  
 - [ ] `npm run build` が成功する
-- [ ] `npm run lint` でエラーが表示されない
-- [ ] TypeScript型エラーが0件
-- [ ] PowerProvider.tsxは変更していない
+- [ ] `pac code run` でPowerProvider接続が正常
+- [ ] ブラウザコンソールにエラーがない
 
-### デザイン品質確認
-- [ ] カラーシステムが一貫して使用されている
-- [ ] タイポグラフィが統一されている
-- [ ] スペーシングが適切に設定されている
-- [ ] ホバー・フォーカス状態が実装されている
-- [ ] アニメーション・トランジションがスムーズ
+### 品質確認
+- [ ] 新旧機能が統一されたデザインで実装されている
+- [ ] エラーハンドリングが適切に実装されている
+- [ ] パフォーマンスに問題がない
+- [ ] ユーザビリティが向上している
 
 ---
 
@@ -4903,31 +5043,25 @@ interface DevelopmentProgress {
 // AI提案例
 const aiSuggestions = {
   phase0: "環境準備が完了しました。Phase 1のプロジェクト作成を開始しますか？",
-  phase1: "PowerProvider実装が完了しました。エラーチェックを実行しますか？",
-  phase2: "UI統合が完了しました。Power Apps環境テストを開始しますか？", 
-  phase3: "ローカル実行が成功しました。本番デプロイを実行しますか？",
-  phase4: "デプロイが完了しました。データ統合を開始しますか？",
-  phase5: "機能拡張が完了しました。次の開発サイクルを開始しますか？"
-};
-```
+---
 
-### **📈 継続開発サイクル**
+## 🎯 まとめ
 
-```bash
-# 機能追加の標準フロー
-1. 要件定義 → モックデータ作成
-2. UIコンポーネント開発
-3. データ統合 (useConnector)
-4. テスト実行 (npm run build && npm run lint)
-5. デプロイ (pac code push)
-6. 本番確認
+このPhase 2では、CodeAppsStarterテンプレートの豊富なデザインシステムを参照・活用して効率的なプロジェクトカスタマイズを実現します。
 
-# 品質向上サイクル
-1. パフォーマンス最適化
-2. アクセシビリティ改善
-3. セキュリティ強化
-4. CI/CD自動化
-```
+### **完了確認チェックリスト**
+- [ ] テンプレート参照による実装パターン理解
+- [ ] プロジェクト要件に応じたブランド適用
+- [ ] アイコンSVGの適切な実装
+- [ ] テンプレート品質の維持
+- [ ] レスポンシブ・ダークモード対応の継承
+
+### **次のステップ**
+**Phase 3: ローカルテスト** へ進み、カスタマイズしたテンプレートの動作確認を実施します。
+
+### **関連ドキュメント**
+- **[ロゴマスターガイド](./docs/LOGO_MASTER_GUIDE.md)** - ロゴ実装の詳細
+- **[CodeAppsStarterテンプレート](https://github.com/geekfujiwara/CodeAppsStarter)** - 参照元テンプレート
 
 
 

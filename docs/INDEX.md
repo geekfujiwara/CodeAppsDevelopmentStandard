@@ -1,10 +1,11 @@
 # Power Apps Code Apps リファレンス集
 
 > **📘 本ドキュメント群について**  
-> このフォルダには、実践的な Power Apps Code Apps 開発のリファレンスを格納しています。
-> - **Phase別リファレンス**: 各開発Phaseの詳細な実装手順
-> - **実装ガイド**: 具体的な機能実装の方法
-> - **トラブルシューティング**: 問題解決とデバッグガイド
+> このフォルダには、CodeAppsStarter テンプレートを使用した Power Apps Code Apps 開発のリファレンスを格納しています。
+> - **テンプレートカスタマイズガイド**: CodeAppsStarterの機能拡張・カスタマイズ手順
+> - **デザインシステムリファレンス**: shadcn/ui + Tailwind CSS による実装方法
+> - **Dataverse統合ガイド**: テンプレートでのDataverse機能実装
+> - **トラブルシューティング**: テンプレート特有の問題解決とデバッグガイド
 
 **最終更新**: 2025年10月21日
 
@@ -14,13 +15,13 @@
 
 ```
 📁 CodeAppsDevelopmentStandard/
-├── README.md                    ← 【開発標準】全体フロー・概要・ベストプラクティス
-└── docs/                        ← 【リファレンス集】詳細な実装手順と解決方法
+├── README.md                    ← 【開発標準】テンプレートベース開発フロー・概要
+└── docs/                        ← 【リファレンス集】テンプレートカスタマイズの詳細手順
     ├── INDEX.md                 ← このファイル（リファレンスの目次）
-    ├── Phase別リファレンス/      ← 各Phaseの詳細手順
-    ├── Dataverse実装/           ← Dataverse統合の詳細ガイド
-    ├── デザイン・UI/            ← デザインとUIコンポーネントのガイド
-    └── トラブルシューティング/  ← 問題解決とデバッグガイド
+    ├── テンプレート活用/        ← CodeAppsStarterの機能拡張・カスタマイズ
+    ├── Dataverse統合/           ← テンプレートでのDataverse統合詳細ガイド
+    ├── デザインシステム/        ← shadcn/ui + Tailwind CSS カスタマイズガイド
+    └── トラブルシューティング/  ← テンプレート特有の問題解決とデバッグ
 ```
 
 ---
@@ -29,25 +30,27 @@
 
 ### 1️⃣ 開発を始める前に
 **→ [メインREADME.md](../README.md) を読む**
-- Phase 0-5の開発フロー全体を理解
+- CodeAppsStarterテンプレート活用フローを理解
 - Power Apps SDK の基本原則を把握
-- 各Phaseの概要を確認
+- テンプレートからのカスタマイズ方針を確認
 
-### 2️⃣ 具体的な実装時
+### 2️⃣ テンプレートのカスタマイズ時
 **→ Phase別リファレンスを参照**
-- 実施中のPhaseのリファレンスを開く
-- Step by Stepの詳細手順に従う
-- コード例をコピー&カスタマイズ
+- 要件分析（Phase2）：テンプレート機能の確認と拡張計画
+- 機能実装：shadcn/ui コンポーネントの活用とカスタマイズ
+- デプロイ：カスタマイズしたテンプレートのPower Apps展開
 
 ### 3️⃣ 特定機能の実装時
 **→ 機能別リファレンスを参照**
-- Dataverse Lookupフィールドの実装
-- ロゴコンポーネントの実装
-- Choice値のマッピング
+- テンプレートでのDataverse Lookupフィールド実装
+- デザインシステム（shadcn/ui）のカスタマイズ
+- ブランディング：ロゴ・カラーテーマの変更
 
 ### 4️⃣ 問題が発生したら
 **→ トラブルシューティングガイドを確認**
-- エラーメッセージから該当ガイドを探す
+- テンプレート特有のエラーと解決方法
+- shadcn/ui コンポーネントの問題対応
+- Power Platform統合のデバッグ方法
 - 実際の問題解決事例を参照
 
 ---
@@ -59,11 +62,11 @@
 | Phase | リファレンス | 説明 | 所要時間 |
 |-------|------------|------|---------|
 | **Phase 0** | **[PHASE0_ENVIRONMENT_SETUP.md](../PHASE0_ENVIRONMENT_SETUP.md)** | 開発ツールのインストールと設定 | 30分 |
-| **Phase 1** | **[PHASE1_PROJECT_SETUP.md](../PHASE1_PROJECT_SETUP.md)** | Vite+React+TypeScriptプロジェクトの初期化<br>PowerProviderの実装<br>SDK初期化 | 1時間 |
-| **Phase 2** | **[PHASE2_UI_DESIGN_SYSTEM.md](../PHASE2_UI_DESIGN_SYSTEM.md)** | shadcn/ui + TailwindCSSのセットアップ<br>Power Appsテーマ統合<br>レイアウト実装 | 2時間 |
-| **Phase 3** | **[PHASE3_LOCAL_TESTING.md](../PHASE3_LOCAL_TESTING.md)** | ローカル環境での実行とテスト<br>動作確認 | 30分 |
-| **Phase 4** | **[PHASE4_DEPLOYMENT.md](../PHASE4_DEPLOYMENT.md)** | Power Apps環境へのデプロイ<br>本番環境での確認 | 30分 |
-| **Phase 5** | **[PHASE5_DATA_INTEGRATION.md](../PHASE5_DATA_INTEGRATION.md)** | データソース統合<br>機能拡張 | プロジェクトによる |
+| **Phase 1** | **[PHASE1_PROJECT_SETUP.md](../PHASE1_PROJECT_SETUP.md)** | CodeAppsStarterテンプレートのクローン<br>プロジェクトフォルダ名の変更<br>Power Apps初期設定 | 1時間 |
+| **Phase 2** | **[PHASE2_UI_DESIGN_SYSTEM.md](../PHASE2_UI_DESIGN_SYSTEM.md)** | テンプレートのデザインシステムカスタマイズ<br>shadcn/ui + Tailwind CSS の活用<br>ブランディング適用 | 2時間 |
+| **Phase 3** | **[PHASE3_LOCAL_TESTING.md](../PHASE3_LOCAL_TESTING.md)** | カスタマイズしたテンプレートの動作確認<br>ローカル環境でのテスト | 30分 |
+| **Phase 4** | **[PHASE4_DEPLOYMENT.md](../PHASE4_DEPLOYMENT.md)** | カスタマイズ版をPower Apps環境へデプロイ<br>本番環境での確認 | 30分 |
+| **Phase 5** | **[PHASE5_DATA_INTEGRATION.md](../PHASE5_DATA_INTEGRATION.md)** | テンプレートでのDataverse統合<br>機能拡張実装 | プロジェクトによる |
 
 ---
 
@@ -99,20 +102,20 @@
 
 ---
 
-### 🎨 デザイン・UIガイド
+### 🎨 デザインシステムガイド
 
-#### ⭐ マスターガイド
+#### ⭐ テンプレート活用ガイド
 
 | ドキュメント | 説明 | 対象フェーズ |
 |------------|------|------------|
-| **[LOGO_MASTER_GUIDE.md](./LOGO_MASTER_GUIDE.md)** | 🎨 ロゴの完全ガイド<br>- デザイン仕様<br>- 使用方法<br>- 実装例<br>- ブランドガイドライン | Phase 2: UI・デザイン |
+| **[LOGO_MASTER_GUIDE.md](./LOGO_MASTER_GUIDE.md)** | 🎨 テンプレートでのロゴ実装ガイド<br>- CodeAppsStarterでの実装方法<br>- shadcn/ui コンポーネント活用<br>- ブランドカスタマイズ手順 | Phase 2: デザインシステム |
 
-#### 技術ドキュメント
+#### デザインシステムカスタマイズ
 
 | ドキュメント | 説明 | 使用タイミング |
 |------------|------|--------------|
-| **[LOGO_DISPLAY_FIX.md](./LOGO_DISPLAY_FIX.md)** | 🔧 SVG ID衝突問題の詳細と解決<br>- `React.useId()`の使用<br>- トラブルシューティング | SVGコンポーネント実装時 |
-| **[DESIGN_REFRESH_v1.0.8.md](./DESIGN_REFRESH_v1.0.8.md)** | 📝 デザインリフレッシュの記録 | デザイン変更時 |
+| **[TAILWIND_CUSTOMIZATION_GUIDE.md](./TAILWIND_CUSTOMIZATION_GUIDE.md)** | 🎨 Tailwind CSS カスタマイズガイド<br>- カラーテーマの変更<br>- カスタムコンポーネントの作成 | デザインカスタマイズ時 |
+| **[SHADCN_UI_EXTENSION_GUIDE.md](./SHADCN_UI_EXTENSION_GUIDE.md)** | 🔧 shadcn/ui コンポーネント拡張<br>- 新しいコンポーネントの追加<br>- 既存コンポーネントのカスタマイズ | 機能拡張時 |
 
 ---
 
@@ -128,23 +131,24 @@
 
 ## 🎯 シナリオ別ガイド
 
-### 新規開発者がプロジェクトに参加したら
+### テンプレート初期化から開発まで
 
-1. **[メインREADME.md](../README.md)** - 開発プロセス全体を理解
-2. **[LOOKUP_FIELD_GUIDE.md](./LOOKUP_FIELD_GUIDE.md)** - Dataverse Lookupフィールドの実装方法を理解
-3. **[LOGO_MASTER_GUIDE.md](./LOGO_MASTER_GUIDE.md)** - ロゴの使用方法を確認
-4. **[DATAVERSE_SCHEMA_REFERENCE.md](./DATAVERSE_SCHEMA_REFERENCE.md)** - テーブル構造とChoice値を確認
+1. **[PHASE0_ENVIRONMENT_SETUP.md](../PHASE0_ENVIRONMENT_SETUP.md)** - 開発環境のセットアップ
+2. **[PHASE1_PROJECT_SETUP.md](../PHASE1_PROJECT_SETUP.md)** - CodeAppsStarterテンプレートのクローンと初期設定
+3. **[PHASE2_UI_DESIGN_SYSTEM.md](../PHASE2_UI_DESIGN_SYSTEM.md)** - ブランディングとデザインのカスタマイズ
+4. **[LOGO_MASTER_GUIDE.md](./LOGO_MASTER_GUIDE.md)** - ロゴの実装方法を確認
+5. **[PHASE3_LOCAL_TESTING.md](../PHASE3_LOCAL_TESTING.md)** - カスタマイズ版の動作テスト
 
-### Dataverseテーブルを追加したい
+### テンプレートでのDataverseテーブル追加
 
-1. **[メインREADME.md - Phase 5: データソース統合](../README.md#phase-5-機能拡張)** - 基本的な接続手順を確認
+1. **[メインREADME.md - Phase 5: データソース統合](../README.md#phase-5-機能拡張)** - テンプレートでの基本的な接続手順を確認
 2. **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** - スキーマの取得方法を確認
 3. **[DATAVERSE_SCHEMA_REFERENCE.md](./DATAVERSE_SCHEMA_REFERENCE.md)** - 既存のスキーマ定義を参照
-4. 実装後 → **[DATAVERSE_TROUBLESHOOTING.md](./DATAVERSE_TROUBLESHOOTING.md)** で問題解決
+4. テンプレートに実装 → **[DATAVERSE_TROUBLESHOOTING.md](./DATAVERSE_TROUBLESHOOTING.md)** で問題解決
 
-### Lookupフィールドを実装したい
+### テンプレートでのLookupフィールド実装
 
-1. **[メインREADME.md - Phase 5: Step 6](../README.md#step-6-カスタムフック作成)** - 基本パターンを理解
+1. **[メインREADME.md - Phase 5: Step 6](../README.md#step-6-カスタムフック作成)** - テンプレートでの基本パターンを理解
 2. **[LOOKUP_FIELD_GUIDE.md](./LOOKUP_FIELD_GUIDE.md)** - 詳細な実装手順（Step 1-5）を確認
 3. 実装後 → 同ドキュメントの「テストチェックリスト」で検証
 
@@ -193,12 +197,18 @@
    - メインREADME.mdに相互参照を追加
 
 2. **問題を解決したら**
-   - docs/トラブルシューティングに追加
-   - 関連する実装ガイドに注意事項を追記
-
-3. **ベストプラクティスが確立したら**
+1. **ベストプラクティスが確立したら**
    - メインREADME.mdに原則として追加
    - docs/に詳細な実装例を追加
+   - テンプレートの更新を検討
+
+2. **問題が発生したら**
+   - 解決方法をトラブルシューティングガイドに追加
+   - テンプレート使用時の注意事項として記録
+
+3. **テンプレートのアップデートがあったら**
+   - 開発標準ドキュメントの更新を確認
+   - 新機能の活用方法を検討
 
 ---
 
@@ -230,7 +240,10 @@
 
 ## 🔗 関連リンク
 
-- **[メインREADME.md](../README.md)** - Power Apps Code Apps 開発標準
+- **[メインREADME.md](../README.md)** - CodeAppsStarter テンプレート開発標準
+- **[CodeAppsStarter GitHub Repository](https://github.com/your-org/CodeAppsStarter)** - テンプレートリポジトリ
+- **[shadcn/ui Documentation](https://ui.shadcn.com/)** - デザインシステムドキュメント
+- **[Tailwind CSS Documentation](https://tailwindcss.com/)** - CSS フレームワークガイド
 - **[Microsoft Docs - Power Apps Component Framework](https://learn.microsoft.com/ja-jp/power-apps/developer/component-framework/)**
 - **[Microsoft Docs - Dataverse Web API](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/overview)**
 

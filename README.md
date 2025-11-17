@@ -5,7 +5,7 @@
 **Power Apps Code Apps** は、React、Vue などのポピュラーなフレームワークを使用してカスタムWebアプリを構築し、UI とロジックの完全な制御を保ちながら Power Platform で実行できる開発プラットフォームです。Microsoft Entra 認証、1,500+ コネクター、管理プラットフォームポリシー準拠により、安全で迅速なイノベーションを実現します。
 
 - この標準は、**Power Apps Code Apps** のための開発指針です。
-- Microsoft 公式ドキュメント（[Power Apps code apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)）と[PowerAppsCodeAppsリポジトリ](https://github.com/microsoft/PowerAppsCodeApps)、と**Geekの経験**に基づき、**要件理解から公開まで**の開発プロセスと、**モダンデザインシステム**を統合した実践的な開発ガイドラインです。
+- Microsoft 公式ドキュメント（[Power Apps code apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)）と[PowerAppsCodeAppsリポジトリ](https://github.com/microsoft/PowerAppsCodeApps)、と**Geekの経験**に基づき、**要件理解から公開まで**の開発プロセスと、**CodeAppsStarterテンプレート活用型デザインシステム**を統合した実践的な開発ガイドラインです。
 
 > **この標準は Power Apps Code Apps 専用です。PCF コンポーネント開発ではありません。**
 
@@ -25,7 +25,7 @@
 ### 📘 **Phase別リファレンス（ルートディレクトリ）**
 - ✅ **[PHASE0_ENVIRONMENT_SETUP.md](./PHASE0_ENVIRONMENT_SETUP.md)** - 環境セットアップ詳細
 - ✅ **[PHASE1_PROJECT_SETUP.md](./PHASE1_PROJECT_SETUP.md)** - プロジェクト環境構築詳細
-- ✅ **[PHASE2_UI_DESIGN_SYSTEM.md](./PHASE2_UI_DESIGN_SYSTEM.md)** - UI・デザインシステム詳細
+- ✅ **[PHASE2_UI_DESIGN_SYSTEM.md](./PHASE2_UI_DESIGN_SYSTEM.md)** - デザインシステム統合・カスタマイズ詳細
 - ✅ **[PHASE3_LOCAL_TESTING.md](./PHASE3_LOCAL_TESTING.md)** - ローカルテスト詳細
 - ✅ **[PHASE4_DEPLOYMENT.md](./PHASE4_DEPLOYMENT.md)** - デプロイメント詳細
 - ✅ **[PHASE5_DATA_INTEGRATION.md](./PHASE5_DATA_INTEGRATION.md)** - データ統合詳細
@@ -104,20 +104,20 @@
 
 ```mermaid
 graph LR
-    A[Phase 0: 環境準備] --> B[Phase 1: プロジェクト基盤構築]
-    B --> C[Phase 2: UI・MVP実装]
+    A[Phase 0: 環境準備] --> B[Phase 1: テンプレートセットアップ]
+    B --> C[Phase 2: テンプレート改修]
     C --> D[Phase 3: ローカルテスト]
-    D --> E[Phase 4: デプロイ]
+    D --> E[Phase 4: 改修版デプロイ]
     E --> F[Phase 5: データ統合・機能拡張]
     F --> G[継続開発サイクル]
 ```
 
 **各Phaseの目的:**
 - **Phase 0**: 開発環境の準備とPower Platform認証
-- **Phase 1**: Vite + React + TypeScript + PowerProvider基盤構築
-- **Phase 2**: shadcn/ui + TailwindCSSによるUI・MVP実装
+- **Phase 1**: CodeAppsStarterテンプレートのセットアップと初回デプロイ
+- **Phase 2**: テンプレートを要件に合わせて改修・機能追加
 - **Phase 3**: Power Apps環境でのローカルテスト
-- **Phase 4**: 本番環境へのデプロイ
+- **Phase 4**: 改修版アプリの本番環境デプロイ
 - **Phase 5**: データソース統合と継続的機能拡張
 
 ---
@@ -149,12 +149,14 @@ graph LR
 
 ---
 
-### **Phase 1: プロジェクト環境構築**
+### **Phase 1: テンプレートベース開発環境セットアップ**
 
 ```mermaid
 graph LR
-    A[Vite+React+TypeScript] --> B[PowerProvider設定]
-    B --> C[プロジェクト基盤完成]
+    A[テンプレートクローン] --> B[ローカル確認]
+    B --> C[Power Apps認証]
+    C --> D[初回デプロイ]
+    D --> E[テンプレートアプリ完成]
 ```
 
 > **📘 必ず以下のリファレンスを確認して実行してください**:
@@ -162,61 +164,82 @@ graph LR
 > [Phase 1 リファレンス](./PHASE1_PROJECT_SETUP.md)
 
 **Phase 1の概要:**
-- Vite + React + TypeScriptプロジェクト作成
-- Power Apps SDK (`@microsoft/power-apps`) インストール
-- PowerProviderの実装と初期化
+- CodeAppsStarterテンプレートのセットアップ
+- Power Platform環境認証
+- テンプレートアプリのPower Apps環境デプロイ
+- ベースアプリの動作確認
 
 **統合コマンド:**
 ```bash
-# プロジェクト作成からSDKインストールまで
-npm create vite@latest my-code-app -- --template react-ts
-cd my-code-app
+# テンプレートセットアップと初回デプロイ（プロジェクト名を指定）
+git clone https://github.com/geekfujiwara/CodeAppsStarter.git
+mv CodeAppsStarter [プロジェクト名]
+cd [プロジェクト名]
 npm install
-pac code init --displayName "My Code App"
-npm install --save "@microsoft/power-apps"
+pac auth create
+pac code init --displayName "[アプリ表示名]"
+npm run build && pac code push
+```
+
+**例：**
+```bash
+# 具体例
+git clone https://github.com/geekfujiwara/CodeAppsStarter.git
+mv CodeAppsStarter TaskManager
+cd TaskManager
+npm install
+pac auth create
+pac code init --displayName "タスクマネージャー"
+npm run build && pac code push
 ```
 
 **完了条件:**
-- ✅ プロジェクトがビルドできる
-- ✅ PowerProviderが正常に初期化される
-- ✅ TypeScript・ESLintエラーが0件
+- ✅ テンプレートがPower Apps環境で動作する
+- ✅ 全機能がPower Apps環境で正常動作する
+- ✅ 改修開始の準備が完了している
 
 **次へ**: Phase 1 → Phase 2
 
 ---
 
-### **Phase 2: UI・デザインシステム・MVP構築**
+### **Phase 2: デザインシステム統合・テンプレートカスタマイズ**
 
 ```mermaid
 graph LR
-    A[デザインシステム統合] --> B[レイアウト実装]
-    B --> C[MVP機能実装]
-    C --> D[統合テスト]
-    D --> E[Phase 2完了]
+    A[テンプレート理解] --> B[要件マッピング]
+    B --> C[ブランド適用]
+    C --> D[機能カスタマイズ]
+    D --> E[カスタマイズ版完成]
 ```
 
 > **📘 必ず以下のリファレンスを確認して実行してください**:
 > 
-> - **[Phase 2 リファレンス](./PHASE2_UI_DESIGN_SYSTEM.md)**
-> - **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)**
+> - **[Phase 2 リファレンス](./PHASE2_UI_DESIGN_SYSTEM.md)** - テンプレート参照型カスタマイズ手順
+> - **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)** - テンプレートベースロゴカスタマイズ
+> - **[テーマカスタマイズガイド](./docs/THEME_CUSTOMIZATION_GUIDE.md)** - shadcn/ui + Tailwind CSS活用
+> - **[shadcn/ui拡張ガイド](./docs/SHADCN_UI_EXTENSION_GUIDE.md)** - コンポーネント拡張方法
 
 **Phase 2の概要:**
-- shadcn/ui + TailwindCSSのセットアップ
-- 統一レイアウトコンポーネントの実装
-- MVPアプリケーションの構築
+- CodeAppsStarterテンプレートのデザインシステム理解・活用
+- テンプレート参照による効率的なカスタマイズ実装
+- shadcn/ui + Tailwind CSSを基盤とした品質維持
+- プロジェクト要件に合わせたブランド要素適用
 
-**実施するStep:**
-1. **アプリアイコン・ロゴ作成** - ロゴファイルの準備と配置
-2. **shadcn/ui統合** - デザインシステムのセットアップ
-3. **レイアウト実装** - MainLayoutコンポーネント作成
-4. **App.tsx統合** - デザインシステムの適用
+**テンプレートデザインシステム活用:**
+1. **テンプレート理解** - CodeAppsStarterの機能・デザイン確認  
+2. **要件マッピング** - テンプレートからの変更範囲特定
+3. **ブランド適用** - ロゴ、色、文言のテンプレートベースカスタマイズ
+4. **機能カスタマイズ** - テンプレート参照による新機能実装
 
 **完了条件:**
-- ✅ shadcn/uiコンポーネントが使用できる
-- ✅ 統一されたレイアウトが実装されている
+- ✅ テンプレートデザインシステムを理解し要件にマッピング完了
+- ✅ ブランド要素がテンプレート品質を維持してカスタマイズ済み
+- ✅ テンプレート参照による新機能が適切に統合されている
 
 **統合コマンド:**
 ```bash
+# ローカル動作確認
+npm run dev
 # ビルド・リント確認
 npm run build && npm run lint
 ```
@@ -258,22 +281,24 @@ npm run build && npm run lint && npm run dev
 
 ---
 
-### **Phase 4: Power Apps環境へのデプロイ**
+### **Phase 4: 改修版アプリのPower Apps環境デプロイ**
 
 ```mermaid
 graph LR
-    A[最終ビルド] --> B[デプロイ実行]
-    B --> C[動作確認]
-    C --> D[デプロイ完了]
+    A[改修内容確認] --> B[最終ビルド]
+    B --> C[更新デプロイ]
+    C --> D[新機能テスト]
+    D --> E[デプロイ完了]
 ```
 > **📘 必ず以下のリファレンスを確認して実行してください**:
 >
 > [Phase 4 リファレンス](./PHASE4_DEPLOYMENT.md)
 
 **Phase 4の概要:**
+- テンプレートからの改修内容確認
 - 本番ビルドの実行
-- Power Apps環境へのデプロイ
-- デプロイ後の動作確認
+- 更新版アプリのPower Apps環境デプロイ
+- 新機能の動作確認
 
 **統合コマンド:**
 ```bash
@@ -282,9 +307,10 @@ npm run build && pac code push
 ```
 
 **完了条件:**
-- ✅ ビルドが成功する
+- ✅ 改修された機能がビルドできる
 - ✅ デプロイが完了する
-- ✅ 本番環境で正常に動作する
+- ✅ 新機能が本番環境で動作する
+- ✅ テンプレートの既存機能が引き続き動作する
 
 **次へ**: Phase 4 → Phase 5
 
