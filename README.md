@@ -114,6 +114,29 @@ graph LR
 - **Phase 2**: テンプレートデザインシステムを活用した機能拡張
 - **Phase 3**: データソース統合と本格的なビジネスロジック実装
 
+### **⚠️ 重要な開発方針**
+
+**機能開発時の必須ルール:**
+
+> **📌 新しい機能を開発する際は、必ず [CodeAppsStarter テンプレート](https://github.com/geekfujiwara/CodeAppsStarter) のデザインサンプルとUIコンポーネントを再利用してください。**
+
+**理由:**
+- ✅ **一貫したUI/UX** - テンプレート品質を維持
+- ✅ **開発効率の向上** - ゼロから作成せず既存パターンを活用
+- ✅ **メンテナンス性** - 標準化されたコードベース
+- ✅ **品質保証** - テンプレートで検証済みの実装パターン
+
+**具体的な実践方法:**
+1. **機能要件の確認** → まずテンプレートに類似機能があるか確認
+2. **テンプレート参照** → [GitHub上の実装](https://github.com/geekfujiwara/CodeAppsStarter/tree/main/src)を確認
+3. **パターン活用** → テンプレートの実装方法を参考に開発
+4. **コンポーネント再利用** → `src/components/ui/` のshadcn/uiコンポーネントを活用
+
+**参照先:**
+- 📖 **[CodeAppsStarter - src/app/](https://github.com/geekfujiwara/CodeAppsStarter/tree/main/src/app)** - ページ実装例
+- 📖 **[CodeAppsStarter - src/components/](https://github.com/geekfujiwara/CodeAppsStarter/tree/main/src/components)** - コンポーネント実装例
+- 📖 **[Phase 2 リファレンス](./PHASE2_FEATURE_ENHANCEMENT.md)** - 詳細な実装ガイド
+
 ---
 
 ### **Phase 0: 環境準備**
