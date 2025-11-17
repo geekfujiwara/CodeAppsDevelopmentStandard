@@ -189,9 +189,13 @@ graph LR
 **統合コマンド:**
 ```bash
 # 1. テンプレートセットアップとローカル動作確認
-git clone https://github.com/geekfujiwara/CodeAppsStarter
-mv CodeAppsStarter [プロジェクト名]
+# プロジェクト用フォルダを作成してVS Codeで開く
+mkdir [プロジェクト名]
 cd [プロジェクト名]
+code .
+
+# VS Codeでフォルダを開いた後、ターミナルで実行
+git clone https://github.com/geekfujiwara/CodeAppsStarter .
 npm install
 npm run dev
 
@@ -206,10 +210,14 @@ pac code push
 
 **例：**
 ```bash
-# 具体例
-git clone https://github.com/geekfujiwara/CodeAppsStarter
-mv CodeAppsStarter TaskManager
+# 具体例: TaskManagerプロジェクトの作成
+# プロジェクトフォルダを作成してVS Codeで開く
+mkdir TaskManager
 cd TaskManager
+code .
+
+# VS Codeでフォルダを開いた後、ターミナルで実行
+git clone https://github.com/geekfujiwara/CodeAppsStarter .
 npm install
 npm run dev
 
