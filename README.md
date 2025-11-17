@@ -24,11 +24,13 @@
 
 ### 📘 **Phase別リファレンス（ルートディレクトリ）**
 - ✅ **[PHASE0_ENVIRONMENT_SETUP.md](./PHASE0_ENVIRONMENT_SETUP.md)** - 環境セットアップ詳細
-- ✅ **[PHASE1_PROJECT_SETUP.md](./PHASE1_PROJECT_SETUP.md)** - プロジェクト環境構築詳細
-- ✅ **[PHASE2_UI_DESIGN_SYSTEM.md](./PHASE2_UI_DESIGN_SYSTEM.md)** - デザインシステム統合・カスタマイズ詳細
-- ✅ **[PHASE3_LOCAL_TESTING.md](./PHASE3_LOCAL_TESTING.md)** - ローカルテスト詳細
-- ✅ **[PHASE4_DEPLOYMENT.md](./PHASE4_DEPLOYMENT.md)** - デプロイメント詳細
-- ✅ **[PHASE5_DATA_INTEGRATION.md](./PHASE5_DATA_INTEGRATION.md)** - データ統合詳細
+- ✅ **[PHASE1_PROJECT_SETUP.md](./PHASE1_PROJECT_SETUP.md)** - テンプレートセットアップ・ローカル実行・デプロイ詳細
+- ✅ **[PHASE2_UI_DESIGN_SYSTEM.md](./PHASE2_UI_DESIGN_SYSTEM.md)** - 機能拡張詳細（デザインシステム参照）
+- ✅ **[PHASE3_DATA_INTEGRATION.md](./PHASE3_DATA_INTEGRATION.md)** - データソース統合詳細
+
+**参考: 旧フェーズドキュメント**
+- 📖 **[PHASE3_LOCAL_TESTING.md](./PHASE3_LOCAL_TESTING.md)** - Phase 1に統合済み
+- 📖 **[PHASE4_DEPLOYMENT.md](./PHASE4_DEPLOYMENT.md)** - Phase 1・Phase 2に統合済み
 
 **推奨される使い方:**
 1. **開発開始前** → このREADME.mdで全体像を把握
@@ -104,21 +106,17 @@
 
 ```mermaid
 graph LR
-    A[Phase 0: 環境準備] --> B[Phase 1: テンプレートセットアップ]
-    B --> C[Phase 2: テンプレート改修]
-    C --> D[Phase 3: ローカルテスト]
-    D --> E[Phase 4: 改修版デプロイ]
-    E --> F[Phase 5: データ統合・機能拡張]
-    F --> G[継続開発サイクル]
+    A[Phase 0: 環境準備] --> B[Phase 1: テンプレートセットアップ・デプロイ]
+    B --> C[Phase 2: 機能拡張]
+    C --> D[Phase 3: データソース統合]
+    D --> E[継続開発サイクル]
 ```
 
 **各Phaseの目的:**
 - **Phase 0**: 開発環境の準備とPower Platform認証
-- **Phase 1**: CodeAppsStarterテンプレートのセットアップと初回デプロイ
-- **Phase 2**: テンプレートを要件に合わせて改修・機能追加
-- **Phase 3**: Power Apps環境でのローカルテスト
-- **Phase 4**: 改修版アプリの本番環境デプロイ
-- **Phase 5**: データソース統合と継続的機能拡張
+- **Phase 1**: テンプレートセットアップ + ローカル確認 + Power Appsローカル実行 + Power Appsデプロイ
+- **Phase 2**: テンプレートデザインシステムを活用した機能拡張
+- **Phase 3**: データソース統合と本格的なビジネスロジック実装
 
 ---
 
@@ -149,33 +147,44 @@ graph LR
 
 ---
 
-### **Phase 1: テンプレートベース開発環境セットアップ**
+### **Phase 1: テンプレートセットアップ・ローカル実行・デプロイ**
 
 ```mermaid
 graph LR
     A[テンプレートクローン] --> B[ローカル確認]
-    B --> C[Power Apps認証]
-    C --> D[初回デプロイ]
+    B --> C[Power Appsローカル実行]
+    C --> D[Power Appsデプロイ]
     D --> E[テンプレートアプリ完成]
 ```
 
 > **📘 必ず以下のリファレンスを確認して実行してください**:
 >
-> [Phase 1 リファレンス](./PHASE1_PROJECT_SETUP.md)
+> - **[Phase 1 リファレンス](./PHASE1_PROJECT_SETUP.md)** - セットアップ詳細
+> - **[Phase 3 リファレンス](./PHASE3_LOCAL_TESTING.md)** - Power Appsローカル実行詳細
+> - **[Phase 4 リファレンス](./PHASE4_DEPLOYMENT.md)** - デプロイ詳細
 
 **Phase 1の概要:**
 - CodeAppsStarterテンプレートのセットアップ
-- Power Platform環境認証
-- テンプレートアプリのPower Apps環境デプロイ
-- ベースアプリの動作確認
+- npm run devでローカル動作確認
+- Power Apps環境でのローカル実行（pac code init + npm run dev）
+- Power Apps環境へのテンプレートデプロイ（npm run build + pac code push）
 
 **統合コマンド:**
 ```bash
-# テンプレートセットアップと初回デプロイ（プロジェクト名を指定）
+# 1. テンプレートセットアップとローカル動作確認
 git clone https://github.com/geekfujiwara/CodeAppsStarter
 mv CodeAppsStarter [プロジェクト名]
 cd [プロジェクト名]
 npm install
+npm run dev
+
+# 2. Power Apps環境でのローカル実行
+pac code init --environment [environmentid] --displayName "[アプリ表示名]"
+npm run dev
+
+# 3. Power Apps環境へのデプロイ
+npm run build
+pac code push
 ```
 
 **例：**
@@ -185,150 +194,94 @@ git clone https://github.com/geekfujiwara/CodeAppsStarter
 mv CodeAppsStarter TaskManager
 cd TaskManager
 npm install
+npm run dev
+
+# Power Appsローカル実行
+pac code init --environment 12345678-1234-1234-1234-123456789abc --displayName "Task Manager"
+npm run dev
+
+# デプロイ
+npm run build
+pac code push
 ```
 
 **完了条件:**
-- ✅ テンプレートがPower Apps環境で動作する
-- ✅ 全機能がPower Apps環境で正常動作する
-- ✅ 改修開始の準備が完了している
+- ✅ テンプレートがローカルで正常に起動する
+- ✅ Power Apps環境でローカル実行が成功する
+- ✅ Power Apps環境へのデプロイが完了する
+- ✅ テンプレートが本番環境で動作する
 
 **次へ**: Phase 1 → Phase 2
 
 ---
 
-### **Phase 2: デザインシステム統合・テンプレートカスタマイズ**
+### **Phase 2: テンプレートデザインシステムを活用した機能拡張**
 
 ```mermaid
 graph LR
-    A[テンプレート理解] --> B[要件マッピング]
-    B --> C[ブランド適用]
-    C --> D[機能カスタマイズ]
-    D --> E[カスタマイズ版完成]
+    A[テンプレート理解] --> B[デザイン参照]
+    B --> C[機能実装]
+    C --> D[UI統合]
+    D --> E[機能拡張完成]
 ```
 
-> **📘 必ず以下のリファレンスを確認して実行してください**:
+> **📘 必ず以下のリファレンスを確認して実装してください**:
 > 
-> - **[Phase 2 リファレンス](./PHASE2_UI_DESIGN_SYSTEM.md)** - テンプレート参照型カスタマイズ手順
-> - **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)** - テンプレートベースロゴカスタマイズ
-> - **[テーマカスタマイズガイド](./docs/THEME_CUSTOMIZATION_GUIDE.md)** - shadcn/ui + Tailwind CSS活用
-> - **[shadcn/ui拡張ガイド](./docs/SHADCN_UI_EXTENSION_GUIDE.md)** - コンポーネント拡張方法
+> - **[Phase 2 リファレンス](./PHASE2_UI_DESIGN_SYSTEM.md)** - テンプレートデザインシステム参照方法
+> - **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)** - ロゴ・アイコンカスタマイズ
+> - **[テーマカスタマイズガイド](./docs/THEME_CUSTOMIZATION_GUIDE.md)** - 色・テーマ変更
+> - **[shadcn/ui拡張ガイド](./docs/SHADCN_UI_EXTENSION_GUIDE.md)** - UIコンポーネント活用
 
 **Phase 2の概要:**
-- CodeAppsStarterテンプレートのデザインシステム理解・活用
-- テンプレート参照による効率的なカスタマイズ実装
-- shadcn/ui + Tailwind CSSを基盤とした品質維持
-- プロジェクト要件に合わせたブランド要素適用
+- テンプレートのデザインシステム（shadcn/ui + Tailwind CSS）を参照
+- 既存のUIコンポーネントを活用した機能実装
+- テンプレート品質を維持しながらプロジェクト要件に合わせた拡張
+- コード重複を避けた効率的な開発
 
-**テンプレートデザインシステム活用:**
-1. **テンプレート理解** - CodeAppsStarterの機能・デザイン確認  
-2. **要件マッピング** - テンプレートからの変更範囲特定
-3. **ブランド適用** - ロゴ、色、文言のテンプレートベースカスタマイズ
-4. **機能カスタマイズ** - テンプレート参照による新機能実装
+**テンプレートデザインシステム参照開発:**
+1. **テンプレート参照** - CodeAppsStarterのUI実装例を確認  
+2. **デザインパターン活用** - 既存コンポーネントを参照して実装
+3. **機能実装** - テンプレートのデザイン品質を維持して機能追加
+4. **ローカル確認** - `npm run dev` で動作確認
 
 **完了条件:**
-- ✅ テンプレートデザインシステムを理解し要件にマッピング完了
-- ✅ ブランド要素がテンプレート品質を維持してカスタマイズ済み
-- ✅ テンプレート参照による新機能が適切に統合されている
+- ✅ テンプレートデザインシステムを参照して機能実装完了
+- ✅ 新機能がテンプレートのUI品質を維持している
+- ✅ ローカル環境で新機能が正常に動作する
 
 **統合コマンド:**
 ```bash
-# ローカル動作確認
+# 機能拡張後のローカル確認
 npm run dev
+
+# Power Apps環境でのローカル実行
+pac code init --environment [environmentid] --displayName "[アプリ表示名]"
+npm run dev
+
+# デプロイ
+npm run build
+pac code push
 ```
 
 **次へ**: Phase 2 → Phase 3
 
 ---
 
-### **Phase 3: Power Apps環境からローカル実行**
+### **Phase 3: データソース統合**
+
+### **Phase 3: データソース統合**
 
 ```mermaid
 graph LR
-    A[ビルド・エラーチェック] --> B[Power Appsローカル実行]
-    B --> C[動作確認・テスト]
-    C --> D[実行成功]
-```
-
-> **📘 必ず以下のリファレンスを確認して実行してください**:
-> 
->  [Phase 3 リファレンス](./PHASE3_LOCAL_TESTING.md)
-
-**Phase 3の概要:**
-- Power Apps環境の初期化とローカル開発環境の構築
-- ローカル環境でのPower Apps認証付きアプリ実行
-- Power Apps環境での動作確認と統合テスト
-- 本格的な開発開始前の環境検証
-
-**統合コマンド:**
-```bash
-# ローカル実行（Power Apps認証環境）
-pac code init --environment [environmentid] --displayName "[アプリ表示名]"
-npm run dev
-```
-
-**重要**: `pac code init`でPower Apps環境を初期化してから`npm run dev`を実行することで、ローカル開発時もPower Apps認証が有効になります。StarterテンプレートのPower Apps統合機能により、本番環境と同じ認証フローでの開発・テストが可能です。
-
-**完了条件:**
-- ✅ ローカルで正常に起動する
-- ✅ Power Apps環境で表示される
-- ✅ エラーが発生しない
-
-**次へ**: Phase 3 → Phase 4
-
----
-
-### **Phase 4: 改修版アプリのPower Apps環境デプロイ**
-
-```mermaid
-graph LR
-    A[改修内容確認] --> B[最終ビルド]
-    B --> C[更新デプロイ]
-    C --> D[新機能テスト]
-    D --> E[デプロイ完了]
-```
-> **📘 必ず以下のリファレンスを確認して実行してください**:
->
-> [Phase 4 リファレンス](./PHASE4_DEPLOYMENT.md)
-
-**Phase 4の概要:**
-- テンプレートベースの改修内容確認と品質チェック
-- 段階的ビルド実行によるエラー事前検出
-- 安全な更新版アプリのPower Apps環境デプロイ
-- 本番環境での新機能動作確認と既存機能継続性検証
-
-**統合コマンド:**
-```bash
-# 1. ビルド実行（エラー確認）
-npm run build
-
-# 2. ビルド成功後、デプロイ実行
-pac code push
-```
-
-**安全な分割実行**: ビルドとデプロイを分離することで、TypeScriptエラー、リントエラー、ビルドエラーを確実に確認・解決してからデプロイを実行できます。これにより、デプロイ失敗やタイムアウトエラーを事前に防止できます。
-
-**完了条件:**
-- ✅ 改修された機能がビルドできる
-- ✅ デプロイが完了する
-- ✅ 新機能が本番環境で動作する
-- ✅ テンプレートの既存機能が引き続き動作する
-
-**次へ**: Phase 4 → Phase 5
-
----
-
-### **Phase 5: 機能拡張・データソース統合**
-
-```mermaid
-graph LR
-    A[コネクタ接続] --> B[機能実装]
-    B --> C[テスト・デプロイ]
-    C --> D[拡張完了]
+    A[データソース選択] --> B[コネクタ接続]
+    B --> C[スキーマ確認]
+    C --> D[データ統合]
+    D --> E[テスト・デプロイ]
 ```
 
 > **📘 必ず以下のリファレンスを確認して実行してください**:
 >
-> [Phase 5 リファレンス](./PHASE5_DATA_INTEGRATION.md)
+> [Phase 3 リファレンス](./PHASE3_DATA_INTEGRATION.md)
 >
 > 以下は必要に応じて参照してください
 > 
@@ -338,21 +291,83 @@ graph LR
 > - **[スキーマ取得方法](./docs/HOW_TO_GET_DATAVERSE_SCHEMA.md)** - 5つの取得方法
 > - **[Dataverseトラブルシューティング](./docs/DATAVERSE_TROUBLESHOOTING.md)** - よくある問題と解決法
 
-**Phase 5の概要:**
-- データソース接続の設定（Dataverse等）
-- カスタムフックの作成
-- CRUD操作の実装
-- UI統合とエラーハンドリング
+**Phase 3の概要:**
+- 実際のビジネスデータソース接続の設定（Dataverse、SharePoint、SQL等）
+- Power Apps SDKの初期化完了後のコネクタ接続
+- カスタムフックによるデータアクセスロジックの実装
+- CRUD操作の実装とUI統合
+- エラーハンドリングとデータ検証
 
 **重要: SDK初期化のタイミング**
 > ⚠️ **Power Apps SDKの初期化が完了してから**データソースに接続する必要があります。  
-> 詳細は [Phase 5 リファレンス](./PHASE5_DATA_INTEGRATION.md#重要-sdk初期化とコネクター接続のタイミング) を参照してください。
+> 詳細は [Phase 5 リファレンス](./PHASE5_DATA_INTEGRATION.md#重要-sdk初期化とコネクタ接続のタイミング) を参照してください。
 
 **実施するStep:**
-1. **データソース接続準備** - Power Appsポータルで接続作成
-2. **接続追加コマンド** - `pac code add-data-source`
-3. **カスタムフック作成** - データアクセスロジックの実装
-4. **UI統合** - Reactコンポーネントでの使用
+1. **データソース選択** - プロジェクト要件に合わせたデータソース決定
+2. **データソース接続準備** - Power Appsポータルで接続作成
+3. **スキーマ確認** - データ構造の把握と型定義
+4. **接続追加コマンド** - `pac code add-data-source`
+5. **カスタムフック作成** - データアクセスロジックの実装
+6. **UI統合** - Phase 2で実装した機能へのデータ統合
+7. **テスト・デプロイ** - データ連携の動作確認と本番反映
+
+**完了条件:**
+- ✅ データソースが正しく接続されている
+- ✅ CRUD操作が正常に動作する
+- ✅ UIとデータが適切に統合されている
+- ✅ エラーハンドリングが実装されている
+- ✅ 本番環境でデータ連携が動作する
+
+**統合コマンド:**
+```bash
+# データソース接続追加
+pac code add-data-source
+
+# ローカルテスト
+npm run dev
+
+# デプロイ
+npm run build
+pac code push
+```
+
+**次へ**: Phase 3 → 継続開発サイクル
+
+---
+
+## 🔄 継続開発サイクル
+
+Phase 3完了後は、以下のサイクルで継続的な機能拡張・改善を行います：
+
+```mermaid
+graph LR
+    A[Phase 2: 機能拡張] --> B[ローカルテスト]
+    B --> C[Power Appsテスト]
+    C --> D[デプロイ]
+    D --> E[Phase 3: データ統合]
+    E --> A
+```
+
+**継続開発の流れ:**
+1. **Phase 2**: 新機能の実装・既存機能の改善
+2. **ローカルテスト**: `npm run dev` で動作確認
+3. **Power Appsテスト**: `pac code init` + `npm run dev` で認証環境テスト
+4. **デプロイ**: `npm run build` + `pac code push` で本番反映
+5. **Phase 3**: 必要に応じてデータソース追加・変更
+6. Phase 2に戻り、次の機能開発へ
+
+---
+
+## 📚 Phase別リファレンスドキュメント
+
+**実施するStep:**
+1. **データソース選択** - プロジェクト要件に合わせたデータソース決定
+2. **データソース接続準備** - Power Appsポータルで接続作成
+3. **スキーマ確認** - データ構造の把握と型定義
+4. **接続追加コマンド** - `pac code add-data-source`
+5. **カスタムフック作成** - データアクセスロジックの実装
+6. **UI統合** - Phase 2で実装した機能へのデータ統合
+7. **テスト・デプロイ** - データ連携の動作確認と本番反映
 
 **完了条件:**
 - ✅ データソースが正常に接続されている
