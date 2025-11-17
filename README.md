@@ -29,8 +29,8 @@
 - ✅ **[PHASE3_DATA_INTEGRATION.md](./PHASE3_DATA_INTEGRATION.md)** - データソース統合詳細
 
 **参考: 旧フェーズドキュメント**
-- 📖 **[PHASE3_LOCAL_TESTING.md](./PHASE3_LOCAL_TESTING.md)** - Phase 1に統合済み
-- 📖 **[PHASE4_DEPLOYMENT.md](./PHASE4_DEPLOYMENT.md)** - Phase 1・Phase 2に統合済み
+- 📖 **[PHASE1_LOCAL_TESTING.md](./PHASE1_LOCAL_TESTING.md)** - Phase 1に統合済み
+- 📖 **[PHASE1_DEPLOYMENT.md](./PHASE1_DEPLOYMENT.md)** - Phase 1・Phase 2に統合済み
 
 **推奨される使い方:**
 1. **開発開始前** → このREADME.mdで全体像を把握
@@ -160,8 +160,8 @@ graph LR
 > **📘 必ず以下のリファレンスを確認して実行してください**:
 >
 > - **[Phase 1 リファレンス](./PHASE1_PROJECT_SETUP.md)** - セットアップ詳細
-> - **[Phase 3 リファレンス](./PHASE3_LOCAL_TESTING.md)** - Power Appsローカル実行詳細
-> - **[Phase 4 リファレンス](./PHASE4_DEPLOYMENT.md)** - デプロイ詳細
+> - **[Phase 1 ローカルテスト参考](./PHASE1_LOCAL_TESTING.md)** - Power Appsローカル実行詳細
+> - **[Phase 1 デプロイ参考](./PHASE1_DEPLOYMENT.md)** - デプロイ詳細
 
 **Phase 1の概要:**
 - CodeAppsStarterテンプレートのセットアップ
