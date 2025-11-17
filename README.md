@@ -25,12 +25,8 @@
 ### 📘 **Phase別リファレンス（ルートディレクトリ）**
 - ✅ **[PHASE0_ENVIRONMENT_SETUP.md](./PHASE0_ENVIRONMENT_SETUP.md)** - 環境セットアップ詳細
 - ✅ **[PHASE1_PROJECT_SETUP.md](./PHASE1_PROJECT_SETUP.md)** - テンプレートセットアップ・ローカル実行・デプロイ詳細
-- ✅ **[PHASE2_UI_DESIGN_SYSTEM.md](./PHASE2_UI_DESIGN_SYSTEM.md)** - 機能拡張詳細（デザインシステム参照）
+- ✅ **[PHASE2_FEATURE_ENHANCEMENT.md](./PHASE2_FEATURE_ENHANCEMENT.md)** - 機能拡張詳細（デザインシステム参照）
 - ✅ **[PHASE3_DATA_INTEGRATION.md](./PHASE3_DATA_INTEGRATION.md)** - データソース統合詳細
-
-**参考: 旧フェーズドキュメント**
-- 📖 **[PHASE1_LOCAL_TESTING.md](./PHASE1_LOCAL_TESTING.md)** - Phase 1に統合済み
-- 📖 **[PHASE1_DEPLOYMENT.md](./PHASE1_DEPLOYMENT.md)** - Phase 1・Phase 2に統合済み
 
 **推奨される使い方:**
 1. **開発開始前** → このREADME.mdで全体像を把握
@@ -159,9 +155,7 @@ graph LR
 
 > **📘 必ず以下のリファレンスを確認して実行してください**:
 >
-> - **[Phase 1 リファレンス](./PHASE1_PROJECT_SETUP.md)** - セットアップ詳細
-> - **[Phase 1 ローカルテスト参考](./PHASE1_LOCAL_TESTING.md)** - Power Appsローカル実行詳細
-> - **[Phase 1 デプロイ参考](./PHASE1_DEPLOYMENT.md)** - デプロイ詳細
+> - **[Phase 1 リファレンス](./PHASE1_PROJECT_SETUP.md)** - セットアップ・ローカル実行・デプロイ詳細
 
 **Phase 1の概要:**
 - CodeAppsStarterテンプレートのセットアップ
@@ -227,7 +221,7 @@ graph LR
 
 > **📘 必ず以下のリファレンスを確認して実装してください**:
 > 
-> - **[Phase 2 リファレンス](./PHASE2_UI_DESIGN_SYSTEM.md)** - テンプレートデザインシステム参照方法
+> - **[Phase 2 リファレンス](./PHASE2_FEATURE_ENHANCEMENT.md)** - テンプレートデザインシステム参照方法
 > - **[ロゴ実装マスターガイド](./docs/LOGO_MASTER_GUIDE.md)** - ロゴ・アイコンカスタマイズ
 > - **[テーマカスタマイズガイド](./docs/THEME_CUSTOMIZATION_GUIDE.md)** - 色・テーマ変更
 > - **[shadcn/ui拡張ガイド](./docs/SHADCN_UI_EXTENSION_GUIDE.md)** - UIコンポーネント活用
