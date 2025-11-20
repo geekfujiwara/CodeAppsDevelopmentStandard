@@ -23,15 +23,14 @@
 - ✅ 品質管理とテスト戦略
 
 ### 📘 **Phase別リファレンス（ルートディレクトリ）**
-- ✅ **[PHASE0_ENVIRONMENT_SETUP.md](./PHASE0_ENVIRONMENT_SETUP.md)** - 環境セットアップ詳細
-- ✅ **[PHASE1_PROJECT_SETUP.md](./PHASE1_PROJECT_SETUP.md)** - テンプレートセットアップ・ローカル実行・デプロイ詳細
-- ✅ **[PHASE2_FEATURE_ENHANCEMENT.md](./PHASE2_FEATURE_ENHANCEMENT.md)** - 機能拡張詳細（デザインシステム参照）
+- ✅ **[PHASE0_ENVIRONMENT_SETUP.md](./PHASE0_ENVIRONMENT_SETUP.md)** - 環境セットアップ
+- PHASE1 - テンプレートセットアップ・ローカル実行・デプロイ
+- ✅ **[PHASE2_FEATURE_ENHANCEMENT.md](./PHASE2_FEATURE_ENHANCEMENT.md)** - 機能拡張
 - ✅ **[PHASE3_DATA_INTEGRATION.md](./PHASE3_DATA_INTEGRATION.md)** - データソース統合詳細
 
 **推奨される使い方:**
-1. **開発開始前** → このREADME.mdで全体像を把握
-2. **実装時** → 各Phase別リファレンスで詳細を確認
-3. **問題発生時** → 該当Phaseのトラブルシューティングセクションを参照
+
+- GitHub Copilot にこのリポジトリのURLを渡してアイデアを伝えてエージェントに作ってもらいましょう。
 
 ---
 
