@@ -24,7 +24,7 @@
 
 ### 📘 **Phase別リファレンス（ルートディレクトリ）**
 - ✅ **[PHASE0_ENVIRONMENT_SETUP.md](./PHASE0_ENVIRONMENT_SETUP.md)** - 環境セットアップ
-- ✅ **[PHASE1_テンプレートセットアップ・ローカル実行・デプロイ](https://github.com/geekfujiwara/CodeAppsStarter)
+- ✅ **[PHASE1_テンプレートセットアップ・ローカル実行・デプロイ](https://github.com/geekfujiwara/CodeAppsStarter)**
 - ✅ **[PHASE2_FEATURE_ENHANCEMENT.md](./PHASE2_FEATURE_ENHANCEMENT.md)** - 機能拡張
 - ✅ **[PHASE3_DATA_INTEGRATION.md](./PHASE3_DATA_INTEGRATION.md)** - データソース統合詳細
 
