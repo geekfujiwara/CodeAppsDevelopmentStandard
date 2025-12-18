@@ -45,7 +45,7 @@ winget install OpenJS.NodeJS.LTS
 winget install Git.Git
 
 # Power Platform CLI
-winget install Microsoft.PowerPlatformCLI
+winget install Microsoft.PowerAppsCLI
 ```
 
 > **💡 ヒント**: VS Code起動後、拡張機能マーケットプレイスで「Power Platform Tools」をインストールしてください。
@@ -92,7 +92,7 @@ npm --version
 ```powershell
 # PowerShellを管理者として実行
 # .NET 6.0 Runtime が必要
-winget install Microsoft.PowerPlatformCLI
+winget install Microsoft.PowerAppsCLI
 ```
 
 または
@@ -304,8 +304,8 @@ Phase 0完了後のAI支援例:
 $env:PATH -split ';' | Select-String "PowerPlatform"
 
 # PACを再インストール
-winget uninstall Microsoft.PowerPlatformCLI
-winget install Microsoft.PowerPlatformCLI
+winget uninstall Microsoft.PowerAppsCLI
+winget install Microsoft.PowerAppsCLI
 ```
 
 **macOS:**
