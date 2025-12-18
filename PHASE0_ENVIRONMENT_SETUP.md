@@ -347,7 +347,28 @@ pac auth create --cloud Public
 
 ## 🔄 次のステップ
 
-Phase 0が完了したら、次は **Phase 1: プロジェクト環境構築・PowerProvider・SDK初期化** に進みます。
+Phase 0が完了したら、次は **Phase 1: Microsoft標準テンプレート・デプロイ** に進みます。
 
-👉 **[Phase 1 リファレンス](./PHASE1_PROJECT_SETUP.md)** に進む
+> **⚠️ 重要: 新しい開発プロセス**
+>
+> **aka.ms/CodeApps リポジトリでSDKが更新されたため、開発プロセスが変更されました:**
+>
+> **Phase 1での作業:**
+> 1. Microsoft標準テンプレート（Vite + React + TypeScript）を使用
+> 2. `npm create vite@latest . -- --template react-ts` でプロジェクト作成
+> 3. `@microsoft/power-apps` SDKをインストール
+> 4. 改変せずにデプロイ（SDK互換性確保）
+>
+> **Phase 2での作業:**
+> 1. CodeAppsStarterを**参照**（全体クローンはしない）
+> 2. 必要な機能のみを段階的に追加
+> 3. `npx shadcn-ui@latest add [component]` でUIコンポーネント追加
+>
+> **Phase 3での作業:**
+> 1. Dataverseやコネクター接続（最後のステップ）
+>
+> この新しいプロセスにより、SDK初期化エラーを回避し、最新SDKとの互換性を保証します。
+
+👉 **Phase 1に進む前に、READMEの[開発フロー概要](./README.md#開発フローの概要)を確認してください**
+
 
