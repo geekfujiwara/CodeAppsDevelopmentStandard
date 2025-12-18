@@ -101,7 +101,7 @@
 >
 > **aka.ms/CodeApps リポジトリでMicrosoft公式SDKが更新されたため、開発プロセスを見直しました。**
 >
-> **新しい開発プロセス（2024年12月更新）:**
+> **新しい開発プロセス:**
 > 1. **Phase 1**: まず**Microsoft標準のStarterテンプレート**をデプロイ（SDK互換性確保）
 > 2. **Phase 2**: **CodeAppsStarterテンプレートを参照**して必要な機能を追加
 > 3. **Phase 3**: Dataverseやコネクターに接続（最後のステップ）
@@ -273,8 +273,8 @@ npm create vite@latest . -- --template react-ts
 npm install
 npm run dev
 
-# Power Apps SDKをインストール
-npm install @microsoft/power-apps
+# Power Apps SDKをインストール（最新版を推奨）
+npm install @microsoft/power-apps@latest
 
 # 2. Power Apps環境でのローカル実行
 pac code init --environment [environmentid] --displayName "[アプリ表示名]"
@@ -299,8 +299,8 @@ npm create vite@latest . -- --template react-ts
 npm install
 npm run dev
 
-# Power Apps SDKをインストール
-npm install @microsoft/power-apps
+# Power Apps SDKをインストール（最新版を推奨）
+npm install @microsoft/power-apps@latest
 
 # Power Appsローカル実行
 pac code init --environment 12345678-1234-1234-1234-123456789abc --displayName "Task Manager"
@@ -550,12 +550,10 @@ npm install
 #### **3. SDK初期化を確認する**
 ```typescript
 // src/main.tsx または App.tsx
-import { useEffect, useState } from 'react';
 import { usePowerPlatform } from '@microsoft/power-apps';
 
 export function App() {
   const { isInitialized } = usePowerPlatform();
-  const [error, setError] = useState<string | null>(null);
 
   // SDK初期化が完了するまで待機
   if (!isInitialized) {
