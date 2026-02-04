@@ -78,6 +78,7 @@
 
 | ドキュメント | 説明 | 対象フェーズ |
 |------------|------|------------|
+| **[DATAVERSE_INTEGRATION_BEST_PRACTICES.md](./DATAVERSE_INTEGRATION_BEST_PRACTICES.md)** | ⭐ **Dataverse統合のベストプラクティス**<br>- プロジェクト初期化からCRUD操作まで<br>- エラーハンドリングとバリデーション<br>- パフォーマンス最適化<br>- トラブルシューティング | Phase 3: データソース統合 |
 | **[LOOKUP_FIELD_GUIDE.md](./LOOKUP_FIELD_GUIDE.md)** | 🔍 Lookupフィールド実装の完全ガイド<br>- ビュー切り替え機能<br>- `$expand`によるLookup展開<br>- 50以上のテストチェック項目 | Phase 5: データソース統合 |
 | **[DATAVERSE_SCHEMA_REFERENCE.md](./DATAVERSE_SCHEMA_REFERENCE.md)** | 📋 実際のスキーマリファレンス<br>- テーブル定義<br>- Choice値の完全リスト<br>- リレーション定義 | Phase 5: データソース統合 |
 | **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** | 🔎 スキーマ取得方法の完全ガイド<br>- 5つの方法を比較<br>- 実践的なワークフロー | Phase 5: データソース統合前 |
@@ -141,10 +142,11 @@
 
 ### テンプレートでのDataverseテーブル追加
 
-1. **[メインREADME.md - Phase 5: データソース統合](../README.md#phase-5-機能拡張)** - テンプレートでの基本的な接続手順を確認
+1. **[DATAVERSE_INTEGRATION_BEST_PRACTICES.md](./DATAVERSE_INTEGRATION_BEST_PRACTICES.md)** - ⭐ **まずこれを読む**: プロジェクト初期化からCRUD操作まで完全ガイド
 2. **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** - スキーマの取得方法を確認
 3. **[DATAVERSE_SCHEMA_REFERENCE.md](./DATAVERSE_SCHEMA_REFERENCE.md)** - 既存のスキーマ定義を参照
-4. テンプレートに実装 → **[DATAVERSE_TROUBLESHOOTING.md](./DATAVERSE_TROUBLESHOOTING.md)** で問題解決
+4. **[メインREADME.md - Phase 3: データソース統合](../README.md#phase-3-データソース統合)** - 開発標準での位置づけを理解
+5. 実装 → **[DATAVERSE_TROUBLESHOOTING.md](./DATAVERSE_TROUBLESHOOTING.md)** で問題解決
 
 ### テンプレートでのLookupフィールド実装
 
