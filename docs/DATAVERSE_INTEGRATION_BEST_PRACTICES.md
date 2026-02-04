@@ -7,893 +7,428 @@
 
 ## 📋 概要
 
-このドキュメントは、Power Apps Code AppsでDataverseテーブルをデータソースとして追加し、CRUD操作を実装する際のベストプラクティスとトラブルシューティングガイドです。
+Power Apps Code AppsでDataverseテーブルをデータソースとして追加し、CRUD操作を実装する際のベストプラクティスとトラブルシューティングガイド。
 
-実際の業務プロセスデザイナーアプリ開発で発見された課題と解決策を基に、効率的で確実なDataverse統合の手順をまとめています。
+## 背景
 
----
-
-## 🎯 このドキュメントで学べること
-
-✅ **プロジェクト初期化の正しい手順**  
-✅ **Dataverseテーブル接続の確実な方法**  
-✅ **CRUD操作の実装パターン**  
-✅ **よくある問題とその解決方法**  
-✅ **パフォーマンス最適化のヒント**  
-✅ **セキュリティとエラーハンドリング**
+業務プロセスデザイナーアプリで、Dataverseテーブル（`geek_businessprocess`）を使用したデータ永続化機能を実装した際に発見したベストプラクティス。
 
 ---
 
 ## 📚 目次
 
-1. [プロジェクト初期化](#1-プロジェクト初期化)
-2. [Dataverseテーブル接続](#2-dataverseテーブル接続)
-3. [スキーマ取得と型定義](#3-スキーマ取得と型定義)
-4. [CRUD操作の実装](#4-crud操作の実装)
-5. [エラーハンドリングとバリデーション](#5-エラーハンドリングとバリデーション)
-6. [パフォーマンス最適化](#6-パフォーマンス最適化)
-7. [トラブルシューティング](#7-トラブルシューティング)
-8. [実装チェックリスト](#8-実装チェックリスト)
+1. [推奨される実装手順](#✅-推奨される実装手順)
+   - [プロジェクト初期化](#1-プロジェクト初期化)
+   - [Dataverseテーブルをデータソースとして追加](#2-dataverseテーブルをデータソースとして追加-⭐-重要)
+   - [Power Apps SDK を使用したサービス実装](#3-power-apps-sdk-を使用したサービス実装-⭐-推奨)
+   - [UIでの使用例](#4-uiでの使用例)
+2. [トラブルシューティング](#トラブルシューティング)
+3. [チェックリスト](#チェックリスト)
+4. [参考リンク](#参考リンク)
+5. [まとめ](#まとめ)
 
 ---
 
-## 1. プロジェクト初期化
+## ✅ 推奨される実装手順
 
-### 1.1 環境セットアップ
-
-**前提条件:**
-- Node.js (v18以上推奨)
-- Power Platform CLI (`pac`)
-- Visual Studio Code
+### 1. プロジェクト初期化
 
 ```bash
-# Power Platform CLIのインストール確認
-pac --version
-
-# 環境認証
-pac auth create --environment [環境ID]
+pac code init -n "AppName" -env "<Environment-ID>"
 ```
 
-### 1.2 プロジェクト作成
-
-⚠️ **重要**: 必ずMicrosoft標準テンプレートから開始してください。
-
-```bash
-# 1. プロジェクトフォルダ作成
-mkdir YourAppName
-cd YourAppName
-code .
-
-# 2. VS Codeでフォルダを開いた後、Microsoft標準テンプレートを使用
-npm create vite@latest . -- --template react-ts
-npm install
-
-# 3. Power Apps SDKをインストール（最新版を推奨）
-npm install @microsoft/power-apps@latest
-
-# 4. 初期動作確認
-npm run dev
-```
-
-### 1.3 Power Apps初期化
-
-```bash
-# Power Apps環境でプロジェクトを初期化
-pac code init --environment [環境ID] --displayName "Your App Name"
-
-# ローカル実行で動作確認
-npm run dev
-
-# 初回デプロイ
-npm run build
-pac code push
-```
-
-**✅ Phase 1完了確認:**
-- [ ] Microsoft標準テンプレートが正常にデプロイされている
-- [ ] Power Apps環境でアプリが表示される
-- [ ] SDK初期化エラーが発生していない
+**注意点:**
+- 環境IDは`pac org list`で取得
+- 既に`power.config.json`が存在する場合はエラーになる
 
 ---
 
-## 2. Dataverseテーブル接続
+### 2. Dataverseテーブルをデータソースとして追加 ⭐ 重要
 
-### 2.1 接続作成の手順
-
-#### Step 1: Power Appsポータルで接続を作成
-
-1. [Power Apps Maker Portal](https://make.powerapps.com) にアクセス
-2. 左メニューから「接続」を選択
-3. 「+ 新しい接続」をクリック
-4. 「Microsoft Dataverse」を検索して選択
-5. 「作成」をクリック
-
-#### Step 2: 接続IDの取得
-
-接続作成後、URLから接続IDをコピーします。
-
-```
-URL例:
-https://make.powerapps.com/environments/[環境ID]/connections/shared_commondataserviceforapps/[接続ID]/details
-
-接続ID: [接続ID]の部分をコピー
-```
-
-### 2.2 データソースの追加
+#### ✅ 正しい方法（推奨）
 
 ```bash
-# Dataverseテーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "[接続ID]" -t "[テーブル論理名]"
-
-# 例: geek_businessprocess テーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "12345678-abcd-..." -t "geek_businessprocesses"
+pac code add-data-source -a dataverse -t <テーブル論理名>
 ```
 
-**⚠️ 注意点:**
-- テーブル論理名は複数形を使用（例: `geek_businessprocesses`）
-- 接続IDは必ず正確にコピーする
-- コマンド実行後、`src/services/` フォルダに型定義ファイルが生成される
-
-### 2.3 生成されるファイル
-
+**例:**
+```bash
+pac code add-data-source -a dataverse -t geek_businessprocess
 ```
-src/
-└── services/
-    └── geek_businessprocesses/
-        ├── index.ts              # サービスクラス
-        └── types.ts              # 型定義
-```
+
+**ポイント:**
+- `-a dataverse`を指定（`shared_commondataserviceforapps`は**使用しない**）
+- `-t`には**テーブルの論理名（LogicalName）**を指定（**単数形**）
+- `-c`（Connection ID）や`-d`（Dataset）の指定は**不要**
+- コマンド実行により自動的に以下が生成される:
+  - `.power/schemas/dataverse/<tablename>.Schema.json`
+  - `power.config.json`への接続参照追加
+  - `dataSourcesInfo`の更新
+
+**論理名の確認方法:**
+1. Power Apps Maker ポータルで確認: テーブル &gt; 設定 &gt; プロパティ &gt; 名前
+2. `customizations.xml`で確認: `<entity Name="geek_businessprocess">`
 
 ---
 
-## 3. スキーマ取得と型定義
-
-### 3.1 スキーマ情報の取得方法
-
-Dataverseテーブルのスキーマ情報を取得する方法は5つあります。
-
-#### 方法1: Make Power Appsポータル（最も簡単）
-
-1. [Power Apps Maker Portal](https://make.powerapps.com) にアクセス
-2. 「テーブル」→「すべて」を選択
-3. 対象テーブルを検索
-4. テーブルを開いて「列」タブでフィールド情報を確認
-
-#### 方法2: ソリューションエクスポート（推奨）
+#### ❌ 避けるべき方法
 
 ```bash
-# 1. ソリューションをエクスポート（Power Appsポータル）
-# 2. zipファイルを解凍
-# 3. customization.xml を確認
-
-# customization.xml からスキーマ抽出
-# XMLにテーブル定義、フィールド定義、選択肢の値が含まれる
+# 間違い: shared_commondataserviceforapps を使用
+pac code add-data-source -a "shared_commondataserviceforapps" -c "<Connection-ID>"
 ```
 
-詳細は [スキーマ取得方法ガイド](./HOW_TO_GET_DATAVERSE_SCHEMA.md) を参照してください。
+**問題点:**
+- `The interface 'CDPTabular1' was not found`エラーが発生
+- `shared_commondataserviceforapps`はCode Appsの想定するインターフェイスと互換性がない
+- 手動でのスキーマ設定が必要になり複雑化
 
-### 3.2 TypeScript型定義の作成
+---
+
+### 3. Power Apps SDK を使用したサービス実装 ⭐ 推奨
+
+#### ✅ Power Apps SDK を使用する方法（推奨）
+
+Dataverseへのアクセスには**Power Apps SDK**の使用が推奨されます。Content Security Policy (CSP) の制約を受けず、認証も自動的に処理されます。
+
+##### Modelファイル (`src/Models/GeekBusinessProcessModel.ts`)
 
 ```typescript
-// src/types/businessprocess.ts
-
-export interface BusinessProcess {
-  geek_businessprocessid: string;
-  geek_name: string;
+/**
+ * Dataverseテーブル: geek_businessprocess
+ * EntitySetName: geekbusinessprocesses (自動生成されたスキーマファイルで確認)
+ */
+export interface GeekBusinessProcess {
+  geek_businessprocessid?: string;
+  geek_processname: string; // Primary Name フィールド
+  geek_processid?: string; // Auto Number
   geek_description?: string;
-  geek_status?: number;  // Choice値
-  geek_priority?: number;  // Choice値
+  geek_markdowndetails?: string;
   createdon?: string;
   modifiedon?: string;
-  _ownerid_value?: string;  // Lookup
+  statecode?: number;
+  statuscode?: number;
+  ownerid?: string;
 }
 
-// Choice値の型定義
-export enum BusinessProcessStatus {
-  Draft = 1,
-  Active = 2,
-  Completed = 3,
-  Archived = 4
+export interface GeekBusinessProcessCreateInput {
+  geek_processname: string;
+  geek_description?: string;
+  geek_markdowndetails?: string;
 }
 
-export enum BusinessProcessPriority {
-  Low = 1,
-  Medium = 2,
-  High = 3,
-  Critical = 4
-}
-```
-
-### 3.3 Choice値のマッピング
-
-```typescript
-// src/utils/choiceMapping.ts
-
-export const statusLabels: Record<number, string> = {
-  1: "下書き",
-  2: "アクティブ",
-  3: "完了",
-  4: "アーカイブ済み"
-};
-
-export const priorityLabels: Record<number, string> = {
-  1: "低",
-  2: "中",
-  3: "高",
-  4: "緊急"
-};
-
-// Choice値からラベルを取得するヘルパー関数
-export function getStatusLabel(status?: number): string {
-  return status !== undefined ? statusLabels[status] || "不明" : "-";
-}
-
-export function getPriorityLabel(priority?: number): string {
-  return priority !== undefined ? priorityLabels[priority] || "不明" : "-";
+export interface GeekBusinessProcessUpdateInput {
+  geek_processname?: string;
+  geek_description?: string;
+  geek_markdowndetails?: string;
 }
 ```
+
+**フィールド名の確認方法:**
+- `.power/schemas/dataverse/<tablename>.Schema.json`で確認
+- または`customizations.xml`の`<attribute PhysicalName="...">`で確認
 
 ---
 
-## 4. CRUD操作の実装
-
-### 4.1 カスタムフックの作成
-
-SDK初期化を確認し、データアクセスをカプセル化するカスタムフックを作成します。
+##### Serviceファイル (`src/Services/GeekBusinessProcessService.ts`)
 
 ```typescript
-// src/hooks/useBusinessProcesses.ts
+import { getClient, type DataClient } from '@microsoft/power-apps/data';
+import type { IOperationOptions } from '@microsoft/power-apps/data';
+import { dataSourcesInfo } from '../../.power/schemas/appschemas/dataSourcesInfo';
+import type { 
+  GeekBusinessProcess, 
+  GeekBusinessProcessCreateInput, 
+  GeekBusinessProcessUpdateInput 
+} from '@/Models/GeekBusinessProcessModel';
 
-import { useState, useEffect } from 'react';
-import { usePowerPlatform } from '@microsoft/power-apps';
-import { BusinessProcess } from '../types/businessprocess';
-import { geek_businessprocesses } from '../services/geek_businessprocesses';
+// テーブル名 (power.config.json の dataSources に合わせる)
+// pac code add-data-source 実行後に自動生成される
+const TABLE_NAME = 'geekbusinessprocesses';
 
-export function useBusinessProcesses() {
-  const { isInitialized } = usePowerPlatform();
-  const [processes, setProcesses] = useState<BusinessProcess[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+// DataClient を取得
+const getDataClient = (): DataClient => {
+  return getClient(dataSourcesInfo);
+};
 
-  // データ取得
-  const fetchProcesses = async () => {
-    if (!isInitialized) {
-      console.warn("Power Apps SDK not initialized yet");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await geek_businessprocesses.getAll();
-      
-      if (result.isSuccess && result.data) {
-        setProcesses(result.data);
-      } else {
-        setError(result.error?.message || "データの取得に失敗しました");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "予期しないエラーが発生しました");
-    } finally {
-      setLoading(false);
-    }
+/**
+ * 一覧取得
+ */
+export async function fetchBusinessProcesses(): Promise<GeekBusinessProcess[]> {
+  const client = getDataClient();
+  const options: IOperationOptions = {
+    select: [
+      'geek_businessprocessid',
+      'geek_processname',
+      'geek_processid',
+      'geek_description',
+      'geek_markdowndetails',
+      'createdon',
+      'modifiedon'
+    ],
+    orderBy: ['modifiedon desc'],
+    filter: 'statecode eq 0', // Active のみ
   };
 
-  // 初期化完了後に自動読み込み
+  const result = await client.retrieveMultipleRecordsAsync<GeekBusinessProcess>(
+    TABLE_NAME,
+    options
+  );
+
+  if (!result.success) {
+    throw new Error(`Fetch failed: ${result.error?.message}`);
+  }
+
+  return result.data || [];
+}
+
+/**
+ * 新規作成
+ */
+export async function createBusinessProcess(
+  input: GeekBusinessProcessCreateInput
+): Promise<string> {
+  const client = getDataClient();
+  const result = await client.createRecordAsync(TABLE_NAME, input);
+
+  if (!result.success) {
+    throw new Error(`Create failed: ${result.error?.message}`);
+  }
+
+  return result.data; // GUID
+}
+
+/**
+ * 更新
+ */
+export async function updateBusinessProcess(
+  id: string,
+  input: GeekBusinessProcessUpdateInput
+): Promise<void> {
+  const client = getDataClient();
+  const result = await client.updateRecordAsync(TABLE_NAME, id, input);
+
+  if (!result.success) {
+    throw new Error(`Update failed: ${result.error?.message}`);
+  }
+}
+
+/**
+ * 削除
+ */
+export async function deleteBusinessProcess(id: string): Promise<void> {
+  const client = getDataClient();
+  const result = await client.deleteRecordAsync(TABLE_NAME, id);
+
+  if (!result.success) {
+    throw new Error(`Delete failed: ${result.error?.message}`);
+  }
+}
+```
+
+**Power Apps SDK のポイント:**
+- ✅ CSP制約を受けない（Content Security Policy違反エラーが発生しない）
+- ✅ 認証が自動的に処理される
+- ✅ `IOperationResult`型で成功/失敗が明確
+- ✅ TypeScript型サポートが充実
+- ✅ `$select`, `$filter`, `$orderby`などのODataオプションをサポート
+
+---
+
+#### ⚠️ Fetch API を直接使用する方法（非推奨）
+
+Power Apps環境ではContent Security Policy (CSP)の制約により、直接fetch APIを使用すると以下のエラーが発生する可能性があります:
+
+```
+Refused to connect to '<URL>' because it violates the following 
+Content Security Policy directive: "connect-src 'self' ..."
+```
+
+**そのため、Dataverseへのアクセスには必ず Power Apps SDK を使用してください。**
+
+---
+
+### 4. UIでの使用例
+
+```typescript
+import { 
+  fetchBusinessProcesses,
+  createBusinessProcess, 
+  updateBusinessProcess 
+} from '@/Services/GeekBusinessProcessService';
+import { toast } from 'sonner';
+
+const ProcessEditor = () => {
+  const [process, setProcess] = useState<BusinessProcess | null>(null);
+
+  // データ読み込み
   useEffect(() => {
-    if (isInitialized) {
-      fetchProcesses();
-    }
-  }, [isInitialized]);
+    const loadProcesses = async () => {
+      try {
+        const data = await fetchBusinessProcesses();
+        console.log('Loaded processes:', data);
+      } catch (error) {
+        toast.error('データの読み込みに失敗しました');
+      }
+    };
+    loadProcesses();
+  }, []);
 
-  return {
-    processes,
-    loading,
-    error,
-    refetch: fetchProcesses
-  };
-}
-```
-
-### 4.2 Create（作成）操作
-
-```typescript
-// カスタムフックに追加
-
-export function useBusinessProcesses() {
-  // ... 既存のコード ...
-
-  const createProcess = async (data: Partial<BusinessProcess>) => {
-    if (!isInitialized) {
-      throw new Error("Power Apps SDK is not initialized");
-    }
-
-    setLoading(true);
-    setError(null);
+  // Dataverseに保存
+  const handleSaveToDataverse = async () => {
+    if (!process) return;
 
     try {
-      const result = await geek_businessprocesses.create({
-        geek_name: data.geek_name || "",
-        geek_description: data.geek_description,
-        geek_status: data.geek_status || 1,  // デフォルト: 下書き
-        geek_priority: data.geek_priority || 2,  // デフォルト: 中
-      });
-
-      if (result.isSuccess) {
-        await fetchProcesses();  // リスト再読み込み
-        return result.data;
+      if (process.geek_businessprocessid) {
+        // 更新
+        await updateBusinessProcess(process.geek_businessprocessid, {
+          geek_processname: process.title,
+          geek_markdowndetails: exportToMarkdown(process),
+        });
+        toast.success('更新しました');
       } else {
-        throw new Error(result.error?.message || "作成に失敗しました");
+        // 新規作成
+        const id = await createBusinessProcess({
+          geek_processname: process.title,
+          geek_markdowndetails: exportToMarkdown(process),
+        });
+        setProcess({ ...process, geek_businessprocessid: id });
+        toast.success('保存しました');
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "予期しないエラーが発生しました";
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error('Save error:', error);
+      toast.error('保存に失敗しました');
     }
   };
-
-  return {
-    processes,
-    loading,
-    error,
-    refetch: fetchProcesses,
-    createProcess
-  };
-}
-```
-
-### 4.3 Read（読み取り）操作
-
-```typescript
-// 単一レコードの取得
-const getProcessById = async (id: string) => {
-  if (!isInitialized) {
-    throw new Error("Power Apps SDK is not initialized");
-  }
-
-  try {
-    const result = await geek_businessprocesses.getById(id);
-    
-    if (result.isSuccess && result.data) {
-      return result.data;
-    } else {
-      throw new Error(result.error?.message || "データの取得に失敗しました");
-    }
-  } catch (err) {
-    throw new Error(err instanceof Error ? err.message : "予期しないエラーが発生しました");
-  }
-};
-
-// フィルター付き取得
-const getProcessesByStatus = async (status: number) => {
-  if (!isInitialized) {
-    throw new Error("Power Apps SDK is not initialized");
-  }
-
-  try {
-    const result = await geek_businessprocesses.getAll({
-      filter: `geek_status eq ${status}`
-    });
-    
-    if (result.isSuccess && result.data) {
-      return result.data;
-    } else {
-      throw new Error(result.error?.message || "データの取得に失敗しました");
-    }
-  } catch (err) {
-    throw new Error(err instanceof Error ? err.message : "予期しないエラーが発生しました");
-  }
-};
-```
-
-### 4.4 Update（更新）操作
-
-```typescript
-// カスタムフックに追加
-
-const updateProcess = async (id: string, data: Partial<BusinessProcess>) => {
-  if (!isInitialized) {
-    throw new Error("Power Apps SDK is not initialized");
-  }
-
-  setLoading(true);
-  setError(null);
-
-  try {
-    const result = await geek_businessprocesses.update(id, data);
-
-    if (result.isSuccess) {
-      await fetchProcesses();  // リスト再読み込み
-      return result.data;
-    } else {
-      throw new Error(result.error?.message || "更新に失敗しました");
-    }
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : "予期しないエラーが発生しました";
-    setError(errorMessage);
-    throw new Error(errorMessage);
-  } finally {
-    setLoading(false);
-  }
-};
-```
-
-### 4.5 Delete（削除）操作
-
-```typescript
-// カスタムフックに追加
-
-const deleteProcess = async (id: string) => {
-  if (!isInitialized) {
-    throw new Error("Power Apps SDK is not initialized");
-  }
-
-  setLoading(true);
-  setError(null);
-
-  try {
-    const result = await geek_businessprocesses.delete(id);
-
-    if (result.isSuccess) {
-      await fetchProcesses();  // リスト再読み込み
-      return true;
-    } else {
-      throw new Error(result.error?.message || "削除に失敗しました");
-    }
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : "予期しないエラーが発生しました";
-    setError(errorMessage);
-    throw new Error(errorMessage);
-  } finally {
-    setLoading(false);
-  }
-};
-```
-
-### 4.6 UI統合の例
-
-```typescript
-// src/components/BusinessProcessList.tsx
-
-import { useBusinessProcesses } from '../hooks/useBusinessProcesses';
-import { getStatusLabel, getPriorityLabel } from '../utils/choiceMapping';
-
-export function BusinessProcessList() {
-  const { processes, loading, error, createProcess, updateProcess, deleteProcess } = useBusinessProcesses();
-
-  if (loading) {
-    return <div>読み込み中...</div>;
-  }
-
-  if (error) {
-    return <div className="text-red-500">エラー: {error}</div>;
-  }
 
   return (
-    <div>
-      <h2>ビジネスプロセス一覧</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>名前</th>
-            <th>ステータス</th>
-            <th>優先度</th>
-            <th>作成日</th>
-          </tr>
-        </thead>
-        <tbody>
-          {processes.map((process) => (
-            <tr key={process.geek_businessprocessid}>
-              <td>{process.geek_name}</td>
-              <td>{getStatusLabel(process.geek_status)}</td>
-              <td>{getPriorityLabel(process.geek_priority)}</td>
-              <td>{process.createdon ? new Date(process.createdon).toLocaleDateString('ja-JP') : '-'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Button onClick={handleSaveToDataverse}>
+      Dataverseに保存
+    </Button>
   );
-}
+};
 ```
 
 ---
 
-## 5. エラーハンドリングとバリデーション
+## トラブルシューティング
 
-### 5.1 SDK初期化チェック
-
-⚠️ **最も重要**: SDK初期化を必ず確認してください。
-
-```typescript
-import { usePowerPlatform } from '@microsoft/power-apps';
-
-export function App() {
-  const { isInitialized } = usePowerPlatform();
-
-  // SDK初期化が完了するまで待機
-  if (!isInitialized) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4">Power Apps SDK 初期化中...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // 初期化完了後にコンテンツを表示
-  return <YourApp />;
-}
-```
-
-### 5.2 操作結果の確認
-
-```typescript
-// ✅ 正しい実装: isSuccess を必ず確認
-const result = await geek_businessprocesses.create(data);
-
-if (result.isSuccess && result.data) {
-  // 成功時の処理
-  console.log("作成成功:", result.data);
-} else {
-  // エラー時の処理
-  console.error("作成失敗:", result.error?.message);
-  throw new Error(result.error?.message || "作成に失敗しました");
-}
-
-// ❌ 間違った実装: isSuccess を確認せずに使用
-const result = await geek_businessprocesses.create(data);
-console.log(result.data.geek_businessprocessid);  // エラー時にクラッシュする
-```
-
-### 5.3 バリデーション
-
-```typescript
-// src/utils/validation.ts
-
-export function validateBusinessProcess(data: Partial<BusinessProcess>): string[] {
-  const errors: string[] = [];
-
-  // 必須フィールド
-  if (!data.geek_name || data.geek_name.trim() === "") {
-    errors.push("名前は必須です");
-  }
-
-  // 文字数制限
-  if (data.geek_name && data.geek_name.length > 100) {
-    errors.push("名前は100文字以内で入力してください");
-  }
-
-  if (data.geek_description && data.geek_description.length > 2000) {
-    errors.push("説明は2000文字以内で入力してください");
-  }
-
-  // Choice値の範囲チェック
-  if (data.geek_status !== undefined && ![1, 2, 3, 4].includes(data.geek_status)) {
-    errors.push("無効なステータス値です");
-  }
-
-  if (data.geek_priority !== undefined && ![1, 2, 3, 4].includes(data.geek_priority)) {
-    errors.push("無効な優先度値です");
-  }
-
-  return errors;
-}
-
-// 使用例
-const createProcess = async (data: Partial<BusinessProcess>) => {
-  // バリデーション
-  const validationErrors = validateBusinessProcess(data);
-  if (validationErrors.length > 0) {
-    throw new Error(validationErrors.join(", "));
-  }
-
-  // データ作成
-  const result = await geek_businessprocesses.create(data);
-  // ...
-};
-```
-
-### 5.4 エラーメッセージの国際化
-
-```typescript
-// src/utils/errorMessages.ts
-
-export const errorMessages: Record<string, string> = {
-  "not_initialized": "Power Apps SDKが初期化されていません",
-  "permission_denied": "このテーブルへのアクセス権限がありません",
-  "not_found": "指定されたレコードが見つかりません",
-  "network_error": "ネットワークエラーが発生しました",
-  "validation_error": "入力内容に誤りがあります",
-};
-
-export function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return "予期しないエラーが発生しました";
-}
-```
-
----
-
-## 6. パフォーマンス最適化
-
-### 6.1 データ取得の最適化
-
-```typescript
-// ✅ 推奨: 必要なフィールドのみを取得
-const result = await geek_businessprocesses.getAll({
-  select: ["geek_businessprocessid", "geek_name", "geek_status", "createdon"]
-});
-
-// ❌ 非推奨: 全フィールドを取得（パフォーマンス低下）
-const result = await geek_businessprocesses.getAll();
-```
-
-### 6.2 ページネーション
-
-```typescript
-// ページング付きデータ取得
-const fetchProcessesWithPaging = async (pageSize: number = 50) => {
-  const result = await geek_businessprocesses.getAll({
-    top: pageSize
-  });
-
-  if (result.isSuccess && result.data) {
-    return result.data;
-  }
-  return [];
-};
-```
-
-### 6.3 フィルタリング
-
-```typescript
-// サーバー側フィルタリング（推奨）
-const result = await geek_businessprocesses.getAll({
-  filter: `geek_status eq 2 and geek_priority ge 3`
-});
-
-// 複数条件のフィルター
-const filter = [
-  "geek_status eq 2",  // アクティブ
-  "geek_priority ge 3",  // 優先度: 高以上
-  "createdon ge 2024-01-01"  // 2024年以降
-].join(" and ");
-
-const result = await geek_businessprocesses.getAll({ filter });
-```
-
-### 6.4 キャッシング
-
-```typescript
-// React Queryを使用したキャッシング（推奨）
-import { useQuery } from '@tanstack/react-query';
-
-export function useBusinessProcesses() {
-  const { isInitialized } = usePowerPlatform();
-
-  return useQuery({
-    queryKey: ['businessProcesses'],
-    queryFn: async () => {
-      if (!isInitialized) {
-        throw new Error("SDK not initialized");
-      }
-      
-      const result = await geek_businessprocesses.getAll();
-      if (result.isSuccess && result.data) {
-        return result.data;
-      }
-      throw new Error(result.error?.message || "Failed to fetch");
-    },
-    enabled: isInitialized,  // SDK初期化後のみ実行
-    staleTime: 5 * 60 * 1000,  // 5分間キャッシュ
-  });
-}
-```
-
----
-
-## 7. トラブルシューティング
-
-### 7.1 よくあるエラーと解決方法
-
-#### エラー1: SDK初期化エラー
-
-```
-PowerDataRuntimeError: PowerDataRuntime is not initialized. 
-Please call initializeRuntime() first.
-```
+### ❌ エラー: "The interface 'CDPTabular1' was not found"
 
 **原因:**
-- SDK初期化前にデータアクセスしている
-- `isInitialized` チェックが実装されていない
+`pac code add-data-source`で`-a shared_commondataserviceforapps`を指定している
 
-**解決方法:**
-```typescript
-const { isInitialized } = usePowerPlatform();
-
-useEffect(() => {
-  if (isInitialized) {
-    fetchData();  // SDK初期化後に実行
-  }
-}, [isInitialized]);
+**解決策:**
+```bash
+# ✅ 正しいコマンド
+pac code add-data-source -a dataverse -t <テーブル論理名>
 ```
 
-#### エラー2: 接続エラー
+---
 
-```
-Error: Failed to fetch data from Dataverse
-```
+### ❌ エラー: "Data source not found: Failed to load Dataverse database references"
 
 **原因:**
-- 接続IDが正しくない
-- テーブル名が間違っている
-- アクセス権限がない
+- `dataSourcesInfo.ts`にテーブル定義が存在しない
+- `power.config.json`の`databaseReferences`が不正
 
-**解決方法:**
-1. 接続IDを再確認
-2. テーブル論理名を確認（複数形を使用）
-3. Power Appsポータルでセキュリティロールを確認
-
-#### エラー3: Choice値が表示されない
-
-```
-表示結果: 1, 2, 3 (数値のまま表示される)
-```
-
-**解決方法:**
+**解決策:**
+1. `pac code add-data-source -a dataverse -t <テーブル論理名>`を再実行
+2. `.power/schemas/appschemas/dataSourcesInfo.ts`にテーブル定義を手動追加:
 ```typescript
-// Choice値マッピング関数を使用
-import { getStatusLabel } from '../utils/choiceMapping';
-
-// ❌ 間違い
-<td>{process.geek_status}</td>
-
-// ✅ 正しい
-<td>{getStatusLabel(process.geek_status)}</td>
-```
-
-### 7.2 デバッグ方法
-
-```typescript
-// デバッグ用のログ出力
-const fetchProcesses = async () => {
-  console.log("🔍 Fetching processes...");
-  console.log("SDK Initialized:", isInitialized);
-
-  try {
-    const result = await geek_businessprocesses.getAll();
-    
-    console.log("📦 Result:", {
-      isSuccess: result.isSuccess,
-      dataCount: result.data?.length || 0,
-      error: result.error?.message
-    });
-
-    if (result.isSuccess && result.data) {
-      console.log("✅ Fetched processes:", result.data.length);
-      setProcesses(result.data);
-    } else {
-      console.error("❌ Fetch failed:", result.error);
-      setError(result.error?.message || "データの取得に失敗しました");
-    }
-  } catch (err) {
-    console.error("❌ Exception:", err);
-    setError(err instanceof Error ? err.message : "予期しないエラーが発生しました");
-  }
+export const dataSourcesInfo = {
+  "geekbusinessprocesses": {
+    "tableId": "geekbusinessprocesses",
+    "version": "",
+    "primaryKey": "geek_businessprocessid",
+    "dataSourceType": "Dataverse",
+    "apis": {},
+  },
+  // ... その他
 };
 ```
 
-### 7.3 ネットワークトラフィックの確認
+---
 
-ブラウザの開発者ツールで以下を確認：
+### ❌ エラー: "Content Security Policy directive" (CSP違反)
 
-1. **Network タブ**
-   - Dataverse APIへのリクエストを確認
-   - ステータスコード（200, 401, 403, 500等）
-   - レスポンスボディ
+**原因:**
+fetch APIを直接使用してDataverseにアクセスしている
 
-2. **Console タブ**
-   - エラーメッセージ
-   - SDK初期化ログ
-   - カスタムログ出力
+**解決策:**
+Power Apps SDK (`@microsoft/power-apps/data`) を使用する
 
 ---
 
-## 8. 実装チェックリスト
+### ❌ データが取得できない（404エラー）
 
-### 8.1 プロジェクト初期化
+**原因:**
+テーブル名（EntitySetName）が正しくない
 
-- [ ] Microsoft標準テンプレートから開始
-- [ ] `@microsoft/power-apps` を最新版にアップデート
-- [ ] `pac code init` でプロジェクトを初期化
-- [ ] 初回デプロイが成功
-- [ ] SDK初期化エラーが発生していない
-
-### 8.2 Dataverseテーブル接続
-
-- [ ] Power Appsポータルで接続を作成
-- [ ] 接続IDを正確に取得
-- [ ] `pac code add-data-source` コマンドを実行
-- [ ] サービスクラスファイルが生成されている
-- [ ] 型定義ファイルが生成されている
-
-### 8.3 スキーマとデータ型
-
-- [ ] テーブルスキーマを確認
-- [ ] TypeScript型定義を作成
-- [ ] Choice値のマッピングを定義
-- [ ] Lookupフィールドの型定義を作成（該当する場合）
-
-### 8.4 CRUD操作の実装
-
-- [ ] カスタムフックを作成
-- [ ] SDK初期化チェックを実装（`isInitialized`）
-- [ ] Create操作を実装
-- [ ] Read操作を実装
-- [ ] Update操作を実装
-- [ ] Delete操作を実装
-- [ ] `IOperationResult.isSuccess` を必ず確認
-
-### 8.5 エラーハンドリング
-
-- [ ] SDK初期化待機ロジックを実装
-- [ ] エラーメッセージの表示を実装
-- [ ] バリデーション関数を作成
-- [ ] try-catch でエラーをキャッチ
-- [ ] ユーザーフレンドリーなエラーメッセージ
-
-### 8.6 パフォーマンス最適化
-
-- [ ] 必要なフィールドのみを取得（`select`）
-- [ ] フィルタリングを実装（`filter`）
-- [ ] ページネーションを実装（`top`）
-- [ ] キャッシングを検討（React Query等）
-
-### 8.7 UI統合
-
-- [ ] ローディング状態を表示
-- [ ] エラー状態を表示
-- [ ] データが正しく表示される
-- [ ] Choice値がラベル表示される
-- [ ] 日付が適切にフォーマットされる
-
-### 8.8 テストとデプロイ
-
-- [ ] ローカル環境でテスト（`npm run dev`）
-- [ ] Power Apps環境でテスト（`pac code init` + `npm run dev`）
-- [ ] 本番デプロイ（`npm run build` + `pac code push`）
-- [ ] 本番環境で動作確認
-- [ ] エラーログを確認
+**確認方法:**
+1. `power.config.json`の`dataSources`セクションを確認
+2. `.power/schemas/dataverse/`フォルダ内のスキーマファイル名を確認
+3. サービスコードの`TABLE_NAME`を上記に合わせる
 
 ---
 
-## 🔗 関連ドキュメント
+## チェックリスト
 
-- **[Phase 3 リファレンス](../PHASE3_DATA_INTEGRATION.md)** - データソース統合の詳細
-- **[Lookupフィールドガイド](./LOOKUP_FIELD_GUIDE.md)** - Lookup実装の完全ガイド
-- **[スキーマ取得方法](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** - 5つの取得方法
-- **[Dataverseスキーマリファレンス](./DATAVERSE_SCHEMA_REFERENCE.md)** - スキーマ定義
-- **[Dataverseトラブルシューティング](./DATAVERSE_TROUBLESHOOTING.md)** - よくある問題
-- **[Dataverseデバッグガイド](./DATAVERSE_DEBUG.md)** - デバッグ手順
+- [ ] `pac code add-data-source -a dataverse -t <論理名>`を実行
+- [ ] `.power/schemas/dataverse/`にスキーマファイルが生成されている
+- [ ] `power.config.json`に`databaseReferences`が追加されている
+- [ ] Model定義のフィールド名が実際のDataverseスキーマと一致
+- [ ] ServiceでPower Apps SDK (`getClient`)を使用
+- [ ] `TABLE_NAME`が`power.config.json`の`dataSources`と一致
+- [ ] エラーハンドリングで`result.success`を確認
+- [ ] `npm run build && pac code push`でデプロイ成功
 
 ---
 
-## 📝 まとめ
+## 参考リンク
 
-このベストプラクティスガイドに従うことで、以下が実現できます：
+### 公式ドキュメント
+- [Power Platform CLI - add-data-source コマンド](https://learn.microsoft.com/en-us/power-platform/developer/cli/reference/code#pac-code-add-data-source)
+- [Power Apps SDK - Data クライアント](https://learn.microsoft.com/en-us/power-apps/developer/model-driven-apps/clientapi/reference)
+- [Dataverse Web API Reference](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview)
+- [OData Query Options](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/query-data-web-api)
+- [Power Apps Code Apps 概要](https://learn.microsoft.com/en-us/power-apps/maker/canvas-apps/code-apps/overview)
 
-✅ **確実なDataverse統合** - SDK初期化からCRUD操作まで  
-✅ **エラーの少ない実装** - よくある問題を事前に回避  
-✅ **保守しやすいコード** - 標準パターンに従った実装  
-✅ **高パフォーマンス** - 最適化されたデータアクセス  
-✅ **トラブルシューティング** - 問題発生時の迅速な解決
+### 関連リソース
+- [CodeAppsDevelopmentStandard](https://github.com/geekfujiwara/CodeAppsDevelopmentStandard)
+- [Power Platform CLI リファレンス](https://learn.microsoft.com/en-us/power-platform/developer/cli/introduction)
 
-**Happy Coding! 🚀**
+---
+
+## まとめ
+
+### ✅ ベストプラクティス要約
+
+1. **データソース追加は `pac code add-data-source -a dataverse` を使用**
+   - テーブル論理名（単数形）のみ指定
+   - スキーマは自動生成される
+
+2. **Power Apps SDK を使用してDataverseにアクセス**
+   - CSP制約を回避
+   - 型安全なコーディング
+   - 自動認証処理
+
+3. **テーブル名は自動生成されたものを使用**
+   - `power.config.json`の`dataSources`を確認
+   - スキーマファイル名と一致させる
+
+4. **フィールド名は実際のスキーマと完全一致させる**
+   - `.power/schemas/dataverse/`のスキーマファイルで確認
+   - 大文字小文字、アンダースコアまで正確に
+
+### 期待される効果
+
+- ⏱️ **開発時間の大幅短縮**: 正しいコマンド一発でスキーマ生成
+- 🐛 **トラブルシューティング時間削減**: CSPエラーやインターフェイス不一致を回避
+- 📝 **コードの一貫性**: Power Apps SDKによる統一されたアクセス方法
+- 🔒 **セキュリティ**: 自動認証処理により安全なアクセス
+- 🚀 **スケーラビリティ**: 標準パターンで複数テーブルにも容易に対応
+
+---
+
+**最終更新日:** 2026年2月4日
