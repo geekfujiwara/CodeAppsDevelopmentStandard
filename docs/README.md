@@ -10,11 +10,23 @@
 
 ### 📘 Dataverse実装ガイド
 
-#### ⭐ 推奨ドキュメント（最新・包括版）
+> **📖 ドキュメント体系について**
+> 
+> Dataverse関連のドキュメント群の全体像を理解したい方は:
+> - **[DATAVERSE_DOCS_OVERVIEW.md](./DATAVERSE_DOCS_OVERVIEW.md)** - ドキュメント体系と活用方法
+
+#### ⭐ 統合ガイド（最初に読むべき）
 
 | ドキュメント | 説明 | 対象者 |
 |------------|------|--------|
-| **[LOOKUP_FIELD_GUIDE.md](./LOOKUP_FIELD_GUIDE.md)** | Lookupフィールド実装の完全ガイド<br>- ビュー切り替え機能<br>- `$expand`によるLookup展開<br>- **savedQueryパラメータの制限事項**<br>- 50以上のテストチェック項目 | 🎯 全開発者必読 |
+| **[DATAVERSE_CONNECTION_GUIDE.md](./DATAVERSE_CONNECTION_GUIDE.md)** | 📘 **Dataverse接続 完全ガイド（統合最終版）**<br>- データソース追加からCRUD実装まで完全網羅<br>- Step-by-Stepで再現性を保証<br>- トラブルシューティング統合<br>- ベストプラクティス集約 | 🎯 全開発者必読<br>最初に読む |
+
+#### 📖 詳細リファレンス（必要に応じて参照）
+
+| ドキュメント | 説明 | 対象者 |
+|------------|------|--------|
+| **[DATAVERSE_INTEGRATION_BEST_PRACTICES.md](./DATAVERSE_INTEGRATION_BEST_PRACTICES.md)** | Dataverse統合のベストプラクティス<br>- 実プロジェクトでの実装例<br>- より詳細なコードパターン | 詳細パターン参照時 |
+| **[LOOKUP_FIELD_GUIDE.md](./LOOKUP_FIELD_GUIDE.md)** | Lookupフィールド実装の完全ガイド<br>- ビュー切り替え機能<br>- `$expand`によるLookup展開<br>- 50以上のテストチェック項目 | Lookup実装時 |
 | **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** | スキーマ取得方法の完全ガイド<br>- 5つの方法を比較<br>- 実践的なワークフロー | スキーマ確認時 |
 | **[DATAVERSE_SCHEMA_REFERENCE.md](./DATAVERSE_SCHEMA_REFERENCE.md)** | このプロジェクトの実際のスキーマ値<br>- テーブル定義<br>- Choice値の完全リスト | リファレンス |
 
