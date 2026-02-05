@@ -12,10 +12,12 @@
 >
 > Phase 3はデータソース統合の**最後のステップ**です。基盤が安定している状態で実施してください。
 
-> **⭐ Dataverse統合を始める方へ**
+> **⭐ Dataverse接続を始める方へ**
 >
-> このドキュメントを読む前に、まず **[Dataverse統合ベストプラクティス](./docs/DATAVERSE_INTEGRATION_BEST_PRACTICES.md)** を参照することを強く推奨します。
-> プロジェクト初期化からCRUD操作、トラブルシューティングまで、実践的な完全ガイドとして作成されています。
+> このドキュメントを読む前に、まず **[Dataverse接続 完全ガイド](./docs/DATAVERSE_CONNECTION_GUIDE.md)** を参照することを強く推奨します。
+> これまでの知見を統合した最終版ガイドとして、データソース追加からCRUD操作、トラブルシューティングまで、Step-by-Stepで完全に網羅しています。
+>
+> より詳細な実装パターンは **[Dataverse統合ベストプラクティス](./docs/DATAVERSE_INTEGRATION_BEST_PRACTICES.md)** も参照してください。
 
 **主な実施内容:**
 - データソース接続の設定

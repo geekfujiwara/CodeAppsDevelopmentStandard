@@ -74,14 +74,20 @@
 
 ### 🗃️ Dataverse実装ガイド
 
-#### ⭐ 必読ドキュメント
+#### ⭐ 必読ドキュメント（統合版）
 
 | ドキュメント | 説明 | 対象フェーズ |
 |------------|------|------------|
-| **[DATAVERSE_INTEGRATION_BEST_PRACTICES.md](./DATAVERSE_INTEGRATION_BEST_PRACTICES.md)** | ⭐ **Dataverse統合のベストプラクティス**<br>- プロジェクト初期化からCRUD操作まで<br>- エラーハンドリングとバリデーション<br>- パフォーマンス最適化<br>- トラブルシューティング | Phase 3: データソース統合 |
-| **[LOOKUP_FIELD_GUIDE.md](./LOOKUP_FIELD_GUIDE.md)** | 🔍 Lookupフィールド実装の完全ガイド<br>- ビュー切り替え機能<br>- `$expand`によるLookup展開<br>- 50以上のテストチェック項目 | Phase 5: データソース統合 |
-| **[DATAVERSE_SCHEMA_REFERENCE.md](./DATAVERSE_SCHEMA_REFERENCE.md)** | 📋 実際のスキーマリファレンス<br>- テーブル定義<br>- Choice値の完全リスト<br>- リレーション定義 | Phase 5: データソース統合 |
-| **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** | 🔎 スキーマ取得方法の完全ガイド<br>- 5つの方法を比較<br>- 実践的なワークフロー | Phase 5: データソース統合前 |
+| **[DATAVERSE_CONNECTION_GUIDE.md](./DATAVERSE_CONNECTION_GUIDE.md)** | 📘 **Dataverse接続 完全ガイド（統合最終版）**<br>- データソース追加からCRUD実装まで完全網羅<br>- Step-by-Stepで再現性を保証<br>- トラブルシューティング統合<br>- ベストプラクティス集約<br>⭐ **最初に読むべき統合ドキュメント** | Phase 3: データソース統合 |
+
+#### 📖 詳細リファレンス（必要に応じて参照）
+
+| ドキュメント | 説明 | 対象フェーズ |
+|------------|------|------------|
+| **[DATAVERSE_INTEGRATION_BEST_PRACTICES.md](./DATAVERSE_INTEGRATION_BEST_PRACTICES.md)** | Dataverse統合のベストプラクティス<br>- プロジェクト初期化からCRUD操作まで<br>- エラーハンドリングとバリデーション<br>- パフォーマンス最適化 | Phase 3: データソース統合 |
+| **[LOOKUP_FIELD_GUIDE.md](./LOOKUP_FIELD_GUIDE.md)** | 🔍 Lookupフィールド実装の完全ガイド<br>- ビュー切り替え機能<br>- `$expand`によるLookup展開<br>- 50以上のテストチェック項目 | Phase 3: データソース統合 |
+| **[DATAVERSE_SCHEMA_REFERENCE.md](./DATAVERSE_SCHEMA_REFERENCE.md)** | 📋 実際のスキーマリファレンス<br>- テーブル定義<br>- Choice値の完全リスト<br>- リレーション定義 | Phase 3: データソース統合 |
+| **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** | 🔎 スキーマ取得方法の完全ガイド<br>- 5つの方法を比較<br>- 実践的なワークフロー | Phase 3: データソース統合前 |
 
 #### トラブルシューティング
 
@@ -140,13 +146,17 @@
 4. **[LOGO_MASTER_GUIDE.md](./LOGO_MASTER_GUIDE.md)** - ロゴの実装方法を確認
 5. **[PHASE3_LOCAL_TESTING.md](../PHASE3_LOCAL_TESTING.md)** - カスタマイズ版の動作テスト
 
-### テンプレートでのDataverseテーブル追加
+### Dataverse接続を実装したい
 
-1. **[DATAVERSE_INTEGRATION_BEST_PRACTICES.md](./DATAVERSE_INTEGRATION_BEST_PRACTICES.md)** - ⭐ **まずこれを読む**: プロジェクト初期化からCRUD操作まで完全ガイド
-2. **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** - スキーマの取得方法を確認
-3. **[DATAVERSE_SCHEMA_REFERENCE.md](./DATAVERSE_SCHEMA_REFERENCE.md)** - 既存のスキーマ定義を参照
-4. **[メインREADME.md - Phase 3: データソース統合](../README.md#phase-3-データソース統合)** - 開発標準での位置づけを理解
-5. 実装 → **[DATAVERSE_TROUBLESHOOTING.md](./DATAVERSE_TROUBLESHOOTING.md)** で問題解決
+1. **[DATAVERSE_CONNECTION_GUIDE.md](./DATAVERSE_CONNECTION_GUIDE.md)** - ⭐ **まずこれを読む**: Dataverse接続の完全ガイド（統合最終版）
+   - データソース追加からCRUD実装まで完全網羅
+   - Step-by-Stepで確実に実装
+   - トラブルシューティング統合
+2. **[メインREADME.md - Phase 3: データソース統合](../README.md#phase-3-データソース統合)** - 開発標準での位置づけを理解
+3. 必要に応じて詳細リファレンスを参照:
+   - **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** - スキーマ取得の詳細
+   - **[DATAVERSE_SCHEMA_REFERENCE.md](./DATAVERSE_SCHEMA_REFERENCE.md)** - スキーマ定義リファレンス
+   - **[LOOKUP_FIELD_GUIDE.md](./LOOKUP_FIELD_GUIDE.md)** - Lookupフィールド詳細ガイド
 
 ### テンプレートでのLookupフィールド実装
 

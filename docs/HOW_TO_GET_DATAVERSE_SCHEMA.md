@@ -1,5 +1,10 @@
 # DataverseテーブルスキーマをCLIから取得する方法
 
+> **📘 関連ドキュメント**
+>
+> スキーマ取得は、Dataverse接続の一部です。接続全体の流れを理解したい方は、まず以下をご覧ください:
+> - **[Dataverse接続 完全ガイド](./DATAVERSE_CONNECTION_GUIDE.md)** - データソース追加からCRUD実装まで完全網羅
+
 Power Platform CLIでDataverseテーブルのスキーマ情報（選択肢列の許容値を含む）を取得する方法をまとめました。
 
 ## ❌ 直接的なCLIコマンドは存在しない
