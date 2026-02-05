@@ -451,12 +451,13 @@ graph LR
 
 > **📘 必ず以下のリファレンスを確認して実行してください**:
 >
-> - **⭐ [Dataverse統合ベストプラクティス](./docs/DATAVERSE_INTEGRATION_BEST_PRACTICES.md)** - プロジェクト初期化からCRUD操作まで完全ガイド
+> - **⭐ [Dataverse接続 完全ガイド](./docs/DATAVERSE_CONNECTION_GUIDE.md)** - Dataverse接続の統合最終版ガイド（最初に読むべき）
 > - **[Phase 3 リファレンス](./PHASE3_DATA_INTEGRATION.md)** - データソース統合の詳細手順
 >
 > 以下は必要に応じて参照してください
 > 
 > **Dataverse実装リファレンス:**
+> - **[Dataverse統合ベストプラクティス](./docs/DATAVERSE_INTEGRATION_BEST_PRACTICES.md)** - ベストプラクティス詳細
 > - **[Lookupフィールド実装ガイド](./docs/LOOKUP_FIELD_GUIDE.md)** - Lookup完全実装
 > - **[Dataverseスキーマリファレンス](./docs/DATAVERSE_SCHEMA_REFERENCE.md)** - スキーマ定義とChoice値
 > - **[スキーマ取得方法](./docs/HOW_TO_GET_DATAVERSE_SCHEMA.md)** - 5つの取得方法
