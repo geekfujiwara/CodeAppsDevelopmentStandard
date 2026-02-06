@@ -5814,7 +5814,7 @@ Dataverseテーブル「geek_project_task」のスキーマ情報を取得して
 ```
 
 **GitHub Copilot が自動的に:**
-- ✅ Dataverse Web APIを使用してスキーマ情報を取得
+- ✅ スキーマ情報を取得
 - ✅ フィールド定義を解析
 - ✅ Choice値を抽出
 - ✅ TypeScript型定義を生成
@@ -5824,13 +5824,13 @@ Dataverseテーブル「geek_project_task」のスキーマ情報を取得して
 
 GitHub Copilotが生成した型定義ファイル例:
 
-**src/types/dataverse.ts (自動生成):**
+**src/types/dataverse.ts (GitHub Copilot の支援により生成):**
 ```typescript
 /**
  * Dataverse スキーマ定義
  * 
  * テーブル論理名: geek_project_task
- * 自動生成: GitHub Copilot
+ * 生成方法: GitHub Copilot の支援により作成
  */
 
 // メインエンティティインターフェース
@@ -6730,7 +6730,7 @@ geek_project_taskid     // プライマリキー
 #### **Choice フィールドの型マッピング**
 
 ```typescript
-// customizations.xml から抽出された Choice 値
+// GitHub Copilot が取得した Choice 値
 export type TaskPriority = 0 | 1 | 2 | 3;
 export type TaskStatus = 0 | 1 | 2;
 export type TaskCategory = 0 | 1 | 2 | 3;
