@@ -93,19 +93,19 @@ Power Apps Code Appsにおける実データ接続は、以下の4つのステ�
 
 ```mermaid
 graph TB
-    subgraph "Step 1: 接続ID取得"
-        A1[Power Appsポータル] --> A2[コネクター接続作成]
-        A2 --> A3[URLから接続IDコピー]
+    subgraph "Step 1: 環境認証"
+        A1[Power Platform環境URL] --> A2[pac auth create]
+        A2 --> A3[認証完了]
     end
     
-    subgraph "Step 2: スキーマ取得"
-        B1[ソリューションエクスポート] --> B2[customization.xmlを抽出]
-        B2 --> B3[ワークスペースルートに配置]
+    subgraph "Step 2: データソース追加"
+        B1[テーブル論理名確認] --> B2[pac code add-data-source]
+        B2 --> B3[TypeScript型定義自動生成]
     end
     
-    subgraph "Step 3: サービスクラス生成"
-        C1[pac code add-data-source] --> C2[TypeScript型定義生成]
-        C2 --> C3[Power Apps SDK統合]
+    subgraph "Step 3: メタデータ取得"
+        C1[getMetadata API] --> C2[テーブルスキーマ取得]
+        C2 --> C3[型定義とインターフェース生成]
     end
     
     subgraph "Step 4: データ統合"
@@ -113,7 +113,7 @@ graph TB
         D2 --> D3[Dataverseデータ表示]
     end
     
-    A3 --> C1
+    A3 --> B1
     B3 --> C1
     C3 --> D1
     
@@ -128,26 +128,36 @@ graph TB
 ```mermaid
 sequenceDiagram
     participant User as ユーザー
-    participant Portal as Power Appsポータル
     participant CLI as PAC CLI
     participant App as Code Apps
     participant SDK as Power Apps SDK
+    participant API as Dataverse Web API
     participant DV as Dataverse
     
-    User->>Portal: 1. コネクター接続作成
-    Portal-->>User: 接続ID (URLから取得)
+    User->>CLI: 1. pac auth create
+    Note over CLI: 環境URLで認証
+    CLI-->>User: 認証完了
     
-    User->>Portal: 2. ソリューションエクスポート
-    Portal-->>User: customization.xml
-    
-    User->>CLI: 3. pac code add-data-source
-    Note over CLI: 接続ID + customization.xml使用
+    User->>CLI: 2. pac code add-data-source
+    Note over CLI: テーブル論理名を指定
+    CLI->>API: メタデータ取得リクエスト
+    API->>DV: EntityDefinitions取得
+    DV-->>API: テーブルスキーマ返却
+    API-->>CLI: メタデータ (JSON)
     CLI-->>App: TypeScriptサービスクラス生成
     
-    User->>App: 4. モックデータ削除
+    User->>App: 3. getMetadata()呼び出し
+    App->>SDK: メタデータ取得要求
+    SDK->>API: GET EntityDefinitions
+    API-->>SDK: スキーマ情報 (JSON)
+    SDK-->>App: 型定義生成
+    
+    User->>App: 4. データ取得
     App->>SDK: サービスクラス経由でデータ要求
-    SDK->>DV: OData APIリクエスト
-    DV-->>SDK: データ返却
+    SDK->>API: OData APIリクエスト
+    API->>DV: クエリ実行
+    DV-->>API: データ返却
+    API-->>SDK: JSON応答
     SDK-->>App: TypeScript型付きデータ
     App-->>User: UIに実データ表示
 ```
@@ -156,9 +166,9 @@ sequenceDiagram
 
 | ステップ | 実施内容 | 成果物 | 所要時間 |
 |---------|---------|-------|---------|
-| **1. 接続ID取得** | Power Appsポータルで手動接続作成 → URLから接続IDをコピー | 接続ID (GUID形式) | 2-3分 |
-| **2. スキーマ取得** | ソリューションをエクスポート → customization.xmlをワークスペースルートに配置 | customization.xml | 5分 |
-| **3. サービスクラス生成** | `pac code add-data-source` 実行 → Power Apps SDKベースのTypeScriptコード自動生成 | サービスクラス (.ts) | 1-2分 |
+| **1. 環境認証** | `pac auth create` で Power Platform環境に認証 | 認証済みセッション | 1分 |
+| **2. データソース追加** | `pac code add-data-source` でテーブル論理名を指定 → TypeScriptコード自動生成 | サービスクラス (.ts) | 1-2分 |
+| **3. メタデータ取得** | `getMetadata` API でテーブルスキーマを取得 → 型定義生成 | 型定義ファイル | 2-3分 |
 | **4. データ統合** | モックデータ削除 → サービスクラス呼び出しでDataverseデータ取得 | 実データ表示 | 10-30分 |
 
 ### 重要な技術要素
@@ -189,16 +199,137 @@ if (result.isSuccess && result.value) {
 }
 ```
 
-#### customization.xml の重要性
+#### customization.xml の重要性（非推奨）
 
-`customization.xml` には以下の重要なスキーマ情報が含まれています:
+> **❌ 非推奨**: customization.xmlを使用したスキーマ情報取得は、以下の理由により推奨されません:
+> - 手動エクスポートが必要で、自動化が困難
+> - ファイルサイズが大きく、XMLパースが複雑
+> - Dataverse側の更新に手動で追従する必要がある
 
-- **テーブル定義**: 論理名、物理名、主キー
-- **フィールド定義**: データ型、必須/任意、最大長
-- **Choice値**: オプションセットの値とラベル
-- **リレーションシップ**: Lookup/1対多/多対多の関係
+**✅ 推奨アプローチ**: 以下の公式API を使用してください:
+
+1. **`pac code add-data-source` コマンド**
+   - テーブル論理名を指定するだけで自動的にメタデータを取得
+   - TypeScript型定義とサービスクラスを自動生成
+   - XMLファイル不要
+
+2. **`getMetadata` API (ランタイム)**
+   - プログラムから直接Dataverseメタデータを取得
+   - 最新のスキーマ情報をリアルタイムで取得
+   - JSON形式で扱いやすい
+
+詳細は以下のセクションを参照してください:
+- [公式API-based メタデータ取得方法](#step-2-公式api-basedメタデータ取得方法)
+- [getMetadata関数の使用方法](#2-4-方法2-getmetadata-api-でランタイム取得)
 
 この情報を基に、`pac code add-data-source` がTypeScript型定義を自動生成します。
+
+---
+
+## 📐 実装方針と設計ノート
+
+### 使用API
+
+Power Apps Code Appsでは、以下の公式APIを使用してDataverseに接続します:
+
+1. **PAC CLI (`pac code add-data-source`)**
+   - **用途**: 開発時のテーブル追加とメタデータ取得
+   - **動作**: Dataverse Web API経由でEntityDefinitionsを取得し、TypeScript型定義を自動生成
+   - **参考**: [Microsoft Learn - Connect to Dataverse](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)
+
+2. **getMetadata() 関数**
+   - **用途**: ランタイムでのメタデータ取得
+   - **動作**: Power Apps SDK経由でテーブルスキーマをJSON形式で取得
+   - **参考**: [Microsoft Learn - Get Table Metadata](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/get-table-metadata)
+
+3. **Dataverse Web API (OData)**
+   - **用途**: 高度なメタデータクエリ（必要時のみ）
+   - **動作**: REST API経由で直接EntityDefinitionsにアクセス
+   - **参考**: [Microsoft Learn - Query Metadata Web API](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/query-metadata-web-api)
+
+### 処理フロー
+
+```mermaid
+sequenceDiagram
+    participant Dev as 開発者
+    participant CLI as PAC CLI
+    participant API as Dataverse Web API
+    participant App as Code Apps
+    participant SDK as Power Apps SDK
+    
+    Note over Dev,API: 開発時（型定義生成）
+    Dev->>CLI: pac auth create
+    CLI->>API: OAuth認証
+    API-->>CLI: アクセストークン
+    
+    Dev->>CLI: pac code add-data-source -t tablename
+    CLI->>API: GET /EntityDefinitions(LogicalName='tablename')
+    API-->>CLI: テーブルスキーマ (JSON)
+    CLI->>CLI: TypeScript型定義生成
+    CLI-->>Dev: generated/models/ & services/
+    
+    Note over Dev,SDK: ランタイム（アプリ実行時）
+    Dev->>App: アプリ起動
+    App->>SDK: initialize()
+    SDK-->>App: isInitialized = true
+    
+    App->>SDK: Service.getMetadata()
+    SDK->>API: GET /EntityDefinitions
+    API-->>SDK: スキーマ情報 (JSON)
+    SDK-->>App: 型安全なメタデータ
+    
+    App->>SDK: Service.getAll()
+    SDK->>API: GET /tablename
+    API-->>SDK: データ (JSON)
+    SDK-->>App: 型付きデータ
+```
+
+### 認証フロー
+
+Power Apps Code Appsは、Microsoft標準のOAuth 2.0認証を使用します:
+
+1. **開発時認証**:
+   ```bash
+   pac auth create --url https://environment.crm.dynamics.com
+   ```
+   - デバイスコードフローまたはブラウザベース認証
+   - アクセストークンはPAC CLIが自動管理
+   - 環境ごとに認証が必要
+
+2. **ランタイム認証**:
+   - Power Apps SDKが自動的に処理
+   - ユーザーの現在の認証コンテキストを使用
+   - 追加の認証コード不要
+
+### XML方式との比較
+
+| 項目 | ❌ 旧方式 (XML) | ✅ 新方式 (API) |
+|------|----------------|----------------|
+| **メタデータ取得** | ソリューションエクスポート → XML抽出 | `pac code add-data-source` コマンド |
+| **手動作業** | 必要（エクスポート、解凍、配置） | 不要（完全自動化） |
+| **最新性** | 手動更新が必要 | 常に最新を取得 |
+| **ファイル管理** | customization.xml (数MB〜数十MB) | 不要 |
+| **データ形式** | XML（パース複雑） | JSON（扱いやすい） |
+| **CI/CD統合** | 困難（手動ステップあり） | 容易（コマンド化可能） |
+| **エラー検知** | 実行時まで不明 | 型チェック時に検知 |
+| **メンテナンス性** | 低い | 高い |
+
+### 設計上の利点
+
+1. **型安全性**: TypeScript型定義が自動生成され、コンパイル時にエラー検知
+2. **自動化**: スキーマ変更時もコマンド再実行で即座に反映
+3. **保守性**: XMLファイル管理が不要で、Gitリポジトリがクリーン
+4. **スケーラビリティ**: CI/CDパイプラインに統合しやすい
+5. **開発者体験**: IDEの補完機能が完全に機能
+
+### トラブルシューティング設計
+
+公式API方式では、エラーメッセージが明確で診断が容易:
+
+- **認証エラー**: `pac auth list` で状態確認
+- **スキーマエラー**: `getMetadata()` で最新スキーマを確認
+- **権限エラー**: セキュリティロールの設定を確認
+- **接続エラー**: 環境URLの正確性を確認
 
 ---
 
@@ -325,91 +456,235 @@ pac connector list
 
 ---
 
-### Step 2: Dataverseスキーマの取得
+### Step 2: 公式API-basedメタデータ取得方法
 
-**ソリューションファイルから `customization.xml` を取得し、ワークスペースのルートフォルダに配置します。**
+**✅ 推奨**: XMLファイルを使用せず、公式APIを使用してDataverseスキーマ情報を取得します。
 
-> **📘 詳細リファレンス**  
-> Dataverseスキーマの取得方法の詳細は **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./docs/HOW_TO_GET_DATAVERSE_SCHEMA.md)** を参照してください。
+Microsoft Learn公式ドキュメント:
+- [Dataverseに接続する方法](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)
+- [テーブルメタデータを取得する方法](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/get-table-metadata)
 
-#### 2-1. ソリューションのエクスポート
+#### 2-1. 認証と環境接続
 
-1. **Power Apps Maker Portalにアクセス**
-   ```
-   https://make.powerapps.com
-   ```
+最初に Power Platform 環境に認証します:
 
-2. **ソリューションページに移動**
-   - 左側メニュー: **ソリューション**
+```bash
+# Power Platform環境に接続
+pac auth create --url https://your-environment.crm.dynamics.com
 
-3. **対象のソリューションを選択**
-   - 使用するテーブルが含まれているソリューションを選択
-   - カスタムテーブルを使用する場合は、そのテーブルを含むソリューションを選択
-
-4. **ソリューションをエクスポート**
-   - ソリューションを選択した状態で「**エクスポート**」をクリック
-   - 「**アンマネージド**」を選択
-   - 「**エクスポート**」ボタンをクリック
-
-5. **ZIPファイルをダウンロード**
-   - エクスポートが完了すると、ZIPファイルがダウンロードされます
-
-#### 2-2. customization.xml の抽出
-
-1. **ZIPファイルを解凍**
-   - ダウンロードしたZIPファイルを解凍
-
-2. **customization.xml を見つける**
-   ```
-   解凍フォルダ/
-   └── Customizations/
-       └── customization.xml  ← これをコピー
-   ```
-
-3. **ワークスペースのルートに配置** ⭐重要
-   ```
-   YourCodeAppsProject/    ← ワークスペースルート
-   ├── customization.xml   ← ここに配置
-   ├── src/
-   ├── public/
-   ├── package.json
-   └── vite.config.ts
-   ```
-
-**配置コマンド例 (PowerShell):**
-```powershell
-# ダウンロードフォルダからコピー
-Copy-Item "C:\Users\YourName\Downloads\ExtractedSolution\Customizations\customization.xml" -Destination ".\customization.xml"
-
-# 配置確認
-Get-Item .\customization.xml
+# 認証状態の確認
+pac auth list
 ```
 
-#### 2-3. customization.xml の内容確認
+**環境URLの確認方法:**
+1. Power Apps Maker Portal (https://make.powerapps.com) にアクセス
+2. 右上の設定アイコン → セッション詳細
+3. インスタンスURLをコピー
 
-ファイルには以下のような情報が含まれています:
+#### 2-2. テーブル論理名の確認
 
-```xml
-<ImportExportXml>
-  <Entities>
-    <Entity Name="geek_project_task">
-      <EntityInfo>
-        <entity Name="geek_project_task">
-          <LocalizedNames>
-            <LocalizedName description="プロジェクトタスク" languagecode="1041" />
-          </LocalizedNames>
-          <attributes>
-            <attribute PhysicalName="geek_name" LogicalName="geek_name" Type="nvarchar" />
-            <attribute PhysicalName="geek_assignedto" LogicalName="geek_assignedto" Type="lookup" />
-          </attributes>
-        </entity>
-      </EntityInfo>
-    </Entity>
-  </Entities>
-</ImportExportXml>
+Dataverseテーブルの論理名を確認します:
+
+**Power Apps Maker Portalで確認:**
+1. Power Apps Maker Portal にアクセス
+2. **データ** → **テーブル** を選択
+3. 対象テーブルをクリック
+4. **プロパティ** で「**論理名**」を確認
+
+**論理名の例:**
+- `account` - 取引先企業
+- `contact` - 取引先担当者
+- `systemuser` - システムユーザー
+- `geek_project_task` - カスタムテーブル（プレフィックス付き）
+
+#### 2-3. 方法1: pac code add-data-source で自動取得（推奨）
+
+`pac code add-data-source` コマンドは、指定したテーブルのメタデータを自動的に取得し、TypeScript型定義とサービスクラスを生成します。
+
+```bash
+# Dataverseテーブルを追加（メタデータ自動取得）
+pac code add-data-source -a dataverse -t <table-logical-name>
+
+# 例: accountテーブルを追加
+pac code add-data-source -a dataverse -t account
+
+# 例: カスタムテーブルを追加
+pac code add-data-source -a dataverse -t geek_project_task
 ```
 
-この情報を基に、次のStepでTypeScript型定義が生成されます。
+**このコマンドが実行すること:**
+1. ✅ Dataverse Web APIに接続
+2. ✅ 指定テーブルのEntityDefinitionsを取得
+3. ✅ フィールド定義（Attributes）を解析
+4. ✅ Choice値（OptionSet）を抽出
+5. ✅ TypeScript型定義を自動生成
+6. ✅ CRUD操作用サービスクラスを生成
+
+**生成されるファイル:**
+```
+generated/
+├── models/
+│   └── AccountsModel.ts      # テーブル型定義
+└── services/
+    └── AccountsService.ts    # CRUD操作サービス
+```
+
+#### 2-4. 方法2: getMetadata API でランタイム取得
+
+プログラムから直接メタデータを取得することもできます:
+
+```typescript
+import { AccountsService } from './generated/services/AccountsService';
+
+/**
+ * Dataverseテーブルのメタデータを取得
+ * 
+ * 参考: https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/get-table-metadata
+ */
+async function getTableMetadata() {
+  try {
+    // getMetadata APIを呼び出し
+    const result = await AccountsService.getMetadata({
+      schema: { 
+        columns: 'all',      // 全カラム情報を取得
+        relationships: true  // リレーションシップ情報も取得
+      }
+    });
+
+    if (result.isSuccess && result.value) {
+      const metadata = result.value;
+      
+      console.log('テーブル論理名:', metadata.LogicalName);
+      console.log('テーブル表示名:', metadata.DisplayName);
+      
+      // フィールド情報を列挙
+      metadata.Attributes?.forEach(attr => {
+        console.log(`- ${attr.LogicalName}: ${attr.AttributeType}`);
+        
+        // Choice (OptionSet) フィールドの場合
+        if (attr.AttributeType === 'Picklist' && attr.OptionSet) {
+          console.log('  Choice値:');
+          attr.OptionSet.Options?.forEach(opt => {
+            console.log(`    ${opt.Value}: ${opt.Label}`);
+          });
+        }
+      });
+      
+      return metadata;
+    } else {
+      console.error('メタデータ取得エラー:', result.error);
+    }
+  } catch (error) {
+    console.error('エラー:', error);
+  }
+}
+
+// 使用例
+await getTableMetadata();
+```
+
+**出力例:**
+```
+テーブル論理名: account
+テーブル表示名: 取引先企業
+- accountid: Uniqueidentifier
+- name: String
+- accountnumber: String
+- industrycode: Picklist
+  Choice値:
+    1: 農業
+    2: 金融
+    3: 製造業
+```
+
+#### 2-5. 方法3: Dataverse Web API で直接取得（高度な用途）
+
+より詳細な制御が必要な場合は、Dataverse Web APIを直接使用できます:
+
+```bash
+# EntityDefinitionsエンドポイント経由でメタデータ取得
+curl -X GET \
+  "https://your-environment.crm.dynamics.com/api/data/v9.2/EntityDefinitions(LogicalName='account')?$select=DisplayName,LogicalName&$expand=Attributes($select=LogicalName,AttributeType)" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Accept: application/json"
+```
+
+**TypeScriptでの実装例:**
+
+```typescript
+/**
+ * Dataverse Web API経由でメタデータ取得
+ * 
+ * 参考: https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/query-metadata-web-api
+ */
+async function fetchMetadataViaWebAPI(tableName: string) {
+  const environmentUrl = 'https://your-environment.crm.dynamics.com';
+  const apiVersion = 'v9.2';
+  
+  const url = `${environmentUrl}/api/data/${apiVersion}/EntityDefinitions(LogicalName='${tableName}')?` +
+    `$select=LogicalName,DisplayName,PrimaryIdAttribute&` +
+    `$expand=Attributes($select=LogicalName,AttributeType,DisplayName)`;
+  
+  const response = await fetch(url, {
+    headers: {
+      'Accept': 'application/json',
+      'OData-MaxVersion': '4.0',
+      'OData-Version': '4.0'
+    }
+  });
+  
+  if (response.ok) {
+    const metadata = await response.json();
+    return metadata;
+  } else {
+    throw new Error(`メタデータ取得失敗: ${response.statusText}`);
+  }
+}
+```
+
+#### 2-6. XMLベース方法との比較
+
+| 比較項目 | ❌ XML方式（非推奨） | ✅ 公式API方式（推奨） |
+|---------|---------------------|----------------------|
+| **データ取得** | 手動エクスポート必要 | 自動取得 |
+| **自動化** | 困難 | 完全自動化可能 |
+| **最新性** | 手動更新が必要 | 常に最新 |
+| **ファイルサイズ** | 数MB〜数十MB | JSON (軽量) |
+| **パース複雑度** | 高い（XMLパース） | 低い（JSON） |
+| **CI/CD統合** | 困難 | 容易 |
+| **認証** | 不要（ファイル） | 標準OAuth |
+| **メンテナンス** | 低い | 高い |
+
+#### 2-7. 実装方針まとめ
+
+**開発フロー:**
+
+```mermaid
+graph LR
+    A[環境認証<br/>pac auth create] --> B[テーブル論理名確認<br/>Maker Portal]
+    B --> C[データソース追加<br/>pac code add-data-source]
+    C --> D[型定義自動生成<br/>generated/]
+    D --> E[アプリ実装<br/>型安全なコード]
+    
+    style C fill:#4CAF50,color:#fff
+    style D fill:#2196F3,color:#fff
+```
+
+**使用API:**
+- **開発時**: `pac code add-data-source` コマンド（CLI）
+- **ランタイム**: `getMetadata()` 関数（TypeScript SDK）
+- **高度な用途**: Dataverse Web API（REST）
+
+**認証フロー:**
+1. `pac auth create` でPower Platform環境に接続
+2. OAuth 2.0による標準的な認証
+3. アクセストークンは自動管理（CLIが処理）
+
+**設計メモ:**
+- メタデータはJSON形式で取得され、型安全なTypeScriptコードに変換される
+- スキーマ変更時は `pac code add-data-source` を再実行するだけで更新可能
+- XMLファイルの管理は不要で、Git管理もシンプル
+- CI/CDパイプラインに統合しやすい（認証情報を環境変数で管理）
 
 ---
 
@@ -2119,25 +2394,46 @@ pac code push
 
 ### **6.1 GitHub Copilot によるスキーマ情報取得**
 
-**GitHub Copilot Chat で依頼:**
-```
-「Dataverseテーブル geek_project_task のスキーマ情報を教えてください」
+**公式APIでメタデータを取得:**
+```typescript
+// getMetadata APIでスキーマ情報を取得
+const result = await GeekProjectTaskService.getMetadata({
+  schema: { columns: 'all' }
+});
+
+if (result.isSuccess && result.value) {
+  console.log('=== テーブルスキーマ情報 ===');
+  console.log('論理名:', result.value.LogicalName);
+  console.log('プライマリキー:', result.value.PrimaryIdAttribute);
+  
+  result.value.Attributes?.forEach(attr => {
+    console.log(`- ${attr.LogicalName} (${attr.AttributeType})`);
+    
+    // Choice フィールドの場合
+    if (attr.AttributeType === 'Picklist' && attr.OptionSet) {
+      console.log(`  Choice: ${attr.LogicalName}`);
+      attr.OptionSet.Options?.forEach(opt => {
+        console.log(`    ${opt.Value} : ${opt.Label}`);
+      });
+    }
+  });
+}
 ```
 
-**GitHub Copilot が提供する情報:**
+**出力例:**
 ```
-=== geek_project_task スキーマ情報 ===
-  - geek_project_taskid (uniqueidentifier)
-  - geek_name (string)
-  - geek_priority (picklist)
-  - geek_status (picklist)
-
+=== テーブルスキーマ情報 ===
+論理名: geek_project_task
+プライマリキー: geek_project_taskid
+- geek_project_taskid (Uniqueidentifier)
+- geek_name (String)
+- geek_priority (Picklist)
   Choice: geek_priority
     0 : Critical
     1 : High
     2 : Medium
     3 : Low
-
+- geek_status (Picklist)
   Choice: geek_status
     0 : Completed
     1 : InProgress
@@ -2338,7 +2634,7 @@ export const useProjectTasks = () => {
 |----------------|------|------|
 | `PowerDataRuntime is not initialized` | SDK未初期化 | `usePowerPlatform().isInitialized` を確認 |
 | `Connection not found` | 接続IDが無効 | Power Apps ポータルで接続IDを再確認 |
-| `Table not found` | テーブル論理名が間違い | GitHub Copilot にテーブル論理名を確認依頼 |
+| `Table not found` | テーブル論理名が間違い | `getMetadata` APIでテーブル論理名を確認、または Power Apps Maker Portalで確認 |
 | `Unauthorized` | 権限不足 | ユーザーのセキュリティロールを確認 |
 | `CORS error` | Web API直接呼び出し | Power Apps SDK経由に変更 |
 
@@ -3805,7 +4101,7 @@ Error: Table 'tablename' not found
 
 対処法:
 1. テーブルの論理名を確認（小文字、アンダースコア）
-2. GitHub Copilot にテーブル論理名の確認を依頼
+2. Power Apps Maker Portalでテーブル論理名を確認、またはgetMetadata APIで取得
 3. Dataverse でテーブルが公開されているか確認
 ```
 
@@ -5729,9 +6025,9 @@ Error: Table 'tablename' not found
 
 対処法:
 1. テーブルの論理名を確認（小文字、アンダースコア）
-   - 正: systemusers, accounts, contacts
+   - 正: systemuser, account, contact
    - 誤: SystemUsers, Account, Contact
-2. GitHub Copilot にテーブル論理名の確認を依頼
+2. Power Apps Maker Portalでテーブル論理名を確認、またはgetMetadata APIで取得
 3. Dataverse でテーブルが公開されているか確認
 ```
 
@@ -5762,20 +6058,25 @@ PowerDataRuntimeError: PowerDataRuntime is not initialized
 
 ## 📋 **Dataverse接続前の必須手順: スキーマ確認とドキュメント化**
 
-> **⚠️ 重要**: モックデータからDataverseリアルデータに移行する際は、テーブルの論理名をGitHub Copilotに伝えることで、必要なメタデータを自動取得できます。
+> **⚠️ 重要**: モックデータからDataverseリアルデータに移行する際は、公式APIを使用してメタデータを取得します。
 
-### **新しい開発プロセス: GitHub Copilot による自動メタデータ取得**
+### **新しい開発プロセス: 公式API による自動メタデータ取得**
 
 **従来の方法 (非推奨):**
 - ❌ customizations.xmlファイルの手動エクスポート
 - ❌ PowerShellスクリプトによる手動スキーマ抽出
 - ❌ TypeScript型定義の手動作成
 
-**新しい方法 (推奨):**
-- ✅ テーブルの論理名をGitHub Copilotに伝えるだけ
-- ✅ GitHub Copilotが必要なメタデータを自動取得
-- ✅ TypeScript型定義を自動生成
+**公式推奨方法:**
+- ✅ `pac code add-data-source` コマンドでテーブル論理名を指定するだけ
+- ✅ Dataverse Web APIが自動的にメタデータを取得
+- ✅ TypeScript型定義とサービスクラスを自動生成
 - ✅ Choice値のマッピングを自動作成
+- ✅ XMLファイル不要で、常に最新のスキーマを取得
+
+**参考ドキュメント:**
+- [Microsoft Learn: Dataverseに接続する方法](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)
+- [Microsoft Learn: テーブルメタデータを取得する方法](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/get-table-metadata)
 
 ### **Step 1: テーブル論理名の確認**
 
@@ -5789,97 +6090,147 @@ PowerDataRuntimeError: PowerDataRuntime is not initialized
 ```
 
 **論理名の例:**
-- `systemusers` - システムユーザー
-- `accounts` - 取引先企業
-- `contacts` - 取引先担当者
+- `systemuser` - システムユーザー
+- `account` - 取引先企業
+- `contact` - 取引先担当者
 - `geek_project_task` - カスタムテーブル (プレフィックス付き)
 
-### **Step 2: GitHub Copilot にテーブル論理名を伝える**
+### **Step 2: pac code add-data-source でメタデータ自動取得**
 
-GitHub Copilot Chat で以下のように依頼します:
+公式CLIコマンドでテーブルを追加すると、自動的にメタデータが取得されます:
 
-```
-Dataverseテーブル「geek_project_task」のスキーマ情報を取得して、
-以下を作成してください:
+```bash
+# Power Platform環境に認証
+pac auth create --url https://your-environment.crm.dynamics.com
 
-1. TypeScript型定義 (src/types/dataverse.ts)
-2. Choice値のマッピング定義
-3. CRUD操作用のインターフェース定義
+# Dataverseテーブルを追加（メタデータ自動取得）
+pac code add-data-source -a dataverse -t geek_project_task
 
-必要な情報:
-- フィールド名と型
-- Choice (Picklist) フィールドの値と表示名
-- 必須フィールド
-- Lookupフィールド
+# ビルドして確認
+npm run build
 ```
 
-**GitHub Copilot が自動的に:**
-- ✅ スキーマ情報を取得
-- ✅ フィールド定義を解析
-- ✅ Choice値を抽出
-- ✅ TypeScript型定義を生成
-- ✅ 必要なマッピングを作成
+**このコマンドが実行すること:**
+1. ✅ Dataverse EntityDefinitions APIに接続
+2. ✅ テーブルスキーマをJSON形式で取得
+3. ✅ フィールド定義（Attributes）を解析
+4. ✅ Choice値（OptionSet）を抽出
+5. ✅ TypeScript型定義を自動生成
+6. ✅ CRUD操作用サービスクラスを生成
 
 ### **Step 3: 生成されたTypeScript型定義の確認**
 
-GitHub Copilotが生成した型定義ファイル例:
+`pac code add-data-source` が自動生成した型定義ファイル例:
 
-**src/types/dataverse.ts (GitHub Copilot の支援により生成):**
+**generated/models/GeekProjectTaskModel.ts (自動生成):**
 ```typescript
 /**
- * Dataverse スキーマ定義
+ * Dataverse テーブル型定義 (自動生成)
  * 
  * テーブル論理名: geek_project_task
- * 生成方法: GitHub Copilot の支援により作成
+ * 生成方法: pac code add-data-source コマンド
+ * 生成元: Dataverse EntityDefinitions API
  */
 
 // メインエンティティインターフェース
-export interface ProjectTask {
+export interface GeekProjectTask {
   // 主キー (GUID)
-  geek_project_taskid: string;
+  geek_project_taskid?: string;
   
   // 基本フィールド
   geek_name: string;                    // 名前 (必須)
   geek_description?: string;            // 説明 (任意)
   
   // Choice (選択肢) フィールド
-  geek_priority: TaskPriority;          // 優先度
-  geek_status: TaskStatus;              // 状態  
-  geek_category: TaskCategory;          // カテゴリ
+  geek_priority?: number;               // 優先度
+  geek_status?: number;                 // 状態  
+  geek_category?: number;               // カテゴリ
   
   // 日付フィールド
   geek_duedate?: Date;                  // 期限日
-  createdon: Date;                      // 作成日時 (システム)
-  modifiedon: Date;                     // 更新日時 (システム)
+  createdon?: Date;                     // 作成日時 (システム)
+  modifiedon?: Date;                    // 更新日時 (システム)
   
   // ルックアップフィールド (他テーブルとの関連)
-  geek_projectid?: string;              // プロジェクトへの参照
-  ownerid: string;                      // 所有者 (必須)
+  _geek_projectid_value?: string;       // プロジェクトへの参照
+  _ownerid_value?: string;              // 所有者
 }
+```
 
-// Choice値の型定義 (自動取得)
-export type TaskPriority = 0 | 1 | 2 | 3;  // Critical | High | Medium | Low
-export type TaskStatus = 0 | 1 | 2;        // Completed | InProgress | NotStarted  
-export type TaskCategory = 0 | 1 | 2 | 3;  // Planning | Development | Testing | Deployment
+**generated/services/GeekProjectTaskService.ts (自動生成):**
+```typescript
+/**
+ * Dataverse CRUD操作サービス (自動生成)
+ * 
+ * 生成方法: pac code add-data-source コマンド
+ */
 
-// Choice値のマッピング (表示用)
-export const TaskPriorityLabels: Record<TaskPriority, string> = {
-  0: 'Critical',
-  1: 'High', 
-  2: 'Medium',
-  3: 'Low'
-};
+import type { IOperationResult } from '@microsoft/power-apps/data';
+import type { GeekProjectTask } from '../models/GeekProjectTaskModel';
+import { getClient } from '@microsoft/power-apps';
 
-export const TaskStatusLabels: Record<TaskStatus, string> = {
-  0: 'Completed',
-  1: 'InProgress', 
-  2: 'NotStarted'
-};
+export class GeekProjectTaskService {
+  /**
+   * 全レコード取得
+   */
+  static async getAll(options?: {
+    select?: string[];
+    filter?: string;
+    orderBy?: string;
+    top?: number;
+  }): Promise<IOperationResult<GeekProjectTask[]>> {
+    const client = getClient();
+    return await client.retrieveMultipleRecords('geek_project_task', options);
+  }
 
-export const TaskCategoryLabels: Record<TaskCategory, string> = {
-  0: 'Planning',
-  1: 'Development',
-  2: 'Testing', 
+  /**
+   * 単一レコード取得
+   */
+  static async getById(id: string): Promise<IOperationResult<GeekProjectTask>> {
+    const client = getClient();
+    return await client.retrieveRecord('geek_project_task', id);
+  }
+
+  /**
+   * レコード作成
+   */
+  static async create(record: Partial<GeekProjectTask>): Promise<IOperationResult<string>> {
+    const client = getClient();
+    return await client.createRecord('geek_project_task', record);
+  }
+
+  /**
+   * レコード更新
+   */
+  static async update(id: string, record: Partial<GeekProjectTask>): Promise<IOperationResult<void>> {
+    const client = getClient();
+    return await client.updateRecord('geek_project_task', id, record);
+  }
+
+  /**
+   * レコード削除
+   */
+  static async delete(id: string): Promise<IOperationResult<void>> {
+    const client = getClient();
+    return await client.deleteRecord('geek_project_task', id);
+  }
+
+  /**
+   * メタデータ取得（ランタイム）
+   * 
+   * 参考: https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/get-table-metadata
+   */
+  static async getMetadata(options?: {
+    schema?: { 
+      columns?: 'all' | string[];
+      relationships?: boolean;
+    }
+  }): Promise<IOperationResult<any>> {
+    const client = getClient();
+    return await client.getEntityMetadata('geek_project_task', options);
+  }
+}
+```
   3: 'Deployment'
 };
 
@@ -6047,32 +6398,53 @@ export class Geek_project_tasksService {
 ```
 
 **重要なポイント:**
-- ✅ クラス名: `{スキーマ名プレフィックス}_{テーブル名}Service` (例: `Geek_project_tasksService`)
+- ✅ クラス名: `{テーブル名}Service` (例: `GeekProjectTaskService`)
 - ✅ dataSourceName: テーブルの論理名（小文字・アンダースコア）
 - ✅ すべてのメソッドが `static` で定義される
 - ✅ TypeScript型定義が自動生成される
-- ✅ CRUD操作が完備: `create`, `update`, `delete`, `get`, `getAll`
+- ✅ CRUD操作が完備: `create`, `update`, `delete`, `getById`, `getAll`
+- ✅ メタデータ取得: `getMetadata` メソッドでランタイムにスキーマ情報を取得可能
 
 #### **4.3 テーブルスキーマ名の確認方法**
 
-**GitHub Copilot にテーブル論理名を伝えてスキーマ情報を取得:**
-```
-GitHub Copilot Chat で以下のように依頼:
+**公式APIでメタデータを取得:**
 
-「Dataverseテーブル geek_project_task のスキーマ名と構造を教えてください」
-```
+```typescript
+import { GeekProjectTaskService } from './generated/services/GeekProjectTaskService';
 
-**GitHub Copilot が自動的に提供する情報:**
-- テーブルの論理名
-- スキーマプレフィックス
-- プライマリキーフィールド名
-- 全フィールドの一覧と型
+/**
+ * テーブルメタデータをランタイムで取得
+ * 
+ * 参考: https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/get-table-metadata
+ */
+async function inspectTableSchema() {
+  const result = await GeekProjectTaskService.getMetadata({
+    schema: { 
+      columns: 'all',      // 全フィールド情報を取得
+      relationships: true  // リレーションシップ情報も取得
+    }
+  });
+
+  if (result.isSuccess && result.value) {
+    const metadata = result.value;
+    
+    console.log('テーブル論理名:', metadata.LogicalName);
+    console.log('プライマリキー:', metadata.PrimaryIdAttribute);
+    console.log('スキーマ名:', metadata.SchemaName);
+    
+    // フィールド一覧
+    metadata.Attributes?.forEach(attr => {
+      console.log(`- ${attr.LogicalName}: ${attr.AttributeType}`);
+    });
+  }
+}
+```
 
 **スキーマ名のルール:**
 - パブリッシャープレフィックス + アンダースコア + テーブル名
 - 例: `geek_project_task` → プレフィックス `geek`, テーブル名 `project_task`
-- サービスクラス名: `Geek_project_tasksService` (複数形)
-- dataSourceName: `geek_project_tasks` (小文字・複数形)
+- サービスクラス名: `GeekProjectTaskService`
+- dataSourceName: `geek_project_task` (小文字)
 
 #### **4.4 カスタムフックでサービスクラスをラップ**
 
@@ -6658,31 +7030,35 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
 #### **スキーマ名の取得とサービスクラス生成**
 
-**1. GitHub Copilot にテーブル情報を取得依頼:**
-```
-GitHub Copilot Chat で以下のように依頼:
-
-「Dataverseテーブル {論理名} のスキーマ情報を教えてください」
-
-例: プロジェクトタスクテーブルの場合
-「Dataverseテーブル geek_project_task のスキーマ情報を教えてください」
-
-GitHub Copilot が提供する情報:
-- Schema name: geek_project_task
-- Publisher prefix: geek
-- Table logical name: project_task
-- Primary ID field: geek_project_taskid
-- 全フィールド一覧
-- Choice値の定義
-```
-
-**2. pac code コマンドでサービスクラスを生成:**
+**1. 公式APIでテーブル情報を取得:**
 ```bash
-# Dataverse接続作成後
-pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}"
+# Power Platform環境に認証
+pac auth create --url https://your-environment.crm.dynamics.com
+
+# Dataverseテーブルを追加（メタデータ自動取得）
+pac code add-data-source -a dataverse -t geek_project_task
 
 # 生成されるファイル:
-# src/generated/services/{スキーマ名プレフィックス}_{テーブル名}Service.ts
+# generated/models/GeekProjectTaskModel.ts
+# generated/services/GeekProjectTaskService.ts
+```
+
+**2. ランタイムでメタデータ確認:**
+```typescript
+// getMetadata APIを使用してスキーマ情報を取得
+const result = await GeekProjectTaskService.getMetadata({
+  schema: { columns: 'all' }
+});
+
+if (result.isSuccess && result.value) {
+  console.log('提供される情報:');
+  console.log('- Schema name:', result.value.SchemaName);
+  console.log('- Logical name:', result.value.LogicalName);
+  console.log('- Primary ID field:', result.value.PrimaryIdAttribute);
+  console.log('- 全フィールド一覧:', result.value.Attributes);
+  console.log('- Choice値の定義:', result.value.Attributes?.filter(a => a.AttributeType === 'Picklist'));
+}
+```
 # 例: Geek_project_tasksService.ts
 ```
 
@@ -6756,10 +7132,10 @@ export const TaskPriorityReverseMap: Record<string, TaskPriority> = {
 
 **開発者への依頼事項:**
 - [ ] **テーブル論理名の確認**: Power Apps Maker Portal でテーブルの論理名を確認
-- [ ] **GitHub Copilot にテーブル論理名を伝える**: スキーマ情報の自動取得を依頼
-- [ ] **TypeScript型定義作成**: GitHub Copilot が生成した型定義を確認・適用
-- [ ] **Choice値マッピング**: GitHub Copilot が生成したマッピングを確認
-- [ ] **pac code add-data-source 実行**: サービスクラスの自動生成
+- [ ] **環境認証**: `pac auth create` でPower Platform環境に接続
+- [ ] **データソース追加**: `pac code add-data-source` でテーブル追加とメタデータ自動取得
+- [ ] **TypeScript型定義確認**: 自動生成された型定義を確認
+- [ ] **Choice値確認**: `getMetadata` APIで実際のChoice値を確認
 - [ ] **カスタムフック作成**: サービスクラスをラップ
 - [ ] **UIフォーム更新**: Choice値をドロップダウンで選択可能なフォーム
 - [ ] **型安全性確認**: TypeScriptコンパイルエラー0件
@@ -6770,13 +7146,13 @@ export const TaskPriorityReverseMap: Record<string, TaskPriority> = {
 #### **1. Choice値の不一致エラー**
 ```
 ❌ エラー例: "Invalid option value '4' for attribute 'geek_priority'"
-✅ 対処法: GitHub Copilot に正確なChoice値を再取得依頼・更新
+✅ 対処法: getMetadata APIで正確なChoice値を再取得・更新
 ```
 
 #### **2. 必須フィールドエラー**  
 ```
 ❌ エラー例: "Required attribute 'geek_name' is missing"
-✅ 対処法: GitHub Copilot にテーブルの必須フィールドを確認・フォーム必須設定
+✅ 対処法: getMetadata APIでテーブルの必須フィールドを確認・フォーム必須設定
 ```
 
 #### **3. データ型不一致エラー**
