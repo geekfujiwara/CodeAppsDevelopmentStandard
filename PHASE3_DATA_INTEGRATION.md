@@ -6233,10 +6233,11 @@ export class GeekProjectTaskService {
   }
 }
 ```
-  3: 'Deployment'
-};
 
-// 逆引きマッピング (フォーム用)
+**Choice値の使用例:**
+
+```typescript
+// Choice値のマッピング (フォーム用)
 export const TaskPriorityReverseMap: Record<string, TaskPriority> = {
   'Critical': 0,
   'High': 1,
@@ -7061,15 +7062,16 @@ if (result.isSuccess && result.value) {
   console.log('- Choice値の定義:', result.value.Attributes?.filter(a => a.AttributeType === 'Picklist'));
 }
 ```
-# 例: Geek_project_tasksService.ts
-```
 
 **3. サービスクラスの命名規則:**
-- **クラス名**: `{Prefix}_{TableName}Service` (先頭大文字、複数形)
-  - 例: `Geek_project_tasksService`
-- **dataSourceName**: `{prefix}_{table_name}` (小文字、複数形)
-  - 例: `geek_project_tasks`
-- **プライマリキー**: `{prefix}_{table_name}id`
+
+公式APIで自動生成されるサービスクラスは、以下の規則に従います:
+
+- **クラス名**: `{TableName}Service` (PascalCase、単数形)
+  - 例: `GeekProjectTaskService`
+- **dataSourceName**: `{table_logical_name}` (小文字、アンダースコア、単数形)
+  - 例: `geek_project_task`
+- **プライマリキー**: `{table_logical_name}id`
   - 例: `geek_project_taskid`
 
 #### **テーブルスキーマ名のプレースホルダー**
