@@ -2117,19 +2117,14 @@ pac code push
 
 ---
 
-### **未実装機能開発・ユーザー提案**        $value = $option.SelectSingleNode("c:Value", $ns).'#text'
-        $label = $option.SelectSingleNode(".//c:Label[@languagecode='1033']", $ns).'#text'
-        Write-Host "    $value : $label"
-    }
-}
+### **6.1 GitHub Copilot によるスキーマ情報取得**
+
+**GitHub Copilot Chat で依頼:**
+```
+「Dataverseテーブル geek_project_task のスキーマ情報を教えてください」
 ```
 
-**実行:**
-```powershell
-.\Extract-DataverseChoices.ps1 -XmlPath "customizations.xml" -EntityName "geek_project_task"
-```
-
-**出力例:**
+**GitHub Copilot が提供する情報:**
 ```
 === geek_project_task スキーマ情報 ===
   - geek_project_taskid (uniqueidentifier)
@@ -2343,7 +2338,7 @@ export const useProjectTasks = () => {
 |----------------|------|------|
 | `PowerDataRuntime is not initialized` | SDK未初期化 | `usePowerPlatform().isInitialized` を確認 |
 | `Connection not found` | 接続IDが無効 | Power Apps ポータルで接続IDを再確認 |
-| `Table not found` | テーブル論理名が間違い | customizations.xmlでスキーマ名を確認 |
+| `Table not found` | テーブル論理名が間違い | GitHub Copilot にテーブル論理名を確認依頼 |
 | `Unauthorized` | 権限不足 | ユーザーのセキュリティロールを確認 |
 | `CORS error` | Web API直接呼び出し | Power Apps SDK経由に変更 |
 
@@ -2399,8 +2394,9 @@ if (result.isSuccess) {
 pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
 pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "accounts"
 
-# 5. customizations.xml からスキーマ確認（カスタムテーブルの場合）
-.\Extract-DataverseChoices.ps1 -XmlPath ".\customizations.xml" -EntityName "{論理名}"
+# 5. GitHub Copilot でスキーマ確認（カスタムテーブルの場合）
+# GitHub Copilot Chat で以下のように依頼:
+# 「Dataverseテーブル {論理名} のスキーマ情報を教えてください」
 
 # 6. カスタムフック作成
 # src/hooks/useDataverse{TableName}.ts
@@ -3809,7 +3805,7 @@ Error: Table 'tablename' not found
 
 対処法:
 1. テーブルの論理名を確認（小文字、アンダースコア）
-2. customizations.xml でテーブル名を確認
+2. GitHub Copilot にテーブル論理名の確認を依頼
 3. Dataverse でテーブルが公開されているか確認
 ```
 
@@ -3910,7 +3906,7 @@ export function DataversePage() {
 - 接続ID の取得方法（Power Apps ポータルのURL）
 - コネクター別の追加手順（Dataverse, Office 365, SQL Server）
 - Dataverse テーブルの追加（SystemUsers, Accounts, Contacts等）
-- カスタムテーブルの追加（customizations.xml 使用）
+- カスタムテーブルの追加（GitHub Copilot でメタデータ取得）
 - トラブルシューティング（接続エラー、SDK初期化エラー）
 
 > **→ [Phase 5: データソース統合の詳細](#phase-5-機能拡張) を参照**
@@ -5735,7 +5731,7 @@ Error: Table 'tablename' not found
 1. テーブルの論理名を確認（小文字、アンダースコア）
    - 正: systemusers, accounts, contacts
    - 誤: SystemUsers, Account, Contact
-2. customizations.xml でテーブル名を確認
+2. GitHub Copilot にテーブル論理名の確認を依頼
 3. Dataverse でテーブルが公開されているか確認
 ```
 
@@ -5766,158 +5762,75 @@ PowerDataRuntimeError: PowerDataRuntime is not initialized
 
 ## 📋 **Dataverse接続前の必須手順: スキーマ確認とドキュメント化**
 
-> **⚠️ 重要**: モックデータからDataverseリアルデータに移行する際は、以下の手順を**必ず**実行してください。スキーマの不一致により、データの読み書きエラーや選択肢値の不整合が発生する可能性があります。
+> **⚠️ 重要**: モックデータからDataverseリアルデータに移行する際は、テーブルの論理名をGitHub Copilotに伝えることで、必要なメタデータを自動取得できます。
 
-### **Step 1: customizations.xmlファイルの取得**
+### **新しい開発プロセス: GitHub Copilot による自動メタデータ取得**
 
-#### **Power Apps ポータルからのソリューションエクスポート**
+**従来の方法 (非推奨):**
+- ❌ customizations.xmlファイルの手動エクスポート
+- ❌ PowerShellスクリプトによる手動スキーマ抽出
+- ❌ TypeScript型定義の手動作成
+
+**新しい方法 (推奨):**
+- ✅ テーブルの論理名をGitHub Copilotに伝えるだけ
+- ✅ GitHub Copilotが必要なメタデータを自動取得
+- ✅ TypeScript型定義を自動生成
+- ✅ Choice値のマッピングを自動作成
+
+### **Step 1: テーブル論理名の確認**
+
+テーブルの論理名は以下の方法で確認できます:
+
+#### **Power Apps Maker Portal で確認**
 ```bash
 # 1. Power Apps Maker Portal (make.powerapps.com) にアクセス
-# 2. ソリューション → 対象ソリューションを選択
-# 3. エクスポート → 「アンマネージド」を選択
-# 4. ZIPファイルをダウンロード・展開
-# 5. customizations.xml ファイルを取得
-# 6. ファイルをワークスペースのルートディレクトリに配置
+# 2. データ → テーブル → 対象テーブルを選択
+# 3. テーブルのプロパティで「論理名」を確認
 ```
 
-**取得するファイル:**
-- `customizations.xml` - Dataverseテーブル定義とスキーマ情報
-- 配置場所: **プロジェクトのワークスペースルート** (例: `C:\CodeApps\YourProject\customizations.xml`)
+**論理名の例:**
+- `systemusers` - システムユーザー
+- `accounts` - 取引先企業
+- `contacts` - 取引先担当者
+- `geek_project_task` - カスタムテーブル (プレフィックス付き)
 
-### **Step 2: Dataverseスキーマ抽出ユーティリティの実行**
+### **Step 2: GitHub Copilot にテーブル論理名を伝える**
 
-#### **PowerShellスクリプトによる自動抽出**
+GitHub Copilot Chat で以下のように依頼します:
 
-**Extract-DataverseChoices.ps1 の作成:**
-```powershell
-# プロジェクトルートに保存
-param(
-    [Parameter(Mandatory=$true)]
-    [string]$XmlPath,
-    
-    [Parameter(Mandatory=$false)]
-    [string]$EntityName = "your_table_name"  # 実際のテーブル名に変更
-)
+```
+Dataverseテーブル「geek_project_task」のスキーマ情報を取得して、
+以下を作成してください:
 
-# XMLを読み込み（UTF-8エンコーディング）
-Write-Host "Reading XML file..." -ForegroundColor Cyan
-$xmlContent = Get-Content -Path $XmlPath -Encoding UTF8 -Raw
+1. TypeScript型定義 (src/types/dataverse.ts)
+2. Choice値のマッピング定義
+3. CRUD操作用のインターフェース定義
 
-# XMLをパース
-[xml]$xml = $xmlContent
-
-# エンティティを検索
-$entities = $xml.ImportExportXml.Entities.Entity
-
-Write-Host "`nSearching for entity: $EntityName" -ForegroundColor Yellow
-
-foreach ($entity in $entities) {
-    $entityLogicalName = $entity.EntityInfo.entity.Name
-    
-    if ($entityLogicalName -eq $EntityName) {
-        Write-Host "`nFound entity: $entityLogicalName" -ForegroundColor Green
-        
-        # 属性を取得
-        $attributes = $entity.EntityInfo.entity.attributes.attribute
-        
-        # 全属性の表示
-        Write-Host "`nAll Attributes:" -ForegroundColor Cyan
-        foreach ($attr in $attributes) {
-            $attrName = $attr.Name
-            $attrType = $attr.Type
-            $displayName = $attr.displaynames.displayname | Where-Object { $_.languagecode -eq '1041' } | Select-Object -ExpandProperty description
-            Write-Host "  $attrName ($attrType) - $displayName" -ForegroundColor White
-        }
-        
-        # Picklist属性のみをフィルター
-        $picklistAttributes = $attributes | Where-Object { $_.Type -eq 'picklist' }
-        
-        Write-Host "`nChoice (Picklist) Attributes Found: $($picklistAttributes.Count)" -ForegroundColor Cyan
-        
-        foreach ($attr in $picklistAttributes) {
-            $attrName = $attr.Name
-            $attrDisplayName = $attr.displaynames.displayname | Where-Object { $_.languagecode -eq '1041' } | Select-Object -ExpandProperty description
-            
-            Write-Host "`n=== $attrName ($attrDisplayName) ===" -ForegroundColor Yellow
-            
-            # optionset要素を取得
-            if ($attr.optionset) {
-                $options = $attr.optionset.options.option
-                
-                if ($options) {
-                    Write-Host "Choice Values:" -ForegroundColor Cyan
-                    foreach ($option in $options) {
-                        $value = $option.value
-                        $label = $option.labels.label | Where-Object { $_.languagecode -eq '1041' } | Select-Object -ExpandProperty description
-                        Write-Host "  $value : $label" -ForegroundColor White
-                    }
-                } else {
-                    Write-Host "  No options defined (global optionset?)" -ForegroundColor Gray
-                }
-            } else {
-                Write-Host "  No optionset element found" -ForegroundColor Gray
-            }
-        }
-    }
-}
-
-Write-Host "`nDone!" -ForegroundColor Green
+必要な情報:
+- フィールド名と型
+- Choice (Picklist) フィールドの値と表示名
+- 必須フィールド
+- Lookupフィールド
 ```
 
-#### **スクリプト実行例**
-```powershell
-# スクリプトを実行してスキーマ情報を抽出（ワークスペースルートのファイルを使用）
-.\Extract-DataverseChoices.ps1 -XmlPath ".\customizations.xml" -EntityName "geek_project_task"
+**GitHub Copilot が自動的に:**
+- ✅ スキーマ情報を取得
+- ✅ フィールド定義を解析
+- ✅ Choice値を抽出
+- ✅ TypeScript型定義を生成
+- ✅ 必要なマッピングを作成
 
-# 実行結果例:
-# Reading XML file...
-# 
-# Searching for entity: geek_project_task
-# 
-# Found entity: geek_project_task
-# 
-# All Attributes:
-#   geek_project_taskid (uniqueidentifier) - プロジェクト タスク
-#   geek_name (string) - 名前
-#   geek_priority (picklist) - 優先度
-#   geek_status (picklist) - 状態
-#   geek_category (picklist) - カテゴリ
-# 
-# Choice (Picklist) Attributes Found: 3
-# 
-# === geek_priority (優先度) ===
-# Choice Values:
-#   0 : Critical
-#   1 : High
-#   2 : Medium
-#   3 : Low
-# 
-# === geek_status (状態) ===
-# Choice Values:
-#   0 : Completed
-#   1 : InProgress
-#   2 : NotStarted
-# 
-# === geek_category (カテゴリ) ===
-# Choice Values:
-#   0 : Planning
-#   1 : Development
-#   2 : Testing
-#   3 : Deployment
-```
+### **Step 3: 生成されたTypeScript型定義の確認**
 
-### **Step 3: TypeScriptスキーマ定義の作成**
+GitHub Copilotが生成した型定義ファイル例:
 
-#### **抽出情報に基づくTypeScript型定義**
-
-**src/types/dataverse.ts の作成:**
+**src/types/dataverse.ts (GitHub Copilot の支援により生成):**
 ```typescript
 /**
  * Dataverse スキーマ定義
  * 
- * 生成元: customizations.xml (geek_project_task エンティティ)
- * 生成日時: 2025-01-17
- * エンティティ名: geek_project_task
+ * テーブル論理名: geek_project_task
+ * 生成方法: GitHub Copilot の支援により作成
  */
 
 // メインエンティティインターフェース
@@ -5944,7 +5857,7 @@ export interface ProjectTask {
   ownerid: string;                      // 所有者 (必須)
 }
 
-// Choice値の型定義 (customizations.xmlから抽出)
+// Choice値の型定義 (自動取得)
 export type TaskPriority = 0 | 1 | 2 | 3;  // Critical | High | Medium | Low
 export type TaskStatus = 0 | 1 | 2;        // Completed | InProgress | NotStarted  
 export type TaskCategory = 0 | 1 | 2 | 3;  // Planning | Development | Testing | Deployment
@@ -6142,16 +6055,18 @@ export class Geek_project_tasksService {
 
 #### **4.3 テーブルスキーマ名の確認方法**
 
-**customizations.xml からスキーマ名を取得:**
-```powershell
-# PowerShell スクリプトでエンティティ情報を確認
-.\Extract-DataverseChoices.ps1 -XmlPath ".\customizations.xml" -EntityName "geek_project_task"
-
-# 出力例:
-# Found entity: geek_project_task
-# Schema name (prefix_logicalname): geek_project_task
-# Primary ID field: geek_project_taskid
+**GitHub Copilot にテーブル論理名を伝えてスキーマ情報を取得:**
 ```
+GitHub Copilot Chat で以下のように依頼:
+
+「Dataverseテーブル geek_project_task のスキーマ名と構造を教えてください」
+```
+
+**GitHub Copilot が自動的に提供する情報:**
+- テーブルの論理名
+- スキーマプレフィックス
+- プライマリキーフィールド名
+- 全フィールドの一覧と型
 
 **スキーマ名のルール:**
 - パブリッシャープレフィックス + アンダースコア + テーブル名
@@ -6743,19 +6658,22 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
 #### **スキーマ名の取得とサービスクラス生成**
 
-**1. customizations.xml からテーブル情報を取得:**
-```powershell
-# テーブルのスキーマ名を確認
-.\Extract-DataverseChoices.ps1 -XmlPath ".\customizations.xml" -EntityName "{論理名}"
+**1. GitHub Copilot にテーブル情報を取得依頼:**
+```
+GitHub Copilot Chat で以下のように依頼:
 
-# 例: プロジェクトタスクテーブルの場合
-.\Extract-DataverseChoices.ps1 -XmlPath ".\customizations.xml" -EntityName "geek_project_task"
+「Dataverseテーブル {論理名} のスキーマ情報を教えてください」
 
-# 出力例:
-# Schema name: geek_project_task
-# Publisher prefix: geek
-# Table logical name: project_task
-# Primary ID field: geek_project_taskid
+例: プロジェクトタスクテーブルの場合
+「Dataverseテーブル geek_project_task のスキーマ情報を教えてください」
+
+GitHub Copilot が提供する情報:
+- Schema name: geek_project_task
+- Publisher prefix: geek
+- Table logical name: project_task
+- Primary ID field: geek_project_taskid
+- 全フィールド一覧
+- Choice値の定義
 ```
 
 **2. pac code コマンドでサービスクラスを生成:**
@@ -6812,7 +6730,7 @@ geek_project_taskid     // プライマリキー
 #### **Choice フィールドの型マッピング**
 
 ```typescript
-// customizations.xml から抽出された Choice 値
+// GitHub Copilot が取得した Choice 値
 export type TaskPriority = 0 | 1 | 2 | 3;
 export type TaskStatus = 0 | 1 | 2;
 export type TaskCategory = 0 | 1 | 2 | 3;
@@ -6837,13 +6755,11 @@ export const TaskPriorityReverseMap: Record<string, TaskPriority> = {
 #### **必須チェックリスト: Dataverse接続前**
 
 **開発者への依頼事項:**
-- [ ] **customizations.xmlファイル取得**: Power Apps ポータルからソリューションエクスポート
-- [ ] **customizations.xmlをワークスペースルートに配置**: `.\customizations.xml`
-- [ ] **スキーマ抽出実行**: PowerShellスクリプトでテーブル構造・Choice値を抽出
-- [ ] **テーブルスキーマ名の確認**: `{prefix}_{tablename}` 形式を特定
+- [ ] **テーブル論理名の確認**: Power Apps Maker Portal でテーブルの論理名を確認
+- [ ] **GitHub Copilot にテーブル論理名を伝える**: スキーマ情報の自動取得を依頼
+- [ ] **TypeScript型定義作成**: GitHub Copilot が生成した型定義を確認・適用
+- [ ] **Choice値マッピング**: GitHub Copilot が生成したマッピングを確認
 - [ ] **pac code add-data-source 実行**: サービスクラスの自動生成
-- [ ] **TypeScript型定義作成**: 抽出情報に基づくインターフェース定義
-- [ ] **Choice値マッピング**: 数値⇔表示名の変換テーブル作成
 - [ ] **カスタムフック作成**: サービスクラスをラップ
 - [ ] **UIフォーム更新**: Choice値をドロップダウンで選択可能なフォーム
 - [ ] **型安全性確認**: TypeScriptコンパイルエラー0件
@@ -6854,13 +6770,13 @@ export const TaskPriorityReverseMap: Record<string, TaskPriority> = {
 #### **1. Choice値の不一致エラー**
 ```
 ❌ エラー例: "Invalid option value '4' for attribute 'geek_priority'"
-✅ 対処法: customizations.xmlから正確なChoice値を抽出・更新
+✅ 対処法: GitHub Copilot に正確なChoice値を再取得依頼・更新
 ```
 
 #### **2. 必須フィールドエラー**  
 ```
 ❌ エラー例: "Required attribute 'geek_name' is missing"
-✅ 対処法: XMLのIsValidForCreate属性でRequired判定・フォーム必須設定
+✅ 対処法: GitHub Copilot にテーブルの必須フィールドを確認・フォーム必須設定
 ```
 
 #### **3. データ型不一致エラー**
@@ -6889,10 +6805,10 @@ export const TaskPriorityReverseMap: Record<string, TaskPriority> = {
 ### **📋 必須チェックリスト: Dataverse接続前**
 
 #### **開発者への依頼事項**
-- [ ] **customizations.xmlファイル取得**: Power Apps ポータルからソリューションエクスポート
-- [ ] **スキーマ抽出実行**: PowerShellスクリプトでテーブル構造・Choice値を抽出
-- [ ] **TypeScript型定義作成**: 抽出情報に基づくインターフェース定義
-- [ ] **Choice値マッピング**: 数値⇔表示名の変換テーブル作成
+- [ ] **テーブル論理名の確認**: Power Apps Maker Portal でテーブルの論理名を確認
+- [ ] **GitHub Copilot にメタデータ取得を依頼**: テーブル論理名を伝えてスキーマ情報を取得
+- [ ] **TypeScript型定義作成**: GitHub Copilot が生成した型定義を確認・適用
+- [ ] **Choice値マッピング**: GitHub Copilot が生成したマッピングを確認
 - [ ] **CRUD操作更新**: 実際のスキーマに対応したDataverseサービス実装
 - [ ] **UIフォーム更新**: Choice値をドロップダウンで選択可能なフォーム
 - [ ] **型安全性確認**: TypeScriptコンパイルエラー0件
@@ -6903,13 +6819,13 @@ export const TaskPriorityReverseMap: Record<string, TaskPriority> = {
 #### **1. Choice値の不一致エラー**
 ```
 ❌ エラー例: "Invalid option value '4' for attribute 'geek_priority'"
-✅ 対処法: customizations.xmlから正確なChoice値を抽出・更新
+✅ 対処法: GitHub Copilot に正確なChoice値を再取得依頼・更新
 ```
 
 #### **2. 必須フィールドエラー**  
 ```
 ❌ エラー例: "Required attribute 'geek_name' is missing"
-✅ 対処法: XMLのIsValidForCreate属性でRequired判定・フォーム必須設定
+✅ 対処法: GitHub Copilot にテーブルの必須フィールドを確認・フォーム必須設定
 ```
 
 #### **3. データ型不一致エラー**
