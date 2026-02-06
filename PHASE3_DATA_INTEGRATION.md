@@ -1249,23 +1249,21 @@ function TasksPage() {
 
 **実装手順:**
 
-1. **customization.xml 配置**
-   - ソリューションをエクスポート
-   - `customization.xml` をワークスペースルートに配置
+1. **環境認証**
+   ```bash
+   pac auth create --url https://your-environment.crm.dynamics.com
+   ```
 
-2. **サービスクラス生成**
-   ```powershell
-   pac code add-data-source `
-     --connector "shared_commondataserviceforapps" `
-     --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
-     --table "geek_project_task"
+2. **サービスクラス生成（メタデータ自動取得）**
+   ```bash
+   pac code add-data-source -a dataverse -t geek_project_task
    ```
 
 3. **カスタムフック作成** (`src/hooks/useProjectTasks.ts`)
    ```typescript
    import { useState, useEffect, useCallback } from 'react';
    import { usePowerPlatform } from '@microsoft/power-apps';
-   import { GeekProjectTasksService } from '../generated/services/GeekProjectTasksService';
+   import { GeekProjectTaskService } from '../generated/services/GeekProjectTaskService';
    
    export const useProjectTasks = () => {
      const { isInitialized } = usePowerPlatform();
@@ -1523,40 +1521,45 @@ export function App() {
 
 ---
 
-#### 問題3: customization.xml が見つからない
+#### 問題3: テーブルメタデータが取得できない
 
 **症状:**  
 `pac code add-data-source` 実行時にスキーマ情報が取得できない
 
 **原因:**
-- `customization.xml` がワークスペースルートに配置されていない
-- ファイル名が間違っている
+- テーブル論理名が間違っている
+- テーブルがDataverseで公開されていない
+- 認証が切れている
 
 **解決方法:**
 
-1. **ファイル配置を確認**
-   ```powershell
-   # ファイルの存在確認
-   Get-Item .\customization.xml
+1. **テーブル論理名を確認**
+   - Power Apps Maker Portal → データ → テーブル
+   - 対象テーブルをクリック → プロパティで論理名を確認
+   - 論理名は小文字とアンダースコアのみ（例: `geek_project_task`）
+
+2. **認証状態を確認**
+   ```bash
+   # 認証一覧を表示
+   pac auth list
    
-   # 配置場所が正しいか確認
-   Get-Location  # ワークスペースルートにいることを確認
+   # 必要に応じて再認証
+   pac auth create --url https://your-environment.crm.dynamics.com
    ```
 
-2. **正しい配置場所:**
+3. **メタデータをランタイムで確認**
+   ```typescript
+   // アプリ内でメタデータを取得して確認
+   const result = await YourTableService.getMetadata({
+     schema: { columns: 'all' }
+   });
+   
+   if (result.isSuccess) {
+     console.log('テーブル情報:', result.value);
+   } else {
+     console.error('エラー:', result.error);
+   }
    ```
-   YourCodeAppsProject/    ← ここがルート
-   ├── customization.xml   ← ここに配置
-   ├── src/
-   ├── package.json
-   └── vite.config.ts
-   ```
-
-3. **ソリューションを再エクスポート**
-   - Power Appsポータル → ソリューション
-   - 対象ソリューションを選択 → エクスポート
-   - アンマネージドを選択
-   - ZIPを解凍 → Customizations/customization.xml をコピー
 
 ---
 
@@ -1788,16 +1791,15 @@ console.log('Data count:', result.value?.length);
 - [ ] ブラウザURLから接続IDをコピーした
 - [ ] 接続IDがGUID形式 (例: `a1b2c3d4-e5f6-7890-abcd-ef1234567890`) である
 
-### Step 2: スキーマ取得
-- [ ] Power Appsポータルでソリューションをエクスポートした
-- [ ] ZIPファイルを解凍した
-- [ ] `customization.xml` をワークスペースルートに配置した
-- [ ] `Get-Item .\customization.xml` でファイル存在を確認した
+### Step 2: メタデータ取得
+- [ ] Power Platform環境に認証した (`pac auth create`)
+- [ ] テーブルの論理名を確認した（Power Apps Maker Portal）
+- [ ] 論理名が小文字とアンダースコアのみであることを確認した
 
 ### Step 3: サービスクラス生成
-- [ ] `pac code add-data-source` コマンドが成功した
-- [ ] `src/generated/models/` にModel定義が生成されている
-- [ ] `src/generated/services/` にServiceクラスが生成されている
+- [ ] `pac code add-data-source -a dataverse -t <table-name>` コマンドが成功した
+- [ ] `generated/models/` にModel定義が生成されている
+- [ ] `generated/services/` にServiceクラスが生成されている
 - [ ] `npm run build` が成功した
 - [ ] `npm run lint` でエラーがない
 
@@ -9303,3 +9305,114 @@ describe('Office 365 Connector Integration', () => {
 ```
 
 ---
+
+## 📚 まとめ: Dataverse統合の新しいアプローチ
+
+### XMLベースから公式API-basedへの移行
+
+Phase 3のDataverse統合は、**XMLファイル解析から公式API-basedアプローチへ完全移行**しました。
+
+#### 主要な変更点
+
+| 観点 | 旧アプローチ (非推奨) | 新アプローチ (推奨) |
+|------|---------------------|-------------------|
+| **メタデータ取得** | customization.xmlを手動エクスポート | `pac code add-data-source` で自動取得 |
+| **スキーマ更新** | 手動でXMLを再エクスポート | コマンド再実行のみ |
+| **データ形式** | XML（パース複雑） | JSON（型安全） |
+| **認証** | 不要（ファイル） | OAuth 2.0（標準） |
+| **CI/CD統合** | 困難 | 容易 |
+| **エラー検知** | 実行時 | コンパイル時 |
+| **メンテナンス** | 手動管理 | 自動同期 |
+
+#### 実装の流れ
+
+```bash
+# 1. 環境認証
+pac auth create --url https://your-environment.crm.dynamics.com
+
+# 2. テーブル追加（メタデータ自動取得）
+pac code add-data-source -a dataverse -t account
+
+# 3. 自動生成されたファイルを確認
+# generated/models/AccountModel.ts
+# generated/services/AccountService.ts
+
+# 4. ビルドして使用
+npm run build
+```
+
+#### 使用する公式API
+
+1. **PAC CLI** - 開発時のメタデータ取得
+   - [Microsoft Learn: Connect to Dataverse](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)
+
+2. **getMetadata() 関数** - ランタイムでのスキーマ取得
+   - [Microsoft Learn: Get Table Metadata](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/get-table-metadata)
+
+3. **Dataverse Web API** - 高度なクエリ（必要時）
+   - [Microsoft Learn: Query Metadata Web API](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/query-metadata-web-api)
+
+#### 利点
+
+✅ **型安全性**: TypeScript型定義が自動生成され、コンパイル時エラー検知
+✅ **自動化**: スキーマ変更時もコマンド一発で更新
+✅ **保守性**: XMLファイル管理不要、Gitがクリーン
+✅ **最新性**: 常に最新のスキーマを取得
+✅ **開発体験**: IDE補完が完全に機能
+✅ **CI/CD対応**: パイプライン統合が容易
+
+#### 移行ガイド
+
+既存のXML-basedプロジェクトから移行する場合:
+
+1. **customization.xml を削除**
+   ```bash
+   rm customization.xml
+   ```
+
+2. **公式コマンドで再生成**
+   ```bash
+   pac auth create --url https://your-environment.crm.dynamics.com
+   pac code add-data-source -a dataverse -t your_table_name
+   ```
+
+3. **インポートパスを更新**
+   ```typescript
+   // 旧: カスタム型定義
+   import { YourTable } from './types/dataverse';
+   
+   // 新: 自動生成された型定義
+   import { YourTable } from './generated/models/YourTableModel';
+   import { YourTableService } from './generated/services/YourTableService';
+   ```
+
+4. **getMetadata()で検証**
+   ```typescript
+   const result = await YourTableService.getMetadata({
+     schema: { columns: 'all' }
+   });
+   console.log('スキーマ確認:', result.value);
+   ```
+
+### トラブルシューティングリファレンス
+
+詳細なトラブルシューティングについては、以下のドキュメントを参照してください:
+
+- [Dataverse接続 完全ガイド](./docs/DATAVERSE_CONNECTION_GUIDE.md)
+- [Dataverseトラブルシューティング](./docs/DATAVERSE_TROUBLESHOOTING.md)
+- [Dataverse統合ベストプラクティス](./docs/DATAVERSE_INTEGRATION_BEST_PRACTICES.md)
+
+### 次のステップ
+
+Phase 3が完了したら、以下に進んでください:
+
+- **Phase 4**: パフォーマンス最適化
+- **Phase 5**: セキュリティとデプロイ
+- **Phase 6**: 運用とモニタリング
+
+---
+
+**Phase 3: データソース統合 完了！** 🎉
+
+XMLファイルに依存しない、モダンで保守性の高いDataverse統合が実現できました。
+公式APIを活用することで、将来のDataverse更新にも柔軟に対応できます。
