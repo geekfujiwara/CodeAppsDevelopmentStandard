@@ -34,7 +34,7 @@
 
 1. **接続作成** - Power Appsポータルでコネクター接続を手動作成
 2. **接続ID取得** - ブラウザURLから接続IDをコピー
-3. **サービスクラス生成** - `pac code add-data-source` でTypeScript型定義を自動生成
+3. **サービスクラス生成** - `npx @microsoft/power-apps-cli add-data-source` でTypeScript型定義を自動生成
 4. **SDK初期化確認** - `usePowerPlatform().isInitialized` でPower Apps SDK初期化を確認
 5. **カスタムフック作成** - ビジネスロジックをカプセル化（CRUD操作）
 6. **UI統合** - Reactコンポーネントでデータを表示・操作
@@ -44,7 +44,7 @@
 
 ```bash
 # 接続作成（Power Appsポータル）→ 接続ID取得
-pac code add-data-source -a "shared_office365users" -c "{接続ID}"
+npx @microsoft/power-apps-cli add-data-source -a "shared_office365users" -c "{接続ID}"
 npm run build && npm run lint
 ```
 
@@ -52,7 +52,7 @@ npm run build && npm run lint
 
 ```bash
 # 接続作成（Power Appsポータル）→ 接続ID取得
-pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
 npm run build && npm run lint
 ```
 
@@ -60,7 +60,7 @@ npm run build && npm run lint
 
 - ✅ Power Appsポータルでコネクター接続が作成されている
 - ✅ 接続IDが正しく取得できている
-- ✅ `pac code add-data-source` が成功し、サービスクラスが生成されている
+- ✅ `npx @microsoft/power-apps-cli add-data-source` が成功し、サービスクラスが生成されている
 - ✅ カスタムフックが作成され、`isInitialized` チェックが実装されている
 - ✅ エラーハンドリングが実装されている（`IOperationResult.isSuccess` 確認）
 - ✅ データの読み取りが成功する
@@ -94,12 +94,12 @@ Power Apps Code Appsにおける実データ接続は、以下の4つのステ�
 ```mermaid
 graph TB
     subgraph "Step 1: 環境認証"
-        A1[Power Platform環境URL] --> A2[pac auth create]
+        A1[Power Platform環境URL] --> A2[# 認証はCLIコマンド実行時にブラウザが自動的に開きます（別途実行不要）]
         A2 --> A3[認証完了]
     end
     
     subgraph "Step 2: データソース追加"
-        B1[テーブル論理名確認] --> B2[pac code add-data-source]
+        B1[テーブル論理名確認] --> B2[npx @microsoft/power-apps-cli add-data-source]
         B2 --> B3[TypeScript型定義自動生成]
     end
     
@@ -128,17 +128,17 @@ graph TB
 ```mermaid
 sequenceDiagram
     participant User as ユーザー
-    participant CLI as PAC CLI
+    participant CLI as npm CLI
     participant App as Code Apps
     participant SDK as Power Apps SDK
     participant API as Dataverse Web API
     participant DV as Dataverse
     
-    User->>CLI: 1. pac auth create
+    User->>CLI: 1. CLIコマンド実行（初回時ブラウザ自動認証）
     Note over CLI: 環境URLで認証
     CLI-->>User: 認証完了
     
-    User->>CLI: 2. pac code add-data-source
+    User->>CLI: 2. npx @microsoft/power-apps-cli add-data-source
     Note over CLI: テーブル論理名を指定
     CLI->>API: メタデータ取得リクエスト
     API->>DV: EntityDefinitions取得
@@ -166,8 +166,8 @@ sequenceDiagram
 
 | ステップ | 実施内容 | 成果物 | 所要時間 |
 |---------|---------|-------|---------|
-| **1. 環境認証** | `pac auth create` で Power Platform環境に認証 | 認証済みセッション | 1分 |
-| **2. データソース追加** | `pac code add-data-source` でテーブル論理名を指定 → TypeScriptコード自動生成 | サービスクラス (.ts) | 1-2分 |
+| **1. 環境認証** | CLIコマンド実行時にブラウザが自動的に開きMSAL認証 | 認証済みセッション | 1分 |
+| **2. データソース追加** | `npx @microsoft/power-apps-cli add-data-source` でテーブル論理名を指定 → TypeScriptコード自動生成 | サービスクラス (.ts) | 1-2分 |
 | **3. メタデータ取得** | `getMetadata` API でテーブルスキーマを取得 → 型定義生成 | 型定義ファイル | 2-3分 |
 | **4. データ統合** | モックデータ削除 → サービスクラス呼び出しでDataverseデータ取得 | 実データ表示 | 10-30分 |
 
@@ -208,7 +208,7 @@ if (result.isSuccess && result.value) {
 
 **✅ 推奨アプローチ**: 以下の公式API を使用してください:
 
-1. **`pac code add-data-source` コマンド**
+1. **`npx @microsoft/power-apps-cli add-data-source` コマンド**
    - テーブル論理名を指定するだけで自動的にメタデータを取得
    - TypeScript型定義とサービスクラスを自動生成
    - XMLファイル不要
@@ -222,7 +222,7 @@ if (result.isSuccess && result.value) {
 - [公式API-based メタデータ取得方法](#step-2-公式api-basedメタデータ取得方法)
 - [getMetadata関数の使用方法](#2-4-方法2-getmetadata-api-でランタイム取得)
 
-この情報を基に、`pac code add-data-source` がTypeScript型定義を自動生成します。
+この情報を基に、`npx @microsoft/power-apps-cli add-data-source` がTypeScript型定義を自動生成します。
 
 ---
 
@@ -232,7 +232,7 @@ if (result.isSuccess && result.value) {
 
 Power Apps Code Appsでは、以下の公式APIを使用してDataverseに接続します:
 
-1. **PAC CLI (`pac code add-data-source`)**
+1. **npm CLI (`npx @microsoft/power-apps-cli add-data-source`)**
    - **用途**: 開発時のテーブル追加とメタデータ取得
    - **動作**: Dataverse Web API経由でEntityDefinitionsを取得し、TypeScript型定義を自動生成
    - **参考**: [Microsoft Learn - Connect to Dataverse](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)
@@ -252,17 +252,17 @@ Power Apps Code Appsでは、以下の公式APIを使用してDataverseに接続
 ```mermaid
 sequenceDiagram
     participant Dev as 開発者
-    participant CLI as PAC CLI
+    participant CLI as npm CLI
     participant API as Dataverse Web API
     participant App as Code Apps
     participant SDK as Power Apps SDK
     
     Note over Dev,API: 開発時（型定義生成）
-    Dev->>CLI: pac auth create
+    Dev->>CLI: CLIコマンド実行（初回時ブラウザ自動認証）
     CLI->>API: OAuth認証
     API-->>CLI: アクセストークン
     
-    Dev->>CLI: pac code add-data-source -t tablename
+    Dev->>CLI: npx @microsoft/power-apps-cli add-data-source -t tablename
     CLI->>API: GET /EntityDefinitions(LogicalName='tablename')
     API-->>CLI: テーブルスキーマ (JSON)
     CLI->>CLI: TypeScript型定義生成
@@ -290,10 +290,10 @@ Power Apps Code Appsは、Microsoft標準のOAuth 2.0認証を使用します:
 
 1. **開発時認証**:
    ```bash
-   pac auth create --url https://environment.crm.dynamics.com
+   # 認証はCLIコマンド実行時にブラウザが自動的に開きます
    ```
    - デバイスコードフローまたはブラウザベース認証
-   - アクセストークンはPAC CLIが自動管理
+   - アクセストークンはnpm CLIが自動管理
    - 環境ごとに認証が必要
 
 2. **ランタイム認証**:
@@ -305,7 +305,7 @@ Power Apps Code Appsは、Microsoft標準のOAuth 2.0認証を使用します:
 
 | 項目 | ❌ 旧方式 (XML) | ✅ 新方式 (API) |
 |------|----------------|----------------|
-| **メタデータ取得** | ソリューションエクスポート → XML抽出 | `pac code add-data-source` コマンド |
+| **メタデータ取得** | ソリューションエクスポート → XML抽出 | `npx @microsoft/power-apps-cli add-data-source` コマンド |
 | **手動作業** | 必要（エクスポート、解凍、配置） | 不要（完全自動化） |
 | **最新性** | 手動更新が必要 | 常に最新を取得 |
 | **ファイル管理** | customization.xml (数MB〜数十MB) | 不要 |
@@ -326,7 +326,7 @@ Power Apps Code Appsは、Microsoft標準のOAuth 2.0認証を使用します:
 
 公式API方式では、エラーメッセージが明確で診断が容易:
 
-- **認証エラー**: `pac auth list` で状態確認
+- **認証エラー**: `npx @microsoft/power-apps-cli logout` で状態確認
 - **スキーマエラー**: `getMetadata()` で最新スキーマを確認
 - **権限エラー**: セキュリティロールの設定を確認
 - **接続エラー**: 環境URLの正確性を確認
@@ -438,13 +438,13 @@ a1b2c3d4-e5f6-7890-abcd-ef1234567890
 
 **📋 接続IDをメモ帳にコピーしてください。Step 3で使用します。**
 
-#### 1-3. (代替方法) PAC CLIでの確認
+#### 1-3. (代替方法) npm CLIでの確認
 
 コマンドラインで接続を確認することもできます:
 
 ```powershell
 # 接続一覧を表示
-pac connector list
+# コネクター一覧はPower Appsポータルで確認してください
 
 # 出力例:
 # Connector Display Name: Microsoft Dataverse
@@ -470,10 +470,10 @@ Microsoft Learn公式ドキュメント:
 
 ```bash
 # Power Platform環境に接続
-pac auth create --url https://your-environment.crm.dynamics.com
+# 認証はCLIコマンド実行時にブラウザが自動的に開きます
 
 # 認証状態の確認
-pac auth list
+npx @microsoft/power-apps-cli logout
 ```
 
 **環境URLの確認方法:**
@@ -497,19 +497,19 @@ Dataverseテーブルの論理名を確認します:
 - `systemuser` - システムユーザー
 - `geek_project_task` - カスタムテーブル（プレフィックス付き）
 
-#### 2-3. 方法1: pac code add-data-source で自動取得（推奨）
+#### 2-3. 方法1: npx @microsoft/power-apps-cli add-data-source で自動取得（推奨）
 
-`pac code add-data-source` コマンドは、指定したテーブルのメタデータを自動的に取得し、TypeScript型定義とサービスクラスを生成します。
+`npx @microsoft/power-apps-cli add-data-source` コマンドは、指定したテーブルのメタデータを自動的に取得し、TypeScript型定義とサービスクラスを生成します。
 
 ```bash
 # Dataverseテーブルを追加（メタデータ自動取得）
-pac code add-data-source -a dataverse -t <table-logical-name>
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t <table-logical-name>
 
 # 例: accountテーブルを追加
-pac code add-data-source -a dataverse -t account
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t account
 
 # 例: カスタムテーブルを追加
-pac code add-data-source -a dataverse -t geek_project_task
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_project_task
 ```
 
 **このコマンドが実行すること:**
@@ -661,8 +661,8 @@ async function fetchMetadataViaWebAPI(tableName: string) {
 
 ```mermaid
 graph LR
-    A[環境認証<br/>pac auth create] --> B[テーブル論理名確認<br/>Maker Portal]
-    B --> C[データソース追加<br/>pac code add-data-source]
+    A[環境認証<br/># 認証はCLIコマンド実行時にブラウザが自動的に開きます（別途実行不要）] --> B[テーブル論理名確認<br/>Maker Portal]
+    B --> C[データソース追加<br/>npx @microsoft/power-apps-cli add-data-source]
     C --> D[型定義自動生成<br/>generated/]
     D --> E[アプリ実装<br/>型安全なコード]
     
@@ -671,18 +671,18 @@ graph LR
 ```
 
 **使用API:**
-- **開発時**: `pac code add-data-source` コマンド（CLI）
+- **開発時**: `npx @microsoft/power-apps-cli add-data-source` コマンド（CLI）
 - **ランタイム**: `getMetadata()` 関数（TypeScript SDK）
 - **高度な用途**: Dataverse Web API（REST）
 
 **認証フロー:**
-1. `pac auth create` でPower Platform環境に接続
+1. CLIコマンド実行時にブラウザが自動的に開きPower Platform環境に接続（MSAL認証）
 2. OAuth 2.0による標準的な認証
 3. アクセストークンは自動管理（CLIが処理）
 
 **設計メモ:**
 - メタデータはJSON形式で取得され、型安全なTypeScriptコードに変換される
-- スキーマ変更時は `pac code add-data-source` を再実行するだけで更新可能
+- スキーマ変更時は `npx @microsoft/power-apps-cli add-data-source` を再実行するだけで更新可能
 - XMLファイルの管理は不要で、Git管理もシンプル
 - CI/CDパイプラインに統合しやすい（認証情報を環境変数で管理）
 
@@ -690,20 +690,20 @@ graph LR
 
 ### Step 3: サービスクラスの生成
 
-**`pac code add-data-source` コマンドで、Power Apps SDKベースのTypeScriptサービスクラスを自動生成します。**
+**`npx @microsoft/power-apps-cli add-data-source` コマンドで、Power Apps SDKベースのTypeScriptサービスクラスを自動生成します。**
 
 #### 3-1. データソース追加コマンド実行
 
 **基本コマンド:**
 ```powershell
-pac code add-data-source `
+npx @microsoft/power-apps-cli add-data-source `
   --connector "shared_commondataserviceforapps" `
   --connection-id "<Step 1で取得した接続ID>"
 ```
 
 **実行例:**
 ```powershell
-pac code add-data-source `
+npx @microsoft/power-apps-cli add-data-source `
   --connector "shared_commondataserviceforapps" `
   --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 ```
@@ -711,13 +711,13 @@ pac code add-data-source `
 **テーブルを指定する場合:**
 ```powershell
 # SystemUsersテーブルのみ生成
-pac code add-data-source `
+npx @microsoft/power-apps-cli add-data-source `
   --connector "shared_commondataserviceforapps" `
   --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
   --table "systemusers"
 
 # カスタムテーブル (geek_project_task) を生成
-pac code add-data-source `
+npx @microsoft/power-apps-cli add-data-source `
   --connector "shared_commondataserviceforapps" `
   --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
   --table "geek_project_task"
@@ -1172,7 +1172,7 @@ function TasksPage() {
 
 2. **サービスクラス生成**
    ```powershell
-   pac code add-data-source `
+   npx @microsoft/power-apps-cli add-data-source `
      --connector "shared_commondataserviceforapps" `
      --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
      --table "systemusers"
@@ -1251,12 +1251,12 @@ function TasksPage() {
 
 1. **環境認証**
    ```bash
-   pac auth create --url https://your-environment.crm.dynamics.com
+   # 認証はCLIコマンド実行時にブラウザが自動的に開きます
    ```
 
 2. **サービスクラス生成（メタデータ自動取得）**
    ```bash
-   pac code add-data-source -a dataverse -t geek_project_task
+   npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_project_task
    ```
 
 3. **カスタムフック作成** (`src/hooks/useProjectTasks.ts`)
@@ -1488,7 +1488,7 @@ export function App() {
 #### 問題2: 接続IDが見つからない
 
 **症状:**  
-`pac code add-data-source` 実行時に「接続が見つかりません」エラー
+`npx @microsoft/power-apps-cli add-data-source` 実行時に「接続が見つかりません」エラー
 
 **原因:**
 - 接続IDが間違っている
@@ -1508,10 +1508,10 @@ export function App() {
 2. **環境を確認**
    ```powershell
    # 現在の環境を確認
-   pac org who
+   # power.config.json の environmentId を確認してください
    
-   # 環境を切り替え
-   pac org select --environment <環境ID>
+   # 環境を切り替えるには初期化コマンドを再実行
+   # npx @microsoft/power-apps-cli init --environmentId <環境ID> --displayName "[アプリ名]"
    ```
 
 3. **接続を再作成**
@@ -1524,7 +1524,7 @@ export function App() {
 #### 問題3: テーブルメタデータが取得できない
 
 **症状:**  
-`pac code add-data-source` 実行時にスキーマ情報が取得できない
+`npx @microsoft/power-apps-cli add-data-source` 実行時にスキーマ情報が取得できない
 
 **原因:**
 - テーブル論理名が間違っている
@@ -1541,10 +1541,10 @@ export function App() {
 2. **認証状態を確認**
    ```bash
    # 認証一覧を表示
-   pac auth list
+   npx @microsoft/power-apps-cli logout
    
    # 必要に応じて再認証
-   pac auth create --url https://your-environment.crm.dynamics.com
+   # 認証はCLIコマンド実行時にブラウザが自動的に開きます
    ```
 
 3. **メタデータをランタイムで確認**
@@ -1745,7 +1745,7 @@ console.log('Data count:', result.value?.length);
 ### データソース接続
 - [ ] Power Appsポータルで接続が作成されている
 - [ ] 接続IDが取得できている
-- [ ] `pac code add-data-source` が成功している
+- [ ] `npx @microsoft/power-apps-cli add-data-source` が成功している
 - [ ] サービスクラスが生成されている
 
 ### カスタムフック
@@ -1792,12 +1792,12 @@ console.log('Data count:', result.value?.length);
 - [ ] 接続IDがGUID形式 (例: `a1b2c3d4-e5f6-7890-abcd-ef1234567890`) である
 
 ### Step 2: メタデータ取得
-- [ ] Power Platform環境に認証した (`pac auth create`)
+- [ ] CLIコマンド実行時に自動MSAL認証でPower Platform環境に接続できる
 - [ ] テーブルの論理名を確認した（Power Apps Maker Portal）
 - [ ] 論理名が小文字とアンダースコアのみであることを確認した
 
 ### Step 3: サービスクラス生成
-- [ ] `pac code add-data-source -a dataverse -t <table-name>` コマンドが成功した
+- [ ] `npx @microsoft/power-apps-cli add-data-source -a dataverse -t <table-name>` コマンドが成功した
 - [ ] `generated/models/` にModel定義が生成されている
 - [ ] `generated/services/` にServiceクラスが生成されている
 - [ ] `npm run build` が成功した
@@ -1827,8 +1827,8 @@ console.log('Data count:', result.value?.length);
 - [ ] 操作後にデータが再読み込みされる
 
 ### Power Apps環境での確認
-- [ ] `pac code build` が成功する
-- [ ] `pac code push` が成功する
+- [ ] `npm run build` が成功する
+- [ ] `npx @microsoft/power-apps-cli push` が成功する
 - [ ] Power Apps環境でアプリが正常に起動する
 - [ ] Power Apps環境で実データが表示される
 
@@ -1885,8 +1885,8 @@ graph LR
    - エラーハンドリングの確認
 
 6. **デプロイ (Phase 4に戻る)**
-   - `pac code build`
-   - `pac code push`
+   - `npm run build`
+   - `npx @microsoft/power-apps-cli push`
    - Power Apps環境での動作確認
 
 ---
@@ -1953,7 +1953,7 @@ src/generated/models/Office365UsersModel.ts
 
 ```bash
 # SystemUsers テーブルのサービスクラスを生成
-pac code add-data-source -a "shared_commondataserviceforapps" -c "a1b2c3d4-e5f6-7890-1234-567890abcdef" -t "systemusers"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "a1b2c3d4-e5f6-7890-1234-567890abcdef" -t "systemusers"
 ```
 
 **生成されるファイル:**
@@ -1976,19 +1976,19 @@ src/generated/models/SystemusersModel.ts
 $connectionId = "a1b2c3d4-e5f6-7890-1234-567890abcdef"
 
 # SystemUsers (システムユーザー)
-pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "systemusers"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "systemusers"
 
 # Accounts (取引先企業)
-pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "accounts"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "accounts"
 
 # Contacts (取引先担当者)
-pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "contacts"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "contacts"
 
 # Tasks (タスク)
-pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "tasks"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "tasks"
 
 # カスタムテーブル (例: geek_project_task)
-pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "geek_project_task"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "geek_project_task"
 ```
 
 **生成されるサービスクラス名規則:**
@@ -2001,14 +2001,14 @@ pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -
 |------|------|------|
 | `Connection not found` | 接続IDが無効 | Step 2で接続IDを再確認 |
 | `Table not found` | テーブル論理名が間違い | 小文字・アンダースコア区切りを確認 |
-| `Authentication failed` | pac認証が期限切れ | `pac auth create` で再認証 |
+| `Authentication failed` | pac認証が期限切れ | `# 認証はCLIコマンド実行時にブラウザが自動的に開きます（別途実行不要）` で再認証 |
 | ファイルが生成されない | コマンド実行エラー | エラーメッセージを確認 |
 
 ---
 
 ### **Step 4: 自動生成されたサービスクラスの確認**
 
-pac code add-data-source 実行後、以下のファイルが自動生成されます。
+npx @microsoft/power-apps-cli add-data-source 実行後、以下のファイルが自動生成されます。
 
 **生成されるファイル構造:**
 
@@ -2124,7 +2124,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 |----------------|------|------|
 | `PowerDataRuntime is not initialized` | SDK未初期化 | `usePowerPlatform().isInitialized` を確認 |
 | `PowerProvider not found` | PowerProvider未設定 | main.tsx で PowerProvider を追加 |
-| 初期化が完了しない | `pac code run` 未実行 | `pac code run` でアプリを起動 |
+| 初期化が完了しない | `npx @microsoft/power-apps-cli run` 未実行 | `npx @microsoft/power-apps-cli run` でアプリを起動 |
 
 **初期化確認のデバッグ:**
 
@@ -2136,7 +2136,7 @@ useEffect(() => {
 }, [isInitialized]);
 
 // npm run dev → isInitialized: false (Power Platform統合なし)
-// pac code run → isInitialized: true (Power Platform統合あり)
+// npx @microsoft/power-apps-cli run → isInitialized: true (Power Platform統合あり)
 ```
 
 ---
@@ -2345,7 +2345,7 @@ export const UsersPage: React.FC = () => {
 
 | 問題 | 原因 | 対策 |
 |------|------|------|
-| データが表示されない | `isInitialized` が false | `pac code run` で起動しているか確認 |
+| データが表示されない | `isInitialized` が false | `npx @microsoft/power-apps-cli run` で起動しているか確認 |
 | エラーが表示される | サービスクラスのエラー | `result.isSuccess` を確認、エラーログを確認 |
 | 型エラーが出る | 自動生成された型と不一致 | 生成されたModel.tsファイルを確認 |
 
@@ -2357,7 +2357,7 @@ export const UsersPage: React.FC = () => {
 
 1. ✅ **Power Apps ポータルで接続作成** → 認証完了
 2. ✅ **ブラウザURLから接続ID取得** → コピー
-3. ✅ **pac code add-data-source 実行** → サービスクラス自動生成
+3. ✅ **npx @microsoft/power-apps-cli add-data-source 実行** → サービスクラス自動生成
 4. ✅ **自動生成されたファイル確認** → src/generated/ 配下を確認
 5. ✅ **PowerDataRuntime 初期化確認** → `isInitialized` チェック
 6. ✅ **カスタムフック作成** → ビジネスロジックをカプセル化
@@ -2374,22 +2374,22 @@ export const UsersPage: React.FC = () => {
 
 ```bash
 # 1. 認証 (初回のみ)
-pac auth create
+# 認証はCLIコマンド実行時にブラウザが自動的に開きます（別途実行不要）
 
 # 2. Office 365 Users 追加
-pac code add-data-source -a "shared_office365users" -c "{接続ID}"
+npx @microsoft/power-apps-cli add-data-source -a "shared_office365users" -c "{接続ID}"
 
 # 3. Dataverse テーブル追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
 
 # 4. アプリ実行 (Power Platform統合)
-pac code run
+npx @microsoft/power-apps-cli run
 
 # 5. ビルド
 npm run build
 
 # 6. デプロイ
-pac code push
+npx @microsoft/power-apps-cli push
 ```
 
 ---
@@ -2660,7 +2660,7 @@ if (result.isSuccess) {
 
 1. **Power Apps ポータルで接続作成** → 認証完了
 2. **ブラウザURLから接続ID取得** → コピー
-3. **pac code add-data-source 実行** → サービスクラス自動生成
+3. **npx @microsoft/power-apps-cli add-data-source 実行** → サービスクラス自動生成
 4. **PowerDataRuntime 初期化確認** → `isInitialized` チェック
 5. **カスタムフック作成** → ビジネスロジックをカプセル化
 6. **Reactコンポーネントで使用** → UI実装
@@ -2689,8 +2689,8 @@ if (result.isSuccess) {
 # - 接続ID (GUID形式): a1b2c3d4-e5f6-7890-1234-567890abcdef
 
 # 4. サービスクラス生成
-pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
-pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "accounts"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "accounts"
 
 # 5. GitHub Copilot でスキーマ確認（カスタムテーブルの場合）
 # GitHub Copilot Chat で以下のように依頼:
@@ -2718,7 +2718,7 @@ pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t
 ```
 
 **主要なポイント:**
-- ✅ `pac code add-data-source` で自動生成されたサービスクラスを使用
+- ✅ `npx @microsoft/power-apps-cli add-data-source` で自動生成されたサービスクラスを使用
 - ✅ カスタムフックでビジネスロジックをカプセル化
 - ✅ TypeScript 型定義で型安全性を確保
 - ✅ IOperationResult の isSuccess でエラーチェック
@@ -2769,7 +2769,7 @@ npm run build
 #### 4. Power Apps デプロイテスト
 ```pwsh
 # Power Apps環境への安全なデプロイ
-pac code push
+npx @microsoft/power-apps-cli push
 
 # デプロイ後の動作確認
 # - Power Apps URL でのアクセス確認
@@ -2827,10 +2827,10 @@ assets/
 
 #### **MVPフェーズでの利用**
 
-**1. pac code init での自動設定**
+**1. npx @microsoft/power-apps-cli init での自動設定**
 ```bash
 # プロジェクト初期化時にロゴを指定
-pac code init --displayName "My Code App" -l "./assets/logo.svg"
+npx @microsoft/power-apps-cli init --environmentId <環境ID> --displayName "My Code App"
 
 # power.config.json に自動登録
 {
@@ -2986,7 +2986,7 @@ mkdir -p public/assets
 # ロゴファイルをコピー
 
 # 3. Code Apps 初期化（ロゴ付き）
-pac code init --displayName "My Code App" -l "./public/assets/logo.svg"
+npx @microsoft/power-apps-cli init --environmentId <環境ID> --displayName "My Code App"
 
 # 4. 開発開始
 npm run dev
@@ -3123,8 +3123,8 @@ interface NextActionSuggestion {
 1. **Power Platform SDK 初期化** (`@microsoft/power-apps/app` の `initialize()`)
 2. **静的データ開発** (UI/UX 先行開発)
 3. **コネクタ統合** (`connector()` 関数でデータ接続)
-4. **ローカル開発** (`pac code run` でテスト)
-5. **Power Apps デプロイ** (`pac code push` で公開)
+4. **ローカル開発** (`npx @microsoft/power-apps-cli run` でテスト)
+5. **Power Apps デプロイ** (`npx @microsoft/power-apps-cli push` で公開)
 
 #### 📋 実装要件
 
@@ -3150,8 +3150,8 @@ interface NextActionSuggestion {
 - データアクセス権限は Power Platform コネクタが制御
 
 **5. 開発・デプロイ**
-- ローカル: `npm run dev` (Vite + pac code run の同時起動)
-- 本番: `pac code push` で Power Apps 環境にデプロイ
+- ローカル: `npm run dev` (Vite + npx @microsoft/power-apps-cli run の同時起動)
+- 本番: `npx @microsoft/power-apps-cli push` で Power Apps 環境にデプロイ
 - **Azure Functions や App Service は不要**
 
 ### MVP 実装ガイド
@@ -3804,15 +3804,15 @@ INSERT INTO [dbo].[Projects] ([Name], [Description], [Status], [Priority], [Budg
 #### **Step 1: データソース追加**
 ```powershell
 # Dataverseテーブルを追加
-pac code add-data-source -a dataverse -t your_table_name
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t your_table_name
 
 # 例: プロジェクトテーブルを追加
-pac code add-data-source -a dataverse -t geek_projecrt
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_projecrt
 ```
 
 #### **Step 2: 生成ファイルの確認と修正**
 
-⚠️ **重要な問題**: `pac code add-data-source`で生成されたサービスファイルの`dataSourceName`が`______`（アンダースコア）になり、実際のデータソース名にマッピングされない問題があります。
+⚠️ **重要な問題**: `npx @microsoft/power-apps-cli add-data-source`で生成されたサービスファイルの`dataSourceName`が`______`（アンダースコア）になり、実際のデータソース名にマッピングされない問題があります。
 
 **問題のあるコード (自動生成):**
 ```typescript
@@ -3925,7 +3925,7 @@ console.log('📦 Dataverse getAll result:', {
 
 ### **再生成時の注意事項**
 
-⚠️ **重要**: `pac code add-data-source`を再実行すると、手動修正が**上書き**されます。
+⚠️ **重要**: `npx @microsoft/power-apps-cli add-data-source`を再実行すると、手動修正が**上書き**されます。
 
 **対処法**:
 1. 再生成後に必ずサービスファイルを確認
@@ -3940,16 +3940,16 @@ console.log('📦 Dataverse getAll result:', {
 
 ### 🔍 **接続確認とメタデータ取得**
 
-#### **PAC CLI による接続一覧確認:**
+#### **npm CLI による接続一覧確認:**
 ```bash
 # 認証確認
-pac auth list
+npx @microsoft/power-apps-cli logout
 
 # 環境選択  
-pac env select --environment [Environment-URL]
+# 環境はinitコマンドで設定します（power.config.jsonに保存） [Environment-URL]
 
 # 接続一覧表示
-pac connection list
+# 接続一覧はPower Appsポータルで確認してください
 
 # 出力例:
 # ┌─────────────────────────────────┬───────────────────────┬──────────────────────────────────┐
@@ -3963,7 +3963,7 @@ pac connection list
 
 #### **2.2 Power Apps UIによる接続ID取得（必須手順）**
 
-> **⚠️ 重要**: `pac code add-data-source` コマンドを実行するには、**接続ID（Connection ID）** が必要です。以下の手順で取得してください。
+> **⚠️ 重要**: `npx @microsoft/power-apps-cli add-data-source` コマンドを実行するには、**接続ID（Connection ID）** が必要です。以下の手順で取得してください。
 
 **手順 1: Power Apps ポータルで接続を手動作成**
 
@@ -4032,19 +4032,19 @@ a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
 [ブラウザのURLバーのスクリーンショットを添付]
 ```
 
-**手順 5: pac code add-data-source コマンド実行**
+**手順 5: npx @microsoft/power-apps-cli add-data-source コマンド実行**
 
 ```bash
 # 取得した接続IDを使用してデータソースを追加
 
 # Dataverse の場合:
-pac code add-data-source -a "shared_commondataserviceforapps" -c "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
 
 # Office 365 Users の場合:
-pac code add-data-source -a "shared_office365users" -c "接続ID"
+npx @microsoft/power-apps-cli add-data-source -a "shared_office365users" -c "接続ID"
 
 # SQL Server の場合:
-pac code add-data-source -a "shared_sql" -c "接続ID"
+npx @microsoft/power-apps-cli add-data-source -a "shared_sql" -c "接続ID"
 ```
 
 **手順 6: Dataverse テーブルを追加**
@@ -4053,16 +4053,16 @@ Dataverse の場合、テーブルを指定して追加することも可能で�
 
 ```bash
 # SystemUsers テーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "systemusers"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "systemusers"
 
 # カスタムテーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "geek_project_task"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "geek_project_task"
 
 # Accounts (取引先企業) テーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "accounts"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "accounts"
 
 # Contacts (取引先担当者) テーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "contacts"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "contacts"
 ```
 
 **生成されるファイル:**
@@ -4088,14 +4088,14 @@ Error: Connection with id 'xxx' not found
 対処法:
 1. Power Apps ポータルで接続が正しく作成されているか確認
 2. URLから接続IDを正確にコピー
-3. 環境が正しく選択されているか確認 (pac env select)
+3. 環境が正しく選択されているか確認 (環境は `init` コマンドで `power.config.json` に設定)
 
 # エラー 2: 認証エラー
 Error: Unauthorized
 
 対処法:
-1. pac auth list で認証状態を確認
-2. pac auth create で再認証
+1. `npx @microsoft/power-apps-cli logout` でログアウトして再認証
+2. CLIコマンド再実行でブラウザが自動的に開き再認証されます
 3. Power Apps ポータルでログイン状態を確認
 
 # エラー 3: テーブルが見つからない
@@ -4112,9 +4112,9 @@ Error: Table 'tablename' not found
 - [ ] Power Apps ポータルで接続を手動作成
 - [ ] ブラウザのURLから接続IDを取得
 - [ ] API名を確認（shared_commondataserviceforapps 等）
-- [ ] `pac auth list` で認証状態を確認
-- [ ] `pac env select` で環境を選択
-- [ ] `pac code add-data-source` コマンドを実行
+- [ ] `npx @microsoft/power-apps-cli logout` で認証状態を確認
+- [ ] 環境IDを `npx @microsoft/power-apps-cli init --environmentId [id]` で設定済み
+- [ ] `npx @microsoft/power-apps-cli add-data-source` コマンドを実行
 - [ ] 生成されたサービスファイルを確認
 - [ ] `npm run build` でビルド成功を確認
 
@@ -4153,13 +4153,13 @@ const result = await SystemUsersService.getAll({
 ```bash
 # 1. Power Apps ポータルで接続を手動作成
 # 2. ブラウザのURLから接続IDを取得
-# 3. pac code コマンドでサービスクラスを自動生成
+# 3. npx @microsoft/power-apps-cli コマンドでサービスクラスを自動生成
 
 # Dataverse (SystemUsers テーブル)
-pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
 
 # Office 365 Users
-pac code add-data-source -a "shared_office365users" -c "{接続ID}"
+npx @microsoft/power-apps-cli add-data-source -a "shared_office365users" -c "{接続ID}"
 ```
 
 **Step 2: SDK初期化確認と使用**
@@ -4193,7 +4193,7 @@ export function DataversePage() {
 
 **主要なポイント:**
 - ✅ **Power Apps SDK経由のみ使用** - ユーザー認証が自動処理される
-- ✅ **自動生成サービスクラス** - `pac code add-data-source` で生成
+- ✅ **自動生成サービスクラス** - `npx @microsoft/power-apps-cli add-data-source` で生成
 - ✅ **SDK初期化チェック** - `usePowerPlatform().isInitialized` で確認
 - ✅ **TypeScript型安全性** - 自動生成された型定義を使用
 - ❌ **他の接続方法は使用禁止** - 認証・セキュリティ問題のため
@@ -4956,16 +4956,16 @@ npm run dev
 # - SQL Server 接続作成 (必要に応じて)
 
 # 3. サービスクラス生成
-pac code add-data-source -a "shared_office365users" -c "接続ID"
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID"
+npx @microsoft/power-apps-cli add-data-source -a "shared_office365users" -c "接続ID"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "接続ID"
 
 # 4. 自動生成されたサービスクラスを使用
 # src/hooks/ にカスタムフックを実装
 # src/pages/ でコンポーネントから呼び出し
 
 # 5. Power Platform環境テスト  
-pac code init  # 初回のみ
-pac code run   # ローカル + Power Platform統合
+npx @microsoft/power-apps-cli init  # 初回のみ
+npx @microsoft/power-apps-cli run   # ローカル + Power Platform統合
 # → 認証ダイアログ確認
 # → リアルデータ取得確認
 ```
@@ -4991,7 +4991,7 @@ pac code run   # ローカル + Power Platform統合
 ```bash
 # 最終ビルド & デプロイ
 npm run build
-pac code push
+npx @microsoft/power-apps-cli push
 
 # ✅ デプロイ成功確認:
 # 1. Power Apps URL の取得
@@ -5021,17 +5021,17 @@ pac code push
 - [ ] **IOperationResult** の `isSuccess` プロパティでエラーチェック
 
 **統合確認項目:**
-- [ ] `pac code add-data-source` で正しくサービスクラスを生成
+- [ ] `npx @microsoft/power-apps-cli add-data-source` で正しくサービスクラスを生成
 - [ ] `dataSourcesInfo.ts` にコネクター情報が含まれている
 - [ ] `getClient(dataSourcesInfo)` でクライアントを取得
 - [ ] Power Apps環境で接続が正常に作成されている
-- [ ] ローカル開発で `pac code run` が正常動作
+- [ ] ローカル開発で `npx @microsoft/power-apps-cli run` が正常動作
 
 **デプロイ前チェック:**
 - [ ] すべてのコネクター操作でエラーハンドリング実装
 - [ ] Loading/Error状態のUI表示を実装
 - [ ] `npm run build` が成功
-- [ ] `pac code push` でデプロイ成功
+- [ ] `npx @microsoft/power-apps-cli push` でデプロイ成功
 - [ ] Power Apps環境でアプリが正常起動
 
 #### **3.7 エラーハンドリングのベストプラクティス**
@@ -5490,7 +5490,7 @@ npm run test:integration
 
 ```bash
 # データソース削除
-pac code delete-data-source -a "shared_office365users" -ds "Office365Users"
+npx @microsoft/power-apps-cli delete-data-source -a "shared_office365users" -ds "Office365Users"
 
 # 重要: 接続のスキーマが変更された場合、
 #       データソースを削除してから再追加する必要があります
@@ -5686,7 +5686,7 @@ npm run dev
 ```bash
 # アプリをビルドしてPower Appsにプッシュ
 npm run build
-pac code push
+npx @microsoft/power-apps-cli push
 
 # デプロイ完了後:
 # 1. Power Apps ポータルでアプリを確認
@@ -5887,9 +5887,9 @@ export function UsersPage() {
 ### 📋 **前提条件**
 
 - **Power Apps Code Apps SDK**: `@microsoft/power-apps` (npm package)
-- **PAC CLI**: バージョン 1.46 以上
+- **npm CLI**: @microsoft/power-apps-cli 最新版
 - **Dataverse 有効化環境**: Power Platform環境にDataverseが有効化されている
-- **PAC CLI 認証**: 環境に正しく接続されている
+- **認証**: CLIコマンド実行時に自動認証（MSAL）
 - **PowerProvider 実装**: アプリのルートに PowerProvider がラップされている
 
 ### ⚡ **Dataverse データソース追加（完全ガイド）**
@@ -5926,22 +5926,22 @@ https://make.powerapps.com/environments/12345678-abcd-1234-efgh-123456789abc/con
 # 接続ID: a1b2c3d4-e5f6-7890-1234-567890abcdef
 ```
 
-**Step 3: pac code add-data-source コマンド実行**
+**Step 3: npx @microsoft/power-apps-cli add-data-source コマンド実行**
 
 ```bash
 # ユーザーに接続IDを確認した後、以下のコマンドを実行
 
 # SystemUsers テーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "a1b2c3d4-e5f6-7890-1234-567890abcdef" -t "systemusers"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "a1b2c3d4-e5f6-7890-1234-567890abcdef" -t "systemusers"
 
 # Accounts (取引先企業) テーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "accounts"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "accounts"
 
 # Contacts (取引先担当者) テーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "contacts"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "contacts"
 
 # カスタムテーブルを追加（例: geek_project_task）
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "geek_project_task"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "geek_project_task"
 ```
 
 **コマンドパラメータ:**
@@ -5971,13 +5971,13 @@ src/generated/models/Geek_project_tasksModel.ts
 
 ```bash
 # Dataverse接続が既に作成されている場合、テーブル名のみで追加可能
-pac code add-data-source -a dataverse -t <table-logical-name>
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t <table-logical-name>
 
 # 例: Accountsテーブルの追加
-pac code add-data-source -a dataverse -t accounts
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t accounts
 
 # 例: Contactsテーブルの追加
-pac code add-data-source -a dataverse -t contacts
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t contacts
 
 # ⚠️ 注意: この方法はデフォルトのDataverse接続を使用します
 # 接続が見つからない場合はエラーになるため、方法1を推奨します
@@ -6018,7 +6018,7 @@ Error: Connection with id 'xxx' not found
 対処法:
 1. Power Apps ポータルでDataverse接続が作成されているか確認
 2. URLから接続IDを正確にコピー（ハイフンを含むGUID形式）
-3. pac env select で正しい環境を選択しているか確認
+3. `power.config.json` で正しい環境IDが設定されているか確認
 ```
 
 **エラー 2: テーブルが見つからない**
@@ -6039,7 +6039,7 @@ Error: Data source 'systemusers' not found
 PowerDataRuntimeError: PowerDataRuntime is not initialized
 
 対処法:
-1. pac code add-data-source コマンドが正常に完了したか確認
+1. npx @microsoft/power-apps-cli add-data-source コマンドが正常に完了したか確認
 2. src/generated/services にサービスファイルが生成されているか確認
 3. npm run build でビルド成功を確認
 4. usePowerPlatform().isInitialized の確認を実装
@@ -6050,13 +6050,13 @@ PowerDataRuntimeError: PowerDataRuntime is not initialized
 - [ ] Power Apps ポータルでDataverse接続を手動作成
 - [ ] ブラウザのURLから接続ID（GUID）を取得
 - [ ] ユーザーに接続IDを確認（必要に応じて）
-- [ ] `pac auth list` で認証状態を確認
-- [ ] `pac env select` で正しい環境を選択
-- [ ] `pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "テーブル名"` を実行
+- [ ] `npx @microsoft/power-apps-cli logout` で認証状態を確認
+- [ ] 環境IDが `power.config.json` に正しく設定されている
+- [ ] `npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "テーブル名"` を実行
 - [ ] src/generated フォルダにサービスファイルが生成されたことを確認
 - [ ] `npm run build` でビルド成功を確認
 - [ ] コンポーネントで `usePowerPlatform().isInitialized` をチェック
-- [ ] `pac code push` でデプロイして動作確認
+- [ ] `npx @microsoft/power-apps-cli push` でデプロイして動作確認
 
 ## 📋 **Dataverse接続前の必須手順: スキーマ確認とドキュメント化**
 
@@ -6070,7 +6070,7 @@ PowerDataRuntimeError: PowerDataRuntime is not initialized
 - ❌ TypeScript型定義の手動作成
 
 **公式推奨方法:**
-- ✅ `pac code add-data-source` コマンドでテーブル論理名を指定するだけ
+- ✅ `npx @microsoft/power-apps-cli add-data-source` コマンドでテーブル論理名を指定するだけ
 - ✅ Dataverse Web APIが自動的にメタデータを取得
 - ✅ TypeScript型定義とサービスクラスを自動生成
 - ✅ Choice値のマッピングを自動作成
@@ -6097,16 +6097,16 @@ PowerDataRuntimeError: PowerDataRuntime is not initialized
 - `contact` - 取引先担当者
 - `geek_project_task` - カスタムテーブル (プレフィックス付き)
 
-### **Step 2: pac code add-data-source でメタデータ自動取得**
+### **Step 2: npx @microsoft/power-apps-cli add-data-source でメタデータ自動取得**
 
 公式CLIコマンドでテーブルを追加すると、自動的にメタデータが取得されます:
 
 ```bash
 # Power Platform環境に認証
-pac auth create --url https://your-environment.crm.dynamics.com
+# 認証はCLIコマンド実行時にブラウザが自動的に開きます
 
 # Dataverseテーブルを追加（メタデータ自動取得）
-pac code add-data-source -a dataverse -t geek_project_task
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_project_task
 
 # ビルドして確認
 npm run build
@@ -6122,7 +6122,7 @@ npm run build
 
 ### **Step 3: 生成されたTypeScript型定義の確認**
 
-`pac code add-data-source` が自動生成した型定義ファイル例:
+`npx @microsoft/power-apps-cli add-data-source` が自動生成した型定義ファイル例:
 
 **generated/models/GeekProjectTaskModel.ts (自動生成):**
 ```typescript
@@ -6130,7 +6130,7 @@ npm run build
  * Dataverse テーブル型定義 (自動生成)
  * 
  * テーブル論理名: geek_project_task
- * 生成方法: pac code add-data-source コマンド
+ * 生成方法: npx @microsoft/power-apps-cli add-data-source コマンド
  * 生成元: Dataverse EntityDefinitions API
  */
 
@@ -6164,7 +6164,7 @@ export interface GeekProjectTask {
 /**
  * Dataverse CRUD操作サービス (自動生成)
  * 
- * 生成方法: pac code add-data-source コマンド
+ * 生成方法: npx @microsoft/power-apps-cli add-data-source コマンド
  */
 
 import type { IOperationResult } from '@microsoft/power-apps/data';
@@ -6283,11 +6283,11 @@ export interface UpdateProjectTaskRequest {
 
 ### **Step 4: Dataverse サービスクラスの生成と接続**
 
-#### **4.1 pac code コマンドでサービスクラスを生成**
+#### **4.1 npx @microsoft/power-apps-cli コマンドでサービスクラスを生成**
 
 ```bash
 # Power Apps で Dataverse 接続を作成後、サービスクラスを生成
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "接続ID"
 
 # 以下のファイルが自動生成されます:
 # - src/generated/services/{テーブル名}Service.ts
@@ -7036,10 +7036,10 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 **1. 公式APIでテーブル情報を取得:**
 ```bash
 # Power Platform環境に認証
-pac auth create --url https://your-environment.crm.dynamics.com
+# 認証はCLIコマンド実行時にブラウザが自動的に開きます
 
 # Dataverseテーブルを追加（メタデータ自動取得）
-pac code add-data-source -a dataverse -t geek_project_task
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_project_task
 
 # 生成されるファイル:
 # generated/models/GeekProjectTaskModel.ts
@@ -7136,8 +7136,8 @@ export const TaskPriorityReverseMap: Record<string, TaskPriority> = {
 
 **開発者への依頼事項:**
 - [ ] **テーブル論理名の確認**: Power Apps Maker Portal でテーブルの論理名を確認
-- [ ] **環境認証**: `pac auth create` でPower Platform環境に接続
-- [ ] **データソース追加**: `pac code add-data-source` でテーブル追加とメタデータ自動取得
+- [ ] **環境認証**: CLIコマンド実行時にMSAL自動認証でPower Platform環境に接続
+- [ ] **データソース追加**: `npx @microsoft/power-apps-cli add-data-source` でテーブル追加とメタデータ自動取得
 - [ ] **TypeScript型定義確認**: 自動生成された型定義を確認
 - [ ] **Choice値確認**: `getMetadata` APIで実際のChoice値を確認
 - [ ] **カスタムフック作成**: サービスクラスをラップ
@@ -7173,11 +7173,11 @@ export const TaskPriorityReverseMap: Record<string, TaskPriority> = {
 
 #### **5. サービスクラスが生成されない**
 ```
-❌ 問題: pac code add-data-source 実行後もファイルが生成されない
+❌ 問題: npx @microsoft/power-apps-cli add-data-source 実行後もファイルが生成されない
 ✅ 対処法: 
   - Power Apps で接続が正しく作成されているか確認
   - 接続IDが正しいか確認
-  - pac auth list で認証状態を確認
+  - npx @microsoft/power-apps-cli logout で認証状態を確認
 ```
 
 この手順により、Dataverseとの接続で発生する一般的なスキーマ不整合エラーを事前に防止し、安全にモックデータからリアルデータへ移行できます。
@@ -7538,10 +7538,10 @@ GO
 
 ```bash
 # 接続ID確認
-pac connection list
+# 接続一覧はPower Appsポータルで確認してください
 
 # ストアドプロシージャ追加
-pac code add-data-source \
+npx @microsoft/power-apps-cli add-data-source \
   -a "shared_sql" \
   -c "[接続ID]" \
   -d "sql-codeapps-dev.database.windows.net,sqldb-codeapps-dev" \
@@ -7694,7 +7694,7 @@ npm run dev
 
 # デプロイ
 npm run build
-pac code push
+npx @microsoft/power-apps-cli push
 ```
 
 ### ⚠️ **トラブルシューティング**
@@ -7713,7 +7713,7 @@ pac code push
 
 - **Azure SQLの詳細ガイド**: [コード アプリを Azure SQL に接続する](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-azure-sql)
 - **Dataverse統合**: [コード アプリを Dataverse に接続する](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/connect-to-dataverse)
-- **PAC CLI リファレンス**: [pac code コマンド](https://learn.microsoft.com/ja-jp/power-platform/developer/cli/reference/code)
+- **npm CLI リファレンス**: [@microsoft/power-apps-cli npm パッケージ](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/npm-quickstart)
 
 ## 🌐 **外部API アクセスガイドライン**
 
@@ -8114,22 +8114,21 @@ npm i --save-dev @types/node
 server: { host: "::", port: 3000 }
 
 # Power Platform 認証 & 初期化
-pac auth create
-pac env select -env <ENVIRONMENT_URL>
-pac code init --displayName "Project Management App"
+# 認証はCLIコマンド実行時にブラウザが自動的に開きます（別途実行不要）
+npx @microsoft/power-apps-cli init --environmentId <ENVIRONMENT_ID> --displayName "Project Management App"
 npm install --save-dev @microsoft/power-apps
 
 # package.json 更新
-"dev": "start pac code run && vite"
+"dev": "start npx @microsoft/power-apps-cli run && vite"
 ```
 
 **5. ストアドプロシージャをデータソースとして追加**
 ```bash
 # コネクション ID 確認
-pac connection list
+# 接続一覧はPower Appsポータルで確認してください
 
 # ストアドプロシージャを Code Apps に追加
-pac code add-data-source -a "shared_sql" -c "[CONNECTION-ID]" \
+npx @microsoft/power-apps-cli add-data-source -a "shared_sql" -c "[CONNECTION-ID]" \
   -d "[SQL-SERVER].database.windows.net,[DATABASE]" \
   -sp "dbo.GetAllProjects"
 
@@ -8251,8 +8250,8 @@ taskkill /PID [PID] /F
 **SQL Server コネクション設定:**
 ```bash
 # 1. Power Apps で SQL Server コネクション作成
-# 2. PAC CLI でテーブル追加
-pac code add-data-source -a "shared_sql" -c "connection-id" -t "[dbo].[Employees]" -d "server.database.windows.net,database"
+# 2. npm CLI でテーブル追加
+npx @microsoft/power-apps-cli add-data-source -a "shared_sql" -c "connection-id" -t "[dbo].[Employees]" -d "server.database.windows.net,database"
 
 # 生成されるファイル:
 # /generated/services/EmployeesService.ts
@@ -8354,9 +8353,9 @@ npm install
 npm run build
 
 # Power Apps Code 初期化
-pac code init
+npx @microsoft/power-apps-cli init
 
-# ローカル開発開始 (Vite + pac code run)
+# ローカル開発開始 (Vite + npx @microsoft/power-apps-cli run)
 npm run dev
 ```
 
@@ -8364,7 +8363,7 @@ npm run dev
 ```json
 {
   "scripts": {
-    "dev": "start vite && start pac code run",
+    "dev": "start vite && start npx @microsoft/power-apps-cli run",
     "build": "vite build",
     "build:dev": "vite build --mode development", 
     "lint": "eslint .",
@@ -8389,7 +8388,7 @@ npm run dev
 ```
 
 **重要**: 
-- `dev` スクリプトで `vite` と `pac code run` を同時起動
+- `dev` スクリプトで `vite` と `npx @microsoft/power-apps-cli run` を同時起動
 - `build:dev` で開発モード用ビルド
 - shadcn/ui コンポーネントライブラリとTailwindCSS設定を含む
 
@@ -8413,19 +8412,19 @@ npm run dev
 **コネクタ設定例:**
 ```bash
 # Office 365 Users
-pac code add-data-source -a "shared_office365users" -c "<connection-id>"
+npx @microsoft/power-apps-cli add-data-source -a "shared_office365users" -c "<connection-id>"
 
 # SQL Server  
-pac code add-data-source -a "shared_sql" -c "<connection-id>" -t "[dbo].[TableName]" -d "<server,database>"
+npx @microsoft/power-apps-cli add-data-source -a "shared_sql" -c "<connection-id>" -t "[dbo].[TableName]" -d "<server,database>"
 
 # SharePoint
-pac code add-data-source -a "shared_sharepoint" -c "<connection-id>" -t "<list-id>" -d "<site-url>"
+npx @microsoft/power-apps-cli add-data-source -a "shared_sharepoint" -c "<connection-id>" -t "<list-id>" -d "<site-url>"
 
 # Microsoft Teams
-pac code add-data-source -a "shared_teams" -c "<connection-id>"
+npx @microsoft/power-apps-cli add-data-source -a "shared_teams" -c "<connection-id>"
 
 # MSN Weather
-pac code add-data-source -a "shared_msnweather" -c "<connection-id>"
+npx @microsoft/power-apps-cli add-data-source -a "shared_msnweather" -c "<connection-id>"
   
   const getCurrentUser = async () => {
     try {
@@ -8448,7 +8447,7 @@ pac code add-data-source -a "shared_msnweather" -c "<connection-id>"
 **Code Apps デプロイコマンド:**
 ```bash
 # Power Apps 環境に Code Apps として公開
-pac code push
+npx @microsoft/power-apps-cli push
 ```
 
 **❌ 間違い (PCF用コマンド):**
@@ -8529,12 +8528,12 @@ export const useSqlData = () => {
 
 **Dataverse 統合 (Microsoft 公式仕様):**
 
-**Step 1: PAC CLI でデータソースを追加:**
+**Step 1: npm CLI でデータソースを追加:**
 ```bash
 # Dataverse テーブルをコードアプリに追加
-pac code add-data-source -a dataverse -t accounts
-pac code add-data-source -a dataverse -t contacts
-pac code add-data-source -a dataverse -t cr123_customtable
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t accounts
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t contacts
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t cr123_customtable
 
 # 生成されるファイル:
 # /generated/services/AccountsService.ts
@@ -8945,18 +8944,18 @@ export const ContactsList = () => {
 **1. データソース管理のワークフロー:**
 ```bash
 # データソース追加
-pac code add-data-source -a "shared_office365users" -c "<connection-id>"
+npx @microsoft/power-apps-cli add-data-source -a "shared_office365users" -c "<connection-id>"
 
 # 生成されたファイル確認
 ls generated/services/   # Office365UsersService.ts
 ls generated/models/     # Office365UsersModel.ts
 
 # スキーマ変更時の対応
-pac code delete-data-source -a "shared_sql" -ds "TableName"
-pac code add-data-source -a "shared_sql" -c "<connection-id>" -t "[dbo].[TableName]" -d "<server,database>"
+npx @microsoft/power-apps-cli delete-data-source -a "shared_sql" -ds "TableName"
+npx @microsoft/power-apps-cli add-data-source -a "shared_sql" -c "<connection-id>" -t "[dbo].[TableName]" -d "<server,database>"
 
 # 不要なデータソース削除
-pac code delete-data-source -a "shared_sharepoint" -ds "ListName"
+npx @microsoft/power-apps-cli delete-data-source -a "shared_sharepoint" -ds "ListName"
 ```
 
 **2. パフォーマンス最適化:**
@@ -9065,12 +9064,12 @@ export default function App() {
 **2. Dataverse テーブル追加のワークフロー:**
 ```bash
 # 1. 環境に接続
-pac auth create --url https://yourenvironment.crm.dynamics.com
+# 認証はCLIコマンド実行時にブラウザが自動的に開きます
 
 # 2. Code Apps プロジェクトに Dataverse テーブルを追加
-pac code add-data-source -a dataverse -t accounts
-pac code add-data-source -a dataverse -t contacts
-pac code add-data-source -a dataverse -t cr123_projects  # カスタムテーブル
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t accounts
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t contacts
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t cr123_projects  # カスタムテーブル
 
 # 3. 自動生成されるファイル確認
 ls generated/services/   # AccountsService.ts, ContactsService.ts
@@ -9095,7 +9094,7 @@ const options: IGetAllOptions = {
 **SharePoint リスト統合:**
 ```bash
 # SharePoint リストの追加
-pac code add-data-source -a "shared_sharepoint" -c "<connection-id>" -t "<list-guid>" -d "<site-url>"
+npx @microsoft/power-apps-cli add-data-source -a "shared_sharepoint" -c "<connection-id>" -t "<list-guid>" -d "<site-url>"
 
 # Dataset name と Table ID の取得方法:
 # 1. Canvas アプリでコネクションをギャラリーに接続
@@ -9108,7 +9107,7 @@ pac code add-data-source -a "shared_sharepoint" -c "<connection-id>" -t "<list-g
 **ストアドプロシージャー活用:**
 ```bash
 # ストアドプロシージャーをデータソースとして追加
-pac code add-data-source -a "shared_sql" -c "<connection-id>" -d "<server,database>" -sp "[dbo].[GetUserReports]"
+npx @microsoft/power-apps-cli add-data-source -a "shared_sql" -c "<connection-id>" -d "<server,database>" -sp "[dbo].[GetUserReports]"
 
 # 生成されるサービス例:
 # GetUserReportsService.ts
@@ -9141,7 +9140,7 @@ export const useUserReports = () => {
 **Azure Data Explorer (Kusto) 統合:**
 ```bash
 # Kusto データソース追加
-pac code add-data-source -a "shared_kusto" -c "<connection-id>"
+npx @microsoft/power-apps-cli add-data-source -a "shared_kusto" -c "<connection-id>"
 ```
 
 ```typescript
@@ -9213,7 +9212,7 @@ if (process.env.NODE_ENV === 'development') {
 **5. 現在未対応の機能:**
 ```typescript
 // Microsoft 公式ドキュメントより、以下は未対応:
-// - 新規コネクション作成 (PAC CLI 経由)
+// - 新規コネクション作成 (npm CLI 経由)
 // - 一部コネクターの高度な機能
 // - リアルタイム通知・Webhook
 // - バルク操作の最適化
@@ -9236,14 +9235,14 @@ const users = await office365.SearchUser(searchTerm, 50);
 #### MVP 検証チェックリスト
 
 **ローカル検証:**
-- [ ] `pac code init` が成功する
+- [ ] `npx @microsoft/power-apps-cli init` が成功する
 - [ ] `npm run dev` でローカル開発サーバが起動する
 - [ ] Power Platform SDK が正常に初期化される
 - [ ] React アプリが正常に表示される
 - [ ] ブラウザコンソールにエラーが出ない
 
 **Code Apps デプロイ検証:**
-- [ ] `pac code push` で **Code Apps として** デプロイが成功する
+- [ ] `npx @microsoft/power-apps-cli push` で **Code Apps として** デプロイが成功する
 - [ ] Power Apps の **アプリ一覧** に表示される (コンポーネントライブラリではない)
 - [ ] Power Apps URL でアクセスできる
 - [ ] Power Platform 環境内で **アプリケーションとして** 正常動作する
@@ -9318,7 +9317,7 @@ Phase 3のDataverse統合は、**XMLファイル解析から公式API-basedア�
 
 | 観点 | 旧アプローチ (非推奨) | 新アプローチ (推奨) |
 |------|---------------------|-------------------|
-| **メタデータ取得** | customization.xmlを手動エクスポート | `pac code add-data-source` で自動取得 |
+| **メタデータ取得** | customization.xmlを手動エクスポート | `npx @microsoft/power-apps-cli add-data-source` で自動取得 |
 | **スキーマ更新** | 手動でXMLを再エクスポート | コマンド再実行のみ |
 | **データ形式** | XML（パース複雑） | JSON（型安全） |
 | **認証** | 不要（ファイル） | OAuth 2.0（標準） |
@@ -9330,10 +9329,10 @@ Phase 3のDataverse統合は、**XMLファイル解析から公式API-basedア�
 
 ```bash
 # 1. 環境認証
-pac auth create --url https://your-environment.crm.dynamics.com
+# 認証はCLIコマンド実行時にブラウザが自動的に開きます
 
 # 2. テーブル追加（メタデータ自動取得）
-pac code add-data-source -a dataverse -t account
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t account
 
 # 3. 自動生成されたファイルを確認
 # generated/models/AccountModel.ts
@@ -9345,7 +9344,7 @@ npm run build
 
 #### 使用する公式API
 
-1. **PAC CLI** - 開発時のメタデータ取得
+1. **npm CLI** - 開発時のメタデータ取得
    - [Microsoft Learn: Connect to Dataverse](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)
 
 2. **getMetadata() 関数** - ランタイムでのスキーマ取得
@@ -9374,8 +9373,8 @@ npm run build
 
 2. **公式コマンドで再生成**
    ```bash
-   pac auth create --url https://your-environment.crm.dynamics.com
-   pac code add-data-source -a dataverse -t your_table_name
+   # 認証はCLIコマンド実行時にブラウザが自動的に開きます
+   npx @microsoft/power-apps-cli add-data-source -a dataverse -t your_table_name
    ```
 
 3. **インポートパスを更新**

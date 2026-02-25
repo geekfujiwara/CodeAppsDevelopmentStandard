@@ -20,7 +20,7 @@
 - **目的**: Dataverse接続の完全な統合ガイド
 - **内容**:
   - Step 1-5の完全なステップバイステップガイド
-  - データソース追加（pac code add-data-source）
+  - データソース追加（npx @microsoft/power-apps-cli add-data-source）
   - スキーマ確認
   - Model定義
   - Service実装（Power Apps SDK使用）
@@ -149,7 +149,7 @@ graph TB
 ```markdown
 ### Step 1: データソース追加
 1. テーブルの論理名を確認
-2. pac code add-data-source -a dataverse -t <論理名> を実行
+2. npx @microsoft/power-apps-cli add-data-source -a dataverse -t <論理名> を実行
 3. 生成ファイルを確認
    ✅ .power/schemas/dataverse/<テーブル名>.Schema.json
    ✅ .power/schemas/appschemas/dataSourcesInfo.ts

@@ -6,9 +6,11 @@
 
 **主な実施内容:**
 - 開発ツールのインストール
-- Power Platform CLIのセットアップ
+- Power Apps CLI（@microsoft/power-apps-cli）のセットアップ
 - VS Code拡張機能のインストール
 - Power Platform環境の確認
+
+> **📢 お知らせ**: Power Platform CLI（`pac`）は、Code Apps開発では不要になりました。新しいnpmベースのCLI（`@microsoft/power-apps-cli`）を使用します。
 
 ---
 
@@ -23,7 +25,7 @@ graph LR
 
 **完了条件:**
 - ✅ 必要な開発ツールがインストールされている
-- ✅ Power Platform CLIが正常に動作する
+- ✅ @microsoft/power-apps-cli が正常に動作する
 - ✅ Power Platform環境にアクセスできる
 - ✅ VS Code拡張機能がインストールされている
 
@@ -44,8 +46,8 @@ winget install OpenJS.NodeJS.LTS
 # Git for Windows
 winget install Git.Git
 
-# Power Platform CLI
-winget install Microsoft.PowerAppsCLI
+# Power Apps CLI（npm経由でインストール）
+npm install -g @microsoft/power-apps-cli@latest
 ```
 
 > **💡 ヒント**: VS Code起動後、拡張機能マーケットプレイスで「Power Platform Tools」をインストールしてください。
@@ -84,35 +86,30 @@ npm --version
 
 ---
 
-### Step 2: Power Platform CLIのインストール
+### Step 2: Power Apps CLIのインストール
 
-**インストール方法:**
+Power Apps Code Apps開発には、npmベースの `@microsoft/power-apps-cli` を使用します。
+Windows・macOS両方で同じnpmコマンドでインストールできます（クロスプラットフォーム対応）。
 
-**Windows:**
-```powershell
-# PowerShellを管理者として実行
-# .NET 6.0 Runtime が必要
-winget install Microsoft.PowerAppsCLI
-```
+> **📢 重要**: 旧来の Power Platform CLI（`pac`）は Code Apps 開発には不要です。`@microsoft/power-apps-cli` を使用してください。
 
-または
+**インストール方法（Windows / macOS 共通）:**
 
-```powershell
-# NuGet経由でインストール
-dotnet tool install --global Microsoft.PowerApps.CLI.Tool
-```
-
-**macOS:**
 ```bash
-# Homebrewでインストール
-brew tap microsoft/powerplatform-cli
-brew install pac
+# npm経由でグローバルインストール（推奨）
+npm install -g @microsoft/power-apps-cli@latest
+```
+
+または、インストールせずに `npx` でその場実行することもできます:
+
+```bash
+# npxで直接実行（インストール不要）
+npx @microsoft/power-apps-cli@latest [コマンド]
 ```
 
 **確認方法:**
 ```bash
-pac --version
-# Power Platform CLI version 1.x.x
+npx @microsoft/power-apps-cli --version
 ```
 
 ---
@@ -187,42 +184,28 @@ code --install-extension dbaeumer.vscode-eslint
 
 ---
 
-### Step 5: Power Platform CLI認証
+### Step 5: Power Apps CLI 認証について
 
-#### 5-1. 認証プロファイルの作成
+`@microsoft/power-apps-cli` では、**認証は自動**で行われます。
+`pac auth create` のような事前認証コマンドは不要です。
 
-```bash
-# 新しい認証プロファイルを作成
-pac auth create
-```
+#### 5-1. 自動認証の仕組み
 
-**実行内容:**
-- ブラウザが開く
-- Microsoft アカウントでサインイン
-- Power Platform環境へのアクセスを許可
+CLIコマンド（`init`、`push`、`add-data-source` など）を初めて実行すると、ブラウザが自動的に開き、Microsoftアカウントでのサインインが求められます。
 
-#### 5-2. 認証の確認
+**認証フロー:**
+1. CLIコマンドを実行（例: `npx @microsoft/power-apps-cli init ...`）
+2. ブラウザが自動的に開く（MSAL認証）
+3. Microsoft アカウントでサインイン
+4. Power Platform環境へのアクセスを許可
+5. 認証完了後、コマンドが継続実行される
 
-```bash
-# 現在の認証プロファイルを確認
-pac auth list
+#### 5-2. ログアウト
 
-# 出力例:
-# Auth Profiles:
-# * Universal auth profile (Active)
-#   - Cloud: Public
-#   - Url: https://your-org.crm7.dynamics.com
-```
-
-#### 5-3. 環境の選択
+認証情報をクリアする場合は以下のコマンドを使用します:
 
 ```bash
-# 使用する環境を選択
-pac env select --environment https://your-org.crm7.dynamics.com
-
-# または環境一覧から選択
-pac env list
-pac env select --index 1
+npx @microsoft/power-apps-cli logout
 ```
 
 ---
@@ -262,13 +245,12 @@ VS CodeにはGitが統合されているため、追加設定は不要です。
 ### 開発ツール
 - [ ] Node.js 18.x以上がインストールされている
 - [ ] npm が正常に動作する
-- [ ] Power Platform CLIがインストールされている
-- [ ] `pac --version` でバージョンが表示される
+- [ ] @microsoft/power-apps-cli がインストールされている
+- [ ] `npx @microsoft/power-apps-cli --version` でバージョンが表示される
 
 ### Power Platform
 - [ ] Power Platform環境にアクセスできる
-- [ ] `pac auth create` で認証が完了している
-- [ ] `pac auth list` で認証プロファイルが表示される
+- [ ] 認証はCLIコマンド実行時にブラウザが自動的に開くことを確認した（MSAL）
 - [ ] 開発用環境が準備されている
 
 ### VS Code
@@ -296,36 +278,31 @@ Phase 0完了後のAI支援例:
 
 ## 🔧 トラブルシューティング
 
-### Power Platform CLI が認識されない
+### @microsoft/power-apps-cli が認識されない
 
-**Windows:**
-```powershell
-# 環境変数PATHにPACのパスが含まれているか確認
-$env:PATH -split ';' | Select-String "PowerPlatform"
+**グローバルインストールの確認と再インストール:**
+```bash
+# 現在のバージョンを確認
+npx @microsoft/power-apps-cli --version
 
-# PACを再インストール
-winget uninstall Microsoft.PowerAppsCLI
-winget install Microsoft.PowerAppsCLI
+# 再インストール
+npm uninstall -g @microsoft/power-apps-cli
+npm install -g @microsoft/power-apps-cli@latest
 ```
 
-**macOS:**
+**または npx で直接実行（インストール不要）:**
 ```bash
-# PATHの確認
-echo $PATH | grep pac
-
-# Homebrewで再インストール
-brew uninstall pac
-brew install pac
+npx @microsoft/power-apps-cli@latest --version
 ```
 
 ### 認証エラーが発生する
 
 ```bash
-# 既存の認証をクリア
-pac auth clear
+# ログアウトして認証情報をクリア
+npx @microsoft/power-apps-cli logout
 
-# 新規認証を作成
-pac auth create --cloud Public
+# 次回CLIコマンド実行時にブラウザが開き、自動的に再認証されます
+# 例: npx @microsoft/power-apps-cli init --environmentId [id] --displayName "[名前]"
 ```
 
 ### 環境が表示されない
@@ -338,7 +315,7 @@ pac auth create --cloud Public
 
 ## 📚 参考リンク
 
-- [Power Platform CLI公式ドキュメント](https://learn.microsoft.com/ja-jp/power-platform/developer/cli/introduction)
+- [@microsoft/power-apps-cli npm クイックスタート](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/npm-quickstart)
 - [Power Apps Code Apps公式ドキュメント](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/)
 - [Node.js公式サイト](https://nodejs.org/)
 - [Visual Studio Code公式サイト](https://code.visualstudio.com/)

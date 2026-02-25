@@ -72,8 +72,8 @@ Power Appsポータルでテーブルのセキュリティ設定を確認：
 **対処法:**
 データソースを再生成：
 ```powershell
-pac code add-data-source -a dataverse -t geek_projecrt
-pac code add-data-source -a dataverse -t geek_project_task
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_projecrt
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_project_task
 ```
 
 ### 5. Power Apps SDKの初期化タイミング
@@ -154,12 +154,12 @@ Power Appsでアプリを開き、F12でコンソールを開いて以下を確�
 
 ```powershell
 # プロジェクトディレクトリで実行
-pac code add-data-source -a dataverse -t geek_projecrt
-pac code add-data-source -a dataverse -t geek_project_task
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_projecrt
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_project_task
 
 # ビルドして再デプロイ
 npm run build
-pac code push
+npx @microsoft/power-apps-cli push
 ```
 
 ## よくあるエラーパターン

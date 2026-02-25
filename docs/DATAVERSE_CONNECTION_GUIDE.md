@@ -34,7 +34,7 @@
 - [ ] **Phase 1完了**: Microsoft標準テンプレートのデプロイ、SDK初期化エラーがない
 - [ ] **Phase 2完了**: 必要な機能の実装（UI、コンポーネント）
 - [ ] **Power Platform環境**: Dataverseテーブルが作成済み
-- [ ] **認証設定**: `pac auth create`で環境に認証済み
+- [ ] **認証設定**: `# 認証はCLIコマンド実行時にブラウザが自動的に開きます（別途実行不要）`で環境に認証済み
 
 > **⚠️ 重要**: Phase 3（データソース統合）は、Phase 1とPhase 2が完了した**最後のステップ**です。基盤が安定している状態で実施してください。
 
@@ -61,7 +61,7 @@
 ```mermaid
 graph TB
     A[Phase 1-2完了] --> B[Dataverseテーブル準備]
-    B --> C[pac code add-data-source実行]
+    B --> C[npx @microsoft/power-apps-cli add-data-source実行]
     C --> D[スキーマファイル自動生成]
     D --> E[Model定義作成]
     E --> F[Service層実装]
@@ -80,7 +80,7 @@ graph TB
 |---------|------|------|
 | **データソース** | Microsoft Dataverse | Power Platformのデータベース |
 | **接続方法** | Power Apps SDK | `@microsoft/power-apps` パッケージ |
-| **スキーマ生成** | Power Platform CLI | `pac code add-data-source` コマンド |
+| **スキーマ生成** | Power Platform CLI | `npx @microsoft/power-apps-cli add-data-source` コマンド |
 | **型定義** | TypeScript | Model定義で型安全性を確保 |
 | **データアクセス** | Service層 | ビジネスロジックのカプセル化 |
 
@@ -97,10 +97,10 @@ Dataverseテーブルの**論理名（LogicalName）**を確認します。
 2. **テーブル** → 対象テーブルを選択
 3. **設定** → **プロパティ** → **名前**欄を確認
 
-**確認方法②: Power Platform CLI**
+**確認方法②: Power Apps Maker Portal**
 ```bash
-pac org list
-pac org select --environment <環境ID>
+# テーブル論理名はhttps://make.powerapps.com のテーブル設定から確認できます
+# （環境の選択は npx @microsoft/power-apps-cli init --environmentId [id] で行います）
 ```
 
 **例:**
@@ -118,16 +118,16 @@ Power Platform CLIを使用してDataverseテーブルをデータソースと�
 #### ✅ 正しいコマンド（推奨）
 
 ```bash
-pac code add-data-source -a dataverse -t <テーブル論理名>
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t <テーブル論理名>
 ```
 
 **具体例:**
 ```bash
 # カスタムテーブルを追加
-pac code add-data-source -a dataverse -t geek_businessprocess
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_businessprocess
 
 # 標準テーブルを追加
-pac code add-data-source -a dataverse -t account
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t account
 ```
 
 #### コマンドオプションの説明
@@ -147,7 +147,7 @@ pac code add-data-source -a dataverse -t account
 
 ```bash
 # ❌ 間違い: shared_commondataserviceforapps を使用
-pac code add-data-source -a "shared_commondataserviceforapps" -c "<Connection-ID>"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "<Connection-ID>"
 ```
 
 **問題点:**
@@ -159,7 +159,7 @@ pac code add-data-source -a "shared_commondataserviceforapps" -c "<Connection-ID
 
 ### 1.3 生成されるファイル
 
-`pac code add-data-source`コマンドを実行すると、以下のファイルが自動生成されます：
+`npx @microsoft/power-apps-cli add-data-source`コマンドを実行すると、以下のファイルが自動生成されます：
 
 ```
 プロジェクトルート/
@@ -853,12 +853,12 @@ export function ProcessList() {
 ### エラー1: "The interface 'CDPTabular1' was not found"
 
 **原因:**  
-`pac code add-data-source` で `-a shared_commondataserviceforapps` を指定している
+`npx @microsoft/power-apps-cli add-data-source` で `-a shared_commondataserviceforapps` を指定している
 
 **解決策:**
 ```bash
 # ✅ 正しいコマンド
-pac code add-data-source -a dataverse -t <テーブル論理名>
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t <テーブル論理名>
 ```
 
 ---
@@ -872,7 +872,7 @@ pac code add-data-source -a dataverse -t <テーブル論理名>
 **解決策:**
 1. データソースを再追加
 ```bash
-pac code add-data-source -a dataverse -t <テーブル論理名>
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t <テーブル論理名>
 ```
 
 2. 生成ファイルを確認
@@ -969,10 +969,10 @@ export interface GeekBusinessProcess {
 
 ```bash
 # ✅ 推奨
-pac code add-data-source -a dataverse -t <テーブル論理名>
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t <テーブル論理名>
 
 # ❌ 非推奨
-pac code add-data-source -a shared_commondataserviceforapps -c <接続ID>
+npx @microsoft/power-apps-cli add-data-source -a shared_commondataserviceforapps -c <接続ID>
 ```
 
 **理由:**
@@ -1093,7 +1093,7 @@ const { processes } = useBusinessProcesses();
 実装が完了したら、以下を確認してください：
 
 ### データソース追加
-- [ ] `pac code add-data-source -a dataverse -t <論理名>` を実行済み
+- [ ] `npx @microsoft/power-apps-cli add-data-source -a dataverse -t <論理名>` を実行済み
 - [ ] `.power/schemas/dataverse/` にスキーマファイルが生成されている
 - [ ] `.power/schemas/appschemas/dataSourcesInfo.ts` が更新されている
 - [ ] `power.config.json` の `databaseReferences` が追加されている
@@ -1120,7 +1120,7 @@ const { processes } = useBusinessProcesses();
 
 ### テスト
 - [ ] ローカル環境（`npm run dev`）で動作確認
-- [ ] Power Apps環境（`pac code init` + `npm run dev`）で動作確認
+- [ ] Power Apps環境（`npx @microsoft/power-apps-cli init` + `npm run dev`）で動作確認
 - [ ] データの作成が成功
 - [ ] データの読み取りが成功
 - [ ] データの更新が成功
@@ -1128,7 +1128,7 @@ const { processes } = useBusinessProcesses();
 
 ### デプロイ
 - [ ] `npm run build` でビルド成功
-- [ ] `pac code push` でデプロイ成功
+- [ ] `npx @microsoft/power-apps-cli push` でデプロイ成功
 - [ ] Power Apps環境でアプリが起動
 - [ ] 実データが正しく表示
 
@@ -1156,7 +1156,7 @@ const { processes } = useBusinessProcesses();
 
 ### 重要ポイント
 
-1. **✅ `pac code add-data-source -a dataverse` を使用**
+1. **✅ `npx @microsoft/power-apps-cli add-data-source -a dataverse` を使用**
    - テーブル論理名（単数形）のみ指定
    - スキーマは自動生成される
 

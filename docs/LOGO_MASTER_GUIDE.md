@@ -39,7 +39,7 @@ cp CodeAppsStarter/public/logo.svg ./public/assets/
 
 ```bash
 # ロゴファイルをPower Appsに登録
-pac code update --logo "./public/assets/logo.svg"
+npx @microsoft/power-apps-cli update --logo "./public/assets/logo.svg"
 ```
 
 #### Step 3: テンプレート内ロゴ参照の更新
@@ -208,7 +208,7 @@ npm run dev
 **問題2: Power Apps でロゴが更新されない**
 ```bash
 # 強制更新
-pac code push --force
+npx @microsoft/power-apps-cli push --force
 ```
 
 **問題3: SVGアイコンが正しく表示されない**
@@ -453,7 +453,7 @@ npm run dev
 
 ### 問題2: Power Appsでロゴが反映されない
 
-**症状**: `pac code update --logo` 実行後も古いロゴが表示される
+**症状**: `npx @microsoft/power-apps-cli update --logo` 実行後も古いロゴが表示される
 
 **解決策:**
 ```bash
@@ -461,10 +461,10 @@ npm run dev
 ls -la ./public/assets/logo.svg
 
 # 2. Power Apps認証の確認
-pac auth list
+npx @microsoft/power-apps-cli logout
 
 # 3. 強制アップデート
-pac code push --force
+npx @microsoft/power-apps-cli push --force
 
 # 4. Power Appsアプリ一覧での確認
 # https://make.powerapps.com でアプリアイコンを確認
