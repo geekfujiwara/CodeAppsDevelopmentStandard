@@ -1,7 +1,9 @@
 # Dataverse関連ドキュメント概要
 
-**最終更新**: 2026年2月5日  
+**最終更新**: 2026年2月25日  
 **目的**: Dataverse接続に関するドキュメント群の全体像と活用方法
+
+> **📘 公式リファレンス**: すべてのDataverse接続実装は [Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse) に基づいています。
 
 ---
 
@@ -289,9 +291,12 @@ graph LR
 - [PHASE3_DATA_INTEGRATION.md](../PHASE3_DATA_INTEGRATION.md)
 
 ### 公式ドキュメント
+- **[Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** ⭐ 最新の公式ガイド
 - [Power Platform CLI リファレンス](https://learn.microsoft.com/en-us/power-platform/developer/cli/reference/code)
 - [Dataverse Web API](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview)
-- [Power Apps Code Apps](https://learn.microsoft.com/en-us/power-apps/maker/canvas-apps/code-apps/overview)
+- [Power Apps Code Apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)
+- [単一値ナビゲーションプロパティの関連付け（Lookup）](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property)
+- [Dataverse サンプルコードアプリ](https://github.com/microsoft/PowerAppsCodeApps/tree/main/samples/Dataverse)
 
 ---
 
@@ -313,7 +318,7 @@ graph LR
 
 ---
 
-**最終更新**: 2026年2月5日  
+**最終更新**: 2026年2月25日  
 **作成者**: Dataverse接続ドキュメント統合プロジェクト
 
 このドキュメントについての質問や改善提案は、GitHubのIssueでお知らせください。

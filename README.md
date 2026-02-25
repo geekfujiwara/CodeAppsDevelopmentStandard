@@ -451,6 +451,7 @@ graph LR
 
 > **📘 必ず以下のリファレンスを確認して実行してください**:
 >
+> - **⭐ [Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** - Microsoft公式の最新ガイド
 > - **⭐ [Dataverse接続 完全ガイド](./docs/DATAVERSE_CONNECTION_GUIDE.md)** - Dataverse接続の統合最終版ガイド（最初に読むべき）
 > - **[Phase 3 リファレンス](./PHASE3_DATA_INTEGRATION.md)** - データソース統合の詳細手順
 >
@@ -458,10 +459,11 @@ graph LR
 > 
 > **Dataverse実装リファレンス:**
 > - **[Dataverse統合ベストプラクティス](./docs/DATAVERSE_INTEGRATION_BEST_PRACTICES.md)** - ベストプラクティス詳細
-> - **[Lookupフィールド実装ガイド](./docs/LOOKUP_FIELD_GUIDE.md)** - Lookup完全実装
+> - **[Lookupフィールド実装ガイド](./docs/LOOKUP_FIELD_GUIDE.md)** - Lookup完全実装（[公式ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property)準拠）
 > - **[Dataverseスキーマリファレンス](./docs/DATAVERSE_SCHEMA_REFERENCE.md)** - スキーマ定義とChoice値
 > - **[スキーマ取得方法](./docs/HOW_TO_GET_DATAVERSE_SCHEMA.md)** - 5つの取得方法
 > - **[Dataverseトラブルシューティング](./docs/DATAVERSE_TROUBLESHOOTING.md)** - よくある問題と解決法
+> - **[Dataverse サンプルコードアプリ](https://github.com/microsoft/PowerAppsCodeApps/tree/main/samples/Dataverse)** - 公式サンプルアプリ
 
 **Phase 3の概要:**
 - 実際のビジネスデータソース接続の設定（Dataverse、SharePoint、SQL等）

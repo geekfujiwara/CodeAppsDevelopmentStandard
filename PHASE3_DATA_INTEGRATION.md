@@ -14,8 +14,8 @@
 
 > **⭐ Dataverse接続を始める方へ**
 >
-> このドキュメントを読む前に、まず **[Dataverse接続 完全ガイド](./docs/DATAVERSE_CONNECTION_GUIDE.md)** を参照することを強く推奨します。
-> これまでの知見を統合した最終版ガイドとして、データソース追加からCRUD操作、トラブルシューティングまで、Step-by-Stepで完全に網羅しています。
+> このドキュメントを読む前に、まず **[Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** および **[Dataverse接続 完全ガイド](./docs/DATAVERSE_CONNECTION_GUIDE.md)** を参照することを強く推奨します。
+> データソース追加からCRUD操作、Lookupフィールド、トラブルシューティングまで、Step-by-Stepで完全に網羅しています。
 >
 > より詳細な実装パターンは **[Dataverse統合ベストプラクティス](./docs/DATAVERSE_INTEGRATION_BEST_PRACTICES.md)** も参照してください。
 
@@ -51,10 +51,17 @@ npm run build && npm run lint
 ### **統合コマンド（Dataverse）:**
 
 ```bash
-# 接続作成（Power Appsポータル）→ 接続ID取得
-pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
+# ✅ 推奨: pac code add-data-source -a dataverse を使用
+pac code add-data-source -a dataverse -t <テーブル論理名>
+# 例:
+pac code add-data-source -a dataverse -t account
+pac code add-data-source -a dataverse -t systemuser
+pac code add-data-source -a dataverse -t geek_project_task
 npm run build && npm run lint
 ```
+
+> **⚠️ 注意**: `shared_commondataserviceforapps` は使用しないでください。`-a dataverse` を使用してください。
+> 詳細は [Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse) を参照してください。
 
 ### **Phase 3 完了条件:**
 
@@ -1416,8 +1423,12 @@ function TasksPage() {
 **前提条件:**
 - `geek_project_task` テーブルに Lookup フィールド `geek_AssignedTo` が存在
 
-> **📘 詳細ガイド**  
-> Lookupフィールドの完全な実装方法は **[LOOKUP_FIELD_GUIDE.md](./docs/LOOKUP_FIELD_GUIDE.md)** を参照してください。
+> **📘 公式ガイド**  
+> Lookupフィールドの操作には、[単一値ナビゲーションプロパティの関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property) または [作成時のレコード関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/create-entity-web-api#associate-table-rows-on-create) の公式ガイダンスに従ってください。
+>
+> 詳細な実装方法は **[LOOKUP_FIELD_GUIDE.md](./docs/LOOKUP_FIELD_GUIDE.md)** を参照してください。
+>
+> ⚠️ **ポリモーフィックLookupはサポートされていません**（[公式ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)）。
 
 **実装例:**
 
@@ -1952,9 +1963,12 @@ src/generated/models/Office365UsersModel.ts
 ### **3.3 Dataverse: SystemUsers テーブル**
 
 ```bash
-# SystemUsers テーブルのサービスクラスを生成
-pac code add-data-source -a "shared_commondataserviceforapps" -c "a1b2c3d4-e5f6-7890-1234-567890abcdef" -t "systemusers"
+# ✅ 推奨: pac code add-data-source -a dataverse を使用
+pac code add-data-source -a dataverse -t systemuser
 ```
+
+> **⚠️ 注意**: `-a` には `dataverse` を指定してください。`shared_commondataserviceforapps` は使用しないでください。
+> 詳細は [Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse) を参照。
 
 **生成されるファイル:**
 ```
@@ -1972,24 +1986,25 @@ src/generated/models/SystemusersModel.ts
 ### **3.4 Dataverse: 複数の標準テーブル**
 
 ```bash
-# 環境変数に接続IDを設定 (PowerShell)
-$connectionId = "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+# ✅ 推奨: -a dataverse を使用（接続IDは不要）
 
 # SystemUsers (システムユーザー)
-pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "systemusers"
+pac code add-data-source -a dataverse -t systemuser
 
 # Accounts (取引先企業)
-pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "accounts"
+pac code add-data-source -a dataverse -t account
 
 # Contacts (取引先担当者)
-pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "contacts"
+pac code add-data-source -a dataverse -t contact
 
 # Tasks (タスク)
-pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "tasks"
+pac code add-data-source -a dataverse -t task
 
 # カスタムテーブル (例: geek_project_task)
-pac code add-data-source -a "shared_commondataserviceforapps" -c $connectionId -t "geek_project_task"
+pac code add-data-source -a dataverse -t geek_project_task
 ```
+
+> **⚠️ 注意**: テーブル論理名は**単数形**を指定してください（例: `account` ではなく `accounts` ではありません）。
 
 **生成されるサービスクラス名規則:**
 - テーブル論理名: `geek_project_task`
@@ -2379,8 +2394,8 @@ pac auth create
 # 2. Office 365 Users 追加
 pac code add-data-source -a "shared_office365users" -c "{接続ID}"
 
-# 3. Dataverse テーブル追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
+# 3. Dataverse テーブル追加 (✅ 推奨: -a dataverse を使用)
+pac code add-data-source -a dataverse -t systemuser
 
 # 4. アプリ実行 (Power Platform統合)
 pac code run
@@ -6286,13 +6301,16 @@ export interface UpdateProjectTaskRequest {
 #### **4.1 pac code コマンドでサービスクラスを生成**
 
 ```bash
-# Power Apps で Dataverse 接続を作成後、サービスクラスを生成
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID"
+# ✅ 推奨: pac code add-data-source -a dataverse を使用
+pac code add-data-source -a dataverse -t geek_project_task
 
 # 以下のファイルが自動生成されます:
-# - src/generated/services/{テーブル名}Service.ts
-# - src/generated/models/{テーブル名}Model.ts
+# - generated/services/{テーブル名}Service.ts
+# - generated/models/{テーブル名}Model.ts
 ```
+
+> **⚠️ 注意**: `-a` には `dataverse` を指定してください。`shared_commondataserviceforapps` は使用しないでください。
+> 詳細は [Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse) を参照。
 
 #### **4.2 自動生成される Dataverse サービスクラスの構造**
 
@@ -7415,16 +7433,23 @@ const deleteAccount = async (accountId: string) => {
 
 ### 🎯 **サポートされている機能**
 
-- ✅ **CRUD操作**: Create, Read, Update, Delete
+> **📘 公式リファレンス**: [Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)
+
+- ✅ **PAC CLIによるDataverseエンティティの追加**
+- ✅ **オプションセットの表示名取得**: フォーマット済み値の取得
+- ✅ **テーブルメタデータ取得**: [getMetadata](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/get-table-metadata) 対応
+- ✅ **Lookupフィールド**: [単一値ナビゲーションプロパティの関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property) / [作成時のレコード関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/create-entity-web-api#associate-table-rows-on-create)
+- ✅ **CRUD操作**: Create, Retrieve, RetrieveMultiple, Update, Delete
 - ✅ **委任クエリ**: Filter, Sort, Top
 - ✅ **ページング**: maxPageSize, skipToken対応
 - ✅ **ODataクエリ**: select, filter, orderBy
 
 ### ⚠️ **未サポート機能**
 
-- ❌ **選択リストの表示名取得**: フォーマット済み値の取得
-- ❌ **参照フィールド**: Lookup fields (多態的参照含む)
+- ❌ **ポリモーフィックLookup**: 多態的参照フィールド
 - ❌ **Dataverse アクション・関数**: カスタム処理
+- ❌ **PAC CLIによるデータソース削除**: 手動削除が必要
+- ❌ **スキーマ定義CRUD**: エンティティメタデータの作成・更新・削除
 - ❌ **FetchXML**: 複雑なクエリ構文
 - ❌ **代替キー**: プライマリキー以外でのアクセス
 
@@ -9210,11 +9235,16 @@ if (process.env.NODE_ENV === 'development') {
 }
 ```
 
-**5. 現在未対応の機能:**
+**5. 現在未対応の機能（[公式ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse) 参照）:**
 ```typescript
 // Microsoft 公式ドキュメントより、以下は未対応:
+// - ポリモーフィックLookup
+// - Dataverse アクション・ファンクション
+// - PAC CLI によるDataverseデータソースの削除
+// - スキーマ定義（エンティティメタデータ）CRUD
+// - FetchXML サポート
+// - 代替キーサポート
 // - 新規コネクション作成 (PAC CLI 経由)
-// - 一部コネクターの高度な機能
 // - リアルタイム通知・Webhook
 // - バルク操作の最適化
 ```

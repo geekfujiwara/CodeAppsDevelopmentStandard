@@ -101,7 +101,9 @@ Microsoft Dataverse Web APIでは、Lookupフィールド（参照フィール�
 ## 公式ドキュメント
 
 Microsoftの公式ガイドライン:
-https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api
+- **[Dataverse 接続ガイド（公式）](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** ⭐ 最新の公式ガイド
+- [単一値ナビゲーションプロパティの関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property)
+- [作成時のレコード関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/create-entity-web-api#associate-table-rows-on-create)
 
 ## 修正したファイル
 
