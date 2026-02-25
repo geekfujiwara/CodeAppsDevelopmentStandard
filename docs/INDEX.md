@@ -148,15 +148,16 @@
 
 ### Dataverse接続を実装したい
 
-1. **[DATAVERSE_CONNECTION_GUIDE.md](./DATAVERSE_CONNECTION_GUIDE.md)** - ⭐ **まずこれを読む**: Dataverse接続の完全ガイド（統合最終版）
+1. **[Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** - ⭐ **公式リファレンス**
+2. **[DATAVERSE_CONNECTION_GUIDE.md](./DATAVERSE_CONNECTION_GUIDE.md)** - ⭐ **まずこれを読む**: Dataverse接続の完全ガイド（統合最終版）
    - データソース追加からCRUD実装まで完全網羅
    - Step-by-Stepで確実に実装
    - トラブルシューティング統合
-2. **[メインREADME.md - Phase 3: データソース統合](../README.md#phase-3-データソース統合)** - 開発標準での位置づけを理解
-3. 必要に応じて詳細リファレンスを参照:
+3. **[メインREADME.md - Phase 3: データソース統合](../README.md#phase-3-データソース統合)** - 開発標準での位置づけを理解
+4. 必要に応じて詳細リファレンスを参照:
    - **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** - スキーマ取得の詳細
    - **[DATAVERSE_SCHEMA_REFERENCE.md](./DATAVERSE_SCHEMA_REFERENCE.md)** - スキーマ定義リファレンス
-   - **[LOOKUP_FIELD_GUIDE.md](./LOOKUP_FIELD_GUIDE.md)** - Lookupフィールド詳細ガイド
+   - **[LOOKUP_FIELD_GUIDE.md](./LOOKUP_FIELD_GUIDE.md)** - Lookupフィールド詳細ガイド（[公式Lookup参照](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property)準拠）
 
 ### テンプレートでのLookupフィールド実装
 
@@ -253,10 +254,12 @@
 ## 🔗 関連リンク
 
 - **[メインREADME.md](../README.md)** - CodeAppsStarter テンプレート開発標準
+- **[Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** - 公式リファレンス
+- **[Dataverse サンプルコードアプリ](https://github.com/microsoft/PowerAppsCodeApps/tree/main/samples/Dataverse)** - 公式サンプル
 - **[CodeAppsStarter GitHub Repository](https://github.com/your-org/CodeAppsStarter)** - テンプレートリポジトリ
 - **[shadcn/ui Documentation](https://ui.shadcn.com/)** - デザインシステムドキュメント
 - **[Tailwind CSS Documentation](https://tailwindcss.com/)** - CSS フレームワークガイド
-- **[Microsoft Docs - Power Apps Component Framework](https://learn.microsoft.com/ja-jp/power-apps/developer/component-framework/)**
+- **[Microsoft Docs - Power Apps Code Apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)** - 公式ドキュメント
 - **[Microsoft Docs - Dataverse Web API](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/overview)**
 
 ---
