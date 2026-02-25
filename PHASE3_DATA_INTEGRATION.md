@@ -701,34 +701,26 @@ graph LR
 
 #### 3-1. データソース追加コマンド実行
 
-**基本コマンド:**
+> **📘 公式ガイド**: [Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)
+
+**✅ 推奨コマンド（Dataverse）:**
 ```powershell
-pac code add-data-source `
-  --connector "shared_commondataserviceforapps" `
-  --connection-id "<Step 1で取得した接続ID>"
+pac code add-data-source -a dataverse -t <テーブル論理名>
 ```
 
 **実行例:**
 ```powershell
-pac code add-data-source `
-  --connector "shared_commondataserviceforapps" `
-  --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+# Accounts テーブルを追加
+pac code add-data-source -a dataverse -t account
+
+# SystemUsers テーブルを追加
+pac code add-data-source -a dataverse -t systemuser
+
+# カスタムテーブル (geek_project_task) を追加
+pac code add-data-source -a dataverse -t geek_project_task
 ```
 
-**テーブルを指定する場合:**
-```powershell
-# SystemUsersテーブルのみ生成
-pac code add-data-source `
-  --connector "shared_commondataserviceforapps" `
-  --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
-  --table "systemusers"
-
-# カスタムテーブル (geek_project_task) を生成
-pac code add-data-source `
-  --connector "shared_commondataserviceforapps" `
-  --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
-  --table "geek_project_task"
-```
+> **⚠️ 注意**: `-a` には `dataverse` を指定してください。`shared_commondataserviceforapps` は使用しないでください。テーブル論理名は**単数形**です。
 
 #### 3-2. 生成されるファイル
 
@@ -1179,10 +1171,8 @@ function TasksPage() {
 
 2. **サービスクラス生成**
    ```powershell
-   pac code add-data-source `
-     --connector "shared_commondataserviceforapps" `
-     --connection-id "a1b2c3d4-e5f6-7890-abcd-ef1234567890" `
-     --table "systemusers"
+   # ✅ 推奨: -a dataverse を使用
+   pac code add-data-source -a dataverse -t systemuser
    ```
 
 3. **カスタムフック作成** (`src/hooks/useSystemUsers.ts`)
@@ -2703,9 +2693,9 @@ if (result.isSuccess) {
 # 開発時は以下を確認:
 # - 接続ID (GUID形式): a1b2c3d4-e5f6-7890-1234-567890abcdef
 
-# 4. サービスクラス生成
-pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
-pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "accounts"
+# 4. サービスクラス生成 (✅ 推奨: -a dataverse を使用)
+pac code add-data-source -a dataverse -t systemuser
+pac code add-data-source -a dataverse -t account
 
 # 5. GitHub Copilot でスキーマ確認（カスタムテーブルの場合）
 # GitHub Copilot Chat で以下のように依頼:
@@ -4052,8 +4042,8 @@ a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
 ```bash
 # 取得した接続IDを使用してデータソースを追加
 
-# Dataverse の場合:
-pac code add-data-source -a "shared_commondataserviceforapps" -c "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+# ✅ Dataverse の場合 (推奨: -a dataverse を使用、接続IDは不要):
+pac code add-data-source -a dataverse -t account
 
 # Office 365 Users の場合:
 pac code add-data-source -a "shared_office365users" -c "接続ID"
@@ -4064,20 +4054,24 @@ pac code add-data-source -a "shared_sql" -c "接続ID"
 
 **手順 6: Dataverse テーブルを追加**
 
-Dataverse の場合、テーブルを指定して追加することも可能です:
+Dataverse の場合、`-a dataverse` を使用してテーブルを指定します（接続IDは不要）:
+
+> **📘 公式ガイド**: [Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)
 
 ```bash
+# ✅ 推奨: -a dataverse を使用（テーブル論理名は単数形）
+
 # SystemUsers テーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "systemusers"
+pac code add-data-source -a dataverse -t systemuser
 
 # カスタムテーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "geek_project_task"
+pac code add-data-source -a dataverse -t geek_project_task
 
 # Accounts (取引先企業) テーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "accounts"
+pac code add-data-source -a dataverse -t account
 
 # Contacts (取引先担当者) テーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "contacts"
+pac code add-data-source -a dataverse -t contact
 ```
 
 **生成されるファイル:**
@@ -4170,8 +4164,8 @@ const result = await SystemUsersService.getAll({
 # 2. ブラウザのURLから接続IDを取得
 # 3. pac code コマンドでサービスクラスを自動生成
 
-# Dataverse (SystemUsers テーブル)
-pac code add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
+# Dataverse (SystemUsers テーブル) - ✅ 推奨: -a dataverse を使用
+pac code add-data-source -a dataverse -t systemuser
 
 # Office 365 Users
 pac code add-data-source -a "shared_office365users" -c "{接続ID}"
@@ -4972,7 +4966,7 @@ npm run dev
 
 # 3. サービスクラス生成
 pac code add-data-source -a "shared_office365users" -c "接続ID"
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID"
+pac code add-data-source -a dataverse -t <テーブル論理名>  # ✅ 推奨
 
 # 4. 自動生成されたサービスクラスを使用
 # src/hooks/ にカスタムフックを実装
@@ -5943,25 +5937,26 @@ https://make.powerapps.com/environments/12345678-abcd-1234-efgh-123456789abc/con
 
 **Step 3: pac code add-data-source コマンド実行**
 
+> **📘 公式ガイド**: [Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)
+
 ```bash
-# ユーザーに接続IDを確認した後、以下のコマンドを実行
+# ✅ 推奨: -a dataverse を使用（接続IDは不要、テーブル論理名は単数形）
 
 # SystemUsers テーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "a1b2c3d4-e5f6-7890-1234-567890abcdef" -t "systemusers"
+pac code add-data-source -a dataverse -t systemuser
 
 # Accounts (取引先企業) テーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "accounts"
+pac code add-data-source -a dataverse -t account
 
 # Contacts (取引先担当者) テーブルを追加
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "contacts"
+pac code add-data-source -a dataverse -t contact
 
 # カスタムテーブルを追加（例: geek_project_task）
-pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "geek_project_task"
+pac code add-data-source -a dataverse -t geek_project_task
 ```
 
 **コマンドパラメータ:**
-- `-a`: API名（Dataverseの場合は `shared_commondataserviceforapps`）
-- `-c`: 接続ID（Power Apps ポータルのURLから取得）
+- `-a`: API名（Dataverseの場合は `dataverse` を推奨）
 - `-t`: テーブルの論理名（小文字、アンダースコア区切り）
 
 **Step 4: 生成されたファイルを確認**
