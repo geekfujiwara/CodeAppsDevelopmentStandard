@@ -167,9 +167,12 @@
 
 ### Power Platform公式ドキュメント
 
+- **[Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** ⭐ 最新の公式ガイド
 - [Dataverse Web API リファレンス](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/overview)
-- [EntityMetadata Web API](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/retrieve-metadata-web-api)
+- [単一値ナビゲーションプロパティの関連付け（Lookup）](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property)
+- [Power Apps Code Apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)
 - [Power Platform CLI リファレンス](https://learn.microsoft.com/ja-jp/power-platform/developer/cli/reference/auth)
+- [Dataverse サンプルコードアプリ](https://github.com/microsoft/PowerAppsCodeApps/tree/main/samples/Dataverse)
 
 ### 開発標準
 

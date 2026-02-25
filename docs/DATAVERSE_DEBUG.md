@@ -1,5 +1,10 @@
 # Dataverse統合デバッグガイド
 
+> **📘 関連ドキュメント**
+>
+> - **[Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** - Microsoft公式の最新ガイド
+> - **[Dataverse接続 完全ガイド](./DATAVERSE_CONNECTION_GUIDE.md)** - トラブルシューティングを含む完全ガイド
+
 ## 修正内容（最新）
 
 ### PowerDataRuntimeエラーの修正

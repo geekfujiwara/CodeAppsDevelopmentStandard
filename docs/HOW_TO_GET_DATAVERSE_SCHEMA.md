@@ -3,6 +3,8 @@
 > **📘 関連ドキュメント**
 >
 > スキーマ取得は、Dataverse接続の一部です。接続全体の流れを理解したい方は、まず以下をご覧ください:
+> - **[Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** - Microsoft公式の最新ガイド
+> - **[Dataverseテーブルのメタデータ取得](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/get-table-metadata)** - 公式メタデータ取得ガイド
 > - **[Dataverse接続 完全ガイド](./DATAVERSE_CONNECTION_GUIDE.md)** - データソース追加からCRUD実装まで完全網羅
 
 Power Platform CLIでDataverseテーブルのスキーマ情報（選択肢列の許容値を含む）を取得する方法をまとめました。

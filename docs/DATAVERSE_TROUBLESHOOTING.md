@@ -5,6 +5,7 @@
 > このドキュメントは、特定のプロジェクトで発生したエラーとその解決方法を記録したものです。
 >
 > **Dataverse接続の基本から学びたい方は:**
+> - **[Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** - Microsoft公式の最新ガイド
 > - **[Dataverse接続 完全ガイド](./DATAVERSE_CONNECTION_GUIDE.md)** - トラブルシューティングを含む完全ガイド
 >
 > 上記の完全ガイドにも主要なエラーと解決方法が統合されています。

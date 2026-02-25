@@ -4012,6 +4012,7 @@ a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
 
 # コネクター別のAPI名:
 # - Dataverse: shared_commondataserviceforapps
+#   ⚠️ ただし pac code add-data-source では `-a dataverse` を使用してください
 # - Office 365 Users: shared_office365users
 # - SQL Server: shared_sql
 # - SharePoint: shared_sharepointonline
@@ -4120,7 +4121,7 @@ Error: Table 'tablename' not found
 
 - [ ] Power Apps ポータルで接続を手動作成
 - [ ] ブラウザのURLから接続IDを取得
-- [ ] API名を確認（shared_commondataserviceforapps 等）
+- [ ] API名を確認（Dataverseの場合は `-a dataverse` を使用）
 - [ ] `pac auth list` で認証状態を確認
 - [ ] `pac env select` で環境を選択
 - [ ] `pac code add-data-source` コマンドを実行
@@ -6062,7 +6063,7 @@ PowerDataRuntimeError: PowerDataRuntime is not initialized
 - [ ] ユーザーに接続IDを確認（必要に応じて）
 - [ ] `pac auth list` で認証状態を確認
 - [ ] `pac env select` で正しい環境を選択
-- [ ] `pac code add-data-source -a "shared_commondataserviceforapps" -c "接続ID" -t "テーブル名"` を実行
+- [ ] `pac code add-data-source -a dataverse -t <テーブル論理名>` を実行（[公式ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)）
 - [ ] src/generated フォルダにサービスファイルが生成されたことを確認
 - [ ] `npm run build` でビルド成功を確認
 - [ ] コンポーネントで `usePowerPlatform().isInitialized` をチェック
