@@ -1,8 +1,12 @@
 # Dataverse接続 完全ガイド
 
-**最終更新**: 2026年2月5日  
-**バージョン**: 1.0  
+**最終更新**: 2026年2月25日  
+**バージョン**: 2.0  
 **対象Phase**: Phase 3（データソース統合）
+
+> **📘 公式リファレンス**: このガイドは [Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse) に基づいて作成・更新されています。
+>
+> **💡 サンプルアプリ**: CRUD操作、Lookupフィールド、自動生成サービスのパターンを網羅した [Dataverse サンプルコードアプリ](https://github.com/microsoft/PowerAppsCodeApps/tree/main/samples/Dataverse) も参照してください。
 
 ---
 
@@ -20,9 +24,11 @@
 
 ✅ Dataverseへの正しい接続方法  
 ✅ データソース追加の標準手順  
+✅ 自動生成されるサービス・モデルの活用（公式推奨パターン）  
 ✅ Power Apps SDKを使用したCRUD操作  
+✅ Lookupフィールドの正しい実装方法（`@odata.bind`構文）  
 ✅ よくあるエラーとその解決方法  
-✅ 実践的な実装パターン
+✅ サポートされていないシナリオの理解
 
 ---
 
@@ -45,12 +51,14 @@
 1. [Dataverse接続の全体像](#-dataverse接続の全体像)
 2. [Step 1: データソース追加](#step-1-データソース追加)
 3. [Step 2: スキーマ確認](#step-2-スキーマ確認)
-4. [Step 3: Model定義](#step-3-model定義)
-5. [Step 4: Service実装](#step-4-service実装)
+4. [Step 3: 自動生成されたサービスの利用（推奨）](#step-3-自動生成されたサービスの利用推奨)
+5. [Step 4: Model定義とカスタムService実装](#step-4-model定義とカスタムservice実装)
 6. [Step 5: UIでの利用](#step-5-uiでの利用)
-7. [トラブルシューティング](#-トラブルシューティング)
-8. [ベストプラクティス](#-ベストプラクティス)
-9. [チェックリスト](#-完了チェックリスト)
+7. [サポートされているシナリオ](#-サポートされているシナリオ)
+8. [サポートされていないシナリオ](#-サポートされていないシナリオ)
+9. [トラブルシューティング](#-トラブルシューティング)
+10. [ベストプラクティス](#-ベストプラクティス)
+11. [チェックリスト](#-完了チェックリスト)
 
 ---
 
@@ -169,6 +177,10 @@ pac code add-data-source -a "shared_commondataserviceforapps" -c "<Connection-ID
 │       │   └── geekbusinessprocesses.Schema.json  ← 新規生成
 │       └── appschemas/
 │           └── dataSourcesInfo.ts  ← 更新
+├── generated/
+│   └── services/
+│       ├── GeekbusinessprocessesModel.ts  ← 自動生成（モデル定義）
+│       └── GeekbusinessprocessesService.ts  ← 自動生成（サービス）
 └── power.config.json  ← 更新
 ```
 
@@ -299,11 +311,181 @@ Lookupフィールドは別テーブルへの参照です。
 - `geek_projectid`: Lookupフィールド名（GUID）
 - `geek_project`: 参照先テーブルの論理名
 
+> **📘 公式ガイド**: Lookupフィールドの関連付けには、[単一値ナビゲーションプロパティの関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property) または [作成時のレコード関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/create-entity-web-api#associate-table-rows-on-create) の公式ガイダンスを参照してください。
+
 ---
 
-## Step 3: Model定義
+## Step 3: 自動生成されたサービスの利用（推奨）
 
-### 3.1 基本Model定義
+`pac code add-data-source` を実行すると、モデルファイルとサービスファイルが `/generated/services/` フォルダに自動生成されます。**公式推奨のパターンでは、この自動生成されたサービスを直接利用します。**
+
+> **📘 公式リファレンス**: [Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)
+
+### 3.1 自動生成ファイルの構成
+
+たとえば、組み込みの **Accounts** テーブルをデータソースとして追加した場合、以下のファイルが生成されます：
+
+- `AccountsModel.ts` – Accounts テーブルのデータモデル定義
+- `AccountsService.ts` – Accounts データへのサービスメソッド
+
+### 3.2 インポートと利用
+
+```typescript
+import { AccountsService } from './generated/services/AccountsService';
+import type { Accounts } from './generated/models/AccountsModel';
+```
+
+### 3.3 CRUD操作（自動生成サービス）
+
+#### レコード作成
+
+```typescript
+const newAccount = {
+   name: "New Account",
+   statecode: 0,
+   accountnumber: "ACC001"
+};
+
+try {
+  const result = await AccountsService.create(newAccount as Omit<Accounts, 'accountid'>);
+
+  if (result.data) {
+    console.log('Account created:', result.data);
+    return result.data;
+  }
+} catch (err) {
+  console.error('Failed to create account:', err);
+  throw err;
+}
+```
+
+> **⚠️ 注意**: レコード作成時には、プライマリキー（`accountid`）や所有者フィールド（`ownerid`, `owneridname`, `owneridtype`, `owneridyominame`）などのシステム管理フィールドを含めないでください。
+
+#### 1件取得
+
+```typescript
+const accountId = "<00000000-0000-0000-0000-000000000000>"; // 実際のIDに置き換え
+
+try {
+  const result = await AccountsService.get(accountId);
+  if (result.data) {
+    console.log('Account retrieved:', result.data);
+  }
+} catch (err) {
+  console.error('Failed to retrieve account:', err);
+}
+```
+
+#### 複数件取得（`IGetAllOptions`）
+
+```typescript
+try {
+  const result = await AccountsService.getAll();
+  if (result.data) {
+    const accounts = result.data;
+    console.log(`Retrieved ${accounts.length} accounts`);
+  }
+} catch (err) {
+  console.error('Failed to retrieve accounts:', err);
+}
+```
+
+`getAll` メソッドは `IGetAllOptions` インターフェースに基づくオプションを受け取ります：
+
+```typescript
+interface IGetAllOptions {
+  maxPageSize?: number;    // ページあたりの最大レコード数
+  select?: string[];       // 取得するフィールドの指定
+  filter?: string;         // ODataフィルター文字列
+  orderBy?: string[];      // ソートフィールド
+  top?: number;            // 取得する最大レコード数
+  skip?: number;           // スキップするレコード数
+  skipToken?: string;      // ページネーション用トークン
+}
+```
+
+> **⚠️ 重要**: `select` パラメータで取得するカラム数を常に制限してください。
+
+**複数オプションを使用した例：**
+
+```typescript
+const fetchAccounts = async () => {
+  const options: IGetAllOptions = {
+    select: ['name', 'accountnumber', 'address1_city'],
+    filter: "address1_country eq 'USA'",
+    orderBy: ['name asc'],
+    top: 50
+  };
+
+  try {
+    const result = await AccountsService.getAll(options);
+    return result.data || [];
+  } catch (err) {
+    console.error('Failed to fetch accounts:', err);
+    return [];
+  }
+};
+```
+
+#### レコード更新
+
+```typescript
+const accountId = "<your-account-guid>";
+const changes = {
+  name: "Updated Account Name",
+  telephone1: "555-0123"
+};
+
+try {
+  await AccountsService.update(accountId, changes);
+  console.log('Account updated successfully');
+} catch (err) {
+  console.error('Failed to update account:', err);
+}
+```
+
+> **⚠️ 重要**: 更新時には変更するプロパティのみをリクエストに含めてください。取得したレコードの全プロパティを送信すると、値が変わっていないフィールドもビジネスロジックのトリガーや監査データの不正更新の原因になります。
+
+#### レコード削除
+
+```typescript
+const accountId = "<00000000-0000-0000-0000-000000000000>";
+
+try {
+  await AccountsService.delete(accountId);
+  console.log('Account deleted successfully');
+} catch (err) {
+  console.error('Failed to delete account:', err);
+}
+```
+
+### 3.4 Lookupフィールドの設定（自動生成サービス使用時）
+
+Lookupフィールド（別テーブルへの参照）を設定する場合は、`@odata.bind` 構文を使用します。
+
+> **📘 公式ガイド**: Lookupの設定には [単一値ナビゲーションプロパティの関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property) の公式ガイダンスに従ってください。
+
+```typescript
+// 作成時にLookup参照を設定する例
+const newTask = {
+  geek_name: "New Task",
+  'geek_projectid@odata.bind': `/geek_projecrts(${projectId})`
+};
+
+const result = await Geek_project_tasksService.create(
+  newTask as Omit<Geek_project_tasks, 'geek_project_taskid'>
+);
+```
+
+> **⚠️ 注意**: ポリモーフィックLookupは現在サポートされていません。
+
+---
+
+## Step 4: Model定義とカスタムService実装
+
+自動生成サービスでカバーしきれない要件がある場合、以下のようにカスタムModel定義とService層を作成できます。
+
+### 4.1 基本Model定義
 
 TypeScriptインターフェースでDataverseテーブルの型を定義します。
 
@@ -360,7 +542,7 @@ export interface GeekBusinessProcessUpdateInput {
 
 ---
 
-### 3.2 Choice値のマッピング
+### 4.2 Choice値のマッピング
 
 Choice（選択肢）フィールドは定数で定義します。
 
@@ -385,9 +567,11 @@ export interface GeekTask {
 
 ---
 
-### 3.3 Lookup値の扱い
+### 4.3 Lookup値の扱い
 
 Lookupフィールドは通常GUIDの文字列として扱います。
+
+> **📘 公式ガイド**: Lookupフィールドの操作には、[単一値ナビゲーションプロパティの関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property) および [作成時のレコード関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/create-entity-web-api#associate-table-rows-on-create) の公式ガイダンスを参照してください。
 
 ```typescript
 export interface GeekTask {
@@ -413,9 +597,11 @@ export interface GeekTask {
 
 ---
 
-## Step 4: Service実装
+### 4.4 カスタムService実装
 
-### 4.1 基本Service構造
+> **💡 ポイント**: 基本的なCRUD操作には [Step 3 で説明した自動生成サービス](#step-3-自動生成されたサービスの利用推奨) の利用を推奨します。以下のカスタムService実装は、自動生成サービスでカバーできないビジネスロジックが必要な場合に利用してください。
+
+#### 基本Service構造
 
 データアクセスロジックをService層に実装します。
 
@@ -567,7 +753,7 @@ export async function deleteBusinessProcess(id: string): Promise<void> {
 
 ---
 
-### 4.2 ODataクエリオプション
+#### ODataクエリオプション
 
 Power Apps SDKは OData クエリオプションをサポートしています。
 
@@ -620,7 +806,7 @@ const options: IOperationOptions = {
 
 ---
 
-### 4.3 エラーハンドリングのベストプラクティス
+#### エラーハンドリングのベストプラクティス
 
 ```typescript
 export async function fetchBusinessProcesses(): Promise<GeekBusinessProcess[]> {
@@ -845,6 +1031,33 @@ export function ProcessList() {
   );
 }
 ```
+
+---
+
+## ✅ サポートされているシナリオ
+
+Power Apps SDKを使用してDataverseに接続する場合、以下のシナリオがサポートされています：
+
+- PAC CLIを使用したDataverseエンティティのCode Appsへの追加
+- オプションセットのフォーマットされた値/表示名の取得
+- [Dataverseテーブルのメタデータ取得](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/get-table-metadata)
+- Lookup（参照）フィールド — [単一値ナビゲーションプロパティの関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property) または [作成時のレコード関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/create-entity-web-api#associate-table-rows-on-create) のガイダンスを参照
+- CRUD操作（Create / Retrieve / RetrieveMultiple / Update / Delete）
+- デリゲーション（`Filter`, `Sort`, `Top` クエリ）
+- ページングサポート
+
+---
+
+## ⛔ サポートされていないシナリオ
+
+以下の機能は現時点ではサポートされていません：
+
+- ポリモーフィックLookup
+- Dataverseアクション・ファンクション
+- PAC CLIによるDataverseデータソースの削除
+- スキーマ定義（エンティティメタデータ）のCRUD
+- FetchXMLサポート
+- 代替キーサポート
 
 ---
 
@@ -1097,8 +1310,14 @@ const { processes } = useBusinessProcesses();
 - [ ] `.power/schemas/dataverse/` にスキーマファイルが生成されている
 - [ ] `.power/schemas/appschemas/dataSourcesInfo.ts` が更新されている
 - [ ] `power.config.json` の `databaseReferences` が追加されている
+- [ ] `generated/services/` に自動生成サービス・モデルが生成されている
 
-### Model定義
+### 自動生成サービスの利用（推奨）
+- [ ] 自動生成された `*Service.ts` と `*Model.ts` をインポートして使用
+- [ ] CRUD操作（`create`, `get`, `getAll`, `update`, `delete`）が正常に動作
+- [ ] Lookupフィールドは `@odata.bind` 構文で設定
+
+### Model定義（カスタムService使用時）
 - [ ] Model定義ファイル（`src/Models/`）を作成
 - [ ] フィールド名がスキーマと完全一致
 - [ ] 必須フィールドとオプショナルフィールドを区別
@@ -1137,11 +1356,15 @@ const { processes } = useBusinessProcesses();
 ## 📚 参考リンク
 
 ### 公式ドキュメント
+- **[Dataverse 接続ガイド（公式）](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** ⭐ 最新の公式ガイド
 - [Power Platform CLI - add-data-source コマンド](https://learn.microsoft.com/en-us/power-platform/developer/cli/reference/code#pac-code-add-data-source)
-- [Power Apps SDK - Data クライアント](https://learn.microsoft.com/en-us/power-apps/developer/model-driven-apps/clientapi/reference)
+- [Dataverseテーブルのメタデータ取得](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/get-table-metadata)
+- [単一値ナビゲーションプロパティの関連付け（Lookup）](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property)
+- [作成時のレコード関連付け（Lookup）](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/create-entity-web-api#associate-table-rows-on-create)
 - [Dataverse Web API Reference](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview)
 - [OData Query Options](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/query-data-web-api)
-- [Power Apps Code Apps 概要](https://learn.microsoft.com/en-us/power-apps/maker/canvas-apps/code-apps/overview)
+- [Power Apps Code Apps 概要](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)
+- [Dataverse サンプルコードアプリ](https://github.com/microsoft/PowerAppsCodeApps/tree/main/samples/Dataverse)
 
 ### 関連ドキュメント
 - [CodeAppsDevelopmentStandard](https://github.com/geekfujiwara/CodeAppsDevelopmentStandard)
@@ -1158,24 +1381,28 @@ const { processes } = useBusinessProcesses();
 
 1. **✅ `pac code add-data-source -a dataverse` を使用**
    - テーブル論理名（単数形）のみ指定
-   - スキーマは自動生成される
+   - スキーマ、モデル、サービスが自動生成される
 
-2. **✅ Power Apps SDK を使用してアクセス**
+2. **✅ 自動生成されたサービスを活用（公式推奨）**
+   - `AccountsService.create/get/getAll/update/delete` パターン
+   - [公式ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse) に準拠
+
+3. **✅ Lookupフィールドは `@odata.bind` 構文を使用**
+   - [単一値ナビゲーションプロパティの関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property) に従う
+   - ポリモーフィックLookupはサポート対象外
+
+4. **✅ Power Apps SDK を使用してアクセス**
    - CSP制約を回避
    - 型安全なコーディング
    - 自動認証処理
 
-3. **✅ SDK初期化を必ず確認**
+5. **✅ SDK初期化を必ず確認**
    - `usePowerPlatform().isInitialized` で確認
    - 初期化完了後にデータアクセス
 
-4. **✅ フィールド名はスキーマと完全一致**
+6. **✅ フィールド名はスキーマと完全一致**
    - `.power/schemas/dataverse/` で確認
    - 大文字小文字、アンダースコアまで正確に
-
-5. **✅ Service層でビジネスロジックをカプセル化**
-   - 再利用可能な設計
-   - エラーハンドリングの統一
 
 ### 期待される効果
 
@@ -1187,8 +1414,8 @@ const { processes } = useBusinessProcesses();
 
 ---
 
-**最終更新**: 2026年2月5日  
-**バージョン**: 1.0  
+**最終更新**: 2026年2月25日  
+**バージョン**: 2.0  
 **作成者**: Dataverse接続ドキュメント統合プロジェクト
 
 このドキュメントについての質問や改善提案は、GitHubのIssueでお知らせください。
