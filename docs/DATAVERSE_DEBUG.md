@@ -129,8 +129,8 @@ console.log('🔍 Environment check:', {
 ❌ Office 365UsersService error: [エラーメッセージ]
 ```
 **解決策**:
-1. `pac code add-data-source -a dataverse -t geek_projecrt` を再実行
-2. `pac code add-data-source -a dataverse -t geek_project_task` を再実行
+1. `npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_projecrt` を再実行
+2. `npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_project_task` を再実行
 3. Dataverseテーブルへのアクセス権限を確認
 
 #### ケース3: 接続ダイアログが表示されない

@@ -480,7 +480,7 @@ npm run dev
 Power Apps環境でのローカル実行で統合確認を行います。
 
 ```bash
-pac code init --environment [environmentid] --displayName "[アプリ表示名]"
+npx @microsoft/power-apps-cli init --environmentId [environmentid] --displayName "[アプリ表示名]"
 npm run dev
 ```
 
@@ -498,7 +498,7 @@ npm run dev
 
 ```bash
 npm run build
-pac code push
+npx @microsoft/power-apps-cli push
 ```
 
 #### **6.2 本番環境での確認**
@@ -609,7 +609,7 @@ import { Button } from "@/components/ui/button";
 
 **解決策:**
 - PowerProvider.tsxを変更していないか確認
-- `pac code init` が正しく実行されているか確認
+- `npx @microsoft/power-apps-cli init` が正しく実行されているか確認
 
 ---
 

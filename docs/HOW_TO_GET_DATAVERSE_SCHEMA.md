@@ -88,7 +88,7 @@ $apiUrl = "$orgUrl/api/data/v9.2/EntityDefinitions(LogicalName='$tableName')/Att
 
 ---
 
-### 方法3: `pac code add-data-source` の生成ファイルを活用
+### 方法3: `npx @microsoft/power-apps-cli add-data-source` の生成ファイルを活用
 
 既にプロジェクトに追加されているデータソースのスキーマは、生成されたファイルから確認できます。
 
@@ -214,18 +214,18 @@ param(
 )
 
 # 現在の認証情報を取得
-$authList = pac auth list --json | ConvertFrom-Json
+$authList = # 認証状態確認: npx @microsoft/power-apps-cli logout でログアウト可能
 $activeAuth = $authList | Where-Object { $_.IsUniversal -eq $true }
 
 if (!$activeAuth) {
-    Write-Error "認証されていません。pac auth create を実行してください。"
+    Write-Error "認証されていません。# 認証はCLIコマンド実行時にブラウザが自動的に開きます（別途実行不要） を実行してください。"
     exit 1
 }
 
 $orgUrl = $activeAuth.Url
 
 # Web APIでメタデータを取得
-# 注: 実際にはpac auth後のトークンを使用する必要があります
+# 注: 認証はCLIコマンド実行時に自動的に行われます（MSAL）
 # この例は簡略化されています
 
 Write-Host "テーブル: $TableName のスキーマを取得中..." -ForegroundColor Cyan

@@ -45,11 +45,11 @@ Power Apps Code AppsでDataverseテーブルをデータソースとして追加
 ### 1. プロジェクト初期化
 
 ```bash
-pac code init -n "AppName" -env "<Environment-ID>"
+npx @microsoft/power-apps-cli init -n "AppName" -env "<Environment-ID>"
 ```
 
 **注意点:**
-- 環境IDは`pac org list`で取得
+- 環境IDは [Power Platform管理センター](https://admin.powerplatform.microsoft.com) または `https://make.powerapps.com` の環境設定から取得
 - 既に`power.config.json`が存在する場合はエラーになる
 
 ---
@@ -59,12 +59,12 @@ pac code init -n "AppName" -env "<Environment-ID>"
 #### ✅ 正しい方法（推奨）
 
 ```bash
-pac code add-data-source -a dataverse -t <テーブル論理名>
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t <テーブル論理名>
 ```
 
 **例:**
 ```bash
-pac code add-data-source -a dataverse -t geek_businessprocess
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_businessprocess
 ```
 
 **ポイント:**
@@ -86,7 +86,7 @@ pac code add-data-source -a dataverse -t geek_businessprocess
 
 ```bash
 # 間違い: shared_commondataserviceforapps を使用
-pac code add-data-source -a "shared_commondataserviceforapps" -c "<Connection-ID>"
+npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "<Connection-ID>"
 ```
 
 **問題点:**
@@ -154,7 +154,7 @@ import type {
 } from '@/Models/GeekBusinessProcessModel';
 
 // テーブル名 (power.config.json の dataSources に合わせる)
-// pac code add-data-source 実行後に自動生成される
+// npx @microsoft/power-apps-cli add-data-source 実行後に自動生成される
 const TABLE_NAME = 'geekbusinessprocesses';
 
 // DataClient を取得
@@ -327,12 +327,12 @@ const ProcessEditor = () => {
 ### ❌ エラー: "The interface 'CDPTabular1' was not found"
 
 **原因:**
-`pac code add-data-source`で`-a shared_commondataserviceforapps`を指定している
+`npx @microsoft/power-apps-cli add-data-source`で`-a shared_commondataserviceforapps`を指定している
 
 **解決策:**
 ```bash
 # ✅ 正しいコマンド
-pac code add-data-source -a dataverse -t <テーブル論理名>
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t <テーブル論理名>
 ```
 
 ---
@@ -344,7 +344,7 @@ pac code add-data-source -a dataverse -t <テーブル論理名>
 - `power.config.json`の`databaseReferences`が不正
 
 **解決策:**
-1. `pac code add-data-source -a dataverse -t <テーブル論理名>`を再実行
+1. `npx @microsoft/power-apps-cli add-data-source -a dataverse -t <テーブル論理名>`を再実行
 2. `.power/schemas/appschemas/dataSourcesInfo.ts`にテーブル定義を手動追加:
 ```typescript
 export const dataSourcesInfo = {
@@ -385,14 +385,14 @@ Power Apps SDK (`@microsoft/power-apps/data`) を使用する
 
 ## チェックリスト
 
-- [ ] `pac code add-data-source -a dataverse -t <論理名>`を実行
+- [ ] `npx @microsoft/power-apps-cli add-data-source -a dataverse -t <論理名>`を実行
 - [ ] `.power/schemas/dataverse/`にスキーマファイルが生成されている
 - [ ] `power.config.json`に`databaseReferences`が追加されている
 - [ ] Model定義のフィールド名が実際のDataverseスキーマと一致
 - [ ] ServiceでPower Apps SDK (`getClient`)を使用
 - [ ] `TABLE_NAME`が`power.config.json`の`dataSources`と一致
 - [ ] エラーハンドリングで`result.success`を確認
-- [ ] `npm run build && pac code push`でデプロイ成功
+- [ ] `npm run build && npx @microsoft/power-apps-cli push`でデプロイ成功
 
 ---
 
@@ -415,7 +415,7 @@ Power Apps SDK (`@microsoft/power-apps/data`) を使用する
 
 ### ✅ ベストプラクティス要約
 
-1. **データソース追加は `pac code add-data-source -a dataverse` を使用**
+1. **データソース追加は `npx @microsoft/power-apps-cli add-data-source -a dataverse` を使用**
    - テーブル論理名（単数形）のみ指定
    - スキーマは自動生成される
 

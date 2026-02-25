@@ -741,7 +741,7 @@ npm run build
 
 #### 2.1 デプロイ
 ```bash
-pac code push
+npx @microsoft/power-apps-cli push
 ```
 
 - [ ] デプロイが成功する

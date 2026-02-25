@@ -207,7 +207,7 @@ graph LR
 > [Phase 0 リファレンス](./PHASE0_ENVIRONMENT_SETUP.md)
 
 **Phase 0の概要:**
-- Node.js・Power Platform CLIのインストール
+- Node.js・@microsoft/power-apps-cli のインストール
 - VS Code拡張機能の設定
 - Power Platform環境の選択と認証
 
@@ -249,8 +249,8 @@ graph LR
 **Phase 1の概要:**
 - Microsoft公式のStarterテンプレートを使用してプロジェクト作成
 - npm run devでローカル動作確認
-- Power Apps環境でのローカル実行（pac code init + npm run dev）
-- Power Apps環境へのテンプレートデプロイ（npm run build + pac code push）
+- Power Apps環境でのローカル実行（npx @microsoft/power-apps-cli init + npm run dev）
+- Power Apps環境へのテンプレートデプロイ（npm run build + npx @microsoft/power-apps-cli push）
 - **重要**: この段階ではMicrosoft標準テンプレートをそのままデプロイ
 
 > **🚨 Phase 1は標準テンプレートのままデプロイ**
@@ -277,12 +277,12 @@ npm run dev
 npm install @microsoft/power-apps@latest
 
 # 2. Power Apps環境でのローカル実行
-pac code init --environment [environmentid] --displayName "[アプリ表示名]"
+npx @microsoft/power-apps-cli init --environmentId [environmentid] --displayName "[アプリ表示名]"
 npm run dev
 
 # 3. Power Apps環境へのデプロイ
 npm run build
-pac code push
+npx @microsoft/power-apps-cli push
 ```
 
 **例：**
@@ -303,12 +303,12 @@ npm run dev
 npm install @microsoft/power-apps@latest
 
 # Power Appsローカル実行
-pac code init --environment 12345678-1234-1234-1234-123456789abc --displayName "Task Manager"
+npx @microsoft/power-apps-cli init --environmentId 12345678-1234-1234-1234-123456789abc --displayName "Task Manager"
 npm run dev
 
 # デプロイ
 npm run build
-pac code push
+npx @microsoft/power-apps-cli push
 ```
 
 > **📌 CodeAppsStarterテンプレートの活用について**
@@ -425,12 +425,12 @@ graph LR
 npm run dev
 
 # Power Apps環境でのローカル実行
-pac code init --environment [environmentid] --displayName "[アプリ表示名]"
+npx @microsoft/power-apps-cli init --environmentId [environmentid] --displayName "[アプリ表示名]"
 npm run dev
 
 # デプロイ
 npm run build
-pac code push
+npx @microsoft/power-apps-cli push
 ```
 
 **次へ**: Phase 2 → Phase 3
@@ -478,7 +478,7 @@ graph LR
 1. **データソース選択** - プロジェクト要件に合わせたデータソース決定
 2. **データソース接続準備** - Power Appsポータルで接続作成
 3. **スキーマ確認** - データ構造の把握と型定義
-4. **接続追加コマンド** - `pac code add-data-source`
+4. **接続追加コマンド** - `npx @microsoft/power-apps-cli add-data-source`
 5. **カスタムフック作成** - データアクセスロジックの実装
 6. **UI統合** - Phase 2で実装した機能へのデータ統合
 7. **テスト・デプロイ** - データ連携の動作確認と本番反映
@@ -493,14 +493,14 @@ graph LR
 **統合コマンド:**
 ```bash
 # データソース接続追加
-pac code add-data-source
+npx @microsoft/power-apps-cli add-data-source
 
 # ローカルテスト
 npm run dev
 
 # デプロイ
 npm run build
-pac code push
+npx @microsoft/power-apps-cli push
 ```
 
 **次へ**: Phase 3 → SDK互換性確認 → 継続開発サイクル
@@ -579,7 +579,7 @@ export function App() {
 ```bash
 # Phase 1: Microsoft標準テンプレートをデプロイ
 npm run build
-pac code push
+npx @microsoft/power-apps-cli push
 # → 動作確認
 
 # Phase 2: CodeAppsStarterから必要な機能のみ追加
@@ -589,7 +589,7 @@ npx shadcn-ui@latest add button
 # → 動作確認
 
 # Phase 3: Dataverse接続
-pac code add-data-source -a dataverse -t accounts
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t accounts
 # → 動作確認
 ```
 
@@ -658,8 +658,8 @@ graph LR
 **継続開発の流れ:**
 1. **Phase 2**: 新機能の実装・既存機能の改善
 2. **ローカルテスト**: `npm run dev` で動作確認
-3. **Power Appsテスト**: `pac code init` + `npm run dev` で認証環境テスト
-4. **デプロイ**: `npm run build` + `pac code push` で本番反映
+3. **Power Appsテスト**: `npx @microsoft/power-apps-cli init` + `npm run dev` で認証環境テスト
+4. **デプロイ**: `npm run build` + `npx @microsoft/power-apps-cli push` で本番反映
 5. **Phase 3**: 必要に応じてデータソース追加・変更
 6. Phase 2に戻り、次の機能開発へ
 
@@ -671,7 +671,7 @@ graph LR
 1. **データソース選択** - プロジェクト要件に合わせたデータソース決定
 2. **データソース接続準備** - Power Appsポータルで接続作成
 3. **スキーマ確認** - データ構造の把握と型定義
-4. **接続追加コマンド** - `pac code add-data-source`
+4. **接続追加コマンド** - `npx @microsoft/power-apps-cli add-data-source`
 5. **カスタムフック作成** - データアクセスロジックの実装
 6. **UI統合** - Phase 2で実装した機能へのデータ統合
 7. **テスト・デプロイ** - データ連携の動作確認と本番反映

@@ -2,7 +2,7 @@
 
 ## 問題
 
-`pac code add-data-source`コマンドで生成されたサービスファイルのデータソース名が`______`（アンダースコア）になっており、実際のデータソース名にマッピングされない問題がありました。
+`npx @microsoft/power-apps-cli add-data-source`コマンドで生成されたサービスファイルのデータソース名が`______`（アンダースコア）になっており、実際のデータソース名にマッピングされない問題がありました。
 
 ## エラー内容
 
@@ -59,7 +59,7 @@ export class Geek_project_tasksService {
 
 ### 注意事項
 
-⚠️ **重要**: `pac code add-data-source`を再実行すると、手動修正が上書きされます。
+⚠️ **重要**: `npx @microsoft/power-apps-cli add-data-source`を再実行すると、手動修正が上書きされます。
 
 その場合は、再度以下の修正が必要です：
 1. `Geek_projecrtsService.ts`の`dataSourceName`を`'geek_projecrts'`に変更
@@ -74,7 +74,7 @@ Microsoft Power Platform CLIのバグの可能性があります。
 
 1. データソースを追加：
 ```powershell
-pac code add-data-source -a dataverse -t geek_projecrt
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t geek_projecrt
 ```
 
 2. 生成されたサービスファイルを確認：
@@ -92,7 +92,7 @@ code src/generated/services/Geek_projecrtsService.ts
 4. ビルドとデプロイ：
 ```powershell
 npm run build
-pac code push
+npx @microsoft/power-apps-cli push
 ```
 
 ## 確認方法
