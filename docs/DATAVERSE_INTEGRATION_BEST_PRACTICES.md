@@ -1,6 +1,6 @@
 # Dataverseテーブル統合のベストプラクティス
 
-**最終更新**: 2026年2月5日  
+**最終更新**: 2026年2月25日  
 **対象Phase**: Phase 3（データソース統合）
 
 ---
@@ -10,9 +10,10 @@
 > このドキュメントは、特定のプロジェクト（業務プロセスデザイナーアプリ）での実装経験に基づくベストプラクティス集です。
 > 
 > **Dataverse接続の基本から学びたい方は、まず以下を参照してください:**
+> - **[Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** - Microsoft公式の最新ガイド
 > - **[Dataverse接続 完全ガイド](./DATAVERSE_CONNECTION_GUIDE.md)** - 統合最終版ガイド（Step-by-Step）
 >
-> このドキュメントは、上記の完全ガイドで基礎を理解した後、より詳細な実装パターンやベストプラクティスを参照する際にご活用ください。
+> このドキュメントは、上記のガイドで基礎を理解した後、より詳細な実装パターンやベストプラクティスを参照する際にご活用ください。
 
 ---
 
@@ -98,9 +99,29 @@ pac code add-data-source -a "shared_commondataserviceforapps" -c "<Connection-ID
 
 ### 3. Power Apps SDK を使用したサービス実装 ⭐ 推奨
 
-#### ✅ Power Apps SDK を使用する方法（推奨）
+#### ✅ 自動生成サービスの活用（公式推奨）
 
-Dataverseへのアクセスには**Power Apps SDK**の使用が推奨されます。Content Security Policy (CSP) の制約を受けず、認証も自動的に処理されます。
+`pac code add-data-source` を実行すると、モデルファイルとサービスファイルが `/generated/services/` フォルダに自動生成されます。**基本的なCRUD操作には、この自動生成されたサービスを直接利用してください。**
+
+```typescript
+// 自動生成されたサービスのインポート例
+import { GeekbusinessprocessesService } from './generated/services/GeekbusinessprocessesService';
+import type { Geekbusinessprocesses } from './generated/models/GeekbusinessprocessesModel';
+
+// 利用例
+const result = await GeekbusinessprocessesService.getAll({
+  select: ['geek_processname', 'geek_description'],
+  filter: 'statecode eq 0',
+  orderBy: ['modifiedon desc'],
+  top: 50
+});
+```
+
+> **📘 公式リファレンス**: 自動生成サービスの詳細は [Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse) を参照してください。
+
+#### ✅ カスタムService実装（自動生成でカバーできない場合）
+
+自動生成サービスでカバーできないビジネスロジックが必要な場合、以下のようにカスタムService層を作成できます。Dataverseへのアクセスには**Power Apps SDK**の使用が推奨されます。Content Security Policy (CSP) の制約を受けず、認証も自動的に処理されます。
 
 ##### Modelファイル (`src/Models/GeekBusinessProcessModel.ts`)
 
@@ -387,11 +408,12 @@ Power Apps SDK (`@microsoft/power-apps/data`) を使用する
 
 - [ ] `pac code add-data-source -a dataverse -t <論理名>`を実行
 - [ ] `.power/schemas/dataverse/`にスキーマファイルが生成されている
+- [ ] `generated/services/` に自動生成サービス・モデルが生成されている
 - [ ] `power.config.json`に`databaseReferences`が追加されている
+- [ ] 自動生成サービスまたはカスタムServiceでCRUD操作を実装
+- [ ] Lookupフィールドは `@odata.bind` 構文で設定（[公式ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property)）
 - [ ] Model定義のフィールド名が実際のDataverseスキーマと一致
-- [ ] ServiceでPower Apps SDK (`getClient`)を使用
-- [ ] `TABLE_NAME`が`power.config.json`の`dataSources`と一致
-- [ ] エラーハンドリングで`result.success`を確認
+- [ ] エラーハンドリングを実装
 - [ ] `npm run build && pac code push`でデプロイ成功
 
 ---
@@ -399,11 +421,14 @@ Power Apps SDK (`@microsoft/power-apps/data`) を使用する
 ## 参考リンク
 
 ### 公式ドキュメント
+- **[Dataverse 接続ガイド（公式）](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** ⭐ 最新の公式ガイド
 - [Power Platform CLI - add-data-source コマンド](https://learn.microsoft.com/en-us/power-platform/developer/cli/reference/code#pac-code-add-data-source)
-- [Power Apps SDK - Data クライアント](https://learn.microsoft.com/en-us/power-apps/developer/model-driven-apps/clientapi/reference)
+- [単一値ナビゲーションプロパティの関連付け（Lookup）](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property)
+- [作成時のレコード関連付け（Lookup）](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/create-entity-web-api#associate-table-rows-on-create)
 - [Dataverse Web API Reference](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview)
 - [OData Query Options](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/query-data-web-api)
-- [Power Apps Code Apps 概要](https://learn.microsoft.com/en-us/power-apps/maker/canvas-apps/code-apps/overview)
+- [Power Apps Code Apps 概要](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/)
+- [Dataverse サンプルコードアプリ](https://github.com/microsoft/PowerAppsCodeApps/tree/main/samples/Dataverse)
 
 ### 関連リソース
 - [CodeAppsDevelopmentStandard](https://github.com/geekfujiwara/CodeAppsDevelopmentStandard)
@@ -417,9 +442,16 @@ Power Apps SDK (`@microsoft/power-apps/data`) を使用する
 
 1. **データソース追加は `pac code add-data-source -a dataverse` を使用**
    - テーブル論理名（単数形）のみ指定
-   - スキーマは自動生成される
+   - スキーマ、モデル、サービスが自動生成される
 
-2. **Power Apps SDK を使用してDataverseにアクセス**
+2. **自動生成されたサービスを活用（[公式推奨](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)）**
+   - `*Service.create/get/getAll/update/delete` パターン
+   - カスタムロジックが必要な場合のみカスタムService層を作成
+
+3. **Lookupフィールドは `@odata.bind` 構文を使用**
+   - [公式ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property)に準拠
+
+4. **Power Apps SDK を使用してDataverseにアクセス**
    - CSP制約を回避
    - 型安全なコーディング
    - 自動認証処理
@@ -442,4 +474,4 @@ Power Apps SDK (`@microsoft/power-apps/data`) を使用する
 
 ---
 
-**最終更新日:** 2026年2月4日
+**最終更新日:** 2026年2月25日

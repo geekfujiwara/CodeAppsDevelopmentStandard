@@ -1,9 +1,13 @@
 # Dataverse Lookupフィールドの実装ガイド
 ## Power Apps SDK を使用したビュー切り替え機能付きコンボボックス
 
-**バージョン**: 1.9.7  
-**最終更新**: 2025年10月21日  
+**バージョン**: 2.0  
+**最終更新**: 2026年2月25日  
 **対象**: Power Apps Code Apps with TypeScript + React
+
+> **📘 公式リファレンス**: Lookupフィールドの操作には、Microsoft公式の [単一値ナビゲーションプロパティの関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property) および [作成時のレコード関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/create-entity-web-api#associate-table-rows-on-create) のガイダンスに準拠しています。
+>
+> **⚠️ 制限事項**: ポリモーフィックLookupは現在サポートされていません（[公式ガイド参照](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)）。
 
 ---
 
@@ -50,8 +54,8 @@
 - ✅ ページネーション（`top`, `skip`）
 
 #### データ保存
-- ✅ `@odata.bind` 構文を使用したLookup参照の作成
-- ✅ Lookup参照の更新
+- ✅ `@odata.bind` 構文を使用したLookup参照の作成（[公式: 作成時のレコード関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/create-entity-web-api#associate-table-rows-on-create)）
+- ✅ Lookup参照の更新（[公式: 単一値ナビゲーションプロパティの関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property)）
 - ✅ Lookup参照のクリア（null設定）
 - ✅ 複数のLookupフィールドを持つレコードの保存
 
@@ -66,10 +70,11 @@
 ### ❌ できないこと・制限事項
 
 #### データアクセス
+- ❌ **ポリモーフィックLookup**（[公式ガイドにて未サポートと明記](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)）
 - ❌ `savedQuery` パラメータによる直接的なビュー指定（Power Apps SDKの型定義に含まれていない）
 - ❌ **ビュー一覧の取得は可能だが、フィルターとして機能しない** - `retrieveMultipleRecordsAsync`に`savedQuery`パラメータを渡してもフィルタリングされない。代わりにODataフィルター式を使用する必要がある
 - ❌ `savedqueries` テーブルへの直接アクセス（権限が必要な場合がある）
-- ❌ FetchXMLの直接実行（Power Apps SDK経由では不可）
+- ❌ FetchXMLの直接実行（[公式ガイドにて未サポートと明記](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)）
 - ❌ 複雑な JOIN クエリ（`$expand` の制限）
 
 #### UI制限
@@ -128,7 +133,29 @@ TaskDialog.tsx
 
 ### Step 1: データソースの設定
 
-#### 1.1 power.config.json に参照先テーブルを追加
+#### 1.1 pac code add-data-source でテーブルを追加（推奨）
+
+> **📘 公式ガイド**: [Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse) に基づき、`pac code add-data-source` コマンドを使用してデータソースを追加します。
+
+```bash
+# Lookupの参照先テーブル（SystemUser）を追加
+pac code add-data-source -a dataverse -t systemuser
+
+# Lookupを含むカスタムテーブルを追加
+pac code add-data-source -a dataverse -t geek_project_task
+```
+
+このコマンドにより、以下のファイルが自動生成されます：
+- `generated/services/SystemusersService.ts` - サービスメソッド
+- `generated/models/SystemusersModel.ts` - モデル定義
+- `.power/schemas/dataverse/systemusers.Schema.json` - スキーマ定義
+- `power.config.json` への接続参照追加
+
+> **⚠️ 注意**: `-a` オプションには必ず `dataverse` を指定してください。`shared_commondataserviceforapps` は使用しないでください。
+
+#### 1.2 自動生成された power.config.json の確認
+
+コマンド実行後、`power.config.json` が自動的に更新されます：
 
 ```json
 {
@@ -151,9 +178,9 @@ TaskDialog.tsx
 }
 ```
 
-#### 1.2 スキーマファイルの作成（必要に応じて）
+#### 1.3 自動生成スキーマファイルの確認
 
-`.power/schemas/dataverse/SystemUsers.Schema.json`
+`.power/schemas/dataverse/SystemUsers.Schema.json` が自動生成されます。
 
 ```json
 {
@@ -572,6 +599,8 @@ export function TaskDialog({ task, onSave, onClose }: TaskDialogProps) {
 ### Step 5: データ保存の実装
 
 #### 5.1 Lookup参照の保存
+
+> **📘 公式ガイド**: Lookup参照の設定には、[作成時のレコード関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/create-entity-web-api#associate-table-rows-on-create) のガイダンスに従い、`@odata.bind` 構文を使用します。既存レコードの関連付け変更には [単一値ナビゲーションプロパティの関連付け](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property) を参照してください。
 
 **ファイル**: `src/hooks/useDataverseProjects.ts`
 
@@ -1580,9 +1609,14 @@ public static async getViews() {
 ---
 
 **参考資料:**
-- [Power Apps Component Framework](https://learn.microsoft.com/ja-jp/power-apps/developer/component-framework/)
+- **[Microsoft 公式 Dataverse 接続ガイド](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/connect-to-dataverse)** ⭐ 最新の公式ガイド
+- [単一値ナビゲーションプロパティの関連付け（Lookup）](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/associate-disassociate-entities-using-web-api#associate-with-a-single-valued-navigation-property)
+- [作成時のレコード関連付け（Lookup）](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/create-entity-web-api#associate-table-rows-on-create)
+- [Dataverse サンプルコードアプリ](https://github.com/microsoft/PowerAppsCodeApps/tree/main/samples/Dataverse)
 - [Dataverse Web API](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/overview)
 - [OData Query Options](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/query-data-web-api)
+- [Power Apps Component Framework](https://learn.microsoft.com/ja-jp/power-apps/developer/component-framework/)
 
 **更新履歴:**
+- 2026-02-25: Microsoft 公式 Dataverse 接続ガイドラインに基づき更新（v2.0）
 - 2025-10-21: 初版作成（v1.9.7）
