@@ -32,13 +32,29 @@
 
 ### **実施するStep（概要）:**
 
-1. **接続作成** - Power Appsポータルでコネクター接続を手動作成
-2. **接続ID取得** - ブラウザURLから接続IDをコピー
+1. **テーブル作成** - `pac solution push` でCLIからDataverseテーブルを作成 ⭐ 新フロー
+2. **ソリューション管理** - `pac solution` でCLIからソリューションをひとまとめに管理 ⭐ 新フロー
 3. **サービスクラス生成** - `npx @microsoft/power-apps-cli add-data-source` でTypeScript型定義を自動生成
 4. **SDK初期化確認** - `usePowerPlatform().isInitialized` でPower Apps SDK初期化を確認
 5. **カスタムフック作成** - ビジネスロジックをカプセル化（CRUD操作）
 6. **UI統合** - Reactコンポーネントでデータを表示・操作
 7. **エラーハンドリング** - `IOperationResult.isSuccess` でエラー処理
+
+### **統合コマンド（Dataverse テーブル作成）⭐ 新フロー:**
+
+```bash
+# 1. pac CLIでDataverseテーブルをCLIから作成
+pac auth create --name MyDev --environment https://orgXXXXXX.crm7.dynamics.com
+pac solution init --publisher-name "MyPublisher" --publisher-prefix "myprefix" --outputDirectory ./solutions/MySolution
+# Entity.xml でテーブル定義を作成後...
+pac solution push --solution-folder ./solutions/MySolution
+
+# 2. Code Appsにデータソースとして追加
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t mytable_name
+npm run build && npm run lint
+```
+
+> **📘 詳細は [DataverseテーブルCLIガイド](./docs/DATAVERSE_TABLE_CLI_GUIDE.md) を参照してください。**
 
 ### **統合コマンド（Office 365 Users）:**
 
@@ -48,16 +64,18 @@ npx @microsoft/power-apps-cli add-data-source -a "shared_office365users" -c "{�
 npm run build && npm run lint
 ```
 
-### **統合コマンド（Dataverse）:**
+### **統合コマンド（Dataverse 既存テーブル）:**
 
 ```bash
-# 接続作成（Power Appsポータル）→ 接続ID取得
+# 既存テーブルをデータソースに追加
 npx @microsoft/power-apps-cli add-data-source -a "shared_commondataserviceforapps" -c "{接続ID}" -t "systemusers"
 npm run build && npm run lint
 ```
 
 ### **Phase 3 完了条件:**
 
+- ✅ **`pac solution push` でCLIからDataverseテーブルが作成されている** ⭐ 新フロー
+- ✅ **`pac solution` でソリューションが管理されている** ⭐ 新フロー
 - ✅ Power Appsポータルでコネクター接続が作成されている
 - ✅ 接続IDが正しく取得できている
 - ✅ `npx @microsoft/power-apps-cli add-data-source` が成功し、サービスクラスが生成されている
@@ -3781,21 +3799,33 @@ INSERT INTO [dbo].[Projects] ([Name], [Description], [Status], [Priority], [Budg
 # - Power Platform ネイティブ統合
 ```
 
-**推奨 Dataverse テーブル構造:**
-```bash
-# Power Apps UI でカスタムテーブル作成:
-1. 「テーブル」→「+ 新しいテーブル」
-2. テーブル名: "Projects" 
-3. 列の追加:
-   - Name (単一行テキスト, 必須)
-   - Description (複数行テキスト)  
-   - Status (選択肢: Planning/Active/OnHold/Completed)
-   - Priority (選択肢: Low/Medium/High/Critical)
-   - DueDate (日付のみ)
-   - Budget (通貨)
+**✅ 推奨: CLIでカスタムテーブルを作成する（新フロー）**
 
-4. 「保存」してテーブル作成完了
+```bash
+# pac CLIでソリューションを初期化してテーブルを作成します
+# 詳細: docs/DATAVERSE_TABLE_CLI_GUIDE.md を参照
+
+# 1. pac CLIで認証
+pac auth create --name MyDev --environment https://orgXXXXXX.crm7.dynamics.com
+
+# 2. ソリューションを初期化
+pac solution init \
+  --publisher-name "GeekFujiwara" \
+  --publisher-prefix "geek" \
+  --outputDirectory ./solutions/GeekTaskManager
+
+# 3. Entity.xml でテーブル定義を作成（コードで管理）
+# 例: ./solutions/GeekTaskManager/Entities/geek_project_task/Entity.xml
+
+# 4. ソリューションをPushしてテーブルを作成
+pac solution push \
+  --solution-folder ./solutions/GeekTaskManager \
+  --environment https://orgXXXXXX.crm7.dynamics.com
+
+# ✅ これでDataverseにテーブルが作成されます（UI操作不要）
 ```
+
+> **📘 完全なCLIテーブル作成ガイド**: [docs/DATAVERSE_TABLE_CLI_GUIDE.md](./docs/DATAVERSE_TABLE_CLI_GUIDE.md) を参照してください。
 
 ## 🔧 **Dataverse接続設定手順とトラブルシューティング**
 

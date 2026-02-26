@@ -7,10 +7,18 @@
 **主な実施内容:**
 - 開発ツールのインストール
 - Power Apps CLI（@microsoft/power-apps-cli）のセットアップ
+- **Power Platform CLI（`pac`）のセットアップ** ← Dataverseテーブル・ソリューション管理に必要
 - VS Code拡張機能のインストール
 - Power Platform環境の確認
 
-> **📢 お知らせ**: Power Platform CLI（`pac`）は、Code Apps開発では不要になりました。新しいnpmベースのCLI（`@microsoft/power-apps-cli`）を使用します。
+> **📢 CLIの使い分け**:
+>
+> | CLI | 用途 |
+> |-----|------|
+> | `@microsoft/power-apps-cli` (`npx`) | Code Appsのデプロイ・データソース追加 |
+> | `pac` (Power Platform CLI) | Dataverseテーブル作成・ソリューション管理 |
+>
+> Dataverseのテーブルをコマンドラインから作成・管理するには、`pac` CLIが必要です。
 
 ---
 
@@ -26,6 +34,7 @@ graph LR
 **完了条件:**
 - ✅ 必要な開発ツールがインストールされている
 - ✅ @microsoft/power-apps-cli が正常に動作する
+- ✅ **pac CLI（Power Platform CLI）が正常に動作する**
 - ✅ Power Platform環境にアクセスできる
 - ✅ VS Code拡張機能がインストールされている
 
@@ -48,9 +57,12 @@ winget install Git.Git
 
 # Power Apps CLI（npm経由でインストール）
 npm install -g @microsoft/power-apps-cli@latest
+
+# Power Platform CLI（pac）- Dataverseテーブル・ソリューション管理に必要
+winget install Microsoft.PowerAppsCLI
 ```
 
-> **💡 ヒント**: VS Code起動後、拡張機能マーケットプレイスで「Power Platform Tools」をインストールしてください。
+> **💡 ヒント**: VS Code起動後、拡張機能マーケットプレイスで「Power Platform Tools」をインストールしてください。`pac` CLIも同梱されています。
 
 ---
 
@@ -91,8 +103,6 @@ npm --version
 Power Apps Code Apps開発には、npmベースの `@microsoft/power-apps-cli` を使用します。
 Windows・macOS両方で同じnpmコマンドでインストールできます（クロスプラットフォーム対応）。
 
-> **📢 重要**: 旧来の Power Platform CLI（`pac`）は Code Apps 開発には不要です。`@microsoft/power-apps-cli` を使用してください。
-
 **インストール方法（Windows / macOS 共通）:**
 
 ```bash
@@ -111,6 +121,52 @@ npx @microsoft/power-apps-cli@latest [コマンド]
 ```bash
 npx @microsoft/power-apps-cli --version
 ```
+
+---
+
+### Step 2b: Power Platform CLI（pac）のインストール ⭐ Dataverseテーブル・ソリューション管理に必要
+
+Dataverseテーブルの作成・スキーマ設計・ソリューション管理には **Power Platform CLI（`pac`）** が必要です。
+
+> **📢 重要**: `pac` はDataverseテーブル作成とソリューション管理に使用します。Code Appsのデプロイには引き続き `@microsoft/power-apps-cli` を使用します。
+
+**インストール方法:**
+
+**Windows (winget):**
+```powershell
+winget install Microsoft.PowerAppsCLI
+```
+
+**Windows / macOS (npm経由):**
+```bash
+npm install -g @microsoft/powerplatform-cli
+```
+
+**macOS (Homebrew):**
+```bash
+brew tap microsoft/homebrew-pac
+brew install pac
+```
+
+> **💡 ヒント**: VS Codeの **Power Platform Tools** 拡張機能をインストールすると `pac` CLI が同梱されます（追加インストール不要）。
+
+**確認方法:**
+```bash
+pac --version
+# Power Apps CLI
+# Version: x.x.x
+```
+
+**pac CLIの認証:**
+```bash
+# Power Platform環境に認証（ブラウザが自動的に開きます）
+pac auth create --name MyDev --environment https://orgXXXXXX.crm7.dynamics.com
+
+# 認証状態を確認
+pac auth list
+```
+
+> **📘 詳細**: DataverseテーブルのCLI操作については **[DataverseテーブルCLIガイド](./docs/DATAVERSE_TABLE_CLI_GUIDE.md)** を参照してください。
 
 ---
 
@@ -247,6 +303,8 @@ VS CodeにはGitが統合されているため、追加設定は不要です。
 - [ ] npm が正常に動作する
 - [ ] @microsoft/power-apps-cli がインストールされている
 - [ ] `npx @microsoft/power-apps-cli --version` でバージョンが表示される
+- [ ] **pac CLI（Power Platform CLI）がインストールされている**
+- [ ] **`pac --version` でバージョンが表示される**
 
 ### Power Platform
 - [ ] Power Platform環境にアクセスできる
@@ -317,6 +375,8 @@ npx @microsoft/power-apps-cli logout
 
 - [@microsoft/power-apps-cli npm クイックスタート](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/npm-quickstart)
 - [Power Apps Code Apps公式ドキュメント](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/)
+- [Power Platform CLI（pac）インストールガイド](https://learn.microsoft.com/ja-jp/power-platform/developer/cli/introduction)
+- [pac solution コマンドリファレンス](https://learn.microsoft.com/ja-jp/power-platform/developer/cli/reference/solution)
 - [Node.js公式サイト](https://nodejs.org/)
 - [Visual Studio Code公式サイト](https://code.visualstudio.com/)
 

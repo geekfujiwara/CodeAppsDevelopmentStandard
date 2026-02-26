@@ -451,7 +451,8 @@ graph LR
 
 > **📘 必ず以下のリファレンスを確認して実行してください**:
 >
-> - **⭐ [Dataverse接続 完全ガイド](./docs/DATAVERSE_CONNECTION_GUIDE.md)** - Dataverse接続の統合最終版ガイド（最初に読むべき）
+> - **⭐ [DataverseテーブルCLIガイド](./docs/DATAVERSE_TABLE_CLI_GUIDE.md)** - CLIでテーブル作成・ソリューション管理（新フロー・最初に読むべき）
+> - **⭐ [Dataverse接続 完全ガイド](./docs/DATAVERSE_CONNECTION_GUIDE.md)** - Dataverse接続の統合最終版ガイド
 > - **[Phase 3 リファレンス](./PHASE3_DATA_INTEGRATION.md)** - データソース統合の詳細手順
 >
 > 以下は必要に応じて参照してください
@@ -460,7 +461,7 @@ graph LR
 > - **[Dataverse統合ベストプラクティス](./docs/DATAVERSE_INTEGRATION_BEST_PRACTICES.md)** - ベストプラクティス詳細
 > - **[Lookupフィールド実装ガイド](./docs/LOOKUP_FIELD_GUIDE.md)** - Lookup完全実装
 > - **[Dataverseスキーマリファレンス](./docs/DATAVERSE_SCHEMA_REFERENCE.md)** - スキーマ定義とChoice値
-> - **[スキーマ取得方法](./docs/HOW_TO_GET_DATAVERSE_SCHEMA.md)** - 5つの取得方法
+> - **[スキーマ取得方法](./docs/HOW_TO_GET_DATAVERSE_SCHEMA.md)** - CLIベースのスキーマ取得方法
 > - **[Dataverseトラブルシューティング](./docs/DATAVERSE_TROUBLESHOOTING.md)** - よくある問題と解決法
 
 **Phase 3の概要:**
@@ -475,15 +476,17 @@ graph LR
 > 詳細は [Phase 3 リファレンス](./PHASE3_DATA_INTEGRATION.md#重要-sdk初期化とコネクタ接続のタイミング) を参照してください。
 
 **実施するStep:**
-1. **データソース選択** - プロジェクト要件に合わせたデータソース決定
-2. **データソース接続準備** - Power Appsポータルで接続作成
-3. **スキーマ確認** - データ構造の把握と型定義
+1. **テーブル作成** - `pac solution push` でCLIからDataverseテーブルを作成 ⭐ 新フロー
+2. **ソリューション管理** - `pac solution` でCLIからソリューションをひとまとめに管理 ⭐ 新フロー
+3. **スキーマ確認** - `pac solution export` または `pac modelbuilder build` でCLIから取得
 4. **接続追加コマンド** - `npx @microsoft/power-apps-cli add-data-source`
 5. **カスタムフック作成** - データアクセスロジックの実装
 6. **UI統合** - Phase 2で実装した機能へのデータ統合
 7. **テスト・デプロイ** - データ連携の動作確認と本番反映
 
 **完了条件:**
+- ✅ **`pac solution push` でCLIからDataverseテーブルが作成されている** ⭐ 新フロー
+- ✅ **ソリューションがGitで管理されている** ⭐ 新フロー
 - ✅ データソースが正しく接続されている
 - ✅ CRUD操作が正常に動作する
 - ✅ UIとデータが適切に統合されている
@@ -492,8 +495,12 @@ graph LR
 
 **統合コマンド:**
 ```bash
-# データソース接続追加
-npx @microsoft/power-apps-cli add-data-source
+# テーブル作成（pac CLI）
+pac auth create --name MyDev --environment https://orgXXXXXX.crm7.dynamics.com
+pac solution push --solution-folder ./solutions/MySolution
+
+# データソース接続追加（Code Apps用）
+npx @microsoft/power-apps-cli add-data-source -a dataverse -t mytable_name
 
 # ローカルテスト
 npm run dev
@@ -668,15 +675,16 @@ graph LR
 ## 📚 Phase別リファレンスドキュメント
 
 **実施するStep:**
-1. **データソース選択** - プロジェクト要件に合わせたデータソース決定
-2. **データソース接続準備** - Power Appsポータルで接続作成
-3. **スキーマ確認** - データ構造の把握と型定義
+1. **テーブル作成** - `pac solution push` でCLIからDataverseテーブルを作成 ⭐ 新フロー
+2. **ソリューション管理** - `pac solution` でCLIからソリューションをひとまとめに管理 ⭐ 新フロー
+3. **スキーマ確認** - `pac solution export` または `pac modelbuilder build` でCLIから取得
 4. **接続追加コマンド** - `npx @microsoft/power-apps-cli add-data-source`
 5. **カスタムフック作成** - データアクセスロジックの実装
 6. **UI統合** - Phase 2で実装した機能へのデータ統合
 7. **テスト・デプロイ** - データ連携の動作確認と本番反映
 
 **完了条件:**
+- ✅ **`pac solution push` でCLIからDataverseテーブルが作成されている** ⭐ 新フロー
 - ✅ データソースが正常に接続されている
 - ✅ カスタムフックが実装されている
 - ✅ `isInitialized` チェックが実装されている
