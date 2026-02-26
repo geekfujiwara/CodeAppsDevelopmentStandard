@@ -2,7 +2,7 @@
 
 **Gantt Chart Project Manager** の技術ドキュメント一覧
 
-**最終更新**: 2025年10月21日
+**最終更新**: 2026年2月26日
 
 ---
 
@@ -19,6 +19,7 @@
 
 | ドキュメント | 説明 | 対象者 |
 |------------|------|--------|
+| **[DATAVERSE_TABLE_CLI_GUIDE.md](./DATAVERSE_TABLE_CLI_GUIDE.md)** | ⭐ **DataverseテーブルCLIガイド（新フロー）**<br>- CLIでテーブル作成・スキーマ設計<br>- pac solution でソリューション管理<br>- テーブル設計・管理の新標準 | 🎯 テーブル設計時必読 |
 | **[DATAVERSE_CONNECTION_GUIDE.md](./DATAVERSE_CONNECTION_GUIDE.md)** | 📘 **Dataverse接続 完全ガイド（統合最終版）**<br>- データソース追加からCRUD実装まで完全網羅<br>- Step-by-Stepで再現性を保証<br>- トラブルシューティング統合<br>- ベストプラクティス集約 | 🎯 全開発者必読<br>最初に読む |
 
 #### 📖 詳細リファレンス（必要に応じて参照）
@@ -50,9 +51,10 @@
 
 #### スキーマ管理
 
-| ドキュメント | 説明 |
-|------------|------|
-| **[EXTRACT_DATAVERSE_SCHEMA_FROM_XML.md](./EXTRACT_DATAVERSE_SCHEMA_FROM_XML.md)** | XMLからのスキーマ自動抽出方法<br>- PowerShellスクリプト例 |
+| ドキュメント | 説明 | 状態 |
+|------------|------|------|
+| **[DATAVERSE_TABLE_CLI_GUIDE.md](./DATAVERSE_TABLE_CLI_GUIDE.md)** | ⭐ CLIでテーブル作成・ソリューション管理（新フロー） | ✅ 推奨 |
+| ~~EXTRACT_DATAVERSE_SCHEMA_FROM_XML.md~~ | XMLからのスキーマ自動抽出方法 | ⚠️ 非推奨<br>→ CLIベースの方法を推奨（[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)） |
 
 ---
 
@@ -63,13 +65,6 @@
 | ドキュメント | 説明 | 対象者 |
 |------------|------|--------|
 | **[LOGO_MASTER_GUIDE.md](./LOGO_MASTER_GUIDE.md)** | ロゴの完全ガイド<br>- デザイン仕様<br>- 使用方法<br>- 実装例<br>- ブランドガイドライン<br>- アセット一覧 | 🎯 ロゴ使用時必読 |
-
-#### 技術ドキュメント
-
-| ドキュメント | 説明 |
-|------------|------|
-| **[LOGO_DISPLAY_FIX.md](./LOGO_DISPLAY_FIX.md)** | SVG ID衝突問題の詳細と解決方法<br>- `React.useId()`の使用<br>- トラブルシューティング |
-| **[DESIGN_REFRESH_v1.0.8.md](./DESIGN_REFRESH_v1.0.8.md)** | デザインリフレッシュの記録<br>- バージョン履歴 |
 
 #### アーカイブ（統合済み）
 
@@ -86,11 +81,15 @@
 
 ### 📐 開発標準提案
 
+> ℹ️ 以下の提案はメインREADME.mdに反映済みのためアーカイブされています。
+
+<!--
 | ドキュメント | 説明 |
 |------------|------|
-| **[DEVELOPMENT_STANDARD_UPDATES.md](./DEVELOPMENT_STANDARD_UPDATES.md)** | SVGコンポーネント実装ガイドラインの詳細版<br>- 7つの標準更新提案<br>- コード例<br>- 実装ガイドライン |
-| **[STANDARD_UPDATE_SUMMARY.md](./STANDARD_UPDATE_SUMMARY.md)** | 開発標準更新提案のエグゼクティブサマリー |
-| **[GITHUB_PROPOSAL.md](./GITHUB_PROPOSAL.md)** | GitHub提案 |
+| DEVELOPMENT_STANDARD_UPDATES.md | SVGコンポーネント実装ガイドラインの詳細版 → README.mdに反映済み |
+| STANDARD_UPDATE_SUMMARY.md | 開発標準更新提案のエグゼクティブサマリー |
+| GITHUB_PROPOSAL.md | GitHub提案 |
+-->
 
 ---
 
@@ -120,23 +119,24 @@
 
 ### ロゴを実装・使用したい
 
-1. **[LOGO_MASTER_GUIDE.md](./LOGO_MASTER_GUIDE.md)** - 使用方法と実装例を確認
-2. 表示されない場合は **[LOGO_DISPLAY_FIX.md](./LOGO_DISPLAY_FIX.md)** を確認
+1. **[LOGO_MASTER_GUIDE.md](./LOGO_MASTER_GUIDE.md)** - 使用方法・実装例・SVG ID衝突の回避方法を確認
 
 ---
 
 ## 📊 ドキュメント統計
 
-- **総ドキュメント数**: 15ファイル（統合後）
-  - Dataverse関連: 10ファイル
-  - Logo関連: 3ファイル
-  - 開発標準: 3ファイル
-  - その他: 2ファイル（レビュー報告書、このREADME）
+- **総ドキュメント数**: 20ファイル
+  - Dataverse関連: 12ファイル
+  - デザイン・ロゴ関連: 1ファイル
+  - UIカスタマイズ: 3ファイル
+  - ドキュメント管理: 3ファイル（INDEX.md、README.md、DATAVERSE_DOCS_OVERVIEW.md）
+  - アーカイブ: 1ファイル（EXTRACT_DATAVERSE_SCHEMA_FROM_XML.md）
 
-- **推奨ドキュメント**: 3ファイル ⭐
+- **推奨ドキュメント**: 4ファイル ⭐
+  - DATAVERSE_CONNECTION_GUIDE.md
+  - DATAVERSE_TABLE_CLI_GUIDE.md
   - LOOKUP_FIELD_GUIDE.md
   - LOGO_MASTER_GUIDE.md
-  - DATAVERSE_SCHEMA_REFERENCE.md
 
 ---
 
@@ -208,6 +208,6 @@
 ---
 
 **作成者**: GitHub Copilot  
-**最終更新**: 2025年10月21日
+**最終更新**: 2026年2月26日
 
 このREADMEについての質問や提案は、プロジェクトメンテナーにお問い合わせください。
