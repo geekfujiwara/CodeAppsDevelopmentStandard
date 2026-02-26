@@ -142,12 +142,25 @@
 
 ## 🔄 ドキュメント更新履歴
 
+### 2026年2月26日 - ドキュメント整合性レビュー
+
+- ✅ リンク切れの修正（Phase番号・ファイル名の統一）
+- ✅ **EXTRACT_DATAVERSE_SCHEMA_FROM_XML.md** に非推奨警告を追加
+- ✅ **DATAVERSE_TABLE_CLI_GUIDE.md** を統合ガイドに追加
+- ✅ ドキュメント統計の更新
+- ✅ Phase番号の統一（Phase 0-3）
+
+### 2026年2月5日 - Dataverse接続ドキュメント統合
+
+- ✅ **DATAVERSE_CONNECTION_GUIDE.md** 統合最終版を作成
+- ✅ **DATAVERSE_DOCS_OVERVIEW.md** ドキュメント体系を整理
+- ✅ **DATAVERSE_INTEGRATION_SUMMARY.md** 統合完了報告を作成
+
 ### 2025年10月21日 - ドキュメント統合
 
 - ✅ Logo関連8ファイル → **LOGO_MASTER_GUIDE.md** に統合
 - ✅ **DATAVERSE_LOOKUP_FIELD_FIX.md** に非推奨警告を追加
 - ✅ スキーマドキュメント間に相互参照を追加
-- ✅ **DOCUMENTATION_REVIEW_REPORT.md** でレビュー実施
 - ✅ このREADMEを作成
 
 ### 2025年10月17日 - Lookupフィールド実装完了

@@ -224,7 +224,7 @@ npx @microsoft/power-apps-cli push --force
 
 ## 📚 関連ドキュメント
 
-- **[Phase 2: デザインシステム統合](../PHASE2_UI_DESIGN_SYSTEM.md)** - メインガイド
+- **[Phase 2: 機能拡張](../PHASE2_FEATURE_ENHANCEMENT.md)** - メインガイド
 - **[CodeAppsStarterテンプレート](https://github.com/geekfujiwara/CodeAppsStarter)** - 参照元テンプレート
 - **[Lucide React](https://lucide.dev/)** - アイコンライブラリ公式ドキュメント
 
@@ -595,8 +595,7 @@ export const AppLogo = ({ size = 32, showText = false }) => {
 
 ## 関連ドキュメント
 
-- **[Phase 2: UI基盤・デザインシステム](../PHASE2_UI_DESIGN_SYSTEM.md)** - デザインシステム統合
-- **[ロゴ表示の修正方法](./LOGO_DISPLAY_FIX.md)** - トラブルシューティング詳細
+- **[Phase 2: 機能拡張](../PHASE2_FEATURE_ENHANCEMENT.md)** - デザインシステム統合
 
 複数のロゴインスタンスが同じページに存在する場合、SVG内の`id`属性が重複し、ブラウザが正しくレンダリングできません。
 
@@ -623,7 +622,7 @@ export const AppLogo = ({ size = 40 }: AppLogoProps) => {
 };
 ```
 
-**詳細**: [LOGO_DISPLAY_FIX.md](./LOGO_DISPLAY_FIX.md) を参照
+**詳細**: 上記のコード例を参照してください。`React.useId()`でユニークIDを生成することで、SVG ID衝突問題を解決します。
 
 ### 問題: ロゴの色が正しく表示されない
 
@@ -647,9 +646,7 @@ export const AppLogo = ({ size = 40 }: AppLogoProps) => {
 4. **レスポンシブ**: サイズをpropsで制御可能
 
 #### 詳細
-開発標準への提案内容は以下を参照:
-- [DEVELOPMENT_STANDARD_UPDATES.md](./DEVELOPMENT_STANDARD_UPDATES.md) - 詳細版
-- [STANDARD_UPDATE_SUMMARY.md](./STANDARD_UPDATE_SUMMARY.md) - 要約版
+開発標準へのSVGコンポーネント実装ガイドラインは、メインREADME.mdに反映済みです。
 
 ---
 
@@ -670,9 +667,9 @@ export const AppLogo = ({ size = 40 }: AppLogoProps) => {
 
 ## 関連ドキュメント
 
-- **[LOGO_DISPLAY_FIX.md](./LOGO_DISPLAY_FIX.md)** - SVG ID衝突問題の詳細と解決方法
-- **[DESIGN_REFRESH_v1.0.8.md](./DESIGN_REFRESH_v1.0.8.md)** - デザインリフレッシュの記録
-- **[DEVELOPMENT_STANDARD_UPDATES.md](./DEVELOPMENT_STANDARD_UPDATES.md)** - 開発標準への提案
+- **[LOGO_MASTER_GUIDE.md](./LOGO_MASTER_GUIDE.md)** - このドキュメント
+- **[THEME_CUSTOMIZATION_GUIDE.md](./THEME_CUSTOMIZATION_GUIDE.md)** - テーマカスタマイズガイド
+- **[SHADCN_UI_EXTENSION_GUIDE.md](./SHADCN_UI_EXTENSION_GUIDE.md)** - shadcn/ui拡張ガイド
 
 ---
 
