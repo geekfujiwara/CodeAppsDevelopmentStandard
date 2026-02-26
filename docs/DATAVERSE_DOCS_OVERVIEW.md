@@ -13,6 +13,7 @@ Dataverse接続に関するドキュメントは、以下のような階層構�
 Dataverse関連ドキュメント
 │
 ├── 📘 統合ガイド（最初に読むべき）
+│   ├── DATAVERSE_TABLE_CLI_GUIDE.md - CLIでテーブル作成・ソリューション管理 ⭐ 新フロー
 │   └── DATAVERSE_CONNECTION_GUIDE.md - 完全な統合ガイド
 │
 ├── 📖 詳細リファレンス（必要に応じて参照）
@@ -29,7 +30,8 @@ Dataverse関連ドキュメント
     ├── DATAVERSE_CHOICE_FIELD_FIX.md
     ├── DATAVERSE_SYSTEM_FIELDS_FIX.md
     ├── DATAVERSE_LOOKUP_FIELD_FIX.md
-    └── DATASOURCE_NAME_FIX.md
+    ├── DATASOURCE_NAME_FIX.md
+    └── EXTRACT_DATAVERSE_SCHEMA_FROM_XML.md（非推奨）
 ```
 
 ---
@@ -38,7 +40,12 @@ Dataverse関連ドキュメント
 
 ### 初めてDataverse接続を実装する方
 
-**ステップ1: 統合ガイドを読む**
+**ステップ1: テーブル設計・作成（新フロー）**
+- **[DATAVERSE_TABLE_CLI_GUIDE.md](./DATAVERSE_TABLE_CLI_GUIDE.md)** ⭐
+  - CLIでテーブル作成・ソリューション管理
+  - pac solution でソリューションをGit管理
+
+**ステップ2: 統合ガイドを読む**
 - **[DATAVERSE_CONNECTION_GUIDE.md](./DATAVERSE_CONNECTION_GUIDE.md)** 📘
   - Step-by-Stepで完全に網羅
   - データソース追加からCRUD実装まで
@@ -265,20 +272,21 @@ graph LR
 
 ### 優先度: 高
 
-1. **DATAVERSE_CONNECTION_GUIDE.md** - 最優先、必読
-2. **LOOKUP_FIELD_GUIDE.md** - Lookup実装時は必読
+1. **DATAVERSE_TABLE_CLI_GUIDE.md** - テーブル設計時は必読 ⭐ 新フロー
+2. **DATAVERSE_CONNECTION_GUIDE.md** - 最優先、必読
+3. **LOOKUP_FIELD_GUIDE.md** - Lookup実装時は必読
 
 ### 優先度: 中
 
-3. **DATAVERSE_INTEGRATION_BEST_PRACTICES.md** - 詳細パターン参照時
-4. **HOW_TO_GET_DATAVERSE_SCHEMA.md** - スキーマ取得時
-5. **DATAVERSE_SCHEMA_REFERENCE.md** - スキーマ参照時
+4. **DATAVERSE_INTEGRATION_BEST_PRACTICES.md** - 詳細パターン参照時
+5. **HOW_TO_GET_DATAVERSE_SCHEMA.md** - スキーマ取得時
+6. **DATAVERSE_SCHEMA_REFERENCE.md** - スキーマ参照時
 
 ### 優先度: 低（必要時のみ）
 
-6. **DATAVERSE_TROUBLESHOOTING.md** - エラー発生時
-7. **DATAVERSE_DEBUG.md** - デバッグ時
-8. アーカイブドキュメント - 通常は不要
+7. **DATAVERSE_TROUBLESHOOTING.md** - エラー発生時
+8. **DATAVERSE_DEBUG.md** - デバッグ時
+9. アーカイブドキュメント - 通常は不要
 
 ---
 
@@ -299,10 +307,11 @@ graph LR
 
 ### シンプルな原則
 
-1. **最初に読むのは1つだけ: DATAVERSE_CONNECTION_GUIDE.md**
-2. **基本実装はこれだけで完了**
-3. **必要になったら専門ドキュメントを参照**
-4. **エラーは統合ガイドで解決**
+1. **テーブル設計はCLIで: DATAVERSE_TABLE_CLI_GUIDE.md**
+2. **接続実装は統合ガイドで: DATAVERSE_CONNECTION_GUIDE.md**
+3. **基本実装はこの2つで完了**
+4. **必要になったら専門ドキュメントを参照**
+5. **エラーは統合ガイドで解決**
 
 ### ドキュメント構成の理由
 

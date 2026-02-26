@@ -16,7 +16,7 @@
 このリポジトリは、開発標準とPhase別リファレンスで構成されています:
 
 ### 📖 **README.md（開発標準・このファイル）**
-- ✅ 開発プロセス全体のフロー（Phase 0-5）
+- ✅ 開発プロセス全体のフロー（Phase 0-3）
 - ✅ Power Apps SDK の基本原則
 - ✅ データソース接続の標準手順
 - ✅ プロジェクト構造とアーキテクチャ
@@ -439,8 +439,6 @@ npx @microsoft/power-apps-cli push
 
 ### **Phase 3: データソース統合**
 
-### **Phase 3: データソース統合**
-
 ```mermaid
 graph LR
     A[データソース選択] --> B[コネクタ接続]
@@ -669,47 +667,6 @@ graph LR
 4. **デプロイ**: `npm run build` + `npx @microsoft/power-apps-cli push` で本番反映
 5. **Phase 3**: 必要に応じてデータソース追加・変更
 6. Phase 2に戻り、次の機能開発へ
-
----
-
-## 📚 Phase別リファレンスドキュメント
-
-**実施するStep:**
-1. **テーブル作成** - `pac solution push` でCLIからDataverseテーブルを作成 ⭐ 新フロー
-2. **ソリューション管理** - `pac solution` でCLIからソリューションをひとまとめに管理 ⭐ 新フロー
-3. **スキーマ確認** - `pac solution export` または `pac modelbuilder build` でCLIから取得
-4. **接続追加コマンド** - `npx @microsoft/power-apps-cli add-data-source`
-5. **カスタムフック作成** - データアクセスロジックの実装
-6. **UI統合** - Phase 2で実装した機能へのデータ統合
-7. **テスト・デプロイ** - データ連携の動作確認と本番反映
-
-**完了条件:**
-- ✅ **`pac solution push` でCLIからDataverseテーブルが作成されている** ⭐ 新フロー
-- ✅ データソースが正常に接続されている
-- ✅ カスタムフックが実装されている
-- ✅ `isInitialized` チェックが実装されている
-- ✅ CRUD操作が正常に動作する
-
-**基本パターン（概要）:**
-```typescript
-// ✅ 正しい実装: SDK初期化完了後にデータアクセス
-const { isInitialized } = usePowerPlatform();
-useEffect(() => {
-  if (isInitialized) {
-    loadData(); // SDK初期化完了後に実行
-  }
-}, [isInitialized]);
-```
-
-### 継続開発サイクル 
-
-**継続開発サイクル**では以下の点を行います:
-
-- 実装済み機能のリストアップ
-- 改善点の提案
-- 拡張機能の提案
-
-各観点は **ImprovementProposal.MD** としてドキュメント化し、段階的に対応します。 
 
 以上
 

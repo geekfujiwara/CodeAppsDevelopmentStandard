@@ -215,7 +215,7 @@ interface LooseComponentProps {
 
 ## 📚 関連ドキュメント
 
-- **[Phase 2: デザインシステム統合](../PHASE2_UI_DESIGN_SYSTEM.md)** - メインガイド
+- **[Phase 2: 機能拡張](../PHASE2_FEATURE_ENHANCEMENT.md)** - メインガイド
 - **[テーマカスタマイズガイド](./THEME_CUSTOMIZATION_GUIDE.md)** - テーマ設定
 - **[CodeAppsStarterテンプレート](https://github.com/geekfujiwara/CodeAppsStarter)** - 参照元テンプレート
 - **[shadcn/ui公式ドキュメント](https://ui.shadcn.com/)** - コンポーネントリファレンス

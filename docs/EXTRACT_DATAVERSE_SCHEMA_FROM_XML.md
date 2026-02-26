@@ -1,5 +1,21 @@
 # DataverseスキーマをXMLから抽出するPowerShellスクリプト
 
+> ⚠️ **このドキュメントは非推奨です**
+> 
+> XMLベースのスキーマ取得方法は、以下の理由により推奨されません：
+> - 手動エクスポートが必要で自動化が困難
+> - ファイルサイズが大きく扱いにくい
+> - CI/CDとの統合が困難
+> 
+> 最新のスキーマ取得方法は以下を参照してください：
+> 
+> → **[DATAVERSE_TABLE_CLI_GUIDE.md](./DATAVERSE_TABLE_CLI_GUIDE.md)** ⭐ CLIベースの新フロー
+> → **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** ⭐ CLIベースのスキーマ取得方法
+> 
+> このドキュメントは、参考資料として保存されています。
+
+---
+
 ## customizations.xmlからChoice値を抽出
 
 Dataverseソリューションをエクスポートした`customizations.xml`から、選択肢列（Picklist）の値を自動的に抽出するスクリプトです。

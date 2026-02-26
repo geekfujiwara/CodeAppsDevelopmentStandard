@@ -7,7 +7,7 @@
 > - **Dataverse統合ガイド**: テンプレートでのDataverse機能実装
 > - **トラブルシューティング**: テンプレート特有の問題解決とデバッグガイド
 
-**最終更新**: 2025年10月21日
+**最終更新**: 2026年2月26日
 
 ---
 
@@ -62,11 +62,9 @@
 | Phase | リファレンス | 説明 | 所要時間 |
 |-------|------------|------|---------|
 | **Phase 0** | **[PHASE0_ENVIRONMENT_SETUP.md](../PHASE0_ENVIRONMENT_SETUP.md)** | 開発ツールのインストールと設定 | 30分 |
-| **Phase 1** | **[PHASE1_PROJECT_SETUP.md](../PHASE1_PROJECT_SETUP.md)** | CodeAppsStarterテンプレートのクローン<br>プロジェクトフォルダ名の変更<br>Power Apps初期設定 | 1時間 |
-| **Phase 2** | **[PHASE2_UI_DESIGN_SYSTEM.md](../PHASE2_UI_DESIGN_SYSTEM.md)** | テンプレートのデザインシステムカスタマイズ<br>shadcn/ui + Tailwind CSS の活用<br>ブランディング適用 | 2時間 |
-| **Phase 3** | **[PHASE3_LOCAL_TESTING.md](../PHASE3_LOCAL_TESTING.md)** | カスタマイズしたテンプレートの動作確認<br>ローカル環境でのテスト | 30分 |
-| **Phase 4** | **[PHASE4_DEPLOYMENT.md](../PHASE4_DEPLOYMENT.md)** | カスタマイズ版をPower Apps環境へデプロイ<br>本番環境での確認 | 30分 |
-| **Phase 5** | **[PHASE5_DATA_INTEGRATION.md](../PHASE5_DATA_INTEGRATION.md)** | テンプレートでのDataverse統合<br>機能拡張実装 | プロジェクトによる |
+| **Phase 1** | **[CodeAppsStarter（外部リポジトリ）](https://github.com/geekfujiwara/CodeAppsStarter)** | Microsoft標準テンプレートのセットアップ<br>ローカル実行・Power Appsデプロイ | 1時間 |
+| **Phase 2** | **[PHASE2_FEATURE_ENHANCEMENT.md](../PHASE2_FEATURE_ENHANCEMENT.md)** | CodeAppsStarter参照型の機能拡張<br>shadcn/ui + Tailwind CSS の活用<br>ブランディング適用 | 2時間 |
+| **Phase 3** | **[PHASE3_DATA_INTEGRATION.md](../PHASE3_DATA_INTEGRATION.md)** | Dataverseやコネクター統合<br>データソース接続・CRUD実装 | プロジェクトによる |
 
 ---
 
@@ -122,18 +120,22 @@
 
 | ドキュメント | 説明 | 使用タイミング |
 |------------|------|--------------|
-| **[TAILWIND_CUSTOMIZATION_GUIDE.md](./TAILWIND_CUSTOMIZATION_GUIDE.md)** | 🎨 Tailwind CSS カスタマイズガイド<br>- カラーテーマの変更<br>- カスタムコンポーネントの作成 | デザインカスタマイズ時 |
+| **[THEME_CUSTOMIZATION_GUIDE.md](./THEME_CUSTOMIZATION_GUIDE.md)** | 🎨 Tailwind CSS カスタマイズガイド<br>- カラーテーマの変更<br>- カスタムコンポーネントの作成 | デザインカスタマイズ時 |
 | **[SHADCN_UI_EXTENSION_GUIDE.md](./SHADCN_UI_EXTENSION_GUIDE.md)** | 🔧 shadcn/ui コンポーネント拡張<br>- 新しいコンポーネントの追加<br>- 既存コンポーネントのカスタマイズ | 機能拡張時 |
 
 ---
 
 ## 📐 開発標準への提案
 
+> ℹ️ 以下のドキュメントは開発標準への提案として作成されましたが、メインREADME.mdに反映済みのためアーカイブされています。
+
+<!--
 | ドキュメント | 説明 | 状態 |
 |------------|------|------|
-| **[DEVELOPMENT_STANDARD_UPDATES.md](./DEVELOPMENT_STANDARD_UPDATES.md)** | SVGコンポーネント実装ガイドラインの詳細版 | → README.mdに反映済み |
-| **[STANDARD_UPDATE_SUMMARY.md](./STANDARD_UPDATE_SUMMARY.md)** | 開発標準更新提案のサマリー | アーカイブ |
-| **[GITHUB_PROPOSAL.md](./GITHUB_PROPOSAL.md)** | GitHub提案 | 検討中 |
+| DEVELOPMENT_STANDARD_UPDATES.md | SVGコンポーネント実装ガイドラインの詳細版 | → README.mdに反映済み |
+| STANDARD_UPDATE_SUMMARY.md | 開発標準更新提案のサマリー | アーカイブ |
+| GITHUB_PROPOSAL.md | GitHub提案 | 検討中 |
+-->
 
 ---
 
@@ -142,10 +144,9 @@
 ### テンプレート初期化から開発まで
 
 1. **[PHASE0_ENVIRONMENT_SETUP.md](../PHASE0_ENVIRONMENT_SETUP.md)** - 開発環境のセットアップ
-2. **[PHASE1_PROJECT_SETUP.md](../PHASE1_PROJECT_SETUP.md)** - CodeAppsStarterテンプレートのクローンと初期設定
-3. **[PHASE2_UI_DESIGN_SYSTEM.md](../PHASE2_UI_DESIGN_SYSTEM.md)** - ブランディングとデザインのカスタマイズ
+2. **[CodeAppsStarter（外部リポジトリ）](https://github.com/geekfujiwara/CodeAppsStarter)** - Microsoft標準テンプレートのセットアップとデプロイ
+3. **[PHASE2_FEATURE_ENHANCEMENT.md](../PHASE2_FEATURE_ENHANCEMENT.md)** - CodeAppsStarter参照型の機能拡張
 4. **[LOGO_MASTER_GUIDE.md](./LOGO_MASTER_GUIDE.md)** - ロゴの実装方法を確認
-5. **[PHASE3_LOCAL_TESTING.md](../PHASE3_LOCAL_TESTING.md)** - カスタマイズ版の動作テスト
 
 ### Dataverse接続を実装したい
 
@@ -164,15 +165,14 @@
 
 ### テンプレートでのLookupフィールド実装
 
-1. **[メインREADME.md - Phase 5: Step 6](../README.md#step-6-カスタムフック作成)** - テンプレートでの基本パターンを理解
+1. **[メインREADME.md - Phase 3: データソース統合](../README.md#phase-3-データソース統合)** - テンプレートでの基本パターンを理解
 2. **[LOOKUP_FIELD_GUIDE.md](./LOOKUP_FIELD_GUIDE.md)** - 詳細な実装手順（Step 1-5）を確認
 3. 実装後 → 同ドキュメントの「テストチェックリスト」で検証
 
 ### SVGロゴやアイコンを実装したい
 
 1. **[メインREADME.md - コンポーネント設計](../README.md#コンポーネント設計原則)** - 基本原則を確認
-2. **[LOGO_MASTER_GUIDE.md](./LOGO_MASTER_GUIDE.md)** - ロゴの使用方法を確認
-3. **[LOGO_DISPLAY_FIX.md](./LOGO_DISPLAY_FIX.md)** - SVG ID衝突の回避方法を理解
+2. **[LOGO_MASTER_GUIDE.md](./LOGO_MASTER_GUIDE.md)** - ロゴの使用方法・SVG ID衝突の回避方法を確認
 
 ### エラーが発生したら
 
@@ -186,7 +186,7 @@
 ## 📖 メインREADME.mdとの関係
 
 ### メインREADME.md（開発標準）の役割
-- ✅ 開発プロセス全体のフロー（Phase 1-5）
+- ✅ 開発プロセス全体のフロー（Phase 0-3）
 - ✅ Power Apps SDK の基本原則
 - ✅ データソース接続の標準手順
 - ✅ プロジェクト構造とアーキテクチャ
@@ -212,17 +212,16 @@
    - docs/に実装ガイドを作成
    - メインREADME.mdに相互参照を追加
 
-2. **問題を解決したら**
-1. **ベストプラクティスが確立したら**
+2. **ベストプラクティスが確立したら**
    - メインREADME.mdに原則として追加
    - docs/に詳細な実装例を追加
    - テンプレートの更新を検討
 
-2. **問題が発生したら**
+3. **問題が発生したら**
    - 解決方法をトラブルシューティングガイドに追加
    - テンプレート使用時の注意事項として記録
 
-3. **テンプレートのアップデートがあったら**
+4. **テンプレートのアップデートがあったら**
    - 開発標準ドキュメントの更新を確認
    - 新機能の活用方法を検討
 
