@@ -78,7 +78,8 @@
 
 | ドキュメント | 説明 | 対象フェーズ |
 |------------|------|------------|
-| **[DATAVERSE_CONNECTION_GUIDE.md](./DATAVERSE_CONNECTION_GUIDE.md)** | 📘 **Dataverse接続 完全ガイド（統合最終版）**<br>- データソース追加からCRUD実装まで完全網羅<br>- Step-by-Stepで再現性を保証<br>- トラブルシューティング統合<br>- ベストプラクティス集約<br>⭐ **最初に読むべき統合ドキュメント** | Phase 3: データソース統合 |
+| **[DATAVERSE_TABLE_CLI_GUIDE.md](./DATAVERSE_TABLE_CLI_GUIDE.md)** | 🆕 **DataverseテーブルCLIガイド（新フロー）**<br>- CLIでテーブル作成・スキーマ設計<br>- pac solution でソリューション管理<br>- 既存テーブルのCLIエクスポート<br>⭐ **テーブル設計・管理の新標準** | Phase 3: Dataverseテーブル設計 |
+| **[DATAVERSE_CONNECTION_GUIDE.md](./DATAVERSE_CONNECTION_GUIDE.md)** | 📘 **Dataverse接続 完全ガイド（統合最終版）**<br>- データソース追加からCRUD実装まで完全網羅<br>- Step-by-Stepで再現性を保証<br>- トラブルシューティング統合<br>- ベストプラクティス集約<br>⭐ **接続実装の統合ドキュメント** | Phase 3: データソース統合 |
 
 #### 📖 詳細リファレンス（必要に応じて参照）
 
@@ -148,13 +149,16 @@
 
 ### Dataverse接続を実装したい
 
-1. **[DATAVERSE_CONNECTION_GUIDE.md](./DATAVERSE_CONNECTION_GUIDE.md)** - ⭐ **まずこれを読む**: Dataverse接続の完全ガイド（統合最終版）
+1. **[DATAVERSE_TABLE_CLI_GUIDE.md](./DATAVERSE_TABLE_CLI_GUIDE.md)** - ⭐ **まずこれを読む**: CLIでテーブル作成・ソリューション管理（新フロー）
+   - pac CLIでテーブルを作成（UI操作不要）
+   - ソリューションをGitで管理
+2. **[DATAVERSE_CONNECTION_GUIDE.md](./DATAVERSE_CONNECTION_GUIDE.md)** - Dataverse接続の完全ガイド（統合最終版）
    - データソース追加からCRUD実装まで完全網羅
    - Step-by-Stepで確実に実装
    - トラブルシューティング統合
-2. **[メインREADME.md - Phase 3: データソース統合](../README.md#phase-3-データソース統合)** - 開発標準での位置づけを理解
-3. 必要に応じて詳細リファレンスを参照:
-   - **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** - スキーマ取得の詳細
+3. **[メインREADME.md - Phase 3: データソース統合](../README.md#phase-3-データソース統合)** - 開発標準での位置づけを理解
+4. 必要に応じて詳細リファレンスを参照:
+   - **[HOW_TO_GET_DATAVERSE_SCHEMA.md](./HOW_TO_GET_DATAVERSE_SCHEMA.md)** - CLIベースのスキーマ取得
    - **[DATAVERSE_SCHEMA_REFERENCE.md](./DATAVERSE_SCHEMA_REFERENCE.md)** - スキーマ定義リファレンス
    - **[LOOKUP_FIELD_GUIDE.md](./LOOKUP_FIELD_GUIDE.md)** - Lookupフィールド詳細ガイド
 
