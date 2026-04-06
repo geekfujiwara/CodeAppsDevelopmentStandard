@@ -154,12 +154,12 @@ await SharePointService.PostItem("{site-url}", "{list-id}", {
 
 ## Dataverse
 
-**API 名**: `shared_commondataserviceforapps`
+**API 名**: `dataverse`
 
 ### セットアップ
 
 ```bash
-pac code add-data-source -a shared_commondataserviceforapps -c {connection-id}
+pac code add-data-source -a dataverse -t {table-logical-name}
 ```
 
 ### 使用例
