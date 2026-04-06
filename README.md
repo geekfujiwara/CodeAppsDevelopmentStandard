@@ -4,10 +4,33 @@
 
 このリポジトリは、**Power Apps Code Apps プロジェクトのスキャフォールド**と**開発標準ガイド**を提供します。Microsoft 公式ドキュメントと [PowerAppsCodeApps リポジトリ](https://github.com/microsoft/PowerAppsCodeApps) に基づいたベストプラクティスに従っています。
 
+> 📝 **本リポジトリは [ギークフジワラ](https://twitter.com/geekfujiwara) の実務経験・検証に基づき継続的に更新されています。** Power Apps Code Apps と Dataverse を組み合わせた開発の実践ノウハウを反映しています。
+
+---
+
+## 🤖 GitHub Copilot での活用方法（推奨）
+
+**推奨モデル: Claude Opus 4.6**
+
+本リポジトリは **GitHub Copilot のコンテキスト**として活用することを想定しています。以下のように使ってください:
+
+1. GitHub Copilot（Agent モード）に本リポジトリの URL を渡す
+2. 「〇〇を作成して」と伝える
+
+```
+このリポジトリを参照して、IT資産管理アプリを作成してください。
+https://github.com/geekfujiwara/CodeAppsDevelopmentStandard
+```
+
+これにより、本リポジトリの開発標準・コネクタ設定・デザインシステムに準拠したコードを GitHub Copilot が生成してくれます。
+
+> 💡 **ユーザーからの指示が曖昧な場合**: GitHub Copilot は不明点をユーザーに質問（Ask User Question）して確認しながら実装を進めます。要件を完全に明確にしてから実装することで、手戻りを防ぎ品質の高いアプリケーションを構築できます。
+
 ---
 
 ## 📋 目次
 
+- [GitHub Copilot での活用方法（推奨）](#-github-copilot-での活用方法推奨)
 - [前提条件](#-前提条件)
 - [クイックスタート](#-クイックスタート)
 - [プロジェクト構造](#-プロジェクト構造)
@@ -27,12 +50,16 @@
 | 項目 | 詳細 |
 |------|------|
 | **Visual Studio Code** | [Power Platform Tools 拡張機能](https://marketplace.visualstudio.com/items?itemName=microsoft-IsvExpTools.powerplatform-vscode) をインストール |
+| **Awesome Copilot プラグイン** | VS Code に **Code Apps** および **Dataverse** のプラグインをインストール（[詳細はこちら](https://www.geekfujiwara.com/tech/powerplatform/8082/)） |
+| **GitHub Copilot** | VS Code に GitHub Copilot 拡張機能をインストール（推奨モデル: **Claude Opus 4.6**） |
 | **Node.js** | LTS バージョン（v18.x または v20.x 推奨） |
 | **Git** | バージョン管理用 |
 | **Power Platform CLI (PAC CLI)** | 最新バージョン（`npm install -g @microsoft/power-apps-cli` または VS Code 拡張機能に同梱） |
 | **Power Platform 環境** | Code Apps が有効化されていること（管理者設定が必要） |
 | **ライセンス** | エンドユーザーに Power Apps Premium ライセンスが必要 |
 | **Azure アカウント** | Azure SQL など Azure コネクタを使用する場合（任意） |
+
+> ⚡ **Awesome Copilot の Code Apps / Dataverse プラグイン**をインストールすることで、GitHub Copilot を通じて**会話形式で Dataverse テーブルの設計・作成・デプロイ**が可能になります。従来の Power Apps ポータル UI でのテーブル作成よりもこちらを優先してください。詳細な注意点は[こちらのブログ記事](https://www.geekfujiwara.com/tech/powerplatform/8082/)を参照してください。
 
 ---
 
@@ -65,7 +92,24 @@ pac env select --environment {environment-url}
 pac code init --displayName "My Code App"
 ```
 
-### 4. コネクタの追加（例: Office 365 Users）
+### 4. Dataverse テーブルの作成（GitHub Copilot 推奨）
+
+Dataverse テーブルの作成は、**Awesome Copilot の Dataverse プラグイン**を使い、VS Code 上の GitHub Copilot で会話形式で行うことを推奨します。Power Apps ポータル UI での手動作成よりもこちらを優先してください。
+
+```
+# GitHub Copilot Agent モードで以下のように依頼
+「IT資産管理用の Dataverse テーブルを作成してください。
+テーブル名: IT Asset
+フィールド: 資産名(テキスト), シリアル番号(テキスト), 購入日(日付), ステータス(選択肢), 担当者(Lookup)」
+```
+
+> ⚠️ **注意点**（[検証結果の詳細はこちら](https://www.geekfujiwara.com/tech/powerplatform/8082/)）:
+> - Awesome Copilot の Code Apps および Dataverse プラグインが VS Code にインストールされていることを確認してください
+> - Dataverse テーブル設計では、既存のシステムテーブル（SystemUser 等）との関係を理解した上で設計してください
+> - AI が生成した設計は必ずレビューし、組織固有の要件に合っているか確認してください
+> - 認証・MCP サーバーの設定エラーが発生した場合は、エンドポイント URL と認証情報を再確認してください
+
+### 5. コネクタの追加（例: Office 365 Users）
 
 ```bash
 # 利用可能な接続を確認
@@ -75,7 +119,7 @@ pac connection list
 pac code add-data-source -a shared_office365users -c {connection-id}
 ```
 
-### 5. ローカル開発の開始
+### 6. ローカル開発の開始
 
 ```bash
 # Vite 開発サーバーと PAC CLI を並列実行
@@ -87,7 +131,7 @@ npm run dev:vite
 
 アプリは `http://localhost:3000` で起動します（ポート 3000 は Power Apps SDK の要件です）。
 
-### 6. Power Platform へのデプロイ（標準デザインの確認）
+### 7. Power Platform へのデプロイ（標準デザインの確認）
 
 CodeAppsStarter を Code App としてデプロイし、標準デザインを確認します:
 
@@ -196,7 +240,7 @@ pac code push
 | **Microsoft Teams** | `shared_teams` | チームコラボレーション、通知 |
 | **MSN Weather** | `shared_msnweather` | 天気データ連携 |
 | **Microsoft Translator V2** | `shared_microsofttranslator` | 多言語翻訳 |
-| **Dataverse** | `dataverse` | CRUD 操作、リレーションシップ（`-t` でテーブル指定） |
+| **Dataverse** | `dataverse` | CRUD 操作、リレーションシップ（`-t` でテーブル指定、テーブル作成は GitHub Copilot 推奨） |
 
 ### コネクタ追加の手順
 
@@ -427,6 +471,10 @@ Error: verbatimModuleSyntax
 - [Power Apps Code Apps 公式ドキュメント](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/)
 - [Power Apps Code Apps サンプル (GitHub)](https://github.com/microsoft/PowerAppsCodeApps)
 - [Power Platform CLI ドキュメント](https://learn.microsoft.com/ja-jp/power-platform/developer/cli/introduction)
+
+### Awesome Copilot / Dataverse プラグイン
+
+- [VS Code 拡張機能のスキルを用いて GitHub Copilot から Power Platform を開発する（注意点・検証結果）](https://www.geekfujiwara.com/tech/powerplatform/8082/)
 
 ### 詳細リファレンス（docs/）
 

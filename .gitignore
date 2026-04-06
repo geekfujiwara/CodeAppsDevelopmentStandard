@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+package-lock.json
 
 # Build output
 dist/
@@ -28,3 +29,6 @@ Thumbs.db
 
 # Power Platform
 *.log
+
+# Build info
+tsconfig.tsbuildinfo
