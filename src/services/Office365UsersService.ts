@@ -25,9 +25,8 @@
  * - `Manager_V2(id)` - マネージャーを取得
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 interface ServiceResponse {
-  data: any;
+  data: unknown;
   status?: number;
 }
 
@@ -87,4 +86,3 @@ export const Office365UsersService = {
     );
   },
 };
-/* eslint-enable @typescript-eslint/no-explicit-any */

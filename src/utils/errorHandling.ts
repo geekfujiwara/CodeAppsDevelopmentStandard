@@ -5,9 +5,11 @@
 /**
  * コネクタエラーからユーザーフレンドリーなメッセージを生成する
  *
- * @param error - 捕捉されたエラーオブジェクト
- * @param context - エラーが発生した操作のコンテキスト
- * @returns ユーザー向けのエラーメッセージ
+ * @param error - 捕捉されたエラーオブジェクト（Error インスタンスまたは任意の値）。
+ *   コネクタ操作の catch ブロックで受け取った値をそのまま渡してください。
+ * @param context - エラーが発生した操作を示す短い説明文
+ *   （例: "プロフィール取得", "Dataverse 更新"）。メッセージの接頭辞として使用されます。
+ * @returns ユーザー向けのエラーメッセージ文字列
  */
 export function getConnectorErrorMessage(
   error: unknown,
