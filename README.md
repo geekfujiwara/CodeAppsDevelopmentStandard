@@ -180,7 +180,7 @@ pac code push
 | **Microsoft Teams** | `shared_teams` | チームコラボレーション、通知 |
 | **MSN Weather** | `shared_msnweather` | 天気データ連携 |
 | **Microsoft Translator V2** | `shared_microsofttranslator` | 多言語翻訳 |
-| **Dataverse** | `shared_commondataserviceforapps` | CRUD 操作、リレーションシップ |
+| **Dataverse** | `dataverse` | CRUD 操作、リレーションシップ（`-t` でテーブル指定） |
 
 ### コネクタ追加の手順
 

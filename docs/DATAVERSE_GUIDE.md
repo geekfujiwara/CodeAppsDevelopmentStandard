@@ -22,7 +22,7 @@ Dataverse は Power Platform のネイティブデータストアです。Code A
 ### コネクタ追加
 
 ```bash
-pac code add-data-source -a shared_commondataserviceforapps -c {connection-id}
+pac code add-data-source -a dataverse -t {table-logical-name}
 ```
 
 ### PAC CLI によるテーブル管理
