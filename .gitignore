@@ -28,3 +28,6 @@ Thumbs.db
 
 # Power Platform
 *.log
+
+# Build info
+tsconfig.tsbuildinfo
