@@ -1,11 +1,57 @@
-# Fluent UI デザインシステムガイド
+# デザインシステムガイド
 
-Power Apps Code Apps では、Microsoft の [Fluent UI React v9](https://react.fluentui.dev/) を使用して一貫した UI を構築します。
+Power Apps Code Apps の開発では、**[CodeAppsStarter](https://github.com/geekfujiwara/CodeAppsStarter)** を標準デザインの起点として使用します。
+
+---
+
+## 標準デザインの利用方針
+
+### 開発フロー
+
+1. **CodeAppsStarter をクローン**する
+
+   ```bash
+   git clone https://github.com/geekfujiwara/CodeAppsStarter.git
+   cd CodeAppsStarter
+   npm install
+   ```
+
+2. **Code App としてデプロイ**して標準デザインを確認する
+
+   ```bash
+   pac code init --displayName "My Code App"
+   npm run build
+   pac code push
+   ```
+
+3. デプロイされた画面の**デザイン・UI パターンを標準として認識**する
+
+4. 標準デザインをベースに**追加開発**を行う
+
+### CodeAppsStarter の技術スタック
+
+| 技術 | 役割 |
+|------|------|
+| **Tailwind CSS** | ユーティリティファーストのスタイリング |
+| **shadcn/ui** | 再利用可能な UI コンポーネント |
+| **React Query** | データフェッチとキャッシング |
+| **Vite + TypeScript + React** | モダンなビルドツールと言語 |
+
+### 標準 UI パターン
+
+CodeAppsStarter には以下の UI パターンが実装されています:
+
+- **ギャラリー＆フィルター** - 検索機能、複数条件フィルタリング、ページネーション
+- **フォーム** - モーダルベースのフォーム、バリデーション
+- **ダッシュボード** - 統計カード、データ集計
+- **カード表示** - バッジ・メタデータ付きカードコンポーネント
+- **レスポンシブサイドバーナビゲーション** - モバイル対応レイアウト
 
 ---
 
 ## 目次
 
+- [標準デザインの利用方針](#標準デザインの利用方針)
 - [セットアップ](#セットアップ)
 - [テーマ設定](#テーマ設定)
 - [基本コンポーネント](#基本コンポーネント)
@@ -17,6 +63,8 @@ Power Apps Code Apps では、Microsoft の [Fluent UI React v9](https://react.f
 ---
 
 ## セットアップ
+
+> **注意**: 以下は Fluent UI React v9 を使用する場合の設定です。CodeAppsStarter は Tailwind CSS + shadcn/ui を採用しており、Fluent UI の代わりにこれらを使用します。新規開発は CodeAppsStarter の技術スタックに合わせてください。
 
 Fluent UI React v9 は `package.json` にプリインストールされています:
 
