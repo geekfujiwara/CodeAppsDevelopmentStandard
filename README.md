@@ -59,7 +59,7 @@ https://github.com/geekfujiwara/CodeAppsDevelopmentStandard
 | **ライセンス** | エンドユーザーに Power Apps Premium ライセンスが必要 |
 | **Azure アカウント** | Azure SQL など Azure コネクタを使用する場合（任意） |
 
-> ⚡ **Awesome Copilot の Code Apps / Dataverse プラグイン**をインストールすることで、GitHub Copilot を通じて**会話形式で Dataverse テーブルの設計・作成・デプロイ**が可能になります。従来の Power Platform 管理センター UI でのテーブル作成よりもこちらを優先してください。詳細な注意点は[こちらのブログ記事](https://www.geekfujiwara.com/tech/powerplatform/8082/)を参照してください。
+> ⚡ **Awesome Copilot の Code Apps / Dataverse プラグイン**をインストールすることで、GitHub Copilot を通じて**会話形式で Dataverse テーブルの設計・作成・デプロイ**が可能になります。従来の Power Apps ポータル UI でのテーブル作成よりもこちらを優先してください。詳細な注意点は[こちらのブログ記事](https://www.geekfujiwara.com/tech/powerplatform/8082/)を参照してください。
 
 ---
 
@@ -94,7 +94,7 @@ pac code init --displayName "My Code App"
 
 ### 4. Dataverse テーブルの作成（GitHub Copilot 推奨）
 
-Dataverse テーブルの作成は、**Awesome Copilot の Dataverse プラグイン**を使い、VS Code 上の GitHub Copilot で会話形式で行うことを推奨します。Power Platform 管理センター UI での手動作成よりもこちらを優先してください。
+Dataverse テーブルの作成は、**Awesome Copilot の Dataverse プラグイン**を使い、VS Code 上の GitHub Copilot で会話形式で行うことを推奨します。Power Apps ポータル UI での手動作成よりもこちらを優先してください。
 
 ```
 # GitHub Copilot Agent モードで以下のように依頼
