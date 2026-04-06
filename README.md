@@ -1,6 +1,6 @@
 # Power Apps Code Apps 開発標準
 
-> **Power Apps Code Apps** は React / TypeScript などのコードファーストアプローチで Web アプリを構築し、Power Platform のインフラ上で実行できるプレビュー機能です。Microsoft Entra 認証、1,500+ コネクター、管理プラットフォームポリシーに対応しています。
+> **Power Apps Code Apps** は React / TypeScript などのコードファーストアプローチで Web アプリを構築し、Power Platform のインフラ上で実行できる機能です（一般提供 (GA) 済み）。Microsoft Entra 認証、1,500+ コネクター、管理プラットフォームポリシーに対応しています。
 
 このリポジトリは、**Power Apps Code Apps プロジェクトのスキャフォールド**と**開発標準ガイド**を提供します。Microsoft 公式ドキュメントと [PowerAppsCodeApps リポジトリ](https://github.com/microsoft/PowerAppsCodeApps) に基づいたベストプラクティスに従っています。
 
@@ -38,11 +38,13 @@
 
 ## 🚀 クイックスタート
 
-### 1. リポジトリのクローンと依存関係のインストール
+### 1. CodeAppsStarter のクローンと依存関係のインストール
+
+新規プロジェクトは **[CodeAppsStarter](https://github.com/geekfujiwara/CodeAppsStarter)** をベースにしてください。このテンプレートには標準デザイン（Tailwind CSS + shadcn/ui）と実装パターンがあらかじめ組み込まれています。
 
 ```bash
-git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard.git
-cd CodeAppsDevelopmentStandard
+git clone https://github.com/geekfujiwara/CodeAppsStarter.git
+cd CodeAppsStarter
 npm install
 ```
 
@@ -84,6 +86,20 @@ npm run dev:vite
 ```
 
 アプリは `http://localhost:3000` で起動します（ポート 3000 は Power Apps SDK の要件です）。
+
+### 6. Power Platform へのデプロイ（標準デザインの確認）
+
+CodeAppsStarter を Code App としてデプロイし、標準デザインを確認します:
+
+```bash
+# プロダクションビルド
+npm run build
+
+# Power Platform にデプロイ
+pac code push
+```
+
+デプロイされた CodeAppsStarter の画面構成・デザインを標準として認識した上で、追加開発を行ってください。
 
 ---
 
@@ -334,7 +350,7 @@ pac code push
 
 ## ⚠️ 制限事項
 
-Power Apps Code Apps は現在プレビュー機能のため、以下の制限があります:
+Power Apps Code Apps には以下の制限があります:
 
 | 制限事項 | 詳細 |
 |---------|------|
@@ -418,12 +434,12 @@ Error: verbatimModuleSyntax
 |-------------|------|
 | [docs/CONNECTOR_REFERENCE.md](./docs/CONNECTOR_REFERENCE.md) | コネクタ設定の詳細リファレンス |
 | [docs/DATAVERSE_GUIDE.md](./docs/DATAVERSE_GUIDE.md) | Dataverse 統合ガイド |
-| [docs/DESIGN_SYSTEM.md](./docs/DESIGN_SYSTEM.md) | Fluent UI デザインシステムガイド |
+| [docs/DESIGN_SYSTEM.md](./docs/DESIGN_SYSTEM.md) | デザインシステムガイド（CodeAppsStarter 標準デザイン） |
 | [docs/ADVANCED_PATTERNS.md](./docs/ADVANCED_PATTERNS.md) | 高度な実装パターン |
 
 ### 関連リポジトリ
 
-- [CodeAppsStarter テンプレート](https://github.com/geekfujiwara/CodeAppsStarter) - スターターテンプレート
+- [CodeAppsStarter（標準デザインテンプレート）](https://github.com/geekfujiwara/CodeAppsStarter) - **新規開発の起点**。Tailwind CSS + shadcn/ui を採用した標準デザインテンプレートです。まずこのテンプレートをクローン・デプロイして標準デザインを確認し、追加開発の出発点としてください。
 
 ---
 
