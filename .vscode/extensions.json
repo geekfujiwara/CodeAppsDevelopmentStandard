@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "microsoft.powerapps-portals",
+    "ms-powerplatform.powerapps-portals",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode"
+  ]
+}
