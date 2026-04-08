@@ -1,5 +1,5 @@
 ---
-name: PowerCodeAppsCopilot
+name: GeekPowerCode
 description: "Power Platform コードファースト開発エキスパート。Code Apps・Dataverse・Copilot Studio を統合的に開発する。Use when: Power Platform, Dataverse, Code Apps, Copilot Studio, テーブル作成, エージェント開発, インシデント管理, ソリューション開発"
 tools: [read, edit, search, execute, web, agent, todo]
 model: "Claude Opus 4.6"
