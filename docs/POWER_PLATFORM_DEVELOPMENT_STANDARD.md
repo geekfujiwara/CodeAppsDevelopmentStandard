@@ -818,6 +818,36 @@ if existing["value"]:
 
 > **教訓**: Flow API で作成したフローは `workflow` テーブルに存在しないため、`AddSolutionComponent` でもソリューションに追加できない。最初から Dataverse Web API 方式で作成するのが正解。
 
+#### 5.9.7 接続参照（Connection Reference）への変更
+
+Dataverse Web API で作成したフローは **直接接続（Embedded）** モードで接続を埋め込む。
+ソリューション内で「接続ではなく接続参照を使用する必要があります」という警告が表示される場合は、以下の手順で対応する。
+
+> **推奨手順**: Power Automate UI でフローを開いて手動で接続参照に変更する。API での接続参照自動作成は `AzureResourceManagerRequestFailed` 等のエラーが発生しやすく安定しない。
+
+**手順**:
+```
+1. Power Automate (https://make.powerautomate.com) でソリューションを開く
+2. 対象フローをクリックして編集画面へ
+3. 各アクション（トリガー含む）の接続部分で「接続参照の追加」を選択
+4. 既存の接続参照を選択、または新規作成
+5. 保存して有効化
+```
+
+**接続参照が必要な理由**:
+- ソリューションのエクスポート/インポート時に、ターゲット環境の接続に自動マッピングされる
+- ALM（アプリケーションライフサイクル管理）が簡素化される
+- 開発環境→本番環境の移行で接続の再設定が不要
+
+**API での接続参照作成を試みた場合の問題点**:
+| 問題 | 原因 |
+|-----|------|
+| `AzureResourceManagerRequestFailed` でフロー有効化できない | 接続参照と実接続の紐付けが ARM 上で未完了 |
+| `connectionReferences` に `"source": "Invoker"` を設定してもフローが動作しない | 接続参照レコードは作成できても、フローランタイムが接続を解決できない |
+| フロー定義内の `@{expressions}` が二重ブレース `@{{}}` になる | Python f-string と非 f-string の混在で `{}` のエスケープが不整合 |
+
+> **教訓**: ソリューション対応フローの接続参照化は Power Automate UI で行うのが最も確実。API で自動化しようとすると ARM との同期問題で不安定になる。
+
 ---
 
 ## 6. Copilot Studio エージェント開発
@@ -991,6 +1021,8 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 | 19 | Dataverse Web API でフロー作成時 `statuscode 2 is not valid for state Draft` | `statecode=1` で直接作成不可 | Draft（statecode=0）で作成後に PATCH で有効化 | §5.9.5 参照 |
 | 20 | フロー作成時 `primaryentity cannot be NULL` | Cloud Flow でも `primaryentity` が必須 | `"primaryentity": "none"` を指定 | §5.9.3 参照 |
 | 21 | フロー作成時 `Required property 'schemaVersion' not found` | `clientdata` に `schemaVersion` が不足 | `clientdata` の最上位に `"schemaVersion": "1.0.0.0"` を追加 | §5.9.4 参照 |
+| 22 | ソリューション内フローで「接続参照を使用する必要があります」警告 | フロー定義が直接接続（Embedded）を使用している | Power Automate UI でフローを開いて手動で接続参照に変更 | §5.9.7 参照 |
+| 23 | API 作成フローの Send Email Body が空 | Python f-string と非 f-string 混在で `@{{}}` が二重ブレースになる | f-string 不要の行は `@{expression}` で単一ブレースにする | §5.9.7 参照 |
 
 ### 7.2 共通のアンチパターン
 
@@ -1014,6 +1046,8 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 ❌ 認証レコードを保存せず毎回デバイスコード認証を要求する
 ❌ AuthenticationRecord だけ保存して TokenCachePersistenceOptions を設定しない（トークンが永続化されない）
 ❌ retry_metadata で str(e) だけチェックする（レスポンスボディの Dataverse エラーコードを見逃す）
+❌ API で接続参照を自動作成してフロー有効化しようとする（Power Automate UI で手動変更が確実）
+❌ Python f-string と通常文字列を混在させて @{{}} を二重ブレースにする（f-string 不要行は @{} 単一ブレース）
 ```
 
 ---
