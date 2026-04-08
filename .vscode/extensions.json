@@ -1,7 +1,8 @@
 {
   "recommendations": [
-    "microsoft.powerapps-portals",
-    "ms-powerplatform.powerapps-portals",
+    "github.copilot",
+    "github.copilot-chat",
+    "microsoft-IsvExpTools.powerplatform-vscode",
     "dbaeumer.vscode-eslint",
     "esbenp.prettier-vscode"
   ]
