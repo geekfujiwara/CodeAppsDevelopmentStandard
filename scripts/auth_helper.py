@@ -1,15 +1,29 @@
 """
-Power Platform 共通認証ヘルパーモジュール
+Power Platform Dataverse デプロイスクリプト用 共通認証ヘルパーモジュール
 
-すべての Python デプロイスクリプト（テーブル作成、フロー、Copilot Studio 等）は
+テーブル作成・フロー・Copilot Studio 等の Python デプロイスクリプトは
 このモジュールを使って認証する。
+※ Power Apps を利用するエンドユーザーの認証は Power Apps SDK が処理するため、
+  本モジュールの対象外。
 
-方式:
-  - 初回: DeviceCodeCredential でデバイスコード認証 → AuthenticationRecord をファイルに保存
-  - 2回目以降: 保存済み AuthenticationRecord をロードしてサイレントリフレッシュ
+認証の仕組み（2 層キャッシュ）:
+  1. AuthenticationRecord (.auth_record.json)
+     - アカウント情報（テナント・ユーザー等）を保存
+     - これだけではトークンは保存されない
+  2. TokenCachePersistenceOptions (MSAL 永続トークンキャッシュ)
+     - リフレッシュトークン・アクセストークンをOS資格情報ストアに永続化
+     - AuthenticationRecord と組み合わせることでサイレントリフレッシュが可能
+
+動作:
+  - 初回: DeviceCodeCredential でデバイスコード認証
+         → AuthenticationRecord をファイルに保存
+         → MSAL トークンキャッシュにリフレッシュトークンを永続化
+  - 2回目以降: AuthenticationRecord をロード
+         → MSAL キャッシュからリフレッシュトークンを取得
+         → サイレントリフレッシュ（デバイスコード不要）
 
 使い方:
-  from auth_helper import get_token, get_session
+  from auth_helper import get_token, get_session, retry_metadata
 
   # Dataverse Web API 用トークン
   token = get_token()
@@ -20,6 +34,9 @@ Power Platform 共通認証ヘルパーモジュール
   # requests.Session（Bearer ヘッダー付き）
   session = get_session()
   resp = session.get(f"{DATAVERSE_URL}/api/data/v9.2/accounts")
+
+  # メタデータ操作のリトライ
+  retry_metadata(lambda: api_post("EntityDefinitions", body), "テーブル作成")
 """
 
 from __future__ import annotations
@@ -27,6 +44,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import requests
@@ -71,7 +89,16 @@ def _device_code_callback(verification_uri: str, user_code: str, expires_on: obj
 
 
 def _build_credential() -> DeviceCodeCredential:
-    """DeviceCodeCredential を構築する。キャッシュがあればサイレント、なければ対話認証。"""
+    """DeviceCodeCredential を構築する（2 層キャッシュ付き）。
+
+    1. TokenCachePersistenceOptions — MSAL 永続トークンキャッシュ
+       リフレッシュトークン・アクセストークンを OS 資格情報ストアに保存。
+       AuthenticationRecord だけではトークンは保存されないため、
+       この設定が無いと毎回デバイスコード認証が必要になる。
+    2. AuthenticationRecord — アカウント情報キャッシュ
+       テナント・ユーザー情報を保存し、MSAL キャッシュから正しい
+       トークンエントリを検索するキーとして機能する。
+    """
     cache_options = TokenCachePersistenceOptions(
         name="power_platform_token_cache",
         allow_unencrypted_storage=True,
@@ -291,6 +318,84 @@ def flow_api_call(
     if resp.status_code == 204 or not resp.text:
         return {}
     return resp.json()
+
+
+# ---------- メタデータ操作リトライ ----------
+
+
+def _extract_error_detail(exc: Exception) -> str:
+    """例外からエラー詳細文字列を抽出する。
+
+    requests.HTTPError の場合はレスポンスボディに Dataverse のエラーコード
+    （0x80040237, 0x80044363 等）が含まれるため、str(e) ではなく
+    response.text から取得する必要がある。
+    """
+    parts = [str(exc)]
+    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+        try:
+            parts.append(exc.response.text)
+        except Exception:  # noqa: BLE001 — response.text の読み取り失敗は無視
+            pass
+    return "\n".join(parts)
+
+
+def retry_metadata(
+    fn: callable,
+    description: str,
+    max_attempts: int = 5,
+) -> object | None:
+    """メタデータ操作をリトライする。ロック競合時は累進的に待機。
+
+    Dataverse のメタデータ操作（テーブル作成、列追加、リレーションシップ等）は
+    排他ロックにより同時実行すると失敗する。このヘルパーは以下のエラーを検出して
+    自動リトライまたはスキップする。
+
+    | エラーコード / パターン         | 対処     | 説明                                 |
+    |-------------------------------|---------|--------------------------------------|
+    | ``already exists``            | スキップ | 既に存在する（べき等パターン）            |
+    | ``0x80040237``                | スキップ | メタデータ排他ロック競合（already exists系）|
+    | ``0x80044363``                | スキップ | ソリューション内に同名コンポーネント重複    |
+    | ``another ... running``       | リトライ | 別のメタデータ操作が実行中                |
+
+    Args:
+        fn: 実行する callable（引数なし）。
+        description: ログ用の操作説明文字列。
+        max_attempts: 最大リトライ回数（デフォルト 5）。
+
+    Returns:
+        fn() の戻り値。エラーをスキップした場合は None。
+    """
+    for attempt in range(max_attempts):
+        try:
+            return fn()
+        except Exception as exc:
+            detail = _extract_error_detail(exc)
+            detail_lower = detail.lower()
+
+            # --- 既に存在する場合はスキップ ---
+            if (
+                "already exists" in detail_lower
+                or "0x80040237" in detail
+                or "0x80044363" in detail
+            ):
+                print(f"  {description}: already exists, skipping")
+                return None
+
+            # --- メタデータロック競合 → リトライ ---
+            if "another" in detail_lower and "running" in detail_lower:
+                wait = 10 * (attempt + 1)
+                print(
+                    f"  {description}: lock contention, waiting {wait}s "
+                    f"(attempt {attempt + 1}/{max_attempts})..."
+                )
+                time.sleep(wait)
+                continue
+
+            # --- 想定外のエラー → 再送出 ---
+            raise
+
+    print(f"  {description}: max retries ({max_attempts}) exceeded")
+    return None
 
 
 # ---------- CLI エントリーポイント ----------
