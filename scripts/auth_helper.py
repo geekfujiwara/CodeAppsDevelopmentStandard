@@ -87,7 +87,7 @@ def _build_credential() -> DeviceCodeCredential:
                 f"[auth_helper] 認証キャッシュをロードしました: {AUTH_RECORD_PATH}",
                 file=sys.stderr,
             )
-        except Exception as exc:  # noqa: BLE001
+        except (ValueError, OSError, json.JSONDecodeError) as exc:
             print(
                 f"[auth_helper] 認証キャッシュの読み込みに失敗（初回認証に切り替え）: {exc}",
                 file=sys.stderr,
@@ -149,13 +149,14 @@ def get_token(scope: str | None = None) -> str:
         )
 
     credential = _ensure_credential()
-    token = credential.get_token(scope)
 
-    # 初回認証完了後に AuthenticationRecord を永続化
+    # キャッシュが存在しない場合は明示的に authenticate() を呼んで
+    # AuthenticationRecord を永続化してからトークンを取得する
     if not AUTH_RECORD_PATH.exists():
         record = credential.authenticate(scopes=[scope])
         _save_auth_record(record)
 
+    token = credential.get_token(scope)
     return token.token
 
 
