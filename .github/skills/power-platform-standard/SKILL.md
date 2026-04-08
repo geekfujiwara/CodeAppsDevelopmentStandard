@@ -25,6 +25,24 @@ argument-hint: "開発標準に基づいた Power Platform 開発の指示を入
 - [Power Platform コードファースト開発標準](../../docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md): 全体の開発標準・設計原則・トラブルシューティング
 - [Dataverse 統合ガイド](../../docs/DATAVERSE_GUIDE.md): CRUD操作・Lookup・Choice・エラーハンドリング
 
+## 補足リファレンス: awesome-copilot スキル
+
+以下の [github/awesome-copilot](https://github.com/github/awesome-copilot) スキルを**補足的に**利用できます。
+**開発標準が常に最優先です。** 競合する場合は開発標準に従ってください。
+
+| カテゴリ | スキル名 | 用途 |
+|---|---|---|
+| Dataverse | [`dataverse-python-quickstart`](https://github.com/github/awesome-copilot/tree/main/skills/dataverse-python-quickstart) | SDK セットアップ・CRUD・ページング |
+| Dataverse | [`dataverse-python-advanced-patterns`](https://github.com/github/awesome-copilot/tree/main/skills/dataverse-python-advanced-patterns) | エラーハンドリング・リトライ・OData最適化 |
+| Dataverse | [`dataverse-python-production-code`](https://github.com/github/awesome-copilot/tree/main/skills/dataverse-python-production-code) | 本番向けコードパターン |
+| Dataverse | [`dataverse-python-usecase-builder`](https://github.com/github/awesome-copilot/tree/main/skills/dataverse-python-usecase-builder) | ユースケース別ソリューション設計 |
+| Copilot Studio | [`mcp-copilot-studio-server-generator`](https://github.com/github/awesome-copilot/tree/main/skills/mcp-copilot-studio-server-generator) | MCP Server コネクタ生成 |
+| Power Automate | [`flowstudio-power-automate-mcp`](https://github.com/github/awesome-copilot/tree/main/skills/flowstudio-power-automate-mcp) | FlowStudio MCP 接続・操作 |
+| Power Automate | [`flowstudio-power-automate-build`](https://github.com/github/awesome-copilot/tree/main/skills/flowstudio-power-automate-build) | フロー構築・デプロイ |
+| Power Automate | [`flowstudio-power-automate-debug`](https://github.com/github/awesome-copilot/tree/main/skills/flowstudio-power-automate-debug) | フローデバッグ・診断 |
+
+> **重要**: Copilot Studio は生成オーケストレーションモード一択（トピックベース開発は非推奨）。FlowStudio MCP の利用には別途サブスクリプションが必要。
+
 ## クイックリファレンス: 絶対に守るルール
 
 | ルール | 理由 |
