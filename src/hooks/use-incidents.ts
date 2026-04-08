@@ -53,8 +53,13 @@ export function useCreateIncident() {
 export function useUpdateIncident() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: UpdateIncidentPayload }) =>
-      updateIncident(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: UpdateIncidentPayload;
+    }) => updateIncident(id, payload),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["incidents"] });
       qc.invalidateQueries({ queryKey: ["incident", vars.id] });
@@ -103,8 +108,15 @@ export function useComments(incidentId: string | undefined) {
 export function useCreateComment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ incidentId, name, content }: { incidentId: string; name: string; content: string }) =>
-      createComment(incidentId, name, content),
+    mutationFn: ({
+      incidentId,
+      name,
+      content,
+    }: {
+      incidentId: string;
+      name: string;
+      content: string;
+    }) => createComment(incidentId, name, content),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["comments", vars.incidentId] });
     },

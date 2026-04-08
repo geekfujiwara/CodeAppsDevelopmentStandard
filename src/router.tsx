@@ -1,18 +1,18 @@
-﻿import { createBrowserRouter } from "react-router-dom"
-import { lazy, Suspense } from "react"
-import Layout from "@/pages/_layout"
-import HomePage from "@/pages/home"
+﻿import { createBrowserRouter } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import Layout from "@/pages/_layout";
+import HomePage from "@/pages/home";
 
 // 大きなページを遅延読み込み
-const GuidePage = lazy(() => import("@/pages/guide"))
-const DesignShowcasePage = lazy(() => import("@/pages/design-examples"))
-const FeedbackPage = lazy(() => import("@/pages/feedback"))
-const NotFoundPage = lazy(() => import("@/pages/not-found"))
+const GuidePage = lazy(() => import("@/pages/guide"));
+const DesignShowcasePage = lazy(() => import("@/pages/design-examples"));
+const FeedbackPage = lazy(() => import("@/pages/feedback"));
+const NotFoundPage = lazy(() => import("@/pages/not-found"));
 
 // インシデント管理ページ
-const IncidentListPage = lazy(() => import("@/pages/incidents"))
-const IncidentDetailPage = lazy(() => import("@/pages/incident-detail"))
-const IncidentCreatePage = lazy(() => import("@/pages/incident-create"))
+const IncidentListPage = lazy(() => import("@/pages/incidents"));
+const IncidentDetailPage = lazy(() => import("@/pages/incident-detail"));
+const IncidentCreatePage = lazy(() => import("@/pages/incident-create"));
 
 // ローディングコンポーネント
 const PageLoader = () => (
@@ -22,37 +22,42 @@ const PageLoader = () => (
       <p className="text-sm text-muted-foreground">読み込み中...</p>
     </div>
   </div>
-)
+);
 
 // Suspenseラッパー
-const withSuspense = (Component: React.LazyExoticComponent<() => React.JSX.Element>) => (
+const withSuspense = (
+  Component: React.LazyExoticComponent<() => React.JSX.Element>,
+) => (
   <Suspense fallback={<PageLoader />}>
     <Component />
   </Suspense>
-)
+);
 
 // IMPORTANT: Do not remove or modify the code below!
 // Normalize basename when hosted in Power Apps
-const BASENAME = new URL(".", location.href).pathname
+const BASENAME = new URL(".", location.href).pathname;
 if (location.pathname.endsWith("/index.html")) {
   history.replaceState(null, "", BASENAME + location.search + location.hash);
 }
 
-export const router = createBrowserRouter([
+export const router = createBrowserRouter(
+  [
+    {
+      path: "/",
+      element: <Layout showHeader={true} />,
+      errorElement: withSuspense(NotFoundPage),
+      children: [
+        { index: true, element: <HomePage /> },
+        { path: "incidents", element: withSuspense(IncidentListPage) },
+        { path: "incidents/new", element: withSuspense(IncidentCreatePage) },
+        { path: "incidents/:id", element: withSuspense(IncidentDetailPage) },
+        { path: "guide", element: withSuspense(GuidePage) },
+        { path: "design-examples", element: withSuspense(DesignShowcasePage) },
+        { path: "feedback", element: withSuspense(FeedbackPage) },
+      ],
+    },
+  ],
   {
-    path: "/",
-    element: <Layout showHeader={true} />,
-    errorElement: withSuspense(NotFoundPage),
-    children: [
-      { index: true, element: <HomePage /> },
-      { path: "incidents", element: withSuspense(IncidentListPage) },
-      { path: "incidents/new", element: withSuspense(IncidentCreatePage) },
-      { path: "incidents/:id", element: withSuspense(IncidentDetailPage) },
-      { path: "guide", element: withSuspense(GuidePage) },
-      { path: "design-examples", element: withSuspense(DesignShowcasePage) },
-      { path: "feedback", element: withSuspense(FeedbackPage) },
-    ],
+    basename: BASENAME, // IMPORTANT: Set basename for proper routing when hosted in Power Apps
   },
-], {
-  basename: BASENAME // IMPORTANT: Set basename for proper routing when hosted in Power Apps
-})
+);

@@ -202,7 +202,11 @@ export default function IncidentDetailPage() {
                 <Button
                   size="sm"
                   className="gap-1"
-                  disabled={!commentName.trim() || !commentContent.trim() || commentMutation.isPending}
+                  disabled={
+                    !commentName.trim() ||
+                    !commentContent.trim() ||
+                    commentMutation.isPending
+                  }
                   onClick={handleAddComment}
                 >
                   <Send className="h-3 w-3" />
@@ -216,7 +220,10 @@ export default function IncidentDetailPage() {
               {comments && comments.length > 0 ? (
                 <div className="space-y-4">
                   {comments.map((c) => (
-                    <div key={c.geek_incidentcommentid} className="border rounded-lg p-4">
+                    <div
+                      key={c.geek_incidentcommentid}
+                      className="border rounded-lg p-4"
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2 text-sm">
                           <UserCircle className="h-4 w-4 text-muted-foreground" />
@@ -265,7 +272,9 @@ export default function IncidentDetailPage() {
                       <SelectItem key={val} value={val}>
                         <Badge
                           variant="secondary"
-                          className={statusColors[Number(val) as IncidentStatus] ?? ""}
+                          className={
+                            statusColors[Number(val) as IncidentStatus] ?? ""
+                          }
                         >
                           {label}
                         </Badge>
@@ -291,7 +300,10 @@ export default function IncidentDetailPage() {
                       <SelectItem key={val} value={val}>
                         <Badge
                           variant="secondary"
-                          className={priorityColors[Number(val) as IncidentPriority] ?? ""}
+                          className={
+                            priorityColors[Number(val) as IncidentPriority] ??
+                            ""
+                          }
                         >
                           {label}
                         </Badge>
@@ -309,7 +321,9 @@ export default function IncidentDetailPage() {
               <div className="flex items-center gap-2 text-sm">
                 <Tag className="h-4 w-4 text-muted-foreground" />
                 <span className="text-muted-foreground">カテゴリ:</span>
-                <span>{incident.geek_incidentcategoryid?.geek_name ?? "—"}</span>
+                <span>
+                  {incident.geek_incidentcategoryid?.geek_name ?? "—"}
+                </span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
@@ -331,7 +345,9 @@ export default function IncidentDetailPage() {
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">期限:</span>
                   <span>
-                    {new Date(incident.geek_duedate).toLocaleDateString("ja-JP")}
+                    {new Date(incident.geek_duedate).toLocaleDateString(
+                      "ja-JP",
+                    )}
                   </span>
                 </div>
               )}

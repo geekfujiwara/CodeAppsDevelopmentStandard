@@ -1,13 +1,23 @@
 """
-Copilot Studio エージェントデプロイスクリプト — インシデント管理アシスタント
+Copilot Studio エージェント設定スクリプト — インシデント管理アシスタント
 
-Phase 3: Bot 作成 → カスタムトピック全削除 → 生成オーケストレーション有効化
-       → GPT Instructions 設定 → 公開
-       ★ ナレッジ・MCP Server はユーザーが UI で手動追加
+Phase 3: UI で作成済みの Bot に対して設定を適用
+  → カスタムトピック全削除 → 生成オーケストレーション有効化
+  → GPT Instructions 設定 → 公開
+  ★ ナレッジ・MCP Server はユーザーが UI で手動追加
+
+前提:
+  - Copilot Studio UI でエージェントを事前に作成済み
+  - BOT_ID を .env または引数で指定
+
+注意:
+  Dataverse bots テーブルに直接レコードを挿入しても PVA Bot Management Service に
+  プロビジョニングされないため、Bot の新規作成は Copilot Studio UI で行う。
+  API でできるのは既存 Bot の設定変更のみ。
 
 使い方:
-  1. .env に DATAVERSE_URL, TENANT_ID, MCP_CLIENT_ID, SOLUTION_NAME, PUBLISHER_PREFIX を設定
-  2. pip install azure-identity requests python-dotenv pyyaml
+  1. Copilot Studio UI でエージェントを作成
+  2. .env に BOT_ID=<作成した Bot のID> を追加
   3. python scripts/deploy_agent.py
 """
 
@@ -16,24 +26,22 @@ import os
 import sys
 import time
 
+import re
+
 # scripts/ ディレクトリを sys.path に追加
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import requests
 import yaml
 from dotenv import load_dotenv
-from auth_helper import get_token as _get_token
+from auth_helper import get_token, DATAVERSE_URL as _DV_URL
 
 load_dotenv()
 
-# ── 環境変数 ──────────────────────────────────────────────
-DATAVERSE_URL = os.environ["DATAVERSE_URL"].rstrip("/")
-TENANT_ID = os.environ["TENANT_ID"]
-CLIENT_ID = os.environ["MCP_CLIENT_ID"]
+# ── 環境変数 ────────────────────────────────────────────────
+DATAVERSE_URL = _DV_URL
 SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
-
-SCOPE = f"{DATAVERSE_URL}/.default"
 
 BOT_NAME = "インシデント管理アシスタント"
 BOT_SCHEMA = f"{PREFIX}_IncidentAssistant"
@@ -41,7 +49,7 @@ BOT_SCHEMA = f"{PREFIX}_IncidentAssistant"
 # ── API ヘルパー ─────────────────────────────────────────
 
 def get_headers() -> dict:
-    token = _get_token(TENANT_ID, CLIENT_ID, SCOPE)
+    token = get_token()
     return {
         "Authorization": f"Bearer {token}",
         "OData-MaxVersion": "4.0",
@@ -164,39 +172,66 @@ GPT_YAML = yaml.dump({
     ],
 }, allow_unicode=True, default_flow_style=False)
 
-# ── Step 1: Bot 作成 ─────────────────────────────────────
+# ── Step 1: Bot 検索 ─────────────────────────────────────
 
-def create_or_get_bot() -> str:
-    print("\n=== Step 1: Bot 作成 ===")
+def _extract_bot_id(value: str) -> str | None:
+    """BOT_ID 環境変数から Bot ID を抽出する。URL でも GUID でも対応。"""
+    # GUID パターン
+    match = re.search(r'/bots/([0-9a-f-]{36})', value)
+    if match:
+        return match.group(1)
+    # 直接 GUID が指定されている場合
+    match = re.fullmatch(r'[0-9a-f-]{36}', value.strip())
+    if match:
+        return value.strip()
+    return None
 
-    # 既存検索
+
+def find_bot() -> str:
+    """UI で作成済みの Bot を検索、または BOT_ID 環境変数（URL or GUID）から取得"""
+    print("\n=== Step 1: Bot 検索 ===")
+
+    # 環境変数で指定されていればそれを使う（URL でも GUID でも OK）
+    env_bot_id = os.environ.get("BOT_ID", "")
+    if env_bot_id:
+        bot_id = _extract_bot_id(env_bot_id)
+        if bot_id:
+            print(f"  BOT_ID から自動判別: {bot_id}")
+            return bot_id
+        else:
+            print(f"  ⚠️  BOT_ID の形式が不正: {env_bot_id}")
+            print("  URL または GUID を指定してください")
+            print("  例: BOT_ID=https://copilotstudio.../bots/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/overview")
+            print("  例: BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx")
+            sys.exit(1)
+
+    # schemaname で検索
     existing = api_get("bots",
-                       {"$filter": f"schemaname eq '{BOT_SCHEMA}'", "$select": "botid,name"})
+                       {"$filter": f"name eq '{BOT_NAME}'"})
     if existing.get("value"):
         bot_id = existing["value"][0]["botid"]
-        print(f"  既存 Bot を使用: {bot_id}")
+        print(f"  既存 Bot を発見: {bot_id} ({existing['value'][0].get('name', '')})")
         return bot_id
 
-    config = json.dumps({
-        "$kind": "BotConfiguration",
-        "publishOnImport": False,
-    })
-
-    r = api_post("bots", {
-        "name": BOT_NAME,
-        "schemaname": BOT_SCHEMA,
-        "language": 1041,
-        "accesscontrolpolicy": 0,
-        "authenticationmode": 2,
-        "runtimeprovider": 0,
-        "configuration": config,
-    })
-
-    # Bot ID を OData-EntityId ヘッダーから取得
-    entity_id = r.headers.get("OData-EntityId", "")
-    bot_id = entity_id.split("(")[-1].rstrip(")")
-    print(f"  Bot 作成完了: {bot_id}")
-    return bot_id
+    # 見つからない場合
+    print("  ❌ Bot が見つかりません。")
+    print()
+    print("  Copilot Studio UI でエージェントを作成してください:")
+    print(f"    1. https://copilotstudio.microsoft.com/ にアクセス")
+    print(f"    2. 「+ 作成」をクリック")
+    print(f"    3. エージェント名: {BOT_NAME}")
+    print(f"    4. 「エージェント設定 (オプション)」を展開:")
+    print(f"       - 言語: 日本語 (日本)")
+    print(f"       - ソリューション: {SOLUTION_NAME}")
+    print(f"       - スキーマ名: {PREFIX}_incident_management_assistant")
+    print(f"    5. 「作成」をクリック")
+    print(f"    6. 作成後のブラウザ URL をそのまま .env に貼り付け:")
+    print(f"       BOT_ID=https://copilotstudio.../bots/xxxxxxxx-xxxx-xxxx-.../overview")
+    print(f"       （GUID だけでも OK: BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）")
+    print(f"    7. 再実行: python scripts/deploy_agent.py")
+    print()
+    print("  ※ Dataverse bots テーブルへの直接挿入では PVA にプロビジョニングされません")
+    sys.exit(1)
 
 # ── Step 2: カスタムトピック全削除 ────────────────────────
 
@@ -289,7 +324,7 @@ def main():
     print(f"  エージェント名: {BOT_NAME}")
     print("=" * 60)
 
-    bot_id = create_or_get_bot()
+    bot_id = find_bot()
     delete_custom_topics(bot_id)
     enable_generative_orchestration(bot_id)
     set_gpt_instructions(bot_id)

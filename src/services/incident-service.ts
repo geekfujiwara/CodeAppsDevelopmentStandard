@@ -25,11 +25,20 @@ const PREFIX = "geek";
  * `pac code add-data-source` 実行後に生成される設定で置き換えてください。
  * Power Apps ランタイム上では SDK が自動で解決します。
  */
-const dataSourcesInfo: Record<string, { tableId: string; apis: Record<string, never> }> = {
+const dataSourcesInfo: Record<
+  string,
+  { tableId: string; apis: Record<string, never> }
+> = {
   [`${PREFIX}_incidents`]: { tableId: `${PREFIX}_incident`, apis: {} },
-  [`${PREFIX}_incidentcategories`]: { tableId: `${PREFIX}_incidentcategory`, apis: {} },
+  [`${PREFIX}_incidentcategories`]: {
+    tableId: `${PREFIX}_incidentcategory`,
+    apis: {},
+  },
   [`${PREFIX}_locations`]: { tableId: `${PREFIX}_location`, apis: {} },
-  [`${PREFIX}_incidentcomments`]: { tableId: `${PREFIX}_incidentcomment`, apis: {} },
+  [`${PREFIX}_incidentcomments`]: {
+    tableId: `${PREFIX}_incidentcomment`,
+    apis: {},
+  },
 };
 
 function client(): DataClient {
@@ -59,7 +68,7 @@ export async function getIncidents(): Promise<Incident[]> {
     {
       select: INCIDENT_SELECT,
       orderBy: ["createdon desc"],
-    }
+    },
   );
   return result.data;
 }
@@ -69,18 +78,23 @@ export async function getIncident(id: string): Promise<Incident> {
   const result = await c.retrieveRecordAsync<Incident>(
     `${PREFIX}_incidents`,
     id,
-    { select: INCIDENT_SELECT }
+    { select: INCIDENT_SELECT },
   );
   return result.data;
 }
 
-export async function createIncident(payload: CreateIncidentPayload): Promise<unknown> {
+export async function createIncident(
+  payload: CreateIncidentPayload,
+): Promise<unknown> {
   const c = client();
   const result = await c.createRecordAsync(`${PREFIX}_incidents`, payload);
   return result.data;
 }
 
-export async function updateIncident(id: string, payload: UpdateIncidentPayload): Promise<void> {
+export async function updateIncident(
+  id: string,
+  payload: UpdateIncidentPayload,
+): Promise<void> {
   const c = client();
   await c.updateRecordAsync(`${PREFIX}_incidents`, id, payload);
 }
@@ -99,7 +113,7 @@ export async function getCategories(): Promise<IncidentCategory[]> {
     {
       select: [`${PREFIX}_incidentcategoryid`, `${PREFIX}_name`],
       orderBy: [`${PREFIX}_name`],
-    }
+    },
   );
   return result.data;
 }
@@ -113,22 +127,29 @@ export async function getLocations(): Promise<Location[]> {
     {
       select: [`${PREFIX}_locationid`, `${PREFIX}_name`],
       orderBy: [`${PREFIX}_name`],
-    }
+    },
   );
   return result.data;
 }
 
 // ── コメント ─────────────────────────────────────────────
 
-export async function getComments(incidentId: string): Promise<IncidentComment[]> {
+export async function getComments(
+  incidentId: string,
+): Promise<IncidentComment[]> {
   const c = client();
   const result = await c.retrieveMultipleRecordsAsync<IncidentComment>(
     `${PREFIX}_incidentcomments`,
     {
-      select: [`${PREFIX}_incidentcommentid`, `${PREFIX}_name`, `${PREFIX}_content`, "createdon"],
+      select: [
+        `${PREFIX}_incidentcommentid`,
+        `${PREFIX}_name`,
+        `${PREFIX}_content`,
+        "createdon",
+      ],
       filter: `_${PREFIX}_incidentid_value eq '${incidentId}'`,
       orderBy: ["createdon desc"],
-    }
+    },
   );
   return result.data;
 }
@@ -136,7 +157,7 @@ export async function getComments(incidentId: string): Promise<IncidentComment[]
 export async function createComment(
   incidentId: string,
   name: string,
-  content: string
+  content: string,
 ): Promise<unknown> {
   const c = client();
   const result = await c.createRecordAsync(`${PREFIX}_incidentcomments`, {

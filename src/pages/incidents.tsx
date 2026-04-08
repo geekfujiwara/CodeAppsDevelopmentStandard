@@ -78,9 +78,15 @@ export default function IncidentListPage() {
   // 統計
   const stats = {
     total: incidents?.length ?? 0,
-    open: incidents?.filter((i) => i.geek_status <= IncidentStatus.ON_HOLD).length ?? 0,
-    critical: incidents?.filter((i) => i.geek_priority === IncidentPriority.CRITICAL).length ?? 0,
-    resolved: incidents?.filter((i) => i.geek_status >= IncidentStatus.RESOLVED).length ?? 0,
+    open:
+      incidents?.filter((i) => i.geek_status <= IncidentStatus.ON_HOLD)
+        .length ?? 0,
+    critical:
+      incidents?.filter((i) => i.geek_priority === IncidentPriority.CRITICAL)
+        .length ?? 0,
+    resolved:
+      incidents?.filter((i) => i.geek_status >= IncidentStatus.RESOLVED)
+        .length ?? 0,
   };
 
   const handleDelete = async () => {
@@ -112,7 +118,9 @@ export default function IncidentListPage() {
       {/* ヘッダー */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">インシデント管理</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            インシデント管理
+          </h1>
           <p className="text-muted-foreground mt-1">
             社内のインシデントを一元管理します
           </p>
@@ -144,7 +152,9 @@ export default function IncidentListPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.open}</div>
+            <div className="text-2xl font-bold text-yellow-600">
+              {stats.open}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -154,7 +164,9 @@ export default function IncidentListPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.critical}</div>
+            <div className="text-2xl font-bold text-red-600">
+              {stats.critical}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -164,7 +176,9 @@ export default function IncidentListPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.resolved}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {stats.resolved}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -232,19 +246,28 @@ export default function IncidentListPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
+                  <TableCell
+                    colSpan={9}
+                    className="h-32 text-center text-muted-foreground"
+                  >
                     読み込み中…
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
+                  <TableCell
+                    colSpan={9}
+                    className="h-32 text-center text-muted-foreground"
+                  >
                     インシデントが見つかりません
                   </TableCell>
                 </TableRow>
               ) : (
                 filtered.map((inc) => (
-                  <TableRow key={inc.geek_incidentid} className="cursor-pointer hover:bg-muted/50">
+                  <TableRow
+                    key={inc.geek_incidentid}
+                    className="cursor-pointer hover:bg-muted/50"
+                  >
                     <TableCell>
                       <Link
                         to={`/incidents/${inc.geek_incidentid}`}
@@ -259,20 +282,33 @@ export default function IncidentListPage() {
                         className={`gap-1 ${statusColors[inc.geek_status as IncidentStatus] ?? ""}`}
                       >
                         {statusIcons[inc.geek_status as IncidentStatus]}
-                        {statusLabels[inc.geek_status as IncidentStatus] ?? "不明"}
+                        {statusLabels[inc.geek_status as IncidentStatus] ??
+                          "不明"}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge
                         variant="secondary"
-                        className={priorityColors[inc.geek_priority as IncidentPriority] ?? ""}
+                        className={
+                          priorityColors[
+                            inc.geek_priority as IncidentPriority
+                          ] ?? ""
+                        }
                       >
-                        {priorityLabels[inc.geek_priority as IncidentPriority] ?? "不明"}
+                        {priorityLabels[
+                          inc.geek_priority as IncidentPriority
+                        ] ?? "不明"}
                       </Badge>
                     </TableCell>
-                    <TableCell>{inc.geek_incidentcategoryid?.geek_name ?? "—"}</TableCell>
-                    <TableCell>{inc.geek_locationid?.geek_name ?? "—"}</TableCell>
-                    <TableCell>{inc.geek_assignedtoid?.fullname ?? "—"}</TableCell>
+                    <TableCell>
+                      {inc.geek_incidentcategoryid?.geek_name ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      {inc.geek_locationid?.geek_name ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      {inc.geek_assignedtoid?.fullname ?? "—"}
+                    </TableCell>
                     <TableCell>{inc.createdby?.fullname ?? "—"}</TableCell>
                     <TableCell>
                       {new Date(inc.createdon).toLocaleDateString("ja-JP")}

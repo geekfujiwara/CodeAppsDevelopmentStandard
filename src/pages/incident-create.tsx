@@ -4,8 +4,17 @@
 
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useCreateIncident, useCategories, useLocations } from "@/hooks/use-incidents";
-import { IncidentStatus, IncidentPriority, statusLabels, priorityLabels } from "@/lib/incident-types";
+import {
+  useCreateIncident,
+  useCategories,
+  useLocations,
+} from "@/hooks/use-incidents";
+import {
+  IncidentStatus,
+  IncidentPriority,
+  statusLabels,
+  priorityLabels,
+} from "@/lib/incident-types";
 import type { CreateIncidentPayload } from "@/lib/incident-types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -98,7 +107,9 @@ export default function IncidentCreatePage() {
                 id="name"
                 placeholder="例: 本社3Fネットワーク接続不可"
                 value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                }
                 required
               />
             </div>
@@ -110,7 +121,9 @@ export default function IncidentCreatePage() {
                 id="description"
                 placeholder="インシデントの詳細を記入してください…"
                 value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, description: e.target.value }))
+                }
                 rows={5}
               />
             </div>
@@ -128,7 +141,9 @@ export default function IncidentCreatePage() {
                   </SelectTrigger>
                   <SelectContent>
                     {Object.entries(statusLabels).map(([val, label]) => (
-                      <SelectItem key={val} value={val}>{label}</SelectItem>
+                      <SelectItem key={val} value={val}>
+                        {label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -144,7 +159,9 @@ export default function IncidentCreatePage() {
                   </SelectTrigger>
                   <SelectContent>
                     {Object.entries(priorityLabels).map(([val, label]) => (
-                      <SelectItem key={val} value={val}>{label}</SelectItem>
+                      <SelectItem key={val} value={val}>
+                        {label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -157,7 +174,9 @@ export default function IncidentCreatePage() {
                 <Label>カテゴリ</Label>
                 <Select
                   value={form.categoryId}
-                  onValueChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, categoryId: v }))
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="選択してください" />
@@ -178,7 +197,9 @@ export default function IncidentCreatePage() {
                 <Label>場所</Label>
                 <Select
                   value={form.locationId}
-                  onValueChange={(v) => setForm((f) => ({ ...f, locationId: v }))}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, locationId: v }))
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="選択してください" />
@@ -204,16 +225,24 @@ export default function IncidentCreatePage() {
                 id="duedate"
                 type="date"
                 value={form.duedate}
-                onChange={(e) => setForm((f) => ({ ...f, duedate: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, duedate: e.target.value }))
+                }
               />
             </div>
 
             {/* 送信 */}
             <div className="flex justify-end gap-3 pt-4">
               <Link to="/incidents">
-                <Button type="button" variant="outline">キャンセル</Button>
+                <Button type="button" variant="outline">
+                  キャンセル
+                </Button>
               </Link>
-              <Button type="submit" className="gap-2" disabled={createMutation.isPending}>
+              <Button
+                type="submit"
+                className="gap-2"
+                disabled={createMutation.isPending}
+              >
                 <Save className="h-4 w-4" />
                 作成
               </Button>

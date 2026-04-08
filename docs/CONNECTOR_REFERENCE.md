@@ -33,6 +33,7 @@ pac code add-data-source -a {api-name} -c {connection-id}
 ```
 
 追加後、以下が自動生成されます:
+
 - `src/services/{ServiceName}Service.ts` - コネクタ操作のサービスクラス
 - `src/models/{ModelName}.ts` - TypeScript 型定義
 - `power.config.json` の `dataSources` セクションが更新
@@ -51,14 +52,14 @@ pac code add-data-source -a shared_office365users -c {connection-id}
 
 ### 主要メソッド
 
-| メソッド | 説明 |
-|---------|------|
-| `MyProfile_V2(select?)` | 現在のユーザーのプロフィールを取得 |
-| `UserProfile_V2(id, select?)` | 指定ユーザーのプロフィールを取得 |
-| `UserPhoto_V2(id)` | ユーザーの写真を取得 |
-| `SearchUser_V2(searchTerm, top?)` | ユーザーを検索 |
-| `DirectReports_V2(id)` | 直属の部下を取得 |
-| `Manager_V2(id)` | マネージャーを取得 |
+| メソッド                          | 説明                               |
+| --------------------------------- | ---------------------------------- |
+| `MyProfile_V2(select?)`           | 現在のユーザーのプロフィールを取得 |
+| `UserProfile_V2(id, select?)`     | 指定ユーザーのプロフィールを取得   |
+| `UserPhoto_V2(id)`                | ユーザーの写真を取得               |
+| `SearchUser_V2(searchTerm, top?)` | ユーザーを検索                     |
+| `DirectReports_V2(id)`            | 直属の部下を取得                   |
+| `Manager_V2(id)`                  | マネージャーを取得                 |
 
 ### 使用例
 
@@ -67,7 +68,7 @@ import { Office365UsersService } from "../services/Office365UsersService";
 
 // プロフィール取得
 const profile = await Office365UsersService.MyProfile_V2(
-  "id,displayName,jobTitle,department,mail,userPrincipalName"
+  "id,displayName,jobTitle,department,mail,userPrincipalName",
 );
 
 // ユーザー写真取得
@@ -115,7 +116,10 @@ await SqlService.PatchItem("{server}", "{database}", "{table}", "{id}", {
 
 // ストアドプロシージャ実行
 const result = await SqlService.ExecuteStoredProcedure(
-  "{server}", "{database}", "{procedure}", { param1: "value1" }
+  "{server}",
+  "{database}",
+  "{procedure}",
+  { param1: "value1" },
 );
 ```
 
@@ -140,7 +144,7 @@ import { SharePointService } from "../services/SharePointService";
 const items = await SharePointService.GetItems(
   "{site-url}",
   "{list-id}",
-  "$filter=Status eq 'Active'&$top=100"
+  "$filter=Status eq 'Active'&$top=100",
 );
 
 // リストアイテム作成
@@ -178,7 +182,7 @@ import { DataverseService } from "../services/DataverseService";
 // テーブルからレコード取得
 const accounts = await DataverseService.GetItems(
   "accounts",
-  "$select=name,revenue&$filter=revenue gt 1000000&$top=50"
+  "$select=name,revenue&$filter=revenue gt 1000000&$top=50",
 );
 
 // レコード作成
@@ -296,7 +300,7 @@ import { TranslatorService } from "../services/TranslatorService";
 // テキスト翻訳
 const translated = await TranslatorService.Translate(
   "Hello, World!",
-  "ja"  // 翻訳先言語
+  "ja", // 翻訳先言語
 );
 ```
 
@@ -321,7 +325,7 @@ import { KustoService } from "../services/KustoService";
 const result = await KustoService.RunQuery(
   "{cluster-url}",
   "{database}",
-  "StormEvents | take 10"
+  "StormEvents | take 10",
 );
 ```
 

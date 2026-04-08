@@ -3,7 +3,7 @@ import { getContext } from "@microsoft/power-apps/app";
 
 let initializedCalled = false;
 
-type PowerProviderProps = { children: ReactNode }
+type PowerProviderProps = { children: ReactNode };
 
 export function PowerProvider({ children }: PowerProviderProps) {
   useEffect(() => {
@@ -13,9 +13,9 @@ export function PowerProvider({ children }: PowerProviderProps) {
     const initApp = async () => {
       try {
         await getContext();
-        console.log('Power Apps SDK initialized successfully');
+        console.log("Power Apps SDK initialized successfully");
       } catch (error) {
-        console.error('Power Apps SDK initialize failed: ', error);
+        console.error("Power Apps SDK initialize failed: ", error);
       }
     };
     initApp();
