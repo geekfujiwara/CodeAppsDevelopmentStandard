@@ -1,12 +1,12 @@
 # Power Platform コードファースト開発標準
 
-Power Apps Code Apps・Dataverse・Copilot Studio を VS Code + GitHub Copilot で構築するための開発標準とスターターテンプレートです。
+Power Apps Code Apps・Dataverse・Power Automate・Copilot Studio を VS Code + GitHub Copilot で構築するための開発標準とスターターテンプレートです。
 
 [![VS Code で開く](https://img.shields.io/badge/VS%20Code%E3%81%A7%E9%96%8B%E3%81%8F-007ACC?style=for-the-badge&logo=visual-studio-code&logoColor=white)](https://vscode.dev/github/geekfujiwara/CodeAppsDevelopmentStandard)
 [![GitHub Copilot](https://img.shields.io/badge/GitHub%20Copilot-対応-blueviolet?style=for-the-badge&logo=github)](https://github.com/features/copilot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](./LICENSE)
 
-本リポジトリには **開発標準ドキュメント**・**GitHub Copilot カスタムエージェント**・**Code Apps スターターテンプレート** がすべて含まれています。クローンするだけですぐに開発を開始できます。
+本リポジトリには **開発標準ドキュメント**・**GitHub Copilot カスタムエージェント**・**Code Apps スターターテンプレート**・**Power Automate フロー作成パターン** がすべて含まれています。クローンするだけですぐに開発を開始できます。
 
 > [!NOTE]
 > 本リポジトリは [ギークフジワラ](https://twitter.com/geekfujiwara) の実務経験・検証に基づき継続的に更新されています。
@@ -119,6 +119,7 @@ https://github.com/geekfujiwara/CodeAppsDevelopmentStandard
 - [開発フロー](#開発フロー)
 - [Dataverse 構築](#dataverse-構築)
 - [Code Apps 開発](#code-apps-開発)
+- [Power Automate フロー開発](#power-automate-フロー開発)
 - [Copilot Studio エージェント](#copilot-studio-エージェント)
 - [トラブルシューティング](#トラブルシューティング)
 - [詳細リファレンス](#詳細リファレンス)
@@ -178,16 +179,16 @@ https://github.com/geekfujiwara/CodeAppsDevelopmentStandard
 │  ソリューション → テーブル → Lookup → ローカライズ │
 └────────────────────┬────────────────────────────┘
                      ▼
-          ┌──────────┴──────────┐
-          ▼                     ▼
-┌──────────────────┐  ┌────────────────────────┐
-│   Code Apps      │  │  Copilot Studio        │
-│   開発           │  │  エージェント          │
-└──────────────────┘  └────────────────────────┘
+     ┌───────────────┼───────────────┐
+     ▼               ▼               ▼
+┌──────────┐  ┌─────────────┐  ┌────────────┐
+│ Code Apps│  │Power Automate│  │Copilot     │
+│ 開発     │  │フロー開発    │  │Studio      │
+└──────────┘  └─────────────┘  └────────────┘
 ```
 
 > [!NOTE]
-> Code Apps と Copilot Studio は独立して選択できます。Code Apps + Dataverse だけで完結するプロジェクトでは Copilot Studio セクションをスキップしてください。
+> Code Apps・Power Automate・Copilot Studio は独立して選択できます。プロジェクトに必要なものだけ組み合わせてください。
 
 ### 設計
 
@@ -366,6 +367,116 @@ pac code push
 
 ---
 
+## Power Automate フロー開発
+
+Python スクリプトから Power Automate Management API を使い、クラウドフローをコードファーストで作成・デプロイできます。
+
+> [!NOTE]
+> Power Automate は必須ではありません。通知やバックグラウンド処理が不要なプロジェクトではこのセクションをスキップできます。
+
+### 認証
+
+Flow API と PowerApps API でそれぞれ異なるスコープのトークンが必要です。
+
+```python
+# フロー管理 API 用
+token = get_token(scope="https://service.flow.microsoft.com/.default")
+
+# 接続検索用（PowerApps API）
+pa_token = get_token(scope="https://service.powerapps.com/.default")
+```
+
+### 環境の解決
+
+`DATAVERSE_URL` から環境 ID を逆引きします。
+
+```python
+envs = flow_api_call("GET", "/providers/Microsoft.ProcessSimple/environments")
+for env in envs["value"]:
+    instance_url = env["properties"]["linkedEnvironmentMetadata"]["instanceUrl"].rstrip("/")
+    if instance_url == DATAVERSE_URL:
+        ENV_ID = env["name"]
+        break
+```
+
+### 接続の検索
+
+フローが使用するコネクタの接続は**事前に環境内に作成**しておく必要があります。
+
+```python
+CONNECTORS_NEEDED = {
+    "shared_commondataserviceforapps": "Dataverse",
+    "shared_office365": "Office 365 Outlook",
+}
+# PowerApps API で接続を検索し、Connected 状態のものを優先使用
+```
+
+> [!IMPORTANT]
+> 接続が未作成の場合はスクリプトが失敗します。[Power Automate 接続ページ](https://make.powerautomate.com/connections) で事前に作成してください。
+
+### フロー定義の構造
+
+Logic Apps ワークフロー定義スキーマ形式で JSON を組み立て、API でデプロイします。
+
+```python
+definition = {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "$authentication": {"defaultValue": {}, "type": "SecureObject"},
+        "$connections": {"defaultValue": {}, "type": "Object"},
+    },
+    "triggers": { ... },
+    "actions": { ... },
+}
+
+connection_references = {
+    "shared_commondataserviceforapps": {
+        "connectionName": dataverse_conn,
+        "source": "Invoker",
+        "id": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+    },
+}
+```
+
+### デプロイ
+
+```python
+flow_payload = {
+    "properties": {
+        "displayName": "フロー名",
+        "definition": definition,
+        "connectionReferences": connection_references,
+        "state": "Started",
+    }
+}
+
+# 新規作成
+flow_api_call("POST", f"/providers/Microsoft.ProcessSimple/environments/{ENV_ID}/flows", flow_payload)
+
+# 既存更新
+flow_api_call("PATCH", f"/providers/Microsoft.ProcessSimple/environments/{ENV_ID}/flows/{flow_id}", flow_payload)
+```
+
+### 代表的フローパターン: ステータス変更通知
+
+| ステップ | アクション | 説明 |
+|---|---|---|
+| トリガー | `SubscribeWebhookTrigger` | Dataverse 行のフィルタ列が変更されたとき |
+| 1 | `GetItem` | 起票者（createdby → systemuser）を取得 |
+| 2 | `Compose` | ステータス値を日本語ラベルに変換 |
+| 3 | `If` | メールアドレスの存在チェック |
+| 4 | `SendEmailV2` | Office 365 Outlook で通知メール送信 |
+
+### ベストプラクティス
+
+- 既存フローを `displayName` で検索し、あれば更新・なければ新規作成するべき等冪パターンを使う
+- API 失敗時はフロー定義 JSON をファイル出力し、手動インポートのフォールバックを用意する
+- 接続は `source: "Invoker"` で呼び出し元ユーザーの資格情報を使用する
+- Compose アクションで Choice 値 → 日本語ラベルの変換を行う
+
+---
+
 ## Copilot Studio エージェント
 
 Copilot Studio エージェントを組み合わせると、自然言語でのデータ操作が可能になります。
@@ -466,6 +577,9 @@ conversationStarters:
 | エージェントが意図通り動かない | トピックベース設計 | 生成オーケストレーションに切替 |
 | ReportedBy Lookup が不要だった | `createdby` で代替可能 | 列とリレーションシップを削除 |
 | SDK 初期化エラー | 認証期限切れ | `pac auth create` で再認証 |
+| Flow API トークン取得失敗 | スコープ指定誤り | `https://service.flow.microsoft.com/.default` を使用 |
+| フロー作成時に接続エラー | 環境内に接続が未作成 | Power Automate 接続ページで事前作成 |
+| フロー環境が見つからない | DATAVERSE_URL 不一致 | instanceUrl と末尾スラッシュを統一 |
 | ポート 3000 使用中 | 別プロセスが占有 | `taskkill /PID {pid} /F` |
 | TypeScript ビルドエラー | `verbatimModuleSyntax` | `tsconfig.json` で `false` に設定 |
 
@@ -484,6 +598,8 @@ conversationStarters:
 ### 公式ドキュメント
 
 - [Power Apps Code Apps](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/)
+- [Power Automate クラウドフロー](https://learn.microsoft.com/ja-jp/power-automate/overview-cloud)
+- [Power Automate Management API](https://learn.microsoft.com/ja-jp/power-automate/web-api)
 - [Copilot Studio](https://learn.microsoft.com/ja-jp/microsoft-copilot-studio/)
 - [Dataverse Web API](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/overview)
 - [Power Platform CLI](https://learn.microsoft.com/ja-jp/power-platform/developer/cli/introduction)
@@ -532,6 +648,7 @@ conversationStarters:
 | Content Security Policy | 未サポート |
 | ストレージ SAS IP 制限 | 未サポート |
 | Power Platform Git 統合 | 未サポート |
+| Power Automate 接続の自動作成 | API では不可、環境 UI で事前作成が必要 |
 | Copilot Studio エージェント新規作成 | Awesome Copilot スキルでは不可、Web API で対応 |
 | ナレッジ・MCP Server 追加 | Copilot Studio UI で手動追加 |
 

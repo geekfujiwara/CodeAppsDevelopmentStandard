@@ -14,10 +14,11 @@
 2. [前提条件と環境セットアップ](#2-前提条件と環境セットアップ)
 3. [Dataverse テーブル設計・作成](#3-dataverse-テーブル設計作成)
 4. [Code Apps 開発](#4-code-apps-開発)
-5. [Copilot Studio エージェント開発](#5-copilot-studio-エージェント開発)
-6. [トラブルシューティング・再発防止](#6-トラブルシューティング再発防止)
-7. [開発フロー全体図](#7-開発フロー全体図)
-8. [チェックリスト](#8-チェックリスト)
+5. [Power Automate フロー開発](#5-power-automate-フロー開発)
+6. [Copilot Studio エージェント開発](#6-copilot-studio-エージェント開発)
+7. [トラブルシューティング・再発防止](#7-トラブルシューティング再発防止)
+8. [開発フロー全体図](#8-開発フロー全体図)
+9. [チェックリスト](#9-チェックリスト)
 
 ---
 
@@ -339,9 +340,252 @@ export const statusColors: Record<IncidentStatus, string> = {
 
 ---
 
-## 5. Copilot Studio エージェント開発
+## 5. Power Automate フロー開発
 
 ### 5.1 開発方針
+
+Power Automate クラウドフローを Python スクリプトから Management API で作成・デプロイする。通知・承認・バックグラウンド処理など、ユーザー操作の外で動く自動化処理に使用する。
+
+> Power Automate は必須ではない。通知やバックグラウンド処理が不要なプロジェクトではこのセクションをスキップできる。
+
+### 5.2 認証とスコープ
+
+Flow API と PowerApps API でそれぞれ異なるスコープのトークンが必要。
+
+```python
+# フロー管理 API 用（フローの CRUD）
+token = get_token(scope="https://service.flow.microsoft.com/.default")
+
+# 接続検索用（PowerApps API — 既存の接続を検索）
+pa_token = get_token(scope="https://service.powerapps.com/.default")
+```
+
+| API | スコープ | 用途 |
+|---|---|---|
+| Flow Management API | `https://service.flow.microsoft.com/.default` | フローの作成・更新・削除・一覧取得 |
+| PowerApps API | `https://service.powerapps.com/.default` | 環境内の接続を検索 |
+
+### 5.3 環境 ID の解決
+
+`DATAVERSE_URL` から環境 ID を逆引きする。Flow API のエンドポイントには環境 ID が必要。
+
+```python
+FLOW_API = "https://api.flow.microsoft.com"
+API_VER = "api-version=2016-11-01"
+
+envs = flow_api_call("GET", "/providers/Microsoft.ProcessSimple/environments")
+ENV_ID = None
+for env in envs["value"]:
+    props = env.get("properties", {})
+    linked = props.get("linkedEnvironmentMetadata", {})
+    instance_url = (linked.get("instanceUrl") or "").rstrip("/")
+    if instance_url == DATAVERSE_URL:
+        ENV_ID = env["name"]
+        break
+```
+
+> **教訓**: `instanceUrl` と `DATAVERSE_URL` の末尾スラッシュの有無を `rstrip("/")` で統一しないとマッチしない。
+
+### 5.4 接続の検索と前提条件
+
+フローが使用するコネクタの接続は **環境内に事前作成** しておく必要がある。API で接続を自動作成することはできない。
+
+```python
+CONNECTORS_NEEDED = {
+    "shared_commondataserviceforapps": "Dataverse",
+    "shared_office365": "Office 365 Outlook",
+}
+
+POWERAPPS_API = "https://api.powerapps.com"
+
+# 接続を検索し、Connected 状態のものを優先使用
+for connector_name, display in CONNECTORS_NEEDED.items():
+    url = f"{POWERAPPS_API}/providers/Microsoft.PowerApps/apis/{connector_name}/connections"
+    # $filter=environment eq '{ENV_ID}' でフィルタ
+    # statuses に "Connected" が含まれるものを優先
+```
+
+> **教訓**: 接続が未作成の場合、API コールは成功するが空配列が返る。スクリプトで明確にエラーを出し、[Power Automate 接続ページ](https://make.powerautomate.com/connections) への案内を表示すべき。
+
+### 5.5 フロー定義の構築
+
+Logic Apps ワークフロー定義スキーマ形式で JSON を組み立てる。
+
+```python
+definition = {
+    "$schema": (
+        "https://schema.management.azure.com/providers/"
+        "Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#"
+    ),
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "$authentication": {"defaultValue": {}, "type": "SecureObject"},
+        "$connections": {"defaultValue": {}, "type": "Object"},
+    },
+    "triggers": {
+        "When_status_changes": {
+            "type": "OpenApiConnectionWebhook",
+            "inputs": {
+                "host": {
+                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                    "connectionName": "shared_commondataserviceforapps",
+                    "operationId": "SubscribeWebhookTrigger",
+                },
+                "parameters": {
+                    "subscriptionRequest/message": 3,         # Update
+                    "subscriptionRequest/entityname": "geek_incident",
+                    "subscriptionRequest/scope": 4,           # Organization
+                    "subscriptionRequest/filteringattributes": "geek_status",
+                    "subscriptionRequest/runas": 3,
+                },
+                "authentication": "@parameters('$authentication')",
+            },
+        }
+    },
+    "actions": { ... },
+}
+```
+
+#### 接続参照
+
+```python
+connection_references = {
+    "shared_commondataserviceforapps": {
+        "connectionName": dataverse_conn,   # 検索で取得した接続名
+        "source": "Invoker",                # 呼び出し元ユーザーの資格情報
+        "id": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+    },
+    "shared_office365": {
+        "connectionName": outlook_conn,
+        "source": "Invoker",
+        "id": "/providers/Microsoft.PowerApps/apis/shared_office365",
+    },
+}
+```
+
+### 5.6 代表的アクションパターン
+
+#### Dataverse レコード取得
+
+```python
+"Get_Creator": {
+    "type": "OpenApiConnection",
+    "inputs": {
+        "host": {
+            "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+            "connectionName": "shared_commondataserviceforapps",
+            "operationId": "GetItem",
+        },
+        "parameters": {
+            "entityName": "systemusers",
+            "recordId": "@triggerOutputs()?['body/_createdby_value']",
+            "$select": "internalemailaddress,fullname",
+        },
+        "authentication": "@parameters('$authentication')",
+    },
+}
+```
+
+#### Choice 値 → 日本語ラベル変換（Compose）
+
+```python
+"Compose_Status_Label": {
+    "type": "Compose",
+    "inputs": (
+        "@if(equals(triggerOutputs()?['body/geek_status'],100000000),'新規',"
+        "if(equals(triggerOutputs()?['body/geek_status'],100000001),'対応中',"
+        "if(equals(triggerOutputs()?['body/geek_status'],100000002),'保留',"
+        "if(equals(triggerOutputs()?['body/geek_status'],100000003),'解決済',"
+        "if(equals(triggerOutputs()?['body/geek_status'],100000004),'クローズ','不明')))))"
+    ),
+}
+```
+
+#### 条件分岐 + メール送信
+
+```python
+"Check_Email": {
+    "type": "If",
+    "expression": {
+        "not": {"equals": [
+            "@coalesce(outputs('Get_Creator')?['body/internalemailaddress'],'')",
+            "",
+        ]}
+    },
+    "actions": {
+        "Send_Email": {
+            "type": "OpenApiConnection",
+            "inputs": {
+                "host": {
+                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365",
+                    "connectionName": "shared_office365",
+                    "operationId": "SendEmailV2",
+                },
+                "parameters": {
+                    "emailMessage/To": "@outputs('Get_Creator')?['body/internalemailaddress']",
+                    "emailMessage/Subject": "【通知】ステータスが変更されました",
+                    "emailMessage/Body": "<html>...</html>",
+                },
+            },
+        }
+    },
+}
+```
+
+### 5.7 デプロイとべき等パターン
+
+既存フローを `displayName` で検索し、あれば PATCH・なければ POST する。
+
+```python
+FLOW_DISPLAY_NAME = "インシデントステータス変更通知"
+
+# 既存フロー検索
+flows_resp = flow_api_call("GET",
+    f"/providers/Microsoft.ProcessSimple/environments/{ENV_ID}/flows")
+existing_flow_id = None
+for f in flows_resp["value"]:
+    if f["properties"]["displayName"] == FLOW_DISPLAY_NAME:
+        existing_flow_id = f["name"]
+        break
+
+# デプロイ
+flow_payload = {
+    "properties": {
+        "displayName": FLOW_DISPLAY_NAME,
+        "definition": definition,
+        "connectionReferences": connection_references,
+        "state": "Started",
+    }
+}
+
+if existing_flow_id:
+    flow_api_call("PATCH",
+        f"/providers/Microsoft.ProcessSimple/environments/{ENV_ID}/flows/{existing_flow_id}",
+        flow_payload)
+else:
+    flow_api_call("POST",
+        f"/providers/Microsoft.ProcessSimple/environments/{ENV_ID}/flows",
+        flow_payload)
+```
+
+### 5.8 デバッグとフォールバック
+
+API 呼び出しが失敗した場合、フロー定義 JSON をファイルに出力して手動インポートに対応する。
+
+```python
+except RuntimeError as e:
+    debug_path = "scripts/flow_definition_debug.json"
+    with open(debug_path, "w", encoding="utf-8") as f:
+        json.dump(flow_payload, f, ensure_ascii=False, indent=2)
+    print(f"デバッグ用にフロー定義を保存: {debug_path}")
+    # → Power Automate UI でインポート可能
+```
+
+---
+
+## 6. Copilot Studio エージェント開発
+
+### 6.1 開発方針
 
 現状の Awesome Copilot の Copilot Studio スキルでは **エージェントの新規作成ができない**。  
 そのため、以下の方針で開発する:
@@ -356,7 +600,7 @@ export const statusColors: Record<IncidentStatus, string> = {
 
 > **教訓**: トピックベースの開発を試みた後に全削除し、生成オーケストレーションに切り替える手戻りが発生。最初から生成オーケストレーションで設計すべき。
 
-### 5.2 エージェント作成（Dataverse Web API）
+### 6.2 エージェント作成（Dataverse Web API）
 
 ```python
 # Step 1: Bot レコード作成
@@ -374,7 +618,7 @@ bot_id = api_post("bots", {
 }, solution=SOLUTION)
 ```
 
-### 5.3 生成オーケストレーション設定
+### 6.3 生成オーケストレーション設定
 
 ```python
 # 必須の設定値
@@ -396,7 +640,7 @@ config = {
 }
 ```
 
-### 5.4 GPT コンポーネント（Instructions）
+### 6.4 GPT コンポーネント（Instructions）
 
 ```python
 # componenttype=15 で Instructions を設定
@@ -409,7 +653,7 @@ api_post("botcomponents", {
 }, solution=SOLUTION)
 ```
 
-### 5.5 Copilot Studio 用システムプロンプト設計テンプレート
+### 6.5 Copilot Studio 用システムプロンプト設計テンプレート
 
 以下は生成オーケストレーションモードで使用するシステムプロンプトのテンプレート:
 
@@ -458,7 +702,7 @@ conversationStarters:
     text: "{レコード}のステータスを更新して"
 ```
 
-### 5.6 ナレッジ・ツールの手動追加
+### 6.6 ナレッジ・ツールの手動追加
 
 以下の設定はプログラムからの追加が困難なため、**Copilot Studio の UI からユーザーが手動で追加** する:
 
@@ -474,7 +718,7 @@ conversationStarters:
 2. **Dataverse** コネクタを選択
 3. 必要なアクション（CRUD 操作）を有効化
 
-### 5.7 エージェント公開
+### 6.7 エージェント公開
 
 ```python
 # PvaPublish アクションで公開
@@ -483,9 +727,9 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 
 ---
 
-## 6. トラブルシューティング・再発防止
+## 7. トラブルシューティング・再発防止
 
-### 6.1 発生した問題と解決策一覧
+### 7.1 発生した問題と解決策一覧
 
 | # | 問題 | 原因 | 解決策 | 再発防止 |
 |---|---|---|---|---|
@@ -494,12 +738,15 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 | 3 | テーブル連続作成で `0x80040237` | メタデータロック競合 | 累進的リトライ（10s→20s→30s） | §3.2 参照 |
 | 4 | 日本語表示名が設定できない | PATCH では反映されない | GET → PUT + MetadataId | §3.3 参照 |
 | 5 | ローカル開発後にデプロイで失敗 | Dataverse 接続が未確立 | 先にデプロイしてからdev | §1.3 参照 |
-| 6 | トピック開発後に全削除 | 生成オーケストレーションが最適 | 最初からgen-orchモードで設計 | §5.1 参照 |
-| 7 | Copilot Studio からエージェント作成不可 | スキルの制約 | Dataverse Web API で作成 | §5.2 参照 |
+| 6 | トピック開発後に全削除 | 生成オーケストレーションが最適 | 最初からgen-orchモードで設計 | §6.1 参照 |
+| 7 | Copilot Studio からエージェント作成不可 | スキルの制約 | Dataverse Web API で作成 | §6.2 参照 |
 | 8 | ローカライズ 3回やり直し | API の挙動不明 | v3 の PUT パターンを確立 | §3.3 参照 |
 | 9 | 認証トークン期限切れ | 毎回デバイスコード認証 | AuthenticationRecord キャッシュ | §2.3 参照 |
+| 10 | Flow API トークン取得失敗 | スコープ指定誤り | `https://service.flow.microsoft.com/.default` を使用 | §5.2 参照 |
+| 11 | フロー作成時に接続エラー | 環境内に接続が未作成 | Power Automate 接続ページで事前作成 | §5.4 参照 |
+| 12 | フロー環境が見つからない | DATAVERSE_URL 末尾スラッシュ不一致 | `rstrip("/")` で統一 | §5.3 参照 |
 
-### 6.2 共通のアンチパターン
+### 7.2 共通のアンチパターン
 
 ```
 ❌ Dataverse テーブルを日本語スキーマ名で作成する
@@ -510,11 +757,14 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 ❌ PATCH でメタデータ表示名を更新しようとする
 ❌ テーブル連続作成でリトライなし
 ❌ ソリューション外でカスタマイズする
+❌ Flow API に Dataverse トークンを使い回す（スコープが異なる）
+❌ 接続を API で自動作成しようとする（手動で事前作成が必要）
+❌ フロー定義の失敗時にデバッグ JSON を保存しない
 ```
 
 ---
 
-## 7. 開発フロー全体図
+## 8. 開発フロー全体図
 
 ```
 ┌──────────────────────────────────────────────────────┐
@@ -534,30 +784,25 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 │  6. テーブル検証                                       │
 └──────────────────┬───────────────────────────────────┘
                    ▼
-┌──────────────────────────────────────────────────────┐
-│               Phase 2: Code Apps                      │
-│  1. npx power-apps init                               │
-│  2. npm run build && push（先にデプロイ！）             │
-│  3. pac code add-data-source -a dataverse -t {table}  │
-│  4. DataverseService + 型定義 + ページ実装             │
-│  5. ビルド＆再デプロイ                                 │
-└──────────────────┬───────────────────────────────────┘
-                   ▼
-┌──────────────────────────────────────────────────────┐
-│            Phase 3: Copilot Studio                    │
-│  1. Web API でエージェント作成                          │
-│  2. カスタムトピック全削除                              │
-│  3. 生成オーケストレーション有効化                       │
-│  4. GPT Instructions 設定                              │
-│  5. ★ ナレッジ追加（UI で手動）                        │
-│  6. ★ MCP Server 追加（UI で手動）                     │
-│  7. エージェント公開                                   │
-└──────────────────────────────────────────────────────┘
+     ┌─────────────┼─────────────────┐
+     ▼             ▼                 ▼
+┌──────────┐ ┌──────────────┐ ┌────────────────┐
+│ Phase 2  │ │ Phase 2.5    │ │ Phase 3        │
+│ Code Apps│ │ Power        │ │ Copilot Studio │
+│          │ │ Automate     │ │                │
+│ 1. init  │ │ 1. 認証      │ │ 1. Bot 作成    │
+│ 2. deploy│ │ 2. 環境解決  │ │ 2. トピック削除│
+│ 3. add-ds│ │ 3. 接続検索  │ │ 3. gen-orch    │
+│ 4. impl  │ │ 4. 定義構築  │ │ 4. Instructions│
+│ 5. build │ │ 5. デプロイ  │ │ 5. ナレッジ    │
+└──────────┘ └──────────────┘ │ 6. MCP Server  │
+                              │ 7. 公開        │
+                              └────────────────┘
 ```
 
 ---
 
-## 8. チェックリスト
+## 9. チェックリスト
 
 ### Dataverse テーブル作成前
 
@@ -576,6 +821,17 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 - [ ] Dataverse コネクタ追加済み（`pac code add-data-source`）
 - [ ] 型定義と Choice マッピングが一致
 
+### Power Automate フロー作成前
+
+- [ ] Flow API 認証トークン取得済み（`https://service.flow.microsoft.com/.default`）
+- [ ] 環境 ID を `DATAVERSE_URL` から解決済み
+- [ ] 必要な接続が環境内に作成済み（Dataverse, Office 365 Outlook 等）
+- [ ] 接続が `Connected` 状態であることを確認
+- [ ] フロー定義の JSON を構築済み
+- [ ] 接続参照で `source: "Invoker"` を使用
+- [ ] 既存フロー検索 → 更新 or 新規作成のべき等パターンを使用
+- [ ] 失敗時のデバッグ JSON 出力を実装
+
 ### Copilot Studio エージェント公開前
 
 - [ ] 生成オーケストレーション有効化済み（`GenerativeActionsEnabled: true`）
@@ -590,6 +846,8 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 ## 参考リンク
 
 - [Power Apps Code Apps 公式ドキュメント](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/)
+- [Power Automate クラウドフロー](https://learn.microsoft.com/ja-jp/power-automate/overview-cloud)
+- [Power Automate Management API](https://learn.microsoft.com/ja-jp/power-automate/web-api)
 - [Copilot Studio 公式ドキュメント](https://learn.microsoft.com/ja-jp/microsoft-copilot-studio/)
 - [Dataverse Web API リファレンス](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/overview)
 - [CodeAppsStarter テンプレート](https://github.com/geekfujiwara/CodeAppsStarter)

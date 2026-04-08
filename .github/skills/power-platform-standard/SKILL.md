@@ -1,14 +1,15 @@
 ---
 name: power-platform-standard
-description: "Power Platform コードファースト開発標準を参照して開発する。Use when: Power Platform 開発, Dataverse テーブル作成, Code Apps, Copilot Studio, エージェント開発, ソリューション, デプロイ, トラブルシューティング, スキーマ設計, ローカライズ, SystemUser, createdby, 生成オーケストレーション"
+description: "Power Platform 包括開発標準を参照して開発する。Use when: Power Platform 開発, Dataverse テーブル作成, Code Apps, Power Automate, フロー作成, Copilot Studio, エージェント開発, ソリューション, デプロイ, トラブルシューティング, スキーマ設計, ローカライズ, SystemUser, createdby, 生成オーケストレーション"
 argument-hint: "開発標準に基づいた Power Platform 開発の指示を入力してください"
 ---
 
-# Power Platform コードファースト開発標準スキル
+# Power Platform 包括開発標準スキル
 
 ## いつ使うか
 - Dataverse テーブルの設計・作成
 - Code Apps の初期化・デプロイ
+- Power Automate クラウドフローの作成・デプロイ
 - Copilot Studio エージェントの構築
 - Power Platform ソリューション全般の開発
 - トラブルシューティング
@@ -36,3 +37,6 @@ argument-hint: "開発標準に基づいた Power Platform 開発の指示を入
 | 生成オーケストレーションモード | トピックベース開発は非推奨 |
 | PUT + MetadataId でローカライズ | PATCH では反映されないケースあり |
 | テーブル作成はリトライ付き | 0x80040237 メタデータロック対策 |
+| Flow API は専用スコープで認証 | Dataverse トークンの使い回し不可 |
+| 接続は環境内に事前作成 | API での接続自動作成は不可 |
+| フローはべき等パターンでデプロイ | displayName で検索 → 更新 or 新規作成 |
