@@ -2,7 +2,7 @@
 import reactLogo from "@/assets/react.svg"
 import { Button } from "@/components/ui/button"
 import { LinkConfirmModal, useLinkModal } from "@/components/link-confirm-modal"
-import { GraduationCap, MessageSquare, LayoutGrid } from "lucide-react"
+import { GraduationCap, MessageSquare, LayoutGrid, ShieldAlert } from "lucide-react"
 import { Link } from "react-router-dom"
 
 export default function HomePage() {
@@ -61,6 +61,12 @@ export default function HomePage() {
             Vite / TypeScript / React をベースに、API 連携やモダン UI の実装例を提供します。
           </p>
           <div className="flex justify-center gap-3">
+            <Link to="/incidents">
+              <Button className="gap-2">
+                <ShieldAlert className="h-4 w-4" />
+                インシデント管理
+              </Button>
+            </Link>
             <Link to="/design-examples">
               <Button className="gap-2">
                 <LayoutGrid className="h-4 w-4" />

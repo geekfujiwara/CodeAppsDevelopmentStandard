@@ -159,8 +159,16 @@ await SharePointService.PostItem("{site-url}", "{list-id}", {
 ### セットアップ
 
 ```bash
+# 推奨: npx 経由（SDK v1.0.x 対応）
+npx power-apps add-data-source --api-id dataverse \
+  --resource-name {table-logical-name} \
+  --org-url {DATAVERSE_URL} --non-interactive
+
+# レガシー: pac cli 経由（SDK v0.3.x のみ動作）
 pac code add-data-source -a dataverse -t {table-logical-name}
 ```
+
+> **⚠️ 日本語環境での注意**: テーブルの DisplayName が日本語の場合、`Failed to sanitize string` エラーが発生する。`node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js` の `sanitizeName()` 関数内の正規表現を Unicode 対応にパッチすること。詳細は [開発標準 §1.2](./POWER_PLATFORM_DEVELOPMENT_STANDARD.md) を参照。
 
 ### 使用例
 

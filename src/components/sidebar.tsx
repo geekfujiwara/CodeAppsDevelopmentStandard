@@ -6,6 +6,7 @@ import {
   BookOpen,
   FileText,
   Users,
+  ShieldAlert,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -47,6 +48,7 @@ export function Sidebar() {
       category: "アプリ",
       items: [
         { icon: Home, label: "ホーム", path: "/" },
+        { icon: ShieldAlert, label: "インシデント管理", path: "incidents" },
         { icon: FileText, label: "このテンプレートの使い方", path: "guide" },
       ]
     },

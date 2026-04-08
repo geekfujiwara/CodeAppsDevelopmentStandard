@@ -45,6 +45,51 @@ Dataverse のスキーマ名（Logical Name）は**必ず英語**で設計する
 
 > **教訓**: `pac code add-data-source -a dataverse` コマンドが日本語表示名のテーブルで失敗する。スキーマ名を英語にすれば回避可能。
 
+#### 日本語 DisplayName サニタイズエラーの回避方法
+
+`@microsoft/power-apps` SDK v1.0.x では、`npx power-apps add-data-source` 実行時にテーブルの **DisplayName**（表示名）を TypeScript 識別子にサニタイズする処理がある。このサニタイズ関数は ASCII 文字のみを許容するため、日本語ローカライズ済みのテーブル（例: 表示名「インシデント」）で以下のエラーが発生する:
+
+```
+Failed to update database references: Failed to sanitize string インシデント
+```
+
+**原因**: `@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js` の `sanitizeName()` 関数内の正規表現:
+
+```javascript
+// 元のコード — ASCII 以外の文字をすべて _ に置換
+name = name.replace(/[^a-zA-Z0-9_$]/g, '_');
+```
+
+日本語文字がすべて `_` に置換され、結果が全アンダースコア（`_____`）となり、バリデーションで弾かれる。
+
+**回避方法**: 上記ファイルの正規表現を Unicode 文字を許容するように修正する:
+
+```javascript
+// 修正後 — CJK・ハングル・キリル・ラテン拡張など Unicode 文字を許容
+name = name.replace(/[^a-zA-Z0-9_$\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u3000-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF]/g, '_');
+```
+
+**修正対象ファイル**:
+```
+node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js
+```
+
+**修正手順**:
+```bash
+# 1. nameUtils.js のサニタイズ正規表現をパッチ
+#    [^a-zA-Z0-9_$] → [^a-zA-Z0-9_$\u00C0-\u024F...\u3000-\u9FFF...] に変更
+
+# 2. パッチ後にデータソース追加を実行
+npx power-apps add-data-source --api-id dataverse \
+  --resource-name {table_logical_name} \
+  --org-url {DATAVERSE_URL} \
+  --non-interactive
+```
+
+> **注意**: `npm install` を再実行すると `node_modules` が再生成されパッチが消える。データソース追加後に `npm install` する場合は再度パッチが必要。`power.config.json` の `databaseReferences` が正しく生成されていれば、パッチは不要になる。
+
+> **PAC CLI との関係**: `pac code add-data-source` は内部で `@microsoft/power-apps` の CLI スクリプトを呼び出す。SDK v1.0.x ではスクリプトパスが変更されたため `pac code` 経由では `Could not find the PowerApps CLI script` エラーになる。**`npx power-apps add-data-source` を使用すること**。
+
 ### 1.3 先にデプロイ、後から開発
 
 ローカルでの開発に時間をかけすぎず、**最初に Power Platform にデプロイ**して Dataverse との接続を確立する。
@@ -249,20 +294,26 @@ api_post("/PublishAllXml", {})
 
 ```bash
 # 1. プロジェクト初期化
-npx power-apps init --display-name "アプリ名"
+npx power-apps init --display-name "アプリ名" \
+  --environment-id {ENVIRONMENT_ID} --non-interactive
 
 # 2. 依存関係インストール
 npm install
 
 # 3. 先にビルド＆デプロイ（Dataverse 接続確立のため）
 npm run build
-npx power-apps push --solution-id {SolutionName}
+npx power-apps push --non-interactive
 
-# 4. Dataverse コネクタ追加
-pac code add-data-source -a dataverse -t {table_logical_name}
+# 4. Dataverse コネクタ追加（テーブルごとに実行）
+#    ※ 日本語 DisplayName でサニタイズエラーが出る場合は §1.2 の回避方法を参照
+npx power-apps add-data-source --api-id dataverse \
+  --resource-name {table_logical_name} \
+  --org-url {DATAVERSE_URL} --non-interactive
 ```
 
 > **重要**: 手順 3 を先に行うことで、Power Platform 上にアプリが登録され、Dataverse への接続が有効になる。ローカル開発のみで進めると接続確立時に問題が発生する。
+
+> **SDK v1.0.x への移行**: `pac code add-data-source` は SDK v1.0.x で CLI パスが変更されたため動作しない。`npx power-apps add-data-source` を使用すること。日本語ローカライズ済み環境では nameUtils.js のパッチが必要（§1.2 参照）。
 
 ### 4.2 DataverseService パターン
 
@@ -581,6 +632,128 @@ except RuntimeError as e:
     # → Power Automate UI でインポート可能
 ```
 
+### 5.9 ソリューション対応フローの作成（Dataverse Web API 方式）
+
+> **TIPS**: Flow Management API（`api.flow.microsoft.com`）で作成したフローは **非ソリューション対応** であり、ソリューションに後から追加できない。ソリューション管理が必要な場合は **Dataverse の `workflow` テーブルに直接レコードを作成** する。
+
+#### 5.9.1 Flow API 方式 vs Dataverse API 方式
+
+| 項目 | Flow Management API | Dataverse Web API（推奨） |
+|---|---|---|
+| エンドポイント | `api.flow.microsoft.com` | `{org}.crm*.dynamics.com/api/data/v9.2/workflows` |
+| ソリューション対応 | ❌ 非対応（後追加も不可） | ✅ `MSCRM.SolutionUniqueName` ヘッダーで自動追加 |
+| 認証スコープ | `https://service.flow.microsoft.com/.default` | `{DATAVERSE_URL}/.default` |
+| 接続の `authenticatedUserObjectId` | 必須（ないと 401 エラー） | 不要 |
+| 環境 ID 解決 | 必要（instanceUrl から逆引き） | 不要（Dataverse URL に直接アクセス） |
+
+#### 5.9.2 Flow API 方式で発生する問題
+
+```
+# 典型的エラー: 接続の authenticatedUserObjectId が不足
+{"error": {
+  "code": "ConnectionMissingAuthenticatedUserObjectId",
+  "message": "The connection '...' is missing the authenticated user object id."
+}}
+```
+
+この問題は、DeviceCodeCredential（MCP Client ID）で取得したトークンが接続所有者のブラウザセッション と一致しないために発生する。接続を再作成しても PowerApps API から `authenticatedUser` が返されないケースがある。
+
+#### 5.9.3 Dataverse Web API 方式の実装
+
+**必須フィールド**:
+
+| フィールド | 値 | 説明 |
+|---|---|---|
+| `name` | フロー表示名 | 検索用（べき等パターン） |
+| `type` | `1` | Definition |
+| `category` | `5` | Modern Flow (Cloud Flow) |
+| `primaryentity` | `"none"` | Cloud Flow では `"none"` 必須 |
+| `statecode` | `0` | **Draft で作成**（直接 Activated 不可） |
+| `statuscode` | `1` | Draft |
+| `clientdata` | JSON 文字列 | フロー定義 + 接続参照 + schemaVersion |
+
+**重要な制約**:
+- `statecode: 1`（Activated）で直接作成すると `statuscode: 2 is not valid for state Draft` エラー
+- `primaryentity` がないと `Attribute 'primaryentity' cannot be NULL` エラー
+- `clientdata` に `schemaVersion` がないと `Required property 'schemaVersion' not found` エラー
+
+#### 5.9.4 clientdata の構造
+
+```python
+clientdata = {
+    "properties": {
+        "definition": {
+            "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+            "contentVersion": "1.0.0.0",
+            "parameters": {
+                "$authentication": {"defaultValue": {}, "type": "SecureObject"},
+                "$connections": {"defaultValue": {}, "type": "Object"},
+            },
+            "triggers": { ... },
+            "actions": { ... },
+        },
+        "connectionReferences": {
+            "shared_commondataserviceforapps": {
+                "connectionName": "{接続ID}",
+                "source": "Embedded",
+                "id": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                "tier": "NotSpecified",
+            },
+            # ...
+        },
+    },
+    "schemaVersion": "1.0.0.0",   # ← これが必須
+}
+
+# JSON 文字列に変換して workflow.clientdata に設定
+workflow_body["clientdata"] = json.dumps(clientdata, ensure_ascii=False)
+```
+
+#### 5.9.5 ソリューション紐付け + 作成 → 有効化の2ステップ
+
+```python
+# ヘッダーに MSCRM.SolutionUniqueName を追加
+headers = {
+    "Authorization": f"Bearer {token}",
+    "Content-Type": "application/json",
+    "MSCRM.SolutionUniqueName": "IncidentManagement",  # ← ソリューション自動追加
+}
+
+# Step 1: Draft で作成
+workflow_body = {
+    "name": "インシデントステータス変更通知",
+    "type": 1,
+    "category": 5,
+    "statecode": 0,        # Draft
+    "statuscode": 1,       # Draft
+    "primaryentity": "none",
+    "clientdata": json.dumps(clientdata, ensure_ascii=False),
+}
+r = requests.post(f"{API}/workflows", headers=headers, json=workflow_body)
+wf_id = r.headers["OData-EntityId"].split("(")[-1].rstrip(")")
+
+# Step 2: 有効化
+requests.patch(f"{API}/workflows({wf_id})", headers=headers,
+    json={"statecode": 1, "statuscode": 2})
+```
+
+#### 5.9.6 べき等パターン（既存検索 → 削除 → 再作成）
+
+```python
+# 既存フロー検索（workflow テーブル内、category=5 が Cloud Flow）
+existing = api_get(
+    f"workflows?$filter=name eq '{FLOW_NAME}' and category eq 5"
+    "&$select=workflowid,name,statecode"
+)
+if existing["value"]:
+    wf_id = existing["value"][0]["workflowid"]
+    requests.delete(f"{API}/workflows({wf_id})", headers=headers)
+
+# 新規作成（上記 Step 1 → Step 2）
+```
+
+> **教訓**: Flow API で作成したフローは `workflow` テーブルに存在しないため、`AddSolutionComponent` でもソリューションに追加できない。最初から Dataverse Web API 方式で作成するのが正解。
+
 ---
 
 ## 6. Copilot Studio エージェント開発
@@ -745,6 +918,13 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 | 10 | Flow API トークン取得失敗 | スコープ指定誤り | `https://service.flow.microsoft.com/.default` を使用 | §5.2 参照 |
 | 11 | フロー作成時に接続エラー | 環境内に接続が未作成 | Power Automate 接続ページで事前作成 | §5.4 参照 |
 | 12 | フロー環境が見つからない | DATAVERSE_URL 末尾スラッシュ不一致 | `rstrip("/")` で統一 | §5.3 参照 |
+| 13 | `npx power-apps add-data-source` で `Failed to sanitize string` | SDK の `sanitizeName()` が ASCII のみ許容、日本語 DisplayName が全て `_` に変換される | `nameUtils.js` の正規表現を Unicode 対応にパッチ | §1.2 参照 |
+| 14 | `pac code add-data-source` で `Could not find the PowerApps CLI script` | SDK v1.0.x で CLI スクリプトパスが変更 | `npx power-apps add-data-source` を使用 | §4.1 参照 |
+| 15 | Flow API で作成したフローがソリューションに追加できない | Flow API は非ソリューション対応フローを作成する。`workflow` テーブルにも存在しない | Dataverse Web API の `workflows` テーブルに直接作成 + `MSCRM.SolutionUniqueName` ヘッダー | §5.9 参照 |
+| 16 | Flow API で `ConnectionMissingAuthenticatedUserObjectId` エラー | DeviceCodeCredential のトークンが接続所有者と不一致 | Dataverse Web API 方式に切り替え（authenticatedUser 不要） | §5.9.2 参照 |
+| 17 | Dataverse Web API でフロー作成時 `statuscode 2 is not valid for state Draft` | `statecode=1` で直接作成不可 | Draft（statecode=0）で作成後に PATCH で有効化 | §5.9.5 参照 |
+| 18 | フロー作成時 `primaryentity cannot be NULL` | Cloud Flow でも `primaryentity` が必須 | `"primaryentity": "none"` を指定 | §5.9.3 参照 |
+| 19 | フロー作成時 `Required property 'schemaVersion' not found` | `clientdata` に `schemaVersion` が不足 | `clientdata` の最上位に `"schemaVersion": "1.0.0.0"` を追加 | §5.9.4 参照 |
 
 ### 7.2 共通のアンチパターン
 
@@ -760,6 +940,10 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 ❌ Flow API に Dataverse トークンを使い回す（スコープが異なる）
 ❌ 接続を API で自動作成しようとする（手動で事前作成が必要）
 ❌ フロー定義の失敗時にデバッグ JSON を保存しない
+❌ pac code add-data-source を SDK v1.0.x で使う（npx power-apps add-data-source を使え）
+❌ 日本語 DisplayName の sanitize 問題を放置する（nameUtils.js をパッチせよ）
+❌ Flow API でソリューション対応フローを作ろうとする（Dataverse Web API を使え）
+❌ workflow を statecode=1 で直接作成する（Draft → Activate の2ステップが必須）
 ```
 
 ---

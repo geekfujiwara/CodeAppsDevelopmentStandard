@@ -1,0 +1,320 @@
+"""
+Copilot Studio エージェントデプロイスクリプト — インシデント管理アシスタント
+
+Phase 3: Bot 作成 → カスタムトピック全削除 → 生成オーケストレーション有効化
+       → GPT Instructions 設定 → 公開
+       ★ ナレッジ・MCP Server はユーザーが UI で手動追加
+
+使い方:
+  1. .env に DATAVERSE_URL, TENANT_ID, MCP_CLIENT_ID, SOLUTION_NAME, PUBLISHER_PREFIX を設定
+  2. pip install azure-identity requests python-dotenv pyyaml
+  3. python scripts/deploy_agent.py
+"""
+
+import json
+import os
+import sys
+import time
+
+# scripts/ ディレクトリを sys.path に追加
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import requests
+import yaml
+from dotenv import load_dotenv
+from auth_helper import get_token as _get_token
+
+load_dotenv()
+
+# ── 環境変数 ──────────────────────────────────────────────
+DATAVERSE_URL = os.environ["DATAVERSE_URL"].rstrip("/")
+TENANT_ID = os.environ["TENANT_ID"]
+CLIENT_ID = os.environ["MCP_CLIENT_ID"]
+SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
+PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
+
+SCOPE = f"{DATAVERSE_URL}/.default"
+
+BOT_NAME = "インシデント管理アシスタント"
+BOT_SCHEMA = f"{PREFIX}_IncidentAssistant"
+
+# ── API ヘルパー ─────────────────────────────────────────
+
+def get_headers() -> dict:
+    token = _get_token(TENANT_ID, CLIENT_ID, SCOPE)
+    return {
+        "Authorization": f"Bearer {token}",
+        "OData-MaxVersion": "4.0",
+        "OData-Version": "4.0",
+        "Accept": "application/json",
+        "Content-Type": "application/json; charset=utf-8",
+        "MSCRM.SolutionName": SOLUTION_NAME,
+    }
+
+
+def api_get(path, params=None):
+    r = requests.get(f"{DATAVERSE_URL}/api/data/v9.2/{path}",
+                     headers=get_headers(), params=params)
+    r.raise_for_status()
+    return r.json()
+
+
+def api_post(path, body):
+    r = requests.post(f"{DATAVERSE_URL}/api/data/v9.2/{path}",
+                      headers=get_headers(), json=body)
+    if not r.ok:
+        print(f"  API ERROR {r.status_code}: {r.text[:500]}")
+    r.raise_for_status()
+    return r
+
+
+def api_patch(path, body):
+    r = requests.patch(f"{DATAVERSE_URL}/api/data/v9.2/{path}",
+                       headers=get_headers(), json=body)
+    if not r.ok:
+        print(f"  API ERROR {r.status_code}: {r.text[:500]}")
+    r.raise_for_status()
+    return r
+
+
+def api_delete(path):
+    r = requests.delete(f"{DATAVERSE_URL}/api/data/v9.2/{path}",
+                        headers=get_headers())
+    r.raise_for_status()
+    return r
+
+# ── GPT Instructions ─────────────────────────────────────
+
+GPT_INSTRUCTIONS = f"""\
+あなたは「インシデント管理アシスタント」です。社内のインシデント（障害・問題）を管理するためのAIエージェントです。
+
+## 利用可能なテーブル
+
+### {PREFIX}_incident（インシデント）
+- {PREFIX}_name: テキスト（タイトル）★必須
+- {PREFIX}_description: テキスト（説明）
+- {PREFIX}_status: Choice（ステータス）
+  - 100000000 = 新規
+  - 100000001 = 対応中
+  - 100000002 = 保留
+  - 100000003 = 解決済
+  - 100000004 = クローズ
+- {PREFIX}_priority: Choice（優先度）
+  - 100000000 = 緊急
+  - 100000001 = 高
+  - 100000002 = 中
+  - 100000003 = 低
+- {PREFIX}_duedate: DateTime（期限）
+- {PREFIX}_incidentcategoryid: Lookup → {PREFIX}_incidentcategory
+- {PREFIX}_locationid: Lookup → {PREFIX}_location
+- {PREFIX}_assignedtoid: Lookup → systemuser
+- createdby: システム列（報告者 = レコード作成者）
+
+### {PREFIX}_incidentcategory（カテゴリ）
+- {PREFIX}_name: テキスト（カテゴリ名）
+
+### {PREFIX}_location（場所）
+- {PREFIX}_name: テキスト（場所名）
+
+### {PREFIX}_incidentcomment（コメント）
+- {PREFIX}_name: テキスト（件名）
+- {PREFIX}_content: テキスト（内容）
+- {PREFIX}_incidentid: Lookup → {PREFIX}_incident
+
+## 行動指針
+
+1. ユーザーの意図を正確に理解し、Dataverse のデータ操作を実行する
+2. レコード作成時は必須項目（タイトル）を必ず確認してから実行
+3. 検索結果は見やすく整形して表示する（テーブル形式推奨）
+4. 日本語で丁寧に応答する
+5. 不明な点は実行前に確認する
+6. ステータス・優先度の Choice 値は整数値で指定する
+
+## 条件分岐ルール
+
+### データの照会（ナレッジから回答）
+- 「一覧を見せて」「～はありますか」→ ナレッジ（Dataverse テーブル）から検索
+- フィルタ条件があれば適用（ステータス、優先度、カテゴリ等）
+- 結果がなければその旨を伝える
+
+### 新規レコード作成（ツールで実行）
+- 「起票して」「登録して」「追加して」→ ツール（Dataverse コネクタ）でレコード作成
+- 必須情報: タイトル
+- 推奨情報: 説明、優先度、カテゴリ、場所
+- ステータスのデフォルト: 新規（100000000）
+- 不足情報は質問して補完
+
+### レコード更新（ツールで実行）
+- 「ステータスを変更して」「更新して」→ ツール（Dataverse コネクタ）で PATCH 操作
+- 対象レコードの特定 → 変更内容の確認 → 実行
+
+### コメント追加
+- 「コメントを追加して」→ {PREFIX}_incidentcomment テーブルに新規作成
+- インシデントの特定 → 件名と内容を確認 → 実行
+"""
+
+GPT_YAML = yaml.dump({
+    "kind": "GptComponentMetadata",
+    "instructions": GPT_INSTRUCTIONS,
+    "conversationStarters": [
+        {"title": "インシデント一覧", "text": "現在のインシデント一覧を見せてください"},
+        {"title": "新規インシデント", "text": "新しいインシデントを起票したいです"},
+        {"title": "ステータス更新", "text": "インシデントのステータスを更新してください"},
+        {"title": "緊急インシデント", "text": "緊急のインシデントはありますか？"},
+    ],
+}, allow_unicode=True, default_flow_style=False)
+
+# ── Step 1: Bot 作成 ─────────────────────────────────────
+
+def create_or_get_bot() -> str:
+    print("\n=== Step 1: Bot 作成 ===")
+
+    # 既存検索
+    existing = api_get("bots",
+                       {"$filter": f"schemaname eq '{BOT_SCHEMA}'", "$select": "botid,name"})
+    if existing.get("value"):
+        bot_id = existing["value"][0]["botid"]
+        print(f"  既存 Bot を使用: {bot_id}")
+        return bot_id
+
+    config = json.dumps({
+        "$kind": "BotConfiguration",
+        "publishOnImport": False,
+    })
+
+    r = api_post("bots", {
+        "name": BOT_NAME,
+        "schemaname": BOT_SCHEMA,
+        "language": 1041,
+        "accesscontrolpolicy": 0,
+        "authenticationmode": 2,
+        "runtimeprovider": 0,
+        "configuration": config,
+    })
+
+    # Bot ID を OData-EntityId ヘッダーから取得
+    entity_id = r.headers.get("OData-EntityId", "")
+    bot_id = entity_id.split("(")[-1].rstrip(")")
+    print(f"  Bot 作成完了: {bot_id}")
+    return bot_id
+
+# ── Step 2: カスタムトピック全削除 ────────────────────────
+
+def delete_custom_topics(bot_id: str):
+    print("\n=== Step 2: カスタムトピック削除 ===")
+    topics = api_get("botcomponents",
+                     {"$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 1",
+                      "$select": "botcomponentid,name"})
+    count = 0
+    for topic in topics.get("value", []):
+        # システムトピックはスキップ
+        if topic.get("name", "").startswith("system_"):
+            continue
+        try:
+            api_delete(f"botcomponents({topic['botcomponentid']})")
+            print(f"  削除: {topic.get('name', 'unknown')}")
+            count += 1
+        except Exception as e:
+            print(f"  スキップ: {topic.get('name', 'unknown')} ({e})")
+    print(f"  {count} 件のカスタムトピックを削除")
+
+# ── Step 3: 生成オーケストレーション有効化 ────────────────
+
+def enable_generative_orchestration(bot_id: str):
+    print("\n=== Step 3: 生成オーケストレーション有効化 ===")
+    config = json.dumps({
+        "$kind": "BotConfiguration",
+        "settings": {
+            "GenerativeActionsEnabled": True,
+        },
+        "aISettings": {
+            "$kind": "AISettings",
+            "useModelKnowledge": True,
+            "isFileAnalysisEnabled": True,
+            "isSemanticSearchEnabled": True,
+            "optInUseLatestModels": True,
+        },
+        "recognizer": {
+            "$kind": "GenerativeAIRecognizer",
+        },
+    })
+    api_patch(f"bots({bot_id})", {"configuration": config})
+    print("  生成オーケストレーション有効化完了")
+
+# ── Step 4: GPT Instructions 設定 ────────────────────────
+
+def set_gpt_instructions(bot_id: str):
+    print("\n=== Step 4: GPT Instructions 設定 ===")
+
+    # 既存 GPT コンポーネント検索
+    existing = api_get("botcomponents",
+                       {"$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 15",
+                        "$select": "botcomponentid,name"})
+
+    gpt_body = {
+        "name": BOT_NAME,
+        "schemaname": f"{BOT_SCHEMA}.gpt.default",
+        "componenttype": 15,
+        "data": GPT_YAML,
+        "parentbotid@odata.bind": f"/bots({bot_id})",
+    }
+
+    if existing.get("value"):
+        comp_id = existing["value"][0]["botcomponentid"]
+        api_patch(f"botcomponents({comp_id})", {
+            "data": GPT_YAML,
+        })
+        print(f"  GPT コンポーネント更新: {comp_id}")
+    else:
+        r = api_post("botcomponents", gpt_body)
+        print("  GPT コンポーネント作成完了")
+
+    print("  Instructions 設定完了")
+
+# ── Step 5: エージェント公開 ──────────────────────────────
+
+def publish_bot(bot_id: str):
+    print("\n=== Step 5: エージェント公開 ===")
+    try:
+        api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
+        print("  公開完了")
+    except Exception as e:
+        print(f"  ⚠️ 公開でエラー（手動で公開してください）: {e}")
+
+# ── メイン ────────────────────────────────────────────────
+
+def main():
+    print("=" * 60)
+    print("  Copilot Studio エージェントデプロイ")
+    print(f"  エージェント名: {BOT_NAME}")
+    print("=" * 60)
+
+    bot_id = create_or_get_bot()
+    delete_custom_topics(bot_id)
+    enable_generative_orchestration(bot_id)
+    set_gpt_instructions(bot_id)
+    publish_bot(bot_id)
+
+    print("\n" + "=" * 60)
+    print("  ✅ エージェントデプロイ完了!")
+    print("=" * 60)
+    print()
+    print("  ★ 次のステップ（手動操作が必要）:")
+    print()
+    print("  1. ナレッジの追加:")
+    print("     → https://copilotstudio.microsoft.com/ にアクセス")
+    print(f"     → 「{BOT_NAME}」を選択 → ナレッジ タブ")
+    print("     → Dataverse を選択 → 以下のテーブルを追加:")
+    print(f"       - {PREFIX}_incident（インシデント）")
+    print(f"       - {PREFIX}_incidentcategory（カテゴリ）")
+    print(f"       - {PREFIX}_location（場所）")
+    print(f"       - {PREFIX}_incidentcomment（コメント）")
+    print()
+    print("  2. ツール（MCP Server / コネクタ）の追加:")
+    print("     → ツール タブ → コネクタ → Dataverse を選択")
+    print("     → 必要なアクション（レコード作成・更新・削除）を有効化")
+    print()
+
+
+if __name__ == "__main__":
+    main()

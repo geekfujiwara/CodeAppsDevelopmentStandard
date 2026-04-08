@@ -9,6 +9,11 @@ const DesignShowcasePage = lazy(() => import("@/pages/design-examples"))
 const FeedbackPage = lazy(() => import("@/pages/feedback"))
 const NotFoundPage = lazy(() => import("@/pages/not-found"))
 
+// インシデント管理ページ
+const IncidentListPage = lazy(() => import("@/pages/incidents"))
+const IncidentDetailPage = lazy(() => import("@/pages/incident-detail"))
+const IncidentCreatePage = lazy(() => import("@/pages/incident-create"))
+
 // ローディングコンポーネント
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[400px]">
@@ -40,6 +45,9 @@ export const router = createBrowserRouter([
     errorElement: withSuspense(NotFoundPage),
     children: [
       { index: true, element: <HomePage /> },
+      { path: "incidents", element: withSuspense(IncidentListPage) },
+      { path: "incidents/new", element: withSuspense(IncidentCreatePage) },
+      { path: "incidents/:id", element: withSuspense(IncidentDetailPage) },
       { path: "guide", element: withSuspense(GuidePage) },
       { path: "design-examples", element: withSuspense(DesignShowcasePage) },
       { path: "feedback", element: withSuspense(FeedbackPage) },

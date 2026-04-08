@@ -1,0 +1,40 @@
+{
+  "version": "1.0",
+  "appId": "9041a4bf-d900-4d29-8ada-bfd9eb9c6996",
+  "appDisplayName": "インシデント管理",
+  "region": "prod",
+  "environmentId": "9dd13689-8a7e-4fd8-ab92-52445d8ff1b0",
+  "description": " ",
+  "buildPath": "./dist",
+  "buildEntryPoint": "index.html",
+  "localAppUrl": "http://localhost:3000",
+  "logoPath": "Default",
+  "connectionReferences": {},
+  "databaseReferences": {
+    "default.cds": {
+      "dataSources": {
+        "インシデント": {
+          "entitySetName": "geek_incidents",
+          "logicalName": "geek_incident"
+        },
+        "インシデントカテゴリ": {
+          "entitySetName": "geek_incidentcategories",
+          "logicalName": "geek_incidentcategory"
+        },
+        "場所": {
+          "entitySetName": "geek_locations",
+          "logicalName": "geek_location"
+        },
+        "インシデントコメント": {
+          "entitySetName": "geek_incidentcomments",
+          "logicalName": "geek_incidentcomment"
+        },
+        "ユーザー": {
+          "entitySetName": "systemusers",
+          "logicalName": "systemuser"
+        }
+      },
+      "environmentVariableName": ""
+    }
+  }
+}

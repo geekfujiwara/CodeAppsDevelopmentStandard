@@ -28,7 +28,17 @@ Thumbs.db
 .env.*.local
 
 # Power Platform
+.power/
+.auth_record.json
 *.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Debug artifacts
+scripts/*_debug.json
 
 # Build info
 tsconfig.tsbuildinfo
