@@ -766,38 +766,22 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 
 ## 8. 開発フロー全体図
 
-```
-┌──────────────────────────────────────────────────────┐
-│                  Phase 0: 設計                        │
-│  ・ .env 設定（URL, テナント, ソリューション名）         │
-│  ・ テーブル設計（英語スキーマ名 + Choice 値定義）       │
-│  ・ systemuser/createdby 活用方針の決定                │
-└──────────────────┬───────────────────────────────────┘
-                   ▼
-┌──────────────────────────────────────────────────────┐
-│             Phase 1: Dataverse 構築                    │
-│  1. ソリューション作成                                  │
-│  2. テーブル作成（Phase順: マスタ → 主 → 従属）          │
-│  3. Lookup リレーションシップ作成（リトライ付き）         │
-│  4. 日本語ローカライズ（PUT + MetadataId）              │
-│  5. デモデータ投入                                     │
-│  6. テーブル検証                                       │
-└──────────────────┬───────────────────────────────────┘
-                   ▼
-     ┌─────────────┼─────────────────┐
-     ▼             ▼                 ▼
-┌──────────┐ ┌──────────────┐ ┌────────────────┐
-│ Phase 2  │ │ Phase 2.5    │ │ Phase 3        │
-│ Code Apps│ │ Power        │ │ Copilot Studio │
-│          │ │ Automate     │ │                │
-│ 1. init  │ │ 1. 認証      │ │ 1. Bot 作成    │
-│ 2. deploy│ │ 2. 環境解決  │ │ 2. トピック削除│
-│ 3. add-ds│ │ 3. 接続検索  │ │ 3. gen-orch    │
-│ 4. impl  │ │ 4. 定義構築  │ │ 4. Instructions│
-│ 5. build │ │ 5. デプロイ  │ │ 5. ナレッジ    │
-└──────────┘ └──────────────┘ │ 6. MCP Server  │
-                              │ 7. 公開        │
-                              └────────────────┘
+```mermaid
+flowchart TD
+    P0["🎨 Phase 0: 設計\n.env 設定（URL, テナント, ソリューション名）\nテーブル設計（英語スキーマ名 + Choice 値定義）\nsystemuser / createdby 活用方針の決定"]
+
+    P1["🗄️ Phase 1: Dataverse 構築\n1. ソリューション作成\n2. テーブル作成（マスタ → 主 → 従属）\n3. Lookup リレーションシップ作成（リトライ付き）\n4. 日本語ローカライズ（PUT + MetadataId）\n5. デモデータ投入\n6. テーブル検証"]
+
+    P2["⚛️ Phase 2: Code Apps\n1. npx power-apps init\n2. build & push（先にデプロイ！）\n3. pac code add-data-source\n4. DataverseService + 実装\n5. ビルド & 再デプロイ"]
+
+    P25["⚡ Phase 2.5: Power Automate\n1. Flow API / PowerApps API 認証\n2. 環境 ID 解決\n3. 接続検索\n4. フロー定義 JSON 構築\n5. POST or PATCH でデプロイ"]
+
+    P3["🤖 Phase 3: Copilot Studio\n1. Web API で Bot 作成\n2. カスタムトピック全削除\n3. 生成オーケストレーション有効化\n4. GPT Instructions 設定\n5. ★ ナレッジ追加（UI で手動）\n6. ★ MCP Server 追加（UI で手動）\n7. エージェント公開"]
+
+    P0 --> P1
+    P1 --> P2
+    P1 --> P25
+    P1 --> P3
 ```
 
 ---
