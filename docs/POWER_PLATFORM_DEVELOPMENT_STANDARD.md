@@ -104,12 +104,67 @@ PAC_AUTH_PROFILE={profile-name}
 # PAC CLI 認証（Code Apps 用）
 pac auth create --environment {environment-id}
 
-# Python スクリプト認証（Dataverse Web API 用）
-# DeviceCodeCredential + AuthenticationRecord キャッシュを使用
-# → 初回のみデバイスコード認証、以降は自動更新
+# Python 依存パッケージ導入
+pip install -r scripts/requirements.txt
 ```
 
-> **ポイント**: Python スクリプトでは `AuthenticationRecord` を OS 資格情報ストアに保存し、プロセス間でサイレントリフレッシュを実現する。
+#### 共通認証ヘルパー `scripts/auth_helper.py`
+
+Dataverse テーブル作成・フロー・Copilot Studio 等の **Python デプロイスクリプト** は **`auth_helper`** モジュールを使って認証する。個別スクリプトに認証ロジックを書いてはならない。
+
+> **注意**: Power Apps を利用するエンドユーザーの認証は Power Apps SDK が処理するため、本モジュールの対象外。
+
+#### 2 層キャッシュ構成
+
+サイレントリフレッシュには **AuthenticationRecord** と **MSAL 永続トークンキャッシュ** の両方が必要。
+
+| 層 | 保存先 | 保存内容 | 役割 |
+|---|---|---|---|
+| AuthenticationRecord | `.auth_record.json` | アカウント情報（テナント・ユーザー） | MSAL キャッシュからトークンを検索するキー |
+| TokenCachePersistenceOptions | OS 資格情報ストア | リフレッシュトークン・アクセストークン | 実際のトークン永続化 |
+
+> **教訓**: `AuthenticationRecord` だけではトークンは保存されない。`TokenCachePersistenceOptions` を設定しないと毎回デバイスコード認証が要求される。
+
+| 動作 | 説明 |
+|---|---|
+| 初回実行 | `DeviceCodeCredential` でデバイスコード認証 → `AuthenticationRecord` をファイルに保存 + MSAL キャッシュにトークンを永続化 |
+| 2回目以降 | AuthenticationRecord をロード → MSAL キャッシュからリフレッシュトークンを取得 → サイレントリフレッシュ（デバイスコード不要） |
+| エラー時の再実行 | 両方のキャッシュを再利用するため再認証は不要 |
+
+```python
+# 基本的な使い方
+from auth_helper import get_token, get_session, api_get, api_post, retry_metadata
+
+# Dataverse Web API 用トークン取得
+token = get_token()
+
+# Flow API 用トークン取得（スコープ指定）
+flow_token = get_token(scope="https://service.flow.microsoft.com/.default")
+
+# PowerApps API 用トークン取得
+pa_token = get_token(scope="https://service.powerapps.com/.default")
+
+# Bearer ヘッダー付き Session 取得
+session = get_session()
+
+# Dataverse CRUD ヘルパー
+data = api_get("EntityDefinitions")
+record_id = api_post("accounts", {"name": "Contoso"})
+
+# メタデータ操作のリトライ（0x80040237, 0x80044363 対応）
+retry_metadata(lambda: api_post("EntityDefinitions", body), "テーブル作成")
+
+# Flow API ヘルパー
+from auth_helper import flow_api_call
+envs = flow_api_call("GET", "/providers/Microsoft.ProcessSimple/environments")
+```
+
+```bash
+# 認証テスト（初回のみデバイスコード認証が走る）
+python scripts/auth_helper.py
+```
+
+> **ルール**: 認証レコード（`.auth_record.json`）は `.gitignore` に含まれ、リポジトリにコミットされない。何度もデバイスコード認証を求めるスクリプトは禁止。必ず `auth_helper` 経由で認証し、キャッシュを再利用すること。
 
 ### 2.4 Dataverse MCP サーバー設定
 
@@ -145,35 +200,39 @@ pac auth create --environment {environment-id}
 
 ### 3.2 テーブル作成の自動化
 
-#### メタデータ競合エラー対策（0x80040237）
+#### メタデータ競合エラー対策（0x80040237 / 0x80044363）
 
-テーブルやリレーションシップを連続作成すると、Dataverse のメタデータロックでエラーが発生する。
+テーブルやリレーションシップを連続作成すると、Dataverse のメタデータロックでエラーが発生する。`auth_helper.retry_metadata()` を使用する。
+
+> **注意**: Dataverse のエラーコード（`0x80040237` 等）は HTTP レスポンスボディの JSON に含まれるが、`requests.HTTPError` の `str(e)` には含まれない。`e.response.text` から抽出する必要がある。`auth_helper.retry_metadata()` はこの抽出を正しく行う。
 
 ```python
-def retry_metadata(fn, description, max_attempts=5):
-    """メタデータ操作をリトライする。ロック競合時は累進的に待機。"""
-    for attempt in range(max_attempts):
-        try:
-            return fn()
-        except Exception as e:
-            err = str(e)
-            if "already exists" in err.lower() or "0x80040237" in err:
-                print(f"  {description}: already exists, skipping")
-                return None
-            if "another" in err.lower() and "running" in err.lower():
-                wait = 10 * (attempt + 1)
-                print(f"  {description}: lock contention, waiting {wait}s...")
-                time.sleep(wait)
-                continue
-            raise
-    return None
+from auth_helper import retry_metadata, api_post
+
+# auth_helper.retry_metadata() を使う（推奨）
+retry_metadata(
+    lambda: api_post("EntityDefinitions", table_body, solution=SOLUTION),
+    "テーブル作成: geek_incident",
+)
+```
+
+内部実装（参考）:
+
+```python
+def _extract_error_detail(exc: Exception) -> str:
+    """requests.HTTPError の場合はレスポンスボディからエラーコードを抽出する。"""
+    parts = [str(exc)]
+    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+        parts.append(exc.response.text)  # ← ここに 0x80044363 等が含まれる
+    return "\n".join(parts)
 ```
 
 | エラーコード | 原因 | 対策 |
 |---|---|---|
-| `0x80040237` | メタデータ排他ロック競合 | 累進的リトライ（10s, 20s, 30s...） |
+| `0x80040237` | メタデータ排他ロック競合 | スキップして続行 |
+| `0x80044363` | ソリューション内に同名コンポーネント重複 | スキップして続行 |
 | `already exists` | 重複作成 | スキップして続行 |
-| `another operation is running` | 別の公開処理が実行中 | `time.sleep(10)` 後にリトライ |
+| `another operation is running` | 別の公開処理が実行中 | 累進的リトライ（10s, 20s, 30s...） |
 
 #### テーブル作成順序
 
@@ -350,14 +409,19 @@ Power Automate クラウドフローを Python スクリプトから Management 
 
 ### 5.2 認証とスコープ
 
-Flow API と PowerApps API でそれぞれ異なるスコープのトークンが必要。
+Flow API と PowerApps API でそれぞれ異なるスコープのトークンが必要。`auth_helper` の `get_token()` にスコープを渡すだけで自動的にキャッシュされた認証を利用する。
 
 ```python
-# フロー管理 API 用（フローの CRUD）
+from auth_helper import get_token, flow_api_call
+
+# フロー管理 API 用（フローの CRUD）— auth_helper が認証を一元管理
 token = get_token(scope="https://service.flow.microsoft.com/.default")
 
 # 接続検索用（PowerApps API — 既存の接続を検索）
 pa_token = get_token(scope="https://service.powerapps.com/.default")
+
+# Flow API ヘルパー関数を使えばスコープ指定も不要
+envs = flow_api_call("GET", "/providers/Microsoft.ProcessSimple/environments")
 ```
 
 | API | スコープ | 用途 |
@@ -741,10 +805,12 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 | 6 | トピック開発後に全削除 | 生成オーケストレーションが最適 | 最初からgen-orchモードで設計 | §6.1 参照 |
 | 7 | Copilot Studio からエージェント作成不可 | スキルの制約 | Dataverse Web API で作成 | §6.2 参照 |
 | 8 | ローカライズ 3回やり直し | API の挙動不明 | v3 の PUT パターンを確立 | §3.3 参照 |
-| 9 | 認証トークン期限切れ | 毎回デバイスコード認証 | AuthenticationRecord キャッシュ | §2.3 参照 |
+| 9 | 認証トークン期限切れ | AuthenticationRecord のみ保存（トークン未永続化） | `auth_helper.py` で AuthenticationRecord + TokenCachePersistenceOptions の 2 層キャッシュ | §2.3 参照 |
 | 10 | Flow API トークン取得失敗 | スコープ指定誤り | `https://service.flow.microsoft.com/.default` を使用 | §5.2 参照 |
 | 11 | フロー作成時に接続エラー | 環境内に接続が未作成 | Power Automate 接続ページで事前作成 | §5.4 参照 |
 | 12 | フロー環境が見つからない | DATAVERSE_URL 末尾スラッシュ不一致 | `rstrip("/")` で統一 | §5.3 参照 |
+| 13 | `retry_metadata` でエラーコード検出不可 | `str(e)` にレスポンスボディが含まれない | `e.response.text` からエラーコードを抽出 | §3.2 参照 |
+| 14 | テーブル作成で `0x80044363` | ソリューション内にコンポーネント重複 | `retry_metadata` でスキップ | §3.2 参照 |
 
 ### 7.2 共通のアンチパターン
 
@@ -760,6 +826,10 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 ❌ Flow API に Dataverse トークンを使い回す（スコープが異なる）
 ❌ 接続を API で自動作成しようとする（手動で事前作成が必要）
 ❌ フロー定義の失敗時にデバッグ JSON を保存しない
+❌ 個別スクリプトに認証ロジックを書く（auth_helper.py を使え）
+❌ 認証レコードを保存せず毎回デバイスコード認証を要求する
+❌ AuthenticationRecord だけ保存して TokenCachePersistenceOptions を設定しない（トークンが永続化されない）
+❌ retry_metadata で str(e) だけチェックする（レスポンスボディの Dataverse エラーコードを見逃す）
 ```
 
 ---
@@ -792,6 +862,8 @@ flowchart TD
 
 - [ ] `.env` ファイルに `DATAVERSE_URL`, `SOLUTION_NAME`, `PUBLISHER_PREFIX` を設定済み
 - [ ] PAC CLI で認証済み（`pac auth list` で確認）
+- [ ] `pip install -r scripts/requirements.txt` 実行済み
+- [ ] `auth_helper.py` の認証テスト済み（`python scripts/auth_helper.py`）
 - [ ] テーブル設計: スキーマ名は英語、プレフィックス統一
 - [ ] ユーザー参照は `systemuser` Lookup を使用
 - [ ] 報告者・作成者は `createdby` システム列を利用（カスタム列不要）
@@ -807,7 +879,7 @@ flowchart TD
 
 ### Power Automate フロー作成前
 
-- [ ] Flow API 認証トークン取得済み（`https://service.flow.microsoft.com/.default`）
+- [ ] Flow API 認証トークン取得済み（`auth_helper.get_token(scope="https://service.flow.microsoft.com/.default")`）
 - [ ] 環境 ID を `DATAVERSE_URL` から解決済み
 - [ ] 必要な接続が環境内に作成済み（Dataverse, Office 365 Outlook 等）
 - [ ] 接続が `Connected` 状態であることを確認
