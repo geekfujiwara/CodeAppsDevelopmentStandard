@@ -54,8 +54,7 @@ Power Apps Code Apps・Dataverse・Power Automate・Copilot Studio を VS Code +
 ## セットアップ
 
 ```bash
-git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard.git
-cd CodeAppsDevelopmentStandard
+git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard .
 npm install
 ```
 
