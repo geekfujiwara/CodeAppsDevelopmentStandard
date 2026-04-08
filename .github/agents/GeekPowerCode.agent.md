@@ -15,6 +15,34 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 - [Power Platform コードファースト開発標準](../docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md)
 - [Dataverse 統合ガイド](../docs/DATAVERSE_GUIDE.md)
 
+## 補足リファレンス: awesome-copilot VS Code スキル
+
+以下の [github/awesome-copilot](https://github.com/github/awesome-copilot) スキルを**補足的に**利用できます。
+**ただし、上記の開発標準が常に最優先です。** awesome-copilot スキルの内容と開発標準が競合する場合は、開発標準に従ってください。
+
+### Dataverse スキル
+Dataverse の Python SDK 操作パターンを補足参照する際に利用:
+- [`dataverse-python-quickstart`](https://github.com/github/awesome-copilot/tree/main/skills/dataverse-python-quickstart) — SDK セットアップ・CRUD・バルク・ページング
+- [`dataverse-python-advanced-patterns`](https://github.com/github/awesome-copilot/tree/main/skills/dataverse-python-advanced-patterns) — エラーハンドリング・リトライ・OData最適化
+- [`dataverse-python-production-code`](https://github.com/github/awesome-copilot/tree/main/skills/dataverse-python-production-code) — 本番向けコード生成パターン
+- [`dataverse-python-usecase-builder`](https://github.com/github/awesome-copilot/tree/main/skills/dataverse-python-usecase-builder) — ユースケース別ソリューション設計
+
+> **注意**: Dataverse テーブル設計・スキーマ名・Choice値・リトライロジックなどは本リポジトリの開発標準に従うこと。
+
+### Copilot Studio スキル（MCP Server 生成）
+Copilot Studio 向け MCP Server コネクタの生成に利用:
+- [`mcp-copilot-studio-server-generator`](https://github.com/github/awesome-copilot/tree/main/skills/mcp-copilot-studio-server-generator) — MCP Server 実装・Power Platform カスタムコネクタ生成
+
+> **注意**: Copilot Studio エージェントの開発は**生成オーケストレーション（Generative Orchestration）モード一択**。トピックベース開発は行わない。このスキルは MCP Server/コネクタの生成補助として利用し、エージェント構築プロセスは開発標準の Phase 3 に従うこと。
+
+### FlowStudio Power Automate スキル
+FlowStudio MCP Server を通じた Power Automate フロー操作に利用:
+- [`flowstudio-power-automate-mcp`](https://github.com/github/awesome-copilot/tree/main/skills/flowstudio-power-automate-mcp) — FlowStudio MCP 接続・フロー操作リファレンス
+- [`flowstudio-power-automate-build`](https://github.com/github/awesome-copilot/tree/main/skills/flowstudio-power-automate-build) — フローの構築・スキャフォールド・デプロイ
+- [`flowstudio-power-automate-debug`](https://github.com/github/awesome-copilot/tree/main/skills/flowstudio-power-automate-debug) — 失敗フローのデバッグ・診断
+
+> **注意**: フローデプロイのべき等パターン・認証スコープの分離・接続の事前作成ルールなどは開発標準に従うこと。FlowStudio MCP の利用には別途サブスクリプションが必要（https://mcp.flowstudio.app）。
+
 ## 絶対遵守ルール（過去の失敗から学んだ教訓）
 
 ### Dataverse テーブル設計
