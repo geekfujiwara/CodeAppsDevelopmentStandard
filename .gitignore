@@ -27,6 +27,9 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# Authentication cache (auth_helper.py)
+.auth_record.json
+
 # Power Platform
 .power/
 .auth_record.json
