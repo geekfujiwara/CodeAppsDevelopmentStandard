@@ -41,8 +41,8 @@ Power Platform Dataverse デプロイスクリプト用 共通認証ヘルパー
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
-import os
 import sys
 import time
 from pathlib import Path
@@ -101,6 +101,8 @@ def _build_credential() -> DeviceCodeCredential:
     """
     cache_options = TokenCachePersistenceOptions(
         name="power_platform_token_cache",
+        # allow_unencrypted_storage=True は Linux 等で libsecret が未インストールの
+        # 開発環境向けフォールバック。本番 CI/CD では Managed Identity 等を使用する。
         allow_unencrypted_storage=True,
     )
 
@@ -340,7 +342,7 @@ def _extract_error_detail(exc: Exception) -> str:
 
 
 def retry_metadata(
-    fn: callable,
+    fn: Callable[[], object],
     description: str,
     max_attempts: int = 5,
 ) -> object | None:
