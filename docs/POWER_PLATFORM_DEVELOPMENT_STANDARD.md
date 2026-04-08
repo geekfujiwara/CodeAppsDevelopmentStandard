@@ -104,12 +104,51 @@ PAC_AUTH_PROFILE={profile-name}
 # PAC CLI 認証（Code Apps 用）
 pac auth create --environment {environment-id}
 
-# Python スクリプト認証（Dataverse Web API 用）
-# DeviceCodeCredential + AuthenticationRecord キャッシュを使用
-# → 初回のみデバイスコード認証、以降は自動更新
+# Python 依存パッケージ導入
+pip install -r scripts/requirements.txt
 ```
 
-> **ポイント**: Python スクリプトでは `AuthenticationRecord` を OS 資格情報ストアに保存し、プロセス間でサイレントリフレッシュを実現する。
+#### 共通認証ヘルパー `scripts/auth_helper.py`
+
+すべての Python デプロイスクリプト（テーブル作成、フロー、Copilot Studio 等）は **`auth_helper`** モジュールを使って認証する。個別スクリプトに認証ロジックを書いてはならない。
+
+| 動作 | 説明 |
+|---|---|
+| 初回実行 | `DeviceCodeCredential` でデバイスコード認証 → `AuthenticationRecord` を `.auth_record.json` に保存 |
+| 2回目以降 | 保存済みキャッシュをロード → トークンをサイレントリフレッシュ（デバイスコード不要） |
+| エラー時の再実行 | 同じキャッシュを再利用するため再認証は不要 |
+
+```python
+# 基本的な使い方
+from auth_helper import get_token, get_session, api_get, api_post
+
+# Dataverse Web API 用トークン取得
+token = get_token()
+
+# Flow API 用トークン取得（スコープ指定）
+flow_token = get_token(scope="https://service.flow.microsoft.com/.default")
+
+# PowerApps API 用トークン取得
+pa_token = get_token(scope="https://service.powerapps.com/.default")
+
+# Bearer ヘッダー付き Session 取得
+session = get_session()
+
+# Dataverse CRUD ヘルパー
+data = api_get("EntityDefinitions")
+record_id = api_post("accounts", {"name": "Contoso"})
+
+# Flow API ヘルパー
+from auth_helper import flow_api_call
+envs = flow_api_call("GET", "/providers/Microsoft.ProcessSimple/environments")
+```
+
+```bash
+# 認証テスト（初回のみデバイスコード認証が走る）
+python scripts/auth_helper.py
+```
+
+> **ルール**: 認証レコード（`.auth_record.json`）は `.gitignore` に含まれ、リポジトリにコミットされない。何度もデバイスコード認証を求めるスクリプトは禁止。必ず `auth_helper` 経由で認証し、キャッシュを再利用すること。
 
 ### 2.4 Dataverse MCP サーバー設定
 
@@ -350,14 +389,19 @@ Power Automate クラウドフローを Python スクリプトから Management 
 
 ### 5.2 認証とスコープ
 
-Flow API と PowerApps API でそれぞれ異なるスコープのトークンが必要。
+Flow API と PowerApps API でそれぞれ異なるスコープのトークンが必要。`auth_helper` の `get_token()` にスコープを渡すだけで自動的にキャッシュされた認証を利用する。
 
 ```python
-# フロー管理 API 用（フローの CRUD）
+from auth_helper import get_token, flow_api_call
+
+# フロー管理 API 用（フローの CRUD）— auth_helper が認証を一元管理
 token = get_token(scope="https://service.flow.microsoft.com/.default")
 
 # 接続検索用（PowerApps API — 既存の接続を検索）
 pa_token = get_token(scope="https://service.powerapps.com/.default")
+
+# Flow API ヘルパー関数を使えばスコープ指定も不要
+envs = flow_api_call("GET", "/providers/Microsoft.ProcessSimple/environments")
 ```
 
 | API | スコープ | 用途 |
@@ -741,7 +785,7 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 | 6 | トピック開発後に全削除 | 生成オーケストレーションが最適 | 最初からgen-orchモードで設計 | §6.1 参照 |
 | 7 | Copilot Studio からエージェント作成不可 | スキルの制約 | Dataverse Web API で作成 | §6.2 参照 |
 | 8 | ローカライズ 3回やり直し | API の挙動不明 | v3 の PUT パターンを確立 | §3.3 参照 |
-| 9 | 認証トークン期限切れ | 毎回デバイスコード認証 | AuthenticationRecord キャッシュ | §2.3 参照 |
+| 9 | 認証トークン期限切れ | 毎回デバイスコード認証 | `auth_helper.py` で AuthenticationRecord キャッシュ | §2.3 参照 |
 | 10 | Flow API トークン取得失敗 | スコープ指定誤り | `https://service.flow.microsoft.com/.default` を使用 | §5.2 参照 |
 | 11 | フロー作成時に接続エラー | 環境内に接続が未作成 | Power Automate 接続ページで事前作成 | §5.4 参照 |
 | 12 | フロー環境が見つからない | DATAVERSE_URL 末尾スラッシュ不一致 | `rstrip("/")` で統一 | §5.3 参照 |
@@ -760,6 +804,8 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 ❌ Flow API に Dataverse トークンを使い回す（スコープが異なる）
 ❌ 接続を API で自動作成しようとする（手動で事前作成が必要）
 ❌ フロー定義の失敗時にデバッグ JSON を保存しない
+❌ 個別スクリプトに認証ロジックを書く（auth_helper.py を使え）
+❌ 認証レコードを保存せず毎回デバイスコード認証を要求する
 ```
 
 ---
@@ -792,6 +838,8 @@ flowchart TD
 
 - [ ] `.env` ファイルに `DATAVERSE_URL`, `SOLUTION_NAME`, `PUBLISHER_PREFIX` を設定済み
 - [ ] PAC CLI で認証済み（`pac auth list` で確認）
+- [ ] `pip install -r scripts/requirements.txt` 実行済み
+- [ ] `auth_helper.py` の認証テスト済み（`python scripts/auth_helper.py`）
 - [ ] テーブル設計: スキーマ名は英語、プレフィックス統一
 - [ ] ユーザー参照は `systemuser` Lookup を使用
 - [ ] 報告者・作成者は `createdby` システム列を利用（カスタム列不要）
@@ -807,7 +855,7 @@ flowchart TD
 
 ### Power Automate フロー作成前
 
-- [ ] Flow API 認証トークン取得済み（`https://service.flow.microsoft.com/.default`）
+- [ ] Flow API 認証トークン取得済み（`auth_helper.get_token(scope="https://service.flow.microsoft.com/.default")`）
 - [ ] 環境 ID を `DATAVERSE_URL` から解決済み
 - [ ] 必要な接続が環境内に作成済み（Dataverse, Office 365 Outlook 等）
 - [ ] 接続が `Connected` 状態であることを確認
