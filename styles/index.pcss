@@ -1,0 +1,197 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --radius: 0.625rem;
+  --background: #f0f7ff;
+  --foreground: #0c2d5e;
+  --card: #ffffff;
+  --card-foreground: #0c2d5e;
+  --popover: #ffffff;
+  --popover-foreground: #0c2d5e;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #dbeafe;
+  --secondary-foreground: #1e3a8a;
+  --muted: #e0f2fe;
+  --muted-foreground: #475569;
+  --accent: #60a5fa;
+  --accent-foreground: #ffffff;
+  --accent-hover: #bfdbfe;
+  --destructive: #ef4444;
+  --border: #bfdbfe;
+  --input: #bfdbfe;
+  --ring: #3b82f6;
+  --chart-1: #3b82f6;
+  --chart-2: #60a5fa;
+  --chart-3: #93c5fd;
+  --chart-4: #bfdbfe;
+  --chart-5: #dbeafe;
+  --badge-beginner: #dbeafe;
+  --badge-beginner-foreground: #1e3a8a;
+  --badge-intermediate: #fef9c3;
+  --badge-intermediate-foreground: #713f12;
+  --badge-advanced: #fecdd3;
+  --badge-advanced-foreground: #881337;
+  --badge-administrator: #f3e8ff;
+  --badge-administrator-foreground: #6b21a8;
+  --badge-developer: #d1fae5;
+  --badge-developer-foreground: #065f46;
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #0c2d5e;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #dbeafe;
+  --sidebar-accent-foreground: #1e3a8a;
+  --sidebar-border: #bfdbfe;
+  --sidebar-ring: #3b82f6;
+  --header-bg: #ffffff;
+  --menu-bg: #f0f7ff;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-hover: var(--accent-hover);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-badge-beginner: var(--badge-beginner);
+  --color-badge-beginner-foreground: var(--badge-beginner-foreground);
+  --color-badge-intermediate: var(--badge-intermediate);
+  --color-badge-intermediate-foreground: var(--badge-intermediate-foreground);
+  --color-badge-advanced: var(--badge-advanced);
+  --color-badge-advanced-foreground: var(--badge-advanced-foreground);
+  --color-badge-administrator: var(--badge-administrator);
+  --color-badge-administrator-foreground: var(--badge-administrator-foreground);
+  --color-badge-developer: var(--badge-developer);
+  --color-badge-developer-foreground: var(--badge-developer-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-header-bg: var(--header-bg);
+  --color-menu-bg: var(--menu-bg);
+}
+
+.dark {
+  --background: #0a1929;
+  --foreground: #e3f2fd;
+  --card: #1e293b;
+  --card-foreground: #e3f2fd;
+  --popover: #1e293b;
+  --popover-foreground: #e3f2fd;
+  --primary: #60a5fa;
+  --primary-foreground: #0a1929;
+  --secondary: #1e3a8a;
+  --secondary-foreground: #dbeafe;
+  --muted: #1e3a8a;
+  --muted-foreground: #94a3b8;
+  --accent: #60a5fa;
+  --accent-foreground: #0a1929;
+  --accent-hover: #1e3a8a;
+  --destructive: #ef4444;
+  --border: #1e3a8a;
+  --input: #1e3a8a;
+  --ring: #60a5fa;
+  --chart-1: #60a5fa;
+  --chart-2: #93c5fd;
+  --chart-3: #bfdbfe;
+  --chart-4: #dbeafe;
+  --chart-5: #eff6ff;
+  --badge-beginner: #1e3a8a;
+  --badge-beginner-foreground: #dbeafe;
+  --badge-intermediate: #713f12;
+  --badge-intermediate-foreground: #fef9c3;
+  --badge-advanced: #881337;
+  --badge-advanced-foreground: #fecdd3;
+  --badge-administrator: #6b21a8;
+  --badge-administrator-foreground: #f3e8ff;
+  --badge-developer: #065f46;
+  --badge-developer-foreground: #d1fae5;
+  --sidebar: #0f1f33;
+  --sidebar-foreground: #e3f2fd;
+  --sidebar-primary: #60a5fa;
+  --sidebar-primary-foreground: #0a1929;
+  --sidebar-accent: #1e3a8a;
+  --sidebar-accent-foreground: #dbeafe;
+  --sidebar-border: #1e3a8a;
+  --sidebar-ring: #60a5fa;
+  --header-bg: #0a1929;
+  --menu-bg: #1e293b;
+}
+
+@layer base {
+  html, body, #root { 
+    height: 100%; 
+  }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  
+  /* クリック可能な要素にカーソルポインターを適用 */
+  a, button, [role="button"], [type="button"], [type="submit"], [type="reset"],
+  input[type="checkbox"], input[type="radio"], select, label[for],
+  summary, [tabindex]:not([tabindex="-1"]), [onclick] {
+    cursor: pointer;
+  }
+  
+  /* 無効な要素は通常のカーソル */
+  a[disabled], button[disabled], [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+  
+  /* スクロールバーを非表示にする */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari, Opera */
+  }
+  
+  /* アンカーリンクのスクロール位置調整（ヘッダーの高さ分） */
+  [id] {
+    scroll-margin-top: 6rem; /* ヘッダー高さ (64px) + 余白 (32px) = 96px = 6rem */
+  }
+}

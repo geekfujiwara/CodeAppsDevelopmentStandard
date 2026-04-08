@@ -1,7 +1,10 @@
-# Power Platform 包括開発標準
+# Power Platform コードファースト開発標準
 
-> **Geek Fujiwara 作成** — Power Apps Code Apps・Dataverse・Copilot Studio を包括的にカバーする開発標準。  
-> GitHub Copilot（Agent モード / Claude Opus 4.6 推奨）と Awesome Copilot プラグインを最大限活用し、VS Code からコードファーストで Power Platform ソリューションを構築するための実践ガイド。
+> **Geek Fujiwara 作成** — Power Apps Code Apps・Dataverse・Copilot Studio を VS Code + GitHub Copilot でコードファーストに構築するための開発標準。  
+> GitHub Copilot Agent モードと Awesome Copilot プラグインを最大限活用し、VS Code から Power Platform ソリューションを構築する実践ガイド。
+
+> [!NOTE]
+> 推奨モデル: Claude Opus 4.6
 
 ---
 
@@ -76,7 +79,7 @@ PUBLISHER_PREFIX=geek
 | ツール | 用途 | インストール |
 |---|---|---|
 | VS Code | 統合開発環境 | [公式サイト](https://code.visualstudio.com/) |
-| GitHub Copilot 拡張機能 | AI コーディング支援（Claude Opus 4.6 推奨） | VS Code Marketplace |
+| GitHub Copilot 拡張機能 | AI コーディング支援 | VS Code Marketplace |
 | Power Platform Tools 拡張機能 | PAC CLI 連携 | VS Code Marketplace |
 | Awesome Copilot プラグイン | Code Apps / Dataverse スキル | [セットアップガイド](https://www.geekfujiwara.com/tech/powerplatform/8082/) |
 | Node.js (LTS) | Code Apps ビルド | v18.x / v20.x |

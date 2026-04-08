@@ -1,9 +1,0 @@
-{
-  "$schema": "https://aka.ms/power-apps/code-apps/power.config.schema.json",
-  "version": "1.0",
-  "app": {
-    "displayName": "Power Apps Code App",
-    "description": "A Power Apps Code App built with React + TypeScript + Vite"
-  },
-  "dataSources": []
-}

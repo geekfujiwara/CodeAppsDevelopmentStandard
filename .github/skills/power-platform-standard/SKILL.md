@@ -1,10 +1,10 @@
 ---
 name: power-platform-standard
-description: "Power Platform 包括開発標準を参照して開発する。Use when: Power Platform 開発, Dataverse テーブル作成, Code Apps, Copilot Studio, エージェント開発, ソリューション, デプロイ, トラブルシューティング, スキーマ設計, ローカライズ, SystemUser, createdby, 生成オーケストレーション"
+description: "Power Platform コードファースト開発標準を参照して開発する。Use when: Power Platform 開発, Dataverse テーブル作成, Code Apps, Copilot Studio, エージェント開発, ソリューション, デプロイ, トラブルシューティング, スキーマ設計, ローカライズ, SystemUser, createdby, 生成オーケストレーション"
 argument-hint: "開発標準に基づいた Power Platform 開発の指示を入力してください"
 ---
 
-# Power Platform 包括開発標準スキル
+# Power Platform コードファースト開発標準スキル
 
 ## いつ使うか
 - Dataverse テーブルの設計・作成
@@ -21,7 +21,7 @@ argument-hint: "開発標準に基づいた Power Platform 開発の指示を入
 4. チェックリストで確認
 
 ## 参照ドキュメント
-- [Power Platform 包括開発標準](../../docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md): 全体の開発標準・設計原則・トラブルシューティング
+- [Power Platform コードファースト開発標準](../../docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md): 全体の開発標準・設計原則・トラブルシューティング
 - [Dataverse 統合ガイド](../../docs/DATAVERSE_GUIDE.md): CRUD操作・Lookup・Choice・エラーハンドリング
 
 ## クイックリファレンス: 絶対に守るルール
