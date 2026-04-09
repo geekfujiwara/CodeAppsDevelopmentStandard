@@ -7,7 +7,6 @@ const NotFoundPage = lazy(() => import("@/pages/not-found"));
 // インシデント管理ページ
 const IncidentListPage = lazy(() => import("@/pages/incidents"));
 const IncidentDetailPage = lazy(() => import("@/pages/incident-detail"));
-const IncidentCreatePage = lazy(() => import("@/pages/incident-create"));
 
 // ローディングコンポーネント
 const PageLoader = () => (
@@ -44,7 +43,6 @@ export const router = createBrowserRouter(
       children: [
         { index: true, element: <Navigate to="/incidents" replace /> },
         { path: "incidents", element: withSuspense(IncidentListPage) },
-        { path: "incidents/new", element: withSuspense(IncidentCreatePage) },
         { path: "incidents/:id", element: withSuspense(IncidentDetailPage) },
       ],
     },

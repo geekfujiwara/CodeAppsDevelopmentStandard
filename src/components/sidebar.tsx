@@ -3,7 +3,6 @@ import { NavLink } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ShieldAlert,
-  Plus,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -38,8 +37,7 @@ export function Sidebar() {
     {
       category: "インシデント管理",
       items: [
-        { icon: ShieldAlert, label: "インシデント一覧", path: "incidents" },
-        { icon: Plus, label: "新規作成", path: "incidents/new" },
+        { icon: ShieldAlert, label: "インシデント", path: "incidents" },
       ],
     },
   ];
@@ -58,7 +56,7 @@ export function Sidebar() {
       {/* サイドバー */}
       <aside
         className={cn(
-          "fixed left-0 bg-[var(--menu-bg)] border-r border-border shadow-lg z-[100] transition-all duration-300 ease-in-out flex flex-col overflow-visible",
+          "fixed left-0 bg-[var(--menu-bg)] border-r border-border shadow-lg z-40 transition-all duration-300 ease-in-out flex flex-col overflow-visible",
           isCollapsed ? "w-16" : "w-64",
           // モバイルでは完全に隠す/表示
           "max-md:transition-transform",

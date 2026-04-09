@@ -98,6 +98,36 @@ Power Apps ランタイムは厳格な CSP を適用し、**外部 API への `f
 
 **CodeAppsStarter テンプレートにはデモ用の外部 API 呼び出しが含まれる**ため、必ず削除すること。
 
+### 基本設計方針: モーダル操作 + z-index ルール
+
+**新規作成・編集・削除はすべてモーダル（Dialog / AlertDialog）で操作する。**
+別ページに遷移させない。サイドバーのメニューは機能名のみ（「一覧」「新規作成」等の動詞を付けない）。
+
+```
+❌ /incidents/new → 別ページで新規作成フォーム
+❌ サイドバーに「インシデント一覧」「新規作成」を個別メニュー
+
+✅ /incidents ページ内で「新規作成」ボタン → Dialog モーダル表示
+✅ 一覧テーブルで行クリック → 詳細ページ（閲覧+インライン編集）
+✅ 削除ボタン → ConfirmDialog（AlertDialog）で確認
+✅ サイドバーには「インシデント」のみ表示
+```
+
+**z-index ルール（サイドバーとモーダルの重なり問題回避）**:
+
+```
+サイドバー:       z-40（固定メニュー）
+Dialog Overlay:   z-[300]（モーダル背景）
+Dialog Content:   z-[400]（モーダル本体）
+AlertDialog:      z-[300] / z-[400]（Dialog と同階層）
+
+❌ サイドバー z-[100] + AlertDialog z-50
+   → モーダル表示時にサイドバーがシャドウレイヤーの上に表示される
+
+✅ サイドバー z-40 + AlertDialog/Dialog z-[300]/z-[400]
+   → モーダルが常にサイドバーの上に表示される
+```
+
 ### SDK 生成サービス必須（カスタム getClient() / dataSourcesInfo 禁止）
 
 `npx power-apps add-data-source` で生成される **`src/generated/` のサービスと型を必ず使用する**。

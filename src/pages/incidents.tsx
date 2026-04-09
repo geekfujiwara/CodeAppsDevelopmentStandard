@@ -1,10 +1,11 @@
 /**
  * インシデント一覧ページ
+ * 新規作成・削除はモーダルで操作（基本設計方針）
  */
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useIncidents, useDeleteIncident } from "@/hooks/use-incidents";
+import { useIncidents, useDeleteIncident, useCreateIncident, useCategories, useLocations } from "@/hooks/use-incidents";
 import {
   IncidentStatus,
   IncidentPriority,
@@ -13,11 +14,13 @@ import {
   statusColors,
   priorityColors,
 } from "@/lib/incident-types";
-import type { Incident } from "@/lib/incident-types";
+import type { Incident, CreateIncidentPayload, IncidentStatus as IncidentStatusType, IncidentPriority as IncidentPriorityType } from "@/lib/incident-types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -25,6 +28,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -43,6 +54,7 @@ import {
   PauseCircle,
   XCircle,
   Trash2,
+  Save,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -57,11 +69,64 @@ const statusIcons: Record<IncidentStatus, React.ReactNode> = {
 export default function IncidentListPage() {
   const { data: incidents, isLoading, error } = useIncidents();
   const deleteMutation = useDeleteIncident();
+  const createMutation = useCreateIncident();
+  const { data: categories } = useCategories();
+  const { data: locations } = useLocations();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [deleteTarget, setDeleteTarget] = useState<Incident | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    description: "",
+    status: String(IncidentStatus.NEW),
+    priority: String(IncidentPriority.MEDIUM),
+    categoryId: "",
+    locationId: "",
+    duedate: "",
+  });
+
+  const resetCreateForm = () => {
+    setCreateForm({
+      name: "",
+      description: "",
+      status: String(IncidentStatus.NEW),
+      priority: String(IncidentPriority.MEDIUM),
+      categoryId: "",
+      locationId: "",
+      duedate: "",
+    });
+  };
+
+  const handleCreate = async () => {
+    if (!createForm.name.trim()) {
+      toast.error("タイトルを入力してください");
+      return;
+    }
+    const payload = {
+      geek_name: createForm.name.trim(),
+      geek_description: createForm.description.trim() || undefined,
+      geek_status: Number(createForm.status) as IncidentStatusType,
+      geek_priority: Number(createForm.priority) as IncidentPriorityType,
+      geek_duedate: createForm.duedate || undefined,
+    } as CreateIncidentPayload;
+    if (createForm.categoryId) {
+      payload["geek_incidentcategoryid@odata.bind"] = `/geek_incidentcategories(${createForm.categoryId})`;
+    }
+    if (createForm.locationId) {
+      payload["geek_locationid@odata.bind"] = `/geek_locations(${createForm.locationId})`;
+    }
+    try {
+      await createMutation.mutateAsync(payload);
+      toast.success("インシデントを作成しました");
+      setShowCreate(false);
+      resetCreateForm();
+    } catch {
+      toast.error("作成に失敗しました");
+    }
+  };
 
   const filtered = (incidents ?? []).filter((inc) => {
     const matchSearch =
@@ -125,12 +190,10 @@ export default function IncidentListPage() {
             社内のインシデントを一元管理します
           </p>
         </div>
-        <Link to="/incidents/new">
-          <Button className="gap-2">
+        <Button className="gap-2" onClick={() => setShowCreate(true)}>
             <Plus className="h-4 w-4" />
             新規作成
-          </Button>
-        </Link>
+        </Button>
       </div>
 
       {/* 統計カード */}
@@ -344,6 +407,106 @@ export default function IncidentListPage() {
         confirmLabel="削除"
         variant="destructive"
       />
+
+      {/* 新規作成モーダル */}
+      <Dialog open={showCreate} onOpenChange={(open) => { if (!open) { setShowCreate(false); resetCreateForm(); } }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>新規インシデント</DialogTitle>
+            <DialogDescription>インシデント情報を入力してください</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* タイトル */}
+            <div className="space-y-2">
+              <Label htmlFor="create-name">タイトル <span className="text-destructive">*</span></Label>
+              <Input
+                id="create-name"
+                placeholder="例: 本社3Fネットワーク接続不可"
+                value={createForm.name}
+                onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+              />
+            </div>
+            {/* 説明 */}
+            <div className="space-y-2">
+              <Label htmlFor="create-desc">説明</Label>
+              <Textarea
+                id="create-desc"
+                placeholder="インシデントの詳細を記入してください…"
+                value={createForm.description}
+                onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
+                rows={4}
+              />
+            </div>
+            {/* ステータス・優先度 */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>ステータス</Label>
+                <Select value={createForm.status} onValueChange={(v) => setCreateForm((f) => ({ ...f, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(statusLabels).map(([val, label]) => (
+                      <SelectItem key={val} value={val}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>優先度</Label>
+                <Select value={createForm.priority} onValueChange={(v) => setCreateForm((f) => ({ ...f, priority: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(priorityLabels).map(([val, label]) => (
+                      <SelectItem key={val} value={val}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {/* カテゴリ・場所 */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>カテゴリ</Label>
+                <Select value={createForm.categoryId} onValueChange={(v) => setCreateForm((f) => ({ ...f, categoryId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="選択してください" /></SelectTrigger>
+                  <SelectContent>
+                    {categories?.map((cat) => (
+                      <SelectItem key={cat.geek_incidentcategoryid} value={cat.geek_incidentcategoryid}>{cat.geek_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>場所</Label>
+                <Select value={createForm.locationId} onValueChange={(v) => setCreateForm((f) => ({ ...f, locationId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="選択してください" /></SelectTrigger>
+                  <SelectContent>
+                    {locations?.map((loc) => (
+                      <SelectItem key={loc.geek_locationid} value={loc.geek_locationid}>{loc.geek_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {/* 期限 */}
+            <div className="space-y-2">
+              <Label htmlFor="create-duedate">期限</Label>
+              <Input
+                id="create-duedate"
+                type="date"
+                value={createForm.duedate}
+                onChange={(e) => setCreateForm((f) => ({ ...f, duedate: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowCreate(false); resetCreateForm(); }}>キャンセル</Button>
+            <Button className="gap-2" onClick={handleCreate} disabled={createMutation.isPending}>
+              <Save className="h-4 w-4" />
+              作成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
