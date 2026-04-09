@@ -25,6 +25,40 @@ PUBLISHER_PREFIX=geek              ← ソリューション発行者の prefix
 
 ## 絶対遵守ルール（検証済み教訓）
 
+### 環境の前提条件（デプロイ前に必ず確認）
+
+```
+1. Power Platform 管理センターで「コード アプリを許可する」がオン
+   → オフの場合: CodeAppOperationNotAllowedInEnvironment (403) エラー
+
+2. PAC CLI 認証プロファイルが対象環境用に作成済み
+   pac auth create --name {profile-name} --environment {ENVIRONMENT_ID}
+   pac auth list  # * が付いているのがアクティブ
+
+3. power.config.json は npx power-apps init で生成する
+   → テンプレートから手動コピーしない
+   → 別環境の appId が残っていると: AppLeaseMissing (409) エラー
+   → 新規環境では必ず npx power-apps init で新規生成
+```
+
+### .power/ と src/generated/ は SDK コマンドで生成（手動作成禁止）
+
+`.power/` は `.gitignore` で除外されているため、git clone 後は `dataSourcesInfo.ts` が存在しない。
+**カスタムスクリプトで生成せず、SDK コマンドで必ず再生成すること。**
+
+```
+❌ git clone 直後に npm run build
+   → TS2307: Cannot find module '../../../.power/schemas/appschemas/dataSourcesInfo'
+
+❌ カスタムスクリプト（generate_datasources_info.py 等）で手動生成
+   → SDK が管理するファイルを自前で作ると整合性が崩れる
+
+✅ npx power-apps add-data-source で各テーブルを再追加
+   → .power/schemas/appschemas/dataSourcesInfo.ts が自動生成される
+   → src/generated/ のモデル・サービスも同時に再生成される
+   → その後 npm run build が成功する
+```
+
 ### 先にデプロイ、後から開発（最重要）
 
 ```bash

@@ -112,7 +112,40 @@ npx power-apps add-data-source --api-id dataverse \
   2. 最後にデプロイ → Dataverse接続で問題発生 → 大幅手戻り
 ```
 
-### 1.4 ソリューションベースで管理（最重要原則）
+### 1.4 `power.config.json` は SDK で生成
+
+`power.config.json` は **`npx power-apps init` コマンドで自動生成** する。手動でテンプレートを作成したり、他のプロジェクトからコピーしない。
+
+```bash
+# ✅ SDK コマンドで生成（appId, environmentId, region が自動設定される）
+npx power-apps init --display-name "アプリ名" \
+  --environment-id {ENVIRONMENT_ID} --non-interactive
+
+# ❌ 手動で power.config.json を作成・編集する
+# ❌ 別プロジェクトの power.config.json をコピーする（appId が環境固有のため失敗する）
+```
+
+| エラー | 原因 | 対策 |
+|--------|------|------|
+| `AppLeaseMissing` (409) | 別環境の `appId` がハードコードされている | `npx power-apps init` で新規生成 |
+| `CodeAppOperationNotAllowedInEnvironment` (403) | 環境で Code Apps が未許可 | §1.5 参照 |
+
+### 1.5 環境の Code Apps 有効化（前提条件）
+
+Code Apps を新しい環境にデプロイするには、環境管理者が事前に Code Apps を許可する必要がある。
+
+```
+❌ 未許可の場合:
+CodeAppOperationNotAllowedInEnvironment — The environment does not allow this operation for this Code app.
+
+✅ 有効化手順:
+1. Power Platform 管理センター → 環境 → 対象環境 → 設定
+2. 製品 → 機能
+3. 「コード アプリを許可する」→ オン
+4. 保存（反映に数分かかることがある）
+```
+
+### 1.7 ソリューションベースで管理（最重要原則）
 
 Dataverse テーブル・Code Apps・Power Automate フロー・Copilot Studio エージェントは **すべて同一のソリューション内** に含める。
 ソリューション外のカスタマイズはリリース管理・環境間移行ができない。
@@ -374,8 +407,26 @@ api_post("/PublishAllXml", {})
 
 ### 4.1 初期セットアップ手順
 
+#### 前提条件
+
+- 環境で **Code Apps が有効化**されていること（§1.6 参照）
+- PAC CLI で**対象環境の認証プロファイル**が作成済みであること
+
 ```bash
-# 1. プロジェクト初期化
+# PAC CLI 認証プロファイル作成（初回のみ）
+pac auth create --name {profile-name} --environment {ENVIRONMENT_ID}
+# 例: pac auth create --name IncidentManager --environment 7159fdb4-d1dd-e230-8ce3-c85c5789c51a
+
+# 認証プロファイル確認（* が付いているのがアクティブ）
+pac auth list
+```
+
+> **教訓**: `pac auth list` にターゲット環境がない状態で `npx power-apps push` を実行すると認証エラーになる。新しい環境では必ず `pac auth create` を先に実行すること。
+
+#### セットアップ手順
+
+```bash
+# 1. プロジェクト初期化（power.config.json が SDK により自動生成される）
 npx power-apps init --display-name "アプリ名" \
   --environment-id {ENVIRONMENT_ID} --non-interactive
 
@@ -387,13 +438,18 @@ npm run build
 npx power-apps push --non-interactive
 
 # 4. Dataverse コネクタ追加（テーブルごとに実行）
+#    → src/generated/ と .power/schemas/appschemas/dataSourcesInfo.ts が自動生成される
 #    ※ 日本語 DisplayName でサニタイズエラーが出る場合は §1.2 の回避方法を参照
 npx power-apps add-data-source --api-id dataverse \
   --resource-name {table_logical_name} \
   --org-url {DATAVERSE_URL} --non-interactive
+
+# 5. 再ビルド（生成コードを含む）
+npm run build
+npx power-apps push --non-interactive
 ```
 
-> **重要**: 手順 3 を先に行うことで、Power Platform 上にアプリが登録され、Dataverse への接続が有効になる。ローカル開発のみで進めると接続確立時に問題が発生する。
+> **重要**: SDK コマンド（`npx power-apps init` / `add-data-source`）が `power.config.json`、`src/generated/`、`.power/` を自動生成する。これらを手動で作成してはならない。
 
 > **SDK v1.0.x への移行**: `pac code add-data-source` は SDK v1.0.x で CLI パスが変更されたため動作しない。`npx power-apps add-data-source` を使用すること。日本語ローカライズ済み環境では nameUtils.js のパッチが必要（§1.2 参照）。
 
@@ -1055,6 +1111,11 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 | 22  | ソリューション内フローで「接続参照を使用する必要があります」警告             | フロー定義が直接接続（Embedded）を使用している                                        | Power Automate UI でフローを開いて手動で接続参照に変更                                    | §5.9.7 参照 |
 | 23  | API 作成フローの Send Email Body が空                                        | Python f-string と非 f-string 混在で `@{{}}` が二重ブレースになる                     | f-string 不要の行は `@{expression}` で単一ブレースにする                                  | §5.9.7 参照 |
 | 24  | Dataverse `bots` テーブルに直接挿入した Bot が Copilot Studio でエラー       | PVA Bot Management Service にプロビジョニングされない。`botroutinginfo` が 404        | Copilot Studio UI で作成し、API は設定変更のみに使用                                       | §6.2 参照   |
+| 25  | `npx power-apps push` で `AppLeaseMissing` エラー（409）                     | `power.config.json` に別環境の `appId` がハードコードされている                        | `appId` を空文字にして新規アプリとしてデプロイ                                            | §1.4 参照   |
+| 26  | `npx power-apps push` で `CodeAppOperationNotAllowedInEnvironment`（403）    | 環境で Code Apps が許可されていない                                                   | Power Platform 管理センターで「コード アプリを許可する」をオンにする                      | §1.6 参照   |
+| 27  | `npm run build` で `Cannot find module dataSourcesInfo`（TS2307）            | `.power/` が `.gitignore` で除外されており git clone 後に存在しない                   | `npx power-apps add-data-source` を全テーブルに対して再実行                                | §4.1 参照   |
+| 28  | スクリプトで `get_token()` の引数不一致                                       | 旧インターフェース `get_token(tenant, client, scope)` vs 新 `get_token(scope=...)`    | `auth_helper.get_token()` は `.env` から自動読み込み。`scope` キーワード引数のみ渡す      | §2.3 参照   |
+| 29  | PAC CLI 認証プロファイル未設定で push 失敗                                    | 新環境への認証プロファイルが存在しない                                                | `pac auth create --name {name} --environment {env-id}` で作成                              | §4.1 参照   |
 
 ### 7.2 共通のアンチパターン
 
@@ -1081,6 +1142,11 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 ❌ API で接続参照を自動作成してフロー有効化しようとする（Power Automate UI で手動変更が確実）
 ❌ Python f-string と通常文字列を混在させて @{{}} を二重ブレースにする（f-string 不要行は @{} 単一ブレース）
 ❌ Dataverse bots テーブルに直接 Bot を作成する（PVA にプロビジョニングされない。Copilot Studio UI で作成せよ）
+❌ 別環境の appId を power.config.json に残したままデプロイする（AppLeaseMissing エラー。appId を空にせよ）
+❌ 環境の Code Apps 有効化を確認せずにデプロイする（CodeAppOperationNotAllowedInEnvironment エラー）
+❌ git clone 後に dataSourcesInfo.ts を再生成せずにビルドする（`npx power-apps add-data-source` で全テーブルを再追加）
+❌ PAC CLI の認証プロファイルを作成せずに push する（pac auth create が必要）
+❌ get_token() に旧インターフェース（3引数）で呼び出す（auth_helper は .env から自動読み込み。scope のみ指定）
 ```
 
 ---
@@ -1089,11 +1155,11 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 
 ```mermaid
 flowchart TD
-    P0["🎨 Phase 0: 設計\n.env 設定（URL, テナント, ソリューション名）\nテーブル設計（英語スキーマ名 + Choice 値定義）\nsystemuser / createdby 活用方針の決定"]
+    P0["🎨 Phase 0: 設計（ユーザー確認必須）\n1. ユーザー要件ヒアリング\n2. テーブル設計（スキーマ名・列・型・Choice値）\n3. リレーションシップ設計\n4. デモデータ計画\n5. ★ ユーザーに設計を提示し承認を得る"]
 
-    P1["🗄️ Phase 1: Dataverse 構築\n1. ソリューション作成\n2. テーブル作成（マスタ → 主 → 従属）\n3. Lookup リレーションシップ作成（リトライ付き）\n4. 日本語ローカライズ（PUT + MetadataId）\n5. デモデータ投入\n6. テーブル検証"]
+    P1["🗄️ Phase 1: Dataverse 構築\n1. ソリューション作成\n2. テーブル作成（マスタ → 主 → 従属）\n3. Lookup リレーションシップ作成（リトライ付き）\n4. 日本語ローカライズ（PUT + MetadataId）\n5. 全テーブルにデモデータ投入\n6. テーブル・リレーションシップ検証"]
 
-    P2["⚛️ Phase 2: Code Apps\n1. npx power-apps init\n2. build & push（先にデプロイ！）\n3. pac code add-data-source\n4. DataverseService + 実装\n5. ビルド & 再デプロイ"]
+    P2["⚛️ Phase 2: Code Apps\n1. npx power-apps init（power.config.json 生成）\n2. build & push（先にデプロイ！）\n3. npx power-apps add-data-source（SDK生成）\n4. SDK生成サービス + 実装\n5. ビルド & 再デプロイ"]
 
     P25["⚡ Phase 2.5: Power Automate\n1. Flow API / PowerApps API 認証\n2. 環境 ID 解決\n3. 接続検索\n4. フロー定義 JSON 構築\n5. POST or PATCH でデプロイ"]
 
@@ -1105,9 +1171,70 @@ flowchart TD
     P1 --> P3
 ```
 
+### Phase 0: 設計フェーズの詳細
+
+設計フェーズでは、**ユーザーの要件をもとにデータベース設計を行い、承認を得てから構築に進む**。
+設計なしにテーブルを作成してはならない。
+
+#### Step 1: ユーザー要件のヒアリング
+
+ユーザーの依頼内容から以下を明確化する:
+- **管理対象**: 何を管理するアプリか（インシデント、資産、タスク等）
+- **必要なデータ**: どんな情報を記録するか（ステータス、優先度、カテゴリ等）
+- **マスタデータ**: 何をマスタテーブル化するか（カテゴリ、場所、設備等）
+- **操作**: CRUD、検索、フィルタ、通知、エージェント連携等
+- **ユーザー**: 誰が使うか（担当者の割り当て、報告者の追跡等）
+
+#### Step 2: テーブル設計の作成
+
+以下の形式でテーブル設計書を作成し、ユーザーに提示する:
+
+```markdown
+## テーブル設計
+
+### 1. {prefix}_tablename（日本語名）— マスタ/主/従属
+| 列名 | 型 | 必須 | 説明 |
+|------|-----|------|------|
+| {prefix}_name | String (Primary) | ✅ | 名称 |
+| {prefix}_column | Type | | 説明 |
+
+### リレーションシップ
+| 参照元テーブル | 列名 | → 参照先テーブル | 関係 |
+|--------------|-------|----------------|------|
+| {prefix}_incident | {prefix}_categoryid | {prefix}_category | N:1 |
+
+### Choice 値
+| 列名 | 値 | ラベル |
+|------|-----|--------|
+| {prefix}_status | 100000000 | 新規 |
+
+### デモデータ計画
+| テーブル | 件数 | 内容 |
+|---------|------|------|
+| {prefix}_category | 5件 | ネットワーク、ハードウェア、... |
+```
+
+#### Step 3: ユーザー承認
+
+- 「**この設計で進めてよいですか？**」と明示的に確認する
+- フィードバックがあれば修正して再提示
+- 承認を得てから Phase 1 に進む
+
+> **教訓**: 設計フェーズを省略してテーブルを作成すると、リレーションシップの漏れ（カテゴリ↔インシデントの Lookup 未設定）、デモデータの漏れ（コメントテーブルにデータなし）、必要なマスタテーブルの漏れ（設備マスタ未作成）が発生する。設計レビューで防止できる。
+
 ---
 
 ## 9. チェックリスト
+
+### 設計フェーズ（Phase 0）
+
+- [ ] ユーザー要件をヒアリング済み
+- [ ] テーブル設計書を作成済み（テーブル・列・型・Choice値・リレーションシップ・デモデータ）
+- [ ] **ユーザーに設計を提示し、承認を得た**
+- [ ] systemuser / createdby 活用方針を確認済み
+- [ ] マスタテーブルの洗い出しが完了（カテゴリ、場所、設備等）
+- [ ] 全 Lookup リレーションシップが設計書に記載済み
+- [ ] デモデータが全テーブル（従属テーブル含む）に計画済み
 
 ### Dataverse テーブル作成前
 
@@ -1122,10 +1249,14 @@ flowchart TD
 
 ### Code Apps デプロイ前
 
+- [ ] 環境で **Code Apps が有効化**されている（Power Platform 管理センター → 機能）
+- [ ] PAC CLI 認証プロファイルが対象環境用に作成済み（`pac auth create --environment {env-id}`）
+- [ ] `power.config.json` が `npx power-apps init` で生成済み
+- [ ] `power.config.json` の `environmentId` が正しい
+- [ ] `.power/schemas/appschemas/dataSourcesInfo.ts` が `npx power-apps add-data-source` で生成済み
 - [ ] `npm run build` がエラーなし
 - [ ] 先に初回デプロイ済み（Dataverse 接続確立済み）
-- [ ] `power.config.json` が最新
-- [ ] Dataverse コネクタ追加済み（`pac code add-data-source`）
+- [ ] Dataverse コネクタ追加済み（`npx power-apps add-data-source`）
 - [ ] 型定義と Choice マッピングが一致
 
 ### Power Automate フロー作成前

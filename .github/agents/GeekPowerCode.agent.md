@@ -69,29 +69,49 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 22. **表示名更新は PUT + MetadataId** パターン。PATCH では反映されないケースがある
 23. **`MSCRM.MergeLabels: true` ヘッダー必須**
 
+### 環境・デプロイ
+24. **`power.config.json` は `npx power-apps init` で生成**。手動作成・他プロジェクトからのコピー禁止。別環境の appId → `AppLeaseMissing` (409)
+25. **環境で Code Apps を有効化**。未許可 → `CodeAppOperationNotAllowedInEnvironment` (403)
+26. **`src/generated/` と `.power/` は SDK コマンドで生成**。`npx power-apps add-data-source` で自動生成される。手動作成禁止
+27. **PAC CLI 認証プロファイルは環境ごとに作成**。`pac auth create --name {name} --environment {env-id}`
+28. **`auth_helper.get_token()` は `scope` キーワード引数のみ**。`.env` から TENANT_ID/CLIENT_ID を自動読み込み。旧インターフェース `get_token(tenant, client, scope)` は使わない
+
+### 設計フェーズ（最重要）
+29. **テーブル設計はユーザー承認必須**。設計を提示し「この設計で進めてよいですか？」と確認してから構築に進む
+30. **全 Lookup リレーションシップを設計書に明記**。漏れると Lookup が機能しない
+31. **デモデータは全テーブル（従属テーブル含む）に計画**。コメント等の従属テーブルにもデモデータを用意
+32. **マスタテーブルは要件から網羅的に洗い出す**。カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化
+
 ## 作業手順
 
 Power Platform のプロジェクトを構築する際は、以下のフェーズに従って進めてください:
 
-### Phase 0: 設計
-- .env ファイル設定
-- テーブル設計（英語スキーマ名 + Choice 値定義）
-- systemuser / createdby 活用方針の確認
+### Phase 0: 設計（ユーザー確認必須）
+1. ユーザー要件のヒアリング（管理対象、必要データ、操作、ユーザー）
+2. テーブル設計書の作成:
+   - テーブル一覧（マスタ → 主 → 従属の順）
+   - 列定義（英語スキーマ名、型、必須、Choice 値）
+   - 全リレーションシップ（Lookup の漏れがないか）
+   - デモデータ計画（全テーブルに対して）
+3. **ユーザーに設計を提示し、承認を得てから Phase 1 に進む**
+4. .env ファイル設定
 
 ### Phase 1: Dataverse 構築
 1. ソリューション作成
 2. テーブル作成（マスタ → 主 → 従属の順。リトライ付き）
-3. Lookup リレーションシップ作成
+3. **全 Lookup リレーションシップ作成**（設計書に基づき漏れなく）
 4. 日本語ローカライズ（PUT + MetadataId）
-5. デモデータ投入
-6. テーブル検証
+5. **全テーブルにデモデータ投入**（従属テーブル含む）
+6. テーブル・リレーションシップ検証
 
 ### Phase 2: Code Apps
-1. `npx power-apps init`
-2. `npm run build && npx power-apps push`（先にデプロイ！）
-3. `pac code add-data-source -a dataverse -t {table}`
-4. DataverseService + 型定義 + ページ実装
-5. ビルド＆再デプロイ
+1. 環境の Code Apps 有効化を確認（Power Platform 管理センター → 機能）
+2. PAC CLI 認証プロファイル作成（`pac auth create --environment {env-id}`）
+3. `npx power-apps init`（`power.config.json` が SDK により自動生成される）
+4. `npm run build && npx power-apps push`（先にデプロイ！）
+5. `npx power-apps add-data-source`（全テーブルに対して実行。`src/generated/` と `dataSourcesInfo.ts` が自動生成される）
+6. SDK 生成サービスのラッパー + 型定義 + ページ実装
+7. ビルド＆再デプロイ
 
 ### Phase 2.5: Power Automate フロー
 1. Flow API / PowerApps API 用トークン取得（スコープが異なる）

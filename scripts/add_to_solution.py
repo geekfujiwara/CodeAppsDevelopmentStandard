@@ -17,8 +17,6 @@ from auth_helper import get_token
 load_dotenv()
 
 DATAVERSE_URL = os.environ["DATAVERSE_URL"].rstrip("/")
-TENANT_ID = os.environ["TENANT_ID"]
-CLIENT_ID = os.environ["MCP_CLIENT_ID"]
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
 SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
 
@@ -30,7 +28,7 @@ COMPONENT_TYPE_CANVASAPP = 300
 COMPONENT_TYPE_PROCESS = 29  # Cloud Flow
 
 def headers():
-    token = get_token(TENANT_ID, CLIENT_ID, f"{DATAVERSE_URL}/.default")
+    token = get_token()
     return {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",

@@ -25,17 +25,13 @@ load_dotenv()
 
 # ── 環境変数 ──────────────────────────────────────────────
 DATAVERSE_URL = os.environ["DATAVERSE_URL"].rstrip("/")
-TENANT_ID = os.environ["TENANT_ID"]
-CLIENT_ID = os.environ["MCP_CLIENT_ID"]
 SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
-
-SCOPE = f"{DATAVERSE_URL}/.default"
 
 # ── 認証 ──────────────────────────────────────────────────
 
 def get_headers() -> dict:
-    token = _get_token(TENANT_ID, CLIENT_ID, SCOPE)
+    token = _get_token()
     return {
         "Authorization": f"Bearer {token}",
         "OData-MaxVersion": "4.0",

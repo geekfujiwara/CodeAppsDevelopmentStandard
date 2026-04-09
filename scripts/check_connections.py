@@ -5,12 +5,10 @@ from auth_helper import get_token
 from dotenv import load_dotenv
 load_dotenv()
 
-TID = os.environ["TENANT_ID"]
-CID = os.environ["MCP_CLIENT_ID"]
 ENV_ID = "9dd13689-8a7e-4fd8-ab92-52445d8ff1b0"
 
 PA_API = "https://api.powerapps.com"
-token = get_token(TID, CID, "https://service.powerapps.com/.default")
+token = get_token(scope="https://service.powerapps.com/.default")
 h = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
 # List all Dataverse connections

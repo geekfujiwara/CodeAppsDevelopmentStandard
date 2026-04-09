@@ -27,8 +27,6 @@ load_dotenv()
 
 # ── 環境変数 ──────────────────────────────────────────────
 DATAVERSE_URL = os.environ["DATAVERSE_URL"].rstrip("/")
-TENANT_ID = os.environ["TENANT_ID"]
-CLIENT_ID = os.environ["MCP_CLIENT_ID"]
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
 
 FLOW_API = "https://api.flow.microsoft.com"
@@ -48,7 +46,7 @@ CONNECTORS_NEEDED = {
 def flow_api_call(method, path, body=None):
     url = f"{FLOW_API}{path}{'&' if '?' in path else '?'}{API_VER}"
     headers = {
-        "Authorization": f"Bearer {_get_token(TENANT_ID, CLIENT_ID, 'https://service.flow.microsoft.com/.default')}",
+        "Authorization": f"Bearer {_get_token(scope='https://service.flow.microsoft.com/.default')}",
         "Content-Type": "application/json",
     }
     r = requests.request(method, url, headers=headers, json=body)
@@ -61,7 +59,7 @@ def flow_api_call(method, path, body=None):
 def powerapps_api_call(method, path, params=None):
     url = f"{POWERAPPS_API}{path}"
     headers = {
-        "Authorization": f"Bearer {_get_token(TENANT_ID, CLIENT_ID, 'https://service.powerapps.com/.default')}",
+        "Authorization": f"Bearer {_get_token(scope='https://service.powerapps.com/.default')}",
         "Content-Type": "application/json",
     }
     r = requests.request(method, url, headers=headers, params={**(params or {}), "api-version": "2016-11-01"})
@@ -91,7 +89,7 @@ def resolve_environment_id() -> str:
 
 def get_user_object_id() -> str:
     """Graph API で現在のユーザーの ObjectId を取得"""
-    token = _get_token(TENANT_ID, CLIENT_ID, "https://graph.microsoft.com/.default")
+    token = _get_token(scope="https://graph.microsoft.com/.default")
     r = requests.get(
         f"{GRAPH_API}/v1.0/me?$select=id,displayName,mail",
         headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},

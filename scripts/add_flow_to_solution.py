@@ -6,12 +6,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 URL = os.environ["DATAVERSE_URL"].rstrip("/")
-TID = os.environ["TENANT_ID"]
-CID = os.environ["MCP_CLIENT_ID"]
 SOL = os.environ.get("SOLUTION_NAME", "IncidentManagement")
 FLOW_ID = "7bfda812-803b-4d5e-a992-b5af6153c572"
 
-token = get_token(TID, CID, URL + "/.default")
+token = get_token()
 h = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json", "OData-MaxVersion": "4.0", "OData-Version": "4.0"}
 API = URL + "/api/data/v9.2"
 

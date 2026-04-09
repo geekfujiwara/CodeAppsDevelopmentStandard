@@ -18,8 +18,6 @@ from auth_helper import get_token
 load_dotenv()
 
 DATAVERSE_URL = os.environ["DATAVERSE_URL"].rstrip("/")
-TENANT_ID = os.environ["TENANT_ID"]
-CLIENT_ID = os.environ["MCP_CLIENT_ID"]
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
 SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
 
@@ -32,7 +30,7 @@ OUTLOOK_CONN = "4e37ecab87084d649e537940fdac8db2"
 
 
 def get_headers(solution=False):
-    token = get_token(TENANT_ID, CLIENT_ID, f"{DATAVERSE_URL}/.default")
+    token = get_token()
     h = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",

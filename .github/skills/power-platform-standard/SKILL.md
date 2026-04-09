@@ -129,3 +129,12 @@ python -c "from scripts.auth_helper import get_token; print(get_token()[:20] + '
 | フローはべき等パターンでデプロイ | displayName で検索 → 更新 or 新規作成 |
 | Bot 作成は Copilot Studio UI | API（bots INSERT）ではプロビジョニングされない |
 | 説明は publish 後に設定 | data PATCH の非同期処理で上書きされる |
+| appId は環境固有 | 別環境の appId → AppLeaseMissing (409) |
+| Code Apps を環境で有効化 | 未許可 → CodeAppOperationNotAllowedInEnvironment (403) |
+| dataSourcesInfo.ts は SDK コマンドで生成 | `npx power-apps add-data-source` で自動生成。手動作成禁止 |
+| power.config.json は SDK で生成 | `npx power-apps init` で生成。テンプレからコピー禁止 |
+| PAC CLI 認証プロファイルを作成 | 新環境では pac auth create が必須 |
+| get_token() は scope のみ指定 | auth_helper は .env から自動読み込み |
+| **設計フェーズでユーザー承認必須** | テーブル設計を提示し承認を得てから構築に進む |
+| 全テーブルにデモデータを投入 | 従属テーブル（コメント等）含め漏れなく |
+| 全 Lookup を設計書に明記 | リレーション漏れは機能不全の原因 |
