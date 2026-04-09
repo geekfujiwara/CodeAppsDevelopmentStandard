@@ -125,10 +125,10 @@ npx power-apps init --display-name "アプリ名" \
 # ❌ 別プロジェクトの power.config.json をコピーする（appId が環境固有のため失敗する）
 ```
 
-| エラー | 原因 | 対策 |
-|--------|------|------|
-| `AppLeaseMissing` (409) | 別環境の `appId` がハードコードされている | `npx power-apps init` で新規生成 |
-| `CodeAppOperationNotAllowedInEnvironment` (403) | 環境で Code Apps が未許可 | §1.5 参照 |
+| エラー                                          | 原因                                      | 対策                             |
+| ----------------------------------------------- | ----------------------------------------- | -------------------------------- |
+| `AppLeaseMissing` (409)                         | 別環境の `appId` がハードコードされている | `npx power-apps init` で新規生成 |
+| `CodeAppOperationNotAllowedInEnvironment` (403) | 環境で Code Apps が未許可                 | §1.5 参照                        |
 
 ### 1.5 環境の Code Apps 有効化（前提条件）
 
@@ -156,13 +156,13 @@ SOLUTION_NAME=IncidentManagement
 PUBLISHER_PREFIX=geek
 ```
 
-| コンポーネント | ソリューション紐づけ方法 |
-|--------------|------------------------|
-| Dataverse テーブル | API ヘッダー `MSCRM.SolutionName` + `AddSolutionComponent` で検証 |
-| Code Apps | `npx power-apps push`（環境 ID で自動紐づけ） |
-| Power Automate フロー | API ヘッダー `MSCRM.SolutionUniqueName` |
-| 接続参照 | API ヘッダー `MSCRM.SolutionUniqueName` |
-| Copilot Studio エージェント | UI 作成時に「ソリューション」を選択 |
+| コンポーネント              | ソリューション紐づけ方法                                          |
+| --------------------------- | ----------------------------------------------------------------- |
+| Dataverse テーブル          | API ヘッダー `MSCRM.SolutionName` + `AddSolutionComponent` で検証 |
+| Code Apps                   | `npx power-apps push`（環境 ID で自動紐づけ）                     |
+| Power Automate フロー       | API ヘッダー `MSCRM.SolutionUniqueName`                           |
+| 接続参照                    | API ヘッダー `MSCRM.SolutionUniqueName`                           |
+| Copilot Studio エージェント | UI 作成時に「ソリューション」を選択                               |
 
 > **重要**: `MSCRM.SolutionName` ヘッダーだけではテーブルがソリューションに含まれないケースがある。
 > `setup_dataverse.py` は最終ステップで `AddSolutionComponent` API を呼び出し、
@@ -178,14 +178,14 @@ PUBLISHER_PREFIX=geek
 
 ### 2.1 必須ツール
 
-| ツール                        | 用途                         | インストール                                                                |
-| ----------------------------- | ---------------------------- | --------------------------------------------------------------------------- |
-| VS Code                       | 統合開発環境                 | [公式サイト](https://code.visualstudio.com/)                                |
-| GitHub Copilot 拡張機能       | AI コーディング支援          | VS Code Marketplace                                                         |
-| Power Platform Tools 拡張機能 | PAC CLI 連携                 | VS Code Marketplace                                                         |
-| Node.js (LTS)                 | Code Apps ビルド             | v18.x / v20.x                                                               |
-| Python 3.10+                  | 自動化スクリプト             | Dataverse SDK 利用                                                          |
-| PAC CLI                       | Power Platform CLI           | `npm install -g @microsoft/power-apps-cli`                                  |
+| ツール                        | 用途                | インストール                                 |
+| ----------------------------- | ------------------- | -------------------------------------------- |
+| VS Code                       | 統合開発環境        | [公式サイト](https://code.visualstudio.com/) |
+| GitHub Copilot 拡張機能       | AI コーディング支援 | VS Code Marketplace                          |
+| Power Platform Tools 拡張機能 | PAC CLI 連携        | VS Code Marketplace                          |
+| Node.js (LTS)                 | Code Apps ビルド    | v18.x / v20.x                                |
+| Python 3.10+                  | 自動化スクリプト    | Dataverse SDK 利用                           |
+| PAC CLI                       | Power Platform CLI  | `npm install -g @microsoft/power-apps-cli`   |
 
 ### 2.2 .env ファイル設定
 
@@ -1122,12 +1122,12 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 | 21  | フロー作成時 `Required property 'schemaVersion' not found`                   | `clientdata` に `schemaVersion` が不足                                                | `clientdata` の最上位に `"schemaVersion": "1.0.0.0"` を追加                               | §5.9.4 参照 |
 | 22  | ソリューション内フローで「接続参照を使用する必要があります」警告             | フロー定義が直接接続（Embedded）を使用している                                        | Power Automate UI でフローを開いて手動で接続参照に変更                                    | §5.9.7 参照 |
 | 23  | API 作成フローの Send Email Body が空                                        | Python f-string と非 f-string 混在で `@{{}}` が二重ブレースになる                     | f-string 不要の行は `@{expression}` で単一ブレースにする                                  | §5.9.7 参照 |
-| 24  | Dataverse `bots` テーブルに直接挿入した Bot が Copilot Studio でエラー       | PVA Bot Management Service にプロビジョニングされない。`botroutinginfo` が 404        | Copilot Studio UI で作成し、API は設定変更のみに使用                                       | §6.2 参照   |
-| 25  | `npx power-apps push` で `AppLeaseMissing` エラー（409）                     | `power.config.json` に別環境の `appId` がハードコードされている                        | `appId` を空文字にして新規アプリとしてデプロイ                                            | §1.4 参照   |
+| 24  | Dataverse `bots` テーブルに直接挿入した Bot が Copilot Studio でエラー       | PVA Bot Management Service にプロビジョニングされない。`botroutinginfo` が 404        | Copilot Studio UI で作成し、API は設定変更のみに使用                                      | §6.2 参照   |
+| 25  | `npx power-apps push` で `AppLeaseMissing` エラー（409）                     | `power.config.json` に別環境の `appId` がハードコードされている                       | `appId` を空文字にして新規アプリとしてデプロイ                                            | §1.4 参照   |
 | 26  | `npx power-apps push` で `CodeAppOperationNotAllowedInEnvironment`（403）    | 環境で Code Apps が許可されていない                                                   | Power Platform 管理センターで「コード アプリを許可する」をオンにする                      | §1.6 参照   |
-| 27  | `npm run build` で `Cannot find module dataSourcesInfo`（TS2307）            | `.power/` が `.gitignore` で除外されており git clone 後に存在しない                   | `npx power-apps add-data-source` を全テーブルに対して再実行                                | §4.1 参照   |
-| 28  | スクリプトで `get_token()` の引数不一致                                       | 旧インターフェース `get_token(tenant, client, scope)` vs 新 `get_token(scope=...)`    | `auth_helper.get_token()` は `.env` から自動読み込み。`scope` キーワード引数のみ渡す      | §2.3 参照   |
-| 29  | PAC CLI 認証プロファイル未設定で push 失敗                                    | 新環境への認証プロファイルが存在しない                                                | `pac auth create --name {name} --environment {env-id}` で作成                              | §4.1 参照   |
+| 27  | `npm run build` で `Cannot find module dataSourcesInfo`（TS2307）            | `.power/` が `.gitignore` で除外されており git clone 後に存在しない                   | `npx power-apps add-data-source` を全テーブルに対して再実行                               | §4.1 参照   |
+| 28  | スクリプトで `get_token()` の引数不一致                                      | 旧インターフェース `get_token(tenant, client, scope)` vs 新 `get_token(scope=...)`    | `auth_helper.get_token()` は `.env` から自動読み込み。`scope` キーワード引数のみ渡す      | §2.3 参照   |
+| 29  | PAC CLI 認証プロファイル未設定で push 失敗                                   | 新環境への認証プロファイルが存在しない                                                | `pac auth create --name {name} --environment {env-id}` で作成                             | §4.1 参照   |
 
 ### 7.2 共通のアンチパターン
 
@@ -1191,6 +1191,7 @@ flowchart TD
 #### Step 1: ユーザー要件のヒアリング
 
 ユーザーの依頼内容から以下を明確化する:
+
 - **管理対象**: 何を管理するアプリか（インシデント、資産、タスク等）
 - **必要なデータ**: どんな情報を記録するか（ステータス、優先度、カテゴリ等）
 - **マスタデータ**: 何をマスタテーブル化するか（カテゴリ、場所、設備等）
@@ -1204,26 +1205,30 @@ flowchart TD
 ```markdown
 ## テーブル設計
 
-### 1. {prefix}_tablename（日本語名）— マスタ/主/従属
-| 列名 | 型 | 必須 | 説明 |
-|------|-----|------|------|
-| {prefix}_name | String (Primary) | ✅ | 名称 |
-| {prefix}_column | Type | | 説明 |
+### 1. {prefix}\_tablename（日本語名）— マスタ/主/従属
+
+| 列名             | 型               | 必須 | 説明 |
+| ---------------- | ---------------- | ---- | ---- |
+| {prefix}\_name   | String (Primary) | ✅   | 名称 |
+| {prefix}\_column | Type             |      | 説明 |
 
 ### リレーションシップ
-| 参照元テーブル | 列名 | → 参照先テーブル | 関係 |
-|--------------|-------|----------------|------|
-| {prefix}_incident | {prefix}_categoryid | {prefix}_category | N:1 |
+
+| 参照元テーブル     | 列名                 | → 参照先テーブル   | 関係 |
+| ------------------ | -------------------- | ------------------ | ---- |
+| {prefix}\_incident | {prefix}\_categoryid | {prefix}\_category | N:1  |
 
 ### Choice 値
-| 列名 | 値 | ラベル |
-|------|-----|--------|
-| {prefix}_status | 100000000 | 新規 |
+
+| 列名             | 値        | ラベル |
+| ---------------- | --------- | ------ |
+| {prefix}\_status | 100000000 | 新規   |
 
 ### デモデータ計画
-| テーブル | 件数 | 内容 |
-|---------|------|------|
-| {prefix}_category | 5件 | ネットワーク、ハードウェア、... |
+
+| テーブル           | 件数 | 内容                            |
+| ------------------ | ---- | ------------------------------- |
+| {prefix}\_category | 5件  | ネットワーク、ハードウェア、... |
 ```
 
 #### Step 3: ユーザー承認
@@ -1303,7 +1308,6 @@ flowchart TD
 - [CodeAppsStarter テンプレート](https://github.com/geekfujiwara/CodeAppsStarter)
 - [CodeAppsDevelopmentStandard](https://github.com/geekfujiwara/CodeAppsDevelopmentStandard)
 
-
 ---
 
 ## 10. GitHub Copilot スキル
@@ -1313,17 +1317,18 @@ flowchart TD
 
 ### スキル一覧
 
-| スキル名 | 場所 | 用途 |
-|---------|------|------|
-| `power-platform-standard` | [.github/skills/power-platform-standard/](../.github/skills/power-platform-standard/SKILL.md) | Power Platform 包括開発標準（全体参照） |
-| `copilot-studio-agent` | [.github/skills/copilot-studio-agent/](../.github/skills/copilot-studio-agent/SKILL.md) | Copilot Studio エージェント構築（生成オーケストレーション） |
-| `power-automate-flow` | [.github/skills/power-automate-flow/](../.github/skills/power-automate-flow/SKILL.md) | Power Automate クラウドフロー作成・デプロイ |
-| `code-apps-dev` | [.github/skills/code-apps-dev/](../.github/skills/code-apps-dev/SKILL.md) | Code Apps 初期化・Dataverse 接続・開発・デプロイ |
-| `code-apps-design` | [.github/skills/code-apps-design/](../.github/skills/code-apps-design/SKILL.md) | CodeAppsStarter デザインシステム・コンポーネント選定・画面設計 |
+| スキル名                  | 場所                                                                                          | 用途                                                           |
+| ------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `power-platform-standard` | [.github/skills/power-platform-standard/](../.github/skills/power-platform-standard/SKILL.md) | Power Platform 包括開発標準（全体参照）                        |
+| `copilot-studio-agent`    | [.github/skills/copilot-studio-agent/](../.github/skills/copilot-studio-agent/SKILL.md)       | Copilot Studio エージェント構築（生成オーケストレーション）    |
+| `power-automate-flow`     | [.github/skills/power-automate-flow/](../.github/skills/power-automate-flow/SKILL.md)         | Power Automate クラウドフロー作成・デプロイ                    |
+| `code-apps-dev`           | [.github/skills/code-apps-dev/](../.github/skills/code-apps-dev/SKILL.md)                     | Code Apps 初期化・Dataverse 接続・開発・デプロイ               |
+| `code-apps-design`        | [.github/skills/code-apps-design/](../.github/skills/code-apps-design/SKILL.md)               | CodeAppsStarter デザインシステム・コンポーネント選定・画面設計 |
 
 ### スキルに記録されている主な教訓
 
 #### Copilot Studio（`copilot-studio-agent`）
+
 - Bot 作成は API 不可 → Copilot Studio UI 必須
 - GPT コンポーネント（componenttype=15）は UI が作成したものを特定して更新
 - configuration を PATCH する際は既存値をマージ（gPTSettings を消さない）
@@ -1331,6 +1336,7 @@ flowchart TD
 - 説明は YAML 内ではなく `botcomponents.description` カラムに保存、publish 後に設定
 
 #### Power Automate（`power-automate-flow`）
+
 - Flow API / PowerApps API / Dataverse API で認証スコープが異なる
 - 接続は環境内に事前作成が必要（API で自動作成不可）
 - 接続参照（Connection Reference）を使わないとソリューション移行時に警告
@@ -1338,6 +1344,7 @@ flowchart TD
 - フロー有効化が API で失敗する場合あり → UI での手動有効化をフォールバック
 
 #### Code Apps（`code-apps-dev`）
+
 - 先にデプロイ、後から開発（`npm run build && npx power-apps push` を最初に実行）
 - `pac code` ではなく `npx power-apps` を使用（SDK v1.0.x のパス変更問題）
 - 日本語 DisplayName で nameUtils.js のサニタイズエラー → Unicode パッチで回避
