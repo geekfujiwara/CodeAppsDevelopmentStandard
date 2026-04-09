@@ -146,14 +146,14 @@ GPT_INSTRUCTIONS = f"""\
 - 結果がなければその旨を伝える
 
 ### 新規レコード作成（ツールで実行）
-- 「起票して」「登録して」「追加して」→ ツール（Dataverse コネクタ）でレコード作成
+- 「起票して」「登録して」「追加して」→ ツール（Dataverse MCP Server）でレコード作成
 - 必須情報: タイトル
 - 推奨情報: 説明、優先度、カテゴリ、場所
 - ステータスのデフォルト: 新規（100000000）
 - 不足情報は質問して補完
 
 ### レコード更新（ツールで実行）
-- 「ステータスを変更して」「更新して」→ ツール（Dataverse コネクタ）で PATCH 操作
+- 「ステータスを変更して」「更新して」→ ツール（Dataverse MCP Server）で PATCH 操作
 - 対象レコードの特定 → 変更内容の確認 → 実行
 
 ### コメント追加
@@ -161,16 +161,24 @@ GPT_INSTRUCTIONS = f"""\
 - インシデントの特定 → 件名と内容を確認 → 実行
 """
 
-GPT_YAML = yaml.dump({
-    "kind": "GptComponentMetadata",
-    "instructions": GPT_INSTRUCTIONS,
-    "conversationStarters": [
-        {"title": "インシデント一覧", "text": "現在のインシデント一覧を見せてください"},
-        {"title": "新規インシデント", "text": "新しいインシデントを起票したいです"},
-        {"title": "ステータス更新", "text": "インシデントのステータスを更新してください"},
-        {"title": "緊急インシデント", "text": "緊急のインシデントはありますか？"},
-    ],
-}, allow_unicode=True, default_flow_style=False)
+# instructions を |- ブロック形式で手動構築（yaml.dump の quoted scalar では UI が認識しない）
+_starters = "\n".join([
+    "- title: インシデント一覧",
+    "  text: 現在のインシデント一覧を見せてください",
+    "- title: 新規インシデント",
+    "  text: 新しいインシデントを起票したいです",
+    "- title: ステータス更新",
+    "  text: インシデントのステータスを更新してください",
+    "- title: 緊急インシデント",
+    "  text: 緊急のインシデントはありますか？",
+])
+
+BOT_DESCRIPTION = "社内のインシデント（障害・問題）を管理するAIエージェントです。インシデントの起票、ステータス更新、一覧検索、コメント追加などを自然言語で実行できます。"
+
+GPT_YAML = f"kind: GptComponentMetadata\ndisplayName: {BOT_NAME}\ninstructions: |-\n"
+for line in GPT_INSTRUCTIONS.splitlines():
+    GPT_YAML += f"  {line}\n"
+GPT_YAML += f"conversationStarters:\n{_starters}\n"
 
 # ── Step 1: Bot 検索 ─────────────────────────────────────
 
@@ -255,9 +263,17 @@ def delete_custom_topics(bot_id: str):
 
 # ── Step 3: 生成オーケストレーション有効化 ────────────────
 
-def enable_generative_orchestration(bot_id: str):
+def enable_generative_orchestration(bot_id: str) -> dict:
+    """生成オーケストレーションを有効化。既存 configuration をマージして返す。"""
     print("\n=== Step 3: 生成オーケストレーション有効化 ===")
-    config = json.dumps({
+
+    # 既存 configuration を読み込み（gPTSettings 等を保持するため）
+    bot_data = api_get(f"bots({bot_id})?$select=configuration")
+    existing_config = json.loads(bot_data.get("configuration", "{}") or "{}")
+    print(f"  既存 configuration キー: {list(existing_config.keys())}")
+
+    # gPTSettings を保持したままマージ
+    merged = {
         "$kind": "BotConfiguration",
         "settings": {
             "GenerativeActionsEnabled": True,
@@ -272,39 +288,96 @@ def enable_generative_orchestration(bot_id: str):
         "recognizer": {
             "$kind": "GenerativeAIRecognizer",
         },
-    })
-    api_patch(f"bots({bot_id})", {"configuration": config})
+    }
+    # 既存の gPTSettings を保持
+    if "gPTSettings" in existing_config:
+        merged["gPTSettings"] = existing_config["gPTSettings"]
+
+    api_patch(f"bots({bot_id})", {"configuration": json.dumps(merged)})
     print("  生成オーケストレーション有効化完了")
+    return existing_config
 
-# ── Step 4: GPT Instructions 設定 ────────────────────────
 
-def set_gpt_instructions(bot_id: str):
-    print("\n=== Step 4: GPT Instructions 設定 ===")
+# ── Step 4: 指示（Instructions）設定 ──────────────────────
 
-    # 既存 GPT コンポーネント検索
+def set_gpt_instructions(bot_id: str, saved_config: dict):
+    print("\n=== Step 4: 指示（Instructions）設定 ===")
+
+    # 保存した configuration から defaultSchemaName を取得
+    default_schema = saved_config.get("gPTSettings", {}).get("defaultSchemaName", "")
+    print(f"  defaultSchemaName: {default_schema or '(なし)'}")
+
+    # 既存 GPT コンポーネント（componenttype=15）をすべて取得
     existing = api_get("botcomponents",
                        {"$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 15",
-                        "$select": "botcomponentid,name"})
+                        "$select": "botcomponentid,name,schemaname,data"})
+    comps = existing.get("value", [])
+    print(f"  既存 GPT コンポーネント数: {len(comps)}")
 
-    gpt_body = {
-        "name": BOT_NAME,
-        "schemaname": f"{BOT_SCHEMA}.gpt.default",
-        "componenttype": 15,
-        "data": GPT_YAML,
-        "parentbotid@odata.bind": f"/bots({bot_id})",
-    }
+    # UI が作成したコンポーネント（defaultSchemaName と一致）を探す
+    ui_comp = None
+    extra_comps = []
+    for comp in comps:
+        schema = comp.get("schemaname", "")
+        if default_schema and schema == default_schema:
+            ui_comp = comp
+            print(f"  UI コンポーネント: {schema} ({comp['botcomponentid']})")
+        else:
+            extra_comps.append(comp)
 
-    if existing.get("value"):
-        comp_id = existing["value"][0]["botcomponentid"]
-        api_patch(f"botcomponents({comp_id})", {
-            "data": GPT_YAML,
-        })
-        print(f"  GPT コンポーネント更新: {comp_id}")
+    # UI のコンポーネントがなければ最初のものを使う
+    if ui_comp is None and comps:
+        ui_comp = comps[0]
+        extra_comps = comps[1:]
+        print(f"  フォールバック: {ui_comp.get('schemaname','')} ({ui_comp['botcomponentid']})")
+
+    # 余分なコンポーネントを削除
+    for comp in extra_comps:
+        try:
+            api_delete(f"botcomponents({comp['botcomponentid']})")
+            print(f"  余分なコンポーネント削除: {comp.get('schemaname', comp['botcomponentid'])}")
+        except Exception as e:
+            print(f"  削除スキップ: {comp['botcomponentid']} ({e})")
+
+    # 指示を更新 or 新規作成
+    if ui_comp:
+        comp_id = ui_comp["botcomponentid"]
+        api_patch(f"botcomponents({comp_id})", {"data": GPT_YAML})
+        print(f"  指示コンポーネント更新: {comp_id}")
     else:
-        r = api_post("botcomponents", gpt_body)
-        print("  GPT コンポーネント作成完了")
+        schema_name = default_schema or f"{BOT_SCHEMA}.gpt.default"
+        gpt_body = {
+            "name": BOT_NAME,
+            "schemaname": schema_name,
+            "componenttype": 15,
+            "data": GPT_YAML,
+            "parentbotid@odata.bind": f"/bots({bot_id})",
+        }
+        api_post("botcomponents", gpt_body)
+        comp_id = None  # 新規作成の場合は後で取得
+        print(f"  指示コンポーネント新規作成: {schema_name}")
 
-    print("  Instructions 設定完了")
+    print("  指示の設定完了")
+    return comp_id
+
+
+# ── Step 6: 説明の設定（publish 後に実行）────────────────
+
+def set_description(bot_id: str, comp_id: str | None = None):
+    """UI の「説明」= botcomponents.description カラム。
+    data PATCH の非同期処理で上書きされるため publish 後に設定する。"""
+    print("\n=== Step 6: 説明の設定 ===")
+    if not comp_id:
+        existing = api_get("botcomponents",
+                           {"$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 15",
+                            "$select": "botcomponentid"})
+        if existing.get("value"):
+            comp_id = existing["value"][0]["botcomponentid"]
+    if comp_id:
+        api_patch(f"botcomponents({comp_id})", {"description": BOT_DESCRIPTION})
+        print(f"  説明を設定: {BOT_DESCRIPTION[:50]}...")
+    else:
+        print("  ⚠️ GPT コンポーネントが見つかりません")
 
 # ── Step 5: エージェント公開 ──────────────────────────────
 
@@ -326,9 +399,10 @@ def main():
 
     bot_id = find_bot()
     delete_custom_topics(bot_id)
-    enable_generative_orchestration(bot_id)
-    set_gpt_instructions(bot_id)
+    saved_config = enable_generative_orchestration(bot_id)
+    comp_id = set_gpt_instructions(bot_id, saved_config)
     publish_bot(bot_id)
+    set_description(bot_id, comp_id)
 
     print("\n" + "=" * 60)
     print("  ✅ エージェントデプロイ完了!")
@@ -345,9 +419,9 @@ def main():
     print(f"       - {PREFIX}_location（場所）")
     print(f"       - {PREFIX}_incidentcomment（コメント）")
     print()
-    print("  2. ツール（MCP Server / コネクタ）の追加:")
-    print("     → ツール タブ → コネクタ → Dataverse を選択")
-    print("     → 必要なアクション（レコード作成・更新・削除）を有効化")
+    print("  2. ツール（Dataverse MCP Server）の追加:")
+    print("     → ツール タブ → Dataverse MCP Server を追加")
+    print("     → レコードの作成・更新・削除アクションを有効化")
     print()
 
 

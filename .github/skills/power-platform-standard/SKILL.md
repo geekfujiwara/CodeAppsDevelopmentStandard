@@ -1,60 +1,131 @@
 ---
 name: power-platform-standard
 description: "Power Platform 包括開発標準を参照して開発する。Use when: Power Platform 開発, Dataverse テーブル作成, Code Apps, Power Automate, フロー作成, Copilot Studio, エージェント開発, ソリューション, デプロイ, トラブルシューティング, スキーマ設計, ローカライズ, SystemUser, createdby, 生成オーケストレーション"
-argument-hint: "開発標準に基づいた Power Platform 開発の指示を入力してください"
 ---
 
 # Power Platform 包括開発標準スキル
 
-## いつ使うか
-- Dataverse テーブルの設計・作成
-- Code Apps の初期化・デプロイ
-- Power Automate クラウドフローの作成・デプロイ
-- Copilot Studio エージェントの構築
-- Power Platform ソリューション全般の開発
-- トラブルシューティング
+## 大前提: 一つのソリューション内に開発
 
-## 手順
+Dataverse テーブル・Code Apps・Power Automate フロー・Copilot Studio エージェントは **すべて同一のソリューション内** に含める。
+`.env` の `SOLUTION_NAME` と `PUBLISHER_PREFIX` を全フェーズで統一して使用する。
 
-1. まず [開発標準ドキュメント](../../docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md) を読み込む
-2. プロジェクトの `.env` ファイルを確認
-3. 開発フェーズ（Phase 0〜3）に従って作業を進める
-4. チェックリストで確認
+## 共通基盤: .env と認証
+
+すべてのデプロイスクリプトは以下の **共通パラメータ** と **共通認証** を使用する。
+各スキルから個別に認証を設定する必要はない。
+
+### .env 共通パラメータ
+
+```env
+# === 必須（全フェーズ共通）===
+DATAVERSE_URL=https://{org}.crm7.dynamics.com/
+TENANT_ID={your-tenant-id}
+MCP_CLIENT_ID={app-registration-client-id}
+SOLUTION_NAME=IncidentManagement
+PUBLISHER_PREFIX=geek
+
+# === オプション ===
+PAC_AUTH_PROFILE=IncidentManager           # PAC CLI 認証プロファイル名
+ADMIN_EMAIL=admin@example.com              # Power Automate 通知先
+BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Copilot Studio Bot ID（URL でも可）
+```
+
+| パラメータ | 用途 | 使用フェーズ |
+|-----------|------|------------|
+| `DATAVERSE_URL` | Dataverse Web API のベース URL | 全フェーズ |
+| `TENANT_ID` | Azure AD テナント ID | 全フェーズ |
+| `MCP_CLIENT_ID` | アプリ登録のクライアント ID | 全フェーズ |
+| `SOLUTION_NAME` | ソリューション一意名 | 全フェーズ |
+| `PUBLISHER_PREFIX` | テーブル・列のプレフィックス | 全フェーズ |
+| `PAC_AUTH_PROFILE` | PAC CLI の認証プロファイル名 | Phase 2 (Code Apps) |
+| `ADMIN_EMAIL` | フロー通知先メール | Phase 2.5 (Power Automate) |
+| `BOT_ID` | Copilot Studio Bot ID or URL | Phase 3 (Copilot Studio) |
+
+### 共通認証: auth_helper.py
+
+`scripts/auth_helper.py` が全デプロイスクリプトの認証を一元管理する。
+**ユーザーに何度もデバイスコード認証を求めない** 2 層キャッシュ構成。
+
+```
+層1: AuthenticationRecord (.auth_record.json)
+  - アカウント情報（テナント・ユーザー ID）を保存
+  - プロジェクトルートに .auth_record.json として永続化
+
+層2: TokenCachePersistenceOptions (MSAL OS 資格情報ストア)
+  - リフレッシュトークン・アクセストークンを永続化
+  - サイレントリフレッシュでデバイスコード不要
+
+初回: DeviceCodeCredential → ブラウザで認証 → キャッシュ保存
+2回目以降: キャッシュから自動取得（認証プロンプトなし）
+```
+
+#### 公開 API
+
+```python
+from auth_helper import get_token, get_session, api_get, api_post, api_patch, api_delete, retry_metadata
+
+# Dataverse Web API 用トークン（デフォルトスコープ）
+token = get_token()
+
+# Flow API 用トークン（スコープ指定）
+token = get_token(scope="https://service.flow.microsoft.com/.default")
+
+# PowerApps API 用トークン（接続検索用）
+token = get_token(scope="https://service.powerapps.com/.default")
+
+# Bearer ヘッダー付き Session
+session = get_session()
+
+# Dataverse CRUD ヘルパー
+api_get("accounts?$top=1")
+api_post("accounts", {"name": "Test"}, solution="SolutionName")
+api_patch("accounts(id)", {"name": "Updated"})
+api_delete("accounts(id)")
+
+# メタデータ操作のリトライ（0x80040237, 0x80044363 対応）
+retry_metadata(lambda: api_post("EntityDefinitions", body), "テーブル作成")
+
+# Flow API ヘルパー
+from auth_helper import flow_api_call
+flow_api_call("GET", f"/providers/Microsoft.ProcessSimple/environments/{env_id}/flows")
+```
+
+#### 認証テスト
+
+```bash
+# 初回のみデバイスコード認証が走る。以降はサイレント。
+python -c "from scripts.auth_helper import get_token; print(get_token()[:20] + '...')"
+```
 
 ## 参照ドキュメント
-- [Power Platform コードファースト開発標準](../../docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md): 全体の開発標準・設計原則・トラブルシューティング
-- [Dataverse 統合ガイド](../../docs/DATAVERSE_GUIDE.md): CRUD操作・Lookup・Choice・エラーハンドリング
 
-## 補足リファレンス: awesome-copilot スキル
+- [開発標準](../../docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md): 設計原則・Phase 別手順・トラブルシューティング
+- [Dataverse ガイド](../../docs/DATAVERSE_GUIDE.md): CRUD・Lookup・Choice・エラーハンドリング
 
-以下の [github/awesome-copilot](https://github.com/github/awesome-copilot) スキルを**補足的に**利用できます。
-**開発標準が常に最優先です。** 競合する場合は開発標準に従ってください。
+## 関連スキル
 
-| カテゴリ | スキル名 | 用途 |
-|---|---|---|
-| Dataverse | [`dataverse-python-quickstart`](https://github.com/github/awesome-copilot/tree/main/skills/dataverse-python-quickstart) | SDK セットアップ・CRUD・ページング |
-| Dataverse | [`dataverse-python-advanced-patterns`](https://github.com/github/awesome-copilot/tree/main/skills/dataverse-python-advanced-patterns) | エラーハンドリング・リトライ・OData最適化 |
-| Dataverse | [`dataverse-python-production-code`](https://github.com/github/awesome-copilot/tree/main/skills/dataverse-python-production-code) | 本番向けコードパターン |
-| Dataverse | [`dataverse-python-usecase-builder`](https://github.com/github/awesome-copilot/tree/main/skills/dataverse-python-usecase-builder) | ユースケース別ソリューション設計 |
-| Copilot Studio | [`mcp-copilot-studio-server-generator`](https://github.com/github/awesome-copilot/tree/main/skills/mcp-copilot-studio-server-generator) | MCP Server コネクタ生成 |
-| Power Automate | [`flowstudio-power-automate-mcp`](https://github.com/github/awesome-copilot/tree/main/skills/flowstudio-power-automate-mcp) | FlowStudio MCP 接続・操作 |
-| Power Automate | [`flowstudio-power-automate-build`](https://github.com/github/awesome-copilot/tree/main/skills/flowstudio-power-automate-build) | フロー構築・デプロイ |
-| Power Automate | [`flowstudio-power-automate-debug`](https://github.com/github/awesome-copilot/tree/main/skills/flowstudio-power-automate-debug) | フローデバッグ・診断 |
+| フェーズ | スキル | 内容 |
+|---------|--------|------|
+| Phase 2: Code Apps | `code-apps-dev` | 初期化・デプロイ・Dataverse 接続 |
+| Phase 2: Code Apps UI | `code-apps-design` | CodeAppsStarter デザインシステム・コンポーネント |
+| Phase 2.5: Power Automate | `power-automate-flow` | クラウドフロー作成・接続参照 |
+| Phase 3: Copilot Studio | `copilot-studio-agent` | エージェント構築・生成オーケストレーション |
 
-> **重要**: Copilot Studio は生成オーケストレーションモード一択（トピックベース開発は非推奨）。FlowStudio MCP の利用には別途サブスクリプションが必要。
-
-## クイックリファレンス: 絶対に守るルール
+## クイックリファレンス: 絶対遵守ルール
 
 | ルール | 理由 |
 |---|---|
-| スキーマ名は英語のみ | `pac code add-data-source` が日本語で失敗 |
+| スキーマ名は英語のみ | `npx power-apps add-data-source` が日本語で失敗 |
 | SystemUser を Lookup 先に | カスタムユーザーテーブル不要 |
 | createdby を報告者として使用 | カスタム ReportedBy Lookup 不要 |
 | Choice 値は 100000000 始まり | Dataverse の仕様 |
 | 先にデプロイしてから開発 | Dataverse 接続確立が必要 |
-| 生成オーケストレーションモード | トピックベース開発は非推奨 |
+| 生成オーケストレーションモード一択 | トピックベース開発は非推奨 |
 | PUT + MetadataId でローカライズ | PATCH では反映されないケースあり |
 | テーブル作成はリトライ付き | 0x80040237 メタデータロック対策 |
 | Flow API は専用スコープで認証 | Dataverse トークンの使い回し不可 |
 | 接続は環境内に事前作成 | API での接続自動作成は不可 |
 | フローはべき等パターンでデプロイ | displayName で検索 → 更新 or 新規作成 |
+| Bot 作成は Copilot Studio UI | API（bots INSERT）ではプロビジョニングされない |
+| 説明は publish 後に設定 | data PATCH の非同期処理で上書きされる |
