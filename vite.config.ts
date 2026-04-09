@@ -26,41 +26,22 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // node_modules のベンダーライブラリを分割
           if (id.includes('node_modules')) {
-            // React関連
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-              return 'react-vendor'
-            }
-            // Radix UI コンポーネント
-            if (id.includes('@radix-ui')) {
-              return 'ui-vendor'
-            }
-            // チャート関連
-            if (id.includes('recharts')) {
-              return 'chart-vendor'
-            }
-            // DnD関連
-            if (id.includes('@dnd-kit')) {
-              return 'dnd-vendor'
-            }
             // Mermaid関連 (大きいので分離)
-            if (id.includes('mermaid')) {
-              return 'mermaid-vendor'
-            }
+            if (id.includes('mermaid')) return 'mermaid-vendor'
             // Cytoscape関連 (大きいので分離)
-            if (id.includes('cytoscape')) {
-              return 'cytoscape-vendor'
-            }
+            if (id.includes('cytoscape')) return 'cytoscape-vendor'
             // KaTeX関連 (大きいので分離)
-            if (id.includes('katex')) {
-              return 'katex-vendor'
-            }
-            // その他のユーティリティ
-            if (id.includes('clsx') || id.includes('tailwind-merge') || id.includes('date-fns')) {
+            if (id.includes('katex')) return 'katex-vendor'
+            // チャート関連
+            if (id.includes('recharts')) return 'chart-vendor'
+            // DnD関連
+            if (id.includes('@dnd-kit')) return 'dnd-vendor'
+            // ユーティリティ（React 非依存）
+            if (id.includes('clsx') || id.includes('tailwind-merge') || id.includes('date-fns') || id.includes('class-variance-authority')) {
               return 'utils-vendor'
             }
-            // その他のnode_modules
+            // React + 全 React 依存ライブラリ（循環参照回避）
             return 'vendor'
           }
         },

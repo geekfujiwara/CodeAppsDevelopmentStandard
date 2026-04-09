@@ -196,6 +196,57 @@ npm run build
 npx power-apps push --non-interactive
 ```
 
+### Step 7.1: ビルド後検証 — Circular chunk 警告チェック（必須）
+
+`npm run build` の出力に **`Circular chunk`** 警告が含まれていないか確認する。
+この警告があると Power Apps ランタイムで `ReferenceError: Cannot access 'X' before initialization` が発生し、アプリが起動しない。
+
+```
+⚠️ Circular chunk: vendor -> react-vendor -> vendor.
+   Please adjust the manual chunk logic for these chunks.
+```
+
+**原因**: `vite.config.ts` の `manualChunks` で React 関連を `react-vendor` に分離すると、
+`vendor` チャンクに残った `@microsoft/power-apps` SDK 等が React に依存しているため循環参照が発生する。
+
+**修正**: React 依存パッケージをすべて同一チャンクに統合する。
+巨大ライブラリ（mermaid, cytoscape, katex, recharts, @dnd-kit）と
+React 非依存ユーティリティ（clsx, tailwind-merge, date-fns）のみ分離可能。
+
+```typescript
+// vite.config.ts — ✅ 正しい manualChunks 設定
+build: {
+  rollupOptions: {
+    output: {
+      manualChunks: (id) => {
+        if (id.includes('node_modules')) {
+          if (id.includes('mermaid')) return 'mermaid-vendor'
+          if (id.includes('cytoscape')) return 'cytoscape-vendor'
+          if (id.includes('katex')) return 'katex-vendor'
+          if (id.includes('recharts')) return 'chart-vendor'
+          if (id.includes('@dnd-kit')) return 'dnd-vendor'
+          if (id.includes('clsx') || id.includes('tailwind-merge') ||
+              id.includes('date-fns') || id.includes('class-variance-authority')) {
+            return 'utils-vendor'
+          }
+          // React + @radix-ui + @tanstack + @microsoft/power-apps 等は
+          // すべて同一チャンクに統合（循環参照回避）
+          return 'vendor'
+        }
+      },
+    },
+  },
+}
+```
+
+```
+❌ react-vendor と vendor を分離
+   → @microsoft/power-apps が vendor に残り React を参照 → 循環参照 → ランタイムエラー
+
+✅ 巨大ライブラリのみ分離、React 依存は全て vendor に統合
+   → Circular chunk 警告なし → Power Apps で正常動作
+```
+
 ## 技術スタック
 
 | レイヤー       | 技術                                   |
