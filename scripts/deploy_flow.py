@@ -4,7 +4,7 @@ Power Automate フローデプロイスクリプト — インシデントステ
 Phase 2.5: ステータス変更トリガー → 作成者取得 → ステータスラベル変換 → メール送信
 
 使い方:
-  1. .env に DATAVERSE_URL, TENANT_ID, MCP_CLIENT_ID を設定
+  1. .env に DATAVERSE_URL, TENANT_ID を設定
   2. Power Automate 接続ページで Dataverse / Office 365 Outlook 接続を事前作成
      https://make.powerautomate.com/connections
   3. pip install azure-identity requests python-dotenv

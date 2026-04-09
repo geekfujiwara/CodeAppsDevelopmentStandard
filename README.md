@@ -185,11 +185,12 @@ flowchart TD
 
 ### 設計
 
+環境情報は **Power Apps ポータル > 設定（右上の⚙）> セッション詳細** から取得する。
+
 ```bash
 # .env ファイル
-DATAVERSE_URL=https://{org}.crm.dynamics.com/
-TENANT_ID={your-tenant-id}
-MCP_CLIENT_ID={app-registration-client-id}
+DATAVERSE_URL=https://{org}.crm.dynamics.com/   # セッション詳細の Instance URL
+TENANT_ID={your-tenant-id}                       # セッション詳細の Tenant ID
 SOLUTION_NAME={solution-name}
 PUBLISHER_PREFIX={prefix}
 PAC_AUTH_PROFILE={profile-name}

@@ -61,7 +61,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TENANT_ID: str = os.getenv("TENANT_ID", "")
-CLIENT_ID: str = os.getenv("MCP_CLIENT_ID", "")
 DATAVERSE_URL: str = os.getenv("DATAVERSE_URL", "").rstrip("/")
 
 # AuthenticationRecord の保存先（プロジェクトルートの .auth_record.json）
@@ -125,7 +124,6 @@ def _build_credential() -> DeviceCodeCredential:
 
     kwargs: dict = {
         "tenant_id": TENANT_ID or None,
-        "client_id": CLIENT_ID or None,
         "cache_persistence_options": cache_options,
         "prompt_callback": _device_code_callback,
     }

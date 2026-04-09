@@ -158,11 +158,15 @@ PUBLISHER_PREFIX=geek
 
 | コンポーネント | ソリューション紐づけ方法 |
 |--------------|------------------------|
-| Dataverse テーブル | API ヘッダー `MSCRM.SolutionName` |
+| Dataverse テーブル | API ヘッダー `MSCRM.SolutionName` + `AddSolutionComponent` で検証 |
 | Code Apps | `npx power-apps push`（環境 ID で自動紐づけ） |
 | Power Automate フロー | API ヘッダー `MSCRM.SolutionUniqueName` |
 | 接続参照 | API ヘッダー `MSCRM.SolutionUniqueName` |
 | Copilot Studio エージェント | UI 作成時に「ソリューション」を選択 |
+
+> **重要**: `MSCRM.SolutionName` ヘッダーだけではテーブルがソリューションに含まれないケースがある。
+> `setup_dataverse.py` は最終ステップで `AddSolutionComponent` API を呼び出し、
+> 全テーブルがソリューションに含まれていることを検証・補完する。
 
 > **各フェーズ用の詳細スキル** を `.github/skills/` に配置しています。
 > 各スキルにもこの「一つのソリューション内に開発」原則を明記しています。
@@ -185,11 +189,19 @@ PUBLISHER_PREFIX=geek
 
 ### 2.2 .env ファイル設定
 
+環境情報の取得は **Power Apps ポータル > 設定（右上の⚙）> セッション詳細** から取得する。
+
+```
+セッション詳細から取得できる値:
+  Tenant ID      → TENANT_ID
+  Environment ID → pac auth create の --environment 引数
+  Instance URL   → DATAVERSE_URL
+```
+
 ```bash
 # === 必須（全フェーズ共通）===
 DATAVERSE_URL=https://{org}.crm7.dynamics.com/
 TENANT_ID={your-tenant-id}
-MCP_CLIENT_ID={app-registration-client-id}
 SOLUTION_NAME={solution-name}
 PUBLISHER_PREFIX={prefix}
 
@@ -797,7 +809,7 @@ except RuntimeError as e:
 }}
 ```
 
-この問題は、DeviceCodeCredential（MCP Client ID）で取得したトークンが接続所有者のブラウザセッション と一致しないために発生する。接続を再作成しても PowerApps API から `authenticatedUser` が返されないケースがある。
+この問題は、DeviceCodeCredential で取得したトークンが接続所有者のブラウザセッション と一致しないために発生する。接続を再作成しても PowerApps API から `authenticatedUser` が返されないケースがある。
 
 #### 5.9.3 Dataverse Web API 方式の実装
 
