@@ -18,6 +18,9 @@ PUBLISHER_PREFIX=geek              ← ソリューション発行者の prefix
 ```
 
 - API ヘッダーに `MSCRM.SolutionName: {SOLUTION_NAME}` を付けることでソリューション内に作成
+
+> **認証**: Python スクリプトの認証は `power-platform-standard` スキルに記載の `scripts/auth_helper.py` を使用。
+> `from auth_helper import get_token, get_session, api_get, api_post, api_patch` で利用する。
 - Bot 作成時（Copilot Studio UI）は「エージェント設定」でソリューションを明示的に選択
 - ソリューション外で作成したコンポーネントはリリース管理・環境間移行ができない
 

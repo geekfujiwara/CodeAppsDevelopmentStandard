@@ -59,15 +59,15 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 16. **説明は `botcomponents.description` カラム**。YAML 内の description キーは UI が読まない。publish 後に設定
 
 ### Power Automate フロー開発
-14. **Flow API と PowerApps API で認証スコープが異なる**。Flow API は `https://service.flow.microsoft.com/.default`、接続検索は `https://service.powerapps.com/.default`
-15. **接続は環境内に事前作成が必要**。API で接続の自動作成はできない
-16. **環境 ID は DATAVERSE_URL の instanceUrl から逆引き**。末尾スラッシュを `rstrip("/")` で統一
-17. **既存フロー検索 → 更新 or 新規作成のべき等パターン**を使う
-18. **失敗時はフロー定義 JSON をファイル出力**して手動インポートのフォールバックを用意
+17. **Flow API と PowerApps API で認証スコープが異なる**。Flow API は `https://service.flow.microsoft.com/.default`、接続検索は `https://service.powerapps.com/.default`
+18. **接続は環境内に事前作成が必要**。API で接続の自動作成はできない
+19. **環境 ID は DATAVERSE_URL の instanceUrl から逆引き**。末尾スラッシュを `rstrip("/")` で統一
+20. **既存フロー検索 → 更新 or 新規作成のべき等パターン**を使う
+21. **失敗時はフロー定義 JSON をファイル出力**して手動インポートのフォールバックを用意
 
 ### 日本語ローカライズ
-19. **表示名更新は PUT + MetadataId** パターン。PATCH では反映されないケースがある
-20. **`MSCRM.MergeLabels: true` ヘッダー必須**
+22. **表示名更新は PUT + MetadataId** パターン。PATCH では反映されないケースがある
+23. **`MSCRM.MergeLabels: true` ヘッダー必須**
 
 ## 作業手順
 

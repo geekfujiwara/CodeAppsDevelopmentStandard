@@ -18,6 +18,9 @@ PUBLISHER_PREFIX=geek              ← ソリューション発行者の prefix
 
 - フロー作成時は `MSCRM.SolutionUniqueName` ヘッダー必須
 - 接続参照もソリューション内に作成（`MSCRM.SolutionUniqueName` ヘッダー）
+
+> **認証**: Python スクリプトの認証は `power-platform-standard` スキルに記載の `scripts/auth_helper.py` を使用。
+> `from auth_helper import get_token, get_session, api_get, api_post, flow_api_call` で利用する。
 - ソリューション外のフローは「マイフロー」に入り、ALM 管理できない
 
 ## 絶対遵守ルール（検証済み教訓）
