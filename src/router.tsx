@@ -1,12 +1,7 @@
-﻿import { createBrowserRouter } from "react-router-dom";
+﻿import { createBrowserRouter, Navigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import Layout from "@/pages/_layout";
-import HomePage from "@/pages/home";
 
-// 大きなページを遅延読み込み
-const GuidePage = lazy(() => import("@/pages/guide"));
-const DesignShowcasePage = lazy(() => import("@/pages/design-examples"));
-const FeedbackPage = lazy(() => import("@/pages/feedback"));
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
 
 // インシデント管理ページ
@@ -47,13 +42,10 @@ export const router = createBrowserRouter(
       element: <Layout showHeader={true} />,
       errorElement: withSuspense(NotFoundPage),
       children: [
-        { index: true, element: <HomePage /> },
+        { index: true, element: <Navigate to="/incidents" replace /> },
         { path: "incidents", element: withSuspense(IncidentListPage) },
         { path: "incidents/new", element: withSuspense(IncidentCreatePage) },
         { path: "incidents/:id", element: withSuspense(IncidentDetailPage) },
-        { path: "guide", element: withSuspense(GuidePage) },
-        { path: "design-examples", element: withSuspense(DesignShowcasePage) },
-        { path: "feedback", element: withSuspense(FeedbackPage) },
       ],
     },
   ],

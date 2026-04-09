@@ -81,6 +81,134 @@ name = name.replace(
 → 日本語スキーマ名は pac code add-data-source で失敗する
 ```
 
+### Power Apps CSP（Content Security Policy）違反の回避
+
+Power Apps ランタイムは厳格な CSP を適用し、**外部 API への `fetch`/`XMLHttpRequest` はすべてブロックされる**（`connect-src 'none'`）。
+
+```
+❌ fetch("https://learn.microsoft.com/api/learn/catalog")
+   → Connecting to '...' violates Content Security Policy: "connect-src 'none'"
+
+❌ window.open("https://外部サイト") を含むページ
+   → CSP または Power Apps の制約でブロック
+
+✅ Dataverse SDK（getClient()）経由のデータアクセスのみ
+   → Power Apps SDK は CSP の制約を受けない内部通信
+```
+
+**CodeAppsStarter テンプレートにはデモ用の外部 API 呼び出しが含まれる**ため、必ず削除すること。
+
+### SDK 生成サービス必須（カスタム getClient() / dataSourcesInfo 禁止）
+
+`npx power-apps add-data-source` で生成される **`src/generated/` のサービスと型を必ず使用する**。
+カスタムの `getClient()` や自前の `dataSourcesInfo` でのデータ取得は禁止。
+
+```
+❌ カスタム dataSourcesInfo を自前で定義して getClient() に渡す
+   → Power Apps ランタイムで Dataverse 接続が確立されない
+   → ローカルでは動くがデプロイ後にデータ取得できない
+
+✅ src/generated/services/ の SDK 生成サービスを使用
+   → .power/schemas/appschemas/dataSourcesInfo.ts を経由
+   → Power Apps ランタイムが自動で Dataverse 接続を解決
+```
+
+**SDK 生成コードの構成**（`npx power-apps add-data-source` 実行後に生成される）:
+
+```
+src/generated/
+├── index.ts                                 # 全モデル・サービスの re-export
+├── models/
+│   ├── CommonModels.ts                      # IGetOptions, IGetAllOptions
+│   ├── Geek_incidentsModel.ts               # Geek_incidents 型 + Choice 値
+│   ├── Geek_incidentcategoriesModel.ts
+│   ├── Geek_locationsModel.ts
+│   ├── Geek_incidentcommentsModel.ts
+│   └── SystemusersModel.ts
+└── services/
+    ├── Geek_incidentsService.ts             # create/update/delete/get/getAll
+    ├── Geek_incidentcategoriesService.ts
+    ├── Geek_locationsService.ts
+    ├── Geek_incidentcommentsService.ts
+    └── SystemusersService.ts
+.power/schemas/appschemas/
+└── dataSourcesInfo.ts                       # SDK が内部で使用（直接参照不要）
+```
+
+**推奨アーキテクチャ**: SDK 生成サービスの薄いラッパーを作成する。
+
+```typescript
+// src/services/incident-service.ts — SDK生成サービスのラッパー
+import { Geek_incidentsService } from "@/generated/services/Geek_incidentsService";
+import type { Geek_incidents, Geek_incidentsBase } from "@/generated/models/Geek_incidentsModel";
+
+// システムフィールドは Dataverse が自動設定 → Create 時は除外
+type SystemFields = "geek_incidentid" | "ownerid" | "owneridtype" | "statecode" | "statuscode";
+export type CreatePayload = Omit<Geek_incidentsBase, SystemFields>
+  & Partial<Pick<Geek_incidentsBase, "ownerid" | "owneridtype" | "statecode" | "statuscode">>;
+
+export async function getIncidents(): Promise<Geek_incidents[]> {
+  const result = await Geek_incidentsService.getAll({ orderBy: ["createdon desc"] });
+  return result.data;
+}
+
+export async function createIncident(payload: CreatePayload): Promise<Geek_incidents> {
+  const result = await Geek_incidentsService.create(
+    payload as Omit<Geek_incidentsBase, "geek_incidentid">
+  );
+  return result.data;
+}
+```
+
+**SDK 生成型の注意点**:
+- Lookup フィールドは `object` 型 → 展開名フィールド (`geek_incidentcategoryidname`) を使用
+- `createdon`, `modifiedon` は `string | undefined` → null チェック必須
+- `geek_status`, `geek_priority` は `number | undefined` → null チェック必須
+- Choice 値マップ（`Geek_incidentsgeek_status` 等）は SDK が生成するが、UI ラベルは別途定義
+
+### CodeAppsStarter テンプレートのクリーンアップ（必須）
+
+CodeAppsStarter からプロジェクトを作成した場合、テンプレートのデモページ・コンポーネントが残る。
+**アプリのテーマに無関係な要素はすべて削除**し、ユーザーのプロンプトに準拠したアプリのみ残す。
+
+```
+削除対象（インシデント管理の例）:
+├── src/pages/home.tsx            ← テンプレートホーム（ロゴ表示）
+├── src/pages/design-examples.tsx ← デザインショーケース（外部API呼出=CSP違反）
+├── src/pages/guide.tsx           ← テンプレートガイド
+├── src/pages/feedback.tsx        ← フィードバックページ
+├── src/hooks/use-learn-catalog.ts ← Microsoft Learn API（CSP違反）
+├── src/lib/learn-client.ts        ← 外部API呼出（CSP違反の根本原因）
+├── src/lib/gallery-utils.ts       ← テンプレート専用ユーティリティ
+├── src/lib/table-utils.tsx
+├── src/lib/project-management-*.ts
+├── src/components/chart-dashboard.tsx  ← recharts 依存
+├── src/components/gantt-chart.tsx      ← テンプレートデモ
+├── src/components/kanban-*.tsx         ← テンプレートデモ
+├── src/components/tree-structure.tsx   ← mermaid 依存
+├── src/components/gallery-*.ts(x)     ← テンプレートデモ
+├── src/components/stats-cards.tsx      ← テンプレートデモ
+├── src/components/*-gallery.tsx        ← テンプレートデモ
+├── src/components/link-confirm-modal.tsx
+├── src/components/code-block.tsx
+├── src/components/hamburger-menu.tsx
+├── src/components/csv-import-export.tsx
+└── src/components/ui/chart.tsx    ← recharts 依存
+```
+
+**修正手順**:
+1. `router.tsx`: テンプレートページのルートを削除、`/` を `/incidents` にリダイレクト
+2. `_layout.tsx`: ヘッダーのアプリ名をテーマに合わせ変更、テンプレート外部リンク・フッター削除
+3. `sidebar.tsx`: ナビゲーションをアプリのテーマに限定
+4. テンプレート専用ファイルを削除
+5. `npm remove mermaid recharts`（テンプレートデモ専用パッケージ）
+6. `inline-edit-table.tsx` / `list-table.tsx` から `csv-import-export` 参照を削除
+7. ビルド → 0 エラー確認 → デプロイ
+
+> **残すコンポーネント**: `form-modal.tsx`, `inline-edit-table.tsx`, `list-table.tsx`, `loading-skeleton.tsx`,
+> `fullscreen-wrapper.tsx`, `sidebar-layout.tsx`, `sidebar.tsx`, `mode-toggle.tsx`, `ui/` 配下全て。
+> これらは将来の画面実装で活用できる汎用コンポーネント。
+
 ## 構築手順
 
 ### Step 1: プロジェクト初期化
@@ -245,6 +373,30 @@ build: {
 
 ✅ 巨大ライブラリのみ分離、React 依存は全て vendor に統合
    → Circular chunk 警告なし → Power Apps で正常動作
+```
+
+### Step 7.2: ビルド後検証 — CSP 違反チェック（必須）
+
+ビルド成功後、デプロイ前に以下を検証する:
+
+```bash
+# ① 外部 API 呼び出しがないこと（Dataverse SDK 経由以外の fetch/XMLHttpRequest）
+grep -r "fetch(" src/ --include="*.ts" --include="*.tsx" | grep -v node_modules | grep -v "getClient"
+
+# ② learn.microsoft.com 等の外部 URL への接続がないこと
+grep -rn "https://" src/ --include="*.ts" --include="*.tsx" | grep -v "// " | grep -v "crm7.dynamics.com"
+```
+
+上記に該当するコードが残っていたら削除する。Power Apps ランタイムは `connect-src 'none'` で外部通信をすべてブロックする。
+
+### Step 7.3: テンプレート残留チェック（必須）
+
+```bash
+# テンプレートページが残っていないこと
+ls src/pages/ | grep -v "incident\|not-found\|_layout"
+
+# テンプレート専用コンポーネントが残っていないこと  
+grep -rn "learn-client\|learn-catalog\|chart-dashboard\|gantt-chart\|kanban-board\|tree-structure" src/ --include="*.ts" --include="*.tsx"
 ```
 
 ## 技術スタック

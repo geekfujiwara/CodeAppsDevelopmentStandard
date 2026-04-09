@@ -1,134 +1,92 @@
 /**
  * インシデント管理 — Dataverse サービス
  *
- * Power Apps SDK の getClient() + DataClient パターンで CRUD 操作を統一。
- *
- * 注: `pac code add-data-source -a dataverse -t geek_incident` 実行後、
- *     生成される DataSources 情報でこのファイルの dataSourcesInfo を更新してください。
+ * SDK 生成サービス (src/generated/) のラッパー。
+ * カスタム getClient() / dataSourcesInfo は使用禁止。
+ * 必ず `npx power-apps add-data-source` で生成されたコードを経由する。
  */
 
-import { getClient } from "@microsoft/power-apps/data";
-import type { DataClient } from "@microsoft/power-apps/data";
-import type {
-  Incident,
-  IncidentCategory,
-  Location,
-  IncidentComment,
-  CreateIncidentPayload,
-  UpdateIncidentPayload,
-} from "@/lib/incident-types";
+import { Geek_incidentsService } from "@/generated/services/Geek_incidentsService";
+import { Geek_incidentcategoriesService } from "@/generated/services/Geek_incidentcategoriesService";
+import { Geek_locationsService } from "@/generated/services/Geek_locationsService";
+import { Geek_incidentcommentsService } from "@/generated/services/Geek_incidentcommentsService";
+import type { Geek_incidents, Geek_incidentsBase } from "@/generated/models/Geek_incidentsModel";
+import type { Geek_incidentcategories } from "@/generated/models/Geek_incidentcategoriesModel";
+import type { Geek_locations } from "@/generated/models/Geek_locationsModel";
+import type { Geek_incidentcomments, Geek_incidentcommentsBase } from "@/generated/models/Geek_incidentcommentsModel";
 
-const PREFIX = "geek";
+// ── 型の re-export（ページ層はこのファイル経由で型を取得） ──
 
-/**
- * DataSources 情報のプレースホルダー。
- * `pac code add-data-source` 実行後に生成される設定で置き換えてください。
- * Power Apps ランタイム上では SDK が自動で解決します。
- */
-const dataSourcesInfo: Record<
-  string,
-  { tableId: string; apis: Record<string, never> }
-> = {
-  [`${PREFIX}_incidents`]: { tableId: `${PREFIX}_incident`, apis: {} },
-  [`${PREFIX}_incidentcategories`]: {
-    tableId: `${PREFIX}_incidentcategory`,
-    apis: {},
-  },
-  [`${PREFIX}_locations`]: { tableId: `${PREFIX}_location`, apis: {} },
-  [`${PREFIX}_incidentcomments`]: {
-    tableId: `${PREFIX}_incidentcomment`,
-    apis: {},
-  },
-};
+export type {
+  Geek_incidents as Incident,
+  Geek_incidentsBase as IncidentBase,
+} from "@/generated/models/Geek_incidentsModel";
+export type {
+  Geek_incidentcategories as IncidentCategory,
+} from "@/generated/models/Geek_incidentcategoriesModel";
+export type {
+  Geek_locations as Location,
+} from "@/generated/models/Geek_locationsModel";
+export type {
+  Geek_incidentcomments as IncidentComment,
+} from "@/generated/models/Geek_incidentcommentsModel";
 
-function client(): DataClient {
-  return getClient(dataSourcesInfo);
-}
+// ── CreateIncidentPayload / UpdateIncidentPayload ────────
+// SDK 生成型の Base には ownerid/statecode 等のシステム列が required だが、
+// レコード作成時は Dataverse が自動設定するため除外する。
 
-const INCIDENT_SELECT = [
-  `${PREFIX}_incidentid`,
-  `${PREFIX}_name`,
-  `${PREFIX}_description`,
-  `${PREFIX}_status`,
-  `${PREFIX}_priority`,
-  `${PREFIX}_duedate`,
-  "createdon",
-  "modifiedon",
-  `_${PREFIX}_incidentcategoryid_value`,
-  `_${PREFIX}_locationid_value`,
-  `_${PREFIX}_assignedtoid_value`,
-];
+type SystemFields = "geek_incidentid" | "ownerid" | "owneridtype" | "statecode" | "statuscode";
+export type CreateIncidentPayload = Omit<Geek_incidentsBase, SystemFields> & Partial<Pick<Geek_incidentsBase, "ownerid" | "owneridtype" | "statecode" | "statuscode">>;
+export type UpdateIncidentPayload = Partial<Omit<Geek_incidentsBase, "geek_incidentid">>;
 
-// ── インシデント ─────────────────────────────────────────
+// ── インシデント CRUD ────────────────────────────────────
 
-export async function getIncidents(): Promise<Incident[]> {
-  const c = client();
-  const result = await c.retrieveMultipleRecordsAsync<Incident>(
-    `${PREFIX}_incidents`,
-    {
-      select: INCIDENT_SELECT,
-      orderBy: ["createdon desc"],
-    },
-  );
+export async function getIncidents(): Promise<Geek_incidents[]> {
+  const result = await Geek_incidentsService.getAll({
+    orderBy: ["createdon desc"],
+  });
   return result.data;
 }
 
-export async function getIncident(id: string): Promise<Incident> {
-  const c = client();
-  const result = await c.retrieveRecordAsync<Incident>(
-    `${PREFIX}_incidents`,
-    id,
-    { select: INCIDENT_SELECT },
-  );
+export async function getIncident(id: string): Promise<Geek_incidents> {
+  const result = await Geek_incidentsService.get(id);
   return result.data;
 }
 
 export async function createIncident(
   payload: CreateIncidentPayload,
-): Promise<unknown> {
-  const c = client();
-  const result = await c.createRecordAsync(`${PREFIX}_incidents`, payload);
+): Promise<Geek_incidents> {
+  const result = await Geek_incidentsService.create(payload as Omit<Geek_incidentsBase, "geek_incidentid">);
   return result.data;
 }
 
 export async function updateIncident(
   id: string,
   payload: UpdateIncidentPayload,
-): Promise<void> {
-  const c = client();
-  await c.updateRecordAsync(`${PREFIX}_incidents`, id, payload);
+): Promise<Geek_incidents> {
+  const result = await Geek_incidentsService.update(id, payload);
+  return result.data;
 }
 
 export async function deleteIncident(id: string): Promise<void> {
-  const c = client();
-  await c.deleteRecordAsync(`${PREFIX}_incidents`, id);
+  await Geek_incidentsService.delete(id);
 }
 
 // ── カテゴリ ─────────────────────────────────────────────
 
-export async function getCategories(): Promise<IncidentCategory[]> {
-  const c = client();
-  const result = await c.retrieveMultipleRecordsAsync<IncidentCategory>(
-    `${PREFIX}_incidentcategories`,
-    {
-      select: [`${PREFIX}_incidentcategoryid`, `${PREFIX}_name`],
-      orderBy: [`${PREFIX}_name`],
-    },
-  );
+export async function getCategories(): Promise<Geek_incidentcategories[]> {
+  const result = await Geek_incidentcategoriesService.getAll({
+    orderBy: ["geek_name"],
+  });
   return result.data;
 }
 
 // ── 場所 ─────────────────────────────────────────────────
 
-export async function getLocations(): Promise<Location[]> {
-  const c = client();
-  const result = await c.retrieveMultipleRecordsAsync<Location>(
-    `${PREFIX}_locations`,
-    {
-      select: [`${PREFIX}_locationid`, `${PREFIX}_name`],
-      orderBy: [`${PREFIX}_name`],
-    },
-  );
+export async function getLocations(): Promise<Geek_locations[]> {
+  const result = await Geek_locationsService.getAll({
+    orderBy: ["geek_name"],
+  });
   return result.data;
 }
 
@@ -136,21 +94,11 @@ export async function getLocations(): Promise<Location[]> {
 
 export async function getComments(
   incidentId: string,
-): Promise<IncidentComment[]> {
-  const c = client();
-  const result = await c.retrieveMultipleRecordsAsync<IncidentComment>(
-    `${PREFIX}_incidentcomments`,
-    {
-      select: [
-        `${PREFIX}_incidentcommentid`,
-        `${PREFIX}_name`,
-        `${PREFIX}_content`,
-        "createdon",
-      ],
-      filter: `_${PREFIX}_incidentid_value eq '${incidentId}'`,
-      orderBy: ["createdon desc"],
-    },
-  );
+): Promise<Geek_incidentcomments[]> {
+  const result = await Geek_incidentcommentsService.getAll({
+    filter: `_geek_incidentid_value eq '${incidentId}'`,
+    orderBy: ["createdon desc"],
+  });
   return result.data;
 }
 
@@ -158,12 +106,11 @@ export async function createComment(
   incidentId: string,
   name: string,
   content: string,
-): Promise<unknown> {
-  const c = client();
-  const result = await c.createRecordAsync(`${PREFIX}_incidentcomments`, {
-    [`${PREFIX}_name`]: name,
-    [`${PREFIX}_content`]: content,
-    [`${PREFIX}_incidentid@odata.bind`]: `/${PREFIX}_incidents(${incidentId})`,
-  });
+): Promise<Geek_incidentcomments> {
+  const result = await Geek_incidentcommentsService.create({
+    geek_name: name,
+    geek_content: content,
+    "geek_incidentid@odata.bind": `/geek_incidents(${incidentId})`,
+  } as Omit<Geek_incidentcommentsBase, "geek_incidentcommentid">);
   return result.data;
 }

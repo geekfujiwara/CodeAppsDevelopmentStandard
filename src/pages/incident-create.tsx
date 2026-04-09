@@ -60,7 +60,7 @@ export default function IncidentCreatePage() {
       geek_status: Number(form.status) as IncidentStatus,
       geek_priority: Number(form.priority) as IncidentPriority,
       geek_duedate: form.duedate || undefined,
-    };
+    } as CreateIncidentPayload;
 
     if (form.categoryId) {
       payload["geek_incidentcategoryid@odata.bind"] =

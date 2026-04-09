@@ -147,7 +147,7 @@ export default function IncidentDetailPage() {
               {incident.geek_name}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              作成日: {new Date(incident.createdon).toLocaleString("ja-JP")}
+              作成日: {incident.createdon ? new Date(incident.createdon).toLocaleString("ja-JP") : "—"}
             </p>
           </div>
         </div>
@@ -228,11 +228,11 @@ export default function IncidentDetailPage() {
                         <div className="flex items-center gap-2 text-sm">
                           <UserCircle className="h-4 w-4 text-muted-foreground" />
                           <span className="font-medium">
-                            {c.createdby?.fullname ?? "不明"}
+                            {c.createdbyname ?? "不明"}
                           </span>
                         </div>
                         <time className="text-xs text-muted-foreground">
-                          {new Date(c.createdon).toLocaleString("ja-JP")}
+                          {c.createdon ? new Date(c.createdon).toLocaleString("ja-JP") : "—"}
                         </time>
                       </div>
                       <p className="text-sm font-medium mb-1">{c.geek_name}</p>
@@ -322,23 +322,23 @@ export default function IncidentDetailPage() {
                 <Tag className="h-4 w-4 text-muted-foreground" />
                 <span className="text-muted-foreground">カテゴリ:</span>
                 <span>
-                  {incident.geek_incidentcategoryid?.geek_name ?? "—"}
+                  {incident.geek_incidentcategoryidname ?? "—"}
                 </span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
                 <span className="text-muted-foreground">場所:</span>
-                <span>{incident.geek_locationid?.geek_name ?? "—"}</span>
+                <span>{incident.geek_locationidname ?? "—"}</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <User className="h-4 w-4 text-muted-foreground" />
                 <span className="text-muted-foreground">担当者:</span>
-                <span>{incident.geek_assignedtoid?.fullname ?? "未割当"}</span>
+                <span>{incident.geek_assignedtoidname ?? "未割当"}</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <UserCircle className="h-4 w-4 text-muted-foreground" />
                 <span className="text-muted-foreground">報告者:</span>
-                <span>{incident.createdby?.fullname ?? "—"}</span>
+                <span>{incident.createdbyname ?? "—"}</span>
               </div>
               {incident.geek_duedate && (
                 <div className="flex items-center gap-2 text-sm">

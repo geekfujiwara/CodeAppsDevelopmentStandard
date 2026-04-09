@@ -79,13 +79,13 @@ export default function IncidentListPage() {
   const stats = {
     total: incidents?.length ?? 0,
     open:
-      incidents?.filter((i) => i.geek_status <= IncidentStatus.ON_HOLD)
+      incidents?.filter((i) => (i.geek_status ?? 0) <= IncidentStatus.ON_HOLD)
         .length ?? 0,
     critical:
       incidents?.filter((i) => i.geek_priority === IncidentPriority.CRITICAL)
         .length ?? 0,
     resolved:
-      incidents?.filter((i) => i.geek_status >= IncidentStatus.RESOLVED)
+      incidents?.filter((i) => (i.geek_status ?? 0) >= IncidentStatus.RESOLVED)
         .length ?? 0,
   };
 
@@ -301,17 +301,17 @@ export default function IncidentListPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {inc.geek_incidentcategoryid?.geek_name ?? "—"}
+                      {inc.geek_incidentcategoryidname ?? "—"}
                     </TableCell>
                     <TableCell>
-                      {inc.geek_locationid?.geek_name ?? "—"}
+                      {inc.geek_locationidname ?? "—"}
                     </TableCell>
                     <TableCell>
-                      {inc.geek_assignedtoid?.fullname ?? "—"}
+                      {inc.geek_assignedtoidname ?? "—"}
                     </TableCell>
-                    <TableCell>{inc.createdby?.fullname ?? "—"}</TableCell>
+                    <TableCell>{inc.createdbyname ?? "—"}</TableCell>
                     <TableCell>
-                      {new Date(inc.createdon).toLocaleDateString("ja-JP")}
+                      {inc.createdon ? new Date(inc.createdon).toLocaleDateString("ja-JP") : "—"}
                     </TableCell>
                     <TableCell>
                       <Button

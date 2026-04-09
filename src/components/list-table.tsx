@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input"
 import { Combobox } from "@/components/ui/combobox"
 import type { ComboboxOption } from "@/components/ui/combobox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CsvImportExport, type CsvColumn, type CsvOperationType } from "@/components/csv-import-export"
 import { FormModal } from "@/components/form-modal"
 import { Search, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -46,11 +45,6 @@ export type ListTableProps<T> = {
   itemsPerPage?: number
   emptyMessage?: string
   className?: string
-  enableCsv?: boolean
-  csvColumns?: CsvColumn<T>[]
-  csvFileName?: string
-  csvUniqueKey?: keyof T
-  onCsvImport?: (data: T[], operationsMap: Map<T, CsvOperationType>) => void
   onRowClick?: (item: T) => void
   renderForm?: (item: T | null, onClose: () => void) => React.ReactNode
   formTitle?: string
@@ -69,11 +63,6 @@ export function ListTable<T extends Record<string, unknown>>({
   itemsPerPage = 10,
   emptyMessage = "データがありません",
   className,
-  enableCsv = false,
-  csvColumns,
-  csvFileName = "data",
-  csvUniqueKey,
-  onCsvImport,
   onRowClick,
   renderForm,
   formTitle = "詳細",
@@ -171,15 +160,7 @@ export function ListTable<T extends Record<string, unknown>>({
               {title && <CardTitle>{title}</CardTitle>}
               {description && <CardDescription>{description}</CardDescription>}
             </div>
-            {enableCsv && csvColumns && (
-              <CsvImportExport
-                columns={csvColumns}
-                data={data}
-                onImport={onCsvImport}
-                fileName={csvFileName}
-                uniqueKey={csvUniqueKey}
-              />
-            )}
+
           </div>
         </CardHeader>
       )}

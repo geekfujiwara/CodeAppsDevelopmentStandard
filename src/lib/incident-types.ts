@@ -1,8 +1,39 @@
 /**
  * インシデント管理 — 型定義
+ *
+ * SDK 生成型 (src/generated/models/) を re-export し、
+ * UI 用のラベル・カラーマッピングを提供する。
  */
 
-// ── Choice 値定義 ────────────────────────────────────────
+// ── SDK 生成型の re-export ───────────────────────────────
+
+export type {
+  Geek_incidents as Incident,
+  Geek_incidentsBase as IncidentBase,
+  Geek_incidentsgeek_status,
+  Geek_incidentsgeek_priority,
+} from "@/generated/models/Geek_incidentsModel";
+
+export type {
+  Geek_incidentcategories as IncidentCategory,
+} from "@/generated/models/Geek_incidentcategoriesModel";
+
+export type {
+  Geek_locations as Location,
+} from "@/generated/models/Geek_locationsModel";
+
+export type {
+  Geek_incidentcomments as IncidentComment,
+} from "@/generated/models/Geek_incidentcommentsModel";
+
+export type {
+  CreateIncidentPayload,
+  UpdateIncidentPayload,
+} from "@/services/incident-service";
+
+// ── Choice 値定義（UI 用） ───────────────────────────────
+// SDK 生成型は Choice キーを number literal 型で持つが、
+// UI ラベル/カラーマッピングに定数が必要なため維持。
 
 export const IncidentStatus = {
   NEW: 100000000,
@@ -42,7 +73,7 @@ export const priorityLabels: Record<IncidentPriority, string> = {
 
 // ── Tailwind カラー ──────────────────────────────────────
 
-export const statusColors: Record<IncidentStatus, string> = {
+export const statusColors: Record<number, string> = {
   [IncidentStatus.NEW]:
     "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   [IncidentStatus.IN_PROGRESS]:
@@ -55,7 +86,7 @@ export const statusColors: Record<IncidentStatus, string> = {
     "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
 };
 
-export const priorityColors: Record<IncidentPriority, string> = {
+export const priorityColors: Record<number, string> = {
   [IncidentPriority.CRITICAL]:
     "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
   [IncidentPriority.HIGH]:
@@ -65,64 +96,3 @@ export const priorityColors: Record<IncidentPriority, string> = {
   [IncidentPriority.LOW]:
     "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
 };
-
-// ── エンティティ型 ───────────────────────────────────────
-
-export interface Incident {
-  geek_incidentid: string;
-  geek_name: string;
-  geek_description?: string;
-  geek_status: IncidentStatus;
-  geek_priority: IncidentPriority;
-  geek_duedate?: string;
-  createdon: string;
-  modifiedon: string;
-  // Lookup 展開
-  _geek_incidentcategoryid_value?: string;
-  geek_incidentcategoryid?: { geek_name: string };
-  _geek_locationid_value?: string;
-  geek_locationid?: { geek_name: string };
-  _geek_assignedtoid_value?: string;
-  geek_assignedtoid?: { fullname: string };
-  createdby?: { fullname: string };
-}
-
-export interface IncidentCategory {
-  geek_incidentcategoryid: string;
-  geek_name: string;
-}
-
-export interface Location {
-  geek_locationid: string;
-  geek_name: string;
-}
-
-export interface IncidentComment {
-  geek_incidentcommentid: string;
-  geek_name: string;
-  geek_content: string;
-  createdon: string;
-  createdby?: { fullname: string };
-}
-
-export interface CreateIncidentPayload {
-  geek_name: string;
-  geek_description?: string;
-  geek_status: IncidentStatus;
-  geek_priority: IncidentPriority;
-  geek_duedate?: string;
-  "geek_incidentcategoryid@odata.bind"?: string;
-  "geek_locationid@odata.bind"?: string;
-  "geek_assignedtoid@odata.bind"?: string;
-}
-
-export interface UpdateIncidentPayload {
-  geek_name?: string;
-  geek_description?: string;
-  geek_status?: IncidentStatus;
-  geek_priority?: IncidentPriority;
-  geek_duedate?: string;
-  "geek_incidentcategoryid@odata.bind"?: string;
-  "geek_locationid@odata.bind"?: string;
-  "geek_assignedtoid@odata.bind"?: string;
-}

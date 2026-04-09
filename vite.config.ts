@@ -27,14 +27,6 @@ export default defineConfig({
       output: {
         manualChunks: (id) => {
           if (id.includes('node_modules')) {
-            // Mermaid関連 (大きいので分離)
-            if (id.includes('mermaid')) return 'mermaid-vendor'
-            // Cytoscape関連 (大きいので分離)
-            if (id.includes('cytoscape')) return 'cytoscape-vendor'
-            // KaTeX関連 (大きいので分離)
-            if (id.includes('katex')) return 'katex-vendor'
-            // チャート関連
-            if (id.includes('recharts')) return 'chart-vendor'
             // DnD関連
             if (id.includes('@dnd-kit')) return 'dnd-vendor'
             // ユーティリティ（React 非依存）
