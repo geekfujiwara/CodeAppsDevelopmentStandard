@@ -134,7 +134,9 @@ python -c "from scripts.auth_helper import get_token; print(get_token()[:20] + '
 | configuration はディープマージで PATCH        | 丸ごと上書き→基盤モデル・gPTSettings が消える              |
 | optInUseLatestModels は明示的に False        | True だと基盤モデルが GPT に強制変更。既存 True も上書き    |
 | 推奨プロンプトは conversationStarters で登録 | GPT コンポーネント (type=15) YAML の title/text             |
+| 挨拶メッセージはエージェントに合わせて設定   | ConversationStart トピック (type=9) の SendActivity.text     |
 | クイック返信は ConversationStart で登録      | ConversationStart トピック (type=9) の quickReplies          |
+| トピック削除時はシステムトピックを保護       | schemaname パターンで ConversationStart, Escalate 等を保護   |
 | 説明は publish 後に設定                      | data PATCH の非同期処理で上書きされる                       |
 | appId は環境固有                             | 別環境の appId → AppLeaseMissing (409)                      |
 | Code Apps を環境で有効化                     | 未許可 → CodeAppOperationNotAllowedInEnvironment (403)      |

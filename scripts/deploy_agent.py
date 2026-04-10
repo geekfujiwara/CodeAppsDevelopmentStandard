@@ -182,6 +182,9 @@ QUICK_REPLIES = [
     "緊急のインシデントはある？",
 ]
 
+# ── 会話の開始メッセージ（ConversationStart トピックの挨拶テキスト） ──
+GREETING_MESSAGE = "こんにちは！インシデント管理アシスタントです。インシデントの起票・検索・ステータス更新など、お気軽にお申し付けください。"
+
 BOT_DESCRIPTION = "社内のインシデント（障害・問題）を管理するAIエージェントです。インシデントの起票、ステータス更新、一覧検索、コメント追加などを自然言語で実行できます。"
 
 GPT_YAML = f"kind: GptComponentMetadata\ndisplayName: {BOT_NAME}\ninstructions: |-\n"
@@ -280,24 +283,49 @@ def _wait_for_provisioning(bot_id: str, timeout: int = 120) -> bool:
     return False
 
 
+# 削除から保護するシステムトピックの schemaname パターン
+PROTECTED_TOPIC_PATTERNS = [
+    "ConversationStart",
+    "Escalate",
+    "Fallback",
+    "OnError",
+    "EndofConversation",
+    "MultipleTopicsMatched",
+    "Search",
+    "Signin",
+    "ResetConversation",
+]
+
+
 def delete_custom_topics(bot_id: str):
     print("\n=== Step 2: カスタムトピック削除 ===")
+    # componenttype=1（カスタムトピック）と componenttype=9（システムトピック含む）の両方を取得
     topics = api_get("botcomponents",
-                     {"$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 1",
-                      "$select": "botcomponentid,name"})
+                     {"$filter": f"_parentbotid_value eq '{bot_id}' and (componenttype eq 1 or componenttype eq 9)",
+                      "$select": "botcomponentid,name,schemaname,componenttype"})
     if not topics.get("value"):
         print("  ⚠️ トピックが 0 件です（プロビジョニング未完了の可能性）")
     count = 0
     for topic in topics.get("value", []):
-        # システムトピックはスキップ
-        if topic.get("name", "").startswith("system_"):
+        name = topic.get("name", "")
+        schema = topic.get("schemaname", "")
+        # システムトピック名はスキップ
+        if name.startswith("system_"):
+            continue
+        # 保護対象のシステムトピックはスキップ（schemaname で判定）
+        if any(p in schema for p in PROTECTED_TOPIC_PATTERNS):
+            print(f"  保護: {name} ({schema})")
+            continue
+        # MCP Server / アクション（.action. を含む）はスキップ
+        if ".action." in schema:
+            print(f"  保護: {name} ({schema})")
             continue
         try:
             api_delete(f"botcomponents({topic['botcomponentid']})")
-            print(f"  削除: {topic.get('name', 'unknown')}")
+            print(f"  削除: {name} ({schema})")
             count += 1
         except Exception as e:
-            print(f"  スキップ: {topic.get('name', 'unknown')} ({e})")
+            print(f"  スキップ: {name} ({e})")
     print(f"  {count} 件のカスタムトピックを削除")
 
 # ── Step 3: 生成オーケストレーション有効化 ────────────────
@@ -424,12 +452,8 @@ def set_gpt_instructions(bot_id: str, saved_config: dict):
 # ── Step 4.5: 会話の開始のクイック返信設定 ────────────────
 
 def set_quick_replies(bot_id: str):
-    """ConversationStart トピックの quickReplies を設定する。"""
-    print("\n=== Step 4.5: 会話の開始のクイック返信設定 ===")
-
-    if not QUICK_REPLIES:
-        print("  QUICK_REPLIES が空 — スキップ")
-        return
+    """ConversationStart トピックの挨拶メッセージと quickReplies を設定する。"""
+    print("\n=== Step 4.5: 会話の開始設定（メッセージ + クイック返信） ===")
 
     # ConversationStart トピックを検索
     result = api_get("botcomponents", {
@@ -446,28 +470,34 @@ def set_quick_replies(bot_id: str):
     existing_data = topic.get("data", "")
     print(f"  トピック: {topic['schemaname']} ({topic_id})")
 
-    # 既存 YAML をパースして quickReplies を差し替え
+    # 既存 YAML をパースして更新
     try:
         parsed = yaml.safe_load(existing_data)
     except Exception:
-        print("  ⚠️ 既存 YAML のパースに失敗 — quickReplies を追加できません")
+        print("  ⚠️ 既存 YAML のパースに失敗")
         return
 
     # quickReplies を構築
-    quick_reply_items = [{"kind": "MessageBack", "text": qr} for qr in QUICK_REPLIES]
+    quick_reply_items = [{"kind": "MessageBack", "text": qr} for qr in QUICK_REPLIES] if QUICK_REPLIES else []
 
-    # beginDialog > actions 内の SendActivity を探して quickReplies を設定
+    # beginDialog > actions 内の SendActivity を探してメッセージとクイック返信を設定
     actions = parsed.get("beginDialog", {}).get("actions", [])
     updated = False
     for action in actions:
         if action.get("kind") == "SendActivity":
             activity = action.get("activity", {})
             if isinstance(activity, dict):
-                activity["quickReplies"] = quick_reply_items
+                # 挨拶メッセージを更新
+                if GREETING_MESSAGE:
+                    activity["text"] = [GREETING_MESSAGE]
+                    activity["speak"] = [GREETING_MESSAGE]
+                # クイック返信を設定
+                if quick_reply_items:
+                    activity["quickReplies"] = quick_reply_items
             else:
                 # activity が文字列の場合は dict に変換
                 action["activity"] = {
-                    "text": [activity] if isinstance(activity, str) else activity,
+                    "text": [GREETING_MESSAGE or str(activity)],
                     "quickReplies": quick_reply_items,
                 }
             updated = True
@@ -480,6 +510,8 @@ def set_quick_replies(bot_id: str):
     # YAML に戻して PATCH
     new_data = yaml.dump(parsed, default_flow_style=False, allow_unicode=True, sort_keys=False)
     api_patch(f"botcomponents({topic_id})", {"data": new_data})
+    if GREETING_MESSAGE:
+        print(f"  挨拶メッセージ: {GREETING_MESSAGE[:50]}...")
     print(f"  クイック返信 {len(QUICK_REPLIES)} 件を設定")
 
 

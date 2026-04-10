@@ -19,6 +19,7 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 | エージェント名・説明 | 名前と役割の説明 |
 | Instructions | 指示テキストの全文案 |
 | 推奨プロンプト | 3〜5 個のタイトル＋プロンプト文（GPT コンポーネントの conversationStarters） |
+| 会話の開始のメッセージ | エージェントに合った挨拶テキスト（ConversationStart トピックの SendActivity） |
 | 会話の開始のクイック返信 | 3〜5 個のクイック返信テキスト（ConversationStart トピックの quickReplies） |
 | ナレッジ | データソース（Dataverse テーブル / SharePoint / ファイル等） |
 | ツール | MCP Server の接続先・用途 |
@@ -154,14 +155,38 @@ Bot ID URL をコピーしてすぐにスクリプトを実行すると、カス
 # → 0 件のままトピック削除に進むことを防止
 ```
 
-### Step 2: カスタムトピック全削除
+### Step 2: カスタムトピック削除（システムトピック保護）
+
+**削除対象**: ユーザー作成のカスタムトピック（あいさつ、ありがとう、お問い合わせありがとう、最初からやり直す等）
+**保護対象**: システムトピック（ConversationStart, Escalate, Fallback, OnError, Search, Signin 等）と MCP Server アクション
+
 ```python
-# componenttype=1 がトピック。system_ で始まるものはスキップ
+# 保護対象の schemaname パターン
+PROTECTED_TOPIC_PATTERNS = [
+    "ConversationStart", "Escalate", "Fallback", "OnError",
+    "EndofConversation", "MultipleTopicsMatched", "Search",
+    "Signin", "ResetConversation",
+]
+
+# componenttype=1 と 9 の両方を取得
 topics = api_get("botcomponents",
-    {"$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 1"})
+    {"$filter": f"_parentbotid_value eq '{bot_id}' and (componenttype eq 1 or componenttype eq 9)",
+     "$select": "botcomponentid,name,schemaname,componenttype"})
 for topic in topics["value"]:
-    if not topic["name"].startswith("system_"):
-        api_delete(f"botcomponents({topic['botcomponentid']})")
+    schema = topic.get("schemaname", "")
+    # システムトピック・アクションは保護
+    if any(p in schema for p in PROTECTED_TOPIC_PATTERNS):
+        continue
+    if ".action." in schema:
+        continue
+    api_delete(f"botcomponents({topic['botcomponentid']})")
+```
+
+```
+❌ system_ プレフィックスだけで判定 → ConversationStart 等が削除されるリスク
+❌ componenttype=1 だけを対象 → プロビジョニング時のトピックタイプが変わる可能性
+✅ schemaname パターンでシステムトピックを明示的に保護
+✅ .action. を含む MCP Server アクションも保護
 ```
 
 ### Step 3: 生成オーケストレーション有効化
@@ -216,7 +241,7 @@ existing = api_get("botcomponents",
 # 更新: api_patch("botcomponents(comp_id)", {"data": GPT_YAML})
 ```
 
-### Step 4.5: 会話の開始のクイック返信設定
+### Step 4.5: 会話の開始設定（メッセージ + クイック返信）
 ```python
 # ConversationStart トピック（componenttype=9）を検索
 result = api_get("botcomponents", {
@@ -224,13 +249,23 @@ result = api_get("botcomponents", {
     "$select": "botcomponentid,schemaname,data",
 })
 
-# 既存 YAML をパース → SendActivity の activity.quickReplies を差し替え
-quick_replies = [
-    {"kind": "MessageBack", "text": "クイック返信テキスト1"},
-    {"kind": "MessageBack", "text": "クイック返信テキスト2"},
-]
+# 既存 YAML をパース → SendActivity の text と quickReplies を更新
+parsed = yaml.safe_load(existing_data)
+for action in parsed["beginDialog"]["actions"]:
+    if action["kind"] == "SendActivity":
+        activity = action["activity"]
+        # 挨拶メッセージをエージェントに合った内容に更新
+        activity["text"] = [GREETING_MESSAGE]
+        activity["speak"] = [GREETING_MESSAGE]
+        # クイック返信を設定
+        activity["quickReplies"] = [
+            {"kind": "MessageBack", "text": "クイック返信テキスト"},
+        ]
 # YAML に戻して api_patch("botcomponents(id)", {"data": new_yaml})
 ```
+
+> **挨拶メッセージ**: 設計時にエージェントの目的に合ったテキストを提案する。
+> 例: 「こんにちは！インシデント管理アシスタントです。インシデントの起票・検索・ステータス更新など、お気軽にお申し付けください。」
 
 ### Step 5: エージェント公開
 ```python
