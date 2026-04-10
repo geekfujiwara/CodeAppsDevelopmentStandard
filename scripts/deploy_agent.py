@@ -606,6 +606,13 @@ def set_channel_manifest(bot_id: str):
         print(f"  アイコン: Bot の iconbase64 を colorIcon/outlineIcon に設定")
 
     existing_ami["teams"] = existing_teams
+
+    # Microsoft 365 Copilot で使用可能にする
+    copilot_chat = existing_ami.get("copilotChat", {})
+    copilot_chat["isEnabled"] = True
+    existing_ami["copilotChat"] = copilot_chat
+    print("  Microsoft 365 Copilot: 有効化")
+
     api_patch(f"bots({bot_id})", {
         "applicationmanifestinformation": json.dumps(existing_ami)
     })
