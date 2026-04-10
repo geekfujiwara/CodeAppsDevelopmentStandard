@@ -116,46 +116,46 @@ python -c "from scripts.auth_helper import get_token; print(get_token()[:20] + '
 
 ## クイックリファレンス: 絶対遵守ルール
 
-| ルール                                       | 理由                                                        |
-| -------------------------------------------- | ----------------------------------------------------------- |
-| スキーマ名は英語のみ                         | `npx power-apps add-data-source` が日本語で失敗             |
-| SystemUser を Lookup 先に                    | カスタムユーザーテーブル不要                                |
-| createdby を報告者として使用                 | カスタム ReportedBy Lookup 不要                             |
-| Choice 値は 100000000 始まり                 | Dataverse の仕様                                            |
-| 先にデプロイしてから開発                     | Dataverse 接続確立が必要                                    |
-| 生成オーケストレーションモード一択           | トピックベース開発は非推奨                                  |
-| PUT + MetadataId でローカライズ              | PATCH では反映されないケースあり                            |
-| テーブル作成はリトライ付き                   | 0x80040237 メタデータロック対策                             |
-| Flow API は専用スコープで認証                | Dataverse トークンの使い回し不可                            |
-| 接続は環境内に事前作成                       | API での接続自動作成は不可                                  |
-| フローはべき等パターンでデプロイ             | displayName で検索 → 更新 or 新規作成                       |
-| Bot 作成は Copilot Studio UI                 | API（bots INSERT）ではプロビジョニングされない              |
-| Bot 作成後はプロビジョニング完了を待つ       | UI でロード完了前にスクリプト実行→トピック削除 0 件になる   |
-| configuration はディープマージで PATCH        | 丸ごと上書き→基盤モデル・gPTSettings が消える              |
-| optInUseLatestModels は明示的に False        | True だと基盤モデルが GPT に強制変更。既存 True も上書き    |
-| 推奨プロンプトは conversationStarters で登録 | GPT コンポーネント (type=15) YAML の title/text             |
-| 挨拶メッセージはエージェントに合わせて設定   | ConversationStart トピック (type=9) の SendActivity.text     |
-| クイック返信は ConversationStart で登録      | ConversationStart トピック (type=9) の quickReplies          |
-| トピック削除時はシステムトピックを保護       | schemaname パターンで ConversationStart, Escalate 等を保護   |
-| チャネル公開は applicationmanifestinformation | teams オブジェクトに shortDescription/longDescription 等     |
-| M365 Copilot は copilotChat.isEnabled       | applicationmanifestinformation 内で true に設定           |
-| 説明は publish 後に設定                      | data PATCH の非同期処理で上書きされる                       |
-| appId は環境固有                             | 別環境の appId → AppLeaseMissing (409)                      |
-| Code Apps を環境で有効化                     | 未許可 → CodeAppOperationNotAllowedInEnvironment (403)      |
-| dataSourcesInfo.ts は SDK コマンドで生成     | `npx power-apps add-data-source` で自動生成。手動作成禁止   |
-| power.config.json は SDK で生成              | `npx power-apps init` で生成。テンプレからコピー禁止        |
-| PAC CLI 認証プロファイルを作成               | 新環境では pac auth create が必須                           |
-| get_token() は scope のみ指定                | auth_helper は .env から自動読み込み                        |
-| **全コンポーネントをソリューションに含める** | AddSolutionComponent で検証・補完。ヘッダーだけに依存しない |
-| **設計フェーズでユーザー承認必須**           | テーブル設計を提示し承認を得てから構築に進む                |
-| **設計前に既存環境の名前衝突を検索**       | ソリューション名・テーブルスキーマ名が既存と重複しないことを API で確認 |
-| 全テーブルにデモデータを投入                 | 従属テーブル（コメント等）含め漏れなく                      |
-| 全 Lookup を設計書に明記                     | リレーション漏れは機能不全の原因                            |
-| **nameUtils パッチは Node.js スクリプトで**  | PowerShell の $ エスケープで適用失敗する。`node patch-nameutils.cjs` を使う |
+| ルール                                                | 理由                                                                                                         |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| スキーマ名は英語のみ                                  | `npx power-apps add-data-source` が日本語で失敗                                                              |
+| SystemUser を Lookup 先に                             | カスタムユーザーテーブル不要                                                                                 |
+| createdby を報告者として使用                          | カスタム ReportedBy Lookup 不要                                                                              |
+| Choice 値は 100000000 始まり                          | Dataverse の仕様                                                                                             |
+| 先にデプロイしてから開発                              | Dataverse 接続確立が必要                                                                                     |
+| 生成オーケストレーションモード一択                    | トピックベース開発は非推奨                                                                                   |
+| PUT + MetadataId でローカライズ                       | PATCH では反映されないケースあり                                                                             |
+| テーブル作成はリトライ付き                            | 0x80040237 メタデータロック対策                                                                              |
+| Flow API は専用スコープで認証                         | Dataverse トークンの使い回し不可                                                                             |
+| 接続は環境内に事前作成                                | API での接続自動作成は不可                                                                                   |
+| フローはべき等パターンでデプロイ                      | displayName で検索 → 更新 or 新規作成                                                                        |
+| Bot 作成は Copilot Studio UI                          | API（bots INSERT）ではプロビジョニングされない                                                               |
+| Bot 作成後はプロビジョニング完了を待つ                | UI でロード完了前にスクリプト実行→トピック削除 0 件になる                                                    |
+| configuration はディープマージで PATCH                | 丸ごと上書き→基盤モデル・gPTSettings が消える                                                                |
+| optInUseLatestModels は明示的に False                 | True だと基盤モデルが GPT に強制変更。既存 True も上書き                                                     |
+| 推奨プロンプトは conversationStarters で登録          | GPT コンポーネント (type=15) YAML の title/text                                                              |
+| 挨拶メッセージはエージェントに合わせて設定            | ConversationStart トピック (type=9) の SendActivity.text                                                     |
+| クイック返信は ConversationStart で登録               | ConversationStart トピック (type=9) の quickReplies                                                          |
+| トピック削除時はシステムトピックを保護                | schemaname パターンで ConversationStart, Escalate 等を保護                                                   |
+| チャネル公開は applicationmanifestinformation         | teams オブジェクトに shortDescription/longDescription 等                                                     |
+| M365 Copilot は copilotChat.isEnabled                 | applicationmanifestinformation 内で true に設定                                                              |
+| 説明は publish 後に設定                               | data PATCH の非同期処理で上書きされる                                                                        |
+| appId は環境固有                                      | 別環境の appId → AppLeaseMissing (409)                                                                       |
+| Code Apps を環境で有効化                              | 未許可 → CodeAppOperationNotAllowedInEnvironment (403)                                                       |
+| dataSourcesInfo.ts は SDK コマンドで生成              | `npx power-apps add-data-source` で自動生成。手動作成禁止                                                    |
+| power.config.json は SDK で生成                       | `npx power-apps init` で生成。テンプレからコピー禁止                                                         |
+| PAC CLI 認証プロファイルを作成                        | 新環境では pac auth create が必須                                                                            |
+| get_token() は scope のみ指定                         | auth_helper は .env から自動読み込み                                                                         |
+| **全コンポーネントをソリューションに含める**          | AddSolutionComponent で検証・補完。ヘッダーだけに依存しない                                                  |
+| **設計フェーズでユーザー承認必須**                    | テーブル設計を提示し承認を得てから構築に進む                                                                 |
+| **設計前に既存環境の名前衝突を検索**                  | ソリューション名・テーブルスキーマ名が既存と重複しないことを API で確認                                      |
+| 全テーブルにデモデータを投入                          | 従属テーブル（コメント等）含め漏れなく                                                                       |
+| 全 Lookup を設計書に明記                              | リレーション漏れは機能不全の原因                                                                             |
+| **nameUtils パッチは Node.js スクリプトで**           | PowerShell の $ エスケープで適用失敗する。`node patch-nameutils.cjs` を使う                                  |
 | **SDK Lookup 名は未ポピュレート（初回から対応必須）** | `createdbyname` 等は返らない。**初回デプロイから** `_xxx_value` + `useMemo` クライアントサイド名前解決を実装 |
-| **フロー接続 ID はハードコードしない**       | 環境が変わると接続 ID も変わる。毎回 PowerApps API で自動検索             |
-| **api_get() は dict を返す**                 | `.json()` を呼ぶとエラー。戻り値の dict をそのまま使う                    |
-| **ConversationStart/GPT YAML は手動構築**    | `yaml.dump()` は PVA パーサーと非互換。会話の開始・クイック返信・推奨プロンプトが消える |
-| **bots PATCH には name フィールド必須**       | 省略すると `Empty or null bot name` エラー (0x80040265)。既存名を GET して再送 |
-| **アイコンは SVG→Base64 で API 登録**         | `data:image/svg+xml;base64,...` を `bots.iconbase64` に PATCH。ユーザーに UI アップロードを求めない |
-| **基盤モデルは API で設定できない**           | `aISettings` PATCH で `optInUseLatestModels: False` にしても基盤モデルが GPT に戻るケースあり。UI で手動選択 |
+| **フロー接続 ID はハードコードしない**                | 環境が変わると接続 ID も変わる。毎回 PowerApps API で自動検索                                                |
+| **api_get() は dict を返す**                          | `.json()` を呼ぶとエラー。戻り値の dict をそのまま使う                                                       |
+| **ConversationStart/GPT YAML は手動構築**             | `yaml.dump()` は PVA パーサーと非互換。会話の開始・クイック返信・推奨プロンプトが消える                      |
+| **bots PATCH には name フィールド必須**               | 省略すると `Empty or null bot name` エラー (0x80040265)。既存名を GET して再送                               |
+| **アイコンは SVG→Base64 で API 登録**                 | `data:image/svg+xml;base64,...` を `bots.iconbase64` に PATCH。ユーザーに UI アップロードを求めない          |
+| **基盤モデルは API で設定できない**                   | `aISettings` PATCH で `optInUseLatestModels: False` にしても基盤モデルが GPT に戻るケースあり。UI で手動選択 |

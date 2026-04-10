@@ -1,119 +1,173 @@
-import { useMemo } from "react"
-import { useNavigate } from "react-router-dom"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Button } from "@/components/ui/button"
-import { ListTable } from "@/components/list-table"
-import type { TableColumn } from "@/components/list-table"
+import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { ListTable } from "@/components/list-table";
+import type { TableColumn } from "@/components/list-table";
 import {
-  AlertCircle, Clock, CheckCircle2, XCircle, BarChart3,
-  UserX, ArrowRight,
-} from "lucide-react"
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  BarChart3,
+  UserX,
+  ArrowRight,
+} from "lucide-react";
 import {
   useIncidents,
   useCategories,
   usePriorities,
   useSystemUsers,
-} from "@/hooks/use-incidents"
-import type { Geek_incidents } from "@/generated/models/Geek_incidentsModel"
-import {
-  statusLabels,
-  statusColors,
-  IncidentStatus,
-} from "@/types/incident"
+} from "@/hooks/use-incidents";
+import type { Geek_incidents } from "@/generated/models/Geek_incidentsModel";
+import { statusLabels, statusColors, IncidentStatus } from "@/types/incident";
 
-type IncidentRow = Geek_incidents & Record<string, unknown>
+type IncidentRow = Geek_incidents & Record<string, unknown>;
 
 export default function DashboardPage() {
-  const navigate = useNavigate()
-  const { data: incidents = [], isLoading } = useIncidents()
-  const { data: categories = [] } = useCategories()
-  const { data: priorities = [] } = usePriorities()
-  const { data: users = [] } = useSystemUsers()
+  const navigate = useNavigate();
+  const { data: incidents = [], isLoading } = useIncidents();
+  const { data: categories = [] } = useCategories();
+  const { data: priorities = [] } = usePriorities();
+  const { data: users = [] } = useSystemUsers();
 
   const userMap = useMemo(() => {
-    const m = new Map<string, string>()
-    users.forEach((u) => m.set(u.systemuserid, u.fullname || u.internalemailaddress || ""))
-    return m
-  }, [users])
+    const m = new Map<string, string>();
+    users.forEach((u) =>
+      m.set(u.systemuserid, u.fullname || u.internalemailaddress || ""),
+    );
+    return m;
+  }, [users]);
   const categoryMap = useMemo(() => {
-    const m = new Map<string, string>()
-    categories.forEach((c) => m.set(c.geek_incidentcategoryid, c.geek_name))
-    return m
-  }, [categories])
+    const m = new Map<string, string>();
+    categories.forEach((c) => m.set(c.geek_incidentcategoryid, c.geek_name));
+    return m;
+  }, [categories]);
   const priorityMap = useMemo(() => {
-    const m = new Map<string, string>()
-    priorities.forEach((p) => m.set(p.geek_priorityid, p.geek_name))
-    return m
-  }, [priorities])
+    const m = new Map<string, string>();
+    priorities.forEach((p) => m.set(p.geek_priorityid, p.geek_name));
+    return m;
+  }, [priorities]);
 
-  const newCount = incidents.filter((i) => i.geek_status === IncidentStatus.NEW).length
-  const inProgressCount = incidents.filter((i) => i.geek_status === IncidentStatus.IN_PROGRESS).length
-  const resolvedCount = incidents.filter((i) => i.geek_status === IncidentStatus.RESOLVED).length
-  const closedCount = incidents.filter((i) => i.geek_status === IncidentStatus.CLOSED).length
+  const newCount = incidents.filter(
+    (i) => i.geek_status === IncidentStatus.NEW,
+  ).length;
+  const inProgressCount = incidents.filter(
+    (i) => i.geek_status === IncidentStatus.IN_PROGRESS,
+  ).length;
+  const resolvedCount = incidents.filter(
+    (i) => i.geek_status === IncidentStatus.RESOLVED,
+  ).length;
+  const closedCount = incidents.filter(
+    (i) => i.geek_status === IncidentStatus.CLOSED,
+  ).length;
 
   const unassigned = incidents.filter(
-    (i) => !i._geek_assigneeid_value &&
+    (i) =>
+      !i._geek_assigneeid_value &&
       i.geek_status !== IncidentStatus.CLOSED &&
       i.geek_status !== IncidentStatus.RESOLVED,
-  )
+  );
 
-  const recentIncidents = incidents.slice(0, 5)
+  const recentIncidents = incidents.slice(0, 5);
 
   const categoryStats = useMemo(() => {
-    const map = new Map<string, number>()
+    const map = new Map<string, number>();
     incidents.forEach((i) => {
-      const catId = i._geek_categoryid_value as string | undefined
-      const name = catId ? categoryMap.get(catId) || "未分類" : "未分類"
-      map.set(name, (map.get(name) || 0) + 1)
-    })
+      const catId = i._geek_categoryid_value as string | undefined;
+      const name = catId ? categoryMap.get(catId) || "未分類" : "未分類";
+      map.set(name, (map.get(name) || 0) + 1);
+    });
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-  }, [incidents, categoryMap])
+      .slice(0, 5);
+  }, [incidents, categoryMap]);
 
   const stats = [
-    { title: "合計", value: String(incidents.length), description: "全インシデント", icon: BarChart3, className: "text-primary" },
-    { title: "新規", value: String(newCount), description: "未対応", icon: AlertCircle, className: "text-blue-600" },
-    { title: "対応中", value: String(inProgressCount), description: "作業中", icon: Clock, className: "text-yellow-600" },
-    { title: "解決済", value: String(resolvedCount), description: "解決済み", icon: CheckCircle2, className: "text-green-600" },
-    { title: "クローズ", value: String(closedCount), description: "完了", icon: XCircle, className: "text-gray-600" },
-  ]
+    {
+      title: "合計",
+      value: String(incidents.length),
+      description: "全インシデント",
+      icon: BarChart3,
+      className: "text-primary",
+    },
+    {
+      title: "新規",
+      value: String(newCount),
+      description: "未対応",
+      icon: AlertCircle,
+      className: "text-blue-600",
+    },
+    {
+      title: "対応中",
+      value: String(inProgressCount),
+      description: "作業中",
+      icon: Clock,
+      className: "text-yellow-600",
+    },
+    {
+      title: "解決済",
+      value: String(resolvedCount),
+      description: "解決済み",
+      icon: CheckCircle2,
+      className: "text-green-600",
+    },
+    {
+      title: "クローズ",
+      value: String(closedCount),
+      description: "完了",
+      icon: XCircle,
+      className: "text-gray-600",
+    },
+  ];
 
   const recentColumns: TableColumn<IncidentRow>[] = [
     { key: "geek_name", label: "タイトル", sortable: false },
     {
-      key: "geek_status", label: "ステータス", sortable: false,
+      key: "geek_status",
+      label: "ステータス",
+      sortable: false,
       render: (item) => {
-        const s = item.geek_status as number | undefined
+        const s = item.geek_status as number | undefined;
         return s != null ? (
-          <Badge variant="outline" className={statusColors[s]}>{statusLabels[s]}</Badge>
-        ) : null
+          <Badge variant="outline" className={statusColors[s]}>
+            {statusLabels[s]}
+          </Badge>
+        ) : null;
       },
     },
     {
-      key: "_geek_priorityid_value", label: "優先度", sortable: false,
+      key: "_geek_priorityid_value",
+      label: "優先度",
+      sortable: false,
       render: (item) => {
-        const v = item._geek_priorityid_value as string | undefined
-        return v ? priorityMap.get(v) || "" : ""
+        const v = item._geek_priorityid_value as string | undefined;
+        return v ? priorityMap.get(v) || "" : "";
       },
     },
     {
-      key: "_geek_assigneeid_value", label: "担当者", sortable: false,
+      key: "_geek_assigneeid_value",
+      label: "担当者",
+      sortable: false,
       render: (item) => {
-        const v = item._geek_assigneeid_value as string | undefined
-        return v ? userMap.get(v) || "" : <span className="text-muted-foreground">未割当</span>
+        const v = item._geek_assigneeid_value as string | undefined;
+        return v ? (
+          userMap.get(v) || ""
+        ) : (
+          <span className="text-muted-foreground">未割当</span>
+        );
       },
     },
-  ]
+  ];
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
-    )
+    );
   }
 
   return (
@@ -143,17 +197,31 @@ export default function DashboardPage() {
           <CardContent className="space-y-4">
             {[
               { label: "新規", count: newCount, color: "bg-blue-500" },
-              { label: "対応中", count: inProgressCount, color: "bg-yellow-500" },
+              {
+                label: "対応中",
+                count: inProgressCount,
+                color: "bg-yellow-500",
+              },
               { label: "解決済", count: resolvedCount, color: "bg-green-500" },
               { label: "クローズ", count: closedCount, color: "bg-gray-600" },
             ].map((s) => (
               <div key={s.label} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <span>{s.label}</span>
-                  <span className="text-muted-foreground">{s.count} 件 ({incidents.length > 0 ? Math.round((s.count / incidents.length) * 100) : 0}%)</span>
+                  <span className="text-muted-foreground">
+                    {s.count} 件 (
+                    {incidents.length > 0
+                      ? Math.round((s.count / incidents.length) * 100)
+                      : 0}
+                    %)
+                  </span>
                 </div>
                 <Progress
-                  value={incidents.length > 0 ? (s.count / incidents.length) * 100 : 0}
+                  value={
+                    incidents.length > 0
+                      ? (s.count / incidents.length) * 100
+                      : 0
+                  }
                   className="h-2"
                 />
               </div>
@@ -167,7 +235,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {categoryStats.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">データがありません</p>
+              <p className="text-sm text-muted-foreground text-center py-4">
+                データがありません
+              </p>
             ) : (
               categoryStats.map(([name, count]) => (
                 <div key={name} className="space-y-1">
@@ -176,7 +246,11 @@ export default function DashboardPage() {
                     <span className="text-muted-foreground">{count} 件</span>
                   </div>
                   <Progress
-                    value={incidents.length > 0 ? (count / incidents.length) * 100 : 0}
+                    value={
+                      incidents.length > 0
+                        ? (count / incidents.length) * 100
+                        : 0
+                    }
                     className="h-2"
                   />
                 </div>
@@ -192,7 +266,9 @@ export default function DashboardPage() {
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <UserX className="h-5 w-5 text-orange-500" />
-              <CardTitle className="text-base">未割当インシデント ({unassigned.length}件)</CardTitle>
+              <CardTitle className="text-base">
+                未割当インシデント ({unassigned.length}件)
+              </CardTitle>
             </div>
           </CardHeader>
           <CardContent>
@@ -216,7 +292,11 @@ export default function DashboardPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">直近のインシデント</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => navigate("/incidents")}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/incidents")}
+          >
             すべて表示 <ArrowRight className="ml-1 h-4 w-4" />
           </Button>
         </CardHeader>
@@ -230,5 +310,5 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

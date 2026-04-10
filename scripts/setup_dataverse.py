@@ -27,6 +27,7 @@ load_dotenv()
 DATAVERSE_URL = os.environ["DATAVERSE_URL"].rstrip("/")
 SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
+SOLUTION_DISPLAY_NAME = os.environ.get("SOLUTION_DISPLAY_NAME", "インシデント管理")
 
 # ── 認証 ──────────────────────────────────────────────────
 
@@ -109,12 +110,37 @@ def label_jp(text):
 
 # ── Phase 1.1: ソリューション作成 ─────────────────────────
 
+def _save_env_value(key: str, value: str):
+    """既存の .env ファイルにキーを追記または更新する"""
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+    lines = []
+    found = False
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    for i, line in enumerate(lines):
+        if line.startswith(f"{key}="):
+            lines[i] = f"{key}={value}\n"
+            found = True
+            break
+    if not found:
+        lines.append(f"{key}={value}\n")
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+
+
 def ensure_solution():
+    global SOLUTION_DISPLAY_NAME
     print("\n=== Phase 1.1: ソリューション確認 ===")
     existing = api_get("solutions",
-                       {"$filter": f"uniquename eq '{SOLUTION_NAME}'", "$select": "solutionid"})
+                       {"$filter": f"uniquename eq '{SOLUTION_NAME}'",
+                        "$select": "solutionid,friendlyname"})
     if existing["value"]:
-        print(f"  ソリューション '{SOLUTION_NAME}' は既存。スキップ。")
+        display_name = existing["value"][0].get("friendlyname", SOLUTION_DISPLAY_NAME)
+        print(f"  ソリューション '{SOLUTION_NAME}' は既存（表示名: {display_name}）。スキップ。")
+        SOLUTION_DISPLAY_NAME = display_name
+        _save_env_value("SOLUTION_DISPLAY_NAME", display_name)
+        print(f"  .env に SOLUTION_DISPLAY_NAME={display_name} を保存")
         return
     print(f"  ソリューション '{SOLUTION_NAME}' を作成します…")
     pubs = api_get("publishers",
@@ -124,11 +150,13 @@ def ensure_solution():
     pub_id = pubs["value"][0]["publisherid"]
     api_post("solutions", {
         "uniquename": SOLUTION_NAME,
-        "friendlyname": "インシデント管理",
+        "friendlyname": SOLUTION_DISPLAY_NAME,
         "version": "1.0.0.0",
         "publisherid@odata.bind": f"/publishers({pub_id})",
     })
-    print("  ソリューション作成完了")
+    _save_env_value("SOLUTION_DISPLAY_NAME", SOLUTION_DISPLAY_NAME)
+    print(f"  ソリューション作成完了（表示名: {SOLUTION_DISPLAY_NAME}）")
+    print(f"  .env に SOLUTION_DISPLAY_NAME={SOLUTION_DISPLAY_NAME} を保存")
 
 # ── Phase 1.2: テーブル作成 ───────────────────────────────
 

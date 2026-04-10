@@ -41,6 +41,7 @@ load_dotenv()
 # ── 環境変数 ────────────────────────────────────────────────
 DATAVERSE_URL = _DV_URL
 SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
+SOLUTION_DISPLAY_NAME = os.environ.get("SOLUTION_DISPLAY_NAME", "")
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
 
 BOT_NAME = "インシデント管理アシスタント"
@@ -348,13 +349,14 @@ def find_bot() -> str:
     # 見つからない場合
     print("  ❌ Bot が見つかりません。")
     print()
+    sol_label = f"{SOLUTION_DISPLAY_NAME}（スキーマ名: {SOLUTION_NAME}）" if SOLUTION_DISPLAY_NAME else SOLUTION_NAME
     print("  Copilot Studio UI でエージェントを作成してください:")
     print(f"    1. https://copilotstudio.microsoft.com/ にアクセス")
     print(f"    2. 「+ 作成」をクリック")
     print(f"    3. エージェント名: {BOT_NAME}")
     print(f"    4. 「エージェント設定 (オプション)」を展開:")
     print(f"       - 言語: 日本語 (日本)")
-    print(f"       - ソリューション: {SOLUTION_NAME}")
+    print(f"       - ソリューション: {sol_label}")
     print(f"       - スキーマ名: {PREFIX}_incident_management_assistant")
     print(f"    5. 「作成」をクリック")
     print(f"    6. 作成後のブラウザ URL をそのまま .env に貼り付け:")
