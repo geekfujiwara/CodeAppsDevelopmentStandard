@@ -18,7 +18,8 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 |------|------|
 | エージェント名・説明 | 名前と役割の説明 |
 | Instructions | 指示テキストの全文案 |
-| 会話スターター | 3〜5 個のサンプル質問 |
+| 推奨プロンプト | 3〜5 個のタイトル＋プロンプト文（GPT コンポーネントの conversationStarters） |
+| 会話の開始のクイック返信 | 3〜5 個のクイック返信テキスト（ConversationStart トピックの quickReplies） |
 | ナレッジ | データソース（Dataverse テーブル / SharePoint / ファイル等） |
 | ツール | MCP Server の接続先・用途 |
 
@@ -64,7 +65,7 @@ PUBLISHER_PREFIX=geek              ← ソリューション発行者の prefix
 2. **configuration を PATCH する際は既存値をディープマージする**
    - `configuration` を丸ごと上書きすると `gPTSettings.defaultSchemaName` やモデル設定が消える
    - 必ず GET → ディープマージ → PATCH
-   - `optInUseLatestModels: True` は設定禁止 — UI で選択した基盤モデル（Claude Sonnet 等）が GPT に強制変更される
+   - `optInUseLatestModels` は明示的に `False` を設定 — `True` だと UI で選択した基盤モデル（Claude Sonnet 等）が GPT に強制変更される
    - `aISettings` も丸ごと上書きせずディープマージで既存のモデル選択を保持
 
 3. **余分な GPT コンポーネントは削除する**
@@ -181,7 +182,7 @@ overrides = {
         "useModelKnowledge": True,
         "isFileAnalysisEnabled": True,
         "isSemanticSearchEnabled": True,
-        # ★ optInUseLatestModels は設定しない — 基盤モデルが GPT に強制変更される
+        "optInUseLatestModels": False,  # ★ 明示的に False — True だと基盤モデルが GPT に強制変更される
     },
     "recognizer": {"$kind": "GenerativeAIRecognizer"},
 }
@@ -197,7 +198,8 @@ api_patch(f"bots({bot_id})", {"configuration": json.dumps(merged)})
 ❌ aISettings を丸ごと上書き → モデル設定が消える
 ❌ gPTSettings だけ保持して他の既存キーを落とす → 設定が欠損
 ✅ ディープマージで既存 configuration を保持し、必要な設定のみ追加・更新
-✅ optInUseLatestModels は意図的に省略 — UI で選択した基盤モデルを維持
+✅ optInUseLatestModels は明示的に False — UI で選択した基盤モデルを維持
+✅ 既存 config に True が残っていても False で上書きする
 ```
 
 ### Step 4: 指示（Instructions）設定
@@ -212,6 +214,22 @@ existing = api_get("botcomponents",
 # defaultSchemaName と一致 → UI コンポーネント、それ以外 → 削除対象
 # フォールバック: defaultSchemaName がなければ最初のものを使う
 # 更新: api_patch("botcomponents(comp_id)", {"data": GPT_YAML})
+```
+
+### Step 4.5: 会話の開始のクイック返信設定
+```python
+# ConversationStart トピック（componenttype=9）を検索
+result = api_get("botcomponents", {
+    "$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 9 and contains(schemaname,'ConversationStart')",
+    "$select": "botcomponentid,schemaname,data",
+})
+
+# 既存 YAML をパース → SendActivity の activity.quickReplies を差し替え
+quick_replies = [
+    {"kind": "MessageBack", "text": "クイック返信テキスト1"},
+    {"kind": "MessageBack", "text": "クイック返信テキスト2"},
+]
+# YAML に戻して api_patch("botcomponents(id)", {"data": new_yaml})
 ```
 
 ### Step 5: エージェント公開

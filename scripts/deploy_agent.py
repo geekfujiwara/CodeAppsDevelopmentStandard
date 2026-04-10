@@ -162,16 +162,25 @@ GPT_INSTRUCTIONS = f"""\
 """
 
 # instructions を |- ブロック形式で手動構築（yaml.dump の quoted scalar では UI が認識しない）
+
+# ── 推奨プロンプト（GPT コンポーネントの conversationStarters） ────────
+PREFERRED_PROMPTS = [
+    {"title": "インシデント一覧", "text": "現在のインシデント一覧を見せてください"},
+    {"title": "新規インシデント", "text": "新しいインシデントを起票したいです"},
+    {"title": "ステータス更新", "text": "インシデントのステータスを更新してください"},
+    {"title": "緊急インシデント", "text": "緊急のインシデントはありますか？"},
+]
+
 _starters = "\n".join([
-    "- title: インシデント一覧",
-    "  text: 現在のインシデント一覧を見せてください",
-    "- title: 新規インシデント",
-    "  text: 新しいインシデントを起票したいです",
-    "- title: ステータス更新",
-    "  text: インシデントのステータスを更新してください",
-    "- title: 緊急インシデント",
-    "  text: 緊急のインシデントはありますか？",
+    f"- title: {p['title']}\n  text: {p['text']}" for p in PREFERRED_PROMPTS
 ])
+
+# ── 会話の開始のクイック返信（ConversationStart トピックの quickReplies） ──
+QUICK_REPLIES = [
+    "インシデント一覧を見せて",
+    "新しいインシデントを起票したい",
+    "緊急のインシデントはある？",
+]
 
 BOT_DESCRIPTION = "社内のインシデント（障害・問題）を管理するAIエージェントです。インシデントの起票、ステータス更新、一覧検索、コメント追加などを自然言語で実行できます。"
 
@@ -321,7 +330,7 @@ def enable_generative_orchestration(bot_id: str) -> dict:
         print(f"  既存 aISettings キー: {list(existing_ai.keys())}")
 
     # 生成オーケストレーションに必要な最小限の設定のみ指定
-    # ★ optInUseLatestModels は設定しない（基盤モデルが GPT に強制変更されるため）
+    # ★ optInUseLatestModels は明示的に False — True だと基盤モデルが GPT に強制変更される
     # ★ aISettings は丸ごと上書きせずディープマージ（既存のモデル選択を保持）
     overrides = {
         "$kind": "BotConfiguration",
@@ -333,7 +342,7 @@ def enable_generative_orchestration(bot_id: str) -> dict:
             "useModelKnowledge": True,
             "isFileAnalysisEnabled": True,
             "isSemanticSearchEnabled": True,
-            # optInUseLatestModels は意図的に省略 — UI で選択した基盤モデルを維持
+            "optInUseLatestModels": False,
         },
         "recognizer": {
             "$kind": "GenerativeAIRecognizer",
@@ -412,6 +421,68 @@ def set_gpt_instructions(bot_id: str, saved_config: dict):
     return comp_id
 
 
+# ── Step 4.5: 会話の開始のクイック返信設定 ────────────────
+
+def set_quick_replies(bot_id: str):
+    """ConversationStart トピックの quickReplies を設定する。"""
+    print("\n=== Step 4.5: 会話の開始のクイック返信設定 ===")
+
+    if not QUICK_REPLIES:
+        print("  QUICK_REPLIES が空 — スキップ")
+        return
+
+    # ConversationStart トピックを検索
+    result = api_get("botcomponents", {
+        "$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 9 and contains(schemaname,'ConversationStart')",
+        "$select": "botcomponentid,schemaname,data",
+    })
+    topics = result.get("value", [])
+    if not topics:
+        print("  ⚠️ ConversationStart トピックが見つかりません")
+        return
+
+    topic = topics[0]
+    topic_id = topic["botcomponentid"]
+    existing_data = topic.get("data", "")
+    print(f"  トピック: {topic['schemaname']} ({topic_id})")
+
+    # 既存 YAML をパースして quickReplies を差し替え
+    try:
+        parsed = yaml.safe_load(existing_data)
+    except Exception:
+        print("  ⚠️ 既存 YAML のパースに失敗 — quickReplies を追加できません")
+        return
+
+    # quickReplies を構築
+    quick_reply_items = [{"kind": "MessageBack", "text": qr} for qr in QUICK_REPLIES]
+
+    # beginDialog > actions 内の SendActivity を探して quickReplies を設定
+    actions = parsed.get("beginDialog", {}).get("actions", [])
+    updated = False
+    for action in actions:
+        if action.get("kind") == "SendActivity":
+            activity = action.get("activity", {})
+            if isinstance(activity, dict):
+                activity["quickReplies"] = quick_reply_items
+            else:
+                # activity が文字列の場合は dict に変換
+                action["activity"] = {
+                    "text": [activity] if isinstance(activity, str) else activity,
+                    "quickReplies": quick_reply_items,
+                }
+            updated = True
+            break
+
+    if not updated:
+        print("  ⚠️ SendActivity アクションが見つかりません")
+        return
+
+    # YAML に戻して PATCH
+    new_data = yaml.dump(parsed, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    api_patch(f"botcomponents({topic_id})", {"data": new_data})
+    print(f"  クイック返信 {len(QUICK_REPLIES)} 件を設定")
+
+
 # ── Step 6: 説明の設定（publish 後に実行）────────────────
 
 def set_description(bot_id: str, comp_id: str | None = None):
@@ -453,6 +524,7 @@ def main():
     delete_custom_topics(bot_id)
     saved_config = enable_generative_orchestration(bot_id)
     comp_id = set_gpt_instructions(bot_id, saved_config)
+    set_quick_replies(bot_id)
     publish_bot(bot_id)
     set_description(bot_id, comp_id)
 
