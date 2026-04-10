@@ -81,18 +81,41 @@ node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js
 
 **修正手順**:
 
-```bash
-# 1. nameUtils.js のサニタイズ正規表現をパッチ
-#    [^a-zA-Z0-9_$] → [^a-zA-Z0-9_$\u00C0-\u024F...\u3000-\u9FFF...] に変更
+**重要**: PowerShell では `$` のエスケープ問題でパッチが適用されないことがある。**必ず Node.js スクリプト方式を使うこと。**
 
-# 2. パッチ後にデータソース追加を実行
+```javascript
+// patch-nameutils.cjs — プロジェクトルートに配置
+const fs = require('fs');
+const p = 'node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js';
+let c = fs.readFileSync(p, 'utf8');
+const oldPat = "[^a-zA-Z0-9_$]/g, '_')";
+const newPat = "[^a-zA-Z0-9_$\\u00C0-\\u024F\\u0370-\\u03FF\\u0400-\\u04FF\\u3000-\\u9FFF\\uAC00-\\uD7AF\\uF900-\\uFAFF]/g, '_')";
+if (c.includes(oldPat)) {
+  c = c.replace(oldPat, newPat);
+  fs.writeFileSync(p, c);
+  console.log('Patched successfully');
+} else {
+  console.log('Already patched or pattern not found');
+}
+```
+
+```bash
+# パッチ適用
+node patch-nameutils.cjs
+
+# パッチ検証（適用後に必ず実行）
+node -e "const c=require('fs').readFileSync('node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js','utf8');c.split('\n').forEach((l,i)=>{if(l.includes('replace')&&l.includes('a-zA-Z'))console.log(i+':',l.trim())})"
+
+# パッチ後にデータソース追加を実行
 npx power-apps add-data-source --api-id dataverse \
   --resource-name {table_logical_name} \
   --org-url {DATAVERSE_URL} \
   --non-interactive
 ```
 
-> **注意**: `npm install` を再実行すると `node_modules` が再生成されパッチが消える。データソース追加後に `npm install` する場合は再度パッチが必要。`power.config.json` の `databaseReferences` が正しく生成されていれば、パッチは不要になる。
+> **なぜ PowerShell ではダメなのか**: `$` は PowerShell で変数展開文字。正規表現内の `$` を含む文字列を `-replace` やバッククォートでエスケープしても、特殊文字の二重エスケープや `\u` Unicode エスケープの不整合でパッチが「適用されたように見えて実は変わっていない」問題が発生した。Node.js スクリプトなら JavaScript のネイティブ文字列処理でこの問題を回避できる。
+
+> **注意**: `npm install` を再実行すると `node_modules` が再生成されパッチが消える。データソース追加のたびに `node patch-nameutils.cjs` を実行すること。
 
 > **PAC CLI との関係**: `pac code add-data-source` は内部で `@microsoft/power-apps` の CLI スクリプトを呼び出す。SDK v1.0.x ではスクリプトパスが変更されたため `pac code` 経由では `Could not find the PowerApps CLI script` エラーになる。**`npx power-apps add-data-source` を使用すること**。
 
@@ -468,7 +491,7 @@ npx power-apps push --non-interactive
 ### 4.2 DataverseService パターン
 
 ```typescript
-// 基本CRUD操作
+// 基本CRUD操作（DataverseService 直接呼び出し — Canvas Apps パターン）
 DataverseService.GetItems(table, query); // OData クエリで一覧取得
 DataverseService.GetItem(table, id, query); // 単一レコード取得
 DataverseService.PostItem(table, body); // レコード作成
@@ -476,7 +499,7 @@ DataverseService.PatchItem(table, id, body); // レコード更新
 DataverseService.DeleteItem(table, id); // レコード削除
 ```
 
-#### Lookup フィールドの設定
+#### Lookup フィールドの設定（作成時）
 
 ```typescript
 // 作成時: @odata.bind でリレーション設定
@@ -488,15 +511,57 @@ await DataverseService.PostItem("geek_incidents", {
   "geek_incidentcategoryid@odata.bind": `/geek_incidentcategories(${categoryId})`,
   "geek_assignedtoid@odata.bind": `/systemusers(${userId})`,
 });
-
-// 読み取り時: $expand で関連データ取得
-const incidents = await DataverseService.GetItems(
-  "geek_incidents",
-  "$select=geek_name,geek_status" +
-    "&$expand=geek_incidentcategoryid($select=geek_name)" +
-    "&$expand=createdby($select=fullname)", // ← 作成者 = 報告者
-);
 ```
+
+#### Lookup フィールドの読み取り（SDK サービスパターン — Code Apps 推奨）
+
+**SDK 生成サービスでは Lookup 名フィールド（`createdbyname` 等）は返されない。**
+`_xxx_value`（GUID）をクライアントサイドで名前解決する。
+
+```typescript
+// ① サービスラッパーの select に Lookup GUID を含める
+export async function getIncidents(): Promise<Geek_incidents[]> {
+  const result = await Geek_incidentsService.getAll({
+    select: [
+      "geek_incidentid", "geek_name", "geek_status", "geek_priority", "createdon",
+      "_geek_incidentcategoryid_value", "_geek_assignedtoid_value",
+      "_geek_itassetid_value", "_createdby_value",  // ← Lookup GUID
+    ],
+    orderBy: ["createdon desc"],
+  });
+  return result.data;
+}
+
+// ② 名前解決用サービス
+export async function getSystemUsers() {
+  const result = await SystemusersService.getAll({
+    select: ["systemuserid", "fullname", "internalemailaddress"],
+    filter: "isdisabled eq false and accessmode ne 3 and accessmode ne 4",
+  });
+  return result.data;
+}
+
+// ③ React コンポーネントで useMemo 名前解決マップ
+const userMap = useMemo(() => {
+  const m = new Map<string, string>();
+  users.forEach((u) => m.set(u.systemuserid, u.fullname || u.internalemailaddress || ""));
+  return m;
+}, [users]);
+
+// ④ テーブルカラムの render で GUID → 名前変換
+{
+  key: "_createdby_value",
+  label: "報告者",
+  render: (item) => {
+    const v = item._createdby_value as string | undefined;
+    return v ? userMap.get(v) || "" : "";
+  },
+}
+```
+
+> **注意**: DataverseService 直接呼び出しパターン（`$expand`）は Canvas Apps 等では使えるが、
+> Code Apps の SDK 生成サービスでは Lookup 名フィールドが返されないため使えない。
+> Code Apps では必ず上記の「GUID + クライアントサイド名前解決」パターンを最初から使うこと。
 
 ### 4.3 型定義とステータスマッピング
 
@@ -526,7 +591,23 @@ export const statusColors: Record<IncidentStatus, string> = {
 };
 ```
 
-### 4.4 技術スタック
+### 4.4 SDK Lookup 名フィールドの未ポピュレート問題（補足）
+
+`npx power-apps add-data-source` で生成される SDK サービスの `getAll()` / `get()` は、**フォーマット済み Lookup 名フィールド**（`createdbyname`, `geek_assignedtoidname`, `geek_incidentcategoryidname` 等）を **返さない**。
+
+これは SDK の既知の制約であり、**初回デプロイから必ず発生する**。
+回避策は §4.2 の「Lookup フィールドの読み取り」に定義した **`_xxx_value` + クライアントサイド名前解決パターン** を最初から適用すること。
+
+```
+❌ Lookup 名フィールドに直接依存（壊れるコード）
+   item.createdbyname → undefined → 「-」表示
+   item.geek_assignedtoidname → undefined → 担当者が空白
+
+✅ §4.2 の推奨パターンを最初から使う
+   _xxx_value（GUID）+ useMemo Map → 常に名前が表示される
+```
+
+### 4.5 技術スタック
 
 | レイヤー          | 技術                                   |
 | ----------------- | -------------------------------------- |
@@ -1128,6 +1209,10 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 | 27  | `npm run build` で `Cannot find module dataSourcesInfo`（TS2307）            | `.power/` が `.gitignore` で除外されており git clone 後に存在しない                   | `npx power-apps add-data-source` を全テーブルに対して再実行                               | §4.1 参照   |
 | 28  | スクリプトで `get_token()` の引数不一致                                      | 旧インターフェース `get_token(tenant, client, scope)` vs 新 `get_token(scope=...)`    | `auth_helper.get_token()` は `.env` から自動読み込み。`scope` キーワード引数のみ渡す      | §2.3 参照   |
 | 29  | PAC CLI 認証プロファイル未設定で push 失敗                                   | 新環境への認証プロファイルが存在しない                                                | `pac auth create --name {name} --environment {env-id}` で作成                             | §4.1 参照   |
+| 30  | nameUtils.js パッチが PowerShell で適用されない                              | `$` のエスケープ問題で文字列置換が失敗する（適用されたように見えて実は変更されていない）| `patch-nameutils.cjs`（Node.js スクリプト）を使い、適用後に必ず検証する                    | §1.2 参照   |
+| 31  | SDK の `createdbyname` / `geek_assignedtoidname` 等が `undefined`            | SDK 生成サービスがフォーマット済み Lookup 名フィールドをポピュレートしない             | `_xxx_value`（GUID）を取得し、クライアントサイドで `useMemo` + Map で名前解決              | §4.4 参照   |
+| 32  | deploy_flow.py の優先接続 ID が別環境で `ConnectionNotFound`                 | 接続 ID をハードコードしており、環境が変わると存在しない                              | 優先接続のハードコードを削除し、毎回 PowerApps API で Connected 状態の接続を自動検索する   | §5.4 参照   |
+| 33  | Python スクリプトで `api_get()` の戻り値に `.json()` を呼んでエラー          | `auth_helper.api_get()` は dict を直返しする（Response ではない）                     | 戻り値の dict をそのまま使う。`.json()` を呼ばない                                        | §2.3 参照   |
 
 ### 7.2 共通のアンチパターン
 
@@ -1159,6 +1244,10 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 ❌ git clone 後に dataSourcesInfo.ts を再生成せずにビルドする（`npx power-apps add-data-source` で全テーブルを再追加）
 ❌ PAC CLI の認証プロファイルを作成せずに push する（pac auth create が必要）
 ❌ get_token() に旧インターフェース（3引数）で呼び出す（auth_helper は .env から自動読み込み。scope のみ指定）
+❌ nameUtils.js パッチを PowerShell で適用しようとする（$ エスケープで失敗。node patch-nameutils.cjs を使え）
+❌ SDK の createdbyname 等に依存して UI 表示する（undefined になる。_xxx_value + useMemo で名前解決せよ）
+❌ deploy_flow.py に接続 ID をハードコードする（環境が変わると ConnectionNotFound。毎回自動検索せよ）
+❌ api_get() の戻り値に .json() を呼ぶ（dict が直返し。そのまま使え）
 ```
 
 ---
@@ -1171,16 +1260,22 @@ flowchart TD
 
     P1["🗄️ Phase 1: Dataverse 構築\n1. ソリューション作成\n2. テーブル作成（マスタ → 主 → 従属）\n3. Lookup リレーションシップ作成（リトライ付き）\n4. 日本語ローカライズ（PUT + MetadataId）\n5. 全テーブルにデモデータ投入\n6. テーブル・リレーションシップ検証"]
 
-    P2["⚛️ Phase 2: Code Apps\n1. npx power-apps init（power.config.json 生成）\n2. build & push（先にデプロイ！）\n3. npx power-apps add-data-source（SDK生成）\n4. SDK生成サービス + 実装\n5. ビルド & 再デプロイ"]
+    P2D["🎨 Phase 2 設計: Code Apps UI\n1. code-apps-design スキルで設計\n2. 画面構成・コンポーネント選定\n3. Lookup 名前解決パターン設計\n4. ★ ユーザーに UI 設計を提示し承認を得る"]
 
-    P25["⚡ Phase 2.5: Power Automate\n1. Flow API / PowerApps API 認証\n2. 環境 ID 解決\n3. 接続検索\n4. フロー定義 JSON 構築\n5. POST or PATCH でデプロイ"]
+    P2["⚛️ Phase 2 実装: Code Apps\n1. npx power-apps init\n2. build & push（先にデプロイ！）\n3. npx power-apps add-data-source\n4. 承認済み設計に従い実装\n5. ビルド & 再デプロイ"]
 
-    P3["🤖 Phase 3: Copilot Studio\n1. UI で Bot 作成\n2. カスタムトピック全削除\n3. 生成オーケストレーション有効化\n4. 指示（Instructions）設定\n5. ★ ナレッジ追加（UI で手動）\n6. ★ Dataverse MCP Server 追加（UI で手動）\n7. エージェント公開"]
+    P25D["📋 Phase 2.5 設計: Power Automate\n1. フロー名・トリガー・アクション設計\n2. 接続・通知先・メール本文設計\n3. ★ ユーザーに設計を提示し承認を得る"]
+
+    P25["⚡ Phase 2.5 実装: Power Automate\n1. Flow API / PowerApps API 認証\n2. 環境 ID 解決・接続検索\n3. フロー定義 JSON 構築\n4. POST or PATCH でデプロイ"]
+
+    P3D["📋 Phase 3 設計: Copilot Studio\n1. エージェント名・Instructions 設計\n2. 会話スターター・ナレッジ・ツール設計\n3. ★ ユーザーに設計を提示し承認を得る"]
+
+    P3["🤖 Phase 3 実装: Copilot Studio\n1. UI で Bot 作成\n2. カスタムトピック全削除\n3. 生成オーケストレーション有効化\n4. 指示（Instructions）設定\n5. ★ ナレッジ追加（UI で手動）\n6. ★ MCP Server 追加（UI で手動）\n7. エージェント公開"]
 
     P0 --> P1
-    P1 --> P2
-    P1 --> P25
-    P1 --> P3
+    P1 --> P2D --> P2
+    P1 --> P25D --> P25
+    P1 --> P3D --> P3
 ```
 
 ### Phase 0: 設計フェーズの詳細
@@ -1239,6 +1334,39 @@ flowchart TD
 
 > **教訓**: 設計フェーズを省略してテーブルを作成すると、リレーションシップの漏れ（カテゴリ↔インシデントの Lookup 未設定）、デモデータの漏れ（コメントテーブルにデータなし）、必要なマスタテーブルの漏れ（設備マスタ未作成）が発生する。設計レビューで防止できる。
 
+### Phase 2/2.5/3 の設計フェーズ（各フェーズ共通原則）
+
+**Dataverse だけでなく、Code Apps・Power Automate・Copilot Studio のいずれも、実装前に設計をユーザーに提示して承認を得る。**
+
+#### Code Apps UI 設計（Phase 2 開始前）
+
+`code-apps-design` スキルを使い、以下を設計してユーザーに提示:
+- 画面一覧（ページ名・ルート・各画面の役割）
+- 各画面のコンポーネント構成（ListTable / StatsCards / FormModal / InlineEditTable 等）
+- カラム定義と render 関数
+- Lookup 名前解決パターン（`_xxx_value` + `useMemo` Map）
+- ナビゲーション構造
+
+#### Power Automate フロー設計（Phase 2.5 開始前）
+
+以下を設計してユーザーに提示:
+- フロー名・目的
+- トリガー（何をきっかけに実行するか）
+- アクション一覧（条件分岐・メール送信・Teams 通知・データ更新等）
+- 必要な接続（Dataverse, Office 365 Outlook, Teams 等）
+- 通知先・メール件名・本文の概要
+
+#### Copilot Studio エージェント設計（Phase 3 開始前）
+
+以下を設計してユーザーに提示:
+- エージェント名・説明
+- Instructions（指示テキストの全文案）
+- 会話スターター（3〜5 個のサンプル質問）
+- ナレッジソース（Dataverse テーブル / SharePoint / ファイル等）
+- ツール（MCP Server）の有無と接続先
+
+> **原則**: 各フェーズで「**この設計で進めてよいですか？**」と明示的に確認し、承認を得てから実装に進む。
+
 ---
 
 ## 9. チェックリスト
@@ -1247,11 +1375,27 @@ flowchart TD
 
 - [ ] ユーザー要件をヒアリング済み
 - [ ] テーブル設計書を作成済み（テーブル・列・型・Choice値・リレーションシップ・デモデータ）
-- [ ] **ユーザーに設計を提示し、承認を得た**
+- [ ] **ユーザーにテーブル設計を提示し、承認を得た**
 - [ ] systemuser / createdby 活用方針を確認済み
 - [ ] マスタテーブルの洗い出しが完了（カテゴリ、場所、設備等）
 - [ ] 全 Lookup リレーションシップが設計書に記載済み
 - [ ] デモデータが全テーブル（従属テーブル含む）に計画済み
+
+### Code Apps UI 設計（Phase 2 開始前）
+
+- [ ] `code-apps-design` スキルで画面構成・コンポーネントを設計済み
+- [ ] Lookup 名前解決パターン（`_xxx_value` + `useMemo` Map）を設計に含めた
+- [ ] **ユーザーに UI 設計を提示し、承認を得た**
+
+### Power Automate フロー設計（Phase 2.5 開始前）
+
+- [ ] フロー名・トリガー・アクション一覧・接続・通知先を設計済み
+- [ ] **ユーザーにフロー設計を提示し、承認を得た**
+
+### Copilot Studio エージェント設計（Phase 3 開始前）
+
+- [ ] エージェント名・Instructions・会話スターター・ナレッジ・ツールを設計済み
+- [ ] **ユーザーにエージェント設計を提示し、承認を得た**
 
 ### Dataverse テーブル作成前
 

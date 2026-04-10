@@ -10,6 +10,20 @@ Power Apps Code Apps（コードファースト）を **TypeScript + React + Tai
 > **UI 設計・コンポーネント選定** は `code-apps-design` スキルを参照。
 > このスキルは初期化・Dataverse 接続・デプロイに特化。
 
+## 前提: 設計フェーズ完了後に実装に入る（必須）
+
+**このスキルでコードを書く前に、`code-apps-design` スキルで UI 設計を行い、ユーザーの承認を得ていること。**
+
+```
+① code-apps-design スキルを読み込む
+② 画面構成・コンポーネント選定・Lookup 名前解決パターンを設計
+③ ユーザーに設計を提示し、「この設計で進めてよいですか？」と承認を得る
+④ 承認後、このスキルに従って実装
+```
+
+> **設計で提示する内容**: 画面一覧（ページ名・ルート）、各画面のコンポーネント構成（ListTable / InlineEditTable / StatsCards / FormModal 等）、
+> カラム定義、Lookup 名前解決の方法（`_xxx_value` + `useMemo` Map）、ナビゲーション構造
+
 ## 大前提: 一つのソリューション内に開発
 
 Dataverse テーブル・Code Apps・Power Automate フロー・Copilot Studio エージェントは **すべて同一のソリューション内** に含める。
@@ -105,7 +119,42 @@ name = name.replace(
 );
 ```
 
-> `npm install` で node_modules が再生成されるとパッチが消える。データソース追加のたびに確認が必要。
+**パッチ適用方法（重要）**: PowerShell では `$` のエスケープ問題でパッチが適用されないことがある。
+**必ず Node.js スクリプト（`patch-nameutils.cjs`）を使うこと。**
+
+```javascript
+// patch-nameutils.cjs — プロジェクトルートに配置
+const fs = require('fs');
+const p = 'node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js';
+let c = fs.readFileSync(p, 'utf8');
+const oldPat = "[^a-zA-Z0-9_$]/g, '_')";
+const newPat = "[^a-zA-Z0-9_$\\u00C0-\\u024F\\u0370-\\u03FF\\u0400-\\u04FF\\u3000-\\u9FFF\\uAC00-\\uD7AF\\uF900-\\uFAFF]/g, '_')";
+if (c.includes(oldPat)) {
+  c = c.replace(oldPat, newPat);
+  fs.writeFileSync(p, c);
+  console.log('Patched successfully');
+} else {
+  console.log('Already patched or pattern not found');
+}
+```
+
+```bash
+# パッチ適用コマンド
+node patch-nameutils.cjs
+
+# 検証
+node -e "const c=require('fs').readFileSync('node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js','utf8');c.split('\n').forEach((l,i)=>{if(l.includes('replace')&&l.includes('a-zA-Z'))console.log(i+':',l.trim())})"
+```
+
+```
+❌ PowerShell の文字列置換（$, バッククォート, 正規表現のエスケープが競合）
+   → パッチが適用されたように見えて実際には変更されていないケースがある
+
+✅ Node.js スクリプト（patch-nameutils.cjs）で確実に適用
+   → 適用後に Select-String または node -e で検証必須
+```
+
+> `npm install` で node_modules が再生成されるとパッチが消える。データソース追加のたびに `node patch-nameutils.cjs` を実行すること。
 
 ### スキーマ名は英語のみ
 
@@ -200,10 +249,13 @@ src/generated/
 ```
 
 **推奨アーキテクチャ**: SDK 生成サービスの薄いラッパーを作成する。
+**Lookup の名前表示は必ずクライアントサイド名前解決パターンを使う。**
 
 ```typescript
 // src/services/incident-service.ts — SDK生成サービスのラッパー
 import { Geek_incidentsService } from "@/generated/services/Geek_incidentsService";
+import { SystemusersService } from "@/generated/services/SystemusersService";
+import { Geek_incidentcategoriesService } from "@/generated/services/Geek_incidentcategoriesService";
 import type {
   Geek_incidents,
   Geek_incidentsBase,
@@ -224,29 +276,136 @@ export type CreatePayload = Omit<Geek_incidentsBase, SystemFields> &
     >
   >;
 
+// ★ select に Lookup GUID（_xxx_value）を必ず含める
 export async function getIncidents(): Promise<Geek_incidents[]> {
   const result = await Geek_incidentsService.getAll({
+    select: [
+      "geek_incidentid", "geek_name", "geek_description",
+      "geek_status", "geek_priority", "createdon",
+      "_geek_incidentcategoryid_value", "_geek_assignedtoid_value",
+      "_geek_itassetid_value", "_createdby_value",
+    ],
     orderBy: ["createdon desc"],
   });
   return result.data;
 }
 
-export async function createIncident(
-  payload: CreatePayload,
-): Promise<Geek_incidents> {
-  const result = await Geek_incidentsService.create(
-    payload as Omit<Geek_incidentsBase, "geek_incidentid">,
-  );
+// 名前解決用: systemuser 一覧を取得
+export async function getSystemUsers() {
+  const result = await SystemusersService.getAll({
+    select: ["systemuserid", "fullname", "internalemailaddress"],
+    filter: "isdisabled eq false and accessmode ne 3 and accessmode ne 4",
+    orderBy: ["fullname asc"],
+  });
+  return result.data;
+}
+
+// 名前解決用: カテゴリ一覧を取得
+export async function getCategories() {
+  const result = await Geek_incidentcategoriesService.getAll({
+    select: ["geek_incidentcategoryid", "geek_name"],
+    orderBy: ["geek_name asc"],
+  });
   return result.data;
 }
 ```
 
-**SDK 生成型の注意点**:
+**SDK 生成型の注意点（最初の実装から適用すること）**:
 
-- Lookup フィールドは `object` 型 → 展開名フィールド (`geek_incidentcategoryidname`) を使用
+- **Lookup 名フィールド（`createdbyname`, `geek_assignedtoidname` 等）は SDK が返さない**
+  → `_xxx_value`（GUID）+ クライアントサイド名前解決が必須（下記パターン参照）
 - `createdon`, `modifiedon` は `string | undefined` → null チェック必須
 - `geek_status`, `geek_priority` は `number | undefined` → null チェック必須
 - Choice 値マップ（`Geek_incidentsgeek_status` 等）は SDK が生成するが、UI ラベルは別途定義
+
+### Lookup 名はクライアントサイド名前解決が必須（最重要）
+
+SDK 生成サービスの `getAll()` / `get()` は **フォーマット済み Lookup 名フィールド**
+（`createdbyname`, `geek_assignedtoidname`, `geek_incidentcategoryidname` 等）を
+**返さない**。最初のページ実装から以下のパターンを適用すること。
+
+```
+❌ Lookup 名フィールドに依存して表示（初回デプロイから壊れる）
+   → item.createdbyname → undefined → 「-」や空白になる
+   → item.geek_assignedtoidname → undefined → 担当者列が空
+   → item.geek_incidentcategoryidname → undefined → カテゴリが空
+
+✅ _xxx_value（GUID）+ useMemo で名前解決マップ（正しいパターン）
+   → 関連テーブル（systemuser, category, itasset 等）を hooks で取得
+   → useMemo で Map<GUID, 名前> を構築
+   → テーブルカラムの render で GUID → 名前変換して表示
+```
+
+**ページ実装の推奨パターン（一覧ページ）**:
+
+```typescript
+// ① hooks で関連テーブルを取得
+const { data: incidents = [] } = useIncidents()
+const { data: users = [] } = useSystemUsers()
+const { data: categories = [] } = useCategories()
+
+// ② useMemo で GUID → 名前の Map を構築
+const userMap = useMemo(() => {
+  const m = new Map<string, string>()
+  users.forEach((u) => m.set(u.systemuserid, u.fullname || u.internalemailaddress || ""))
+  return m
+}, [users])
+
+const categoryMap = useMemo(() => {
+  const m = new Map<string, string>()
+  categories.forEach((c) => m.set(c.geek_incidentcategoryid, c.geek_name))
+  return m
+}, [categories])
+
+// ③ テーブルカラムで render 関数を使って GUID → 名前を解決
+const columns = [
+  { key: "geek_name", label: "タイトル", sortable: true },
+  {
+    key: "_geek_incidentcategoryid_value",
+    label: "カテゴリ",
+    render: (item) => {
+      const v = item._geek_incidentcategoryid_value as string | undefined
+      return v ? categoryMap.get(v) || "" : ""
+    },
+  },
+  {
+    key: "_geek_assignedtoid_value",
+    label: "担当者",
+    render: (item) => {
+      const v = item._geek_assignedtoid_value as string | undefined
+      return v ? userMap.get(v) || "" : ""
+    },
+  },
+  {
+    key: "_createdby_value",
+    label: "報告者",
+    render: (item) => {
+      const v = item._createdby_value as string | undefined
+      return v ? userMap.get(v) || "" : ""
+    },
+  },
+]
+```
+
+**詳細ページの推奨パターン**:
+
+```typescript
+// 詳細ページも同様に useMemo マップで解決
+<FormColumns columns={2}>
+  <div>
+    <Label className="text-muted-foreground text-xs">担当者</Label>
+    <p className="font-medium">
+      {(incident._geek_assignedtoid_value && userMap.get(incident._geek_assignedtoid_value)) || "未割当"}
+    </p>
+  </div>
+  <div>
+    <Label className="text-muted-foreground text-xs">報告者</Label>
+    <p className="font-medium">
+      {(incident._createdby_value && userMap.get(incident._createdby_value)) || "-"}
+    </p>
+  </div>
+</FormColumns>
+```
 
 ### CodeAppsStarter テンプレートのクリーンアップ（必須）
 

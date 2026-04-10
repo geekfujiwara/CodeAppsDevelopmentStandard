@@ -37,6 +37,7 @@ Thumbs.db
 
 # SDK generated (npx power-apps add-data-source で再生成)
 src/generated/
+power.config.json
 
 # App-specific code (テンプレートには含めない)
 src/pages/incident-*.tsx

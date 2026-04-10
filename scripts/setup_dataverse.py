@@ -150,6 +150,33 @@ TABLES = [
         "description": "設置場所マスタ",
         "columns": [],
     },
+    {
+        "logical": f"{PREFIX}_itasset",
+        "display": "IT Asset",
+        "plural": "IT Assets",
+        "description": "IT資産マスタ",
+        "columns": [
+            {
+                "logical": f"{PREFIX}_assettype",
+                "type": "Picklist",
+                "display": "Asset Type",
+                "options": [
+                    (100000000, "PC"),
+                    (100000001, "Server"),
+                    (100000002, "Network Device"),
+                    (100000003, "Printer"),
+                    (100000004, "Mobile Device"),
+                    (100000005, "Other"),
+                ],
+            },
+            {
+                "logical": f"{PREFIX}_serialnumber",
+                "type": "String",
+                "display": "Serial Number",
+                "maxLength": 100,
+            },
+        ],
+    },
     # Phase 2: 主テーブル
     {
         "logical": f"{PREFIX}_incident",
@@ -235,6 +262,10 @@ def build_column_body(col):
     elif col["type"] == "DateTime":
         base["@odata.type"] = "#Microsoft.Dynamics.CRM.DateTimeAttributeMetadata"
         base["Format"] = "DateOnly"
+    elif col["type"] == "String":
+        base["@odata.type"] = "#Microsoft.Dynamics.CRM.StringAttributeMetadata"
+        base["FormatName"] = {"Value": "Text"}
+        base["MaxLength"] = col.get("maxLength", 200)
     return base
 
 
@@ -293,13 +324,21 @@ LOOKUPS = [
         "lookup_attr": f"{PREFIX}_incidentcategoryid",
         "lookup_display": "Category",
     },
-    # incident → location
+    # itasset → location
     {
-        "schema": f"{PREFIX}_incident_{PREFIX}_location",
-        "referencing": f"{PREFIX}_incident",
+        "schema": f"{PREFIX}_itasset_{PREFIX}_location",
+        "referencing": f"{PREFIX}_itasset",
         "referenced": f"{PREFIX}_location",
         "lookup_attr": f"{PREFIX}_locationid",
         "lookup_display": "Location",
+    },
+    # incident → itasset
+    {
+        "schema": f"{PREFIX}_incident_{PREFIX}_itasset",
+        "referencing": f"{PREFIX}_incident",
+        "referenced": f"{PREFIX}_itasset",
+        "lookup_attr": f"{PREFIX}_itassetid",
+        "lookup_display": "IT Asset",
     },
     # incident → systemuser (担当者)
     {
@@ -345,7 +384,8 @@ def create_lookups():
 
 LOCALIZE_TABLES = [
     (f"{PREFIX}_incidentcategory", "インシデントカテゴリ", "インシデントカテゴリ"),
-    (f"{PREFIX}_location", "場所", "場所"),
+    (f"{PREFIX}_location", "設置場所", "設置場所"),
+    (f"{PREFIX}_itasset", "IT資産", "IT資産"),
     (f"{PREFIX}_incident", "インシデント", "インシデント"),
     (f"{PREFIX}_incidentcomment", "インシデントコメント", "インシデントコメント"),
 ]
@@ -357,10 +397,14 @@ LOCALIZE_COLUMNS = [
     (f"{PREFIX}_incident", f"{PREFIX}_priority", "優先度"),
     (f"{PREFIX}_incident", f"{PREFIX}_duedate", "期限"),
     (f"{PREFIX}_incident", f"{PREFIX}_incidentcategoryid", "カテゴリ"),
-    (f"{PREFIX}_incident", f"{PREFIX}_locationid", "場所"),
+    (f"{PREFIX}_incident", f"{PREFIX}_itassetid", "関連資産"),
     (f"{PREFIX}_incident", f"{PREFIX}_assignedtoid", "担当者"),
     (f"{PREFIX}_incidentcategory", f"{PREFIX}_name", "カテゴリ名"),
     (f"{PREFIX}_location", f"{PREFIX}_name", "場所名"),
+    (f"{PREFIX}_itasset", f"{PREFIX}_name", "資産名"),
+    (f"{PREFIX}_itasset", f"{PREFIX}_assettype", "資産種別"),
+    (f"{PREFIX}_itasset", f"{PREFIX}_serialnumber", "シリアル番号"),
+    (f"{PREFIX}_itasset", f"{PREFIX}_locationid", "設置場所"),
     (f"{PREFIX}_incidentcomment", f"{PREFIX}_name", "件名"),
     (f"{PREFIX}_incidentcomment", f"{PREFIX}_content", "内容"),
     (f"{PREFIX}_incidentcomment", f"{PREFIX}_incidentid", "インシデント"),
@@ -379,6 +423,15 @@ LOCALIZE_PRIORITY_OPTIONS = [
     (100000001, "高"),
     (100000002, "中"),
     (100000003, "低"),
+]
+
+LOCALIZE_ASSETTYPE_OPTIONS = [
+    (100000000, "PC"),
+    (100000001, "サーバー"),
+    (100000002, "ネットワーク機器"),
+    (100000003, "プリンター"),
+    (100000004, "モバイル端末"),
+    (100000005, "その他"),
 ]
 
 
@@ -427,6 +480,9 @@ def localize_tables():
     _localize_options(f"{PREFIX}_incident", f"{PREFIX}_status", LOCALIZE_STATUS_OPTIONS)
     _localize_options(f"{PREFIX}_incident", f"{PREFIX}_priority", LOCALIZE_PRIORITY_OPTIONS)
 
+    # IT資産 資産種別
+    _localize_options(f"{PREFIX}_itasset", f"{PREFIX}_assettype", LOCALIZE_ASSETTYPE_OPTIONS)
+
 
 def _localize_options(table, col, options):
     """Choice オプションの日本語ラベルを更新"""
@@ -455,30 +511,52 @@ def insert_demo_data():
         print(f"  カテゴリ: {name}")
 
     # 場所作成
-    locations = ["本社1F", "本社2F", "本社3F", "大阪支店", "リモート"]
+    locations = ["本社A棟1F", "本社A棟2F", "本社B棟1F", "大阪支社", "サーバールーム"]
     loc_ids = {}
     for name in locations:
         r = api_post(f"{PREFIX}_locations", {f"{PREFIX}_name": name})
         loc_ids[name] = r.headers.get("OData-EntityId", "").split("(")[-1].rstrip(")")
         print(f"  場所: {name}")
 
+    # IT資産作成
+    assets = [
+        {f"{PREFIX}_name": "営業部PC-001", f"{PREFIX}_assettype": 100000000, f"{PREFIX}_serialnumber": "PC-2024-001", "location": "本社A棟1F"},
+        {f"{PREFIX}_name": "ファイルサーバー01", f"{PREFIX}_assettype": 100000001, f"{PREFIX}_serialnumber": "SV-2023-010", "location": "サーバールーム"},
+        {f"{PREFIX}_name": "コアスイッチ01", f"{PREFIX}_assettype": 100000002, f"{PREFIX}_serialnumber": "NW-2023-005", "location": "サーバールーム"},
+        {f"{PREFIX}_name": "複合機A棟", f"{PREFIX}_assettype": 100000003, f"{PREFIX}_serialnumber": "PR-2024-003", "location": "本社A棟2F"},
+        {f"{PREFIX}_name": "社用スマホ-003", f"{PREFIX}_assettype": 100000004, f"{PREFIX}_serialnumber": "MB-2024-003", "location": "大阪支社"},
+    ]
+    asset_ids = {}
+    for asset in assets:
+        body = {
+            f"{PREFIX}_name": asset[f"{PREFIX}_name"],
+            f"{PREFIX}_assettype": asset[f"{PREFIX}_assettype"],
+            f"{PREFIX}_serialnumber": asset[f"{PREFIX}_serialnumber"],
+        }
+        loc = asset.get("location")
+        if loc and loc_ids.get(loc):
+            body[f"{PREFIX}_locationid@odata.bind"] = f"/{PREFIX}_locations({loc_ids[loc]})"
+        r = api_post(f"{PREFIX}_itassets", body)
+        asset_ids[asset[f"{PREFIX}_name"]] = r.headers.get("OData-EntityId", "").split("(")[-1].rstrip(")")
+        print(f"  IT資産: {asset[f'{PREFIX}_name']}")
+
     # インシデント作成
     incidents = [
         {
-            f"{PREFIX}_name": "本社3Fネットワーク接続不可",
-            f"{PREFIX}_description": "本社3Fのフロア全体でネットワークに接続できない状態が続いています。スイッチの障害が疑われます。",
+            f"{PREFIX}_name": "本社A棟ネットワーク接続不可",
+            f"{PREFIX}_description": "本社A棟のフロア全体でネットワークに接続できない状態が続いています。コアスイッチの障害が疑われます。",
             f"{PREFIX}_status": 100000001,  # 対応中
             f"{PREFIX}_priority": 100000000,  # 緊急
             "category": "ネットワーク障害",
-            "location": "本社3F",
+            "asset": "コアスイッチ01",
         },
         {
-            f"{PREFIX}_name": "会議室Aプロジェクター不具合",
-            f"{PREFIX}_description": "会議室Aのプロジェクターが映像を出力しません。ランプ切れの可能性があります。",
+            f"{PREFIX}_name": "複合機A棟 紙詰まり頻発",
+            f"{PREFIX}_description": "本社A棟2Fの複合機で頻繁に紙詰まりが発生しています。",
             f"{PREFIX}_status": 100000000,  # 新規
             f"{PREFIX}_priority": 100000002,  # 中
             "category": "ハードウェア故障",
-            "location": "本社2F",
+            "asset": "複合機A棟",
         },
         {
             f"{PREFIX}_name": "経費精算システムログインエラー",
@@ -486,7 +564,7 @@ def insert_demo_data():
             f"{PREFIX}_status": 100000002,  # 保留
             f"{PREFIX}_priority": 100000001,  # 高
             "category": "ソフトウェア不具合",
-            "location": "リモート",
+            "asset": "ファイルサーバー01",
         },
         {
             f"{PREFIX}_name": "不審メール受信報告",
@@ -494,18 +572,19 @@ def insert_demo_data():
             f"{PREFIX}_status": 100000001,  # 対応中
             f"{PREFIX}_priority": 100000000,  # 緊急
             "category": "セキュリティ",
-            "location": "リモート",
+            "asset": None,
         },
         {
-            f"{PREFIX}_name": "大阪支店プリンター紙詰まり",
-            f"{PREFIX}_description": "大阪支店のメインプリンターで頻繁に紙詰まりが発生しています。",
+            f"{PREFIX}_name": "大阪支社 社用スマホ画面割れ",
+            f"{PREFIX}_description": "大阪支社の社用スマホ-003の画面が割れて操作できない状態です。",
             f"{PREFIX}_status": 100000003,  # 解決済
             f"{PREFIX}_priority": 100000003,  # 低
             "category": "ハードウェア故障",
-            "location": "大阪支店",
+            "asset": "社用スマホ-003",
         },
     ]
 
+    inc_ids = []
     for inc in incidents:
         body = {
             f"{PREFIX}_name": inc[f"{PREFIX}_name"],
@@ -517,13 +596,36 @@ def insert_demo_data():
         if cat and cat_ids.get(cat):
             body[f"{PREFIX}_incidentcategoryid@odata.bind"] = \
                 f"/{PREFIX}_incidentcategories({cat_ids[cat]})"
-        loc = inc.get("location")
-        if loc and loc_ids.get(loc):
-            body[f"{PREFIX}_locationid@odata.bind"] = \
-                f"/{PREFIX}_locations({loc_ids[loc]})"
+        asset = inc.get("asset")
+        if asset and asset_ids.get(asset):
+            body[f"{PREFIX}_itassetid@odata.bind"] = \
+                f"/{PREFIX}_itassets({asset_ids[asset]})"
 
-        api_post(f"{PREFIX}_incidents", body)
+        r = api_post(f"{PREFIX}_incidents", body)
+        inc_id = r.headers.get("OData-EntityId", "").split("(")[-1].rstrip(")")
+        inc_ids.append(inc_id)
         print(f"  インシデント: {inc[f'{PREFIX}_name']}")
+
+    # コメント作成
+    comments = [
+        (0, "コアスイッチのログを確認中。ポート3に異常を検出。"),
+        (0, "ベンダーに連絡済み。明日午前中に現地対応予定。"),
+        (1, "紙送りローラーの摩耗が原因と思われます。部品発注中。"),
+        (2, "認証サーバーのログを確認したところ、証明書の有効期限切れでした。"),
+        (2, "証明書の更新をベンダーに依頼中。一時的にバイパス設定を適用。"),
+        (3, "送信元ドメインをブラックリストに追加済み。全社に注意喚起メールを送信。"),
+        (3, "追加で3名から同様のメール受信報告あり。パターン分析中。"),
+        (4, "代替端末を手配し、大阪支社に発送済み。到着次第データ移行予定。"),
+    ]
+    for idx, content in comments:
+        if idx < len(inc_ids) and inc_ids[idx]:
+            body = {
+                f"{PREFIX}_name": content[:200],
+                f"{PREFIX}_content": content,
+                f"{PREFIX}_incidentid@odata.bind": f"/{PREFIX}_incidents({inc_ids[idx]})",
+            }
+            api_post(f"{PREFIX}_incidentcomments", body)
+            print(f"  コメント: [{idx}] {content[:40]}...")
 
     print("  デモデータ投入完了")
 

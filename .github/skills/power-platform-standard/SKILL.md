@@ -141,3 +141,7 @@ python -c "from scripts.auth_helper import get_token; print(get_token()[:20] + '
 | **設計フェーズでユーザー承認必須**           | テーブル設計を提示し承認を得てから構築に進む                |
 | 全テーブルにデモデータを投入                 | 従属テーブル（コメント等）含め漏れなく                      |
 | 全 Lookup を設計書に明記                     | リレーション漏れは機能不全の原因                            |
+| **nameUtils パッチは Node.js スクリプトで**  | PowerShell の $ エスケープで適用失敗する。`node patch-nameutils.cjs` を使う |
+| **SDK Lookup 名は未ポピュレート（初回から対応必須）** | `createdbyname` 等は返らない。**初回デプロイから** `_xxx_value` + `useMemo` クライアントサイド名前解決を実装 |
+| **フロー接続 ID はハードコードしない**       | 環境が変わると接続 ID も変わる。毎回 PowerApps API で自動検索             |
+| **api_get() は dict を返す**                 | `.json()` を呼ぶとエラー。戻り値の dict をそのまま使う                    |

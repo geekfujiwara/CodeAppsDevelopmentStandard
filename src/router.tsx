@@ -4,9 +4,15 @@ import Layout from "@/pages/_layout";
 
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
 
+// ダッシュボード
+const DashboardPage = lazy(() => import("@/pages/dashboard"));
+
 // インシデント管理ページ
 const IncidentListPage = lazy(() => import("@/pages/incidents"));
 const IncidentDetailPage = lazy(() => import("@/pages/incident-detail"));
+
+// IT 資産管理
+const AssetsPage = lazy(() => import("@/pages/assets"));
 
 // ローディングコンポーネント
 const PageLoader = () => (
@@ -41,9 +47,11 @@ export const router = createBrowserRouter(
       element: <Layout showHeader={true} />,
       errorElement: withSuspense(NotFoundPage),
       children: [
-        { index: true, element: <Navigate to="/incidents" replace /> },
+        { index: true, element: <Navigate to="/dashboard" replace /> },
+        { path: "dashboard", element: withSuspense(DashboardPage) },
         { path: "incidents", element: withSuspense(IncidentListPage) },
         { path: "incidents/:id", element: withSuspense(IncidentDetailPage) },
+        { path: "assets", element: withSuspense(AssetsPage) },
       ],
     },
   ],
