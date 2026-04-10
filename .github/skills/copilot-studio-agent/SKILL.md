@@ -103,18 +103,24 @@ conversationStarters:
 
 ### Step 0: Copilot Studio UI での Bot 作成（ユーザー手動）
 
+ユーザーに依頼する際は、ソリューションの **スキーマ名（`SOLUTION_NAME`）** と **表示名** の両方を伝える。
+Copilot Studio UI のドロップダウンには表示名が表示されるため、スキーマ名だけではユーザーが特定できない。
+
 ```
 1. https://copilotstudio.microsoft.com/ にアクセス
 2. 「+ 作成」をクリック
 3. エージェント名を入力
 4. ★「エージェント設定 (オプション)」を展開:
    - 言語: 日本語 (日本)
-   - ソリューション: {SOLUTION_NAME}  ← 必ず同一ソリューションを選択！
+   - ソリューション: 「{SOLUTION_DISPLAY_NAME}」を選択
+     （スキーマ名: {SOLUTION_NAME}、表示名: {SOLUTION_DISPLAY_NAME}）
    - スキーマ名: {prefix}_agent_name
 5. 「作成」をクリック
 6. ブラウザ URL を .env に貼り付け:
    BOT_ID=https://copilotstudio.../bots/xxxxxxxx-xxxx-.../overview
 ```
+
+> **教訓**: UI のドロップダウンにはソリューションの「表示名」が表示される。スキーマ名だけ伝えるとユーザーがどれを選ぶか迷う。必ず「表示名: ○○○（スキーマ名: △△△）」の形式で伝える。
 
 ### Step 1: Bot 検索
 - `.env` の `BOT_ID` から取得（URL でも GUID でも可）

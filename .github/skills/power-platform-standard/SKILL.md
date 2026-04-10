@@ -139,6 +139,7 @@ python -c "from scripts.auth_helper import get_token; print(get_token()[:20] + '
 | get_token() は scope のみ指定                | auth_helper は .env から自動読み込み                        |
 | **全コンポーネントをソリューションに含める** | AddSolutionComponent で検証・補完。ヘッダーだけに依存しない |
 | **設計フェーズでユーザー承認必須**           | テーブル設計を提示し承認を得てから構築に進む                |
+| **設計前に既存環境の名前衝突を検索**       | ソリューション名・テーブルスキーマ名が既存と重複しないことを API で確認 |
 | 全テーブルにデモデータを投入                 | 従属テーブル（コメント等）含め漏れなく                      |
 | 全 Lookup を設計書に明記                     | リレーション漏れは機能不全の原因                            |
 | **nameUtils パッチは Node.js スクリプトで**  | PowerShell の $ エスケープで適用失敗する。`node patch-nameutils.cjs` を使う |
