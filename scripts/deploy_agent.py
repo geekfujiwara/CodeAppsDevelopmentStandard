@@ -200,7 +200,7 @@ TEAMS_LONG_DESCRIPTION = (
     "・緊急インシデントのアラート確認\n\n"
     "自然言語で指示するだけで、Dataverse 上のインシデントデータを操作できます。"
 )  # 最大3400文字
-TEAMS_ACCENT_COLOR = "#0078D4"  # 背景色（ブランドカラー）
+TEAMS_ACCENT_COLOR = "#FFFFFF"  # 背景色（白 / 透明推奨）
 TEAMS_DEVELOPER_NAME = "Power Platform Dev"  # 最大32文字
 TEAMS_WEBSITE = ""  # 空欄ならデフォルト維持
 TEAMS_PRIVACY_URL = ""  # 空欄ならデフォルト維持
