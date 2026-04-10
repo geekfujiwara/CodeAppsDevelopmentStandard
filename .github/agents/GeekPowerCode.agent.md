@@ -73,43 +73,45 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 
 16. **Bot 作成は Copilot Studio UI で手動**。API（bots テーブル直接 INSERT）ではプロビジョニングされない
 17. **Bot 作成依頼時はソリューションの表示名とスキーマ名の両方を伝える**。UI のドロップダウンには表示名が表示される
-18. **トピックベース開発は行わない**。生成オーケストレーション（Generative Orchestration）モード一択
-19. **カスタムトピックはすべて削除**してから Instructions で制御
-20. **ナレッジと MCP Server（ツール）はユーザーが Copilot Studio UI で手動追加**
-21. **GPT コンポーネント更新時は UI が作成したものを特定**。defaultSchemaName で照合
-22. **configuration を PATCH する際は既存値をマージ**。gPTSettings を消さない
-23. **説明は `botcomponents.description` カラム**。YAML 内の description キーは UI が読まない。publish 後に設定
+18. **Bot 作成後はプロビジョニング完了を待つ**。UI でエージェントが完全にロード（トピック一覧表示）されてから Bot ID URL をコピーする。直後にスクリプト実行するとカスタムトピック削除が 0 件になる
+19. **トピックベース開発は行わない**。生成オーケストレーション（Generative Orchestration）モード一択
+20. **カスタムトピックはすべて削除**してから Instructions で制御。スクリプトにプロビジョニング待ちリトライ（最大120秒）を含める
+21. **ナレッジと MCP Server（ツール）はユーザーが Copilot Studio UI で手動追加**
+22. **GPT コンポーネント更新時は UI が作成したものを特定**。defaultSchemaName で照合
+23. **configuration を PATCH する際は既存値をディープマージ**。gPTSettings・モデル選択・その他 UI 設定を消さない
+24. **`optInUseLatestModels` は設定しない**。これを True にすると UI で選んだ基盤モデル（Claude 等）が GPT に強制変更される
+25. **説明は `botcomponents.description` カラム**。YAML 内の description キーは UI が読まない。publish 後に設定
 
 ### Power Automate フロー開発
 
-24. **Flow API と PowerApps API で認証スコープが異なる**。Flow API は `https://service.flow.microsoft.com/.default`、接続検索は `https://service.powerapps.com/.default`
-25. **接続は環境内に事前作成が必要**。API で接続の自動作成はできない
-26. **環境 ID は DATAVERSE_URL の instanceUrl から逆引き**。末尾スラッシュを `rstrip("/")` で統一
-27. **既存フロー検索 → 更新 or 新規作成のべき等パターン**を使う
-28. **失敗時はフロー定義 JSON をファイル出力**して手動インポートのフォールバックを用意
+26. **Flow API と PowerApps API で認証スコープが異なる**。Flow API は `https://service.flow.microsoft.com/.default`、接続検索は `https://service.powerapps.com/.default`
+27. **接続は環境内に事前作成が必要**。API で接続の自動作成はできない
+28. **環境 ID は DATAVERSE_URL の instanceUrl から逆引き**。末尾スラッシュを `rstrip("/")` で統一
+29. **既存フロー検索 → 更新 or 新規作成のべき等パターン**を使う
+30. **失敗時はフロー定義 JSON をファイル出力**して手動インポートのフォールバックを用意
 
 ### 日本語ローカライズ
 
-29. **表示名更新は PUT + MetadataId** パターン。PATCH では反映されないケースがある
-30. **`MSCRM.MergeLabels: true` ヘッダー必須**
+31. **表示名更新は PUT + MetadataId** パターン。PATCH では反映されないケースがある
+32. **`MSCRM.MergeLabels: true` ヘッダー必須**
 
 ### 環境・デプロイ
 
-31. **`power.config.json` は `npx power-apps init` で生成**。手動作成・他プロジェクトからのコピー禁止。別環境の appId → `AppLeaseMissing` (409)
-32. **環境で Code Apps を有効化**。未許可 → `CodeAppOperationNotAllowedInEnvironment` (403)
-33. **`src/generated/` と `.power/` は SDK コマンドで生成**。`npx power-apps add-data-source` で自動生成される。手動作成禁止
-34. **PAC CLI 認証プロファイルは環境ごとに作成**。`pac auth create --name {name} --environment {env-id}`
-35. **`auth_helper.get_token()` は `scope` キーワード引数のみ**。`.env` から TENANT_ID を自動読み込み
+33. **`power.config.json` は `npx power-apps init` で生成**。手動作成・他プロジェクトからのコピー禁止。別環境の appId → `AppLeaseMissing` (409)
+34. **環境で Code Apps を有効化**。未許可 → `CodeAppOperationNotAllowedInEnvironment` (403)
+35. **`src/generated/` と `.power/` は SDK コマンドで生成**。`npx power-apps add-data-source` で自動生成される。手動作成禁止
+36. **PAC CLI 認証プロファイルは環境ごとに作成**。`pac auth create --name {name} --environment {env-id}`
+37. **`auth_helper.get_token()` は `scope` キーワード引数のみ**。`.env` から TENANT_ID を自動読み込み
 
 ### 設計フェーズ（最重要 — 全フェーズ共通原則）
 
-36. **全フェーズで設計→ユーザー承認→実装の順序を守る**。Dataverse・Code Apps・Power Automate・Copilot Studio のいずれも、設計をユーザーに提示し「この設計で進めてよいですか？」と承認を得てから構築に進む
-37. **テーブル設計**: 全 Lookup リレーションシップを設計書に明記。漏れると Lookup が機能しない
-38. **テーブル設計**: デモデータは全テーブル（従属テーブル含む）に計画。コメント等の従属テーブルにもデモデータを用意
-39. **テーブル設計**: マスタテーブルは要件から網羅的に洗い出す。カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化
-40. **Code Apps 設計**: `code-apps-design` スキルを読み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計。ユーザー承認後に `code-apps-dev` で実装
-41. **Power Automate 設計**: フロー名・トリガー・アクション・接続・通知先を設計書として提示。ユーザー承認後にデプロイスクリプトを作成
-42. **Copilot Studio 設計**: エージェント名・Instructions（指示内容）・会話スターター・ナレッジ・ツール（MCP Server）を設計書として提示。ユーザー承認後に構築
+38. **全フェーズで設計→ユーザー承認→実装の順序を守る**。Dataverse・Code Apps・Power Automate・Copilot Studio のいずれも、設計をユーザーに提示し「この設計で進めてよいですか？」と承認を得てから構築に進む
+39. **テーブル設計**: 全 Lookup リレーションシップを設計書に明記。漏れると Lookup が機能しない
+40. **テーブル設計**: デモデータは全テーブル（従属テーブル含む）に計画。コメント等の従属テーブルにもデモデータを用意
+41. **テーブル設計**: マスタテーブルは要件から網羅的に洗い出す。カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化
+42. **Code Apps 設計**: `code-apps-design` スキルを読み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計。ユーザー承認後に `code-apps-dev` で実装
+43. **Power Automate 設計**: フロー名・トリガー・アクション・接続・通知先を設計書として提示。ユーザー承認後にデプロイスクリプトを作成
+44. **Copilot Studio 設計**: エージェント名・Instructions（指示内容）・会話スターター・ナレッジ・ツール（MCP Server）を設計書として提示。ユーザー承認後に構築
 
 ## 作業手順
 

@@ -243,11 +243,41 @@ def find_bot() -> str:
 
 # ── Step 2: カスタムトピック全削除 ────────────────────────
 
+def _wait_for_provisioning(bot_id: str, timeout: int = 120) -> bool:
+    """Bot のプロビジョニング完了を待つ。トピックが出現するまでリトライ。"""
+    print("\n=== Step 1.5: プロビジョニング待ち ===")
+    elapsed = 0
+    interval = 10
+    while elapsed < timeout:
+        topics = api_get("botcomponents",
+                         {"$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 1",
+                          "$select": "botcomponentid"})
+        topic_count = len(topics.get("value", []))
+        if topic_count > 0:
+            print(f"  プロビジョニング完了（トピック {topic_count} 件検出、{elapsed}秒経過）")
+            return True
+        # GPT コンポーネント（componenttype=15）も確認
+        gpt = api_get("botcomponents",
+                      {"$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 15",
+                       "$select": "botcomponentid"})
+        if gpt.get("value"):
+            print(f"  プロビジョニング完了（GPT コンポーネント検出、{elapsed}秒経過）")
+            return True
+        print(f"  プロビジョニング待機中... ({elapsed}/{timeout}秒)")
+        time.sleep(interval)
+        elapsed += interval
+    print(f"  ⚠️ {timeout}秒経過 — トピック未検出。プロビジョニングが遅延している可能性があります")
+    print("    Copilot Studio UI で Bot が完全にロードされているか確認してください")
+    return False
+
+
 def delete_custom_topics(bot_id: str):
     print("\n=== Step 2: カスタムトピック削除 ===")
     topics = api_get("botcomponents",
                      {"$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 1",
                       "$select": "botcomponentid,name"})
+    if not topics.get("value"):
+        print("  ⚠️ トピックが 0 件です（プロビジョニング未完了の可能性）")
     count = 0
     for topic in topics.get("value", []):
         # システムトピックはスキップ
@@ -263,17 +293,37 @@ def delete_custom_topics(bot_id: str):
 
 # ── Step 3: 生成オーケストレーション有効化 ────────────────
 
+def _deep_merge(base: dict, override: dict) -> dict:
+    """base に override をディープマージ。override 側の値を優先するが、
+    base にしかないキーは保持する。"""
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def enable_generative_orchestration(bot_id: str) -> dict:
-    """生成オーケストレーションを有効化。既存 configuration をマージして返す。"""
+    """生成オーケストレーションを有効化。既存 configuration をディープマージして返す。
+    ★ 基盤モデル（Claude / GPT 等）の選択は変更しない。"""
     print("\n=== Step 3: 生成オーケストレーション有効化 ===")
 
-    # 既存 configuration を読み込み（gPTSettings 等を保持するため）
+    # 既存 configuration を読み込み（モデル設定・gPTSettings 等を保持するため）
     bot_data = api_get(f"bots({bot_id})?$select=configuration")
     existing_config = json.loads(bot_data.get("configuration", "{}") or "{}")
     print(f"  既存 configuration キー: {list(existing_config.keys())}")
 
-    # gPTSettings を保持したままマージ
-    merged = {
+    # aISettings の既存モデル設定を表示（デバッグ用）
+    existing_ai = existing_config.get("aISettings", {})
+    if existing_ai:
+        print(f"  既存 aISettings キー: {list(existing_ai.keys())}")
+
+    # 生成オーケストレーションに必要な最小限の設定のみ指定
+    # ★ optInUseLatestModels は設定しない（基盤モデルが GPT に強制変更されるため）
+    # ★ aISettings は丸ごと上書きせずディープマージ（既存のモデル選択を保持）
+    overrides = {
         "$kind": "BotConfiguration",
         "settings": {
             "GenerativeActionsEnabled": True,
@@ -283,18 +333,19 @@ def enable_generative_orchestration(bot_id: str) -> dict:
             "useModelKnowledge": True,
             "isFileAnalysisEnabled": True,
             "isSemanticSearchEnabled": True,
-            "optInUseLatestModels": True,
+            # optInUseLatestModels は意図的に省略 — UI で選択した基盤モデルを維持
         },
         "recognizer": {
             "$kind": "GenerativeAIRecognizer",
         },
     }
-    # 既存の gPTSettings を保持
-    if "gPTSettings" in existing_config:
-        merged["gPTSettings"] = existing_config["gPTSettings"]
+
+    # 既存 configuration にオーバーライドをディープマージ
+    # → gPTSettings、モデル選択、その他 UI 由来の設定をすべて保持
+    merged = _deep_merge(existing_config, overrides)
 
     api_patch(f"bots({bot_id})", {"configuration": json.dumps(merged)})
-    print("  生成オーケストレーション有効化完了")
+    print("  生成オーケストレーション有効化完了（基盤モデル変更なし）")
     return existing_config
 
 
@@ -398,6 +449,7 @@ def main():
     print("=" * 60)
 
     bot_id = find_bot()
+    _wait_for_provisioning(bot_id)
     delete_custom_topics(bot_id)
     saved_config = enable_generative_orchestration(bot_id)
     comp_id = set_gpt_instructions(bot_id, saved_config)

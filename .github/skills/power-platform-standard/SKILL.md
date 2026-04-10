@@ -130,6 +130,9 @@ python -c "from scripts.auth_helper import get_token; print(get_token()[:20] + '
 | 接続は環境内に事前作成                       | API での接続自動作成は不可                                  |
 | フローはべき等パターンでデプロイ             | displayName で検索 → 更新 or 新規作成                       |
 | Bot 作成は Copilot Studio UI                 | API（bots INSERT）ではプロビジョニングされない              |
+| Bot 作成後はプロビジョニング完了を待つ       | UI でロード完了前にスクリプト実行→トピック削除 0 件になる   |
+| configuration はディープマージで PATCH        | 丸ごと上書き→基盤モデル・gPTSettings が消える              |
+| optInUseLatestModels は設定しない            | True にすると基盤モデルが GPT に強制変更される              |
 | 説明は publish 後に設定                      | data PATCH の非同期処理で上書きされる                       |
 | appId は環境固有                             | 別環境の appId → AppLeaseMissing (409)                      |
 | Code Apps を環境で有効化                     | 未許可 → CodeAppOperationNotAllowedInEnvironment (403)      |
