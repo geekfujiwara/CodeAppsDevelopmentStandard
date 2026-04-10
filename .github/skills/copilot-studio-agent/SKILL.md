@@ -23,6 +23,7 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 | 会話の開始のクイック返信 | 3〜5 個のクイック返信テキスト（ConversationStart トピックの quickReplies） |
 | ナレッジ | データソース（Dataverse テーブル / SharePoint / ファイル等） |
 | ツール | MCP Server の接続先・用途 |
+| チャネル公開設定 | 簡単な説明・詳細な説明・背景色・開発者名（デフォルト値を提案） |
 
 ```
 フロー: 設計提示 → ユーザー承認 → アイコン画像提案 → ユーザー選択 → UI で Bot 作成 → スクリプトで設定適用
@@ -304,7 +305,60 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 api_patch(f"botcomponents({comp_id})", {"description": description_text})
 ```
 
-### Step 7: ナレッジ・ツールの手動追加（ユーザーに依頼）
+### Step 7: Teams / Copilot チャネル公開設定
+```python
+# applicationmanifestinformation.teams を PATCH して Teams マニフェストを設定
+bot_data = api_get(f"bots({bot_id})?$select=applicationmanifestinformation,iconbase64")
+existing_ami = json.loads(bot_data.get("applicationmanifestinformation", "{}") or "{}")
+existing_teams = existing_ami.get("teams", {})
+
+# 設定値の更新（エージェントに合わせた内容を設計時に提案）
+existing_teams["shortDescription"] = "簡単な説明（最大80文字）"
+existing_teams["longDescription"] = "詳細な説明（最大3400文字）"
+existing_teams["accentColor"] = "#0078D4"  # 背景色
+existing_teams["developerName"] = "開発者名（最大32文字）"
+# アイコンは Bot の iconbase64 を colorIcon/outlineIcon に設定
+existing_teams["colorIcon"] = icon_b64
+existing_teams["outlineIcon"] = icon_b64
+
+existing_ami["teams"] = existing_teams
+api_patch(f"bots({bot_id})", {"applicationmanifestinformation": json.dumps(existing_ami)})
+```
+
+```
+アイコン画像の要件:
+- PNG 形式、100 KB 未満
+- 白い背景 / 透明推奨
+- 機密画像は使用しない
+
+設定項目:
+| 項目 | 最大文字数 | デフォルト |
+|------|-----------|-----------|
+| 簡単な説明 | 80 | Microsoft Copilot Studio を使用して構築します。 |
+| 詳細な説明 | 3400 | （デフォルトは汎用テキスト） |
+| 開発者名 | 32 | 自分の開発者名 |
+| 背景色 | - | #0078D4 |
+| Web サイト | - | go.microsoft.com/fwlink/?linkid=2138949 |
+| プライバシー | - | go.microsoft.com/fwlink/?linkid=2138950 |
+| 使用条件 | - | go.microsoft.com/fwlink/?linkid=2138865 |
+```
+
+### Step 8: チャネル公開実行
+```python
+# configuration.channels に msteams / Microsoft365Copilot を追加
+config = json.loads(bot_data.get("configuration", "{}") or "{}")
+channels = config.get("channels", [])
+# 未設定なら追加
+channels.append({"channelId": "msteams", ...})
+channels.append({"channelId": "Microsoft365Copilot", ...})
+config["channels"] = channels
+api_patch(f"bots({bot_id})", {"configuration": json.dumps(config)})
+
+# 最終公開
+api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
+```
+
+### Step 9: ナレッジ・ツールの手動追加（ユーザーに依頼）
 ```
 ★ API では追加不可 — Copilot Studio UI で手動操作が必要
 

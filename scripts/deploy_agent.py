@@ -187,6 +187,25 @@ GREETING_MESSAGE = "こんにちは！インシデント管理アシスタント
 
 BOT_DESCRIPTION = "社内のインシデント（障害・問題）を管理するAIエージェントです。インシデントの起票、ステータス更新、一覧検索、コメント追加などを自然言語で実行できます。"
 
+# ── Teams チャネル公開設定 ─────────────────────────────────
+# applicationmanifestinformation.teams に格納される値
+TEAMS_SHORT_DESCRIPTION = "インシデントの起票・検索・更新を自然言語で実行できるAIエージェントです。"  # 最大80文字
+TEAMS_LONG_DESCRIPTION = (
+    "インシデント管理アシスタントは、社内のインシデント（障害・問題）を管理するAIエージェントです。\n\n"
+    "【主な機能】\n"
+    "・インシデントの新規起票（タイトル・説明・優先度・カテゴリを指定）\n"
+    "・インシデント一覧の検索・フィルタリング（ステータス・優先度・カテゴリ別）\n"
+    "・ステータス更新（新規→対応中→解決済→クローズ）\n"
+    "・コメントの追加\n"
+    "・緊急インシデントのアラート確認\n\n"
+    "自然言語で指示するだけで、Dataverse 上のインシデントデータを操作できます。"
+)  # 最大3400文字
+TEAMS_ACCENT_COLOR = "#0078D4"  # 背景色（ブランドカラー）
+TEAMS_DEVELOPER_NAME = "Power Platform Dev"  # 最大32文字
+TEAMS_WEBSITE = ""  # 空欄ならデフォルト維持
+TEAMS_PRIVACY_URL = ""  # 空欄ならデフォルト維持
+TEAMS_TERMS_URL = ""  # 空欄ならデフォルト維持
+
 GPT_YAML = f"kind: GptComponentMetadata\ndisplayName: {BOT_NAME}\ninstructions: |-\n"
 for line in GPT_INSTRUCTIONS.splitlines():
     GPT_YAML += f"  {line}\n"
@@ -543,6 +562,110 @@ def publish_bot(bot_id: str):
     except Exception as e:
         print(f"  ⚠️ 公開でエラー（手動で公開してください）: {e}")
 
+
+# ── Step 7: Teams / Copilot チャネル公開設定 ──────────────
+
+def set_channel_manifest(bot_id: str):
+    """applicationmanifestinformation の teams 設定を更新する。"""
+    print("\n=== Step 7: Teams / Copilot チャネル公開設定 ===")
+
+    # 既存の applicationmanifestinformation を取得
+    bot_data = api_get(f"bots({bot_id})?$select=applicationmanifestinformation,iconbase64")
+    existing_ami = json.loads(bot_data.get("applicationmanifestinformation", "{}") or "{}")
+    existing_teams = existing_ami.get("teams", {})
+    print(f"  既存 teams キー: {list(existing_teams.keys())}")
+
+    # teams 設定を更新（空文字列はスキップしてデフォルト維持）
+    if TEAMS_SHORT_DESCRIPTION:
+        existing_teams["shortDescription"] = TEAMS_SHORT_DESCRIPTION[:80]
+        print(f"  簡単な説明: {TEAMS_SHORT_DESCRIPTION[:50]}...")
+    if TEAMS_LONG_DESCRIPTION:
+        existing_teams["longDescription"] = TEAMS_LONG_DESCRIPTION[:3400]
+        print(f"  詳細な説明: {TEAMS_LONG_DESCRIPTION[:50]}...")
+    if TEAMS_ACCENT_COLOR:
+        existing_teams["accentColor"] = TEAMS_ACCENT_COLOR
+        print(f"  背景色: {TEAMS_ACCENT_COLOR}")
+    if TEAMS_DEVELOPER_NAME:
+        existing_teams["developerName"] = TEAMS_DEVELOPER_NAME[:32]
+        print(f"  開発者名: {TEAMS_DEVELOPER_NAME}")
+    if TEAMS_WEBSITE:
+        existing_teams["websiteLink"] = TEAMS_WEBSITE
+        print(f"  Web サイト: {TEAMS_WEBSITE}")
+    if TEAMS_PRIVACY_URL:
+        existing_teams["privacyLink"] = TEAMS_PRIVACY_URL
+        print(f"  プライバシー: {TEAMS_PRIVACY_URL}")
+    if TEAMS_TERMS_URL:
+        existing_teams["termsLink"] = TEAMS_TERMS_URL
+        print(f"  使用条件: {TEAMS_TERMS_URL}")
+
+    # アイコン: Bot の iconbase64 を colorIcon / outlineIcon にも設定
+    icon_b64 = bot_data.get("iconbase64")
+    if icon_b64:
+        existing_teams["colorIcon"] = icon_b64
+        existing_teams["outlineIcon"] = icon_b64
+        print(f"  アイコン: Bot の iconbase64 を colorIcon/outlineIcon に設定")
+
+    existing_ami["teams"] = existing_teams
+    api_patch(f"bots({bot_id})", {
+        "applicationmanifestinformation": json.dumps(existing_ami)
+    })
+    print("  チャネル公開設定完了")
+
+
+def publish_to_channels(bot_id: str):
+    """エージェントを Teams / Copilot チャネルに公開する。"""
+    print("\n=== Step 8: チャネル公開実行 ===")
+
+    # まず PvaPublish で最新版を公開
+    try:
+        api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
+        print("  エージェント再公開完了")
+    except Exception as e:
+        print(f"  ⚠️ 再公開エラー: {e}")
+
+    # Teams チャネルの有効化確認
+    bot_data = api_get(f"bots({bot_id})?$select=configuration")
+    config = json.loads(bot_data.get("configuration", "{}") or "{}")
+    channels = config.get("channels", [])
+    channel_ids = [ch.get("channelId") for ch in channels]
+    print(f"  既存チャネル: {channel_ids}")
+
+    # msteams が未設定なら追加
+    if "msteams" not in channel_ids:
+        channels.append({
+            "id": None,
+            "channelId": "msteams",
+            "channelSpecifier": None,
+            "displayName": None,
+        })
+        print("  msteams チャネルを追加")
+
+    # Microsoft365Copilot が未設定なら追加
+    if "Microsoft365Copilot" not in channel_ids:
+        channels.append({
+            "id": None,
+            "channelId": "Microsoft365Copilot",
+            "channelSpecifier": None,
+            "displayName": None,
+        })
+        print("  Microsoft365Copilot チャネルを追加")
+
+    config["channels"] = channels
+    api_patch(f"bots({bot_id})", {"configuration": json.dumps(config)})
+    print("  チャネル設定更新完了")
+
+    # 再度公開
+    try:
+        api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
+        print("  最終公開完了")
+    except Exception as e:
+        print(f"  ⚠️ 最終公開エラー: {e}")
+
+    print("\n  ★ Teams での利用:")
+    print("    Copilot Studio → チャネル → Teams を選択")
+    print("    「利用可能にする」をクリック")
+    print("    → Teams アプリとして組織内で利用可能になります")
+
 # ── メイン ────────────────────────────────────────────────
 
 def main():
@@ -559,6 +682,8 @@ def main():
     set_quick_replies(bot_id)
     publish_bot(bot_id)
     set_description(bot_id, comp_id)
+    set_channel_manifest(bot_id)
+    publish_to_channels(bot_id)
 
     print("\n" + "=" * 60)
     print("  ✅ エージェントデプロイ完了!")
