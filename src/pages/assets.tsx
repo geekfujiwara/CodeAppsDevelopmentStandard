@@ -1,14 +1,14 @@
-import { useState, useMemo } from "react"
-import { ListTable } from "@/components/list-table"
-import type { TableColumn, FilterConfig } from "@/components/list-table"
-import { FormModal, FormSection, FormColumns } from "@/components/form-modal"
+import { useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Combobox } from "@/components/ui/combobox"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ListTable } from "@/components/list-table"
+import type { TableColumn, FilterConfig } from "@/components/list-table"
+import { FormModal, FormSection, FormColumns } from "@/components/form-modal"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,15 +20,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Monitor, Plus, Pencil, Trash2 } from "lucide-react"
+import { Plus, Pencil, Trash2 } from "lucide-react"
 import {
   useItAssets,
-  useLocations,
   useCreateItAsset,
   useUpdateItAsset,
   useDeleteItAsset,
 } from "@/hooks/use-incidents"
-import { assetTypeLabels } from "@/types/incident"
+import {
+  assetTypeLabels,
+  assetTypeColors,
+  assetStatusLabels,
+  assetStatusColors,
+} from "@/types/incident"
 import type { Geek_itassets } from "@/generated/models/Geek_itassetsModel"
 import { toast } from "sonner"
 
@@ -36,40 +40,26 @@ type AssetRow = Geek_itassets & Record<string, unknown>
 
 export default function AssetsPage() {
   const { data: assets = [], isLoading } = useItAssets()
-  const { data: locations = [] } = useLocations()
   const createMutation = useCreateItAsset()
   const updateMutation = useUpdateItAsset()
   const deleteMutation = useDeleteItAsset()
 
-  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingAsset, setEditingAsset] = useState<Geek_itassets | null>(null)
 
-  // フォーム state
   const [formName, setFormName] = useState("")
+  const [formNumber, setFormNumber] = useState("")
   const [formType, setFormType] = useState("")
-  const [formSerial, setFormSerial] = useState("")
   const [formLocation, setFormLocation] = useState("")
-
-  // Lookup 名前解決マップ
-  const locationMap = useMemo(() => {
-    const m = new Map<string, string>()
-    locations.forEach((l) => m.set(l.geek_locationid, l.geek_name))
-    return m
-  }, [locations])
-
-  const assetTypeColors: Record<number, string> = {
-    100000000: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-    100000001: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-    100000002: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-    100000003: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
-    100000004: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
-    100000005: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
-  }
+  const [formMfr, setFormMfr] = useState("")
+  const [formModel, setFormModel] = useState("")
+  const [formStatus, setFormStatus] = useState("")
+  const [formRemarks, setFormRemarks] = useState("")
 
   const columns: TableColumn<AssetRow>[] = [
     { key: "geek_name", label: "資産名", sortable: true },
     {
-      key: "geek_assettype", label: "種別", sortable: true,
+      key: "geek_assettype", label: "資産タイプ", sortable: true,
       render: (item) => {
         const t = item.geek_assettype as number | undefined
         return t != null ? (
@@ -77,12 +67,17 @@ export default function AssetsPage() {
         ) : null
       },
     },
-    { key: "geek_serialnumber", label: "シリアル番号", sortable: true },
+    { key: "geek_assetnumber", label: "資産番号", sortable: true },
+    { key: "geek_location", label: "設置場所", sortable: true },
+    { key: "geek_manufacturer", label: "メーカー", sortable: true },
+    { key: "geek_model", label: "モデル", sortable: true },
     {
-      key: "_geek_locationid_value", label: "設置場所", sortable: true,
+      key: "geek_status", label: "ステータス", sortable: true,
       render: (item) => {
-        const v = item._geek_locationid_value as string | undefined
-        return v ? locationMap.get(v) || "" : ""
+        const s = item.geek_status as number | undefined
+        return s != null ? (
+          <Badge variant="outline" className={assetStatusColors[s] || ""}>{assetStatusLabels[s] || "不明"}</Badge>
+        ) : null
       },
     },
     {
@@ -117,31 +112,33 @@ export default function AssetsPage() {
   const filters: FilterConfig<AssetRow>[] = [
     {
       key: "geek_assettype" as keyof AssetRow,
-      label: "種別",
+      label: "資産タイプ",
       options: Object.entries(assetTypeLabels).map(([v, l]) => ({ value: v, label: l })),
     },
     {
-      key: "_geek_locationid_value" as keyof AssetRow,
-      label: "設置場所",
-      options: locations.map((l) => ({ value: l.geek_locationid, label: l.geek_name })),
+      key: "geek_status" as keyof AssetRow,
+      label: "ステータス",
+      options: Object.entries(assetStatusLabels).map(([v, l]) => ({ value: v, label: l })),
     },
   ]
 
   const resetForm = () => {
-    setFormName("")
-    setFormType("")
-    setFormSerial("")
-    setFormLocation("")
+    setFormName(""); setFormNumber(""); setFormType(""); setFormLocation("")
+    setFormMfr(""); setFormModel(""); setFormStatus(""); setFormRemarks("")
     setEditingAsset(null)
   }
 
   const startEdit = (asset: Geek_itassets) => {
     setFormName(asset.geek_name || "")
+    setFormNumber(asset.geek_assetnumber || "")
     setFormType(asset.geek_assettype != null ? String(asset.geek_assettype) : "")
-    setFormSerial(asset.geek_serialnumber || "")
-    setFormLocation(asset._geek_locationid_value || "")
+    setFormLocation(asset.geek_location || "")
+    setFormMfr(asset.geek_manufacturer || "")
+    setFormModel(asset.geek_model || "")
+    setFormStatus(asset.geek_status != null ? String(asset.geek_status) : "")
+    setFormRemarks(asset.geek_remarks || "")
     setEditingAsset(asset)
-    setIsCreateOpen(true)
+    setIsFormOpen(true)
   }
 
   const handleSave = () => {
@@ -149,21 +146,22 @@ export default function AssetsPage() {
       toast.error("資産名は必須です")
       return
     }
-
     const payload: Record<string, unknown> = {
       geek_name: formName.trim(),
-      geek_serialnumber: formSerial.trim() || undefined,
+      geek_assetnumber: formNumber.trim() || undefined,
+      geek_location: formLocation.trim() || undefined,
+      geek_manufacturer: formMfr.trim() || undefined,
+      geek_model: formModel.trim() || undefined,
+      geek_remarks: formRemarks.trim() || undefined,
     }
     if (formType) payload.geek_assettype = Number(formType)
-    if (formLocation) {
-      payload["geek_locationid@odata.bind"] = `/geek_locations(${formLocation})`
-    }
+    if (formStatus) payload.geek_status = Number(formStatus)
 
     if (editingAsset) {
       updateMutation.mutate({ id: editingAsset.geek_itassetid, ...payload }, {
         onSuccess: () => {
           toast.success("IT資産を更新しました")
-          setIsCreateOpen(false)
+          setIsFormOpen(false)
           resetForm()
         },
         onError: () => toast.error("更新に失敗しました"),
@@ -172,7 +170,7 @@ export default function AssetsPage() {
       createMutation.mutate(payload, {
         onSuccess: () => {
           toast.success("IT資産を作成しました")
-          setIsCreateOpen(false)
+          setIsFormOpen(false)
           resetForm()
         },
         onError: () => toast.error("作成に失敗しました"),
@@ -197,72 +195,49 @@ export default function AssetsPage() {
 
   return (
     <div className="space-y-6">
-      {/* 統計 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">合計</CardTitle>
-            <Monitor className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{assets.length}</div>
-            <p className="text-xs text-muted-foreground">登録済み資産</p>
-          </CardContent>
-        </Card>
-        {Object.entries(assetTypeLabels).slice(0, 3).map(([v, label]) => {
-          const count = assets.filter((a) => a.geek_assettype === Number(v)).length
-          return (
-            <Card key={v}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">{label}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{count}</div>
-                <p className="text-xs text-muted-foreground">台</p>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-
-      {/* 一覧テーブル */}
-      <div className="flex justify-end">
-        <Button onClick={() => { resetForm(); setIsCreateOpen(true) }}>
-          <Plus className="h-4 w-4 mr-2" />
-          新規登録
-        </Button>
-      </div>
-      <ListTable
-        data={assets as AssetRow[]}
-        columns={columns}
-        searchKeys={["geek_name" as keyof AssetRow, "geek_serialnumber" as keyof AssetRow]}
-        searchPlaceholder="IT資産を検索..."
-        filters={filters}
-        emptyMessage="IT資産はまだ登録されていません"
-      />
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>IT資産一覧</CardTitle>
+          <Button onClick={() => { resetForm(); setIsFormOpen(true) }}>
+            <Plus className="mr-1 h-4 w-4" /> 新規登録
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <ListTable
+            data={assets as AssetRow[]}
+            columns={columns}
+            filters={filters}
+            searchKeys={["geek_name", "geek_assetnumber", "geek_location", "geek_manufacturer"]}
+          />
+        </CardContent>
+      </Card>
 
       {/* 作成/編集モーダル */}
       <FormModal
-        open={isCreateOpen}
-        onOpenChange={(open) => { setIsCreateOpen(open); if (!open) resetForm() }}
-        title={editingAsset ? "IT資産 編集" : "IT資産 登録"}
-        description={editingAsset ? "IT資産の情報を更新します" : "新しいIT資産を登録します"}
+        open={isFormOpen}
+        onOpenChange={(open) => { setIsFormOpen(open); if (!open) resetForm() }}
+        title={editingAsset ? "IT資産編集" : "IT資産登録"}
         maxWidth="2xl"
         onSave={handleSave}
         saveLabel={editingAsset ? "更新" : "登録"}
-        isSaving={createMutation.isPending || updateMutation.isPending}
       >
         <FormSection title="基本情報">
-          <div className="space-y-2">
-            <Label>資産名 *</Label>
-            <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="例: Dell Latitude 5540" />
-          </div>
           <FormColumns columns={2}>
             <div className="space-y-2">
-              <Label>種別</Label>
+              <Label>資産名 *</Label>
+              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="例: 営業部PC-001" />
+            </div>
+            <div className="space-y-2">
+              <Label>資産番号</Label>
+              <Input value={formNumber} onChange={(e) => setFormNumber(e.target.value)} placeholder="例: AST-2024-001" />
+            </div>
+          </FormColumns>
+          <FormColumns columns={2}>
+            <div className="space-y-2">
+              <Label>資産タイプ</Label>
               <Select value={formType} onValueChange={setFormType}>
                 <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[500]">
                   {Object.entries(assetTypeLabels).map(([v, l]) => (
                     <SelectItem key={v} value={v}>{l}</SelectItem>
                   ))}
@@ -270,19 +245,35 @@ export default function AssetsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>シリアル番号</Label>
-              <Input value={formSerial} onChange={(e) => setFormSerial(e.target.value)} placeholder="例: SN-12345" />
+              <Label>ステータス</Label>
+              <Select value={formStatus} onValueChange={setFormStatus}>
+                <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
+                <SelectContent className="z-[500]">
+                  {Object.entries(assetStatusLabels).map(([v, l]) => (
+                    <SelectItem key={v} value={v}>{l}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </FormColumns>
+          <FormColumns columns={2}>
+            <div className="space-y-2">
+              <Label>設置場所</Label>
+              <Input value={formLocation} onChange={(e) => setFormLocation(e.target.value)} placeholder="例: 本社3F 営業部" />
+            </div>
+            <div className="space-y-2">
+              <Label>メーカー</Label>
+              <Input value={formMfr} onChange={(e) => setFormMfr(e.target.value)} placeholder="例: Dell" />
             </div>
           </FormColumns>
           <div className="space-y-2">
-            <Label>設置場所</Label>
-            <Combobox
-              options={locations.map((l) => ({ value: l.geek_locationid, label: l.geek_name }))}
-              value={formLocation}
-              onValueChange={setFormLocation}
-              placeholder="場所を選択"
-              searchPlaceholder="検索..."
-            />
+            <Label>モデル</Label>
+            <Input value={formModel} onChange={(e) => setFormModel(e.target.value)} placeholder="例: Latitude 5540" />
+          </div>
+        </FormSection>
+        <FormSection title="備考">
+          <div className="space-y-2">
+            <Textarea value={formRemarks} onChange={(e) => setFormRemarks(e.target.value)} rows={3} placeholder="補足情報" />
           </div>
         </FormSection>
       </FormModal>

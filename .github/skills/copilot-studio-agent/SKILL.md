@@ -35,16 +35,17 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 
 ### 提案方法
 
-1. エージェントの目的・役割に合ったアイコンを **3〜4 パターン** 生成
+1. エージェントの目的・役割に合ったアイコンを **3〜4 パターン** テキストで提案
 2. 各パターンに簡単な説明を付けて提示
 3. ユーザーに選択してもらう
-4. 選択されたアイコンを Copilot Studio UI でエージェント作成時に設定
+4. **選択されたパターンの SVG を生成 → Base64 → `bots.iconbase64` に API で登録**
 
 ### アイコン設計ガイドライン
 
-- **サイズ**: 240x240px 推奨（Copilot Studio のエージェントアイコン用）
+- **サイズ**: 240x240px（`viewBox="0 0 240 240"`）
+- **形式**: SVG（`data:image/svg+xml;base64,...` 形式で登録）
 - **スタイル**: シンプルで視認性の高いデザイン。フラット or モダン
-- **背景**: 単色背景（ブランドカラー推奨）または透明
+- **背景**: 角丸正方形（`rx="48" ry="48"`）。ブランドカラー推奨
 - **モチーフ**: エージェントの目的を象徴するアイコン（例: インシデント管理 → 盾・ライトニング・レンチ）
 - **バリエーション例**:
   - パターン A: 目的を象徴するアイコン + 企業カラー背景
@@ -52,8 +53,68 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
   - パターン C: ミニマル・モノライン + モダン
   - パターン D: キャラクター風 / 親しみやすいデザイン
 
-> **アイコンは Copilot Studio UI で手動設定**。API でのアイコン設定は現時点では対応外のため、
-> Bot 作成時または作成後に UI でアイコンをアップロードするようユーザーに案内する。
+### アイコン登録方法（PNG Base64 → API）
+
+Teams チャネルは SVG を受け付けない。**PNG 形式**で登録する必要がある。
+
+#### Teams アイコン要件
+- **iconbase64**: `data:` prefix なしの生 Base64 PNG（任意サイズ）
+- **colorIcon**: 192x192 PNG, < 100KB
+- **outlineIcon**: 32x32 PNG, 白い透明背景
+- 参照: https://learn.microsoft.com/en-us/microsoftteams/platform/concepts/build-and-test/apps-package#app-icons
+
+#### PNG 生成（Pillow）
+
+```python
+from PIL import Image, ImageDraw
+import io, base64
+
+def draw_icon(size, transparent_bg=False, outline_only=False):
+    img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    if not transparent_bg:
+        draw.rounded_rectangle([0, 0, size-1, size-1], radius=int(size*0.2), fill=(30, 41, 59, 255))
+    # ... シールド＋ライトニング等を描画 ...
+    return img
+
+# 3 サイズ生成
+icon_main = draw_icon(240)                                    # iconbase64 用
+icon_color = draw_icon(192)                                   # colorIcon 用
+icon_outline = draw_icon(32, transparent_bg=True, outline_only=True)  # outlineIcon 用
+
+def to_base64(img):
+    buf = io.BytesIO()
+    img.save(buf, format='PNG', optimize=True)
+    return base64.b64encode(buf.getvalue()).decode('ascii')
+```
+
+#### API 登録
+
+```python
+# ★ iconbase64 は data: prefix なしの生 Base64 PNG
+icon_b64 = to_base64(icon_main)
+
+# ★ bots PATCH には name フィールドが必須
+bot_info = api_get(f"bots({bot_id})?$select=name")
+api_patch(f"bots({bot_id})", {"name": bot_info["name"], "iconbase64": icon_b64})
+
+# Teams マニフェストの colorIcon / outlineIcon を専用サイズで設定
+ami = json.loads(bot_data.get("applicationmanifestinformation", "{}") or "{}")
+ami.setdefault("teams", {})["colorIcon"] = to_base64(icon_color)    # 192x192
+ami["teams"]["outlineIcon"] = to_base64(icon_outline)                # 32x32
+api_patch(f"bots({bot_id})", {"name": bot_info["name"], "applicationmanifestinformation": json.dumps(ami)})
+```
+
+```
+❌ SVG で登録 → Teams チャネルのアイコンが表示されない
+❌ data:image/svg+xml;base64,... 形式 → Teams が受け付けない
+❌ colorIcon と outlineIcon を同じ画像で登録 → outlineIcon は 32x32 白い透明背景が必要
+❌ bots PATCH で name を省略 → "Empty or null bot name" エラー (0x80040265)
+✅ PNG 形式で 3 サイズ生成（240, 192, 32）
+✅ data: prefix なしの生 Base64 PNG で登録
+✅ outlineIcon は白い透明背景の 32x32 PNG
+✅ PATCH 時は必ず name フィールドを含める
+```
 
 ## 大前提: 一つのソリューション内に開発
 
@@ -99,24 +160,105 @@ PUBLISHER_PREFIX=geek              ← ソリューション発行者の prefix
 3. **余分な GPT コンポーネントは削除する**
    - `componenttype eq 15` で全取得 → `defaultSchemaName` と一致するものを UI コンポーネントとして特定 → それ以外を削除
 
-### 指示（Instructions）の YAML 形式
+### 指示（Instructions）の YAML 形式 — PVA ダブル改行フォーマット
 
-```yaml
-# UI が認識する形式（手動構築）
-kind: GptComponentMetadata
-displayName: エージェント名
-instructions: |-
-  指示テキスト（ブロックスカラー形式）
-conversationStarters:
-- title: タイトル
-  text: テキスト
+PVA パーサーは標準 YAML のシングル改行 (`\n`) を**構造行**として認識しない。
+YAML の**構造行**（kind, displayName, conversationStarters 等）はダブル改行 (`\n\n`) で区切る必要がある。
+ただし `instructions: |-` ブロック内のテキストはシングル改行で記述する。
+
+```python
+# ✅ 正しい構築方法
+def _build_gpt_yaml():
+    # instructions ブロック（シングル改行）
+    inst_block = "\n".join(f"  {line}" for line in GPT_INSTRUCTIONS.splitlines())
+    
+    # conversationStarters（ダブル改行）
+    starter_lines = []
+    for p in PREFERRED_PROMPTS:
+        starter_lines.append(f"  - title: {p['title']}")
+        starter_lines.append(f"    text: {p['text']}")
+    starters_block = "\n\n".join(starter_lines)
+    
+    return (
+        "kind: GptComponentMetadata\n\n"
+        f"displayName: {BOT_NAME}\n\n"
+        f"instructions: |-\n{inst_block}\n\n"
+        f"conversationStarters:\n\n{starters_block}\n\n"
+    )
 ```
 
 ```
-❌ yaml.dump() の quoted scalar → UI が認識しない
-❌ sort_keys=True → kind が先頭に来ない
-✅ 手動で |- ブロック形式の YAML 文字列を構築
+❌ yaml.dump() → PVA パーサーと非互換
+❌ 全行シングル改行 → conversationStarters / quickReplies が UI に反映されない
+❌ 全行ダブル改行 → instructions テキストが空行だらけになる
+❌ conversationStarters の title/text をダブルクォートで囲む → PVA に反映されない
+✅ 構造行はダブル改行、instructions ブロック内はシングル改行
+✅ conversationStarters の title/text はクォートなし
 ✅ displayName キーを含める（UI が表示に使用）
+```
+
+### ConversationStart トピックの YAML 形式
+
+ConversationStart トピック（componenttype=9）も同じダブル改行フォーマット。
+
+```python
+lines = []
+lines.append("kind: AdaptiveDialog")
+lines.append("beginDialog:")
+lines.append("  kind: OnConversationStart")
+lines.append("  id: main")
+lines.append("  actions:")
+lines.append("    - kind: SendActivity")
+lines.append(f"      id: {send_id}")
+lines.append("      activity:")
+lines.append("        text:")
+lines.append(f"          - {greeting_text}")  # クォートなし
+lines.append("        speak:")
+lines.append(f'          - "{greeting_text}"')
+lines.append("        quickReplies:")
+for qr in QUICK_REPLIES:
+    lines.append(f"          - kind: MessageBack")
+    lines.append(f"            text: {qr}")
+# ダブル改行で結合
+new_data = "\n\n".join(lines) + "\n\n"
+```
+
+```
+❌ シングル改行 → 送信ノードが消え、quickReplies が UI に反映されない
+❌ 挨拶テキストに生改行 \n を含める → YAML が壊れる（スペースに置換する）
+✅ 全行ダブル改行で結合
+✅ actions 配下は 4 スペースインデント
+```
+
+### 基盤モデル選択の保持（aISettings）
+
+PVA は GPT コンポーネントの `data` YAML 末尾に基盤モデル情報を格納する:
+```yaml
+aISettings:
+
+  model:
+
+    modelNameHint: Sonnet46
+```
+
+GPT コンポーネントの `data` を上書きすると、この `aISettings` セクションが消えて
+デフォルトモデル（GPT 4.1）に戻る。
+
+```python
+# ✅ 更新前に既存データから aISettings セクションを抽出 → 新 YAML の末尾に付加
+existing_data = ui_comp.get("data", "")
+ai_idx = existing_data.find("\naISettings:")
+if ai_idx < 0:
+    ai_idx = existing_data.find("aISettings:")
+if ai_idx >= 0:
+    ai_settings_section = existing_data[ai_idx:].rstrip()
+    final_yaml = new_yaml.rstrip("\n") + "\n\n" + ai_settings_section + "\n\n"
+```
+
+```
+❌ GPT data を丸ごと上書き → 基盤モデルがデフォルトに戻る
+✅ 更新前に aISettings セクションを抽出して保持
+✅ 初回デプロイ後にユーザーが UI でモデルを設定 → 2 回目以降のデプロイで保持される
 ```
 
 ### 説明（Description）の保存場所
@@ -269,26 +411,57 @@ existing = api_get("botcomponents",
 ```
 
 ### Step 4.5: 会話の開始設定（メッセージ + クイック返信）
+
+**⚠️ yaml.dump() / yaml.safe_load() → yaml.dump() のパイプラインは使用禁止（最重要）**
+
+```
+❌ yaml.safe_load() → 値を変更 → yaml.dump() で書き戻す
+   → yaml.dump() が PVA パーサーと非互換な YAML を出力する
+   → 改行入り文字列が single-quoted multiline になり UI が認識しない
+   → quickReplies が消える / 会話の開始メッセージが空になる
+
+✅ ConversationStart YAML は全体を手動で文字列構築する
+   → 既存の SendActivity ID のみ正規表現で抽出して再利用
+   → YAML テンプレートに変数を埋め込んで生成
+```
+
 ```python
+import re
+
 # ConversationStart トピック（componenttype=9）を検索
 result = api_get("botcomponents", {
     "$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 9 and contains(schemaname,'ConversationStart')",
     "$select": "botcomponentid,schemaname,data",
 })
+topic = result["value"][0]
+topic_id = topic["botcomponentid"]
+existing_data = topic.get("data", "")
 
-# 既存 YAML をパース → SendActivity の text と quickReplies を更新
-parsed = yaml.safe_load(existing_data)
-for action in parsed["beginDialog"]["actions"]:
-    if action["kind"] == "SendActivity":
-        activity = action["activity"]
-        # 挨拶メッセージをエージェントに合った内容に更新
-        activity["text"] = [GREETING_MESSAGE]
-        activity["speak"] = [GREETING_MESSAGE]
-        # クイック返信を設定
-        activity["quickReplies"] = [
-            {"kind": "MessageBack", "text": "クイック返信テキスト"},
-        ]
-# YAML に戻して api_patch("botcomponents(id)", {"data": new_yaml})
+# 既存の SendActivity ID を抽出（再利用）
+id_match = re.search(r'id:\s+(sendMessage_\w+)', existing_data)
+send_id = id_match.group(1) if id_match else "sendMessage_fix01"
+
+# ★ YAML を手動で全体構築（yaml.dump() 禁止）
+new_data = f'''kind: AdaptiveDialog
+beginDialog:
+  kind: OnConversationStart
+  id: main
+  actions:
+  - kind: SendActivity
+    id: {send_id}
+    activity:
+      text:
+      - "{GREETING_MESSAGE}"
+      speak:
+      - "{GREETING_MESSAGE}"
+      quickReplies:
+      - kind: MessageBack
+        text: クイック返信テキスト1
+      - kind: MessageBack
+        text: クイック返信テキスト2
+'''
+
+api_patch(f"botcomponents({topic_id})", {"data": new_data})
 ```
 
 > **挨拶メッセージ**: 設計時にエージェントの目的に合ったテキストを提案する。
@@ -331,9 +504,9 @@ api_patch(f"bots({bot_id})", {"applicationmanifestinformation": json.dumps(exist
 
 ```
 アイコン画像の要件:
-- PNG 形式、100 KB 未満
-- 白い背景 / 透明推奨
-- 機密画像は使用しない
+- SVG 形式推奨（`data:image/svg+xml;base64,...` で API 登録）
+- 240x240px、角丸正方形
+- PNG の場合は 100 KB 未満
 
 設定項目:
 | 項目 | 最大文字数 | デフォルト |

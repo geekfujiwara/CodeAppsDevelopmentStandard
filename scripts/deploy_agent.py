@@ -31,8 +31,8 @@ import re
 # scripts/ ディレクトリを sys.path に追加
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import base64
 import requests
-import yaml
 from dotenv import load_dotenv
 from auth_helper import get_token, DATAVERSE_URL as _DV_URL
 
@@ -94,122 +94,189 @@ def api_delete(path):
 # ── GPT Instructions ─────────────────────────────────────
 
 GPT_INSTRUCTIONS = f"""\
-あなたは「インシデント管理アシスタント」です。社内のインシデント（障害・問題）を管理するためのAIエージェントです。
+あなたは「インシデント管理アシスタント」です。社内のITインシデント管理を支援するAIエージェントです。
+インシデントの起票・検索・ステータス確認、IT資産情報の照会を行います。
 
 ## 利用可能なテーブル
 
 ### {PREFIX}_incident（インシデント）
-- {PREFIX}_name: テキスト（タイトル）★必須
-- {PREFIX}_description: テキスト（説明）
+- {PREFIX}_name: テキスト（インシデントタイトル）★必須
+- {PREFIX}_description: テキスト（説明・詳細）
 - {PREFIX}_status: Choice（ステータス）
   - 100000000 = 新規
   - 100000001 = 対応中
-  - 100000002 = 保留
-  - 100000003 = 解決済
-  - 100000004 = クローズ
-- {PREFIX}_priority: Choice（優先度）
-  - 100000000 = 緊急
-  - 100000001 = 高
-  - 100000002 = 中
-  - 100000003 = 低
-- {PREFIX}_duedate: DateTime（期限）
-- {PREFIX}_incidentcategoryid: Lookup → {PREFIX}_incidentcategory
-- {PREFIX}_locationid: Lookup → {PREFIX}_location
-- {PREFIX}_assignedtoid: Lookup → systemuser
-- createdby: システム列（報告者 = レコード作成者）
+  - 100000002 = 解決済
+  - 100000003 = クローズ
+- {PREFIX}_resolution: テキスト（解決内容）
+- _{PREFIX}_categoryid_value: Lookup → {PREFIX}_incidentcategory（カテゴリ）
+- _{PREFIX}_priorityid_value: Lookup → {PREFIX}_priority（優先度）
+- _{PREFIX}_assignedtoid_value: Lookup → systemuser（担当者）
+- _{PREFIX}_itassetid_value: Lookup → {PREFIX}_itasset（対象IT資産）
+- createdby: システム列（起票者）
 
-### {PREFIX}_incidentcategory（カテゴリ）
+### {PREFIX}_incidentcategory（インシデントカテゴリ）
 - {PREFIX}_name: テキスト（カテゴリ名）
+- カテゴリ一覧: ハードウェア障害、ソフトウェア障害、ネットワーク障害、セキュリティ、その他
 
-### {PREFIX}_location（場所）
-- {PREFIX}_name: テキスト（場所名）
+### {PREFIX}_priority（優先度）
+- {PREFIX}_name: テキスト（優先度名）
+- {PREFIX}_level: 整数（レベル。1が最高）
+- 優先度一覧: 高（レベル1）、中（レベル2）、低（レベル3）
 
-### {PREFIX}_incidentcomment（コメント）
-- {PREFIX}_name: テキスト（件名）
-- {PREFIX}_content: テキスト（内容）
-- {PREFIX}_incidentid: Lookup → {PREFIX}_incident
+### {PREFIX}_itasset（IT資産）
+- {PREFIX}_name: テキスト（資産名）
+- {PREFIX}_assettype: Choice（資産タイプ）
+  - 100000000 = ノートPC
+  - 100000001 = デスクトップPC
+  - 100000002 = モニター
+  - 100000003 = プリンター
+  - 100000004 = ネットワーク機器
+  - 100000005 = サーバー
+  - 100000006 = その他
+- {PREFIX}_assetnumber: テキスト（資産番号）
+- {PREFIX}_manufacturer: テキスト（メーカー）
+- {PREFIX}_modelname: テキスト（型番）
+- {PREFIX}_status: Choice（ステータス）
+  - 100000000 = 使用中
+  - 100000001 = 在庫
+  - 100000002 = 修理中
+  - 100000003 = 廃棄
+
+### {PREFIX}_incidentcomment（インシデントコメント）
+- {PREFIX}_name: テキスト（コメントタイトル）
+- {PREFIX}_content: テキスト（コメント内容）
+- _{PREFIX}_incidentid_value: Lookup → {PREFIX}_incident
 
 ## 行動指針
 
-1. ユーザーの意図を正確に理解し、Dataverse のデータ操作を実行する
-2. レコード作成時は必須項目（タイトル）を必ず確認してから実行
-3. 検索結果は見やすく整形して表示する（テーブル形式推奨）
-4. 日本語で丁寧に応答する
-5. 不明な点は実行前に確認する
-6. ステータス・優先度の Choice 値は整数値で指定する
+1. ユーザーの意図を正確に理解し、適切なDataverse操作を実行する
+2. インシデントの新規起票時は、タイトル・カテゴリ・優先度・説明を必ず確認してから作成する
+3. 検索結果はテーブル形式で見やすく整形して表示する
+4. 日本語で丁寧かつ簡潔に応答する
+5. Choice値は整数値（100000000等）で指定する
+6. Lookup項目の設定時は対象テーブルからレコードを検索してIDを取得する
+7. 曖昧な指示があった場合は確認を求める
 
-## 条件分岐ルール
+## よくある操作パターン
 
-### データの照会（ナレッジから回答）
-- 「一覧を見せて」「～はありますか」→ ナレッジ（Dataverse テーブル）から検索
-- フィルタ条件があれば適用（ステータス、優先度、カテゴリ等）
-- 結果がなければその旨を伝える
+### インシデント起票
+タイトル・カテゴリ・優先度・説明をヒアリング → {PREFIX}_incident にレコード作成
 
-### 新規レコード作成（ツールで実行）
-- 「起票して」「登録して」「追加して」→ ツール（Dataverse MCP Server）でレコード作成
-- 必須情報: タイトル
-- 推奨情報: 説明、優先度、カテゴリ、場所
-- ステータスのデフォルト: 新規（100000000）
-- 不足情報は質問して補完
+### ステータス確認
+条件（ステータス・カテゴリ等）でフィルタして一覧表示
 
-### レコード更新（ツールで実行）
-- 「ステータスを変更して」「更新して」→ ツール（Dataverse MCP Server）で PATCH 操作
-- 対象レコードの特定 → 変更内容の確認 → 実行
+### ステータス更新
+対象インシデントを特定 → {PREFIX}_status を更新
+
+### IT資産照会
+資産番号や名前で検索 → 詳細情報を表示
 
 ### コメント追加
-- 「コメントを追加して」→ {PREFIX}_incidentcomment テーブルに新規作成
-- インシデントの特定 → 件名と内容を確認 → 実行
+インシデントを特定 → {PREFIX}_incidentcomment に新規作成
 """
 
 # instructions を |- ブロック形式で手動構築（yaml.dump の quoted scalar では UI が認識しない）
 
 # ── 推奨プロンプト（GPT コンポーネントの conversationStarters） ────────
 PREFERRED_PROMPTS = [
-    {"title": "インシデント一覧", "text": "現在のインシデント一覧を見せてください"},
-    {"title": "新規インシデント", "text": "新しいインシデントを起票したいです"},
-    {"title": "ステータス更新", "text": "インシデントのステータスを更新してください"},
-    {"title": "緊急インシデント", "text": "緊急のインシデントはありますか？"},
+    {"title": "\U0001f4dd インシデントを起票", "text": "新しいインシデントを起票したいです"},
+    {"title": "\U0001f50d インシデントを検索", "text": "現在対応中のインシデント一覧を表示してください"},
+    {"title": "\U0001f4ca ステータス確認", "text": "未対応（新規）のインシデントは何件ありますか？"},
+    {"title": "\U0001f4bb IT資産を検索", "text": "ノートPCの資産一覧を表示してください"},
+    {"title": "\U0001f504 ステータス更新", "text": "インシデントのステータスを更新したいです"},
 ]
 
-_starters = "\n".join([
-    f"- title: {p['title']}\n  text: {p['text']}" for p in PREFERRED_PROMPTS
-])
+# conversationStarters は PVA ダブル改行フォーマットで構築（後述の GPT_YAML 内で使用）
 
 # ── 会話の開始のクイック返信（ConversationStart トピックの quickReplies） ──
 QUICK_REPLIES = [
-    "インシデント一覧を見せて",
-    "新しいインシデントを起票したい",
-    "緊急のインシデントはある？",
+    "新しいインシデントを起票する",
+    "対応中のインシデントを確認",
+    "IT資産を検索する",
+    "未対応のインシデントを確認",
 ]
 
 # ── 会話の開始メッセージ（ConversationStart トピックの挨拶テキスト） ──
-GREETING_MESSAGE = "こんにちは！インシデント管理アシスタントです。インシデントの起票・検索・ステータス更新など、お気軽にお申し付けください。"
+GREETING_MESSAGE = "こんにちは！インシデント管理アシスタントです \U0001f6e1\ufe0f\nインシデントの起票・検索・ステータス更新、IT資産の照会など、お気軽にお申し付けください。"
 
-BOT_DESCRIPTION = "社内のインシデント（障害・問題）を管理するAIエージェントです。インシデントの起票、ステータス更新、一覧検索、コメント追加などを自然言語で実行できます。"
+BOT_DESCRIPTION = "社内インシデントの起票・検索・ステータス確認、IT資産の照会を行うAIアシスタントです。自然言語で指示するだけでDataverseのデータ操作を自動実行します。"
 
 # ── Teams チャネル公開設定 ─────────────────────────────────
 # applicationmanifestinformation.teams に格納される値
-TEAMS_SHORT_DESCRIPTION = "インシデントの起票・検索・更新を自然言語で実行できるAIエージェントです。"  # 最大80文字
+TEAMS_SHORT_DESCRIPTION = "社内インシデントの起票・検索・管理を行うAIアシスタント"  # 最大80文字
 TEAMS_LONG_DESCRIPTION = (
-    "インシデント管理アシスタントは、社内のインシデント（障害・問題）を管理するAIエージェントです。\n\n"
+    "インシデント管理アシスタントは、社内ITインシデントの起票、検索、ステータス更新、IT資産照会を支援するAIエージェントです。\n\n"
     "【主な機能】\n"
-    "・インシデントの新規起票（タイトル・説明・優先度・カテゴリを指定）\n"
+    "・インシデントの新規起票（タイトル・カテゴリ・優先度・説明を指定）\n"
     "・インシデント一覧の検索・フィルタリング（ステータス・優先度・カテゴリ別）\n"
     "・ステータス更新（新規→対応中→解決済→クローズ）\n"
-    "・コメントの追加\n"
-    "・緊急インシデントのアラート確認\n\n"
-    "自然言語で指示するだけで、Dataverse 上のインシデントデータを操作できます。"
+    "・IT資産の照会（資産番号・名前・タイプで検索）\n"
+    "・コメントの追加\n\n"
+    "自然言語で指示するだけで、Dataverse上のデータ操作を自動実行します。"
 )  # 最大3400文字
-TEAMS_ACCENT_COLOR = "#FFFFFF"  # 背景色（白 / 透明推奨）
-TEAMS_DEVELOPER_NAME = "Power Platform Dev"  # 最大32文字
+TEAMS_ACCENT_COLOR = "#1e293b"  # 背景色（濃紺 — Code Apps と統一）
+TEAMS_DEVELOPER_NAME = "Geek Fujiwara"  # 最大32文字
 TEAMS_WEBSITE = ""  # 空欄ならデフォルト維持
 TEAMS_PRIVACY_URL = ""  # 空欄ならデフォルト維持
 TEAMS_TERMS_URL = ""  # 空欄ならデフォルト維持
 
-GPT_YAML = f"kind: GptComponentMetadata\ndisplayName: {BOT_NAME}\ninstructions: |-\n"
-for line in GPT_INSTRUCTIONS.splitlines():
-    GPT_YAML += f"  {line}\n"
-GPT_YAML += f"conversationStarters:\n{_starters}\n"
+# ── アイコン SVG（パターン A: シールド＋ライトニング） ────
+ICON_SVG = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b"/>
+      <stop offset="100%" style="stop-color:#334155"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e2e8f0"/>
+      <stop offset="100%" style="stop-color:#cbd5e1"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#fbbf24"/>
+      <stop offset="100%" style="stop-color:#f59e0b"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <rect width="240" height="240" rx="48" ry="48" fill="url(#bg)"/>
+  <path d="M120 38 L172 62 C172 62 176 120 172 148 C168 172 148 192 120 206 C92 192 72 172 68 148 C64 120 68 62 68 62 Z"
+        fill="url(#shield)" filter="url(#shadow)" opacity="0.95"/>
+  <path d="M120 50 L164 70 C164 70 167 120 164 144 C161 164 144 182 120 194 C96 182 79 164 76 144 C73 120 76 70 76 70 Z"
+        fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.4"/>
+  <path d="M132 72 L108 128 L126 128 L112 176 L148 116 L128 116 Z"
+        fill="url(#bolt)" filter="url(#shadow)"/>
+  <path d="M130 76 L110 124 L126 124 L114 170"
+        fill="none" stroke="#fde68a" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+</svg>'''
+
+# ★ PVA パーサーは「ダブル改行（\n\n）区切り」の独自 YAML フォーマットのみ認識する
+# シングル改行の標準 YAML は保存されるが UI に反映されない
+# → 全行をダブル改行で区切り、インデントも PVA の慣例に合わせる
+
+def _build_gpt_yaml() -> str:
+    """PVA 互換の YAML を構築する。
+    構造行（kind, displayName, instructions, conversationStarters 等）はダブル改行。
+    instructions ブロック内のテキストはシングル改行（ |- ブロックスカラー）。"""
+    # instructions ブロック（シングル改行）
+    inst_block = "\n".join(f"  {line}" for line in GPT_INSTRUCTIONS.splitlines())
+
+    # conversationStarters（ダブル改行）
+    starter_lines = []
+    for p in PREFERRED_PROMPTS:
+        starter_lines.append(f"  - title: {p['title']}")
+        starter_lines.append(f"    text: {p['text']}")
+    starters_block = "\n\n".join(starter_lines)
+
+    # 構造行をダブル改行で結合、instructions 内部はシングル改行を維持
+    return (
+        "kind: GptComponentMetadata\n\n"
+        f"displayName: {BOT_NAME}\n\n"
+        f"instructions: |-\n{inst_block}\n\n"
+        f"conversationStarters:\n\n{starters_block}\n\n"
+    )
+
+GPT_YAML = _build_gpt_yaml()
 
 # ── Step 1: Bot 検索 ─────────────────────────────────────
 
@@ -224,6 +291,32 @@ def _extract_bot_id(value: str) -> str | None:
     if match:
         return value.strip()
     return None
+
+
+# ── Step 1.1: アイコン設定（PNG Base64 → API） ────────
+
+def set_icon(bot_id: str):
+    """PNG アイコンを生成して bots.iconbase64 に PATCH する。
+    Teams チャネル要件:
+      - iconbase64: data: prefix なしの生 Base64 PNG
+      - colorIcon: 192x192 PNG (< 100KB)
+      - outlineIcon: 32x32 PNG (白い透明背景)
+    """
+    print("\n=== Step 1.1: アイコン設定 ===")
+
+    from generate_icon_png import generate_icons
+    icons = generate_icons()
+
+    # iconbase64 は data: prefix なしの生 Base64 PNG（REF エージェントと同じ形式）
+    icon_b64 = icons["main"]["base64"]
+    print(f"  iconbase64: {icons['main']['dimensions']}, {icons['main']['size_bytes']} bytes")
+
+    # ★ bots PATCH には name フィールドが必須
+    bot_info = api_get(f"bots({bot_id})?$select=name")
+    bot_name = bot_info.get("name", BOT_NAME)
+
+    api_patch(f"bots({bot_id})", {"name": bot_name, "iconbase64": icon_b64})
+    print("  ✅ iconbase64 設定完了")
 
 
 def find_bot() -> str:
@@ -449,7 +542,23 @@ def set_gpt_instructions(bot_id: str, saved_config: dict):
     # 指示を更新 or 新規作成
     if ui_comp:
         comp_id = ui_comp["botcomponentid"]
-        api_patch(f"botcomponents({comp_id})", {"data": GPT_YAML})
+
+        # ★ 既存データから aISettings セクションを抽出（モデル選択を保持）
+        # PVA は GPT コンポーネントの data YAML 末尾に aISettings.model.modelNameHint を保存
+        # これを上書きすると基盤モデルがデフォルト（GPT 4.1）に戻ってしまう
+        existing_data = ui_comp.get("data", "")
+        ai_settings_section = ""
+        ai_idx = existing_data.find("\naISettings:")
+        if ai_idx < 0:
+            ai_idx = existing_data.find("aISettings:")
+        if ai_idx >= 0:
+            ai_settings_section = existing_data[ai_idx:].rstrip()
+            print(f"  既存 aISettings を保持: {ai_settings_section[:80]}...")
+
+        # 新しい YAML に既存 aISettings を付加
+        final_yaml = GPT_YAML.rstrip("\n") + "\n\n" + ai_settings_section + "\n\n" if ai_settings_section else GPT_YAML
+
+        api_patch(f"botcomponents({comp_id})", {"data": final_yaml})
         print(f"  指示コンポーネント更新: {comp_id}")
     else:
         schema_name = default_schema or f"{BOT_SCHEMA}.gpt.default"
@@ -471,7 +580,8 @@ def set_gpt_instructions(bot_id: str, saved_config: dict):
 # ── Step 4.5: 会話の開始のクイック返信設定 ────────────────
 
 def set_quick_replies(bot_id: str):
-    """ConversationStart トピックの挨拶メッセージと quickReplies を設定する。"""
+    """ConversationStart トピックの挨拶メッセージと quickReplies を設定する。
+    ★ yaml.dump() 禁止 — PVA パーサーと非互換。全体を手動 YAML 構築。"""
     print("\n=== Step 4.5: 会話の開始設定（メッセージ + クイック返信） ===")
 
     # ConversationStart トピックを検索
@@ -489,45 +599,43 @@ def set_quick_replies(bot_id: str):
     existing_data = topic.get("data", "")
     print(f"  トピック: {topic['schemaname']} ({topic_id})")
 
-    # 既存 YAML をパースして更新
-    try:
-        parsed = yaml.safe_load(existing_data)
-    except Exception:
-        print("  ⚠️ 既存 YAML のパースに失敗")
-        return
+    # 既存の SendActivity ID を抽出（再利用）
+    id_match = re.search(r'id:\s+(sendMessage_\w+)', existing_data)
+    send_id = id_match.group(1) if id_match else "sendMessage_auto01"
 
-    # quickReplies を構築
-    quick_reply_items = [{"kind": "MessageBack", "text": qr} for qr in QUICK_REPLIES] if QUICK_REPLIES else []
+    # ★ PVA ダブル改行フォーマットで ConversationStart YAML を構築
+    # PVA パーサーはシングル改行の YAML を認識しない
+    # 参考エージェントの実際の形式に合わせる:
+    #   - 全行をダブル改行で区切り
+    #   - actions 配下は 4 スペースインデント
+    #   - activity 配下は 8 スペースインデント
+    #   - text/speak リスト項目は 10 スペースインデント
+    #   - quickReplies 項目は 10 スペースインデント
 
-    # beginDialog > actions 内の SendActivity を探してメッセージとクイック返信を設定
-    actions = parsed.get("beginDialog", {}).get("actions", [])
-    updated = False
-    for action in actions:
-        if action.get("kind") == "SendActivity":
-            activity = action.get("activity", {})
-            if isinstance(activity, dict):
-                # 挨拶メッセージを更新
-                if GREETING_MESSAGE:
-                    activity["text"] = [GREETING_MESSAGE]
-                    activity["speak"] = [GREETING_MESSAGE]
-                # クイック返信を設定
-                if quick_reply_items:
-                    activity["quickReplies"] = quick_reply_items
-            else:
-                # activity が文字列の場合は dict に変換
-                action["activity"] = {
-                    "text": [GREETING_MESSAGE or str(activity)],
-                    "quickReplies": quick_reply_items,
-                }
-            updated = True
-            break
+    # 挨拶メッセージ — 改行を含まない 1 行テキスト（PVA は 1 行テキストを想定）
+    greeting_oneline = GREETING_MESSAGE.replace('\n', ' ')
 
-    if not updated:
-        print("  ⚠️ SendActivity アクションが見つかりません")
-        return
+    lines = []
+    lines.append("kind: AdaptiveDialog")
+    lines.append("beginDialog:")
+    lines.append("  kind: OnConversationStart")
+    lines.append("  id: main")
+    lines.append("  actions:")
+    lines.append("    - kind: SendActivity")
+    lines.append(f"      id: {send_id}")
+    lines.append("      activity:")
+    lines.append("        text:")
+    lines.append(f"          - {greeting_oneline}")
+    lines.append("        speak:")
+    lines.append(f'          - "{greeting_oneline}"')
+    lines.append("        quickReplies:")
+    for qr in QUICK_REPLIES:
+        lines.append(f"          - kind: MessageBack")
+        lines.append(f"            text: {qr}")
 
-    # YAML に戻して PATCH
-    new_data = yaml.dump(parsed, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    # PVA フォーマット: ダブル改行で結合
+    new_data = "\n\n".join(lines) + "\n\n"
+
     api_patch(f"botcomponents({topic_id})", {"data": new_data})
     if GREETING_MESSAGE:
         print(f"  挨拶メッセージ: {GREETING_MESSAGE[:50]}...")
@@ -598,12 +706,22 @@ def set_channel_manifest(bot_id: str):
         existing_teams["termsLink"] = TEAMS_TERMS_URL
         print(f"  使用条件: {TEAMS_TERMS_URL}")
 
-    # アイコン: Bot の iconbase64 を colorIcon / outlineIcon にも設定
-    icon_b64 = bot_data.get("iconbase64")
-    if icon_b64:
-        existing_teams["colorIcon"] = icon_b64
-        existing_teams["outlineIcon"] = icon_b64
-        print(f"  アイコン: Bot の iconbase64 を colorIcon/outlineIcon に設定")
+    # アイコン: Teams 要件に合った PNG を colorIcon / outlineIcon に設定
+    # ★ colorIcon = 192x192 PNG, outlineIcon = 32x32 PNG（白い透明背景）
+    # ★ data: prefix なしの生 Base64 PNG（REF エージェントと同じ形式）
+    try:
+        from generate_icon_png import generate_icons
+        icons = generate_icons()
+        existing_teams["colorIcon"] = icons["color"]["base64"]
+        existing_teams["outlineIcon"] = icons["outline"]["base64"]
+        print(f"  colorIcon: {icons['color']['dimensions']}, {icons['color']['size_bytes']} bytes")
+        print(f"  outlineIcon: {icons['outline']['dimensions']}, {icons['outline']['size_bytes']} bytes")
+    except Exception as e:
+        print(f"  ⚠️ PNG アイコン生成エラー、iconbase64 をフォールバック使用: {e}")
+        icon_b64 = bot_data.get("iconbase64")
+        if icon_b64:
+            existing_teams["colorIcon"] = icon_b64
+            existing_teams["outlineIcon"] = icon_b64
 
     existing_ami["teams"] = existing_teams
 
@@ -613,8 +731,11 @@ def set_channel_manifest(bot_id: str):
     existing_ami["copilotChat"] = copilot_chat
     print("  Microsoft 365 Copilot: 有効化")
 
+    # ★ bots PATCH には name 必須（省略すると "Empty or null bot name" エラー）
+    bot_name_data = api_get(f"bots({bot_id})?$select=name")
     api_patch(f"bots({bot_id})", {
-        "applicationmanifestinformation": json.dumps(existing_ami)
+        "name": bot_name_data["name"],
+        "applicationmanifestinformation": json.dumps(existing_ami),
     })
     print("  チャネル公開設定完了")
 
@@ -683,6 +804,7 @@ def main():
 
     bot_id = find_bot()
     _wait_for_provisioning(bot_id)
+    set_icon(bot_id)
     delete_custom_topics(bot_id)
     saved_config = enable_generative_orchestration(bot_id)
     comp_id = set_gpt_instructions(bot_id, saved_config)
@@ -704,7 +826,8 @@ def main():
     print("     → Dataverse を選択 → 以下のテーブルを追加:")
     print(f"       - {PREFIX}_incident（インシデント）")
     print(f"       - {PREFIX}_incidentcategory（カテゴリ）")
-    print(f"       - {PREFIX}_location（場所）")
+    print(f"       - {PREFIX}_priority（優先度）")
+    print(f"       - {PREFIX}_itasset（IT資産）")
     print(f"       - {PREFIX}_incidentcomment（コメント）")
     print()
     print("  2. ツール（Dataverse MCP Server）の追加:")

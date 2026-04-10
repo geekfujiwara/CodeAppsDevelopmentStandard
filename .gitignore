@@ -53,6 +53,14 @@ __pycache__/
 
 # Debug artifacts
 scripts/*_debug.json
+deploy_log*.txt
+dump_*.txt
+cs_data.txt
+gpt_data.txt
+check_log.txt
+icon_*.png
+icon_*.txt
+icon_preview.svg
 
 # Build info
 tsconfig.tsbuildinfo

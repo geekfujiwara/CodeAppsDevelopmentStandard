@@ -155,3 +155,7 @@ python -c "from scripts.auth_helper import get_token; print(get_token()[:20] + '
 | **SDK Lookup 名は未ポピュレート（初回から対応必須）** | `createdbyname` 等は返らない。**初回デプロイから** `_xxx_value` + `useMemo` クライアントサイド名前解決を実装 |
 | **フロー接続 ID はハードコードしない**       | 環境が変わると接続 ID も変わる。毎回 PowerApps API で自動検索             |
 | **api_get() は dict を返す**                 | `.json()` を呼ぶとエラー。戻り値の dict をそのまま使う                    |
+| **ConversationStart/GPT YAML は手動構築**    | `yaml.dump()` は PVA パーサーと非互換。会話の開始・クイック返信・推奨プロンプトが消える |
+| **bots PATCH には name フィールド必須**       | 省略すると `Empty or null bot name` エラー (0x80040265)。既存名を GET して再送 |
+| **アイコンは SVG→Base64 で API 登録**         | `data:image/svg+xml;base64,...` を `bots.iconbase64` に PATCH。ユーザーに UI アップロードを求めない |
+| **基盤モデルは API で設定できない**           | `aISettings` PATCH で `optInUseLatestModels: False` にしても基盤モデルが GPT に戻るケースあり。UI で手動選択 |
