@@ -322,6 +322,10 @@ existing_teams["colorIcon"] = icon_b64
 existing_teams["outlineIcon"] = icon_b64
 
 existing_ami["teams"] = existing_teams
+
+# M365 Copilot 可用性を有効化
+existing_ami["copilotChat"] = {"isEnabled": True}
+
 api_patch(f"bots({bot_id})", {"applicationmanifestinformation": json.dumps(existing_ami)})
 ```
 
@@ -337,10 +341,11 @@ api_patch(f"bots({bot_id})", {"applicationmanifestinformation": json.dumps(exist
 | 簡単な説明 | 80 | Microsoft Copilot Studio を使用して構築します。 |
 | 詳細な説明 | 3400 | （デフォルトは汎用テキスト） |
 | 開発者名 | 32 | 自分の開発者名 |
-| 背景色 | - | #0078D4 |
+| 背景色 | - | #FFFFFF（白/透明推奨） |
 | Web サイト | - | go.microsoft.com/fwlink/?linkid=2138949 |
 | プライバシー | - | go.microsoft.com/fwlink/?linkid=2138950 |
 | 使用条件 | - | go.microsoft.com/fwlink/?linkid=2138865 |
+| M365 Copilot | - | copilotChat.isEnabled = true |
 ```
 
 ### Step 8: チャネル公開実行
