@@ -168,6 +168,7 @@ $env:PP_NO_PERSISTENT_CACHE="1"; Remove-Item .auth_record.json -ErrorAction Sile
 | **設計フェーズでユーザー承認必須**                     | テーブル設計を提示し承認を得てから構築に進む                                                                      |
 | **設計前に既存環境の名前衝突を検索**                   | ソリューション名・テーブルスキーマ名が既存と重複しないことを API で確認                                           |
 | 全テーブルにデモデータを投入                           | 従属テーブル（コメント等）含め漏れなく                                                                            |
+| **Instructions のテーブル名は単数形の論理名**          | Power Apps MCP / Dataverse MCP は LogicalName（単数形）でアクセス。複数形(EntitySetName)や表示名は不可            |
 | 全 Lookup を設計書に明記                               | リレーション漏れは機能不全の原因                                                                                  |
 | **nameUtils パッチは Node.js スクリプトで**            | PowerShell の $ エスケープで適用失敗する。`node patch-nameutils.cjs` を使う                                       |
 | **SDK Lookup 名は未ポピュレート（初回から対応必須）**  | `createdbyname` 等は返らない。**初回デプロイから** `_xxx_value` + `useMemo` クライアントサイド名前解決を実装      |

@@ -661,6 +661,21 @@ https://copilotstudio.microsoft.com/c2/tenants/{TENANT_ID}/environments/{ENV_ID}
 
 ## Instructions テンプレート
 
+### Dataverse テーブル論理名は単数形（最重要）
+
+Instructions 内で Dataverse テーブル名を指定するとき、**必ず単数形の論理名**（`LogicalName`）を使うこと。
+Power Apps MCP Server・Dataverse MCP Server はテーブルの論理名（単数形）でアクセスする。
+複数形（`EntitySetName`）や表示名では正しくアクセスできない。
+
+```
+❌ geek_market_insights   ← 複数形（EntitySetName）
+❌ 市場インサイト          ← 表示名
+✅ geek_market_insight    ← 単数形（LogicalName）
+```
+
+> **教訓（2026-04-14 検証済み）**: Instructions に複数形テーブル名を記載すると、
+> エージェントが MCP Server 経由で Dataverse にアクセスする際にテーブルが見つからずエラーになる。
+
 ```
 あなたは「{エージェント名}」です。{目的の説明}。
 

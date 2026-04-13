@@ -2,6 +2,9 @@
 node_modules/
 package-lock.json
 
+# Copilot memories (session/user notes)
+memories/
+
 # Build output
 dist/
 
