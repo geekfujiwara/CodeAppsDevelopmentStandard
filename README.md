@@ -517,7 +517,7 @@ config = {
         "$kind": "AISettings",
         "useModelKnowledge": True,
         "isSemanticSearchEnabled": True,
-        "optInUseLatestModels": True,
+        "optInUseLatestModels": False,  # True にすると UI で選んだ基盤モデルが GPT に強制変更される
     },
     "recognizer": {"$kind": "GenerativeAIRecognizer"},
 }
@@ -610,15 +610,29 @@ conversationStarters:
 │   │   └── GeekPowerCode.agent.md           # GitHub Copilot カスタムエージェント
 │   └── skills/
 │       ├── power-platform-standard/     # 共通基盤スキル
+│       ├── architecture-design/         # アーキテクチャ設計スキル
 │       ├── code-apps-dev/               # Code Apps 開発スキル
 │       ├── code-apps-design/            # CodeAppsStarter デザインスキル
 │       ├── power-automate-flow/         # Power Automate フロースキル
-│       └── copilot-studio-agent/        # Copilot Studio スキル
+│       ├── copilot-studio-agent/        # Copilot Studio スキル
+│       ├── copilot-studio-trigger/      # Copilot Studio 外部トリガースキル
+│       ├── ai-builder-prompt/           # AI Builder AI プロンプトスキル
+│       ├── html-email-template/         # HTML メールテンプレートスキル
+│       ├── market-research-report/      # 自動リサーチレポートスキル
+│       └── news-agent/                  # ニュース配信エージェントスキル
 ├── docs/
 │   ├── POWER_PLATFORM_DEVELOPMENT_STANDARD.md
 │   ├── DATAVERSE_GUIDE.md
 │   ├── CONNECTOR_REFERENCE.md
 │   └── ADVANCED_PATTERNS.md
+├── scripts/                                 # Dataverse・フロー・エージェントデプロイスクリプト
+│   ├── auth_helper.py                       #   認証ヘルパー（MSAL + Dataverse/Flow/PowerApps API）
+│   ├── setup_dataverse.py                   #   Dataverse テーブル一括構築
+│   ├── deploy_agent.py                      #   Copilot Studio エージェント設定
+│   ├── deploy_flow*.py                      #   Power Automate フローデプロイ
+│   ├── deploy_ai_prompt.py                  #   AI Builder AI プロンプトデプロイ
+│   ├── deploy_news_agent.py                 #   ニュースエージェント設定
+│   └── requirements.txt                     #   Python 依存関係
 ├── src/                                     # Code Apps スターターテンプレート
 │   ├── components/                          #   UI コンポーネント + shadcn/ui
 │   ├── pages/                               #   ページコンポーネント
@@ -630,6 +644,7 @@ conversationStarters:
 ├── styles/
 │   └── index.pcss                           # Tailwind CSS スタイル
 ├── public/                                  # 静的アセット
+├── .env.example                             # 環境変数テンプレート
 ├── package.json
 ├── vite.config.ts
 └── README.md

@@ -4,6 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ShieldAlert,
   LayoutDashboard,
+  Columns3,
   Monitor,
   type LucideIcon,
 } from "lucide-react";
@@ -46,13 +47,12 @@ export function Sidebar() {
       category: "インシデント管理",
       items: [
         { icon: ShieldAlert, label: "インシデント", path: "incidents" },
+        { icon: Columns3, label: "カンバン", path: "kanban" },
       ],
     },
     {
       category: "マスタ管理",
-      items: [
-        { icon: Monitor, label: "IT 資産", path: "assets" },
-      ],
+      items: [{ icon: Monitor, label: "IT 資産", path: "assets" }],
     },
   ];
 

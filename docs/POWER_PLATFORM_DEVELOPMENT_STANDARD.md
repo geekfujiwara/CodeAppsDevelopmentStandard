@@ -452,7 +452,7 @@ api_post("/PublishAllXml", {})
 ```bash
 # PAC CLI 認証プロファイル作成（初回のみ）
 pac auth create --name {profile-name} --environment {ENVIRONMENT_ID}
-# 例: pac auth create --name IncidentManager --environment 7159fdb4-d1dd-e230-8ce3-c85c5789c51a
+# 例: pac auth create --name IncidentManager --environment xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 # 認証プロファイル確認（* が付いているのがアクティブ）
 pac auth list

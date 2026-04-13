@@ -100,6 +100,23 @@ flow_api_call("GET", f"/providers/Microsoft.ProcessSimple/environments/{env_id}/
 python -c "from scripts.auth_helper import get_token; print(get_token()[:20] + '...')"
 ```
 
+#### MSAL Python 3.14 互換性問題
+
+Python 3.14 では MSAL 内部トークンキャッシュ (`msal/token_cache.py`) が壊れる問題がある。
+
+**症状**: 初回 API コールは成功するが、2回目以降で `TypeError: sequence item 0: expected str instance, dict found` が発生。`target=" ".join(target)` で scopes が dict として格納されている。
+
+**対策** (`auth_helper.py` 実装済み):
+1. `_inmemory_tokens` dict でスコープ別にトークンをインメモリキャッシュ
+2. `credential.get_token()` は同じスコープで1回だけ呼び、結果をキャッシュ
+3. `TypeError` や `ClientAuthenticationError` 発生時は新しい credential を永続キャッシュなしで再構築
+4. `PP_NO_PERSISTENT_CACHE=1` 環境変数で OS 永続キャッシュを無効化可能
+
+```bash
+# Python 3.14 でキャッシュ破損が発生する場合
+$env:PP_NO_PERSISTENT_CACHE="1"; Remove-Item .auth_record.json -ErrorAction SilentlyContinue; python scripts/setup_dataverse.py
+```
+
 ## 参照ドキュメント
 
 - [開発標準](../../docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md): 設計原則・Phase 別手順・トラブルシューティング
@@ -154,8 +171,13 @@ python -c "from scripts.auth_helper import get_token; print(get_token()[:20] + '
 | **nameUtils パッチは Node.js スクリプトで**           | PowerShell の $ エスケープで適用失敗する。`node patch-nameutils.cjs` を使う                                  |
 | **SDK Lookup 名は未ポピュレート（初回から対応必須）** | `createdbyname` 等は返らない。**初回デプロイから** `_xxx_value` + `useMemo` クライアントサイド名前解決を実装 |
 | **フロー接続 ID はハードコードしない**                | 環境が変わると接続 ID も変わる。毎回 PowerApps API で自動検索                                                |
+| **PowerApps API 接続検索はタイムアウトする**          | 504 GatewayTimeout 頻発。3回リトライ＋フォールバック接続 ID パターンで対策                                   |
+| **AI Builder アクションは API でフロー定義に含めない**| PerformBoundAction → InvalidOpenApiFlow で有効化失敗。Power Automate UI で手動追加                           |
 | **api_get() は dict を返す**                          | `.json()` を呼ぶとエラー。戻り値の dict をそのまま使う                                                       |
 | **ConversationStart/GPT YAML は手動構築**             | `yaml.dump()` は PVA パーサーと非互換。会話の開始・クイック返信・推奨プロンプトが消える                      |
 | **bots PATCH には name フィールド必須**               | 省略すると `Empty or null bot name` エラー (0x80040265)。既存名を GET して再送                               |
 | **アイコンは SVG→Base64 で API 登録**                 | `data:image/svg+xml;base64,...` を `bots.iconbase64` に PATCH。ユーザーに UI アップロードを求めない          |
 | **基盤モデルは API で設定できない**                   | `aISettings` PATCH で `optInUseLatestModels: False` にしても基盤モデルが GPT に戻るケースあり。UI で手動選択 |
+| **メール返信は Work IQ Mail MCP を使う**              | 「メールに返信する (V3)」コネクタは Attachments 属性でスタックする。Work IQ Mail MCP（`mcp_MailTools`）を使うこと |
+| **メールトリガー時は質問禁止**                        | メールから起動時にユーザーに質問するとチャット返信できずスタック。Instructions に判定ロジックと即処理ルールが必須 |
+| **ExecuteCopilot プロンプトは構造化**                 | `triggerBody()` の丸投げは不十分。メッセージID・差出人・件名・本文を個別に渡し、ツール名を明示する |

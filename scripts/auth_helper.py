@@ -49,6 +49,7 @@ import time
 from pathlib import Path
 
 import requests
+from azure.core.exceptions import ClientAuthenticationError
 from azure.identity import (
     AuthenticationRecord,
     DeviceCodeCredential,
@@ -99,15 +100,23 @@ def _build_credential() -> DeviceCodeCredential:
        テナント・ユーザー情報を保存し、MSAL キャッシュから正しい
        トークンエントリを検索するキーとして機能する。
     """
-    cache_options = TokenCachePersistenceOptions(
-        name="power_platform_token_cache",
-        # allow_unencrypted_storage=True は Linux 等で libsecret が未インストールの
-        # 開発環境向けフォールバック。本番 CI/CD では Managed Identity 等を使用する。
-        allow_unencrypted_storage=True,
-    )
+    # OS 永続トークンキャッシュが壊れることがあるため、
+    # 環境変数 PP_NO_PERSISTENT_CACHE=1 で無効化可能
+    use_persistent_cache = not os.environ.get("PP_NO_PERSISTENT_CACHE")
+
+    kwargs: dict = {
+        "tenant_id": TENANT_ID or None,
+        "prompt_callback": _device_code_callback,
+    }
+
+    if use_persistent_cache:
+        cache_options = TokenCachePersistenceOptions(
+            name="power_platform_token_cache_v3",
+            allow_unencrypted_storage=True,
+        )
+        kwargs["cache_persistence_options"] = cache_options
 
     auth_record: AuthenticationRecord | None = None
-
     if AUTH_RECORD_PATH.exists():
         try:
             serialized = AUTH_RECORD_PATH.read_text(encoding="utf-8")
@@ -122,11 +131,6 @@ def _build_credential() -> DeviceCodeCredential:
                 file=sys.stderr,
             )
 
-    kwargs: dict = {
-        "tenant_id": TENANT_ID or None,
-        "cache_persistence_options": cache_options,
-        "prompt_callback": _device_code_callback,
-    }
     # None の値を除外（未設定パラメータはライブラリの既定値を使う）
     kwargs = {k: v for k, v in kwargs.items() if v is not None}
 
@@ -155,13 +159,18 @@ def _save_auth_record(record: AuthenticationRecord) -> None:
 
 # ---------- 公開 API ----------
 
+# Python 3.14 で MSAL 内部トークンキャッシュが壊れる問題の回避策:
+# 自前でスコープ別のインメモリキャッシュを管理する。
+# credential.get_token() は同じスコープで 1 回だけ呼び、結果をキャッシュする。
+_inmemory_tokens: dict[str, tuple[str, float]] = {}  # scope -> (token_str, expires_on)
+
 
 def get_token(scope: str | None = None) -> str:
     """
     指定スコープのアクセストークン文字列を返す。
 
     初回はデバイスコード認証が走り、AuthenticationRecord が保存される。
-    2回目以降はキャッシュからサイレントに取得する。
+    2回目以降はインメモリキャッシュから取得する。
 
     Args:
         scope: OAuth2 スコープ。省略時は ``{DATAVERSE_URL}/.default``。
@@ -176,6 +185,12 @@ def get_token(scope: str | None = None) -> str:
             "スコープが未指定です。DATAVERSE_URL を .env に設定するか scope 引数を渡してください。"
         )
 
+    # インメモリキャッシュから返す（有効期限 60 秒前まで）
+    if scope in _inmemory_tokens:
+        token_str, expires_on = _inmemory_tokens[scope]
+        if time.time() < expires_on - 60:
+            return token_str
+
     credential = _ensure_credential()
 
     # キャッシュが存在しない場合は明示的に authenticate() を呼んで
@@ -184,7 +199,29 @@ def get_token(scope: str | None = None) -> str:
         record = credential.authenticate(scopes=[scope])
         _save_auth_record(record)
 
-    token = credential.get_token(scope)
+    try:
+        token = credential.get_token(scope)
+    except (ClientAuthenticationError, TypeError) as exc:
+        # MSAL 内部キャッシュ破損時のフォールバック:
+        # 新しい credential を永続キャッシュなしで構築し直す
+        print(
+            f"[auth_helper] MSAL キャッシュ破損を検出 — 再構築中: {type(exc).__name__}",
+            file=sys.stderr,
+        )
+        global _credential  # noqa: PLW0603
+        _credential = None
+        kwargs_nocache: dict = {
+            "tenant_id": TENANT_ID or None,
+            "prompt_callback": _device_code_callback,
+        }
+        kwargs_nocache = {k: v for k, v in kwargs_nocache.items() if v is not None}
+        # 認証レコードは使わない（内部キャッシュが壊れる原因になる）
+        _credential = DeviceCodeCredential(**kwargs_nocache)
+        record = _credential.authenticate(scopes=[scope])
+        _save_auth_record(record)
+        token = _credential.get_token(scope)
+
+    _inmemory_tokens[scope] = (token.token, token.expires_on)
     return token.token
 
 

@@ -24,9 +24,9 @@ SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
 API = f"{DATAVERSE_URL}/api/data/v9.2"
 FLOW_DISPLAY_NAME = "インシデントステータス変更通知"
 
-# 再認証済み接続 ID
-DATAVERSE_CONN = "shared-commondataser-5b340afb-2617-47e7-a1d2-1dedce14012a"
-OUTLOOK_CONN = "4e37ecab87084d649e537940fdac8db2"
+# 接続 ID（.env から取得）
+DATAVERSE_CONN = os.environ.get("DATAVERSE_CONN", "")
+OUTLOOK_CONN = os.environ.get("OUTLOOK_CONN", "")
 
 
 def get_headers(solution=False):

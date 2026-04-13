@@ -38,12 +38,13 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 1. エージェントの目的・役割に合ったアイコンを **3〜4 パターン** テキストで提案
 2. 各パターンに簡単な説明を付けて提示
 3. ユーザーに選択してもらう
-4. **選択されたパターンの SVG を生成 → Base64 → `bots.iconbase64` に API で登録**
+4. **選択されたパターンの PNG を Pillow で生成 → Base64 → `bots.iconbase64` に API で登録**
 
 ### アイコン設計ガイドライン
 
-- **サイズ**: 240x240px（`viewBox="0 0 240 240"`）
-- **形式**: SVG（`data:image/svg+xml;base64,...` 形式で登録）
+- **サイズ**: 240x240px（基本サイズ、Teams 用に 192 と 32 も生成）
+- **形式**: PNG（Teams チャネルが SVG を受け付けないため）
+- **登録形式**: `data:` prefix なしの生 Base64 PNG
 - **スタイル**: シンプルで視認性の高いデザイン。フラット or モダン
 - **背景**: 角丸正方形（`rx="48" ry="48"`）。ブランドカラー推奨
 - **モチーフ**: エージェントの目的を象徴するアイコン（例: インシデント管理 → 盾・ライトニング・レンチ）
@@ -197,6 +198,7 @@ def _build_gpt_yaml():
 ✅ 構造行はダブル改行、instructions ブロック内はシングル改行
 ✅ conversationStarters の title/text はクォートなし
 ✅ displayName キーを含める（UI が表示に使用）
+✅ instructions 内で単一波括弧 {変数名} を使わない → PVA が Power Fx 式として解釈し IdentifierNotRecognized エラー。自然言語で記述する
 ```
 
 ### ConversationStart トピックの YAML 形式
@@ -321,11 +323,40 @@ Bot ID URL をコピーしてすぐにスクリプトを実行すると、カス
 
 ### Step 1.5: プロビジョニング完了待ち（スクリプト内で自動）
 
+Bot の Dataverse レコードは即座に作成されるが、デフォルトトピック・GPT コンポーネントは
+PVA Bot Management Service が**非同期でプロビジョニング**する。
+スクリプトは自動的にポーリングして完了を待つ。
+
 ```python
-# Bot 作成後、デフォルトトピック・GPT コンポーネントが非同期プロビジョニングされる
-# トピック（componenttype=1）または GPT コンポーネント（componenttype=15）が
-# 出現するまで最大 120 秒リトライする
-# → 0 件のままトピック削除に進むことを防止
+def wait_for_provisioning(bot_id: str, timeout: int = 120) -> bool:
+    """トピックまたは GPT コンポーネントが出現するまでポーリング"""
+    elapsed = 0
+    while elapsed < timeout:
+        # componenttype=1 (トピック) をチェック
+        topics = api_get("botcomponents", {
+            "$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 1",
+            "$select": "botcomponentid"})
+        if topics.get("value"):
+            return True
+        # componenttype=15 (GPT コンポーネント) もチェック
+        gpt = api_get("botcomponents", {
+            "$filter": f"_parentbotid_value eq '{bot_id}' and componenttype eq 15",
+            "$select": "botcomponentid"})
+        if gpt.get("value"):
+            return True
+        print(f"  待機中... ({elapsed}/{timeout}秒)")
+        time.sleep(10)
+        elapsed += 10
+    print(f"  ⚠️ {timeout}秒タイムアウト")
+    return False
+```
+
+```
+✅ 10 秒間隔でポーリング、最大 120 秒タイムアウト
+✅ componenttype=1 (トピック) と componenttype=15 (GPT) の両方をチェック
+✅ タイムアウトしても警告のみ（致命的エラーにしない — UI でまだ作成中の可能性）
+❌ プロビジョニング完了前にトピック削除 → 0 件削除で既定トピックが残る
+❌ time.sleep() で固定時間待機 → プロビジョニングが遅い環境で不足する
 ```
 
 ### Step 2: カスタムトピック削除（システムトピック保護）
@@ -338,7 +369,7 @@ Bot ID URL をコピーしてすぐにスクリプトを実行すると、カス
 PROTECTED_TOPIC_PATTERNS = [
     "ConversationStart", "Escalate", "Fallback", "OnError",
     "EndofConversation", "MultipleTopicsMatched", "Search",
-    "Signin", "ResetConversation",
+    "Signin", "ResetConversation", "StartOver",
 ]
 
 # componenttype=1 と 9 の両方を取得
@@ -512,9 +543,9 @@ api_patch(f"bots({bot_id})", {"applicationmanifestinformation": json.dumps(exist
 
 ```
 アイコン画像の要件:
-- SVG 形式推奨（`data:image/svg+xml;base64,...` で API 登録）
-- 240x240px、角丸正方形
-- PNG の場合は 100 KB 未満
+- PNG 形式必須（Teams チャネルが SVG を受け付けない）
+- 3 サイズ生成: 240x240（iconbase64）、192x192（colorIcon）、32x32（outlineIcon）
+- `data:` prefix なしの生 Base64 PNG で API 登録
 
 設定項目:
 | 項目 | 最大文字数 | デフォルト |
@@ -545,13 +576,87 @@ api_patch(f"bots({bot_id})", {"configuration": json.dumps(config)})
 api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 ```
 
-### Step 9: ナレッジ・ツールの手動追加（ユーザーに依頼）
+### Step 9: ナレッジ・ツール・トリガーの手動追加（ユーザーに依頼）
 
 ```
-★ API では追加不可 — Copilot Studio UI で手動操作が必要
+★ ナレッジ・ツール・トリガーは API では追加不可 — Copilot Studio UI で手動操作が必要
+★ スクリプト完了後に以下の案内をユーザーに提示すること
+```
 
-1. ナレッジ: Copilot Studio → エージェント → ナレッジ タブ → Dataverse テーブルを追加
-2. ツール: ツール タブ → Dataverse MCP Server を追加 → CRUD アクションを有効化
+**ユーザーに提示するテンプレート:**
+
+```markdown
+### Copilot Studio UI での手動設定
+
+#### ナレッジの追加
+
+1. Copilot Studio → エージェントを開く
+2. 左メニュー「ナレッジ」→「+ ナレッジの追加」
+3. データソースを選択（Dataverse テーブル / SharePoint サイト / ファイル等）
+4. 対象を設定して保存
+
+#### ツールの追加
+
+1. 左メニュー「ツール」→「+ ツールの追加」
+2. コネクタまたは MCP Server を検索して選択
+   - 例: Dataverse（CRUD 操作）、Work IQ Word MCP（Word 操作）、Work IQ Mail MCP（メール送受信）等
+3. 使用するアクションを有効化して保存
+
+> **⚠️ コネクタツール vs MCP ツールの選択基準（検証済み教訓 2026-04-13）**
+>
+> | 操作           | 推奨ツール                             | 理由                                                                                                                           |
+> | -------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+> | メール返信     | **Work IQ Mail MCP** (`mcp_MailTools`) | 「メールに返信する (V3)」コネクタは Attachments が AutomaticTaskInput として定義され、エージェントが値を解決できずスタックする |
+> | Word 操作      | Work IQ Word MCP (`mcp_WordServer`)    | シンプルな MCP インターフェース                                                                                                |
+> | Dataverse CRUD | Dataverse コネクタ                     | 検索・更新・作成に安定                                                                                                         |
+>
+> **原則: MCP 版がある操作は MCP を優先する。コネクタツールの AutomaticTaskInput が原因でスタックするリスクを回避できる。**
+
+#### トリガーの追加（外部トリガーがある場合）
+
+1. 左メニュー「トリガー」→「+ トリガーの追加」
+2. トリガー一覧から使用するトリガーを選択し「次へ」をクリック
+3. 作成済みのフローが表示されるので選択
+4. 「トリガーの保存」をクリック
+
+##### 選択可能なトリガー一覧（「おすすめ」タブ）
+
+| トリガー名                                 | コネクタ              |
+| ------------------------------------------ | --------------------- |
+| Recurrence                                 | Schedule              |
+| 新しい応答が送信されるとき                 | Microsoft Forms       |
+| 項目が作成されたとき                       | SharePoint            |
+| アイテムが作成または変更されたとき         | SharePoint            |
+| ファイルが作成されたとき                   | OneDrive for Business |
+| チャネルに新しいメッセージが追加されたとき | Microsoft Teams       |
+| 行が追加、変更、または削除された場合       | Microsoft Dataverse   |
+| 新しいメールが届いたとき (V3)              | Office 365 Outlook    |
+| タスクが完了したとき                       | Planner               |
+| アイテムまたはファイルが修正されたとき     | SharePoint            |
+| ファイルが作成されたとき (プロパティのみ)  | SharePoint            |
+
+> 「すべて」タブで全コネクタを検索可能。
+
+#### 公開
+
+1. 上記の設定完了後、右上の「公開」ボタンをクリック
+
+#### 接続マネージャーで接続を作成（公開後・実行前）
+
+エージェントを実行する前に、接続マネージャーで全ツールの接続を作成・認証する必要がある。
+```
+
+接続マネージャー URL:
+https://copilotstudio.microsoft.com/c2/tenants/{TENANT_ID}/environments/{ENV_ID}/bots/{BOT_SCHEMA}/channels/pva-studio/user-connections
+
+```
+
+- `{TENANT_ID}`: .env の `TENANT_ID`
+- `{ENV_ID}`: 環境 ID（`RetrieveCurrentOrganization` API で取得可能）
+- `{BOT_SCHEMA}`: エージェントのスキーマ名（例: `geek_newsreporter`）
+
+> **デプロイスクリプトが接続マネージャー URL を自動生成して表示する。**
+> 未認証の接続があるとエージェントがツールを呼び出せず、処理が途中で止まる。
 ```
 
 ## Instructions テンプレート

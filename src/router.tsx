@@ -11,6 +11,9 @@ const DashboardPage = lazy(() => import("@/pages/dashboard"));
 const IncidentListPage = lazy(() => import("@/pages/incidents"));
 const IncidentDetailPage = lazy(() => import("@/pages/incident-detail"));
 
+// カンバンボード
+const KanbanPage = lazy(() => import("@/pages/kanban"));
+
 // IT 資産管理
 const AssetsPage = lazy(() => import("@/pages/assets"));
 
@@ -51,6 +54,7 @@ export const router = createBrowserRouter(
         { path: "dashboard", element: withSuspense(DashboardPage) },
         { path: "incidents", element: withSuspense(IncidentListPage) },
         { path: "incidents/:id", element: withSuspense(IncidentDetailPage) },
+        { path: "kanban", element: withSuspense(KanbanPage) },
         { path: "assets", element: withSuspense(AssetsPage) },
       ],
     },

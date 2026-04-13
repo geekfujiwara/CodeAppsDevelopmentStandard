@@ -48,6 +48,10 @@ src/lib/incident-types.ts
 
 # Python
 __pycache__/
+
+# Generated images (preview/test)
+*_preview.png
+*_icon.png
 *.pyc
 .venv/
 

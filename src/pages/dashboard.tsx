@@ -2,10 +2,22 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { ListTable } from "@/components/list-table";
 import type { TableColumn } from "@/components/list-table";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 import {
   AlertCircle,
   Clock,
@@ -23,6 +35,7 @@ import {
 } from "@/hooks/use-incidents";
 import type { Geek_incidents } from "@/generated/models/Geek_incidentsModel";
 import { statusLabels, statusColors, IncidentStatus } from "@/types/incident";
+import { LoadingSkeletonGrid } from "@/components/loading-skeleton";
 
 type IncidentRow = Geek_incidents & Record<string, unknown>;
 
@@ -84,6 +97,17 @@ export default function DashboardPage() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
   }, [incidents, categoryMap]);
+
+  const statusChartData = [
+    { name: "新規", value: newCount, color: "#3b82f6" },
+    { name: "対応中", value: inProgressCount, color: "#eab308" },
+    { name: "解決済", value: resolvedCount, color: "#22c55e" },
+    { name: "クローズ", value: closedCount, color: "#6b7280" },
+  ].filter((d) => d.value > 0);
+
+  const categoryChartData = useMemo(() => {
+    return categoryStats.map(([name, count]) => ({ name, count }));
+  }, [categoryStats]);
 
   const stats = [
     {
@@ -164,8 +188,13 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <div className="space-y-6">
+        <LoadingSkeletonGrid columns={4} count={4} variant="compact" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <LoadingSkeletonGrid columns={1} count={1} variant="detailed" />
+          <LoadingSkeletonGrid columns={1} count={1} variant="detailed" />
+        </div>
+        <LoadingSkeletonGrid columns={1} count={1} variant="detailed" />
       </div>
     );
   }
@@ -188,44 +217,45 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* 中段: ステータス分布 + カテゴリ分布 */}
+      {/* 中段: ステータス分布 (円グラフ) + カテゴリ分布 (棒グラフ) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">ステータス分布</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {[
-              { label: "新規", count: newCount, color: "bg-blue-500" },
-              {
-                label: "対応中",
-                count: inProgressCount,
-                color: "bg-yellow-500",
-              },
-              { label: "解決済", count: resolvedCount, color: "bg-green-500" },
-              { label: "クローズ", count: closedCount, color: "bg-gray-600" },
-            ].map((s) => (
-              <div key={s.label} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span>{s.label}</span>
-                  <span className="text-muted-foreground">
-                    {s.count} 件 (
-                    {incidents.length > 0
-                      ? Math.round((s.count / incidents.length) * 100)
-                      : 0}
-                    %)
-                  </span>
-                </div>
-                <Progress
-                  value={
-                    incidents.length > 0
-                      ? (s.count / incidents.length) * 100
-                      : 0
-                  }
-                  className="h-2"
-                />
-              </div>
-            ))}
+          <CardContent>
+            {statusChartData.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                データがありません
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie
+                    data={statusChartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={90}
+                    paddingAngle={3}
+                    dataKey="value"
+                    label={({
+                      name,
+                      percent,
+                    }: {
+                      name?: string;
+                      percent?: number;
+                    }) => `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                  >
+                    {statusChartData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => [`${value} 件`, "件数"]} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -233,28 +263,35 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="text-base">カテゴリ別 Top 5</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {categoryStats.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
+          <CardContent>
+            {categoryChartData.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
                 データがありません
               </p>
             ) : (
-              categoryStats.map(([name, count]) => (
-                <div key={name} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>{name}</span>
-                    <span className="text-muted-foreground">{count} 件</span>
-                  </div>
-                  <Progress
-                    value={
-                      incidents.length > 0
-                        ? (count / incidents.length) * 100
-                        : 0
-                    }
-                    className="h-2"
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart
+                  data={categoryChartData}
+                  layout="vertical"
+                  margin={{ left: 8, right: 16 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={100}
+                    tick={{ fontSize: 12 }}
                   />
-                </div>
-              ))
+                  <Tooltip formatter={(value) => [`${value} 件`, "件数"]} />
+                  <Bar
+                    dataKey="count"
+                    fill="#3b82f6"
+                    radius={[0, 4, 4, 0]}
+                    barSize={24}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
