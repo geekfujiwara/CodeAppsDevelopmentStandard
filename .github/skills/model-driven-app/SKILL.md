@@ -508,6 +508,51 @@ requests.put(
 - **解決**: AppModule 作成/更新時に `"clienttype": 4` を必ず指定
 - 既存アプリは PATCH で `clienttype` を `4` に更新可能
 
+### "App can't have multiple site maps" (0x80050111)（最重要）
+
+既存アプリの SiteMap を変更したい場合に `AddAppComponents` で**新しい SiteMap を追加しようとすると必ず発生する**。
+アプリには SiteMap を 1 つしか持てない。
+
+```
+❌ 新しい SiteMap を作成 → AddAppComponents で追加 → 0x80050111 エラー
+✅ 既存 SiteMap を見つけて PATCH で XML を直接更新する
+```
+
+**既存 SiteMap の特定方法**:
+
+```python
+# Step 1: appmodulecomponent テーブルから componenttype=62 (SiteMap) を取得
+# ★ appmoduleidunique でのフィルタは不可（プロパティが存在しない）
+resp = requests.get(
+    f"{DATAVERSE_URL}/api/data/v9.2/appmodulecomponents"
+    f"?$filter=componenttype eq 62"
+    f"&$select=appmodulecomponentid,objectid"
+    f"&$top=100",
+    headers=headers,
+)
+# objectid が SiteMap の ID
+
+# Step 2: 各 SiteMap ID で sitemaps テーブルを GET して XML を確認
+for comp in resp.json()["value"]:
+    sm = requests.get(
+        f"{DATAVERSE_URL}/api/data/v9.2/sitemaps({comp['objectid']})"
+        f"?$select=sitemapxml,sitemapnameunique",
+        headers=headers,
+    ).json()
+    # XML 内のテーブル参照で目的のアプリの SiteMap を特定
+
+# Step 3: 既存 SiteMap の XML を PATCH で更新
+requests.patch(
+    f"{DATAVERSE_URL}/api/data/v9.2/sitemaps({existing_sm_id})",
+    headers=headers,
+    json={"sitemapxml": new_sitemap_xml},
+)
+```
+
+> **教訓**: SiteMap を誤って新規作成してしまった場合は `DELETE sitemaps({id})` で削除する。
+> `appmodulecomponent` テーブルは `appmoduleidunique` プロパティを持たないため、
+> アプリ ID でフィルタできない。全件取得して objectid で照合する。
+
 ### "App does not contain Site Map" (ValidateApp)
 
 - SiteMap が作成されていないか、`AddAppComponents` でアプリに追加されていない
@@ -567,3 +612,5 @@ requests.put(
 | **AddAppComponents は 50 件ずつバッチ分割**         | 大量送信は失敗する場合あり。失敗時は 1 件ずつ再試行   |
 | **アプリ URL は `main.aspx?appid=`**                | `/apps/{id}` 形式ではない                             |
 | **PublishXml はテーブル単位で個別公開**              | `PublishAllXml` より高速                              |
+| **既存 SiteMap は PATCH で XML 更新**                | 新 SiteMap を AddAppComponents で追加すると 0x80050111 |
+| **appmodulecomponent は appmoduleidunique で検索不可**| componenttype=62 で全件取得し objectid で照合          |

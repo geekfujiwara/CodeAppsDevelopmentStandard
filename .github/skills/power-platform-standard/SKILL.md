@@ -178,6 +178,9 @@ $env:PP_NO_PERSISTENT_CACHE="1"; Remove-Item .auth_record.json -ErrorAction Sile
 | **PowerApps API 接続検索はタイムアウトする**           | 504 GatewayTimeout 頻発。3回リトライ＋フォールバック接続 ID パターンで対策                                              |
 | **AI Builder アクションは API でフロー定義に含めない** | PerformBoundAction → InvalidOpenApiFlow で有効化失敗。Power Automate UI で手動追加                                      |
 | **api_get() は dict を返す**                           | `.json()` を呼ぶとエラー。戻り値の dict をそのまま使う                                                                  |
+| **api_get() はパス文字列のみ受付**                     | `api_get("url", {"$filter": ...})` は不可。クエリパラメータは URL に直接埋め込む: `api_get("url?$filter=...")`           |
+| **Lookup @odata.bind はナビゲーションプロパティ名**    | 列の論理名ではなく NavProp 名を使用。大文字/小文字が区別される（例: `cr9e8_ID` vs `cr9e8_id` で異なる Lookup を指す）     |
+| **NavProp 名は ManyToOneRelationships で確認**         | `EntityDefinitions(LogicalName='xxx')/ManyToOneRelationships?$select=ReferencingEntityNavigationPropertyName,ReferencedEntityNavigationPropertyName,ReferencedEntity` で取得 |
 | **ConversationStart/GPT YAML は手動構築**              | `yaml.dump()` は PVA パーサーと非互換。会話の開始・クイック返信・推奨プロンプトが消える                                 |
 | **bots PATCH には name フィールド必須**                | 省略すると `Empty or null bot name` エラー (0x80040265)。既存名を GET して再送                                          |
 | **アイコンは SVG→Base64 で API 登録**                  | `data:image/svg+xml;base64,...` を `bots.iconbase64` に PATCH。ユーザーに UI アップロードを求めない                     |

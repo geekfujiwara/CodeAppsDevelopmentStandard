@@ -124,33 +124,43 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 46. **PowerApps API 接続検索は 504 タイムアウトが頻発する**。3回リトライ（累進的 wait: 15s→30s→45s）＋フォールバック接続 ID パターンで対策。`timeout=120` を明示的に設定する
 47. **Teams `PostMessageToConversation` に `body/subject` パラメータは指定しない**。操作スキーマに存在しないため `InvalidOpenApiFlow` (0x80060467) で有効化失敗する。使用可能パラメータ: `poster`, `location`, `body/recipient/groupId`, `body/recipient/channelId`, `body/messageBody` のみ
 
+### Dataverse データ操作
+
+48. **Lookup の `@odata.bind` にはナビゲーションプロパティ名（NavProp名）を使う**。列の論理名ではない。大文字/小文字が区別される（例: `cr9e8_ID` と `cr9e8_id` は異なる Lookup）。`EntityDefinitions(LogicalName='xxx')/ManyToOneRelationships` で `ReferencingEntityNavigationPropertyName` を確認する
+49. **`api_get()` は URL パス文字列のみ受付**。`api_get("url", {"$filter": ...})` のような dict 第2引数は不可。クエリパラメータは URL に直接埋め込む: `api_get("url?$filter=...")`
+
 ### 日本語ローカライズ
 
-48. **表示名更新は PUT + MetadataId** パターン。PATCH では反映されないケースがある
-49. **`MSCRM.MergeLabels: true` ヘッダー必須**
+50. **表示名更新は PUT + MetadataId** パターン。PATCH では反映されないケースがある
+51. **`MSCRM.MergeLabels: true` ヘッダー必須**
 
 ### 環境・デプロイ
 
-50. **`power.config.json` は `npx power-apps init` で生成**。手動作成・他プロジェクトからのコピー禁止。別環境の appId → `AppLeaseMissing` (409)
-51. **環境で Code Apps を有効化**。未許可 → `CodeAppOperationNotAllowedInEnvironment` (403)
-52. **`src/generated/` と `.power/` は SDK コマンドで生成**。`npx power-apps add-data-source` で自動生成される。手動作成禁止
-53. **PAC CLI 認証プロファイルは環境ごとに作成**。`pac auth create --name {name} --environment {env-id}`
-54. **`auth_helper.get_token()` は `scope` キーワード引数のみ**。`.env` から TENANT_ID を自動読み込み
-55. **MSAL Python 3.14 互換性問題**。MSAL 内部トークンキャッシュが壊れる（scopes が dict として格納される）。`auth_helper.py` のインメモリキャッシュ + フォールバック再構築で対策済み。`PP_NO_PERSISTENT_CACHE=1` で OS 永続キャッシュ無効化可能
+52. **`power.config.json` は `npx power-apps init` で生成**。手動作成・他プロジェクトからのコピー禁止。別環境の appId → `AppLeaseMissing` (409)
+53. **環境で Code Apps を有効化**。未許可 → `CodeAppOperationNotAllowedInEnvironment` (403)
+54. **`src/generated/` と `.power/` は SDK コマンドで生成**。`npx power-apps add-data-source` で自動生成される。手動作成禁止
+55. **PAC CLI 認証プロファイルは環境ごとに作成**。`pac auth create --name {name} --environment {env-id}`
+56. **`auth_helper.get_token()` は `scope` キーワード引数のみ**。`.env` から TENANT_ID を自動読み込み
+57. **MSAL Python 3.14 互換性問題**。MSAL 内部トークンキャッシュが壊れる（scopes が dict として格納される）。`auth_helper.py` のインメモリキャッシュ + フォールバック再構築で対策済み。`PP_NO_PERSISTENT_CACHE=1` で OS 永続キャッシュ無効化可能
 
 ### Teams チャネル情報の取得
 
-56. **Teams チャネル情報はリンク URL から取得**。ユーザーには「Teams アプリで投稿先チャネルを **右クリック → 「チャネルへのリンクを取得」** でコピーした URL をペーストしてください」と案内する。URL から groupId（チーム ID）と channelId を自動抽出する
+58. **Teams チャネル情報はリンク URL から取得**。ユーザーには「Teams アプリで投稿先チャネルを **右クリック → 「チャネルへのリンクを取得」** でコピーした URL をペーストしてください」と案内する。URL から groupId（チーム ID）と channelId を自動抽出する
+
+### モデル駆動型アプリ
+
+59. **既存アプリの SiteMap は PATCH で XML を直接更新**。新しい SiteMap を作成して `AddAppComponents` で追加すると `0x80050111` (App can't have multiple site maps) エラー。既存 SiteMap を `appmodulecomponent?$filter=componenttype eq 62` で特定し、`PATCH sitemaps({id})` で `sitemapxml` を更新する
+60. **`appmodulecomponent` は `appmoduleidunique` でフィルタ不可**。プロパティが存在しない。`componenttype eq 62` で全件取得し `objectid` で照合する
 
 ### 設計フェーズ（最重要 — 全フェーズ共通原則）
 
-57. **全フェーズで設計→ユーザー承認→実装の順序を守る**。Dataverse・Code Apps・Power Automate・Copilot Studio のいずれも、設計をユーザーに提示し「この設計で進めてよいですか？」と承認を得てから構築に進む
-58. **テーブル設計**: 全 Lookup リレーションシップを設計書に明記。漏れると Lookup が機能しない
-59. **テーブル設計**: デモデータは全テーブル（従属テーブル含む）に計画。コメント等の従属テーブルにもデモデータを用意
-60. **テーブル設計**: マスタテーブルは要件から網羅的に洗い出す。カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化
-61. **Code Apps 設計**: `code-apps-design` スキルを読み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計。ユーザー承認後に `code-apps-dev` で実装
-62. **Power Automate 設計**: フロー名・トリガー・アクション・接続・通知先を設計書として提示。ユーザー承認後にデプロイスクリプトを作成
-63. **Copilot Studio 設計**: エージェント名・Instructions・推奨プロンプト・会話の開始のメッセージ・会話の開始のクイック返信・ナレッジ・ツール（MCP Server）を設計書として提示。ユーザー承認後に構築
+61. **全フェーズで設計→ユーザー承認→実装の順序を守る**。Dataverse・Code Apps・Power Automate・Copilot Studio のいずれも、設計をユーザーに提示し「この設計で進めてよいですか？」と承認を得てから構築に進む
+62. **テーブル設計**: 全 Lookup リレーションシップを設計書に明記。漏れると Lookup が機能しない
+63. **テーブル設計**: デモデータは全テーブル（従属テーブル含む）に計画。コメント等の従属テーブルにもデモデータを用意
+64. **テーブル設計**: マスタテーブルは要件から網羅的に洗い出す。カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化
+65. **Code Apps 設計**: `code-apps-design` スキルを読み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計。ユーザー承認後に `code-apps-dev` で実装
+66. **Power Automate 設計**: フロー名・トリガー・アクション・接続・通知先を設計書として提示。ユーザー承認後にデプロイスクリプトを作成
+67. **Copilot Studio 設計**: エージェント名・Instructions・推奨プロンプト・会話の開始のメッセージ・会話の開始のクイック返信・ナレッジ・ツール（MCP Server）を設計書として提示。ユーザー承認後に構築
 
 ## 作業手順
 
