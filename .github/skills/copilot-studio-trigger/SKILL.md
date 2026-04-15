@@ -175,7 +175,7 @@ extensionData:
 }
 ```
 
-- `Copilot` パラメータには Bot の **schemaname**（例: `geek_IncidentAssistant`）を指定
+- `Copilot` パラメータには Bot の **schemaname**（例: `{prefix}_YourAssistant`）を指定
 - `body/message` にはトリガーから取得した情報を含むプロンプトテキストを渡す
 - **★ `body/message` にはコンテキスト情報だけでなく、全ステップの実行指示を含めること**（上記「トリガー起動時にエージェントが途中で止まる」教訓を参照）
 
@@ -685,10 +685,10 @@ def build_dataverse_trigger_flow(
     """Dataverse レコード変更時に Copilot Studio エージェントを起動するフロー定義を構築
 
     Args:
-        entity_name: テーブル論理名 (例: "geek_incident")
+        entity_name: テーブル論理名 (例: "{prefix}_yourtable")
         message: 1=Create, 2=Delete, 3=Update, 4=Create or Update
         scope: 1=User, 2=BusinessUnit, 3=ParentChildBusinessUnit, 4=Organization
-        filtering_attributes: フィルタ列 (例: "geek_status,geek_priority") ※省略可
+        filtering_attributes: フィルタ列 (例: "{prefix}_status,{prefix}_priority") ※省略可
     """
 
     trigger_params = {
@@ -1289,7 +1289,7 @@ trigger = {
             },
             "parameters": {
                 "subscriptionRequest/message": message,       # 1=Create, 2=Delete, 3=Update, 4=Create or Update
-                "subscriptionRequest/entityname": entity_name, # テーブル論理名 (例: "geek_incident")
+                "subscriptionRequest/entityname": entity_name, # テーブル論理名 (例: "{prefix}_yourtable")
                 "subscriptionRequest/scope": 4,                # 4=Organization
             },
             "authentication": "@parameters('$authentication')",
@@ -1343,9 +1343,9 @@ action = {
 | パラメータ                                | 説明                     | 例                                               |
 | ----------------------------------------- | ------------------------ | ------------------------------------------------ |
 | `subscriptionRequest/message`             | トリガーイベント         | 1=Create, 2=Delete, 3=Update, 4=Create or Update |
-| `subscriptionRequest/entityname`          | テーブルの論理名         | `geek_incident`                                  |
+| `subscriptionRequest/entityname`          | テーブルの論理名         | `{prefix}_yourtable`                             |
 | `subscriptionRequest/scope`               | スコープ                 | 4=Organization（全組織）                         |
-| `subscriptionRequest/filteringattributes` | フィルタ列（オプション） | `geek_status,geek_priority`                      |
+| `subscriptionRequest/filteringattributes` | フィルタ列（オプション） | `{prefix}_status,{prefix}_priority`              |
 
 ユーザーからは以下をヒアリングする:
 
@@ -1731,8 +1731,8 @@ ami["teams"]["canBeUsedInGroupChat"] = True
 
 1. Teams で任意のグループチャットを開く
 2. 右上の **メンバーアイコン** をクリック → **エージェントとボットの追加** を選択
-3. エージェント名（例:「インシデント管理アシスタント」）を検索して追加
-4. チャット内で `@インシデント管理アシスタント 〇〇について教えて` とメンションして利用
+3. エージェント名（例:「{エージェント表示名}」）を検索して追加
+4. チャット内で `@{エージェント表示名} 〇〇について教えて` とメンションして利用
 ```
 
 ### 方式 2: チャットトリガー（メンション不要・自動起動）
@@ -1829,7 +1829,7 @@ Q: どのように起動しますか？
 ```env
 # トリガー関連は BOT_ID と SOLUTION_NAME を使用（追加設定不要）
 BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-SOLUTION_NAME=IncidentManagement
+SOLUTION_NAME={YourSolutionName}
 ```
 
 ## トラブルシューティング
@@ -1897,7 +1897,7 @@ SOLUTION_NAME=IncidentManagement
 
 ```
 ❌ Copilot パラメータに Bot ID を指定（GUID は不可）
-✅ Copilot パラメータには Bot の schemaname を指定（例: geek_IncidentAssistant）
+✅ Copilot パラメータには Bot の schemaname を指定（例: {prefix}_YourAssistant）
 ```
 
 ### Flow API ID が取得できない

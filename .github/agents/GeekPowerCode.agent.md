@@ -1,6 +1,6 @@
 ---
 name: GeekPowerCode
-description: "Power Platform コードファースト開発エキスパート。Code Apps・Dataverse・Power Automate・Copilot Studio を統合的に開発する。Use when: Power Platform, Dataverse, Code Apps, Power Automate, フロー, Copilot Studio, テーブル作成, エージェント開発, インシデント管理, ソリューション開発"
+description: "Power Platform コードファースト開発エキスパート。Code Apps・Dataverse・Power Automate・Copilot Studio を統合的に開発する。Use when: Power Platform, Dataverse, Code Apps, Power Automate, フロー, Copilot Studio, テーブル作成, エージェント開発, ソリューション開発"
 tools: [read, edit, search, execute, web, agent, todo]
 model: "Claude Opus 4.6"
 argument-hint: "Power Platform の開発作業を指示してください（例: Dataverse テーブルを作成して、Code Apps をデプロイして、Power Automate フローを作成して、エージェントを構築して）"

@@ -17,6 +17,12 @@ Power Apps Code Apps・Dataverse・Power Automate・Copilot Studio を VS Code +
 
 本リポジトリには Tailwind CSS + shadcn/ui を採用したスターターテンプレートが含まれており、以下のサンプル実装がすぐに利用できます。
 
+> [!TIP]
+> **サンプル実装（インシデント管理）はリファレンス実装です。**
+> `src/pages/`・`src/hooks/`・`scripts/` 内のインシデント管理固有のコードは、あなたのプロジェクトに合わせて置き換えてください。
+> 開発標準（`.github/agents/`・`.github/skills/`・`docs/`）と UI コンポーネント（`src/components/`）は**そのまま再利用**できます。
+> 詳細は [SAMPLES.md](./SAMPLES.md) を参照してください。
+
 <img width="1912" height="924" alt="image" src="https://github.com/user-attachments/assets/3942364a-4ed1-49fd-b72b-b1d0b71934b0" />
 
 ### ギャラリー & フィルター
@@ -83,9 +89,16 @@ $base = "https://raw.githubusercontent.com/geekfujiwara/CodeAppsDevelopmentStand
 VS Code の GitHub Copilot Chat で **@GeekPowerCode** を選択して指示します。
 
 ```
-@GeekPowerCode インシデント管理アプリを作成してください。
-テーブル: Incident, IncidentCategory, Asset, Location
+@GeekPowerCode {あなたのアプリ}を作成してください。
+テーブル: {主テーブル}, {マスタテーブル1}, {マスタテーブル2}
 フィールド: タイトル, 説明, ステータス, 優先度, 担当者
+```
+
+**例:**
+```
+@GeekPowerCode IT資産管理アプリを作成してください。
+テーブル: Asset, AssetCategory, Location
+フィールド: 資産名, シリアル番号, ステータス, 担当者
 ```
 
 エージェントは[開発標準](docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md)に従い、以下を自動で考慮します:
@@ -218,12 +231,12 @@ GitHub Copilot Agent モード（GeekPowerCode エージェント）を使い、
 
 ```
 「以下の Dataverse テーブルを作成してください。
-テーブル名: IT Asset
-プレフィックス: cr_
+テーブル名: {YourTable}
+プレフィックス: {prefix}_
 フィールド:
-- 資産名 (cr_name): テキスト, 必須
-- ステータス (cr_status): 選択肢 (100000000=稼働中, 100000001=修理中, 100000002=廃棄済み)
-- 担当者 (cr_assignedto): Lookup → SystemUser」
+- 名前 ({prefix}_name): テキスト, 必須
+- ステータス ({prefix}_status): 選択肢 (100000000=有効, 100000001=無効, ...)
+- 担当者 ({prefix}_assignedto): Lookup → SystemUser」
 ```
 
 > [!WARNING]
@@ -311,16 +324,16 @@ DataverseService.PostItem(table, body); // レコード作成
 DataverseService.PatchItem(table, id, body); // レコード更新
 DataverseService.DeleteItem(table, id); // レコード削除
 
-// Lookup フィールド
-await DataverseService.PostItem("geek_incidents", {
-  geek_name: "ネットワーク障害",
-  "geek_assignedtoid@odata.bind": `/systemusers(${userId})`,
+// Lookup フィールド（例: {prefix}_items テーブル）
+await DataverseService.PostItem("{prefix}_items", {
+  {prefix}_name: "サンプルレコード",
+  "{prefix}_assignedtoid@odata.bind": `/systemusers(${userId})`,
 });
 
-// createdby = 報告者として利用
+// createdby = 作成者として利用
 const items = await DataverseService.GetItems(
-  "geek_incidents",
-  "$select=geek_name&$expand=createdby($select=fullname)",
+  "{prefix}_items",
+  "$select={prefix}_name&$expand=createdby($select=fullname)",
 );
 ```
 
@@ -532,7 +545,7 @@ instructions: |-
   あなたは「{エージェント名}」です。{役割の説明}。
 
   ## 利用可能なテーブル
-  ### {prefix}_incident
+  ### {prefix}_{main_table}
   - {prefix}_name: タイトル
   - {prefix}_status: ステータス (100000000=新規, 100000001=対応中, ...)
   - Lookup: {prefix}_assignedtoid → systemuser
@@ -549,7 +562,7 @@ instructions: |-
 
 conversationStarters:
   - title: レコード検索
-    text: "インシデント一覧を見せて"
+    text: "{主テーブル}の一覧を見せて"
 ```
 
 ### ナレッジ・ツールの手動追加
@@ -618,33 +631,33 @@ conversationStarters:
 │       ├── copilot-studio-trigger/      # Copilot Studio 外部トリガースキル
 │       ├── ai-builder-prompt/           # AI Builder AI プロンプトスキル
 │       ├── html-email-template/         # HTML メールテンプレートスキル
-│       ├── market-research-report/      # 自動リサーチレポートスキル
-│       └── news-agent/                  # ニュース配信エージェントスキル
+│       └── market-research-report/      # 自動リサーチレポートスキル
 ├── docs/
 │   ├── POWER_PLATFORM_DEVELOPMENT_STANDARD.md
 │   ├── DATAVERSE_GUIDE.md
 │   ├── CONNECTOR_REFERENCE.md
 │   └── ADVANCED_PATTERNS.md
 ├── scripts/                                 # Dataverse・フロー・エージェントデプロイスクリプト
-│   ├── auth_helper.py                       #   認証ヘルパー（MSAL + Dataverse/Flow/PowerApps API）
-│   ├── setup_dataverse.py                   #   Dataverse テーブル一括構築
-│   ├── deploy_agent.py                      #   Copilot Studio エージェント設定
-│   ├── deploy_flow*.py                      #   Power Automate フローデプロイ
-│   ├── deploy_ai_prompt.py                  #   AI Builder AI プロンプトデプロイ
-│   ├── deploy_news_agent.py                 #   ニュースエージェント設定
+│   ├── auth_helper.py                       #   認証ヘルパー（共通テンプレート）
+│   ├── setup_dataverse.py                   #   Dataverse テーブル一括構築（★サンプル: インシデント管理）
+│   ├── deploy_agent.py                      #   Copilot Studio エージェント設定（★サンプル）
+│   ├── deploy_flow*.py                      #   Power Automate フローデプロイ（★サンプル）
+│   ├── deploy_ai_prompt.py                  #   AI Builder AI プロンプトデプロイ（★サンプル）
+│   ├── deploy_news_agent.py                 #   ニュースエージェント設定（★サンプル）
 │   └── requirements.txt                     #   Python 依存関係
 ├── src/                                     # Code Apps スターターテンプレート
-│   ├── components/                          #   UI コンポーネント + shadcn/ui
-│   ├── pages/                               #   ページコンポーネント
-│   ├── providers/                           #   React Context Providers
-│   ├── hooks/                               #   カスタムフック
-│   └── lib/                                 #   ユーティリティ
+│   ├── components/                          #   UI コンポーネント + shadcn/ui（共通テンプレート）
+│   ├── pages/                               #   ページコンポーネント（★サンプル: インシデント管理）
+│   ├── providers/                           #   React Context Providers（共通テンプレート）
+│   ├── hooks/                               #   カスタムフック（★サンプル）
+│   └── lib/                                 #   ユーティリティ（共通テンプレート）
 ├── plugins/
 │   └── plugin-power-apps.ts                 # Power Apps Vite プラグイン
 ├── styles/
 │   └── index.pcss                           # Tailwind CSS スタイル
 ├── public/                                  # 静的アセット
 ├── .env.example                             # 環境変数テンプレート
+├── SAMPLES.md                               # サンプル実装ガイド（テンプレート vs サンプルの区分）
 ├── package.json
 ├── vite.config.ts
 └── README.md

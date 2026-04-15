@@ -10,6 +10,11 @@ Power Apps Code Apps（コードファースト）を **TypeScript + React + Tai
 > **UI 設計・コンポーネント選定** は `code-apps-design` スキルを参照。
 > このスキルは初期化・Dataverse 接続・デプロイに特化。
 
+> [!NOTE]
+> 本スキル内のコード例は **インシデント管理サンプル** を題材としています。
+> `geek_incident` / `Geek_incidents` 等のテーブル名・型名は、あなたのプロジェクトのエンティティに読み替えてください。
+> パターン（Lookup 名前解決、SDK ラッパー、useMemo マップ等）はそのまま適用できます。
+
 ## 前提: 設計フェーズ完了後に実装に入る（必須）
 
 **このスキルでコードを書く前に、`code-apps-design` スキルで UI 設計を行い、ユーザーの承認を得ていること。**
@@ -29,8 +34,8 @@ Power Apps Code Apps（コードファースト）を **TypeScript + React + Tai
 Dataverse テーブル・Code Apps・Power Automate フロー・Copilot Studio エージェントは **すべて同一のソリューション内** に含める。
 
 ```
-SOLUTION_NAME=IncidentManagement  ← .env で定義。全フェーズで同じ値を使用
-PUBLISHER_PREFIX=geek              ← ソリューション発行者の prefix
+SOLUTION_NAME={YourSolutionName}  ← .env で定義。全フェーズで同じ値を使用
+PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
 ```
 
 - Code Apps は `npx power-apps push` でソリューション内にデプロイされる（環境 ID で紐づけ）
@@ -54,6 +59,24 @@ PUBLISHER_PREFIX=geek              ← ソリューション発行者の prefix
    → 別環境の appId が残っていると: AppLeaseMissing (409) エラー
    → 新規環境では必ず npx power-apps init で新規生成
 ```
+
+### `npx power-apps init` でスキャフォールドされるファイル（手動作成禁止）
+
+`npx power-apps init` は以下のファイルを自動生成する。**これらを手動作成・他プロジェクトからコピーしてはならない。**
+
+| ファイル | 役割 | カスタマイズ |
+|---|---|---|
+| `power.config.json` | 環境 ID・アプリ ID（環境固有） | ❌ 禁止 |
+| `plugins/plugin-power-apps.ts` | Vite 開発サーバー用 Power Apps プラグイン（CORS・ミドルウェア・起動 URL 表示） | ❌ 不要 |
+| `vite.config.ts` | Vite 設定（power-apps プラグイン組み込み済み） | ⚠ `manualChunks` 等の追加のみ |
+| `tsconfig.json` / `tsconfig.app.json` / `tsconfig.node.json` | TypeScript 設定 | ⚠ パスエイリアス等の追加のみ |
+| `eslint.config.js` | ESLint 設定 | ⚠ ルール追加のみ |
+| `index.html` | エントリ HTML | ❌ 不要 |
+| `package.json` | 依存関係（`@microsoft/power-apps` 等） | ⚠ 依存追加のみ |
+| `src/main.tsx` / `src/App.tsx` / `src/index.css` | React エントリポイント | ✅ 自由にカスタマイズ |
+| `components.json` | shadcn/ui 設定 | ⚠ 通常変更不要 |
+
+> **原則**: SDK がスキャフォールドしたインフラファイル（`plugin-power-apps.ts`、`power.config.json`）は変更しない。開発者がカスタマイズするのは `src/` 配下のアプリコードのみ。
 
 ### .power/ と src/generated/ は SDK コマンドで生成（手動作成禁止）
 
@@ -159,8 +182,8 @@ node -e "const c=require('fs').readFileSync('node_modules/@microsoft/power-apps-
 ### スキーマ名は英語のみ
 
 ```
-✅ テーブル: geek_incident  列: geek_description
-❌ テーブル: geek_インシデント  列: geek_説明
+✅ テーブル: {prefix}_yourtable  列: {prefix}_description
+❌ テーブル: {prefix}_テーブル名  列: {prefix}_説明
 → 日本語スキーマ名は pac code add-data-source で失敗する
 ```
 
@@ -187,13 +210,13 @@ Power Apps ランタイムは厳格な CSP を適用し、**外部 API への `f
 別ページに遷移させない。サイドバーのメニューは機能名のみ（「一覧」「新規作成」等の動詞を付けない）。
 
 ```
-❌ /incidents/new → 別ページで新規作成フォーム
-❌ サイドバーに「インシデント一覧」「新規作成」を個別メニュー
+❌ /{entities}/new → 別ページで新規作成フォーム
+❌ サイドバーに「{エンティティ}一覧」「新規作成」を個別メニュー
 
-✅ /incidents ページ内で「新規作成」ボタン → Dialog モーダル表示
+✅ /{entities} ページ内で「新規作成」ボタン → Dialog モーダル表示
 ✅ 一覧テーブルで行クリック → 詳細ページ（閲覧+インライン編集）
 ✅ 削除ボタン → ConfirmDialog（AlertDialog）で確認
-✅ サイドバーには「インシデント」のみ表示
+✅ サイドバーには「{エンティティ名}」のみ表示
 ```
 
 **z-index ルール（サイドバーとモーダルの重なり問題回避）**:
@@ -233,16 +256,12 @@ src/generated/
 ├── index.ts                                 # 全モデル・サービスの re-export
 ├── models/
 │   ├── CommonModels.ts                      # IGetOptions, IGetAllOptions
-│   ├── Geek_incidentsModel.ts               # Geek_incidents 型 + Choice 値
-│   ├── Geek_incidentcategoriesModel.ts
-│   ├── Geek_locationsModel.ts
-│   ├── Geek_incidentcommentsModel.ts
+│   ├── {Prefix}_{entities}Model.ts          # エンティティ型 + Choice 値（例: Geek_incidentsModel.ts）
+│   ├── {Prefix}_{categories}Model.ts        # 関連テーブルの型
 │   └── SystemusersModel.ts
 └── services/
-    ├── Geek_incidentsService.ts             # create/update/delete/get/getAll
-    ├── Geek_incidentcategoriesService.ts
-    ├── Geek_locationsService.ts
-    ├── Geek_incidentcommentsService.ts
+    ├── {Prefix}_{entities}Service.ts        # create/update/delete/get/getAll
+    ├── {Prefix}_{categories}Service.ts
     └── SystemusersService.ts
 .power/schemas/appschemas/
 └── dataSourcesInfo.ts                       # SDK が内部で使用（直接参照不要）

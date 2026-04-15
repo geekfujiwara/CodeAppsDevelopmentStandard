@@ -72,11 +72,12 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 import { ListTable } from "@/components/list-table"
 import type { TableColumn } from "@/components/list-table"
 
-const columns: TableColumn<Incident>[] = [
-  { key: "geek_name", label: "タイトル", sortable: true },
-  { key: "geek_status", label: "ステータス", sortable: true,
+// 例: 任意のテーブルの列定義（{prefix} とテーブル名はプロジェクトに合わせて置き換え）
+const columns: TableColumn<YourEntity>[] = [
+  { key: "{prefix}_name", label: "タイトル", sortable: true },
+  { key: "{prefix}_status", label: "ステータス", sortable: true,
     render: (value) => renderStatusBadge(value) },
-  { key: "geek_priority", label: "優先度", sortable: true,
+  { key: "{prefix}_priority", label: "優先度", sortable: true,
     render: (value) => renderPriorityBadge(value) },
   { key: "createdon", label: "作成日", sortable: true,
     render: (value) => new Date(value).toLocaleDateString("ja-JP") },
@@ -148,7 +149,7 @@ const filters: FilterConfig[] = [
   filters={filters}
   showAddButton={true}
   onAddItem={() => setShowCreateModal(true)}
-  searchPlaceholder="インシデントを検索..."
+  searchPlaceholder="レコードを検索..."
 />
 ```
 
@@ -157,9 +158,10 @@ const filters: FilterConfig[] = [
 ```typescript
 import { AlertCircle, Clock, Target } from "lucide-react"
 
+// 例: ダッシュボード用統計カード（プロジェクトの KPI に合わせて置き換え）
 const stats: StatCardData[] = [
   {
-    title: "新規インシデント",
+    title: "新規登録",
     value: "12",
     description: "今月の新規件数",
     icon: AlertCircle,
@@ -217,11 +219,12 @@ import {
 ```tsx
 import { FormModal, FormSection, FormColumns } from "@/components/form-modal"
 
+// 例: title と description はプロジェクトのエンティティ名に合わせて置き換え
 <FormModal
   open={isOpen}
   onOpenChange={setIsOpen}
-  title="インシデント作成"
-  description="新しいインシデントを登録します"
+  title="レコード作成"
+  description="新しいレコードを登録します"
   maxWidth="max-w-2xl"
   onSave={handleSave}
   saveLabel="作成"
@@ -315,14 +318,14 @@ PowerProvider → ThemeProvider → SonnerProvider → QueryProvider → RouterP
   <StatsCards cards={stats} />
   <Card>
     <CardHeader>
-      <CardTitle>インシデント一覧</CardTitle>
-      <Button onClick={() => navigate("/incidents/new")}>新規作成</Button>
+      <CardTitle>レコード一覧</CardTitle>
+      <Button onClick={() => setShowCreateModal(true)}>新規作成</Button>
     </CardHeader>
     <CardContent>
       <ListTable
-        data={incidents}
+        data={items}
         columns={columns}
-        searchKeys={["geek_name", "geek_description"]}
+        searchKeys={["{prefix}_name", "{prefix}_description"]}
       />
     </CardContent>
   </Card>
@@ -377,13 +380,13 @@ PowerProvider → ThemeProvider → SonnerProvider → QueryProvider → RouterP
 <div className="space-y-6">
   <Card>
     <CardHeader>
-      <CardTitle>{incident.geek_name}</CardTitle>
-      <Badge>{statusLabels[incident.geek_status]}</Badge>
+      <CardTitle>{item.{prefix}_name}</CardTitle>
+      <Badge>{statusLabels[item.{prefix}_status]}</Badge>
     </CardHeader>
     <CardContent>
       <FormColumns columns={2}>
-        <div><Label>優先度</Label><p>{priorityLabels[incident.geek_priority]}</p></div>
-        <div><Label>カテゴリ</Label><p>{incident.geek_incidentcategoryid?.geek_name}</p></div>
+        <div><Label>優先度</Label><p>{priorityLabels[item.{prefix}_priority]}</p></div>
+        <div><Label>カテゴリ</Label><p>{categoryMap.get(item._{prefix}_categoryid_value)}</p></div>
       </FormColumns>
     </CardContent>
   </Card>

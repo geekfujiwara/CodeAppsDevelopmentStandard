@@ -486,7 +486,12 @@ npm run build
 npx power-apps push --non-interactive
 ```
 
-> **重要**: SDK コマンド（`npx power-apps init` / `add-data-source`）が `power.config.json`、`src/generated/`、`.power/` を自動生成する。これらを手動で作成してはならない。
+> **重要**: SDK コマンドが以下のファイルを自動生成する。これらを手動で作成・他プロジェクトからコピーしてはならない。
+>
+> | コマンド | 自動生成されるファイル |
+> |---|---|
+> | `npx power-apps init` | `power.config.json`, `plugins/plugin-power-apps.ts`, `vite.config.ts`, `tsconfig*.json`, `eslint.config.js`, `index.html`, `package.json`, `src/main.tsx`, `src/App.tsx`, `components.json` 等 |
+> | `npx power-apps add-data-source` | `src/generated/`（モデル・サービス）, `.power/schemas/appschemas/dataSourcesInfo.ts` |
 
 > **SDK v1.0.x への移行**: `pac code add-data-source` は SDK v1.0.x で CLI パスが変更されたため動作しない。`npx power-apps add-data-source` を使用すること。日本語ローカライズ済み環境では nameUtils.js のパッチが必要（§1.2 参照）。
 
