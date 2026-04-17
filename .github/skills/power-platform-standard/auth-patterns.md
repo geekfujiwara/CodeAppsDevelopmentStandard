@@ -51,5 +51,5 @@ Python 3.14 では MSAL 内部トークンキャッシュ (`msal/token_cache.py`
 
 ```bash
 # Python 3.14 でキャッシュ破損が発生する場合
-$env:PP_NO_PERSISTENT_CACHE="1"; Remove-Item .auth_record.json -ErrorAction SilentlyContinue; python scripts/setup_dataverse.py
+$env:PP_NO_PERSISTENT_CACHE="1"; Remove-Item .auth_record.json -ErrorAction SilentlyContinue; python ./setup_dataverse.py
 ```

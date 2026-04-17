@@ -47,9 +47,9 @@ def _build_news_gpt_yaml(bot_name, instructions, prompts):
 
 | スクリプト                      | 用途                                                                       | Usage                                                 |
 | ------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `scripts/generate_news_icon.py` | ニュース用 PNG アイコン生成（新聞＋稲妻＋棒グラフ、240/192/32px）          | `python scripts/generate_news_icon.py`                |
-| `scripts/deploy_news_agent.py`  | エージェント設定デプロイ（Instructions、アイコン、会話開始、チャネル構成） | `python scripts/deploy_news_agent.py <BOT_ID or URL>` |
-| `scripts/deploy_news_flow.py`   | スケジュールフロー検索・プロンプト/スケジュール更新                        | `python scripts/deploy_news_flow.py <BOT_ID or URL>`  |
+| `./generate_news_icon.py` | ニュース用 PNG アイコン生成（新聞＋稲妻＋棒グラフ、240/192/32px）          | `python ./generate_news_icon.py`                |
+| `./deploy_news_agent.py`  | エージェント設定デプロイ（Instructions、アイコン、会話開始、チャネル構成） | `python ./deploy_news_agent.py <BOT_ID or URL>` |
+| `./deploy_news_flow.py`   | スケジュールフロー検索・プロンプト/スケジュール更新                        | `python ./deploy_news_flow.py <BOT_ID or URL>`  |
 
 ### `generate_news_icon.py`
 
@@ -134,7 +134,7 @@ INTERESTS = "..."                       # 関心事の詳細
 ❌ 旧方式: .env に NEWS_BOT_ID=xxx を追加
    → エージェントごとに .env にキーが増えて管理が煩雑
 
-✅ 新方式: python scripts/deploy_news_agent.py <BOT_ID or URL>
+✅ 新方式: python ./deploy_news_agent.py <BOT_ID or URL>
    → URL をそのまま渡せる（/bots/GUID を自動抽出）
    → フォールバック: 名前で検索
 ```

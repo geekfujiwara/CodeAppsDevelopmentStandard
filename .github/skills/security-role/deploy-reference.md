@@ -81,7 +81,7 @@ ROLE_DEFINITIONS = [
 
 ## デプロイスクリプト
 
-### `scripts/deploy_security_role.py`
+### `./deploy_security_role.py`
 
 ソリューション内のテーブルを自動検出し、以下のステップを実行:
 
@@ -96,5 +96,5 @@ ROLE_DEFINITIONS = [
 
 ```bash
 # 実行
-python scripts/deploy_security_role.py
+python ./deploy_security_role.py
 ```

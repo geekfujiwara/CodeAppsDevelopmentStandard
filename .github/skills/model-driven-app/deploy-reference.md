@@ -2,7 +2,7 @@
 
 ## デプロイスクリプト
 
-### `scripts/deploy_model_driven_app.py`
+### `./deploy_model_driven_app.py`
 
 ソリューション内のテーブルを自動検出し、以下のステップを実行:
 
@@ -18,10 +18,10 @@
 
 ```bash
 # 実行
-python scripts/deploy_model_driven_app.py
+python ./deploy_model_driven_app.py
 ```
 
-### `scripts/customize_views_forms.py`
+### `./customize_views_forms.py`
 
 モデル駆動型アプリの **ビュー・フォーム・テーブルアイコン** を一括カスタマイズする。
 `deploy_model_driven_app.py` 実行後に使用する。
@@ -53,10 +53,10 @@ python scripts/deploy_model_driven_app.py
 
 ```bash
 # 全テーブルを一括カスタマイズ
-python scripts/customize_views_forms.py
+python ./customize_views_forms.py
 
 # 特定テーブルのみ
-python scripts/customize_views_forms.py geek_incident
+python ./customize_views_forms.py geek_incident
 ```
 
 ### テーブルアイコン API パターン

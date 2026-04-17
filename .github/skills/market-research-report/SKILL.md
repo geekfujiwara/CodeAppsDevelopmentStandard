@@ -281,7 +281,7 @@ conversationStarters:
 
 ### HTML メールテンプレート
 
-Step5 で使用する HTML メールテンプレートの詳細仕様は [HTML メールテンプレートリファレンス](./references/html-email-template.md) を参照。
+Step5 で使用する HTML メールテンプレートの詳細仕様は [HTML メールテンプレートリファレンス](html-email-template.md) を参照。
 
 ## 構築手順
 
@@ -451,7 +451,7 @@ def update_flow(flow, bot_schema):
 #### Step 2: フローのプロンプト・スケジュール設定（スクリプト）
 
 ```bash
-python scripts/deploy_news_flow.py <BOT_ID or URL>
+python ./deploy_news_flow.py <BOT_ID or URL>
 ```
 ````
 
@@ -589,4 +589,4 @@ Step3 Web 検索で注目記事の一次ソースを確認する
 
 ## デプロイ詳細
 
-再利用スクリプト・GPT コンポーネント設定・教訓の詳細は [デプロイメントガイド](./references/deployment-guide.md) を参照。
+再利用スクリプト・GPT コンポーネント設定・教訓の詳細は [デプロイメントガイド](deployment-guide.md) を参照。
