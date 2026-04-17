@@ -46,6 +46,8 @@ uuid: ^9.0.1
 8. **カラム名は RuntimeTypes.ts を確認** — 推測禁止
 9. **`@fluentui/react-icons` はサイズなしバリアントのみ** — `AddRegular` ✅ / `Add24Regular` ❌
 10. **`Map` / `Set` に `for...of` 禁止** — `.forEach()` または `[...map]` でイテレーション
+11. **`$select` に Lookup 計算列（`xxxname`）を直接指定禁止** — FK 列（`_xxx_value`）を指定する。表示名は `@OData.Community.Display.V1.FormattedValue` アノテーションで自動返却される（例: `msdyn_serviceaccountname` ❌ → `_msdyn_serviceaccount_value` ✅）
+12. **地図表示は Leaflet + OpenStreetMap + `srcdoc` iframe** — Google Maps embed は複数ピン非対応。Leaflet CDN を `srcdoc` で読み込み `sandbox="allow-scripts"` で表示
 
 ## 開発フロー
 
@@ -249,3 +251,4 @@ const [state, setState] = useState({ data: _cache, loading: _cache === null, err
 4. **Map/Set のイテレーション** — `.forEach()` のみ。`for...of` は Power Apps ランタイムでエラー
 5. **スタイル変更はインクリメンタル** — 大規模なリファクタリングより小さな変更を頻繁にデプロイ
 6. **デプロイごとにブラウザキャッシュクリア** — Power Apps は積極的にキャッシュする
+7. **Lookup 列の名前解決** — `select` には FK 列（`_xxx_value`）を指定し、レンダリング時は `item.xxxname` と `item["_xxx_value@OData.Community.Display.V1.FormattedValue"]` の両方をフォールバック付きで参照する

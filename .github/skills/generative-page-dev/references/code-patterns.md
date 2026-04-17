@@ -646,3 +646,101 @@ function fmtCurrency(v: number, currency = "JPY"): string {
   }).format(v);
 }
 ```
+
+## 12. Lookup 名前解決パターン
+
+OData `$select` では計算列（`xxxname`）を直接指定できない。FK 列（`_xxx_value`）を指定し、ランタイムが自動マッピングする `xxxname` と FormattedValue の両方をフォールバック付きで参照する。
+
+```typescript
+// select には FK 列のみ
+select: ["_msdyn_serviceaccount_value", "_msdyn_customerasset_value"] as any,
+
+// レンダリング時のフォールバック
+function lookupName(item: any, fkField: string, nameField: string): string {
+  return item[nameField]
+    || item[`${fkField}@OData.Community.Display.V1.FormattedValue`]
+    || "-";
+}
+
+// 使用例
+renderCell: (item: any) => (
+  <Text>{lookupName(item, "_msdyn_serviceaccount_value", "msdyn_serviceaccountname")}</Text>
+)
+```
+
+## 13. Leaflet 地図（複数ピン）パターン
+
+Generative Page で地図に複数のピンを表示する場合、Google Maps embed は単一クエリ用のため使えない。Leaflet + OpenStreetMap を `srcdoc` iframe で使用する。
+
+```typescript
+const mapSrcDoc = useMemo(() => {
+  const pins = items
+    .map((w: any) => ({
+      lat: Number(w.latitude_field),
+      lng: Number(w.longitude_field),
+      name: String(w.name_field || ""),
+      addr: [w.address1, w.city, w.state].filter(Boolean).join(", "),
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && (p.lat !== 0 || p.lng !== 0));
+  if (pins.length === 0) return "";
+  const cLat = pins.reduce((s, p) => s + p.lat, 0) / pins.length;
+  const cLng = pins.reduce((s, p) => s + p.lng, 0) / pins.length;
+  const esc = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const mkrs = pins
+    .map(
+      (p) =>
+        `L.marker([${p.lat},${p.lng}]).addTo(map).bindPopup("<b>${esc(p.name)}</b><br/>${esc(p.addr)}");`
+    )
+    .join("\n");
+  return [
+    "<!DOCTYPE html><html><head><meta charset='utf-8'/>",
+    "<link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'/>",
+    "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>",
+    "<style>*{margin:0;padding:0}html,body,#m{height:100%;width:100%}</style></head>",
+    "<body><div id='m'></div><script>",
+    `var map=L.map('m').setView([${cLat},${cLng}],${pins.length === 1 ? 14 : 12});`,
+    "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(map);",
+    mkrs,
+    pins.length > 1
+      ? `map.fitBounds([${pins.map((p) => `[${p.lat},${p.lng}]`).join(",")}],{padding:[30,30]});`
+      : "",
+    "</script></body></html>",
+  ].join("\n");
+}, [items]);
+```
+
+**JSX**:
+```tsx
+<iframe
+  srcDoc={mapSrcDoc}
+  style={{ width: "100%", height: "100%", minHeight: 400, border: 0 }}
+  sandbox="allow-scripts"
+/>
+```
+
+**カスタムピンアイコン（ステータス別色分け）**:
+```typescript
+const color = status === 690970003 ? "green" : status === 690970001 ? "orange" : "blue";
+const icon = L.divIcon({
+  className: "",
+  html: `<div style='background:${color};width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)'></div>`,
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+});
+L.marker([lat, lng], { icon }).addTo(map);
+```
+
+**スプリットレイアウト（テーブル＋地図並列）**:
+```typescript
+const useStyles = makeStyles({
+  split: {
+    display: "flex",
+    gap: tokens.spacingHorizontalM,
+    flex: "1 1 auto",
+    minHeight: "400px",
+  },
+  left: { flex: "1 1 60%", overflow: "auto" },
+  right: { flex: "0 0 40%", minWidth: "320px" },
+});
+```

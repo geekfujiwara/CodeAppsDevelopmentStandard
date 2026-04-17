@@ -126,6 +126,34 @@ const useStyles = makeStyles({
 4. `filter` 文字列の構文は正しいか？（OData フィルター構文）
 5. テーブルにデータが存在するか？（Power Apps の Advanced Find で確認）
 
+### 2.7 `Could not find a property named 'xxxname'` エラー（400）
+
+**原因**: Lookup の計算列（`msdyn_serviceaccountname`, `rcwr_accountname` 等）を OData `$select` に直接指定している。これらは `RuntimeTypes.ts` には存在するが、OData API の `$select` では受け付けない。
+
+**対処**: FK 列（`_xxx_value`）を `select` に指定する。表示名は `@OData.Community.Display.V1.FormattedValue` アノテーションで自動的に返却される。
+
+```typescript
+// ❌ 400 エラー
+select: ["msdyn_workorderid", "msdyn_serviceaccountname", "msdyn_customerassetname"]
+
+// ✅ 正しい
+select: ["msdyn_workorderid", "_msdyn_serviceaccount_value", "_msdyn_customerasset_value"]
+```
+
+レンダリング側では `xxxname`（ランタイム自動マッピング）と FormattedValue アノテーションの両方をフォールバック付きで参照:
+
+```typescript
+renderCell: (item: any) => (
+  <Text>
+    {item.msdyn_serviceaccountname 
+     || item["_msdyn_serviceaccount_value@OData.Community.Display.V1.FormattedValue"] 
+     || "-"}
+  </Text>
+)
+```
+
+> **ルール**: `RuntimeTypes.ts` に `readonly xxxname: string` とある場合、その列は Lookup の計算列。`select` には対応する `_xxx_value` 列を指定すること。
+
 ## 3. TypeScript / ビルドエラー
 
 ### 3.1 `Cannot find module './RuntimeTypes'`
@@ -193,6 +221,53 @@ svg
 - SVG パスに `transform` を使用する場合は `transform-origin` も指定
 - `pointer-events="all"` を SVG 要素に追加してクリックイベントを確実に受ける
 - Edge / Chrome でのテストを推奨
+
+### 4.4 Google Maps embed で複数ピンが表示されない
+
+**原因**: Google Maps の `?q=xxx&output=embed` URL は単一の検索クエリ用であり、複数のピンを表示できない。
+
+**対処**: Leaflet + OpenStreetMap を `srcdoc` iframe パターンで使用する。
+
+```typescript
+const mapSrcDoc = useMemo(() => {
+  const pins = workOrders
+    .map((w: any) => ({
+      lat: Number(w.msdyn_latitude),
+      lng: Number(w.msdyn_longitude),
+      name: String(w.msdyn_name || ""),
+      addr: [w.msdyn_address1, w.msdyn_city, w.msdyn_stateorprovince].filter(Boolean).join(", "),
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && (p.lat !== 0 || p.lng !== 0));
+  if (pins.length === 0) return "";
+  const cLat = pins.reduce((s, p) => s + p.lat, 0) / pins.length;
+  const cLng = pins.reduce((s, p) => s + p.lng, 0) / pins.length;
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const mkrs = pins.map((p) =>
+    `L.marker([${p.lat},${p.lng}]).addTo(map).bindPopup("<b>${esc(p.name)}</b><br/>${esc(p.addr)}");`
+  ).join("\n");
+  return [
+    "<!DOCTYPE html><html><head><meta charset='utf-8'/>",
+    "<link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'/>",
+    "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>",
+    "<style>*{margin:0;padding:0}html,body,#m{height:100%;width:100%}</style></head>",
+    "<body><div id='m'></div><script>",
+    `var map=L.map('m').setView([${cLat},${cLng}],${pins.length === 1 ? 14 : 12});`,
+    "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(map);",
+    mkrs,
+    pins.length > 1 ? `map.fitBounds([${pins.map(p => `[${p.lat},${p.lng}]`).join(",")}],{padding:[30,30]});` : "",
+    "</script></body></html>",
+  ].join("\n");
+}, [workOrders]);
+
+// JSX
+<iframe srcDoc={mapSrcDoc} style={{ width: "100%", height: "100%", minHeight: 400, border: 0 }} sandbox="allow-scripts" />
+```
+
+**ポイント**:
+- `sandbox="allow-scripts"` で外部 CDN の Leaflet を読み込み可能にする
+- `srcdoc` なので同一オリジンポリシーの制約を受けない
+- ピンの色をステータス別に変えたい場合は `L.divIcon` でカスタムアイコンを使用
+- 複数ピンの場合は `map.fitBounds()` で全体が見える範囲に自動ズーム
 
 ## 5. パフォーマンス
 
