@@ -16,7 +16,9 @@ import json
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _this_dir)
+sys.path.insert(0, os.path.join(_this_dir, "..", "power-platform-standard"))
 from auth_helper import (
     DATAVERSE_URL,
     get_session,
@@ -328,7 +330,7 @@ def main():
             print("  → Power Automate UI で手動有効化してください")
     else:
         print(f"  ❌ 作成失敗 ({r2.status_code}): {r2.text[:500]}")
-        debug_path = "scripts/flow_connref_debug.json"
+        debug_path = "flow_connref_debug.json"
         with open(debug_path, "w", encoding="utf-8") as f:
             json.dump(workflow_body, f, ensure_ascii=False, indent=2)
         print(f"  デバッグ JSON: {debug_path}")

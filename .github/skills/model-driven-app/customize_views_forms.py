@@ -19,8 +19,8 @@
   - Web Resource として登録し EntityMetadata.IconVectorName に設定
 
 使い方:
-  python scripts/customize_views_forms.py                # 全テーブル
-  python scripts/customize_views_forms.py geek_incident  # 特定テーブル
+  python .github/skills/model-driven-app/customize_views_forms.py                # 全テーブル
+  python .github/skills/model-driven-app/customize_views_forms.py geek_incident  # 特定テーブル
 """
 
 import base64
@@ -31,7 +31,9 @@ import sys
 import uuid
 import xml.etree.ElementTree as ET
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _this_dir)
+sys.path.insert(0, os.path.join(_this_dir, "..", "power-platform-standard"))
 
 import requests
 from dotenv import load_dotenv

@@ -309,7 +309,7 @@ api_patch(f"workflows({wf_id})", {"statecode": 1, "statuscode": 2})
 
 ```python
 # 失敗時はデバッグ用に JSON をファイル出力
-with open("scripts/flow_debug.json", "w", encoding="utf-8") as f:
+with open("flow_debug.json", "w", encoding="utf-8") as f:
     json.dump(workflow_body, f, ensure_ascii=False, indent=2)
 # → Power Automate UI で「マイフロー」→「インポート」で手動登録可能
 ```

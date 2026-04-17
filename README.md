@@ -19,7 +19,7 @@ Power Apps Code Apps・Dataverse・Power Automate・Copilot Studio を VS Code +
 
 > [!TIP]
 > **サンプル実装（インシデント管理）はリファレンス実装です。**
-> `src/pages/`・`src/hooks/`・`scripts/` 内のインシデント管理固有のコードは、あなたのプロジェクトに合わせて置き換えてください。
+> `src/pages/`・`src/hooks/`・各スキルフォルダ（`.github/skills/`）内のインシデント管理固有のコードは、あなたのプロジェクトに合わせて置き換えてください。
 > 開発標準（`.github/agents/`・`.github/skills/`・`docs/`）と UI コンポーネント（`src/components/`）は**そのまま再利用**できます。
 > 詳細は [SAMPLES.md](./SAMPLES.md) を参照してください。
 
@@ -621,8 +621,8 @@ conversationStarters:
 ├── .github/
 │   ├── agents/
 │   │   └── GeekPowerCode.agent.md           # GitHub Copilot カスタムエージェント
-│   └── skills/
-│       ├── power-platform-standard/     # 共通基盤スキル
+│   └── skills/                              # 各スキルにデプロイスクリプトも同梱
+│       ├── power-platform-standard/     # 共通基盤スキル（認証・ソリューション管理・Dataverse 構築）
 │       ├── architecture-design/         # アーキテクチャ設計スキル
 │       ├── code-apps-dev/               # Code Apps 開発スキル
 │       ├── code-apps-design/            # CodeAppsStarter デザインスキル
@@ -630,6 +630,9 @@ conversationStarters:
 │       ├── copilot-studio-agent/        # Copilot Studio スキル
 │       ├── copilot-studio-trigger/      # Copilot Studio 外部トリガースキル
 │       ├── ai-builder-prompt/           # AI Builder AI プロンプトスキル
+│       ├── model-driven-app/            # モデル駆動型アプリスキル
+│       ├── security-role/               # セキュリティロールスキル
+│       ├── generative-page-dev/         # Generative Pages 開発スキル
 │       ├── html-email-template/         # HTML メールテンプレートスキル
 │       └── market-research-report/      # 自動リサーチレポートスキル
 ├── docs/
@@ -637,14 +640,6 @@ conversationStarters:
 │   ├── DATAVERSE_GUIDE.md
 │   ├── CONNECTOR_REFERENCE.md
 │   └── ADVANCED_PATTERNS.md
-├── scripts/                                 # Dataverse・フロー・エージェントデプロイスクリプト
-│   ├── auth_helper.py                       #   認証ヘルパー（共通テンプレート）
-│   ├── setup_dataverse.py                   #   Dataverse テーブル一括構築（★サンプル: インシデント管理）
-│   ├── deploy_agent.py                      #   Copilot Studio エージェント設定（★サンプル）
-│   ├── deploy_flow*.py                      #   Power Automate フローデプロイ（★サンプル）
-│   ├── deploy_ai_prompt.py                  #   AI Builder AI プロンプトデプロイ（★サンプル）
-│   ├── deploy_news_agent.py                 #   ニュースエージェント設定（★サンプル）
-│   └── requirements.txt                     #   Python 依存関係
 ├── src/                                     # Code Apps スターターテンプレート
 │   ├── components/                          #   UI コンポーネント + shadcn/ui（共通テンプレート）
 │   ├── pages/                               #   ページコンポーネント（★サンプル: インシデント管理）

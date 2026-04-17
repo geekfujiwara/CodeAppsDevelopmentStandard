@@ -10,7 +10,9 @@ import os
 import time
 import uuid
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _this_dir)
+sys.path.insert(0, os.path.join(_this_dir, "..", "power-platform-standard"))
 from auth_helper import (
     DATAVERSE_URL,
     api_delete,
