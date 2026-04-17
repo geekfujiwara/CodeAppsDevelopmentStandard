@@ -894,9 +894,9 @@ def deploy_trigger_flow(flow_name, clientdata, solution_name):
 
 ## トリガーパターン・設計ガイド
 
-詳細なトリガーパターン（メール受信、Teams、スケジュール、Dataverse、SharePoint、OneDrive）は [トリガーパターンリファレンス](./references/trigger-patterns.md) を参照。
+詳細なトリガーパターン（メール受信、Teams、スケジュール、Dataverse、SharePoint、OneDrive）は [トリガーパターンリファレンス](trigger-patterns.md) を参照。
 
-Teams 連携の設計ガイド・フロー後処理パターン・トラブルシューティングは [トラブルシューティング・設計ガイド](./references/troubleshooting.md) を参照。
+Teams 連携の設計ガイド・フロー後処理パターン・トラブルシューティングは [トラブルシューティング・設計ガイド](troubleshooting.md) を参照。
 
 ## .env 項目
 

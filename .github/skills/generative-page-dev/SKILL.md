@@ -80,7 +80,7 @@ pac model genpage generate-types --data-sources "entity1,entity2,entity3" --outp
 
 ### Step 4: コード作成
 
-[コードパターンリファレンス](./references/code-patterns.md) に従い `.tsx` ファイルを作成する。
+[コードパターンリファレンス](code-patterns.md) に従い `.tsx` ファイルを作成する。
 
 **基本構造:**
 
@@ -125,7 +125,7 @@ pac model genpage upload `
 
 ### Step 6: デバッグ
 
-問題が発生した場合は [トラブルシューティング](./references/troubleshooting.md) を参照。
+問題が発生した場合は [トラブルシューティング](troubleshooting.md) を参照。
 
 ## DataAPI パターン
 
@@ -215,7 +215,7 @@ const t = useCallback((k: string): string => T[lang.code]?.[k] || T["en-US"]?.[k
 
 ## D3.js チャートパターン
 
-詳細は [コードパターンリファレンス](./references/code-patterns.md) を参照。
+詳細は [コードパターンリファレンス](code-patterns.md) を参照。
 
 - **棒グラフ**: `useRef<SVGSVGElement>` + `useEffect` 内で D3 描画
 - **ドーナツ**: `d3.pie()` + `d3.arc()` でセグメント描画

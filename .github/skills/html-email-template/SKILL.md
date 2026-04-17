@@ -132,4 +132,4 @@ font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 
 ## 詳細リファレンス
 
-セクションコンポーネント・用途別テンプレート・他スキルからの参照方法は [テンプレートリファレンス](./references/template-components.md) を参照。
+セクションコンポーネント・用途別テンプレート・他スキルからの参照方法は [テンプレートリファレンス](template-components.md) を参照。

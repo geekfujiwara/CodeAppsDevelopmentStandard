@@ -20,7 +20,7 @@ Bot ID URL をコピーしてすぐにスクリプトを実行すると、カス
 2. ★ 作成後、Copilot Studio UI でエージェントが完全にロードされるまで待つ
    （トピック一覧・概要ページが表示されるまで）
 3. ブラウザ URL を .env に貼り付け
-4. python scripts/deploy_agent.py を実行
+4. python ./deploy_agent.py を実行
 ```
 
 ```

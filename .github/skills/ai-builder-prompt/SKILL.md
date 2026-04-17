@@ -233,7 +233,7 @@ outputMode: All
 
 ## 構築手順
 
-詳細な構築手順・デプロイスクリプトテンプレートは [構築リファレンス](./references/build-reference.md) を参照。
+詳細な構築手順・デプロイスクリプトテンプレートは [構築リファレンス](build-reference.md) を参照。
 
 ## 絶対遵守ルール
 
@@ -324,4 +324,4 @@ AI_PROMPT_BOT_ID=https://copilotstudio.../bots/xxxxxxxx-xxxx-.../overview
 
 ## デプロイ・トラブルシューティング
 
-デプロイスクリプトテンプレート・ファイル入力制限事項・トラブルシューティングは [構築リファレンス](./references/build-reference.md) を参照。
+デプロイスクリプトテンプレート・ファイル入力制限事項・トラブルシューティングは [構築リファレンス](build-reference.md) を参照。

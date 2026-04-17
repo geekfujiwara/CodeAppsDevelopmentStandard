@@ -129,7 +129,7 @@ PUBLISHER_PREFIX=geek              ← ソリューション発行者の prefix
 
 - API ヘッダーに `MSCRM.SolutionName: {SOLUTION_NAME}` を付けることでソリューション内に作成
 
-> **認証**: Python スクリプトの認証は `power-platform-standard` スキルに記載の `scripts/auth_helper.py` を使用。
+> **認証**: Python スクリプトの認証は `power-platform-standard` スキルの `auth_helper.py` を使用。
 > `from auth_helper import get_token, get_session, api_get, api_post, api_patch` で利用する。
 
 - Bot 作成時（Copilot Studio UI）は「エージェント設定」でソリューションを明示的に選択
@@ -278,7 +278,7 @@ if ai_idx >= 0:
 
 ## 構築手順
 
-詳細な構築手順・スクリプトコードは [構築リファレンス](./references/build-reference.md) を参照。
+詳細な構築手順・スクリプトコードは [構築リファレンス](build-reference.md) を参照。
 
 高レベルの手順:
 
@@ -291,7 +291,7 @@ if ai_idx >= 0:
 7. **Step 7-8**: Teams / Copilot チャネル公開設定
 8. **Step 9**: ナレッジ・ツール・トリガーの手動追加案内
 
-Instructions テンプレート・既存エージェント改善パターンは [構築リファレンス](./references/build-reference.md#instructions-テンプレート) を参照。
+Instructions テンプレート・既存エージェント改善パターンは [構築リファレンス](build-reference.md#instructions-テンプレート) を参照。
 
 ## .env 必須項目
 
