@@ -1,6 +1,8 @@
 """メールトリガーの現在の状態を包括的に確認する"""
 import json, os, sys
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _this_dir)
+sys.path.insert(0, os.path.join(_this_dir, "..", "power-platform-standard"))
 from auth_helper import api_get, DATAVERSE_URL
 from dotenv import load_dotenv
 load_dotenv()

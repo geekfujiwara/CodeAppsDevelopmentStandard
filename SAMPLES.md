@@ -14,7 +14,7 @@
 | `src/components/` | shadcn/ui + カスタム UI コンポーネント |
 | `src/providers/` | React Context Providers |
 | `src/lib/utils.ts` | ユーティリティ |
-| `scripts/auth_helper.py` | MSAL 認証ヘルパー |
+| `.github/skills/power-platform-standard/auth_helper.py` | MSAL 認証ヘルパー |
 | `plugins/` | Vite プラグイン |
 | `styles/` | Tailwind CSS テーマ |
 | `patch-nameutils.cjs` | 日本語 DisplayName パッチ |
@@ -29,12 +29,12 @@
 
 | パス | 内容 | 置き換え対象 |
 |------|------|-------------|
-| `scripts/setup_dataverse.py` | Dataverse テーブル構築 | テーブル定義・列・Lookup・デモデータ |
-| `scripts/deploy_agent.py` | Copilot Studio エージェント設定 | BOT_NAME・Instructions・推奨プロンプト |
-| `scripts/deploy_flow.py` | ステータス変更通知フロー | テーブル名・通知メール本文 |
-| `scripts/deploy_flow_*.py` | 各種 Power Automate フロー | フロー定義全体 |
-| `scripts/deploy_ai_prompt.py` | AI Builder プロンプト | プロンプト内容・入出力定義 |
-| `scripts/add_to_solution.py` | ソリューション包含検証 | テーブル名リスト |
+| `.github/skills/power-platform-standard/setup_dataverse.py` | Dataverse テーブル構築 | テーブル定義・列・Lookup・デモデータ |
+| `.github/skills/copilot-studio-agent/deploy_agent.py` | Copilot Studio エージェント設定 | BOT_NAME・Instructions・推奨プロンプト |
+| `.github/skills/power-automate-flow/deploy_flow.py` | ステータス変更通知フロー | テーブル名・通知メール本文 |
+| `.github/skills/power-automate-flow/deploy_flow_*.py` | 各種 Power Automate フロー | フロー定義全体 |
+| `.github/skills/ai-builder-prompt/deploy_ai_prompt.py` | AI Builder プロンプト | プロンプト内容・入出力定義 |
+| `.github/skills/power-platform-standard/add_to_solution.py` | ソリューション包含検証 | テーブル名リスト |
 | `src/pages/incidents.tsx` | インシデント一覧ページ | ページ全体 |
 | `src/pages/incident-detail.tsx` | インシデント詳細ページ | ページ全体 |
 | `src/pages/dashboard.tsx` | ダッシュボード | 集計ロジック・KPI |

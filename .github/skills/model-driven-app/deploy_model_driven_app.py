@@ -7,10 +7,10 @@ SiteMap を自動生成してナビゲーションを構築する。
 
 手順:
   1. .env で APP_DISPLAY_NAME, APP_UNIQUE_NAME を設定（オプション。未設定時は SOLUTION_NAME から自動生成）
-  2. python scripts/deploy_model_driven_app.py
+  2. python .github/skills/model-driven-app/deploy_model_driven_app.py
 
 依存:
-  - scripts/auth_helper.py（共通認証）
+  - .github/skills/power-platform-standard/auth_helper.py（共通認証）
   - .env（DATAVERSE_URL, TENANT_ID, SOLUTION_NAME, PUBLISHER_PREFIX）
 
 API リファレンス:
@@ -24,7 +24,9 @@ import sys
 import time
 import uuid
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _this_dir)
+sys.path.insert(0, os.path.join(_this_dir, "..", "power-platform-standard"))
 
 import requests
 from dotenv import load_dotenv

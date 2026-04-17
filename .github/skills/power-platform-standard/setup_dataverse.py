@@ -9,7 +9,7 @@ Phase 1: ソリューション作成 → テーブル作成（マスタ→主→
 使い方:
   1. .env ファイルに DATAVERSE_URL, TENANT_ID, SOLUTION_NAME, PUBLISHER_PREFIX を設定
   2. pip install azure-identity requests python-dotenv
-  3. python scripts/setup_dataverse.py
+  3. python .github/skills/power-platform-standard/setup_dataverse.py
 """
 
 import json
@@ -17,7 +17,7 @@ import os
 import sys
 import time
 
-# scripts/ ディレクトリを sys.path に追加
+# スキルフォルダと共通認証モジュールを sys.path に追加
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import requests

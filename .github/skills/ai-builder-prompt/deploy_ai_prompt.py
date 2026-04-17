@@ -4,7 +4,7 @@ AI Builder AI プロンプト デプロイスクリプト — Summarize Document
 Phase 4: AI Builder AI プロンプトを作成 → エージェントにツールとして追加 → 公開
 
 使い方:
-  python scripts/deploy_ai_prompt.py
+  python .github/skills/ai-builder-prompt/deploy_ai_prompt.py
 """
 
 import json
@@ -12,8 +12,10 @@ import os
 import sys
 from datetime import datetime, timezone
 
-# scripts/ ディレクトリを sys.path に追加
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# スキルフォルダと共通認証モジュールを sys.path に追加
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _this_dir)
+sys.path.insert(0, os.path.join(_this_dir, "..", "power-platform-standard"))
 
 from dotenv import load_dotenv
 from auth_helper import (

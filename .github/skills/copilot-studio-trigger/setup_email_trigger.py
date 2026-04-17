@@ -20,7 +20,9 @@ import sys
 
 import requests
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _this_dir)
+sys.path.insert(0, os.path.join(_this_dir, "..", "power-platform-standard"))
 from auth_helper import get_token, api_patch, api_post, DATAVERSE_URL
 
 
