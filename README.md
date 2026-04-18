@@ -57,7 +57,7 @@ npm run preview # ビルド成果物確認
 ```bash
 # 1) 初回はビルドしてアプリをデプロイ
 npm run build
-npx power-apps push --solution-id {SolutionName}
+npx power-apps push --non-interactive
 
 # 2) Dataverse データソースを追加
 pac code add-data-source -a dataverse -t {table_logical_name}
