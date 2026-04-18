@@ -55,16 +55,20 @@ npm run preview # ビルド成果物確認
 ### Power Platform 接続の基本手順
 
 ```bash
-# 1) 初回はビルドしてアプリをデプロイ
+# 1) 初回セットアップ（power.config.json を生成）
+npx power-apps init --environment-id {environment-id}
+
+# 2) ビルドしてアプリをデプロイ
 npm run build
 npx power-apps push --non-interactive
 
-# 2) Dataverse データソースを追加
-pac code add-data-source -a dataverse -t {table_logical_name}
+# 3) Dataverse データソースを追加（SDK v1.0.x）
+npx power-apps add-data-source dataverse {table_logical_name}
 ```
 
 > [!IMPORTANT]
-> `pac code add-data-source` は英語スキーマ名前提です。テーブル名・列名は英語で定義してください。
+> `npx power-apps add-data-source` を推奨します。`pac code add-data-source` はレガシー手順（主に SDK v0.3.x）です。
+> テーブル名・列名は英語スキーマで定義してください。
 
 ---
 
