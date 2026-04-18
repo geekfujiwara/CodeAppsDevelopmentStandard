@@ -24,12 +24,10 @@ Power Apps Code Apps・Dataverse・Power Automate・Copilot Studio を **VS Code
 ## 目次
 
 - [クイックスタート](#クイックスタート)
-- [推奨開発フロー](#推奨開発フロー)
-- [主な設計原則](#主な設計原則)
+- [カスタムエージェント前提の利用方法](#カスタムエージェント前提の利用方法)
 - [リポジトリ構成](#リポジトリ構成)
 - [主要ドキュメント](#主要ドキュメント)
 - [GitHub Copilot 活用](#github-copilot-活用)
-- [既知の注意点](#既知の注意点)
 - [ライセンス](#ライセンス)
 
 ---
@@ -37,61 +35,18 @@ Power Apps Code Apps・Dataverse・Power Automate・Copilot Studio を **VS Code
 ## クイックスタート
 
 ```bash
-git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard.git
-cd CodeAppsDevelopmentStandard
-npm install
-cp .env.example .env
+git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm install
 ```
 
-### 開発コマンド
-
-```bash
-npm run dev     # ローカル開発
-npm run lint    # ESLint
-npm run build   # TypeScript + Vite ビルド
-npm run preview # ビルド成果物確認
-```
-
-### Power Platform 接続の基本手順
-
-```bash
-# 1) 初回セットアップ（power.config.json を生成）
-npx power-apps init --environment-id {environment-id}
-
-# 2) ビルドしてアプリをデプロイ
-npm run build
-npx power-apps push --non-interactive
-
-# 3) Dataverse データソースを追加（SDK v1.0.x）
-npx power-apps add-data-source dataverse {table_logical_name}
-```
-
-> [!IMPORTANT]
-> `npx power-apps add-data-source` を推奨します。`pac code add-data-source` はレガシー手順（主に SDK v0.3.x）です。
-> テーブル名・列名は英語スキーマで定義してください。
+セットアップ後は、GitHub Copilot のカスタムエージェントに「実現したいこと」をそのまま伝えて開発を進めます。
 
 ---
 
-## 推奨開発フロー
+## カスタムエージェント前提の利用方法
 
-1. **設計**: テーブル定義・命名・ロール・連携方式を確定
-2. **Dataverse 構築**: ソリューション作成、テーブル・列・リレーション作成
-3. **Code Apps 実装**: 画面・データ取得・更新処理を実装
-4. **Power Automate（任意）**: 通知/バックグラウンド処理を追加
-5. **Copilot Studio（任意）**: エージェント作成、ナレッジ/ツール連携
-
----
-
-## 主な設計原則
-
-- スキーマ名は英語のみ（日本語スキーマは CLI 連携で問題になりやすい）
-- User 参照は `systemuser` を優先
-- 作成者情報は `createdby` を優先活用
-- Choice 値は `100000000` から採番
-- 「先にデプロイ、後から開発」の順で接続確立
-- Dataverse メタデータ操作はリトライ設計を推奨
-
-詳細は `docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md` を参照してください。
+- この開発標準の実装・運用ルールは、GitHub Copilot カスタムエージェントのスキル（`.github/skills/`）に定義されています。
+- 利用者は手順書を読み込んで操作するのではなく、カスタムエージェントに要件を伝えて進める前提です。
+- 代表的な呼び出し例: `@GeekPowerCode 在庫管理アプリを Dataverse + Code Apps で作りたい`
 
 ---
 
@@ -132,17 +87,8 @@ npx power-apps add-data-source dataverse {table_logical_name}
 ## GitHub Copilot 活用
 
 - VS Code で開くと `.github/agents/` と `.github/skills/` が認識されます
-- `@GeekPowerCode` を使うと、Power Platform 開発タスクを会話ベースで進められます
-- 開発標準を参照させたい場合は `/power-platform-standard` を利用します
-
----
-
-## 既知の注意点
-
-- `src/generated/` は Dataverse 接続追加時に自動生成されます（通常は Git 管理対象外）
-- サンプルページはプロジェクト要件に合わせて差し替える前提です
-- Power Automate の接続は環境側で事前作成が必要です
-- Copilot Studio の一部設定（ナレッジ追加など）は UI での手動設定が必要です
+- `@GeekPowerCode` に実現したい内容を伝えるだけで、必要なスキルが選択されて開発タスクを進められます
+- このリポジトリの開発標準はスキルとして定義済みのため、マニュアル手順ベースではなくエージェント駆動で利用します
 
 ---
 
