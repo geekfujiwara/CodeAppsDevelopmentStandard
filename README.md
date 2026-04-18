@@ -38,6 +38,9 @@ Power Apps Code Apps・Dataverse・Power Automate・Copilot Studio を **VS Code
 git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm install
 ```
 
+> [!NOTE]
+> `.` へ clone するため、空ディレクトリで実行してください。
+
 セットアップ後は、GitHub Copilot のカスタムエージェントに「実現したいこと」をそのまま伝えて開発を進めます。
 
 ---
