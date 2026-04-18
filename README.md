@@ -49,7 +49,7 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 
 - この開発標準の実装・運用ルールは、GitHub Copilot カスタムエージェントのスキル（`.github/skills/`）に定義されています。
 - 利用者は手順書を読み込んで操作するのではなく、カスタムエージェントに要件を伝えて進める前提です。
-- チャット入力例 （バッククォート不要）: @GeekPowerCode 在庫管理アプリを Dataverse + Code Apps で作りたい
+- チャット入力例 （バッククオート不要）: @GeekPowerCode 在庫管理アプリを Dataverse + Code Apps で作りたい
 
 ---
 
