@@ -39,7 +39,7 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 ```
 
 > [!NOTE]
-> `.` へ clone するため、空ディレクトリで実行してください。
+> `.` へ clone するため、空ディレクトリで実行してください。既存ファイルがある場所で実行すると上書きリスクがあります。
 
 セットアップ後は、GitHub Copilot のカスタムエージェントに「実現したいこと」をそのまま伝えて開発を進めます。
 
@@ -49,7 +49,7 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 
 - この開発標準の実装・運用ルールは、GitHub Copilot カスタムエージェントのスキル（`.github/skills/`）に定義されています。
 - 利用者は手順書を読み込んで操作するのではなく、カスタムエージェントに要件を伝えて進める前提です。
-- 代表的な呼び出し例: `@GeekPowerCode 在庫管理アプリを Dataverse + Code Apps で作りたい`
+- チャット入力例（バッククォート不要）: @GeekPowerCode 在庫管理アプリを Dataverse + Code Apps で作りたい
 
 ---
 
