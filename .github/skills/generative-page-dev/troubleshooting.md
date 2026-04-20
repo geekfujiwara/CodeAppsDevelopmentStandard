@@ -233,14 +233,20 @@ const useStyles = makeStyles({
 
 ### 4.2 D3 チャートがレスポンシブにならない
 
-**対処**: `viewBox` + `width: "100%"` パターンを使用:
+**対処**: **`viewBox` は使わない**（ルール 19 参照）。コンテナの `clientWidth` から動的にサイズを取得する:
 
 ```typescript
-svg
-  .attr("viewBox", `0 0 ${width} ${height}`)
+// ❌ NG: viewBox + height: "auto"（Generative Pages で高さ 0px になる）
+svg.attr("viewBox", `0 0 ${width} ${height}`);
+// JSX: <svg ref={svgRef} style={{ width: "100%", height: "auto" }} />
 
-// JSX
-<svg ref={svgRef} style={{ width: "100%", height: "auto" }} />
+// ✅ OK: 明示的 width/height（requestAnimationFrame 内で取得）
+var container = svgRef.current.parentElement;
+var W = container ? container.clientWidth : 400;
+if (W < 200) W = 400;
+var H = 200;
+svg.attr("width", W).attr("height", H);
+// JSX: <div style={{ height: 200, overflow: "hidden" }}><svg ref={svgRef} style={{ display: "block" }} /></div>
 ```
 
 ### 4.3 地図表示で特定ブラウザのみ問題
@@ -279,6 +285,9 @@ svg
 3. 機能を段階的に追加し、各段階でデプロイ・確認
 4. エラー発生時はブラウザ DevTools の Console を確認
 5. ハードリロード（Ctrl+Shift+R）でキャッシュを無効化
+6. 新規ページは --prompt と --agent-message を英語短縮文字列にする（§7.8 参照）
+7. 成功したら Page ID を .env に保存し、以降は --page-id で更新する
+8. PublishXml がタイムアウトしたら pac solution publish でフォールバック（§7.9 参照）
 ```
 
 ## 7. DataAPI の書き込み制限
@@ -336,14 +345,14 @@ async function handleSave() {
 ```typescript
 // ❌ NG: viewBox + height: "auto"
 svg.attr("viewBox", "0 0 500 200");
-// JSX: <svg ref={ref} style={{ width: "100%", height: "auto" }} />
+// JSX: <svg ref={svgRef} style={{ width: "100%", height: "auto" }} />
 
 // ✅ OK: 明示的 width/height
 var container = svgRef.current.parentElement;
 var W = container ? container.clientWidth : 400;
 var H = 200;
 svg.attr("width", W).attr("height", H);
-// JSX: <div style={{ height: 200, overflow: "hidden" }}><svg ref={ref} style={{ display: "block" }} /></div>
+// JSX: <div style={{ height: 200, overflow: "hidden" }}><svg ref={svgRef} style={{ display: "block" }} /></div>
 ```
 
 **重要**: SVG のラッパー `<div>` にも明示的な `height` を設定すること。`height: "auto"` は禁止。
@@ -451,3 +460,75 @@ React.createElement(Input, {
 ```
 
 **注意**: `popupSurface` プロップや CSS 注入（`<style>` タグ挿入）でも解決できなかった（2026-04-21 検証済み）。
+
+### 7.8 新規ページの `pac model genpage upload` が「タスクが取り消されました」で失敗する
+
+**症状**: TypeScript トランスパイル成功後、`Pushing generated page...` のまま長時間待機し、最終的に以下のエラーで失敗する:
+
+```
+Error: Error updating project in batch: タスクが取り消されました。
+    タスクが取り消されました。
+```
+
+**原因**: 新規ページ作成（`--name` 指定）はサーバー側の処理が重い。`--prompt` や `--agent-message` に日本語の長い文字列を指定すると、サーバー側のタイムアウトを超過する。
+
+**対処**:
+
+1. **`--prompt` と `--agent-message` を英語の短い文字列にする**:
+
+```powershell
+# ❌ NG: 日本語の長い説明文（タイムアウトしやすい）
+pac model genpage upload --app-id <id> --code-file Page.tsx --name "Page" `
+  --data-sources "table1,table2" `
+  --prompt "4レーンカンバンボード: ドラッグ＆ドロップでステータス変更" `
+  --agent-message "未着手/作業中/完了/保留の4レーンカンバンボード"
+
+# ✅ OK: 英語の短い文字列（成功率が高い）
+pac model genpage upload --app-id <id> --code-file Page.tsx --name "Page" `
+  --data-sources "table1,table2" `
+  --prompt "kanban" `
+  --agent-message "kanban board"
+```
+
+2. **失敗したらリトライ**（サーバー側の一時的な問題の場合もある）
+3. **既存ページ更新（`--page-id`）ではこの問題は発生しにくい** — 新規作成時のみの制限
+
+**検証結果** (2026-04-21):
+- 日本語 `--prompt` + `--agent-message`: 3回連続タイムアウト
+- 英語短縮 `--prompt "kanban" --agent-message "kanban board"`: 1回目で成功
+
+### 7.9 `PublishXml` API がタイムアウトする（SiteMap 更新後の公開）
+
+**症状**: `update_sitemap.py` で SiteMap XML の PATCH は成功するが、最後の `PublishXml` API 呼び出しで 120 秒以上応答がなくタイムアウトする:
+
+```
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='xxx.crm7.dynamics.com', port=443): Read timed out. (read timeout=120)
+```
+
+**原因**: `PublishXml` はサーバー側で全カスタマイズを公開する重い処理。環境の負荷状況やカスタマイズの量によっては 120 秒では完了しない。
+
+**対処**: `pac solution publish` をフォールバックとして使う:
+
+```powershell
+# Python スクリプトの PublishXml がタイムアウトした場合:
+# 1. スクリプトを中断（Ctrl+C / kill）
+# 2. PAC CLI で公開（独自のタイムアウト管理で成功率が高い）
+pac solution publish
+```
+
+**重要**: SiteMap XML の PATCH は `PublishXml` の前に完了しているため、`pac solution publish` で公開さえ通れば SiteMap の変更は反映される。
+
+### 7.10 新規ページ作成が既存ページ更新より大幅に遅い
+
+**症状**: `--page-id` 指定の既存ページ更新は数秒〜数十秒で完了するが、`--name` 指定の新規ページ作成は数分かかる、またはタイムアウトする。
+
+**原因**: 新規ページ作成はサーバー側で以下の追加処理が発生する:
+- ページレコードの作成
+- Generative Page プロジェクトの初期化
+- AI モデルとの関連付け
+
+**対処**:
+1. 新規作成は余裕を持ったタイムアウトを想定する
+2. `--prompt` と `--agent-message` を英語の短い文字列にする（§7.8 参照）
+3. 一度作成に成功したら Page ID を `.env` に保存し、以降は `--page-id` で更新する
+4. 作成成功後の初回確認はブラウザのハードリロード（Ctrl+Shift+R）を行う
