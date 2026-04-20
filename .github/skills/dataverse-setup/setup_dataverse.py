@@ -51,8 +51,27 @@ from auth_helper import (
 )
 
 # ── 環境変数 ──────────────────────────────────────────────
-SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "")
-PREFIX = os.environ.get("PUBLISHER_PREFIX", "")
+def get_required_env_vars():
+    required_env = {
+        "DATAVERSE_URL": DATAVERSE_URL,
+        "SOLUTION_NAME": os.environ.get("SOLUTION_NAME", "").strip(),
+        "PUBLISHER_PREFIX": os.environ.get("PUBLISHER_PREFIX", "").strip(),
+    }
+    missing = [name for name, value in required_env.items() if not value]
+    if missing:
+        print(
+            "Error: Required environment variables are missing or empty: "
+            + ", ".join(missing)
+            + ". Please set them in your environment or .env before running setup_dataverse.py.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return required_env
+
+
+REQUIRED_ENV_VARS = get_required_env_vars()
+SOLUTION_NAME = REQUIRED_ENV_VARS["SOLUTION_NAME"]
+PREFIX = REQUIRED_ENV_VARS["PUBLISHER_PREFIX"]
 SOLUTION_DISPLAY_NAME = os.environ.get("SOLUTION_DISPLAY_NAME", SOLUTION_NAME)
 
 
