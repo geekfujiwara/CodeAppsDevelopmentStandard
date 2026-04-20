@@ -46,6 +46,9 @@ uuid: ^9.0.1
 8. **カラム名は RuntimeTypes.ts を確認** — 推測禁止
 9. **`@fluentui/react-icons` はサイズなしバリアントのみ** — `AddRegular` ✅ / `Add24Regular` ❌
 10. **`Map` / `Set` に `for...of` 禁止** — `.forEach()` または `[...map]` でイテレーション
+11. **ダークモードはデフォルトで実装しない** — ユーザーが明示的にダークモード対応を要求した場合のみ `themeToVars` パターンを実装する。デフォルトは Fluent UI のシステムテーマに従う（追加実装なし）
+12. **Lookup 展開フィールドを `select` に含めない** — `em_equipmentname` 等の Lookup 先の名前フィールドは DataAPI の `select` に指定すると `Could not find a property` エラーになる。`_xxx_value`（FK ID）のみを select し、別テーブルから取得した名前を `useMemo` Map でクライアントサイド名前解決する
+13. **`--add-to-sitemap` を使わない** — PAC CLI の `--add-to-sitemap` はタイトルなしの SubArea を追加してしまう。SiteMap は `deploy_model_app.py` 等で `GenPageId` 属性 + `<Titles>` 付きの SubArea を自前で管理する
 
 ## 開発フロー
 
@@ -174,6 +177,8 @@ function fkId(fk: any): string {
 
 ## ダークモード（themeToVars パターン）
 
+> **⚠️ デフォルトでは実装しない。ユーザーが明示的に要求した場合のみ使用する。**
+
 FluentProvider を追加せず、CSS 変数でテーマを切り替える:
 
 ```typescript
@@ -249,3 +254,44 @@ const [state, setState] = useState({ data: _cache, loading: _cache === null, err
 4. **Map/Set のイテレーション** — `.forEach()` のみ。`for...of` は Power Apps ランタイムでエラー
 5. **スタイル変更はインクリメンタル** — 大規模なリファクタリングより小さな変更を頻繁にデプロイ
 6. **デプロイごとにブラウザキャッシュクリア** — Power Apps は積極的にキャッシュする
+
+## Lookup 名前解決パターン（必須）
+
+DataAPI の `select` に Lookup 展開フィールド（`em_xxxname` 等）を指定すると `Could not find a property` エラーになる。
+
+**正しいパターン:**
+
+```typescript
+// 1. FK テーブルと参照元テーブルをそれぞれクエリ
+const equipment = await loadAllRows(dataApi, "em_equipment", {
+  select: ["em_equipmentid", "em_equipmentname", "_em_location_value"], // ❌ em_locationname は含めない
+});
+const locations = await loadAllRows(dataApi, "em_location", {
+  select: ["em_locationid", "em_locationname"],
+});
+
+// 2. useMemo で名前解決 Map を構築
+const locMap = useMemo(() => {
+  const m = new Map<string, string>();
+  locations.forEach((l) => m.set(l.em_locationid, l.em_locationname));
+  return m;
+}, [locations]);
+
+// 3. fkId() で FK 値から ID を抽出し、Map で名前解決
+<Text>{locMap.get(fkId(item._em_location_value)) || "-"}</Text>
+```
+
+## SiteMap への Generative Page 追加
+
+`pac model genpage upload` の `--add-to-sitemap` は使わない。タイトルなしの「新しいサブエリア」が作成される。
+
+**正しいパターン:** `deploy_model_app.py` の SiteMap XML に `GenPageId` + `<Titles>` 付き SubArea を追加。
+SiteMap VectorIcon で使える組み込みアイコンの一覧は `icon-creation` スキル（`.github/skills/icon-creation/SKILL.md`）を参照。
+
+```xml
+<SubArea Id="sub_genpage" GenPageId="{page-id}" VectorIcon="/_imgs/TableIconsFluentV9/document_one_page_sparkle.svg" AvailableOffline="true">
+  <Titles><Title LCID="1041" Title="ページ名" /><Title LCID="1033" Title="Page Name" /></Titles>
+</SubArea>
+```
+
+`.env` に `GENPAGE_ID`, `GENPAGE_TITLE_JA`, `GENPAGE_TITLE_EN` を設定し、デプロイスクリプトから自動的に SiteMap に含める。
