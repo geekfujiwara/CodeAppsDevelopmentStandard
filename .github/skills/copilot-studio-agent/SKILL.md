@@ -31,92 +31,11 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 
 ## アイコン画像提案（設計承認後・構築前）
 
+> **アイコンの設計・生成・登録の詳細は `icon-creation` スキル（`.github/skills/icon-creation/SKILL.md`）を参照。**
+> ここではエージェント固有の手順のみ記載する。
+
 エージェント設計が承認されたら、**Bot 作成前にアイコン画像を提案**する。
-
-### 提案方法
-
-1. エージェントの目的・役割に合ったアイコンを **3〜4 パターン** テキストで提案
-2. 各パターンに簡単な説明を付けて提示
-3. ユーザーに選択してもらう
-4. **選択されたパターンの PNG を Pillow で生成 → Base64 → `bots.iconbase64` に API で登録**
-
-### アイコン設計ガイドライン
-
-- **サイズ**: 240x240px（基本サイズ、Teams 用に 192 と 32 も生成）
-- **形式**: PNG（Teams チャネルが SVG を受け付けないため）
-- **登録形式**: `data:` prefix なしの生 Base64 PNG
-- **スタイル**: シンプルで視認性の高いデザイン。フラット or モダン
-- **背景**: 角丸正方形（`rx="48" ry="48"`）。ブランドカラー推奨
-- **モチーフ**: エージェントの目的を象徴するアイコン（例: インシデント管理 → 盾・ライトニング・レンチ）
-- **バリエーション例**:
-  - パターン A: 目的を象徴するアイコン + 企業カラー背景
-  - パターン B: ロボット / AI エージェント風 + グラデーション
-  - パターン C: ミニマル・モノライン + モダン
-  - パターン D: キャラクター風 / 親しみやすいデザイン
-
-### アイコン登録方法（PNG Base64 → API）
-
-Teams チャネルは SVG を受け付けない。**PNG 形式**で登録する必要がある。
-
-#### Teams アイコン要件
-
-- **iconbase64**: `data:` prefix なしの生 Base64 PNG（任意サイズ）
-- **colorIcon**: 192x192 PNG, < 100KB
-- **outlineIcon**: 32x32 PNG, 白い透明背景
-- 参照: https://learn.microsoft.com/en-us/microsoftteams/platform/concepts/build-and-test/apps-package#app-icons
-
-#### PNG 生成（Pillow）
-
-```python
-from PIL import Image, ImageDraw
-import io, base64
-
-def draw_icon(size, transparent_bg=False, outline_only=False):
-    img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    if not transparent_bg:
-        draw.rounded_rectangle([0, 0, size-1, size-1], radius=int(size*0.2), fill=(30, 41, 59, 255))
-    # ... シールド＋ライトニング等を描画 ...
-    return img
-
-# 3 サイズ生成
-icon_main = draw_icon(240)                                    # iconbase64 用
-icon_color = draw_icon(192)                                   # colorIcon 用
-icon_outline = draw_icon(32, transparent_bg=True, outline_only=True)  # outlineIcon 用
-
-def to_base64(img):
-    buf = io.BytesIO()
-    img.save(buf, format='PNG', optimize=True)
-    return base64.b64encode(buf.getvalue()).decode('ascii')
-```
-
-#### API 登録
-
-```python
-# ★ iconbase64 は data: prefix なしの生 Base64 PNG
-icon_b64 = to_base64(icon_main)
-
-# ★ bots PATCH には name フィールドが必須
-bot_info = api_get(f"bots({bot_id})?$select=name")
-api_patch(f"bots({bot_id})", {"name": bot_info["name"], "iconbase64": icon_b64})
-
-# Teams マニフェストの colorIcon / outlineIcon を専用サイズで設定
-ami = json.loads(bot_data.get("applicationmanifestinformation", "{}") or "{}")
-ami.setdefault("teams", {})["colorIcon"] = to_base64(icon_color)    # 192x192
-ami["teams"]["outlineIcon"] = to_base64(icon_outline)                # 32x32
-api_patch(f"bots({bot_id})", {"name": bot_info["name"], "applicationmanifestinformation": json.dumps(ami)})
-```
-
-```
-❌ SVG で登録 → Teams チャネルのアイコンが表示されない
-❌ data:image/svg+xml;base64,... 形式 → Teams が受け付けない
-❌ colorIcon と outlineIcon を同じ画像で登録 → outlineIcon は 32x32 白い透明背景が必要
-❌ bots PATCH で name を省略 → "Empty or null bot name" エラー (0x80040265)
-✅ PNG 形式で 3 サイズ生成（240, 192, 32）
-✅ data: prefix なしの生 Base64 PNG で登録
-✅ outlineIcon は白い透明背景の 32x32 PNG
-✅ PATCH 時は必ず name フィールドを含める
-```
+`icon-creation` スキルのアイコン画像提案フローに従い、3〜4 パターンを提案 → ユーザー選択 → PNG 3 サイズ生成（240, 192, 32）→ `bots.iconbase64` + Teams マニフェストに API 登録。
 
 ## 大前提: 一つのソリューション内に開発
 

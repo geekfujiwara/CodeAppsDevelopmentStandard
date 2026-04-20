@@ -33,16 +33,19 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 
 ### フェーズ別スキル（該当フェーズ開始時に読む）
 
-| フェーズ                   | スキル                   | 読み込みパス                                     |
-| -------------------------- | ------------------------ | ------------------------------------------------ |
-| Phase 2: Code Apps UI 設計 | `code-apps-design`       | `.github/skills/code-apps-design/SKILL.md`       |
-| Phase 2: Code Apps 開発    | `code-apps-dev`          | `.github/skills/code-apps-dev/SKILL.md`          |
-| Phase 2.5: Power Automate  | `power-automate-flow`    | `.github/skills/power-automate-flow/SKILL.md`    |
-| Phase 3: Copilot Studio    | `copilot-studio-agent`   | `.github/skills/copilot-studio-agent/SKILL.md`   |
-| Phase 3.5: CS トリガー     | `copilot-studio-trigger` | `.github/skills/copilot-studio-trigger/SKILL.md` |
-| Phase 4: AI Builder Prompt | `ai-builder-prompt`      | `.github/skills/ai-builder-prompt/SKILL.md`      |
-| HTML メール送信            | `html-email-template`    | `.github/skills/html-email-template/SKILL.md`    |
-| 自動リサーチレポート       | `market-research-report` | `.github/skills/market-research-report/SKILL.md` |
+| フェーズ                       | スキル                   | 読み込みパス                                     |
+| ------------------------------ | ------------------------ | ------------------------------------------------ |
+| Phase 1: Dataverse テーブル構築 | `dataverse-setup`        | `.github/skills/dataverse-setup/SKILL.md`        |
+| Phase 1.5: Generative Page     | `generative-page-dev`    | `.github/skills/generative-page-dev/SKILL.md`    |
+| Phase 2: Code Apps UI 設計     | `code-apps-design`       | `.github/skills/code-apps-design/SKILL.md`       |
+| Phase 2: Code Apps 開発        | `code-apps-dev`          | `.github/skills/code-apps-dev/SKILL.md`          |
+| Phase 2.5: Power Automate      | `power-automate-flow`    | `.github/skills/power-automate-flow/SKILL.md`    |
+| Phase 3: Copilot Studio        | `copilot-studio-agent`   | `.github/skills/copilot-studio-agent/SKILL.md`   |
+| Phase 3.5: CS トリガー         | `copilot-studio-trigger` | `.github/skills/copilot-studio-trigger/SKILL.md` |
+| Phase 4: AI Builder Prompt     | `ai-builder-prompt`      | `.github/skills/ai-builder-prompt/SKILL.md`      |
+| アイコン作成（全フェーズ共通） | `icon-creation`          | `.github/skills/icon-creation/SKILL.md`          |
+| HTML メール送信                | `html-email-template`    | `.github/skills/html-email-template/SKILL.md`    |
+| 自動リサーチレポート           | `market-research-report` | `.github/skills/market-research-report/SKILL.md` |
 
 > **重要**: Code Apps は **`code-apps-design` → ユーザー承認 → `code-apps-dev`** の順で進める。
 > Power Automate・Copilot Studio も**設計提示 → ユーザー承認 → 実装**の順で進める。
@@ -99,7 +102,7 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 27. **YAML は PVA ダブル改行フォーマットで構築**。構造行（kind, displayName, conversationStarters 等）はダブル改行 (`\n\n`) で区切り、`instructions: |-` ブロック内はシングル改行。`yaml.dump()` は禁止
 28. **conversationStarters の title/text はクォートなし**。ダブルクォートで囲むと PVA に反映されない
 29. **bots テーブルの PATCH には `name` フィールドが必須**。省略すると `Empty or null bot name` エラー (0x80040265)。既存名を GET して再送する
-30. **アイコンは PNG 形式で 3 サイズ生成し API 登録**。SVG は Teams チャネルで表示されない。`iconbase64` = 240x240 PNG（生 Base64、data: prefix なし）、`colorIcon` = 192x192 PNG、`outlineIcon` = 32x32 PNG（白い透明背景）。Pillow で生成しスクリプトで自動設定
+30. **アイコンは `icon-creation` スキルに従い生成・登録**。エージェント=PNG 3サイズ（240, 192, 32）で `bots.iconbase64` + Teams マニフェスト。テーブル=SVG WebResource + `IconVectorName`。詳細は `.github/skills/icon-creation/SKILL.md`
 31. **GPT コンポーネント更新時は `aISettings` セクションを保持**。PVA は data YAML 末尾に `aISettings.model.modelNameHint` を格納しており、上書きすると基盤モデルがデフォルト（GPT 4.1）に戻る。更新前に抽出して新 YAML 末尾に付加する
 
 ### Copilot Studio 外部トリガー
