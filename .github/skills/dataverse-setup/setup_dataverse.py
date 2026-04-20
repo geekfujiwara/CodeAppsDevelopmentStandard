@@ -193,7 +193,9 @@ def label_jp(text: str) -> dict:
 def _save_env_value(key: str, value: str):
     """既存の .env ファイルにキーを追記または更新する"""
     script_dir = Path(__file__).resolve().parent
-    default_root = script_dir.parents[2]
+    default_root = script_dir
+    for parent in script_dir.parents:
+        default_root = parent
     project_root = next(
         (p for p in [script_dir, *script_dir.parents] if (p / ".env.example").exists() or (p / ".git").exists()),
         default_root,
@@ -201,7 +203,7 @@ def _save_env_value(key: str, value: str):
     env_path = project_root / ".env"
     lines = []
     found = False
-    if os.path.exists(env_path):
+    if env_path.exists():
         with open(env_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
     for i, line in enumerate(lines):
