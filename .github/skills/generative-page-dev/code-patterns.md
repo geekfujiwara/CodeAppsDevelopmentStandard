@@ -95,7 +95,7 @@ async function loadAllRows<T>(
     filter?: string;
     orderBy?: string;
     pageSize?: number;
-  }
+  },
 ): Promise<ReadableTableRow<T>[]> {
   let res = await api.queryTable(table as any, {
     select: options.select as any,
@@ -115,9 +115,9 @@ async function loadAllRows<T>(
 ### 2.2 Choice フィールドの取得
 
 ```typescript
-const statusChoices = (
-  await dataApi.getChoices("entity_name-field_name")
-).map((c) => ({ label: c.label, value: c.value as number }));
+const statusChoices = (await dataApi.getChoices("entity_name-field_name")).map(
+  (c) => ({ label: c.label, value: c.value as number }),
+);
 ```
 
 ### 2.3 Lookup ID 抽出
@@ -163,7 +163,7 @@ function parseDate(v: any): Date | null {
 function aggregateByKey<T>(
   rows: T[],
   keyFn: (r: T) => string,
-  valueFn: (r: T) => number
+  valueFn: (r: T) => number,
 ): Map<string, number> {
   const map = new Map<string, number>();
   rows.forEach((r) => {
@@ -193,7 +193,7 @@ interface MonthlyData {
 function aggregateMonthly(
   rows: ReadableTableRow<any>[],
   dateField: string,
-  amountField: string
+  amountField: string,
 ): MonthlyData[] {
   const map = new Map<string, number>();
   rows.forEach((r) => {
@@ -217,25 +217,32 @@ interface BarChartProps {
   data: { label: string; value: number }[];
   width?: number;
   height?: number;
+  activeTab: string;
 }
 
-const BarChart: React.FC<BarChartProps> = ({ data, width = 500, height = 300 }) => {
+const BarChart: React.FC<BarChartProps> = ({ data, width = 500, height = 300, activeTab }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!svgRef.current || data.length === 0) return;
+    if (data.length === 0 || activeTab !== "charts") return;
 
-    const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove(); // 必ずクリーンアップ
+    // ★ requestAnimationFrame で次フレームに遅延（初回レンダー時のレイアウト未完了対策）
+    var raf = requestAnimationFrame(() => {
+      if (!svgRef.current) return;
 
-    const margin = { top: 20, right: 20, bottom: 40, left: 60 };
-    const w = width - margin.left - margin.right;
-    const h = height - margin.top - margin.bottom;
+      const svg = d3.select(svgRef.current);
+      svg.selectAll("*").remove(); // 必ずクリーンアップ
 
-    const g = svg
-      .attr("viewBox", `0 0 ${width} ${height}`)
-      .append("g")
+      // ★ 明示的 width/height を設定（viewBox は使わない）
+      svg.attr("width", width).attr("height", height);
+
+      const margin = { top: 20, right: 20, bottom: 40, left: 60 };
+      const w = width - margin.left - margin.right;
+      const h = height - margin.top - margin.bottom;
+
+      const g = svg
+        .append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
     const x = d3
@@ -272,41 +279,22 @@ const BarChart: React.FC<BarChartProps> = ({ data, width = 500, height = 300 }) 
       .attr("width", x.bandwidth())
       .attr("height", (d) => h - y(d.value))
       .attr("fill", tokens.colorBrandBackground)
-      .attr("rx", 4)
-      .on("mouseenter", (ev, d) => {
-        if (tooltipRef.current) {
-          tooltipRef.current.style.display = "block";
-          tooltipRef.current.style.left = `${ev.offsetX + 10}px`;
-          tooltipRef.current.style.top = `${ev.offsetY - 10}px`;
-          tooltipRef.current.textContent = `${d.label}: ${d.value.toLocaleString()}`;
-        }
-      })
-      .on("mouseleave", () => {
-        if (tooltipRef.current) tooltipRef.current.style.display = "none";
-      });
-  }, [data, width, height]);
+      .attr("rx", 4);
+    }); // ★ rAF 終了
+    return () => { cancelAnimationFrame(raf); }; // ★ クリーンアップ
+  }, [data, width, height, activeTab]);
 
   return (
-    <div style={{ position: "relative", width: "100%" }}>
-      <svg ref={svgRef} style={{ width: "100%", height: "auto" }} />
-      <div
-        ref={tooltipRef}
-        style={{
-          display: "none",
-          position: "absolute",
-          background: tokens.colorNeutralBackground1,
-          border: `1px solid ${tokens.colorNeutralStroke1}`,
-          borderRadius: tokens.borderRadiusMedium,
-          padding: "4px 8px",
-          fontSize: "12px",
-          pointerEvents: "none",
-          zIndex: 10,
-        }}
-      />
+    <div style={{ position: "relative", width: "100%", overflow: "hidden", height: height }}>
+      <svg ref={svgRef} style={{ display: "block" }} />
     </div>
   );
 };
 ```
+
+> **⚠️ `viewBox` + `height: "auto"` は使用禁止** — Generative Pages ランタイムでチャートが表示されない原因になる。必ず `svg.attr("width", W).attr("height", H)` でピクセル指定し、ラッパー div にも明示的 height を設定する。
+
+> **⚠️ 全チャートの useEffect は `requestAnimationFrame` で描画を遅延する** — 初回データ取得完了時の同一レンダーサイクルではブラウザのレイアウトが未完了で `clientWidth` が 0 になる。ref チェックは rAF コールバック内で行い、クリーンアップで `cancelAnimationFrame` を返す。
 
 ### 4.2 ドーナツチャート（Donut Chart）
 
@@ -314,20 +302,27 @@ const BarChart: React.FC<BarChartProps> = ({ data, width = 500, height = 300 }) 
 interface DonutChartProps {
   data: { label: string; value: number; color: string }[];
   size?: number;
+  activeTab: string;
 }
 
-const DonutChart: React.FC<DonutChartProps> = ({ data, size = 200 }) => {
+const DonutChart: React.FC<DonutChartProps> = ({ data, size = 240, activeTab }) => {
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
-    if (!svgRef.current || data.length === 0) return;
+    if (data.length === 0 || activeTab !== "charts") return;
 
-    const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove();
+    // ★ requestAnimationFrame で次フレームに遅延
+    var raf = requestAnimationFrame(() => {
+      if (!svgRef.current) return;
+
+      const svg = d3.select(svgRef.current);
+      svg.selectAll("*").remove();
+
+      // ★ 明示的 width/height（viewBox は使わない）
+      svg.attr("width", size).attr("height", size);
 
     const radius = size / 2;
     const g = svg
-      .attr("viewBox", `0 0 ${size} ${size}`)
       .append("g")
       .attr("transform", `translate(${radius},${radius})`);
 
@@ -336,27 +331,43 @@ const DonutChart: React.FC<DonutChartProps> = ({ data, size = 200 }) => {
       .sort(null);
 
     const arc = d3.arc<d3.PieArcDatum<any>>()
-      .innerRadius(radius * 0.55)
-      .outerRadius(radius * 0.9);
+      .innerRadius(radius * 0.6)
+      .outerRadius(radius * 0.88);
 
     g.selectAll("path")
       .data(pie(data))
       .enter()
       .append("path")
       .attr("d", arc as any)
-      .attr("fill", (d) => d.data.color);
+      .attr("fill", (d) => d.data.color)
+      .attr("opacity", 0)
+      .transition().duration(500).delay((_, i) => i * 80)
+      .attr("opacity", 1);
 
     // 中央テキスト
     const total = data.reduce((s, d) => s + d.value, 0);
     g.append("text")
       .attr("text-anchor", "middle")
-      .attr("dy", "-0.2em")
-      .style("font-size", "18px")
-      .style("font-weight", "bold")
+      .attr("dy", "-0.1em")
+      .attr("font-size", "24px")
+      .attr("font-weight", "600")
+      .attr("fill", tokens.colorNeutralForeground1)
       .text(total.toLocaleString());
-  }, [data, size]);
+    g.append("text")
+      .attr("text-anchor", "middle")
+      .attr("dy", "1.4em")
+      .attr("font-size", "11px")
+      .attr("fill", tokens.colorNeutralForeground3)
+      .text("総件数");
+    }); // ★ rAF 終了
+    return () => { cancelAnimationFrame(raf); }; // ★ クリーンアップ
+  }, [data, size, activeTab]);
 
-  return <svg ref={svgRef} style={{ width: "100%", maxWidth: size, height: "auto" }} />;
+  return (
+    <div style={{ display: "flex", justifyContent: "center" }}>
+      <svg ref={svgRef} style={{ display: "block" }} />
+    </div>
+  );
 };
 ```
 
@@ -420,6 +431,132 @@ const BubbleMap: React.FC<BubbleMapProps> = ({ regions, values, onRegionClick })
   );
 };
 ```
+
+### 4.4 日付入力（Input type="date"）
+
+`DatePicker` は Generative Pages で透明ポップアップ問題があるため、`Input type="date"` を使う:
+
+```typescript
+var [scheduledDate, setScheduledDate] = useState<Date | null>(null);
+
+// JSX
+React.createElement(Input, {
+  type: "date",
+  value: scheduledDate
+    ? scheduledDate.getFullYear() + "-" + String(scheduledDate.getMonth() + 1).padStart(2, "0") + "-" + String(scheduledDate.getDate()).padStart(2, "0")
+    : "",
+  onChange: function (_: any, d: any) {
+    if (d.value) {
+      var parts = d.value.split("-");
+      setScheduledDate(new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
+    } else {
+      setScheduledDate(null);
+    }
+  },
+  style: { maxWidth: 300 },
+});
+```
+
+> **⚠️ `@fluentui/react-datepicker-compat` の `DatePicker` は使用禁止** — Generative Pages ランタイムでポップアップが透明になる。
+
+### 4.6 D3 チャートのツールチップ
+
+D3 SVG 要素には Fluent UI `Tooltip` が使えないため、生の HTML div で実装する。
+**`position: fixed` は禁止**— Generative Pages ランタイムでマウスから大きく離れる。
+
+```typescript
+// ─── セットアップ ───
+// 1. root div に position: "relative" を設定
+const useStyles = makeStyles({
+  root: {
+    position: "relative",
+    overflow: "auto",
+    // ... other styles
+  },
+});
+
+// 2. tooltip ref
+const tooltipRef = useRef<HTMLDivElement>(null);
+
+// 3. 共通ヘルパー関数
+function showTip(html: string, ev: MouseEvent) {
+  var tip = tooltipRef.current;
+  if (!tip) return;
+  tip.innerHTML = html;
+  tip.style.display = "block";
+  var root = tip.parentElement;
+  if (root) {
+    var rect = root.getBoundingClientRect();
+    tip.style.left = (ev.clientX - rect.left + root.scrollLeft + 10) + "px";
+    tip.style.top = (ev.clientY - rect.top + root.scrollTop - 10) + "px";
+  }
+}
+function moveTip(ev: MouseEvent) {
+  var tip = tooltipRef.current;
+  if (!tip) return;
+  var root = tip.parentElement;
+  if (root) {
+    var rect = root.getBoundingClientRect();
+    tip.style.left = (ev.clientX - rect.left + root.scrollLeft + 10) + "px";
+    tip.style.top = (ev.clientY - rect.top + root.scrollTop - 10) + "px";
+  }
+}
+function hideTip() {
+  var tip = tooltipRef.current;
+  if (!tip) return;
+  tip.style.display = "none";
+}
+
+// 4. D3 の useEffect 内でホバーイベントを追加
+g.selectAll("path").data(pie(data)).enter()
+  .append("path")
+  .attr("d", arc as any)
+  .attr("fill", (d) => d.data.color)
+  .attr("cursor", "pointer")
+  .on("mouseover", function (ev: MouseEvent, d: any) {
+    showTip("<b>" + d.data.label + "</b><br/>" + d.data.count + "件", ev);
+    d3.select(this).attr("opacity", 0.8);
+  })
+  .on("mousemove", function (ev: MouseEvent) { moveTip(ev); })
+  .on("mouseout", function () { hideTip(); d3.select(this).attr("opacity", 1); });
+
+// 5. JSX—root div の直下にツールチップ div を配置
+<div className={styles.root}>
+  <div ref={tooltipRef} style={{
+    display: "none", position: "absolute", zIndex: 10000,
+    padding: "6px 10px", borderRadius: 6,
+    backgroundColor: "rgba(30,30,30,0.92)", color: "#fff",
+    fontSize: 12, lineHeight: 1.4, pointerEvents: "none",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+    maxWidth: 200, whiteSpace: "nowrap",
+  }} />
+  {/* ... チャート等 ... */}
+</div>
+```
+
+> **⚠️ `position: fixed` は使用禁止** — Generative Pages ランタイムではコンテナのオフセットが大きく、ツールチップがマウスから遠く離れる。
+> **Fluent UI `Tooltip` コンポーネントは D3 SVG 要素には使えない** — D3 が動的に生成した SVG 要素に React のイベントハンドラはバインドできない。
+
+### 4.5 createRecord 時の Lookup バインド
+
+Dataverse の `createRecord` で Lookup フィールドを設定するには `@odata.bind` を使う:
+
+```typescript
+var record: any = {
+  em_workordername: "点検作業",
+  em_status: 100000000,
+};
+
+// Lookup 設定（ナビゲーションプロパティ名 + @odata.bind）
+if (equipmentId) {
+  record["em_Equipment@odata.bind"] = "/em_equipments(" + equipmentId + ")";
+}
+
+await (window as any).Xrm.WebApi.online.createRecord("em_workorder", record);
+```
+
+> **注意**: `@odata.bind` のキー名はナビゲーションプロパティ名（大文字/小文字を区別する）。列の論理名ではない。
+> 日付フィールドは ISO 形式の日付部分のみ: `date.toISOString().split("T")[0]`
 
 ## 5. ダークモード対応
 
@@ -497,7 +634,7 @@ const T: Record<string, Record<string, string>> = {
 const lang = useMemo(() => detectLanguage(), []);
 const t = useCallback(
   (k: string): string => T[lang.code]?.[k] || T["en-US"]?.[k] || k,
-  [lang.code]
+  [lang.code],
 );
 ```
 
@@ -646,3 +783,284 @@ function fmtCurrency(v: number, currency = "JPY"): string {
   }).format(v);
 }
 ```
+
+## 12. DataGrid クリック可能行（renderCell バグ回避）
+
+行全体をクリック可能にする場合、DataGridRow の render prop で空白バグを回避する:
+
+```typescript
+/* makeStyles */
+clickableRow: {
+  cursor: "pointer",
+  ":hover": { backgroundColor: tokens.colorSubtleBackgroundHover },
+},
+
+/* JSX: 必ず1行に記述（空白テキストノードを防ぐ） */
+<DataGrid items={items} columns={columns} sortable getRowId={function (item) { return item.myid as string; }}>
+  <DataGridHeader>
+    <DataGridRow>{({ renderHeaderCell }) => <DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>}</DataGridRow>
+  </DataGridHeader>
+  <DataGridBody<ReadableTableRow<MyEntity>>>{({ item, rowId }) => (<DataGridRow<ReadableTableRow<MyEntity>> key={rowId} className={styles.clickableRow} onClick={function () { openRecordForm("entity_name", item.myid as string); }}>{({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}</DataGridRow>)}</DataGridBody>
+</DataGrid>
+```
+
+> 参照: [トラブルシューティング](troubleshooting.md) セクション 2.7
+
+## 13. レコードフォーム遷移
+
+```typescript
+function openRecordForm(entityName: string, recordId: string): void {
+  if (typeof Xrm !== "undefined" && Xrm.Navigation) {
+    Xrm.Navigation.openForm({ entityName, entityId: recordId });
+  }
+}
+
+function openNewForm(entityName: string): void {
+  if (typeof Xrm !== "undefined" && Xrm.Navigation) {
+    Xrm.Navigation.openForm({ entityName });
+  }
+}
+```
+
+## 14. モバイル対応パターン
+
+```typescript
+/* useIsMobile フック */
+function useIsMobile(bp = 640): boolean {
+  const [m, setM] = useState(typeof window !== "undefined" ? window.innerWidth <= bp : false);
+  useEffect(() => {
+    const h = () => setM(window.innerWidth <= bp);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, [bp]);
+  return m;
+}
+
+/* DataGrid カラムの出し分け（splice パターン） */
+var cols: TableColumnDefinition<MyRow>[] = [
+  createTableColumn({ columnId: "name", /* 必ず表示 */ }),
+  createTableColumn({ columnId: "status", /* 必ず表示 */ }),
+];
+if (!isMobile) {
+  cols.splice(1, 0,
+    createTableColumn({ columnId: "detail1", /* デスクトップのみ */ }),
+    createTableColumn({ columnId: "detail2", /* デスクトップのみ */ }),
+  );
+}
+
+/* タブ: モバイルではアイコンのみ */
+<Tab value="tab1" icon={<MyIcon />}>{isMobile ? "" : "ラベル"}</Tab>
+
+/* ボタン: モバイルではテキスト非表示 */
+<Button icon={<AddRegular />}>{isMobile ? "" : t("newRecord")}</Button>
+```
+
+## 15. モーダル編集フォーム（全パターン共通 — 標準 UI）
+
+レコードの詳細表示・編集は **常に Fluent UI Dialog モーダル** で実装する。新しいタブやページ遷移は使わない。
+Choice フィールド（ステータス・優先度等）は **ボタン式トグル** で実装する（Dropdown は使わない）。
+
+### 15.1 モーダル状態管理
+
+```typescript
+// 選択中のレコード（null = モーダル閉じ）
+const [selectedItem, setSelectedItem] = useState<ReadableTableRow<my_entity> | null>(null);
+// 編集フィールド
+const [editName, setEditName] = useState("");
+const [editStatus, setEditStatus] = useState<string>("");
+const [editPriority, setEditPriority] = useState<string>("");
+const [editDesc, setEditDesc] = useState("");
+const [saving, setSaving] = useState(false);
+const [toast, setToast] = useState<string | null>(null);
+
+function openModal(item: ReadableTableRow<my_entity>) {
+  setSelectedItem(item);
+  setEditName(item.my_name as string || "");
+  setEditStatus(String(item.my_status || 100000000));
+  setEditPriority(String(item.my_priority || 100000001));
+  setEditDesc(item.my_description as string || "");
+}
+function closeModal() { setSelectedItem(null); }
+```
+
+### 15.2 保存（Xrm.WebApi — dataApi には書き込みメソッドがない）
+
+```typescript
+async function handleSave() {
+  if (!selectedItem) return;
+  setSaving(true);
+  try {
+    await (window as any).Xrm.WebApi.online.updateRecord(
+      "my_entity", selectedItem.my_entityid as string, {
+        my_name: editName,
+        my_status: parseInt(editStatus),
+        my_priority: parseInt(editPriority),
+        my_description: editDesc,
+      }
+    );
+    setItems(function (prev) {
+      return prev.map(function (w) {
+        if (w.my_entityid === selectedItem.my_entityid) {
+          return { ...w, my_name: editName, my_status: parseInt(editStatus), my_priority: parseInt(editPriority), my_description: editDesc };
+        }
+        return w;
+      });
+    });
+    setSaving(false);
+    setSelectedItem(null);
+    setToast("更新しました");
+    setTimeout(function () { setToast(null); }, 3000);
+  } catch (e) {
+    console.error("save error", e);
+    setSaving(false);
+  }
+}
+```
+
+> **⚠️ `dataApi.updateRecord` は存在しない** — 書き込みは必ず `Xrm.WebApi.online` を使用。
+> **⚠️ `finally { setSaving(false) }` は使わない** — モーダル閉じと競合する。
+
+### 15.3 ボタン式 Choice セレクター（Dropdown の代替）
+
+Choice フィールドは Dropdown ではなく、カラー付きトグルボタンで実装する:
+
+```typescript
+<Field label="ステータス">
+  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+    {[
+      { value: "100000000", label: "未着手", color: tokens.colorNeutralForeground3 },
+      { value: "100000001", label: "作業中", color: P.blue },
+      { value: "100000002", label: "完了", color: P.teal },
+      { value: "100000003", label: "保留", color: P.amber },
+    ].map(function (opt) {
+      var isSelected = editStatus === opt.value;
+      return (
+        <button key={opt.value}
+          onClick={function () { setEditStatus(opt.value); }}
+          style={{
+            padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 500,
+            border: isSelected ? "2px solid " + opt.color : "1.5px solid " + tokens.colorNeutralStroke2,
+            backgroundColor: isSelected ? opt.color : "transparent",
+            color: isSelected ? "#fff" : tokens.colorNeutralForeground1,
+            cursor: "pointer",
+            transitionProperty: "all", transitionDuration: "0.15s",
+          }}>{opt.label}</button>
+      );
+    })}
+  </div>
+</Field>
+```
+
+### 15.4 Dialog JSX（モーダル本体）
+
+```typescript
+<Dialog open={selectedItem !== null}
+  onOpenChange={function (_, data) { if (!data.open) closeModal(); }}>
+  <DialogSurface style={{ maxWidth: 480 }}>
+    <DialogBody>
+      <DialogTitle action={
+        <Button appearance="subtle" icon={<DismissRegular />} onClick={closeModal} />
+      }>レコード編集</DialogTitle>
+      <DialogContent>
+        {selectedItem && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Field label="名前"><Input value={editName} onChange={function (_, d) { setEditName(d.value); }} /></Field>
+            <Field label="ステータス">{/* ボタン式セレクター (§15.3) */}</Field>
+            <Field label="優先度">{/* ボタン式セレクター (§15.3) */}</Field>
+            <Field label="説明"><Input value={editDesc} onChange={function (_, d) { setEditDesc(d.value); }} /></Field>
+          </div>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button appearance="subtle" icon={<OpenRegular />}
+          onClick={function () { if (selectedItem) openDetailForm(selectedItem.my_entityid as string); }}>
+          詳細を開く
+        </Button>
+        <Button appearance="primary" icon={<SaveRegular />}
+          onClick={handleSave} disabled={saving}>
+          {saving ? "保存中..." : "保存"}
+        </Button>
+      </DialogActions>
+    </DialogBody>
+  </DialogSurface>
+</Dialog>
+```
+
+### 15.5 トースト通知
+
+```typescript
+{toast && (
+  <div style={{
+    position: "fixed", top: 16, right: 16, zIndex: 9999,
+    display: "flex", alignItems: "center", gap: 8,
+    padding: "10px 16px", borderRadius: 8,
+    backgroundColor: P.teal, color: "#fff",
+    fontSize: 13, fontWeight: 500,
+    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+    animationName: "fadeInDown", animationDuration: "0.3s",
+  }}>✓ {toast}</div>
+)}
+```
+
+### 15.6 「詳細を開く」ボタン（同タブでフォームへ遷移）
+
+モーダル内に「詳細を開く」ボタンを配置し、同じタブでモデル駆動型アプリのレコードフォームに遷移:
+
+```typescript
+function openDetailForm(id: string) {
+  var url = (window as any).location?.origin || "";
+  window.location.href = url + "/main.aspx?etn=my_entity&id=" + id + "&pagetype=entityrecord";
+}
+```
+
+## 16. 追加 D3 チャートパターン（design-template.md 参照）
+
+以下のチャートのコードスニペットは [design-template.md](design-template.md) の「UI パターンカタログ」に収録:
+
+| チャート種別              | design-template.md セクション | D3 依存                        |
+| ------------------------- | ----------------------------- | ------------------------------ |
+| ステータスボード          | 1.1                           | なし（CSS Grid）               |
+| プログレスバー            | 1.2                           | なし（CSS）                    |
+| タイムライン              | 1.3                           | なし（CSS）                    |
+| ファネル                  | 1.4                           | なし（CSS）                    |
+| ガントチャート風          | 1.5                           | D3 scaleBand + scaleTime       |
+| KPI スコアカード          | 2.1                           | なし（makeStyles）             |
+| カテゴリテーブル          | 2.2                           | なし（CSS）                    |
+| ゲージメーター            | 3.1                           | D3 arc                         |
+| ウォーターフォール        | 3.2                           | D3 scaleBand + scaleLinear     |
+| 混合チャート (棒+線)      | 3.3                           | D3 2軸                         |
+| ヒートマップ              | 3.4                           | D3 scaleBand + scaleSequential |
+| バブルチャート            | 3.5                           | D3 scaleSqrt                   |
+| ツリーマップ              | 3.6                           | なし（CSS Flex）               |
+| レーダーチャート          | 3.7                           | D3 polygon                     |
+| トレンドライン (gradient) | 4.1                           | D3 area + line                 |
+| ドーナツ (上部レジェンド) | 4.2                           | D3 arc                         |
+| 積み上げ棒グラフ          | 4.3                           | D3 stack                       |
+| スパークライン            | 4.4                           | なし（CSS）                    |
+
+## 17. Xrm.WebApi 書き込みパターン
+
+Generative Pages の `dataApi` は読み取り専用。書き込み操作は `Xrm.WebApi.online` を使用:
+
+```typescript
+// 更新
+await (window as any).Xrm.WebApi.online.updateRecord("my_entity", recordId, {
+  my_field1: newValue1,
+  my_status: parseInt(statusValue),
+});
+
+// 作成
+var result = await (window as any).Xrm.WebApi.online.createRecord("my_entity", {
+  my_field1: value1,
+  my_status: 100000000,
+});
+var newId = result.id;
+
+// 削除
+await (window as any).Xrm.WebApi.online.deleteRecord("my_entity", recordId);
+```
+
+> **注意**: `(window as any).Xrm` はモデル駆動型アプリのランタイムでのみ利用可能。ローカル開発環境では存在しない。
+
+**注意**: Gallery 原本は Chart.js を使用しているが、Generative Pages では **D3.js v7 のみ使用可能**。
+上記すべてのパターンは D3.js または純 CSS/HTML で実装済み。
