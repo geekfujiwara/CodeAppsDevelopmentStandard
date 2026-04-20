@@ -191,7 +191,8 @@ def label_jp(text: str) -> dict:
 
 def _save_env_value(key: str, value: str):
     """既存の .env ファイルにキーを追記または更新する"""
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    env_path = os.path.abspath(os.path.join(script_dir, "..", "..", "..", ".env"))
     lines = []
     found = False
     if os.path.exists(env_path):
