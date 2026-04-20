@@ -21,6 +21,7 @@ import os
 import sys
 import time
 import traceback
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -191,8 +192,13 @@ def label_jp(text: str) -> dict:
 
 def _save_env_value(key: str, value: str):
     """既存の .env ファイルにキーを追記または更新する"""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    env_path = os.path.abspath(os.path.join(script_dir, "..", "..", "..", ".env"))
+    script_dir = Path(__file__).resolve().parent
+    default_root = script_dir.parents[2]
+    project_root = next(
+        (p for p in [script_dir, *script_dir.parents] if (p / ".env.example").exists() or (p / ".git").exists()),
+        default_root,
+    )
+    env_path = project_root / ".env"
     lines = []
     found = False
     if os.path.exists(env_path):
