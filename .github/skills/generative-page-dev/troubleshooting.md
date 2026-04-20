@@ -238,7 +238,7 @@ const useStyles = makeStyles({
 ```typescript
 // ❌ NG: viewBox + height: "auto"（Generative Pages で高さ 0px になる）
 svg.attr("viewBox", `0 0 ${width} ${height}`);
-// JSX: <svg ref={ref} style={{ width: "100%", height: "auto" }} />
+// JSX: <svg ref={svgRef} style={{ width: "100%", height: "auto" }} />
 
 // ✅ OK: 明示的 width/height（requestAnimationFrame 内で取得）
 var container = svgRef.current.parentElement;
@@ -246,7 +246,7 @@ var W = container ? container.clientWidth : 400;
 if (W < 200) W = 400;
 var H = 200;
 svg.attr("width", W).attr("height", H);
-// JSX: <div style={{ height: 200, overflow: "hidden" }}><svg ref={ref} style={{ display: "block" }} /></div>
+// JSX: <div style={{ height: 200, overflow: "hidden" }}><svg ref={svgRef} style={{ display: "block" }} /></div>
 ```
 
 ### 4.3 地図表示で特定ブラウザのみ問題
@@ -345,14 +345,14 @@ async function handleSave() {
 ```typescript
 // ❌ NG: viewBox + height: "auto"
 svg.attr("viewBox", "0 0 500 200");
-// JSX: <svg ref={ref} style={{ width: "100%", height: "auto" }} />
+// JSX: <svg ref={svgRef} style={{ width: "100%", height: "auto" }} />
 
 // ✅ OK: 明示的 width/height
 var container = svgRef.current.parentElement;
 var W = container ? container.clientWidth : 400;
 var H = 200;
 svg.attr("width", W).attr("height", H);
-// JSX: <div style={{ height: 200, overflow: "hidden" }}><svg ref={ref} style={{ display: "block" }} /></div>
+// JSX: <div style={{ height: 200, overflow: "hidden" }}><svg ref={svgRef} style={{ display: "block" }} /></div>
 ```
 
 **重要**: SVG のラッパー `<div>` にも明示的な `height` を設定すること。`height: "auto"` は禁止。
