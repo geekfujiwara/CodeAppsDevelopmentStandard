@@ -65,7 +65,7 @@ TENANT_ID: str = os.getenv("TENANT_ID", "")
 DATAVERSE_URL: str = os.getenv("DATAVERSE_URL", "").rstrip("/")
 
 # AuthenticationRecord の保存先（プロジェクトルートの .auth_record.json）
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_PROJECT_ROOT = Path(__file__).resolve().parent
 AUTH_RECORD_PATH: Path = _PROJECT_ROOT / ".auth_record.json"
 
 # Dataverse Web API のデフォルトスコープ
