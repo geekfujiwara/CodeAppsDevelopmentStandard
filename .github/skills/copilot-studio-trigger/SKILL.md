@@ -1,6 +1,17 @@
 ---
 name: copilot-studio-trigger
-description: "Copilot Studio エージェントに外部トリガー（メール受信・Teams メッセージ・スケジュール等）を追加する。Power Automate フローと ExternalTriggerComponent を連携させてエージェントを自動起動する。Use when: Copilot Studio トリガー, メール受信, エージェント自動起動, ExternalTriggerComponent, ExecuteCopilot, Power Automate トリガー, Office 365 Outlook, OnNewEmailV3, メールトリガー"
+description: "Copilot Studio エージェントに外部トリガー（メール受信・Teams メッセージ・スケジュール等）を追加する。Power Automate フローと ExternalTriggerComponent を連携させてエージェントを自動起動する。"
+category: automation
+triggers:
+  - "Copilot Studio トリガー"
+  - "メール受信"
+  - "エージェント自動起動"
+  - "ExternalTriggerComponent"
+  - "ExecuteCopilot"
+  - "Power Automate トリガー"
+  - "Office 365 Outlook"
+  - "OnNewEmailV3"
+  - "メールトリガー"
 ---
 
 # Copilot Studio 外部トリガー構築スキル
@@ -894,9 +905,9 @@ def deploy_trigger_flow(flow_name, clientdata, solution_name):
 
 ## トリガーパターン・設計ガイド
 
-詳細なトリガーパターン（メール受信、Teams、スケジュール、Dataverse、SharePoint、OneDrive）は [トリガーパターンリファレンス](trigger-patterns.md) を参照。
+詳細なトリガーパターン（メール受信、Teams、スケジュール、Dataverse、SharePoint、OneDrive）は [トリガーパターンリファレンス](references/trigger-patterns.md) を参照。
 
-Teams 連携の設計ガイド・フロー後処理パターン・トラブルシューティングは [トラブルシューティング・設計ガイド](troubleshooting.md) を参照。
+Teams 連携の設計ガイド・フロー後処理パターン・トラブルシューティングは [トラブルシューティング・設計ガイド](references/troubleshooting.md) を参照。
 
 ## .env 項目
 

@@ -1,6 +1,23 @@
 ---
 name: market-research-report
-description: "最新情報を自動収集・分析しレポートとして配信するエージェントを Copilot Studio + スケジュールフロー + RSS + Web検索 + Work IQ MCP で構築する。Use when: 自動リサーチ, レポート自動生成, RSS, Web検索, 定期配信, スケジュールトリガー, Work IQ MCP, メール配信, 情報収集エージェント, ニュースレター, ダイジェスト, 競合分析, 技術動向, 規制動向, ニュースエージェント"
+description: "最新情報を自動収集・分析しレポートとして配信するエージェントを Copilot Studio + スケジュールフロー + RSS + Web検索 + Work IQ MCP で構築する。"
+category: automation
+triggers:
+  - "自動リサーチ"
+  - "レポート自動生成"
+  - "RSS"
+  - "Web検索"
+  - "定期配信"
+  - "スケジュールトリガー"
+  - "Work IQ MCP"
+  - "メール配信"
+  - "情報収集エージェント"
+  - "ニュースレター"
+  - "ダイジェスト"
+  - "競合分析"
+  - "技術動向"
+  - "規制動向"
+  - "ニュースエージェント"
 ---
 
 # ニュース収集・配信エージェント構築スキル
@@ -281,7 +298,7 @@ conversationStarters:
 
 ### HTML メールテンプレート
 
-Step5 で使用する HTML メールテンプレートの詳細仕様は [HTML メールテンプレートリファレンス](html-email-template.md) を参照。
+Step5 で使用する HTML メールテンプレートの詳細仕様は [HTML メールテンプレートリファレンス](references/html-email-template.md) を参照。
 
 ## 構築手順
 
@@ -589,4 +606,4 @@ Step3 Web 検索で注目記事の一次ソースを確認する
 
 ## デプロイ詳細
 
-再利用スクリプト・GPT コンポーネント設定・教訓の詳細は [デプロイメントガイド](deployment-guide.md) を参照。
+再利用スクリプト・GPT コンポーネント設定・教訓の詳細は [デプロイメントガイド](references/deployment-guide.md) を参照。

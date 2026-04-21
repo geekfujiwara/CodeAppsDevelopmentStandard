@@ -1,6 +1,17 @@
 ---
 name: ai-builder-prompt
-description: "AI Builder の AI プロンプトを作成し Copilot Studio エージェントにツールとして追加する。Use when: AI Builder, AI プロンプト, GPT Prompt, AIプロンプト作成, エージェントツール追加, msdyn_aimodel, InvokeAIBuilderModelTaskAction, プロンプトデプロイ, AI Prompt"
+description: "AI Builder の AI プロンプト（GPT Dynamic Prompt）を Dataverse API で作成し、Copilot Studio エージェントにツール（アクション）として追加する。"
+category: ai
+triggers:
+  - "AI Builder"
+  - "AI プロンプト"
+  - "GPT Prompt"
+  - "AIプロンプト作成"
+  - "エージェントツール追加"
+  - "msdyn_aimodel"
+  - "InvokeAIBuilderModelTaskAction"
+  - "プロンプトデプロイ"
+  - "AI Prompt"
 ---
 
 # AI Builder AI プロンプト構築スキル
@@ -233,7 +244,7 @@ outputMode: All
 
 ## 構築手順
 
-詳細な構築手順・デプロイスクリプトテンプレートは [構築リファレンス](build-reference.md) を参照。
+詳細な構築手順・デプロイスクリプトテンプレートは [構築リファレンス](references/build-reference.md) を参照。
 
 ## 絶対遵守ルール
 
@@ -324,4 +335,4 @@ AI_PROMPT_BOT_ID=https://copilotstudio.../bots/xxxxxxxx-xxxx-.../overview
 
 ## デプロイ・トラブルシューティング
 
-デプロイスクリプトテンプレート・ファイル入力制限事項・トラブルシューティングは [構築リファレンス](build-reference.md) を参照。
+デプロイスクリプトテンプレート・ファイル入力制限事項・トラブルシューティングは [構築リファレンス](references/build-reference.md) を参照。

@@ -1,6 +1,22 @@
 ---
 name: icon-creation
-description: "Power Platform のアイコンを Pillow で PNG/SVG 生成し API 登録する。Copilot Studio エージェント・Dataverse テーブル・モデル駆動型アプリで共通利用。Use when: アイコン作成, アイコン生成, icon, PNG, SVG, Pillow, iconbase64, colorIcon, outlineIcon, WebResource, IconVectorName, テーブルアイコン, エージェントアイコン, アプリアイコン"
+description: "Power Platform のアイコンを Pillow で PNG/SVG 生成し API 登録する。Copilot Studio エージェント・Dataverse テーブル・モデル駆動型アプリで共通利用。"
+category: shared
+triggers:
+  - "アイコン作成"
+  - "アイコン生成"
+  - "icon"
+  - "PNG"
+  - "SVG"
+  - "Pillow"
+  - "iconbase64"
+  - "colorIcon"
+  - "outlineIcon"
+  - "WebResource"
+  - "IconVectorName"
+  - "テーブルアイコン"
+  - "エージェントアイコン"
+  - "アプリアイコン"
 ---
 
 # アイコン作成スキル

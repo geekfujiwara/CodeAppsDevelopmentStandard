@@ -1,6 +1,19 @@
 ---
 name: security-role
-description: "カスタムセキュリティロールを Dataverse Web API で作成・権限設定・ソリューション追加する。Use when: セキュリティロール, Security Role, 権限設定, ロール作成, AddPrivilegesRole, ReplacePrivilegesRole, PrivilegeDepth, アクセス制御, RBAC, ロール権限, テーブル権限"
+description: "カスタムセキュリティロールを Dataverse Web API（roles / privileges テーブル + AddPrivilegesRole アクション）でソリューション対応で作成・権限設定する。"
+category: data
+triggers:
+  - "セキュリティロール"
+  - "Security Role"
+  - "権限設定"
+  - "ロール作成"
+  - "AddPrivilegesRole"
+  - "ReplacePrivilegesRole"
+  - "PrivilegeDepth"
+  - "アクセス制御"
+  - "RBAC"
+  - "ロール権限"
+  - "テーブル権限"
 ---
 
 # カスタムセキュリティロール構築スキル
@@ -260,9 +273,9 @@ headers["MSCRM.SolutionName"] = SOLUTION_NAME
 
 ## テンプレート・デプロイ
 
-ロールテンプレートパターン・デプロイスクリプトの詳細は [デプロイリファレンス](deploy-reference.md) を参照。
+ロールテンプレートパターン・デプロイスクリプトの詳細は [デプロイリファレンス](references/deploy-reference.md) を参照。
 
-トラブルシューティングは [トラブルシューティング](troubleshooting.md) を参照。
+トラブルシューティングは [トラブルシューティング](references/troubleshooting.md) を参照。
 
 ## .env パラメータ
 

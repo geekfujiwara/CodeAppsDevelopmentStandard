@@ -1,6 +1,19 @@
 ---
 name: power-automate-flow
-description: "Power Automate クラウドフローを Dataverse Web API で作成・デプロイする。Use when: Power Automate, フロー作成, クラウドフロー, 接続参照, Connection Reference, workflow, トリガー, アクション, フローデプロイ, ステータス変更通知, メール通知"
+description: "Power Automate クラウドフローを Dataverse Web API（workflow テーブル）でソリューション対応で作成・デプロイする。"
+category: automation
+triggers:
+  - "Power Automate"
+  - "フロー作成"
+  - "クラウドフロー"
+  - "接続参照"
+  - "Connection Reference"
+  - "workflow"
+  - "トリガー"
+  - "アクション"
+  - "フローデプロイ"
+  - "ステータス変更通知"
+  - "メール通知"
 ---
 
 # Power Automate クラウドフロー構築スキル
@@ -317,7 +330,7 @@ with open("flow_debug.json", "w", encoding="utf-8") as f:
 
 ## 代表的パターン
 
-詳細なトリガー・アクションパターン（SharePoint、Dataverse、Teams、AI Builder、OneDrive PDF 変換等）は [トリガー・アクションパターンリファレンス](trigger-action-patterns.md) を参照。
+詳細なトリガー・アクションパターン（SharePoint、Dataverse、Teams、AI Builder、OneDrive PDF 変換等）は [トリガー・アクションパターンリファレンス](references/trigger-action-patterns.md) を参照。
 
 ## .env 必須項目
 

@@ -1,6 +1,19 @@
 ---
 name: architecture-design
-description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。Use when: アーキテクチャ設計, 全体設計, コンポーネント選定, 技術選定, Copilot Studio vs Power Automate, Code Apps vs Canvas Apps, AI Builder, 統合パターン, 設計判断, どれを使う, 使い分け"
+description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。"
+category: architecture
+triggers:
+  - "アーキテクチャ設計"
+  - "全体設計"
+  - "コンポーネント選定"
+  - "技術選定"
+  - "Copilot Studio vs Power Automate"
+  - "Code Apps vs Canvas Apps"
+  - "AI Builder"
+  - "統合パターン"
+  - "設計判断"
+  - "どれを使う"
+  - "使い分け"
 ---
 
 # Power Platform 共通アーキテクチャデザインスキル
@@ -328,7 +341,7 @@ Q: その AI 処理は再利用するか？
 
 ## 統合パターン・テンプレート
 
-統合アーキテクチャパターン集・設計アウトプットテンプレート・よくある判断ミスは [設計リファレンス](design-patterns.md) を参照。
+統合アーキテクチャパターン集・設計アウトプットテンプレート・よくある判断ミスは [設計リファレンス](references/design-patterns.md) を参照。
 
 ## 10. 判断チェックリスト（設計開始時に確認）
 

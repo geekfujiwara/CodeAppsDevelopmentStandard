@@ -1,6 +1,19 @@
 ---
 name: copilot-studio-agent
-description: "Copilot Studio エージェントを生成オーケストレーションモードで構築・設定する。Use when: Copilot Studio, エージェント作成, Bot, 生成オーケストレーション, Instructions, 指示, ナレッジ, MCP Server, PvaPublish, ボット設定, エージェント公開"
+description: "Copilot Studio エージェントを生成オーケストレーション（Generative Orchestration）モードで構築・設定する。トピックベース開発は行わない。"
+category: automation
+triggers:
+  - "Copilot Studio"
+  - "エージェント作成"
+  - "Bot"
+  - "生成オーケストレーション"
+  - "Instructions"
+  - "指示"
+  - "ナレッジ"
+  - "MCP Server"
+  - "PvaPublish"
+  - "ボット設定"
+  - "エージェント公開"
 ---
 
 # Copilot Studio エージェント構築スキル
@@ -197,7 +210,7 @@ if ai_idx >= 0:
 
 ## 構築手順
 
-詳細な構築手順・スクリプトコードは [構築リファレンス](build-reference.md) を参照。
+詳細な構築手順・スクリプトコードは [構築リファレンス](references/build-reference.md) を参照。
 
 高レベルの手順:
 
@@ -210,7 +223,7 @@ if ai_idx >= 0:
 7. **Step 7-8**: Teams / Copilot チャネル公開設定
 8. **Step 9**: ナレッジ・ツール・トリガーの手動追加案内
 
-Instructions テンプレート・既存エージェント改善パターンは [構築リファレンス](build-reference.md#instructions-テンプレート) を参照。
+Instructions テンプレート・既存エージェント改善パターンは [構築リファレンス](references/build-reference.md#instructions-テンプレート) を参照。
 
 ## .env 必須項目
 
