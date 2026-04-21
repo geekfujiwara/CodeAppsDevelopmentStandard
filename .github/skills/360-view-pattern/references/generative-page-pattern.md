@@ -833,7 +833,7 @@ function TimelineTab(props: {
 | 編集フォームフィールド | Dialog 内のフォームを実際のフィールドに置き換え |
 | D3 チャート | ドメイン固有の可視化（稼働率推移、コスト内訳等） |
 
-### 注意事項（generative-page-dev スキルの絶対遵守ルール準拠）
+### 注意事項（[generative-page-dev スキル](../../generative-page-dev/SKILL.md) の絶対遵守ルール準拠）
 
 - **React 17 構文のみ** — `useId`, `useTransition` 等は使用不可
 - **DataAPI は読み取り専用** — 書き込みは `(window as any).Xrm.WebApi.online` を使用
