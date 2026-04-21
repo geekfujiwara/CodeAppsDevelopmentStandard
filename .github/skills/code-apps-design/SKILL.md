@@ -1,6 +1,28 @@
 ---
 name: code-apps-design
-description: "CodeAppsStarter のデザインシステムを利用して Code Apps の UI を構築する。Use when: Code Apps デザイン, UI 設計, コンポーネント選定, 画面レイアウト, ギャラリー, テーブル, カンバン, ガントチャート, ダッシュボード, フォーム, shadcn, Tailwind, デザイン例, StatsCards, KanbanBoard, ListTable, InlineEditTable, SearchFilterGallery, GanttChart, TreeStructure"
+description: "CodeAppsStarter のデザインシステムを利用して Code Apps の UI を構築する。shadcn/ui + Tailwind CSS v4 のコンポーネントライブラリによる画面設計・コンポーネント選定。"
+category: ui
+triggers:
+  - "Code Apps デザイン"
+  - "UI 設計"
+  - "コンポーネント選定"
+  - "画面レイアウト"
+  - "ギャラリー"
+  - "テーブル"
+  - "カンバン"
+  - "ガントチャート"
+  - "ダッシュボード"
+  - "フォーム"
+  - "shadcn"
+  - "Tailwind"
+  - "デザイン例"
+  - "StatsCards"
+  - "KanbanBoard"
+  - "ListTable"
+  - "InlineEditTable"
+  - "SearchFilterGallery"
+  - "GanttChart"
+  - "TreeStructure"
 ---
 
 # Code Apps デザインシステムスキル
@@ -51,7 +73,7 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 
 ## コンポーネント・画面パターン
 
-コンポーネントカタログ・ユーティリティ・テーマ変数・画面設計パターンの詳細は [コンポーネントリファレンス](component-catalog.md) を参照。
+コンポーネントカタログ・ユーティリティ・テーマ変数・画面設計パターンの詳細は [コンポーネントリファレンス](references/component-catalog.md) を参照。
 
 ## コンポーネント選定ガイド
 

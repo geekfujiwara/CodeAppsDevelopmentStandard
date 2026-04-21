@@ -1,6 +1,18 @@
 ---
 name: html-email-template
-description: "HTML メールテンプレートのデザインシステム。エージェント Instructions やフロー通知で使うリッチな HTML メールの構造・スタイル・カラーパレットを標準化する。Use when: HTML メール, メール送信, メールテンプレート, HTMLメールデザイン, リッチメール, メール通知, ニュースレター, レポートメール, Work IQ MCP メール, メールフォーマット"
+description: "HTML メールテンプレートのデザインシステム。エージェント Instructions やフロー通知で使うリッチな HTML メールの構造・スタイル・カラーパレットを標準化する。"
+category: ui
+triggers:
+  - "HTML メール"
+  - "メール送信"
+  - "メールテンプレート"
+  - "HTMLメールデザイン"
+  - "リッチメール"
+  - "メール通知"
+  - "ニュースレター"
+  - "レポートメール"
+  - "Work IQ MCP メール"
+  - "メールフォーマット"
 ---
 
 # HTML メールテンプレート デザインシステム
@@ -132,4 +144,4 @@ font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 
 ## 詳細リファレンス
 
-セクションコンポーネント・用途別テンプレート・他スキルからの参照方法は [テンプレートリファレンス](template-components.md) を参照。
+セクションコンポーネント・用途別テンプレート・他スキルからの参照方法は [テンプレートリファレンス](references/template-components.md) を参照。
