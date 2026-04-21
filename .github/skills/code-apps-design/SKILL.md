@@ -23,6 +23,12 @@ triggers:
   - "SearchFilterGallery"
   - "GanttChart"
   - "TreeStructure"
+  - "日本地図"
+  - "地図"
+  - "マップ"
+  - "都道府県"
+  - "地域別"
+  - "JapanMap"
 ---
 
 # Code Apps デザインシステムスキル
@@ -93,3 +99,4 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 | 確認ダイアログ | `ConfirmDialog`（destructive 対応）or `AlertDialog` |
 | ローディング | `LoadingSkeletonGrid`（variant: default/compact/detailed） |
 | コード表示 | `CodeBlock`（コピー機能付き） |
+| 地域別データを地図で可視化 | `JapanMap`（SVG 都道府県クリック + 色分け + 地方フィルタ）— [日本地図パターン](references/japan-map-pattern.md) 参照 |

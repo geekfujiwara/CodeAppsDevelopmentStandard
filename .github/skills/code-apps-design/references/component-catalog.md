@@ -350,3 +350,49 @@ PowerProvider → ThemeProvider → SonnerProvider → QueryProvider → RouterP
   </Tabs>
 </div>
 ```
+
+### パターン 6: 日本地図ダッシュボード
+
+詳細な実装パターン・コンポーネント定義・Dataverse 連携は [日本地図パターン](japan-map-pattern.md) を参照。
+SVG アセットは `public/maps/` に格納（map-full.svg / map-mobile.svg / map-circle.svg / map-polygon.svg）。
+
+```tsx
+// ページ構成: StatsCards → JapanMap + 詳細パネル + ListTable
+<div className="space-y-6">
+  <StatsCards cards={regionStats} />
+  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <Card className="lg:col-span-2">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>地域別データ</CardTitle>
+        <Select value={selectedRegion} onValueChange={setSelectedRegion}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="地方を選択" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全国</SelectItem>
+            <SelectItem value="hokkaido">北海道</SelectItem>
+            <SelectItem value="tohoku">東北</SelectItem>
+            <SelectItem value="kanto">関東</SelectItem>
+            <SelectItem value="chubu">中部</SelectItem>
+            <SelectItem value="kinki">近畿</SelectItem>
+            <SelectItem value="chugoku">中国</SelectItem>
+            <SelectItem value="shikoku">四国</SelectItem>
+            <SelectItem value="kyushu-okinawa">九州・沖縄</SelectItem>
+          </SelectContent>
+        </Select>
+      </CardHeader>
+      <CardContent>
+        <JapanMap data={prefectureData} selectedRegion={selectedRegion} onPrefectureClick={setSelectedPrefecture} />
+        <MapLegend items={legendItems} />
+      </CardContent>
+    </Card>
+    <Card>
+      <CardHeader><CardTitle>{selectedPrefecture ? prefectureNames[selectedPrefecture] : "都道府県を選択"}</CardTitle></CardHeader>
+      <CardContent><PrefectureDetail code={selectedPrefecture} data={prefectureData} /></CardContent>
+    </Card>
+  </div>
+  <Card>
+    <CardContent>
+      <ListTable data={tableData} columns={prefectureColumns} searchKeys={["name"]} />
+    </CardContent>
+  </Card>
+</div>
+```
