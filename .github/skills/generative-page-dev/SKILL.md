@@ -50,7 +50,7 @@ uuid: ^9.0.1
 12. **ダークモードはデフォルトで実装しない** — ユーザーが明示的にダークモード対応を要求した場合のみ `themeToVars` パターンを実装する。デフォルトは Fluent UI のシステムテーマに従う（追加実装なし）
 13. **Lookup 展開フィールドを `select` に含めない** — `em_equipmentname` 等の Lookup 先の名前フィールドは DataAPI の `select` に指定すると `Could not find a property` エラーになる。`_xxx_value`（FK ID）のみを select し、別テーブルから取得した名前を `useMemo` Map でクライアントサイド名前解決する
 14. **`--add-to-sitemap` を使わない** — PAC CLI の `--add-to-sitemap` はタイトルなしの SubArea を追加してしまう。SiteMap は `deploy_model_app.py` 等で `GenPageId` 属性 + `<Titles>` 付きの SubArea を自前で管理する
-15. **レコード編集は常にモーダル** — 新しいタブやページ遷移ではなく、Fluent UI `Dialog` でモーダル編集フォームを表示。「詳細を開く」ボタンで同タブのレコードフォームへ遷移するオプションも提供
+15. **レコード編集は常にモーダル（初回デプロイ必須）** — 新しいタブやページ遷移ではなく、Fluent UI `Dialog` でモーダル編集フォームを表示。「詳細を開く」ボタンで同タブのレコードフォームへ遷移するオプションも提供。**モーダル・トースト・ボタン式 Choice は「段階的改善」ではなく初回デプロイのファイルに必ず含める**。実装詳細は code-patterns.md §15 参照
 16. **Choice フィールドはボタン式トグル** — Dropdown ではなく、カラー付きトグルボタンで実装。選択中はボタンが塗りつぶされ、未選択はアウトラインのみ
 17. **保存後にトースト通知** — 保存成功時は右上に緑色のトースト（3秒で自動消去）。`setSaving(false)` → `setSelectedItem(null)` → `setToast()` の順で state 更新。`finally { setSaving(false) }` は使わない（モーダル閉じと競合する）
 18. **SiteMap 更新はデプロイの一部（省略禁止）** — `pac model genpage upload` を実行したら、同じ作業内で必ず SiteMap を API で更新する。ユーザーに「更新しますか？」と聞かず自動的に行う。既存 SiteMap を `PATCH sitemaps({id})` で更新し、`PublishXml` で公開する
@@ -133,21 +133,90 @@ import {
   makeStyles,
   tokens,
   Card,
-  Text /* ... */,
+  Text,
+  Button,
+  Spinner,
+  Input,
+  Badge,
+  Dropdown,
+  Option,
+  TabList,
+  Tab,
+  Dialog,
+  DialogSurface,
+  DialogBody,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Field,
 } from "@fluentui/react-components";
-import { IconRegular } from "@fluentui/react-icons";
+import {
+  DismissRegular,
+  OpenRegular,
+  SaveRegular,
+  SearchRegular,
+  /* その他必要なアイコン */
+} from "@fluentui/react-icons";
 import * as d3 from "d3";
 
-// ユーティリティ関数（トップレベル）
+/* カラーパレット（全ページ共通） */
+var P = {
+  blue: "#2d5faa", teal: "#1a8f6e", coral: "#c4532a",
+  purple: "#6b5fc7", amber: "#b8850e", red: "#c43a3a", green: "#3a8a2e",
+};
+
+// ユーティリティ関数（loadAllRows, fkId, num, parseDate 等）
 // サブコンポーネント（トップレベル関数）
 
+/* ---------- スタイル ---------- */
+const useStyles = makeStyles({
+  root: { /* ... */ },
+  /* モーダル・トースト用スタイルは不要 — インラインスタイルで実装 */
+});
+
+/* ---------- メインコンポーネント ---------- */
 const GeneratedComponent = (props: GeneratedComponentProps) => {
+  const styles = useStyles();
   const { dataApi } = props;
-  // 実装
+
+  /* --- データ state --- */
+  const [items, setItems] = useState<ReadableTableRow<entity_name>[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  /* --- モーダル state（★初回デプロイに必ず含める） --- */
+  const [selectedItem, setSelectedItem] = useState<ReadableTableRow<entity_name> | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editStatus, setEditStatus] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  /* openModal, closeModal, handleSave → code-patterns.md §15 参照 */
+
+  return (
+    <div className={styles.root}>
+      {/* メインコンテンツ */}
+
+      {/* ★ モーダル編集フォーム（Dialog + ボタン式 Choice） → code-patterns.md §15.4 */}
+
+      {/* ★ トースト通知 → code-patterns.md §15.5 */}
+      {toast && (
+        <div style={{
+          position: "fixed", top: 16, right: 16, zIndex: 9999,
+          padding: "10px 16px", borderRadius: 8,
+          backgroundColor: P.teal, color: "#fff",
+          fontSize: 13, fontWeight: 500,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+        }}>✓ {toast}</div>
+      )}
+    </div>
+  );
 };
 
 export default GeneratedComponent;
 ```
+
+> **★ モーダル・トースト・ボタン式 Choice は Tier 1 — 初回デプロイに必ず含める。**
+> 完全な実装コードは [code-patterns.md §15](code-patterns.md) を参照。
 
 ### Step 5: デプロイ
 
