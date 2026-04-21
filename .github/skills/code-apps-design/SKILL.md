@@ -93,3 +93,4 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 | 確認ダイアログ | `ConfirmDialog`（destructive 対応）or `AlertDialog` |
 | ローディング | `LoadingSkeletonGrid`（variant: default/compact/detailed） |
 | コード表示 | `CodeBlock`（コピー機能付き） |
+| マスターの360度詳細 | `360-view-pattern` スキル（プロファイル + タブ切替で関連トランザクション一覧・チャート・タイムライン） |
