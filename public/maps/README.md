@@ -1,6 +1,6 @@
 # 日本地図 SVG アセット
 
-[geolonia/japanese-prefectures](https://github.com/geolonia/japanese-prefectures) から取得した、都道府県別にグループ化された SVG フォーマットの日本地図。
+都道府県別にグループ化された SVG フォーマットの日本地図。
 
 ## ファイル一覧
 
@@ -22,5 +22,4 @@
 
 ## ライセンス
 
-SVG データは [geolonia/japanese-prefectures](https://github.com/geolonia/japanese-prefectures) から取得。
 原典は Wikipedia の「日本地図.svg」をベースとしており、ライセンスは GFDL。

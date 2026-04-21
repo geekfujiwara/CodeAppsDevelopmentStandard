@@ -3,8 +3,6 @@
 Generative Pages で日本地図を表示し、都道府県別のデータ可視化を行うデザインパターン。
 SVG アセットは `public/maps/` に格納済み。
 
-> **出典**: [geolonia/japanese-prefectures](https://github.com/geolonia/japanese-prefectures)（GFDL ライセンス）
-
 ---
 
 ## SVG ファイル選定ガイド
