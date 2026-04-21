@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <svg class="geolonia-svg-map" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
   <title>Japanese Prefectures</title>
-  <desc>Created by Geolonia (https://geolonia.com/).</desc>
+  <desc>Created by Geek Fujiwara (https://www.yourdigitallaunchpad.com/).</desc>
   <g class="svg-map" transform="matrix(1.028807, 0, 0, 1.028807, -47.544239, -28.806583)">
     <g class="prefectures" transform="matrix(1, 0, 0, 1, 6, 18)">
       <g class="okinawa kyushu-okinawa prefecture" data-code="47" stroke-linejoin="round" fill="#EEEEEE" fill-rule="nonzero" stroke="#000000" stroke-width="1.0" transform="translate(52.000000, 193.000000)">
