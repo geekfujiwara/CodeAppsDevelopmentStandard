@@ -16,7 +16,7 @@ connectionReferences は runtimeSource + connectionReferenceLogicalName 形式�
   1. .env に DATAVERSE_URL, TENANT_ID を設定
   2. 接続を事前作成: SharePoint, Dataverse
      https://make.powerautomate.com/connections
-  3. python .github/skills/power-automate-flow/deploy_flow_sp_incident_v2.py
+  3. python .github/skills/power-automate-flow/scripts/deploy_flow_sp_incident_v2.py
 """
 
 import json
@@ -26,7 +26,7 @@ import time
 
 _this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _this_dir)
-sys.path.insert(0, os.path.join(_this_dir, "..", "power-platform-standard"))
+sys.path.insert(0, os.path.join(_this_dir, "..", "..", "power-platform-standard", "scripts"))
 
 import requests
 from dotenv import load_dotenv

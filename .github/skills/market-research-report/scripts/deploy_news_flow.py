@@ -9,7 +9,7 @@
   - トリガー追加によりフローが自動作成されている
 
 Usage:
-  python .github/skills/market-research-report/deploy_news_flow.py <BOT_ID or URL>
+  python .github/skills/market-research-report/scripts/deploy_news_flow.py <BOT_ID or URL>
 """
 
 import json
@@ -19,7 +19,7 @@ import sys
 
 _this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _this_dir)
-sys.path.insert(0, os.path.join(_this_dir, "..", "power-platform-standard"))
+sys.path.insert(0, os.path.join(_this_dir, "..", "..", "power-platform-standard", "scripts"))
 
 import requests
 from dotenv import load_dotenv
@@ -59,7 +59,7 @@ def find_bot():
         return b["botid"], b["schemaname"]
 
     print("  ❌ Bot が見つかりません")
-    print("  Usage: python .github/skills/market-research-report/deploy_news_flow.py <BOT_ID or URL>")
+    print("  Usage: python .github/skills/market-research-report/scripts/deploy_news_flow.py <BOT_ID or URL>")
     sys.exit(1)
 
 
@@ -194,7 +194,7 @@ def main():
         print("    1. エージェント → 左メニュー「トリガー」")
         print("    2. 「+ トリガーの追加」→ 「Recurrence」を選択")
         print("    3. フローが自動作成されるまで待つ")
-        print("    4. 再実行: python .github/skills/market-research-report/deploy_news_flow.py <BOT_ID or URL>")
+        print("    4. 再実行: python .github/skills/market-research-report/scripts/deploy_news_flow.py <BOT_ID or URL>")
         sys.exit(1)
 
     update_flow(flow, bot_schema)

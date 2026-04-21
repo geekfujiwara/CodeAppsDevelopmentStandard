@@ -21,7 +21,7 @@ Phase 3: UI で作成済みの Bot に対して設定を適用
 使い方:
   1. Copilot Studio UI でエージェントを作成
   2. .env に BOT_ID=<作成した Bot のID> を追加
-  3. python .github/skills/copilot-studio-agent/deploy_agent.py
+  3. python .github/skills/copilot-studio-agent/scripts/deploy_agent.py
 """
 
 import json
@@ -34,7 +34,7 @@ import re
 # スキルフォルダと共通認証モジュールを sys.path に追加
 _this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _this_dir)
-sys.path.insert(0, os.path.join(_this_dir, "..", "power-platform-standard"))
+sys.path.insert(0, os.path.join(_this_dir, "..", "..", "power-platform-standard", "scripts"))
 
 import base64
 import requests
@@ -367,7 +367,7 @@ def find_bot() -> str:
     print(f"    6. 作成後のブラウザ URL をそのまま .env に貼り付け:")
     print(f"       BOT_ID=https://copilotstudio.../bots/xxxxxxxx-xxxx-xxxx-.../overview")
     print(f"       （GUID だけでも OK: BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）")
-    print(f"    7. 再実行: python .github/skills/copilot-studio-agent/deploy_agent.py")
+    print(f"    7. 再実行: python .github/skills/copilot-studio-agent/scripts/deploy_agent.py")
     print()
     print("  ※ Dataverse bots テーブルへの直接挿入では PVA にプロビジョニングされません")
     sys.exit(1)

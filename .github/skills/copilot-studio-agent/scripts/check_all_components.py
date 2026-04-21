@@ -1,7 +1,7 @@
 """Bot の全 botcomponent を一覧表示する"""
 import os, sys, json
 _this_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(_this_dir, "..", "power-platform-standard"))
+sys.path.insert(0, os.path.join(_this_dir, "..", "..", "power-platform-standard", "scripts"))
 from auth_helper import get_token, DATAVERSE_URL
 import requests
 

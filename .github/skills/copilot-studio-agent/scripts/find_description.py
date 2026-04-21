@@ -1,6 +1,8 @@
 """Bot の全コンポーネントから 'test' を含むものを検索"""
+import os, sys
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(_this_dir, "..", "..", "power-platform-standard", "scripts"))
 from auth_helper import get_session
-import os
 
 s = get_session()
 url = os.getenv("DATAVERSE_URL").rstrip("/")

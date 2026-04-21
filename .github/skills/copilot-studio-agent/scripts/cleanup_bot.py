@@ -1,7 +1,7 @@
 """一時スクリプト: 壊れた Bot を削除する"""
 import os, sys, requests
 _this_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(_this_dir, "..", "power-platform-standard"))
+sys.path.insert(0, os.path.join(_this_dir, "..", "..", "power-platform-standard", "scripts"))
 from auth_helper import get_token, DATAVERSE_URL
 
 token = get_token()

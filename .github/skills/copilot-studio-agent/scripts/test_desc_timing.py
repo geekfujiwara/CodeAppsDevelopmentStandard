@@ -1,6 +1,8 @@
 """description の設定タイミングを検証: data PATCH → description PATCH → publish → 再確認"""
+import os, sys
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(_this_dir, "..", "..", "power-platform-standard", "scripts"))
 from auth_helper import api_patch, api_post, api_get, get_session
-import os
 
 s = get_session()
 url = os.getenv("DATAVERSE_URL").rstrip("/")
