@@ -118,7 +118,8 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
 npx power-apps init --display-name "アプリ名" --environment-id {ENV_ID} --non-interactive
 npm install
 npm run build
-npx power-apps push --non-interactive    # ← まずデプロイ！
+pac code push -env {ENV_ID} -s {SOLUTION_NAME}  # ← まずデプロイ！
+# ↑ npx power-apps push でテナント不一致エラーが出る場合は pac code push を使う
 # この時点で Power Platform にアプリが登録され Dataverse 接続が確立
 npx power-apps add-data-source ...       # ← その後にデータソース追加
 
@@ -136,6 +137,38 @@ npx power-apps add-data-source ...       # ← その後にデータソース追
      --resource-name {table_logical_name} \
      --org-url {DATAVERSE_URL} --non-interactive
 ```
+
+### npx power-apps push/add-data-source テナント不一致問題（検証済 2026-04-22）
+
+`npx power-apps push` / `npx power-apps add-data-source` が内部で異なるテナントで環境を検索し、
+`ServiceToServiceEnvironmentNotFound` (404) を返す場合がある。
+
+```
+❌ npx power-apps push --non-interactive
+   → HTTP error status: 404 for POST .../generateResourceStorage
+   → The environment '...' could not be found in the tenant '...'
+   → 内部で使用するテナント ID が実際の環境テナントと異なる
+
+✅ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
+   → PAC CLI は pac auth の認証プロファイルを使うためテナント解決が正確
+   → -env で環境 ID を明示指定
+```
+
+```
+❌ npx power-apps add-data-source --api-id dataverse --resource-name {table}
+   → 同様にテナント不一致で org-url プロンプトが表示される
+
+✅ npx power-apps add-data-source --api-id dataverse \
+     --resource-name {table} \
+     --org-url {DATAVERSE_URL}
+   → --org-url を明示指定するとテナント解決をバイパス
+   → 対話プロンプトが出たら DATAVERSE_URL を入力しても可
+```
+
+**推奨ワークフロー**:
+1. 初回デプロイ: `pac code push -env {ENV_ID} -s {SOLUTION_NAME}`
+2. データソース追加: `npx power-apps add-data-source --api-id dataverse --resource-name {table} --org-url {DATAVERSE_URL}`
+3. 以降のデプロイ: `npm run build && pac code push -env {ENV_ID} -s {SOLUTION_NAME}`
 
 ### 日本語 DisplayName サニタイズエラーの回避
 
@@ -530,11 +563,39 @@ export function useCreateIncident() {
 ```
 
 
+## ビルド・デプロイの注意事項（検証済 2026-04-22）
+
+### TypeScript ビルドエラー: 未使用 import
+
+データソース追加やコンポーネント変更後に `npm run build` で `TS6133: 'xxx' is declared but its value is never read` が出る場合がある。
+**tsconfig の `noUnusedLocals: true` が有効**のため、使わなくなった import は即座に削除する。
+
+```
+❌ npm run build → TS6133 エラーで失敗
+   → import を整理せずに新機能を追加
+
+✅ コンポーネント変更後は必ず不要 import を確認・削除してから build
+```
+
+### `npm run build` のコマンド結合に注意
+
+PowerShell で `npm run build 2>&1` の後にテキストを付けると Vite の入力パスとして解釈される。
+
+```
+❌ npm run build 2>&1Check-Success?
+   → Vite が "Check-Success?/index.html" を探しに行きビルド失敗
+
+✅ npm run build 2>&1
+   → $LASTEXITCODE で結果を確認
+```
+
 ## .env 必須項目
 
 ```env
 DATAVERSE_URL=https://xxx.crm7.dynamics.com
-ENVIRONMENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ENVIRONMENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # pac code push -env で使用
 SOLUTION_NAME=SolutionName
 PUBLISHER_PREFIX=prefix
 ```
+
+> **ENVIRONMENT_ID** はセッション詳細の `Environment ID` から取得。`pac code push -env` と `npx power-apps add-data-source --org-url` で使用する。
