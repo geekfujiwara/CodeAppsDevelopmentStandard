@@ -115,10 +115,10 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
 
 ```bash
 # ✅ 正しい順序
-npx power-apps init --display-name "アプリ名" --environment-id {ENV_ID} --non-interactive
+npx power-apps init --display-name "アプリ名" --environment-id {ENVIRONMENT_ID} --non-interactive
 npm install
 npm run build
-pac code push -env {ENV_ID} -s {SOLUTION_NAME}  # ← まずデプロイ！
+pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}  # ← まずデプロイ！
 # ↑ npx power-apps push でテナント不一致エラーが出る場合は pac code push を使う
 # この時点で Power Platform にアプリが登録され Dataverse 接続が確立
 npx power-apps add-data-source ...       # ← その後にデータソース追加
@@ -166,9 +166,9 @@ npx power-apps add-data-source ...       # ← その後にデータソース追
 ```
 
 **推奨ワークフロー**:
-1. 初回デプロイ: `pac code push -env {ENV_ID} -s {SOLUTION_NAME}`
+1. 初回デプロイ: `pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}`
 2. データソース追加: `npx power-apps add-data-source --api-id dataverse --resource-name {table} --org-url {DATAVERSE_URL}`
-3. 以降のデプロイ: `npm run build && pac code push -env {ENV_ID} -s {SOLUTION_NAME}`
+3. 以降のデプロイ: `npm run build && pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}`
 
 ### 日本語 DisplayName サニタイズエラーの回避
 
