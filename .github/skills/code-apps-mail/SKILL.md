@@ -108,6 +108,7 @@ function detectLandscape(html: string): boolean {
   return /size\s*:\s*A4\s+landscape/i.test(html);
 }
 
+const isLandscape = detectLandscape(html);
 const orientation = isLandscape ? "landscape" : "portrait";
 const pageWidth = isLandscape ? 297 : 210;   // mm
 const pageHeight = isLandscape ? 210 : 297;
