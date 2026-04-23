@@ -114,12 +114,18 @@ function getInitialDate(): string {
 
 ```
 修正手順:
-1. Power Apps メーカーポータル (https://make.powerapps.com/) を開く
-2. 対象のモデル駆動型アプリ → 「...」 → 「編集」でアプリデザイナーを開く
-3. 左側ナビゲーションツリーで問題の GenPage ページを選択
-4. 右パネルで「タイトル」を正しい名前に変更
-5. 「保存して公開」をクリック
+1. アプリデザイナーを直接 URL で開く（AI がユーザーに提示する）:
+   https://make.powerapps.com/e/{environment-id}/s/00000001-0000-0000-0001-00000000009b/app/edit/{app-id}
+   - {environment-id}: .env の ENVIRONMENT_ID
+   - {app-id}: pac model list で取得したアプリ ID
+2. 左側ナビゲーションツリーで問題の GenPage ページを選択
+3. 右パネルで「タイトル」を正しい名前に変更
+4. 「保存して公開」をクリック
 ```
+
+> **AI からユーザーへの案内パターン**: タイトル修正が必要な場合、以下のように直接リンクを提示する:
+> 「以下の URL でアプリデザイナーを開き、ナビゲーションの該当ページのタイトルを変更してください:
+> `https://make.powerapps.com/e/{env-id}/s/00000001-0000-0000-0001-00000000009b/app/edit/{app-id}`」
 
 > **補足**: `pac model genpage upload --page-id <id> --name "正しい名前"` で内部名を更新する方法も併用可能だが、MDA キャッシュが強いため即座に反映されないことがある。アプリデザイナーでの変更は unmanaged カスタマイズとして最優先で適用されるため確実。**新規ページ作成時は `--add-to-sitemap` を使わず、SiteMap API で `<Titles>` 付き SubArea を追加する（教訓 #14）のが最善策**。
 

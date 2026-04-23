@@ -171,7 +171,7 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 
 ### Generative Page MDA メニュータイトル
 
-67. **MDA メニューの GenPage タイトル修正はアプリデザイナーで手動変更が確実**。`--add-to-sitemap` で追加された SubArea タイトルは SiteMap API で PATCH しても MDA キャッシュやマネージドレイヤーで古い名前が残る。Power Apps メーカーポータルのアプリデザイナーでタイトルを変更→保存して公開が最も確実。新規ページは `--add-to-sitemap` を使わず SiteMap API で `<Titles>` 付き SubArea を追加する
+67. **MDA メニューの GenPage タイトル修正はアプリデザイナーで手動変更が確実**。`--add-to-sitemap` で追加された SubArea タイトルは SiteMap API で PATCH しても MDA キャッシュやマネージドレイヤーで古い名前が残る。Power Apps メーカーポータルのアプリデザイナーでタイトルを変更→保存して公開が最も確実。新規ページは `--add-to-sitemap` を使わず SiteMap API で `<Titles>` 付き SubArea を追加する。**アプリデザイナーの直接 URL**: `https://make.powerapps.com/e/{ENVIRONMENT_ID}/s/00000001-0000-0000-0001-00000000009b/app/edit/{APP_ID}` — AI はこの URL をユーザーに提示してすぐに編集画面に誘導する
 
 ### 設計フェーズ（最重要 — 全フェーズ共通原則）
 
