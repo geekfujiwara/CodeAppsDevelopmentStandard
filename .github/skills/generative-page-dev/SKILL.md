@@ -72,7 +72,7 @@ uuid: ^9.0.1
 11. **`Map` / `Set` に `for...of` 禁止** — `.forEach()` または `[...map]` でイテレーション
 12. **ダークモードはデフォルトで実装しない** — ユーザーが明示的にダークモード対応を要求した場合のみ `themeToVars` パターンを実装する。デフォルトは Fluent UI のシステムテーマに従う（追加実装なし）
 13. **Lookup 展開フィールドを `select` に含めない** — `em_equipmentname` 等の Lookup 先の名前フィールドは DataAPI の `select` に指定すると `Could not find a property` エラーになる。`_xxx_value`（FK ID）のみを select し、別テーブルから取得した名前を `useMemo` Map でクライアントサイド名前解決する
-14. **`--add-to-sitemap` を使わない** — PAC CLI の `--add-to-sitemap` はタイトルなしの SubArea を追加してしまう。SiteMap は `deploy_model_app.py` 等で `GenPageId` 属性 + `<Titles>` 付きの SubArea を自前で管理する
+14. **`--add-to-sitemap` を使わない** — PAC CLI の `--add-to-sitemap` はタイトルなしの SubArea（「新しいサブエリア」と表示される）を追加してしまう。SiteMap は API で `Url` 属性 + `<Titles>` 付きの SubArea を自前で管理する（教訓 #30 参照）
 15. **レコード編集は常にモーダル（初回デプロイ必須）** — 新しいタブやページ遷移ではなく、Fluent UI `Dialog` でモーダル編集フォームを表示。「詳細を開く」ボタンで同タブのレコードフォームへ遷移するオプションも提供。**モーダル・トースト・ボタン式 Choice は「段階的改善」ではなく初回デプロイのファイルに必ず含める**。実装詳細は code-patterns.md §15 参照
 16. **Choice フィールドはボタン式トグル** — Dropdown ではなく、カラー付きトグルボタンで実装。選択中はボタンが塗りつぶされ、未選択はアウトラインのみ
 17. **保存後にトースト通知** — 保存成功時は右上に緑色のトースト（3秒で自動消去）。`setSaving(false)` → `setSelectedItem(null)` → `setToast()` の順で state 更新。`finally { setSaving(false) }` は使わない（モーダル閉じと競合する）
@@ -86,6 +86,69 @@ uuid: ^9.0.1
 25. **`pac model genpage upload` の新規ページ作成はタイムアウトしやすい** — 新規ページ（`--name` 指定）は既存ページ更新（`--page-id` 指定）より大幅に遅い。`--prompt` と `--agent-message` は **英語または最短の文字列** にすると成功率が上がる。日本語の長い文字列はサーバー側処理が重くなりタイムアウト（「タスクが取り消されました」）の原因になる。失敗したら英語の短い値でリトライする
 26. **`PublishXml` API はタイムアウトすることがある** — 公開処理は環境やサーバー応答状況によって完了まで時間がかかり、`PublishXml` がタイムアウトする場合がある。タイムアウトしたら、フォールバックとして `pac solution publish` を使う。PAC CLI 側の公開処理のほうが成功率が高い場合がある
 27. **SiteMap 更新処理の `PublishXml` がハングしたら `pac solution publish` で代替** — プロジェクト側で用意した SiteMap 更新スクリプト／手順で SiteMap XML PATCH が成功しても、最後の `PublishXml`（アプリ公開）でハングする場合がある。この場合、その処理を中断（Ctrl+C / kill）して `pac solution publish` を実行すれば公開される。SiteMap XML 更新自体は PATCH 時点で確定しているため、公開さえ通れば問題ない
+28. **URL パラメータ渡しはハッシュフラグメント（`#`）を使う** — MDA（モデル駆動型アプリ）の URL にカスタムクエリパラメータ（`&date=2026-04-24` 等）を追加すると、MDA ルーティングが不明なパラメータとしてエラーを返しページが開けない。**ハッシュフラグメント（`#date=2026-04-24`）を使う**。ハッシュはサーバーに送信されないため MDA ルーティングに干渉しない。GenPage 側では `window.location.hash` で読み取る
+
+```typescript
+// ❌ NG: クエリパラメータ → MDA ルーティングエラー
+// https://org.crm7.dynamics.com/main.aspx?appid=...&pagetype=genux&id=...&date=2026-04-24
+
+// ✅ OK: ハッシュフラグメント → MDA ルーティングに干渉しない
+// https://org.crm7.dynamics.com/main.aspx?appid=...&pagetype=genux&id=...#date=2026-04-24
+
+function getInitialDate(): string {
+  try {
+    var hash = window.location.hash || "";
+    var m = hash.match(/date=([\d]{4}-[\d]{2}-[\d]{2})/);
+    if (m) {
+      var parsed = new Date(m[1] + "T00:00:00");
+      if (!isNaN(parsed.getTime())) return m[1];
+    }
+  } catch (e) { /* ignore */ }
+  return todayStr();
+}
+```
+
+> **メール通知等で URL を生成する場合**: `approvalUrl = baseUrl + "#date=" + dateIso` のようにハッシュで日付を渡す。Power Automate フローのメール本文にリンクボタンとして埋め込む
+
+29. **MDA メニューの GenPage タイトル修正はアプリデザイナーで手動変更が確実** — `pac model genpage upload --add-to-sitemap` で追加された SubArea のタイトルは、内部名（`--name` パラメータの値）がそのまま表示される。SiteMap XML を API で `<Titles>` 付きに PATCH + `PublishXml` しても、MDA クライアントキャッシュやマネージドレイヤーの影響で古い名前が残り続けることがある。**最も確実な修正方法はアプリデザイナーでの手動変更**。ただし **新規追加時は教訓 #30 の `Url` 属性方式を使えばこの問題は発生しない**:
+
+```
+修正手順:
+1. アプリデザイナーを直接 URL で開く（AI がユーザーに提示する）:
+   https://make.powerapps.com/e/{environment-id}/s/00000001-0000-0000-0001-00000000009b/app/edit/{app-id}
+   - {environment-id}: .env の ENVIRONMENT_ID
+   - {app-id}: pac model list で取得したアプリ ID
+2. 左側ナビゲーションツリーで問題の GenPage ページを選択
+3. 右パネルで「タイトル」を正しい名前に変更
+4. 「保存して公開」をクリック
+```
+
+> **AI からユーザーへの案内パターン**: タイトル修正が必要な場合、以下のように直接リンクを提示する:
+> 「以下の URL でアプリデザイナーを開き、ナビゲーションの該当ページのタイトルを変更してください:
+> `https://make.powerapps.com/e/{env-id}/s/00000001-0000-0000-0001-00000000009b/app/edit/{app-id}`」
+
+> **補足**: `pac model genpage upload --page-id <id> --name "正しい名前"` で内部名を更新する方法も併用可能だが、MDA キャッシュが強いため即座に反映されないことがある。アプリデザイナーでの変更は unmanaged カスタマイズとして最優先で適用されるため確実。**新規ページ作成時は `--add-to-sitemap` を使わず、SiteMap API で `Url` 属性 + `<Titles>` 付き SubArea を追加する（教訓 #30）のが最善策**。
+
+30. **SiteMap SubArea は `GenPageId` ではなく `Url` 属性を使う** — `GenPageId="{page-id}"` 属性で GenPage を SiteMap に追加すると、MDA メニューに「新しいサブエリア」と表示され `<Titles>` が反映されないことがある。**`Url="/main.aspx?pagetype=genux&amp;id={page-id}"` 属性を使うと `<Titles>` が正しく表示される**（2026-04-24 検証済み）。既存エンティティ SubArea の直後に挿入し、`PublishXml` でアプリを公開する
+
+```xml
+<!-- ❌ NG: GenPageId 属性 → 「新しいサブエリア」と表示されることがある -->
+<SubArea Id="sub_page" GenPageId="54dc32ce-bfcf-4899-8c25-0ac0436e2340" AvailableOffline="true">
+  <Titles><Title LCID="1041" Title="日報承認" /></Titles>
+</SubArea>
+
+<!-- ✅ OK: Url 属性 → <Titles> が正しく MDA メニューに反映される -->
+<SubArea Id="sub_dailyreport_approval" GetStartedPanePath=""
+  Url="/main.aspx?pagetype=genux&amp;id=54dc32ce-bfcf-4899-8c25-0ac0436e2340"
+  IntroducedVersion="7.0.0.0">
+  <Titles>
+    <Title LCID="1041" Title="日報承認" />
+    <Title LCID="1033" Title="Daily Report Approval" />
+  </Titles>
+</SubArea>
+```
+
+> **実装パターン**: Python スクリプトで SiteMap XML を取得 → 正規表現で挿入位置を特定 → 新 SubArea を文字列結合で挿入 → `PATCH sitemaps({id})` → `PublishXml`。`yaml.dump()` や XML パーサーは不要（文字列操作で十分）
 
 ## 開発フロー
 
@@ -281,8 +344,8 @@ pac model genpage upload `
 > **絶対ルール**: `pac model genpage upload` を実行したら、**同じ作業内で必ず SiteMap を更新する**。
 > ユーザーに「SiteMap も更新しますか？」と聞かない。デプロイの一部として自動的に行う。
 
-1. 既存 SiteMap を取得: `sitemaps?$select=sitemapid,sitemapname` で検索
-2. SiteMap XML に新しいページの `<SubArea GenPageId="{page-id}" ...>` を追加
+1. 既存 SiteMap を取得: `sitemaps({sitemap-id})?$select=sitemapxml` で取得
+2. SiteMap XML に新しいページの `<SubArea Url="/main.aspx?pagetype=genux&amp;id={page-id}" ...>` を追加（**`GenPageId` ではなく `Url` 属性を使う — 教訓 #30**）
 3. `PATCH sitemaps({id})` で XML を更新
 4. `PublishXml` でアプリを公開。**タイムアウトしたら `pac solution publish` で代替**
 
@@ -296,16 +359,20 @@ pac solution publish
 
 > **注意**: `PublishXml` API は 120 秒でタイムアウトすることがある（環境の負荷に依存）。`pac solution publish` は PAC CLI 独自のタイムアウト管理で成功率が高い。
 
-**SubArea フォーマット:**
+**SubArea フォーマット（`Url` 属性方式 — 推奨）:**
 
 ```xml
-<SubArea Id="sub_page_name" GenPageId="{page-id-guid}" VectorIcon="/_imgs/TableIconsFluentV9/icon_name.svg" AvailableOffline="true">
+<SubArea Id="sub_page_name" GetStartedPanePath=""
+  Url="/main.aspx?pagetype=genux&amp;id={page-id-guid}"
+  IntroducedVersion="7.0.0.0">
   <Titles>
     <Title LCID="1041" Title="日本語タイトル" />
     <Title LCID="1033" Title="English Title" />
   </Titles>
 </SubArea>
 ```
+
+> **`GenPageId` 属性は使わない**（教訓 #30）。`Url` 属性で `/main.aspx?pagetype=genux&amp;id={page-id}` を指定すると `<Titles>` が MDA メニューに正しく反映される。
 
 **注意**: 新しい SiteMap を作成して `AddAppComponents` で追加してはいけない（`0x80050111` エラー）。必ず既存 SiteMap を PATCH で更新する。
 
