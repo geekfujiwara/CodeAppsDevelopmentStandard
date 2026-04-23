@@ -39,6 +39,8 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 | Phase 1.5: Generative Page     | `generative-page-dev`    | `.github/skills/generative-page-dev/SKILL.md`    |
 | Phase 2: Code Apps UI 設計     | `code-apps-design`       | `.github/skills/code-apps-design/SKILL.md`       |
 | Phase 2: Code Apps 開発        | `code-apps-dev`          | `.github/skills/code-apps-dev/SKILL.md`          |
+| Code Apps CSP（iframe/外部接続）| `code-apps-csp`          | `.github/skills/code-apps-csp/SKILL.md`          |
+| Code Apps メール送信（PDF添付） | `code-apps-mail`         | `.github/skills/code-apps-mail/SKILL.md`         |
 | Phase 2.5: Power Automate      | `power-automate-flow`    | `.github/skills/power-automate-flow/SKILL.md`    |
 | Phase 3: Copilot Studio        | `copilot-studio-agent`   | `.github/skills/copilot-studio-agent/SKILL.md`   |
 | Phase 3.5: CS トリガー         | `copilot-studio-trigger` | `.github/skills/copilot-studio-trigger/SKILL.md` |
@@ -146,24 +148,32 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 56. **`auth_helper.get_token()` は `scope` キーワード引数のみ**。`.env` から TENANT_ID を自動読み込み
 57. **MSAL Python 3.14 互換性問題**。MSAL 内部トークンキャッシュが壊れる（scopes が dict として格納される）。`auth_helper.py` のインメモリキャッシュ + フォールバック再構築で対策済み。`PP_NO_PERSISTENT_CACHE=1` で OS 永続キャッシュ無効化可能
 
+### Code Apps メール送信（PDF 添付）
+
+58. **HTML→PDF 変換は DOMParser + hidden div**。Code Apps サンドボックスの cross-origin 制約により、iframe 内での html2canvas は失敗する。`DOMParser.parseFromString()` でパースし、hidden div（`position: fixed; left: -9999px`）に展開して html2canvas でキャプチャする
+59. **SendEmailV2 の ContentBytes は `@base64ToBinary()` で渡す**。`@{json(...)['pdfBase64']}` の文字列補間だと PA が再 base64 エンコードし、PDF が破損する。`@base64ToBinary(json(...)['pdfBase64'])` でバイナリに変換して渡す
+60. **メール本文の時刻は `convertTimeZone()` で JST 変換**。`utcNow('yyyy年...')` は UTC で 9 時間ずれる。`convertTimeZone(utcNow(),'UTC','Tokyo Standard Time','yyyy年MM月dd日 HH:mm')` を使う
+61. **html2canvas の幅を HTML テンプレートのコンテナ幅に合わせる**。テンプレートが 1100px のとき、794px でキャプチャすると右端が切れる。`width: NNNpx` を正規表現で検出し、`html2canvas({ width, windowWidth })` に反映する
+62. **Memo 列 1MB 制限に注意**。PDF base64 が大きいため `html2canvas({ scale: 1.5 })` + `canvas.toDataURL("image/jpeg", 0.7)` でサイズ抑制。scale: 2 + JPEG 0.85 は 1MB 超のリスク
+
 ### Teams チャネル情報の取得
 
-58. **Teams チャネル情報はリンク URL から取得**。ユーザーには「Teams アプリで投稿先チャネルを **右クリック → 「チャネルへのリンクを取得」** でコピーした URL をペーストしてください」と案内する。URL から groupId（チーム ID）と channelId を自動抽出する
+63. **Teams チャネル情報はリンク URL から取得**。ユーザーには「Teams アプリで投稿先チャネルを **右クリック → 「チャネルへのリンクを取得」** でコピーした URL をペーストしてください」と案内する。URL から groupId（チーム ID）と channelId を自動抽出する
 
 ### モデル駆動型アプリ
 
-59. **既存アプリの SiteMap は PATCH で XML を直接更新**。新しい SiteMap を作成して `AddAppComponents` で追加すると `0x80050111` (App can't have multiple site maps) エラー。既存 SiteMap を `appmodulecomponent?$filter=componenttype eq 62` で特定し、`PATCH sitemaps({id})` で `sitemapxml` を更新する
-60. **`appmodulecomponent` は `appmoduleidunique` でフィルタ不可**。プロパティが存在しない。`componenttype eq 62` で全件取得し `objectid` で照合する
+64. **既存アプリの SiteMap は PATCH で XML を直接更新**。新しい SiteMap を作成して `AddAppComponents` で追加すると `0x80050111` (App can't have multiple site maps) エラー。既存 SiteMap を `appmodulecomponent?$filter=componenttype eq 62` で特定し、`PATCH sitemaps({id})` で `sitemapxml` を更新する
+65. **`appmodulecomponent` は `appmoduleidunique` でフィルタ不可**。プロパティが存在しない。`componenttype eq 62` で全件取得し `objectid` で照合する
 
 ### 設計フェーズ（最重要 — 全フェーズ共通原則）
 
-61. **全フェーズで設計→ユーザー承認→実装の順序を守る**。Dataverse・Code Apps・Power Automate・Copilot Studio のいずれも、設計をユーザーに提示し「この設計で進めてよいですか？」と承認を得てから構築に進む
-62. **テーブル設計**: 全 Lookup リレーションシップを設計書に明記。漏れると Lookup が機能しない
-63. **テーブル設計**: デモデータは全テーブル（従属テーブル含む）に計画。コメント等の従属テーブルにもデモデータを用意
-64. **テーブル設計**: マスタテーブルは要件から網羅的に洗い出す。カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化
-65. **Code Apps 設計**: `code-apps-design` スキルを読み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計。ユーザー承認後に `code-apps-dev` で実装
-66. **Power Automate 設計**: フロー名・トリガー・アクション・接続・通知先を設計書として提示。ユーザー承認後にデプロイスクリプトを作成
-67. **Copilot Studio 設計**: エージェント名・Instructions・推奨プロンプト・会話の開始のメッセージ・会話の開始のクイック返信・ナレッジ・ツール（MCP Server）を設計書として提示。ユーザー承認後に構築
+66. **全フェーズで設計→ユーザー承認→実装の順序を守る**。Dataverse・Code Apps・Power Automate・Copilot Studio のいずれも、設計をユーザーに提示し「この設計で進めてよいですか？」と承認を得てから構築に進む
+67. **テーブル設計**: 全 Lookup リレーションシップを設計書に明記。漏れると Lookup が機能しない
+68. **テーブル設計**: デモデータは全テーブル（従属テーブル含む）に計画。コメント等の従属テーブルにもデモデータを用意
+69. **テーブル設計**: マスタテーブルは要件から網羅的に洗い出す。カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化
+70. **Code Apps 設計**: `code-apps-design` スキルを読み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計。ユーザー承認後に `code-apps-dev` で実装
+71. **Power Automate 設計**: フロー名・トリガー・アクション・接続・通知先を設計書として提示。ユーザー承認後にデプロイスクリプトを作成
+72. **Copilot Studio 設計**: エージェント名・Instructions・推奨プロンプト・会話の開始のメッセージ・会話の開始のクイック返信・ナレッジ・ツール（MCP Server）を設計書として提示。ユーザー承認後に構築
 
 ## 作業手順
 
