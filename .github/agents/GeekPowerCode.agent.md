@@ -39,6 +39,7 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 | Phase 1.5: Generative Page     | `generative-page-dev`    | `.github/skills/generative-page-dev/SKILL.md`    |
 | Phase 2: Code Apps UI 設計     | `code-apps-design`       | `.github/skills/code-apps-design/SKILL.md`       |
 | Phase 2: Code Apps 開発        | `code-apps-dev`          | `.github/skills/code-apps-dev/SKILL.md`          |
+| Code Apps CSP（iframe/外部接続）| `code-apps-csp`          | `.github/skills/code-apps-csp/SKILL.md`          |
 | Phase 2.5: Power Automate      | `power-automate-flow`    | `.github/skills/power-automate-flow/SKILL.md`    |
 | Phase 3: Copilot Studio        | `copilot-studio-agent`   | `.github/skills/copilot-studio-agent/SKILL.md`   |
 | Phase 3.5: CS トリガー         | `copilot-studio-trigger` | `.github/skills/copilot-studio-trigger/SKILL.md` |
