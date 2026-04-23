@@ -171,17 +171,21 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 
 ### Generative Page MDA メニュータイトル
 
-67. **MDA メニューの GenPage タイトル修正はアプリデザイナーで手動変更が確実**。`--add-to-sitemap` で追加された SubArea タイトルは SiteMap API で PATCH しても MDA キャッシュやマネージドレイヤーで古い名前が残る。Power Apps メーカーポータルのアプリデザイナーでタイトルを変更→保存して公開が最も確実。新規ページは `--add-to-sitemap` を使わず SiteMap API で `<Titles>` 付き SubArea を追加する。**アプリデザイナーの直接 URL**: `https://make.powerapps.com/e/{ENVIRONMENT_ID}/s/00000001-0000-0000-0001-00000000009b/app/edit/{APP_ID}` — AI はこの URL をユーザーに提示してすぐに編集画面に誘導する
+67. **MDA メニューの GenPage タイトル修正はアプリデザイナーで手動変更が確実**。`--add-to-sitemap` で追加された SubArea タイトルは SiteMap API で PATCH しても MDA キャッシュやマネージドレイヤーで古い名前が残る。Power Apps メーカーポータルのアプリデザイナーでタイトルを変更→保存して公開が最も確実。ただし **新規追加時は教訓 #68 の `Url` 属性方式を使えばこの問題は発生しない**。**アプリデザイナーの直接 URL**: `https://make.powerapps.com/e/{ENVIRONMENT_ID}/s/00000001-0000-0000-0001-00000000009b/app/edit/{APP_ID}` — AI はこの URL をユーザーに提示してすぐに編集画面に誘導する
+
+### Generative Page SiteMap SubArea
+
+68. **SiteMap SubArea は `GenPageId` ではなく `Url` 属性を使う**。`GenPageId="{page-id}"` で GenPage を SiteMap に追加すると「新しいサブエリア」と表示され `<Titles>` が反映されないことがある。`Url="/main.aspx?pagetype=genux&amp;id={page-id}"` を使うと `<Titles>` が MDA メニューに正しく表示される（2026-04-24 検証済み）。既存エンティティ SubArea の直後に挿入し、`PublishXml` でアプリを公開する
 
 ### 設計フェーズ（最重要 — 全フェーズ共通原則）
 
-68. **全フェーズで設計→ユーザー承認→実装の順序を守る**。Dataverse・Code Apps・Power Automate・Copilot Studio のいずれも、設計をユーザーに提示し「この設計で進めてよいですか？」と承認を得てから構築に進む
-69. **テーブル設計**: 全 Lookup リレーションシップを設計書に明記。漏れると Lookup が機能しない
-70. **テーブル設計**: デモデータは全テーブル（従属テーブル含む）に計画。コメント等の従属テーブルにもデモデータを用意
-71. **テーブル設計**: マスタテーブルは要件から網羅的に洗い出す。カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化
-72. **Code Apps 設計**: `code-apps-design` スキルを読み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計。ユーザー承認後に `code-apps-dev` で実装
-73. **Power Automate 設計**: フロー名・トリガー・アクション・接続・通知先を設計書として提示。ユーザー承認後にデプロイスクリプトを作成
-74. **Copilot Studio 設計**: エージェント名・Instructions・推奨プロンプト・会話の開始のメッセージ・会話の開始のクイック返信・ナレッジ・ツール（MCP Server）を設計書として提示。ユーザー承認後に構築
+69. **全フェーズで設計→ユーザー承認→実装の順序を守る**。Dataverse・Code Apps・Power Automate・Copilot Studio のいずれも、設計をユーザーに提示し「この設計で進めてよいですか？」と承認を得てから構築に進む
+70. **テーブル設計**: 全 Lookup リレーションシップを設計書に明記。漏れると Lookup が機能しない
+71. **テーブル設計**: デモデータは全テーブル（従属テーブル含む）に計画。コメント等の従属テーブルにもデモデータを用意
+72. **テーブル設計**: マスタテーブルは要件から網羅的に洗い出す。カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化
+73. **Code Apps 設計**: `code-apps-design` スキルを読み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計。ユーザー承認後に `code-apps-dev` で実装
+74. **Power Automate 設計**: フロー名・トリガー・アクション・接続・通知先を設計書として提示。ユーザー承認後にデプロイスクリプトを作成
+75. **Copilot Studio 設計**: エージェント名・Instructions・推奨プロンプト・会話の開始のメッセージ・会話の開始のクイック返信・ナレッジ・ツール（MCP Server）を設計書として提示。ユーザー承認後に構築
 
 ## 作業手順
 
