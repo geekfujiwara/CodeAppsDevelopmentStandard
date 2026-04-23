@@ -165,15 +165,19 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 64. **既存アプリの SiteMap は PATCH で XML を直接更新**。新しい SiteMap を作成して `AddAppComponents` で追加すると `0x80050111` (App can't have multiple site maps) エラー。既存 SiteMap を `appmodulecomponent?$filter=componenttype eq 62` で特定し、`PATCH sitemaps({id})` で `sitemapxml` を更新する
 65. **`appmodulecomponent` は `appmoduleidunique` でフィルタ不可**。プロパティが存在しない。`componenttype eq 62` で全件取得し `objectid` で照合する
 
+### Generative Page URL パラメータ
+
+66. **GenPage への URL パラメータ渡しはハッシュフラグメント（`#`）を使う**。MDA のクエリパラメータに `&date=2026-04-24` 等のカスタム値を追加すると MDA ルーティングエラーになる。`#date=2026-04-24` のようにハッシュフラグメントで渡し、GenPage 側で `window.location.hash` から読み取る
+
 ### 設計フェーズ（最重要 — 全フェーズ共通原則）
 
-66. **全フェーズで設計→ユーザー承認→実装の順序を守る**。Dataverse・Code Apps・Power Automate・Copilot Studio のいずれも、設計をユーザーに提示し「この設計で進めてよいですか？」と承認を得てから構築に進む
-67. **テーブル設計**: 全 Lookup リレーションシップを設計書に明記。漏れると Lookup が機能しない
-68. **テーブル設計**: デモデータは全テーブル（従属テーブル含む）に計画。コメント等の従属テーブルにもデモデータを用意
-69. **テーブル設計**: マスタテーブルは要件から網羅的に洗い出す。カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化
-70. **Code Apps 設計**: `code-apps-design` スキルを読み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計。ユーザー承認後に `code-apps-dev` で実装
-71. **Power Automate 設計**: フロー名・トリガー・アクション・接続・通知先を設計書として提示。ユーザー承認後にデプロイスクリプトを作成
-72. **Copilot Studio 設計**: エージェント名・Instructions・推奨プロンプト・会話の開始のメッセージ・会話の開始のクイック返信・ナレッジ・ツール（MCP Server）を設計書として提示。ユーザー承認後に構築
+67. **全フェーズで設計→ユーザー承認→実装の順序を守る**。Dataverse・Code Apps・Power Automate・Copilot Studio のいずれも、設計をユーザーに提示し「この設計で進めてよいですか？」と承認を得てから構築に進む
+68. **テーブル設計**: 全 Lookup リレーションシップを設計書に明記。漏れると Lookup が機能しない
+69. **テーブル設計**: デモデータは全テーブル（従属テーブル含む）に計画。コメント等の従属テーブルにもデモデータを用意
+70. **テーブル設計**: マスタテーブルは要件から網羅的に洗い出す。カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化
+71. **Code Apps 設計**: `code-apps-design` スキルを読み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計。ユーザー承認後に `code-apps-dev` で実装
+72. **Power Automate 設計**: フロー名・トリガー・アクション・接続・通知先を設計書として提示。ユーザー承認後にデプロイスクリプトを作成
+73. **Copilot Studio 設計**: エージェント名・Instructions・推奨プロンプト・会話の開始のメッセージ・会話の開始のクイック返信・ナレッジ・ツール（MCP Server）を設計書として提示。ユーザー承認後に構築
 
 ## 作業手順
 

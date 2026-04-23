@@ -86,6 +86,29 @@ uuid: ^9.0.1
 25. **`pac model genpage upload` の新規ページ作成はタイムアウトしやすい** — 新規ページ（`--name` 指定）は既存ページ更新（`--page-id` 指定）より大幅に遅い。`--prompt` と `--agent-message` は **英語または最短の文字列** にすると成功率が上がる。日本語の長い文字列はサーバー側処理が重くなりタイムアウト（「タスクが取り消されました」）の原因になる。失敗したら英語の短い値でリトライする
 26. **`PublishXml` API はタイムアウトすることがある** — 公開処理は環境やサーバー応答状況によって完了まで時間がかかり、`PublishXml` がタイムアウトする場合がある。タイムアウトしたら、フォールバックとして `pac solution publish` を使う。PAC CLI 側の公開処理のほうが成功率が高い場合がある
 27. **SiteMap 更新処理の `PublishXml` がハングしたら `pac solution publish` で代替** — プロジェクト側で用意した SiteMap 更新スクリプト／手順で SiteMap XML PATCH が成功しても、最後の `PublishXml`（アプリ公開）でハングする場合がある。この場合、その処理を中断（Ctrl+C / kill）して `pac solution publish` を実行すれば公開される。SiteMap XML 更新自体は PATCH 時点で確定しているため、公開さえ通れば問題ない
+28. **URL パラメータ渡しはハッシュフラグメント（`#`）を使う** — MDA（モデル駆動型アプリ）の URL にカスタムクエリパラメータ（`&date=2026-04-24` 等）を追加すると、MDA ルーティングが不明なパラメータとしてエラーを返しページが開けない。**ハッシュフラグメント（`#date=2026-04-24`）を使う**。ハッシュはサーバーに送信されないため MDA ルーティングに干渉しない。GenPage 側では `window.location.hash` で読み取る
+
+```typescript
+// ❌ NG: クエリパラメータ → MDA ルーティングエラー
+// https://org.crm7.dynamics.com/main.aspx?appid=...&pagetype=genux&id=...&date=2026-04-24
+
+// ✅ OK: ハッシュフラグメント → MDA ルーティングに干渉しない
+// https://org.crm7.dynamics.com/main.aspx?appid=...&pagetype=genux&id=...#date=2026-04-24
+
+function getInitialDate(): string {
+  try {
+    var hash = window.location.hash || "";
+    var m = hash.match(/date=([\d]{4}-[\d]{2}-[\d]{2})/);
+    if (m) {
+      var parsed = new Date(m[1] + "T00:00:00");
+      if (!isNaN(parsed.getTime())) return m[1];
+    }
+  } catch (e) { /* ignore */ }
+  return todayStr();
+}
+```
+
+> **メール通知等で URL を生成する場合**: `approvalUrl = baseUrl + "#date=" + dateIso` のようにハッシュで日付を渡す。Power Automate フローのメール本文にリンクボタンとして埋め込む
 
 ## 開発フロー
 
