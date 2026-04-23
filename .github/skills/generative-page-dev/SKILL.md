@@ -110,6 +110,19 @@ function getInitialDate(): string {
 
 > **メール通知等で URL を生成する場合**: `approvalUrl = baseUrl + "#date=" + dateIso` のようにハッシュで日付を渡す。Power Automate フローのメール本文にリンクボタンとして埋め込む
 
+29. **MDA メニューの GenPage タイトル修正はアプリデザイナーで手動変更が確実** — `pac model genpage upload --add-to-sitemap` で追加された SubArea のタイトルは、内部名（`--name` パラメータの値）がそのまま表示される。SiteMap XML を API で `<Titles>` 付きに PATCH + `PublishXml` しても、MDA クライアントキャッシュやマネージドレイヤーの影響で古い名前が残り続けることがある。**最も確実な修正方法はアプリデザイナーでの手動変更**:
+
+```
+修正手順:
+1. Power Apps メーカーポータル (https://make.powerapps.com/) を開く
+2. 対象のモデル駆動型アプリ → 「...」 → 「編集」でアプリデザイナーを開く
+3. 左側ナビゲーションツリーで問題の GenPage ページを選択
+4. 右パネルで「タイトル」を正しい名前に変更
+5. 「保存して公開」をクリック
+```
+
+> **補足**: `pac model genpage upload --page-id <id> --name "正しい名前"` で内部名を更新する方法も併用可能だが、MDA キャッシュが強いため即座に反映されないことがある。アプリデザイナーでの変更は unmanaged カスタマイズとして最優先で適用されるため確実。**新規ページ作成時は `--add-to-sitemap` を使わず、SiteMap API で `<Titles>` 付き SubArea を追加する（教訓 #14）のが最善策**。
+
 ## 開発フロー
 
 ### Step 0.5: モデル駆動型アプリ作成（Dataverse テーブル作成後・Generative Page 作成前）
