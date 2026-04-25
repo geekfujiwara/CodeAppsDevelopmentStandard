@@ -634,7 +634,7 @@ returnedCount > 0 && React.createElement("button", {
     fontSize: 12, fontWeight: 500,
     cursor: "pointer", outline: "none",
   },
-}, "\u26a0 差し戻し日報をビューで確認 (" + returnedCount + ")")
+}, "\u26a0 差戻し日報をビューで確認 (" + returnedCount + ")")
 ```
 
 ---
