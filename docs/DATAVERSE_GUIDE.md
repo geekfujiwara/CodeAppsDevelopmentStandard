@@ -20,7 +20,7 @@ Dataverse は Power Platform のネイティブデータストアです。Code A
 
 ## テーブル作成（GitHub Copilot 推奨）
 
-Dataverse テーブルの作成は **VS Code + GitHub Copilot（GeekPowerCode エージェント + power-platform-standard スキル）** を使って会話形式で行うことを**推奨**します。Power Apps ポータル UI での手動作成よりもこちらを優先してください。
+Dataverse テーブルの作成は **VS Code + GitHub Copilot（GeekPowerCode エージェント + standard スキル）** を使って会話形式で行うことを**推奨**します。Power Apps ポータル UI での手動作成よりもこちらを優先してください。
 
 ### 前提条件
 

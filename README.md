@@ -59,7 +59,16 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 .
 ├── .github/
 │   ├── agents/                      # Copilot カスタムエージェント定義
-│   └── skills/                      # 各開発フェーズ向けスキル
+│   └── skills/                      # 製品単位で統合された 9 スキル
+│       ├── architecture/            # アーキテクチャ設計
+│       ├── standard/                # 共通基盤（認証・アイコン・メールテンプレート）
+│       ├── dataverse/               # テーブル設計・構築・セキュリティロール
+│       ├── code-apps/               # Code Apps 開発（UI 設計・CSP・メール送信含む）
+│       ├── generative-page/         # Generative Pages 開発
+│       ├── model-driven-app/        # モデル駆動型アプリ構築
+│       ├── copilot-studio/          # エージェント構築・トリガー・ニュース配信
+│       ├── power-automate/          # クラウドフロー作成・デプロイ
+│       └── ai-builder/              # AI プロンプト作成
 ├── docs/                            # 開発標準ドキュメント
 ├── src/
 │   ├── components/                  # 再利用 UI コンポーネント
@@ -92,6 +101,22 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 - VS Code で開くと `.github/agents/` と `.github/skills/` が認識されます
 - `@GeekPowerCode` に実現したい内容を伝えるだけで、必要なスキルが選択されて開発タスクを進められます
 - このリポジトリの開発標準はスキルとして定義済みのため、マニュアル手順ベースではなくエージェント駆動で利用します
+
+### スキル一覧（9 スキル）
+
+| スキル | 説明 |
+|--------|------|
+| [architecture](.github/skills/architecture/SKILL.md) | 全体アーキテクチャ設計・コンポーネント選定 |
+| [standard](.github/skills/standard/SKILL.md) | 共通基盤（認証・.env・アイコン生成・HTML メールテンプレート） |
+| [dataverse](.github/skills/dataverse/SKILL.md) | テーブル設計・構築・セキュリティロール |
+| [code-apps](.github/skills/code-apps/SKILL.md) | Code Apps 開発（UI 設計・CSP・メール送信含む） |
+| [generative-page](.github/skills/generative-page/SKILL.md) | Generative Pages 開発・デバッグ・デプロイ |
+| [model-driven-app](.github/skills/model-driven-app/SKILL.md) | モデル駆動型アプリ構築・公開 |
+| [copilot-studio](.github/skills/copilot-studio/SKILL.md) | エージェント構築・トリガー・ニュース配信 |
+| [power-automate](.github/skills/power-automate/SKILL.md) | クラウドフロー作成・デプロイ |
+| [ai-builder](.github/skills/ai-builder/SKILL.md) | AI プロンプト作成・エージェントツール追加 |
+
+> 詳細は [スキルカタログ](.github/skills/README.md) を参照してください。
 
 ---
 

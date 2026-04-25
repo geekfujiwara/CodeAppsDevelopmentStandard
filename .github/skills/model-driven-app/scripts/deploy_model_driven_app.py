@@ -10,7 +10,7 @@ SiteMap を自動生成してナビゲーションを構築する。
   2. python .github/skills/model-driven-app/scripts/deploy_model_driven_app.py
 
 依存:
-  - .github/skills/power-platform-standard/scripts/auth_helper.py（共通認証）
+  - .github/skills/standard/scripts/auth_helper.py（共通認証）
   - .env（DATAVERSE_URL, TENANT_ID, SOLUTION_NAME, PUBLISHER_PREFIX）
 
 API リファレンス:
@@ -26,7 +26,7 @@ import uuid
 
 _this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _this_dir)
-sys.path.insert(0, os.path.join(_this_dir, "..", "..", "power-platform-standard", "scripts"))
+sys.path.insert(0, os.path.join(_this_dir, "..", "..", "standard", "scripts"))
 
 import requests
 from dotenv import load_dotenv
