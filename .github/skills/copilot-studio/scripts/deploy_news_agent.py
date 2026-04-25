@@ -20,7 +20,7 @@ import time
 
 _this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _this_dir)
-sys.path.insert(0, os.path.join(_this_dir, "..", "..", "power-platform-standard", "scripts"))
+sys.path.insert(0, os.path.join(_this_dir, "..", "..", "standard", "scripts"))
 
 import requests
 from dotenv import load_dotenv
@@ -233,7 +233,7 @@ def find_bot() -> str:
     sol_label = f"{SOLUTION_DISPLAY_NAME}（スキーマ名: {SOLUTION_NAME}）"
     print("  ❌ Bot が見つかりません。")
     print()
-    print("  Usage: python .github/skills/market-research-report/scripts/deploy_news_agent.py <BOT_ID or URL>")
+    print("  Usage: python .github/skills/copilot-studio/scripts/deploy_news_agent.py <BOT_ID or URL>")
     print()
     print("  Copilot Studio UI でエージェントを作成してください:")
     print(f"    1. https://copilotstudio.microsoft.com/ にアクセス")
@@ -243,7 +243,7 @@ def find_bot() -> str:
     print(f"       - ソリューション: {sol_label}")
     print(f"       - スキーマ名: {BOT_SCHEMA}")
     print(f"    4. 「作成」→ ロード完了まで待つ")
-    print(f"    5. 再実行: python .github/skills/market-research-report/scripts/deploy_news_agent.py <ブラウザURL or GUID>")
+    print(f"    5. 再実行: python .github/skills/copilot-studio/scripts/deploy_news_agent.py <ブラウザURL or GUID>")
     sys.exit(1)
 
 # ── プロビジョニング待ち ──────────────────────────────────
@@ -573,7 +573,7 @@ def main():
     print("       （フローが自動作成されます）")
     print()
     print("  ★ Step 2: フローのプロンプト・スケジュール設定")
-    print("     → python .github/skills/market-research-report/scripts/deploy_news_flow.py <BOT_ID or URL>")
+    print("     → python .github/skills/copilot-studio/scripts/deploy_news_flow.py <BOT_ID or URL>")
     print()
     print("  ★ Step 3: 接続マネージャーで接続を作成")
     env_id = _get_environment_id()

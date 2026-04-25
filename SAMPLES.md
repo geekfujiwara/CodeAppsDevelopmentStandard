@@ -14,7 +14,7 @@
 | `src/components/` | shadcn/ui + カスタム UI コンポーネント |
 | `src/providers/` | React Context Providers |
 | `src/lib/utils.ts` | ユーティリティ |
-| `.github/skills/power-platform-standard/auth_helper.py` | MSAL 認証ヘルパー |
+| `.github/skills/standard/scripts/auth_helper.py` | MSAL 認証ヘルパー |
 | `plugins/` | Vite プラグイン |
 | `styles/` | Tailwind CSS テーマ |
 | `patch-nameutils.cjs` | 日本語 DisplayName パッチ |
@@ -29,12 +29,12 @@
 
 | パス | 内容 | 置き換え対象 |
 |------|------|-------------|
-| `.github/skills/power-platform-standard/setup_dataverse.py` | Dataverse テーブル構築 | テーブル定義・列・Lookup・デモデータ |
-| `.github/skills/copilot-studio-agent/deploy_agent.py` | Copilot Studio エージェント設定 | BOT_NAME・Instructions・推奨プロンプト |
-| `.github/skills/power-automate-flow/deploy_flow.py` | ステータス変更通知フロー | テーブル名・通知メール本文 |
-| `.github/skills/power-automate-flow/deploy_flow_*.py` | 各種 Power Automate フロー | フロー定義全体 |
-| `.github/skills/ai-builder-prompt/deploy_ai_prompt.py` | AI Builder プロンプト | プロンプト内容・入出力定義 |
-| `.github/skills/power-platform-standard/add_to_solution.py` | ソリューション包含検証 | テーブル名リスト |
+| `.github/skills/dataverse/scripts/setup_dataverse.py` | Dataverse テーブル構築 | テーブル定義・列・Lookup・デモデータ |
+| `.github/skills/copilot-studio/scripts/deploy_agent.py` | Copilot Studio エージェント設定 | BOT_NAME・Instructions・推奨プロンプト |
+| `.github/skills/power-automate/scripts/deploy_flow.py` | ステータス変更通知フロー | テーブル名・通知メール本文 |
+| `.github/skills/power-automate/scripts/deploy_flow_*.py` | 各種 Power Automate フロー | フロー定義全体 |
+| `.github/skills/ai-builder/scripts/deploy_ai_prompt.py` | AI Builder プロンプト | プロンプト内容・入出力定義 |
+| `.github/skills/standard/scripts/add_to_solution.py` | ソリューション包含検証 | テーブル名リスト |
 | `src/pages/incidents.tsx` | インシデント一覧ページ | ページ全体 |
 | `src/pages/incident-detail.tsx` | インシデント詳細ページ | ページ全体 |
 | `src/pages/dashboard.tsx` | ダッシュボード | 集計ロジック・KPI |
@@ -71,12 +71,12 @@ cp .env.example .env
 
 ```powershell
 $base = "https://raw.githubusercontent.com/geekfujiwara/CodeAppsDevelopmentStandard/main"
-@(".github/agents", ".github/skills/power-platform-standard", "docs") | ForEach-Object {
+@(".github/agents", ".github/skills/standard", "docs") | ForEach-Object {
   New-Item -ItemType Directory -Path $_ -Force
 }
 @(
   @{Src="$base/.github/agents/GeekPowerCode.agent.md"; Dst=".github/agents/GeekPowerCode.agent.md"},
-  @{Src="$base/.github/skills/power-platform-standard/SKILL.md"; Dst=".github/skills/power-platform-standard/SKILL.md"},
+  @{Src="$base/.github/skills/standard/SKILL.md"; Dst=".github/skills/standard/SKILL.md"},
   @{Src="$base/docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md"; Dst="docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md"}
 ) | ForEach-Object { Invoke-WebRequest -Uri $_.Src -OutFile $_.Dst }
 ```

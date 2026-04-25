@@ -2,7 +2,7 @@
 
 ## GPT コンポーネント構築時の追加設定
 
-`copilot-studio-agent` スキルの GPT コンポーネント更新手順に加えて、
+`copilot-studio` スキルの GPT コンポーネント更新手順に加えて、
 ニュースエージェントでは `gptCapabilities` セクションを必ず含める:
 
 ```python

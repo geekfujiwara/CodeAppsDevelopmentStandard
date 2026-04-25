@@ -1,5 +1,5 @@
 ---
-name: code-apps-csp
+name: csp
 description: "Code Apps のコンテンツセキュリティポリシー（CSP）を構成する。iframe 埋め込み（Google Maps 等）・外部 API 接続・外部フォント/スクリプト読み込み時に CSP ディレクティブを追加する。"
 category: security
 triggers:

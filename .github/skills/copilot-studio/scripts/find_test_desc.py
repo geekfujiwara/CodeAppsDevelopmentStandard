@@ -1,7 +1,7 @@
 """UI で設定した test_description がどこに保存されたか探す"""
 import os, sys, json
 _this_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(_this_dir, "..", "..", "power-platform-standard", "scripts"))
+sys.path.insert(0, os.path.join(_this_dir, "..", "..", "standard", "scripts"))
 from auth_helper import get_session
 
 s = get_session()

@@ -1,7 +1,7 @@
 """Bot レコードの全フィールドを確認する"""
 import os, sys, json
 _this_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(_this_dir, "..", "..", "power-platform-standard", "scripts"))
+sys.path.insert(0, os.path.join(_this_dir, "..", "..", "standard", "scripts"))
 from auth_helper import get_token, DATAVERSE_URL
 import requests
 

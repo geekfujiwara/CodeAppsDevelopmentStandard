@@ -12,7 +12,7 @@ import uuid
 
 _this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _this_dir)
-sys.path.insert(0, os.path.join(_this_dir, "..", "..", "power-platform-standard", "scripts"))
+sys.path.insert(0, os.path.join(_this_dir, "..", "..", "standard", "scripts"))
 from auth_helper import (
     DATAVERSE_URL,
     api_delete,

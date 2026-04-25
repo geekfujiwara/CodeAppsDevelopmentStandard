@@ -1,5 +1,5 @@
 ---
-name: code-apps-mail
+name: mail-pdf
 description: "Code Apps からの PDF メール添付送信。HTML→PDF 変換（html2canvas + jsPDF）、Power Automate フローの ContentBytes 二重エンコード回避、UTC→JST 時刻変換の検証済みパターン。"
 category: integration
 triggers:

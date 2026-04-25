@@ -10,7 +10,7 @@
 [Power Automate] → メール/Teams 通知
 ```
 
-**使うスキル**: `code-apps-design` → `code-apps-dev` → `power-automate-flow`
+**使うスキル**: `code-apps` → `power-automate`
 
 ### パターン A2: 業務アプリ（Model-Driven + 通知）
 
@@ -20,7 +20,7 @@
 [Power Automate] → メール/Teams 通知
 ```
 
-**使うスキル**: `model-driven-app` → `power-automate-flow`
+**使うスキル**: `model-driven-app` → `power-automate`
 
 > **パターン A vs A2 の判断**: カスタム UI が不要で標準ビュー/フォームで十分なら A2（最速）。
 > カンバン・ダッシュボード・カスタムビジュアルが必要なら A。
@@ -33,7 +33,7 @@
               [Dataverse ナレッジ] + [SharePoint ナレッジ]
 ```
 
-**使うスキル**: `copilot-studio-agent`
+**使うスキル**: `copilot-studio`
 
 ### パターン C: イベント駆動 AI 処理（トリガー + エージェント）
 
@@ -47,7 +47,7 @@
 応答処理（メール返信 / Teams 投稿）
 ```
 
-**使うスキル**: `copilot-studio-agent` → `copilot-studio-trigger`
+**使うスキル**: `copilot-studio`（[trigger.md](../../copilot-studio/references/trigger.md) を参照）
 
 ### パターン D: 定期レポート配信
 
@@ -57,7 +57,7 @@
 [Copilot Studio] → RSS/Web 検索 → レポート生成 → メール送信
 ```
 
-**使うスキル**: `market-research-report`（このパターン専用のテンプレート）
+**使うスキル**: `copilot-studio`（[market-research-report.md](../../copilot-studio/references/market-research-report.md) を参照）
 
 ### パターン E: フルスタック業務システム
 

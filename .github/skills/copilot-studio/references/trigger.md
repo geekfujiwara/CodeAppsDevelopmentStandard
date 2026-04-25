@@ -1,5 +1,5 @@
 ---
-name: copilot-studio-trigger
+name: trigger
 description: "Copilot Studio エージェントに外部トリガー（メール受信・Teams メッセージ・スケジュール等）を追加する。Power Automate フローと ExternalTriggerComponent を連携させてエージェントを自動起動する。"
 category: automation
 triggers:

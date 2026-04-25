@@ -6,7 +6,7 @@ Dataverse テーブル構築テンプレート
 
 前提:
   - auth_helper.py がプロジェクトルートに存在
-    (.github/skills/power-platform-standard/scripts/auth_helper.py をコピー)
+    (.github/skills/standard/scripts/auth_helper.py をコピー)
   - .env に DATAVERSE_URL, TENANT_ID, SOLUTION_NAME, PUBLISHER_PREFIX を設定済み
   - pip install azure-identity requests python-dotenv
 
@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── auth_helper.py インポート ────────────────────────────────
-# auth_helper.py は power-platform-standard スキルの共通モジュール。
+# auth_helper.py は standard スキルの共通モジュール。
 # プロジェクトルートにコピーして使用する。
 #
 # 主要 API:

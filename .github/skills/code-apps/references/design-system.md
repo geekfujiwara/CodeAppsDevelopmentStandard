@@ -1,5 +1,5 @@
 ---
-name: code-apps-design
+name: design-system
 description: "CodeAppsStarter のデザインシステムを利用して Code Apps の UI を構築する。shadcn/ui + Tailwind CSS v4 のコンポーネントライブラリによる画面設計・コンポーネント選定。"
 category: ui
 triggers:
@@ -36,7 +36,7 @@ triggers:
 **[CodeAppsStarter](https://github.com/geekfujiwara/CodeAppsStarter)** のコンポーネントライブラリを使い、
 Code Apps の画面を設計・実装する。
 
-> **前提**: アプリの初期化・Dataverse 接続・デプロイは `code-apps-dev` スキルを参照。
+> **前提**: アプリの初期化・Dataverse 接続・デプロイは `code-apps` スキル（[SKILL.md](../SKILL.md)）を参照。
 > このスキルは UI 設計・コンポーネント選定・画面構成に特化。
 
 ## 設計フェーズ（ユーザー承認必須）
@@ -55,7 +55,7 @@ Code Apps の画面を設計・実装する。
 | テーマ | ダーク/ライトモード対応 |
 
 ```
-フロー: code-apps-design で設計 → ユーザー承認 → code-apps-dev で実装
+フロー: code-apps（design-system）で設計 → ユーザー承認 → code-apps で実装
 ```
 
 ## 大前提: 一つのソリューション内に開発

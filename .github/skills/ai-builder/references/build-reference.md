@@ -440,7 +440,7 @@ if __name__ == "__main__":
 
 - OneDrive `CreateFile` → `ConvertFile`(PDF) → AI Builder → `DeleteFile`
 - 変換対応: doc, docx, epub, eml, htm, html, md, msg, odp, ods, odt, pps, ppsx, ppt, pptx, rtf, tif, tiff, xls, xlsm, xlsx
-- 詳細は `power-automate-flow` スキルの「OneDrive PDF 変換パターン」を参照
+- 詳細は `power-automate` スキルの「OneDrive PDF 変換パターン」を参照
 
 **アプローチ 2: Code Interpreter を有効化（AI プロンプト設定）**
 
