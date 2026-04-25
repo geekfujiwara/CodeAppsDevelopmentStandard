@@ -81,6 +81,72 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 
 コンポーネントカタログ・ユーティリティ・テーマ変数・画面設計パターンの詳細は [コンポーネントリファレンス](references/component-catalog.md) を参照。
 
+## レスポンシブファースト設計原則
+
+**Code Apps はモバイル（MDA 内 iframe）での利用が主。モバイルファーストで設計し、デスクトップに拡張する。**
+
+### 基本ルール
+
+1. **モバイルレイアウトを最初に設計**。`md:` / `lg:` プレフィックスでデスクトップ拡張
+2. **テキスト省略（truncate）を前提にする**。テーブル名・作業指示書名等の長い文字列は `truncate` で `...` 省略。クリックで詳細表示
+3. **マルチカラムレイアウト**: モバイル=1カラムずつ表示（ステップ切替）、デスクトップ=`grid grid-cols-N`
+4. **カード内テキストは必ず幅制約する**。`min-w-0` + `overflow-hidden` + `truncate` のチェーンを Card → CardContent → flex → text 要素まで通す
+
+### ScrollArea 使用禁止（マルチカラム・truncate 併用時）
+
+**Radix UI `ScrollArea` はテキスト省略（`truncate`）と併用してはならない。**
+
+| 問題 | Radix `ScrollArea` の内部 Viewport が `overflow: scroll` を持ち、コンテンツの水平膨張を許容する |
+|------|------|
+| 症状 | `truncate`（`text-overflow: ellipsis`）が効かない。テキストが横にはみ出す |
+| 原因 | `truncate` の前提は親要素の幅制約（`overflow: hidden`）だが、ScrollArea Viewport が水平スクロールを許可するため幅制約が無効化される |
+| 解決策 | `ScrollArea` を素の `div` + `overflow-y-auto overflow-x-hidden` に置き換える |
+
+```tsx
+// ❌ NG: ScrollArea + truncate — テキストが省略されない
+<ScrollArea className="min-w-0">
+  <p className="truncate">長いテキスト...</p>
+</ScrollArea>
+
+// ✅ OK: div + overflow 制御 — truncate が正しく動作
+<div className="overflow-y-auto overflow-x-hidden min-w-0">
+  <p className="truncate">長いテキスト...</p>
+</div>
+```
+
+> **適用範囲**: グリッドカラム・サイドパネル・カードリスト等、幅が制約された領域で
+> テキスト省略が必要な場合すべて。縦スクロールのみが必要な場面では `ScrollArea` を使わず
+> 素の `div` を使う。
+
+### truncate チェーン（必須パターン）
+
+`truncate` を効かせるには、**ルート要素から対象テキストまで `min-w-0` チェーンが途切れないこと**が必要:
+
+```tsx
+// グリッドセル → スクロール領域 → カード → テキスト の全階層で min-w-0
+<div className="grid grid-cols-3 min-h-0 overflow-hidden">
+  {/* 各カラム */}
+  <div className="min-w-0 overflow-y-auto overflow-x-hidden">
+    <Card className="min-w-0 overflow-hidden">
+      <CardContent className="min-w-0 overflow-hidden">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Icon className="shrink-0" />
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <p className="truncate">長いテキストが...で省略される</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+</div>
+```
+
+**チェックポイント**:
+- `flex` / `grid` の子要素に `min-w-0`（flexbox のデフォルト `min-width: auto` を無効化）
+- `overflow-hidden` がテキスト要素の直近の祖先にある
+- `shrink-0` でアイコン等の固定幅要素が縮まないようにする
+- `flex-1 min-w-0` で可変幅テキスト領域を確保
+
 ## コンポーネント選定ガイド
 
 | やりたいこと | 推奨コンポーネント |

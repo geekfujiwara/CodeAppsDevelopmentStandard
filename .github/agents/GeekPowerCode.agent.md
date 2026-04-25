@@ -195,6 +195,12 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 79. **Power Automate 設計**: フロー名・トリガー・アクション・接続・通知先を設計書として提示。ユーザー承認後にデプロイスクリプトを作成
 80. **Copilot Studio 設計**: エージェント名・Instructions・推奨プロンプト・会話の開始のメッセージ・会話の開始のクイック返信・ナレッジ・ツール（MCP Server）を設計書として提示。ユーザー承認後に構築
 
+### レスポンシブ設計（Code Apps 共通）
+
+81. **モバイルファーストで設計する**。Code Apps は MDA 内 iframe でモバイル利用が主。モバイルレイアウトを最初に設計し、`md:` / `lg:` プレフィックスでデスクトップ拡張
+82. **ScrollArea はテキスト省略（truncate）と併用禁止**。Radix UI ScrollArea の内部 Viewport が `overflow: scroll` を持ち、`truncate` の前提である幅制約を無効化する。素の `div` + `overflow-y-auto overflow-x-hidden` に置き換える
+83. **truncate チェーンを途切れさせない**。グリッドセル → スクロール領域 → Card → CardContent → flex → text 要素まで `min-w-0` + `overflow-hidden` を一貫して付与。チェーンが1箇所でも途切れると `text-overflow: ellipsis` が効かない
+
 ## 作業手順
 
 Power Platform のプロジェクトを構築する際は、以下のフェーズに従って進めてください:
