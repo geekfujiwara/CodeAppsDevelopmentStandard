@@ -1,5 +1,5 @@
 ---
-name: ai-builder-prompt
+name: ai-builder
 description: "AI Builder の AI プロンプト（GPT Dynamic Prompt）を Dataverse API で作成し、Copilot Studio エージェントにツール（アクション）として追加する。"
 category: ai
 triggers:

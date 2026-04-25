@@ -1,6 +1,6 @@
 ---
-name: copilot-studio-agent
-description: "Copilot Studio エージェントを生成オーケストレーション（Generative Orchestration）モードで構築・設定する。トピックベース開発は行わない。"
+name: copilot-studio
+description: "Copilot Studio エージェントの構築・設定・外部トリガー追加・ニュース配信エージェント等のソリューション構築。生成オーケストレーション（Generative Orchestration）モード一択。"
 category: automation
 triggers:
   - "Copilot Studio"
@@ -14,12 +14,41 @@ triggers:
   - "PvaPublish"
   - "ボット設定"
   - "エージェント公開"
+  - "Copilot Studio トリガー"
+  - "メール受信"
+  - "エージェント自動起動"
+  - "ExternalTriggerComponent"
+  - "ExecuteCopilot"
+  - "Power Automate トリガー"
+  - "Office 365 Outlook"
+  - "OnNewEmailV3"
+  - "メールトリガー"
+  - "自動リサーチ"
+  - "レポート自動生成"
+  - "RSS"
+  - "Web検索"
+  - "定期配信"
+  - "スケジュールトリガー"
+  - "Work IQ MCP"
+  - "ニュースエージェント"
 ---
 
 # Copilot Studio エージェント構築スキル
 
 Copilot Studio エージェントを **生成オーケストレーション（Generative Orchestration）モード一択** で構築する。
-トピックベース開発は行わない。
+外部トリガー・ニュース配信エージェント等の応用パターンまでカバーする統合スキル。
+
+## サブリファレンス（必要に応じて参照）
+
+| リファレンス | 内容 |
+|---|---|
+| [構築リファレンス](references/build-reference.md) | 構築手順の詳細・Instructions テンプレート・スクリプトコード |
+| [外部トリガー](references/trigger.md) | メール受信・Teams メッセージ・スケジュール等のトリガー追加 |
+| [トリガーパターン](references/trigger-patterns.md) | トリガーの設定パターン集 |
+| [トリガートラブルシューティング](references/trigger-troubleshooting.md) | トリガー関連のトラブルシューティング |
+| [ニュース配信エージェント](references/market-research-report.md) | RSS + Web検索 + Work IQ MCP によるニュース収集・配信エージェント構築 |
+| [ニュース配信デプロイガイド](references/market-research-deployment-guide.md) | ニュース配信エージェントのデプロイ手順 |
+| [ニュース配信メールテンプレート](references/market-research-email-template.md) | ニュース配信メールの HTML テンプレート |
 
 ## 前提: 設計フェーズ完了後に構築に入る（必須）
 
@@ -44,11 +73,11 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 
 ## アイコン画像提案（設計承認後・構築前）
 
-> **アイコンの設計・生成・登録の詳細は `icon-creation` スキル（`.github/skills/icon-creation/SKILL.md`）を参照。**
+> **アイコンの設計・生成・登録の詳細は `standard` スキルの [アイコン作成リファレンス](../standard/references/icon-creation.md) を参照。**
 > ここではエージェント固有の手順のみ記載する。
 
 エージェント設計が承認されたら、**Bot 作成前にアイコン画像を提案**する。
-`icon-creation` スキルのアイコン画像提案フローに従い、3〜4 パターンを提案 → ユーザー選択 → PNG 3 サイズ生成（240, 192, 32）→ `bots.iconbase64` + Teams マニフェストに API 登録。
+`standard` スキルの [アイコン作成リファレンス](../standard/references/icon-creation.md) のアイコン画像提案フローに従い、3〜4 パターンを提案 → ユーザー選択 → PNG 3 サイズ生成（240, 192, 32）→ `bots.iconbase64` + Teams マニフェストに API 登録。
 
 ## 大前提: 一つのソリューション内に開発
 
@@ -61,7 +90,7 @@ PUBLISHER_PREFIX=geek              ← ソリューション発行者の prefix
 
 - API ヘッダーに `MSCRM.SolutionName: {SOLUTION_NAME}` を付けることでソリューション内に作成
 
-> **認証**: Python スクリプトの認証は `power-platform-standard` スキルの `auth_helper.py` を使用。
+> **認証**: Python スクリプトの認証は `standard` スキルの `auth_helper.py` を使用。
 > `from auth_helper import get_token, get_session, api_get, api_post, api_patch` で利用する。
 
 - Bot 作成時（Copilot Studio UI）は「エージェント設定」でソリューションを明示的に選択

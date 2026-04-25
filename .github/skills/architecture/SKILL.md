@@ -1,5 +1,5 @@
 ---
-name: architecture-design
+name: architecture
 description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。"
 category: architecture
 triggers:
@@ -21,7 +21,7 @@ triggers:
 ユーザー要件から **Power Platform のどのコンポーネントを使うか** を判断し、全体アーキテクチャを設計する。
 各コンポーネントの得意領域・制約・統合パターンを把握し、**迷わず最適な構成を選定**するためのスキル。
 
-> **このスキルの位置づけ**: Phase 0（設計）の最初に読む。個別コンポーネントのスキル（`copilot-studio-agent`, `power-automate-flow` 等）に入る前に、全体像を確定させる。
+> **このスキルの位置づけ**: Phase 0（設計）の最初に読む。個別コンポーネントのスキル（`copilot-studio`, `power-automate` 等）に入る前に、全体像を確定させる。
 
 ---
 

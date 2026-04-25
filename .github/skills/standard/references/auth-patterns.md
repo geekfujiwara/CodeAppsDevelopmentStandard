@@ -33,7 +33,7 @@ flow_api_call("GET", f"/providers/Microsoft.ProcessSimple/environments/{env_id}/
 
 ```bash
 # 初回のみデバイスコード認証が走る。以降はサイレント。
-python -c "import sys; sys.path.insert(0, '.github/skills/power-platform-standard/scripts'); from auth_helper import get_token; print(get_token()[:20] + '...')"
+python -c "import sys; sys.path.insert(0, '.github/skills/standard/scripts'); from auth_helper import get_token; print(get_token()[:20] + '...')"
 ```
 
 #### MSAL Python 3.14 互換性問題

@@ -1,6 +1,6 @@
 ---
-name: code-apps-dev
-description: "Power Apps Code Apps（コードファースト）の初期化・Dataverse 接続・開発・デプロイ。TypeScript + React + Tailwind CSS + shadcn/ui で開発する。"
+name: code-apps
+description: "Power Apps Code Apps（コードファースト）の初期化・Dataverse 接続・UI 設計・開発・デプロイ。TypeScript + React + Tailwind CSS + shadcn/ui で開発する。CSP 構成・メール送信パターンも含む。"
 category: ui
 triggers:
   - "Code Apps"
@@ -16,14 +16,53 @@ triggers:
   - "Code Apps デプロイ"
   - "nameUtils パッチ"
   - "日本語サニタイズ"
+  - "Code Apps デザイン"
+  - "UI 設計"
+  - "コンポーネント選定"
+  - "画面レイアウト"
+  - "ギャラリー"
+  - "テーブル"
+  - "カンバン"
+  - "ガントチャート"
+  - "ダッシュボード"
+  - "フォーム"
+  - "デザイン例"
+  - "iframe"
+  - "embed"
+  - "埋め込み"
+  - "CSP"
+  - "Content Security Policy"
+  - "frame-src"
+  - "connect-src"
+  - "メール送信"
+  - "PDF添付"
+  - "PDF生成"
+  - "htmlToPdfBase64"
+  - "ContentBytes"
+  - "base64"
+  - "html2canvas"
+  - "jsPDF"
+  - "日本地図"
+  - "地図"
+  - "マップ"
+  - "JapanMap"
 ---
 
 # Code Apps 開発スキル
 
 Power Apps Code Apps（コードファースト）を **TypeScript + React + Tailwind CSS + shadcn/ui** で開発する。
+UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の全領域をカバーする統合スキル。
 
-> **UI 設計・コンポーネント選定** は `code-apps-design` スキルを参照。
-> このスキルは初期化・Dataverse 接続・デプロイに特化。
+## サブリファレンス（必要に応じて参照）
+
+| リファレンス | 内容 |
+|---|---|
+| [デザインシステム](references/design-system.md) | shadcn/ui + Tailwind CSS v4 のコンポーネント選定・画面設計パターン |
+| [コンポーネントカタログ](references/component-catalog.md) | 全コンポーネントの詳細仕様・使用例 |
+| [CSP 構成](references/csp.md) | iframe 埋め込み・外部 API 接続時の Content Security Policy 設定 |
+| [メール・PDF 送信](references/mail-pdf.md) | HTML→PDF 変換・Power Automate 経由メール添付送信パターン |
+| [日本地図パターン](references/japan-map-pattern.md) | SVG 都道府県地図の実装パターン |
+| [ビルドリファレンス](references/build-reference.md) | ビルド・デプロイの詳細手順 |
 
 > [!NOTE]
 > 本スキル内のコード例は **インシデント管理サンプル** を題材としています。
@@ -32,10 +71,10 @@ Power Apps Code Apps（コードファースト）を **TypeScript + React + Tai
 
 ## 前提: 設計フェーズ完了後に実装に入る（必須）
 
-**このスキルでコードを書く前に、`code-apps-design` スキルで UI 設計を行い、ユーザーの承認を得ていること。**
+**このスキルでコードを書く前に、[デザインシステム](references/design-system.md) を参照して UI 設計を行い、ユーザーの承認を得ていること。**
 
 ```
-① code-apps-design スキルを読み込む
+① デザインシステムリファレンス（references/design-system.md）を読み込む
 ② 画面構成・コンポーネント選定・Lookup 名前解決パターンを設計
 ③ ユーザーに設計を提示し、「この設計で進めてよいですか？」と承認を得る
 ④ 承認後、このスキルに従って実装

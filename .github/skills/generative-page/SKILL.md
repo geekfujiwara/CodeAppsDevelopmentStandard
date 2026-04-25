@@ -1,5 +1,5 @@
 ---
-name: generative-page-dev
+name: generative-page
 description: "Power Apps Generative Pages (genux) の開発・デバッグ・デプロイ。React 17 + TypeScript + Fluent UI V9 + D3.js の単一ファイル構成。デザインテンプレートによる段階的 UI 改善。"
 category: ui
 argument-hint: "[ページの説明 or 'deploy' or 'debug' or 'improve design']"
@@ -32,7 +32,7 @@ triggers:
 
 Power Apps モデル駆動型アプリの **Generative Pages (genux)** を開発・デバッグ・デプロイするスキル。
 
-> **Code Apps スキル (`code-apps-dev`) との違い**: Code Apps は React 18 + Tailwind + shadcn + Vite + `npx power-apps push` のフルスタック開発。Generative Pages は React 17 + Fluent UI V9 + D3.js の **単一 `.tsx` ファイル構成** で `pac model genpage upload` でデプロイする軽量ページ。
+> **Code Apps スキル (`code-apps`) との違い**: Code Apps は React 18 + Tailwind + shadcn + Vite + `npx power-apps push` のフルスタック開発。Generative Pages は React 17 + Fluent UI V9 + D3.js の **単一 `.tsx` ファイル構成** で `pac model genpage upload` でデプロイする軽量ページ。
 
 ## 技術スタック
 
@@ -655,7 +655,7 @@ const locMap = useMemo(() => {
 `pac model genpage upload` の `--add-to-sitemap` は使わない。タイトルなしの「新しいサブエリア」が作成される。
 
 **正しいパターン:** `deploy_model_app.py` の SiteMap XML に `GenPageId` + `<Titles>` 付き SubArea を追加。
-SiteMap VectorIcon で使える組み込みアイコンの一覧は `icon-creation` スキル（`.github/skills/icon-creation/SKILL.md`）を参照。
+SiteMap VectorIcon で使える組み込みアイコンの一覧は `standard` スキルの [アイコン作成リファレンス](../standard/references/icon-creation.md) を参照。
 
 ```xml
 <SubArea Id="sub_genpage" GenPageId="{page-id}" VectorIcon="/_imgs/TableIconsFluentV9/document_one_page_sparkle.svg" AvailableOffline="true">
