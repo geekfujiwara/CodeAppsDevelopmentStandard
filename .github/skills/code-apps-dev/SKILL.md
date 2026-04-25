@@ -252,6 +252,146 @@ Power Apps ランタイムは厳格な CSP を適用し、**外部 API への `f
 
 **CodeAppsStarter テンプレートにはデモ用の外部 API 呼び出しが含まれる**ため、必ず削除すること。
 
+### ログインユーザーの systemuserid 取得（検証済 2026-04-25）
+
+Code Apps でログインユーザーの Dataverse `systemuserid` を取得するには、以下の **唯一の確実な方法** を使う。
+
+```
+❌ Xrm.Utility.getGlobalContext().userSettings.userId
+   → Code Apps では Xrm オブジェクトは利用不可（undefined）
+
+❌ fetch("/api/data/v9.2/WhoAmI")
+   → CSP connect-src: 'none' でブロックされる（Code Apps はデフォルトで全 fetch を禁止）
+
+❌ WhoAmIService.WhoAmI()（npx power-apps add-dataverse-api -n WhoAmI で生成）
+   → executeAsync は内部的に fetch を使うため、CSP でブロックされる
+   → {"success":false,"error":{}} が返る
+
+❌ SDK getContext().user.objectId をそのまま使う
+   → これは Entra AAD Object ID であり、Dataverse systemuserid ではない
+   → bookableresource._userid_value 等と一致しない
+
+✅ SDK getContext() → Entra objectId 取得 → systemuser テーブルクエリで systemuserid を解決
+   → retrieveMultipleRecordsAsync は postMessage ベースのため CSP 制約を受けない
+```
+
+**前提: systemuser をデータソースに追加**
+
+```bash
+npx power-apps add-data-source --api-id dataverse \
+  --resource-name systemuser \
+  --org-url {DATAVERSE_URL}
+```
+
+`src/generated/appschemas/dataSourcesInfo.ts` に `systemusers` エントリが自動追加される。
+追加されない場合は手動で追記:
+
+```typescript
+"systemusers": {
+  "tableId": "systemuser",
+  "version": "",
+  "primaryKey": "systemuserid",
+  "dataSourceType": "Dataverse",
+  "apis": {}
+}
+```
+
+**実装パターン（最小構成）:**
+
+```typescript
+// src/services/booking-service.ts（または user-service.ts）
+
+// --- SDK App Context ---
+// @ts-ignore - resolved at runtime by Power Apps host
+import { getContext } from "@microsoft/power-apps/app";
+import type { IContext } from "@microsoft/power-apps/app";
+
+let _sdkContext: IContext | null = null;
+async function getSdkContext(): Promise<IContext | null> {
+  if (_sdkContext) return _sdkContext;
+  try {
+    _sdkContext = await getContext();
+    return _sdkContext;
+  } catch { return null; }
+}
+
+/**
+ * ログインユーザーの Dataverse systemuserid を取得する。
+ * SDK getContext() で Entra objectId を取得し、systemuser テーブルから systemuserid を解決。
+ * retrieveMultipleRecordsAsync は postMessage ベースのため CSP の影響を受けない。
+ */
+export async function getCurrentUserId(): Promise<string | null> {
+  try {
+    const ctx = await getSdkContext();
+    if (ctx?.user?.objectId) {
+      const entraId = ctx.user.objectId;
+      console.log("[getCurrentUserId] Entra objectId:", entraId);
+
+      const client = await getClient();  // SDK DataClient
+      const result = await client.retrieveMultipleRecordsAsync(
+        "systemusers",
+        {
+          select: ["systemuserid"],
+          filter: `azureactivedirectoryobjectid eq '${entraId}'`,
+          top: 1,
+        }
+      );
+      if (result?.success && result.data?.length > 0) {
+        const uid = result.data[0]?.systemuserid;
+        if (uid) return uid.toLowerCase();
+      }
+    }
+  } catch (e) {
+    console.warn("[getCurrentUserId] failed:", e);
+  }
+  return null;
+}
+```
+
+**TanStack React Query フック:**
+
+```typescript
+// src/hooks/use-bookings.ts（または use-user.ts）
+export function useCurrentUserId() {
+  return useQuery({
+    queryKey: ["currentUserId"],
+    queryFn: getCurrentUserId,
+    staleTime: Infinity,  // ユーザー ID はセッション中変わらない
+    retry: 2,
+  });
+}
+```
+
+**ページでの使用パターン（予約フィルタ）:**
+
+```typescript
+export default function BookingsPage() {
+  const { data: bookings = [] } = useBookings();
+  const { data: resources = [] } = useBookableResources();
+  const { data: currentUserId } = useCurrentUserId();
+
+  // systemuserid → bookableresourceid を解決
+  const currentResourceId = useMemo(() => {
+    if (!currentUserId) return null;
+    const uid = currentUserId.toLowerCase();
+    const res = resources.find((r) => r._userid_value?.toLowerCase() === uid);
+    return res?.bookableresourceid ?? null;
+  }, [currentUserId, resources]);
+
+  // 自分の予約のみ表示（未解決時は空配列）
+  const myBookings = useMemo(() => {
+    if (!currentResourceId) return [];
+    return bookings.filter((b) => b._resource_value === currentResourceId);
+  }, [bookings, currentResourceId]);
+}
+```
+
+**重要な教訓:**
+- **GUID の大文字/小文字は統一する**: Dataverse API は大文字小文字混在で返すことがある。比較時は必ず `.toLowerCase()` を使う
+- **systemuserid が取れない場合は空配列を返す**: null フォールバックで全データ表示しない（セキュリティリスク）
+- **`IContext.user.objectId` は Entra AAD Object ID**: Dataverse の `systemuserid` とは異なる値。`azureactivedirectoryobjectid` 列でマッピングが必要
+- **`executeAsync` も CSP でブロックされる**: `add-dataverse-api` で生成した WhoAmI サービスは `executeAsync` を使うが、これも内部で `fetch()` を使用しておりCSPでブロックされる。`retrieveMultipleRecordsAsync` だけが postMessage ベースで CSP 安全
+
 ### 基本設計方針: モーダル操作 + z-index ルール
 
 **新規作成・編集・削除はすべてモーダル（Dialog / AlertDialog）で操作する。**

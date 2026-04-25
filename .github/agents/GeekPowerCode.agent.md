@@ -177,15 +177,23 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 
 68. **SiteMap SubArea は `GenPageId` ではなく `Url` 属性を使う**。`GenPageId="{page-id}"` で GenPage を SiteMap に追加すると「新しいサブエリア」と表示され `<Titles>` が反映されないことがある。`Url="/main.aspx?pagetype=genux&amp;id={page-id}"` を使うと `<Titles>` が MDA メニューに正しく表示される（2026-04-24 検証済み）。既存エンティティ SubArea の直後に挿入し、`PublishXml` でアプリを公開する
 
+### Code Apps ログインユーザー識別
+
+69. **ログインユーザーの systemuserid は SDK `getContext()` + systemuser テーブルクエリで取得する（唯一の方法）**。`Xrm` オブジェクトは Code Apps で利用不可（undefined）。`fetch("/api/data/v9.2/WhoAmI")` は CSP `connect-src: 'none'` でブロック。`npx power-apps add-dataverse-api -n WhoAmI` で生成される `WhoAmIService` も内部で `executeAsync`（= fetch）を使うため CSP でブロック（`{"success":false,"error":{}}` を返す）。**`retrieveMultipleRecordsAsync` だけが postMessage ベースで CSP 安全**
+70. **SDK `getContext().user.objectId` は Entra AAD Object ID であり Dataverse systemuserid ではない**。`systemuser` テーブルの `azureactivedirectoryobjectid` 列で Entra objectId → systemuserid をマッピングする。`systemuser` はデータソースとして `npx power-apps add-data-source --api-id dataverse --resource-name systemuser --org-url {DATAVERSE_URL}` で追加する
+71. **GUID 比較は必ず `.toLowerCase()` で統一する**。Dataverse API は大文字小文字混在で GUID を返すことがある。`_resource_value`、`_userid_value`、`systemuserid` 等の比較時に大文字/小文字の不一致でフィルタが機能しなくなる
+72. **systemuserid 未取得時は空配列 `[]` を返す（null フォールバックで全データ表示しない）**。ユーザー ID が解決できなかった場合に全件表示するとセキュリティリスク。`if (!currentResourceId) return []` パターンで他ユーザーのデータを表示しない
+73. **`executeAsync` も CSP でブロックされる**。`add-dataverse-api` で生成したサービス（WhoAmI 等）は `executeAsync` を使うが、これも内部で `fetch()` を使用しており CSP でブロックされる。Code Apps で CSP 安全な SDK メソッドは `retrieveMultipleRecordsAsync` / `retrieveRecordAsync` / `createRecordAsync` / `updateRecordAsync` / `deleteRecordAsync` のみ（すべて postMessage ベース）
+
 ### 設計フェーズ（最重要 — 全フェーズ共通原則）
 
-69. **全フェーズで設計→ユーザー承認→実装の順序を守る**。Dataverse・Code Apps・Power Automate・Copilot Studio のいずれも、設計をユーザーに提示し「この設計で進めてよいですか？」と承認を得てから構築に進む
-70. **テーブル設計**: 全 Lookup リレーションシップを設計書に明記。漏れると Lookup が機能しない
-71. **テーブル設計**: デモデータは全テーブル（従属テーブル含む）に計画。コメント等の従属テーブルにもデモデータを用意
-72. **テーブル設計**: マスタテーブルは要件から網羅的に洗い出す。カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化
-73. **Code Apps 設計**: `code-apps-design` スキルを読み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計。ユーザー承認後に `code-apps-dev` で実装
-74. **Power Automate 設計**: フロー名・トリガー・アクション・接続・通知先を設計書として提示。ユーザー承認後にデプロイスクリプトを作成
-75. **Copilot Studio 設計**: エージェント名・Instructions・推奨プロンプト・会話の開始のメッセージ・会話の開始のクイック返信・ナレッジ・ツール（MCP Server）を設計書として提示。ユーザー承認後に構築
+74. **全フェーズで設計→ユーザー承認→実装の順序を守る**。Dataverse・Code Apps・Power Automate・Copilot Studio のいずれも、設計をユーザーに提示し「この設計で進めてよいですか？」と承認を得てから構築に進む
+75. **テーブル設計**: 全 Lookup リレーションシップを設計書に明記。漏れると Lookup が機能しない
+76. **テーブル設計**: デモデータは全テーブル（従属テーブル含む）に計画。コメント等の従属テーブルにもデモデータを用意
+77. **テーブル設計**: マスタテーブルは要件から網羅的に洗い出す。カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化
+78. **Code Apps 設計**: `code-apps-design` スキルを読み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計。ユーザー承認後に `code-apps-dev` で実装
+79. **Power Automate 設計**: フロー名・トリガー・アクション・接続・通知先を設計書として提示。ユーザー承認後にデプロイスクリプトを作成
+80. **Copilot Studio 設計**: エージェント名・Instructions・推奨プロンプト・会話の開始のメッセージ・会話の開始のクイック返信・ナレッジ・ツール（MCP Server）を設計書として提示。ユーザー承認後に構築
 
 ## 作業手順
 
