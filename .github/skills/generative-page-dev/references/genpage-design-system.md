@@ -449,9 +449,14 @@ function showTip(html: string, ev: MouseEvent) {
 /* state */
 var [toast, setToast] = useState<string | null>(null);
 
+useEffect(function () {
+  if (!toast) return;
+  var timer = setTimeout(function () { setToast(null); }, 3000);
+  return function () { clearTimeout(timer); };
+}, [toast]);
+
 /* 表示 */
 setToast("承認しました");
-setTimeout(function () { setToast(null); }, 3000);
 
 /* レンダリング */
 toast && React.createElement("div", {
