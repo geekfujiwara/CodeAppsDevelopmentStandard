@@ -1309,3 +1309,5 @@ export interface GeneratedComponentProps {
     dataApi: UxAgentDataApi;
 }
 
+/** Dataverse テーブル行の読み取り専用型。全カラムがオプショナルになる。 */
+export type ReadableTableRow<T> = { [K in keyof T]?: T[K] | null };

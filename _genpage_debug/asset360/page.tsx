@@ -8,21 +8,17 @@ import type {
   bookableresourcebooking,
   bookableresource,
   msdyn_iotalert,
-  msdyn_iotdevice,
   incident,
   msdyn_incidenttype,
 } from "./RuntimeTypes";
 import {
   makeStyles,
-  tokens,
   Text,
   Button,
   Spinner,
-  Card,
   Badge,
   TabList,
   Tab,
-  Input,
   Dropdown,
   Option,
   Dialog,
@@ -36,13 +32,9 @@ import {
   BuildingRegular,
   WrenchRegular,
   AlertRegular,
-  ClipboardTaskRegular,
   DocumentRegular,
   ChevronRightRegular,
   ChevronDownRegular,
-  SearchRegular,
-  ArrowSyncRegular,
-  CheckmarkCircleRegular,
   CalendarRegular,
   WarningRegular,
   InfoRegular,
@@ -121,12 +113,14 @@ function fmtDateTime(d: any): string {
 function mdaFormUrl(etn: string, id: string): string {
   /* GenPage は MDA 内 iframe なので parent の origin を使い、
      /main.aspx?pagetype=entityrecord&etn=...&id=... で直接開く */
+  var encodedEtn = encodeURIComponent(etn);
+  var encodedId = encodeURIComponent(id);
   try {
     var base = window.top?.location?.origin || window.location.origin;
-    return base + "/main.aspx?pagetype=entityrecord&etn=" + etn + "&id=" + id;
+    return base + "/main.aspx?pagetype=entityrecord&etn=" + encodedEtn + "&id=" + encodedId;
   } catch (e) {
     /* cross-origin の場合は相対パスで */
-    return "/main.aspx?pagetype=entityrecord&etn=" + etn + "&id=" + id;
+    return "/main.aspx?pagetype=entityrecord&etn=" + encodedEtn + "&id=" + encodedId;
   }
 }
 
@@ -436,7 +430,7 @@ function FlowDiagram(props: {
                new Date(b.msdyn_datewindowstart || b.createdon as any).getTime();
       });
       sortedWO.forEach(function (wo, i) {
-        var isCompleted = String(wo.msdyn_systemstatus) === "690970005";
+        var isCompleted = String(wo.msdyn_systemstatus) === "690970003";
         var cat = woCategory(wo, incidentTypeMap);
         var itName = incidentTypeMap.get(fkId(wo._msdyn_primaryincidenttype_value)) || "";
         var booking = bookingByWO.get(wo.msdyn_workorderid);
@@ -536,13 +530,16 @@ function FlowDiagram(props: {
         .append("path").attr("d", "M 0 0 L 10 5 L 0 10 z").attr("fill", P.amber);
 
       /* === 背景ドットグリッド === */
+      var bgDotPattern = defs.append("pattern")
+        .attr("id", "bgDotGrid")
+        .attr("patternUnits", "userSpaceOnUse")
+        .attr("width", 24)
+        .attr("height", 24);
+      bgDotPattern.append("circle")
+        .attr("cx", 20).attr("cy", 20).attr("r", 1).attr("fill", P.gray200);
+
       svg.append("rect").attr("width", W).attr("height", totalH).attr("fill", "#fafbfc");
-      var dotG = svg.append("g").attr("class", "dots");
-      for (var dx = 20; dx < W; dx += 24) {
-        for (var dy = 20; dy < totalH; dy += 24) {
-          dotG.append("circle").attr("cx", dx).attr("cy", dy).attr("r", 1).attr("fill", P.gray200);
-        }
-      }
+      svg.append("rect").attr("width", W).attr("height", totalH).attr("fill", "url(#bgDotGrid)");
 
       /* === 列ヘッダー === */
       var headers = [
@@ -728,16 +725,31 @@ function FlowDiagram(props: {
           tooltipRef.current.style.display = "block";
           tooltipRef.current.style.left = (event.clientX - rect.left + containerRef.current.scrollLeft + 12) + "px";
           tooltipRef.current.style.top = (event.clientY - rect.top + containerRef.current.scrollTop - 12) + "px";
+
+          /* XSS 対策: textContent でテキスト代入 */
+          while (tooltipRef.current.firstChild) tooltipRef.current.removeChild(tooltipRef.current.firstChild);
+          function appendTipBlock(text: string, style?: string) {
+            if (!tooltipRef.current) return;
+            var div = document.createElement("div");
+            if (style) div.style.cssText = style;
+            div.textContent = text;
+            tooltipRef.current.appendChild(div);
+          }
           if (node.type === "alert") {
             var a = node.raw as AlertRow;
-            tooltipRef.current.innerHTML = "<div style='font-weight:600'>" + alertTypeLabel(a.msdyn_alerttype).label + "</div><div>" + (a.msdyn_description || "").substring(0, 150) + "</div><div style='opacity:.7;margin-top:4px'>" + fmtDateTime(a.msdyn_alerttime) + "</div>";
+            appendTipBlock(alertTypeLabel(a.msdyn_alerttype).label, "font-weight:600");
+            appendTipBlock((a.msdyn_description || "").substring(0, 150));
+            appendTipBlock(fmtDateTime(a.msdyn_alerttime), "opacity:.7;margin-top:4px");
           } else if (node.type === "case") {
             var c = node.raw as CaseRow;
-            tooltipRef.current.innerHTML = "<div style='font-weight:600'>" + (c.title || "") + "</div><div>" + (Number(c.statecode) > 0 ? "解決済み" : "オープン") + " — " + fmtDate(c.createdon) + "</div>";
+            appendTipBlock(c.title || "", "font-weight:600");
+            appendTipBlock((Number(c.statecode) > 0 ? "解決済み" : "オープン") + " — " + fmtDate(c.createdon));
           } else {
             var w = node.raw as WORow;
             var cat = woCategory(w, incidentTypeMap);
-            tooltipRef.current.innerHTML = "<div style='font-weight:600'>" + (w.msdyn_name || "") + "</div><div style='display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;color:#fff;background:" + cat.color + "'>" + cat.label + "</div><div style='margin-top:4px'>" + fmtDate(w.msdyn_datewindowstart) + " ～ " + fmtDate(w.msdyn_datewindowend) + "</div>";
+            appendTipBlock(w.msdyn_name || "", "font-weight:600");
+            appendTipBlock(cat.label, "display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;color:#fff;background:" + cat.color);
+            appendTipBlock(fmtDate(w.msdyn_datewindowstart) + " ～ " + fmtDate(w.msdyn_datewindowend), "margin-top:4px");
           }
         });
 
@@ -855,7 +867,7 @@ function DetailSidebar(props: {
   }
 
   if (wo) {
-    var isCompleted = String(wo.msdyn_systemstatus) === "690970005";
+    var isCompleted = String(wo.msdyn_systemstatus) === "690970003";
     var itName = incidentTypeMap.get(fkId(wo._msdyn_primaryincidenttype_value)) || "";
     var booking = bookingByWO.get(wo.msdyn_workorderid);
     var resName = booking ? (resourceMap.get(fkId(booking._resource_value)) || "") : "";
@@ -913,8 +925,12 @@ function DetailSidebar(props: {
         "関連 IoTアラート (" + relatedAlerts.length + ")")));
     relatedAlerts.forEach(function (a, i) {
       var at2 = alertTypeLabel(a.msdyn_alerttype);
+      var alertUrl = mdaFormUrl("msdyn_iotalert", a.msdyn_iotalertid);
       chainEls.push(React.createElement("div", { key: "a" + i, style: { display: "flex", gap: "8px", padding: "6px 8px", borderRadius: "6px", backgroundColor: P.gray50, marginBottom: 4, cursor: "pointer", transition: "background .15s" },
-        onClick: function () { window.open(mdaFormUrl("msdyn_iotalert", a.msdyn_iotalertid), "_top"); },
+        role: "button", tabIndex: 0,
+        "aria-label": "IoTアラートを開く: " + ((a.msdyn_description || "").substring(0, 60) || "詳細"),
+        onClick: function () { window.open(alertUrl, "_top"); },
+        onKeyDown: function (e: any) { if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); window.open(alertUrl, "_top"); } },
         onMouseOver: function (e: any) { e.currentTarget.style.backgroundColor = P.gray100; },
         onMouseOut: function (e: any) { e.currentTarget.style.backgroundColor = P.gray50; },
       },
@@ -933,8 +949,12 @@ function DetailSidebar(props: {
         "関連サポート案件 (" + relatedCases.length + ")")));
     relatedCases.forEach(function (c, i) {
       var isR = Number(c.statecode) === 1 || Number(c.statecode) === 2;
+      var caseUrl = mdaFormUrl("incident", c.incidentid);
       chainEls.push(React.createElement("div", { key: "c" + i, style: { display: "flex", gap: "8px", padding: "6px 8px", borderRadius: "6px", backgroundColor: P.gray50, marginBottom: 4, cursor: "pointer", transition: "background .15s" },
-        onClick: function () { window.open(mdaFormUrl("incident", c.incidentid), "_top"); },
+        role: "button", tabIndex: 0,
+        "aria-label": "サポート案件を開く: " + (c.title || "詳細"),
+        onClick: function () { window.open(caseUrl, "_top"); },
+        onKeyDown: function (e: any) { if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); window.open(caseUrl, "_top"); } },
         onMouseOver: function (e: any) { e.currentTarget.style.backgroundColor = P.gray100; },
         onMouseOut: function (e: any) { e.currentTarget.style.backgroundColor = P.gray50; },
       },
@@ -952,9 +972,13 @@ function DetailSidebar(props: {
       React.createElement(Text, { size: 200, weight: "semibold", style: { color: P.blue, display: "block", marginBottom: 4 } },
         "関連作業指示書 (" + relatedWOs.length + ")")));
     relatedWOs.forEach(function (w, i) {
-      var isDone = String(w.msdyn_systemstatus) === "690970005";
+      var isDone = String(w.msdyn_systemstatus) === "690970003";
+      var woUrl = mdaFormUrl("msdyn_workorder", w.msdyn_workorderid);
       chainEls.push(React.createElement("div", { key: "w" + i, style: { display: "flex", gap: "8px", padding: "6px 8px", borderRadius: "6px", backgroundColor: P.gray50, marginBottom: 4, cursor: "pointer", transition: "background .15s" },
-        onClick: function () { window.open(mdaFormUrl("msdyn_workorder", w.msdyn_workorderid), "_top"); },
+        role: "button", tabIndex: 0,
+        "aria-label": "作業指示書を開く: " + (w.msdyn_name || "詳細"),
+        onClick: function () { window.open(woUrl, "_top"); },
+        onKeyDown: function (e: any) { if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); window.open(woUrl, "_top"); } },
         onMouseOver: function (e: any) { e.currentTarget.style.backgroundColor = P.gray100; },
         onMouseOut: function (e: any) { e.currentTarget.style.backgroundColor = P.gray50; },
       },
@@ -1070,6 +1094,11 @@ var GeneratedComponent = function (props: GeneratedComponentProps) {
   var [selectedGanttItem, setSelectedGanttItem] = useState<SelectedGanttItem | null>(null);
   var [showAssetModal, setShowAssetModal] = useState(false);
 
+  /* ---- コールバック安定化 ---- */
+  var handleFlowItemClick = useCallback(function (type: string, id: string) {
+    setSelectedGanttItem({ type: type, id: id });
+  }, []);
+
   /* ---- URLハッシュからの初期資産ID ---- */
   var initialAssetId = useMemo(function () {
     try {
@@ -1122,6 +1151,8 @@ var GeneratedComponent = function (props: GeneratedComponentProps) {
     setDetailLoading(true);
     setExpandedWO(null);
 
+    var cancelled = false;
+
     (async function () {
       try {
         var woRows = await loadAllRows<msdyn_workorder>(dataApi, "msdyn_workorder", {
@@ -1134,6 +1165,7 @@ var GeneratedComponent = function (props: GeneratedComponentProps) {
           filter: "_msdyn_customerasset_value eq '" + assetId + "'",
           orderBy: "msdyn_datewindowstart desc",
         });
+        if (cancelled) return;
         setWorkOrders(woRows);
 
         var woIds = woRows.map(function (w) { return w.msdyn_workorderid; });
@@ -1148,6 +1180,7 @@ var GeneratedComponent = function (props: GeneratedComponentProps) {
             filter: filterParts.join(" or "),
             orderBy: "msdyn_lineorder asc",
           });
+          if (cancelled) return;
           allTasks = allTasks.concat(batchTasks);
         }
         setTasks(allTasks);
@@ -1157,6 +1190,7 @@ var GeneratedComponent = function (props: GeneratedComponentProps) {
             "_msdyn_workorder_value", "_resource_value", "_bookingstatus_value"],
           filter: woIds.length > 0 ? woIds.map(function (id) { return "_msdyn_workorder_value eq '" + id + "'"; }).join(" or ") : "bookableresourcebookingid eq '00000000-0000-0000-0000-000000000000'",
         });
+        if (cancelled) return;
         setBookings(bookingRows);
 
         var alertRows = await loadAllRows<msdyn_iotalert>(dataApi, "msdyn_iotalert", {
@@ -1167,6 +1201,7 @@ var GeneratedComponent = function (props: GeneratedComponentProps) {
           filter: "_msdyn_customerasset_value eq '" + assetId + "'",
           orderBy: "msdyn_alerttime desc",
         });
+        if (cancelled) return;
         setAlerts(alertRows);
 
         var caseIds: string[] = [];
@@ -1185,22 +1220,25 @@ var GeneratedComponent = function (props: GeneratedComponentProps) {
               "createdon", "statecode"],
             filter: caseFilter,
           });
+          if (cancelled) return;
           setCases(caseRows);
         } else {
-          setCases([]);
+          if (!cancelled) setCases([]);
         }
 
       } catch (e) {
         console.error("Detail load error:", e);
       } finally {
-        setDetailLoading(false);
+        if (!cancelled) setDetailLoading(false);
       }
     })();
+
+    return function () { cancelled = true; };
   }, [dataApi]);
 
   useEffect(function () {
     if (selectedAssetId) {
-      loadAssetDetails(selectedAssetId);
+      return loadAssetDetails(selectedAssetId);
     }
   }, [selectedAssetId, loadAssetDetails]);
 
@@ -1249,7 +1287,7 @@ var GeneratedComponent = function (props: GeneratedComponentProps) {
   var kpis = useMemo(function () {
     var totalWO = workOrders.length;
     var completedWO = workOrders.filter(function (wo) {
-      return String(wo.msdyn_systemstatus) === "690970005";
+      return String(wo.msdyn_systemstatus) === "690970003";
     }).length;
     var openWO = totalWO - completedWO;
     var totalAlerts = alerts.length;
@@ -1393,7 +1431,7 @@ var GeneratedComponent = function (props: GeneratedComponentProps) {
             incidentTypeMap: incidentTypeMap,
             bookingByWO: bookingByWO,
             resourceMap: resourceMap,
-            onItemClick: function (type: string, id: string) { setSelectedGanttItem({ type: type, id: id }); },
+            onItemClick: handleFlowItemClick,
             selectedItem: selectedGanttItem,
           }),
         ),
@@ -1418,7 +1456,7 @@ var GeneratedComponent = function (props: GeneratedComponentProps) {
         : workOrders.map(function (wo) {
             var woId = wo.msdyn_workorderid;
             var isExpanded = expandedWO === woId;
-            var isCompleted = String(wo.msdyn_systemstatus) === "690970005";
+            var isCompleted = String(wo.msdyn_systemstatus) === "690970003";
             var itName = incidentTypeMap.get(fkId(wo._msdyn_primaryincidenttype_value)) || "";
             var booking = bookingByWO.get(woId);
             var resourceName = booking ? (resourceMap.get(fkId(booking._resource_value)) || "") : "";
