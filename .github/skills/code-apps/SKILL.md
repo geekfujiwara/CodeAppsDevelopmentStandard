@@ -653,6 +653,123 @@ const columns = [
 </FormColumns>
 ```
 
+### データソース未登録テーブルの Lookup 名前解決（OData FormattedValue 活用）
+
+`npx power-apps add-data-source` でデータソースを追加しても、**Power Apps ランタイムで「Data source not found」エラー**が発生し、そのテーブルの SDK サービスが使えないケースがある。
+
+```
+❌ データソース追加・ビルド・デプロイしても解決しない
+   → "Data source not found: Unable to find data source: {tableName} in data sources info."
+   → SDK 生成サービス（{Table}Service.getAll()）も getClient().retrieveMultipleRecordsAsync() も同じエラー
+   → dataSourcesInfo.ts にエントリが存在しても、ランタイム側のデータソース登録が反映されない
+
+✅ OData FormattedValue アノテーションを使って Lookup 名を取得する
+   → 登録済みデータソースから取得したレコードの Lookup 列には、自動で名前が付与される
+   → SDK の retrieveMultipleRecordsAsync が返す raw オブジェクトに含まれる
+```
+
+**原因**: Power Apps Code Apps のランタイムが管理するデータソースレジストリと、ローカルの `dataSourcesInfo.ts` が同期しないプラットフォーム問題。一部のテーブル（特に後から追加したもの）で発生する。
+
+**解決パターン 1: Lookup 列の FormattedValue から名前を取得**
+
+Dataverse の OData API は、Lookup 列（`_xxx_value`）に対応するフォーマット済み値を
+`_xxx_value@OData.Community.Display.V1.FormattedValue` プロパティとして自動的に返す。
+SDK 生成サービスの型定義にはこのプロパティが含まれないが、**raw オブジェクトには存在する**。
+
+```typescript
+// 例: 登録済みテーブル（例: 在庫テーブル）のレコードから、
+//      未登録テーブル（例: 倉庫テーブル）の名前を取得する
+
+// --- パターン A: 一覧取得時に Lookup 名を付与 ---
+export async function getRecordsWithLookupNames(): Promise<MyRecord[]> {
+  const client = await getClient();
+  const result = await client.retrieveMultipleRecordsAsync(
+    "registeredtablename",  // ← データソース登録済みテーブル
+    {
+      select: [
+        "primaryid", "name",
+        "_lookupfield_value",  // ← 未登録テーブルへの Lookup GUID
+      ],
+      filter: "statecode eq 0",
+    }
+  );
+  if (!result.success) throw result.error;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (result.data ?? []).map((raw: any) => {
+    const record = raw as MyRecord;
+    // OData FormattedValue アノテーションから Lookup 先の名前を取得
+    const lookupName = raw["_lookupfield_value@OData.Community.Display.V1.FormattedValue"];
+    if (lookupName) record._lookupfield_name = lookupName;
+    return record;
+  });
+}
+```
+
+```typescript
+// --- パターン B: 登録済みテーブルから未登録テーブルの名前マップを構築 ---
+// Lookup 先テーブルが未登録でも、Lookup 元テーブルが登録済みなら名前を取得可能
+
+export interface LookupInfo {
+  id: string;
+  name: string;
+}
+
+export async function getLookupNamesFromRegisteredTable(): Promise<LookupInfo[]> {
+  const result = await RegisteredTableService.getAll({
+    select: ["primaryid", "_lookupfield_value"],
+    filter: "statecode eq 0",
+  });
+  if (!result.success || !result.data) return [];
+
+  const nameMap = new Map<string, string>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const raw of result.data as any[]) {
+    const id = raw._lookupfield_value as string | undefined;
+    const name = raw["_lookupfield_value@OData.Community.Display.V1.FormattedValue"] as string | undefined;
+    if (id && name && !nameMap.has(id.toLowerCase())) {
+      nameMap.set(id.toLowerCase(), name);
+    }
+  }
+
+  return Array.from(nameMap.entries())
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+```
+
+**型定義の拡張:**
+
+```typescript
+// Dataverse が返す raw レコードには FormattedValue が含まれるが、
+// SDK 生成型には定義されない。型に手動で追加する。
+export interface MyRecord {
+  primaryid: string;
+  name: string;
+  _lookupfield_value?: string;
+  _lookupfield_name?: string;  // ← FormattedValue から取得した名前用
+}
+```
+
+**UI での使い方:**
+
+```typescript
+// FormattedValue 由来の名前を第一候補、useMemo マップをフォールバック
+{record._lookupfield_value && (
+  <span>
+    {record._lookupfield_name
+      ?? lookupNameMap.get(record._lookupfield_value.toLowerCase())
+      ?? "不明"}
+  </span>
+)}
+```
+
+**重要な注意事項:**
+- **FormattedValue はランタイムの Dataverse OData API が自動付与する** — `select` に指定する必要はない。Lookup 列（`_xxx_value`）を `select` に含めれば自動で返される
+- **SDK 生成サービスの型（TypeScript）にはこのプロパティがない** — `any` キャストで raw オブジェクトからアクセスする必要がある
+- **データソース登録済みテーブル経由でのみ取得可能** — 未登録テーブルに直接クエリはできない。登録済みテーブルの Lookup 列を経由して名前を取得する
+- **この問題は `npx power-apps add-data-source` の再実行・`pac code push` の再デプロイでは解決しない** — プラットフォーム側のデータソースレジストリが更新されないため
+
 ### CodeAppsStarter テンプレートのクリーンアップ（必須）
 
 CodeAppsStarter からプロジェクトを作成した場合、テンプレートのデモページ・コンポーネントが残る。
