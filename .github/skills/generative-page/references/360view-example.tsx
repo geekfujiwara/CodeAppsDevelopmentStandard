@@ -1107,13 +1107,14 @@ var GeneratedComponent = function (props: GeneratedComponentProps) {
   }, []);
 
   /* ---- URLハッシュからの初期資産ID ---- */
+  /* URL例: /main.aspx?...#assetId=<guid>  省略時は一覧の先頭を使用 */
   var initialAssetId = useMemo(function () {
     try {
       var hash = window.location.hash || "";
       var m = hash.match(/assetId=([a-f0-9-]+)/i);
       if (m) return m[1];
     } catch (e) { /* ignore */ }
-    return "f1c03c49-f741-f111-bec6-7c1e52244441";
+    return "";
   }, []);
 
   /* ---- 初回ロード: 全資産一覧 + リソース + インシデントタイプ ---- */
