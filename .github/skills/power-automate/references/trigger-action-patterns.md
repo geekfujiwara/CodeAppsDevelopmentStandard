@@ -382,9 +382,9 @@ Dataverse の File 型列（FileAttributeMetadata）や Image 型列にフロー
             "connectionName": CONNREF_DATAVERSE,
         },
         "parameters": {
-            "entityName": "bookableresourcebookings",      # エンティティセット名（複数形）
-            "recordId": "@triggerOutputs()?['body/bookableresourcebookingid']",
-            "fileImageFieldName": f"{PREFIX}_pdffile",      # File 型列の論理名
+            "entityName": "accounts",      # エンティティセット名（複数形）
+            "recordId": "@triggerOutputs()?['body/accountid']",
+            "fileImageFieldName": f"{PREFIX}_filecolumn",    # File 型列の論理名
             "item": "@base64ToBinary(variables('pdfBase64'))",  # バイナリコンテンツ
             "x-ms-file-name": "document.pdf",               # 保存ファイル名
         },
@@ -411,11 +411,11 @@ Dataverse の File 型列（FileAttributeMetadata）や Image 型列にフロー
                     "connectionName": CONNREF_DATAVERSE,
                 },
                 "parameters": {
-                    "entityName": "bookableresourcebookings",
-                    "recordId": "@triggerOutputs()?['body/bookableresourcebookingid']",
-                    "fileImageFieldName": f"{PREFIX}_preworkconfirmationpdf",
+                    "entityName": "accounts",
+                    "recordId": "@triggerOutputs()?['body/accountid']",
+                    "fileImageFieldName": f"{PREFIX}_filecolumn1",
                     "item": "@base64ToBinary(variables('pdfBase64'))",
-                    "x-ms-file-name": "作業前確認書.pdf",
+                    "x-ms-file-name": "document1.pdf",
                 },
                 "authentication": "@parameters('$authentication')",
             },
@@ -432,11 +432,11 @@ Dataverse の File 型列（FileAttributeMetadata）や Image 型列にフロー
                         "connectionName": CONNREF_DATAVERSE,
                     },
                     "parameters": {
-                        "entityName": "bookableresourcebookings",
-                        "recordId": "@triggerOutputs()?['body/bookableresourcebookingid']",
-                        "fileImageFieldName": f"{PREFIX}_maintenancereportpdf",
+                        "entityName": "accounts",
+                        "recordId": "@triggerOutputs()?['body/accountid']",
+                        "fileImageFieldName": f"{PREFIX}_filecolumn2",
                         "item": "@base64ToBinary(variables('pdfBase64'))",
-                        "x-ms-file-name": "保守レポート.pdf",
+                        "x-ms-file-name": "document2.pdf",
                     },
                     "authentication": "@parameters('$authentication')",
                 },

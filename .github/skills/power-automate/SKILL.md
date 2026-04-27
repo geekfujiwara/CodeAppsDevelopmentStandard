@@ -218,11 +218,11 @@ operationId の選択を間違えるとフロー有効化時に `InvalidOpenApiF
    → Draft 作成・有効化ともに成功（2026-04-27 検証済み）
 
 パラメータ:
-  entityName:          エンティティセット名（複数形。例: bookableresourcebookings）
+  entityName:          エンティティセット名（複数形。例: accounts）
   recordId:            対象レコードの GUID
-  fileImageFieldName:  File 型列の論理名（例: prefix_preworkconfirmationpdf）
+  fileImageFieldName:  File 型列の論理名（例: prefix_filecolumn）
   item:                ファイルのバイナリコンテンツ（@base64ToBinary(...) 等）
-  x-ms-file-name:     保存するファイル名（例: 作業前確認書.pdf）
+  x-ms-file-name:     保存するファイル名（例: document.pdf）
 ```
 
 ```python
@@ -236,9 +236,9 @@ operationId の選択を間違えるとフロー有効化時に `InvalidOpenApiF
             "connectionName": CONNREF_DATAVERSE,
         },
         "parameters": {
-            "entityName": "bookableresourcebookings",
-            "recordId": "@triggerOutputs()?['body/bookableresourcebookingid']",
-            "fileImageFieldName": f"{PREFIX}_pdffile",
+            "entityName": "accounts",
+            "recordId": "@triggerOutputs()?['body/accountid']",
+            "fileImageFieldName": f"{PREFIX}_filecolumn",    # File 型列の論理名
             "item": "@base64ToBinary(variables('pdfBase64'))",
             "x-ms-file-name": "document.pdf",
         },
