@@ -287,10 +287,10 @@ function daysAgo(d: any): string {
 }
 
 /** キーボードクリックハンドラ（div をボタンとして扱う場合） */
-function handleKeyboardClick(e: any, cb: () => void) {
+function handleKeyboardClick(e: any, handler: () => void) {
   if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
     e.preventDefault();
-    cb();
+    handler();
   }
 }
 
@@ -400,13 +400,13 @@ function FlowDiagram(props: {
       var defs = svg.append("defs");
 
       /* ドロップシャドウ */
-      var flt = defs.append("filter").attr("id", "nodeShadow")
+      var shadowFilter = defs.append("filter").attr("id", "nodeShadow")
         .attr("x", "-10%").attr("y", "-10%").attr("width", "130%").attr("height", "140%");
-      flt.append("feDropShadow").attr("dx", 0).attr("dy", 2).attr("stdDeviation", 4)
+      shadowFilter.append("feDropShadow").attr("dx", 0).attr("dy", 2).attr("stdDeviation", 4)
         .attr("flood-color", "rgba(0,0,0,0.08)");
-      var fltSel = defs.append("filter").attr("id", "nodeShadowSel")
+      var selectedShadowFilter = defs.append("filter").attr("id", "nodeShadowSel")
         .attr("x", "-15%").attr("y", "-15%").attr("width", "140%").attr("height", "150%");
-      fltSel.append("feDropShadow").attr("dx", 0).attr("dy", 3).attr("stdDeviation", 8)
+      selectedShadowFilter.append("feDropShadow").attr("dx", 0).attr("dy", 3).attr("stdDeviation", 8)
         .attr("flood-color", "rgba(0,0,0,0.15)");
 
       /* 矢印マーカー */
@@ -416,9 +416,9 @@ function FlowDiagram(props: {
         .append("path").attr("d", "M 0 0 L 10 5 L 0 10 z").attr("fill", P.gray400);
 
       /* 背景ドットグリッド（<pattern> で要素数を一定に保つ） */
-      var bgDot = defs.append("pattern").attr("id", "bgDotGrid")
+      var dotGridPattern = defs.append("pattern").attr("id", "bgDotGrid")
         .attr("patternUnits", "userSpaceOnUse").attr("width", 24).attr("height", 24);
-      bgDot.append("circle").attr("cx", 20).attr("cy", 20).attr("r", 1).attr("fill", P.gray200);
+      dotGridPattern.append("circle").attr("cx", 20).attr("cy", 20).attr("r", 1).attr("fill", P.gray200);
       svg.append("rect").attr("width", W).attr("height", totalH).attr("fill", "#fafbfc");
       svg.append("rect").attr("width", W).attr("height", totalH).attr("fill", "url(#bgDotGrid)");
 
@@ -509,7 +509,7 @@ function FlowDiagram(props: {
 
         /* パスアニメーション */
         var totalLen = 1000;
-        try { var pNode = pathEl.node() as any; if (pNode && pNode.getTotalLength) totalLen = pNode.getTotalLength(); } catch (_) { /* ignore */ }
+        try { var pathNode = pathEl.node() as any; if (pathNode && pathNode.getTotalLength) totalLen = pathNode.getTotalLength(); } catch (_) { /* ignore */ }
         pathEl
           .attr("stroke-dasharray", totalLen + " " + totalLen)
           .attr("stroke-dashoffset", totalLen)
@@ -933,7 +933,7 @@ var GeneratedComponent = function (props: GeneratedComponentProps) {
             });
           })
         );
-        if (gen !== loadGenRef.current) return; /* 新しいリクエストが来たので破棄 */
+        if (gen !== loadGenRef.current) return; /* Discard if a newer request has been initiated */
         setColumnData(results);
       } catch (e) {
         console.error("Detail load error:", e);
