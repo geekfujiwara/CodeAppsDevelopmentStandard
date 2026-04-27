@@ -286,7 +286,8 @@ function daysAgo(d: any): string {
   } catch (e) { return ""; }
 }
 
-/** キーボードクリックハンドラ（div をボタンとして扱う場合） */
+/** キーボードクリックハンドラ（div をボタンとして扱う場合）
+ * "Spacebar" は旧ブラウザ（IE/Edge Legacy）との互換性のため残している */
 function handleKeyboardClick(e: any, handler: () => void) {
   if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
     e.preventDefault();
@@ -470,9 +471,10 @@ function FlowDiagram(props: {
 
       /* エッジ構築（prevColLookupField で前列ノードと結ぶ） */
       columnData.forEach(function (col) {
-        if (!col.config.prevColLookupField) return;
+        var lookupField = col.config.prevColLookupField;
+        if (!lookupField) return;
         col.rows.forEach(function (row) {
-          var prevId = fkId(row[col.config.prevColLookupField!]);
+          var prevId = fkId(row[lookupField]);
           var fromNodeId = idToNodeId.get(prevId);
           var toNodeId = col.config.key + "-" + String(row[col.config.idField] || "");
           if (fromNodeId && nodes.some(function (n) { return n.id === toNodeId; })) {
@@ -509,7 +511,12 @@ function FlowDiagram(props: {
 
         /* パスアニメーション */
         var totalLen = 1000;
-        try { var pathNode = pathEl.node() as any; if (pathNode && pathNode.getTotalLength) totalLen = pathNode.getTotalLength(); } catch (_) { /* ignore */ }
+        try {
+          var pathNode = pathEl.node() as any;
+          if (pathNode && pathNode.getTotalLength) {
+            totalLen = pathNode.getTotalLength();
+          }
+        } catch (_) { /* SVGPathElement.getTotalLength が利用できない環境では既定値を使用 */ }
         pathEl
           .attr("stroke-dasharray", totalLen + " " + totalLen)
           .attr("stroke-dashoffset", totalLen)
