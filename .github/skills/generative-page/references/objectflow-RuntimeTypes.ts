@@ -1,10 +1,10 @@
 // -------------------------------------------------------
-// 360view-RuntimeTypes.ts — Object 360 View 汎用型定義
+// objectflow-RuntimeTypes.ts — オブジェクトフロー 汎用型定義
 //
 // 【カスタマイズ方法】
 //   1. TableRegistrations に使用エンティティを追加する
 //   2. 各エンティティの interface を実際のフィールドに合わせて定義する
-//   3. 360view-example.tsx の SUBJECT_CONFIG / COLUMN_CONFIGS を変更する
+//   3. objectflow-example.tsx の SUBJECT_CONFIG / COLUMN_CONFIGS を変更する
 //
 // 【このサンプルで登録しているエンティティ】
 //   取引先 (account) → 商談 (opportunity) → 見積 (quote) → 受注 (salesorder)

@@ -1,14 +1,14 @@
 /* ============================================================
- * Object 360 View — 汎用オブジェクト 360 ビュー
+ * Object Flow — 汎用オブジェクトフロー
  *
- * 任意の Dataverse エンティティに対応した「360 度ビュー」テンプレート。
+ * 任意の Dataverse エンティティに対応した「オブジェクトフロー」テンプレート。
  * SUBJECT_CONFIG と COLUMN_CONFIGS を変更するだけで
  * 任意のシナリオに適用できます。
  *
  * 【カスタマイズ手順】
  *   1. SUBJECT_CONFIG を主体エンティティ（中心レコード）に合わせる
  *   2. COLUMN_CONFIGS で 2〜4 列のフロー列を定義する
- *   3. 360view-RuntimeTypes.ts に使用エンティティの型を登録する
+ *   3. objectflow-RuntimeTypes.ts に使用エンティティの型を登録する
  *
  * 【適用シナリオ例】
  *   営業管理  : 取引先 → 商談 → 見積 → 受注  ← このサンプル
@@ -17,7 +17,7 @@
  *   設備管理  : 設備 → 点検記録 → 修繕依頼（カスタムエンティティ）
  * ============================================================ */
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import type { ReadableTableRow, GeneratedComponentProps } from "./360view-RuntimeTypes";
+import type { ReadableTableRow, GeneratedComponentProps } from "./objectflow-RuntimeTypes";
 import {
   makeStyles, Text, Button, Spinner, Badge,
   TabList, Tab, Dropdown, Option,
@@ -483,6 +483,35 @@ function FlowDiagram(props: {
         });
       });
 
+      /* === 関連ノード計算（選択アイテムからエッジを辿る） === */
+      var selectedNodeId = selectedItem
+        ? selectedItem.columnKey + "-" + selectedItem.rowId
+        : null;
+      var relatedNodeIds = new Set<string>();
+      var relatedEdgeKeys = new Set<string>();
+      if (selectedNodeId) {
+        relatedNodeIds.add(selectedNodeId);
+        /* BFS でエッジを双方向に辿って関連ノードを収集 */
+        var queue = [selectedNodeId];
+        while (queue.length > 0) {
+          var cur = queue.shift()!;
+          edges.forEach(function (edge) {
+            var edgeKey = edge.from + "|" + edge.to;
+            if (edge.from === cur && !relatedNodeIds.has(edge.to)) {
+              relatedNodeIds.add(edge.to);
+              relatedEdgeKeys.add(edgeKey);
+              queue.push(edge.to);
+            }
+            if (edge.to === cur && !relatedNodeIds.has(edge.from)) {
+              relatedNodeIds.add(edge.from);
+              relatedEdgeKeys.add(edgeKey);
+              queue.push(edge.from);
+            }
+          });
+        }
+      }
+      var hasHighlight = relatedNodeIds.size > 0;
+
       /* === エッジ描画 === */
       var nodePos = new Map<string, { x: number; y: number }>();
       nodes.forEach(function (n) { nodePos.set(n.id, { x: n.x, y: n.y }); });
@@ -495,18 +524,25 @@ function FlowDiagram(props: {
         var x2 = toN.x, y2 = toN.y + nodeH / 2;
         var cpx = (x1 + x2) / 2;
         var pathD = "M " + x1 + " " + y1 + " C " + cpx + " " + y1 + " " + cpx + " " + y2 + " " + x2 + " " + y2;
+        var edgeKey = edge.from + "|" + edge.to;
+        var isRelatedEdge = hasHighlight && relatedEdgeKeys.has(edgeKey);
+        var isDimmedEdge = hasHighlight && !isRelatedEdge;
+        var edgeColor = isRelatedEdge ? P.blue : P.gray400;
+        var edgeStrokeW = isRelatedEdge ? 3 : 2;
+        var edgeFinalOpacity = isDimmedEdge ? 0.15 : (isRelatedEdge ? 0.9 : 0.6);
         var pathEl = edgeGroup.append("path")
-          .attr("d", pathD).attr("fill", "none").attr("stroke", P.gray400)
-          .attr("stroke-width", 2).attr("marker-end", "url(#arrowGray)").attr("opacity", 0);
+          .attr("d", pathD).attr("fill", "none").attr("stroke", edgeColor)
+          .attr("stroke-width", edgeStrokeW).attr("marker-end", "url(#arrowGray)").attr("opacity", 0);
 
         /* 出口ハンドル */
+        var handleOpacity = isDimmedEdge ? 0.2 : 1;
         edgeGroup.append("circle").attr("cx", x1).attr("cy", y1).attr("r", 0)
-          .attr("fill", P.white).attr("stroke", P.gray400).attr("stroke-width", 1.5)
+          .attr("fill", P.white).attr("stroke", edgeColor).attr("stroke-width", 1.5).attr("opacity", handleOpacity)
           .transition().duration(300).delay(idx * 80 + 600).attr("r", handleR);
 
         /* 入口ハンドル */
         edgeGroup.append("circle").attr("cx", x2).attr("cy", y2).attr("r", 0)
-          .attr("fill", P.gray400).attr("stroke", P.white).attr("stroke-width", 1.5)
+          .attr("fill", edgeColor).attr("stroke", P.white).attr("stroke-width", 1.5).attr("opacity", handleOpacity)
           .transition().duration(300).delay(idx * 80 + 800).attr("r", handleR);
 
         /* パスアニメーション */
@@ -521,9 +557,11 @@ function FlowDiagram(props: {
           .attr("stroke-dasharray", totalLen + " " + totalLen)
           .attr("stroke-dashoffset", totalLen)
           .transition().duration(800).delay(idx * 80 + 500).ease(d3.easeCubicOut)
-          .attr("stroke-dashoffset", 0).attr("opacity", 0.6)
+          .attr("stroke-dashoffset", 0).attr("opacity", edgeFinalOpacity)
           .on("end", function () {
-            d3.select(this as any).attr("stroke-dasharray", "6,4").attr("stroke-dashoffset", 0);
+            d3.select(this as any)
+              .attr("stroke-dasharray", isRelatedEdge ? "none" : "6,4")
+              .attr("stroke-dashoffset", 0);
           });
       });
 
@@ -533,17 +571,23 @@ function FlowDiagram(props: {
         var isSel = !!(selectedItem &&
           selectedItem.columnKey === node.columnKey &&
           selectedItem.rowId === node.rowId);
+        var isRelatedNode = hasHighlight && relatedNodeIds.has(node.id);
+        var isDimmedNode = hasHighlight && !isRelatedNode;
+        var nodeOpacity = isDimmedNode ? 0.35 : 1;
         var g = nodeGroup.append("g")
           .attr("transform", "translate(" + node.x + "," + node.y + ")")
           .attr("cursor", "pointer").attr("opacity", 0);
 
         /* ノード背景 */
+        var strokeColor = isSel ? node.borderColor : (isRelatedNode ? node.borderColor : P.gray200);
+        var strokeW = isSel ? 2.5 : (isRelatedNode ? 2 : 1);
+        var shadowFilter = isSel ? "url(#nodeShadowSel)" : (isRelatedNode ? "url(#nodeShadowSel)" : "url(#nodeShadow)");
         g.append("rect")
           .attr("width", nodeW).attr("height", nodeH).attr("rx", 12).attr("ry", 12)
           .attr("fill", P.white)
-          .attr("stroke", isSel ? node.borderColor : P.gray200)
-          .attr("stroke-width", isSel ? 2.5 : 1)
-          .attr("filter", isSel ? "url(#nodeShadowSel)" : "url(#nodeShadow)");
+          .attr("stroke", strokeColor)
+          .attr("stroke-width", strokeW)
+          .attr("filter", shadowFilter);
 
         /* 左カラーバー */
         g.append("rect").attr("x", 0).attr("y", 0).attr("width", 5).attr("height", nodeH)
@@ -623,14 +667,14 @@ function FlowDiagram(props: {
         g.on("mouseout", function () {
           d3.select(this as any).select("rect")
             .transition().duration(150)
-            .attr("stroke", isSel ? node.borderColor : P.gray200)
-            .attr("stroke-width", isSel ? 2.5 : 1)
-            .attr("filter", isSel ? "url(#nodeShadowSel)" : "url(#nodeShadow)");
+            .attr("stroke", strokeColor)
+            .attr("stroke-width", strokeW)
+            .attr("filter", shadowFilter);
           if (tooltipRef.current) tooltipRef.current.style.display = "none";
         });
 
-        /* フェードインアニメーション */
-        g.transition().duration(400).delay(idx * 60 + 200).attr("opacity", 1);
+        /* フェードインアニメーション（非関連ノードは半透明） */
+        g.transition().duration(400).delay(idx * 60 + 200).attr("opacity", nodeOpacity);
       });
     });
     return function () { cancelAnimationFrame(raf); };
