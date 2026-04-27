@@ -357,6 +357,107 @@ OneDrive ConvertFile の PDF 変換対応形式 (https://aka.ms/onedriveconversi
   ❌ ConvertFile は OneDrive 上のファイルのみ対応（SharePoint 直接は不可）
 ```
 
+### Dataverse File / Image 列へのアップロード（UpdateEntityFileImageFieldContent）
+
+Dataverse の File 型列（FileAttributeMetadata）や Image 型列にフローからファイルをアップロードするパターン。
+
+```
+★ 重要ポイント:
+  ✅ operationId は "UpdateEntityFileImageFieldContent"（唯一の正解）
+  ❌ "UploadFile" は Dataverse コネクタに存在しない → InvalidOpenApiFlow エラー
+  ✅ item にはバイナリコンテンツを渡す（@base64ToBinary() 等）
+  ✅ x-ms-file-name でファイル名を指定（日本語ファイル名も可）
+  ✅ fileImageFieldName には File/Image 列の論理名を指定
+  ✅ Draft 作成・有効化ともに API で成功（2026-04-27 検証済み）
+```
+
+```python
+# ✅ Dataverse File 列に PDF をアップロード
+"Upload_PDF_File": {
+    "type": "OpenApiConnection",
+    "inputs": {
+        "host": {
+            "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+            "operationId": "UpdateEntityFileImageFieldContent",
+            "connectionName": CONNREF_DATAVERSE,
+        },
+        "parameters": {
+            "entityName": "bookableresourcebookings",      # エンティティセット名（複数形）
+            "recordId": "@triggerOutputs()?['body/bookableresourcebookingid']",
+            "fileImageFieldName": f"{PREFIX}_pdffile",      # File 型列の論理名
+            "item": "@base64ToBinary(variables('pdfBase64'))",  # バイナリコンテンツ
+            "x-ms-file-name": "document.pdf",               # 保存ファイル名
+        },
+        "authentication": "@parameters('$authentication')",
+    },
+}
+```
+
+```python
+# ✅ 条件分岐で documentType ごとに異なる File 列にアップロードする例
+"Check_Document_Type": {
+    "type": "If",
+    "runAfter": {"Send_Email": ["Succeeded"]},
+    "expression": {
+        "equals": ["@variables('documentType')", "prework"],
+    },
+    "actions": {
+        "Upload_PreWork_PDF": {
+            "type": "OpenApiConnection",
+            "inputs": {
+                "host": {
+                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                    "operationId": "UpdateEntityFileImageFieldContent",
+                    "connectionName": CONNREF_DATAVERSE,
+                },
+                "parameters": {
+                    "entityName": "bookableresourcebookings",
+                    "recordId": "@triggerOutputs()?['body/bookableresourcebookingid']",
+                    "fileImageFieldName": f"{PREFIX}_preworkconfirmationpdf",
+                    "item": "@base64ToBinary(variables('pdfBase64'))",
+                    "x-ms-file-name": "作業前確認書.pdf",
+                },
+                "authentication": "@parameters('$authentication')",
+            },
+        },
+    },
+    "else": {
+        "actions": {
+            "Upload_Report_PDF": {
+                "type": "OpenApiConnection",
+                "inputs": {
+                    "host": {
+                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                        "operationId": "UpdateEntityFileImageFieldContent",
+                        "connectionName": CONNREF_DATAVERSE,
+                    },
+                    "parameters": {
+                        "entityName": "bookableresourcebookings",
+                        "recordId": "@triggerOutputs()?['body/bookableresourcebookingid']",
+                        "fileImageFieldName": f"{PREFIX}_maintenancereportpdf",
+                        "item": "@base64ToBinary(variables('pdfBase64'))",
+                        "x-ms-file-name": "保守レポート.pdf",
+                    },
+                    "authentication": "@parameters('$authentication')",
+                },
+            },
+        },
+    },
+}
+```
+
+```
+前提条件:
+  ✅ Dataverse テーブルに File 型列（FileAttributeMetadata）が事前作成されていること
+  ✅ File 列の MaxSizeInKB が保存するファイルサイズ以上であること（推奨: 10240 = 10MB）
+  ✅ host.connectionName に Dataverse 接続参照の論理名を指定
+
+よくあるエラー:
+  ❌ operationId: "UploadFile" → WorkflowOperationInputsApiOperationNotFound
+  ❌ item に base64 文字列をそのまま渡す → @base64ToBinary() でバイナリに変換が必要
+  ❌ entityName を単数形で指定 → 複数形（エンティティセット名）を使用
+```
+
 ### AI Builder「プロンプトを実行する」
 
 ```python
