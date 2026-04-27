@@ -727,7 +727,7 @@ function FlowDiagram(props: {
           tooltipRef.current.style.top = (event.clientY - rect.top + containerRef.current.scrollTop - 12) + "px";
 
           /* XSS 対策: textContent でテキスト代入 */
-          while (tooltipRef.current.firstChild) tooltipRef.current.removeChild(tooltipRef.current.firstChild);
+          tooltipRef.current.innerHTML = "";
           function appendTipBlock(text: string, style?: string) {
             if (!tooltipRef.current) return;
             var div = document.createElement("div");
@@ -807,6 +807,13 @@ function FlowDiagram(props: {
 }
 
 /* ========== 詳細サイドバー ========== */
+function handleKeyboardClick(e: any, url: string) {
+  if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+    e.preventDefault();
+    window.open(url, "_top");
+  }
+}
+
 function DetailSidebar(props: {
   item: SelectedGanttItem;
   workOrders: WORow[];
@@ -930,7 +937,7 @@ function DetailSidebar(props: {
         role: "button", tabIndex: 0,
         "aria-label": "IoTアラートを開く: " + ((a.msdyn_description || "").substring(0, 60) || "詳細"),
         onClick: function () { window.open(alertUrl, "_top"); },
-        onKeyDown: function (e: any) { if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); window.open(alertUrl, "_top"); } },
+        onKeyDown: function (e: any) { handleKeyboardClick(e, alertUrl); },
         onMouseOver: function (e: any) { e.currentTarget.style.backgroundColor = P.gray100; },
         onMouseOut: function (e: any) { e.currentTarget.style.backgroundColor = P.gray50; },
       },
@@ -954,7 +961,7 @@ function DetailSidebar(props: {
         role: "button", tabIndex: 0,
         "aria-label": "サポート案件を開く: " + (c.title || "詳細"),
         onClick: function () { window.open(caseUrl, "_top"); },
-        onKeyDown: function (e: any) { if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); window.open(caseUrl, "_top"); } },
+        onKeyDown: function (e: any) { handleKeyboardClick(e, caseUrl); },
         onMouseOver: function (e: any) { e.currentTarget.style.backgroundColor = P.gray100; },
         onMouseOut: function (e: any) { e.currentTarget.style.backgroundColor = P.gray50; },
       },
@@ -978,7 +985,7 @@ function DetailSidebar(props: {
         role: "button", tabIndex: 0,
         "aria-label": "作業指示書を開く: " + (w.msdyn_name || "詳細"),
         onClick: function () { window.open(woUrl, "_top"); },
-        onKeyDown: function (e: any) { if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); window.open(woUrl, "_top"); } },
+        onKeyDown: function (e: any) { handleKeyboardClick(e, woUrl); },
         onMouseOver: function (e: any) { e.currentTarget.style.backgroundColor = P.gray100; },
         onMouseOut: function (e: any) { e.currentTarget.style.backgroundColor = P.gray50; },
       },
