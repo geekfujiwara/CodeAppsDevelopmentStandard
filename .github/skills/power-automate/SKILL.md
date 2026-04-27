@@ -202,6 +202,51 @@ if not found and connector in FALLBACK_CONNECTIONS:
 ✅ timeout=120 を明示的に設定（デフォルトは無限待ち）
 ```
 
+### Dataverse File 列へのファイルアップロード（★ 検証済み教訓）
+
+Dataverse の File 型列（FileAttributeMetadata）にフローからファイルを保存する場合、
+operationId の選択を間違えるとフロー有効化時に `InvalidOpenApiFlow` で失敗する。
+
+```
+❌ operationId: "UploadFile"
+   → Dataverse コネクタに存在しない operationId
+   → フロー有効化時に WorkflowOperationInputsApiOperationNotFound エラー:
+     "The API operation 'UploadFile' could not be found in API 'commondataserviceforapps'."
+
+✅ operationId: "UpdateEntityFileImageFieldContent"
+   → Dataverse コネクタの正式な File/Image 列更新オペレーション
+   → Draft 作成・有効化ともに成功（2026-04-27 検証済み）
+
+パラメータ:
+  entityName:          エンティティセット名（複数形。例: accounts）
+  recordId:            対象レコードの GUID
+  fileImageFieldName:  File 型列の論理名（例: prefix_filecolumn）
+  item:                ファイルのバイナリコンテンツ（@base64ToBinary(...) 等）
+  x-ms-file-name:     保存するファイル名（例: document.pdf）
+```
+
+```python
+# ✅ File 列へのアップロードパターン
+"Upload_File": {
+    "type": "OpenApiConnection",
+    "inputs": {
+        "host": {
+            "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+            "operationId": "UpdateEntityFileImageFieldContent",  # ★ 正しい operationId
+            "connectionName": CONNREF_DATAVERSE,
+        },
+        "parameters": {
+            "entityName": "accounts",
+            "recordId": "@triggerOutputs()?['body/accountid']",
+            "fileImageFieldName": f"{PREFIX}_filecolumn",    # File 型列の論理名
+            "item": "@base64ToBinary(variables('pdfBase64'))",
+            "x-ms-file-name": "document.pdf",
+        },
+        "authentication": "@parameters('$authentication')",
+    },
+}
+```
+
 ### 環境 ID の解決（Flow API / PowerApps API で必要）
 
 PowerApps API での接続検索等には環境 ID が必要。DATAVERSE_URL から逆引きする。
