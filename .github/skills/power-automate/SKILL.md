@@ -164,6 +164,28 @@ NG パターン:
    poster, location, body/recipient/groupId, body/recipient/channelId, body/messageBody
 ```
 
+### PowerApps V2 トリガー・応答のパラメータ形式（★ 重要）
+
+```
+Power Automate UI で手動追加したパラメータと API でデプロイしたパラメータは
+形式が異なるとフローが正しく動作しない。必ず UI 形式に合わせる。
+
+★ 正しい形式（トリガー・応答共通）:
+  ✅ "x-ms-content-hint": "TEXT"
+  ✅ "x-ms-dynamically-added": true
+
+❌ 間違った形式（API デプロイ時にありがちなミス）:
+  ❌ "x-ms-powerflows-param-ispartial": false
+  ❌ "isPartial": false
+
+応答（Response）固有:
+  ✅ schema に "additionalProperties": {} を含める（UI が自動付与）
+  ✅ title と body のキー名を一致させる
+
+詳細: references/trigger-action-patterns.md の
+「Power Apps V2 トリガー」「PowerApp 応答アクション」セクションを参照
+```
+
 ### PowerApps API 接続検索のタイムアウト対策
 
 PowerApps API（`api.powerapps.com`）での接続検索は 504 GatewayTimeout が頻発する。
