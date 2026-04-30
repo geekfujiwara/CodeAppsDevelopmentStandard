@@ -115,6 +115,74 @@
 
 ### message 値: 1=Create, 2=Delete, 3=Update, 4=Create or Update
 
+### Power Apps V2 トリガー（PowerAppV2）— パラメータ形式（★ 重要）
+
+Code Apps から `npx power-apps add-flow` で呼び出すフローのトリガー。
+パラメータの形式を間違えると Power Automate UI でパラメータが正しく表示されない。
+
+```
+★ 正しいパラメータ形式（UI で手動追加した場合と同一）:
+  ✅ "x-ms-content-hint": "TEXT"
+  ✅ "x-ms-dynamically-added": true
+
+❌ 間違ったパラメータ形式（API 固有の古い形式）:
+  ❌ "x-ms-powerflows-param-ispartial": false
+  ❌ "isPartial": false
+  → UI で表示が崩れる / Code Apps SDK の型生成に影響する可能性あり
+```
+
+```python
+"triggers": {
+    "manual": {
+        "type": "Request",
+        "kind": "PowerAppV2",
+        "inputs": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "title": "bookingId",        # パラメータの表示名
+                        "type": "string",
+                        "x-ms-content-hint": "TEXT",  # ★ 必須
+                        "x-ms-dynamically-added": True,  # ★ 必須
+                        "description": "予約ID",
+                    },
+                    "text_1": {
+                        "title": "workOrderName",
+                        "type": "string",
+                        "x-ms-content-hint": "TEXT",
+                        "x-ms-dynamically-added": True,
+                        "description": "作業指示書名",
+                    },
+                    # text_2, text_3 ... 同じ形式で追加
+                },
+                "required": ["text", "text_1"],  # 必須パラメータのみ
+            },
+        },
+    },
+},
+```
+
+```
+パラメータ命名規則:
+  ✅ 1つ目: "text"
+  ✅ 2つ目以降: "text_1", "text_2", "text_3" ...（連番サフィックス）
+  ✅ title: UI に表示される名前（任意の文字列）
+  ✅ description: パラメータの説明
+
+型のバリエーション:
+  "x-ms-content-hint": "TEXT"    → 文字列
+  "x-ms-content-hint": "NUMBER"  → 数値
+  "x-ms-content-hint": "FILE"    → ファイル
+
+Code Apps 側の生成結果:
+  npx power-apps add-flow --flow-id {id} 実行後、
+  src/generated/models/ にモデルが生成される:
+    text → text (string, required)
+    text_1 → text_1 (string, required)
+    text_2 → text_2 (string, optional)  ※ required に含まれないもの
+```
+
 ## 代表的アクションパターン
 
 ### Dataverse レコード取得
@@ -604,4 +672,75 @@ CN_DV_AI: {
 ✅ パターン B: 単一環境で完結する場合（環境固有のフロー）
 注意: パターン B は Power Automate UI でソリューション移行時に
       「接続ではなく接続参照を使用する必要があります」の警告が出る
+```
+
+### PowerApp 応答アクション（Respond to a PowerApp or flow）— パラメータ形式（★ 重要）
+
+Code Apps にフロー実行結果を返す「応答」アクション。
+トリガーと同様に、パラメータ形式を UI 手動追加と合わせる必要がある。
+
+```
+★ 正しいパラメータ形式（UI で手動追加した場合と同一）:
+  ✅ "x-ms-content-hint": "TEXT"
+  ✅ "x-ms-dynamically-added": true
+  ✅ "additionalProperties": {} を schema に含める
+
+❌ 間違ったパラメータ形式:
+  ❌ "x-ms-powerflows-param-ispartial": false
+  ❌ "description" フィールド（UI では生成されない）
+  → UI で表示が崩れる / Code Apps SDK の型生成に影響する可能性あり
+```
+
+```python
+"応答": {
+    "runAfter": {"Previous_Action": ["Succeeded"]},
+    "type": "Response",
+    "kind": "PowerApp",
+    "inputs": {
+        "statusCode": 200,
+        "body": {
+            "airesult": "@{outputs('AI_Action')?['body/responsev2/predictionOutput/text']}",
+            "bookingid": "@{triggerBody()['text']}",
+        },
+        "schema": {
+            "type": "object",
+            "properties": {
+                "airesult": {
+                    "title": "airesult",           # パラメータの表示名
+                    "type": "string",
+                    "x-ms-content-hint": "TEXT",    # ★ 必須
+                    "x-ms-dynamically-added": True,  # ★ 必須
+                },
+                "bookingid": {
+                    "title": "bookingid",
+                    "type": "string",
+                    "x-ms-content-hint": "TEXT",
+                    "x-ms-dynamically-added": True,
+                },
+            },
+            "additionalProperties": {},  # ★ 必須（UI が自動付与する）
+        },
+    },
+},
+```
+
+```
+重要ポイント:
+  ✅ body の各キーと schema.properties のキーを一致させる
+  ✅ body の値には Power Automate 式（@{...}）で動的コンテンツを設定
+  ✅ schema の title は body のキー名と同一にする
+  ✅ additionalProperties: {} を必ず含める（UI が自動生成する属性）
+
+Code Apps 側の生成結果:
+  npx power-apps add-flow --flow-id {id} 実行後、
+  src/generated/models/ の ResponseActionOutput に型が生成される:
+    airesult → airesult?: string  (optional)
+    bookingid → bookingid?: string  (optional)
+  → CodeappsFlowService.Run(input) の戻り値 result.data で参照
+
+トリガー + 応答の全体構成例:
+  PowerAppV2 トリガー（text, text_1 ... で入力受信）
+  → アクション群（AI Builder 等で処理）
+  → Response/PowerApp（処理結果を body で返却）
+  → Code Apps 側で result.data.airesult 等で参照
 ```
