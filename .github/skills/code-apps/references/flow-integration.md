@@ -219,4 +219,4 @@ AI Builder の `msdyn_customconfiguration` は API で PATCH できない（`Une
 | 3 | **AI Builder JSON 出力はプロンプト側で強制** | `msdyn_customconfiguration` は API で更新不可。Compose ステップで JSON 指示を含める |
 | 4 | **JSON パースは堅牢に** | AI は \`\`\`json 付き / プレーンテキスト / 正しい JSON のいずれかで返す。全パターン対応 |
 | 5 | **add-flow 再実行後はインポートパス確認** | 自動生成ファイルが上書きされるため、フローサービスの dataSourcesInfo インポートを再修正 |
-| 6 | **executeAsync は CSP 安全** | フローの executeAsync は Connector 経由（postMessage ベース）であり、Dataverse fetch とは異なり CSP でブロックされない |
+| 6 | **フロー呼び出し用 executeAsync は Dataverse API と別物** | ここでの executeAsync はフロー用コネクタの呼び出しで、Connector 経由（postMessage ベース）。Dataverse API の executeAsync / fetch ベース呼び出しとは別実装であり、この文脈では CSP でブロックされない |
