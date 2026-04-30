@@ -895,3 +895,174 @@ PUBLISHER_PREFIX=prefix
 ```
 
 > **ENVIRONMENT_ID** はセッション詳細の `Environment ID` から取得。`pac code push -env` と `npx power-apps add-data-source --org-url` で使用する。
+
+## Power Automate フロー統合（検証済 2026-04-30）
+
+### フロー追加は `add-flow` を使う（`add-data-source --api-id logicflows` は旧方式）
+
+Code Apps から Power Automate フロー（Copilot Studio エージェント呼び出し等）を利用する場合、**必ず `npx power-apps add-flow` を使用する**。
+
+> 公式ドキュメント: https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/add-flows
+
+```
+❌ npx power-apps add-data-source --api-id logicflows --resource-name {flowname} --org-url {URL}
+   → 旧方式。power.config.json に workflowDetails が生成されない
+   → API Hub の接続解決が不十分で 502 BadGateway / NoResponse エラーが頻発
+   → Copilot Studio エージェント呼び出し時にタイムアウトでフォールバックされる
+
+✅ npx power-apps add-flow --flow-id {flow-id}
+   → 新方式。power.config.json に workflowDetails（workflowEntityId, workflowName）が追加
+   → .power/schemas/logicflows/ に OpenAPI スキーマファイルが生成
+   → API Hub 接続が正しく解決され、502 エラーが解消
+```
+
+**手順:**
+
+```bash
+# 1. 利用可能なフロー一覧を表示（ソリューション対応フローのみ）
+npx power-apps list-flows
+npx power-apps list-flows --search {name}  # 名前でフィルタ
+
+# 2. フローを追加（Flow ID を指定）
+npx power-apps add-flow --flow-id {flow-id}
+
+# 3. フロー定義が変更された場合は再実行（アイデンポテント）
+npx power-apps add-flow --flow-id {flow-id}
+
+# 4. フローを削除する場合
+npx power-apps remove-flow --flow-name {datasource-name}
+npx power-apps remove-flow --flow-id {flow-id}
+```
+
+**生成されるファイル構成:**
+
+```
+power.config.json                              ← workflowDetails が追加される
+.power/schemas/logicflows/{name}.Schema.json   ← OpenAPI スキーマ
+.power/schemas/appschemas/dataSourcesInfo.ts   ← Connector エントリが追加
+src/generated/services/{Name}Service.ts        ← 型付きサービスクラス
+src/generated/models/{Name}Model.ts            ← 入出力の TypeScript 型
+```
+
+**power.config.json の違い（旧方式 vs 新方式）:**
+
+```jsonc
+// ❌ 旧方式: workflowDetails がない
+{
+  "connectionReferences": {
+    "uuid": {
+      "id": "/providers/Microsoft.PowerApps/apis/shared_logicflows",
+      "displayName": "Logic flows",
+      "dataSources": ["myflow"]
+    }
+  }
+}
+
+// ✅ 新方式: workflowDetails で接続が正しく紐付く
+{
+  "connectionReferences": {
+    "uuid": {
+      "id": "/providers/Microsoft.PowerApps/apis/shared_logicflows",
+      "displayName": "Logic flows",
+      "dataSources": ["myflow"],
+      "workflowDetails": {
+        "workflowEntityId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "workflowDisplayName": "myflow",
+        "workflowName": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+      }
+    }
+  }
+}
+```
+
+**旧方式から新方式への移行手順:**
+
+1. `power.config.json` の `connectionReferences` からフロー関連エントリを削除
+2. `npx power-apps add-flow --flow-id {flow-id}` で再追加
+3. `npm run build && npx power-apps push`（または `pac code push`）でデプロイ
+
+### フロー呼び出しの制約事項
+
+```
+・PowerApps トリガー（手動フロー）のみサポート
+  → スケジュール・自動化・PowerApps 以外のトリガーは非対応
+・ソリューション対応フローのみ
+  → list-flows で表示されないフローはソリューションに追加してから add-flow
+・フロー定義変更時は手動で再追加が必要
+  → add-flow --flow-id を再実行してサービスファイルを再生成
+```
+
+### Copilot Studio エージェント呼び出しフローの応答パース（検証済 2026-04-30）
+
+Copilot Studio の `ExecuteCopilotAsyncV2`（エージェントを実行して待機する）アクションは、`body/responses` を **JSON 配列文字列** で返す。Power Automate の「Power App またはフローに応答する」で `@{outputs('...')?['body/responses']}` と文字列補間すると、Code Apps 側には `["応答テキスト"]` という配列ラッパー付き文字列が届く。
+
+```
+❌ flowResult.data.response をそのまま表示
+   → ["応答テキスト"] とブラケット付きで表示される
+
+✅ JSON.parse() → 配列の最初の要素を取得
+   → パースエラー時はフォールバックで生文字列を使用
+```
+
+**実装パターン:**
+
+```typescript
+// Copilot Studio フローの応答をパースするヘルパー
+function parseCopilotResponse(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return String(parsed[0]);
+    }
+    if (typeof parsed === "string") {
+      return parsed;
+    }
+  } catch {
+    // JSON パース失敗 → 生文字列をそのまま使用
+  }
+  return raw;
+}
+
+// フロー呼び出し後の応答処理
+const flowResult = await MyFlowService.Run({ text: query, text_1: context });
+if (flowResult.success && flowResult.data?.response) {
+  const answer = parseCopilotResponse(flowResult.data.response);
+  // answer は Markdown 形式のテキスト（参照リンク付き）
+}
+```
+
+**フロー定義側の注意:**
+
+```jsonc
+// Power Automate「Power App またはフローに応答する」アクション
+{
+  "body": {
+    // body/responses は JSON 配列 → 文字列補間で配列ごと入る
+    "response": "@{outputs('エージェントを実行して待機する')?['body/responses']}"
+  }
+}
+```
+
+### Copilot Studio フロー呼び出しのエラーハンドリング
+
+Copilot Studio エージェントの応答には数十秒かかる場合がある（検証では約 48 秒）。API Hub のゲートウェイタイムアウトで 502 エラーが発生しうるため、**ローカル検索へのフォールバック**を必ず実装する。
+
+```typescript
+try {
+  const { MyFlowService } = await import("@/generated/services/MyFlowService");
+  const flowResult = await MyFlowService.Run({ text: query, text_1: context });
+
+  if (flowResult.success && flowResult.data?.response) {
+    answer = parseCopilotResponse(flowResult.data.response);
+    format = "markdown";
+  } else {
+    throw new Error(`Flow failed: ${JSON.stringify(flowResult)}`);
+  }
+} catch (err) {
+  // 502 BadGateway / タイムアウト時はローカル検索にフォールバック
+  console.warn("[Copilot] Flow call failed, falling back to local search:", err);
+  const result = localSearch(query);
+  answer = result.answer;
+  format = "plain";
+}
+```
