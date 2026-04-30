@@ -164,15 +164,7 @@ AI Builder の `msdyn_customconfiguration` は API で PATCH できない（`Une
 # フロー定義の Compose ステップ
 "作業情報を構成": {
     "type": "Compose",
-    "inputs": "@concat("
-        "'以下の情報から修理事例を生成してください。"
-        "必ずJSON形式のみで返してください。マークダウンのコードブロック記号は含めないでください。', "
-        "'\\n\\n【情報】\\n項目1: ', triggerBody()['text_1'], "
-        "'\\n項目2: ', triggerBody()['text_2'], "
-        "'\\n\\n【出力JSON形式】\\n"
-        "{\"field1\": \"値1\", \"field2\": \"値2\"}\\n\\n"
-        "上記JSON形式のみで応答してください。')"
-    ),
+    "inputs": "@concat('以下の情報から修理事例を生成してください。必ずJSON形式のみで返してください。マークダウンのコードブロック記号は含めないでください。', '\\n\\n【情報】\\n項目1: ', triggerBody()?['text'], '\\n項目2: ', triggerBody()?['text_1'], '\\n\\n【出力JSON形式】\\n{\"field1\": \"値1\", \"field2\": \"値2\"}\\n\\n上記JSON形式のみで応答してください。')"
 },
 ```
 
