@@ -164,7 +164,7 @@ NG パターン:
    poster, location, body/recipient/groupId, body/recipient/channelId, body/messageBody
 ```
 
-### PowerApps V2 トリガー・応答のパラメータ形式（★ 重要）
+### Power Apps V2 トリガー・応答のパラメータ形式（★ 重要）
 
 ```
 Power Automate UI で手動追加したパラメータと API でデプロイしたパラメータは
