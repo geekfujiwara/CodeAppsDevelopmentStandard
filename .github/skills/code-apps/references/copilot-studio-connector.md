@@ -127,7 +127,7 @@ const body = {
 
 ### レスポンス構造（Webhook パターン）
 
-コネクタは **201 Accepted** を返し、内部で Webhook 通知を待機して最終結果を返す。
+コネクタは **202 Accepted** を返し、内部で Webhook 通知を待機して最終結果を返す。
 SDK がこのパターンを透過的に処理し、最終レスポンスが `IOperationResult<void>` として返る。
 
 ### Notification スキーマ（実際に返されるデータ）
