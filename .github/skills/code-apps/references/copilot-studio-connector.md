@@ -150,16 +150,19 @@ const result = await MicrosoftCopilotStudioService.ExecuteCopilotAsyncV2(
 );
 
 // IOperationResult<void> のため型アサーションが必要
-const fullResult = result as unknown as Record<string, unknown>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const fullResult = result as any;
 
 // data プロパティがある場合とない場合に対応
-const data = (fullResult.data ?? fullResult) as Record<string, unknown>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const data: any = fullResult?.data ?? fullResult;
 
 // --- conversationId 保持 ---
-const convId = (data?.conversationId ?? data?.ConversationId) as string | undefined;
+const convId: string | undefined = data?.conversationId ?? data?.ConversationId;
 // ネストされたケースにも対応
-const nestedBody = data?.body as Record<string, unknown> | undefined;
-const nestedConvId = (nestedBody?.conversationId ?? nestedBody?.ConversationId) as string | undefined;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const nestedBody: any = data?.body;
+const nestedConvId: string | undefined = nestedBody?.conversationId ?? nestedBody?.ConversationId;
 const resolvedConvId = convId || nestedConvId;
 if (resolvedConvId) {
   conversationIdRef.current = resolvedConvId;
