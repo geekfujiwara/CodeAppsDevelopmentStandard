@@ -54,8 +54,8 @@ Select-String -Path "src/generated/appschemas/dataSourcesInfo.ts" \
 ```bash
 # 統合版を使うべきなのに generated を直接参照しているファイルを検出
 # （src/lib/dataSourcesInfo.ts 自身は除外）
-Select-String -Path "src/**/*.ts","src/**/*.tsx" -Recurse \
-  -Pattern 'from "@/generated/appschemas/dataSourcesInfo"' | \
+Get-ChildItem -Path "src" -Recurse -Include "*.ts","*.tsx" -File |
+  Select-String -Pattern 'from "@/generated/appschemas/dataSourcesInfo"' |
   Where-Object { $_.Path -notlike "*lib/dataSourcesInfo*" }
 ```
 
