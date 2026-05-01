@@ -626,6 +626,80 @@ CN_DV_AI: {
    → /channel/ と次の / の間を URL デコード = チャネル ID
 ```
 
+### Teams 1:1 チャット投稿 — Chat with Flow bot（PostMessageToConversation）
+
+Teams の 1:1 チャットで Flow bot からユーザーにメッセージを送信するパターン。
+チャネル投稿（`location: "Channel"`）とはパラメータ構造が異なるため注意。
+
+```
+★ 重要ポイント:
+  ✅ location は "Chat with Flow bot"（チャネル投稿の "Channel" とは異なる）
+  ✅ body/recipient にはユーザーのメールアドレス（文字列）を指定
+  ❌ body/recipient/to は存在しない → InvalidOpenApiFlow の ExtraParameter エラー
+  ❌ body/recipient/groupId, body/recipient/channelId はチャネル用 → 1:1 チャットでは使わない
+  ✅ host では connection キーを使用（connectionName ではない）
+  ✅ authentication パラメータは不要（connection キー使用時）
+  ✅ デプロイは Flow API（https://api.flow.microsoft.com）経由を推奨
+  ❌ Dataverse workflows テーブルへの直接 INSERT では接続認証不良が起きやすい
+```
+
+```python
+# ✅ 正しいパターン: Chat with Flow bot（1:1 チャット）— 2026-05-24 検証済み
+"Post_Teams_Chat": {
+    "type": "OpenApiConnection",
+    "runAfter": {"Previous_Action": ["Succeeded"]},
+    "inputs": {
+        "parameters": {
+            "poster": "Flow bot",
+            "location": "Chat with Flow bot",
+            "body/recipient": "@outputs('Get_User')?['body/internalemailaddress']",
+            "body/messageBody": "<p>通知メッセージ本文（HTML 対応）</p>",
+        },
+        "host": {
+            "apiId": "/providers/Microsoft.PowerApps/apis/shared_teams",
+            "connection": "shared_teams-1",       # ★ connectionName ではなく connection
+            "operationId": "PostMessageToConversation",
+        },
+    },
+}
+```
+
+```
+チャネル投稿（Channel）との比較:
+
+| 項目                              | チャネル投稿                | 1:1 チャット（Chat with Flow bot）     |
+| --------------------------------- | --------------------------- | -------------------------------------- |
+| location                          | "Channel"                   | "Chat with Flow bot"                   |
+| 宛先指定                          | body/recipient/groupId +    | body/recipient（メールアドレス文字列） |
+|                                   | body/recipient/channelId    |                                        |
+| host.connectionName / host.connection | connectionName キー     | connection キー                        |
+| authentication                    | @parameters('$authentication') | 不要                              |
+| poster                            | "Flow bot" or "User"        | "Flow bot"                             |
+
+connectionReferences での登録:
+  Flow API デプロイ時、connectionReferences には接続 ID を直接指定する。
+  connection キーの値（例: "shared_teams-1"）と connectionReferences のキーを一致させる。
+
+"shared_teams-1": {
+    "connectionName": "{TEAMS_CONNECTION_ID}",    # 環境内の接続 ID
+    "source": "Embedded",
+    "id": "/providers/Microsoft.PowerApps/apis/shared_teams",
+    "tier": "NotSpecified",
+},
+
+❌ よくあるエラー:
+  ❌ body/recipient/to → ExtraParameter で InvalidOpenApiFlow
+  ❌ body/recipient/To → 同上（大文字小文字違いでも不可）
+  ❌ body/recipient をオブジェクト形式で渡す → Runtime "Missing body content"
+  ❌ Dataverse workflows テーブルに直接 INSERT → 接続認証が正しく構成されず Runtime エラー
+  ❌ connectionName キーを使用 → Flow API デプロイ時は connection キーが正しい
+
+✅ デプロイ方法:
+  Flow API（https://api.flow.microsoft.com/providers/Microsoft.ProcessSimple/environments/{env_id}/flows?api-version=2016-11-01）
+  のように、環境 ID + api-version を含むエンドポイントでフローを作成・更新する。
+  Dataverse workflows テーブルではなく Flow API を使うことで接続認証が正しく構成される。
+```
+
 ### 接続 ID はハードコード禁止（重要）
 
 ```

@@ -155,13 +155,27 @@ NG パターン:
 ### Teams PostMessageToConversation の注意
 
 ```
-❌ body/subject パラメータを指定しない
-   → PostMessageToConversation の operationSchema に body/subject は存在しない
-   → 指定するとフロー有効化時に InvalidOpenApiFlow (0x80060467) が発生
-   → エラーメッセージに具体的なパラメータ名が出ないため原因特定が困難
+★ チャネル投稿（Channel）:
+  ❌ body/subject パラメータを指定しない
+     → PostMessageToConversation の operationSchema に body/subject は存在しない
+     → 指定するとフロー有効化時に InvalidOpenApiFlow (0x80060467) が発生
+     → エラーメッセージに具体的なパラメータ名が出ないため原因特定が困難
+  ✅ 使用可能なパラメータ:
+     poster, location("Channel"), body/recipient/groupId, body/recipient/channelId, body/messageBody
 
-✅ 使用可能なパラメータ:
-   poster, location, body/recipient/groupId, body/recipient/channelId, body/messageBody
+★ 1:1 チャット（Chat with Flow bot）:  ← 2026-05-24 追加
+  ✅ location は "Chat with Flow bot"
+  ✅ body/recipient にメールアドレス（文字列）を指定
+  ✅ このドキュメントの Flow API / Dataverse へ渡す定義例では host.connection を使用
+     → UI が保存した定義や他の Flow API デプロイ例では host.connectionName で表現される場合がある
+     → どちらが必要かは「どの形式の definition をそのまま渡すか」に合わせる
+  ✅ このパターンでは追加の authentication パラメータは不要
+  ❌ body/recipient/to は存在しない → ExtraParameter で InvalidOpenApiFlow
+  ❌ Dataverse workflows テーブルへの直接 INSERT → 接続認証不良で Runtime エラー
+  ✅ デプロイは Flow API 経由を推奨
+
+  詳細は trigger-action-patterns.md の
+  「Teams 1:1 チャット投稿 — Chat with Flow bot」セクション参照
 ```
 
 ### Power Apps V2 トリガー・応答のパラメータ形式（★ 重要）
