@@ -911,7 +911,7 @@ Code Apps から Power Automate フロー（Copilot Studio エージェント呼
    → Copilot Studio エージェント呼び出し時にタイムアウトでフォールバックされる
 
 ✅ npx power-apps add-flow --flow-id {flow-id}
-   → 新方式。power.config.json に workflowDetails（workflowEntityId, workflowName）が追加
+   → 新方式。power.config.json に workflowDetails（workflowEntityId, workflowName, workflowDisplayName）が追加
    → .power/schemas/logicflows/ に OpenAPI スキーマファイルが生成
    → API Hub 接続が正しく解決され、502 エラーが解消
 ```
