@@ -916,18 +916,28 @@ export function useCreateIncident() {
     │     テーブル名が dataSourcesInfo に登録されているか確認
     │     → 未登録があれば src/generated/appschemas/dataSourcesInfo.ts に追記
     │
-    ├─ ② 統合 dataSourcesInfo インポートチェック
+    ├─ ② 統合 dataSourcesInfo インポートチェック（最重要）
     │     全 .ts/.tsx が @/lib/dataSourcesInfo（統合版）を使っているか確認
     │     → @/generated/appschemas/dataSourcesInfo を直接参照していれば修正
+    │     ⚠ 実障害: booking-service が generated 版を直接使用
+    │       → getClient シングルトンに Copilot Studio コネクタが含まれず
+    │       → ExecuteCopilotAsyncV2 が {"success":false,"error":{}} を返した
     │
-    ├─ ③ npm run build（TypeScript エラーチェック）
+    ├─ ③ SDK 生成サービスのインポート元チェック
+    │     src/generated/services/*.ts が ../../lib/dataSourcesInfo を使っているか確認
+    │     → add-data-source 実行後に ../appschemas/ に戻ることがある
     │
-    └─ ④ npx power-apps push / pac code push
+    ├─ ④ カスタム getClient() の引数チェック
+    │     全ての getClient(dataSourcesInfo) 呼び出しが統合版を使用しているか確認
+    │
+    ├─ ⑤ npm run build（TypeScript エラーチェック）
+    │
+    └─ ⑥ npx power-apps push / pac code push
 ```
 
 > **理由**: `getClient()` はシングルトンのため、初回に渡す `dataSourcesInfo` に
 > 全データソース（Dataverse テーブル + フロー + Copilot Studio）が含まれていないと、
-> ランタイムで「Data source not found」エラーになる。
+> ランタイムで「Data source not found」エラーや `{"success":false,"error":{}}` になる。
 
 ## ビルド・デプロイの注意事項（検証済 2026-04-22）
 
