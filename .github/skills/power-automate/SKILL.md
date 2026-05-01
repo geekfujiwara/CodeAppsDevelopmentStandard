@@ -166,8 +166,10 @@ NG パターン:
 ★ 1:1 チャット（Chat with Flow bot）:  ← 2026-05-24 追加
   ✅ location は "Chat with Flow bot"
   ✅ body/recipient にメールアドレス（文字列）を指定
-  ✅ host は connection キーを使用（connectionName ではない）
-  ✅ authentication パラメータは不要
+  ✅ このドキュメントの Flow API / Dataverse へ渡す定義例では host.connection を使用
+     → UI が保存した定義や他の Flow API デプロイ例では host.connectionName で表現される場合がある
+     → どちらが必要かは「どの形式の definition をそのまま渡すか」に合わせる
+  ✅ このパターンでは追加の authentication パラメータは不要
   ❌ body/recipient/to は存在しない → ExtraParameter で InvalidOpenApiFlow
   ❌ Dataverse workflows テーブルへの直接 INSERT → 接続認証不良で Runtime エラー
   ✅ デプロイは Flow API 経由を推奨
