@@ -14,8 +14,8 @@
 ```bash
 # 1. コード内で使用されているテーブル名を抽出
 #    retrieveMultipleRecordsAsync / retrieveRecordAsync の第一引数
-Select-String -Path "src/services/*.ts","src/components/*.tsx" \
-  -Pattern 'Record(?:s)?Async\("([^"]+)"' -AllMatches | \
+Get-ChildItem -Path "src" -Recurse -Include *.ts,*.tsx | \
+  Select-String -Pattern 'Record(?:s)?Async\("([^"]+)"' -AllMatches | \
   ForEach-Object { $_.Matches | ForEach-Object { $_.Groups[1].Value } } | \
   Sort-Object -Unique
 
