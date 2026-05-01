@@ -695,9 +695,9 @@ connectionReferences での登録:
   ❌ connectionName キーを使用 → Flow API デプロイ時は connection キーが正しい
 
 ✅ デプロイ方法:
-  Flow API（https://api.flow.microsoft.com/providers/Microsoft.PowerApps/apis/shared_logicflows/flows）
-  でフローを作成・更新する。Dataverse workflows テーブルではなく Flow API を使うことで
-  接続認証が正しく構成される。
+  Flow API（https://api.flow.microsoft.com/providers/Microsoft.ProcessSimple/environments/{env_id}/flows?api-version=2016-11-01）
+  のように、環境 ID + api-version を含むエンドポイントでフローを作成・更新する。
+  Dataverse workflows テーブルではなく Flow API を使うことで接続認証が正しく構成される。
 ```
 
 ### 接続 ID はハードコード禁止（重要）
