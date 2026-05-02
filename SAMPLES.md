@@ -10,17 +10,17 @@
 |------|------|
 | `.github/agents/` | GitHub Copilot カスタムエージェント定義 |
 | `.github/skills/` | 各フェーズの開発スキル（検証済み教訓・パターン集） |
-| `.github/skills/standard/references/` | 開発標準ドキュメント |
-| `.github/skills/code-apps/template/src/components/` | shadcn/ui + カスタム UI コンポーネント |
-| `.github/skills/code-apps/template/src/providers/` | React Context Providers |
-| `.github/skills/code-apps/template/src/lib/utils.ts` | ユーティリティ |
+| `docs/` | 開発標準ドキュメント |
+| `src/components/` | shadcn/ui + カスタム UI コンポーネント |
+| `src/providers/` | React Context Providers |
+| `src/lib/utils.ts` | ユーティリティ |
 | `.github/skills/standard/scripts/auth_helper.py` | MSAL 認証ヘルパー |
-| `.github/skills/code-apps/template/plugins/` | Vite プラグイン |
-| `.github/skills/code-apps/template/styles/` | Tailwind CSS テーマ |
-| `.github/skills/code-apps/template/patch-nameutils.cjs` | 日本語 DisplayName パッチ |
-| `.github/skills/code-apps/template/.env.example` | 環境変数テンプレート |
-| `.github/skills/code-apps/template/package.json` | 依存関係（shadcn/ui, TanStack Query 等） |
-| `.github/skills/code-apps/template/vite.config.ts`, `tsconfig*.json` | ビルド設定 |
+| `plugins/` | Vite プラグイン |
+| `styles/` | Tailwind CSS テーマ |
+| `patch-nameutils.cjs` | 日本語 DisplayName パッチ |
+| `.env.example` | 環境変数テンプレート |
+| `package.json` | 依存関係（shadcn/ui, TanStack Query 等） |
+| `vite.config.ts`, `tsconfig*.json` | ビルド設定 |
 
 ### サンプル実装（プロジェクトに合わせて置き換え）
 
@@ -42,8 +42,6 @@
 | `src/hooks/use-incidents.ts` | データフェッチフック | テーブル名・クエリ |
 | `src/types/incident.ts` | 型定義 | エンティティ型 |
 
-> サンプルページ（`src/pages/`）はテンプレート展開後のプロジェクトルート内のパスです。テンプレート原本は `.github/skills/code-apps/template/src/pages/` にあります。
-
 ### SDK 自動生成（環境ごとに再生成）
 
 | パス | 内容 |
@@ -60,16 +58,11 @@
 git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard my-project
 cd my-project
 
-# 1. テンプレートをプロジェクトルートに展開
-cp -r .github/skills/code-apps/template/* .
-cp .github/skills/code-apps/template/.env.example .
-cp -r .github/skills/code-apps/template/.vscode .
-
-# 2. .env を設定
+# 1. .env を設定
 cp .env.example .env
 # DATAVERSE_URL, TENANT_ID, SOLUTION_NAME, PUBLISHER_PREFIX を編集
 
-# 3. GitHub Copilot に指示（GeekPowerCode エージェント）
+# 2. GitHub Copilot に指示（GeekPowerCode エージェント）
 # @GeekPowerCode {あなたのアプリ}を作成してください
 # → エージェントが setup_dataverse.py 等を自動生成
 ```
@@ -78,13 +71,13 @@ cp .env.example .env
 
 ```powershell
 $base = "https://raw.githubusercontent.com/geekfujiwara/CodeAppsDevelopmentStandard/main"
-@(".github/agents", ".github/skills/standard") | ForEach-Object {
+@(".github/agents", ".github/skills/standard", "docs") | ForEach-Object {
   New-Item -ItemType Directory -Path $_ -Force
 }
 @(
   @{Src="$base/.github/agents/GeekPowerCode.agent.md"; Dst=".github/agents/GeekPowerCode.agent.md"},
   @{Src="$base/.github/skills/standard/SKILL.md"; Dst=".github/skills/standard/SKILL.md"},
-  @{Src="$base/.github/skills/standard/references/power-platform-development-standard.md"; Dst=".github/skills/standard/references/power-platform-development-standard.md"}
+  @{Src="$base/docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md"; Dst="docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md"}
 ) | ForEach-Object { Invoke-WebRequest -Uri $_.Src -OutFile $_.Dst }
 ```
 

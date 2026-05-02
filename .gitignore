@@ -40,15 +40,14 @@ Thumbs.db
 
 # SDK generated (npx power-apps add-data-source で再生成)
 src/generated/
-.github/skills/code-apps/template/src/generated/
 power.config.json
 
 # App-specific code (テンプレートには含めない)
-.github/skills/code-apps/template/src/pages/incident-*.tsx
-.github/skills/code-apps/template/src/pages/incidents.tsx
-.github/skills/code-apps/template/src/hooks/use-incidents.ts
-.github/skills/code-apps/template/src/services/incident-service.ts
-.github/skills/code-apps/template/src/lib/incident-types.ts
+src/pages/incident-*.tsx
+src/pages/incidents.tsx
+src/hooks/use-incidents.ts
+src/services/incident-service.ts
+src/lib/incident-types.ts
 
 # Python
 __pycache__/

@@ -10,14 +10,14 @@ Power Apps Code Apps・Dataverse・Power Automate・Copilot Studio を **VS Code
 
 ## このリポジトリで提供するもの
 
-- Power Platform 向けコードファースト開発標準（`.github/skills/standard/references/`）
+- Power Platform 向けコードファースト開発標準（`docs/`）
 - GitHub Copilot 用のカスタムエージェント / スキル（`.github/`）
-- Code Apps のスターター UI コンポーネント（`.github/skills/code-apps/template/src/components/`）
+- Code Apps のスターター UI コンポーネント（`src/components/`）
 - Power Automate / Copilot Studio 連携の実装パターン
-- `.env.example` を含むプロジェクト初期化テンプレート（`.github/skills/code-apps/template/`）
+- `.env.example` を含むプロジェクト初期化テンプレート
 
 > [!TIP]
-> サンプル実装はあくまでリファレンスです。業務要件に合わせてテンプレート内の `src/pages/` やスキル内スクリプトを置き換えて利用してください。
+> サンプル実装はあくまでリファレンスです。業務要件に合わせて `src/pages/` やスキル内スクリプトを置き換えて利用してください。
 
 ---
 
@@ -62,31 +62,25 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 │   └── skills/                      # 製品単位で統合された 9 スキル
 │       ├── architecture/            # アーキテクチャ設計
 │       ├── standard/                # 共通基盤（認証・アイコン・メールテンプレート）
-│       │   └── references/
-│       │       ├── power-platform-development-standard.md  # 開発標準
-│       │       └── samples.md       # サンプル実装ガイド
 │       ├── dataverse/               # テーブル設計・構築・セキュリティロール
-│       │   └── references/
-│       │       └── dataverse-guide.md  # Dataverse 統合ガイド
 │       ├── code-apps/               # Code Apps 開発（UI 設計・CSP・メール送信含む）
-│       │   ├── references/
-│       │   │   ├── advanced-patterns.md     # 高度な実装パターン
-│       │   │   └── connector-reference.md   # コネクタ設定リファレンス
-│       │   └── template/            # Code Apps スターターテンプレート
-│       │       ├── src/             # React ソース（components, providers, lib, pages）
-│       │       ├── plugins/         # Power Apps Vite プラグイン
-│       │       ├── styles/          # Tailwind スタイル
-│       │       ├── public/          # 静的アセット
-│       │       ├── package.json     # 依存関係
-│       │       ├── vite.config.ts   # Vite 設定
-│       │       └── .env.example     # 環境変数テンプレート
 │       ├── generative-page/         # Generative Pages 開発
 │       ├── model-driven-app/        # モデル駆動型アプリ構築
 │       ├── copilot-studio/          # エージェント構築・トリガー・ニュース配信
 │       ├── power-automate/          # クラウドフロー作成・デプロイ
 │       └── ai-builder/              # AI プロンプト作成
-├── .gitignore
-├── LICENSE
+├── docs/                            # 開発標準ドキュメント
+├── src/
+│   ├── components/                  # 再利用 UI コンポーネント
+│   ├── pages/                       # サンプルページ実装
+│   ├── providers/                   # Context / Provider 群
+│   ├── hooks/                       # カスタムフック
+│   ├── lib/                         # 共通ユーティリティ
+│   └── types/                       # 型定義
+├── plugins/                         # Power Apps Vite プラグイン
+├── styles/                          # Tailwind スタイル
+├── .env.example                     # 環境変数テンプレート
+├── SAMPLES.md                       # サンプル実装の置き換えガイド
 └── README.md
 ```
 
@@ -94,11 +88,11 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 
 ## 主要ドキュメント
 
-- [開発標準](.github/skills/standard/references/power-platform-development-standard.md)
-- [Dataverse 統合ガイド](.github/skills/dataverse/references/dataverse-guide.md)
-- [コネクタ設定リファレンス](.github/skills/code-apps/references/connector-reference.md)
-- [高度な実装パターン](.github/skills/code-apps/references/advanced-patterns.md)
-- [サンプル実装ガイド](.github/skills/standard/references/samples.md)
+- [docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md](./docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md)
+- [docs/DATAVERSE_GUIDE.md](./docs/DATAVERSE_GUIDE.md)
+- [docs/CONNECTOR_REFERENCE.md](./docs/CONNECTOR_REFERENCE.md)
+- [docs/ADVANCED_PATTERNS.md](./docs/ADVANCED_PATTERNS.md)
+- [SAMPLES.md](./SAMPLES.md)
 
 ---
 
