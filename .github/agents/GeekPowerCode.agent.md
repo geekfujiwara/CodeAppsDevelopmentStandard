@@ -50,8 +50,8 @@ argument-hint: "Power Platform の開発作業を指示してください（例:
 
 | ドキュメント            | 読み込みパス                                  |
 | ----------------------- | --------------------------------------------- |
-| Power Platform 開発標準 | `.github/skills/standard/references/power-platform-development-standard.md` |
-| Dataverse 統合ガイド    | `.github/skills/dataverse/references/dataverse-guide.md`                     |
+| Power Platform 開発標準 | `docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md` |
+| Dataverse 統合ガイド    | `docs/DATAVERSE_GUIDE.md`                     |
 
 ## 絶対遵守ルール（過去の失敗から学んだ教訓）
 
