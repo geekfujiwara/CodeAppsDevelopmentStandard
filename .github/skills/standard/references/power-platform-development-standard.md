@@ -1636,10 +1636,10 @@ flowchart TD
 
 | スキル名                  | 場所                                                                                          | 用途                                                           |
 | ------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `standard` | [.github/skills/standard/](../.github/skills/standard/SKILL.md) | Power Platform 包括開発標準（全体参照）                        |
-| `copilot-studio`    | [.github/skills/copilot-studio/](../.github/skills/copilot-studio/SKILL.md)       | Copilot Studio エージェント構築（生成オーケストレーション）    |
-| `power-automate`     | [.github/skills/power-automate/](../.github/skills/power-automate/SKILL.md)         | Power Automate クラウドフロー作成・デプロイ                    |
-| `code-apps`           | [.github/skills/code-apps/](../.github/skills/code-apps/SKILL.md)                     | Code Apps 開発・UI 設計・CSP 構成・メール送信（統合スキル）    |
+| `standard` | [standard/SKILL.md](../SKILL.md) | Power Platform 包括開発標準（全体参照）                        |
+| `copilot-studio`    | [copilot-studio/SKILL.md](../../copilot-studio/SKILL.md)       | Copilot Studio エージェント構築（生成オーケストレーション）    |
+| `power-automate`     | [power-automate/SKILL.md](../../power-automate/SKILL.md)         | Power Automate クラウドフロー作成・デプロイ                    |
+| `code-apps`           | [code-apps/SKILL.md](../../code-apps/SKILL.md)                     | Code Apps 開発・UI 設計・CSP 構成・メール送信（統合スキル）    |
 
 ### スキルに記録されている主な教訓
 

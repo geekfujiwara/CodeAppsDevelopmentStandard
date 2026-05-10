@@ -1,6 +1,7 @@
 # Power Platform コードファースト開発標準
 
 Power Apps Code Apps・Dataverse・Power Automate・Copilot Studio を **VS Code + GitHub Copilot** で開発するための、実践的な開発標準リポジトリです。
+Code Apps 自体は React / Vue などの SPA フレームワークに対応していますが、このリポジトリの実装標準は **TypeScript + React + Tailwind CSS + shadcn/ui** を前提にしています。
 
 [![VS Code で開く](https://img.shields.io/badge/VS%20Code%E3%81%A7%E9%96%8B%E3%81%8F-007ACC?style=for-the-badge&logo=visual-studio-code&logoColor=white)](https://vscode.dev/github/geekfujiwara/CodeAppsDevelopmentStandard)
 [![GitHub Copilot](https://img.shields.io/badge/GitHub%20Copilot-対応-blueviolet?style=for-the-badge&logo=github)](https://github.com/features/copilot)
@@ -10,7 +11,7 @@ Power Apps Code Apps・Dataverse・Power Automate・Copilot Studio を **VS Code
 
 ## このリポジトリで提供するもの
 
-- Power Platform 向けコードファースト開発標準（`docs/`）
+- Power Platform 向けコードファースト開発標準（`.github/skills/*/references/`）
 - GitHub Copilot 用のカスタムエージェント / スキル（`.github/`）
 - Code Apps のスターター UI コンポーネント（`src/components/`）
 - Power Automate / Copilot Studio 連携の実装パターン
@@ -51,6 +52,10 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 - 利用者は手順書を読み込んで操作するのではなく、カスタムエージェントに要件を伝えて進める前提です。
 - チャット入力例 （バッククオート不要）: @GeekPowerCode 在庫管理アプリを Dataverse + Code Apps で作りたい
 
+> [!NOTE]
+> Microsoft Learn の現行 Code Apps 概要に合わせ、このリポジトリでは **Code Apps は SPA をホストする機能** として扱います。
+> 公式の推奨 CLI は `npx power-apps` 系に移行中で、`pac code` は将来廃止予定です。本リポジトリ内で `pac code push` を併記している箇所は、既知のテナント解決問題に対する暫定ワークアラウンドです。
+
 ---
 
 ## リポジトリ構成
@@ -69,7 +74,6 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 │       ├── copilot-studio/          # エージェント構築・トリガー・ニュース配信
 │       ├── power-automate/          # クラウドフロー作成・デプロイ
 │       └── ai-builder/              # AI プロンプト作成
-├── docs/                            # 開発標準ドキュメント
 ├── src/
 │   ├── components/                  # 再利用 UI コンポーネント
 │   ├── pages/                       # サンプルページ実装
@@ -88,10 +92,10 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 
 ## 主要ドキュメント
 
-- [docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md](./docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md)
-- [docs/DATAVERSE_GUIDE.md](./docs/DATAVERSE_GUIDE.md)
-- [docs/CONNECTOR_REFERENCE.md](./docs/CONNECTOR_REFERENCE.md)
-- [docs/ADVANCED_PATTERNS.md](./docs/ADVANCED_PATTERNS.md)
+- [.github/skills/standard/references/power-platform-development-standard.md](./.github/skills/standard/references/power-platform-development-standard.md)
+- [.github/skills/dataverse/references/dataverse-guide.md](./.github/skills/dataverse/references/dataverse-guide.md)
+- [.github/skills/code-apps/references/connector-reference.md](./.github/skills/code-apps/references/connector-reference.md)
+- [.github/skills/code-apps/references/advanced-patterns.md](./.github/skills/code-apps/references/advanced-patterns.md)
 - [SAMPLES.md](./SAMPLES.md)
 
 ---
