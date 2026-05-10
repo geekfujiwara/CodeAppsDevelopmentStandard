@@ -69,6 +69,18 @@ triggers:
 Power Apps Code Apps（コードファースト）を **TypeScript + React + Tailwind CSS + shadcn/ui** で開発する。
 UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の全領域をカバーする統合スキル。
 
+> [!NOTE]
+> Microsoft Learn の現行概要では、Code Apps は **React / Vue などの SPA を Power Apps 上でホストする仕組み** とされている。
+> この開発標準はその中でも **React ベース実装に標準化**したガイドであり、他フレームワーク一般論ではなく、このリポジトリのテンプレートと運用実績に基づく推奨事項をまとめている。
+
+## 公式概要との整合メモ（2026-05 時点）
+
+- Code Apps は **Single-Page Application (SPA)** を対象とする。
+- Microsoft の推奨 CLI は `npx power-apps` 系で、`pac code` は将来廃止予定。
+- ただし本スキルでは、`npx power-apps push` のテナント解決不具合に当たる場合のみ `pac code push` を **暫定ワークアラウンド** として許容する。
+- 利用者には **Power Apps Premium ライセンス** が必要。
+- Power Apps mobile / Windows アプリ、Power Platform Git integration、SharePoint forms integration など、Code Apps では未対応の機能がある前提で設計する。
+
 ## サブリファレンス（必要に応じて参照）
 
 | リファレンス | 内容 |
@@ -187,15 +199,16 @@ npx power-apps add-data-source ...       # ← その後にデータソース追
 #    → Dataverse 接続が確立されず add-data-source が失敗する
 ```
 
-### npx power-apps を使う（pac code ではない）
+### npx power-apps を使う（`pac code` は将来廃止予定）
 
 ```
 ❌ pac code add-data-source -a dataverse -t {table}
-   → SDK v1.0.x でスクリプトパスが変更され "Could not find the PowerApps CLI script" エラー
+   → `pac code` 系は Microsoft でも将来廃止予定。加えて SDK v1.0.x 系では
+      "Could not find the PowerApps CLI script" に遭遇することがある
 
 ✅ npx power-apps add-data-source --api-id dataverse \
-     --resource-name {table_logical_name} \
-     --org-url {DATAVERSE_URL} --non-interactive
+      --resource-name {table_logical_name} \
+      --org-url {DATAVERSE_URL} --non-interactive
 ```
 
 ### npx power-apps push/add-data-source テナント不一致問題（検証済 2026-04-22）
@@ -297,7 +310,8 @@ node -e "const c=require('fs').readFileSync('node_modules/@microsoft/power-apps-
 
 ### Power Apps CSP（Content Security Policy）違反の回避
 
-Power Apps ランタイムは厳格な CSP を適用し、**外部 API への `fetch`/`XMLHttpRequest` はすべてブロックされる**（`connect-src 'none'`）。
+Power Apps ランタイムは厳格な CSP を適用し、**デフォルトでは** 外部 API への `fetch`/`XMLHttpRequest` はブロックされる（`connect-src 'none'`）。
+環境管理者が CSP を明示設定した場合は例外を許可できるが、本スキルでは **既定の閉域前提** で設計し、詳細は [CSP 構成](references/csp.md) を参照する。
 
 ```
 ❌ fetch("https://learn.microsoft.com/api/learn/catalog")
