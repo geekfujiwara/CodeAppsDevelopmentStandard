@@ -10,7 +10,7 @@
 |------|------|
 | `.github/agents/` | GitHub Copilot カスタムエージェント定義 |
 | `.github/skills/` | 各フェーズの開発スキル（検証済み教訓・パターン集） |
-| `docs/` | 開発標準ドキュメント |
+| `.github/skills/**/references/` | 開発標準ドキュメント |
 | `src/components/` | shadcn/ui + カスタム UI コンポーネント |
 | `src/providers/` | React Context Providers |
 | `src/lib/utils.ts` | ユーティリティ |
@@ -71,13 +71,13 @@ cp .env.example .env
 
 ```powershell
 $base = "https://raw.githubusercontent.com/geekfujiwara/CodeAppsDevelopmentStandard/main"
-@(".github/agents", ".github/skills/standard", "docs") | ForEach-Object {
+@(".github/agents", ".github/skills/standard", ".github/skills/standard/references") | ForEach-Object {
   New-Item -ItemType Directory -Path $_ -Force
 }
 @(
   @{Src="$base/.github/agents/GeekPowerCode.agent.md"; Dst=".github/agents/GeekPowerCode.agent.md"},
   @{Src="$base/.github/skills/standard/SKILL.md"; Dst=".github/skills/standard/SKILL.md"},
-  @{Src="$base/docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md"; Dst="docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md"}
+  @{Src="$base/.github/skills/standard/references/power-platform-development-standard.md"; Dst=".github/skills/standard/references/power-platform-development-standard.md"}
 ) | ForEach-Object { Invoke-WebRequest -Uri $_.Src -OutFile $_.Dst }
 ```
 

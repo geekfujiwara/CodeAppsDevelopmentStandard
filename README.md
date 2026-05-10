@@ -10,7 +10,7 @@ Power Apps Code Apps・Dataverse・Power Automate・Copilot Studio を **VS Code
 
 ## このリポジトリで提供するもの
 
-- Power Platform 向けコードファースト開発標準（`docs/`）
+- Power Platform 向けコードファースト開発標準（`.github/skills/*/references/`）
 - GitHub Copilot 用のカスタムエージェント / スキル（`.github/`）
 - Code Apps のスターター UI コンポーネント（`src/components/`）
 - Power Automate / Copilot Studio 連携の実装パターン
@@ -69,7 +69,6 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 │       ├── copilot-studio/          # エージェント構築・トリガー・ニュース配信
 │       ├── power-automate/          # クラウドフロー作成・デプロイ
 │       └── ai-builder/              # AI プロンプト作成
-├── docs/                            # 開発標準ドキュメント
 ├── src/
 │   ├── components/                  # 再利用 UI コンポーネント
 │   ├── pages/                       # サンプルページ実装
@@ -88,10 +87,10 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 
 ## 主要ドキュメント
 
-- [docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md](./docs/POWER_PLATFORM_DEVELOPMENT_STANDARD.md)
-- [docs/DATAVERSE_GUIDE.md](./docs/DATAVERSE_GUIDE.md)
-- [docs/CONNECTOR_REFERENCE.md](./docs/CONNECTOR_REFERENCE.md)
-- [docs/ADVANCED_PATTERNS.md](./docs/ADVANCED_PATTERNS.md)
+- [.github/skills/standard/references/power-platform-development-standard.md](./.github/skills/standard/references/power-platform-development-standard.md)
+- [.github/skills/dataverse/references/dataverse-guide.md](./.github/skills/dataverse/references/dataverse-guide.md)
+- [.github/skills/code-apps/references/connector-reference.md](./.github/skills/code-apps/references/connector-reference.md)
+- [.github/skills/code-apps/references/advanced-patterns.md](./.github/skills/code-apps/references/advanced-patterns.md)
 - [SAMPLES.md](./SAMPLES.md)
 
 ---

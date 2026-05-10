@@ -172,7 +172,7 @@ npx power-apps add-data-source --api-id dataverse \
 pac code add-data-source -a dataverse -t {table-logical-name}
 ```
 
-> **⚠️ 日本語環境での注意**: テーブルの DisplayName が日本語の場合、`Failed to sanitize string` エラーが発生する。`node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js` の `sanitizeName()` 関数内の正規表現を Unicode 対応にパッチすること。詳細は [開発標準 §1.2](./POWER_PLATFORM_DEVELOPMENT_STANDARD.md) を参照。
+> **⚠️ 日本語環境での注意**: テーブルの DisplayName が日本語の場合、`Failed to sanitize string` エラーが発生する。`node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js` の `sanitizeName()` 関数内の正規表現を Unicode 対応にパッチすること。詳細は [開発標準 §1.2](../../standard/references/power-platform-development-standard.md) を参照。
 
 ### 使用例
 
