@@ -120,7 +120,7 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 | [power-automate](.github/skills/power-automate/SKILL.md) | クラウドフロー作成・デプロイ |
 | [ai-builder](.github/skills/ai-builder/SKILL.md) | AI プロンプト作成・エージェントツール追加 |
 
-> 詳細は [スキルカタログ](.github/skills/README.md) を参照してください。
+> この一覧で担当領域を選び、構成規約・詳細ガイドは [スキルカタログ](.github/skills/README.md) を参照してください。
 
 ---
 
