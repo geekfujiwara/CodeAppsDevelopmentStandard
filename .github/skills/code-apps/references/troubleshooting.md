@@ -169,53 +169,51 @@ function getMdaUrl(entityLogicalName: string, recordId: string): string {
 
 ---
 
-## 6. `orderBy` は配列形式で指定する
+## 6. orderBy は必ず配列で渡す（文字列不可）
 
 ### 症状
 
-`retrieveMultipleRecordsAsync` で `orderBy` を文字列で指定するとソートが効かない、
-またはサイレントにエラーが発生してレコードが 0 件返る。
+`retrieveMultipleRecordsAsync` が `{ success: false, error: {} }` を返し、
+コンソールに以下のエラーが表示される:
+
+```
+Invalid operation parameters: orderBy must be an array of strings
+```
 
 ### 原因
 
-Code Apps SDK の `retrieveMultipleRecordsAsync` options オブジェクトでは、
-`orderBy` は **文字列配列** (`string[]`) として渡す仕様。
-文字列を渡してもランタイムエラーにならないが、SDK 内部の OData クエリ構築で
-正しく処理されない場合がある。
+Code Apps SDK の `orderBy` パラメータは **文字列の配列** のみ受け付ける。
+文字列を直接渡すとバリデーションエラーになり、クエリが実行されない。
 
 ### 例
 
 ```typescript
-// ❌ 文字列（ソートが効かない / 結果が不安定）
+// ❌ 文字列 → バリデーションエラー
 const result = await client.retrieveMultipleRecordsAsync(
-  "rcwr_resourceareapriorities",
+  "opportunities",
   {
-    filter: `_rcwr_territoryid_value eq ${territoryId}`,
-    orderBy: "rcwr_priority asc",  // ← 文字列
-  }
+    select: ["opportunityid", "name"],
+    filter: `_parentaccountid_value eq ${accountId}`,
+    orderBy: "createdon desc",  // ← string はダメ
+  },
 );
 
-// ✅ 配列（正しい形式）
+// ✅ 配列 → 正常動作
 const result = await client.retrieveMultipleRecordsAsync(
-  "rcwr_resourceareapriorities",
+  "opportunities",
   {
-    filter: `_rcwr_territoryid_value eq ${territoryId}`,
-    orderBy: ["rcwr_priority asc"],  // ← 配列
-  }
+    select: ["opportunityid", "name"],
+    filter: `_parentaccountid_value eq ${accountId}`,
+    orderBy: ["createdon desc"],  // ← string[] が必須
+  },
 );
 ```
 
-### 複数キーソートの例
+### 補足
 
-```typescript
-orderBy: ["rcwr_priority asc", "createdon desc"]
-```
-
-### チェックポイント
-
-- `select`, `filter` は文字列（または `select` は文字列配列）
-- `orderBy` は **必ず文字列配列**
-- `top` は数値
+- 複数カラムでソートする場合: `orderBy: ["createdon desc", "name asc"]`
+- TypeScript の型定義では `string[]` になっているが、コード補完時に文字列を渡しても tsc エラーにならないケースがあるため注意
+- このエラーは HTTP 400 ではなく SDK 内部のバリデーションで発生するため、ネットワークタブには何も出ない
 
 ---
 

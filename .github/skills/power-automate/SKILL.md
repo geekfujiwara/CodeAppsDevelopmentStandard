@@ -128,6 +128,46 @@ if existing["value"]:
 ✅ 接続参照版を使えば有効化成功率が上がる
 ```
 
+### Dataverse webhook トリガーのフローは /start も必要（★ 検証済み教訓）
+
+```
+❌ statecode=1 だけで終わる
+   → Dataverse Create/Update トリガー（webhook 型）で webhook 登録が完了せず発火しない
+
+✅ statecode=1 + statuscode=2 の後に /start を明示的に呼ぶ:
+   POST .../providers/Microsoft.ProcessSimple/environments/{env-id}/flows/{workflow-id}/start?api-version=2016-11-01
+   （Flow API スコープ: https://service.flow.microsoft.com/.default）
+```
+
+```python
+# ✅ フロー有効化 + /start パターン
+api_patch(f"workflows({wf_id})", {"statecode": 1, "statuscode": 2})
+
+# Dataverse webhook トリガーの場合は /start も呼ぶ
+flow_token = get_token(scope="https://service.flow.microsoft.com/.default")
+requests.post(
+    f"https://api.flow.microsoft.com/providers/Microsoft.ProcessSimple"
+    f"/environments/{env_id}/flows/{wf_id}/start?api-version=2016-11-01",
+    headers={"Authorization": f"Bearer {flow_token}"},
+).raise_for_status()
+```
+
+### GrantAccess / RevokeAccess は PerformUnboundAction で呼ぶ（★ 検証済み教訓）
+
+```
+❌ PerformBoundAction + GrantAccess / RevokeAccess
+   → "Bound action 'GrantAccess' is not found" (BadRequest)
+
+✅ PerformUnboundAction + actionName + Target パラメータ
+   → Draft 作成・有効化に成功（2026-05-02 検証済み）
+
+補足:
+  - @odata.type をそのまま書くと式として解釈されるため @@odata.type でエスケープが必要
+  - connectionReferences は runtimeSource: "embedded" + connectionReferenceLogicalName で渡す
+  - payload（Target / PrincipalAccess / Revokee）は Compose アクションに分離すると
+    Power Automate UI での編集性が上がる
+```
+
 ### AI Builder アクションは API で Draft 作成・有効化ともに可能
 
 ```
@@ -361,10 +401,11 @@ clientdata = {
         },
         "connectionReferences": {
             "connref_logical_name": {
-                "connectionName": "connref_logical_name",
-                "source": "Invoker",  # ← 接続参照モード
+                "runtimeSource": "embedded",
+                "connection": {
+                    "connectionReferenceLogicalName": "connref_logical_name"
+                },
                 "id": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
-                "tier": "NotSpecified",
             },
         },
     },
