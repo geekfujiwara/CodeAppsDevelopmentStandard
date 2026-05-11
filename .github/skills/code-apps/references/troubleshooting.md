@@ -166,3 +166,51 @@ function getMdaUrl(entityLogicalName: string, recordId: string): string {
 
 > **Note**: `appid` パラメータを省略すると、ユーザーのデフォルト MDA で開く。
 > 特定のアプリで開きたい場合は `&appid={app-guid}` を追加する。
+
+---
+
+## 6. orderBy は必ず配列で渡す（文字列不可）
+
+### 症状
+
+`retrieveMultipleRecordsAsync` が `{ success: false, error: {} }` を返し、
+コンソールに以下のエラーが表示される:
+
+```
+Invalid operation parameters: orderBy must be an array of strings
+```
+
+### 原因
+
+Code Apps SDK の `orderBy` パラメータは **文字列の配列** のみ受け付ける。
+文字列を直接渡すとバリデーションエラーになり、クエリが実行されない。
+
+### 例
+
+```typescript
+// ❌ 文字列 → バリデーションエラー
+const result = await client.retrieveMultipleRecordsAsync(
+  "opportunities",
+  {
+    select: ["opportunityid", "name"],
+    filter: `_parentaccountid_value eq ${accountId}`,
+    orderBy: "createdon desc",  // ← string はダメ
+  },
+);
+
+// ✅ 配列 → 正常動作
+const result = await client.retrieveMultipleRecordsAsync(
+  "opportunities",
+  {
+    select: ["opportunityid", "name"],
+    filter: `_parentaccountid_value eq ${accountId}`,
+    orderBy: ["createdon desc"],  // ← string[] が必須
+  },
+);
+```
+
+### 補足
+
+- 複数カラムでソートする場合: `orderBy: ["createdon desc", "name asc"]`
+- TypeScript の型定義では `string[]` になっているが、コード補完時に文字列を渡しても tsc エラーにならないケースがあるため注意
+- このエラーは HTTP 400 ではなく SDK 内部のバリデーションで発生するため、ネットワークタブには何も出ない
