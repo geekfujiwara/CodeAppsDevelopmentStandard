@@ -55,6 +55,7 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 - この開発標準の実装・運用ルールは、GitHub Copilot カスタムエージェントのスキル（`.github/skills/`）に定義されています。
 - 利用者は手順書を読み込んで操作するのではなく、カスタムエージェントに要件を伝えて進める前提です。
 - チャット入力例 （バッククオート不要）: @GeekPowerCode 在庫管理アプリを Dataverse + Code Apps で作りたい
+- 既存仕様書がある場合の入力例: @GeekPowerCode input フォルダの仕様書を requirements markdown に変換して
 
 > [!NOTE]
 > Microsoft Learn の現行 Code Apps 概要に合わせ、このリポジトリでは **Code Apps は SPA をホストする機能** として扱います。
@@ -68,7 +69,7 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 .
 ├── .github/
 │   ├── agents/                      # Copilot カスタムエージェント定義
-│   └── skills/                      # 製品単位で統合された 9 スキル
+│   └── skills/                      # 製品単位で統合された 10 スキル
 │       ├── architecture/            # アーキテクチャ設計
 │       ├── standard/                # 共通基盤（認証・アイコン・メールテンプレート）
 │       ├── dataverse/               # テーブル設計・構築・セキュリティロール
@@ -77,7 +78,8 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 │       ├── model-driven-app/        # モデル駆動型アプリ構築
 │       ├── copilot-studio/          # エージェント構築・トリガー・ニュース配信
 │       ├── power-automate/          # クラウドフロー作成・デプロイ
-│       └── ai-builder/              # AI プロンプト作成
+│       ├── ai-builder/              # AI プロンプト作成
+│       └── spec-to-markdown/        # 仕様書→要件 markdown 変換
 ├── src/
 │   ├── components/                  # 再利用 UI コンポーネント
 │   ├── pages/                       # サンプルページ実装
@@ -110,7 +112,7 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 - `@GeekPowerCode` に実現したい内容を伝えるだけで、必要なスキルが選択されて開発タスクを進められます
 - このリポジトリの開発標準はスキルとして定義済みのため、マニュアル手順ベースではなくエージェント駆動で利用します
 
-### スキル一覧（9 スキル）
+### スキル一覧（10 スキル）
 
 | スキル | 説明 |
 |--------|------|
@@ -123,6 +125,7 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 | [copilot-studio](.github/skills/copilot-studio/SKILL.md) | エージェント構築・トリガー・ニュース配信 |
 | [power-automate](.github/skills/power-automate/SKILL.md) | クラウドフロー作成・デプロイ |
 | [ai-builder](.github/skills/ai-builder/SKILL.md) | AI プロンプト作成・エージェントツール追加 |
+| [spec-to-markdown](.github/skills/spec-to-markdown/SKILL.md) | 仕様書を markdown 化し、Power Platform 向け factsheet / document を生成 |
 
 > この一覧で担当領域を選び、構成規約・詳細ガイドは [スキルカタログ](.github/skills/README.md) を参照してください。
 
