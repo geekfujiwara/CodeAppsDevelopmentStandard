@@ -46,6 +46,7 @@ REPOSITORY_ROOT = find_repository_root(Path(__file__).resolve())
 DEFAULT_WORK_DIR = REPOSITORY_ROOT / "work" / "spec-to-markdown"
 DEFAULT_INPUT_DIR = DEFAULT_WORK_DIR / "input"
 DEFAULT_OUTPUT_ROOT = DEFAULT_WORK_DIR / "output"
+HASH_CHUNK_SIZE = 8192
 
 
 @dataclass
@@ -117,7 +118,7 @@ def resolve_output_dir(output_arg: str | None, input_path: Path) -> Path:
         return Path(output_arg).expanduser().resolve()
 
     DEFAULT_OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H-%M-%S")
     input_set_name = infer_input_set_name(input_path)
     return DEFAULT_OUTPUT_ROOT / f"{input_set_name}-{timestamp}"
 
@@ -144,7 +145,7 @@ def build_slug(relative_path: Path) -> str:
 def sha256_of(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(8192), b""):
+        for chunk in iter(lambda: handle.read(HASH_CHUNK_SIZE), b""):
             digest.update(chunk)
     return digest.hexdigest()
 

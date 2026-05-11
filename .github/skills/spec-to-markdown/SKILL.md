@@ -67,8 +67,8 @@ work/
       customer-a/
       project-x/
     output/
-      batch-2026-05-11-201558/
-      customer-a-2026-05-11-201742/
+      batch-2026-05-11-20-15-58/
+      customer-a-2026-05-11-20-17-42/
 ```
 
 - `input/` 直下にファイルを置いた場合は `batch-<timestamp>/`
