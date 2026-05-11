@@ -99,6 +99,8 @@ const result = await client.retrieveMultipleRecordsAsync(
   },
 );
 
+const record = result.data[0];
+
 // 表示名の取得
 const ownerName = record["_ownerid_value@OData.Community.Display.V1.FormattedValue"];
 // → "山田 太郎"
