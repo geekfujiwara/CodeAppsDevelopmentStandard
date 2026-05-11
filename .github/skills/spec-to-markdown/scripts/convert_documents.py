@@ -93,7 +93,7 @@ def ensure_directories(output_dir: Path) -> tuple[Path, Path]:
 
 def convert_file(converter: MarkItDown, source_path: Path) -> str:
     result = converter.convert(str(source_path))
-    text = getattr(result, "text_content", "") or ""
+    text = getattr(result, "text_content", "")
     return text.strip()
 
 
