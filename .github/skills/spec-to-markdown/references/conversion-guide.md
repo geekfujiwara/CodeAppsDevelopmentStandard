@@ -21,8 +21,8 @@ python convert_documents.py
 
 既定では次を使う。
 
-- 入力: `/home/.../CodeAppsDevelopmentStandard/work/spec-to-markdown/input/`
-- 出力: `/home/.../CodeAppsDevelopmentStandard/work/spec-to-markdown/output/<input-set>-<timestamp>/`
+- 入力: `<repo-root>/work/spec-to-markdown/input/`
+- 出力: `<repo-root>/work/spec-to-markdown/output/<input-set>-<timestamp>/`
 
 入力や出力を明示したい場合だけ override する。
 
@@ -44,7 +44,7 @@ work/spec-to-markdown/input/
 ```
 
 - `python convert_documents.py` の既定入力は `input/` 全体
-- `python convert_documents.py --input /.../work/spec-to-markdown/input/customer-a` とすると `customer-a-<timestamp>/` 配下へ出力される
+- `python convert_documents.py --input <repo-root>/work/spec-to-markdown/input/customer-a` とすると `customer-a-<timestamp>/` 配下へ出力される
 - `--output` を省略すると、毎回タイムスタンプ付きの別フォルダになるため上書き事故を避けやすい
 
 ## 3. 対応対象
