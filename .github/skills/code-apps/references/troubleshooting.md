@@ -2,6 +2,8 @@
 
 Code Apps（TypeScript + React）開発で頻出する問題と対処法。
 
+> 参考: このリファレンスは [Code Apps スキル一覧](../SKILL.md) から参照する想定です。関連資料や他のリファレンスは `SKILL.md` の冒頭一覧から確認できます。
+
 ---
 
 ## 1. Dataverse フィルターで GUID にシングルクォートを付けてはいけない
