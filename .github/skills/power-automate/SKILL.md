@@ -130,16 +130,13 @@ if existing["value"]:
 
 ### Dataverse webhook トリガーのフローは /start も必要（★ 検証済み教訓）
 
-Dataverse の Create / Update トリガー（webhook 型）のフローは、
-`statecode=1` + `statuscode=2` で有効化しても run history が 0 件のまま
-Dataverse イベントを拾わないケースがある。
-
 ```
-✅ statecode=1 + statuscode=2 の後に、さらに以下を明示的に呼ぶ:
-   POST https://api.flow.microsoft.com/providers/Microsoft.ProcessSimple/environments/{env-id}/flows/{workflow-id}/start?api-version=2016-11-01
-   （Flow API スコープ: https://service.flow.microsoft.com/.default）
+❌ statecode=1 だけで終わる
+   → Dataverse Create/Update トリガー（webhook 型）で webhook 登録が完了せず発火しない
 
-❌ statecode=1 だけで終わる → webhook 登録が完了せず、トリガーが発火しない場合がある
+✅ statecode=1 + statuscode=2 の後に /start を明示的に呼ぶ:
+   POST .../providers/Microsoft.ProcessSimple/environments/{env-id}/flows/{workflow-id}/start?api-version=2016-11-01
+   （Flow API スコープ: https://service.flow.microsoft.com/.default）
 ```
 
 ```python
@@ -157,15 +154,12 @@ requests.post(
 
 ### GrantAccess / RevokeAccess は PerformUnboundAction で呼ぶ（★ 検証済み教訓）
 
-Dataverse の GrantAccess / RevokeAccess をフロー内で使う場合、
-PerformBoundAction ではなく **PerformUnboundAction** を使用する。
-
 ```
 ❌ PerformBoundAction + GrantAccess / RevokeAccess
    → "Bound action 'GrantAccess' is not found" (BadRequest)
 
 ✅ PerformUnboundAction + actionName + Target パラメータ
-   → GrantAccess / RevokeAccess の Draft 作成・有効化に成功（2026-05-02 検証済み）
+   → Draft 作成・有効化に成功（2026-05-02 検証済み）
 
 補足:
   - @odata.type をそのまま書くと式として解釈されるため @@odata.type でエスケープが必要
