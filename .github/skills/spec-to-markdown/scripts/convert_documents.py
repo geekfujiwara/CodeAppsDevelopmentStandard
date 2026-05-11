@@ -33,7 +33,16 @@ SUPPORTED_EXTENSIONS = {
     ".htm",
 }
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+
+def find_repository_root(start_path: Path) -> Path:
+    for candidate in (start_path, *start_path.parents):
+        if (candidate / ".git").exists():
+            return candidate
+
+    raise RuntimeError("リポジトリルートを特定できませんでした。")
+
+
+REPOSITORY_ROOT = find_repository_root(Path(__file__).resolve())
 DEFAULT_WORK_DIR = REPOSITORY_ROOT / "work" / "spec-to-markdown"
 DEFAULT_INPUT_DIR = DEFAULT_WORK_DIR / "input"
 DEFAULT_OUTPUT_ROOT = DEFAULT_WORK_DIR / "output"
@@ -302,7 +311,8 @@ def main() -> int:
 
     if not input_path.exists():
         raise SystemExit(
-            f"入力パスが存在しません: {input_path}"
+            "入力パスが存在しません:"
+            f" {input_path}"
             f" 既定入力フォルダを使う場合は `{DEFAULT_INPUT_DIR}` にファイルを配置してください。"
         )
 
