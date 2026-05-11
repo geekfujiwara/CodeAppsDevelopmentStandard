@@ -166,3 +166,106 @@ function getMdaUrl(entityLogicalName: string, recordId: string): string {
 
 > **Note**: `appid` パラメータを省略すると、ユーザーのデフォルト MDA で開く。
 > 特定のアプリで開きたい場合は `&appid={app-guid}` を追加する。
+
+---
+
+## 6. `orderBy` は配列形式で指定する
+
+### 症状
+
+`retrieveMultipleRecordsAsync` で `orderBy` を文字列で指定するとソートが効かない、
+またはサイレントにエラーが発生してレコードが 0 件返る。
+
+### 原因
+
+Code Apps SDK の `retrieveMultipleRecordsAsync` options オブジェクトでは、
+`orderBy` は **文字列配列** (`string[]`) として渡す仕様。
+文字列を渡してもランタイムエラーにならないが、SDK 内部の OData クエリ構築で
+正しく処理されない場合がある。
+
+### 例
+
+```typescript
+// ❌ 文字列（ソートが効かない / 結果が不安定）
+const result = await client.retrieveMultipleRecordsAsync(
+  "rcwr_resourceareapriorities",
+  {
+    filter: `_rcwr_territoryid_value eq ${territoryId}`,
+    orderBy: "rcwr_priority asc",  // ← 文字列
+  }
+);
+
+// ✅ 配列（正しい形式）
+const result = await client.retrieveMultipleRecordsAsync(
+  "rcwr_resourceareapriorities",
+  {
+    filter: `_rcwr_territoryid_value eq ${territoryId}`,
+    orderBy: ["rcwr_priority asc"],  // ← 配列
+  }
+);
+```
+
+### 複数キーソートの例
+
+```typescript
+orderBy: ["rcwr_priority asc", "createdon desc"]
+```
+
+### チェックポイント
+
+- `select`, `filter` は文字列（または `select` は文字列配列）
+- `orderBy` は **必ず文字列配列**
+- `top` は数値
+
+---
+
+## 7. `$select` (select オプション) がカスタムテーブルで 0 件を返す
+
+### 症状
+
+`retrieveMultipleRecordsAsync` に `select` オプションを指定すると、
+フィルター条件に一致するレコードが存在するにもかかわらず結果が 0 件になる。
+`select` を省略すると正常にレコードが返る。
+
+### 原因
+
+一部のカスタムテーブル（特に Lookup 列が多い中間テーブルやリレーションテーブル）で、
+Code Apps SDK が `$select` 付き OData クエリを正しく処理できないケースがある。
+原因は SDK 内部の列名解決またはメタデータキャッシュに起因すると推測される。
+
+### 影響を受けやすいテーブルの特徴
+
+- カスタムの中間テーブル（N:N リレーション的な用途）
+- Lookup 列が 3 つ以上あるテーブル
+- ルックアップ値 (`_xxx_value`) をフィルター条件に使用している場合
+
+### 回避策
+
+```typescript
+// ❌ select 指定で 0 件になる場合がある
+const result = await client.retrieveMultipleRecordsAsync(
+  "rcwr_resourceareapriorities",
+  {
+    select: ["rcwr_name", "_rcwr_resourceid_value", "_rcwr_territoryid_value"],
+    filter: `_rcwr_territoryid_value eq ${territoryId} and rcwr_isactive eq true`,
+    orderBy: ["rcwr_priority asc"],
+  }
+);
+
+// ✅ select を省略して全列取得（確実に動作する）
+const result = await client.retrieveMultipleRecordsAsync(
+  "rcwr_resourceareapriorities",
+  {
+    filter: `_rcwr_territoryid_value eq ${territoryId} and rcwr_isactive eq true`,
+    orderBy: ["rcwr_priority asc"],
+  }
+);
+```
+
+### 注意
+
+- `select` を省略すると全列が返るため、レスポンスサイズが大きくなる。
+  レコード数が少ないマスタ系テーブルでは問題にならないが、
+  トランザクション系テーブルでは `top` と併用してレコード数を制限する。
+- **標準テーブル**（`bookableresourcebookings` 等）では `select` が正常に動作する。
+  問題が起きるのは主にカスタムテーブル。
