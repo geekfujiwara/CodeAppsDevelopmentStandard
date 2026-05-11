@@ -1,13 +1,25 @@
 # 日本地図パターン（Generative Pages 向け）
 
 Generative Pages で日本地図を表示し、都道府県別のデータ可視化を行うデザインパターン。
+**2 つの実装方式**から要件に応じて選択する。
+
+| 方式 | 特徴 | 推奨場面 |
+|------|------|---------|
+| **SVG 方式**（後述） | 外部通信不要・CSP 設定不要・軽量・都道府県単位の色分けが得意 | 都道府県別 KPI・地域比較ダッシュボード |
+| **Google Maps iframe 方式**（後述） | 実際の地図表示・ズーム/パン自由・ストリートビュー対応 | 拠点マップ・住所ベースの位置表示・ルート案内 |
+
+> **CSP 注意**: Google Maps iframe 方式を使う場合は、環境の **Content Security Policy（CSP）** に `frame-src` を追加する必要がある。
+> 詳細は本ドキュメント内の [Google Maps iframe 方式](#google-maps-iframe-方式) および [Code Apps CSP 構成](../../code-apps/references/csp.md) を参照。
+
 SVG アセットは `public/maps/` に格納済み。
 
 > **出典**: [geolonia/japanese-prefectures](https://github.com/geolonia/japanese-prefectures)（GFDL ライセンス）
 
 ---
 
-## SVG ファイル選定ガイド
+## SVG 方式
+
+### SVG ファイル選定ガイド
 
 | ファイル | 推奨場面 |
 |---------|---------|
@@ -346,6 +358,115 @@ useEffect(function () {
 
 ---
 
+## Google Maps iframe 方式
+
+SVG 方式の代替として、**Google Maps iframe** を埋め込んで地図表示する方式。
+住所・座標ベースの拠点表示やストリートビュー連携が必要な場合に適している。
+
+### ⚠️ CSP 設定が必須
+
+Google Maps iframe を使う場合、Power Platform 環境の **Content Security Policy（CSP）** に以下のディレクティブを追加する必要がある。
+**設定なしでは `Refused to frame 'https://maps.google.com/'` エラーでブロックされる。**
+
+| ディレクティブ | 追加するソース |
+|---|---|
+| `frame-src` | `https://www.google.com` `https://maps.google.com` |
+
+**設定手順**:
+1. [Power Platform 管理センター](https://admin.powerplatform.microsoft.com/) にサインイン
+2. **環境** > 対象環境を選択
+3. **設定** > **製品** > **プライバシー + セキュリティ**
+4. **コンテンツ セキュリティ ポリシー** > **アプリ** タブ
+5. `frame-src` の **「既定値を使用」トグルをオフ** にし、`https://www.google.com` と `https://maps.google.com` を追加
+6. **保存**
+
+> **参考**: [Code Apps CSP 構成スキル](../../code-apps/references/csp.md) に詳細な設定手順（GUI / REST API）を記載。
+
+### Google Maps iframe コード例
+
+```typescript
+/* makeStyles */
+mapIframe: {
+  width: "100%",
+  height: "500px",
+  border: "none",
+  borderRadius: "8px",
+},
+
+/* 拠点データから Google Maps 埋め込み URL を生成 */
+var [mapUrl, setMapUrl] = useState("");
+
+useEffect(function () {
+  // 例: 東京都庁の座標
+  var lat = 35.6895;
+  var lon = 139.6917;
+  var zoom = 12;
+  setMapUrl(
+    "https://maps.google.com/maps?q=" + lat + "," + lon + "&z=" + zoom + "&output=embed"
+  );
+}, []);
+
+/* JSX */
+{mapUrl && (
+  <iframe
+    src={mapUrl}
+    className={styles.mapIframe}
+    loading="lazy"
+    referrerPolicy="no-referrer-when-downgrade"
+    title="地図"
+    sandbox="allow-scripts allow-same-origin allow-popups"
+  />
+)}
+```
+
+### Dataverse 拠点データとの連携
+
+```typescript
+/* Dataverse の拠点テーブルから緯度経度を取得して表示 */
+var [selectedLocation, setSelectedLocation] = useState<{
+  name: string; lat: number; lon: number;
+} | null>(null);
+
+useEffect(function () {
+  props.dataApi.queryTable("my_locations", {
+    select: ["my_locationname", "my_latitude", "my_longitude"],
+  }).then(function (result) {
+    if (result.items.length > 0) {
+      var first = result.items[0];
+      setSelectedLocation({
+        name: String(first.my_locationname),
+        lat: Number(first.my_latitude),
+        lon: Number(first.my_longitude),
+      });
+    }
+  });
+}, []);
+
+/* 選択拠点の地図 URL */
+var googleMapUrl = selectedLocation
+  ? "https://maps.google.com/maps?q=" + selectedLocation.lat + "," + selectedLocation.lon + "&z=14&output=embed"
+  : "";
+```
+
+### SVG 方式との比較
+
+| 観点 | SVG 方式 | Google Maps iframe 方式 |
+|------|---------|------------------------|
+| CSP 設定 | **不要** | **必要**（`frame-src` 追加） |
+| 外部通信 | なし（文字列リテラル埋め込み） | Google Maps へのリクエスト発生 |
+| 都道府県別色分け | ◎ 得意（SVG 要素ごとに制御） | △ 自前実装が必要 |
+| ズーム・パン | △ SVG transform で自前実装 | ◎ Google Maps 標準機能 |
+| 住所・座標指定 | × 非対応 | ◎ 標準対応 |
+| ストリートビュー | × 非対応 | ◎ 標準対応 |
+| オフライン対応 | ◎ 完全オフライン動作 | × インターネット接続必須 |
+| ファイルサイズ | 11〜30KB（SVG 埋め込み） | なし（iframe 読み込み） |
+
+> **ユーザーへの提案時のポイント**: 都道府県別の色分け・比較分析がメインなら **SVG 方式** を推奨。
+> 拠点の地図表示・住所ベースのピン表示がメインなら **Google Maps iframe 方式** を提案し、
+> **CSP 設定が必要である旨を必ず伝える**こと。
+
+---
+
 ## 注意事項
 
 1. **Generative Pages は外部 fetch 禁止** — SVG を TypeScript 文字列リテラルとして埋め込むこと
@@ -353,3 +474,4 @@ useEffect(function () {
 3. **D3 geoMercator は不要** — SVG 自体が日本地図の形状を持つため D3 の geo 投影は不要
 4. **map-full.svg/map-mobile.svg は実形状** — `<path>` 要素で実際の地形。ファイルサイズ約 30KB
 5. **map-circle.svg/map-polygon.svg はデフォルメ** — `<circle>` / `<path>` で簡略化。ファイルサイズ 11〜16KB。単一ファイルへの埋め込みにはこちらが軽量で推奨
+6. **Google Maps iframe 方式を使う場合は CSP 設定が必須** — 環境の `frame-src` に `https://www.google.com` と `https://maps.google.com` を追加すること。設定手順は [Code Apps CSP 構成](../../code-apps/references/csp.md) を参照
