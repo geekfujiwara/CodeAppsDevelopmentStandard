@@ -214,3 +214,56 @@ const result = await client.retrieveMultipleRecordsAsync(
 - 複数カラムでソートする場合: `orderBy: ["createdon desc", "name asc"]`
 - TypeScript の型定義では `string[]` になっているが、コード補完時に文字列を渡しても tsc エラーにならないケースがあるため注意
 - このエラーは HTTP 400 ではなく SDK 内部のバリデーションで発生するため、ネットワークタブには何も出ない
+
+---
+
+## 7. `$select` (select オプション) がカスタムテーブルで 0 件を返す
+
+### 症状
+
+`retrieveMultipleRecordsAsync` に `select` オプションを指定すると、
+フィルター条件に一致するレコードが存在するにもかかわらず結果が 0 件になる。
+`select` を省略すると正常にレコードが返る。
+
+### 原因
+
+一部のカスタムテーブル（特に Lookup 列が多い中間テーブルやリレーションテーブル）で、
+Code Apps SDK が `$select` 付き OData クエリを正しく処理できないケースがある。
+原因は SDK 内部の列名解決またはメタデータキャッシュに起因すると推測される。
+
+### 影響を受けやすいテーブルの特徴
+
+- カスタムの中間テーブル（N:N リレーション的な用途）
+- Lookup 列が 3 つ以上あるテーブル
+- ルックアップ値 (`_xxx_value`) をフィルター条件に使用している場合
+
+### 回避策
+
+```typescript
+// ❌ select 指定で 0 件になる場合がある
+const result = await client.retrieveMultipleRecordsAsync(
+  "rcwr_resourceareapriorities",
+  {
+    select: ["rcwr_name", "_rcwr_resourceid_value", "_rcwr_territoryid_value"],
+    filter: `_rcwr_territoryid_value eq ${territoryId} and rcwr_isactive eq true`,
+    orderBy: ["rcwr_priority asc"],
+  }
+);
+
+// ✅ select を省略して全列取得（確実に動作する）
+const result = await client.retrieveMultipleRecordsAsync(
+  "rcwr_resourceareapriorities",
+  {
+    filter: `_rcwr_territoryid_value eq ${territoryId} and rcwr_isactive eq true`,
+    orderBy: ["rcwr_priority asc"],
+  }
+);
+```
+
+### 注意
+
+- `select` を省略すると全列が返るため、レスポンスサイズが大きくなる。
+  レコード数が少ないマスタ系テーブルでは問題にならないが、
+  トランザクション系テーブルでは `top` と併用してレコード数を制限する。
+- **標準テーブル**（`bookableresourcebookings` 等）では `select` が正常に動作する。
+  問題が起きるのは主にカスタムテーブル。
