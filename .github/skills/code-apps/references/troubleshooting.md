@@ -12,8 +12,9 @@ Code Apps（TypeScript + React）開発で頻出する問題と対処法。
 
 ### 原因
 
-Code Apps SDK の OData フィルターでは、GUID 値にシングルクォートを付けると一致しない。
-標準 OData は `eq 'guid-value'` だが、**Code Apps SDK では `eq guid-value`（クォートなし）** が正しい。
+Code Apps SDK の OData フィルターでは、GUID 値を文字列としてシングルクォートで囲むと一致しない。
+Dataverse Web API / Code Apps SDK では、GUID 比較は **`eq guid-value`（クォートなし）** の形式で書くのが適切。
+`eq 'guid-value'` のような書き方は GUID を文字列比較しているように見えやすく、Code Apps SDK では期待どおり動作しない。
 
 ### 例
 
