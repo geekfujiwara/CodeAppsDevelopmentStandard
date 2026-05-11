@@ -150,6 +150,48 @@ function getInitialDate(): string {
 
 > **実装パターン**: Python スクリプトで SiteMap XML を取得 → 正規表現で挿入位置を特定 → 新 SubArea を文字列結合で挿入 → `PATCH sitemaps({id})` → `PublishXml`。`yaml.dump()` や XML パーサーは不要（文字列操作で十分）
 
+31. **OData アノテーション名を `select` に含めない** — `msdyn_workordertypename`、`msdyn_organizationalunitname` 等の `xxxname` フィールドは OData の `@OData.Community.Display.V1.FormattedValue` アノテーションであり、Dataverse の実カラムではない。DataAPI の `select` に指定すると 400 エラーが発生するが、GenPage ランタイムは try/catch でサイレントに失敗しデータが空配列になる。**対策**: 関連テーブル（`msdyn_workordertype` 等）を別クエリで取得し、`Map<string, string>` で FK ID → 名前のマッピングを構築する
+
+```typescript
+// ❌ NG: アノテーション名を select に含める → サイレント 400 エラー
+var wos = await loadAllRows(api, "msdyn_workorder", {
+  select: ["msdyn_workorderid", "msdyn_workordertypename"],  // ← 存在しないカラム
+});
+
+// ✅ OK: FK ID のみ select し、関連テーブルから名前マップを構築
+var wos = await loadAllRows(api, "msdyn_workorder", {
+  select: ["msdyn_workorderid", "_msdyn_workordertype_value"],
+});
+var woTypes = await loadAllRows(api, "msdyn_workordertype", {
+  select: ["msdyn_workordertypeid", "msdyn_name"],
+});
+var typeNameMap = new Map<string, string>();
+woTypes.forEach(function (t: any) { typeNameMap.set(fkId(t.msdyn_workordertypeid), t.msdyn_name || ""); });
+```
+
+> **見分け方**: カラム名が `_xxx_value` の形式なら FK ID（select 可能）。`xxxname` の形式なら OData アノテーション（select 不可）。確実に確認するには `RuntimeTypes.ts` を参照する。
+
+32. **関連テーブルの集計は親レコードの日付を使う** — 子テーブル（WO Product 等）の `createdon` はデータ投入日であり実作業日ではない。期間別集計には、`_msdyn_workorder_value` で親 WO を参照し、WO の `createdon` や `msdyn_datewindowstart` で期間キーを生成する
+
+```typescript
+// ❌ NG: WO Product の createdon は投入日であり、実作業の月と一致しない
+var period = product.createdon.substring(0, 7);  // "2026-05" (投入日)
+
+// ✅ OK: 親 WO の createdon から期間を取得
+var woDateMap = new Map<string, string>();
+workorders.forEach(function (wo: any) {
+  woDateMap.set(fkId(wo.msdyn_workorderid), wo.createdon ? wo.createdon.substring(0, 7) : "");
+});
+var woId = fkId(product._msdyn_workorder_value);
+var period = woDateMap.get(woId) || "";  // "2026-04" (実作業月)
+```
+
+33. **スタック横棒は `d3.stack()` を使わず手動配置** — `d3.stack()` は全行で同一カテゴリセットを前提とし、カテゴリの欠落があるとバグが出やすい。単一ファイル構成の GenPage では、メンバーごとに `forEach` + `x0 += segWidth` で手動積み上げするほうがデバッグが容易で安全
+
+34. **チャート3カラムレイアウトは `1fr 1fr auto`** — 左2列をデータ量に応じた均等幅にし、右列（ドーナツ等の固定幅チャート）を `auto` + `minWidth` で配置する。`repeat(3, 1fr)` だとドーナツの余白が大きくなりすぎる。`1fr auto` の2カラムから始め、チャートが増えたら `1fr 1fr auto` に拡張する
+
+35. **D3 ツールチップは全チャートで1つの div を共有** — チャートごとに別の tooltip div を作ると、あるチャートのツールチップが別チャート領域に被ったときに消えない問題が起きる。`tooltipRef` を 1 つだけ作り、`showTip(html, ev)` / `moveTip(ev)` / `hideTip()` の 3 関数で全チャートの `mouseover` / `mousemove` / `mouseout` から呼び出す
+
 ## 開発フロー
 
 ### Step 0.5: モデル駆動型アプリ作成（Dataverse テーブル作成後・Generative Page 作成前）
