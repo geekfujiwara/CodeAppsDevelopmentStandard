@@ -396,3 +396,43 @@ SVG アセットは `public/maps/` に格納（map-full.svg / map-mobile.svg / m
   </Card>
 </div>
 ```
+
+### パターン 7: Copilot Studio チャット UI
+
+詳細な実装パターン・コンポーネント定義・Copilot Studio 連携は [Copilot チャットパターン](copilot-chat-pattern.md) を参照。
+Copilot Studio コネクタの設定は [copilot-studio-connector.md](copilot-studio-connector.md) を参照。
+
+```tsx
+// ページ構成: ヘッダー + チャット領域 + 入力フォーム
+// Copilot Studio エージェントと直接対話するフルスクリーンチャット
+<div className="flex flex-col overflow-hidden" style={{ height: "calc(100dvh - 64px - 2rem)" }}>
+  {/* ヘッダー */}
+  <div className="px-4 pt-3 pb-2 border-b bg-background shrink-0">
+    <div className="flex items-center justify-end gap-2">
+      <Button variant="ghost" size="sm" onClick={handleResetChat}>
+        <RotateCcw className="h-3 w-3" /> リセット
+      </Button>
+      {/* ★ 追加アクションボタン */}
+    </div>
+    <div className="flex items-center gap-1.5 mt-2">
+      <Bot className="h-4 w-4 text-primary" />
+      <span className="text-sm font-medium">Copilot</span>
+    </div>
+  </div>
+
+  {/* チャット領域 */}
+  <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
+    {/* 初期画面: Bot アイコン + クイックアクション */}
+    {/* メッセージバブル: user=bg-primary / assistant=bg-muted+Markdown */}
+    {/* 思考中インジケーター */}
+  </div>
+
+  {/* 入力フォーム */}
+  <div className="px-4 py-3 border-t bg-background shrink-0">
+    <form className="flex items-center gap-2">
+      <Input placeholder="質問を入力..." className="pl-10" />
+      <Button type="submit" size="icon"><Send className="h-4 w-4" /></Button>
+    </form>
+  </div>
+</div>
+```
