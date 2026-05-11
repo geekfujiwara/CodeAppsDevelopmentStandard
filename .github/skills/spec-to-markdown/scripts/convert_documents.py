@@ -129,8 +129,7 @@ def discover_files(input_path: Path, output_dir: Path) -> list[Path]:
 
 def build_slug(relative_path: Path) -> str:
     joined = "__".join(relative_path.with_suffix("").parts)
-    normalized = re.sub(r"[^a-zA-Z0-9._-]+", "-", joined).strip("-._").lower()
-    return normalized or "document"
+    return sanitize_path_fragment(joined)
 
 
 def sha256_of(path: Path) -> str:
