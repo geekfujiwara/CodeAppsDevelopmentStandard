@@ -2,7 +2,7 @@
 name: spec-to-markdown
 description: "PDF・PowerPoint・Excel などの仕様書を MarkItDown ベースで markdown 化し、Power Platform 開発向け factsheet と document を整理する。"
 category: ai
-argument-hint: "[input フォルダのパス or ファイルパス]"
+argument-hint: "[任意: input フォルダのパス or ファイルパス]"
 user-invocable: true
 triggers:
   - "MarkItDown"
@@ -24,12 +24,17 @@ Power Platform 開発で使いやすい **factsheet 群** と **全体 document.
 
 ## 最初の依頼を簡単にする
 
-このスキルは **input フォルダを指定するだけ** で開始できるようにする。
+このスキルは **引数なしでも開始できる** ようにする。
+
+- 既定入力: `work/spec-to-markdown/input/`
+- 既定出力: `work/spec-to-markdown/output/<input-set>-<timestamp>/`
+- `--input` / `--output` を指定した場合はそのパスを優先する
 
 ### 推奨の始め方
 
 - `@GeekPowerCode input フォルダの仕様書を requirements markdown に変換して`
 - `@GeekPowerCode /home/.../input の PDF と Excel を factsheet 化して`
+- `@GeekPowerCode spec-to-markdown`
 - `@GeekPowerCode spec-to-markdown input`
 
 ## 目的
@@ -39,7 +44,7 @@ Power Platform 開発で使いやすい **factsheet 群** と **全体 document.
 
 ## 基本フロー
 
-1. `scripts/convert_documents.py` で input フォルダ内の仕様書を markdown 化する
+1. `scripts/convert_documents.py` で既定 input フォルダ、または指定された input パス内の仕様書を markdown 化する
 2. 各ファイルごとに `factsheets/*.md` を作る
 3. 横断要件を `document.md` にまとめる
 4. 不明点・矛盾点・未記載事項は推測で埋めず `要確認` として残す
@@ -52,6 +57,23 @@ Power Platform 開発で使いやすい **factsheet 群** と **全体 document.
   factsheets/          # ファイル単位の factsheet
   document.md          # 全体統合ドキュメント
 ```
+
+### 既定フォルダ運用
+
+```text
+work/
+  spec-to-markdown/
+    input/
+      customer-a/
+      project-x/
+    output/
+      batch-2026-05-11-201558/
+      customer-a-2026-05-11-201742/
+```
+
+- `input/` 直下にファイルを置いた場合は `batch-<timestamp>/`
+- `input/customer-a/` のような入力セットを指定した場合は `customer-a-<timestamp>/`
+- 出力先を固定したい場合だけ `--output /absolute/path/to/output` を使う
 
 ## factsheet で必ず整理する項目
 

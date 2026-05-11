@@ -5,6 +5,9 @@ package-lock.json
 # Copilot memories (session/user notes)
 memories/
 
+# spec-to-markdown default workspace
+work/spec-to-markdown/
+
 # Build output
 dist/
 

@@ -16,10 +16,36 @@ cd .github/skills/spec-to-markdown/scripts
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+python convert_documents.py
+```
+
+既定では次を使う。
+
+- 入力: `/home/.../CodeAppsDevelopmentStandard/work/spec-to-markdown/input/`
+- 出力: `/home/.../CodeAppsDevelopmentStandard/work/spec-to-markdown/output/<input-set>-<timestamp>/`
+
+入力や出力を明示したい場合だけ override する。
+
+```bash
 python convert_documents.py \
   --input /absolute/path/to/input \
   --output /absolute/path/to/output
 ```
+
+### 入力セット運用の例
+
+```text
+work/spec-to-markdown/input/
+  customer-a/
+    要件定義書.pdf
+    画面一覧.xlsx
+  project-x/
+    業務フロー.pptx
+```
+
+- `python convert_documents.py` の既定入力は `input/` 全体
+- `python convert_documents.py --input /.../work/spec-to-markdown/input/customer-a` とすると `customer-a-<timestamp>/` 配下へ出力される
+- `--output` を省略すると、毎回タイムスタンプ付きの別フォルダになるため上書き事故を避けやすい
 
 ## 3. 対応対象
 

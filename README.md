@@ -55,7 +55,8 @@ git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm i
 - この開発標準の実装・運用ルールは、GitHub Copilot カスタムエージェントのスキル（`.github/skills/`）に定義されています。
 - 利用者は手順書を読み込んで操作するのではなく、カスタムエージェントに要件を伝えて進める前提です。
 - チャット入力例 （バッククオート不要）: @GeekPowerCode 在庫管理アプリを Dataverse + Code Apps で作りたい
-- 既存仕様書がある場合の入力例: @GeekPowerCode input フォルダの仕様書を requirements markdown に変換して
+- 既存仕様書がある場合の入力例: @GeekPowerCode spec-to-markdown
+- 既定以外の場所を使う場合の入力例: @GeekPowerCode /home/.../input の仕様書を requirements markdown に変換して
 
 > [!NOTE]
 > Microsoft Learn の現行 Code Apps 概要に合わせ、このリポジトリでは **Code Apps は SPA をホストする機能** として扱います。

@@ -33,6 +33,11 @@ SUPPORTED_EXTENSIONS = {
     ".htm",
 }
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+DEFAULT_WORK_DIR = REPOSITORY_ROOT / "work" / "spec-to-markdown"
+DEFAULT_INPUT_DIR = DEFAULT_WORK_DIR / "input"
+DEFAULT_OUTPUT_ROOT = DEFAULT_WORK_DIR / "output"
+
 
 @dataclass
 class ConversionResult:
@@ -50,9 +55,62 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="input フォルダ内の仕様書を raw markdown / factsheet / document.md に変換する"
     )
-    parser.add_argument("--input", required=True, help="入力ファイルまたは入力フォルダの絶対パス")
-    parser.add_argument("--output", required=True, help="出力フォルダの絶対パス")
+    parser.add_argument(
+        "--input",
+        help=(
+            "入力ファイルまたは入力フォルダのパス。"
+            f" 省略時は `{DEFAULT_INPUT_DIR}` を使用"
+        ),
+    )
+    parser.add_argument(
+        "--output",
+        help=(
+            "出力フォルダのパス。"
+            f" 省略時は `{DEFAULT_OUTPUT_ROOT}/<input-set>-<timestamp>/` を使用"
+        ),
+    )
     return parser.parse_args()
+
+
+def resolve_input_path(input_arg: str | None) -> Path:
+    if input_arg:
+        return Path(input_arg).expanduser().resolve()
+
+    DEFAULT_INPUT_DIR.mkdir(parents=True, exist_ok=True)
+    return DEFAULT_INPUT_DIR
+
+
+def sanitize_path_fragment(value: str) -> str:
+    normalized = re.sub(r"[^a-zA-Z0-9._-]+", "-", value).strip("-._").lower()
+    return normalized or "batch"
+
+
+def infer_input_set_name(input_path: Path) -> str:
+    if input_path.is_file():
+        return sanitize_path_fragment(input_path.stem)
+
+    if input_path == DEFAULT_INPUT_DIR:
+        return "batch"
+
+    try:
+        relative_to_default = input_path.relative_to(DEFAULT_INPUT_DIR)
+    except ValueError:
+        return sanitize_path_fragment(input_path.name)
+
+    if not relative_to_default.parts:
+        return "batch"
+
+    return sanitize_path_fragment("__".join(relative_to_default.parts))
+
+
+def resolve_output_dir(output_arg: str | None, input_path: Path) -> Path:
+    if output_arg:
+        return Path(output_arg).expanduser().resolve()
+
+    DEFAULT_OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
+    input_set_name = infer_input_set_name(input_path)
+    return DEFAULT_OUTPUT_ROOT / f"{input_set_name}-{timestamp}"
 
 
 def discover_files(input_path: Path, output_dir: Path) -> list[Path]:
@@ -240,11 +298,14 @@ def build_document(
 
 def main() -> int:
     args = parse_args()
-    input_path = Path(args.input).expanduser().resolve()
-    output_dir = Path(args.output).expanduser().resolve()
+    input_path = resolve_input_path(args.input)
+    output_dir = resolve_output_dir(args.output, input_path)
 
     if not input_path.exists():
-        raise SystemExit(f"入力パスが存在しません: {input_path}")
+        raise SystemExit(
+            f"入力パスが存在しません: {input_path}"
+            f" 既定入力フォルダを使う場合は `{DEFAULT_INPUT_DIR}` にファイルを配置してください。"
+        )
 
     files = discover_files(input_path, output_dir)
     if not files:
