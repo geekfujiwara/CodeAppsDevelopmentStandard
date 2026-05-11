@@ -436,3 +436,45 @@ Copilot Studio コネクタの設定は [copilot-studio-connector.md](copilot-st
   </div>
 </div>
 ```
+
+### パターン 8: オーナーガード（読み取り専用制御）
+
+レコードの担当者とログインユーザーを比較し、他のユーザーのレコードを読み取り専用にするパターン。
+承認ワークフロー・タスク再割当・チーム共有ビューで使用。
+詳細な実装・SDK 制約・カスタマイズガイドは [オーナーガードパターン](owner-guard-pattern.md) を参照。
+
+```tsx
+// 1. ユーザー → 担当者 ID 解決（queryFn 内）
+const currentUserId = await getCurrentUserId().catch(() => null);
+const myRecordId = currentUserId
+  ? await getMyRecordId(currentUserId, "bookableresources", "bookableresourceid").catch(() => null)
+  : null;
+
+// 2. オーナー判定
+const isOwnRecord = !myRecordId
+  || myRecordId.toLowerCase() === record._owner_value.toLowerCase();
+const isReadOnly = statusId === COMPLETED || statusId === CANCELED || !isOwnRecord;
+
+// 3. amber バナー（他の担当者）
+{!isOwnRecord && (
+  <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400
+    bg-amber-50 dark:bg-amber-950/30 p-3 rounded-lg
+    border border-amber-200 dark:border-amber-800">
+    <Info className="h-4 w-4 shrink-0" />
+    <span className="flex-1">
+      このレコードは別の担当者（{ownerName}）に割り当てられています。読み取り専用です。
+    </span>
+  </div>
+)}
+
+// 4. アクションボタン非表示
+const renderActions = () => {
+  if (isReadOnly) return null;
+  return (
+    <div className="flex gap-2">
+      <Button onClick={handleApprove}>承認</Button>
+      <Button variant="destructive" onClick={handleReject}>差戻し</Button>
+    </div>
+  );
+};
+```
