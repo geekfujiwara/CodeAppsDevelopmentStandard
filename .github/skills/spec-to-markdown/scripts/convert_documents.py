@@ -110,7 +110,7 @@ def build_factsheet(
     source_path: Path,
     relative_path: Path,
     sha256: str,
-    converted_at: str,
+    batch_started_at: str,
     extracted_markdown: str,
     status: str,
     message: str,
@@ -125,7 +125,7 @@ def build_factsheet(
 - Relative path: `{relative_path.as_posix()}`
 - Extension: `{source_path.suffix.lower()}`
 - SHA256: `{sha256}`
-- Converted at: `{converted_at}`
+- Batch converted at: `{batch_started_at}`
 - Status: `{status}`
 - Message: {message}
 
@@ -169,7 +169,7 @@ def build_factsheet(
 def build_document(
     input_path: Path,
     output_dir: Path,
-    converted_at: str,
+    batch_started_at: str,
     results: Iterable[ConversionResult],
 ) -> str:
     results = list(results)
@@ -197,7 +197,7 @@ def build_document(
 
 - Input: `{input_path}`
 - Output: `{output_dir}`
-- Converted at: `{converted_at}`
+- Batch converted at: `{batch_started_at}`
 - Files: {len(results)}
 - Success: {success_count}
 - Failure: {failure_count}
@@ -254,7 +254,7 @@ def main() -> int:
         )
 
     raw_dir, factsheet_dir = ensure_directories(output_dir)
-    converted_at = datetime.now(timezone.utc).isoformat()
+    batch_started_at = datetime.now(timezone.utc).isoformat()
     converter = MarkItDown()
     base_dir = input_path if input_path.is_dir() else input_path.parent
 
@@ -274,7 +274,7 @@ def main() -> int:
                 source_path=source_path,
                 relative_path=relative_path,
                 sha256=sha256,
-                converted_at=converted_at,
+                batch_started_at=batch_started_at,
                 extracted_markdown=markdown,
                 status="success",
                 message="converted",
@@ -298,7 +298,7 @@ def main() -> int:
                 source_path=source_path,
                 relative_path=relative_path,
                 sha256=sha256,
-                converted_at=converted_at,
+                batch_started_at=batch_started_at,
                 extracted_markdown="",
                 status="failed",
                 message=str(exc).replace("\n", " "),
@@ -319,7 +319,7 @@ def main() -> int:
             print(f"❌ failed: {relative_path.as_posix()} -> {exc}")
 
     document_path = output_dir / "document.md"
-    write_text(document_path, build_document(input_path, output_dir, converted_at, results))
+    write_text(document_path, build_document(input_path, output_dir, batch_started_at, results))
     print(f"📝 wrote: {document_path}")
     return 0
 
