@@ -6,7 +6,9 @@ package-lock.json
 memories/
 
 # spec-to-markdown default workspace
-work/spec-to-markdown/
+work/spec-to-markdown/input/*
+!work/spec-to-markdown/input/.gitkeep
+work/spec-to-markdown/output/
 
 # Build output
 dist/
