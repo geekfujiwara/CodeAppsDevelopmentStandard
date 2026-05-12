@@ -14,14 +14,28 @@ const specScriptsDir = path.join(
 );
 const requirementsPath = path.join(specScriptsDir, "requirements.txt");
 const venvDir = path.join(specScriptsDir, ".venv");
-const mode = process.argv.includes("--setup")
-  ? "setup"
-  : process.argv.includes("--postinstall")
-    ? "postinstall"
-    : "check";
+const projectName = path.basename(repoRoot);
 const isWindows = process.platform === "win32";
+const MIN_PYTHON_MAJOR = 3;
+const MIN_PYTHON_MINOR = 10;
+const SERVICE_PRINCIPAL_VARS_REQUIRED_PATTERN =
+  /Service Principal environment variables SP_CLIENT_ID, SP_CLIENT_SECRET, and SP_TENANT_ID must be set/i;
+const WINDOWS_VENV_PYTHON_PATH = ["Scripts", "python.exe"];
+const UNIX_VENV_PYTHON_PATH = ["bin", "python"];
 const lines = [];
 const blockers = [];
+
+function getMode(argv) {
+  if (argv.includes("--setup")) {
+    return "setup";
+  }
+  if (argv.includes("--postinstall")) {
+    return "postinstall";
+  }
+  return "check";
+}
+
+const mode = getMode(process.argv);
 
 function add(status, message) {
   lines.push(`${status} ${message}`);
@@ -69,10 +83,26 @@ function findPython() {
   for (const candidate of candidates) {
     const result = run(candidate.command, candidate.versionArgs);
     if (result.status === 0) {
+      const versionText = firstNonEmpty(result.stdout, result.stderr).trim();
+      const parsed = versionText.match(/(\d+)\.(\d+)\.(\d+)/);
+      const major = parsed ? Number(parsed[1]) : null;
+      const minor = parsed ? Number(parsed[2]) : null;
       add(
         "✅",
-        `Python は "${candidate.label}" で利用できます (${firstNonEmpty(result.stdout, result.stderr).trim()}).`,
+        `Python は "${candidate.label}" で利用できます (${versionText}).`,
       );
+      if (
+        major === null ||
+        minor === null ||
+        major < MIN_PYTHON_MAJOR ||
+        (major === MIN_PYTHON_MAJOR && minor < MIN_PYTHON_MINOR)
+      ) {
+        add(
+          "❌",
+          `Python ${MIN_PYTHON_MAJOR}.${MIN_PYTHON_MINOR}+ が必要です。現在: ${versionText}`,
+        );
+        blockers.push("python-version");
+      }
       return candidate;
     }
   }
@@ -127,9 +157,7 @@ function checkPowerAppsCli() {
   }
 
   if (
-    /Service Principal environment variables SP_CLIENT_ID, SP_CLIENT_SECRET, and SP_TENANT_ID must be set/i.test(
-      output,
-    )
+    SERVICE_PRINCIPAL_VARS_REQUIRED_PATTERN.test(output)
   ) {
     add("✅", "npx power-apps を検出しました（CLI は利用可能。認証用環境変数が未設定です）。");
     return true;
@@ -172,8 +200,8 @@ function setupSpecToMarkdownVenv(python, pipReady) {
   }
 
   const venvPython = isWindows
-    ? path.join(venvDir, "Scripts", "python.exe")
-    : path.join(venvDir, "bin", "python");
+    ? path.join(venvDir, ...WINDOWS_VENV_PYTHON_PATH)
+    : path.join(venvDir, ...UNIX_VENV_PYTHON_PATH);
   const installDeps = run(venvPython, ["-m", "pip", "install", "-r", "requirements.txt"], {
     cwd: specScriptsDir,
   });
@@ -188,7 +216,7 @@ function setupSpecToMarkdownVenv(python, pipReady) {
   );
 }
 
-console.log("=== CodeAppsDevelopmentStandard preflight ===");
+console.log(`=== ${projectName} preflight ===`);
 checkNodeAndNpm();
 const python = findPython();
 const pipReady = checkPip(python);
@@ -209,6 +237,9 @@ if (blockers.length > 0) {
   console.log("1) 不足している前提条件をインストール");
   console.log("2) npm run check:env");
   console.log("3) npm run setup");
+  if (mode !== "check") {
+    console.log("⚠️ postinstall/setup では開発体験を優先し、blocker があっても終了コードは失敗にしません。");
+  }
 }
 
 if (mode === "check" && blockers.length > 0) {
