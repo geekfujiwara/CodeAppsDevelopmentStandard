@@ -3,41 +3,45 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
+// ── 定数 ──────────────────────────────────────────────
 const __filename = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(__filename), "..");
-const specScriptsDir = path.join(
-  repoRoot,
-  ".github",
-  "skills",
-  "spec-to-markdown",
-  "scripts",
-);
-const requirementsPath = path.join(specScriptsDir, "requirements.txt");
-const venvDir = path.join(specScriptsDir, ".venv");
 const projectName = path.basename(repoRoot);
 const isWindows = process.platform === "win32";
+
 const MIN_PYTHON_MAJOR = 3;
 const MIN_PYTHON_MINOR = 10;
+const SPAWN_TIMEOUT_MS = 30_000;
 const SERVICE_PRINCIPAL_VARS_REQUIRED_PATTERN =
   /Service Principal environment variables SP_CLIENT_ID, SP_CLIENT_SECRET, and SP_TENANT_ID must be set/i;
-const WINDOWS_VENV_PYTHON_PATH = ["Scripts", "python.exe"];
-const UNIX_VENV_PYTHON_PATH = ["bin", "python"];
+const WINDOWS_VENV_PYTHON = ["Scripts", "python.exe"];
+const UNIX_VENV_PYTHON = ["bin", "python"];
+
+/** Bootstrap 対象の Python skill 環境一覧 */
+const PYTHON_ENVS = [
+  {
+    name: "spec-to-markdown",
+    scriptsDir: path.join(repoRoot, ".github", "skills", "spec-to-markdown", "scripts"),
+  },
+  {
+    name: "standard (auth_helper 等)",
+    scriptsDir: path.join(repoRoot, ".github", "skills", "standard", "scripts"),
+  },
+];
+
+// ── CLI モード判定 ────────────────────────────────────
+function getMode(argv) {
+  if (argv.includes("--setup")) return "setup";
+  if (argv.includes("--postinstall")) return "postinstall";
+  return "check";
+}
+const mode = getMode(process.argv);
+
+// ── ユーティリティ ────────────────────────────────────
 const lines = [];
 const blockers = [];
 
-function getMode(argv) {
-  if (argv.includes("--setup")) {
-    return "setup";
-  }
-  if (argv.includes("--postinstall")) {
-    return "postinstall";
-  }
-  return "check";
-}
-
-const mode = getMode(process.argv);
-
-function add(status, message) {
+function log(status, message) {
   lines.push(`${status} ${message}`);
 }
 
@@ -46,32 +50,33 @@ function run(cmd, args, options = {}) {
     cwd: repoRoot,
     encoding: "utf-8",
     stdio: "pipe",
+    timeout: SPAWN_TIMEOUT_MS,
     ...options,
   });
 }
 
 function firstNonEmpty(...values) {
-  return values.find((value) => value && value.trim());
+  return values.find((v) => v && v.trim());
 }
 
+// ── チェック関数 ──────────────────────────────────────
 function checkNodeAndNpm() {
   const nodeVersion = process.version;
   const major = Number(nodeVersion.replace(/^v/, "").split(".")[0]);
   if (Number.isFinite(major) && major >= 18) {
-    add("✅", `Node.js ${nodeVersion} を検出しました (推奨: v18+).`);
+    log("✅", `Node.js ${nodeVersion} (推奨: v18+)`);
   } else {
-    add("❌", `Node.js ${nodeVersion} は非推奨です。v18 以上を利用してください。`);
+    log("❌", `Node.js ${nodeVersion} は非推奨です — v18 以上を利用してください`);
     blockers.push("node");
   }
 
   const npm = run("npm", ["--version"]);
   if (npm.status === 0) {
-    add("✅", `npm ${firstNonEmpty(npm.stdout, npm.stderr).trim()} を検出しました.`);
-    return;
+    log("✅", `npm ${firstNonEmpty(npm.stdout, npm.stderr).trim()}`);
+  } else {
+    log("❌", "npm が見つかりません — Node.js を再インストールしてください");
+    blockers.push("npm");
   }
-
-  add("❌", "npm を検出できませんでした。Node.js の再インストールを確認してください。");
-  blockers.push("npm");
 }
 
 function findPython() {
@@ -80,166 +85,170 @@ function findPython() {
     { command: "py", argsPrefix: ["-3"], versionArgs: ["-3", "--version"], label: "py -3" },
   ];
 
-  for (const candidate of candidates) {
-    const result = run(candidate.command, candidate.versionArgs);
-    if (result.status === 0) {
-      const versionText = firstNonEmpty(result.stdout, result.stderr).trim();
-      const parsed = versionText.match(/(\d+)\.(\d+)\.(\d+)/);
-      const major = parsed ? Number(parsed[1]) : null;
-      const minor = parsed ? Number(parsed[2]) : null;
-      add(
-        "✅",
-        `Python は "${candidate.label}" で利用できます (${versionText}).`,
-      );
+  for (const c of candidates) {
+    const r = run(c.command, c.versionArgs);
+    if (r.status === 0) {
+      const text = firstNonEmpty(r.stdout, r.stderr).trim();
+      const m = text.match(/(\d+)\.(\d+)\.(\d+)/);
+      const major = m ? Number(m[1]) : null;
+      const minor = m ? Number(m[2]) : null;
+      log("✅", `Python "${c.label}" (${text})`);
       if (
         major === null ||
         minor === null ||
         major < MIN_PYTHON_MAJOR ||
         (major === MIN_PYTHON_MAJOR && minor < MIN_PYTHON_MINOR)
       ) {
-        add(
-          "❌",
-          `Python ${MIN_PYTHON_MAJOR}.${MIN_PYTHON_MINOR}+ が必要です。現在: ${versionText}`,
-        );
+        log("❌", `Python ${MIN_PYTHON_MAJOR}.${MIN_PYTHON_MINOR}+ が必要です — 現在: ${text}`);
         blockers.push("python-version");
       }
-      return candidate;
+      return c;
     }
   }
 
-  add(
-    "❌",
-    'Python 3.10+ が見つかりません。`python --version` または `py -3 --version` が通るようにセットアップしてください。',
-  );
+  log("❌", "Python 3.10+ が見つかりません — `python --version` または `py -3 --version` を確認してください");
   blockers.push("python");
   return null;
 }
 
 function checkPip(python) {
   if (!python) {
-    add("⚠️", "Python が未検出のため pip チェックをスキップしました。");
+    log("⚠️", "Python 未検出のため pip チェックをスキップ");
     return false;
   }
 
-  const pipViaPython = run(python.command, [...python.argsPrefix, "-m", "pip", "--version"]);
-  if (pipViaPython.status === 0) {
-    add("✅", `pip を検出しました (${firstNonEmpty(pipViaPython.stdout, pipViaPython.stderr).trim()}).`);
+  const r = run(python.command, [...python.argsPrefix, "-m", "pip", "--version"]);
+  if (r.status === 0) {
+    log("✅", `pip (${firstNonEmpty(r.stdout, r.stderr).trim()})`);
     return true;
   }
 
-  add(
-    "❌",
-    `pip が利用できません。${python.label} -m ensurepip --upgrade 実行後に再度 npm run setup を実行してください。`,
-  );
+  log("❌", `pip が利用できません — \`${python.label} -m ensurepip --upgrade\` を実行してください`);
   blockers.push("pip");
   return false;
 }
 
 function checkPac() {
-  const pac = run("pac", ["--version"]);
-  if (pac.status === 0) {
-    add("✅", `PAC CLI を検出しました (${firstNonEmpty(pac.stdout, pac.stderr).trim()}).`);
+  const r = run("pac", ["--version"]);
+  if (r.status === 0) {
+    log("✅", `PAC CLI (${firstNonEmpty(r.stdout, r.stderr).trim()})`);
     return;
   }
-
-  add(
+  log(
     "⚠️",
-    "PAC CLI が未検出です。必要に応じて `npm install -g @microsoft/power-apps-cli` 実行後、`pac auth create --environment {ENVIRONMENT_ID}` を実施してください。",
+    "PAC CLI 未検出 — 必要に応じて `npm install -g @microsoft/power-apps-cli` → `pac auth create --environment {ENVIRONMENT_ID}`",
   );
 }
 
 function checkPowerAppsCli() {
-  const powerApps = run("npx", ["power-apps", "--version"]);
-  const output = `${powerApps.stdout ?? ""}\n${powerApps.stderr ?? ""}`;
-  if (powerApps.status === 0) {
-    add("✅", `npx power-apps を検出しました (${firstNonEmpty(powerApps.stdout, powerApps.stderr).trim()}).`);
-    return true;
+  // --no-install: 未インストール時にダウンロードプロンプトを出さない
+  const r = run("npx", ["--no-install", "power-apps", "--version"]);
+  const output = `${r.stdout ?? ""}\n${r.stderr ?? ""}`;
+
+  if (r.status === 0) {
+    log("✅", `npx power-apps (${firstNonEmpty(r.stdout, r.stderr).trim()})`);
+    return;
+  }
+  if (SERVICE_PRINCIPAL_VARS_REQUIRED_PATTERN.test(output)) {
+    log("✅", "npx power-apps (CLI 利用可能 — 認証用環境変数は未設定)");
+    return;
   }
 
-  if (
-    SERVICE_PRINCIPAL_VARS_REQUIRED_PATTERN.test(output)
-  ) {
-    add("✅", "npx power-apps を検出しました（CLI は利用可能。認証用環境変数が未設定です）。");
-    return true;
+  // node_modules に @microsoft/power-apps が存在するかフォールバック確認
+  const pkgDir = path.join(repoRoot, "node_modules", "@microsoft", "power-apps");
+  if (fs.existsSync(pkgDir)) {
+    log("✅", "npx power-apps (パッケージ検出済み)");
+    return;
   }
 
-  add(
-    "⚠️",
-    "npx power-apps を検出できませんでした。`npm install` を再実行するか、`npm i @microsoft/power-apps` を確認してください。",
-  );
-  return false;
+  log("⚠️", "npx power-apps 未検出 — `npm install` 後に再確認してください");
 }
 
-function setupSpecToMarkdownVenv(python, pipReady) {
-  if (!python || !pipReady) {
+function checkEnvFile() {
+  const envPath = path.join(repoRoot, ".env");
+  const examplePath = path.join(repoRoot, ".env.example");
+  if (fs.existsSync(envPath)) {
+    log("✅", ".env ファイルを検出");
+  } else if (fs.existsSync(examplePath)) {
+    log("⚠️", ".env が未作成です — `cp .env.example .env` で作成し、環境値を設定してください");
+  }
+}
+
+// ── Python venv セットアップ ──────────────────────────
+function setupPythonVenv(python, pipReady, { name, scriptsDir }) {
+  if (!python || !pipReady) return;
+
+  const reqPath = path.join(scriptsDir, "requirements.txt");
+  if (!fs.existsSync(reqPath)) {
+    log("⚠️", `${name}: requirements.txt が見つかりません — スキップ`);
     return;
   }
 
-  if (!fs.existsSync(requirementsPath)) {
-    add("⚠️", "spec-to-markdown の requirements.txt が見つからないため Python bootstrap をスキップしました。");
-    return;
-  }
+  const venvDir = path.join(scriptsDir, ".venv");
 
   if (!fs.existsSync(venvDir)) {
-    const createVenv = run(
-      python.command,
-      [...python.argsPrefix, "-m", "venv", ".venv"],
-      { cwd: specScriptsDir },
-    );
-
-    if (createVenv.status !== 0) {
-      add(
-        "⚠️",
-        `spec-to-markdown 用 venv 作成に失敗しました。${python.label} -m venv .venv (in ${specScriptsDir}) を手動実行してください。`,
-      );
+    const r = run(python.command, [...python.argsPrefix, "-m", "venv", ".venv"], {
+      cwd: scriptsDir,
+    });
+    if (r.status !== 0) {
+      log("⚠️", `${name}: venv 作成失敗 — \`${python.label} -m venv .venv\` (in ${scriptsDir}) を手動実行`);
       return;
     }
-    add("✅", `spec-to-markdown 用 venv を作成しました (${venvDir}).`);
+    log("✅", `${name}: venv を作成`);
   } else {
-    add("✅", `spec-to-markdown 用 venv は既に存在します (${venvDir}).`);
+    log("✅", `${name}: venv 検出済み`);
   }
 
   const venvPython = isWindows
-    ? path.join(venvDir, ...WINDOWS_VENV_PYTHON_PATH)
-    : path.join(venvDir, ...UNIX_VENV_PYTHON_PATH);
-  const installDeps = run(venvPython, ["-m", "pip", "install", "-r", "requirements.txt"], {
-    cwd: specScriptsDir,
-  });
-  if (installDeps.status === 0) {
-    add("✅", "spec-to-markdown の Python 依存をインストールしました。");
-    return;
-  }
+    ? path.join(venvDir, ...WINDOWS_VENV_PYTHON)
+    : path.join(venvDir, ...UNIX_VENV_PYTHON);
 
-  add(
-    "⚠️",
-    `spec-to-markdown の依存インストールに失敗しました。${venvPython} -m pip install -r requirements.txt (in ${specScriptsDir}) を実行してください。`,
-  );
+  const install = run(venvPython, ["-m", "pip", "install", "-q", "-r", "requirements.txt"], {
+    cwd: scriptsDir,
+    timeout: 120_000,
+  });
+  if (install.status === 0) {
+    log("✅", `${name}: Python 依存をインストール`);
+  } else {
+    log("⚠️", `${name}: 依存インストール失敗 — \`${venvPython} -m pip install -r requirements.txt\` を実行`);
+  }
 }
 
+// ── メイン ────────────────────────────────────────────
+console.log("");
 console.log(`=== ${projectName} preflight ===`);
+console.log("");
+
 checkNodeAndNpm();
 const python = findPython();
 const pipReady = checkPip(python);
 checkPowerAppsCli();
 checkPac();
+checkEnvFile();
 
 if (mode !== "check") {
-  setupSpecToMarkdownVenv(python, pipReady);
+  for (const env of PYTHON_ENVS) {
+    setupPythonVenv(python, pipReady, env);
+  }
 }
 
+console.log("");
 for (const line of lines) {
   console.log(line);
 }
+console.log("");
 
 if (blockers.length > 0) {
-  console.log("");
   console.log("次の手順:");
-  console.log("1) 不足している前提条件をインストール");
-  console.log("2) npm run check:env");
-  console.log("3) npm run setup");
+  console.log("  1) 上記 ❌ の項目を解決");
+  console.log("  2) npm run check:env   — 再チェック");
+  console.log("  3) npm run setup       — Python bootstrap を再実行");
+  // postinstall/setup では npm install 全体を失敗させない
   if (mode !== "check") {
-    console.log("⚠️ postinstall/setup では開発体験を優先し、blocker があっても終了コードは失敗にしません。");
+    console.log("");
+    console.log("⚠️  postinstall/setup では開発体験を優先し、blocker があっても終了コードは 0 のままです。");
   }
+  console.log("");
 }
 
 if (mode === "check" && blockers.length > 0) {

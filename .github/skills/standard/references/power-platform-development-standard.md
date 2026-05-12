@@ -268,7 +268,12 @@ npm run setup
 - `npx power-apps`
 - `pac`（未導入時はインストール案内を表示）
 
-`pac` などを OS 差分込みで強制自動インストールはせず、未導入時は **検出 + 次ステップ案内** を行う。`spec-to-markdown` は Python と pip が利用可能な場合に `.github/skills/spec-to-markdown/scripts/.venv` と `requirements.txt` の導入を自動試行する。
+`pac` などを OS 差分込みで強制自動インストールはせず、未導入時は **検出 + 次ステップ案内** を行う。Python と pip が利用可能な場合、以下の `.venv` と `requirements.txt` の導入を自動試行する。
+
+- `.github/skills/spec-to-markdown/scripts/.venv` — markitdown 等
+- `.github/skills/standard/scripts/.venv` — azure-identity / requests 等（auth_helper 用）
+
+また `.env` ファイルの存在も確認し、未作成であれば `cp .env.example .env` を案内する。
 
 #### 共通認証ヘルパー `.github/skills/standard/scripts/auth_helper.py`
 

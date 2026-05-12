@@ -112,6 +112,7 @@ npm run setup
 │   ├── hooks/                       # カスタムフック
 │   ├── lib/                         # 共通ユーティリティ
 │   └── types/                       # 型定義
+├── scripts/                         # 環境チェック・ブートストラップ
 ├── plugins/                         # Power Apps Vite プラグイン
 ├── styles/                          # Tailwind スタイル
 ├── .env.example                     # 環境変数テンプレート
