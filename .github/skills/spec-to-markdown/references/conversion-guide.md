@@ -11,6 +11,16 @@ Power Platform 向け要件整理に使えるよう、出力は raw markdown の
 
 ## 2. 推奨コマンド
 
+まずリポジトリルートで preflight/bootstrap を実行する。
+
+```bash
+npm install
+# または再実行時
+npm run setup
+```
+
+その後、必要に応じて個別に実行する。
+
 ```bash
 cd .github/skills/spec-to-markdown/scripts
 python -m venv .venv

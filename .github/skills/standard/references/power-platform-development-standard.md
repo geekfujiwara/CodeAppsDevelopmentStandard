@@ -210,6 +210,7 @@ PUBLISHER_PREFIX=geek
 | Power Platform Tools 拡張機能 | PAC CLI 連携        | VS Code Marketplace                          |
 | Node.js (LTS)                 | Code Apps ビルド    | v18.x / v20.x                                |
 | Python 3.10+                  | 自動化スクリプト    | Dataverse SDK 利用                           |
+| pip                           | Python 依存導入     | `python -m ensurepip --upgrade`              |
 | PAC CLI                       | Power Platform CLI  | `npm install -g @microsoft/power-apps-cli`   |
 
 ### 2.2 .env ファイル設定
@@ -245,6 +246,29 @@ pac auth create --environment {environment-id}
 # Python 依存パッケージ導入
 pip install -r .github/skills/standard/scripts/requirements.txt
 ```
+
+### 2.4 環境事前チェック（preflight）と bootstrap
+
+```bash
+# clone 直後の標準フロー（preflight は postinstall で自動実行）
+git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm install
+
+# 明示的に再チェック
+npm run check:env
+
+# Python venv / requirements を含めた bootstrap 再実行
+npm run setup
+```
+
+`npm install` 時の preflight は以下を確認する。
+
+- Node.js / npm のバージョン
+- Python の実行経路（`python` または `py -3`）
+- pip（`python -m pip` または `py -3 -m pip`）
+- `npx power-apps`
+- `pac`（未導入時はインストール案内を表示）
+
+`pac` などを OS 差分込みで強制自動インストールはせず、未導入時は **検出 + 次ステップ案内** を行う。`spec-to-markdown` は Python と pip が利用可能な場合に `.github/skills/spec-to-markdown/scripts/.venv` と `requirements.txt` の導入を自動試行する。
 
 #### 共通認証ヘルパー `.github/skills/standard/scripts/auth_helper.py`
 
