@@ -1450,3 +1450,75 @@ try {
   format = "plain";
 }
 ```
+
+---
+
+## Code Apps 開発 Tips（検証済み 2026-05-21）
+
+### 初回デプロイ: `pac code push` を使う
+
+`npx power-apps push` はテナント不一致で 403 になるケースがある（troubleshooting.md #10 参照）。
+**初回デプロイは `pac code push` を推奨**:
+
+```bash
+pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
+```
+
+- `power.config.json` が未存在でも `-env` + `-s` 指定で初回デプロイ可能
+- 初回デプロイ後に `power.config.json` が自動生成される（appId が記録される）
+- 2回目以降は引数省略可能
+
+### Dataverse テーブル作成時のメタデータロック回避
+
+`setup_dataverse.py` でテーブルを連続作成するとメタデータロック `0x80040237` が発生する。
+
+```python
+# テーブル作成間: 10 秒待機
+time.sleep(10)
+
+# 列追加間: 5 秒待機
+time.sleep(5)
+```
+
+リトライは累進的 sleep（10s → 20s → 30s）で最大 3 回。
+
+### CSP 安全な SDK メソッド一覧
+
+Code Apps iframe は `connect-src: 'none'` のため、**postMessage ベースのメソッドのみ使用可能**:
+
+| メソッド | 安全 | 備考 |
+|---|---|---|
+| `retrieveMultipleRecordsAsync` | ✅ | 一覧取得 |
+| `retrieveRecordAsync` | ✅ | 単一取得 |
+| `createRecordAsync` | ✅ | 作成 |
+| `updateRecordAsync` | ✅ | 更新 |
+| `deleteRecordAsync` | ✅ | 削除 |
+| `executeAsync` | ❌ | fetch ベース → CSP ブロック |
+| `fetch()` 直接 | ❌ | CSP ブロック |
+
+`WhoAmI` は使えないため、`systemuser` テーブルの `azureactivedirectoryobjectid` で
+`getContext().user.objectId`（AAD Object ID）→ `systemuserid` をマッピングする。
+
+### GUID 比較は `.toLowerCase()` で統一
+
+Dataverse API は GUID を大文字小文字混在で返す。全ての GUID 比較で統一する:
+
+```typescript
+// ✅ 正しい
+records.filter(r => r._ownerid_value?.toLowerCase() === userId.toLowerCase());
+
+// ❌ 危険: 大文字小文字の不一致でフィルタが効かない
+records.filter(r => r._ownerid_value === userId);
+```
+
+### テンプレートファイル削除の注意点
+
+テンプレートのサンプルページを削除する際、`src/hooks/use-theme.ts` を巻き添えにしない:
+
+```powershell
+# ✅ 個別ファイルを明示
+Remove-Item "src/pages/incidents.tsx","src/pages/kanban.tsx","src/pages/assets.tsx" -Force
+
+# ❌ ワイルドカード禁止
+Remove-Item "src/hooks/*" -Force   # use-theme.ts が消えてビルド壊れる
+```
