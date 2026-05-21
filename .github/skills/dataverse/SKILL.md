@@ -152,6 +152,7 @@ existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PR
 | ルール | 理由 |
 |--------|------|
 | **`retry_metadata()` を使う** | auth_helper.py 組み込みのリトライ。メタデータロック(0x80040237)・重複(already exists)を自動ハンドリング |
+| **テーブル作成間に `time.sleep(10)`、列追加間に `time.sleep(5)`** | メタデータロックの **予防策**。retry_metadata はリアクティブ（発生後リトライ）だが、プロアクティブに待機する方が結果的に速い（リトライ回数が減る） |
 | **リレーション作成順: マスタ → 主 → 従属 → Lookup** | 依存テーブルが存在しないとリレーション作成失敗 |
 | **既存テーブルでもカラム欠落を補完** | テーブルは既存でも、前回失敗したカラムが欠けている場合がある。個別にカラム存在チェックして不足分を追加 |
 | **`api_post()` に `solution=SOLUTION_NAME` を渡す** | ソリューションヘッダー付与。テーブル・列・Lookup すべてに |

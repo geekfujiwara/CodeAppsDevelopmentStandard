@@ -190,65 +190,77 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
    → その後 npm run build が成功する
 ```
 
-### 先にデプロイ、後から開発（最重要）
+### 標準ワークフロー（この順序で進める）
+
+以下が **上から順に実行すれば問題なく動く** 統一フローである。
 
 ```bash
-# ✅ 正しい順序
+# ── Step 1: スキャフォールド ──
 npx power-apps init --display-name "アプリ名" --environment-id {ENVIRONMENT_ID} --non-interactive
 npm install
+
+# ── Step 2: テンプレートクリーンアップ ──
+# ※ サンプルページを削除するが use-theme.ts は絶対に保護する
+Remove-Item "src/pages/incidents.tsx","src/pages/incident-detail.tsx","src/pages/kanban.tsx","src/pages/assets.tsx" -Force -ErrorAction SilentlyContinue
+Remove-Item "src/types/incident.ts" -Force -ErrorAction SilentlyContinue
+# ❌ Remove-Item "src/hooks/*" は禁止（use-theme.ts が消える）
+
+# ── Step 3: 初回ビルド＆デプロイ ──
 npm run build
-pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}  # ← まずデプロイ！
-# ↑ npx power-apps push でテナント不一致エラーが出る場合は pac code push を使う
+pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 # この時点で Power Platform にアプリが登録され Dataverse 接続が確立
-npx power-apps add-data-source ...       # ← その後にデータソース追加
+# power.config.json が自動生成される
 
-# ❌ 間違い: ローカルで全部作ってから最後にデプロイ
-#    → Dataverse 接続が確立されず add-data-source が失敗する
-```
+# ── Step 4: データソース追加 ──
+node patch-nameutils.cjs   # 日本語パッチ（npm install 後に毎回必要）
+npx power-apps add-data-source --api-id dataverse \
+  --resource-name {table_logical_name} \
+  --org-url {DATAVERSE_URL} --non-interactive
+# 全テーブルに対して繰り返す
 
-### npx power-apps を使う（`pac code` は将来廃止予定）
-
-```
-❌ pac code add-data-source -a dataverse -t {table}
-   → `pac code` 系は Microsoft でも将来廃止予定。加えて SDK v1.0.x 系では
-      "Could not find the PowerApps CLI script" に遭遇することがある
-
-✅ npx power-apps add-data-source --api-id dataverse \
-      --resource-name {table_logical_name} \
-      --org-url {DATAVERSE_URL} --non-interactive
-```
-
-### npx power-apps push/add-data-source テナント不一致問題（検証済 2026-04-22）
-
-`npx power-apps push` / `npx power-apps add-data-source` が内部で異なるテナントで環境を検索し、
-`ServiceToServiceEnvironmentNotFound` (404) を返す場合がある。
-
-```
-❌ npx power-apps push --non-interactive
-   → HTTP error status: 404 for POST .../generateResourceStorage
-   → The environment '...' could not be found in the tenant '...'
-   → 内部で使用するテナント ID が実際の環境テナントと異なる
-
-✅ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
-   → PAC CLI は pac auth の認証プロファイルを使うためテナント解決が正確
-   → -env で環境 ID を明示指定
+# ── Step 5: 開発 → 再デプロイ ──
+# src/ 配下のアプリコードを実装
+npm run build && pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 ```
 
 ```
-❌ npx power-apps add-data-source --api-id dataverse --resource-name {table}
-   → 同様にテナント不一致で org-url プロンプトが表示される
+❌ ローカルで全部作ってから最後にデプロイ
+   → Dataverse 接続が確立されず add-data-source が失敗する
 
-✅ npx power-apps add-data-source --api-id dataverse \
-     --resource-name {table} \
-     --org-url {DATAVERSE_URL}
-   → --org-url を明示指定するとテナント解決をバイパス
-   → 対話プロンプトが出たら DATAVERSE_URL を入力しても可
+❌ テンプレートの src/hooks/ をワイルドカード削除
+   → use-theme.ts が消えてビルドが壊れる
 ```
 
-**推奨ワークフロー**:
-1. 初回デプロイ: `pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}`
-2. データソース追加: `npx power-apps add-data-source --api-id dataverse --resource-name {table} --org-url {DATAVERSE_URL}`
-3. 以降のデプロイ: `npm run build && pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}`
+### デプロイコマンドの選択（pac code push を標準とする）
+
+| コマンド | 認証基盤 | テナント問題 | 推奨度 |
+|---|---|---|---|
+| `pac code push -env {ID} -s {SOL}` | PAC CLI プロファイル | なし | ✅ 標準 |
+| `npx power-apps push` | npm パッケージ独自キャッシュ | 403/404 頻発 | ⚠ 動くならOK |
+
+> **注**: Microsoft は `npx power-apps` を推奨ツールとしているが、テナント解決の不具合が
+> 2026-05 時点で未修正のため、本開発標準では `pac code push` を標準採用する。
+> `npx power-apps push` が正常動作する環境ではそちらを使っても良い。
+
+### データソース追加の判断フロー
+
+```
+┌─ npx power-apps add-data-source --org-url {DATAVERSE_URL}
+│   └─ 成功 → 完了（Model/Service ファイルも生成される）✅
+│
+├─ 失敗: 403 テナント不一致
+│   └─ pac code add-data-source -a dataverse -t {table}
+│       └─ 成功 → 完了（最小構成のみ生成、後述の自前サービス層が必要）✅
+│       └─ 失敗: "Failed to sanitize string 顧客一覧"
+│           └─ toggle_table_lang.py ワークアラウンド適用（後述）
+│               python toggle_table_lang.py en
+│               pac code add-data-source -a dataverse -t {table}
+│               python toggle_table_lang.py jp
+└─────────────────────────────────────────────────────────────
+```
+
+**原則**: `npx power-apps add-data-source --org-url` を最初に試す。
+フォールバックとして `pac code add-data-source` + `toggle_table_lang.py` を使用する。
 
 ### 日本語 DisplayName サニタイズエラーの回避
 
