@@ -282,15 +282,53 @@ def build_flow_definition() -> dict:
                                     "【通知】ステータスが @{outputs('Compose_Status_Label')} に変更されました"
                                 ),
                                 "emailMessage/Body": (
-                                    "<html><body>"
-                                    "<h2>ステータス変更通知</h2>"
-                                    "<table border='1' cellpadding='8' cellspacing='0' style='border-collapse:collapse;'>"
-                                    f"<tr><td><b>タイトル</b></td><td>@{{triggerOutputs()?['body/{PREFIX}_name']}}</td></tr>"
-                                    "<tr><td><b>新ステータス</b></td><td>@{outputs('Compose_Status_Label')}</td></tr>"
-                                    "<tr><td><b>担当者</b></td><td>@{outputs('Get_Creator')?['body/fullname']}</td></tr>"
-                                    "<tr><td><b>更新日時</b></td><td>@{triggerOutputs()?['body/modifiedon']}</td></tr>"
-                                    "</table>"
-                                    "</body></html>"
+                                    # ★ 通知デザインテンプレート適用（references/notification-templates.md 準拠）
+                                    '<html>'
+                                    '<body style="margin:0; padding:0; background-color:#f3f4f6; font-family:-apple-system,\'Segoe UI\',sans-serif;">'
+                                    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;">'
+                                    '<tr><td align="center" style="padding:32px 16px;">'
+                                    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; border:1px solid #e5e7eb; max-width:600px; width:100%;">'
+                                    # ヘッダー（青ライン）
+                                    '<tr><td style="padding:24px 32px 16px 32px; border-bottom:2px solid #2563eb;">'
+                                    '<h1 style="margin:0; font-size:20px; font-weight:700; color:#1e40af;">'
+                                    '\U0001f4cb ステータス変更通知</h1></td></tr>'
+                                    # サブタイトル
+                                    '<tr><td style="padding:16px 32px 8px 32px;">'
+                                    '<p style="margin:0; font-size:14px; color:#6b7280;">以下のレコードのステータスが変更されました。</p>'
+                                    '</td></tr>'
+                                    # データテーブル
+                                    '<tr><td style="padding:8px 32px 24px 32px;">'
+                                    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb; border-radius:6px; border-collapse:separate; overflow:hidden;">'
+                                    # 行1: タイトル（白）
+                                    '<tr>'
+                                    '<td style="padding:12px 16px; background-color:#ffffff; border-bottom:1px solid #f3f4f6; width:140px; vertical-align:top;">'
+                                    '<span style="font-size:13px; font-weight:600; color:#374151;">タイトル</span></td>'
+                                    f'<td style="padding:12px 16px; background-color:#ffffff; border-bottom:1px solid #f3f4f6; vertical-align:top;">'
+                                    f'<span style="font-size:14px; color:#1f2937;">@{{triggerOutputs()?[\'body/{PREFIX}_name\']}}</span></td></tr>'
+                                    # 行2: 新ステータス（グレー）
+                                    '<tr>'
+                                    '<td style="padding:12px 16px; background-color:#f9fafb; border-bottom:1px solid #f3f4f6; width:140px; vertical-align:top;">'
+                                    '<span style="font-size:13px; font-weight:600; color:#374151;">新ステータス</span></td>'
+                                    '<td style="padding:12px 16px; background-color:#f9fafb; border-bottom:1px solid #f3f4f6; vertical-align:top;">'
+                                    '<span style="font-size:14px; color:#1f2937;">@{outputs(\'Compose_Status_Label\')}</span></td></tr>'
+                                    # 行3: 担当者（白）
+                                    '<tr>'
+                                    '<td style="padding:12px 16px; background-color:#ffffff; border-bottom:1px solid #f3f4f6; width:140px; vertical-align:top;">'
+                                    '<span style="font-size:13px; font-weight:600; color:#374151;">担当者</span></td>'
+                                    '<td style="padding:12px 16px; background-color:#ffffff; border-bottom:1px solid #f3f4f6; vertical-align:top;">'
+                                    '<span style="font-size:14px; color:#1f2937;">@{outputs(\'Get_Creator\')?[\'body/fullname\']}</span></td></tr>'
+                                    # 行4: 更新日時（グレー）
+                                    '<tr>'
+                                    '<td style="padding:12px 16px; background-color:#f9fafb; border-bottom:1px solid #f3f4f6; width:140px; vertical-align:top;">'
+                                    '<span style="font-size:13px; font-weight:600; color:#374151;">更新日時</span></td>'
+                                    '<td style="padding:12px 16px; background-color:#f9fafb; border-bottom:1px solid #f3f4f6; vertical-align:top;">'
+                                    '<span style="font-size:14px; color:#1f2937;">@{triggerOutputs()?[\'body/modifiedon\']}</span></td></tr>'
+                                    '</table></td></tr>'
+                                    # フッター
+                                    '<tr><td style="padding:16px 32px 24px 32px; border-top:1px solid #f3f4f6;">'
+                                    '<p style="margin:0; font-size:12px; color:#9ca3af;">このメールは Power Automate から自動送信されています。</p>'
+                                    '</td></tr>'
+                                    '</table></td></tr></table></body></html>'
                                 ),
                                 "emailMessage/Importance": "Normal",
                             },
