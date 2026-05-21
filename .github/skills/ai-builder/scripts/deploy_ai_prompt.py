@@ -1,16 +1,31 @@
 """
-AI Builder AI プロンプト デプロイスクリプト — Summarize Document For Incident
+AI Builder AI プロンプト デプロイスクリプト — サンプル実装
 
-Phase 4: AI Builder AI プロンプトを作成 → エージェントにツールとして追加 → 公開
-
-使い方:
+Usage:
   python .github/skills/ai-builder/scripts/deploy_ai_prompt.py
+
+デプロイ手順:
+  1. AI Model 作成（GPT Dynamic Prompt テンプレート）
+  2. AIModelPublish → 1ステップで完全アクティブ化
+  3. botcomponent 作成（エージェントへのツール追加）
+  4. エージェント再公開
+  5. ソリューション含有検証
+
+教訓（2026-04-15 検証済み）:
+  - AIModelPublish (msdyn_ プレフィックスなし) が1ステップで Model を完全アクティブ化する
+  - 手動 Run Config 作成・PublishAIConfiguration は不要
+  - RunConfigurationId に model_id を渡すと、その ID で Run Config が自動作成される
+  - msdyn_TemplateId@odata.bind 形式を使用（_value 形式は一部環境で拒否）
+  - Config 作成に statecode/statuscode は指定不可（一部環境で拒否）
 """
 
 import json
 import os
+import re
 import sys
-from datetime import datetime, timezone
+import time
+
+import requests
 
 # スキルフォルダと共通認証モジュールを sys.path に追加
 _this_dir = os.path.dirname(os.path.abspath(__file__))
@@ -18,66 +33,50 @@ sys.path.insert(0, _this_dir)
 sys.path.insert(0, os.path.join(_this_dir, "..", "..", "standard", "scripts"))
 
 from dotenv import load_dotenv
-from auth_helper import (
-    get_token,
-    api_get,
-    api_post,
-    api_patch,
-    retry_metadata,
-    DATAVERSE_URL as _DV_URL,
-)
 
 load_dotenv()
 
+from auth_helper import (
+    api_delete,
+    api_get,
+    api_patch,
+    api_post,
+    get_token,
+    DATAVERSE_URL,
+)
+
 # ── 環境変数 ──────────────────────────────────────────────
-DATAVERSE_URL = _DV_URL
 SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
-BOT_ID = os.environ.get("BOT_ID", "")
+BOT_ID_OR_URL = os.environ.get("AI_PROMPT_BOT_ID") or os.environ.get("BOT_ID", "")
+
+# Bot ID 解決
+m = re.search(r"bots/([0-9a-f-]{36})", BOT_ID_OR_URL)
+BOT_ID = m.group(1) if m else BOT_ID_OR_URL
 
 # ── 定数 ──────────────────────────────────────────────────
-GPT_PROMPT_TEMPLATE_ID = "edfdb190-3791-45d8-9a6c-8f90a37c278a"
+GPT_TEMPLATE_ID = "edfdb190-3791-45d8-9a6c-8f90a37c278a"
 
+# ── AI Prompt 定義（★ プロジェクトに合わせて書き換える）───
 PROMPT_NAME = "Summarize Document For Incident"
 PROMPT_DESCRIPTION = "SharePoint ドキュメントの内容を要約し、カテゴリを判定してインシデント登録用の情報を生成する"
 
-# カテゴリ一覧
-CATEGORIES = [
-    "ネットワーク障害",
-    "ソフトウェア不具合",
-    "ハードウェア故障",
-    "アカウント/権限",
-    "その他",
-]
-CATEGORIES_STR = "\n".join(f"- {c}" for c in CATEGORIES)
-
-# ── プロンプト定義 ────────────────────────────────────────
-PROMPT_TEXT_BEFORE = (
-    "あなたはドキュメント分析の専門家です。以下のドキュメントを分析し、"
-    "インシデント管理システムに登録するための情報を作成してください。\n\n"
-    "ファイル名: "
-)
-
-PROMPT_TEXT_BETWEEN = (
-    "\n\nドキュメント: "
-)
-
-PROMPT_TEXT_AFTER = (
-    "\n\nカテゴリは以下から最も適切なものを1つ選んでください:\n"
-    f"{CATEGORIES_STR}\n\n"
-    "JSON形式で出力してください。"
-)
-
-# prompt 配列: literal と inputVariable を交互に配置
 PROMPT_SEGMENTS = [
-    {"type": "literal", "text": PROMPT_TEXT_BEFORE},
+    {"type": "literal", "text": (
+        "あなたはドキュメント分析の専門家です。以下のドキュメントを分析し、"
+        "インシデント管理システムに登録するための情報を作成してください。\n\n"
+        "ファイル名: "
+    )},
     {"type": "inputVariable", "id": "filename"},
-    {"type": "literal", "text": PROMPT_TEXT_BETWEEN},
+    {"type": "literal", "text": "\n\nドキュメント: "},
     {"type": "inputVariable", "id": "document"},
-    {"type": "literal", "text": PROMPT_TEXT_AFTER},
+    {"type": "literal", "text": (
+        "\n\nカテゴリは以下から最も適切なものを1つ選んでください:\n"
+        "- ネットワーク障害\n- ソフトウェア不具合\n- ハードウェア故障\n"
+        "- アカウント/権限\n- その他\n\nJSON形式で出力してください。"
+    )},
 ]
 
-# 入力変数定義
 INPUT_DEFINITIONS = [
     {
         "id": "filename",
@@ -92,7 +91,6 @@ INPUT_DEFINITIONS = [
     },
 ]
 
-# 出力定義 (JSON)
 OUTPUT_DEFINITION = {
     "formats": ["json"],
     "jsonSchema": {
@@ -103,20 +101,17 @@ OUTPUT_DEFINITION = {
             "category": {"type": "string"},
         },
     },
-    "jsonExamples": [
-        {
-            "title": "Q1ネットワーク障害：本社ビル東棟でWi-Fi接続不安定",
-            "summary": "2026年第1四半期に本社ビル東棟3〜5階でWi-Fi接続が断続的に不安定になる事象が発生。原因はAPファームウェアの不具合で、アップデート適用により解消。影響ユーザー約120名、業務停止時間は累計4時間。",
-            "category": "ネットワーク障害",
-        }
-    ],
+    "jsonExamples": [{
+        "title": "Q1ネットワーク障害：本社ビル東棟でWi-Fi接続不安定",
+        "summary": "2026年第1四半期に本社ビル東棟3〜5階でWi-Fi接続が断続的に不安定。",
+        "category": "ネットワーク障害",
+    }],
 }
 
-# モデルパラメータ
 MODEL_TYPE = "gpt-41-mini"
 TEMPERATURE = 0
 
-# ── customconfiguration JSON ──────────────────────────────
+# ── customconfiguration JSON 構築 ─────────────────────────
 CUSTOM_CONFIG = {
     "version": "GptDynamicPrompt-2",
     "prompt": PROMPT_SEGMENTS,
@@ -128,9 +123,7 @@ CUSTOM_CONFIG = {
     },
     "modelParameters": {
         "modelType": MODEL_TYPE,
-        "gptParameters": {
-            "temperature": TEMPERATURE,
-        },
+        "gptParameters": {"temperature": TEMPERATURE},
     },
     "settings": {
         "recordRetrievalLimit": 30,
@@ -141,209 +134,152 @@ CUSTOM_CONFIG = {
     "signature": "",
 }
 
-# ── メイン処理 ────────────────────────────────────────────
 
-def main():
-    print("=== AI Builder AI プロンプト デプロイ ===")
-    print(f"  プロンプト名: {PROMPT_NAME}")
-    print(f"  ソリューション: {SOLUTION_NAME}")
-    print(f"  Dataverse URL: {DATAVERSE_URL}")
-    print()
+# ══════════════════════════════════════════════════════════════
+# デプロイ関数
+# ══════════════════════════════════════════════════════════════
 
-    # ── Step 0: べき等チェック（既存 AI Model 検索）──────
-    print("[Step 0] 既存 AI Model を検索...")
+def deploy_ai_model() -> str:
+    """AI Model をべき等でデプロイし Active にする。"""
+    print("\n[Phase 1] AI Builder Model デプロイ")
+    print("-" * 50)
+
+    # べき等チェック
+    print("[1/3] AI Model 検索...")
     existing = api_get(
         f"msdyn_aimodels?$filter=msdyn_name eq '{PROMPT_NAME}'"
-        "&$select=msdyn_aimodelid,msdyn_name,_msdyn_activerunconfigurationid_value,statecode"
+        "&$select=msdyn_aimodelid,statecode,_msdyn_activerunconfigurationid_value"
     )
 
-    model_id = None
     if existing.get("value"):
         model = existing["value"][0]
         model_id = model["msdyn_aimodelid"]
-        print(f"  既存 AI Model 発見: {model_id}")
-        # 既存を無効化して削除し再作成する
-        try:
-            api_patch(f"msdyn_aimodels({model_id})", {
-                "msdyn_name": PROMPT_NAME,
-                "statecode": 0,
-                "statuscode": 0,
-            })
-            print("  → Draft に戻しました")
-        except Exception as e:
-            print(f"  → Draft 戻しエラー（続行）: {e}")
 
-        # 関連する configurations を削除
+        if model["statecode"] == 1 and model.get("_msdyn_activerunconfigurationid_value"):
+            # 既に Active → プロンプト更新のみ
+            run_config_id = model["_msdyn_activerunconfigurationid_value"]
+            print(f"  既存 Active Model: {model_id}")
+            print("  → プロンプト更新...")
+            api_patch(f"msdyn_aiconfigurations({run_config_id})", {
+                "msdyn_customconfiguration": json.dumps(CUSTOM_CONFIG, ensure_ascii=False),
+            })
+            print("  ✓ プロンプト更新完了")
+            return model_id
+
+        # Draft → 削除して再作成
+        print(f"  Draft Model 発見: {model_id} → 削除して再作成")
         configs = api_get(
             f"msdyn_aiconfigurations?$filter=_msdyn_aimodelid_value eq '{model_id}'"
-            "&$select=msdyn_aiconfigurationid,msdyn_type"
+            "&$select=msdyn_aiconfigurationid"
         )
-        for cfg in reversed(configs.get("value", [])):
-            cid = cfg["msdyn_aiconfigurationid"]
+        for c in configs.get("value", []):
             try:
-                from auth_helper import api_delete
-                api_delete(f"msdyn_aiconfigurations({cid})")
-                print(f"  → Config 削除: {cid}")
-            except Exception as e:
-                print(f"  → Config 削除エラー（続行）: {e}")
-
-        # Model 削除
+                api_delete(f"msdyn_aiconfigurations({c['msdyn_aiconfigurationid']})")
+            except Exception:
+                pass  # Published Training (state=2) は 405 → 無視
+        time.sleep(2)
         try:
-            from auth_helper import api_delete
             api_delete(f"msdyn_aimodels({model_id})")
-            print(f"  → Model 削除: {model_id}")
-            model_id = None
-        except Exception as e:
-            print(f"  → Model 削除エラー（続行）: {e}")
+        except Exception:
+            pass
+        time.sleep(3)
 
-    # ── Step 1: AI Model 作成 ─────────────────────────────
-    print("\n[Step 1] AI Model 作成...")
+    # 新規作成
+    print("\n[2/3] AI Model 作成...")
     model_body = {
         "msdyn_name": PROMPT_NAME,
-        "msdyn_TemplateId@odata.bind": f"/msdyn_aitemplates({GPT_PROMPT_TEMPLATE_ID})",
+        "msdyn_TemplateId@odata.bind": f"/msdyn_aitemplates({GPT_TEMPLATE_ID})",
         "msdyn_sharewithorganizationoncreate": False,
     }
     model_id = api_post("msdyn_aimodels", model_body, solution=SOLUTION_NAME)
-    print(f"  AI Model created: {model_id}")
+    print(f"  ✓ Model: {model_id}")
+    time.sleep(3)
 
-    # ── Step 2: Training Configuration 作成（最小ボディ）──
-    print("\n[Step 2] Training Configuration 作成...")
-    now_str = datetime.now(timezone.utc).strftime("%m/%d/%Y %I:%M:%S %p")
-    training_body = {
-        "msdyn_AIModelId@odata.bind": f"/msdyn_aimodels({model_id})",
-        "msdyn_type": 190690000,
-        "msdyn_name": f"{model_id}_Training_{now_str}",
-    }
-    training_config_id = api_post("msdyn_aiconfigurations", training_body, solution=SOLUTION_NAME)
-    print(f"  Training config created: {training_config_id}")
-
-    # ── Step 2.5: AIModelPublish で Training Config を正しい状態に遷移 ──
-    print("\n[Step 2.5] AIModelPublish で Training 状態を遷移...")
+    # AIModelPublish — 1ステップで完全アクティブ化
+    print("\n[3/3] AIModelPublish (1ステップ Active 化)...")
     custom_config_str = json.dumps(CUSTOM_CONFIG, ensure_ascii=False)
-    # AIModelPublish は Training Config を state=2/status=6 にする
-    # RunConfigurationId はダミー（後で新しい Run Config を作成する）
-    import requests as _requests
-    _token = get_token()
-    _headers = {
-        "Authorization": f"Bearer {_token}",
+    token = get_token()
+    headers = {
+        "Authorization": f"Bearer {token}",
         "OData-MaxVersion": "4.0",
         "OData-Version": "4.0",
-        "Accept": "application/json",
         "Content-Type": "application/json; charset=utf-8",
     }
-    resp = _requests.post(
+    r = requests.post(
         f"{DATAVERSE_URL}/api/data/v9.2/AIModelPublish",
-        headers=_headers,
+        headers=headers,
         json={
-            "TemplateId": GPT_PROMPT_TEMPLATE_ID,
+            "TemplateId": GPT_TEMPLATE_ID,
             "ModelId": model_id,
-            "RunConfigurationId": training_config_id,  # ダミー
+            "RunConfigurationId": model_id,
             "ModelName": PROMPT_NAME,
             "CustomConfiguration": custom_config_str,
             "RunConfiguration": custom_config_str,
         },
     )
-    if resp.status_code < 400:
-        print("  AIModelPublish OK (Training state transitioned)")
-    else:
-        print(f"  AIModelPublish warning: {resp.status_code} - {resp.text[:200]}")
+    if r.status_code >= 400:
+        raise RuntimeError(f"AIModelPublish 失敗: {r.status_code} - {r.text[:300]}")
+    print("  ✓ AIModelPublish 成功")
+    time.sleep(5)
 
-    # AIModelPublish が作成した state=2/6 の Training Config を特定
-    import time
-    time.sleep(2)
-    configs = api_get(
-        f"msdyn_aiconfigurations?$filter=_msdyn_aimodelid_value eq '{model_id}' "
-        f"and msdyn_type eq 190690000 and statecode eq 2"
-        "&$select=msdyn_aiconfigurationid&$top=1&$orderby=createdon desc"
-    )
-    if configs.get("value"):
-        published_training_id = configs["value"][0]["msdyn_aiconfigurationid"]
-        print(f"  Published Training Config: {published_training_id}")
-    else:
-        published_training_id = training_config_id
-        print(f"  Using original Training Config: {published_training_id}")
-
-    # ── Step 3: Run Configuration 作成 ────────────────────
-    print("\n[Step 3] Run Configuration 作成...")
-    run_body = {
-        "msdyn_AIModelId@odata.bind": f"/msdyn_aimodels({model_id})",
-        "msdyn_type": 190690001,
-        "msdyn_name": f"{model_id}_Run_{now_str}",
-        "msdyn_customconfiguration": custom_config_str,
-        "msdyn_TrainedModelAIConfigurationPareId@odata.bind": f"/msdyn_aiconfigurations({published_training_id})",
-    }
-    run_config_id = api_post("msdyn_aiconfigurations", run_body, solution=SOLUTION_NAME)
-    print(f"  Run config created: {run_config_id}")
-
-    # ── Step 4: PublishAIConfiguration でモデルをアクティブ化 ──
-    print("\n[Step 4] PublishAIConfiguration でアクティブ化...")
-    pub_url = f"{DATAVERSE_URL}/api/data/v9.2/msdyn_aiconfigurations({run_config_id})/Microsoft.Dynamics.CRM.PublishAIConfiguration"
-    resp2 = _requests.post(pub_url, headers=_headers, json={"version": "1.0"})
-    if resp2.status_code < 400:
-        print("  PublishAIConfiguration OK")
-    else:
-        print(f"  PublishAIConfiguration error: {resp2.status_code} - {resp2.text[:300]}")
-
-    # 状態確認
-    time.sleep(3)
+    # 検証
     model_state = api_get(
-        f"msdyn_aimodels({model_id})?$select=statecode,statuscode,_msdyn_activerunconfigurationid_value"
+        f"msdyn_aimodels({model_id})?$select=statecode,_msdyn_activerunconfigurationid_value"
     )
-    print(f"  Model: state={model_state['statecode']}, status={model_state['statuscode']}, "
-          f"activeRun={model_state['_msdyn_activerunconfigurationid_value']}")
     if model_state["statecode"] != 1:
-        print("  ⚠ モデルがアクティブになっていません。AI Builder UI で手動公開してください。")
+        raise RuntimeError(f"Model がアクティブになっていません: state={model_state['statecode']}")
+    print(f"  ✓ Model Active! (activeRun={model_state['_msdyn_activerunconfigurationid_value']})")
+    return model_id
+
+
+def deploy_bot_component(model_id: str):
+    """botcomponent を作成してエージェントにツールとして追加する。"""
+    if not BOT_ID:
+        print("\n[Phase 2] BOT_ID 未設定 → エージェント追加スキップ")
+        return
+
+    print("\n[Phase 2] botcomponent 作成 + エージェント公開")
+    print("-" * 50)
+
+    # Bot の schemaname を取得
+    bot_data = api_get(f"bots({BOT_ID})?$select=schemaname")
+    bot_schema = bot_data.get("schemaname", "")
+    action_name = PROMPT_NAME.replace(" ", "")
+    comp_schemaname = f"{bot_schema}.action.{action_name}"
+    print(f"  schemaname: {comp_schemaname}")
+
+    # 既存コンポーネントを検索（べき等）
+    existing_comp = api_get(
+        f"botcomponents?$filter=schemaname eq '{comp_schemaname}'"
+        "&$select=botcomponentid"
+    )
+
+    # inputs YAML を構築（PVA ダブル改行フォーマット）
+    inputs_yaml_lines = []
+    for inp in INPUT_DEFINITIONS:
+        inputs_yaml_lines.append("  - kind: AutomaticTaskInput")
+        inputs_yaml_lines.append(f"    propertyName: {inp['id']}")
+        inputs_yaml_lines.append(f"    name: {inp['id']}")
+        inputs_yaml_lines.append("    shouldPromptUser: true")
+        inputs_yaml_lines.append("")
+    inputs_yaml = "\n".join(inputs_yaml_lines)
+
+    comp_data = (
+        "kind: TaskDialog\n\n"
+        f"inputs:\n{inputs_yaml}\n\n"
+        f"modelDisplayName: {PROMPT_NAME}\n\n"
+        f"modelDescription: {PROMPT_DESCRIPTION}\n\n"
+        "action:\n"
+        "  kind: InvokeAIBuilderModelTaskAction\n"
+        f"  aIModelId: {model_id}\n\n"
+        "outputMode: All\n\n"
+    )
+
+    if existing_comp.get("value"):
+        comp_id = existing_comp["value"][0]["botcomponentid"]
+        api_patch(f"botcomponents({comp_id})", {"data": comp_data, "description": PROMPT_DESCRIPTION})
+        print(f"  ✓ botcomponent 更新: {comp_id}")
     else:
-        print("  ✓ モデルがアクティブになりました！")
-
-    # ── Step 5: botcomponent 作成（エージェントへの追加）──
-    if BOT_ID:
-        print(f"\n[Step 5] botcomponent 作成（Bot: {BOT_ID}）...")
-
-        # Bot の schemaname を取得
-        bot_data = api_get(f"bots({BOT_ID})?$select=schemaname")
-        bot_schema = bot_data.get("schemaname", "")
-        print(f"  Bot schemaname: {bot_schema}")
-
-        action_name = PROMPT_NAME.replace(" ", "")
-        comp_schemaname = f"{bot_schema}.action.{action_name}"
-
-        # 既存 botcomponent を検索（べき等）
-        existing_comp = api_get(
-            f"botcomponents?$filter=schemaname eq '{comp_schemaname}'"
-            "&$select=botcomponentid"
-        )
-        if existing_comp.get("value"):
-            comp_id = existing_comp["value"][0]["botcomponentid"]
-            print(f"  既存 botcomponent 発見: {comp_id} → 削除して再作成")
-            try:
-                from auth_helper import api_delete
-                api_delete(f"botcomponents({comp_id})")
-            except Exception as e:
-                print(f"  → 削除エラー（続行）: {e}")
-
-        # inputs YAML を構築
-        inputs_yaml_lines = []
-        for inp in INPUT_DEFINITIONS:
-            inputs_yaml_lines.append("  - kind: AutomaticTaskInput")
-            inputs_yaml_lines.append(f"    propertyName: {inp['id']}")
-            inputs_yaml_lines.append(f"    name: {inp['id']}")
-            inputs_yaml_lines.append("    shouldPromptUser: true")
-            inputs_yaml_lines.append("")
-        inputs_yaml = "\n".join(inputs_yaml_lines)
-
-        # botcomponent YAML（PVA ダブル改行フォーマット）
-        comp_data = (
-            "kind: TaskDialog\n\n"
-            f"inputs:\n{inputs_yaml}\n\n"
-            f"modelDisplayName: {PROMPT_NAME}\n\n"
-            f"modelDescription: {PROMPT_DESCRIPTION}\n\n"
-            "action:\n"
-            "  kind: InvokeAIBuilderModelTaskAction\n"
-            f"  aIModelId: {model_id}\n\n"
-            "outputMode: All\n\n"
-        )
-
         comp_body = {
             "name": PROMPT_NAME,
             "schemaname": comp_schemaname,
@@ -353,50 +289,73 @@ def main():
             "description": PROMPT_DESCRIPTION,
         }
         comp_id = api_post("botcomponents", comp_body, solution=SOLUTION_NAME)
-        print(f"  Bot component created: {comp_id}")
+        print(f"  ✓ botcomponent 作成: {comp_id}")
 
-        # ── Step 6: エージェント再公開 ───────────────────
-        print("\n[Step 6] エージェント再公開...")
-        api_post(f"bots({BOT_ID})/Microsoft.Dynamics.CRM.PvaPublish", {})
-        print("  Agent republished")
+    # エージェント再公開
+    print("  エージェント公開中...")
+    api_post(f"bots({BOT_ID})/Microsoft.Dynamics.CRM.PvaPublish", {})
+    print("  ✓ エージェント公開完了")
 
-        # ── Step 6.5: 説明の設定 ─────────────────────────
-        print("\n[Step 6.5] botcomponent の description を設定...")
-        if comp_id:
-            api_patch(f"botcomponents({comp_id})", {
-                "description": PROMPT_DESCRIPTION,
+
+def verify_solution():
+    """ソリューション含有を検証・補完する。"""
+    print("\n[Phase 3] ソリューション含有検証")
+    print("-" * 50)
+
+    model = api_get(
+        f"msdyn_aimodels?$filter=msdyn_name eq '{PROMPT_NAME}'"
+        "&$select=msdyn_aimodelid"
+    )
+    if not model.get("value"):
+        print("  ⚠ Model が見つかりません")
+        return
+
+    model_id = model["value"][0]["msdyn_aimodelid"]
+    configs = api_get(
+        f"msdyn_aiconfigurations?$filter=_msdyn_aimodelid_value eq '{model_id}'"
+        "&$select=msdyn_aiconfigurationid"
+    )
+
+    for c in configs.get("value", []):
+        cid = c["msdyn_aiconfigurationid"]
+        try:
+            api_post("AddSolutionComponent", {
+                "ComponentId": cid,
+                "ComponentType": 401,
+                "SolutionUniqueName": SOLUTION_NAME,
+                "AddRequiredComponents": False,
+                "IncludedComponentSettingsValues": None,
             })
-            print("  Description updated")
-    else:
-        print("\n[Step 5] BOT_ID 未設定 → エージェント追加をスキップ")
+            print(f"  ✓ Config {cid}: ソリューション内")
+        except Exception as e:
+            if "already" in str(e).lower():
+                print(f"  ✓ Config {cid}: already in solution")
+            else:
+                print(f"  ⚠ Config {cid}: {e}")
 
-    # ── Step 7: ソリューション含有検証 ────────────────────
-    print("\n[Step 7] ソリューション含有検証...")
-    for comp_id_to_add, comp_type, label in [
-        (training_config_id, 401, "Training Config"),
-        (run_config_id, 401, "Run Config"),
-    ]:
-        if comp_id_to_add:
-            try:
-                api_post("AddSolutionComponent", {
-                    "ComponentId": comp_id_to_add,
-                    "ComponentType": comp_type,
-                    "SolutionUniqueName": SOLUTION_NAME,
-                    "AddRequiredComponents": False,
-                    "IncludedComponentSettingsValues": None,
-                })
-                print(f"  {label}: ソリューション内確認OK")
-            except Exception as e:
-                error_str = str(e)
-                if "already" in error_str.lower():
-                    print(f"  {label}: already in solution")
-                else:
-                    print(f"  {label}: 検証エラー（続行）: {e}")
 
-    print("\n=== AI Builder AI プロンプト デプロイ完了 ===")
-    print(f"  Model ID: {model_id}")
-    print(f"  Run Config ID: {run_config_id}")
-    return model_id
+# ══════════════════════════════════════════════════════════════
+# メイン
+# ══════════════════════════════════════════════════════════════
+
+def main():
+    print("╔══════════════════════════════════════════════════════════╗")
+    print("║  AI Builder AI プロンプト デプロイ                      ║")
+    print("╚══════════════════════════════════════════════════════════╝")
+    print(f"  プロンプト: {PROMPT_NAME}")
+    print(f"  ソリューション: {SOLUTION_NAME}")
+    print(f"  Dataverse: {DATAVERSE_URL}")
+
+    model_id = deploy_ai_model()
+    deploy_bot_component(model_id)
+    verify_solution()
+
+    print("\n" + "═" * 60)
+    print(f"  ✅ デプロイ完了!")
+    print(f"  Model: {PROMPT_NAME} ({model_id})")
+    if BOT_ID:
+        print(f"  Agent: {BOT_ID}")
+    print("═" * 60)
 
 
 if __name__ == "__main__":
