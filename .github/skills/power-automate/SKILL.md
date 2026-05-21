@@ -481,6 +481,26 @@ except Exception as e:
     sys.exit(1)
 ```
 
+## 通知デザイン（デフォルト適用 — ユーザー指定不要）
+
+メール通知・Teams 通知が含まれるフローでは、[通知デザインテンプレート](references/notification-templates.md) を**デフォルトで適用する**。
+
+```
+★ ユーザーから特別な指定がなくても以下のデザインが自動適用される:
+  - メール: カード型テーブルレイアウト（600px幅、ゼブラストライプ、色付きヘッダーライン）
+  - Teams: シンプルテーブル + h3 見出し + hr 区切り
+  - variant 自動判定: 通知目的に応じて青/紫/緑/橙/赤を自動選択
+
+★ 検証済み（2026-05-21 Outlook メール受信確認）:
+  - テーブルレイアウト + インラインスタイル → Outlook/Gmail で崩れない
+  - ゼブラストライプ（#ffffff / #f9fafb 交互）→ 視認性向上
+  - border-bottom で色付きヘッダー → グラデーション不要で目立つ
+
+❌ グラデーション背景（メールクライアントで描画されない）
+❌ flexbox / grid（メールクライアント非対応）
+❌ <style> タグ（Gmail で除去される）
+```
+
 ## 代表的パターン
 
 詳細なトリガー・アクションパターン（SharePoint、Dataverse、Teams、AI Builder、OneDrive PDF 変換等）は [トリガー・アクションパターンリファレンス](references/trigger-action-patterns.md) を参照。
