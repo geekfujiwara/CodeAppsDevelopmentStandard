@@ -1,405 +1,246 @@
 # AI Builder プロンプト 構築リファレンス
 
+## ★ デプロイフロー概要
+
+```
+新規作成:
+  Model POST → AIModelPublish → Done! (わずか2 APIコール)
+
+更新:
+  Model 検索 → Run Config PATCH → Done! (わずか2 APIコール)
+
+削除＋再作成:
+  Draft Configs DELETE → Model DELETE → 新規作成フロー
+  ※ Published Training Config (state=2) は DELETE 不可 (405) → 無害
+```
+
 ## 構築手順
 
 ### Step 1: AI Model 作成
 
 ```python
-from auth_helper import api_get, api_post, api_patch
+import json
+import os
+import requests
+import time
+from auth_helper import api_get, api_post, api_patch, api_delete, get_token, DATAVERSE_URL
 
 SOLUTION_NAME = os.environ["SOLUTION_NAME"]
-GPT_PROMPT_TEMPLATE_ID = "edfdb190-3791-45d8-9a6c-8f90a37c278a"
+GPT_TEMPLATE_ID = "edfdb190-3791-45d8-9a6c-8f90a37c278a"
 
-# AI Model 作成
+# ★ msdyn_TemplateId@odata.bind 形式を使用
+#    _msdyn_templateid_value 形式は一部環境で拒否される
 model_body = {
     "msdyn_name": PROMPT_NAME,
-    "_msdyn_templateid_value": GPT_PROMPT_TEMPLATE_ID,
+    "msdyn_TemplateId@odata.bind": f"/msdyn_aitemplates({GPT_TEMPLATE_ID})",
     "msdyn_sharewithorganizationoncreate": False,
-    "statecode": 0,  # Draft で作成
-    "statuscode": 0,
 }
 model_id = api_post("msdyn_aimodels", model_body, solution=SOLUTION_NAME)
 print(f"AI Model created: {model_id}")
+time.sleep(3)  # メタデータ伝播待ち
 ```
 
-### Step 2: Training Configuration 作成
+### Step 2: AIModelPublish で1ステップ完全アクティブ化
 
 ```python
-# Training Configuration (type=190690000)
-training_body = {
-    "_msdyn_aimodelid_value": model_id,
-    "msdyn_type": 190690000,
-    "msdyn_name": f"{model_id}_Training_{datetime.utcnow().strftime('%m/%d/%Y %I:%M:%S %p')}",
-    "msdyn_modelrundataspecification": json.dumps({
-        "schemaVersion": 2,
-        "input": {},
-        "output": {}
-    }),
-}
-training_config_id = api_post("msdyn_aiconfigurations", training_body, solution=SOLUTION_NAME)
-print(f"Training config created: {training_config_id}")
-```
-
-### Step 3: Run Configuration 作成（プロンプト定義を含む）
-
-```python
-# msdyn_customconfiguration JSON を構築
-custom_config = {
-    "version": "GptDynamicPrompt-2",
-    "prompt": PROMPT_SEGMENTS,       # [{"type":"literal","text":"..."}, {"type":"inputVariable","id":"..."}]
-    "definitions": {
-        "inputs": INPUT_DEFINITIONS, # [{"id":"text","text":"text","type":"text","quickTestValue":"..."}]
-        "formulas": [],
-        "data": [],
-        "output": OUTPUT_DEFINITION  # {"formats":["text"]} or {"formats":["json"],"jsonSchema":...,"jsonExamples":...}
-    },
-    "modelParameters": {
-        "modelType": MODEL_TYPE,     # "gpt-41-mini"
-        "gptParameters": {
-            "temperature": TEMPERATURE  # 0 ~ 1
-        }
-    },
-    "settings": {
-        "recordRetrievalLimit": 30,
-        "shouldPreserveRecordLinks": None,
-        "runtime": None
-    },
-    "code": "",
-    "signature": ""
+custom_config_str = json.dumps(CUSTOM_CONFIG, ensure_ascii=False)
+token = get_token()
+headers = {
+    "Authorization": f"Bearer {token}",
+    "OData-MaxVersion": "4.0",
+    "OData-Version": "4.0",
+    "Content-Type": "application/json; charset=utf-8",
 }
 
-# Run Configuration (type=190690001)
-run_body = {
-    "_msdyn_aimodelid_value": model_id,
-    "msdyn_type": 190690001,
-    "msdyn_name": f"{model_id}_{datetime.utcnow().strftime('%m/%d/%Y %I:%M:%S %p')}",
-    "msdyn_customconfiguration": json.dumps(custom_config, ensure_ascii=False),
-    "_msdyn_trainedmodelaiconfigurationpareid_value": training_config_id,
-    "statecode": 2,
-    "statuscode": 7,
-}
-run_config_id = api_post("msdyn_aiconfigurations", run_body, solution=SOLUTION_NAME)
-print(f"Run config created: {run_config_id}")
+# ★ AIModelPublish — msdyn_ プレフィックスなし!
+# ★ RunConfigurationId に model_id を渡す → Run Config がその ID で作成される
+r = requests.post(
+    f"{DATAVERSE_URL}/api/data/v9.2/AIModelPublish",
+    headers=headers,
+    json={
+        "TemplateId": GPT_TEMPLATE_ID,
+        "ModelId": model_id,
+        "RunConfigurationId": model_id,   # ← model_id を渡すのがポイント
+        "ModelName": PROMPT_NAME,
+        "CustomConfiguration": custom_config_str,
+        "RunConfiguration": custom_config_str,
+    },
+)
+if r.status_code >= 400:
+    raise RuntimeError(f"AIModelPublish failed: {r.status_code} - {r.text[:300]}")
+time.sleep(5)  # アクティベーション完了待ち
+
+# 検証
+model_state = api_get(
+    f"msdyn_aimodels({model_id})?$select=statecode,_msdyn_activerunconfigurationid_value"
+)
+assert model_state["statecode"] == 1, "Model is not Active!"
+print(f"Model Active! activeRun={model_state['_msdyn_activerunconfigurationid_value']}")
 ```
 
-### Step 4: AI Model をアクティブ化
+### Step 3: botcomponent 作成（Copilot Studio エージェント利用時のみ）
 
 ```python
-# Model の active run configuration を設定 & アクティブ化
-api_patch(f"msdyn_aimodels({model_id})", {
-    "msdyn_name": PROMPT_NAME,
-    "_msdyn_activerunconfigurationid_value": run_config_id,
-    "statecode": 1,
-    "statuscode": 1,
-})
-print("AI Model activated")
-```
-
-### Step 5: botcomponent 作成（エージェントへの追加）
-
-```python
-# Bot の schemaname を取得して schemaname を構築
+# Bot の schemaname を取得して component schemaname を構築
 bot_data = api_get(f"bots({bot_id})?$select=schemaname")
 bot_schema = bot_data.get("schemaname", "")
-# スペースを除去してアクション名を作成
 action_name = PROMPT_NAME.replace(" ", "")
 comp_schemaname = f"{bot_schema}.action.{action_name}"
 
-# inputs YAML を構築
+# 既存コンポーネントを検索（べき等）
+existing_comp = api_get(
+    f"botcomponents?$filter=schemaname eq '{comp_schemaname}'"
+    "&$select=botcomponentid"
+)
+
+# inputs YAML を構築（PVA ダブル改行フォーマット）
 inputs_yaml_lines = []
 for inp in INPUT_DEFINITIONS:
-    inputs_yaml_lines.append(f"  - kind: AutomaticTaskInput")
+    inputs_yaml_lines.append("  - kind: AutomaticTaskInput")
     inputs_yaml_lines.append(f"    propertyName: {inp['id']}")
     inputs_yaml_lines.append(f"    name: {inp['id']}")
-    inputs_yaml_lines.append(f"    shouldPromptUser: true")
+    inputs_yaml_lines.append("    shouldPromptUser: true")
     inputs_yaml_lines.append("")
-
 inputs_yaml = "\n".join(inputs_yaml_lines)
 
-# botcomponent YAML（PVA ダブル改行フォーマット）
+# ★ yaml.dump() は使わない — PVA パーサーと非互換
 comp_data = (
-    f"kind: TaskDialog\n\n"
+    "kind: TaskDialog\n\n"
     f"inputs:\n{inputs_yaml}\n\n"
     f"modelDisplayName: {PROMPT_NAME}\n\n"
     f"modelDescription: {PROMPT_DESCRIPTION}\n\n"
-    f"action:\n"
-    f"  kind: InvokeAIBuilderModelTaskAction\n"
+    "action:\n"
+    "  kind: InvokeAIBuilderModelTaskAction\n"
     f"  aIModelId: {model_id}\n\n"
-    f"outputMode: All\n\n"
+    "outputMode: All\n\n"
 )
 
-# botcomponent を作成
-comp_body = {
-    "name": PROMPT_NAME,
-    "schemaname": comp_schemaname,
-    "componenttype": 9,
-    "_parentbotid_value": bot_id,
-    "data": comp_data,
-    "description": PROMPT_DESCRIPTION,
-}
-comp_id = api_post("botcomponents", comp_body, solution=SOLUTION_NAME)
-print(f"Bot component created: {comp_id}")
-```
+if existing_comp.get("value"):
+    comp_id = existing_comp["value"][0]["botcomponentid"]
+    api_patch(f"botcomponents({comp_id})", {"data": comp_data})
+else:
+    comp_body = {
+        "name": PROMPT_NAME,
+        "schemaname": comp_schemaname,
+        "componenttype": 9,
+        "_parentbotid_value": bot_id,
+        "data": comp_data,
+        "description": PROMPT_DESCRIPTION,
+    }
+    comp_id = api_post("botcomponents", comp_body, solution=SOLUTION_NAME)
 
-### Step 6: エージェント再公開
-
-```python
+# エージェント再公開
 api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
-print("Agent republished")
 ```
 
-### Step 7: ソリューション含有検証
+## 既存 AI プロンプトの更新パターン
 
 ```python
-from auth_helper import api_post
+# ★ プロンプト内容の更新は Run Config の PATCH だけで完了
+existing = api_get(
+    f"msdyn_aimodels?$filter=msdyn_name eq '{PROMPT_NAME}'"
+    "&$select=msdyn_aimodelid,_msdyn_activerunconfigurationid_value,statecode"
+)
+if existing.get("value"):
+    model = existing["value"][0]
+    model_id = model["msdyn_aimodelid"]
+    run_config_id = model["_msdyn_activerunconfigurationid_value"]
 
-# AI Model をソリューションに追加（componenttype=401 = AIConfiguration）
-# Note: AI Model 自体は componenttype=401 で登録される
-api_post("AddSolutionComponent", {
-    "ComponentId": training_config_id,
-    "ComponentType": 401,
-    "SolutionUniqueName": SOLUTION_NAME,
-    "AddRequiredComponents": False,
-    "IncludedComponentSettingsValues": None,
-})
-api_post("AddSolutionComponent", {
-    "ComponentId": run_config_id,
-    "ComponentType": 401,
-    "SolutionUniqueName": SOLUTION_NAME,
-    "AddRequiredComponents": False,
-    "IncludedComponentSettingsValues": None,
-})
-print("Solution components verified")
+    if model["statecode"] == 1 and run_config_id:
+        # Active Model → Run Config を PATCH するだけ
+        api_patch(f"msdyn_aiconfigurations({run_config_id})", {
+            "msdyn_customconfiguration": json.dumps(updated_config, ensure_ascii=False),
+        })
+        print("Prompt updated successfully")
+    else:
+        # Draft Model → 削除して再作成が確実
+        _delete_model_and_configs(model_id)
+        # → 新規作成フローに進む
 ```
 
-## デプロイスクリプトのテンプレート
+## べき等デプロイ（推奨パターン）
 
 ```python
-"""AI Builder AI Prompt をデプロイし Copilot Studio エージェントにツールとして追加する。"""
-import json
-import os
-import re
-import sys
-from datetime import datetime, timezone
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
-from auth_helper import api_get, api_post, api_patch
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# === 設定 ===
-SOLUTION_NAME = os.environ["SOLUTION_NAME"]
-BOT_ID_OR_URL = os.environ.get("AI_PROMPT_BOT_ID") or os.environ["BOT_ID"]
-GPT_PROMPT_TEMPLATE_ID = "edfdb190-3791-45d8-9a6c-8f90a37c278a"
-
-# Bot ID 解決
-m = re.search(r"bots/([0-9a-f-]{36})", BOT_ID_OR_URL)
-bot_id = m.group(1) if m else BOT_ID_OR_URL
-
-# === AI Prompt 定義 ===
-PROMPT_NAME = "AI Prompt Sample"
-PROMPT_DESCRIPTION = "AI Prompt Sample"
-MODEL_TYPE = "gpt-41-mini"
-TEMPERATURE = 0
-
-PROMPT_SEGMENTS = [
-    {"type": "literal", "text": " "},
-    {"type": "inputVariable", "id": "text"},
-    {"type": "literal", "text": " の情報を分析してレポートを作成する。"},
-]
-
-INPUT_DEFINITIONS = [
-    {
-        "id": "text",
-        "text": "text",
-        "type": "text",
-        "quickTestValue": "テスト用サンプルテキスト",
-    },
-]
-
-OUTPUT_DEFINITION = {
-    "formats": ["text"],
-}
-# JSON 出力の場合:
-# OUTPUT_DEFINITION = {
-#     "formats": ["json"],
-#     "jsonSchema": {"type": "object", "properties": {"summary": {"type": "string"}}},
-#     "jsonExamples": [{"summary": "サンプル出力"}],
-# }
-
-# === デプロイ関数 ===
-def deploy():
-    now_str = datetime.now(timezone.utc).strftime("%m/%d/%Y %I:%M:%S %p")
-
-    # Step 1: 既存 AI Model を検索（べき等）
-    print("[1/7] AI Model 検索...")
+def deploy_ai_prompt():
+    """AI Model をべき等でデプロイする。"""
+    # 既存検索
     existing = api_get(
         f"msdyn_aimodels?$filter=msdyn_name eq '{PROMPT_NAME}'"
-        f"&$select=msdyn_aimodelid,msdyn_name,_msdyn_activerunconfigurationid_value"
+        "&$select=msdyn_aimodelid,statecode,_msdyn_activerunconfigurationid_value"
     )
 
     if existing.get("value"):
-        model_id = existing["value"][0]["msdyn_aimodelid"]
-        print(f"  既存 AI Model 発見: {model_id}")
+        model = existing["value"][0]
+        model_id = model["msdyn_aimodelid"]
 
-        # Run Config を更新
-        run_config_id = existing["value"][0].get("_msdyn_activerunconfigurationid_value")
-        if run_config_id:
-            print("[2/7] Run Configuration 更新...")
-            custom_config = _build_custom_config()
+        if model["statecode"] == 1 and model.get("_msdyn_activerunconfigurationid_value"):
+            # ケース 1: 既に Active → プロンプト更新のみ
+            run_config_id = model["_msdyn_activerunconfigurationid_value"]
             api_patch(f"msdyn_aiconfigurations({run_config_id})", {
-                "msdyn_customconfiguration": json.dumps(custom_config, ensure_ascii=False),
+                "msdyn_customconfiguration": json.dumps(CUSTOM_CONFIG, ensure_ascii=False),
             })
-            print(f"  Run Config 更新完了: {run_config_id}")
+            return model_id
         else:
-            print("  ⚠ Active Run Config なし — 新規作成します")
-            run_config_id = _create_configs(model_id, now_str)
-    else:
-        # 新規作成
-        print("[1/7] AI Model 作成...")
-        model_body = {
-            "msdyn_name": PROMPT_NAME,
-            "_msdyn_templateid_value": GPT_PROMPT_TEMPLATE_ID,
-            "msdyn_sharewithorganizationoncreate": False,
-        }
-        model_id = api_post("msdyn_aimodels", model_body, solution=SOLUTION_NAME)
-        print(f"  AI Model 作成完了: {model_id}")
+            # ケース 2: Draft → 削除して再作成
+            _delete_model_and_configs(model_id)
 
-        run_config_id = _create_configs(model_id, now_str)
-
-    # Step 5: botcomponent 作成/更新（エージェントへの追加）
-    print("[5/7] Bot Component 作成/更新...")
-    _create_or_update_bot_component(model_id, bot_id)
-
-    # Step 6: エージェント再公開
-    print("[6/7] エージェント公開...")
-    api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
-
-    # Step 7: ソリューション検証
-    print("[7/7] ソリューション含有検証...")
-    # AddSolutionComponent は既に solution ヘッダーで追加済み
-
-    print("\n✅ AI Prompt デプロイ完了!")
-    print(f"  Model: {PROMPT_NAME} ({model_id})")
-    print(f"  Agent: {bot_id}")
+    # ケース 3: 存在しない → 新規作成
+    return _create_and_activate()
 
 
-def _build_custom_config():
-    return {
-        "version": "GptDynamicPrompt-2",
-        "prompt": PROMPT_SEGMENTS,
-        "definitions": {
-            "inputs": INPUT_DEFINITIONS,
-            "formulas": [],
-            "data": [],
-            "output": OUTPUT_DEFINITION,
-        },
-        "modelParameters": {
-            "modelType": MODEL_TYPE,
-            "gptParameters": {"temperature": TEMPERATURE},
-        },
-        "settings": {
-            "recordRetrievalLimit": 30,
-            "shouldPreserveRecordLinks": None,
-            "runtime": None,
-        },
-        "code": "",
-        "signature": "",
-    }
-
-
-def _create_configs(model_id, now_str):
-    # Training Configuration
-    print("[2/7] Training Configuration 作成...")
-    training_body = {
-        "_msdyn_aimodelid_value": model_id,
-        "msdyn_type": 190690000,
-        "msdyn_name": f"{model_id}_Training_{now_str}",
-        "msdyn_modelrundataspecification": json.dumps({
-            "schemaVersion": 2, "input": {}, "output": {}
-        }),
-    }
-    training_config_id = api_post("msdyn_aiconfigurations", training_body, solution=SOLUTION_NAME)
-    print(f"  Training Config: {training_config_id}")
-
-    # Run Configuration
-    print("[3/7] Run Configuration 作成...")
-    custom_config = _build_custom_config()
-    run_body = {
-        "_msdyn_aimodelid_value": model_id,
-        "msdyn_type": 190690001,
-        "msdyn_name": f"{model_id}_{now_str}",
-        "msdyn_customconfiguration": json.dumps(custom_config, ensure_ascii=False),
-        "_msdyn_trainedmodelaiconfigurationpareid_value": training_config_id,
-    }
-    run_config_id = api_post("msdyn_aiconfigurations", run_body, solution=SOLUTION_NAME)
-    print(f"  Run Config: {run_config_id}")
-
-    # Model アクティブ化
-    print("[4/7] AI Model アクティブ化...")
-    api_patch(f"msdyn_aimodels({model_id})", {
+def _create_and_activate():
+    """Model 作成 → AIModelPublish → Active"""
+    model_body = {
         "msdyn_name": PROMPT_NAME,
-        "_msdyn_activerunconfigurationid_value": run_config_id,
-        "statecode": 1,
-        "statuscode": 1,
-    })
-    return run_config_id
+        "msdyn_TemplateId@odata.bind": f"/msdyn_aitemplates({GPT_TEMPLATE_ID})",
+        "msdyn_sharewithorganizationoncreate": False,
+    }
+    model_id = api_post("msdyn_aimodels", model_body, solution=SOLUTION_NAME)
+    time.sleep(3)
 
-
-def _create_or_update_bot_component(model_id, bot_id):
-    # Bot の schemaname を取得
-    bot_data = api_get(f"bots({bot_id})?$select=schemaname")
-    bot_schema = bot_data.get("schemaname", "")
-    action_name = PROMPT_NAME.replace(" ", "")
-    comp_schemaname = f"{bot_schema}.action.{action_name}"
-
-    # 既存コンポーネントを検索
-    existing_comp = api_get(
-        f"botcomponents?$filter=_parentbotid_value eq '{bot_id}'"
-        f" and schemaname eq '{comp_schemaname}'"
-        f"&$select=botcomponentid,schemaname"
+    custom_config_str = json.dumps(CUSTOM_CONFIG, ensure_ascii=False)
+    token = get_token()
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "OData-MaxVersion": "4.0",
+        "OData-Version": "4.0",
+        "Content-Type": "application/json; charset=utf-8",
+    }
+    r = requests.post(
+        f"{DATAVERSE_URL}/api/data/v9.2/AIModelPublish",
+        headers=headers,
+        json={
+            "TemplateId": GPT_TEMPLATE_ID,
+            "ModelId": model_id,
+            "RunConfigurationId": model_id,
+            "ModelName": PROMPT_NAME,
+            "CustomConfiguration": custom_config_str,
+            "RunConfiguration": custom_config_str,
+        },
     )
+    if r.status_code >= 400:
+        raise RuntimeError(f"AIModelPublish failed: {r.status_code} - {r.text[:300]}")
+    time.sleep(5)
+    return model_id
 
-    # YAML 構築
-    inputs_lines = []
-    for inp in INPUT_DEFINITIONS:
-        inputs_lines.append(f"  - kind: AutomaticTaskInput")
-        inputs_lines.append(f"    propertyName: {inp['id']}")
-        inputs_lines.append(f"    name: {inp['id']}")
-        inputs_lines.append(f"    shouldPromptUser: true")
-        inputs_lines.append("")
 
-    comp_data = (
-        "kind: TaskDialog\n\n"
-        "inputs:\n" + "\n".join(inputs_lines) + "\n\n"
-        f"modelDisplayName: {PROMPT_NAME}\n\n"
-        f"modelDescription: {PROMPT_DESCRIPTION}\n\n"
-        "action:\n"
-        "  kind: InvokeAIBuilderModelTaskAction\n"
-        f"  aIModelId: {model_id}\n\n"
-        "outputMode: All\n\n"
+def _delete_model_and_configs(model_id):
+    """Model と関連 Config を削除（Published Training は 405 で無視）"""
+    configs = api_get(
+        f"msdyn_aiconfigurations?$filter=_msdyn_aimodelid_value eq '{model_id}'"
+        "&$select=msdyn_aiconfigurationid,statecode"
     )
-
-    if existing_comp.get("value"):
-        comp_id = existing_comp["value"][0]["botcomponentid"]
-        api_patch(f"botcomponents({comp_id})", {"data": comp_data})
-        print(f"  Bot Component 更新: {comp_id}")
-    else:
-        comp_body = {
-            "name": PROMPT_NAME,
-            "schemaname": comp_schemaname,
-            "componenttype": 9,
-            "_parentbotid_value": bot_id,
-            "data": comp_data,
-            "description": PROMPT_DESCRIPTION,
-        }
-        comp_id = api_post("botcomponents", comp_body, solution=SOLUTION_NAME)
-        print(f"  Bot Component 作成: {comp_id}")
-
-
-if __name__ == "__main__":
-    deploy()
+    for c in configs.get("value", []):
+        try:
+            api_delete(f"msdyn_aiconfigurations({c['msdyn_aiconfigurationid']})")
+        except Exception:
+            pass  # Published Training (state=2) は 405 → 無視
+    time.sleep(2)
+    try:
+        api_delete(f"msdyn_aimodels({model_id})")
+    except Exception:
+        pass
+    time.sleep(3)
 ```
 
 ## ファイル入力（Image or Document Input）の制限事項
@@ -413,92 +254,97 @@ if __name__ == "__main__":
 | 標準（Code Interpreter オフ） | **PNG, JPG, JPEG, PDF** のみ                                              |
 | Code Interpreter オン         | 上記 + **Word (.doc/.docx), Excel (.xls/.xlsx), PowerPoint (.ppt/.pptx)** |
 
-> Code Interpreter を有効にするには: プロンプト設定 → Code Interpreter をオンにする。
-> 詳細: https://learn.microsoft.com/en-us/microsoft-copilot-studio/code-interpreter-for-prompts
-
 ### サイズ・ページ数・時間制限
 
-| 制限項目           | 値                                         |
-| ------------------ | ------------------------------------------ |
-| ファイルサイズ合計 | **25 MB 未満**（全ファイル合計）           |
-| ページ数           | **50 ページ未満**                          |
-| 処理タイムアウト   | **100 秒**（超過するとタイムアウトエラー） |
+| 制限項目           | 値                              |
+| ------------------ | ------------------------------- |
+| ファイルサイズ合計 | **25 MB 未満**（全ファイル合計）|
+| ページ数           | **50 ページ未満**               |
+| 処理タイムアウト   | **100 秒**                      |
 
 ### その他の制限
 
-- **大きなドキュメントからの情報抽出**は不正確・不完全になる場合がある（特にテーブル行）
-- **Copilot Studio エージェントのツールとして追加された AI プロンプト**では、画像/ドキュメント入力は**未対応**
-  - つまり、エージェントが自動的にユーザーのファイルを AI プロンプトに渡すことはできない
-  - ファイル処理が必要な場合は **Power Automate フロー経由**で AI プロンプトを呼び出す
-- モデルによって入出力トークン数の上限と課金レベルが異なる
-
-### 非対応ファイルの回避策（★ ベストプラクティス）
-
-非対応ファイル形式を処理する場合は、以下の 2 つのアプローチがある:
-
-**アプローチ 1: OneDrive for Business PDF 変換（Power Automate フロー内）**
-
-- OneDrive `CreateFile` → `ConvertFile`(PDF) → AI Builder → `DeleteFile`
-- 変換対応: doc, docx, epub, eml, htm, html, md, msg, odp, ods, odt, pps, ppsx, ppt, pptx, rtf, tif, tiff, xls, xlsm, xlsx
-- 詳細は `power-automate` スキルの「OneDrive PDF 変換パターン」を参照
-
-**アプローチ 2: Code Interpreter を有効化（AI プロンプト設定）**
-
-- Word/Excel/PowerPoint を直接処理可能
-- ただし PDF/画像以外の形式（msg, eml, html, md 等）には対応しない
-- Copilot Studio エージェントのツールとしては使用不可
-
-```
-★ ユーザーへの案内テンプレート:
-
-  AI Builder AI プロンプトのファイル入力には以下の制限があります:
-
-  【対応ファイル形式】
-  ・標準: PNG, JPG, JPEG, PDF のみ
-  ・Code Interpreter 有効時: 上記 + Word, Excel, PowerPoint
-
-  【サイズ・ページ制限】
-  ・ファイルサイズ: 全ファイル合計 25 MB 未満
-  ・ページ数: 50 ページ未満
-  ・処理時間: 100 秒以内
-
-  【重要な制限】
-  ・エージェントのツールとしてのファイル入力は未対応です
-  ・大きなドキュメント（特にテーブル）は抽出精度が下がる場合があります
-
-  【非対応形式の対応策】
-  ・Power Automate フロー内で OneDrive ConvertFile を使い PDF 変換する
-  ・Code Interpreter を有効にして Word/Excel/PowerPoint を直接処理する
-
-  参照: https://learn.microsoft.com/en-us/microsoft-copilot-studio/add-inputs-prompt#limitations
-```
+- **Copilot Studio エージェントのツール**ではファイル入力は未対応 → Power Automate フロー経由
+- 非対応ファイル形式は OneDrive for Business `ConvertFile` で PDF 変換してから渡す
 
 ## トラブルシューティング
 
-### AI Model 作成時のエラー
+### AIModelPublish 関連
 
-| エラー          | 原因                    | 対策                                              |
-| --------------- | ----------------------- | ------------------------------------------------- |
-| 400 Bad Request | テンプレート ID が不正  | 固定値 `edfdb190-...` を使用                      |
-| 403 Forbidden   | AI Builder が環境で無効 | Power Platform 管理センターで AI Builder を有効化 |
-| 409 Conflict    | 同名の AI Model が存在  | べき等パターンで検索→更新                         |
+| エラー | 原因 | 対策 |
+|--------|------|------|
+| 404 Not Found | `msdyn_AIModelPublish` を使っている | `AIModelPublish`（プレフィックスなし）を使う |
+| `AnotherRunConfigAlreadyPublished` | 既に Active Run Config がある | 更新パターンを使う（Run Config PATCH）|
+| 400 Bad Request | TemplateId or ModelId が不正 | GUID 形式を確認 |
 
-### botcomponent 作成時のエラー
+### Model 作成関連
 
-| エラー               | 原因                   | 対策                         |
-| -------------------- | ---------------------- | ---------------------------- |
-| Duplicate schemaname | 同じ schemaname が存在 | 既存を検索して PATCH で更新  |
-| YAML parse error     | YAML フォーマット不正  | yaml.dump() を使わず手動構築 |
+| エラー | 原因 | 対策 |
+|--------|------|------|
+| `CRM do not support direct update of Entity Reference` | `_msdyn_templateid_value` を使っている | `msdyn_TemplateId@odata.bind` を使う |
+| `Unexpected parameter(s) statuscode` | Config 作成時に statecode/statuscode 指定 | 指定しない（AIModelPublish が設定する）|
+| `undeclared property` | 存在しない nav property を使っている | `msdyn_AIModelId@odata.bind` を使う |
+| 403 Forbidden | AI Builder が環境で無効 | Power Platform 管理センターで有効化 |
 
-### エージェントに表示されない
+### botcomponent 関連
 
-1. `componenttype=9` であることを確認
-2. `_parentbotid_value` が正しい Bot ID を指していることを確認
-3. `action.aIModelId` が存在する `msdyn_aimodel` を指していることを確認
-4. エージェントを再公開（PvaPublish）したことを確認
+| エラー | 原因 | 対策 |
+|--------|------|------|
+| Duplicate schemaname | 同じ schemaname が存在 | 既存を検索して PATCH で更新 |
+| YAML parse error | yaml.dump() を使った | 手動でダブル改行フォーマット構築 |
+| エージェントに表示されない | componenttype が 9 でない | componenttype=9 を確認 |
+| エージェントに表示されない | PvaPublish していない | 再公開する |
 
-### AI Model が実行時にエラーになる
+### フロー有効化関連
 
-1. `msdyn_customconfiguration` の JSON が正しいことを確認
-2. `_msdyn_activerunconfigurationid_value` が Run Config を指していることを確認
-3. `statecode=1`（Active）であることを確認
+| エラー | 原因 | 対策 |
+|--------|------|------|
+| `GetPredictionSchema failed with BadRequest` | Model が Draft 状態 | 先に AIModelPublish で Active 化 |
+| `does not contain a definition for parameter` | f-string 未使用のキー | dict キーに `f"..."` を使う |
+| `InvalidOpenApiFlow` (0x80060467) | フロー定義の操作パラメータが不正 | 操作スキーマを確認 |
+
+### 環境差異に関する既知の問題
+
+```
+以下の操作は環境によって動作が異なる:
+
+1. _msdyn_xxx_value 形式の PATCH
+   - 一部環境: 成功
+   - 一部環境: "CRM do not support direct update of Entity Reference properties"
+   → 解決: @odata.bind 形式を常に使う
+
+2. Config 作成時の statecode/statuscode 指定
+   - 一部環境: 成功
+   - 一部環境: "Unexpected parameter(s) statuscode"
+   → 解決: AIModelPublish に任せる（指定しない）
+
+3. msdyn_ プレフィックス付きアクション (msdyn_Publish, msdyn_AIModelPublish 等)
+   - 全環境: 404 Not Found
+   → 解決: AIModelPublish（プレフィックスなし）を使う
+
+4. SetState アクション
+   - 全環境: 404 Not Found
+   → 解決: AIModelPublish に任せる
+
+5. PublishAIConfiguration (bound action on Run Config)
+   - 新規 Model + AIModelPublish 済み: AnotherRunConfigAlreadyPublished
+   - 既存 Draft Model に手動 Run Config を作った場合: 成功
+   → 解決: 新規は AIModelPublish のみ。PublishAIConfiguration は不要
+```
+
+## 完全なアンチパターン集
+
+```
+❌ msdyn_AIModelPublish (msdyn_ プレフィックス付き) → 常に 404
+❌ msdyn_Publish → 常に 404
+❌ SetState → 常に 404
+❌ PerformBoundAction → 作成自体が失敗
+❌ _msdyn_templateid_value を Model POST に含める → 一部環境で拒否
+❌ statecode/statuscode を Config POST に含める → 一部環境で拒否
+❌ msdyn_modelrundataspecification を Config POST に含める → 400
+❌ _msdyn_activerunconfigurationid_value を直接 PATCH → 一部環境で拒否
+❌ msdyn_TrainingConfigurationId@odata.bind → undeclared property
+❌ AIModelPublish 後に PublishAIConfiguration → AnotherRunConfigAlreadyPublished
+❌ yaml.dump() で botcomponent YAML を生成 → PVA パーサーで失敗
+❌ Draft Model を参照するフローを有効化 → GetPredictionSchema failed
+```
