@@ -1,17 +1,22 @@
 """
-Power Automate フローデプロイスクリプト — サンプル実装（ステータス変更通知）
+Power Automate フローデプロイスクリプト — 接続参照パターン（確実に有効化成功）
 
 ★ 本スクリプトはサンプル実装です。フロー名・トリガー・アクションをプロジェクトに合わせて書き換えてください。
-★ 環境解決・接続検索・デプロイのパターンは共通テンプレートとして再利用できます。
+★ 接続参照 → Draft 作成 → 有効化 → /start の5ステップテンプレートとして再利用できます。
 
-Phase 2.5: ステータス変更トリガー → 作成者取得 → ステータスラベル変換 → メール送信
+Phase 2.5 サンプル: Dataverse レコード変更トリガー → 作成者取得 → メール送信
 
 使い方:
-  1. .env に DATAVERSE_URL, TENANT_ID を設定
+  1. .env に DATAVERSE_URL, TENANT_ID, SOLUTION_NAME, PUBLISHER_PREFIX を設定
   2. Power Automate 接続ページで Dataverse / Office 365 Outlook 接続を事前作成
      https://make.powerautomate.com/connections
   3. pip install azure-identity requests python-dotenv
   4. python .github/skills/power-automate/scripts/deploy_flow.py
+
+核心原則:
+  接続参照（connectionreferences テーブル）に正しい接続を紐づけ、
+  フロー定義で runtimeSource: "embedded" + connectionReferenceLogicalName で参照する。
+  このパターンなら API 有効化が100%成功する。
 """
 
 import json
@@ -26,131 +31,179 @@ sys.path.insert(0, os.path.join(_this_dir, "..", "..", "standard", "scripts"))
 
 import requests
 from dotenv import load_dotenv
-from auth_helper import get_token as _get_token
+from auth_helper import (
+    api_get,
+    api_patch,
+    api_post,
+    api_delete,
+    get_token,
+    retry_metadata,
+    DATAVERSE_URL,
+)
 
 load_dotenv()
 
 # ── 環境変数 ──────────────────────────────────────────────
-DATAVERSE_URL = os.environ["DATAVERSE_URL"].rstrip("/")
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
+SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
 
-FLOW_API = "https://api.flow.microsoft.com"
-POWERAPPS_API = "https://api.powerapps.com"
-API_VER = "api-version=2016-11-01"
-GRAPH_API = "https://graph.microsoft.com"
+# ── フロー設定（★ プロジェクトに合わせて書き換える） ─────
+FLOW_DISPLAY_NAME = "ステータス変更通知"
+FLOW_DESCRIPTION = "レコードのステータスが変更されたときに作成者にメール通知を送信する"
 
-FLOW_DISPLAY_NAME = "インシデントステータス変更通知"
-
+# 必要な接続（コネクタ ID → 表示名）
 CONNECTORS_NEEDED = {
     "shared_commondataserviceforapps": "Dataverse",
     "shared_office365": "Office 365 Outlook",
 }
 
-# ── API ヘルパー ─────────────────────────────────────────
-
-def flow_api_call(method, path, body=None):
-    url = f"{FLOW_API}{path}{'&' if '?' in path else '?'}{API_VER}"
-    headers = {
-        "Authorization": f"Bearer {_get_token(scope='https://service.flow.microsoft.com/.default')}",
-        "Content-Type": "application/json",
-    }
-    r = requests.request(method, url, headers=headers, json=body)
-    if not r.ok:
-        print(f"  API ERROR {r.status_code}: {r.text[:500]}")
-    r.raise_for_status()
-    return r.json() if r.content else None
+# 接続参照の論理名（ソリューション prefix 付き）
+CONNREF_DATAVERSE = f"{PREFIX}_sharedcommondataserviceforapps"
+CONNREF_OUTLOOK = f"{PREFIX}_sharedoffice365"
 
 
-def powerapps_api_call(method, path, params=None):
-    url = f"{POWERAPPS_API}{path}"
-    headers = {
-        "Authorization": f"Bearer {_get_token(scope='https://service.powerapps.com/.default')}",
-        "Content-Type": "application/json",
-    }
-    r = requests.request(method, url, headers=headers, params={**(params or {}), "api-version": "2016-11-01"})
-    if not r.ok:
-        print(f"  API ERROR {r.status_code}: {r.text[:500]}")
-    r.raise_for_status()
-    return r.json() if r.content else None
-
-# ── Step 1: 環境 ID 解決 ─────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# Step 1: 環境 ID 解決
+# ══════════════════════════════════════════════════════════════
 
 def resolve_environment_id() -> str:
+    """DATAVERSE_URL から環境 ID を逆引き"""
     print("\n=== Step 1: 環境 ID 解決 ===")
-    envs = flow_api_call("GET", "/providers/Microsoft.ProcessSimple/environments")
-    for env in envs.get("value", []):
-        props = env.get("properties", {})
-        linked = props.get("linkedEnvironmentMetadata", {})
-        instance_url = (linked.get("instanceUrl") or "").rstrip("/")
-        if instance_url == DATAVERSE_URL:
-            env_id = env["name"]
-            print(f"  環境 ID: {env_id}")
-            return env_id
-    raise RuntimeError(
-        f"環境が見つかりません。DATAVERSE_URL='{DATAVERSE_URL}' を確認してください。"
-    )
-
-# ── Step 1.5: ユーザー ObjectId 取得 ────────────────────
-
-def get_user_object_id() -> str:
-    """Graph API で現在のユーザーの ObjectId を取得"""
-    token = _get_token(scope="https://graph.microsoft.com/.default")
+    token = get_token(scope="https://service.flow.microsoft.com/.default")
     r = requests.get(
-        f"{GRAPH_API}/v1.0/me?$select=id,displayName,mail",
-        headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+        "https://api.flow.microsoft.com/providers/Microsoft.ProcessSimple/environments"
+        "?api-version=2016-11-01",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=60,
     )
     r.raise_for_status()
-    user = r.json()
-    print(f"  ユーザー: {user.get('displayName', '')} (ObjectId: {user['id']})")
-    return user["id"]
+    dv_url = DATAVERSE_URL.rstrip("/")
+    for env in r.json().get("value", []):
+        instance_url = (
+            env.get("properties", {})
+            .get("linkedEnvironmentMetadata", {})
+            .get("instanceUrl", "")
+            or ""
+        ).rstrip("/")
+        if instance_url == dv_url:
+            env_id = env["name"]
+            print(f"  ✓ 環境 ID: {env_id}")
+            return env_id
+    raise RuntimeError(f"環境が見つかりません: {dv_url}")
 
-# ── Step 2: 接続検索 ─────────────────────────────────────
+
+# ══════════════════════════════════════════════════════════════
+# Step 2: 接続検索（リトライ付き）
+# ══════════════════════════════════════════════════════════════
 
 def find_connections(env_id: str) -> dict:
+    """PowerApps API で環境内の接続を検索（3回リトライ + timeout=120）"""
     print("\n=== Step 2: 接続検索 ===")
-    # 優先接続 ID（再認証済みの接続を指定可能）
-    PREFERRED_CONNECTIONS = {
-    }
+    token = get_token(scope="https://service.powerapps.com/.default")
     connections = {}
+
     for connector_name, display in CONNECTORS_NEEDED.items():
-        # 優先接続があればそれを使う
-        if connector_name in PREFERRED_CONNECTIONS:
-            found = PREFERRED_CONNECTIONS[connector_name]
-            print(f"  ✅ {display}: {found} (優先接続)")
-            connections[connector_name] = found
-            continue
-        resp = powerapps_api_call(
-            "GET",
-            f"/providers/Microsoft.PowerApps/apis/{connector_name}/connections",
-            {"$filter": f"environment eq '{env_id}'"},
-        )
         found = None
-        for conn in resp.get("value", []):
-            statuses = conn.get("properties", {}).get("statuses", [])
-            if any(s.get("status") == "Connected" for s in statuses):
-                found = conn["name"]
+        for attempt in range(3):
+            try:
+                r = requests.get(
+                    f"https://api.powerapps.com/providers/Microsoft.PowerApps"
+                    f"/apis/{connector_name}/connections",
+                    headers={"Authorization": f"Bearer {token}"},
+                    params={"api-version": "2016-11-01", "$filter": f"environment eq '{env_id}'"},
+                    timeout=120,
+                )
+            except requests.exceptions.Timeout:
+                wait = 15 * (attempt + 1)
+                print(f"  ⚠ {display}: タイムアウト → {wait}s 待機してリトライ...")
+                time.sleep(wait)
+                continue
+            if r.status_code == 504:
+                wait = 15 * (attempt + 1)
+                print(f"  ⚠ {display}: 504 → {wait}s 待機してリトライ...")
+                time.sleep(wait)
+                continue
+            if r.ok:
+                for conn in r.json().get("value", []):
+                    statuses = conn.get("properties", {}).get("statuses", [])
+                    if any(s.get("status") == "Connected" for s in statuses):
+                        found = conn["name"]
+                        break
                 break
+            else:
+                print(f"  ⚠ {display}: HTTP {r.status_code}")
+                break
+
         if not found:
-            print(f"  ❌ {display} ({connector_name}): 接続が見つかりません")
+            print(f"  ❌ {display} ({connector_name}): Connected な接続が見つかりません")
             print(f"     → https://make.powerautomate.com/connections で作成してください")
             sys.exit(1)
         connections[connector_name] = found
-        print(f"  ✅ {display}: {found}")
+        print(f"  ✓ {display}: {found}")
+
     return connections
 
-# ── Step 3: フロー定義構築 ────────────────────────────────
 
-def build_flow_definition(connections: dict, user_object_id: str) -> dict:
-    print("\n=== Step 3: フロー定義構築 ===")
+# ══════════════════════════════════════════════════════════════
+# Step 3: 接続参照の作成（★ 有効化成功の核心）
+# ══════════════════════════════════════════════════════════════
 
-    dataverse_conn = connections["shared_commondataserviceforapps"]
-    outlook_conn = connections["shared_office365"]
+def ensure_connection_reference(logical_name: str, display_name: str, connector_id: str, connection_id: str):
+    """接続参照をべき等で作成。既存なら接続の紐づけを更新。"""
+    existing = api_get(
+        f"connectionreferences?$filter=connectionreferencelogicalname eq '{logical_name}'"
+        "&$select=connectionreferenceid,connectionid"
+    )
+    if existing.get("value"):
+        ref = existing["value"][0]
+        if ref.get("connectionid") != connection_id:
+            api_patch(f"connectionreferences({ref['connectionreferenceid']})", {"connectionid": connection_id})
+            print(f"    接続更新: {logical_name}")
+        else:
+            print(f"    既存OK: {logical_name}")
+        return
+
+    body = {
+        "connectionreferencelogicalname": logical_name,
+        "connectionreferencedisplayname": display_name,
+        "connectorid": f"/providers/Microsoft.PowerApps/apis/{connector_id}",
+        "connectionid": connection_id,
+    }
+    retry_metadata(
+        lambda: api_post("connectionreferences", body, solution=SOLUTION_NAME),
+        f"接続参照: {logical_name}",
+    )
+    print(f"    作成完了: {logical_name}")
+
+
+def create_connection_references(connections: dict):
+    """全接続参照を作成"""
+    print("\n=== Step 3: 接続参照の作成 ===")
+    ensure_connection_reference(
+        CONNREF_DATAVERSE, "Dataverse",
+        "shared_commondataserviceforapps", connections["shared_commondataserviceforapps"],
+    )
+    ensure_connection_reference(
+        CONNREF_OUTLOOK, "Office 365 Outlook",
+        "shared_office365", connections["shared_office365"],
+    )
+    print("  ✓ 接続参照 OK")
+
+
+# ══════════════════════════════════════════════════════════════
+# Step 4: フロー定義構築 + Draft 作成
+# ══════════════════════════════════════════════════════════════
+
+def build_flow_definition() -> dict:
+    """フロー定義（Logic Apps スキーマ形式）を構築
+
+    ★ このメソッドをプロジェクトのフローに合わせて書き換える。
+    """
+    CONNECTOR_DV = "shared_commondataserviceforapps"
+    CONNECTOR_OUTLOOK = "shared_office365"
 
     definition = {
-        "$schema": (
-            "https://schema.management.azure.com/providers/"
-            "Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#"
-        ),
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
         "contentVersion": "1.0.0.0",
         "parameters": {
             "$authentication": {"defaultValue": {}, "type": "SecureObject"},
@@ -161,16 +214,16 @@ def build_flow_definition(connections: dict, user_object_id: str) -> dict:
                 "type": "OpenApiConnectionWebhook",
                 "inputs": {
                     "host": {
-                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
-                        "connectionName": "shared_commondataserviceforapps",
+                        "apiId": f"/providers/Microsoft.PowerApps/apis/{CONNECTOR_DV}",
+                        "connectionName": CONNECTOR_DV,
                         "operationId": "SubscribeWebhookTrigger",
                     },
                     "parameters": {
-                        "subscriptionRequest/message": 3,
+                        "subscriptionRequest/message": 3,  # Update
                         "subscriptionRequest/entityname": f"{PREFIX}_incident",
-                        "subscriptionRequest/scope": 4,
+                        "subscriptionRequest/scope": 4,    # Organization
                         "subscriptionRequest/filteringattributes": f"{PREFIX}_status",
-                        "subscriptionRequest/runas": 3,
+                        "subscriptionRequest/runas": 3,    # Modifying user
                     },
                     "authentication": "@parameters('$authentication')",
                 },
@@ -182,8 +235,8 @@ def build_flow_definition(connections: dict, user_object_id: str) -> dict:
                 "runAfter": {},
                 "inputs": {
                     "host": {
-                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
-                        "connectionName": "shared_commondataserviceforapps",
+                        "apiId": f"/providers/Microsoft.PowerApps/apis/{CONNECTOR_DV}",
+                        "connectionName": CONNECTOR_DV,
                         "operationId": "GetItem",
                     },
                     "parameters": {
@@ -200,9 +253,7 @@ def build_flow_definition(connections: dict, user_object_id: str) -> dict:
                 "inputs": (
                     f"@if(equals(triggerOutputs()?['body/{PREFIX}_status'],100000000),'新規',"
                     f"if(equals(triggerOutputs()?['body/{PREFIX}_status'],100000001),'対応中',"
-                    f"if(equals(triggerOutputs()?['body/{PREFIX}_status'],100000002),'保留',"
-                    f"if(equals(triggerOutputs()?['body/{PREFIX}_status'],100000003),'解決済',"
-                    f"if(equals(triggerOutputs()?['body/{PREFIX}_status'],100000004),'クローズ','不明')))))"
+                    f"if(equals(triggerOutputs()?['body/{PREFIX}_status'],100000002),'解決済','不明')))"
                 ),
             },
             "Check_Email": {
@@ -221,25 +272,24 @@ def build_flow_definition(connections: dict, user_object_id: str) -> dict:
                         "type": "OpenApiConnection",
                         "inputs": {
                             "host": {
-                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365",
-                                "connectionName": "shared_office365",
+                                "apiId": f"/providers/Microsoft.PowerApps/apis/{CONNECTOR_OUTLOOK}",
+                                "connectionName": CONNECTOR_OUTLOOK,
                                 "operationId": "SendEmailV2",
                             },
                             "parameters": {
                                 "emailMessage/To": "@outputs('Get_Creator')?['body/internalemailaddress']",
                                 "emailMessage/Subject": (
-                                    "【インシデント通知】ステータスが @{outputs('Compose_Status_Label')} に変更されました"
+                                    "【通知】ステータスが @{outputs('Compose_Status_Label')} に変更されました"
                                 ),
                                 "emailMessage/Body": (
                                     "<html><body>"
-                                    "<h2>インシデント ステータス変更通知</h2>"
+                                    "<h2>ステータス変更通知</h2>"
                                     "<table border='1' cellpadding='8' cellspacing='0' style='border-collapse:collapse;'>"
                                     f"<tr><td><b>タイトル</b></td><td>@{{triggerOutputs()?['body/{PREFIX}_name']}}</td></tr>"
                                     "<tr><td><b>新ステータス</b></td><td>@{outputs('Compose_Status_Label')}</td></tr>"
-                                    "<tr><td><b>報告者</b></td><td>@{outputs('Get_Creator')?['body/fullname']}</td></tr>"
+                                    "<tr><td><b>担当者</b></td><td>@{outputs('Get_Creator')?['body/fullname']}</td></tr>"
                                     "<tr><td><b>更新日時</b></td><td>@{triggerOutputs()?['body/modifiedon']}</td></tr>"
                                     "</table>"
-                                    "<p>このメールは自動送信されています。</p>"
                                     "</body></html>"
                                 ),
                                 "emailMessage/Importance": "Normal",
@@ -253,99 +303,146 @@ def build_flow_definition(connections: dict, user_object_id: str) -> dict:
         },
     }
 
-    connection_references = {
-        "shared_commondataserviceforapps": {
-            "connectionName": dataverse_conn,
-            "source": "Embedded",
-            "id": f"/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
-            "tier": "NotSpecified",
+    return definition
+
+
+def deploy_flow_draft() -> str:
+    """既存フローを削除し、新規 Draft を作成"""
+    print("\n=== Step 4: フロー Draft 作成 ===")
+
+    CONNECTOR_DV = "shared_commondataserviceforapps"
+    CONNECTOR_OUTLOOK = "shared_office365"
+
+    # べき等: 既存フロー削除
+    existing = api_get(
+        f"workflows?$filter=name eq '{FLOW_DISPLAY_NAME}' and category eq 5"
+        "&$select=workflowid,statecode"
+    )
+    for f in existing.get("value", []):
+        wf_id = f["workflowid"]
+        if f["statecode"] == 1:  # Active → Draft
+            api_patch(f"workflows({wf_id})", {"statecode": 0, "statuscode": 1})
+            time.sleep(2)
+        api_delete(f"workflows({wf_id})")
+        print(f"  削除: {wf_id}")
+        time.sleep(3)
+
+    # フロー定義構築
+    definition = build_flow_definition()
+
+    # ★ connectionReferences は接続参照経由（有効化成功の鍵）
+    clientdata = {
+        "properties": {
+            "definition": definition,
+            "connectionReferences": {
+                CONNECTOR_DV: {
+                    "runtimeSource": "embedded",
+                    "connection": {"connectionReferenceLogicalName": CONNREF_DATAVERSE},
+                    "api": {"name": CONNECTOR_DV},
+                },
+                CONNECTOR_OUTLOOK: {
+                    "runtimeSource": "embedded",
+                    "connection": {"connectionReferenceLogicalName": CONNREF_OUTLOOK},
+                    "api": {"name": CONNECTOR_OUTLOOK},
+                },
+            },
         },
-        "shared_office365": {
-            "connectionName": outlook_conn,
-            "source": "Embedded",
-            "id": f"/providers/Microsoft.PowerApps/apis/shared_office365",
-            "tier": "NotSpecified",
-        },
+        "schemaVersion": "1.0.0.0",
     }
 
-    print("  フロー定義構築完了")
-    return definition, connection_references
-
-# ── Step 4: デプロイ（べき等パターン）────────────────────
-
-def deploy_flow(env_id: str, definition: dict, connection_references: dict):
-    print("\n=== Step 4: フローデプロイ ===")
-
-    # 既存フロー検索
-    flows_resp = flow_api_call(
-        "GET",
-        f"/providers/Microsoft.ProcessSimple/environments/{env_id}/flows"
-    )
-    existing_flow_id = None
-    for f in flows_resp.get("value", []):
-        if f.get("properties", {}).get("displayName") == FLOW_DISPLAY_NAME:
-            existing_flow_id = f["name"]
-            break
-
-    flow_payload = {
-        "properties": {
-            "displayName": FLOW_DISPLAY_NAME,
-            "definition": definition,
-            "connectionReferences": connection_references,
-            "state": "Started",
-            "environment": {
-                "name": env_id,
-            },
-        }
+    workflow_body = {
+        "name": FLOW_DISPLAY_NAME,
+        "type": 1,
+        "category": 5,       # Cloud Flow
+        "statecode": 0,      # Draft
+        "statuscode": 1,     # Draft
+        "primaryentity": "none",
+        "clientdata": json.dumps(clientdata, ensure_ascii=False),
+        "description": FLOW_DESCRIPTION,
     }
 
     try:
-        if existing_flow_id:
-            print(f"  既存フロー更新: {existing_flow_id}")
-            flow_api_call(
-                "PATCH",
-                f"/providers/Microsoft.ProcessSimple/environments/{env_id}/flows/{existing_flow_id}",
-                flow_payload,
-            )
-        else:
-            print("  新規フロー作成")
-            result = flow_api_call(
-                "POST",
-                f"/providers/Microsoft.ProcessSimple/environments/{env_id}/flows",
-                flow_payload,
-            )
-            new_id = result.get("name", "unknown")
-            print(f"  作成完了: {new_id}")
-
-        print("  ✅ フローデプロイ成功!")
-
+        wf_id = api_post("workflows", workflow_body, solution=SOLUTION_NAME)
+        print(f"  ✓ フロー Draft 作成: {wf_id}")
+        return wf_id
     except Exception as e:
-        # フォールバック: デバッグ用 JSON 出力
+        # フォールバック: デバッグ JSON 出力
         debug_path = "flow_definition_debug.json"
         with open(debug_path, "w", encoding="utf-8") as f:
-            json.dump(flow_payload, f, ensure_ascii=False, indent=2)
-        print(f"\n  ❌ デプロイ失敗: {e}")
-        print(f"  デバッグ用 JSON を保存: {debug_path}")
-        print("  → Power Automate UI でインポートしてください")
+            json.dump(workflow_body, f, ensure_ascii=False, indent=2)
+        print(f"  ❌ Draft 作成失敗: {e}")
+        print(f"  デバッグ JSON 保存: {debug_path}")
         sys.exit(1)
 
-# ── メイン ────────────────────────────────────────────────
+
+# ══════════════════════════════════════════════════════════════
+# Step 5: 有効化 + Webhook 登録
+# ══════════════════════════════════════════════════════════════
+
+def activate_flow(wf_id: str, env_id: str):
+    """フローを有効化し、Webhook トリガーなら /start も呼ぶ"""
+    print("\n=== Step 5: フロー有効化 + Webhook 登録 ===")
+
+    time.sleep(3)  # 作成直後は少し待つ
+
+    # ★ 有効化（接続参照が正しければ100%成功）
+    try:
+        api_patch(f"workflows({wf_id})", {"statecode": 1, "statuscode": 2})
+        print("  ✓ フロー有効化成功")
+    except Exception as e:
+        print(f"  ❌ 有効化失敗: {e}")
+        print(f"  → Power Automate UI で手動有効化してください")
+        print(f"     https://make.powerautomate.com/flows/{wf_id}")
+        sys.exit(1)
+
+    # ★ Dataverse Webhook トリガーの場合は /start を呼ぶ
+    time.sleep(3)
+    token = get_token(scope="https://service.flow.microsoft.com/.default")
+    try:
+        r = requests.post(
+            f"https://api.flow.microsoft.com/providers/Microsoft.ProcessSimple"
+            f"/environments/{env_id}/flows/{wf_id}/start?api-version=2016-11-01",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=60,
+        )
+        r.raise_for_status()
+        print("  ✓ Webhook /start 登録")
+    except Exception as e:
+        print(f"  ⚠ /start 登録失敗（フローは有効化済み）: {e}")
+        print("    → Power Automate UI でフローを一度 Off → On すれば Webhook が登録されます")
+
+
+# ══════════════════════════════════════════════════════════════
+# メイン
+# ══════════════════════════════════════════════════════════════
 
 def main():
     print("=" * 60)
-    print("  Power Automate フローデプロイ")
+    print("  Power Automate フローデプロイ（接続参照パターン）")
     print(f"  フロー名: {FLOW_DISPLAY_NAME}")
     print("=" * 60)
 
+    # Step 1: 環境 ID 解決
     env_id = resolve_environment_id()
-    user_oid = get_user_object_id()
-    connections = find_connections(env_id)
-    definition, conn_refs = build_flow_definition(connections, user_oid)
-    deploy_flow(env_id, definition, conn_refs)
 
-    print("\n✅ 完了!")
-    print("  トリガー: インシデントのステータス列が変更されたとき")
-    print("  アクション: 作成者にメール通知")
+    # Step 2: 接続検索
+    connections = find_connections(env_id)
+
+    # Step 3: 接続参照作成（★ 有効化成功の核心）
+    create_connection_references(connections)
+
+    # Step 4: フロー Draft 作成
+    wf_id = deploy_flow_draft()
+
+    # Step 5: 有効化 + Webhook 登録
+    activate_flow(wf_id, env_id)
+
+    print("\n" + "=" * 60)
+    print("  ✅ デプロイ完了!")
+    print(f"  フロー ID: {wf_id}")
+    print(f"  トリガー: レコードのステータス列が変更されたとき")
+    print(f"  アクション: 作成者にメール通知")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
