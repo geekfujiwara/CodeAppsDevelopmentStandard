@@ -267,3 +267,77 @@ const result = await client.retrieveMultipleRecordsAsync(
   トランザクション系テーブルでは `top` と併用してレコード数を制限する。
 - **標準テーブル**（`bookableresourcebookings` 等）では `select` が正常に動作する。
   問題が起きるのは主にカスタムテーブル。
+
+---
+
+## 8. pac code add-data-source が日本語 DisplayName で「Failed to sanitize string」エラー
+
+### 症状
+
+```
+Failed to update database references: Failed to sanitize string 顧客一覧
+```
+
+`patch-nameutils.cjs` を適用し、`node -e` で検証しても PAC CLI で同じエラーが再現する。
+
+### 原因
+
+`patch-nameutils.cjs` は `node_modules/@microsoft/power-apps-actions/` 内の `nameUtils.js` を修正するが、
+**`pac code add-data-source` は PAC CLI 内蔵の .NET ランタイム経由で別の `nameUtils.js` を実行する**。
+PAC CLI の `.stage` ディレクトリ配下には複数バージョンが存在し、パッチの到達が不確実。
+
+### 対処: テーブル表示名を一時的に英語に切り替え
+
+```bash
+# 1. API で DisplayName/DisplayCollectionName を英語に変更
+python toggle_table_lang.py en
+
+# 2. pac code add-data-source 実行
+pac code add-data-source -a dataverse -t {prefix}_tablename
+
+# 3. API で日本語に復元
+python toggle_table_lang.py jp
+```
+
+### 前提
+
+- `auth_helper.py` が設定済み（Dataverse API 認証）
+- `toggle_table_lang.py` にプロジェクトのテーブル定義を記述済み
+
+### 備考
+
+- `npx power-apps add-data-source` が正常に使える環境ではこの問題は発生しない
+  （`patch-nameutils.cjs` で解決できる）
+- この問題が起きるのは `npx power-apps` がテナント不一致で使えず `pac code` を
+  使わざるを得ない環境のみ
+
+---
+
+## 9. `pac code add-data-source` がサービスファイルを生成しない
+
+### 症状
+
+`pac code add-data-source -a dataverse -t {table}` は成功するが、
+`src/generated/services/` が空のまま。`src/generated/models/CommonModels.ts` のみ存在。
+
+### 原因
+
+`pac code add-data-source` は `npx power-apps add-data-source` と生成物が異なる。
+PAC CLI 版は最小構成（スキーマ JSON + `dataSourcesInfo.ts` + `CommonModels.ts`）のみを生成し、
+per-table の TypeScript Model/Service ファイルは生成しない。
+
+### 対処
+
+`getClient(dataSourcesInfo)` を直接使用してサービスレイヤーを自前構築する。
+Code Apps SKILL.md の「★ 例外: `pac code add-data-source` が最小構成のみ生成する場合」セクションを参照。
+
+### 生成されるファイル比較
+
+| ファイル | `npx power-apps` | `pac code` |
+|---|---|---|
+| `.power/schemas/dataverse/*.Schema.json` | ✅ | ✅ |
+| `.power/schemas/appschemas/dataSourcesInfo.ts` | ✅ | ✅ |
+| `src/generated/models/CommonModels.ts` | ✅ | ✅ |
+| `src/generated/models/{Table}Model.ts` | ✅ | ❌ |
+| `src/generated/services/{Table}Service.ts` | ✅ | ❌ |
+| `src/generated/index.ts` | ✅ | ❌ |
