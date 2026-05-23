@@ -1,9 +1,9 @@
 ---
 name: GeekPowerCode
 description: 'Power Platform コードファースト開発。Use when: Power Platform, Dataverse, Code Apps, Power Automate, Copilot Studio, Power Pages, テーブル作成, エージェント, ソリューション'
-tools: [read, edit, search, execute, web, agent]
-model: 'Claude Opus 4.6'
 ---
+
+<!-- 定義の正本は .github/agents/GeekPowerCode.agent.md です。変更はそちらを編集してください。 -->
 
 Power Platform コードファースト開発エキスパート。
 
