@@ -143,23 +143,9 @@ npm run setup
 - `GeekPowerCode` に実現したい内容を伝えるだけで、必要なスキルが選択されて開発タスクを進められます
 - このリポジトリの開発標準はスキルとして定義済みのため、マニュアル手順ベースではなくエージェント駆動で利用します
 
-### スキル一覧（11 スキル）
+### スキル一覧
 
-| スキル | 説明 |
-|--------|------|
-| [architecture](.github/skills/architecture/SKILL.md) | 全体アーキテクチャ設計・コンポーネント選定 |
-| [standard](.github/skills/standard/SKILL.md) | 共通基盤（認証・.env・アイコン生成・HTML メールテンプレート） |
-| [dataverse](.github/skills/dataverse/SKILL.md) | テーブル設計・構築・セキュリティロール |
-| [code-apps](.github/skills/code-apps/SKILL.md) | Code Apps 開発（UI 設計・CSP・メール送信含む） |
-| [power-pages](.github/skills/power-pages/SKILL.md) | Power Pages コードサイト開発・デプロイ |
-| [generative-page](.github/skills/generative-page/SKILL.md) | Generative Pages 開発・デバッグ・デプロイ |
-| [model-driven-app](.github/skills/model-driven-app/SKILL.md) | モデル駆動型アプリ構築・公開 |
-| [copilot-studio](.github/skills/copilot-studio/SKILL.md) | エージェント構築・トリガー・ニュース配信 |
-| [power-automate](.github/skills/power-automate/SKILL.md) | クラウドフロー作成・デプロイ |
-| [ai-builder](.github/skills/ai-builder/SKILL.md) | AI プロンプト作成・エージェントツール追加 |
-| [spec-to-markdown](.github/skills/spec-to-markdown/SKILL.md) | 仕様書を markdown 化し、Power Platform 向け factsheet / document を生成 |
-
-> この一覧で担当領域を選び、構成規約・詳細ガイドは [スキルカタログ](.github/skills/README.md) を参照してください。
+スキルの一覧・説明・推奨開発フローは **[スキルカタログ（.github/skills/README.md）](.github/skills/README.md)** で一元管理しています。スキルの追加・変更時はそちらを更新してください。
 
 ---
 
