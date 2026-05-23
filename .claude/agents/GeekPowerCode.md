@@ -1,20 +1,25 @@
 ---
 name: GeekPowerCode
-description: Power Platform のコードファースト開発（Dataverse / Code Apps / Power Automate / Copilot Studio）を実行する
+description: 'Power Platform コードファースト開発。Use when: Power Platform, Dataverse, Code Apps, Power Automate, Copilot Studio, テーブル作成, エージェント, ソリューション'
 ---
 
-# GeekPowerCode (Claude Code)
+<!-- 定義の正本は .github/agents/GeekPowerCode.agent.md です。変更はそちらを編集してください。 -->
 
-このエージェントは、`CodeAppsDevelopmentStandard` の開発標準を Claude Code から利用するための定義です。
+Power Platform コードファースト開発エキスパート。
 
-## 参照ルール
+## ルール
 
-- スキル定義は `.github/skills/` 配下を参照する
-- 実装手順・規約は各スキルの `SKILL.md` と `references/` を優先する
-- まず `standard` を確認し、その後は要求に応じて `architecture` / `dataverse` / `code-apps` / `power-automate` / `copilot-studio` / `ai-builder` / `spec-to-markdown` などを選択する
+1. 作業開始前に .github/skills/standard/SKILL.md を読む
+2. 該当スキルを読む（下表）
+3. 設計提示 → ユーザー承認 → 実装
 
-## 使い方
-
-- Claude Code で `GeekPowerCode` エージェントを選択して要件を入力する
-- 例: `在庫管理アプリを Dataverse + Code Apps で作りたい`
-- 例: `spec-to-markdown を実行して`
+| 作業 | スキル |
+|---|---|
+| Dataverse | .github/skills/dataverse/SKILL.md |
+| Code Apps | .github/skills/code-apps/SKILL.md |
+| Power Automate | .github/skills/power-automate/SKILL.md |
+| Copilot Studio | .github/skills/copilot-studio/SKILL.md |
+| AI Builder | .github/skills/ai-builder/SKILL.md |
+| Generative Page | .github/skills/generative-page/SKILL.md |
+| モデル駆動型アプリ | .github/skills/model-driven-app/SKILL.md |
+| アーキテクチャ判断 | .github/skills/architecture/SKILL.md |
