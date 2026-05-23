@@ -94,11 +94,12 @@ npm run setup
 .
 ├── .github/
 │   ├── agents/                      # Copilot カスタムエージェント定義
-│   └── skills/                      # 製品単位で統合された 10 スキル
+│   └── skills/                      # 製品単位で統合された 11 スキル
 │       ├── architecture/            # アーキテクチャ設計
 │       ├── standard/                # 共通基盤（認証・アイコン・メールテンプレート）
 │       ├── dataverse/               # テーブル設計・構築・セキュリティロール
 │       ├── code-apps/               # Code Apps 開発（UI 設計・CSP・メール送信含む）
+│       ├── power-pages/             # Power Pages コードサイト開発・デプロイ
 │       ├── generative-page/         # Generative Pages 開発
 │       ├── model-driven-app/        # モデル駆動型アプリ構築
 │       ├── copilot-studio/          # エージェント構築・トリガー・ニュース配信
@@ -138,7 +139,7 @@ npm run setup
 - `@GeekPowerCode` に実現したい内容を伝えるだけで、必要なスキルが選択されて開発タスクを進められます
 - このリポジトリの開発標準はスキルとして定義済みのため、マニュアル手順ベースではなくエージェント駆動で利用します
 
-### スキル一覧（10 スキル）
+### スキル一覧（11 スキル）
 
 | スキル | 説明 |
 |--------|------|
@@ -146,6 +147,7 @@ npm run setup
 | [standard](.github/skills/standard/SKILL.md) | 共通基盤（認証・.env・アイコン生成・HTML メールテンプレート） |
 | [dataverse](.github/skills/dataverse/SKILL.md) | テーブル設計・構築・セキュリティロール |
 | [code-apps](.github/skills/code-apps/SKILL.md) | Code Apps 開発（UI 設計・CSP・メール送信含む） |
+| [power-pages](.github/skills/power-pages/SKILL.md) | Power Pages コードサイト開発・デプロイ |
 | [generative-page](.github/skills/generative-page/SKILL.md) | Generative Pages 開発・デバッグ・デプロイ |
 | [model-driven-app](.github/skills/model-driven-app/SKILL.md) | モデル駆動型アプリ構築・公開 |
 | [copilot-studio](.github/skills/copilot-studio/SKILL.md) | エージェント構築・トリガー・ニュース配信 |
