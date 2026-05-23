@@ -102,10 +102,13 @@ def check_pac_auth() -> tuple[bool, str]:
     if result.returncode != 0:
         return False, "pac auth list failed"
 
-    # アクティブプロファイルは * マーク付き
+    # アクティブプロファイルは先頭に * マークが付く
     for line in result.stdout.split("\n"):
-        if "*" in line or "Active" in line:
-            return True, line.strip()
+        stripped_line = line.strip()
+        if not stripped_line:
+            continue
+        if line.lstrip().startswith("*"):
+            return True, stripped_line
 
     # 出力があればプロファイル自体は存在する
     if result.stdout.strip():
