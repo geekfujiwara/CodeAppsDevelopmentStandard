@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。"
+description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。"
 category: architecture
 triggers:
   - "アーキテクチャ設計"
@@ -34,6 +34,7 @@ triggers:
 | **Code Apps**         | リッチ UI、複雑なデータ操作画面、カスタムビジュアル、オフライン対応                          | ノーコードでの素早いプロトタイプ、モバイルネイティブ           |
 | **Canvas Apps**       | 素早いプロトタイプ、モバイル対応、ノーコード/ローコード UI                                   | 複雑な UI カスタマイズ、外部 JS ライブラリ利用                 |
 | **Model-Driven Apps** | Dataverse 標準 UI、フォーム/ビュー/ダッシュボードの自動生成、ビジネスルール統合              | カスタムビジュアル、外部 JS ライブラリ、ノーコード開発者       |
+| **Power Pages**       | 外部ユーザー向けポータル・公開サイト、認証/匿名アクセス、Dataverse 連携、テーブル権限による公開制御 | 複雑なサーバーサイド処理、SSR/ISR、内部業務向けの複雑なリッチ UI |
 | **AI Builder**        | 定型 AI タスク（分類・抽出・要約）、再利用可能な AI プロンプト、エージェントのツール化 | リアルタイム対話、複雑な推論チェーン（★ §6 参照: AI プロンプト優先） |
 | **Dataverse**         | リレーショナルデータ、行レベルセキュリティ、監査、ビジネスルール                             | 大量ログデータ、非構造化データ、全文検索                       |
 
@@ -52,7 +53,7 @@ triggers:
     ├─ イベント/条件に基づく自動処理？ ──→ YES ──→ 【Power Automate】（§4 へ）
     │                                     NO
     │                                     ↓
-    ├─ データの閲覧・編集 UI が必要？ ──→ YES ──→ 【Code Apps / Canvas Apps / Model-Driven Apps】（§5 へ）
+    ├─ データの閲覧・編集 UI が必要？ ──→ YES ──→ 【Code Apps / Power Pages / Canvas Apps / Model-Driven Apps】（§5 へ）
     │                                    NO
     │                                    ↓
     ├─ 再利用可能な AI 処理が必要？ ──→ YES ──→ 【AI Builder】（§6 へ）
@@ -73,6 +74,7 @@ triggers:
 | **対話 + 定期実行**     | Copilot Studio + Power Automate（スケジュールトリガー）  | ニュース配信、定期レポート            |
 | **対話 + イベント駆動** | Copilot Studio + Power Automate（メール/Teams トリガー） | メール自動応答、問い合わせ対応        |
 | **AI 分析 + 対話**      | AI Builder + Copilot Studio                              | ドキュメント分類 + 対話で結果説明     |
+| **外部ポータル + データ操作** | Power Pages + Dataverse + Power Automate            | 顧客向けポータル、パートナーサイト、公開フォーム |
 | **フルスタック**        | Dataverse + Code Apps + Power Automate + Copilot Studio  | 業務アプリ + 自動化 + AI アシスタント |
 
 ---
@@ -204,27 +206,50 @@ triggers:
 
 ---
 
-## 5. Code Apps vs Canvas Apps vs Model-Driven Apps の判断ポイント
+## 5. UI コンポーネント選定
 
 ```
-Q: UI の複雑さは？
+Q: 対象ユーザーは？
 
-├─ 標準的な業務フォーム（Dataverse テーブルの CRUD が中心）
-│   └─ Q: カスタム UI が必要？
-│       ├─ 不要。標準ビュー/フォームで十分 → Model-Driven Apps
-│       └─ 必要 → 下記へ
+├─ 外部ユーザー（顧客・パートナー・匿名アクセス含む）
+│   └─ → Power Pages（Dataverse 連携 + テーブル権限で公開制御）
 │
-├─ シンプル（一覧 + フォーム程度）
-│   └─ Q: 開発チームの技術スタック？
-│       ├─ ローコード寄り → Canvas Apps
-│       └─ コードファースト寄り → Code Apps
-│
-├─ 中程度（ダッシュボード + 複数画面 + フィルタ）
-│   └─ → Code Apps（shadcn/ui のコンポーネントが活きる）
-│
-└─ 複雑（カンバン + ガントチャート + インライン編集 + カスタムビジュアル）
-    └─ → Code Apps 一択（Canvas Apps / Model-Driven Apps では実現困難）
+└─ 内部ユーザー
+    └─ Q: UI の複雑さは？
+
+        ├─ 標準的な業務フォーム（Dataverse テーブルの CRUD が中心）
+        │   └─ Q: カスタム UI が必要？
+        │       ├─ 不要。標準ビュー/フォームで十分 → Model-Driven Apps
+        │       └─ 必要 → 下記へ
+        │
+        ├─ シンプル（一覧 + フォーム程度）
+        │   └─ Q: 開発チームの技術スタック？
+        │       ├─ ローコード寄り → Canvas Apps
+        │       └─ コードファースト寄り → Code Apps
+        │
+        ├─ 中程度（ダッシュボード + 複数画面 + フィルタ）
+        │   └─ → Code Apps（shadcn/ui のコンポーネントが活きる）
+        │
+        └─ 複雑（カンバン + ガントチャート + インライン編集 + カスタムビジュアル）
+            └─ → Code Apps 一択（Canvas Apps / Model-Driven Apps では実現困難）
 ```
+
+### Power Pages を選ぶ条件
+
+**Power Pages は対象ユーザーが外部（顧客・パートナー・匿名含む）の場合に選択する**:
+
+```
+Power Pages を選ぶ条件（すべて該当する場合のみ）:
+  ① 対象ユーザーが外部（顧客・パートナー・一般公開含む）
+  ② Dataverse のデータを外部公開したい、またはテーブル権限で公開範囲を制御したい
+  ③ 認証（Azure AD B2C 等）または匿名アクセスが必要
+
+上記に該当しない（内部ユーザー向け）→ Code Apps / Canvas Apps / Model-Driven Apps
+```
+
+> 詳細な開発・デプロイ手順は [power-pages/SKILL.md](../power-pages/SKILL.md) を参照。
+
+### 内部ユーザー向け: Code Apps vs Canvas Apps vs Model-Driven Apps
 
 | 判断ポイント                                         | Code Apps              | Canvas Apps          | Model-Driven Apps             |
 | ---------------------------------------------------- | ---------------------- | -------------------- | ----------------------------- |
@@ -347,9 +372,10 @@ Q: その AI 処理は再利用するか？
 
 設計を始める前に、以下を順番に確認する:
 
+- [ ] **外部ユーザー向け UI か？** → YES なら Power Pages を含む構成
 - [ ] **自然言語対話が必要か？** → YES なら Copilot Studio を含む構成
 - [ ] **イベント駆動の自動処理が必要か？** → YES なら Power Automate を含む構成
-- [ ] **データ操作 UI が必要か？** → YES なら Code Apps / Canvas Apps / Model-Driven Apps を含む構成
+- [ ] **データ操作 UI が必要か？** → YES で外部ユーザー向けなら Power Pages、内部ユーザー向けなら Code Apps / Canvas Apps / Model-Driven Apps を含む構成
 - [ ] **標準ビュー/フォームで十分か？** → YES なら Model-Driven Apps が最速。カスタム UI なら Code Apps
 - [ ] **再利用可能な AI 処理が必要か？** → YES なら AI Builder を含む構成
 - [ ] **確定的な処理か、LLM 判断が必要か？** → 確定的なら Power Automate、LLM なら Copilot Studio
