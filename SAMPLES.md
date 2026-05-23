@@ -9,6 +9,7 @@
 | パス | 内容 |
 |------|------|
 | `.github/agents/` | GitHub Copilot カスタムエージェント定義 |
+| `.claude/agents/` | Claude Code カスタムエージェント定義 |
 | `.github/skills/` | 各フェーズの開発スキル（検証済み教訓・パターン集） |
 | `.github/skills/**/references/` | 開発標準ドキュメント |
 | `src/components/` | shadcn/ui + カスタム UI コンポーネント |
@@ -62,8 +63,9 @@ cd my-project
 cp .env.example .env
 # DATAVERSE_URL, TENANT_ID, SOLUTION_NAME, PUBLISHER_PREFIX を編集
 
-# 2. GitHub Copilot に指示（GeekPowerCode エージェント）
-# @GeekPowerCode {あなたのアプリ}を作成してください
+# 2. GitHub Copilot / Claude Code に指示（GeekPowerCode エージェント）
+# Copilot: @GeekPowerCode {あなたのアプリ}を作成してください
+# Claude Code: GeekPowerCode エージェントを選択して同じ指示を入力
 # → エージェントが setup_dataverse.py 等を自動生成
 ```
 
@@ -71,11 +73,12 @@ cp .env.example .env
 
 ```powershell
 $base = "https://raw.githubusercontent.com/geekfujiwara/CodeAppsDevelopmentStandard/main"
-@(".github/agents", ".github/skills/standard", ".github/skills/standard/references") | ForEach-Object {
+@(".github/agents", ".claude/agents", ".github/skills/standard", ".github/skills/standard/references") | ForEach-Object {
   New-Item -ItemType Directory -Path $_ -Force
 }
 @(
   @{Src="$base/.github/agents/GeekPowerCode.agent.md"; Dst=".github/agents/GeekPowerCode.agent.md"},
+  @{Src="$base/.claude/agents/GeekPowerCode.md"; Dst=".claude/agents/GeekPowerCode.md"},
   @{Src="$base/.github/skills/standard/SKILL.md"; Dst=".github/skills/standard/SKILL.md"},
   @{Src="$base/.github/skills/standard/references/power-platform-development-standard.md"; Dst=".github/skills/standard/references/power-platform-development-standard.md"}
 ) | ForEach-Object { Invoke-WebRequest -Uri $_.Src -OutFile $_.Dst }
