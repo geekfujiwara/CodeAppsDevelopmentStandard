@@ -1,6 +1,6 @@
 ---
 name: GeekPowerCode
-description: 'Power Platform コードファースト開発。Use when: Power Platform, Dataverse, Code Apps, Power Automate, Copilot Studio, テーブル作成, エージェント, ソリューション'
+description: 'Power Platform コードファースト開発。Use when: Power Platform, Dataverse, Code Apps, Power Automate, Copilot Studio, Power Pages, テーブル作成, エージェント, ソリューション'
 ---
 
 <!-- 定義の正本は .github/agents/GeekPowerCode.agent.md です。変更はそちらを編集してください。 -->
@@ -22,4 +22,5 @@ Power Platform コードファースト開発エキスパート。
 | AI Builder | .github/skills/ai-builder/SKILL.md |
 | Generative Page | .github/skills/generative-page/SKILL.md |
 | モデル駆動型アプリ | .github/skills/model-driven-app/SKILL.md |
+| Power Pages | .github/skills/power-pages/SKILL.md |
 | アーキテクチャ判断 | .github/skills/architecture/SKILL.md |
