@@ -66,7 +66,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'site/**'
+      - 'dist/**'
       - 'src/**'
 
 jobs:
