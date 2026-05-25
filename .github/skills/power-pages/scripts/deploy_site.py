@@ -136,22 +136,18 @@ def step_upload() -> None:
 
 
 def step_provision() -> None:
-    """ポータルプロビジョニング（POWERPAGES_WEBSITE_NAME 指定時のみ）.
-
-    NOTE: pac pages provision-website は PAC CLI 2.7.x では未実装。
-    代替: manage_portal.py --action create または Power Pages 管理画面を使用する。
-    """
+    """pac pages provision-website を実行（POWERPAGES_WEBSITE_NAME 指定時のみ）."""
     if not WEBSITE_NAME:
         logger.info("POWERPAGES_WEBSITE_NAME 未設定のため、プロビジョニングをスキップ")
         logger.info("（既存サイトの更新のみ実行されました）")
         return
 
-    env_id = os.environ.get("ENV_ID", "")
-    logger.warning("pac pages provision-website は PAC CLI 2.7.x で未実装です。")
-    logger.info("代替手段:")
-    logger.info(f"  python {Path(__file__).parent / 'manage_portal.py'} --action create --name \"{WEBSITE_NAME}\" --subdomain \"サブドメイン\"")
-    if env_id:
-        logger.info(f"  管理画面: https://make.powerpages.microsoft.com/environments/{env_id}/portals/home")
+    run_command(
+        ["pac", "pages", "provision-website", "--name", WEBSITE_NAME],
+        f"Web サイトのプロビジョニング: {WEBSITE_NAME}",
+    )
+
+    logger.info(f"✅ Web サイト '{WEBSITE_NAME}' のプロビジョニングが完了しました")
 
 
 # ---------------------------------------------------------------------------
@@ -177,9 +173,6 @@ def main() -> int:
     logger.info("")
     logger.info("=" * 60)
     logger.info("🎉 デプロイ完了")
-    env_id = os.environ.get("ENV_ID", "")
-    if env_id:
-        logger.info(f"   管理画面: https://make.powerpages.microsoft.com/environments/{env_id}/portals/home")
     logger.info("=" * 60)
     return 0
 
