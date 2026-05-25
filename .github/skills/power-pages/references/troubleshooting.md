@@ -5,6 +5,7 @@
 ### E001: `.powerpages-site` が見つからない
 
 **エラー:**
+
 ```
 Error: Could not find .powerpages-site file in the specified path.
 ```
@@ -12,6 +13,7 @@ Error: Could not find .powerpages-site file in the specified path.
 **原因:** `--path` で指定したディレクトリに `.powerpages-site` マーカーファイルが存在しない。
 
 **解決策:**
+
 1. サイトディレクトリに `.powerpages-site` ファイルを作成する
 2. `--path` の指定パスが正しいか確認する
 
@@ -25,6 +27,7 @@ touch ./site/.powerpages-site
 ### E002: 認証プロファイルが未設定
 
 **エラー:**
+
 ```
 Error: No active authentication profile found.
 ```
@@ -32,6 +35,7 @@ Error: No active authentication profile found.
 **原因:** `pac auth list` にアクティブなプロファイルがない。
 
 **解決策:**
+
 ```bash
 # プロファイル作成
 pac auth create --environment {ENVIRONMENT_ID}
@@ -46,6 +50,7 @@ pac auth select --index 1
 ### E003: アップロード時のタイムアウト
 
 **エラー:**
+
 ```
 Error: Request timed out while uploading site files.
 ```
@@ -53,6 +58,7 @@ Error: Request timed out while uploading site files.
 **原因:** サイトのファイルサイズが大きい、またはネットワーク接続が不安定。
 
 **解決策:**
+
 1. ビルド出力のサイズを確認（ソースマップ除外、未使用アセット削除）
 2. ネットワーク接続を確認
 3. リトライする
@@ -74,12 +80,13 @@ du -sh ./dist/
 **原因:** History API モードのルーティングを使用しており、サーバーサイドリライトが未設定。
 
 **解決策:**
+
 - Hash モードに切り替える（推奨）
 - または Power Pages のカスタムエラーページで `index.html` にリダイレクト
 
 ```tsx
 // React Router: Hash モードに変更
-import { HashRouter } from 'react-router-dom'
+import { HashRouter } from "react-router-dom";
 // BrowserRouter → HashRouter に変更
 ```
 
@@ -92,6 +99,7 @@ import { HashRouter } from 'react-router-dom'
 **原因:** テーブル権限が未設定、または Web ロールが割り当てられていない。
 
 **解決策:**
+
 1. テーブル権限レコードが正しく作成されているか確認
 2. Web ロールにテーブル権限が紐付いているか確認
 3. ユーザー（コンタクト）に Web ロールが割り当てられているか確認
@@ -116,6 +124,7 @@ for p in permissions.get("value", []):
 **原因:** Power Pages サイトから外部 API を呼び出す際に CORS ヘッダーが不足。
 
 **解決策:**
+
 - Dataverse Web API は Power Pages ドメインからのアクセスを許可済み（追加設定不要）
 - 外部 API の場合は、API 側で Power Pages ドメインを許可する
 - またはサーバーサイドプロキシとして Power Automate フローを経由する
@@ -129,11 +138,12 @@ for p in permissions.get("value", []):
 **原因:** ビルド設定の `base` が絶対パス（`/`）になっている。
 
 **解決策:**
+
 ```ts
 // vite.config.ts
 export default defineConfig({
-  base: './',  // 相対パスに変更
-})
+  base: "./", // 相対パスに変更
+});
 ```
 
 ```json
@@ -150,6 +160,7 @@ export default defineConfig({
 **原因:** pac CLI のバージョンが古く `pages` サブコマンドが未対応。
 
 **解決策:**
+
 ```bash
 # pac CLI を最新に更新
 npm install -g @microsoft/power-apps-cli@latest
@@ -183,6 +194,7 @@ npx serve ./dist
 ### ネットワークリクエストの確認
 
 ブラウザの DevTools > Network タブで:
+
 - 静的アセットの読み込み状態（200 / 404）
 - API 呼び出しのレスポンス（403 / CORS）
 - リダイレクトの挙動
@@ -198,11 +210,13 @@ npx serve ./dist
 **原因:** Dataverse organization の `blockedattachments` に `.js` が含まれている。
 
 **確認方法:**
+
 ```bash
 python .github/skills/power-pages/scripts/unblock_js.py --check
 ```
 
 **解決策:**
+
 ```bash
 python .github/skills/power-pages/scripts/unblock_js.py
 ```
@@ -216,6 +230,7 @@ python .github/skills/power-pages/scripts/unblock_js.py
 **原因:** ポータルインフラが完全にデプロビジョンされている。トライアル期限切れや管理者による停止後に発生。
 
 **解決策:**
+
 1. 管理画面で状態確認:
    ```
    https://make.powerpages.microsoft.com/environments/{ENV_ID}/portals/home
@@ -237,6 +252,7 @@ python .github/skills/power-pages/scripts/unblock_js.py
 **原因:** PAC CLI 2.7.x にはこのコマンドが未実装。
 
 **代替手段:**
+
 - Power Platform API の Create Website エンドポイント（`manage_portal.py --action create`）
 - Power Pages 管理画面での手動プロビジョニング
 
@@ -249,6 +265,120 @@ python .github/skills/power-pages/scripts/unblock_js.py
 **原因:** レガシーポータル（Power Pages サービス移行前に作成）は Power Platform API に登録されていない。API の `websites` 一覧に表示されない。
 
 **解決策:**
+
 - 既存のレガシーポータルを利用する場合: 管理画面で操作する
 - API で管理したい場合: 新しいポータルを Create Website API で作成する
 - Dataverse の `adx_website` テーブルにレコードがあっても、それが API 管理対象とは限らない
+
+---
+
+### E013: Site settings が毎回リセットされる
+
+**症状:** Dataverse で設定した site settings がデプロイ後に元の値に戻る。
+
+**原因:** `pac pages upload-code-site` は **毎回** `.powerpages-site/site-settings/*.sitesetting.yml` の値で Dataverse を上書きする。
+
+**解決策:**
+
+1. YAML ファイルの `value:` フィールドを正しい値に更新する
+2. 同時に Dataverse も PATCH で更新する（即時反映用）
+3. 以降は YAML ファイルを設定の正として管理する
+
+```yaml
+# 正しい YAML 例:
+id: {guid}
+name: Authentication/Registration/LoginButtonAuthenticationType
+value: "https://login.microsoftonline.com/{tenant-id}/"
+```
+
+> **注意**: `value` フィールドが存在しない YAML ファイルは、upload 時に Dataverse の値を null にリセットする。
+
+---
+
+### E014: "Sign in failed" （カスタム OpenIdConnect）
+
+**症状:** ログインボタンクリック後、Azure AD で認証完了 → Power Pages に戻る → "Sign in failed" エラー。
+
+**原因:** カスタム OpenIdConnect プロバイダー（response_type=id_token）使用時、ブラウザのトラッキング防止機能が nonce 検証用 Cookie をブロックする。
+
+**解決策（優先順）:**
+
+1. **ビルトインプロバイダーに切り替え**: `AzureADLoginEnabled=true`（response_type=code id_token で堅牢）
+2. **Nonce 無効化**: `Authentication/OpenIdConnect/{name}/Nonce` = `false`
+3. **LoginButtonAuthenticationType 設定**: platform 内部のリダイレクト機構を使用
+
+---
+
+### E015: SPA fetch で 500 Internal Server Error（LoginButtonAuthenticationType 設定時）
+
+**症状:** LoginButtonAuthenticationType を設定後、SPA の API コールが 500 エラーを返す。
+
+**原因:** 未認証時の fetch が 302 リダイレクトチェーンを follow → ExternalLogin に GET リクエスト → 500。
+
+**解決策:**
+
+```typescript
+// 全 fetch に redirect: 'manual' を付与
+const res = await fetch('/_api/incidents', {
+  redirect: 'manual',  // ← これが必須
+  headers: { Accept: 'application/json' },
+});
+
+// opaqueredirect (status=0) を検知してログインページへ
+if (res.type === 'opaqueredirect' || res.status === 0) {
+  window.location.href = '/Account/Login';
+}
+```
+
+---
+
+### E016: 白紙ページ（デプロイ後に何も表示されない）
+
+**症状:** デプロイ後にサイトが白紙。HTML ソースを見ると空の `<body>` のみ。
+
+**原因（複数の可能性）:**
+
+1. Website の default language が未設定 → Root ページの mspp_copy が表示される（Content ページではなく）
+2. mspp_copy が `<!doctype html>...` の full HTML になっている（ネスト問題）
+3. Root ページと Content ページの両方が修正されていない
+
+**解決策:**
+
+1. Phase 3.6 で **Root ページ AND Content ページ** の mspp_copy を body-only に修正
+2. body-only: `<div id="root"></div><script ...></script><link ...>`
+
+---
+
+### E017: Web API 404（/_api/ エンドポイント）
+
+**症状:** `/_api/{entity}` にアクセスすると 404。
+
+**原因:** Web API 有効化に必要な4要素のいずれかが欠けている。
+
+**チェックリスト:**
+
+| # | 要素 | 確認方法 |
+|---|------|---------|
+| 1 | Site Setting `Webapi/{table}/enabled` = true | Dataverse mspp_sitesettings テーブル |
+| 2 | Site Setting `Webapi/{table}/fields` = * or 列リスト | 同上 |
+| 3 | Table Permission (Global scope, CRUD) | adx_entitypermission テーブル |
+| 4 | Web Role Link (Table Permission → Authenticated Users) | adx_entitypermission_webrole テーブル |
+
+> 全て設定後、サイト再起動が必要。
+
+---
+
+### E018: 重複ログインボタン
+
+**症状:** ログインページに同じプロバイダーのボタンが2つ表示される。
+
+**原因:** ビルトイン Azure AD プロバイダー + カスタム OpenIdConnect が両方有効。
+
+**解決策:**
+
+```yaml
+# .powerpages-site/site-settings/Authentication-Registration-AzureADLoginEnabled.sitesetting.yml
+id: {guid}
+name: Authentication/Registration/AzureADLoginEnabled
+value: "false"
+```
