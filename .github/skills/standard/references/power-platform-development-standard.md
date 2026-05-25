@@ -1457,11 +1457,15 @@ publish_to_channels(bot_id)
 flowchart TD
     P0["🎨 Phase 0: 設計（ユーザー確認必須）\n1. ユーザー要件ヒアリング\n2. テーブル設計（スキーマ名・列・型・Choice値）\n3. リレーションシップ設計\n4. デモデータ計画\n5. ★ ユーザーに設計を提示し承認を得る"]
 
+    P05["🌐 Phase 0.5: Power Pages 先行デプロイ（並行実行）\n1. サイト作成 (Power Platform API)\n2. プロビジョニング開始（10〜20分）\n3. プレースホルダー SPA デプロイ\n※ Phase 1 と並行して実行"]
+
     P1["🗄️ Phase 1: Dataverse 構築\n1. ソリューション作成\n2. テーブル作成（マスタ → 主 → 従属）\n3. Lookup リレーションシップ作成（リトライ付き）\n4. 日本語ローカライズ（PUT + MetadataId）\n5. 全テーブルにデモデータ投入\n6. テーブル・リレーションシップ検証"]
 
     P2D["🎨 Phase 2 設計: Code Apps UI\n1. code-apps スキルの references/design-system.md で設計\n2. 画面構成・コンポーネント選定\n3. Lookup 名前解決パターン設計\n4. ★ ユーザーに UI 設計を提示し承認を得る"]
 
     P2["⚛️ Phase 2 実装: Code Apps\n1. npx power-apps init\n2. build & push（先にデプロイ！）\n3. npx power-apps add-data-source\n4. 承認済み設計に従い実装\n5. ビルド & 再デプロイ"]
+
+    P2PP["🌐 Phase 2 実装: Power Pages 本番 SPA\n1. 本番 SPA ビルド\n2. pac pages upload-code-site でプレースホルダー上書き\n3. テーブル権限設定"]
 
     P25D["📋 Phase 2.5 設計: Power Automate\n1. フロー名・トリガー・アクション設計\n2. 接続・通知先・メール本文設計\n3. ★ ユーザーに設計を提示し承認を得る"]
 
@@ -1471,8 +1475,11 @@ flowchart TD
 
     P3["🤖 Phase 3 実装: Copilot Studio\n1. UI で Bot 作成\n2. カスタムトピック全削除\n3. 生成オーケストレーション有効化\n4. 指示（Instructions）設定\n5. ★ ナレッジ追加（UI で手動）\n6. ★ MCP Server 追加（UI で手動）\n7. エージェント公開"]
 
+    P0 --> P05
     P0 --> P1
+    P05 -.->|並行| P1
     P1 --> P2D --> P2
+    P1 --> P2PP
     P1 --> P25D --> P25
     P1 --> P3D --> P3
 ```
@@ -1529,9 +1536,30 @@ flowchart TD
 
 - 「**この設計で進めてよいですか？**」と明示的に確認する
 - フィードバックがあれば修正して再提示
-- 承認を得てから Phase 1 に進む
+- 承認を得てから Phase 0.5 / Phase 1 に進む
 
 > **教訓**: 設計フェーズを省略してテーブルを作成すると、リレーションシップの漏れ（カテゴリ↔インシデントの Lookup 未設定）、デモデータの漏れ（コメントテーブルにデータなし）、必要なマスタテーブルの漏れ（設備マスタ未作成）が発生する。設計レビューで防止できる。
+
+### Phase 0.5: Power Pages 先行デプロイ（設計承認直後）
+
+**Power Pages を使うプロジェクトでは、設計承認後に最優先で実行する。**
+
+プロビジョニングに 10〜20 分かかるため、Phase 1（Dataverse 構築）と並行して実行する:
+
+```bash
+python .github/skills/power-pages/scripts/deploy_placeholder.py \
+  --create-site --site-name "サイト名" --subdomain "サブドメイン" --wait
+```
+
+| 項目 | 説明 |
+|------|------|
+| **目的** | Power Pages インフラ（DNS・証明書・ランタイム）の確保を先行開始 |
+| **プレースホルダー SPA** | 「サイト準備中」の最小ページ（テーブル連携なし） |
+| **テンプレート** | `.github/skills/power-pages/template/` に配置済み |
+| **並行実行** | このスクリプト実行中に Phase 1 の Dataverse 構築を進める |
+| **本番 SPA 完成後** | `pac pages upload-code-site` でプレースホルダーを本番 SPA に上書き |
+
+> **教訓**: Power Pages プロビジョニングは日本リージョンで 10〜20 分。Code Apps のように「先に空デプロイ → SDK 接続 → 開発 → 再デプロイ」のサイクルがこの待ち時間で詰まる。プレースホルダー先行デプロイでこのボトルネックを排除する。
 
 ### Phase 2/2.5/3 の設計フェーズ（各フェーズ共通原則）
 

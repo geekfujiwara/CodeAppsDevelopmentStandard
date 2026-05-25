@@ -72,7 +72,29 @@ project-root/
 
 ## 作業フロー（必ずこの順序で進める）
 
-### Step 0: 前提チェック（スクリプト利用可）
+> **重要: Power Pages は「先にデプロイ、後から開発」戦略を採用する。**
+> プロビジョニングに 10〜20 分かかるため、設計承認直後にプレースホルダー SPA をデプロイして
+> インフラ確保を開始し、並行して Dataverse テーブル構築・本番 SPA 開発を進める。
+
+### Step 0: サイト作成 + プレースホルダーデプロイ（最優先で実行）
+
+**Phase 0（設計）の承認後、Phase 1（Dataverse 構築）の前に即実行する。**
+
+```bash
+# サイト作成 + プロビジョニング待機 + プレースホルダーデプロイ
+python .github/skills/power-pages/scripts/deploy_placeholder.py \
+  --create-site --site-name "サイト名" --subdomain "サブドメイン" --wait
+```
+
+このスクリプトが以下を実行する:
+1. Power Platform API でサイト作成リクエスト送信
+2. プロビジョニング完了まで待機（最大 20 分）
+3. 完了後にプレースホルダー SPA（`template/`）をアップロード
+
+> **待機中に Dataverse テーブル構築（Phase 1）を並行で進める。**
+> プレースホルダー SPA は「サイト準備中」メッセージのみの最小静的ページ。
+
+### Step 1: 前提チェック（スクリプト利用可）
 
 ```bash
 python .github/skills/power-pages/scripts/check_prerequisites.py
