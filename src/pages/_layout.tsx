@@ -4,13 +4,26 @@ import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Sidebar } from "@/components/sidebar"
 import { SidebarProvider, useSidebarContext } from "@/components/sidebar-layout"
-import { Menu } from "lucide-react"
+import { CommandPalette } from "@/components/command-palette"
+import { QuickActivityFab } from "@/components/quick-activity-fab"
+import { Menu, RefreshCw, Search } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 
 type LayoutProps = { showHeader?: boolean }
 
 function LayoutContent({ showHeader = true }: LayoutProps) {
   const [isMobileView, setIsMobileView] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const { isCollapsed, toggleSidebar, toggleMobile, isMobileOpen } = useSidebarContext()
+  const queryClient = useQueryClient()
+
+  const handleRefreshAll = async () => {
+    setIsRefreshing(true)
+    await queryClient.invalidateQueries()
+    toast.success("全データを更新しました")
+    setIsRefreshing(false)
+  }
 
   useEffect(() => {
     const updateIsMobile = () => setIsMobileView(window.innerWidth < 768)
@@ -48,16 +61,35 @@ function LayoutContent({ showHeader = true }: LayoutProps) {
               </Button>
               <div>
                 <h1 className="text-lg font-bold text-primary">
-                  インシデント管理
+                  Geek Sales
                 </h1>
                 <p className="text-xs text-muted-foreground hidden sm:block">
-                  Incident Management
+                  営業支援
                 </p>
               </div>
             </div>
 
-            {/* 右側: テーマ切替 */}
+            {/* 右側: 検索＋更新ボタン＋テーマ切替 */}
             <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+                aria-label="検索 (Ctrl+K)"
+                title="検索 (Ctrl+K)"
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleRefreshAll}
+                disabled={isRefreshing}
+                aria-label="全データを更新"
+                title="全データを更新"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              </Button>
               <ModeToggle />
             </div>
           </div>
@@ -77,6 +109,10 @@ function LayoutContent({ showHeader = true }: LayoutProps) {
           </main>
         </div>
       </div>
+
+      {/* グローバルコンポーネント */}
+      <CommandPalette />
+      <QuickActivityFab />
     </div>
   )
 }

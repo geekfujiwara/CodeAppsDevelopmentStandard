@@ -8,7 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 
 interface FormModalProps {
@@ -23,6 +22,7 @@ interface FormModalProps {
   onExport?: () => void
   onCancel?: () => void
   onSave?: () => void
+  formId?: string
   saveLabel?: string
   cancelLabel?: string
   isSaving?: boolean
@@ -47,10 +47,6 @@ export function FormModal({
   const handleCancel = () => {
     onCancel?.()
     onOpenChange(false)
-  }
-
-  const handleSave = () => {
-    onSave?.()
   }
 
   const maxWidthClass = {
@@ -85,11 +81,11 @@ export function FormModal({
         </DialogHeader>
 
         {/* スクロール可能なコンテンツエリア */}
-        <ScrollArea className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
           <div className="px-6 py-6">
             {children}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* フッター */}
         <DialogFooter className="px-6 py-4 border-t border-border bg-muted/30 flex-shrink-0">
@@ -116,7 +112,15 @@ export function FormModal({
                   {cancelLabel}
                 </Button>
                 <Button
-                  onClick={handleSave}
+                  type="button"
+                  onClick={() => {
+                    console.log('[FormModal] 💾 Save button clicked, onSave:', typeof onSave, 'isSaving:', isSaving);
+                    if (onSave) {
+                      onSave();
+                    } else {
+                      console.warn('[FormModal] ⚠️ onSave is undefined!');
+                    }
+                  }}
                   disabled={isSaving}
                   className="gap-2"
                 >

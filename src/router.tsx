@@ -7,15 +7,14 @@ const NotFoundPage = lazy(() => import("@/pages/not-found"));
 // ダッシュボード
 const DashboardPage = lazy(() => import("@/pages/dashboard"));
 
-// インシデント管理ページ
-const IncidentListPage = lazy(() => import("@/pages/incidents"));
-const IncidentDetailPage = lazy(() => import("@/pages/incident-detail"));
-
-// カンバンボード
-const KanbanPage = lazy(() => import("@/pages/kanban"));
-
-// IT 資産管理
-const AssetsPage = lazy(() => import("@/pages/assets"));
+// 営業管理
+const CustomersPage = lazy(() => import("@/pages/customers"));
+const CustomerDetailPage = lazy(() => import("@/pages/customer-detail"));
+const OpportunitiesPage = lazy(() => import("@/pages/opportunities"));
+const OpportunityDetailPage = lazy(() => import("@/pages/opportunity-detail"));
+const ActivitiesPage = lazy(() => import("@/pages/activities"));
+const PipelinePage = lazy(() => import("@/pages/pipeline"));
+const TerritoryPage = lazy(() => import("@/pages/territory"));
 
 // ローディングコンポーネント
 const PageLoader = () => (
@@ -52,10 +51,13 @@ export const router = createBrowserRouter(
       children: [
         { index: true, element: <Navigate to="/dashboard" replace /> },
         { path: "dashboard", element: withSuspense(DashboardPage) },
-        { path: "incidents", element: withSuspense(IncidentListPage) },
-        { path: "incidents/:id", element: withSuspense(IncidentDetailPage) },
-        { path: "kanban", element: withSuspense(KanbanPage) },
-        { path: "assets", element: withSuspense(AssetsPage) },
+        { path: "customers", element: withSuspense(CustomersPage) },
+        { path: "customers/:id", element: withSuspense(CustomerDetailPage) },
+        { path: "opportunities", element: withSuspense(OpportunitiesPage) },
+        { path: "opportunities/:id", element: withSuspense(OpportunityDetailPage) },
+        { path: "pipeline", element: withSuspense(PipelinePage) },
+        { path: "territory", element: withSuspense(TerritoryPage) },
+        { path: "activities", element: withSuspense(ActivitiesPage) },
       ],
     },
   ],
