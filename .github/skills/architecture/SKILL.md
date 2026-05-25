@@ -249,6 +249,11 @@ Power Pages を選ぶ条件（すべて該当する場合のみ）:
 
 > 詳細な開発・デプロイ手順は [power-pages/SKILL.md](../power-pages/SKILL.md) を参照。
 
+> **⚠️ Power Pages を選択した場合の開発フロー注意**:
+> Power Pages はプロビジョニングに **10〜20 分** かかる。設計承認（Phase 0）直後に **Phase 0.5** として
+> プレースホルダー SPA を先行デプロイし、Phase 1（Dataverse 構築）と並行してインフラ確保を開始する。
+> 詳細は `power-pages` スキルの Step 0 を参照。
+
 ### 内部ユーザー向け: Code Apps vs Canvas Apps vs Model-Driven Apps
 
 | 判断ポイント                                         | Code Apps              | Canvas Apps          | Model-Driven Apps             |

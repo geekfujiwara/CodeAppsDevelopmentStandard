@@ -136,18 +136,24 @@ def step_upload() -> None:
 
 
 def step_provision() -> None:
-    """pac pages provision-website を実行（POWERPAGES_WEBSITE_NAME 指定時のみ）."""
+    """プロビジョニング案内（provision-website は PAC CLI 未実装のため API 経由を案内）."""
     if not WEBSITE_NAME:
         logger.info("POWERPAGES_WEBSITE_NAME 未設定のため、プロビジョニングをスキップ")
         logger.info("（既存サイトの更新のみ実行されました）")
         return
 
-    run_command(
-        ["pac", "pages", "provision-website", "--name", WEBSITE_NAME],
-        f"Web サイトのプロビジョニング: {WEBSITE_NAME}",
-    )
-
-    logger.info(f"✅ Web サイト '{WEBSITE_NAME}' のプロビジョニングが完了しました")
+    # NOTE: pac pages provision-website は PAC CLI 2.7.x 時点で未実装
+    # Power Platform API 経由でサイト作成が必要
+    logger.warning("⚠️  pac pages provision-website は PAC CLI で未実装です")
+    logger.info("   代替手段:")
+    logger.info("   1. python scripts/deploy_placeholder.py --create-site --wait")
+    logger.info("   2. python scripts/manage_portal.py --action create --name '...' --subdomain '...'")
+    logger.info("   3. Power Pages 管理画面で手動作成:")
+    env_id = os.environ.get("ENV_ID", "")
+    if env_id:
+        logger.info(f"      https://make.powerpages.microsoft.com/environments/{env_id}/portals/home")
+    logger.info("")
+    logger.info("   推奨: Phase 0.5 で deploy_placeholder.py を使い、プロビジョニングを並行実行する")
 
 
 # ---------------------------------------------------------------------------
