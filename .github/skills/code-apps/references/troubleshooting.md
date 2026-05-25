@@ -498,3 +498,180 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 - `pac code push` は `npm run build` の成果物（`dist/`）を Power Platform にアップロードする
 - `-env` でターゲット環境、`-s` でソリューションを指定
 - 2回目以降は `power.config.json` に appId が記録されるため `-env` `-s` は省略可能
+
+---
+
+## 10. Dataverse ルックアップ書き込み時の odata.bind 形式エラー（0x80048d19）
+
+### 症状
+
+`createRecordAsync` / `updateRecordAsync` で HTTP 400 エラー:
+```
+code: 0x80048d19
+message: "Error identified in Payload provided by the user for Entity..."
+```
+
+### 原因
+
+ルックアップ列への書き込み時に **読み取り用のプロパティ名** を使ってしまっている。
+
+- 読み取り時: `_geek_customerid_value` （アンダースコア付き）
+- 書き込み時: `geek_customerid@odata.bind` （論理名 + @odata.bind）
+
+### 例
+
+```typescript
+// ❌ 読み取り形式で書き込もうとする → 400 エラー
+const data = {
+  "_geek_customerid_value@odata.bind": `/accounts(${accountId})`,
+};
+
+// ✅ 正しい書き込み形式
+const data = {
+  "geek_customerid@odata.bind": `/accounts(${accountId})`,
+};
+```
+
+### 汎用ルール
+
+| 操作 | プロパティ形式 | 例 |
+|---|---|---|
+| 読み取り（select / filter） | `_logicalname_value` | `_geek_customerid_value` |
+| 書き込み（create / update） | `logicalname@odata.bind` | `"geek_customerid@odata.bind": "/accounts(guid)"` |
+
+### 注意
+
+- `@odata.bind` の値は **相対 URI**（`/tablename(guid)` 形式）
+- 複数のルックアップ列を書き込む場合、すべてのルックアップで同じルールが適用される
+- Web API ドキュメントでは `_field_value` はリードオンリーと明記されている
+
+---
+
+## 11. FormModal の保存ボタンが動かない — DOM 操作パターンの罠
+
+### 症状
+
+`FormModal` コンポーネントの保存ボタンをクリックしても、子コンポーネントの submit ロジックが発火しない。
+
+### 失敗パターン（やってはいけない）
+
+```typescript
+// ❌ 1. hidden submit ボタン + getElementById
+<button type="submit" id="hidden-submit" style={{ display: 'none' }} />
+// → Radix Dialog が Portal レンダリングするため getElementById で見つからない
+
+// ❌ 2. form.requestSubmit()
+document.getElementById('my-form')?.requestSubmit()
+// → 同上。Dialog 内の要素は document.body 直下の Portal にマウントされる
+
+// ❌ 3. formId + HTMLFormElement
+<form id={formId}> + <button type="submit" form={formId}>
+// → React 19 + Radix Portal で form 属性の関連付けが機能しない
+```
+
+### 正解パターン: React Ref で関数を渡す
+
+```typescript
+// 親コンポーネント
+const submitRef = useRef<(() => void) | null>(null);
+
+<FormModal
+  onSave={() => { submitRef.current?.() }}
+>
+  <MyForm submitRef={submitRef} onSubmit={handleSubmit} />
+</FormModal>
+
+// 子コンポーネント（<form> 要素は使わない）
+function MyForm({ submitRef, onSubmit }) {
+  const [data, setData] = useState(initialData);
+
+  const doSubmit = () => {
+    onSubmit(data);
+  };
+
+  // ref に submit 関数を登録
+  submitRef.current = doSubmit;
+
+  return (
+    <div className="space-y-4">
+      {/* form fields - <form> タグ不要 */}
+    </div>
+  );
+}
+```
+
+### なぜこのパターンが正しいか
+
+1. **Radix Dialog は Portal レンダリング** — Dialog 内のコンテンツは React ツリー外のDOMノードに配置されるため、`getElementById` / `form` 属性によるリンクが機能しない
+2. **React の単方向データフロー** — DOM 操作ではなく、state と ref で制御するのが React の設計思想
+3. **`<form>` 要素は不要** — ブラウザのフォーム submit イベントに依存せず、JavaScript で直接データを収集・送信する
+
+---
+
+## 12. ScrollArea がモーダル内でスクロールしない
+
+### 症状
+
+`@radix-ui/react-scroll-area`（shadcn/ui の `ScrollArea`）をモーダル内に配置しても、コンテンツが溢れた時にスクロールしない。
+
+### 原因
+
+ScrollArea は内部で独自のスクロールバーを描画するため、親要素の高さ計算が複雑になる。  
+Flexbox レイアウト内で `flex-1` を指定しても、`min-height: 0` がないと高さが確定せずスクロールが発生しない。
+
+### 解決策: ネイティブ overflow を使う
+
+```tsx
+// ❌ ScrollArea — モーダル内で動作しない場合が多い
+<ScrollArea className="flex-1">
+  <div className="px-6 py-6">{children}</div>
+</ScrollArea>
+
+// ✅ ネイティブ overflow — 確実に動作する
+<div className="flex-1 overflow-y-auto min-h-0">
+  <div className="px-6 py-6">{children}</div>
+</div>
+```
+
+### ポイント
+
+- `flex-1` + `min-h-0` + `overflow-y-auto` の3点セットが必須
+- `min-h-0` がないと Flexbox が子要素の高さをそのまま伸ばしてしまいスクロールが発生しない
+- モーダル全体を `flex flex-col max-h-[90vh]` にし、ヘッダー/フッターに `flex-shrink-0` を付ける
+
+---
+
+## 13. SelectTrigger がグリッドレイアウトで文字溢れする
+
+### 症状
+
+`SelectTrigger` がグリッドセル内で横幅を超えて拡がり、レイアウトが崩れる。選択値が長いテキストの場合にセルからはみ出す。
+
+### 原因
+
+shadcn/ui デフォルトの `SelectTrigger` は `w-fit` + `whitespace-nowrap` が設定されているため、  
+コンテンツ幅に応じて無制限に拡がる。
+
+### 修正
+
+```tsx
+// SelectTrigger コンポーネントの className を修正
+// ❌ w-fit + whitespace-nowrap + line-clamp-1
+// ✅ w-full + min-w-0 + truncate
+
+<SelectPrimitive.Trigger
+  className={cn(
+    // w-full で親幅に従う
+    "flex w-full items-center justify-between gap-2 ...",
+    // 子要素の値テキストを truncate
+    "*:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:truncate",
+    className
+  )}
+>
+```
+
+### ポイント
+
+- `w-full` で親コンテナの幅に収まるようにする
+- `*:data-[slot=select-value]:min-w-0` + `truncate` で値テキストを省略表示
+- CSS Grid の子要素は `min-width: 0` を明示しないとオーバーフローする（Grid の仕様）

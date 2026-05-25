@@ -6,205 +6,446 @@ import { Button } from "@/components/ui/button";
 import { ListTable } from "@/components/list-table";
 import type { TableColumn } from "@/components/list-table";
 import {
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
   PieChart,
   Pie,
   Cell,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import {
-  AlertCircle,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  BarChart3,
-  UserX,
+  Handshake,
+  TrendingUp,
+  Trophy,
+  CalendarClock,
   ArrowRight,
+  Building2,
+  ClipboardList,
+  Percent,
+  Timer,
+  XCircle,
+  Scale,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 import {
-  useIncidents,
-  useCategories,
-  usePriorities,
-  useSystemUsers,
-} from "@/hooks/use-incidents";
-import type { Geek_incidents } from "@/generated/models/Geek_incidentsModel";
-import { statusLabels, statusColors, IncidentStatus } from "@/types/incident";
+  useOpportunities,
+  useCustomers,
+  useActivities,
+} from "@/hooks/use-dataverse";
+import { StageOptions, IndustryOptions, ActivityTypeOptions, type Opportunity } from "@/types/dataverse";
 import { LoadingSkeletonGrid } from "@/components/loading-skeleton";
 
-type IncidentRow = Geek_incidents & Record<string, unknown>;
+type OpportunityRow = Opportunity & Record<string, unknown>;
+
+// ── カラーパレット ──
+const COLORS = [
+  "#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#06b6d4", "#ec4899", "#14b8a6",
+];
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { data: incidents = [], isLoading } = useIncidents();
-  const { data: categories = [] } = useCategories();
-  const { data: priorities = [] } = usePriorities();
-  const { data: users = [] } = useSystemUsers();
+  const { data: opportunities = [], isLoading: loadingOpp } = useOpportunities();
+  const { data: customers = [] } = useCustomers();
+  const { data: activities = [] } = useActivities();
 
-  const userMap = useMemo(() => {
+  // ── 顧客マップ ──
+  const customerMap = useMemo(() => {
     const m = new Map<string, string>();
-    users.forEach((u) =>
-      m.set(u.systemuserid, u.fullname || u.internalemailaddress || ""),
-    );
+    customers.forEach((c) => m.set(c.geek_customerid, c.geek_name));
     return m;
-  }, [users]);
-  const categoryMap = useMemo(() => {
-    const m = new Map<string, string>();
-    categories.forEach((c) => m.set(c.geek_incidentcategoryid, c.geek_name));
-    return m;
-  }, [categories]);
-  const priorityMap = useMemo(() => {
-    const m = new Map<string, string>();
-    priorities.forEach((p) => m.set(p.geek_priorityid, p.geek_name));
-    return m;
-  }, [priorities]);
+  }, [customers]);
 
-  const newCount = incidents.filter(
-    (i) => i.geek_status === IncidentStatus.NEW,
-  ).length;
-  const inProgressCount = incidents.filter(
-    (i) => i.geek_status === IncidentStatus.IN_PROGRESS,
-  ).length;
-  const resolvedCount = incidents.filter(
-    (i) => i.geek_status === IncidentStatus.RESOLVED,
-  ).length;
-  const closedCount = incidents.filter(
-    (i) => i.geek_status === IncidentStatus.CLOSED,
-  ).length;
+  // ── 営業 KPI 計算 ──
+  const totalOpportunities = opportunities.length;
+  const pipelineAmount = useMemo(
+    () =>
+      opportunities
+        .filter((o) => o.geek_stage !== 100000004 && o.geek_stage !== 100000005 && o.geek_stage !== 100000006)
+        .reduce((sum, o) => sum + (o.geek_amount ?? 0), 0),
+    [opportunities],
+  );
+  const wonAmount = useMemo(
+    () =>
+      opportunities
+        .filter((o) => o.geek_stage === 100000004)
+        .reduce((sum, o) => sum + (o.geek_amount ?? 0), 0),
+    [opportunities],
+  );
+  const wonCount = opportunities.filter((o) => o.geek_stage === 100000004).length;
+  const lostCount = opportunities.filter((o) => o.geek_stage === 100000005).length;
+  const closedCount = wonCount + lostCount;
+  const winRate = closedCount > 0 ? Math.round((wonCount / closedCount) * 100) : 0;
 
-  const unassigned = incidents.filter(
-    (i) =>
-      !i._geek_assigneeid_value &&
-      i.geek_status !== IncidentStatus.CLOSED &&
-      i.geek_status !== IncidentStatus.RESOLVED,
+  // 加重パイプライン（金額 × 確率）
+  const weightedPipeline = useMemo(
+    () =>
+      opportunities
+        .filter((o) => o.geek_stage !== 100000004 && o.geek_stage !== 100000005 && o.geek_stage !== 100000006)
+        .reduce((sum, o) => sum + (o.geek_amount ?? 0) * ((o.geek_probability ?? 50) / 100), 0),
+    [opportunities],
   );
 
-  const recentIncidents = incidents.slice(0, 5);
+  // 平均商談サイクル（受注案件の作成日〜受注日）
+  const avgDealCycle = useMemo(() => {
+    const wonOpps = opportunities.filter(
+      (o) => o.geek_stage === 100000004 && o.createdon && o.modifiedon,
+    );
+    if (wonOpps.length === 0) return 0;
+    const totalDays = wonOpps.reduce((sum, o) => {
+      const start = new Date(o.createdon!).getTime();
+      const end = new Date(o.modifiedon!).getTime();
+      return sum + Math.max(1, Math.round((end - start) / 86400000));
+    }, 0);
+    return Math.round(totalDays / wonOpps.length);
+  }, [opportunities]);
 
-  const categoryStats = useMemo(() => {
-    const map = new Map<string, number>();
-    incidents.forEach((i) => {
-      const catId = i._geek_categoryid_value as string | undefined;
-      const name = catId ? categoryMap.get(catId) || "未分類" : "未分類";
-      map.set(name, (map.get(name) || 0) + 1);
+  const thisMonthActivities = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    return activities.filter((a) => {
+      if (!a.geek_activitydate) return false;
+      const d = new Date(a.geek_activitydate);
+      return d.getFullYear() === y && d.getMonth() === m;
+    }).length;
+  }, [activities]);
+
+  // ── パイプライン（フェーズ別金額） ──
+  const pipelineByStage = useMemo(() => {
+    const stageMap = new Map<number, number>();
+    opportunities.forEach((o) => {
+      if (o.geek_stage == null) return;
+      stageMap.set(o.geek_stage, (stageMap.get(o.geek_stage) ?? 0) + (o.geek_amount ?? 0));
     });
-    return Array.from(map.entries())
-      .sort((a, b) => b[1] - a[1])
+    return Array.from(stageMap.entries())
+      .map(([stage, amount]) => ({
+        name: StageOptions[stage] ?? "不明",
+        amount,
+        stage,
+      }))
+      .sort((a, b) => a.stage - b.stage);
+  }, [opportunities]);
+
+  // ── 月別受注推移（過去6ヶ月） ──
+  const monthlyWonTrend = useMemo(() => {
+    const now = new Date();
+    const months: { key: string; label: string; amount: number; count: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = `${d.getMonth() + 1}月`;
+      months.push({ key, label, amount: 0, count: 0 });
+    }
+    opportunities
+      .filter((o) => o.geek_stage === 100000004 && o.modifiedon)
+      .forEach((o) => {
+        const d = new Date(o.modifiedon!);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const m = months.find((x) => x.key === key);
+        if (m) {
+          m.amount += o.geek_amount ?? 0;
+          m.count += 1;
+        }
+      });
+    return months;
+  }, [opportunities]);
+
+  // ── 業種別商談分布 ──
+  const industryDistribution = useMemo(() => {
+    const m = new Map<number, { count: number; amount: number }>();
+    opportunities.forEach((o) => {
+      const cid = o._geek_customerid_value;
+      if (!cid) return;
+      const customer = customers.find((c) => c.geek_customerid === cid);
+      const industry = customer?.geek_industry ?? 100000005;
+      const cur = m.get(industry) ?? { count: 0, amount: 0 };
+      cur.count += 1;
+      cur.amount += o.geek_amount ?? 0;
+      m.set(industry, cur);
+    });
+    return Array.from(m.entries())
+      .map(([industry, data]) => ({
+        name: IndustryOptions[industry] ?? "その他",
+        value: data.count,
+        amount: data.amount,
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [opportunities, customers]);
+
+  // ── 活動種別内訳 ──
+  const activityTypeDistribution = useMemo(() => {
+    const m = new Map<number, number>();
+    activities.forEach((a) => {
+      const t = a.geek_type ?? 100000004;
+      m.set(t, (m.get(t) ?? 0) + 1);
+    });
+    return Array.from(m.entries())
+      .map(([type, count]) => ({
+        name: ActivityTypeOptions[type] ?? "その他",
+        value: count,
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [activities]);
+
+  // ── 顧客別パイプライン TOP5 ──
+  const customerPipelineTop5 = useMemo(() => {
+    const m = new Map<string, number>();
+    opportunities
+      .filter((o) => o.geek_stage !== 100000004 && o.geek_stage !== 100000005 && o.geek_stage !== 100000006)
+      .forEach((o) => {
+        const cid = o._geek_customerid_value;
+        if (!cid) return;
+        m.set(cid, (m.get(cid) ?? 0) + (o.geek_amount ?? 0));
+      });
+    return Array.from(m.entries())
+      .map(([cid, amount]) => ({
+        name: customerMap.get(cid) ?? "不明",
+        amount,
+      }))
+      .sort((a, b) => b.amount - a.amount)
       .slice(0, 5);
-  }, [incidents, categoryMap]);
+  }, [opportunities, customerMap]);
 
-  const statusChartData = [
-    { name: "新規", value: newCount, color: "#3b82f6" },
-    { name: "対応中", value: inProgressCount, color: "#eab308" },
-    { name: "解決済", value: resolvedCount, color: "#22c55e" },
-    { name: "クローズ", value: closedCount, color: "#6b7280" },
-  ].filter((d) => d.value > 0);
+  // ── 受注予測（フォーキャスト）：今後3ヶ月の月別 ──
+  const forecastData = useMemo(() => {
+    const now = new Date();
+    const months: { label: string; forecast: number; won: number }[] = [];
+    for (let i = 0; i < 3; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = `${d.getMonth() + 1}月`;
+      let forecast = 0;
+      let won = 0;
 
-  const categoryChartData = useMemo(() => {
-    return categoryStats.map(([name, count]) => ({ name, count }));
-  }, [categoryStats]);
+      opportunities.forEach((o) => {
+        if (!o.geek_expectedclosedate) return;
+        const closeMonth = o.geek_expectedclosedate.slice(0, 7);
+        if (closeMonth !== key) return;
 
+        if (o.geek_stage === 100000004) {
+          won += o.geek_amount ?? 0;
+        } else if (o.geek_stage !== 100000005 && o.geek_stage !== 100000006) {
+          forecast += (o.geek_amount ?? 0) * ((o.geek_probability ?? 50) / 100);
+        }
+      });
+      months.push({ label, forecast, won });
+    }
+    return months;
+  }, [opportunities]);
+
+  // ── 今週のTo-Do（要アクション） ──
+  const weeklyTodos = useMemo(() => {
+    const now = new Date();
+    const oneWeekLater = new Date(now.getTime() + 7 * 86400000);
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 86400000);
+
+    const todos: { type: "close" | "stale"; label: string; detail: string; urgency: "high" | "medium" }[] = [];
+
+    // 1週間以内にクローズ予定の商談
+    opportunities
+      .filter(
+        (o) =>
+          o.geek_expectedclosedate &&
+          o.geek_stage != null &&
+          o.geek_stage >= 100000001 &&
+          o.geek_stage <= 100000003,
+      )
+      .forEach((o) => {
+        const closeDate = new Date(o.geek_expectedclosedate!);
+        if (closeDate <= oneWeekLater && closeDate >= now) {
+          todos.push({
+            type: "close",
+            label: o.geek_name,
+            detail: `${closeDate.toLocaleDateString("ja-JP")} クローズ予定`,
+            urgency: closeDate <= new Date(now.getTime() + 3 * 86400000) ? "high" : "medium",
+          });
+        }
+      });
+
+    // 14日以上活動がない顧客（進行中商談あり）
+    const activeCustomerIds = new Set(
+      opportunities
+        .filter((o) => o.geek_stage != null && o.geek_stage >= 100000000 && o.geek_stage <= 100000003)
+        .map((o) => o._geek_customerid_value)
+        .filter(Boolean),
+    );
+
+    const lastActivityByCustomer = new Map<string, string>();
+    activities.forEach((a) => {
+      const cid = a._geek_customerid_value;
+      if (!cid || !a.geek_activitydate) return;
+      const cur = lastActivityByCustomer.get(cid);
+      if (!cur || a.geek_activitydate > cur) lastActivityByCustomer.set(cid, a.geek_activitydate);
+    });
+
+    activeCustomerIds.forEach((cid) => {
+      if (!cid) return;
+      const lastDate = lastActivityByCustomer.get(cid);
+      if (!lastDate || new Date(lastDate) < twoWeeksAgo) {
+        const name = customerMap.get(cid);
+        if (name) {
+          const days = lastDate
+            ? Math.floor((now.getTime() - new Date(lastDate).getTime()) / 86400000)
+            : 999;
+          todos.push({
+            type: "stale",
+            label: name,
+            detail: lastDate ? `${days}日間 活動なし` : "活動記録なし",
+            urgency: days > 30 ? "high" : "medium",
+          });
+        }
+      }
+    });
+
+    return todos.sort((a, b) => (a.urgency === "high" ? -1 : 1) - (b.urgency === "high" ? -1 : 1)).slice(0, 8);
+  }, [opportunities, activities, customerMap]);
+
+  // ── クローズ予定の商談（提案〜交渉フェーズのみ） ──
+  const upcomingCloses = useMemo(() => {
+    return opportunities
+      .filter(
+        (o) =>
+          o.geek_expectedclosedate &&
+          o.geek_stage != null &&
+          o.geek_stage >= 100000001 &&
+          o.geek_stage <= 100000003,
+      )
+      .sort(
+        (a, b) =>
+          new Date(a.geek_expectedclosedate!).getTime() -
+          new Date(b.geek_expectedclosedate!).getTime(),
+      )
+      .slice(0, 5);
+  }, [opportunities]);
+
+  // ── 統計カード (8つ) ──
   const stats = [
     {
-      title: "合計",
-      value: String(incidents.length),
-      description: "全インシデント",
-      icon: BarChart3,
-      className: "text-primary",
-    },
-    {
-      title: "新規",
-      value: String(newCount),
-      description: "未対応",
-      icon: AlertCircle,
+      title: "商談件数",
+      value: String(totalOpportunities),
+      description: "全商談",
+      icon: Handshake,
       className: "text-blue-600",
     },
     {
-      title: "対応中",
-      value: String(inProgressCount),
-      description: "作業中",
-      icon: Clock,
-      className: "text-yellow-600",
+      title: "パイプライン",
+      value: `¥${(pipelineAmount / 10000).toFixed(0)}万`,
+      description: "進行中合計",
+      icon: TrendingUp,
+      className: "text-purple-600",
     },
     {
-      title: "解決済",
-      value: String(resolvedCount),
-      description: "解決済み",
-      icon: CheckCircle2,
+      title: "加重パイプライン",
+      value: `¥${(weightedPipeline / 10000).toFixed(0)}万`,
+      description: "金額×確率",
+      icon: Scale,
+      className: "text-indigo-600",
+    },
+    {
+      title: "受注",
+      value: `¥${(wonAmount / 10000).toFixed(0)}万`,
+      description: `${wonCount}件 受注`,
+      icon: Trophy,
       className: "text-green-600",
     },
     {
-      title: "クローズ",
-      value: String(closedCount),
-      description: "完了",
+      title: "受注率",
+      value: `${winRate}%`,
+      description: `${closedCount}件中 ${wonCount}件`,
+      icon: Percent,
+      className: "text-emerald-600",
+    },
+    {
+      title: "平均サイクル",
+      value: `${avgDealCycle}日`,
+      description: "受注までの平均",
+      icon: Timer,
+      className: "text-amber-600",
+    },
+    {
+      title: "失注",
+      value: String(lostCount),
+      description: "件の失注",
       icon: XCircle,
-      className: "text-gray-600",
+      className: "text-red-500",
+    },
+    {
+      title: "今月の活動",
+      value: String(thisMonthActivities),
+      description: "件の活動記録",
+      icon: ClipboardList,
+      className: "text-cyan-600",
     },
   ];
 
-  const recentColumns: TableColumn<IncidentRow>[] = [
-    { key: "geek_name", label: "タイトル", sortable: false },
+  // ── テーブル列定義 ──
+  const closeColumns: TableColumn<OpportunityRow>[] = [
+    { key: "geek_name", label: "商談名", sortable: false },
     {
-      key: "geek_status",
-      label: "ステータス",
+      key: "_geek_customerid_value",
+      label: "顧客",
       sortable: false,
       render: (item) => {
-        const s = item.geek_status as number | undefined;
+        const v = item._geek_customerid_value;
+        return v ? customerMap.get(v) ?? "" : "";
+      },
+    },
+    {
+      key: "geek_amount",
+      label: "金額",
+      align: "right" as const,
+      sortable: false,
+      render: (item) =>
+        item.geek_amount != null ? `¥${item.geek_amount.toLocaleString()}` : "",
+    },
+    {
+      key: "geek_expectedclosedate",
+      label: "予定日",
+      sortable: false,
+      render: (item) =>
+        item.geek_expectedclosedate
+          ? new Date(item.geek_expectedclosedate).toLocaleDateString("ja-JP")
+          : "",
+    },
+    {
+      key: "geek_stage",
+      label: "フェーズ",
+      sortable: false,
+      render: (item) => {
+        const s = item.geek_stage;
         return s != null ? (
-          <Badge variant="outline" className={statusColors[s]}>
-            {statusLabels[s]}
-          </Badge>
+          <Badge variant="secondary">{StageOptions[s] ?? ""}</Badge>
         ) : null;
       },
     },
-    {
-      key: "_geek_priorityid_value",
-      label: "優先度",
-      sortable: false,
-      render: (item) => {
-        const v = item._geek_priorityid_value as string | undefined;
-        return v ? priorityMap.get(v) || "" : "";
-      },
-    },
-    {
-      key: "_geek_assigneeid_value",
-      label: "担当者",
-      sortable: false,
-      render: (item) => {
-        const v = item._geek_assigneeid_value as string | undefined;
-        return v ? (
-          userMap.get(v) || ""
-        ) : (
-          <span className="text-muted-foreground">未割当</span>
-        );
-      },
-    },
   ];
 
-  if (isLoading) {
+  if (loadingOpp) {
     return (
-      <div className="space-y-6">
-        <LoadingSkeletonGrid columns={4} count={4} variant="compact" />
+      <div className="space-y-6 p-4 md:p-6">
+        <LoadingSkeletonGrid columns={4} count={8} variant="compact" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <LoadingSkeletonGrid columns={1} count={1} variant="detailed" />
           <LoadingSkeletonGrid columns={1} count={1} variant="detailed" />
         </div>
-        <LoadingSkeletonGrid columns={1} count={1} variant="detailed" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* 統計カード */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div className="space-y-6 p-4 md:p-6">
+      {/* KPI カード (8枚 → 4×2 グリッド) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {stats.map((s) => (
-          <Card key={s.title}>
+          <Card key={s.title} className="relative overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">{s.title}</CardTitle>
               <s.icon className={`h-4 w-4 ${s.className}`} />
@@ -213,83 +454,72 @@ export default function DashboardPage() {
               <div className="text-2xl font-bold">{s.value}</div>
               <p className="text-xs text-muted-foreground">{s.description}</p>
             </CardContent>
+            {/* デコレーション */}
+            <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent ${s.className.replace("text-", "via-")}/30 to-transparent`} />
           </Card>
         ))}
       </div>
 
-      {/* 中段: ステータス分布 (円グラフ) + カテゴリ分布 (棒グラフ) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* 月別受注推移 + パイプライン(フェーズ別) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* 月別受注推移 */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">ステータス分布</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-green-500" />
+              月別受注推移（6ヶ月）
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {statusChartData.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                データがありません
-              </p>
+            {monthlyWonTrend.every((m) => m.amount === 0) ? (
+              <p className="text-sm text-muted-foreground text-center py-8">データがありません</p>
             ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie
-                    data={statusChartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={90}
-                    paddingAngle={3}
-                    dataKey="value"
-                    label={({
-                      name,
-                      percent,
-                    }: {
-                      name?: string;
-                      percent?: number;
-                    }) => `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                  >
-                    {statusChartData.map((entry) => (
-                      <Cell key={entry.name} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => [`${value} 件`, "件数"]} />
-                  <Legend />
-                </PieChart>
+              <ResponsiveContainer width="100%" height={240}>
+                <AreaChart data={monthlyWonTrend} margin={{ left: 8, right: 8, top: 8 }}>
+                  <defs>
+                    <linearGradient id="wonGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 10000).toFixed(0)}万`} />
+                  <Tooltip
+                    formatter={(value, name) => [
+                      name === "amount" ? `¥${Number(value).toLocaleString()}` : `${value}件`,
+                      name === "amount" ? "受注金額" : "件数",
+                    ]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="amount"
+                    stroke="#22c55e"
+                    strokeWidth={2}
+                    fill="url(#wonGradient)"
+                  />
+                </AreaChart>
               </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
 
+        {/* パイプラインチャート */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">カテゴリ別 Top 5</CardTitle>
+            <CardTitle className="text-base">パイプライン（フェーズ別金額）</CardTitle>
           </CardHeader>
           <CardContent>
-            {categoryChartData.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                データがありません
-              </p>
+            {pipelineByStage.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">データがありません</p>
             ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart
-                  data={categoryChartData}
-                  layout="vertical"
-                  margin={{ left: 8, right: 16 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={100}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <Tooltip formatter={(value) => [`${value} 件`, "件数"]} />
-                  <Bar
-                    dataKey="count"
-                    fill="#3b82f6"
-                    radius={[0, 4, 4, 0]}
-                    barSize={24}
-                  />
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={pipelineByStage} margin={{ left: 16, right: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 10000).toFixed(0)}万`} />
+                  <Tooltip formatter={(value) => [`¥${Number(value).toLocaleString()}`, "金額"]} />
+                  <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={40} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -297,55 +527,227 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* 未割当アラート */}
-      {unassigned.length > 0 && (
-        <Card className="border-orange-200 dark:border-orange-800">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <UserX className="h-5 w-5 text-orange-500" />
-              <CardTitle className="text-base">
-                未割当インシデント ({unassigned.length}件)
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {unassigned.slice(0, 3).map((inc) => (
-                <div
-                  key={inc.geek_incidentid}
-                  className="flex items-center justify-between text-sm cursor-pointer hover:bg-muted/50 rounded p-2"
-                  onClick={() => navigate(`/incidents/${inc.geek_incidentid}`)}
-                >
-                  <span className="truncate">{inc.geek_name}</span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 直近インシデント */}
+      {/* 受注予測（フォーキャスト） */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">直近のインシデント</CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate("/incidents")}
-          >
-            すべて表示 <ArrowRight className="ml-1 h-4 w-4" />
-          </Button>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Scale className="h-4 w-4 text-indigo-500" />
+            受注予測（今後3ヶ月）
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <ListTable
-            data={recentIncidents as IncidentRow[]}
-            columns={recentColumns}
-            searchKeys={["geek_name"]}
-            onRowClick={(row) => navigate(`/incidents/${row.geek_incidentid}`)}
-          />
+          {forecastData.every((m) => m.forecast === 0 && m.won === 0) ? (
+            <p className="text-sm text-muted-foreground text-center py-8">データがありません</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={forecastData} margin={{ left: 16, right: 16 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 10000).toFixed(0)}万`} />
+                <Tooltip formatter={(value, name) => [`¥${Number(value).toLocaleString()}`, name === "won" ? "受注確定" : "予測（加重）"]} />
+                <Bar dataKey="won" fill="#22c55e" radius={[4, 4, 0, 0]} barSize={32} name="won" stackId="a" />
+                <Bar dataKey="forecast" fill="#818cf8" radius={[4, 4, 0, 0]} barSize={32} name="forecast" stackId="a" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+          <div className="flex items-center justify-center gap-4 mt-2 text-xs">
+            <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-green-500" /><span>受注確定</span></div>
+            <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-indigo-400" /><span>予測（金額×確率）</span></div>
+          </div>
         </CardContent>
       </Card>
+
+      {/* 業種別 + 活動種別 (ドーナツチャート) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* 業種別商談分布 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-orange-500" />
+              業種別商談
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {industryDistribution.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">データがありません</p>
+            ) : (
+              <div className="flex flex-col items-center">
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={industryDistribution}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={80}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {industryDistribution.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value, _name, props) => [`${value}件`, props.payload.name]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex flex-wrap justify-center gap-2 mt-2">
+                  {industryDistribution.map((d, i) => (
+                    <div key={d.name} className="flex items-center gap-1 text-xs">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
+                      <span>{d.name}</span>
+                      <span className="text-muted-foreground">({d.value})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 活動種別内訳 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-cyan-500" />
+              活動種別
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {activityTypeDistribution.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">データがありません</p>
+            ) : (
+              <div className="flex flex-col items-center">
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={activityTypeDistribution}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={80}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {activityTypeDistribution.map((_, i) => (
+                        <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value, _name, props) => [`${value}件`, props.payload.name]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex flex-wrap justify-center gap-2 mt-2">
+                  {activityTypeDistribution.map((d, i) => (
+                    <div key={d.name} className="flex items-center gap-1 text-xs">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: COLORS[(i + 3) % COLORS.length] }} />
+                      <span>{d.name}</span>
+                      <span className="text-muted-foreground">({d.value})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 顧客別パイプライン TOP5 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-amber-500" />
+              顧客別 TOP5
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {customerPipelineTop5.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">データがありません</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={customerPipelineTop5} layout="vertical" margin={{ left: 0, right: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 10000).toFixed(0)}万`} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
+                  <Tooltip formatter={(value) => [`¥${Number(value).toLocaleString()}`, "パイプライン"]} />
+                  <Bar dataKey="amount" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 今週のTo-Do + クローズ予定 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* 今週のTo-Do */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              今週の要アクション
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {weeklyTodos.length === 0 ? (
+              <div className="flex flex-col items-center py-6 text-muted-foreground">
+                <CheckCircle2 className="h-8 w-8 text-green-500 mb-2" />
+                <p className="text-sm">すべて対応済みです</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {weeklyTodos.map((todo, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-start gap-3 p-2.5 rounded-md border ${
+                      todo.urgency === "high" ? "border-red-200 bg-red-50/50 dark:border-red-900/50 dark:bg-red-950/20" : "border-border"
+                    }`}
+                  >
+                    <div className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${
+                      todo.urgency === "high" ? "bg-red-500" : "bg-amber-400"
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{todo.label}</p>
+                      <p className="text-xs text-muted-foreground">{todo.detail}</p>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] shrink-0">
+                      {todo.type === "close" ? "クローズ予定" : "要フォロー"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* クローズ予定の商談 */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-base">クローズ予定の商談</CardTitle>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/opportunities")}
+            >
+              すべて表示 <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {upcomingCloses.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                予定なし
+              </p>
+            ) : (
+              <ListTable
+                data={upcomingCloses as OpportunityRow[]}
+                columns={closeColumns}
+                searchKeys={["geek_name"]}
+                onRowClick={() => navigate("/opportunities")}
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
