@@ -2,7 +2,7 @@
 
 ## トラブルシューティング
 
-### 複数グループがあるのに最初のグループしか表示されない（最重要）
+### 複数グループがあるのに最初のグループしか表示されない【必須】
 
 - **原因**: `ShowGroups="true"` が Area 要素に指定されていない
 - **解決**: `<Area Id="MainArea" ShowGroups="true" IntroducedVersion="7.0.0.0">` を使用
@@ -15,7 +15,7 @@
 - **解決**: AppModule 作成/更新時に `"clienttype": 4` を必ず指定
 - 既存アプリは PATCH で `clienttype` を `4` に更新可能
 
-### "App can't have multiple site maps" (0x80050111)（最重要）
+### "App can't have multiple site maps" (0x80050111)【必須】
 
 既存アプリの SiteMap を変更したい場合に `AddAppComponents` で**新しい SiteMap を追加しようとすると必ず発生する**。
 アプリには SiteMap を 1 つしか持てない。

@@ -170,7 +170,7 @@ CodeAppOperationNotAllowedInEnvironment — The environment does not allow this 
 4. 保存（反映に数分かかることがある）
 ```
 
-### 1.7 ソリューションベースで管理（最重要原則）
+### 1.7 ソリューションベースで管理【基本原則】
 
 Dataverse テーブル・Code Apps・Power Automate フロー・Copilot Studio エージェントは **すべて同一のソリューション内** に含める。
 ソリューション外のカスタマイズはリリース管理・環境間移行ができない。
@@ -1134,7 +1134,7 @@ api_patch(f"bots({bot_id})", {"configuration": json.dumps(merged)})
 > **教訓**: `configuration` を丸ごと上書きすると `gPTSettings.defaultSchemaName` やモデル設定が消える。必ず GET → ディープマージ → PATCH。
 > `optInUseLatestModels` は明示的に `False` を設定すること。
 
-### 6.4 PVA ダブル改行 YAML フォーマット（最重要）
+### 6.4 PVA ダブル改行 YAML フォーマット【必須】
 
 PVA パーサーは標準 YAML のシングル改行 (`\n`) を**構造行**として認識しない。  
 構造行（kind, displayName, conversationStarters 等）はダブル改行 (`\n\n`) で区切る必要がある。  

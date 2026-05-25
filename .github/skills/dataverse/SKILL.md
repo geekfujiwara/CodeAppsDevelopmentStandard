@@ -132,7 +132,7 @@ existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PR
 
 同梱の [setup_dataverse.py](scripts/setup_dataverse.py) をプロジェクト用にカスタマイズして実行する。
 
-## 絶対遵守ルール
+## 必須要件
 
 ### スキーマ設計
 

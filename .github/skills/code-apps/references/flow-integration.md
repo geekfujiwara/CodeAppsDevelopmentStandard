@@ -37,7 +37,7 @@ src/generated/
     {flowName}.Schema.json      ← フローの OpenAPI スキーマ
 ```
 
-## ★ 最重要: dataSourcesInfo の統合（シングルトン問題）
+## 重要制約: dataSourcesInfo の統合（シングルトン問題）
 
 ### 問題
 

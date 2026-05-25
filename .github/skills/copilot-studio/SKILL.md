@@ -96,7 +96,7 @@ PUBLISHER_PREFIX=geek              ← ソリューション発行者の prefix
 - Bot 作成時（Copilot Studio UI）は「エージェント設定」でソリューションを明示的に選択
 - ソリューション外で作成したコンポーネントはリリース管理・環境間移行ができない
 
-## 絶対遵守ルール
+## 必須要件
 
 ### Bot 作成は API 不可 → Copilot Studio UI 必須
 

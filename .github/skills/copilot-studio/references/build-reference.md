@@ -173,7 +173,7 @@ existing = api_get("botcomponents",
 
 ### Step 4.5: 会話の開始設定（メッセージ + クイック返信）
 
-**⚠️ yaml.dump() / yaml.safe_load() → yaml.dump() のパイプラインは使用禁止（最重要）**
+**⚠️ yaml.dump() / yaml.safe_load() → yaml.dump() のパイプラインは使用禁止【必須】**
 
 ```
 ❌ yaml.safe_load() → 値を変更 → yaml.dump() で書き戻す
@@ -386,7 +386,7 @@ https://copilotstudio.microsoft.com/c2/tenants/{TENANT_ID}/environments/{ENV_ID}
 
 ## Instructions テンプレート
 
-### Dataverse テーブル論理名は単数形（最重要）
+### Dataverse テーブル論理名は単数形【必須】
 
 Instructions 内で Dataverse テーブル名を指定するとき、**必ず単数形の論理名**（`LogicalName`）を使うこと。
 Power Apps MCP Server・Dataverse MCP Server はテーブルの論理名（単数形）でアクセスする。

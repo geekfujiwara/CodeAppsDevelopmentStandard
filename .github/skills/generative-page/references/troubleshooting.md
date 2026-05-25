@@ -103,7 +103,7 @@ let rows = [...res.rows]; // ✅
 
 **原因**: Power Apps ランタイムはルートで `FluentProvider` を既に提供している。再度ラップすると React 17 でダブルレンダーが発生し、テーマやスタイルが壊れる。
 
-**対処**: `FluentProvider` は絶対に追加しない。ダークモードは `themeToVars` パターンを使用（[コードパターン](./code-patterns.md) セクション 5 参照）。
+**対処**: `FluentProvider` は追加してはならない。ダークモードは `themeToVars` パターンを使用（[コードパターン](./code-patterns.md) セクション 5 参照）。
 
 ### 2.4 `100vh` / `100vw` でレイアウトが壊れる
 
