@@ -49,7 +49,7 @@ src/generated/
 }
 ```
 
-## ★ 最重要: dataSourcesInfo の統合（シングルトン問題）
+## 重要制約: dataSourcesInfo の統合（シングルトン問題）
 
 フロー連携と同じく、Copilot Studio コネクタも `.power/schemas/appschemas/dataSourcesInfo.ts` に定義される。
 `src/lib/dataSourcesInfo.ts` の統合版を使用すること。

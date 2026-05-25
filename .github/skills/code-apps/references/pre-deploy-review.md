@@ -44,7 +44,7 @@ Select-String -Path "src/generated/appschemas/dataSourcesInfo.ts" \
 > 登録済みテーブル経由で OData FormattedValue でアクセスする場合や、
 > SDK 追加後も「Data source not found」となるテーブルは手動追記で対応する。
 
-### 2. 統合 dataSourcesInfo インポートチェック（最重要）
+### 2. 統合 dataSourcesInfo インポートチェック【必須】
 
 全サービス・コンポーネントが **統合版 `@/lib/dataSourcesInfo`** をインポートしているか確認する。
 `@/generated/appschemas/dataSourcesInfo` を直接インポートしているファイルがあればエラー。

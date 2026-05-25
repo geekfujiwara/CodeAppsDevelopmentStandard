@@ -136,7 +136,7 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
 - Dataverse データソース追加時はソリューション内のテーブルを参照
 - 開発・テスト・本番の環境間移行はソリューションのエクスポート/インポートで行う
 
-## 絶対遵守ルール
+## 必須要件
 
 ### 環境の前提条件（デプロイ前に必ず確認）
 
@@ -200,7 +200,7 @@ npx power-apps init --display-name "アプリ名" --environment-id {ENVIRONMENT_
 npm install
 
 # ── Step 2: テンプレートクリーンアップ ──
-# ※ サンプルページを削除するが use-theme.ts は絶対に保護する
+# ※ サンプルページを削除するが use-theme.ts は保護すること（変更禁止）
 Remove-Item "src/pages/incidents.tsx","src/pages/incident-detail.tsx","src/pages/kanban.tsx","src/pages/assets.tsx" -Force -ErrorAction SilentlyContinue
 Remove-Item "src/types/incident.ts" -Force -ErrorAction SilentlyContinue
 # ❌ Remove-Item "src/hooks/*" は禁止（use-theme.ts が消える）
@@ -923,7 +923,7 @@ export async function getCategories() {
 - `geek_status`, `geek_priority` は `number | undefined` → null チェック必須
 - Choice 値マップ（`Geek_incidentsgeek_status` 等）は SDK が生成するが、UI ラベルは別途定義
 
-### Lookup 名はクライアントサイド名前解決が必須（最重要）
+### Lookup 名はクライアントサイド名前解決が必須【必須】
 
 SDK 生成サービスの `getAll()` / `get()` は **フォーマット済み Lookup 名フィールド**
 （`createdbyname`, `geek_assignedtoidname`, `geek_incidentcategoryidname` 等）を
@@ -1232,7 +1232,7 @@ export function useCreateIncident() {
     │     テーブル名が dataSourcesInfo に登録されているか確認
     │     → 未登録があれば src/generated/appschemas/dataSourcesInfo.ts に追記
     │
-    ├─ ② 統合 dataSourcesInfo インポートチェック（最重要）
+    ├─ ② 統合 dataSourcesInfo インポートチェック【必須】
     │     全 .ts/.tsx が @/lib/dataSourcesInfo（統合版）を使っているか確認
     │     → @/generated/appschemas/dataSourcesInfo を直接参照していれば修正
     │     ⚠ 実障害: booking-service が generated 版を直接使用

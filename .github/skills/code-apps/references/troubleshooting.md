@@ -392,7 +392,7 @@ TS2307: Cannot find module '@/hooks/use-theme'
 ### 対処
 
 テンプレートのサンプルページを削除する際は、**ファイル単位で明示的に削除**する。
-`src/hooks/use-theme.ts` は絶対に保護する。
+`src/hooks/use-theme.ts` は保護すること（変更禁止）。
 
 ```powershell
 # ✅ 正しい: 個別ファイルを指定して削除

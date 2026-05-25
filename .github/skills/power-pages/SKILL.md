@@ -165,7 +165,7 @@ python .github/skills/power-pages/scripts/deploy_site.py
 
 前提チェック → アップロード → プロビジョニング（任意）を一括実行する。
 
-## 絶対遵守ルール
+## 必須要件
 
 ### サイト構成
 

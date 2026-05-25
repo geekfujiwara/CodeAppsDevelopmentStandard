@@ -3,7 +3,7 @@
 Power Automate フロー内で AI Builder プロンプト (`aibuilderpredict_customprompt`) を呼び出し、
 Dataverse レコードの自動分析・自動更新を行うパターン。
 
-## デプロイ順序（最重要）
+## デプロイ順序【必須】
 
 ```
 1. AI Model を作成 + AIModelPublish でアクティブ化（MUST BE FIRST）

@@ -23,7 +23,7 @@ Dataverse Web API（workflow テーブル）で **ソリューション対応の
 ## 核心原則: 接続参照（Connection Reference）が有効化成功の鍵
 
 ```
-★★★ 最重要教訓（2026-05 検証済み）★★★
+重要な既知制約（2026-05 検証済み）
 
 フロー有効化で AzureResourceManagerRequestFailed が出る根本原因:
   → 接続参照なしで接続 ID を直接埋め込んだ場合、authenticatedUserObjectId が不足する
@@ -87,9 +87,9 @@ PUBLISHER_PREFIX=prefix    ← ソリューション発行者の prefix
 
 - ソリューション外のフローは「マイフロー」に入り、ALM 管理できない
 
-## 絶対遵守ルール
+## 必須要件
 
-### 認証スコープが異なる（最重要）
+### 認証スコープが異なる【必須】
 
 ```
 Flow API:      https://service.flow.microsoft.com/.default   ← 環境 ID 解決・/start

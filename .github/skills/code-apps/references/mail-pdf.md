@@ -44,9 +44,9 @@ Code Apps                          Power Automate                    Outlook
                                                                     8. 受信者が PDF を開く
 ```
 
-## 絶対遵守ルール（検証済み教訓）
+## 必須制約事項（検証済み）
 
-### 1. HTML → PDF 変換: iframe を使わない（最重要）
+### 1. HTML → PDF 変換: iframe を使わない【必須】
 
 **Code Apps はサンドボックス iframe 内で実行される。**
 隠し iframe を追加で作成すると cross-origin 制約で html2canvas が正常動作しない。
@@ -171,7 +171,7 @@ const imgData = canvas.toDataURL("image/jpeg", 0.7);
 
 ## Power Automate フロー側の教訓
 
-### 7. ContentBytes は `base64ToBinary()` で渡す（最重要）
+### 7. ContentBytes は `base64ToBinary()` で渡す【必須】
 
 **SendEmailV2 の Attachments.ContentBytes に `@{...}` 文字列補間で base64 を渡すと二重エンコードされる。**
 Power Automate は ContentBytes を「テキスト」と解釈し、さらに base64 エンコードしてしまう。
