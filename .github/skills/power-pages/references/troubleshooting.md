@@ -109,6 +109,23 @@ for p in permissions.get("value", []):
 
 ---
 
+### E005a: Enhanced Data Model で 403（管理者 OK / 一般ユーザー NG）
+
+**症状:** 管理者ユーザーでは Web API が動作するが、一般ユーザーで 403 が返る。
+
+**原因:** Enhanced Data Model (datamodelversion: 2.0) では `mspp_entitypermission_webrole` の N:N リレーションが Dataverse Web API で設定不可能（プラットフォームバグ）。管理者はテーブル権限をバイパスするため問題が顕在化しない。
+
+**解決策:**
+1. Power Pages Design Studio（make.powerpages.microsoft.com）で手動設定
+2. セキュリティ → テーブルのアクセス許可 → 対象レコードを開く → ロールに Authenticated Users を追加
+3. サイト再起動
+
+> **注意:** `disableentitypermissions=true` は Enhanced Data Model で無効。API での $ref POST は 204 を返すが永続化しない。
+
+**詳細:** [Enhanced Data Model テーブル権限リファレンス](enhanced-data-model-permissions.md)
+
+---
+
 ### E006: CORS エラー
 
 **症状:** ブラウザコンソールに CORS エラーが表示される。
