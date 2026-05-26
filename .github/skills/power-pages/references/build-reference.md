@@ -15,13 +15,43 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: './',  // 相対パス必須
+  base: './',  // 相対パス必須（Power Pages のパス構造に対応）
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    rollupOptions: {
+      output: {
+        inlineDynamicImports: true,  // 単一バンドル（Code Site 推奨）
+      },
+    },
   },
 })
 ```
+
+> **`inlineDynamicImports: true`**: Code Site では単一 JS バンドルが推奨。
+> 複数チャンクだとロード順問題が起きやすい。
+
+> **`base: './'`**: 必須。Power Pages は `/` からの相対パスでアセットを配信しないため。
+
+### SPA ルーティング（HashRouter 必須）
+
+```tsx
+// router.tsx
+import { HashRouter } from "react-router-dom";
+
+// ❌ BrowserRouter は使用不可（サーバーリライトが不可能）
+// ✅ HashRouter を使用
+export function AppRouter() {
+  return (
+    <HashRouter>
+      <Routes>...</Routes>
+    </HashRouter>
+  );
+}
+```
+
+> Power Pages Code Site ではサーバーサイドリライトが設定できないため、
+> History API モード（BrowserRouter）だと直接 URL アクセスや F5 リロードで 404 になる。
 
 ### Vue (Vite)
 

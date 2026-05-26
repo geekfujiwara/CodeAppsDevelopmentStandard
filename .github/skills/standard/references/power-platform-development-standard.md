@@ -517,10 +517,10 @@ npx power-apps push --non-interactive
 
 > **重要**: SDK コマンドが以下のファイルを自動生成する。これらを手動で作成・他プロジェクトからコピーしてはならない。
 >
-> | コマンド | 自動生成されるファイル |
-> |---|---|
-> | `npx power-apps init` | `power.config.json`, `plugins/plugin-power-apps.ts`, `vite.config.ts`, `tsconfig*.json`, `eslint.config.js`, `index.html`, `package.json`, `src/main.tsx`, `src/App.tsx`, `components.json` 等 |
-> | `npx power-apps add-data-source` | `src/generated/`（モデル・サービス）, `.power/schemas/appschemas/dataSourcesInfo.ts` |
+> | コマンド                         | 自動生成されるファイル                                                                                                                                                                         |
+> | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | `npx power-apps init`            | `power.config.json`, `plugins/plugin-power-apps.ts`, `vite.config.ts`, `tsconfig*.json`, `eslint.config.js`, `index.html`, `package.json`, `src/main.tsx`, `src/App.tsx`, `components.json` 等 |
+> | `npx power-apps add-data-source` | `src/generated/`（モデル・サービス）, `.power/schemas/appschemas/dataSourcesInfo.ts`                                                                                                           |
 
 > **SDK v1.0.x への移行**: `pac code add-data-source` は SDK v1.0.x で CLI パスが変更されたため動作しない。`npx power-apps add-data-source` を使用すること。日本語ローカライズ済み環境では nameUtils.js のパッチが必要（§1.2 参照）。
 
@@ -1544,13 +1544,13 @@ python .github/skills/power-pages/scripts/deploy_placeholder.py \
   --create-site --site-name "サイト名" --subdomain "サブドメイン" --wait
 ```
 
-| 項目 | 説明 |
-|------|------|
-| **目的** | Power Pages インフラ（DNS・証明書・ランタイム）の確保を先行開始 |
-| **プレースホルダー SPA** | 「サイト準備中」の最小ページ（テーブル連搼なし） |
-| **テンプレート** | `.github/skills/power-pages/template/` に配置済み |
-| **並行実行** | このスクリプト実行中に Phase 1 の Dataverse 構築を進める |
-| **本番 SPA 完成後** | `pac pages upload-code-site` でプレースホルダーを本番 SPA に上書き |
+| 項目                     | 説明                                                               |
+| ------------------------ | ------------------------------------------------------------------ |
+| **目的**                 | Power Pages インフラ（DNS・証明書・ランタイム）の確保を先行開始    |
+| **プレースホルダー SPA** | 「サイト準備中」の最小ページ（テーブル連搼なし）                   |
+| **テンプレート**         | `.github/skills/power-pages/template/` に配置済み                  |
+| **並行実行**             | このスクリプト実行中に Phase 1 の Dataverse 構築を進める           |
+| **本番 SPA 完成後**      | `pac pages upload-code-site` でプレースホルダーを本番 SPA に上書き |
 
 > **教訓**: Power Pages プロビジョニングは日本リージョンで 10〜20 分。Code Apps のように「先に空デプロイ → SDK 接続 → 開発 → 再デプロイ」のサイクルがこの待ち時間で詰まる。プレースホルダー先行デプロイでこのボトルネックを排除する。
 
@@ -1684,12 +1684,12 @@ python .github/skills/power-pages/scripts/deploy_placeholder.py \
 
 ### スキル一覧
 
-| スキル名                  | 場所                                                                                          | 用途                                                           |
-| ------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `standard` | [standard/SKILL.md](../SKILL.md) | Power Platform 包括開発標準（全体参照）                        |
-| `copilot-studio`    | [copilot-studio/SKILL.md](../../copilot-studio/SKILL.md)       | Copilot Studio エージェント構築（生成オーケストレーション）    |
-| `power-automate`     | [power-automate/SKILL.md](../../power-automate/SKILL.md)         | Power Automate クラウドフロー作成・デプロイ                    |
-| `code-apps`           | [code-apps/SKILL.md](../../code-apps/SKILL.md)                     | Code Apps 開発・UI 設計・CSP 構成・メール送信（統合スキル）    |
+| スキル名         | 場所                                                     | 用途                                                        |
+| ---------------- | -------------------------------------------------------- | ----------------------------------------------------------- |
+| `standard`       | [standard/SKILL.md](../SKILL.md)                         | Power Platform 包括開発標準（全体参照）                     |
+| `copilot-studio` | [copilot-studio/SKILL.md](../../copilot-studio/SKILL.md) | Copilot Studio エージェント構築（生成オーケストレーション） |
+| `power-automate` | [power-automate/SKILL.md](../../power-automate/SKILL.md) | Power Automate クラウドフロー作成・デプロイ                 |
+| `code-apps`      | [code-apps/SKILL.md](../../code-apps/SKILL.md)           | Code Apps 開発・UI 設計・CSP 構成・メール送信（統合スキル） |
 
 ### スキルに記録されている主な教訓
 
