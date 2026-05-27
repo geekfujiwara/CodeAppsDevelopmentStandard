@@ -42,6 +42,7 @@ React / Vue / Angular / Astro 等の静的 SPA フレームワークに対応。
 | [認証リファレンス](references/authentication-reference.md) | 認証サービス・anti-forgery・Entra ID |
 | [PUBLIC サイト SPA 認証](references/public-site-spa-auth.md) | PUBLIC サイトの form POST 認証・Liquid 注入・post_upload_fix パターン |
 | [Enhanced Data Model テーブル権限](references/enhanced-data-model-permissions.md) | Enhanced Data Model (v2.0) のテーブル権限設定・N:N バグ・ワークアラウンド |
+| [Web API 実装パターン](references/web-api-implementation.md) | `/_api/` クライアント実装・CSRF・403 対処・デプロイ運用・RequireAuth |
 
 ## ワークフロー概要（microsoft/power-platform-skills 準拠）
 
