@@ -127,6 +127,59 @@ Get-ChildItem -Path "src" -Recurse -Include "*.ts","*.tsx" -File |
   } | Format-Table -Wrap
 ```
 
+### 5. ルーター種別チェック（createHashRouter 必須）
+
+Code Apps は Power Apps iframe 内でホストされるため、`createBrowserRouter`（History API）は初期ロードで 404 になる。
+必ず `createHashRouter` を使用すること。
+
+**チェック方法:**
+
+```bash
+# createBrowserRouter の使用を検出
+Select-String -Path "src/**/*.ts","src/**/*.tsx" -Pattern 'createBrowserRouter' -Recurse
+```
+
+**違反が見つかった場合:**
+
+```typescript
+// ❌ Power Apps iframe 内で初期ロード 404
+import { createBrowserRouter, Navigate } from "react-router-dom";
+export const router = createBrowserRouter([...]);
+
+// ✅ Hash ルーティングで確実に動作
+import { createHashRouter, Navigate } from "react-router-dom";
+export const router = createHashRouter([...]);
+```
+
+### 6. サイドバー fixed レイアウトチェック
+
+サイドバーが flex レイアウト内に固定幅なしで配置されていると、ページ遷移時に幅が崩れる。
+`fixed` ポジション + 固定幅（`w-64`）が必須。
+
+**チェック方法:**
+
+```bash
+# Sidebar コンポーネントが fixed であることを確認
+Select-String -Path "src/components/sidebar.tsx" -Pattern 'fixed'
+
+# メインコンテンツに ml-64 オフセットがあることを確認
+Select-String -Path "src/pages/_layout.tsx" -Pattern 'ml-64|ml-16'
+```
+
+**違反パターン:**
+
+```tsx
+// ❌ flex 内に幅指定なし → ページ遷移で崩れる
+<div className="flex flex-1">
+  <Sidebar />
+  <div className="flex-1"><Outlet /></div>
+</div>
+
+// ✅ fixed + 固定幅 + margin オフセット
+<aside className="fixed top-16 bottom-0 w-64 ...">...</aside>
+<div className="flex-1 md:ml-64"><Outlet /></div>
+```
+
 ## 実行フロー
 
 ```
@@ -144,10 +197,17 @@ Get-ChildItem -Path "src" -Recurse -Include "*.ts","*.tsx" -File |
   ├─ ④ カスタム getClient() の引数チェック
   │     → 全て統合版 dataSourcesInfo を使用していることを確認
   │
-  ├─ ⑤ npm run build
+  ├─ ⑤ ルーター種別チェック（createHashRouter 必須）
+  │     → createBrowserRouter を使っていたら createHashRouter に修正
+  │
+  ├─ ⑥ サイドバー fixed レイアウトチェック
+  │     → Sidebar が fixed + 固定幅（w-64）であることを確認
+  │     → メインコンテンツに md:ml-64 のオフセットがあることを確認
+  │
+  ├─ ⑦ npm run build
   │     → TypeScript エラーがあれば修正
   │
-  └─ ⑥ npx power-apps push / pac code push
+  └─ ⑧ npx power-apps push / pac code push
         → デプロイ完了
 ```
 
