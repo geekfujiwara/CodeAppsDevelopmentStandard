@@ -44,7 +44,30 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json();
 }
 
-function getRequestVerificationToken(): string {
+/** Cached anti-forgery token */
+let _cachedToken: string | null = null;
+
+/** Fetch token from Power Pages endpoint (last resort) */
+async function fetchTokenFromEndpoint(): Promise<string> {
+  try {
+    const res = await fetch("/_layout/tokenhtml", { credentials: "same-origin" });
+    const html = await res.text();
+    const match = html.match(/value="([^"]+)"/);
+    if (match?.[1]) {
+      _cachedToken = match[1];
+      return _cachedToken;
+    }
+  } catch { /* fall through */ }
+  return "";
+}
+
+/** Synchronous token lookup: cache → DOM hidden input → cookie → meta */
+function getRequestVerificationTokenSync(): string {
+  if (_cachedToken) return _cachedToken;
+  const input = document.querySelector<HTMLInputElement>(
+    'input[name="__RequestVerificationToken"]',
+  );
+  if (input?.value) return input.value;
   const match = document.cookie
     .split(";")
     .map((c) => c.trim())
@@ -54,10 +77,14 @@ function getRequestVerificationToken(): string {
     'meta[name="__RequestVerificationToken"]',
   );
   if (meta) return meta.content;
-  const input = document.querySelector<HTMLInputElement>(
-    'input[name="__RequestVerificationToken"]',
-  );
-  return input?.value ?? "";
+  return "";
+}
+
+/** Async token acquisition — tries sync first, then fetches from endpoint */
+async function getRequestVerificationToken(): Promise<string> {
+  const sync = getRequestVerificationTokenSync();
+  if (sync) return sync;
+  return fetchTokenFromEndpoint();
 }
 
 function getHeaders(method: "GET" | "POST" | "PATCH" | "DELETE"): HeadersInit {
@@ -68,8 +95,6 @@ function getHeaders(method: "GET" | "POST" | "PATCH" | "DELETE"): HeadersInit {
   };
   if (method !== "GET") {
     headers["Content-Type"] = "application/json";
-    const token = getRequestVerificationToken();
-    if (token) headers["__RequestVerificationToken"] = token;
   }
   return headers;
 }
@@ -83,10 +108,13 @@ export async function apiGet<T>(path: string): Promise<T> {
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const token = await getRequestVerificationToken();
+  const headers = getHeaders("POST");
+  if (token) (headers as Record<string, string>)["__RequestVerificationToken"] = token;
   const res = await fetch(`${BASE}/${path}`, {
     method: "POST",
     credentials: "same-origin",
-    headers: getHeaders("POST"),
+    headers,
     body: JSON.stringify(body),
   });
   return handleResponse<T>(res);
@@ -115,27 +143,47 @@ if (res.redirected && res.url.includes("/Account/Login")) {
 
 **理由**: `redirect: 'manual'` は opaqueredirect レスポンスを返す。URL正規化などの非認証リダイレクトも含まれるため、全てを認証失敗として扱うとループする。
 
-### 2. 書き込みには `__RequestVerificationToken` が必須
+### 2. 書き込みには `__RequestVerificationToken` が必須（テンプレート + JS 両面対策）
+
+POST/PATCH/DELETE で 401 になる原因は CSRF トークン不足。**テンプレート側** と **JS 側** の両方で対策が必要:
+
+#### テンプレート側: `{{ request_verification_token }}` を必ず含める
+
+```html
+{# Enhanced Data Model の Web テンプレート (type=8) #}
+<link rel="stylesheet" href="/assets/index-xxx.css" />
+{% if user %}<script>window.__PP_USER__={...};</script>{% endif %}
+{{ request_verification_token }}   {# ← これが hidden input を出力する #}
+<div id="root"></div>
+<script type="module" src="/assets/index-xxx.js"></script>
+```
+
+`{{ request_verification_token }}` は以下の HTML を出力する:
+```html
+<input name="__RequestVerificationToken" type="hidden" value="CfDJ8..." />
+```
+
+#### JS 側: 非同期フォールバックで `/_layout/tokenhtml` から取得
+
+SPA ではページ遷移後に DOM の hidden input が消える場合がある。  
+**`/_layout/tokenhtml`** エンドポイントから非同期で取得するフォールバックが必要:
 
 ```typescript
-// ❌ 401 Unauthorized になる
-fetch("/_api/geek_incidents", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(data),
-});
+// ❌ トークンが DOM にないと 401 になる
+const token = document.querySelector<HTMLInputElement>(
+  'input[name="__RequestVerificationToken"]',
+)?.value ?? "";
 
-// ✅ CSRF トークンを付与
-const token = getRequestVerificationToken(); // Cookie/meta/input から取得
-fetch("/_api/geek_incidents", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "__RequestVerificationToken": token,
-  },
-  body: JSON.stringify(data),
-});
+// ✅ 非同期で /_layout/tokenhtml からフォールバック取得
+async function getRequestVerificationToken(): Promise<string> {
+  // 1. キャッシュ → 2. DOM hidden input → 3. Cookie → 4. /_layout/tokenhtml
+  const sync = getRequestVerificationTokenSync();
+  if (sync) return sync;
+  return fetchTokenFromEndpoint(); // /_layout/tokenhtml から取得
+}
 ```
+
+**重要**: `/_layout/tokenhtml` は認証済みユーザーのみアクセス可能。匿名ユーザーは login にリダイレクトされる。
 
 ### 3. 403 は認証エラーではなくテーブル権限不足
 
@@ -208,14 +256,40 @@ body = {
 requests.post(f"{url}/powerpagecomponents", headers=h, json=body)
 ```
 
-### ⚠️ `disableentitypermissions` が効かない場合
+### ⚠️ `disableentitypermissions` が効かない場合 → type=18 の Web ロール紐付け
 
-API 経由で作成した `disableentitypermissions` 設定が即座に反映されないケースがある。
+`disableentitypermissions` サイト設定だけでは 403 が解消しないケースがある。  
+**根本原因**: テーブル権限 (type=18) の content JSON に **`adx_entitypermission_webrole`** と **`websiteid`** が必要。
 
-**対処法**:
-1. サイトリスタート（必須）
-2. Design Studio でテーブルのアクセス許可 → Web ロール紐づけ（N:N は API で設定不可）
-3. `disabletablepermission` (singular) バリアントも作成
+```python
+# ❌ 403 になる — Web ロール紐付けなし
+content = {
+    "entitylogicalname": "geek_location",
+    "entityname": "場所 - Global Read",
+    "scope": 756150000,
+    "read": True, "write": False, "create": False, "delete": False,
+    "append": True, "appendto": True,
+}
+
+# ✅ 動作する — adx_entitypermission_webrole + websiteid を含める
+content = {
+    "entitylogicalname": "geek_location",
+    "entityname": "場所 - Global Read",
+    "scope": 756150000,
+    "read": True, "write": False, "create": False, "delete": False,
+    "append": True, "appendto": True,
+    "websiteid": SITE_ID,                                    # ← 必須
+    "adx_entitypermission_webrole": [AUTH_ROLE_ID],          # ← 必須
+}
+```
+
+**重要**: `mspp_entitypermission_webrole` N:N テーブルを直接操作しても永続化しないが、  
+**powerpagecomponent type=18 の content JSON 内で `adx_entitypermission_webrole` を指定すれば API 経由で Web ロール紐付けが可能**。
+
+**修正手順**:
+1. type=18 の content を PATCH で更新（`adx_entitypermission_webrole` + `websiteid` 追加）
+2. サイトリスタート（必須）
+3. 60-90 秒待機後にアクセス確認
 
 ### サイトリスタート API
 

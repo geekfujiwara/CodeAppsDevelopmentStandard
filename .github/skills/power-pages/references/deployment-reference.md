@@ -140,11 +140,7 @@ js_file = glob.glob(f'{dist_dir}/index-*.js')[0]
 css_file = glob.glob(f'{dist_dir}/index-*.css')[0]
 
 # body-only コンテンツ
-body = (
-    '<div id="root"></div>'
-    f'<script type="module" crossorigin src="./assets/{os.path.basename(js_file)}"></script>'
-    f'<link rel="stylesheet" crossorigin href="./assets/{os.path.basename(css_file)}">'
-)
+body = '<div id="root"></div>'
 
 # Root ページ AND Content ページの両方を更新
 for page_id in [ROOT_PAGE_ID, CONTENT_PAGE_ID]:
@@ -157,31 +153,77 @@ for page_id in [ROOT_PAGE_ID, CONTENT_PAGE_ID]:
 > **重要**: Root ページと Content ページの**両方**を修正すること。
 > Website default language の設定によってどちらが表示されるか変わる。
 
+### Phase 3.7: `isroot` フラグ検証（Enhanced Data Model 必須）
+
+`pac pages upload-code-site` は Content ページの `isroot` を `True` に変更する場合がある。  
+**同じ `partialurl` で複数のページが `isroot: True` になると「Page Not Found」になる。**
+
+```python
+# Enhanced Data Model (powerpagecomponents type=2) のページ構造:
+# - Root page (master):   isroot=True, rootwebpageid=null, partialurl="/"
+# - Content page (variant): isroot=False, rootwebpageid=<root_id>, partialurl="/"
+#
+# ⚠️ 両方が isroot=True だとルーティングが壊れる
+
+import json, requests
+
+# Content ページの isroot を強制的に False に
+r = requests.get(f'{url}/powerpagecomponents({CONTENT_PAGE_ID})', headers=h, params={'$select': 'content'})
+c = json.loads(r.json()['content'])
+if c.get('isroot') == True:
+    c['isroot'] = False
+    requests.patch(f'{url}/powerpagecomponents({CONTENT_PAGE_ID})', headers=h, json={'content': json.dumps(c)})
+
+# Root ページは isroot=True を維持
+r2 = requests.get(f'{url}/powerpagecomponents({ROOT_PAGE_ID})', headers=h, params={'$select': 'content'})
+c2 = json.loads(r2.json()['content'])
+if c2.get('isroot') != True:
+    c2['isroot'] = True
+    requests.patch(f'{url}/powerpagecomponents({ROOT_PAGE_ID})', headers=h, json={'content': json.dumps(c2)})
+```
+
+**症状**: デプロイ後に「Page Not Found」エラーが表示される。  
+**原因**: `pac pages upload` が Content ページの `isroot` を `True` に変更 → ルーティング競合。  
+**教訓**: 毎回のデプロイ後に `isroot` フラグを検証すること。`post_upload_fix.py` に含めるべき。
+
+### Phase 3.8: テンプレート再パッチ（毎回必須）
+
+`pac pages upload-code-site` は **Web テンプレートのソースを上書き**する。  
+毎回のアップロード後に `post_upload_fix.py` で SPA テンプレートを復元する。
+
+復元すべき Enhanced Web Template (type=8) の source:
+
+```html
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/index-{HASH}.css" />
+{% if user %}<script>window.__PP_USER__={userName:"{{ user.fullname | escape }}",firstName:"{{ user.firstname | escape }}",lastName:"{{ user.lastname | escape }}",email:"{{ user.emailaddress1 | escape }}",contactId:"{{ user.id }}",userRoles:["Authenticated Users"]};</script>{% endif %}
+{{ request_verification_token }}
+<div id="root"></div>
+<script type="module" src="/assets/index-{HASH}.js"></script>
+```
+
+**重要ポイント**:
+- `{{ request_verification_token }}` — CSRF トークン hidden input 出力（POST で 401 を防ぐ）
+- `{% if user %}...{% endif %}` — ログイン済みユーザー情報を `window.__PP_USER__` に埋め込み
+- `index-{HASH}` — ビルド毎にハッシュ変化 → `portal/dist/assets/` から動的検出
+
+### デプロイコマンド一覧
+
+```bash
+npx vite build --config vite.config.pages.ts
+Remove-Item portal/dist/assets/* -Force  # 古いバンドル清掃
+Copy-Item dist-pages/* portal/dist/ -Recurse -Force
+cd portal; pac pages upload-code-site --rootPath . --compiledPath ./dist
+cd ..; py scripts/post_upload_fix.py  # テンプレート再パッチ + isroot検証 + リスタート
+```
+
 ### Phase 4: キャッシュクリア（リスタート）
 
 ```python
 POST https://api.powerplatform.com/powerpages/environments/{envId}/websites/{siteId}/restart?api-version=2022-03-01-preview
-Authorization: Bearer {token}  # scope: https://api.powerplatform.com/.default
-```
-pac pages upload-code-site --rootPath .
-```
-
-### Phase 4: テンプレート設定（初回のみ）
-
-```bash
-py scripts/setup_portal_template.py
-```
-
-SPA を直接レンダリングするために:
-
-- `usewebsiteheaderandfooter` → `false`
-- Web テンプレートソース → `{{ page.adx_copy }}`
-
-### Phase 5: キャッシュクリア（リスタート）
-
-```python
-# Power Platform API で再起動
-POST https://api.powerplatform.com/powerpages/environments/{envId}/websites/{siteId}/restart?api-version=2024-10-01
 Authorization: Bearer {token}  # scope: https://api.powerplatform.com/.default
 ```
 
