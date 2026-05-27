@@ -33,6 +33,34 @@ export default defineConfig({
 
 > **`base: './'`**: 必須。Power Pages は `/` からの相対パスでアセットを配信しないため。
 
+### ⚠️ `root` / `@` エイリアスの設定ミス（重大）
+
+ポータルアプリが `portal/` サブディレクトリにある場合、**`root` と `@` エイリアスを `portal/` に向ける**必要がある。  
+ルートの `index.html` や `src/` を指したままだと、**間違ったアプリがビルド・デプロイされる**。
+
+```ts
+// ❌ ルートの src/ (別アプリ) がビルドされてしまう
+export default defineConfig({
+  resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
+  build: { outDir: "dist-pages" },
+});
+
+// ✅ portal/ を root に指定し、@ エイリアスも portal/src に向ける
+export default defineConfig({
+  root: path.resolve(__dirname, "portal"),
+  resolve: { alias: { "@": path.resolve(__dirname, "portal/src") } },
+  build: {
+    outDir: path.resolve(__dirname, "dist-pages"),
+    emptyOutDir: true,
+    rollupOptions: { output: { inlineDynamicImports: true } },
+  },
+});
+```
+
+**症状**: デプロイ後に「前のアプリのUI」が表示される。テンプレートは正しいのに中身が違う。  
+**原因**: Vite がデフォルトでプロジェクトルートの `index.html` をエントリとして使うため。  
+**教訓**: `root` を設定しないと `portal/index.html` ではなく `./index.html` が使われる。
+
 ### SPA ルーティング（HashRouter 必須）
 
 ```tsx
