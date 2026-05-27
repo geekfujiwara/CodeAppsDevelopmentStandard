@@ -208,14 +208,40 @@ body = {
 requests.post(f"{url}/powerpagecomponents", headers=h, json=body)
 ```
 
-### ⚠️ `disableentitypermissions` が効かない場合
+### ⚠️ `disableentitypermissions` が効かない場合 → type=18 の Web ロール紐付け
 
-API 経由で作成した `disableentitypermissions` 設定が即座に反映されないケースがある。
+`disableentitypermissions` サイト設定だけでは 403 が解消しないケースがある。  
+**根本原因**: テーブル権限 (type=18) の content JSON に **`adx_entitypermission_webrole`** と **`websiteid`** が必要。
 
-**対処法**:
-1. サイトリスタート（必須）
-2. Design Studio でテーブルのアクセス許可 → Web ロール紐づけ（N:N は API で設定不可）
-3. `disabletablepermission` (singular) バリアントも作成
+```python
+# ❌ 403 になる — Web ロール紐付けなし
+content = {
+    "entitylogicalname": "geek_location",
+    "entityname": "場所 - Global Read",
+    "scope": 756150000,
+    "read": True, "write": False, "create": False, "delete": False,
+    "append": True, "appendto": True,
+}
+
+# ✅ 動作する — adx_entitypermission_webrole + websiteid を含める
+content = {
+    "entitylogicalname": "geek_location",
+    "entityname": "場所 - Global Read",
+    "scope": 756150000,
+    "read": True, "write": False, "create": False, "delete": False,
+    "append": True, "appendto": True,
+    "websiteid": SITE_ID,                                    # ← 必須
+    "adx_entitypermission_webrole": [AUTH_ROLE_ID],          # ← 必須
+}
+```
+
+**重要**: `mspp_entitypermission_webrole` N:N テーブルを直接操作しても永続化しないが、  
+**powerpagecomponent type=18 の content JSON 内で `adx_entitypermission_webrole` を指定すれば API 経由で Web ロール紐付けが可能**。
+
+**修正手順**:
+1. type=18 の content を PATCH で更新（`adx_entitypermission_webrole` + `websiteid` 追加）
+2. サイトリスタート（必須）
+3. 60-90 秒待機後にアクセス確認
 
 ### サイトリスタート API
 

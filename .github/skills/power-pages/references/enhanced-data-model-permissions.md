@@ -61,13 +61,13 @@ Power Pages Design Studio で管理されるコンポーネントの完全な ty
 
 ---
 
-## ⚠️ CRITICAL: mspp_entitypermission_webrole N:N はAPI で設定不可
+## ⚠️ CRITICAL: mspp_entitypermission_webrole N:N は直接操作不可 → content JSON で解決
 
 ### 問題
 
-`mspp_entitypermission_webrole` の N:N リレーションシップは、Dataverse Web API のすべての方法で設定を試みても**永続化しない**。
+`mspp_entitypermission_webrole` の N:N リレーションシップを **Dataverse Web API で直接操作**しても永続化しない。
 
-### 試行結果
+### 試行結果（直接操作 — すべて失敗）
 
 | 方法 | HTTP レスポンス | 結果 |
 |------|----------------|------|
@@ -75,17 +75,44 @@ Power Pages Design Studio で管理されるコンポーネントの完全な ty
 | `$ref` POST（role → permission 方向） | 204 No Content | ❌ 永続化しない |
 | Deep Insert（permission 作成時に role を含める） | 500 NullReferenceException | ❌ サーバーエラー |
 | `$batch` リクエスト | 204 per item | ❌ 永続化しない |
-| powerpagecomponent content JSON に role ID を含める | 204 (更新成功) | ❌ N:N は作成されない |
 
-### 結論
+### ✅ 解決策: powerpagecomponent type=18 の content JSON に `adx_entitypermission_webrole` を含める
 
-**Power Pages Design Studio（make.powerpages.microsoft.com）の UI のみが正しく N:N リンクを作成できる。** これは Design Studio が内部 API（Organization Service / 非公開エンドポイント）を使用しているためと推定される。
+**powerpagecomponent type=18 の content JSON 内で `adx_entitypermission_webrole` 配列を指定すれば、API 経由で Web ロール紐付けが可能。**
 
-### ワークアラウンド
+```python
+# ✅ 動作する — content JSON 内に web role ID を含める
+content = {
+    "entitylogicalname": "geek_location",
+    "entityname": "場所 - Global Read",
+    "scope": 756150000,
+    "read": True, "write": False, "create": False, "delete": False,
+    "append": True, "appendto": True,
+    "websiteid": SITE_ID,                               # ← 必須
+    "adx_entitypermission_webrole": [AUTH_ROLE_ID],     # ← これで N:N が作成される
+}
+
+body = {
+    "name": "場所 - Global Read",
+    "powerpagecomponenttype": 18,
+    "content": json.dumps(content),
+    "powerpagesiteid@odata.bind": f"/powerpagesites({SITE_ID})",
+}
+requests.post(f"{API}/powerpagecomponents", headers=h, json=body)
+```
+
+### 注意点
+
+- `mspp_entitypermission_webrole` テーブルを直接操作しても**永続化しない**
+- **content JSON の `adx_entitypermission_webrole` フィールドが正解**
+- `websiteid` も content に含めないと紐付けが無効になる場合がある
+- 既存の type=18 を PATCH で更新する場合も同じ形式で content を上書きすれば反映される
+- **更新後はサイトリスタートが必須**（60-90 秒で反映）
+
+### ワークアラウンド（content JSON が効かない場合のフォールバック）
 
 1. **管理者ユーザーはテーブル権限をバイパスする** — 管理者でアクセスする場合は N:N 不要
-2. **Design Studio で手動設定** — 一般ユーザー向けには必須
-3. **powerpagecomponent type=18 でレコードだけ先に作成** — Design Studio でロール紐付けのみ手動
+2. **Design Studio で手動設定** — 最終手段として UI から設定
 
 ---
 
@@ -106,9 +133,8 @@ Webapi/{table_logical_name}/fields: "*"    # または列名カンマ区切り
 | # | 要素 | 設定方法 | 自動化可否 |
 |---|------|----------|-----------|
 | 1 | Site Settings (enabled/fields) | Dataverse Web API で作成 | ✅ 可能 |
-| 2 | Table Permission レコード | powerpagecomponent type=18 で作成 | ✅ 可能 |
-| 3 | **Web Role 紐付け (N:N)** | **Design Studio のみ** | ❌ 不可能 |
-| 4 | Site Restart | Power Platform API | ✅ 可能 |
+| 2 | Table Permission + Web Role 紐付け | powerpagecomponent type=18 content に `adx_entitypermission_webrole` | ✅ 可能 |
+| 3 | Site Restart | Power Platform API | ✅ 可能 |
 
 ### Site Settings の作成パターン
 
@@ -145,22 +171,27 @@ for table in tables:
 
 ## powerpagecomponent type=18 でテーブル権限を作成
 
-type=18 の powerpagecomponent を作成すると、対応する `mspp_entitypermission` レコードが**自動的に作成される**。ただし Web Role の N:N リンクは含まれない。
+type=18 の powerpagecomponent を作成すると、対応する `mspp_entitypermission` レコードが**自動的に作成**され、**content JSON 内の `adx_entitypermission_webrole` で Web Role の N:N リンクも同時に設定される**。
 
-### content JSON のフォーマット
+### content JSON のフォーマット（✅ 完全版）
 
 ```json
 {
-  "mspp_entityname": "geek_knowledge",
-  "mspp_scope": "756150000",
-  "mspp_read": "true",
-  "mspp_write": "false",
-  "mspp_create": "false",
-  "mspp_delete": "false",
-  "mspp_append": "true",
-  "mspp_appendto": "true"
+  "entitylogicalname": "geek_knowledge",
+  "entityname": "ナレッジ - Global Read",
+  "scope": 756150000,
+  "read": true,
+  "write": false,
+  "create": false,
+  "delete": false,
+  "append": true,
+  "appendto": true,
+  "websiteid": "SITE_ID_HERE",
+  "adx_entitypermission_webrole": ["WEB_ROLE_ID_HERE"]
 }
 ```
+
+> **注意**: `mspp_` プレフィックスのキー名でも動作するが、実際に動作確認できたフォーマットは上記の `entitylogicalname` / `entityname` 形式。
 
 ### mspp_scope の値
 
@@ -175,21 +206,21 @@ type=18 の powerpagecomponent を作成すると、対応する `mspp_entityper
 ### 作成スクリプト例
 
 ```python
+content = {
+    "entitylogicalname": table_logical_name,
+    "entityname": f"{display_name} - Global Read",
+    "scope": 756150000,
+    "read": True, "write": False, "create": False, "delete": False,
+    "append": True, "appendto": True,
+    "websiteid": POWERPAGESITE_ID,
+    "adx_entitypermission_webrole": [AUTH_ROLE_ID],  # ← Web Role 紐付け
+}
+
 component = {
     "powerpagecomponenttype": 18,
     "name": f"{display_name} - Global Read",
-    "content": json.dumps({
-        "mspp_entityname": table_logical_name,
-        "mspp_scope": "756150000",
-        "mspp_read": "true",
-        "mspp_write": "false",
-        "mspp_create": "false",
-        "mspp_delete": "false",
-        "mspp_append": "true",
-        "mspp_appendto": "true",
-    }),
+    "content": json.dumps(content),
     "powerpagesiteid@odata.bind": f"/powerpagesites({POWERPAGESITE_ID})",
-    "powerpagesitelanguageid@odata.bind": f"/powerpagesitelanguages({LANG_ID})",
 }
 requests.post(
     f"{DATAVERSE_URL}api/data/v9.2/powerpagecomponents",
