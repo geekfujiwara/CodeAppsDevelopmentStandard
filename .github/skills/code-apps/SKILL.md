@@ -1246,9 +1246,18 @@ export function useCreateIncident() {
     ├─ ④ カスタム getClient() の引数チェック
     │     全ての getClient(dataSourcesInfo) 呼び出しが統合版を使用しているか確認
     │
-    ├─ ⑤ npm run build（TypeScript エラーチェック）
+    ├─ ⑤ ルーター種別チェック（createHashRouter 必須）
+    │     createBrowserRouter を使っていたら createHashRouter に修正
+    │     → BrowserRouter は Power Apps iframe 内で初期ロード 404 になる
     │
-    └─ ⑥ npx power-apps push / pac code push
+    ├─ ⑥ サイドバー fixed レイアウトチェック
+    │     Sidebar が fixed + 固定幅（w-64）であることを確認
+    │     メインコンテンツに md:ml-64 オフセットがあることを確認
+    │     → flex 内に幅指定なしだとページ遷移で幅が崩れる
+    │
+    ├─ ⑦ npm run build（TypeScript エラーチェック）
+    │
+    └─ ⑧ npx power-apps push / pac code push
 ```
 
 > **理由**: `getClient()` はシングルトンのため、初回に渡す `dataSourcesInfo` に

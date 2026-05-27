@@ -45,6 +45,27 @@ npm install @tanstack/react-query
 npm install react-router
 ```
 
+> **重要**: ルーター生成は必ず `createHashRouter` を使用すること。
+> `createBrowserRouter` は Power Apps iframe 内で初期ロード時に 404 になる。
+> 詳細は [トラブルシューティング #14](troubleshooting.md#14-createbrowserrouter-で初期画面が-404-になる検証済-2026-05-28) を参照。
+
+```typescript
+// src/router.tsx — 必ず createHashRouter を使用
+import { createHashRouter, Navigate } from "react-router-dom";
+
+export const router = createHashRouter([
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      { index: true, element: <Navigate to="/dashboard" replace /> },
+      { path: "dashboard", element: <DashboardPage /> },
+      // ...
+    ],
+  },
+]);
+```
+
 ### Step 5: DataverseService パターンで CRUD 実装
 
 ```typescript
