@@ -1,187 +1,392 @@
-"""Power Pages コードサイト デプロイスクリプト.
+"""Power Pages SPA デプロイスクリプト（検証済み標準手順）
 
-以下を順番に実行する:
-1. 前提チェック（check_prerequisites.py 呼び出し）
-2. pac pages upload-code-site でサイトアップロード
-3. pac pages provision-website でプロビジョニング（初回のみ、任意）
+pac pages upload-code-site → Post-Upload Fix → Restart の一連を実行する。
+「クラシックページ」にフォールバックしないための必須修正を自動適用する。
 
-環境変数:
-- POWERPAGES_SITE_PATH: サイトディレクトリ（デフォルト: .）
-- DATAVERSE_URL: Dataverse 環境 URL（ログ用）
-- POWERPAGES_WEBSITE_NAME: プロビジョニング時のサイト名（省略時はプロビジョニングをスキップ）
-- POWERPAGES_SKIP_PRECHECK: "1" で前提チェックをスキップ
+検証済み環境:
+- React 19 + Vite 7 + Tailwind CSS 4
+- PAC CLI v2.7+
+- Power Pages Standard Data Model
+
+必須条件:
+- portal/powerpages.config.json に compiledPath, siteName が設定済み
+- portal/dist/ にビルド済みアセットが存在する
+- pac auth who で認証済み
+- .env に DATAVERSE_URL, ENV_ID が設定済み
+
+Usage:
+    py .github/skills/power-pages/scripts/deploy_site.py [OPTIONS]
+
+Options:
+    --skip-build      ビルドをスキップ（事前ビルド済みの場合）
+    --skip-checks     デプロイ前チェックをスキップ
+    --skip-restart    サイト再起動をスキップ
+    --portal-dir DIR  ポータルディレクトリ（デフォルト: ./portal）
 """
-
-import logging
-import os
-import subprocess
 import sys
-from pathlib import Path
+import os
+import re
+import json
+import subprocess
+import logging
 
-# ---------------------------------------------------------------------------
-# ログ設定
-# ---------------------------------------------------------------------------
+# パスセットアップ
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..', '..', '..'))
+sys.path.insert(0, PROJECT_ROOT)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logger = logging.getLogger(__name__)
+try:
+    from auth_helper import get_token
+except ImportError:
+    print("ERROR: auth_helper.py not found. Run from project root.")
+    sys.exit(1)
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(PROJECT_ROOT, '.env'))
+except ImportError:
+    pass
+
+import requests
 
 # ---------------------------------------------------------------------------
 # 設定
 # ---------------------------------------------------------------------------
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
 
-SITE_PATH = os.environ.get("POWERPAGES_SITE_PATH", ".")
-DATAVERSE_URL = os.environ.get("DATAVERSE_URL", "")
-WEBSITE_NAME = os.environ.get("POWERPAGES_WEBSITE_NAME", "")
-SKIP_PRECHECK = os.environ.get("POWERPAGES_SKIP_PRECHECK", "") == "1"
+DATAVERSE_URL = os.environ.get('DATAVERSE_URL', '').rstrip('/')
+ENV_ID = os.environ.get('ENV_ID', '')
+PORTAL_DIR = os.environ.get('PORTAL_DIR', os.path.join(PROJECT_ROOT, 'portal'))
+
+# CLI args
+skip_build = '--skip-build' in sys.argv
+skip_checks = '--skip-checks' in sys.argv
+skip_restart = '--skip-restart' in sys.argv
+
+for arg in sys.argv[1:]:
+    if arg.startswith('--portal-dir'):
+        idx = sys.argv.index(arg)
+        if idx + 1 < len(sys.argv):
+            PORTAL_DIR = sys.argv[idx + 1]
+
 
 # ---------------------------------------------------------------------------
-# ユーティリティ
+# Dataverse ヘルパー
 # ---------------------------------------------------------------------------
+def dv_headers():
+    return {
+        'Authorization': f'Bearer {get_token()}',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'OData-MaxVersion': '4.0',
+        'OData-Version': '4.0',
+    }
 
 
-def run_command(
-    cmd: list[str],
-    description: str,
-    check: bool = True,
-) -> subprocess.CompletedProcess:
-    """サブプロセスを実行し、エラー時は詳細ログを出力する."""
-    logger.info(f"実行: {description}")
-    logger.info(f"  コマンド: {' '.join(cmd)}")
+def dv_patch_headers():
+    h = dv_headers()
+    h['If-Match'] = '*'
+    return h
 
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-    except FileNotFoundError as e:
-        logger.error(f"コマンドが見つかりません: {cmd[0]}")
-        logger.error(f"  詳細: {e}")
-        sys.exit(1)
-    except subprocess.TimeoutExpired:
-        logger.error(f"タイムアウト（300秒）: {description}")
-        sys.exit(1)
 
-    if result.stdout.strip():
-        for line in result.stdout.strip().split("\n"):
-            logger.info(f"  [stdout] {line}")
+def dv_get(path):
+    return requests.get(f"{DATAVERSE_URL}/api/data/v9.2/{path}", headers=dv_headers())
 
+
+def dv_patch(path, payload):
+    return requests.patch(f"{DATAVERSE_URL}/api/data/v9.2/{path}", headers=dv_patch_headers(), json=payload)
+
+
+# ---------------------------------------------------------------------------
+# Phase 0: Pre-Deploy Check
+# ---------------------------------------------------------------------------
+def phase_predeploy_check():
+    """デプロイ前チェック."""
+    logger.info("=" * 60)
+    logger.info("Phase 0: Pre-Deploy Check")
+    logger.info("=" * 60)
+
+    if skip_checks:
+        logger.info("  (skipped via --skip-checks)")
+        return
+
+    predeploy_script = os.path.join(SCRIPT_DIR, 'predeploy_check.py')
+    if os.path.isfile(predeploy_script):
+        result = subprocess.run([sys.executable, predeploy_script, '--fix'],
+                               capture_output=True, text=True, encoding='utf-8', errors='replace')
+        if result.stdout:
+            print(result.stdout)
+        if result.returncode != 0:
+            logger.error("Pre-deploy check failed")
+            if result.stderr:
+                print(result.stderr)
+            sys.exit(1)
+    else:
+        logger.info("  predeploy_check.py not found, skipping")
+
+
+# ---------------------------------------------------------------------------
+# Phase 1: Verify
+# ---------------------------------------------------------------------------
+def phase_verify():
+    """前提確認."""
+    logger.info("=" * 60)
+    logger.info("Phase 1: Verify Prerequisites")
+    logger.info("=" * 60)
+
+    # pac auth
+    result = subprocess.run(['pac', 'auth', 'who'], capture_output=True, text=True)
     if result.returncode != 0:
-        logger.error(f"失敗: {description} (exit code: {result.returncode})")
-        if result.stderr.strip():
-            for line in result.stderr.strip().split("\n"):
-                logger.error(f"  [stderr] {line}")
-        if check:
-            sys.exit(result.returncode)
+        logger.error("pac auth not configured. Run: pac auth create --environment <URL>")
+        sys.exit(1)
+    logger.info("  ✓ pac auth OK")
 
-    return result
+    # powerpages.config.json
+    config_path = os.path.join(PORTAL_DIR, 'powerpages.config.json')
+    if not os.path.isfile(config_path):
+        logger.error(f"powerpages.config.json not found at {config_path}")
+        sys.exit(1)
+    with open(config_path) as f:
+        config = json.load(f)
+    logger.info(f"  ✓ Site: {config['siteName']}, compiledPath: {config['compiledPath']}")
+
+    # .env
+    if not DATAVERSE_URL:
+        logger.error("DATAVERSE_URL not set in .env")
+        sys.exit(1)
+    if not ENV_ID:
+        logger.error("ENV_ID not set in .env")
+        sys.exit(1)
+    logger.info(f"  ✓ DATAVERSE_URL: {DATAVERSE_URL}")
+
+    return config
 
 
 # ---------------------------------------------------------------------------
-# デプロイステップ
+# Phase 2: Build
 # ---------------------------------------------------------------------------
+def phase_build():
+    """SPA ビルド."""
+    logger.info("=" * 60)
+    logger.info("Phase 2: Build")
+    logger.info("=" * 60)
 
-
-def step_precheck() -> None:
-    """前提チェックを実行."""
-    if SKIP_PRECHECK:
-        logger.info("前提チェックをスキップ（POWERPAGES_SKIP_PRECHECK=1）")
+    if skip_build:
+        logger.info("  (skipped via --skip-build)")
         return
 
-    script_dir = Path(__file__).parent
-    check_script = script_dir / "check_prerequisites.py"
+    result = subprocess.run('npm run build', shell=True, cwd=PORTAL_DIR,
+                           capture_output=True, text=True, encoding='utf-8', errors='replace')
+    if result.returncode != 0:
+        logger.error(f"Build failed: {result.stderr[-500:]}")
+        sys.exit(1)
+    logger.info("  ✓ Build OK")
 
-    if not check_script.exists():
-        logger.warning(f"前提チェックスクリプトが見つかりません: {check_script}")
-        logger.warning("前提チェックをスキップします")
-        return
 
-    result = run_command(
-        [sys.executable, str(check_script)],
-        "前提チェック",
-        check=False,
+# ---------------------------------------------------------------------------
+# Phase 3: Upload
+# ---------------------------------------------------------------------------
+def phase_upload():
+    """pac pages upload-code-site."""
+    logger.info("=" * 60)
+    logger.info("Phase 3: Upload")
+    logger.info("=" * 60)
+
+    result = subprocess.run(
+        f'pac pages upload-code-site --rootPath "{PORTAL_DIR}"',
+        shell=True, capture_output=True, text=True, encoding='utf-8', errors='replace'
+    )
+    if result.stdout:
+        lines = result.stdout.strip().split('\n')
+        for line in lines[-10:]:
+            logger.info(f"  {line}")
+    if result.returncode != 0:
+        logger.error(f"Upload failed: {result.stderr[-300:]}")
+        sys.exit(1)
+    logger.info("  ✓ Upload OK")
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Post-Upload Fix（SPA 表示に必須 — クラシック防止）
+# ---------------------------------------------------------------------------
+def phase_post_upload_fix(config):
+    """pac pages upload 後の必須修正.
+
+    これを実行しないとクラシックページが表示される。
+    検証済みパターン:
+    1. Page Template: usewebsiteheaderandfooter = false（全テンプレート）
+    2. Web Template "Default studio template": source = body-only SPA ローダー
+    3. Home ページ (Root + Content): mspp_copy = body-only HTML
+
+    根本原因:
+    - pac pages upload-code-site は Page Template の usewebsiteheaderandfooter を
+      true にリセットする場合がある
+    - Web Template source を標準的なクラシックテンプレートに上書きする
+    - mspp_copy を dist/index.html の全文（<!doctype html>...）で上書きする
+
+    修正パターン（検証済み）:
+    - Web Template source = body-only HTML（CSS link + div#root + script tag）
+    - mspp_copy = body-only HTML
+    - アセットパス = /assets/xxx（ルート相対、./ ではない）
+    """
+    logger.info("=" * 60)
+    logger.info("Phase 4: Post-Upload Fix (SPA 必須修正)")
+    logger.info("=" * 60)
+
+    # dist/index.html からアセットファイル名を取得
+    compiled_path = config.get('compiledPath', 'dist')
+    dist_dir = os.path.join(PORTAL_DIR, compiled_path)
+    index_html_path = os.path.join(dist_dir, 'index.html')
+
+    if not os.path.isfile(index_html_path):
+        logger.error(f"dist/index.html not found: {index_html_path}")
+        sys.exit(1)
+
+    with open(index_html_path, encoding='utf-8') as f:
+        html = f.read()
+
+    js_match = re.search(r'src="[./]*(assets/[^"]+\.js)"', html)
+    css_match = re.search(r'href="[./]*(assets/[^"]+\.css)"', html)
+
+    if not js_match or not css_match:
+        logger.error("Cannot parse asset filenames from index.html")
+        sys.exit(1)
+
+    js_file = js_match.group(1)
+    css_file = css_match.group(1)
+    logger.info(f"  Assets: /{js_file}, /{css_file}")
+
+    # Website ID 取得
+    r = dv_get(f"mspp_websites?$filter=mspp_name eq '{config['siteName']}'&$select=mspp_websiteid,mspp_name")
+    websites = r.json().get('value', [])
+    if not websites:
+        r = dv_get("mspp_websites?$select=mspp_websiteid,mspp_name")
+        websites = r.json().get('value', [])
+    if not websites:
+        logger.error("No website found in Dataverse")
+        sys.exit(1)
+
+    wid = websites[0]['mspp_websiteid']
+    logger.info(f"  Website: {websites[0].get('mspp_name', '')} ({wid})")
+
+    # --- Fix A: Page Templates ---
+    logger.info("\n  [A] Page Templates: usewebsiteheaderandfooter → false")
+    r = dv_get(f"mspp_pagetemplates?$filter=_mspp_websiteid_value eq '{wid}'"
+               f"&$select=mspp_pagetemplateid,mspp_name,mspp_usewebsiteheaderandfooter")
+    r.raise_for_status()
+    for pt in r.json().get('value', []):
+        pid = pt['mspp_pagetemplateid']
+        name = pt['mspp_name']
+        if pt.get('mspp_usewebsiteheaderandfooter') is True:
+            rp = dv_patch(f"mspp_pagetemplates({pid})", {'mspp_usewebsiteheaderandfooter': False})
+            logger.info(f"      {name}: → false ({rp.status_code})")
+        else:
+            logger.info(f"      {name}: OK")
+
+    # --- Fix B: Web Template source = body-only SPA ローダー ---
+    logger.info("\n  [B] Web Template 'Default studio template' → SPA loader")
+    web_template_source = (
+        '<link rel="preconnect" href="https://fonts.googleapis.com" />\n'
+        '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n'
+        '<link\n'
+        '  href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"\n'
+        '  rel="stylesheet"\n'
+        '/>\n'
+        f'<link rel="stylesheet" href="/{css_file}" />\n'
+        '<div id="root"></div>\n'
+        f'<script type="module" src="/{js_file}"></script>\n'
     )
 
-    if result.returncode != 0:
-        logger.error("前提チェックに失敗しました。上記のアクションを実行してください。")
-        sys.exit(1)
+    r = dv_get(f"mspp_webtemplates?$filter=_mspp_websiteid_value eq '{wid}'"
+               f"&$select=mspp_webtemplateid,mspp_name")
+    r.raise_for_status()
+    for wt in r.json().get('value', []):
+        if 'default studio' in wt.get('mspp_name', '').lower():
+            wt_id = wt['mspp_webtemplateid']
+            rp = dv_patch(f"mspp_webtemplates({wt_id})", {'mspp_source': web_template_source})
+            logger.info(f"      {wt['mspp_name']}: ({rp.status_code})")
 
-
-def step_upload() -> None:
-    """pac pages upload-code-site を実行."""
-    site_path = Path(SITE_PATH).resolve()
-
-    # .powerpages-site の存在を再確認
-    marker = site_path / ".powerpages-site"
-    if not marker.exists():
-        logger.error(f".powerpages-site が見つかりません: {marker}")
-        logger.error("サイトディレクトリを確認してください。")
-        sys.exit(1)
-
-    logger.info(f"サイトパス: {site_path}")
-    if DATAVERSE_URL:
-        logger.info(f"Dataverse URL: {DATAVERSE_URL}")
-
-    run_command(
-        ["pac", "pages", "upload-code-site", "--path", str(site_path)],
-        "コードサイトのアップロード",
+    # --- Fix C: Home page mspp_copy = body-only ---
+    logger.info("\n  [C] Home page mspp_copy → body-only")
+    new_copy = (
+        '<div id="root"></div>\n'
+        f'<script type="module" crossorigin src="/{js_file}"></script>\n'
+        f'<link rel="stylesheet" crossorigin href="/{css_file}">'
     )
 
-    logger.info("✅ サイトのアップロードが完了しました")
+    r = dv_get(f"mspp_webpages?$filter=_mspp_websiteid_value eq '{wid}' and mspp_name eq 'Home'"
+               f"&$select=mspp_webpageid,mspp_isroot")
+    r.raise_for_status()
+    pages = r.json().get('value', [])
+    for p in pages:
+        pid = p['mspp_webpageid']
+        label = 'Root' if p.get('mspp_isroot') else 'Content'
+        rp = dv_patch(f"mspp_webpages({pid})", {'mspp_copy': new_copy})
+        logger.info(f"      {label} ({pid}): {rp.status_code}")
 
-
-def step_provision() -> None:
-    """プロビジョニング案内（provision-website は PAC CLI 未実装のため API 経由を案内）."""
-    if not WEBSITE_NAME:
-        logger.info("POWERPAGES_WEBSITE_NAME 未設定のため、プロビジョニングをスキップ")
-        logger.info("（既存サイトの更新のみ実行されました）")
-        return
-
-    # NOTE: pac pages provision-website は PAC CLI 2.7.x 時点で未実装
-    # Power Platform API 経由でサイト作成が必要
-    logger.warning("⚠️  pac pages provision-website は PAC CLI で未実装です")
-    logger.info("   代替手段:")
-    logger.info("   1. python scripts/deploy_placeholder.py --create-site --wait")
-    logger.info("   2. python scripts/manage_portal.py --action create --name '...' --subdomain '...'")
-    logger.info("   3. Power Pages 管理画面で手動作成:")
-    env_id = os.environ.get("ENV_ID", "")
-    if env_id:
-        logger.info(f"      https://make.powerpages.microsoft.com/environments/{env_id}/portals/home")
-    logger.info("")
-    logger.info("   推奨: Phase 0.5 で deploy_placeholder.py を使い、プロビジョニングを並行実行する")
+    logger.info("\n  ✓ Post-upload fix complete")
 
 
 # ---------------------------------------------------------------------------
-# メイン
+# Phase 5: Restart
 # ---------------------------------------------------------------------------
-
-
-def main() -> int:
-    """デプロイを実行する."""
+def phase_restart(config):
+    """サイト再起動（キャッシュクリア）."""
     logger.info("=" * 60)
-    logger.info("Power Pages コードサイト デプロイ")
+    logger.info("Phase 5: Restart (cache clear)")
     logger.info("=" * 60)
 
-    # Step 1: 前提チェック
-    step_precheck()
+    if skip_restart:
+        logger.info("  (skipped via --skip-restart)")
+        return None
 
-    # Step 2: アップロード
-    step_upload()
+    token = get_token(scope='https://api.powerplatform.com/.default')
+    h = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
 
-    # Step 3: プロビジョニング（任意）
-    step_provision()
+    r = requests.get(
+        f'https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites?api-version=2024-10-01',
+        headers=h)
+
+    site_url = None
+    for s in r.json().get('value', []):
+        if config['siteName'].lower() in s.get('name', '').lower():
+            sid = s['id']
+            site_url = s.get('websiteUrl', '')
+            rr = requests.post(
+                f'https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites/{sid}/restart?api-version=2024-10-01',
+                headers=h)
+            logger.info(f"  Restart: {rr.status_code}")
+            break
+    else:
+        logger.warning("  Site not found in PP API — manual restart needed")
+
+    return site_url
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+def main():
+    logger.info("")
+    logger.info("Power Pages SPA Deploy (Verified Standard Procedure)")
+    logger.info("")
+
+    phase_predeploy_check()
+    config = phase_verify()
+    phase_build()
+    phase_upload()
+    phase_post_upload_fix(config)
+    site_url = phase_restart(config)
 
     logger.info("")
     logger.info("=" * 60)
-    logger.info("🎉 デプロイ完了")
+    logger.info("✅ Deploy complete!")
+    if site_url:
+        logger.info(f"   URL: {site_url}")
+    logger.info("   (Allow 1-2 minutes for cache propagation)")
     logger.info("=" * 60)
-    return 0
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+if __name__ == '__main__':
+    main()

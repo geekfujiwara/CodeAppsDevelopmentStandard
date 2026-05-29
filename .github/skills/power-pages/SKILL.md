@@ -63,10 +63,10 @@ React / Vue / Angular / Astro 等の静的 SPA フレームワークに対応。
 | # | フェーズ | 対応する MS スキル | 本リポジトリの実装 |
 |---|---|---|---|
 | 1 | サイト作成 | `/create-site` | `npm create vite` + `powerpages.config.json` 作成 |
-| 2 | 初回デプロイ | `/deploy-site` | `pac pages upload-code-site --rootPath portal` |
+| 2 | 初回デプロイ | `/deploy-site` | `py .github/skills/power-pages/scripts/deploy_site.py` |
 | 3 | アクティベート | `/activate-site` | Power Platform API POST or 管理画面 |
 | 4 | 認証設定 | `/setup-auth` | `src/services/authService.ts` + 管理画面で IdP 有効化 |
-| 5 | 再デプロイ | `/deploy-site` | `py scripts/deploy_portal.py` |
+| 5 | 再デプロイ | `/deploy-site` | `py .github/skills/power-pages/scripts/deploy_site.py` |
 | 6 | テスト | `/test-site` | サイト URL にアクセスして確認 |
 
 ## 前提
@@ -427,17 +427,68 @@ value: "https://login.microsoftonline.com/{tenant-id}/"
 
 ---
 
-### Step 5: サイトアップロード + Restart
+### Step 5: サイトアップロード + Post-Upload Fix + Restart
+
+> **⚠️ CRITICAL**: `pac pages upload-code-site` はクラシックページを復活させる変更を加えるため、
+> アップロード後に **必ず Post-Upload Fix を実行**する。手動デプロイは禁止。
 
 ```bash
-# ビルド
-npm run build
+# 標準デプロイ（ビルド + アップロード + Post-Upload Fix + Restart すべて自動）
+py .github/skills/power-pages/scripts/deploy_site.py
 
-# アップロード
-pac pages upload-code-site --rootPath ./portal --siteName "サイト名"
+# ビルド済みの場合
+py .github/skills/power-pages/scripts/deploy_site.py --skip-build
 
-# サイト再起動（セキュリティ設定反映に必須）
-python .github/skills/power-pages/scripts/manage_portal.py --action restart
+# デプロイ前チェックのみ実行
+py .github/skills/power-pages/scripts/predeploy_check.py
+py .github/skills/power-pages/scripts/predeploy_check.py --fix  # 自動修正付き
+```
+
+#### deploy_site.py の処理フロー
+
+```
+Phase 0: Pre-Deploy Check（ビルド出力・テンプレート整合性・mspp_copy 検証）
+Phase 1: Verify (pac auth who + powerpages.config.json + .env)
+Phase 2: Build (npm run build)
+Phase 3: Upload (pac pages upload-code-site)
+  ⚠️ この時点で以下が破壊される:
+    - Page Template usewebsiteheaderandfooter → true にリセット
+    - Web Template source → クラシックテンプレートで上書き
+    - mspp_copy → dist/index.html の全文 (<!doctype html>...) で上書き
+Phase 4: Post-Upload Fix（SPA 必須修正 — クラシック防止）
+  [A] Page Template: usewebsiteheaderandfooter → false（全テンプレート）
+  [B] Web Template "Default studio template": source → body-only SPA ローダー
+  [C] Home page mspp_copy → body-only HTML
+Phase 5: Restart (Power Platform API でキャッシュクリア)
+```
+
+#### Post-Upload Fix の核心パターン（検証済み）
+
+| 対象 | 修正内容 | なぜ必要か |
+|------|---------|-----------|
+| Page Template | `usewebsiteheaderandfooter: false` | true のままだと Power Pages が header/footer をラップしクラシック表示に |
+| Web Template source | body-only SPA ローダー | クラシックテンプレートだと SPA が正しく読み込まれない |
+| mspp_copy | body-only HTML (`<div id="root">` + script + css) | full HTML だとネストされて表示崩壊 |
+
+#### Web Template source（検証済みフォーマット）
+
+```html
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/index-XXXXX.css" />
+<div id="root"></div>
+<script type="module" src="/assets/index-XXXXX.js"></script>
+```
+
+> **重要**: アセットパスは **ルート相対 (`/assets/...`)** でなければならない。`./assets/...` は不可。
+
+#### mspp_copy（検証済みフォーマット）
+
+```html
+<div id="root"></div>
+<script type="module" crossorigin src="/assets/index-XXXXX.js"></script>
+<link rel="stylesheet" crossorigin href="/assets/index-XXXXX.css">
 ```
 
 > **注意**: `upload-code-site` は毎回 `.powerpages-site/site-settings/*.yml` で Dataverse を上書きする。YAML ファイルが設定の正。
@@ -526,28 +577,33 @@ https://make.powerpages.microsoft.com/environments/{ENV_ID}/portals/home
 
 | ルール | 理由 |
 |--------|------|
+| **`deploy_site.py` を使用する（手動デプロイ禁止）** | Post-Upload Fix を自動実行しないとクラシック表示になる |
 | **YAML ファイルを site settings の正とする** | pac pages upload が毎回 YAML から Dataverse を上書きする |
 | **設定変更 = YAML 更新 + Dataverse PATCH** | 片方だけでは次回デプロイで不整合 |
-| **デプロイ前チェックを実行** | `py scripts/predeploy_check.py` で既知問題を事前検出 |
-| **NEVER use `pac pages upload`** | コードサイトのメタデータを破壊する |
-| **アップロード前にビルドを実行** | 古いビルド成果物のデプロイを防止 |
+| **デプロイ前チェックを実行** | `predeploy_check.py` で既知問題を事前検出 |
+| **NEVER use `pac pages upload` 単体** | Post-Upload Fix なしではクラシックに戻る |
+| **アセットパスはルート相対 (`/assets/...`)** | `./assets/...` だとパスが解決できない |
+| **Page Template は全て usewebsiteheaderandfooter=false** | true だとクラシックの header/footer がラップされる |
+| **Web Template source は body-only** | full HTML や `{{ page.adx_copy }}` は不可 |
 | **デプロイ後に restart** | キャッシュが残り変更が反映されない |
 | **`*-manifest.yml` が stale なら削除** | `.html blocked` エラーの原因 |
-| **デプロイ後に mspp_copy を修正（Root + Content 両方）** | upload が full HTML で上書きする |
-| **SPA fetch は redirect: 'manual' 必須** | LoginButtonAuthenticationType 使用時の 500 防止 |
 
 ---
 
 ## Pre-Deploy Health Check（デプロイ前チェック）
 
-デプロイ前に `py scripts/predeploy_check.py` を実行し、既知の問題を検出する。
-`deploy_portal.py` の Phase 0 として自動実行される。
+デプロイ前に `py .github/skills/power-pages/scripts/predeploy_check.py` を実行し、既知の問題を検出する。
+`deploy_site.py` の Phase 0 として自動実行される。
 
 ### チェック項目
 
 | # | チェック | 検出する問題 | 自動修正 |
 |---|---------|-------------|---------|
-| 1 | Duplicate Pages | 同一 URL に複数の Published root ページ | ✅ 古い方を Draft に |
+| 1 | Build Output | dist/index.html + assets/ の存在・パース可否 | ❌ ビルド必要 |
+| 2 | Vite Config | inlineDynamicImports / base 設定 | ❌ 手動修正 |
+| 3 | Page Template | usewebsiteheaderandfooter=true（クラシック原因） | ✅ --fix で修正 |
+| 4 | Web Template | body-only SPA ローダーかどうか | ⚠️ 警告 |
+| 5 | mspp_copy | full HTML (`<!doctype`) が含まれていないか | ⚠️ 警告（deploy で修正） |
 | 2 | Publishing State | Home root ページが Draft | ✅ Published に変更 |
 | 3 | mspp_copy Integrity | Content ページに full HTML が入っている | ✅ body-only に修正 |
 | 4 | Page Template | usewebsiteheaderandfooter≠false / web template不正 | ❌ 手動修正 |
@@ -559,34 +615,36 @@ https://make.powerpages.microsoft.com/environments/{ENV_ID}/portals/home
 
 ```bash
 # チェックのみ（読み取り専用）
-py scripts/predeploy_check.py
+py .github/skills/power-pages/scripts/predeploy_check.py
 
 # チェック + 自動修正
-py scripts/predeploy_check.py --fix
+py .github/skills/power-pages/scripts/predeploy_check.py --fix
 
-# デプロイ時（Phase 0 として自動実行）
-py scripts/deploy_portal.py
+# 標準デプロイ（チェック → ビルド → アップロード → Fix → Restart）
+py .github/skills/power-pages/scripts/deploy_site.py
 
 # チェックをスキップしてデプロイ
-py scripts/deploy_portal.py --skip-checks
+py .github/skills/power-pages/scripts/deploy_site.py --skip-checks
 ```
 
 ### デプロイスクリプト処理フロー（最新）
 
 ```
-Phase 0: Pre-Deploy Check（重複ページ・mspp_copy・テンプレート整合性）
-Phase 1: Verify (pac auth who + powerpages.config.json)
+Phase 0: Pre-Deploy Check（ビルド出力・テンプレート整合性・mspp_copy 検証）
+Phase 1: Verify (pac auth who + powerpages.config.json + .env)
 Phase 2: Build (npm run build)
 Phase 3: Upload (pac pages upload-code-site)
   ⚠️ この時点で YAML の site-settings が Dataverse に復元される
-  ⚠️ この時点で mspp_copy が dist/index.html の全文で上書きされる
-Phase 3.5: Site Settings (YAML に含まれない追加設定を Dataverse PATCH)
-Phase 3.6: Fix Page Content (Root + Content 両方の mspp_copy を body-only に修正)
-Phase 4: Restart (Power Platform API で cache clear)
+  ⚠️ この時点で Page Template / Web Template / mspp_copy が上書きされる
+Phase 4: Post-Upload Fix（SPA 必須修正 — クラシック防止）
+  [A] Page Template: usewebsiteheaderandfooter → false
+  [B] Web Template source → body-only SPA ローダー
+  [C] Home page mspp_copy → body-only HTML
+Phase 5: Restart (Power Platform API でキャッシュクリア)
 ```
 
-> **重要**: Phase 3 で YAML から設定が復元されるため、YAML ファイル自体を正しく管理することが最重要。
-> Phase 3.5 は YAML に含まれない設定（ProfileRedirectEnabled 等）の追加設定用。
+> **重要**: Phase 3 で YAML から設定が復元され、テンプレートが上書きされるため、
+> Phase 4 の Post-Upload Fix が**毎回必須**。手動デプロイは禁止。
 ```
 
 ---
