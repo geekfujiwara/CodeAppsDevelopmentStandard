@@ -197,6 +197,72 @@ pac --version
 pac pages upload-code-site --path ./dist --verbose
 ```
 
+### SPA 側デバッグログ（初回デプロイ時は必ず含める）
+
+初回デプロイ〜安定動作確認まで、API クライアントに以下のログを含めること。
+安定後に `console.log` を削除 or `if(import.meta.env.DEV)` 条件付きに変更する。
+
+```typescript
+// lib/api.ts — デバッグログ付き fetch ラッパー
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const url = `/_api/${path}`;
+  console.log(`[API] ${init?.method ?? "GET"} ${url}`);
+
+  const res = await fetch(url, {
+    ...init,
+    redirect: "manual",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "OData-MaxVersion": "4.0",
+      "OData-Version": "4.0",
+      ...init?.headers,
+    },
+  });
+
+  if (res.type === "opaqueredirect" || res.status === 0) {
+    console.warn("[API] Opaque redirect — session expired or unauthenticated");
+    throw new Error("AUTH_REQUIRED");
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    const body = await res.text();
+    console.error(`[API] Auth error ${res.status}:`, body);
+    throw new Error("AUTH_REQUIRED");
+  }
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`[API] Error ${res.status}:`, body);
+    throw new Error(`API ${res.status}: ${body}`);
+  }
+
+  console.log(`[API] ✓ ${res.status} ${url}`);
+  return res.status === 204 ? (undefined as T) : res.json();
+}
+```
+
+### 認証状態デバッグ
+
+```typescript
+// main.tsx or App.tsx のマウント直後
+console.log("[Auth] window.__PP_USER__:", window.__PP_USER__);
+console.log("[Auth] contactId:", window.__PP_USER__?.contactId ?? "NONE (anonymous)");
+```
+
+### デプロイ後の即時確認コマンド（ブラウザ DevTools Console）
+
+```javascript
+// 1. 認証状態
+console.table(window.__PP_USER__);
+
+// 2. API アクセス
+fetch("/_api/{entity_set}", {redirect:"manual", headers:{"Accept":"application/json","OData-MaxVersion":"4.0","OData-Version":"4.0"}}).then(r => console.log(r.status, r.type)).catch(e => console.error(e));
+
+// 3. Anti-forgery token
+fetch("/_layout/tokenhtml").then(r => r.text()).then(h => console.log(h.match(/value="([^"]+)"/)?.[1]));
+```
+
 ### ローカルでの動作確認
 
 アップロード前にローカルで静的ファイルの動作を確認する:
