@@ -41,10 +41,11 @@ React / Vue / Angular / Astro 等の静的 SPA フレームワークに対応。
 | [トラブルシューティング](references/troubleshooting.md) | よくあるエラーと解決策 |
 | [認証リファレンス](references/authentication-reference.md) | 認証サービス・anti-forgery・Entra ID |
 | [PUBLIC サイト SPA 認証](references/public-site-spa-auth.md) | PUBLIC サイトの form POST 認証・Liquid 注入・post_upload_fix パターン |
-| [Enhanced Data Model テーブル権限](references/enhanced-data-model-permissions.md) | Enhanced Data Model (v2.0) のテーブル権限設定・N:N バグ・ワークアラウンド |
+| [Enhanced Data Model テーブル権限](references/enhanced-data-model-permissions.md) | Enhanced Data Model (v2.0) のテーブル権限設定・自動化パターン |
 | [権限プローブ & UI パターン](references/permission-probing-patterns.md) | DELETE プローブ・PATCH 禁止・CSRF トークン・ボタン無効化・デプロイ教訓 |
 | [Web API 実装パターン](references/web-api-implementation.md) | `/_api/` クライアント実装・CSRF・403 対処・デプロイ運用・RequireAuth |
 | [デザインシステム](references/design-system.md) | カラートークン・ユーティリティクラス・コンポーネントパターン・業務シナリオ適用ガイド |
+| **[デプロイ教訓集](references/lessons-learned-deploy-auth-data.md)** | **初回デプロイ〜安定稼働の全教訓・ログ出力ガイド・403診断フロー・LP設計パターン** |
 
 ## ワークフロー概要（microsoft/power-platform-skills 準拠）
 
@@ -205,16 +206,31 @@ cd portal && npm install
 | `base: './'` (Vite) | Power Pages のパス構造に対応 |
 | `inlineDynamicImports: true` | コード分割するとロード順問題が発生 |
 
-#### Web API クライアント（必須パターン）
+#### Web API クライアント（必須パターン — デバッグログ付き）
+
+> 参考実装: [incidentPage/portal/src/lib/dataverse.ts](https://github.com/geekfujiwara) の `handleResponse` + リダイレクトループ防止
 
 ```typescript
-// lib/dataverse.ts
+// lib/api.ts — 初回デプロイ時は必ずログ出力を含める
 const BASE = "/_api";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}/${path}`, {
+// リダイレクトループ防止（10秒以内の再リダイレクトを抑止）
+const REDIRECT_KEY = "__pp_login_redirect_ts";
+function shouldRedirectToLogin(): boolean {
+  const last = sessionStorage.getItem(REDIRECT_KEY);
+  if (last && Date.now() - Number(last) < 10000) return false;
+  sessionStorage.setItem(REDIRECT_KEY, String(Date.now()));
+  return true;
+}
+
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const url = `${BASE}/${path}`;
+  console.log(`[API] ${init?.method ?? "GET"} ${url}`);
+
+  const res = await fetch(url, {
     ...init,
-    redirect: "manual",  // ← 必須: 未認証時の 302 チェーン防止
+    redirect: "manual",       // ← 必須: 未認証時の 302 チェーン防止
+    credentials: "same-origin",
     headers: {
       Accept: "application/json",
       "OData-MaxVersion": "4.0",
@@ -225,21 +241,37 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   // セッション切れ検知
   if (res.type === "opaqueredirect" || res.status === 0) {
-    window.location.href = "/Account/Login";
-    return new Promise(() => {});
+    console.warn("[API] Session expired (opaqueredirect)");
+    if (shouldRedirectToLogin()) {
+      window.location.href = "/Account/Login";
+      return new Promise(() => {});
+    }
+    throw new Error("認証が必要です。ページを再読み込みしてください。");
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    const body = await res.text();
+    console.error(`[API] ${res.status}:`, body);
+    if (shouldRedirectToLogin()) {
+      window.location.href = "/Account/Login";
+      return new Promise(() => {});
+    }
+    throw new Error(`アクセスが拒否されました (${res.status})`);
   }
 
   if (!res.ok) {
     const body = await res.text();
-    console.error(`[API] ${path} → ${res.status}`, body);
+    console.error(`[API] ${res.status}:`, body);
     throw new Error(`API ${res.status}: ${body}`);
   }
 
-  return res.json();
+  console.log(`[API] ✓ ${res.status} ${url}`);
+  return res.status === 204 ? (undefined as T) : res.json();
 }
 ```
 
 > **`redirect: "manual"` を省略すると**: 未認証時に `/_api/` → 302 → `/Account/Login` → 302 → `/ExternalLogin`(GET) → 500 というエラーチェーンが発生する。
+> **ログは安定後に `import.meta.env.DEV` 条件付きに変更する。**
 
 #### OData クエリのポイント
 
@@ -249,6 +281,51 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 | Boolean フィルタ | `$filter=geek_approved eq true` | `eq 'true'` |
 | 日時フィルタ | `createdon gt 2024-01-01T00:00:00Z` | 引用符不要 |
 | 展開 | `$expand=geek_CategoryId($select=geek_name)` | — |
+
+#### 認証フック（PUBLIC サイト — LP + 認証ゲート）
+
+> 参考実装: incidentPage の `useAuth` hook + `RequireAuth` コンポーネント
+
+```typescript
+// hooks/use-auth.ts (PUBLIC サイト)
+import { useState, useEffect, useCallback } from "react";
+
+declare global {
+  interface Window {
+    __PP_USER__?: { id?: string; fullname?: string; emailaddress1?: string } | null;
+  }
+}
+
+export function useAuth() {
+  const [state, setState] = useState({ isAuthenticated: false, user: null as any, loading: true });
+
+  useEffect(() => {
+    const pp = window.__PP_USER__;
+    if (pp?.id) {
+      setState({ isAuthenticated: true, user: { contactId: pp.id, fullName: pp.fullname || "", email: pp.emailaddress1 || "" }, loading: false });
+    } else {
+      setState({ isAuthenticated: false, user: null, loading: false });
+    }
+  }, []);
+
+  const login = useCallback(() => { window.location.href = "/Account/Login"; }, []);
+  const logout = useCallback(() => { window.location.href = "/Account/Login/LogOff"; }, []);
+  return { ...state, login, logout };
+}
+```
+
+```tsx
+// components/require-auth.tsx — 認証ゲートコンポーネント
+export function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, loading, login } = useAuth();
+  if (loading) return <Spinner />;
+  if (!isAuthenticated) return <LoginPrompt onLogin={login} />;
+  return <>{children}</>;
+}
+```
+
+> PUBLIC サイトの LP は未認証でもアクセス可能。保護ルートのみ `RequireAuth` で囲む。
+> **LP の機能カードは常に表示**し、クリック時に認証チェック → 未認証なら login() を呼ぶ。
 
 #### 認証フック（PRIVATE サイト）
 
@@ -308,16 +385,21 @@ component = {
 }
 ```
 
-#### 3-C: Web Role 紐付け（Design Studio で手動 — 自動化不可）
+#### 3-C: Web Role 紐付け（API 自動化可能 ✅）
 
-> **⚠️ CRITICAL**: Enhanced Data Model (v2.0) では `mspp_entitypermission_webrole` の N:N を Dataverse Web API で設定できない（プラットフォームバグ）。Design Studio のみが正しく設定可能。
+> **解決済み**: Enhanced Data Model では `mspp_entitypermission_webrole` N:N は永続化しないが、
+> **`powerpagecomponent_powerpagecomponent` 自己参照 N:N** で正しくリンクできる。
 
-**手順:**
-1. https://make.powerpages.microsoft.com/ → 対象サイト
-2. セキュリティ → テーブルのアクセス許可
-3. 各レコードを開き → ロールに **Authenticated Users** を追加 → 保存
+```python
+# テーブル権限(type=18) → Web Role(type=11) を powerpagecomponent 自己参照N:N でリンク
+url = f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({perm_id})/powerpagecomponent_powerpagecomponent/$ref"
+body = {"@odata.id": f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({role_ppc_id})"}
+r = requests.post(url, json=body, headers=headers)
+assert r.status_code == 204  # 成功 & 永続化される
+```
 
 > 管理者ユーザーはテーブル権限をバイパスするため、管理者で OK でも一般ユーザーでは 403 になる。Step 6 で必ず一般ユーザーテストを行うこと。
+> 詳細: [Enhanced Data Model テーブル権限](references/enhanced-data-model-permissions.md)
 
 #### セキュリティ構成チェックリスト
 
@@ -326,7 +408,7 @@ component = {
 | 1 | `Webapi/{table}/enabled=true` | 全公開テーブル | ✅ API |
 | 2 | `Webapi/{table}/fields=*` | 全公開テーブル | ✅ API |
 | 3 | Table Permission (type=18) | 全公開テーブル | ✅ API |
-| 4 | Web Role 紐付け | 全 Table Permission | ❌ Design Studio |
+| 4 | Web Role 紐付け (`powerpagecomponent_powerpagecomponent` N:N) | 全 Table Permission | ✅ API |
 | 5 | Site Restart | — | ✅ API |
 
 ---
@@ -570,7 +652,7 @@ https://make.powerpages.microsoft.com/environments/{ENV_ID}/portals/home
 | **テーブル権限は最小権限の原則** | 外部ユーザーに不要なデータを公開しない |
 | **Web ロール設計は事前承認必須** | 権限設計ミスは情報漏洩に直結 |
 | **サイト設定に機密情報を格納しない** | クライアントから参照可能な場合がある |
-| **Enhanced Data Model の N:N は Design Studio のみ** | API でのロール紐付けは永続化しない（プラットフォームバグ） |
+| **Enhanced Data Model の N:N は `powerpagecomponent_powerpagecomponent` を使用** | `mspp_entitypermission_webrole` は永続化しないが自己参照N:Nで解決可能 |
 | **一般ユーザーでテスト必須** | 管理者はテーブル権限をバイパスする |
 
 ### デプロイ
@@ -719,8 +801,8 @@ Phase 5: Restart (Power Platform API でキャッシュクリア)
 
 | 問題 | 原因 | 解決 |
 |------|------|------|
-| 管理者 OK / 一般ユーザー 403 | 管理者はテーブル権限バイパス | Design Studio で Web Role 紐付け |
-| API で N:N を設定しても反映しない | Enhanced Model の mspp_ N:N バグ | Design Studio のみ有効 |
+| 管理者 OK / 一般ユーザー 403 | 管理者はテーブル権限バイパス | `powerpagecomponent_powerpagecomponent` N:N で Web Role 紐付け |
+| `mspp_entitypermission_webrole` で紐付けしても反映しない | Enhanced Model では無効 | `powerpagecomponent_powerpagecomponent` 自己参照N:N を使用 |
 | `disableentitypermissions` が効かない | Enhanced Model では無視される | テーブル権限 + Role が必須 |
 | Site Settings あるのに 404 | `enabled=true` が未設定（`fields` のみでは不足） | 両方設定する |
 
