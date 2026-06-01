@@ -27,36 +27,99 @@
 
 | 要素 | 未認証時 | 認証済み |
 |------|----------|----------|
-| Hero セクション | 表示（ログインCTA） | 表示（メイン機能CTA） |
-| 機能カード一覧 | **常に表示**（内容紹介） | 常に表示（リンク先に遷移可） |
+| Hero セクション | 表示（「ダッシュボードを見る」+「機能を見る」） | 表示（同ボタンで直接遷移） |
+| 機能カード一覧 | **常に表示**（クリック→ログインモーダル） | 常に表示（リンク先に遷移可） |
+| ハイライトカード | **常に表示**（価値提案・情報のみ） | 常に表示 |
 | ナビゲーション | ログインボタン | ログアウトボタン + 機能メニュー |
-| 保護ページへのリンク | `disabled` 状態 or ログイン促進 | 直接遷移 |
+| 保護ページへのリンク | クリック→ログインモーダル表示 | 直接遷移 |
 
-### 参考実装（incidentPage）の LP パターン
+### ★ 推奨: ログインモーダルパターン（最新）
+
+**やってはいけない**: 「ログインして利用開始」ボタンのみのLP。ユーザーにとって機能が見えず離脱率が上がる。
+
+**推奨パターン**:
+1. Hero CTA は「ダッシュボードを見る」+「機能を見る」（ログイン文言を出さない）
+2. 機能カードは常に表示し、クリック可能にする
+3. 未認証でクリック時は**モーダル**で「ログインしますか？」を表示
+4. モーダルには「キャンセル」と「ログイン」の2択を提示
 
 ```tsx
-// Hero: 未認証→ログインCTA、認証済み→CTAなし
-{!isAuthenticated && (
-  <Button size="lg" onClick={login} className="mt-8">
-    <LogIn className="h-5 w-5" />
-    ログインして利用開始
-  </Button>
-)}
+// ★ 推奨実装: ログインモーダル付き LP
+import { useState } from "react";
 
-// Feature Cards: disabled prop で未認証時は非アクティブ表示
-<FeatureCard
-  title="ナレッジベース"
-  to="/knowledge"
-  disabled={!isAuthenticated}  // ← リンク無効 + opacity-60
-/>
+function isAuthenticated() {
+  const ppUser = window.__PP_USER__;
+  return !!(ppUser && ppUser.contactId);
+}
+
+export default function HomePage() {
+  const navigate = useNavigate();
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // 未認証→モーダル表示、認証済み→直接遷移
+  const handleNavigate = (path: string) => {
+    if (isAuthenticated()) {
+      navigate(path);
+    } else {
+      setShowLoginModal(true);
+    }
+  };
+
+  return (
+    <div>
+      {/* ログインモーダル */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50"
+               onClick={() => setShowLoginModal(false)} />
+          <div className="relative bg-card border rounded-xl shadow-2xl p-8 max-w-sm w-full mx-4 space-y-4">
+            <h2 className="text-xl font-bold text-center">ログインしますか？</h2>
+            <p className="text-sm text-muted-foreground text-center">
+              この機能を利用するにはログインが必要です。
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1"
+                      onClick={() => setShowLoginModal(false)}>キャンセル</Button>
+              <Button className="flex-1" onClick={() => login()}>ログイン</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hero: ログイン文言ではなく機能訴求のCTA */}
+      <Button size="lg" onClick={() => handleNavigate("/dashboard")}>
+        ダッシュボードを見る <ArrowRight />
+      </Button>
+      <Button variant="outline" size="lg"
+              onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })}>
+        機能を見る
+      </Button>
+
+      {/* 機能カード: 常に表示・クリックで handleNavigate */}
+      <FeatureCard title="サービス稼働状況" path="/services" onNavigate={handleNavigate} />
+    </div>
+  );
+}
 ```
+
+### LP 設計の教訓まとめ
+
+| # | 教訓 | 理由 |
+|---|------|------|
+| L1 | LP のメインCTAに「ログイン」を入れない | 機能訴求が弱くなり離脱率が上がる |
+| L2 | 機能カードは常に表示する | ログイン前に何ができるか伝えることが重要 |
+| L3 | 未認証クリック→モーダルで確認 | ページ遷移→RequireAuth画面より UX が良い |
+| L4 | モーダルに「キャンセル」を必ず用意 | ユーザーが LP を引き続き閲覧できるように |
+| L5 | `window.__PP_USER__` で即座に判定 | API fetch による判定は遅延が生じ UX 低下 |
+| L6 | ハイライトカードは情報のみ（クリック不要） | 価値提案は認証不要で見せる |
 
 ### LP の認証状態判定
 
 ```typescript
 // window.__PP_USER__ の有無で判定（Liquid 注入済みなら存在）
-const { isAuthenticated } = useAuth();
-// 内部: !!window.__PP_USER__?.id
+function isAuthenticated() {
+  return !!(window.__PP_USER__ && window.__PP_USER__.contactId);
+}
 ```
 
 **やってはいけない**: API を叩いて認証状態を判定する（遅い、エラーハンドリングが複雑）

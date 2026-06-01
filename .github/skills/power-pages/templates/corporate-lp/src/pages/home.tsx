@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +10,10 @@ import {
   Zap,
   Shield,
   Globe,
+  LogIn,
+  X,
 } from "lucide-react";
+import { login } from "@/lib/auth";
 
 /**
  * ★ 機能カード定義 ★
@@ -87,11 +91,69 @@ const highlights = [
   },
 ];
 
+/**
+ * 認証状態判定 — window.__PP_USER__ の有無で判定
+ */
+function isAuthenticated() {
+  const ppUser = window.__PP_USER__;
+  return !!(ppUser && ppUser.contactId);
+}
+
 export default function HomePage() {
   const navigate = useNavigate();
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  /** 未認証→モーダル表示、認証済み→直接遷移 */
+  const handleNavigate = (path: string) => {
+    if (isAuthenticated()) {
+      navigate(path);
+    } else {
+      setShowLoginModal(true);
+    }
+  };
 
   return (
     <div className="space-y-16 lg:space-y-24">
+      {/* ★ ログインモーダル — 未認証時に機能クリックで表示 */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowLoginModal(false)}
+          />
+          <div className="relative bg-card border border-border rounded-xl shadow-2xl p-8 max-w-sm w-full mx-4 space-y-4">
+            <button
+              onClick={() => setShowLoginModal(false)}
+              className="absolute top-3 right-3 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="text-center space-y-2">
+              <LogIn className="h-10 w-10 text-primary mx-auto" />
+              <h2 className="text-xl font-bold text-foreground">
+                ログインしますか？
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                この機能を利用するにはログインが必要です。
+              </p>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowLoginModal(false)}
+              >
+                キャンセル
+              </Button>
+              <Button className="flex-1 gap-2" onClick={() => login()}>
+                <LogIn className="h-4 w-4" />
+                ログイン
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ヒーローセクション */}
       <section className="text-center pt-8 lg:pt-16">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-6">
@@ -110,7 +172,7 @@ export default function HomePage() {
         <div className="mt-8 flex items-center justify-center gap-3">
           <Button
             size="lg"
-            onClick={() => navigate("/content")}
+            onClick={() => handleNavigate("/content")}
             className="gap-2"
           >
             はじめる
@@ -174,7 +236,7 @@ export default function HomePage() {
               {group.items.map((item) => (
                 <div
                   key={item.path}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => handleNavigate(item.path)}
                   className="group p-5 rounded-xl border border-border/60 bg-card shadow-premium card-hover cursor-pointer"
                 >
                   <div
