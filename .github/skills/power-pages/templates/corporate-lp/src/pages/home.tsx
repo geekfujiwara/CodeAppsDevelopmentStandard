@@ -13,7 +13,7 @@ import {
   LogIn,
   X,
 } from "lucide-react";
-import { login } from "@/lib/auth";
+import { useAuth } from "@/hooks/use-auth";
 
 /**
  * ★ 機能カード定義 ★
@@ -101,11 +101,12 @@ function isAuthenticated() {
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const { isAuthenticated, login } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   /** 未認証→モーダル表示、認証済み→直接遷移 */
   const handleNavigate = (path: string) => {
-    if (isAuthenticated()) {
+    if (isAuthenticated) {
       navigate(path);
     } else {
       setShowLoginModal(true);

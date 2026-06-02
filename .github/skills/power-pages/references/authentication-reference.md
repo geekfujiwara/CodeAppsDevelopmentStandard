@@ -7,10 +7,17 @@
 ### 重要な原則
 
 1. **Client-side auth は UX only** — 実際のアクセス制御はサーバーサイド table permissions
-2. **認証はサーバーサイド（セッション Cookie）** — クライアントにトークン管理なし
-3. **PRIVATE サイトでは全ページ認証必須** — SPA ロード時点でユーザーは認証済み
-4. **`window.__PP_USER__`** — Web テンプレートの Liquid で注入されたユーザー情報
-5. **`redirect: 'manual'`** — SPA の全 fetch に必須（auth リダイレクト干渉防止）
+2. **認証はサーバーサイド（セッション Cookie）** — クライアントにトークン管理なし。fetch は `credentials: 'same-origin'`
+3. **書き込みは anti-forgery token 必須** — `/_layout/tokenhtml` から `__RequestVerificationToken` を取得しヘッダーに付与
+4. **ユーザー情報は 2 経路** — `window.Microsoft.Dynamic365.Portal.User`（標準注入）または Liquid `window.__PP_USER__`
+5. **SSO 自動リダイレクト** — `LoginButtonAuthenticationType` 設定で IdP に直行（ログインページ非表示）
+
+> **検証済みの実装は [`templates/corporate-lp/src/lib/dataverse.ts`](../templates/corporate-lp/src/lib/dataverse.ts) と
+> [`templates/corporate-lp/src/hooks/use-auth.ts`](../templates/corporate-lp/src/hooks/use-auth.ts) をそのまま使う。**
+>
+> ⚠️ **`redirect: 'manual'` は使わない。** 実環境検証の結果、`credentials: 'same-origin'` +
+> anti-forgery token のほうが安定する。`redirect: 'manual'` は opaqueredirect (status 0) の扱いが
+> ブラウザ間で不安定で、書き込み時の token 付与とも噛み合わない。
 
 ### 認証フロー（PRIVATE サイト + LoginButtonAuthenticationType 推奨）
 
@@ -24,10 +31,11 @@
 6. Web Template renders:
    <script>window.__PP_USER__ = {{ user | json }};</script>
    {{ page.adx_copy }}
-7. SPA reads window.__PP_USER__ → user is available immediately
-8. SPA fetch calls use redirect: 'manual':
-   - If authenticated: normal response (200/204)
-   - If session expired: opaqueredirect (status 0) → redirect to /Account/Login → step 2
+7. SPA reads window.Microsoft.Dynamic365.Portal.User (or __PP_USER__) → user is available immediately
+8. SPA fetch calls use credentials: 'same-origin':
+   - GET: read セッション Cookie で認証
+   - POST/PATCH/DELETE: /_layout/tokenhtml から __RequestVerificationToken を取得しヘッダー付与
+   - If session expired: res.redirected && url.includes('/Account/Login') → ApiAuthError → login()
 ```
 
 ### Web テンプレートソース（Liquid ユーザー注入）
@@ -85,8 +93,8 @@ value: "https://login.microsoftonline.com/{tenant-id}/"
 | 動作 | /Account/Login アクセス時に platform が内部的に ExternalLogin POST を実行 |
 | 前提 | 有効な IdP が1つだけ（AzureADLoginEnabled=false で重複排除） |
 
-> **注意**: SPA の fetch が未認証レスポンスを follow すると ExternalLogin に GET → 500。
-> 必ず `redirect: 'manual'` を使うこと。
+> **値は Authority URL を使う**: `https://login.microsoftonline.com/{tenant-id}/`（末尾 `/` 必須）。
+> `https://sts.windows.net/{tenant-id}/` ではない。間違えると自動 SSO が効かない。
 
 ### ビルトイン vs カスタム OpenIdConnect
 
@@ -107,14 +115,20 @@ value: "https://login.microsoftonline.com/{tenant-id}/"
 
 | ファイル | 内容 |
 |---|---|
-| `src/hooks/use-auth.ts` | `window.__PP_USER__` 読み取り + login()/logout() |
-| `src/lib/dataverse.ts` | `redirect: 'manual'` + opaqueredirect 検知 |
+| `src/hooks/use-auth.ts` | `window.Microsoft.Dynamic365.Portal.User` / `__PP_USER__` 読み取り + login()/logout() |
+| `src/lib/dataverse.ts` | `credentials: 'same-origin'` + anti-forgery token + ApiAuthError |
+| `src/components/require-auth.tsx` | 未認証ガード（ログイン誘導 UI） |
+| `src/pages/profile.tsx` | ログインユーザーの Contact プロフィール編集 |
 
 ### use-auth.ts 実装パターン
 
+> 完全な実装は [`templates/corporate-lp/src/hooks/use-auth.ts`](../templates/corporate-lp/src/hooks/use-auth.ts)。
+
 ```typescript
+// Power Pages が注入するグローバル。2 経路を見る。
 declare global {
   interface Window {
+    Microsoft?: { Dynamic365?: { Portal?: { User?: PortalUser } } };
     __PP_USER__?: { id?: string; fullname?: string; emailaddress1?: string } | null;
   }
 }
@@ -123,64 +137,77 @@ export function useAuth() {
   const [state, setState] = useState({ isAuthenticated: false, user: null, loading: true });
 
   useEffect(() => {
+    // ① 標準注入: window.Microsoft.Dynamic365.Portal.User
+    const portalUser = window.Microsoft?.Dynamic365?.Portal?.User;
+    // ② フォールバック: Liquid 注入 window.__PP_USER__
     const ppUser = window.__PP_USER__;
-    if (ppUser && ppUser.id) {
-      setState({
-        isAuthenticated: true,
-        user: { contactId: ppUser.id, fullName: ppUser.fullname || "", email: ppUser.emailaddress1 || "" },
-        loading: false,
-      });
+    const id = portalUser?.contactId || ppUser?.id;
+    if (id) {
+      setState({ isAuthenticated: true, user: normalize(portalUser, ppUser), loading: false });
     } else {
-      // PRIVATE site: page loaded = authenticated, but no user details available
-      setState({ isAuthenticated: true, user: null, loading: false });
+      setState({ isAuthenticated: false, user: null, loading: false });
     }
   }, []);
 
-  const login = () => { window.location.href = "/Account/Login"; };
-  const logout = () => { window.location.href = "/Account/Login/LogOff"; };
+  const login = () =>
+    (window.location.href = `/SignIn?returnUrl=${encodeURIComponent(location.pathname + location.hash)}`);
+  const logout = () => (window.location.href = "/Account/Login/LogOff");
 
   return { ...state, login, logout };
 }
 ```
 
-### dataverse.ts fetch パターン
+> **login() は `/SignIn?returnUrl=...`**。`LoginButtonAuthenticationType` が設定されていれば
+> ログインページをスキップして Entra ID に直行し、認証後に returnUrl に戻る。
+
+### dataverse.ts fetch パターン（検証済み）
+
+> 完全な実装は [`templates/corporate-lp/src/lib/dataverse.ts`](../templates/corporate-lp/src/lib/dataverse.ts)。
 
 ```typescript
-const API_BASE = "/_api";
+const BASE = "/_api";
+
+export class ApiAuthError extends Error {
+  constructor(status: number) { super(`Authentication required (${status})`); this.name = "ApiAuthError"; }
+}
 
 async function handleResponse<T>(res: Response): Promise<T> {
-  // redirect: 'manual' returns opaque redirect (type="opaqueredirect", status=0)
-  if (res.type === "opaqueredirect" || res.status === 0) {
-    window.location.href = "/Account/Login";
-    return new Promise(() => {}); // never resolve - page will redirect
-  }
-  if (!res.ok) {
-    if (res.status === 401 || res.status === 403) {
-      window.location.href = "/Account/Login";
-      return new Promise(() => {});
-    }
-    const text = await res.text();
-    throw new Error(`API Error ${res.status}: ${text}`);
-  }
+  // ブラウザがログインページにリダイレクトしたら検知
+  if (res.redirected && res.url.includes("/Account/Login")) throw new ApiAuthError(302);
+  if (res.status === 401) throw new ApiAuthError(401);
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
   if (res.status === 204) return undefined as T;
   return res.json();
 }
 
-export async function apiGet<T>(entity: string): Promise<T> {
-  const res = await fetch(`${API_BASE}/${entity}`, {
-    redirect: "manual",  // ← CRITICAL: prevents following auth redirects
+export async function apiGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}/${path}`, {
+    credentials: "same-origin",  // ← redirect:'manual' ではなく same-origin Cookie 認証
     headers: { Accept: "application/json", "OData-MaxVersion": "4.0", "OData-Version": "4.0" },
   });
   return handleResponse<T>(res);
 }
+
+// 書き込みは anti-forgery token が必須
+export async function apiPatch(path: string, body: unknown): Promise<void> {
+  const token = await fetchVerificationToken(); // /_layout/tokenhtml キャッシュ付き
+  const res = await fetch(`${BASE}/${path}`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      "OData-MaxVersion": "4.0", "OData-Version": "4.0",
+      ...(token ? { __RequestVerificationToken: token } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  return handleResponse<void>(res);
+}
 ```
 
-> **なぜ redirect: 'manual' が必要か**:
-> - 未認証時、/_api/ は 302 → /Account/Login を返す
-> - LoginButtonAuthenticationType が設定されていると、さらに 302 → /Account/Login/ExternalLogin
-> - fetch のデフォルト (redirect: 'follow') だと ExternalLogin に GET リクエストが送られる
-> - ExternalLogin は POST 専用のため GET → 500 Internal Server Error
-> - redirect: 'manual' で最初の 302 をキャッチし、SPA 側でリダイレクト処理する
+> **anti-forgery token 取得の優先順**: ① DOM hidden input / meta ② Cookie `__RequestVerificationToken`
+> ③ `/_layout/tokenhtml` を fetch して `value="..."` を抽出。一度取れたらキャッシュする。
+> token がないと POST/PATCH/DELETE は 401 になる。
 
 ### Private Site での認証
 
