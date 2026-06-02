@@ -370,10 +370,58 @@ import ProfilePage from "@/pages/profile";
 />
 ```
 
+### ★ SSO 自動リダイレクト設定（ログインボタンで直接 Entra ID に飛ばす）
+
+**これがないと `/SignIn` でクラシックなログイン画面（Username/Password フォーム + Entra ID ボタン）が表示される。**
+
+以下の Site Settings を `adx_sitesettings` テーブルに作成する:
+
+| Site Setting | 値 | 効果 |
+|---|---|---|
+| `Authentication/Registration/LocalLoginEnabled` | `false` | Username/Password フォームを非表示 |
+| `Authentication/Registration/ExternalLoginEnabled` | `true` | 外部 IdP (Entra ID) を有効化 |
+| `Authentication/Registration/AzureADLoginEnabled` | `false` | 旧式 Azure AD ボタンの重複を防止 |
+| `Authentication/Registration/LoginButtonAuthenticationType` | `https://login.microsoftonline.com/{TENANT_ID}/` | **IdP が1つの場合、ログインページをスキップして直接リダイレクト** |
+| `Authentication/Registration/ProfileRedirectEnabled` | `false` | ログイン後に `/profile` へのリダイレクトを防止 |
+| `Authentication/Registration/OpenRegistrationEnabled` | `false` | Entra ID ユーザーのみ（セルフ登録無効） |
+
+> ⚠️ **`LoginButtonAuthenticationType` の値は Authority URL** (`https://login.microsoftonline.com/{TENANT_ID}/`)
+> **`https://sts.windows.net/{TENANT_ID}/`（OIDC Issuer）ではない！** Issuer を設定すると自動リダイレクトが動作しない。
+
+```python
+# setup_auth.py で一括設定
+TENANT_ID = os.environ["TENANT_ID"]
+AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}/"
+ADX_WEBSITE_ID = "..."  # adx_websites テーブルの ID
+
+SETTINGS = {
+    "Authentication/Registration/LoginButtonAuthenticationType": AUTHORITY,
+    "Authentication/Registration/LocalLoginEnabled": "false",
+    "Authentication/Registration/ExternalLoginEnabled": "true",
+    "Authentication/Registration/AzureADLoginEnabled": "false",
+    "Authentication/Registration/ProfileRedirectEnabled": "false",
+    "Authentication/Registration/OpenRegistrationEnabled": "false",
+}
+
+for name, value in SETTINGS.items():
+    upsert_adx_sitesetting(name, value, ADX_WEBSITE_ID)
+
+# 設定反映にはサイト再起動が必要
+restart_site(ENV_ID, SUBDOMAIN)
+```
+
+**設定後の動作:**
+1. ユーザーが `/SignIn?returnUrl=/` にアクセス
+2. Power Pages はログイン画面を表示せず、直接 `https://login.microsoftonline.com/{TENANT_ID}/oauth2/authorize?...` にリダイレクト
+3. Entra ID でSSO認証（既にセッションがあれば自動的にログイン完了）
+4. `returnUrl=/` にリダイレクトされ SPA がロード
+
+> Site Settings 変更後は **PP API で restart が必須**（最大15分キャッシュが残る）。
+
 ### Contact 自動作成
 
 Power Pages では **Entra ID 経由で初回ログインした時に Contact レコードが自動作成される**。
-サイト設定 `Authentication/Registration/OpenRegistrationEnabled = true` がデフォルト。
+サイト設定 `Authentication/Registration/OpenRegistrationEnabled = false` でも、Entra ID 経由なら Contact は自動作成される。
 追加のコードは不要。
 
 ### Contact テーブルの Web API 有効化
@@ -424,18 +472,35 @@ POST /powerpagecomponents({perm_id})/powerpagecomponent_powerpagecomponent/$ref
 
 ### ★ 初回デプロイ後の必須手順
 
-デプロイ直後、プロフィール編集が動作するために以下が必要:
+デプロイ直後に以下を実行し、SSO + Web API が動作する状態にする:
 
 ```bash
-# 1. Contact Web API 有効化 + テーブル権限設定
-py portal/scripts/setup_contact_webapi.py
+# 1. SSO 自動リダイレクト設定（/SignIn で直接 Entra ID にリダイレクト）
+py scripts/setup_auth.py
 
-# 2. サイトリスタート（設定反映）
-py portal/scripts/deploy.py --skip-build
+# 2. Web API テーブル権限設定（/_api/ エンドポイント有効化）
+py scripts/setup_permissions.py
+
+# 3. サイトリスタート（設定反映）— 上記スクリプト内で自動実行される
 ```
 
-**`/_api/contacts` が 404 を返す原因**: Site Settings (`Webapi/contact/enabled`) が未設定。
-上記スクリプトで自動解決する。
+**スクリプト実行に必要な .env:**
+```env
+DATAVERSE_URL=https://your-org.crm.dynamics.com/
+ENV_ID=your-environment-id
+TENANT_ID=your-tenant-id
+PP_SUBDOMAIN=your-site-subdomain
+```
+
+**`/_api/contacts` が 404 を返す原因**:
+- Site Settings (`Webapi/contact/enabled`) が未設定 → `setup_permissions.py` で解決
+- テーブル権限が未設定 → 同スクリプトで解決
+- Web Role リンクなし → 同スクリプトで解決
+
+**ログイン画面が表示される（自動リダイレクトしない）原因**:
+- `LoginButtonAuthenticationType` が未設定 or 値が間違い → `setup_auth.py` で解決
+- ❌ `https://sts.windows.net/{TENANT_ID}/` → 動作しない
+- ✅ `https://login.microsoftonline.com/{TENANT_ID}/` → 正しい Authority URL
 
 ### powerpages.config.json（必須）
 
@@ -638,10 +703,49 @@ def main():
 
 | 方式 | 推奨度 | 説明 |
 |------|--------|------|
-| `/SignIn` 直行 (SSO) | ★推奨 | Entra ID が唯一の IdP なら自動でSSO。ログイン画面が表示されない |
+| `/SignIn` 直行 (SSO) | ★推奨 | `LoginButtonAuthenticationType` 設定済みなら自動でSSO。ログイン画面が表示されない |
+| PRIVATE サイト | ◎ | 全ページ認証必須。SPA ロード時点で認証済み。最もシンプル |
 | `/Account/Login/ExternalLogin` POST | ○ | 複数 IdP がある場合に特定プロバイダーを指定 |
 | `/Account/Login` リダイレクト | △ | クラシックログインページ。SPA 体験が途切れる |
-| PRIVATE サイト | ◎ | 全ページ認証必須。SPA ロード時点で認証済み。最もシンプル |
+
+> `/SignIn` 方式で自動リダイレクトが動作するには **Site Settings の設定が必須**。
+> 上記「★ SSO 自動リダイレクト設定」セクションの `setup_auth.py` を初回デプロイ後に実行する。
+
+### `adx_sitesettings` の正しいバインド方法
+
+Site Settings は **`adx_websiteid@odata.bind` で正しい `adx_websites` レコードに紐付ける必要がある**。
+誤った Website ID に紐付けた設定は無視される。
+
+```python
+def upsert_adx_sitesetting(name: str, value: str, adx_website_id: str):
+    """adx_sitesettings に設定を upsert する"""
+    # 既存チェック
+    filter_q = f"adx_name eq '{name}' and _adx_websiteid_value eq '{adx_website_id}'"
+    existing = requests.get(
+        f"{DV_URL}/api/data/v9.2/adx_sitesettings?$filter={filter_q}",
+        headers=headers,
+    ).json()["value"]
+
+    body = {
+        "adx_name": name,
+        "adx_value": value,
+        "adx_websiteid@odata.bind": f"/adx_websites({adx_website_id})",
+    }
+
+    if existing:
+        requests.patch(
+            f"{DV_URL}/api/data/v9.2/adx_sitesettings({existing[0]['adx_sitesettingid']})",
+            headers=headers, json=body,
+        )
+    else:
+        requests.post(f"{DV_URL}/api/data/v9.2/adx_sitesettings", headers=headers, json=body)
+```
+
+> **`adx_websiteid` の取得方法:**
+> ```python
+> r = requests.get(f"{DV_URL}/api/data/v9.2/adx_websites?$top=1&$orderby=createdon desc")
+> adx_website_id = r.json()["value"][0]["adx_websiteid"]
+> ```
 
 ### ユーザーコンテキストへのアクセス
 
@@ -781,16 +885,19 @@ export default defineConfig({
 |------|------|------|
 | upload-code-site で `.js blocked` | 環境で JS ブロック | 管理センター → ブロック添付ファイルから `js` 削除 |
 | サイト URL が 503 | プロビジョニング未完了 or 未アクティブ | Inactive Sites でアクティブ化。60-90秒待つ |
-| Web API が 403 | テーブル権限未設定 or Web ロール未紐付け | Site Settings + Table Permission + Web Role 紐付け確認 |
-| Web API が 404 | `Webapi/{table}/enabled` 未設定 | adx_sitesettings に追加 |
+| Web API が 403 | テーブル権限未設定 or Web ロール未紐付け | `setup_permissions.py` 実行 |
+| Web API が 404 | `Webapi/{table}/enabled` 未設定 | `setup_permissions.py` 実行 |
+| `/SignIn` でログインフォーム表示 | `LoginButtonAuthenticationType` 未設定 or 値が間違い | `setup_auth.py` 実行（値は Authority URL: `https://login.microsoftonline.com/{TENANT_ID}/`） |
+| SSO ボタンが 2つ表示される | `AzureADLoginEnabled=true` のまま | `AzureADLoginEnabled=false` を設定 |
+| ログイン後にブランクページ | `ProfileRedirectEnabled=true` | `setup_auth.py` 実行（`false` に設定） |
 | SPA が表示されずクラシックページ表示 | サイトが Code Site として作成されていない | **削除して `upload-code-site` で再作成**（変換不可） |
-| ログイン後にブランクページ | `ProfileRedirectEnabled=true` | `false` に設定 |
 | 設定変更が反映されない | サイトキャッシュ | PP API で restart + ブラウザキャッシュクリア |
 | `Object reference not set` + `FetchSolutions` | `adx_website` レコードが存在しない | 下記「adx_website は絶対に削除してはいけない」参照 |
 | `Object reference not set` + `ToOrganizationService` | ポータル App User の CRM 接続失敗 | サイトの Application User がロール付きで存在するか確認 |
 | 起動エラー全般（500）| 孤立レコードが原因の可能性 | 下記「孤立レコード問題」参照 |
-| 初回アクセスが 60 秒タイムアウト | プロビジョニング直後のコールドスタート | 正常。2〜3 分後に 120 秒タイムアウトで再試行 |
+| 初回アクセスが 60 秒タイムアウト | プロビジョニング直後のコールドスタート | 正常。2〜3 分後に再試行 |
 | サイトが修復不能（500 が解消しない）| adx_website 削除等で環境が壊れた | 新サブドメインで新規作成（下記「リカバリ手順」）|
+| Site Settings 更新したのに反映されない | restart していない | PP API で restart（`setup_auth.py` は自動で実行する）|
 
 ---
 
@@ -851,13 +958,17 @@ Code Site は `pac pages upload-code-site` でのみ作成可能。
 1. **Code Site は最初から Code Site として作成する必要がある** — 既存のクラシックサイトを Code Site に変換することはできない
 2. **`pac pages upload-code-site` が正しいサイト作成方法** — PP API の `POST /websites` で作ったサイトはクラシックポータル
 3. **Enhanced Data Model (v2.0) が自動的に使われる** — upload-code-site で作成されたサイトは EDM
-4. **Standard Data Model のサイトでは `adx_sitesettings` / `adx_websites` テーブルを使用** — `mspp_` プレフィックスは EDM (powerpagecomponent) のみ
-5. **サイト設定は `adx_sitesettings` に `adx_websiteid` をリンクして作成** — websiteId が異なると無視される
-6. **`adx_website` レコードは EDM 2.0 でもランタイムに必須** — upload-code-site が初回に自動作成。削除禁止
-7. **孤立レコードは `FetchSolutions` の NullRef を引き起こす** — ただし削除対象を間違えるとさらに悪化する
-8. **デプロイ失敗時のリカバリは「再 upload-code-site」が最善** — 手動レコード操作はリスクが高い
-9. **壊れたサイトは修復より新規作成が早い** — `.powerpages-site/` 削除 → `siteName` 変更 → upload-code-site で新サイト作成（下記手順参照）
-10. **初回プロビジョニング後のコールドスタートには 2〜3 分かかる** — 最初の HTTP リクエストが 60 秒タイムアウトするのは正常。120秒タイムアウトで再試行すること
+4. **Site Settings は `adx_sitesettings` + `adx_websiteid` バインド** — `powerpagecomponent` の content 内ではなくテーブルレコードとして作成
+5. **`adx_website` レコードは EDM 2.0 でもランタイムに必須** — upload-code-site が初回に自動作成。削除禁止
+6. **孤立レコードは `FetchSolutions` の NullRef を引き起こす** — ただし削除対象を間違えるとさらに悪化する
+7. **デプロイ失敗時のリカバリは「再 upload-code-site」が最善** — 手動レコード操作はリスクが高い
+8. **壊れたサイトは修復より新規作成が早い** — `.powerpages-site/` 削除 → `siteName` 変更 → upload-code-site で新サイト作成
+9. **初回プロビジョニング後のコールドスタートには 2〜3 分かかる** — 最初の HTTP リクエストが 60 秒タイムアウトするのは正常
+10. **`LoginButtonAuthenticationType` の値は Authority URL** — `https://login.microsoftonline.com/{TENANT_ID}/` であり、`https://sts.windows.net/{TENANT_ID}/`（OIDC Issuer）ではない
+11. **SSO 設定変更後は必ず PP API で restart** — Site Settings はポータル起動時にキャッシュされる。restart しないと最大 15 分反映されない
+12. **テーブル権限は 3 レイヤー全て必要** — ① `adx_sitesettings`（API 有効化）+ ② `powerpagecomponent type=18`（権限定義）+ ③ N:N リンク（Web Role 紐付け）
+13. **`/_api/` は Cookie 認証（same-origin）** — Bearer トークンではなく、ブラウザの認証 Cookie を自動送信する仕組み
+14. **Anti-Forgery Token は PATCH/PUT/DELETE に必須** — `/_layout/tokenhtml` から取得して `__RequestVerificationToken` ヘッダーに設定
 
 ---
 
@@ -903,3 +1014,37 @@ pac pages upload-code-site --rootPath .
 | [Enhanced Data Model テーブル権限](references/enhanced-data-model-permissions.md) | テーブル権限設定・自動化パターン |
 | [Web API 実装パターン](references/web-api-implementation.md) | `/_api/` クライアント実装・CSRF・403 対処 |
 | [デザインシステム](references/design-system.md) | カラートークン・コンポーネントパターン |
+
+## 自動化スクリプト
+
+| スクリプト | 用途 |
+|---|---|
+| `scripts/setup_auth.py` | SSO 自動リダイレクト設定（Site Settings + restart） |
+| `scripts/setup_permissions.py` | Web API テーブル権限（Site Settings + powerpagecomponent + N:N リンク） |
+| `scripts/check_prerequisites.py` | 環境前提条件チェック |
+| `scripts/unblock_js.py` | JS ファイルブロック解除 |
+
+### 初回デプロイの完全手順（ゼロから動作するまで）
+
+```bash
+# 0. 前提: pac CLI ログイン済み + .env 設定済み
+pac auth list
+
+# 1. ビルド & アップロード（サイト作成）
+npm run build
+pac pages upload-code-site --rootPath .
+
+# 2. Power Pages ポータルでサイトをアクティブ化
+#    https://make.powerpages.microsoft.com/ → Inactive Sites → 再アクティブ化
+
+# 3. SSO 設定（ログイン画面スキップ → 直接 Entra ID）
+py scripts/setup_auth.py
+
+# 4. Web API 権限設定（/_api/ エンドポイント有効化）
+py scripts/setup_permissions.py
+
+# 5. 動作確認（60-90秒後にアクセス可能）
+#    https://{subdomain}.powerappsportals.com/
+#    → /SignIn にアクセス → 自動で Entra ID にリダイレクト → ログイン完了
+#    → /_api/contacts で JSON レスポンス確認
+```
