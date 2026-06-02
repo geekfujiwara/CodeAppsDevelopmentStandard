@@ -432,6 +432,8 @@ export default defineConfig({
 | `Object reference not set` + `FetchSolutions` | `adx_website` レコードが存在しない | 下記「adx_website は絶対に削除してはいけない」参照 |
 | `Object reference not set` + `ToOrganizationService` | ポータル App User の CRM 接続失敗 | サイトの Application User がロール付きで存在するか確認 |
 | 起動エラー全般（500）| 孤立レコードが原因の可能性 | 下記「孤立レコード問題」参照 |
+| 初回アクセスが 60 秒タイムアウト | プロビジョニング直後のコールドスタート | 正常。2〜3 分後に 120 秒タイムアウトで再試行 |
+| サイトが修復不能（500 が解消しない）| adx_website 削除等で環境が壊れた | 新サブドメインで新規作成（下記「リカバリ手順」）|
 
 ---
 
@@ -497,6 +499,42 @@ Code Site は `pac pages upload-code-site` でのみ作成可能。
 6. **`adx_website` レコードは EDM 2.0 でもランタイムに必須** — upload-code-site が初回に自動作成。削除禁止
 7. **孤立レコードは `FetchSolutions` の NullRef を引き起こす** — ただし削除対象を間違えるとさらに悪化する
 8. **デプロイ失敗時のリカバリは「再 upload-code-site」が最善** — 手動レコード操作はリスクが高い
+9. **壊れたサイトは修復より新規作成が早い** — `.powerpages-site/` 削除 → `siteName` 変更 → upload-code-site で新サイト作成（下記手順参照）
+10. **初回プロビジョニング後のコールドスタートには 2〜3 分かかる** — 最初の HTTP リクエストが 60 秒タイムアウトするのは正常。120秒タイムアウトで再試行すること
+
+---
+
+## 壊れたサイトのリカバリ手順（新規サイト再作成）
+
+`adx_website` 削除や孤立レコードで修復不能になった場合、新しいサブドメインで作り直すのが最速:
+
+```bash
+# 1. 旧サイトバインディングを削除
+cd portal
+rm -rf .powerpages-site .powerpages-site-backup .paportal
+
+# 2. powerpages.config.json の siteName を変更
+#    例: "IncidentPortal" → "IncidentPortal02"
+
+# 3. ビルド & アップロード（新サイト作成）
+npm run build
+pac pages upload-code-site --rootPath .
+
+# 4. アクティブ化（PP API）
+#    POST /powerpages/environments/{ENV_ID}/websites?api-version=2024-10-01
+#    body: { websiteRecordId, subdomain, dataModel: "Enhanced", ... }
+
+# 5. リスタート
+#    POST .../websites/{id}/restart?api-version=2024-10-01
+
+# 6. 2〜3分待ってアクセス確認
+```
+
+**ポイント:**
+- `.powerpages-site/` を削除することで `upload-code-site` が「初回」として新サイトを作成する
+- 旧サイトの `siteName` と異なる名前を使う（同名だと旧サイトに紐付く可能性）
+- アクティブ化の `subdomain` も新しいものにする（旧サブドメインは DNS 的に残る）
+- プロビジョニングは約 15 秒で完了するが、初回コールドスタートに 2〜3 分必要
 
 ---
 
