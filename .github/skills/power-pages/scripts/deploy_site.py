@@ -113,7 +113,10 @@ def phase_predeploy_check():
 
     predeploy_script = os.path.join(SCRIPT_DIR, 'predeploy_check.py')
     if os.path.isfile(predeploy_script):
-        result = subprocess.run([sys.executable, predeploy_script, '--fix'],
+        predeploy_cmd = [sys.executable, predeploy_script, '--fix']
+        if skip_restart:
+            predeploy_cmd.append('--skip-restart')
+        result = subprocess.run(predeploy_cmd,
                                capture_output=True, text=True, encoding='utf-8', errors='replace')
         if result.stdout:
             print(result.stdout)

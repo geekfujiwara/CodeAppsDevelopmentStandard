@@ -724,6 +724,7 @@ https://make.powerpages.microsoft.com/environments/{ENV_ID}/portals/home
 
 デプロイ前に `py .github/skills/power-pages/scripts/predeploy_check.py` を実行し、既知の問題を検出する。
 `deploy_site.py` の Phase 0 として自動実行される。
+`--fix` 実行時は、修正内容の反映確認のためサイト再起動も実行する（`--skip-restart` で抑止可能）。
 
 ### チェック項目
 
@@ -750,6 +751,9 @@ py .github/skills/power-pages/scripts/predeploy_check.py
 # チェック + 自動修正
 py .github/skills/power-pages/scripts/predeploy_check.py --fix
 
+# チェック + 自動修正（再起動はスキップ）
+py .github/skills/power-pages/scripts/predeploy_check.py --fix --skip-restart
+
 # 標準デプロイ（チェック → ビルド → アップロード → Fix → Restart）
 py .github/skills/power-pages/scripts/deploy_site.py
 
@@ -760,7 +764,7 @@ py .github/skills/power-pages/scripts/deploy_site.py --skip-checks
 ### デプロイスクリプト処理フロー（最新）
 
 ```
-Phase 0: Pre-Deploy Check（ビルド出力・テンプレート整合性・mspp_copy 検証）
+Phase 0: Pre-Deploy Check（ビルド出力・テンプレート整合性・mspp_copy 検証 + --fix 時は再起動）
 Phase 1: Verify (pac auth who + powerpages.config.json + .env)
 Phase 2: Build (npm run build)
 Phase 3: Upload (pac pages upload-code-site)
