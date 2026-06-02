@@ -332,13 +332,23 @@ def phase_post_upload_fix(config):
 # Phase 5: Restart
 # ---------------------------------------------------------------------------
 def phase_restart(config):
-    """サイト再起動（キャッシュクリア）."""
+    """サイト再起動（キャッシュクリア）.
+
+    ⚠️ デプロイ後のサイト再起動は MUST。Dataverse のテーブル権限・サイト設定は
+    ランタイムに積極的にキャッシュされるため、再起動しないと変更が反映されず
+    403 (EntityPermissionReadIsMissing) 等の原因になる。
+
+    Power Platform API のサイト ID は Dataverse の powerpagesiteid とは別物。
+    必ず /websites を GET して name 一致で API 側 ID を取得してから restart する。
+    """
     logger.info("=" * 60)
-    logger.info("Phase 5: Restart (cache clear)")
+    logger.info("Phase 5: Restart (cache clear) [MUST]")
     logger.info("=" * 60)
 
     if skip_restart:
-        logger.info("  (skipped via --skip-restart)")
+        logger.warning("  ⚠️ --skip-restart 指定: 再起動をスキップしました。")
+        logger.warning("     権限・設定変更が反映されない場合があります。")
+        logger.warning("     手動で再起動してください（admin.powerplatform.microsoft.com）。")
         return None
 
     token = get_token(scope='https://api.powerplatform.com/.default')
@@ -356,10 +366,15 @@ def phase_restart(config):
             rr = requests.post(
                 f'https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites/{sid}/restart?api-version=2024-10-01',
                 headers=h)
-            logger.info(f"  Restart: {rr.status_code}")
+            if rr.status_code < 400:
+                logger.info(f"  ✅ Restart triggered: {rr.status_code}")
+            else:
+                logger.error(f"  ❌ Restart FAILED: {rr.status_code} {rr.text[:200]}")
+                logger.error("     手動で再起動してください（admin.powerplatform.microsoft.com）。")
             break
     else:
-        logger.warning("  Site not found in PP API — manual restart needed")
+        logger.error("  ❌ Site not found in PP API — 再起動できませんでした。")
+        logger.error("     手動で再起動してください（admin.powerplatform.microsoft.com）。")
 
     return site_url
 
@@ -385,6 +400,10 @@ def main():
     if site_url:
         logger.info(f"   URL: {site_url}")
     logger.info("   (Allow 1-2 minutes for cache propagation)")
+    logger.info("")
+    logger.info("   ⚠️ ブラウザキャッシュをクリアしてからアクセスしてください:")
+    logger.info("      Ctrl+Shift+Delete → [キャッシュされた画像とファイル] → 削除")
+    logger.info("      （またはシークレット/InPrivate ウィンドウで確認）")
     logger.info("=" * 60)
 
 
