@@ -329,6 +329,94 @@ def phase_post_upload_fix(config):
 
 
 # ---------------------------------------------------------------------------
+# Phase 4.5: Table Permission → Authenticated Users 自動紐づけ
+# ---------------------------------------------------------------------------
+def phase_link_permissions(config):
+    """テーブル権限を Authenticated Users Web ロールに自動紐づけ.
+
+    ⚠️ EDM (Enhanced Data Model) では、Dataverse 管理者であっても Power Pages 上では
+    contact として認証されるため、Web ロール経由でないとテーブル権限が評価されない。
+    全 Table Permission を Authenticated Users に紐づけないと 403 になる。
+
+    powerpagecomponent_powerpagecomponent 自己参照 N:N を使用（唯一永続化する方法）。
+    """
+    logger.info("=" * 60)
+    logger.info("Phase 4.5: Link Table Permissions → Authenticated Users [MUST]")
+    logger.info("=" * 60)
+
+    h = dv_headers()
+
+    # サイト ID (powerpagesiteid) を取得
+    r = dv_get(f"powerpagesites?$filter=name eq '{config['siteName']}'"
+               f"&$select=powerpagesiteid,name")
+    if r.status_code != 200:
+        logger.error(f"  ❌ powerpagesites 取得失敗: {r.status_code}")
+        return
+    sites = r.json().get('value', [])
+    if not sites:
+        # サイト名で一致しない場合は部分一致で試行
+        r = dv_get("powerpagesites?$select=powerpagesiteid,name")
+        sites = [s for s in r.json().get('value', []) if config['siteName'].lower() in s.get('name', '').lower()]
+    if not sites:
+        logger.warning("  ⚠️ powerpagesites が見つかりません — スキップ")
+        return
+    site_id = sites[0]['powerpagesiteid']
+
+    # Authenticated Users ロール (type=11) を取得
+    r = dv_get(f"powerpagecomponents"
+               f"?$filter=powerpagecomponenttype eq 11 and _powerpagesiteid_value eq {site_id}"
+               f"&$select=powerpagecomponentid,name")
+    if r.status_code != 200:
+        logger.error(f"  ❌ Web ロール取得失敗: {r.status_code}")
+        return
+    roles = r.json().get('value', [])
+    auth_role = next((rl for rl in roles if 'authenticated' in rl.get('name', '').lower()), None)
+    if not auth_role:
+        logger.error("  ❌ 'Authenticated Users' ロールが見つかりません")
+        return
+    auth_role_id = auth_role['powerpagecomponentid']
+    logger.info(f"  Authenticated Users: {auth_role_id}")
+
+    # テーブル権限 (type=18) を列挙
+    r = dv_get(f"powerpagecomponents"
+               f"?$filter=powerpagecomponenttype eq 18 and _powerpagesiteid_value eq {site_id}"
+               f"&$select=powerpagecomponentid,name")
+    if r.status_code != 200:
+        logger.error(f"  ❌ テーブル権限取得失敗: {r.status_code}")
+        return
+    perms = r.json().get('value', [])
+    logger.info(f"  テーブル権限数: {len(perms)}")
+
+    linked_count = 0
+    for p in perms:
+        pid = p['powerpagecomponentid']
+        # 現在のリンクを確認
+        lr = requests.get(
+            f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({pid})/powerpagecomponent_powerpagecomponent"
+            f"?$select=powerpagecomponentid",
+            headers=h)
+        linked_ids = [l['powerpagecomponentid'] for l in lr.json().get('value', [])] if lr.status_code == 200 else []
+
+        if auth_role_id in linked_ids:
+            logger.info(f"    {p['name']}: OK (already linked)")
+        else:
+            # 紐づけ
+            url = f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({pid})/powerpagecomponent_powerpagecomponent/$ref"
+            body = {"@odata.id": f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({auth_role_id})"}
+            rr = requests.post(url, json=body, headers=h)
+            if rr.status_code in (200, 204):
+                logger.info(f"    {p['name']}: LINKED ({rr.status_code})")
+                linked_count += 1
+            else:
+                logger.error(f"    {p['name']}: FAILED ({rr.status_code} {rr.text[:100]})")
+
+    if linked_count > 0:
+        logger.info(f"  => {linked_count} 件のテーブル権限を紐づけました")
+    else:
+        logger.info("  => 全て紐づけ済み")
+
+
+# ---------------------------------------------------------------------------
 # Phase 5: Restart
 # ---------------------------------------------------------------------------
 def phase_restart(config):
@@ -392,6 +480,7 @@ def main():
     phase_build()
     phase_upload()
     phase_post_upload_fix(config)
+    phase_link_permissions(config)
     site_url = phase_restart(config)
 
     logger.info("")

@@ -218,11 +218,17 @@ export async function login(returnUrl = "/"): Promise<void> {
 | D3 | Web Role リンク必須 | 403 "You don't have permission" | `powerpagecomponent_powerpagecomponent` N:N |
 | D4 | `mspp_entitypermission_webrole` は不可 | 204返るが永続化しない | ↑の自己参照N:Nを使う |
 | D5 | `$expand` 非対応 | 400 Bad Request | lookup は `_xxx_value` で取得 |
-| D6 | 管理者はバイパス | 管理者OK/一般403 | 一般ユーザーで必ずテスト |
+| D6 | **管理者バイパスは信用しない** | **管理者でも 403** | **全ユーザーに Authenticated Users リンク必須** |
 | D7 | `disableentitypermissions` 無効 | Enhanced Model では無視 | 正規ルートで権限設定 |
 | D8 | Site Restart 必須 | 設定変更が反映されない | restart API |
 | D9 | エンティティセット名は複数形 | 404 Entity not found | `geek_m365services` (末尾s) |
 | D10 | CSRF トークン不要（GET） | 不要な複雑化 | GET はトークン不要、POST/PATCH/DELETE で必要 |
+| D11 | **デプロイ時に権限リンクを自動化** | 手動だと忘れる | deploy_site.py Phase 4.5 で自動紐づけ |
+
+> **⚠️ D6 重要修正**: ドキュメントでは「System Administrator はバイパスする」とされるが、
+> **EDM では管理者であってもポータル上では contact として認証され Web ロール経由でしか権限が評価されない**。
+> 管理者アカウントで 403 になる原因はこれ。**全てのテーブル権限を Authenticated Users に紐づけることが MUST**。
+> `deploy_site.py` の Phase 4.5 / `predeploy_check.py` のチェック 6 で自動化済み。
 
 ### ★ powerpagecomponent_powerpagecomponent 自己参照 N:N（最重要発見）
 
