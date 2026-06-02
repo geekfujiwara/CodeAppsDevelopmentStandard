@@ -514,6 +514,15 @@ value: "https://login.microsoftonline.com/{tenant-id}/"
 > **⚠️ CRITICAL**: `pac pages upload-code-site` はクラシックページを復活させる変更を加えるため、
 > アップロード後に **必ず Post-Upload Fix を実行**する。手動デプロイは禁止。
 
+> **⚠️ MUST: デプロイ後は必ずサイト再起動する**
+> Dataverse のテーブル権限・サイト設定はランタイムに積極的にキャッシュされる。
+> 再起動しないと変更が反映されず **403 (EntityPermissionReadIsMissing)** 等の原因になる。
+> `deploy_site.py` は Phase 5 で自動的に再起動する（`--skip-restart` 非推奨）。
+>
+> **再起動後はブラウザキャッシュもクリアしてアクセスする:**
+> `Ctrl+Shift+Delete` → **[キャッシュされた画像とファイル]** → 削除
+> （またはシークレット / InPrivate ウィンドウで確認）
+
 ```bash
 # 標準デプロイ（ビルド + アップロード + Post-Upload Fix + Restart すべて自動）
 py .github/skills/power-pages/scripts/deploy_site.py
@@ -575,6 +584,36 @@ Phase 5: Restart (Power Platform API でキャッシュクリア)
 
 > **注意**: `upload-code-site` は毎回 `.powerpages-site/site-settings/*.yml` で Dataverse を上書きする。YAML ファイルが設定の正。
 
+#### Phase 5: Restart（キャッシュクリア）の詳細
+
+デプロイ後のサイト再起動は **MUST**。Power Platform API 経由で実行する。
+
+```python
+from auth_helper import get_token
+import requests
+
+token = get_token(scope='https://api.powerplatform.com/.default')
+h = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+
+# 1) /websites を GET して API 側のサイト ID を取得（Dataverse の ID とは別物！）
+r = requests.get(
+    f'https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites?api-version=2024-10-01',
+    headers=h)
+sid = next(s['id'] for s in r.json()['value'] if 'mysite' in s['name'].lower())
+
+# 2) restart を POST（200 で成功）
+requests.post(
+    f'https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites/{sid}/restart?api-version=2024-10-01',
+    headers=h)
+```
+
+| 落とし穴 | 対策 |
+|----------|------|
+| `admin.powerpages.microsoft.com` は存在しない（NXDOMAIN） | エンドポイントは **`api.powerplatform.com`** |
+| Power Platform API のサイト ID ≠ Dataverse `powerpagesiteid` | 必ず `/websites` を GET して name 一致で API 側 ID を取得 |
+| 認証 scope が Dataverse のままだと 401 | `get_token(scope='https://api.powerplatform.com/.default')` |
+| 再起動しても画面が変わらない | **ブラウザキャッシュをクリア**（`Ctrl+Shift+Delete` → キャッシュされた画像とファイル） |
+
 ---
 
 ### Step 6: 検証
@@ -588,6 +627,7 @@ Phase 5: Restart (Power Platform API でキャッシュクリア)
 | セッション切れ | — | `/Account/Login` にリダイレクト |
 
 > **管理者で OK でも一般ユーザーで 403 は頻出パターン**。必ず両方でテストする。
+> **403 が出たらまずサイト再起動 + ブラウザキャッシュクリア**を疑う（設定変更がランタイムに未反映なケースが多い）。
 
 ---
 
