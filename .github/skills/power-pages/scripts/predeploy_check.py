@@ -10,9 +10,10 @@ deploy_site.py の Phase 0 として自動実行される。
 4. mspp_copy のフォーマット（full HTML が入っていないか）
 5. 重複ページの検出
 6. Web File（アセット）の存在
+7. --fix 時のサイト再起動（Power Platform API）
 
 Usage:
-    py .github/skills/power-pages/scripts/predeploy_check.py [--fix]
+    py .github/skills/power-pages/scripts/predeploy_check.py [--fix] [--skip-restart]
 """
 import sys
 import os
@@ -41,8 +42,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 DATAVERSE_URL = os.environ.get('DATAVERSE_URL', '').rstrip('/')
+ENV_ID = os.environ.get('ENV_ID', '')
 PORTAL_DIR = os.environ.get('PORTAL_DIR', os.path.join(PROJECT_ROOT, 'portal'))
 FIX_MODE = '--fix' in sys.argv
+SKIP_RESTART = '--skip-restart' in sys.argv
 
 
 def dv_headers():
@@ -86,6 +89,44 @@ def get_website_id():
         return websites[0]['mspp_websiteid'], config
 
     return None, config
+
+
+def restart_site(site_name):
+    """Power Platform API でサイト再起動."""
+    if not ENV_ID:
+        logger.warning("ENV_ID not set — skipping restart")
+        return
+
+    token = get_token(scope='https://api.powerplatform.com/.default')
+    h = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'}
+    websites_url = f'https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites?api-version=2024-10-01'
+    r = requests.get(websites_url, headers=h)
+    if r.status_code >= 400:
+        logger.warning(f"Failed to list websites for restart: {r.status_code} {r.text[:200]}")
+        return
+
+    site_id = None
+    for s in r.json().get('value', []):
+        if site_name and site_name.lower() in s.get('name', '').lower():
+            site_id = s.get('id')
+            break
+
+    if not site_id:
+        websites = r.json().get('value', [])
+        if len(websites) == 1:
+            site_id = websites[0].get('id')
+
+    if not site_id:
+        logger.warning("Site not found in Power Platform API — skipping restart")
+        return
+
+    rr = requests.post(
+        f'https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites/{site_id}/restart?api-version=2024-10-01',
+        headers=h)
+    if rr.status_code < 400:
+        logger.info(f"    ✓ Restart triggered: {rr.status_code}")
+    else:
+        logger.warning(f"Restart failed: {rr.status_code} {rr.text[:200]}")
 
 
 def run_checks():
@@ -217,6 +258,19 @@ def run_checks():
                         warnings.append(f"Home ({label}): mspp_copy is empty")
                     else:
                         logger.info(f"    ? Home ({label}): custom content ({len(copy)} bytes)")
+
+    # --- Check 6: Restart (fix mode only) ---
+    if FIX_MODE and not SKIP_RESTART:
+        logger.info("\n[6] Restart check (fix mode)...")
+        config_path = os.path.join(PORTAL_DIR, 'powerpages.config.json')
+        site_name = ''
+        if os.path.isfile(config_path):
+            with open(config_path) as f:
+                config = json.load(f)
+                site_name = config.get('siteName', '')
+        restart_site(site_name)
+    elif FIX_MODE and SKIP_RESTART:
+        logger.info("\n[6] Restart check skipped via --skip-restart")
 
     # --- Summary ---
     logger.info("\n" + "=" * 50)
