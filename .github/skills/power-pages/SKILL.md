@@ -64,12 +64,25 @@ ENV_ID=                               # Power Platform 環境 ID
 
 ```text
 portal/
-├── src/                          ← ソースコード (React/Vue/Angular)
+├── src/
+│   ├── App.tsx                   ← ルート (HashRouter + Routes)
+│   ├── main.tsx                  ← エントリポイント
+│   ├── index.css                 ← Tailwind CSS
+│   ├── components/
+│   │   ├── site-layout.tsx       ← ヘッダー・ナビ・プロフィールドロップダウン
+│   │   ├── require-auth.tsx      ← 認証ガードコンポーネント
+│   │   ├── mode-toggle.tsx       ← ダーク/ライト切替
+│   │   └── ui/                   ← shadcn/ui コンポーネント
+│   ├── hooks/
+│   │   └── use-auth.ts           ← SSO 認証フック (★デフォルト実装)
+│   ├── lib/
+│   │   └── utils.ts              ← cn() ユーティリティ
+│   └── pages/
+│       ├── home.tsx              ← ランディングページ
+│       └── profile.tsx           ← プロフィール編集 (★デフォルト実装)
 ├── dist-site/                    ← ビルド出力 (compiledPath)
 │   ├── index.html
 │   └── assets/
-│       ├── index-XXXXX.js
-│       └── index-XXXXX.css
 ├── powerpages.config.json        ← CLI 設定ファイル (必須)
 ├── package.json
 ├── vite.config.ts
@@ -78,6 +91,322 @@ portal/
 ```
 
 > **`.powerpages-site/` は upload-code-site が自動生成・管理する。手動作成不要。**
+
+---
+
+## ★ デフォルト実装: SSO ログイン + プロフィール編集
+
+**すべての Code Site プロジェクトに最初から含める必須機能:**
+
+1. Entra ID SSO ログイン（`/SignIn` 直行方式）
+2. プロフィール編集ページ（`/_api/contacts` 経由で PATCH）
+3. ヘッダー右上のプロフィールアバターアイコン + ドロップダウン
+4. `RequireAuth` ガードコンポーネント
+5. Contact 自動作成（Power Pages のデフォルト動作）
+
+### use-auth.ts（SSO 認証フック）
+
+```typescript
+import { useState, useEffect, useCallback } from "react";
+
+export interface AuthUser {
+  contactId: string;
+  fullName: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+}
+
+/**
+ * Power Pages authentication hook.
+ * Reads the portal-injected user context from the liquid-rendered global.
+ * If Entra ID is the sole IdP, login redirects to /SignIn which auto-triggers SSO.
+ */
+export function useAuth() {
+  const [state, setState] = useState<{
+    isAuthenticated: boolean;
+    user: AuthUser | null;
+    loading: boolean;
+  }>({ isAuthenticated: false, user: null, loading: true });
+
+  useEffect(() => {
+    // Power Pages injects user info via liquid template into the page
+    const portalUser = (window as any)["Microsoft"]?.Dynamic365?.Portal?.User;
+    const contactId = portalUser?.contactId || portalUser?.id || "";
+
+    if (contactId) {
+      setState({
+        isAuthenticated: true,
+        user: {
+          contactId,
+          fullName: portalUser?.fullName || portalUser?.fullname || "",
+          email: portalUser?.emailAddress || portalUser?.emailaddress1 || "",
+          firstName: portalUser?.firstName || portalUser?.firstname || "",
+          lastName: portalUser?.lastName || portalUser?.lastname || "",
+          phone: portalUser?.telephone1 || "",
+        },
+        loading: false,
+      });
+    } else {
+      setState({ isAuthenticated: false, user: null, loading: false });
+    }
+  }, []);
+
+  const login = useCallback(() => {
+    // /SignIn directly triggers SSO when Entra ID is the only IdP
+    const returnUrl = encodeURIComponent(window.location.pathname + window.location.hash);
+    window.location.href = `/SignIn?returnUrl=${returnUrl}`;
+  }, []);
+
+  const logout = useCallback(() => {
+    window.location.href = "/Account/Login/LogOff?returnUrl=%2F";
+  }, []);
+
+  return { ...state, login, logout };
+}
+```
+
+**ポイント:**
+- `/SignIn` は Entra ID が唯一の IdP の場合、自動で SSO に直行する
+- `window.Microsoft.Dynamic365.Portal.User` は Liquid テンプレートが注入
+- PRIVATE サイトの場合は SPA ロード時点で認証済み（`window.__PP_USER__` も利用可）
+
+### require-auth.tsx（認証ガードコンポーネント）
+
+```tsx
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import { LogIn, Loader2 } from "lucide-react";
+
+export function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, loading, login } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-6">
+        <div className="text-center space-y-3">
+          <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+            <LogIn className="h-8 w-8 text-primary" />
+          </div>
+          <h2 className="text-2xl font-bold text-foreground">ログインが必要です</h2>
+          <p className="text-muted-foreground max-w-sm">
+            この機能を利用するにはログインしてください。
+          </p>
+        </div>
+        <Button size="lg" onClick={login} className="gap-2">
+          <LogIn className="h-4 w-4" />
+          ログイン
+        </Button>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+```
+
+### profile.tsx（プロフィール編集ページ）
+
+```tsx
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import { Save, Loader2, User } from "lucide-react";
+
+interface ContactProfile {
+  firstname: string;
+  lastname: string;
+  emailaddress1: string;
+  telephone1: string;
+}
+
+export default function ProfilePage() {
+  const { user } = useAuth();
+  const [profile, setProfile] = useState<ContactProfile>({
+    firstname: "", lastname: "", emailaddress1: "", telephone1: "",
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!user?.contactId) return;
+    fetchProfile();
+  }, [user?.contactId]);
+
+  async function fetchProfile() {
+    try {
+      const res = await fetch(
+        `/_api/contacts(${user!.contactId})?$select=firstname,lastname,emailaddress1,telephone1`,
+        { credentials: "include" }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setProfile({
+        firstname: data.firstname || "",
+        lastname: data.lastname || "",
+        emailaddress1: data.emailaddress1 || "",
+        telephone1: data.telephone1 || "",
+      });
+    } catch (e) {
+      console.error("[Profile] fetch failed:", e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      // Get anti-forgery token
+      const tokenRes = await fetch("/_layout/tokenhtml", { credentials: "include" });
+      const tokenHtml = await tokenRes.text();
+      const match = tokenHtml.match(/value="([^"]+)"/);
+      const token = match?.[1] || "";
+
+      const res = await fetch(`/_api/contacts(${user!.contactId})`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          __RequestVerificationToken: token,
+        },
+        body: JSON.stringify({
+          firstname: profile.firstname,
+          lastname: profile.lastname,
+          telephone1: profile.telephone1,
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setMessage({ type: "success", text: "プロフィールを更新しました" });
+    } catch (e) {
+      setMessage({ type: "error", text: "更新に失敗しました。もう一度お試しください。" });
+      console.error("[Profile] save failed:", e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-lg mx-auto py-8 px-4">
+      {/* ... プロフィールフォーム UI ... */}
+      <form onSubmit={handleSave} className="space-y-4">
+        {/* 姓・名・メール(disabled)・電話 */}
+        <Button type="submit" disabled={saving} className="w-full gap-2">
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          保存
+        </Button>
+      </form>
+    </div>
+  );
+}
+```
+
+### site-layout.tsx のプロフィールドロップダウン（ヘッダー右上）
+
+```tsx
+// ヘッダー右側にプロフィールアバター + ドロップダウン
+{isAuthenticated ? (
+  <div className="relative" onMouseEnter={handleProfileEnter} onMouseLeave={handleProfileLeave}>
+    <button
+      className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted transition-colors"
+      onClick={() => navigate("/profile")}
+    >
+      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+        <User className="h-4 w-4 text-primary" />
+      </div>
+      <span className="text-xs text-muted-foreground max-w-[100px] truncate">
+        {user?.fullName}
+      </span>
+    </button>
+    {profileMenuOpen && (
+      <div className="absolute top-full right-0 pt-1 z-50">
+        <div className="min-w-[160px] rounded-xl border bg-card shadow-premium p-1.5">
+          <button onClick={() => navigate("/profile")}>プロフィール編集</button>
+          <button onClick={logout}>ログアウト</button>
+        </div>
+      </div>
+    )}
+  </div>
+) : (
+  <Button variant="outline" size="sm" onClick={login}>ログイン</Button>
+)}
+```
+
+### App.tsx のルート定義
+
+```tsx
+import ProfilePage from "@/pages/profile";
+
+// Routes 内に追加
+<Route
+  path="profile"
+  element={
+    <RequireAuth>
+      <ProfilePage />
+    </RequireAuth>
+  }
+/>
+```
+
+### Contact 自動作成
+
+Power Pages では **Entra ID 経由で初回ログインした時に Contact レコードが自動作成される**。
+サイト設定 `Authentication/Registration/OpenRegistrationEnabled = true` がデフォルト。
+追加のコードは不要。
+
+### Contact テーブルの Web API 有効化
+
+プロフィール編集には `contact` テーブルの Web API アクセスが必要:
+
+```python
+# Site Settings で contact テーブルを有効化
+settings = [
+    ("Webapi/contact/enabled", "true"),
+    ("Webapi/contact/fields", "firstname,lastname,emailaddress1,telephone1"),
+]
+for name, value in settings:
+    create_adx_sitesetting(name, value, website_id)
+```
+
+テーブル権限（Contact Self アクセス）:
+```python
+# type=18, scope=756150001 (Contact = Self)
+perm = {
+    "powerpagecomponenttype": 18,
+    "name": "Contact - Self Read/Write",
+    "content": json.dumps({
+        "mspp_entityname": "contact",
+        "mspp_scope": "756150001",  # Contact (Self)
+        "mspp_read": "true",
+        "mspp_write": "true",
+        "mspp_create": "false",
+        "mspp_delete": "false",
+    }),
+    "powerpagesiteid@odata.bind": f"/powerpagesites({SITE_ID})",
+}
+```
 
 ### powerpages.config.json（必須）
 
@@ -273,6 +602,18 @@ def main():
 
 ## Step 4: 認証と承認
 
+> **SSO ログイン + プロフィール編集は「★ デフォルト実装」セクションのコードをそのまま使う。**
+> 以下は技術的な背景と追加カスタマイズ用のリファレンス。
+
+### 認証方式の選択
+
+| 方式 | 推奨度 | 説明 |
+|------|--------|------|
+| `/SignIn` 直行 (SSO) | ★推奨 | Entra ID が唯一の IdP なら自動でSSO。ログイン画面が表示されない |
+| `/Account/Login/ExternalLogin` POST | ○ | 複数 IdP がある場合に特定プロバイダーを指定 |
+| `/Account/Login` リダイレクト | △ | クラシックログインページ。SPA 体験が途切れる |
+| PRIVATE サイト | ◎ | 全ページ認証必須。SPA ロード時点で認証済み。最もシンプル |
+
 ### ユーザーコンテキストへのアクセス
 
 ```typescript
@@ -284,28 +625,15 @@ const tenantId = (window as any)["Microsoft"]?.Dynamic365?.Portal?.tenant ?? "";
 const isAuthenticated = username !== "";
 ```
 
-### ログイン / ログアウト
+### Anti-Forgery Token（書き込み操作に必須）
 
 ```typescript
-// Anti-Forgery Token の取得
 const fetchToken = async (): Promise<string> => {
-  const res = await fetch("/_layout/tokenhtml");
+  const res = await fetch("/_layout/tokenhtml", { credentials: "include" });
   const html = await res.text();
   const match = html.match(/value="([^"]+)"/);
   return match?.[1] ?? "";
 };
-
-// ログイン form POST
-<form action="/Account/Login/ExternalLogin" method="post">
-  <input name="__RequestVerificationToken" type="hidden" value={token} />
-  <button name="provider" type="submit"
-    value={`https://login.windows.net/${tenantId}/`}>
-    Login
-  </button>
-</form>
-
-// ログアウト
-window.location.href = "/Account/Login/LogOff?returnUrl=%2F";
 ```
 
 ### ID プロバイダー構成
