@@ -408,6 +408,25 @@ perm = {
 }
 ```
 
+> **自動化スクリプト**: `portal/scripts/setup_contact_webapi.py` で上記を一括実行可能。
+> Site Settings 作成 → テーブル権限作成 → Web ロール紐付け → サイトリスタート を自動実行する。
+> `/_api/contacts` が 404 を返す場合はこのスクリプトを実行すること。
+
+### ★ 初回デプロイ後の必須手順
+
+デプロイ直後、プロフィール編集が動作するために以下が必要:
+
+```bash
+# 1. Contact Web API 有効化 + テーブル権限設定
+py portal/scripts/setup_contact_webapi.py
+
+# 2. サイトリスタート（設定反映）
+py portal/scripts/deploy.py --skip-build
+```
+
+**`/_api/contacts` が 404 を返す原因**: Site Settings (`Webapi/contact/enabled`) が未設定。
+上記スクリプトで自動解決する。
+
 ### powerpages.config.json（必須）
 
 ```json
