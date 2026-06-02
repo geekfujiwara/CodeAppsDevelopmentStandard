@@ -1,0 +1,7 @@
+description: >-
+  A collection of search logical name filter options. Defining a value here will add dropdown filter options to site-wide search.
+
+
+  This value should be in the form of name/value pairs, with name and value separated by a colon, and pairs separated by a semicolon. For example: "Forums:adx_communityforum,adx_communityforumthread,adx_communityforumpost;Blogs:adx_blog,adx_blogpost,adx_blogpostcomment".
+id: f59fe92c-5e8c-48c2-86c3-03a8bc7b618e
+name: search/filters

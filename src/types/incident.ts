@@ -1,3 +1,26 @@
+// ── インシデント型定義 ──
+export interface Incident {
+  [key: string]: unknown;
+  geek_incidentid: string;
+  geek_title: string;
+  geek_description?: string;
+  geek_status?: number;
+  geek_priority?: number;
+  geek_assettype?: number;
+  geek_assetstatus?: number;
+  geek_reportedby?: string;
+  geek_assignedto?: string;
+  geek_resolvedon?: string;
+  geek_resolution?: string;
+  createdon?: string;
+  modifiedon?: string;
+}
+
+export type IncidentCreate = Omit<
+  Incident,
+  "geek_incidentid" | "createdon" | "modifiedon"
+>;
+
 // Incident Status
 export const IncidentStatus = {
   NEW: 100000000,
@@ -60,4 +83,20 @@ export const assetStatusColors: Record<number, string> = {
   100000002:
     "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
   100000003: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+};
+
+// Priority
+export const priorityLabels: Record<number, string> = {
+  100000000: "低",
+  100000001: "中",
+  100000002: "高",
+  100000003: "緊急",
+};
+
+export const priorityColors: Record<number, string> = {
+  100000000: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+  100000001: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  100000002:
+    "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+  100000003: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
 };

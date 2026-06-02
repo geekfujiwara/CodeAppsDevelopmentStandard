@@ -1,0 +1,6 @@
+{
+  "$schema": "https://www.schemastore.org/powerpages.config.json",
+  "siteName": "IncidentPortal",
+  "compiledPath": "dist-site",
+  "defaultLandingPage": "index.html"
+}

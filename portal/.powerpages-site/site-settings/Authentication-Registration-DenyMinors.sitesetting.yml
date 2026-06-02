@@ -1,0 +1,4 @@
+description: Denies use of the portal to minors. By default, it is set to false.
+id: f71fbab0-755c-44a1-97b2-a7b0335c8db5
+name: Authentication/Registration/DenyMinors
+value: false
