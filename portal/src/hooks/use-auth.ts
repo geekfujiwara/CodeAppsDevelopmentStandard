@@ -49,8 +49,8 @@ export function useAuth() {
     if (window.location.hash) {
       sessionStorage.setItem("pp_return_hash", window.location.hash);
     }
-    // /Account/Login/LogIn auto-triggers Entra ID SSO
-    window.location.href = "/Account/Login/LogIn?returnUrl=/";
+    // With LocalLoginEnabled=false, /SignIn auto-redirects to Entra ID SSO
+    window.location.href = "/SignIn?returnUrl=/";
   }, []);
 
   const logout = useCallback(() => {
