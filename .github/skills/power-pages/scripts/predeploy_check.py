@@ -9,7 +9,7 @@ deploy_site.py の Phase 0 として自動実行される。
 3. Web Template source の状態
 4. mspp_copy のフォーマット（full HTML が入っていないか）
 5. 重複ページの検出
-6. Web File（アセット）の存在
+6. テーブル権限 → Authenticated Users Web ロールのリンク検証
 7. --fix 時のサイト再起動（Power Platform API）
 
 Usage:
@@ -259,9 +259,75 @@ def run_checks():
                     else:
                         logger.info(f"    ? Home ({label}): custom content ({len(copy)} bytes)")
 
-    # --- Check 6: Restart (fix mode only) ---
+    # --- Check 6: Table Permission → Web Role link ---
+    if DATAVERSE_URL:
+        logger.info("\n[6] Table Permission → Authenticated Users link check...")
+        # powerpagesiteid を取得
+        r = requests.get(
+            f"{DATAVERSE_URL}/api/data/v9.2/powerpagesites?$select=powerpagesiteid,name",
+            headers=dv_headers())
+        pp_sites = r.json().get('value', []) if r.status_code == 200 else []
+        if pp_sites:
+            pp_site_id = pp_sites[0]['powerpagesiteid']
+
+            # Authenticated Users ロール
+            r = requests.get(
+                f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents"
+                f"?$filter=powerpagecomponenttype eq 11 and _powerpagesiteid_value eq {pp_site_id}"
+                f"&$select=powerpagecomponentid,name",
+                headers=dv_headers())
+            roles = r.json().get('value', []) if r.status_code == 200 else []
+            auth_role = next((rl for rl in roles if 'authenticated' in rl.get('name', '').lower()), None)
+
+            if auth_role:
+                auth_role_id = auth_role['powerpagecomponentid']
+                # テーブル権限
+                r = requests.get(
+                    f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents"
+                    f"?$filter=powerpagecomponenttype eq 18 and _powerpagesiteid_value eq {pp_site_id}"
+                    f"&$select=powerpagecomponentid,name",
+                    headers=dv_headers())
+                perms = r.json().get('value', []) if r.status_code == 200 else []
+
+                unlinked = []
+                for p in perms:
+                    pid = p['powerpagecomponentid']
+                    lr = requests.get(
+                        f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({pid})"
+                        f"/powerpagecomponent_powerpagecomponent?$select=powerpagecomponentid",
+                        headers=dv_headers())
+                    linked_ids = [l['powerpagecomponentid'] for l in lr.json().get('value', [])] if lr.status_code == 200 else []
+                    if auth_role_id not in linked_ids:
+                        unlinked.append(p['name'])
+
+                if unlinked:
+                    msg = f"Table Permission(s) NOT linked to Authenticated Users: {', '.join(unlinked)}"
+                    if FIX_MODE:
+                        # 自動修正: 紐づけ
+                        for p in perms:
+                            pid = p['powerpagecomponentid']
+                            lr = requests.get(
+                                f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({pid})"
+                                f"/powerpagecomponent_powerpagecomponent?$select=powerpagecomponentid",
+                                headers=dv_headers())
+                            linked_ids = [l['powerpagecomponentid'] for l in lr.json().get('value', [])] if lr.status_code == 200 else []
+                            if auth_role_id not in linked_ids:
+                                url = f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({pid})/powerpagecomponent_powerpagecomponent/$ref"
+                                body = {"@odata.id": f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({auth_role_id})"}
+                                rr = requests.post(url, json=body, headers=dv_headers())
+                                logger.info(f"    FIXED: {p['name']} → Authenticated Users ({rr.status_code})")
+                    else:
+                        errors.append(msg)
+                else:
+                    logger.info("    ✓ All table permissions linked to Authenticated Users")
+            else:
+                warnings.append("Authenticated Users Web Role not found")
+        else:
+            warnings.append("powerpagesites not found — skipping permission link check")
+
+    # --- Check 7: Restart (fix mode only) ---
     if FIX_MODE and not SKIP_RESTART:
-        logger.info("\n[6] Restart check (fix mode)...")
+        logger.info("\n[7] Restart check (fix mode)...")
         config_path = os.path.join(PORTAL_DIR, 'powerpages.config.json')
         site_name = ''
         if os.path.isfile(config_path):
@@ -270,7 +336,7 @@ def run_checks():
                 site_name = config.get('siteName', '')
         restart_site(site_name)
     elif FIX_MODE and SKIP_RESTART:
-        logger.info("\n[6] Restart check skipped via --skip-restart")
+        logger.info("\n[7] Restart check skipped via --skip-restart")
 
     # --- Summary ---
     logger.info("\n" + "=" * 50)

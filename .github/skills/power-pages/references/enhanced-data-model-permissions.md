@@ -264,17 +264,22 @@ requests.post(
 
 ## 管理者ユーザーによるバイパス
 
-Power Pages の管理者ユーザー（Dataverse の System Administrator ロール）は、**テーブル権限の設定に関わらず** Web API にアクセスできる。
+> **⚠️ 2024年以降の検証結果: EDM ではバイパスが機能しない**
+>
+> ドキュメント上は System Administrator がテーブル権限をバイパスすると記載されているが、
+> **実際にはポータル上では contact として認証されるため Web ロール紐づけがないと 403 になる**。
+> 管理者アカウントであっても、テーブル権限を Authenticated Users に紐づけることが MUST。
 
 | ユーザー種別 | Table Permission 必要 | Web Role 紐付け必要 |
 |---|---|---|
-| System Administrator | ❌ 不要 | ❌ 不要 |
+| System Administrator | ~~❌ 不要~~ **✅ 実際は必要** | ~~❌ 不要~~ **✅ 実際は必要** |
 | Authenticated Users (一般) | ✅ 必要 | ✅ 必要 |
 | Anonymous (未認証) | ✅ 必要 | ✅ 必要 (Anonymous Users role) |
 
 ### 開発時の注意
 
-管理者で動作確認して OK でも、一般ユーザーでテストしないと 403 が発見できない。**必ず一般ユーザーでもテストすること。**
+~~管理者で動作確認して OK でも、一般ユーザーでテストしないと 403 が発見できない。~~ **管理者でも 403 になる**。
+**全てのテーブル権限を Authenticated Users に紐づけること。** `deploy_site.py` Phase 4.5 で自動化済み。
 
 ---
 
@@ -285,14 +290,18 @@ Step 1: Site Settings を API で作成（Webapi/{table}/enabled, fields）
     ↓
 Step 2: powerpagecomponent type=18 を API で作成（scope, CRUD 設定）
     ↓
-Step 3: Design Studio で Web Role 紐付け（手動）
+Step 3: powerpagecomponent_powerpagecomponent N:N で Authenticated Users に紐づけ（自動: deploy_site.py Phase 4.5）
     ↓
 Step 4: Site Restart（API）
     ↓
-Step 5: 一般ユーザーでテスト
+Step 5: テスト（管理者でも一般でも同じ権限設定が必要）
 ```
 
-### Design Studio での紐付け手順
+### 自動紐づけ（推奨 — deploy_site.py Phase 4.5）
+
+`deploy_site.py` が Phase 4.5 で全テーブル権限を Authenticated Users に自動紐づけするため、手動作業は不要。
+
+### Design Studio での紐付け手順（手動が必要な場合のみ）
 
 1. https://make.powerpages.microsoft.com/ にアクセス
 2. 対象サイトを選択
