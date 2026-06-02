@@ -8,66 +8,73 @@ import { dataSourcesInfo as powerInfo } from "../../.power/schemas/appschemas/da
 
 export const dataSourcesInfo = {
   ...powerInfo,
-  "systemusers": {
-    "tableId": "systemuser",
-    "version": "",
-    "primaryKey": "systemuserid",
-    "dataSourceType": "Dataverse",
-    "apis": {}
+  systemusers: {
+    tableId: "systemuser",
+    version: "",
+    primaryKey: "systemuserid",
+    dataSourceType: "Dataverse",
+    apis: {},
   },
-  "GenerateSalesEmail": {
-    "tableId": "",
-    "version": "",
-    "dataSourceType": "Connector",
-    "apis": {
-      "Run": {
-        "path": "/triggers/manual/run",
-        "method": "POST",
-        "parameters": [
-          { "name": "text", "in": "body", "required": true, "type": "string" },
-          { "name": "text_1", "in": "body", "required": true, "type": "string" },
-          { "name": "text_2", "in": "body", "required": true, "type": "string" }
-        ],
-        "responseInfo": {
-          "airesult": { "type": "string" }
-        }
-      }
-    }
+  geek_incidents: {
+    tableId: "geek_incident",
+    version: "",
+    primaryKey: "geek_incidentid",
+    dataSourceType: "Dataverse",
+    apis: {},
   },
-  "SuggestAppointment": {
-    "tableId": "",
-    "version": "",
-    "dataSourceType": "Connector",
-    "apis": {
-      "Run": {
-        "path": "/triggers/manual/run",
-        "method": "POST",
-        "parameters": [
-          { "name": "text", "in": "body", "required": true, "type": "string" },
-          { "name": "text_1", "in": "body", "required": true, "type": "string" }
+  GenerateSalesEmail: {
+    tableId: "",
+    version: "",
+    dataSourceType: "Connector",
+    apis: {
+      Run: {
+        path: "/triggers/manual/run",
+        method: "POST",
+        parameters: [
+          { name: "text", in: "body", required: true, type: "string" },
+          { name: "text_1", in: "body", required: true, type: "string" },
+          { name: "text_2", in: "body", required: true, type: "string" },
         ],
-        "responseInfo": {
-          "airesult": { "type": "string" }
-        }
-      }
-    }
+        responseInfo: {
+          airesult: { type: "string" },
+        },
+      },
+    },
   },
-  "GetOutlookEvents": {
-    "tableId": "",
-    "version": "",
-    "dataSourceType": "Connector",
-    "apis": {
-      "Run": {
-        "path": "/triggers/manual/run",
-        "method": "POST",
-        "parameters": [
-          { "name": "text", "in": "body", "required": true, "type": "string" },
-          { "name": "text_1", "in": "body", "required": true, "type": "string" }
+  SuggestAppointment: {
+    tableId: "",
+    version: "",
+    dataSourceType: "Connector",
+    apis: {
+      Run: {
+        path: "/triggers/manual/run",
+        method: "POST",
+        parameters: [
+          { name: "text", in: "body", required: true, type: "string" },
+          { name: "text_1", in: "body", required: true, type: "string" },
         ],
-        "responseInfo": {
-          "events_json": { "type": "string" }
-        }
-      }
-    }
-  }
+        responseInfo: {
+          airesult: { type: "string" },
+        },
+      },
+    },
+  },
+  GetOutlookEvents: {
+    tableId: "",
+    version: "",
+    dataSourceType: "Connector",
+    apis: {
+      Run: {
+        path: "/triggers/manual/run",
+        method: "POST",
+        parameters: [
+          { name: "text", in: "body", required: true, type: "string" },
+          { name: "text_1", in: "body", required: true, type: "string" },
+        ],
+        responseInfo: {
+          events_json: { type: "string" },
+        },
+      },
+    },
+  },
 };

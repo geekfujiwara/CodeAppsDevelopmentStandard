@@ -16,6 +16,9 @@ const ActivitiesPage = lazy(() => import("@/pages/activities"));
 const PipelinePage = lazy(() => import("@/pages/pipeline"));
 const TerritoryPage = lazy(() => import("@/pages/territory"));
 
+// インシデント管理
+const IncidentsPage = lazy(() => import("@/pages/incidents"));
+
 // ローディングコンポーネント
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[400px]">
@@ -54,10 +57,14 @@ export const router = createBrowserRouter(
         { path: "customers", element: withSuspense(CustomersPage) },
         { path: "customers/:id", element: withSuspense(CustomerDetailPage) },
         { path: "opportunities", element: withSuspense(OpportunitiesPage) },
-        { path: "opportunities/:id", element: withSuspense(OpportunityDetailPage) },
+        {
+          path: "opportunities/:id",
+          element: withSuspense(OpportunityDetailPage),
+        },
         { path: "pipeline", element: withSuspense(PipelinePage) },
         { path: "territory", element: withSuspense(TerritoryPage) },
         { path: "activities", element: withSuspense(ActivitiesPage) },
+        { path: "incidents", element: withSuspense(IncidentsPage) },
       ],
     },
   ],

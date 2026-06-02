@@ -1,0 +1,4 @@
+description: 'Override query for site search, to apply additional weights and filters. @Query is the query text entered by a user. Lucene query syntax reference: http://lucene.apache.org/core/old_versioned_docs/versions/2_9_1/queryparsersyntax.html'
+id: 5f2a83ee-aeb8-41b1-a12e-6c916746dee6
+name: search/query
+value: +(@Query) _title:(@Query) _logicalname:knowledgearticle~0.9^0.3 _logicalname:annotation~0.9^0.25 _logicalname:adx_webpage~0.9^0.2 -_logicalname:adx_webfile~0.9 adx_partialurl:(@Query) _logicalname:adx_blogpost~0.9^0.1 -_logicalname:adx_communityforumthread~0.9

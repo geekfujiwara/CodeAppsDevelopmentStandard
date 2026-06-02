@@ -8,6 +8,7 @@ import {
   Columns3,
   ClipboardList,
   Target,
+  AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -56,8 +57,12 @@ export function Sidebar() {
     },
     {
       category: "活動",
+      items: [{ icon: ClipboardList, label: "活動履歴", path: "activities" }],
+    },
+    {
+      category: "インシデント",
       items: [
-        { icon: ClipboardList, label: "活動履歴", path: "activities" },
+        { icon: AlertTriangle, label: "インシデント", path: "incidents" },
       ],
     },
   ];
