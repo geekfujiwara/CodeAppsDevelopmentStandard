@@ -37,6 +37,20 @@ triggers:
   - "認証なし"
   - "静的Webサイト"
   - "Azure Storage"
+  - "WebChat SDK"
+  - "DirectLine"
+  - "トークンエンドポイント"
+  - "ネイティブアプリ"
+  - "styleOptions"
+  - "カルーセル"
+  - "プロンプトチップス"
+  - "デザインテンプレート"
+  - "左パネル"
+  - "カテゴリ別カード"
+  - "AI タイピング"
+  - "グラデーション枠"
+  - "外部Webデザイン"
+  - "ランディングページ"
 ---
 
 # Copilot Studio エージェント構築スキル
@@ -49,13 +63,26 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 | リファレンス | 内容 |
 |---|---|
 | [構築リファレンス](references/build-reference.md) | 構築手順の詳細・Instructions テンプレート・スクリプトコード |
-| [外部公開 Web 埋め込み](references/external-web-embed.md) | 認証なしエージェントを外部 Web サイトに iframe で公開するパターン |
+| [外部公開 Web 埋め込み](references/external-web-embed.md) | 認証なしエージェントを外部 Web サイトに iframe で公開するパターン（簡易版） |
+| [外部公開 WebChat SDK](references/webchat-sdk-embed.md) | WebChat SDK で外部公開する推奨パターン（UIカスタマイズ・メッセージ送信対応） |
+| [**外部公開デザインテンプレート**](references/webchat-sdk-design-template.md) | **標準 UI デザイン**：左パネル（カテゴリ別カード＋プロンプトチップス）＋ 右 WebChat パネル（グラデーション枠・AI タイピング Tips） |
 | [外部トリガー](references/trigger.md) | メール受信・Teams メッセージ・スケジュール等のトリガー追加 |
 | [トリガーパターン](references/trigger-patterns.md) | トリガーの設定パターン集 |
 | [トリガートラブルシューティング](references/trigger-troubleshooting.md) | トリガー関連のトラブルシューティング |
 | [ニュース配信エージェント](references/market-research-report.md) | RSS + Web検索 + Work IQ MCP によるニュース収集・配信エージェント構築 |
 | [ニュース配信デプロイガイド](references/market-research-deployment-guide.md) | ニュース配信エージェントのデプロイ手順 |
 | [ニュース配信メールテンプレート](references/market-research-email-template.md) | ニュース配信メールの HTML テンプレート |
+
+## 外部公開 Web サイト開発フロー（必須）
+
+**エージェントを外部顧客向け Web サイトに公開する場合、[デザインテンプレート](references/webchat-sdk-design-template.md) を標準として提案する。**
+
+フロー:
+1. デザインテンプレートのレイアウト構成 + カテゴリ/プロンプト案をユーザーに提示
+2. ユーザー承認
+3. `website/index.html` をテンプレートベースで実装
+4. カテゴリ・プロンプト・Tips・カラーを案件に合わせて調整
+5. `py scripts/deploy_website.py` で Azure Storage にデプロイ
 
 ## 前提: 設計フェーズ完了後に構築に入る（必須）
 
