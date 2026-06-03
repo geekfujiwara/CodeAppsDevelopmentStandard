@@ -31,6 +31,12 @@ triggers:
   - "スケジュールトリガー"
   - "Work IQ MCP"
   - "ニュースエージェント"
+  - "外部公開"
+  - "Web埋め込み"
+  - "iframe"
+  - "認証なし"
+  - "静的Webサイト"
+  - "Azure Storage"
 ---
 
 # Copilot Studio エージェント構築スキル
@@ -43,6 +49,7 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 | リファレンス | 内容 |
 |---|---|
 | [構築リファレンス](references/build-reference.md) | 構築手順の詳細・Instructions テンプレート・スクリプトコード |
+| [外部公開 Web 埋め込み](references/external-web-embed.md) | 認証なしエージェントを外部 Web サイトに iframe で公開するパターン |
 | [外部トリガー](references/trigger.md) | メール受信・Teams メッセージ・スケジュール等のトリガー追加 |
 | [トリガーパターン](references/trigger-patterns.md) | トリガーの設定パターン集 |
 | [トリガートラブルシューティング](references/trigger-troubleshooting.md) | トリガー関連のトラブルシューティング |
