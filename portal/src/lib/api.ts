@@ -1,112 +1,168 @@
-// ── Power Pages Web API クライアント ──
+/**
+ * Power Pages Web API (`/_api/`) クライアント
+ *
+ * 認証: ブラウザのセッション Cookie（same-origin）。Bearer トークン不要。
+ * 書き込み (POST/PATCH/DELETE): anti-forgery token が必須。
+ */
 const BASE = "/_api";
 
-const REDIRECT_KEY = "__pp_login_redirect_ts";
-function shouldRedirectToLogin(): boolean {
-  const last = sessionStorage.getItem(REDIRECT_KEY);
-  if (last && Date.now() - Number(last) < 10000) return false;
-  sessionStorage.setItem(REDIRECT_KEY, String(Date.now()));
-  return true;
+const IS_DEV =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1");
+
+export interface ODataCollection<T> {
+  value: T[];
+  "@odata.count"?: number;
 }
 
-export async function apiFetch<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
-  const url = `${BASE}/${path}`;
-  console.log(`[API] ${init?.method ?? "GET"} ${url}`);
+export class ApiAuthError extends Error {
+  constructor(public status: number) {
+    super(`Authentication required (${status})`);
+    this.name = "ApiAuthError";
+  }
+}
 
-  const res = await fetch(url, {
-    ...init,
-    redirect: "manual",
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json",
-      "OData-MaxVersion": "4.0",
-      "OData-Version": "4.0",
-      ...init?.headers,
-    },
-  });
+/** anti-forgery token のキャッシュ */
+let cachedToken: string | null = null;
 
-  if (res.type === "opaqueredirect" || res.status === 0) {
-    console.warn("[API] Session expired (opaqueredirect)");
-    if (shouldRedirectToLogin()) {
-      window.location.href = "/Account/Login";
-      return new Promise(() => {});
-    }
-    throw new Error("認証が必要です。ページを再読み込みしてください。");
+async function getRequestVerificationToken(): Promise<string> {
+  if (IS_DEV) return "dev-token";
+  if (cachedToken) return cachedToken;
+
+  const input = document.querySelector<HTMLInputElement>(
+    'input[name="__RequestVerificationToken"]',
+  );
+  if (input?.value) {
+    cachedToken = input.value;
+    return cachedToken;
   }
 
+  try {
+    const res = await fetch("/_layout/tokenhtml", { credentials: "same-origin" });
+    const html = await res.text();
+    const match = html.match(/value="([^"]+)"/);
+    if (match?.[1]) {
+      cachedToken = match[1];
+      return cachedToken;
+    }
+  } catch { /* fall through */ }
+  return "";
+}
+
+function baseHeaders(): Record<string, string> {
+  return {
+    Accept: "application/json",
+    "OData-MaxVersion": "4.0",
+    "OData-Version": "4.0",
+    Prefer: 'odata.include-annotations="*"',
+  };
+}
+
+async function handleResponse<T>(res: Response, path: string): Promise<T> {
+  if (res.redirected && res.url.includes("/Account/Login")) {
+    throw new ApiAuthError(302);
+  }
   if (res.status === 401 || res.status === 403) {
-    const body = await res.text();
-    console.error(`[API] ${res.status}:`, body);
-    if (shouldRedirectToLogin()) {
-      window.location.href = "/Account/Login";
-      return new Promise(() => {});
-    }
-    throw new Error(`アクセスが拒否されました (${res.status})`);
+    throw new ApiAuthError(res.status);
   }
-
   if (!res.ok) {
     const body = await res.text();
-    console.error(`[API] ${res.status}:`, body);
+    console.error(`[API] ${res.status} (${path}):`, body);
     throw new Error(`API ${res.status}: ${body}`);
   }
-
-  console.log(`[API] ✓ ${res.status} ${url}`);
-  return res.status === 204 ? (undefined as T) : res.json();
+  if (res.status === 204) return undefined as T;
+  return res.json();
 }
 
-// ── インシデント型定義 ──
+export async function apiGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}/${path}`, {
+    method: "GET",
+    credentials: "same-origin",
+    headers: baseHeaders(),
+  });
+  return handleResponse<T>(res, path);
+}
+
+export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const token = await getRequestVerificationToken();
+  const res = await fetch(`${BASE}/${path}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      ...baseHeaders(),
+      "Content-Type": "application/json",
+      __RequestVerificationToken: token,
+    },
+    body: JSON.stringify(body),
+  });
+  return handleResponse<T>(res, path);
+}
+
+export async function apiPatch(path: string, body: unknown): Promise<void> {
+  const token = await getRequestVerificationToken();
+  const res = await fetch(`${BASE}/${path}`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: {
+      ...baseHeaders(),
+      "Content-Type": "application/json",
+      __RequestVerificationToken: token,
+    },
+    body: JSON.stringify(body),
+  });
+  await handleResponse<void>(res, path);
+}
+
+// ── インシデント型定義（実テーブルカラム名に準拠）──
 export interface Incident {
   geek_incidentid: string;
-  geek_title: string;
+  geek_name: string;
   geek_description?: string;
   geek_status?: number;
   geek_priority?: number;
-  geek_assettype?: number;
-  geek_reportedby?: string;
-  geek_assignedto?: string;
-  geek_resolvedon?: string;
+  geek_category?: number;
   geek_resolution?: string;
+  geek_resolvedon?: string;
+  geek_ticketnumber?: string;
   createdon?: string;
   modifiedon?: string;
-  _createdby_value?: string;
+  // lookup formatted values (Prefer: odata.include-annotations)
+  "_geek_inquirerid_value@OData.Community.Display.V1.FormattedValue"?: string;
+  "_geek_assignedtoid_value@OData.Community.Display.V1.FormattedValue"?: string;
+  _geek_inquirerid_value?: string;
+  _geek_assignedtoid_value?: string;
+  [key: string]: unknown;
 }
 
 export interface IncidentCreate {
-  geek_title: string;
+  geek_name: string;
   geek_description?: string;
   geek_status?: number;
   geek_priority?: number;
-  geek_assettype?: number;
-  geek_reportedby?: string;
-}
-
-interface ODataResponse<T> {
-  value: T[];
+  geek_category?: number;
+  "geek_inquirerid@odata.bind"?: string;
 }
 
 // ── CRUD ──
+const INCIDENT_SELECT =
+  "geek_incidentid,geek_name,geek_description,geek_status,geek_priority,geek_category,geek_ticketnumber,geek_resolution,geek_resolvedon,_geek_inquirerid_value,_geek_assignedtoid_value,createdon";
+
 export async function getIncidents(): Promise<Incident[]> {
-  const data = await apiFetch<ODataResponse<Incident>>(
-    "geek_incidents?$select=geek_incidentid,geek_title,geek_description,geek_status,geek_priority,geek_assettype,geek_reportedby,geek_assignedto,geek_resolvedon,geek_resolution,createdon&$orderby=createdon desc",
+  const data = await apiGet<ODataCollection<Incident>>(
+    `geek_incidents?$select=${INCIDENT_SELECT}&$orderby=createdon desc`,
   );
   return data.value;
 }
 
 export async function getIncident(id: string): Promise<Incident> {
-  return apiFetch<Incident>(
-    `geek_incidents(${id})?$select=geek_incidentid,geek_title,geek_description,geek_status,geek_priority,geek_assettype,geek_reportedby,geek_assignedto,geek_resolvedon,geek_resolution,createdon,modifiedon`,
+  return apiGet<Incident>(
+    `geek_incidents(${id})?$select=${INCIDENT_SELECT},modifiedon`,
   );
 }
 
 export async function createIncident(data: IncidentCreate): Promise<void> {
-  await apiFetch<void>("geek_incidents", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  await apiPost<void>("geek_incidents", data);
 }
 
 // ── ラベル定義 ──
@@ -138,7 +194,7 @@ export const priorityStyles: Record<number, string> = {
   100000003: "bg-red-500/10 text-red-600 dark:text-red-400",
 };
 
-export const assetTypeLabels: Record<number, string> = {
+export const categoryLabels: Record<number, string> = {
   100000000: "PC",
   100000001: "サーバー",
   100000002: "プリンター",

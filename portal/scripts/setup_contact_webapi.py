@@ -1,17 +1,21 @@
 """Power Pages: Contact テーブルの Web API 有効化 + テーブル権限設定
 
-修正版: レガシー mspp_entitypermission/mspp_webrole + powerpagecomponent N:N 両方を設定。
-Power Pages ランタイムは両方のテーブルを参照するため、両方必要。
+EDM 2.0 Code Site 対応版:
+- adx_sitesettings: Webapi/contact/enabled, Webapi/contact/fields
+- powerpagecomponent type=18: テーブル権限 (Self scope)
+  ※ powerpagesitelanguageid の設定が必須！（未設定だとランタイムが権限を認識しない）
+- powerpagecomponent_powerpagecomponent N:N: テーブル権限→Web ロール紐付け
+- Webapi/error/innererror: デバッグ用詳細エラー有効化
 
 重要ポイント:
-- mspp_websiteid は powerpagesites テーブルを参照する（adx_websites ではない）
-- powerpagecomponent_powerpagecomponent N:N でテーブル権限→Web ロールを紐付ける
-- mspp_entitypermission_webrole N:N もレガシー互換のため設定する
+- powerpagecomponent type=18 には powerpagesitelanguageid を必ず設定する
+- content JSON は {"entitylogicalname", "scope" (int), "read" (bool)} 形式
+- adx_sitesettings は adx_websites にバインドする
 
 Usage:
     py portal/scripts/setup_contact_webapi.py
 """
-import json, os, sys
+import json, os, re, sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PORTAL_DIR = os.path.dirname(SCRIPT_DIR)
@@ -27,11 +31,16 @@ ENV_ID = os.environ["ENV_ID"]
 SITE_NAME = "IncidentPortal02"
 SUBDOMAIN = "incidentportal02"
 
+# contact テーブル設定
+TABLE_LOGICAL = "contact"
+PERM_NAME = "contact - Self Read Write"
+SCOPE_SELF = 756150001
+FIELDS = "*"  # system table は * 推奨
 
-def get_headers():
-    token = auth_helper.get_token()
+
+def h():
     return {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"Bearer {auth_helper.get_token()}",
         "Content-Type": "application/json",
         "Accept": "application/json",
         "OData-MaxVersion": "4.0",
@@ -39,226 +48,179 @@ def get_headers():
     }
 
 
-def get_site_id():
-    """powerpagesites から Site ID を取得"""
-    h = get_headers()
-    r = requests.get(
-        f"{DV}/api/data/v9.2/powerpagesites"
-        f"?$select=powerpagesiteid,name"
-        f"&$filter=contains(name,'{SITE_NAME}')",
-        headers=h,
-    )
-    r.raise_for_status()
-    sites = r.json().get("value", [])
-    if not sites:
-        print(f"ERROR: {SITE_NAME} が powerpagesites に見つかりません")
-        sys.exit(1)
-    site_id = sites[0]["powerpagesiteid"]
-    print(f"  Site ID: {site_id}")
-    return site_id
+def api(path):
+    return f"{DV}/api/data/v9.2/{path}"
 
 
-def get_or_create_website(site_id):
-    """adx_websites から website ID を取得。なければ作成"""
-    h = get_headers()
-    r = requests.get(
-        f"{DV}/api/data/v9.2/adx_websites?$select=adx_websiteid,adx_name,adx_primarydomainname",
-        headers=h,
-    )
-    r.raise_for_status()
-    for site in r.json().get("value", []):
-        if SUBDOMAIN in (site.get("adx_primarydomainname") or ""):
-            ws_id = site["adx_websiteid"]
-            print(f"  Website ID (adx): {ws_id}")
-            return ws_id
-
-    print(f"  adx_website が存在しません。作成します...")
-    body = {
-        "adx_name": f"{SITE_NAME} - {SUBDOMAIN}",
-        "adx_primarydomainname": f"{SUBDOMAIN}.powerappsportals.com",
-        "adx_website_language": 1033,
-    }
-    r2 = requests.post(f"{DV}/api/data/v9.2/adx_websites", headers=h, json=body)
-    r2.raise_for_status()
-    ws_id = r2.headers.get("OData-EntityId", "").split("(")[-1].rstrip(")")
-    print(f"  [CREATE] adx_website: {ws_id}")
-    return ws_id
-
-
-def create_site_setting(name, value, website_id):
-    """adx_sitesettings にレコードを作成（既存なら更新）"""
-    h = get_headers()
-    r = requests.get(
-        f"{DV}/api/data/v9.2/adx_sitesettings?$select=adx_sitesettingid,adx_value"
-        f"&$filter=adx_name eq '{name}' and _adx_websiteid_value eq '{website_id}'",
-        headers=h,
-    )
-    r.raise_for_status()
-    existing = r.json().get("value", [])
-
-    if existing:
-        sid = existing[0]["adx_sitesettingid"]
-        if existing[0].get("adx_value") == value:
-            print(f"  [SKIP] {name} = {value}")
-            return
-        r2 = requests.patch(
-            f"{DV}/api/data/v9.2/adx_sitesettings({sid})",
-            headers=h,
-            json={"adx_value": value},
-        )
-        r2.raise_for_status()
-        print(f"  [UPDATE] {name} = {value}")
-    else:
-        body = {
-            "adx_name": name,
-            "adx_value": value,
-            "adx_websiteid@odata.bind": f"/adx_websites({website_id})",
-        }
-        r2 = requests.post(f"{DV}/api/data/v9.2/adx_sitesettings", headers=h, json=body)
-        r2.raise_for_status()
-        print(f"  [CREATE] {name} = {value}")
-
-
-def get_or_create_webrole(site_id):
-    """mspp_webrole (Authenticated Users) を取得/作成。
-    重要: mspp_websiteid は powerpagesites を参照する"""
-    h = get_headers()
-    r = requests.get(
-        f"{DV}/api/data/v9.2/mspp_webroles"
-        f"?$select=mspp_webroleid,mspp_name,mspp_authenticatedusersrole"
-        f"&$filter=_mspp_websiteid_value eq '{site_id}'",
-        headers=h,
-    )
-    r.raise_for_status()
-    roles = r.json().get("value", [])
-
-    for role in roles:
-        if role.get("mspp_authenticatedusersrole"):
-            print(f"  [SKIP] {role['mspp_name']}: {role['mspp_webroleid']}")
-            return role["mspp_webroleid"]
-
-    body = {
-        "mspp_name": "Authenticated Users",
-        "mspp_authenticatedusersrole": True,
-        "mspp_anonymoususersrole": False,
-        "mspp_websiteid@odata.bind": f"/powerpagesites({site_id})",
-    }
-    r2 = requests.post(f"{DV}/api/data/v9.2/mspp_webroles", headers=h, json=body)
-    r2.raise_for_status()
-    role_id = r2.headers.get("OData-EntityId", "").split("(")[-1].rstrip(")")
-    print(f"  [CREATE] mspp_webrole: {role_id}")
-    return role_id
-
-
-def get_or_create_entity_permission(site_id):
-    """mspp_entitypermission (Contact Self) を取得/作成"""
-    h = get_headers()
-    r = requests.get(
-        f"{DV}/api/data/v9.2/mspp_entitypermissions"
-        f"?$select=mspp_entitypermissionid,mspp_entitylogicalname"
-        f"&$filter=mspp_entitylogicalname eq 'contact' and _mspp_websiteid_value eq '{site_id}'",
-        headers=h,
-    )
-    r.raise_for_status()
-    existing = r.json().get("value", [])
-
-    if existing:
-        perm_id = existing[0]["mspp_entitypermissionid"]
-        print(f"  [SKIP] entity permission: {perm_id}")
-        return perm_id
-
-    body = {
-        "mspp_entitylogicalname": "contact",
-        "mspp_entityname": "Contact - Self",
-        "mspp_scope": 756150001,  # Self (Contact)
-        "mspp_read": True,
-        "mspp_write": True,
-        "mspp_create": False,
-        "mspp_delete": False,
-        "mspp_websiteid@odata.bind": f"/powerpagesites({site_id})",
-    }
-    r2 = requests.post(f"{DV}/api/data/v9.2/mspp_entitypermissions", headers=h, json=body)
-    r2.raise_for_status()
-    perm_id = r2.headers.get("OData-EntityId", "").split("(")[-1].rstrip(")")
-    print(f"  [CREATE] mspp_entitypermission: {perm_id}")
-    return perm_id
-
-
-def link_permission_to_role(perm_id, role_id):
-    """テーブル権限→Web ロール紐付け (mspp N:N + powerpagecomponent N:N)"""
-    h = get_headers()
-
-    # 1. Legacy mspp N:N
-    url = f"{DV}/api/data/v9.2/mspp_entitypermissions({perm_id})/mspp_entitypermission_webrole/$ref"
-    body = {"@odata.id": f"{DV}/api/data/v9.2/mspp_webroles({role_id})"}
-    r = requests.post(url, headers=h, json=body)
-    if r.status_code == 204:
-        print(f"  [LINK] mspp_entitypermission_webrole 完了")
-    elif r.status_code == 409 or "already exists" in r.text.lower():
-        print(f"  [SKIP] mspp N:N 既に紐付け済み")
-    else:
-        print(f"  [WARN] mspp N:N: {r.status_code} - {r.text[:200]}")
-
-    # 2. powerpagecomponent N:N (perm → role, 同じ ID で同期される)
-    url2 = f"{DV}/api/data/v9.2/powerpagecomponents({perm_id})/powerpagecomponent_powerpagecomponent/$ref"
-    body2 = {"@odata.id": f"{DV}/api/data/v9.2/powerpagecomponents({role_id})"}
-    r2 = requests.post(url2, headers=h, json=body2)
-    if r2.status_code == 204:
-        print(f"  [LINK] powerpagecomponent N:N 完了")
-    elif r2.status_code == 409 or "already exists" in r2.text.lower():
-        print(f"  [SKIP] powerpagecomponent N:N 既に紐付け済み")
-    else:
-        print(f"  [INFO] powerpagecomponent N:N: {r2.status_code}")
-
-    # 3. 既存 Authenticated Users (powerpagecomponent) にもリンク
-    r3 = requests.get(
-        f"{DV}/api/data/v9.2/powerpagecomponents"
-        f"?$select=powerpagecomponentid,name,content"
-        f"&$filter=powerpagecomponenttype eq 11",
-        headers=h,
-    )
-    for role in r3.json().get("value", []):
-        rid = role["powerpagecomponentid"]
-        if rid == role_id:
-            continue
-        content = role.get("content", "")
-        if "authenticatedusersrole" in content and '"authenticatedusersrole": true' in content.lower().replace(" ", ""):
-            body3 = {"@odata.id": f"{DV}/api/data/v9.2/powerpagecomponents({rid})"}
-            r4 = requests.post(url2, headers=h, json=body3)
-            if r4.status_code in (204, 409):
-                print(f"  [LINK] -> {role.get('name', 'unknown')} ({rid[:8]}...)")
+def log(msg):
+    print(msg, flush=True)
 
 
 def main():
-    print("=" * 60)
-    print("Contact テーブル Web API 有効化")
-    print("=" * 60)
+    log("=" * 60)
+    log("Contact テーブル Web API 有効化 (EDM 2.0)")
+    log("=" * 60)
 
-    # 1. サイト情報取得
-    print("\n[1/5] サイト情報取得")
-    site_id = get_site_id()
-    website_id = get_or_create_website(site_id)
+    # --- 1. サイト情報取得 ---
+    log("\n[1/6] サイト情報取得")
+    r = requests.get(api(f"powerpagesites?$filter=contains(name,'{SITE_NAME}')&$select=powerpagesiteid,name"), headers=h())
+    r.raise_for_status()
+    sites = r.json()["value"]
+    if not sites:
+        log(f"ERROR: {SITE_NAME} が powerpagesites に見つかりません")
+        sys.exit(1)
+    site_id = sites[0]["powerpagesiteid"]
+    log(f"  powerpagesite: {sites[0]['name']} ({site_id})")
 
-    # 2. Site Settings
-    print("\n[2/5] Site Settings (Web API 有効化)")
-    create_site_setting("Webapi/contact/enabled", "true", website_id)
-    create_site_setting("Webapi/contact/fields", "firstname,lastname,emailaddress1,telephone1,fullname", website_id)
+    # adx_website
+    r = requests.get(api(f"adx_websites?$filter=contains(adx_primarydomainname,'{SUBDOMAIN}')&$select=adx_websiteid,adx_name"), headers=h())
+    r.raise_for_status()
+    ws = r.json()["value"]
+    if not ws:
+        log("ERROR: adx_website not found")
+        sys.exit(1)
+    website_id = ws[0]["adx_websiteid"]
+    log(f"  adx_website: {ws[0]['adx_name']} ({website_id})")
 
-    # 3. mspp_webrole
-    print("\n[3/5] mspp_webrole (Authenticated Users)")
-    role_id = get_or_create_webrole(site_id)
+    # site language (CRITICAL: must be set on powerpagecomponent type=18)
+    r = requests.get(api(f"powerpagesitelanguages?$filter=_powerpagesiteid_value eq {site_id}&$select=powerpagesitelanguageid"), headers=h())
+    r.raise_for_status()
+    langs = r.json()["value"]
+    if not langs:
+        log("ERROR: powerpagesitelanguage not found - required for table permissions")
+        sys.exit(1)
+    lang_id = langs[0]["powerpagesitelanguageid"]
+    log(f"  language: {lang_id}")
 
-    # 4. mspp_entitypermission
-    print("\n[4/5] mspp_entitypermission (Contact Self)")
-    perm_id = get_or_create_entity_permission(site_id)
+    # --- 2. Site Settings ---
+    log("\n[2/6] Site Settings (Web API 有効化)")
+    for suffix, value in [("/enabled", "true"), ("/fields", FIELDS)]:
+        name = f"Webapi/{TABLE_LOGICAL}{suffix}"
+        r = requests.get(
+            api(f"adx_sitesettings?$filter=adx_name eq '{name}' and _adx_websiteid_value eq '{website_id}'&$select=adx_sitesettingid,adx_value"),
+            headers=h(),
+        )
+        existing = r.json().get("value", [])
+        if existing:
+            if existing[0].get("adx_value") == value:
+                log(f"  [SKIP] {name} = {value}")
+            else:
+                requests.patch(api(f"adx_sitesettings({existing[0]['adx_sitesettingid']})"), headers=h(), json={"adx_value": value})
+                log(f"  [UPDATE] {name} = {value}")
+        else:
+            body = {"adx_name": name, "adx_value": value, "adx_websiteid@odata.bind": f"/adx_websites({website_id})"}
+            requests.post(api("adx_sitesettings"), headers=h(), json=body)
+            log(f"  [CREATE] {name} = {value}")
 
-    # 5. 紐付け
-    print("\n[5/5] テーブル権限 → Web ロール 紐付け")
-    link_permission_to_role(perm_id, role_id)
+    # innererror for debugging
+    name = "Webapi/error/innererror"
+    r = requests.get(api(f"adx_sitesettings?$filter=adx_name eq '{name}' and _adx_websiteid_value eq '{website_id}'&$select=adx_sitesettingid"), headers=h())
+    if not r.json().get("value"):
+        requests.post(api("adx_sitesettings"), headers=h(), json={"adx_name": name, "adx_value": "true", "adx_websiteid@odata.bind": f"/adx_websites({website_id})"})
+        log(f"  [CREATE] {name} = true")
+    else:
+        log(f"  [SKIP] {name}")
 
-    print("\n" + "=" * 60)
-    print("DONE. pac pages upload-code-site --rootPath . でキャッシュ更新してください。")
-    print("=" * 60)
+    # --- 3. powerpagecomponent type=18 (テーブル権限) ---
+    log("\n[3/6] Table Permission (powerpagecomponent type=18, Self scope)")
+    content = json.dumps({
+        "entitylogicalname": TABLE_LOGICAL,
+        "entityname": PERM_NAME,
+        "scope": SCOPE_SELF,
+        "read": True,
+        "write": True,
+        "create": False,
+        "delete": False,
+        "append": False,
+        "appendto": False,
+    })
+
+    # 既存確認 (contact のものを探す)
+    r = requests.get(
+        api(f"powerpagecomponents?$filter=powerpagecomponenttype eq 18 and _powerpagesiteid_value eq {site_id}&$select=powerpagecomponentid,name,content"),
+        headers=h(),
+    )
+    existing_perm = None
+    for p in r.json().get("value", []):
+        c = p.get("content", "")
+        if '"contact"' in c and ("entitylogicalname" in c or "mspp_entityname" in c):
+            existing_perm = p
+            break
+
+    if existing_perm:
+        perm_id = existing_perm["powerpagecomponentid"]
+        patch_body = {
+            "content": content,
+            "name": PERM_NAME,
+            "powerpagesitelanguageid@odata.bind": f"/powerpagesitelanguages({lang_id})",
+        }
+        r = requests.patch(api(f"powerpagecomponents({perm_id})"), headers=h(), json=patch_body)
+        log(f"  [UPDATE] {PERM_NAME} ({perm_id}) - {r.status_code}")
+    else:
+        body = {
+            "powerpagecomponenttype": 18,
+            "name": PERM_NAME,
+            "content": content,
+            "powerpagesiteid@odata.bind": f"/powerpagesites({site_id})",
+            "powerpagesitelanguageid@odata.bind": f"/powerpagesitelanguages({lang_id})",
+        }
+        r = requests.post(api("powerpagecomponents"), headers=h(), json=body)
+        if r.status_code == 204:
+            loc = r.headers.get("OData-EntityId", "")
+            m = re.search(r"powerpagecomponents\(([0-9a-fA-F-]+)\)", loc)
+            perm_id = m.group(1) if m else None
+        else:
+            perm_id = r.json().get("powerpagecomponentid") if r.status_code in (200, 201) else None
+        log(f"  [CREATE] {PERM_NAME} ({perm_id}) - {r.status_code}")
+        if r.status_code not in (200, 201, 204):
+            log(f"  ERROR: {r.text[:300]}")
+            sys.exit(1)
+
+    # --- 4. Authenticated Users (type=11) 取得 ---
+    log("\n[4/6] Authenticated Users (powerpagecomponent type=11)")
+    r = requests.get(
+        api(f"powerpagecomponents?$filter=powerpagecomponenttype eq 11 and _powerpagesiteid_value eq {site_id}&$select=powerpagecomponentid,name"),
+        headers=h(),
+    )
+    roles = r.json().get("value", [])
+    auth_role = next((x for x in roles if "authenticated" in x.get("name", "").lower()), None)
+    if not auth_role:
+        log("  ERROR: Authenticated Users ロールが見つかりません")
+        sys.exit(1)
+    role_id = auth_role["powerpagecomponentid"]
+    log(f"  Role: {auth_role['name']} ({role_id})")
+
+    # --- 5. N:N リンク ---
+    log("\n[5/6] テーブル権限 → Web ロール N:N リンク")
+    lr = requests.get(api(f"powerpagecomponents({perm_id})/powerpagecomponent_powerpagecomponent?$select=powerpagecomponentid"), headers=h())
+    linked = [x["powerpagecomponentid"] for x in lr.json().get("value", [])] if lr.status_code == 200 else []
+
+    if role_id in linked:
+        log(f"  [SKIP] Already linked to {auth_role['name']}")
+    else:
+        rr = requests.post(
+            api(f"powerpagecomponents({perm_id})/powerpagecomponent_powerpagecomponent/$ref"),
+            headers=h(),
+            json={"@odata.id": api(f"powerpagecomponents({role_id})")},
+        )
+        log(f"  [LINK] {rr.status_code}")
+
+    # --- 6. サイト再起動 ---
+    log("\n[6/6] サイト再起動")
+    try:
+        from pathlib import Path
+        restart_script = Path(ROOT_DIR) / ".github" / "skills" / "standard" / "scripts" / "_restart.py"
+        if restart_script.exists():
+            import subprocess
+            subprocess.run([sys.executable, str(restart_script)], cwd=str(restart_script.parent), check=True)
+        else:
+            log("  [SKIP] _restart.py not found, restart manually")
+    except Exception as e:
+        log(f"  [WARN] restart failed: {e}")
+
+    log("\n" + "=" * 60)
+    log("DONE. 60-90秒後にプロフィールページをテストしてください。")
+    log("=" * 60)
 
 
 if __name__ == "__main__":

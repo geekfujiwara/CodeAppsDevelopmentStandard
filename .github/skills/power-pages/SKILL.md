@@ -19,11 +19,14 @@ triggers:
   - "Enhanced Data Model"
   - "powerpagecomponent"
   - "403 Forbidden"
+  - "404 Resource not found"
+  - "9004010C"
 ---
 
 # Power Pages Code Site (SPA) 開発・デプロイスキル
 
 > **公式リファレンス**: [Power Pages でシングルページ アプリケーションを作成して展開する | Microsoft Learn](https://learn.microsoft.com/ja-jp/power-pages/configure/create-code-sites)
+> **新スキル参照**: [microsoft/power-platform-skills - power-pages](https://github.com/microsoft/power-platform-skills/tree/main/plugins/power-pages)
 
 ## 核心原則
 
@@ -31,15 +34,17 @@ triggers:
 2. **初回は Inactive Sites に作成される** → Power Pages ポータル or PP API でアクティブ化
 3. **2回目以降は upload-code-site → restart の2ステップだけ**
 4. **Post-Upload Fix は不要** — `upload-code-site` が header/footer/page を正しく構成する
-5. **`.powerpages-site/` は upload-code-site が自動管理する** — 手動作成・編集しない
+5. **`.powerpages-site/` は upload-code-site が自動管理する** — ただし `site-settings/` YAML は手動追加して永続化できる（下記参照）
 6. **`adx_website` レコードは絶対に削除しない** — EDM 2.0 でもランタイムが起動時に参照する
 7. **環境のクリーンアップ時は PP API のサイト一覧と照合してから削除する** — 誤削除で 500 エラー
+8. **`credentials: "same-origin"` を使う** — `"include"` ではない（same-site Cookie 認証）
+9. **powerpagecomponent type=18 には `powerpagesitelanguageid` が必須** — 未設定だと 404 になる
 
 ## ワークフロー
 
 ```
 初回:
-  npm run build → pac pages upload-code-site → Activate → Restart
+  npm run build → pac pages upload-code-site → Activate → setup_contact_webapi.py → Restart
 
 2回目以降:
   npm run build → pac pages upload-code-site → Restart
@@ -74,153 +79,452 @@ portal/
 │   │   ├── mode-toggle.tsx       ← ダーク/ライト切替
 │   │   └── ui/                   ← shadcn/ui コンポーネント
 │   ├── hooks/
-│   │   └── use-auth.ts           ← SSO 認証フック (★デフォルト実装)
+│   │   └── use-auth.ts           ← SSO 認証フック
 │   ├── lib/
+│   │   ├── api.ts                ← ★ Web API 共有クライアント (apiGet/apiPost/apiPatch)
 │   │   └── utils.ts              ← cn() ユーティリティ
 │   └── pages/
 │       ├── home.tsx              ← ランディングページ
-│       └── profile.tsx           ← プロフィール編集 (★デフォルト実装)
+│       └── profile.tsx           ← プロフィール編集 (★ api.ts を使用)
 ├── dist-site/                    ← ビルド出力 (compiledPath)
-│   ├── index.html
-│   └── assets/
+├── .powerpages-site/             ← upload-code-site が管理 + site-settings YAML 手動追加可
+│   └── site-settings/            ← Webapi/* 設定を YAML で永続化
 ├── powerpages.config.json        ← CLI 設定ファイル (必須)
 ├── package.json
 ├── vite.config.ts
 └── scripts/
-    └── deploy.py                 ← デプロイスクリプト (Build→Upload→Restart)
+    ├── deploy.py                 ← デプロイスクリプト (Build→Upload→Restart)
+    └── setup_contact_webapi.py   ← Contact Web API 有効化 (EDM 2.0 対応)
 ```
-
-> **`.powerpages-site/` は upload-code-site が自動生成・管理する。手動作成不要。**
 
 ---
 
-## ★ デフォルト実装: SSO ログイン + プロフィール編集
+## ★ Web API 共有クライアント (api.ts)
 
-**すべての Code Site プロジェクトに最初から含める必須機能:**
+**すべての `/_api/` 呼び出しはこの共有クライアントを通す。**
+microsoft/power-platform-skills の `/integrate-webapi` パターンに準拠。
 
-1. Entra ID SSO ログイン（`/SignIn` 直行方式）
-2. プロフィール編集ページ（`/_api/contacts` 経由で PATCH）
-3. ヘッダー右上のプロフィールアバターアイコン + ドロップダウン
-4. `RequireAuth` ガードコンポーネント
-5. Contact 自動作成（Power Pages のデフォルト動作）
+```typescript
+/**
+ * Power Pages Web API (`/_api/`) クライアント
+ *
+ * 認証: ブラウザのセッション Cookie（same-origin）。Bearer トークン不要。
+ * 書き込み (POST/PATCH/DELETE): anti-forgery token が必須。
+ */
+const BASE = "/_api";
 
-**実体は `templates/corporate-lp/` にそのまま含まれている。** 新規プロジェクトはこのテンプレートをコピーして使う:
-
-| 機能 | テンプレートファイル |
-|---|---|
-| SSO 認証フック | [`templates/corporate-lp/src/hooks/use-auth.ts`](templates/corporate-lp/src/hooks/use-auth.ts) |
-| Web API クライアント（`/_api/` + anti-forgery token） | [`templates/corporate-lp/src/lib/dataverse.ts`](templates/corporate-lp/src/lib/dataverse.ts) |
-| 認証ガード | [`templates/corporate-lp/src/components/require-auth.tsx`](templates/corporate-lp/src/components/require-auth.tsx) |
-| プロフィール編集ページ | [`templates/corporate-lp/src/pages/profile.tsx`](templates/corporate-lp/src/pages/profile.tsx) |
-| ヘッダーのプロフィールドロップダウン | [`templates/corporate-lp/src/components/site-layout.tsx`](templates/corporate-lp/src/components/site-layout.tsx) |
-| `/profile` ルート（`RequireAuth` でガード） | [`templates/corporate-lp/src/App.tsx`](templates/corporate-lp/src/App.tsx) |
-
-**実装の核心:**
-- `login()` は `/SignIn?returnUrl=...`。Entra ID が唯一の IdP なら自動で SSO に直行する
-- ユーザー情報は `window.Microsoft.Dynamic365.Portal.User`（標準注入）または Liquid `window.__PP_USER__`
-- 読み取りは `credentials: 'same-origin'`、書き込みは `/_layout/tokenhtml` の anti-forgery token を付与
-- コード詳細・設計判断は [`references/authentication-reference.md`](references/authentication-reference.md) を参照
-
-### ★ SSO 自動リダイレクト設定（ログインボタンで直接 Entra ID に飛ばす）
-
-**これがないと `/SignIn` でクラシックなログイン画面（Username/Password フォーム + Entra ID ボタン）が表示される。**
-
-以下の Site Settings を `adx_sitesettings` テーブルに作成する:
-
-| Site Setting | 値 | 効果 |
-|---|---|---|
-| `Authentication/Registration/LocalLoginEnabled` | `false` | Username/Password フォームを非表示 |
-| `Authentication/Registration/ExternalLoginEnabled` | `true` | 外部 IdP (Entra ID) を有効化 |
-| `Authentication/Registration/AzureADLoginEnabled` | `false` | 旧式 Azure AD ボタンの重複を防止 |
-| `Authentication/Registration/LoginButtonAuthenticationType` | `https://login.microsoftonline.com/{TENANT_ID}/` | **IdP が1つの場合、ログインページをスキップして直接リダイレクト** |
-| `Authentication/Registration/ProfileRedirectEnabled` | `false` | ログイン後に `/profile` へのリダイレクトを防止 |
-| `Authentication/Registration/OpenRegistrationEnabled` | `false` | Entra ID ユーザーのみ（セルフ登録無効） |
-
-> ⚠️ **`LoginButtonAuthenticationType` の値は Authority URL** (`https://login.microsoftonline.com/{TENANT_ID}/`)
-> **`https://sts.windows.net/{TENANT_ID}/`（OIDC Issuer）ではない！** Issuer を設定すると自動リダイレクトが動作しない。
-
-```python
-# setup_auth.py で一括設定
-TENANT_ID = os.environ["TENANT_ID"]
-AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}/"
-ADX_WEBSITE_ID = "..."  # adx_websites テーブルの ID
-
-SETTINGS = {
-    "Authentication/Registration/LoginButtonAuthenticationType": AUTHORITY,
-    "Authentication/Registration/LocalLoginEnabled": "false",
-    "Authentication/Registration/ExternalLoginEnabled": "true",
-    "Authentication/Registration/AzureADLoginEnabled": "false",
-    "Authentication/Registration/ProfileRedirectEnabled": "false",
-    "Authentication/Registration/OpenRegistrationEnabled": "false",
+export interface ODataCollection<T> {
+  value: T[];
+  "@odata.count"?: number;
 }
 
-for name, value in SETTINGS.items():
-    upsert_adx_sitesetting(name, value, ADX_WEBSITE_ID)
+export class ApiAuthError extends Error {
+  constructor(public status: number) {
+    super(`Authentication required (${status})`);
+    this.name = "ApiAuthError";
+  }
+}
 
-# 設定反映にはサイト再起動が必要
-restart_site(ENV_ID, SUBDOMAIN)
+/** anti-forgery token のキャッシュ */
+let cachedToken: string | null = null;
+
+async function getRequestVerificationToken(): Promise<string> {
+  if (cachedToken) return cachedToken;
+
+  // 1. DOM から取得（ページにトークンが埋め込まれている場合）
+  const input = document.querySelector<HTMLInputElement>(
+    'input[name="__RequestVerificationToken"]',
+  );
+  if (input?.value) {
+    cachedToken = input.value;
+    return cachedToken;
+  }
+
+  // 2. /_layout/tokenhtml から取得（SPA フォールバック）
+  try {
+    const res = await fetch("/_layout/tokenhtml", { credentials: "same-origin" });
+    const html = await res.text();
+    const match = html.match(/value="([^"]+)"/);
+    if (match?.[1]) {
+      cachedToken = match[1];
+      return cachedToken;
+    }
+  } catch { /* fall through */ }
+  return "";
+}
+
+function baseHeaders(): Record<string, string> {
+  return {
+    Accept: "application/json",
+    "OData-MaxVersion": "4.0",
+    "OData-Version": "4.0",
+    Prefer: 'odata.include-annotations="*"',
+  };
+}
+
+async function handleResponse<T>(res: Response, path: string): Promise<T> {
+  if (res.redirected && res.url.includes("/Account/Login")) {
+    throw new ApiAuthError(302);
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new ApiAuthError(res.status);
+  }
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`[API] ${res.status} (${path}):`, body);
+    throw new Error(`API ${res.status}: ${body}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+export async function apiGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}/${path}`, {
+    method: "GET",
+    credentials: "same-origin",  // ★ "include" ではなく "same-origin"
+    headers: baseHeaders(),
+  });
+  return handleResponse<T>(res, path);
+}
+
+export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const token = await getRequestVerificationToken();
+  const res = await fetch(`${BASE}/${path}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      ...baseHeaders(),
+      "Content-Type": "application/json",
+      __RequestVerificationToken: token,
+    },
+    body: JSON.stringify(body),
+  });
+  return handleResponse<T>(res, path);
+}
+
+export async function apiPatch(path: string, body: unknown): Promise<void> {
+  const token = await getRequestVerificationToken();
+  const res = await fetch(`${BASE}/${path}`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: {
+      ...baseHeaders(),
+      "Content-Type": "application/json",
+      __RequestVerificationToken: token,
+    },
+    body: JSON.stringify(body),
+  });
+  await handleResponse<void>(res, path);
+}
 ```
 
-**設定後の動作:**
-1. ユーザーが `/SignIn?returnUrl=/` にアクセス
-2. Power Pages はログイン画面を表示せず、直接 `https://login.microsoftonline.com/{TENANT_ID}/oauth2/authorize?...` にリダイレクト
-3. Entra ID でSSO認証（既にセッションがあれば自動的にログイン完了）
-4. `returnUrl=/` にリダイレクトされ SPA がロード
+**ポイント:**
+- `credentials: "same-origin"` — Power Pages は same-site なので `include` は不要
+- `Prefer: odata.include-annotations="*"` — lookup の FormattedValue を取得
+- `handleResponse` でリダイレクト検出 + 詳細エラーログ出力
+- anti-forgery token は DOM → `/_layout/tokenhtml` フォールバックでキャッシュ
+- lookup の書き込みには `@odata.bind` を使用: `"geek_inquirerid@odata.bind": "/contacts(...)"`
 
-> Site Settings 変更後は **PP API で restart が必須**（最大15分キャッシュが残る）。
+---
 
-### Contact 自動作成
+## ★ SSO + プロフィール編集 (デフォルト実装)
 
-Power Pages では **Entra ID 経由で初回ログインした時に Contact レコードが自動作成される**。
-サイト設定 `Authentication/Registration/OpenRegistrationEnabled = false` でも、Entra ID 経由なら Contact は自動作成される。
-追加のコードは不要。
+### use-auth.ts
 
-### Contact テーブルの Web API 有効化
+```typescript
+import { useState, useEffect, useCallback } from "react";
 
-プロフィール編集には `contact` テーブルの Web API アクセスが必要。
-**3 つのレイヤーすべてを設定しないと 404 になる:**
+export interface AuthUser {
+  contactId: string;
+  fullName: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+}
 
-1. **Site Settings** (`adx_sitesettings`) — `Webapi/contact/enabled` + `fields`
-2. **テーブル権限** (`powerpagecomponent` type=18 / Enhanced。Standard なら `mspp_entitypermission`) — Contact Self スコープ
-3. **Web Role 紐付け** (N:N) — 認証ユーザーへの権限付与
+export function useAuth() {
+  const [state, setState] = useState<{
+    isAuthenticated: boolean;
+    user: AuthUser | null;
+    loading: boolean;
+  }>({ isAuthenticated: false, user: null, loading: true });
 
-`scripts/setup_permissions.py` がこの 3 レイヤーをべき等に一括設定する。手順・スコープ値・モデル別の注意点（`powerpagesites` vs `adx_websites` のバインド先など）は [`references/dataverse-connection-reference.md`](references/dataverse-connection-reference.md) を参照。
+  useEffect(() => {
+    const portalUser = (window as any)["Microsoft"]?.Dynamic365?.Portal?.User;
+    const contactId = portalUser?.contactId || portalUser?.id || "";
 
-> ⚠️ **よくあるミス:** Site Settings の `adx_websiteid` は `adx_websites` に、テーブル権限の `powerpagesiteid` は `powerpagesites` に紐付ける（バインド先が異なる）。
+    if (contactId) {
+      setState({
+        isAuthenticated: true,
+        user: {
+          contactId,
+          fullName: portalUser?.fullName || portalUser?.fullname || "",
+          email: portalUser?.emailAddress || portalUser?.emailaddress1 || "",
+          firstName: portalUser?.firstName || portalUser?.firstname || "",
+          lastName: portalUser?.lastName || portalUser?.lastname || "",
+          phone: portalUser?.telephone1 || "",
+        },
+        loading: false,
+      });
+    } else {
+      setState({ isAuthenticated: false, user: null, loading: false });
+    }
+  }, []);
 
-### ★ 初回デプロイ後の必須手順
+  const login = useCallback(() => {
+    const returnUrl = encodeURIComponent(window.location.pathname + window.location.hash);
+    window.location.href = `/SignIn?returnUrl=${returnUrl}`;
+  }, []);
 
-デプロイ直後に以下を実行し、SSO + Web API が動作する状態にする:
+  const logout = useCallback(() => {
+    window.location.href = "/Account/Login/LogOff?returnUrl=%2F";
+  }, []);
 
-```bash
-# 1. SSO 自動リダイレクト設定（/SignIn で直接 Entra ID にリダイレクト）
-py scripts/setup_auth.py
-
-# 2. Web API テーブル権限設定（/_api/ エンドポイント有効化）
-py scripts/setup_permissions.py
-
-# 3. サイトリスタート（設定反映）— 上記スクリプト内で自動実行される
+  return { ...state, login, logout };
+}
 ```
 
-**スクリプト実行に必要な .env:**
-```env
-DATAVERSE_URL=https://your-org.crm.dynamics.com/
-ENV_ID=your-environment-id
-TENANT_ID=your-tenant-id
-PP_SUBDOMAIN=your-site-subdomain
+### profile.tsx（api.ts を使用）
+
+```tsx
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { apiGet, apiPatch, ApiAuthError } from "@/lib/api";
+
+interface ContactProfile {
+  firstname: string;
+  lastname: string;
+  emailaddress1: string;
+  telephone1: string;
+}
+
+export default function ProfilePage() {
+  const { user } = useAuth();
+  const [profile, setProfile] = useState<ContactProfile>({
+    firstname: "", lastname: "", emailaddress1: "", telephone1: "",
+  });
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!user?.contactId) return;
+    fetchProfile();
+  }, [user?.contactId]);
+
+  async function fetchProfile() {
+    const path = `contacts(${user!.contactId})?$select=firstname,lastname,emailaddress1,telephone1`;
+    try {
+      const data = await apiGet<ContactProfile>(path);
+      setProfile({
+        firstname: data.firstname || "",
+        lastname: data.lastname || "",
+        emailaddress1: data.emailaddress1 || "",
+        telephone1: data.telephone1 || "",
+      });
+    } catch (e) {
+      if (e instanceof ApiAuthError) {
+        setMessage({ type: "error", text: `認証エラー (${e.status})。再ログインしてください。\nGET /_api/${path}` });
+      } else {
+        setMessage({ type: "error", text: `取得失敗。\nGET /_api/${path}\n${e instanceof Error ? e.message : String(e)}` });
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    const path = `contacts(${user!.contactId})`;
+    try {
+      await apiPatch(path, {
+        firstname: profile.firstname,
+        lastname: profile.lastname,
+        telephone1: profile.telephone1,
+      });
+      setMessage({ type: "success", text: "プロフィールを更新しました" });
+    } catch (e) {
+      if (e instanceof ApiAuthError) {
+        setMessage({ type: "error", text: `認証エラー (${e.status})。\nPATCH /_api/${path}` });
+      } else {
+        setMessage({ type: "error", text: `更新失敗。\nPATCH /_api/${path}\n${e instanceof Error ? e.message : String(e)}` });
+      }
+    }
+  }
+  // ... UI は省略（詳細はテンプレート参照）
+}
 ```
 
-**`/_api/contacts` が 404 を返す原因**:
-- Site Settings (`Webapi/contact/enabled`) が未設定 → `setup_permissions.py` で解決
-- テーブル権限が未設定 → 同スクリプトで解決
-- Web Role リンクなし → 同スクリプトで解決
+**旧実装との差分:**
+- ❌ 旧: 生 `fetch` + `credentials: "include"` + 手動トークン取得
+- ✅ 新: `apiGet`/`apiPatch` + `credentials: "same-origin"` + 自動トークン + 詳細エラー表示
 
-**ログイン画面が表示される（自動リダイレクトしない）原因**:
-- `LoginButtonAuthenticationType` が未設定 or 値が間違い → `setup_auth.py` で解決
-- ❌ `https://sts.windows.net/{TENANT_ID}/` → 動作しない
-- ✅ `https://login.microsoftonline.com/{TENANT_ID}/` → 正しい Authority URL
+---
 
-### powerpages.config.json（必須）
+## ★ Contact テーブル Web API 有効化 (EDM 2.0)
+
+### 重大な教訓: 404 "Resource not found for the segment contact"
+
+**エラーコード 9004010C** が発生する場合、以下の **4 つのレイヤーすべて** が正しく設定されている必要がある:
+
+| # | レイヤー | テーブル | 紐付け先 |
+|---|---------|---------|---------|
+| 1 | `adx_sitesettings` | `Webapi/contact/enabled=true` | `adx_websites` |
+| 2 | `adx_sitesettings` | `Webapi/contact/fields=*` | `adx_websites` |
+| 3 | `powerpagecomponent` type=18 | テーブル権限 (Self) | `powerpagesites` + **`powerpagesitelanguages`** |
+| 4 | `powerpagecomponent_powerpagecomponent` N:N | 権限→Web ロール紐付け | type=11 (Authenticated Users) |
+
+### ⚠️ 致命的な落とし穴: `powerpagesitelanguageid`
+
+```
+根本原因: powerpagecomponent type=18 に powerpagesitelanguageid が null だと、
+         Power Pages ランタイムがテーブル権限を認識せず 404 を返す。
+
+確認方法:
+GET /api/data/v9.2/powerpagecomponents({perm_id})?$select=_powerpagesitelanguageid_value
+
+修正方法:
+PATCH /api/data/v9.2/powerpagecomponents({perm_id})
+{
+  "powerpagesitelanguageid@odata.bind": "/powerpagesitelanguages({lang_id})"
+}
+```
+
+### powerpagecomponent type=18 の正しい content 形式
+
+```json
+{
+  "entitylogicalname": "contact",
+  "entityname": "contact - Self Read Write",
+  "scope": 756150001,
+  "read": true,
+  "write": true,
+  "create": false,
+  "delete": false,
+  "append": false,
+  "appendto": false
+}
+```
+
+**注意:**
+- ❌ `mspp_entityname`, `mspp_scope: "756150001"` (文字列) — 古いフォーマット、動作しない場合がある
+- ✅ `entitylogicalname`, `scope: 756150001` (整数), `read: true` (bool) — system format
+
+### scope 値一覧
+
+| 値 | スコープ | 用途 |
+|---|---------|------|
+| 756150000 | Global | 全レコード読み取り |
+| 756150001 | Self (Contact) | 自分の Contact レコードのみ |
+| 756150002 | Account | 自分の Account 配下 |
+| 756150003 | Parent | 親権限に紐づくレコード |
+
+### setup_contact_webapi.py（正しい実装）
+
+```python
+# 1. adx_sitesettings (→ adx_websites にバインド)
+create_site_setting("Webapi/contact/enabled", "true", website_id)
+create_site_setting("Webapi/contact/fields", "*", website_id)  # system table は * 推奨
+
+# 2. powerpagecomponent type=18 (★ powerpagesitelanguageid 必須)
+content = json.dumps({
+    "entitylogicalname": "contact",
+    "entityname": "contact - Self Read Write",
+    "scope": 756150001,
+    "read": True, "write": True, "create": False,
+    "delete": False, "append": False, "appendto": False,
+})
+body = {
+    "powerpagecomponenttype": 18,
+    "name": "contact - Self Read Write",
+    "content": content,
+    "powerpagesiteid@odata.bind": f"/powerpagesites({site_id})",
+    "powerpagesitelanguageid@odata.bind": f"/powerpagesitelanguages({lang_id})",  # ★ 必須！
+}
+
+# 3. Authenticated Users (type=11) への N:N リンク
+POST /powerpagecomponents({perm_id})/powerpagecomponent_powerpagecomponent/$ref
+{"@odata.id": "/api/data/v9.2/powerpagecomponents({role_id})"}
+```
+
+> ⚠️ **よくあるミス（修正済み）:**
+> - `powerpagesitelanguageid` が null → ランタイムが権限を無視して 404
+> - content に `mspp_` プレフィックスの文字列値 → 整数・bool 値が正しい
+> - `credentials: "include"` → 正しくは `"same-origin"`
+> - `Webapi/<table>/fields` に明示リストのみ → system table は `*` を使う
+
+---
+
+## ★ デバッグ用 Site Settings
+
+### Webapi/error/innererror
+
+開発・デバッグ中は以下を有効にする:
+
+```python
+# Dataverse API で直接追加
+body = {
+    "adx_name": "Webapi/error/innererror",
+    "adx_value": "true",
+    "adx_websiteid@odata.bind": f"/adx_websites({website_id})",
+}
+requests.post(f"{DV}/api/data/v9.2/adx_sitesettings", headers=h, json=body)
+```
+
+これにより `/_api/` のエラーレスポンスに `innererror` が含まれ、デバッグが容易になる。
+
+> ⚠️ **本番環境では `false` に戻す** — 内部エラー情報が漏洩するリスクがある。
+
+---
+
+## ★ `.powerpages-site/site-settings/` による永続化
+
+`pac pages upload-code-site` は `.powerpages-site/` フォルダの内容を同期する。
+`site-settings/` に Webapi 設定の YAML を配置すると、デプロイ時に自動反映される。
+
+### YAML フォーマット
+
+```yaml
+# .powerpages-site/site-settings/Webapi-contact-enabled.sitesetting.yml
+id: <既存レコードの adx_sitesettingid>
+name: Webapi/contact/enabled
+source: 0
+value: "true"
+```
+
+```yaml
+# .powerpages-site/site-settings/Webapi-contact-fields.sitesetting.yml
+id: <既存レコードの adx_sitesettingid>
+name: Webapi/contact/fields
+source: 0
+value: "*"
+```
+
+```yaml
+# .powerpages-site/site-settings/Webapi-error-innererror.sitesetting.yml
+id: <新規 GUID>
+name: Webapi/error/innererror
+source: 0
+value: "true"
+```
+
+**ID の取得方法:** Dataverse から `adx_sitesettings` をクエリして `adx_sitesettingid` を取得。
+新規の場合は任意の GUID を生成。
+
+---
+
+## エラーコード早見表
+
+| HTTP | OData Code | メッセージ | 原因 | 対策 |
+|------|-----------|---------|------|------|
+| 404 | 9004010C | Resource not found for the segment `<table>` | テーブル権限未設定 or `powerpagesitelanguageid` が null | `setup_contact_webapi.py` 実行 |
+| 400 | 9004010A | Invalid column name | `$select` に存在しないカラム名 | `EntityDefinitions` でカラム名確認 |
+| 403 | — | Forbidden | `Webapi/<table>/fields` にカラムが含まれていない | fields を `*` に設定、または具体カラム追加 |
+| 302 | — | Login redirect | 未認証 | SSO ログインさせる |
+
+---
+
+## powerpages.config.json（必須）
 
 ```json
 {
@@ -229,12 +533,6 @@ PP_SUBDOMAIN=your-site-subdomain
   "defaultLandingPage": "index.html"
 }
 ```
-
-| フィールド | 説明 |
-|-----------|------|
-| `siteName` | Power Pages サイトの表示名。初回 upload 時にこの名前でサイトが作成される |
-| `compiledPath` | ビルド出力ディレクトリ（`vite.config.ts` の `outDir` と一致させる） |
-| `defaultLandingPage` | ランディングページファイル名 |
 
 ---
 
@@ -259,7 +557,7 @@ export default defineConfig({
 |------|------|
 | `base: "./"` | Power Pages のパス構造に対応 |
 | `inlineDynamicImports: true` | コード分割するとロード順問題が発生 |
-| **Hash ルーティング必須** | History API モードは直接 URL アクセスで 404（サーバーリライト不可） |
+| **Hash ルーティング必須** | History API モードは直接 URL アクセスで 404 |
 | 静的 SPA のみ | SSR / ISR 非対応 |
 
 ### package.json scripts
@@ -294,72 +592,20 @@ npm run build
 pac pages upload-code-site --rootPath .
 ```
 
-これだけで:
-- Dataverse に Code Site レコードが作成される (Enhanced Data Model 2.0)
-- ビルド済みアセット (JS/CSS) が Web File としてアップロードされる
-- Home page / Header / Footer テンプレートが SPA 用に構成される
-- サイトは **Inactive** 状態で作成される
-
 ### 2-C: サイトのアクティブ化
 
-#### 方法 A: Power Pages ポータル（推奨）
+Power Pages ポータルの Inactive sites から **再アクティブ化** をクリック。
 
-1. [Power Pages](https://make.powerpages.microsoft.com/) に移動
-2. **Inactive sites** でサイトを見つける
-3. **再アクティブ化** をクリック
+### 2-D: Contact Web API 有効化（★初回必須）
 
-#### 方法 B: Power Platform API
-
-```python
-import requests
-from auth_helper import get_token
-
-ENV_ID = os.environ["ENV_ID"]
-token = get_token(scope="https://api.powerplatform.com/.default")
-headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
-# Organization ID を取得
-dv_token = get_token()
-org = requests.get(
-    f"{DATAVERSE_URL}/api/data/v9.2/organizations?$select=organizationid",
-    headers={"Authorization": f"Bearer {dv_token}", "Accept": "application/json"},
-)
-org_id = org.json()["value"][0]["organizationid"]
-
-# websiteRecordId を取得 (powerpagesites テーブルから)
-sites = requests.get(
-    f"{DATAVERSE_URL}/api/data/v9.2/powerpagesites?$select=powerpagesiteid,name&$orderby=createdon desc&$top=1",
-    headers={"Authorization": f"Bearer {dv_token}", "Accept": "application/json"},
-)
-website_record_id = sites.json()["value"][0]["powerpagesiteid"]
-
-# プロビジョニング
-body = {
-    "dataverseOrganizationId": org_id,
-    "name": "MySite",
-    "selectedBaseLanguage": 1041,
-    "subdomain": "mysite01",
-    "templateName": "DefaultPortalTemplate",
-    "websiteRecordId": website_record_id,
-    "dataModel": "Enhanced",
-}
-r = requests.post(
-    f"https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites?api-version=2024-10-01",
-    headers=headers, json=body,
-)
-# 202 Accepted → プロビジョニング開始（3〜5分で完了）
+```bash
+py portal/scripts/setup_contact_webapi.py
 ```
 
-### 2-D: アクティブ化後の初回リスタート
+### 2-E: サイト再起動
 
-```python
-# PP API でサイト ID を取得してリスタート
-base = f"https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites"
-r = requests.get(f"{base}?api-version=2024-10-01", headers=headers)
-for s in r.json()["value"]:
-    if s["subdomain"] == "mysite01":
-        requests.post(f"{base}/{s['id']}/restart?api-version=2024-10-01", headers=headers)
-        break
+```bash
+py .github/skills/standard/scripts/_restart.py
 ```
 
 > アクティブ化後、URL にアクセスできるまで **60〜90秒** かかる。
@@ -372,195 +618,34 @@ for s in r.json()["value"]:
 cd portal
 npm run build
 pac pages upload-code-site --rootPath .
-# → サイト再起動（API or deploy.py）
-```
-
-または Python スクリプトで一括:
-
-```bash
-py portal/scripts/deploy.py
-```
-
-### deploy.py（推奨デプロイスクリプト）
-
-```python
-"""Power Pages Code Site: Build → Upload → Restart"""
-import os, sys, subprocess
-# ... (auth_helper / requests をインポート)
-
-def main():
-    # [1/3] Build
-    subprocess.run("npm run build", shell=True, cwd=PORTAL_DIR, check=True)
-
-    # [2/3] Upload
-    subprocess.run(f'pac pages upload-code-site --rootPath "{PORTAL_DIR}"',
-                   shell=True, check=True)
-
-    # [3/3] Restart
-    token = get_token(scope="https://api.powerplatform.com/.default")
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    base = f"https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites"
-    r = requests.get(f"{base}?api-version=2024-10-01", headers=headers)
-    for s in r.json()["value"]:
-        if s["subdomain"] == SUBDOMAIN:
-            requests.post(f"{base}/{s['id']}/restart?api-version=2024-10-01", headers=headers)
-            break
-
-    print(f"DONE. URL: https://{SUBDOMAIN}.powerappsportals.com")
-    print("(60-90秒後にアクセス可能)")
+# → サイト再起動
+py ../.github/skills/standard/scripts/_restart.py
 ```
 
 ---
 
-## Step 4: 認証と承認
+## 既知の無害な警告
 
-> **SSO ログイン + プロフィール編集は「★ デフォルト実装」セクションのコードをそのまま使う。**
-> 以下は技術的な背景と追加カスタマイズ用のリファレンス。
+Power Pages ホスト (React 17) と SPA (React 19) の共存により以下が発生するが、**機能に影響なし**:
 
-### 認証方式の選択
-
-| 方式 | 推奨度 | 説明 |
-|------|--------|------|
-| `/SignIn` 直行 (SSO) | ★推奨 | `LoginButtonAuthenticationType` 設定済みなら自動でSSO。ログイン画面が表示されない |
-| PRIVATE サイト | ◎ | 全ページ認証必須。SPA ロード時点で認証済み。最もシンプル |
-| `/Account/Login/ExternalLogin` POST | ○ | 複数 IdP がある場合に特定プロバイダーを指定 |
-| `/Account/Login` リダイレクト | △ | クラシックログインページ。SPA 体験が途切れる |
-
-> `/SignIn` 方式で自動リダイレクトが動作するには **Site Settings の設定が必須**。
-> 上記「★ SSO 自動リダイレクト設定」セクションの `setup_auth.py` を初回デプロイ後に実行する。
-
-### 実装の要点
-
-- **Site Settings のバインド**: `adx_sitesettings` は `adx_websiteid@odata.bind` で最新の `adx_websites` レコードに紐付ける。`scripts/setup_auth.py` が upsert する。詳細は [`references/operations-and-pitfalls.md`](references/operations-and-pitfalls.md)。
-- **ユーザーコンテキスト**: `window.Microsoft.Dynamic365.Portal.User`（`use-auth.ts` が正規化）。
-- **Anti-Forgery Token**: 書き込みは `/_layout/tokenhtml` から `__RequestVerificationToken` を取得（`lib/dataverse.ts` が実装）。
-- **ID プロバイダー**: [Power Pages](https://make.powerpages.microsoft.com/) → サイト → セキュリティ → ID プロバイダー → Microsoft Entra ID を有効化（新規サイトはデフォルト設定済み）。
-- 認証フロー・コード詳細は [`references/authentication-reference.md`](references/authentication-reference.md)。
-
----
-
-## Step 5: Power Pages Web API
-
-```typescript
-// /_api/ を使用して Dataverse テーブルにアクセス
-const response = await fetch("/_api/geek_incidents", { credentials: "same-origin" });
-const data = await response.json();
-const records = data.value;
+```
+Unsatisfied version 16.14.0 from @microsoft/powerpages-host of shared singleton module react-dom (required ^17.0.0)
+Some icons were re-registered...
 ```
 
-`/_api/` が動くには **3 レイヤー**（① `adx_sitesettings` で API 公開 + ② `powerpagecomponent` type=18 のテーブル権限 + ③ N:N Web Role 紐付け）すべてが必要。`scripts/setup_permissions.py` の `TABLES` に公開テーブルを追加して実行すれば一括設定できる。
-
-> 管理者はテーブル権限をバイパスする。**必ず一般ユーザーでもテストする。**
-
-手順・スコープ値・OData クエリの書式・モデル別の注意点は [`references/dataverse-connection-reference.md`](references/dataverse-connection-reference.md) と [`references/enhanced-data-model-permissions.md`](references/enhanced-data-model-permissions.md) を参照。
+SPA は独自の React 19 バンドルで動作するため、ホスト側の React 17 とは干渉しない。
 
 ---
 
-## Step 6: ローカル開発
+## チェックリスト
 
-`vite.config.ts` にプロキシを追加して localhost から Web API を呼べるようにする:
-
-```typescript
-export default defineConfig({
-  server: {
-    proxy: {
-      "/_api": {
-        target: "https://mysite01.powerappsportals.com",
-        changeOrigin: true,
-        secure: true,
-      },
-    },
-  },
-});
-```
-
-> Bearer 認証には Entra AD v1 エンドポイント + ADAL.js を使用。MSAL は非互換。
-
----
-
-## 既存 Power Pages サイトとの違い
-
-| 項目 | SPA Code Site |
-|------|--------------|
-| ルーティング | クライアント側（Hash Router）。ハードリフレッシュはルートにフォールバック |
-| Liquid テンプレート | 非サポート。Web API + フレームワークテンプレートを使用 |
-| ページワークスペース | 非サポート。クライアントルーティングを使用 |
-| スタイル | フレームワークの CSS/Tailwind を使用 |
-| ローカライゼーション | クライアント側リソース読み込みで実装 |
-| SEO | 限定的（CSR のため） |
-
----
-
-## Power Platform API
-
-| 操作 | エンドポイント |
-|------|------|
-| 一覧取得 | `GET /powerpages/environments/{envId}/websites?api-version=2024-10-01` |
-| 作成/アクティブ化 | `POST /powerpages/environments/{envId}/websites?api-version=2024-10-01` |
-| 再起動 | `POST .../websites/{id}/restart?api-version=2024-10-01` |
-| 開始 | `POST .../websites/{id}/start?api-version=2024-10-01` |
-| 停止 | `POST .../websites/{id}/stop?api-version=2024-10-01` |
-
-**Base URL**: `https://api.powerplatform.com`
-**認証スコープ**: `https://api.powerplatform.com/.default`
-
----
-
-## トラブルシューティング
-
-| 問題 | 原因 | 対策 |
-|------|------|------|
-| upload-code-site で `.js blocked` | 環境で JS ブロック | `scripts/unblock_js.py`（管理センターで `js` を許可） |
-| サイト URL が 503 | 未プロビジョニング/未アクティブ | Inactive Sites でアクティブ化。60-90秒待つ |
-| Web API が 403 / 404 | 3 レイヤーのいずれか未設定 | `setup_permissions.py` 実行 |
-| `/SignIn` でログインフォーム表示 | `LoginButtonAuthenticationType` 未設定/値誤り | `setup_auth.py` 実行（Authority URL） |
-| 設定変更が反映されない | サイトキャッシュ | PP API で restart + ブラウザキャッシュクリア |
-
-> 症状別の完全な一覧（500 エラー、孤立レコード、コールドスタート、復旧不能時など）は [`references/operations-and-pitfalls.md`](references/operations-and-pitfalls.md)。
-
----
-
-## サブリファレンス
-
-| リファレンス | 内容 |
-|---|---|
-| [認証リファレンス](references/authentication-reference.md) | SSO フロー・use-auth/dataverse 実装・anti-forgery・Entra ID |
-| [Dataverse 接続リファレンス](references/dataverse-connection-reference.md) | `/_api/` を確実に通す 3 レイヤー設定・OData クエリ・モデル別注意点 |
-| [Enhanced Data Model テーブル権限](references/enhanced-data-model-permissions.md) | テーブル権限設定・自動化パターン |
-| [Web API 実装パターン](references/web-api-implementation.md) | `/_api/` クライアント実装・CSRF・403 対処 |
-| [運用上の落とし穴とリカバリ](references/operations-and-pitfalls.md) | 危険操作・検証済み教訓・リカバリ手順・トラブルシュート全集 |
-| [デザインシステム](references/design-system.md) | カラートークン・コンポーネントパターン |
-
-## 自動化スクリプト
-
-| スクリプト | 用途 |
-|---|---|
-| `scripts/setup_auth.py` | SSO 自動リダイレクト設定（Site Settings + restart） |
-| `scripts/setup_permissions.py` | Web API テーブル権限（Site Settings + powerpagecomponent + N:N リンク） |
-| `scripts/check_prerequisites.py` | 環境前提条件チェック |
-| `scripts/unblock_js.py` | JS ファイルブロック解除 |
-
-### 初回デプロイの完全手順（ゼロから動作するまで）
-
-```bash
-# 0. 前提: pac CLI ログイン済み + .env 設定済み
-pac auth list
-
-# 1. ビルド & アップロード（サイト作成）
-npm run build
-pac pages upload-code-site --rootPath .
-
-# 2. Power Pages ポータルでサイトをアクティブ化
-#    https://make.powerpages.microsoft.com/ → Inactive Sites → 再アクティブ化
-
-# 3. SSO 設定（ログイン画面スキップ → 直接 Entra ID）
-py scripts/setup_auth.py
-
-# 4. Web API 権限設定（/_api/ エンドポイント有効化）
-py scripts/setup_permissions.py
-
-# 5. 動作確認（60-90秒後にアクセス可能）
-#    https://{subdomain}.powerappsportals.com/
-#    → /SignIn にアクセス → 自動で Entra ID にリダイレクト → ログイン完了
-#    → /_api/contacts で JSON レスポンス確認
-```
+- [ ] `powerpages.config.json` が存在する
+- [ ] `vite.config.ts` で `base: "./"` + `inlineDynamicImports: true`
+- [ ] HashRouter を使用している
+- [ ] `api.ts` で `credentials: "same-origin"` を使用
+- [ ] `Webapi/<table>/enabled = true` が設定済み
+- [ ] `Webapi/<table>/fields` が設定済み（system table は `*`）
+- [ ] `powerpagecomponent` type=18 に `powerpagesitelanguageid` が設定済み
+- [ ] `powerpagecomponent_powerpagecomponent` N:N が Authenticated Users にリンク済み
+- [ ] `Webapi/error/innererror = true` が開発環境で有効
+- [ ] `.powerpages-site/site-settings/` に Webapi YAML が配置済み
