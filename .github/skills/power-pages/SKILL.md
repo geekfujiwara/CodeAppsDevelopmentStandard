@@ -139,6 +139,17 @@ triggers:
 - 不足 → 403 / 90040106 (AppendTo permission missing)
 - 参照先テーブルの EDM content で `"appendto": true` を設定
 
+> **★ 標準: 報告者はカスタム Lookup を作らず `createdby` を使う。**
+> 報告者・作成者を表すためにカスタム Lookup（例: `geek_inquirerid`）を作成して `@odata.bind` で
+> 結びつけると、参照先テーブル違い（404 / 9004010D）や AppendTo 権限不足（403 / 90040106）の
+> ハマりどころが連鎖する。報告者はレコード作成時に Dataverse が自動設定する `createdby`
+> システム列で取得できるため、**POST 時に報告者を送信しない**。
+>
+> - **作成（POST）**: 報告者フィールドは送らない。`createdby` が自動でログインユーザーになる。
+> - **表示・検索（GET）**: `$select=_createdby_value` を指定し、
+>   `_createdby_value@OData.Community.Display.V1.FormattedValue` で表示名を取得する。
+> - これにより Lookup バインドのハマりが消え、テーブル権限設計も単純化する。
+
 ---
 
 ### 教訓 5: ログイン後のリダイレクト先が `/profile` に強制される

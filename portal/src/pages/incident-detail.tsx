@@ -7,7 +7,7 @@ import {
   statusStyles,
   priorityLabels,
   priorityStyles,
-  assetTypeLabels,
+  categoryLabels,
   type Incident,
 } from "@/lib/api";
 import {
@@ -84,7 +84,7 @@ export default function IncidentDetailPage() {
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-foreground truncate">
-            {incident.geek_title}
+            {incident.geek_name}
           </h1>
         </div>
       </div>
@@ -165,19 +165,19 @@ export default function IncidentDetailPage() {
           <InfoItem
             icon={User}
             label="報告者"
-            value={incident.geek_reportedby}
+            value={incident["_createdby_value@OData.Community.Display.V1.FormattedValue"] as string}
           />
           <InfoItem
             icon={User}
             label="担当者"
-            value={incident.geek_assignedto}
+            value={incident["_geek_assignedtoid_value@OData.Community.Display.V1.FormattedValue"] as string}
           />
           <InfoItem
             icon={Monitor}
             label="資産タイプ"
             value={
-              incident.geek_assettype != null
-                ? assetTypeLabels[incident.geek_assettype]
+              incident.geek_category != null
+                ? categoryLabels[incident.geek_category]
                 : undefined
             }
           />

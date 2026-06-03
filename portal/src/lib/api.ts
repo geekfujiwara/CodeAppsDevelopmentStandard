@@ -60,10 +60,14 @@ function baseHeaders(): Record<string, string> {
 }
 
 async function handleResponse<T>(res: Response, path: string): Promise<T> {
-  if (res.redirected && res.url.includes("/Account/Login")) {
+  // redirect: 'manual' returns opaque redirect (status 0) - means auth required
+  if (res.type === "opaqueredirect" || res.status === 0) {
+    console.error(`[API] ${path} → opaqueredirect (auth required)`);
     throw new ApiAuthError(302);
   }
   if (res.status === 401 || res.status === 403) {
+    const body = await res.text().catch(() => "");
+    console.error(`[API] ${res.status} (${path}):`, body);
     throw new ApiAuthError(res.status);
   }
   if (!res.ok) {
@@ -78,8 +82,12 @@ async function handleResponse<T>(res: Response, path: string): Promise<T> {
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}/${path}`, {
     method: "GET",
-    credentials: "same-origin",
-    headers: baseHeaders(),
+    redirect: "manual",
+    headers: {
+      Accept: "application/json",
+      "OData-MaxVersion": "4.0",
+      "OData-Version": "4.0",
+    },
   });
   return handleResponse<T>(res, path);
 }
@@ -88,10 +96,12 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const token = await getRequestVerificationToken();
   const res = await fetch(`${BASE}/${path}`, {
     method: "POST",
-    credentials: "same-origin",
+    redirect: "manual",
     headers: {
-      ...baseHeaders(),
       "Content-Type": "application/json",
+      Accept: "application/json",
+      "OData-MaxVersion": "4.0",
+      "OData-Version": "4.0",
       __RequestVerificationToken: token,
     },
     body: JSON.stringify(body),
@@ -103,10 +113,11 @@ export async function apiPatch(path: string, body: unknown): Promise<void> {
   const token = await getRequestVerificationToken();
   const res = await fetch(`${BASE}/${path}`, {
     method: "PATCH",
-    credentials: "same-origin",
+    redirect: "manual",
     headers: {
-      ...baseHeaders(),
       "Content-Type": "application/json",
+      "OData-MaxVersion": "4.0",
+      "OData-Version": "4.0",
       __RequestVerificationToken: token,
     },
     body: JSON.stringify(body),
@@ -127,10 +138,11 @@ export interface Incident {
   geek_ticketnumber?: string;
   createdon?: string;
   modifiedon?: string;
+  // 報告者はカスタム列ではなくシステム列 CreatedBy を利用する
+  _createdby_value?: string;
+  "_createdby_value@OData.Community.Display.V1.FormattedValue"?: string;
   // lookup formatted values (Prefer: odata.include-annotations)
-  "_geek_inquirerid_value@OData.Community.Display.V1.FormattedValue"?: string;
   "_geek_assignedtoid_value@OData.Community.Display.V1.FormattedValue"?: string;
-  _geek_inquirerid_value?: string;
   _geek_assignedtoid_value?: string;
   [key: string]: unknown;
 }
@@ -141,12 +153,12 @@ export interface IncidentCreate {
   geek_status?: number;
   geek_priority?: number;
   geek_category?: number;
-  "geek_inquirerid@odata.bind"?: string;
+  // 報告者は送信不要。作成時に CreatedBy がシステム自動設定される
 }
 
 // ── CRUD ──
 const INCIDENT_SELECT =
-  "geek_incidentid,geek_name,geek_description,geek_status,geek_priority,geek_category,geek_ticketnumber,geek_resolution,geek_resolvedon,_geek_inquirerid_value,_geek_assignedtoid_value,createdon";
+  "geek_incidentid,geek_name,geek_description,geek_status,geek_priority,geek_category,geek_ticketnumber,geek_resolution,geek_resolvedon,_createdby_value,_geek_assignedtoid_value,createdon";
 
 export async function getIncidents(): Promise<Incident[]> {
   const data = await apiGet<ODataCollection<Incident>>(

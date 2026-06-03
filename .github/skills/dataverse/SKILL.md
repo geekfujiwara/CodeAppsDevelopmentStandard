@@ -140,7 +140,7 @@ existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PR
 |--------|------|
 | **スキーマ名は英語のみ** | 日本語スキーマ名は `npx power-apps add-data-source` で失敗する |
 | **ユーザー参照は SystemUser テーブル** | カスタムユーザーテーブルを作らない |
-| **作成者・報告者は `createdby` システム列を利用** | カスタム ReportedBy Lookup は不要 |
+| **作成者・報告者は `createdby` システム列を利用（カスタム列を作らない）** | レコード作成時に Dataverse が自動設定する `createdby` で報告者は取得できる。カスタム ReportedBy / Inquirer Lookup は作成しない。読み取りは `$select=_createdby_value` + フォーマット値アノテーションで行う |
 | **Choice 値は `100000000` 始まり** | 0, 1, 2... はカスタム Choice では使用不可 |
 | **マスタテーブルは要件から網羅的に洗い出す** | カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化 |
 | **全 Lookup リレーションシップを設計書に明記** | 漏れると Lookup が機能しない |
