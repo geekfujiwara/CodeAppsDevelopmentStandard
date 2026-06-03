@@ -44,11 +44,122 @@ triggers:
 
 ---
 
-## ★★★ 重要教訓: EDM 2.0 Code Site のテーブル権限とSSO
+## ★★★ 重要教訓: EDM 2.0 Code Site の認証・認可・テーブル権限
 
-> **実案件 (IncidentPortal02) のデバッグで確定した知見。geeksupport（動作済み参考サイト）との比較で裏取り済み。**
+> **実案件 (IncidentPortal01/02) のデバッグで確定した知見。geeksupport（動作済み参考サイト）との比較で裏取り済み。**
 
-### 教訓 1: 認証判定で contact テーブルをクエリしてはいけない
+---
+
+### 教訓 1: CSRF トークン（__RequestVerificationToken）は POST/PATCH/DELETE に必須
+
+```
+❌ NG: POST /_api/geek_incidents に __RequestVerificationToken なしで送信
+       → 401 / 90040107 (anti-forgery token required)
+
+✅ OK: /_layout/tokenhtml から取得してヘッダーに付与
+       取得: fetch("/_layout/tokenhtml") → regex value="([^"]+)" で抽出
+       送信: headers に { __RequestVerificationToken: token } を追加
+```
+
+**キャッシュ:** トークンはセッション中有効。初回取得後は変数にキャッシュして再利用可能。
+
+---
+
+### 教訓 2: EDM 2.0 テーブル権限は content JSON 内の `adx_entitypermission_webrole` が必須
+
+```
+❌ NG: powerpagecomponent type=18 の content に entitylogicalname/scope/CRUD だけ設定
+       → ランタイムが権限を認識せず 403
+
+✅ OK: content JSON に adx_entitypermission_webrole（ロール ID 配列）を含める
+       + powerpagecomponent_powerpagecomponent N:N リンクも設定
+```
+
+**Design Studio が書く完全な content JSON:**
+
+```json
+{
+  "filecontent": null,
+  "entitylogicalname": "geek_incident",
+  "entityname": "geek_incident - Global CRUD",
+  "scope": 756150000,
+  "read": true,
+  "write": true,
+  "create": true,
+  "delete": false,
+  "append": true,
+  "appendto": true,
+  "adx_entitypermission_webrole": ["e7cb523c-1d5f-f111-a825-7ced8d3b33ec"],
+  "parentrelationship": null,
+  "parententitypermission": null,
+  "contactrelationship": null,
+  "accountrelationship": null,
+  "childTablePermissions": [],
+  "permissionfetchxml": null
+}
+```
+
+**API で完結する手順:**
+1. `powerpagecomponent` type=18 を POST — content に `adx_entitypermission_webrole` 含む
+2. `powerpagecomponent_powerpagecomponent` N:N で Web Role コンポーネントとリンク
+3. 両方セットで初めてランタイムが認識
+
+---
+
+### 教訓 3: Contact テーブル権限は Self スコープ（756150004）を使う
+
+```
+❌ NG: scope=756150001 (Contact) + contactrelationship="contact_customer_contacts"
+       → リレーション設定ミスで 403、設定が複雑で壊れやすい
+
+✅ OK: scope=756150004 (Self) + contactrelationship=null
+       → リレーション不要で自分自身のレコードのみアクセス許可
+```
+
+| 項目 | 誤った設定 | 正しい設定 |
+|---|---|---|
+| scope | `756150001`（Contact） | `756150004`（Self） |
+| contactrelationship | `"contact_customer_contacts"` | `null`（不要） |
+| webroles | Administrators のみ | **Authenticated Users** |
+
+---
+
+### 教訓 4: Lookup バインド（@odata.bind）は正確なターゲットエンティティが必須
+
+```
+❌ NG: "geek_inquirerid@odata.bind": "/contacts(xxx)"
+       → geek_inquirerid の参照先が geek_inquirer テーブルなのに contact を指定
+       → 404 / 9004010D (CDS エンティティ解決失敗)
+
+✅ OK: ManyToOneRelationships で ReferencedEntity を確認してから @odata.bind を組み立てる
+       確認: GET EntityDefinitions(LogicalName='geek_incident')/ManyToOneRelationships
+```
+
+**参照先テーブルに AppendTo 権限も必要:**
+- 不足 → 403 / 90040106 (AppendTo permission missing)
+- 参照先テーブルの EDM content で `"appendto": true` を設定
+
+---
+
+### 教訓 5: ログイン後のリダイレクト先が `/profile` に強制される
+
+```
+❌ NG: デフォルトで Authentication/Registration/ProfileRedirectEnabled = true
+       → SSO 完了後に returnUrl を無視して /profile に強制リダイレクト
+
+✅ OK: 以下のサイト設定を false に（adx_sitesettings + EDM type=9 の両方）
+       - Authentication/Registration/ProfileRedirectEnabled = false
+       - Authentication/Registration/LoginButtonAuthEnabled = false
+```
+
+**SPA 側のリダイレクト復元パターン:**
+1. ログイン前: `sessionStorage.setItem("pp_return_hash", location.hash)` で保存
+2. `returnUrl: "/"` でルートに戻す
+3. SPA 初期化時: `RestoreRoute` コンポーネントで `sessionStorage` から復元 → `navigate()`
+
+---
+
+### 教訓 6: 認証判定で contact テーブルをクエリしてはいけない
 
 ```
 ❌ NG: /_api/contacts?$select=contactid&$top=1 をセッション検証に使う
@@ -58,21 +169,32 @@ triggers:
        認証はサーバー側セッション Cookie で完結している
 ```
 
-**根拠:** geeksupport（動作済み参考サイト）は contact テーブル権限を持たず、`/_api/contacts` を一切呼ばないが正常動作する。認証はポータルランタイムが注入する `window.Microsoft.Dynamic365.Portal.User` だけで判定すべき。
+---
 
-### 教訓 2: EDM 2.0 Code Site では Webapi/* Site Settings は不要
+### 教訓 7: `redirect: "manual"` でリダイレクトを検知
+
+```
+❌ NG: fetch のデフォルト (redirect: "follow") で API 呼び出し
+       → 未認証時に 302 → ログインページに自動追従 → エラー判別不能
+
+✅ OK: redirect: "manual" + response.type === "opaqueredirect" で認証切れを検出
+       または response.redirected && response.url.includes("/Account/Login") をチェック
+```
+
+---
+
+### 教訓 8: EDM 2.0 Code Site では Webapi/* Site Settings は不要
 
 ```
 ❌ NG: Webapi/contact/enabled, Webapi/contact/fields 等を作成
        → EDM 2.0 では不要。Standard Data Model (SDM) の legacy 設定。
 
-✅ OK: mspp_entitypermissions（テーブル権限）+ mspp_webroles（Web ロール）の
-       N:N 関連付けだけで /_api/ アクセスが制御される
+✅ OK: powerpagecomponent type=18（テーブル権限）の content JSON だけで制御される
 ```
 
-**根拠:** geeksupport は Webapi/* Site Settings が 0 件だが、`/_api/` で全ビジネステーブルに正常アクセスできる。
+---
 
-### 教訓 3: Website ID の取り違え
+### 教訓 9: Website ID の取り違え
 
 ```
 ❌ NG: .env の WEBSITE_ID と実際の mspp_websites/powerpagesites の ID が不一致
@@ -85,57 +207,74 @@ triggers:
   GET /api/data/v9.2/powerpagesites?$select=powerpagesiteid,name
 ```
 
-**注意:** EDM 2.0 では `mspp_websites` と `powerpagesites` の両方にレコードが存在する。ID は共通。
+---
 
-### 教訓 4: pac CLI の環境接続ミス
-
-```
-❌ NG: pac が別環境に接続されたままアップロード → 間違ったサイトに反映
-       pac org select は InvalidOperationException で crash することがある
-
-✅ OK: pac auth create --name "xxx" --environment "https://{org}.crm.dynamics.com/"
-       で明示的に新規プロファイルを作成してから pac org who で確認
-```
-
-### 教訓 5: テーブル権限には append/appendto = true が必要
+### 教訓 10: pac CLI の認証ユーザー不一致
 
 ```
-❌ NG: Read/Write/Create だけ true にして append/appendto が false
-       → リレーション（Lookup）のあるテーブルで書き込みが 403
+❌ NG: pac が別ユーザー/別環境に接続されたままアップロード
+       → 間違ったサイトに反映 or 権限不足でエラー
 
-✅ OK: 全ビジネステーブルで append=true, appendto=true を設定
+✅ OK: pac auth clear → pac auth create --environment {ENV_ID} で再認証
+       pac org who で接続先を確認してからデプロイ
 ```
 
-### 教訓 6: Authenticated Users ロールは「認証済み全ユーザーに自動付与」ロール
+---
+
+### 教訓 11: サイト再起動の反映タイムラグ
 
 ```
-確認: mspp_authenticatedusersrole = true のロールを使う
-      （手動で contact に N:N 関連付けする必要なし）
+⚠️ 権限変更やサイト設定変更後、restart API を叩いても 60〜90秒の反映待ちが必要
+   テスト時はブラウザの InPrivate / シークレットウィンドウを使い、キャッシュを回避する
 ```
 
-### まとめ: EDM 2.0 Code Site の正しい権限設定パターン
+---
+
+### まとめ: API でテーブル権限を完結する再利用パターン
 
 ```python
-# geeksupport と同じ構成:
-# 1. mspp_entitypermissions を作成（Global scope, R/W/C/Append/AppendTo）
-# 2. mspp_entitypermission_webrole N:N で「Authenticated Users」にリンク
-# 3. Webapi/* Site Settings は作らない
-# 4. 認証フックで /_api/contacts をクエリしない
+from create_table_permission import create_table_permission
 
-SCOPE_GLOBAL = 756150000
+# Global CRUD（全レコードアクセス）
+create_table_permission(
+    table_logical_name="geek_incident",
+    display_name="geek_incident - Global CRUD",
+    scope=756150000,  # Global
+    read=True, write=True, create=True,
+    append=True, appendto=True,
+    role_ids=["e7cb523c-1d5f-f111-a825-7ced8d3b33ec"],  # Authenticated Users
+)
 
-permissions = [
-    {"table": "geek_incident", "read": True, "write": True, "create": True,
-     "delete": False, "append": True, "appendto": True},
-    {"table": "geek_incidentcategory", "read": True, "write": False, "create": False,
-     "delete": False, "append": True, "appendto": True},
-    {"table": "geek_incidentcomment", "read": True, "write": True, "create": True,
-     "delete": False, "append": True, "appendto": True},
-]
-
-# contact テーブル権限はプロフィール編集が必要な場合のみ追加
-# 認証チェック目的では不要
+# Self（自分のレコードのみ）
+create_table_permission(
+    table_logical_name="contact",
+    display_name="contact - Self Read Write",
+    scope=756150004,  # Self
+    read=True, write=True, create=False,
+    role_ids=["e7cb523c-1d5f-f111-a825-7ced8d3b33ec"],  # Authenticated Users
+)
 ```
+
+### scope 値一覧
+
+| 値 | スコープ | contactrelationship | 用途 |
+|---|---------|---|---|
+| 756150000 | Global | null | 全レコード |
+| 756150004 | Self | null | 自分のレコードのみ（★推奨） |
+| 756150001 | Contact | 必要（非推奨） | 親 Contact 配下 |
+| 756150002 | Account | 必要 | 自分の Account 配下 |
+| 756150003 | Parent | 必要 | 親権限に紐づくレコード |
+
+### エラーコード→教訓マッピング
+
+| HTTP | OData Code | メッセージ | 原因 | 教訓 |
+|------|-----------|---------|------|------|
+| 401 | 90040107 | Anti-forgery token required | CSRF トークン未送信 | 教訓 1 |
+| 403 | — | Forbidden (no permission) | content に `adx_entitypermission_webrole` なし | 教訓 2 |
+| 403 | 90040106 | AppendTo permission missing | 参照先テーブルに appendto=false | 教訓 4 |
+| 404 | 9004010D | CDS entity resolution failed | @odata.bind のターゲットテーブルが違う | 教訓 4 |
+| 404 | 9004010C | Resource not found for segment | テーブル権限未設定 or languageid null | 教訓 2 |
+| 302 | — | Redirect to /profile | ProfileRedirectEnabled=true | 教訓 5 |
 
 ---
 
@@ -444,10 +583,14 @@ value: "true"
 
 | HTTP | OData Code | メッセージ | 原因 | 対策 |
 |------|-----------|---------|------|------|
-| 404 | 9004010C | Resource not found for the segment `<table>` | テーブル権限未設定 or `powerpagesitelanguageid` が null | `setup_contact_webapi.py` 実行 |
+| 401 | 90040107 | Anti-forgery token required | CSRF トークン未送信 | `/_layout/tokenhtml` から取得してヘッダー付与 |
+| 403 | — | Forbidden (no permission) | content に `adx_entitypermission_webrole` なし | content JSON にロール ID 配列を含める |
+| 403 | 90040106 | AppendTo permission missing | 参照先テーブルに appendto=false | EDM content で `"appendto": true` に更新 |
+| 404 | 9004010D | CDS entity resolution failed | `@odata.bind` のターゲットテーブルが違う | `ManyToOneRelationships` で正しい参照先を確認 |
+| 404 | 9004010C | Resource not found for segment | テーブル権限未設定 or `powerpagesitelanguageid` null | type=18 content + languageid 設定 |
 | 400 | 9004010A | Invalid column name | `$select` に存在しないカラム名 | `EntityDefinitions` でカラム名確認 |
-| 403 | — | Forbidden | `Webapi/<table>/fields` にカラムが含まれていない | fields を `*` に設定、または具体カラム追加 |
-| 302 | — | Login redirect | 未認証 | SSO ログインさせる |
+| 302 | — | Redirect to /profile | `ProfileRedirectEnabled=true` | サイト設定で `false` に変更 |
+| 302 | — | Login redirect | 未認証 | SSO ログイン or `redirect: "manual"` で検知 |
 
 ---
 
@@ -566,15 +709,25 @@ SPA は独自の React 19 バンドルで動作するため、ホスト側の Re
 
 ## チェックリスト
 
+### 認証・認可
+- [ ] POST/PATCH/DELETE に `__RequestVerificationToken` ヘッダーを付与している（教訓 1）
+- [ ] `api.ts` で `credentials: "same-origin"` を使用
+- [ ] `api.ts` で `redirect: "manual"` を使用し認証切れを検知している（教訓 7）
+- [ ] **use-auth.ts が `/_api/contacts` をクエリしていない**（教訓 6）
+- [ ] `Authentication/Registration/ProfileRedirectEnabled = false` を設定済み（教訓 5）
+
+### テーブル権限
+- [ ] EDM content JSON に `adx_entitypermission_webrole` が含まれている（教訓 2）
+- [ ] `powerpagecomponent_powerpagecomponent` N:N リンクも設定済み
+- [ ] テーブル権限に `append=true, appendto=true` が設定されている
+- [ ] Contact 権限は scope=756150004 (Self) を使用（教訓 3）
+- [ ] `@odata.bind` のターゲットが `ManyToOneRelationships` の正しい参照先テーブル（教訓 4）
+
+### デプロイ
 - [ ] `powerpages.config.json` が存在する
 - [ ] `vite.config.ts` で `base: "./"` + `inlineDynamicImports: true`
 - [ ] HashRouter を使用している
-- [ ] `api.ts` で `credentials: "same-origin"` を使用
-- [ ] **use-auth.ts が `/_api/contacts` をクエリしていない**（教訓 1）
-- [ ] テーブル権限 (`mspp_entitypermissions`) が正しい `powerpagesiteid` に紐づいている（教訓 3）
-- [ ] テーブル権限に `append=true, appendto=true` が設定されている（教訓 5）
-- [ ] テーブル権限が `Authenticated Users` ロールに N:N リンクされている
-- [ ] `pac org who` で正しい環境に接続されていることを確認（教訓 4）
-- [ ] EDM 2.0: `Webapi/*` Site Settings は不要（教訓 2）
+- [ ] `pac auth` で正しいユーザー・環境に接続されている（教訓 10）
+- [ ] テーブル権限が正しい `powerpagesiteid` に紐づいている（教訓 9）
+- [ ] EDM 2.0: `Webapi/*` Site Settings は不要（教訓 8）
 - [ ] `Webapi/error/innererror = true` が開発環境で有効
-- [ ] `.powerpages-site/site-settings/` に Webapi YAML が配置済み（SDM の場合のみ）
