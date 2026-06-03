@@ -28,6 +28,103 @@ triggers:
 > **公式リファレンス**: [Power Pages でシングルページ アプリケーションを作成して展開する | Microsoft Learn](https://learn.microsoft.com/ja-jp/power-pages/configure/create-code-sites)
 > **新スキル参照**: [microsoft/power-platform-skills - power-pages](https://github.com/microsoft/power-platform-skills/tree/main/plugins/power-pages)
 
+---
+
+## ★★★ 重要教訓: EDM 2.0 Code Site のテーブル権限とSSO
+
+> **実案件 (IncidentPortal02) のデバッグで確定した知見。geeksupport（動作済み参考サイト）との比較で裏取り済み。**
+
+### 教訓 1: 認証判定で contact テーブルをクエリしてはいけない
+
+```
+❌ NG: /_api/contacts?$select=contactid&$top=1 をセッション検証に使う
+       → contact の Table Permission がないと 403 EntityPermissionReadIsMissing
+
+✅ OK: window.Microsoft.Dynamic365.Portal.User を信頼する（API 呼び出し不要）
+       認証はサーバー側セッション Cookie で完結している
+```
+
+**根拠:** geeksupport（動作済み参考サイト）は contact テーブル権限を持たず、`/_api/contacts` を一切呼ばないが正常動作する。認証はポータルランタイムが注入する `window.Microsoft.Dynamic365.Portal.User` だけで判定すべき。
+
+### 教訓 2: EDM 2.0 Code Site では Webapi/* Site Settings は不要
+
+```
+❌ NG: Webapi/contact/enabled, Webapi/contact/fields 等を作成
+       → EDM 2.0 では不要。Standard Data Model (SDM) の legacy 設定。
+
+✅ OK: mspp_entitypermissions（テーブル権限）+ mspp_webroles（Web ロール）の
+       N:N 関連付けだけで /_api/ アクセスが制御される
+```
+
+**根拠:** geeksupport は Webapi/* Site Settings が 0 件だが、`/_api/` で全ビジネステーブルに正常アクセスできる。
+
+### 教訓 3: Website ID の取り違え
+
+```
+❌ NG: .env の WEBSITE_ID と実際の mspp_websites/powerpagesites の ID が不一致
+       → テーブル権限を作っても「別サイトの権限」になり効かない
+
+✅ OK: pac org who で確認した環境の mspp_websites から正確な ID を取得
+
+確認コマンド:
+  GET /api/data/v9.2/mspp_websites?$select=mspp_websiteid,mspp_name
+  GET /api/data/v9.2/powerpagesites?$select=powerpagesiteid,name
+```
+
+**注意:** EDM 2.0 では `mspp_websites` と `powerpagesites` の両方にレコードが存在する。ID は共通。
+
+### 教訓 4: pac CLI の環境接続ミス
+
+```
+❌ NG: pac が別環境に接続されたままアップロード → 間違ったサイトに反映
+       pac org select は InvalidOperationException で crash することがある
+
+✅ OK: pac auth create --name "xxx" --environment "https://{org}.crm.dynamics.com/"
+       で明示的に新規プロファイルを作成してから pac org who で確認
+```
+
+### 教訓 5: テーブル権限には append/appendto = true が必要
+
+```
+❌ NG: Read/Write/Create だけ true にして append/appendto が false
+       → リレーション（Lookup）のあるテーブルで書き込みが 403
+
+✅ OK: 全ビジネステーブルで append=true, appendto=true を設定
+```
+
+### 教訓 6: Authenticated Users ロールは「認証済み全ユーザーに自動付与」ロール
+
+```
+確認: mspp_authenticatedusersrole = true のロールを使う
+      （手動で contact に N:N 関連付けする必要なし）
+```
+
+### まとめ: EDM 2.0 Code Site の正しい権限設定パターン
+
+```python
+# geeksupport と同じ構成:
+# 1. mspp_entitypermissions を作成（Global scope, R/W/C/Append/AppendTo）
+# 2. mspp_entitypermission_webrole N:N で「Authenticated Users」にリンク
+# 3. Webapi/* Site Settings は作らない
+# 4. 認証フックで /_api/contacts をクエリしない
+
+SCOPE_GLOBAL = 756150000
+
+permissions = [
+    {"table": "geek_incident", "read": True, "write": True, "create": True,
+     "delete": False, "append": True, "appendto": True},
+    {"table": "geek_incidentcategory", "read": True, "write": False, "create": False,
+     "delete": False, "append": True, "appendto": True},
+    {"table": "geek_incidentcomment", "read": True, "write": True, "create": True,
+     "delete": False, "append": True, "appendto": True},
+]
+
+# contact テーブル権限はプロフィール編集が必要な場合のみ追加
+# 認証チェック目的では不要
+```
+
+---
+
 ## 核心原則
 
 1. **`pac pages upload-code-site` がサイト作成とデプロイの両方を行う** — API でサイトを事前作成する必要はない
@@ -229,7 +326,7 @@ export async function apiPatch(path: string, body: unknown): Promise<void> {
 
 ## ★ SSO + プロフィール編集 (デフォルト実装)
 
-### use-auth.ts
+### use-auth.ts（★ contact テーブルを読まない — 教訓 1）
 
 ```typescript
 import { useState, useEffect, useCallback } from "react";
@@ -243,6 +340,13 @@ export interface AuthUser {
   phone: string;
 }
 
+/**
+ * Power Pages 認証フック
+ *
+ * 認証判定: ポータルが注入する window.Microsoft.Dynamic365.Portal.User を信頼する。
+ * /_api/contacts をクエリしてはいけない（Table Permission がなくても認証は有効）。
+ * 認証はサーバー側セッション Cookie で完結している。
+ */
 export function useAuth() {
   const [state, setState] = useState<{
     isAuthenticated: boolean;
@@ -272,9 +376,36 @@ export function useAuth() {
     }
   }, []);
 
-  const login = useCallback(() => {
-    const returnUrl = encodeURIComponent(window.location.pathname + window.location.hash);
-    window.location.href = `/SignIn?returnUrl=${returnUrl}`;
+  const login = useCallback(async () => {
+    // /SignIn から anti-forgery token を取得し、直接 Entra ID に POST（クラシックページ非表示）
+    try {
+      const res = await fetch("/SignIn?returnUrl=/", { credentials: "same-origin" });
+      const html = await res.text();
+      const tokenMatch = html.match(/name="__RequestVerificationToken"[^>]*value="([^"]+)"/);
+      const providerMatch = html.match(/name="provider"[^>]*value="([^"]+)"/);
+      if (tokenMatch && providerMatch) {
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = "/Account/Login/ExternalLogin";
+        form.style.display = "none";
+        const fields: Record<string, string> = {
+          provider: providerMatch[1],
+          returnUrl: "/",
+          __RequestVerificationToken: tokenMatch[1],
+        };
+        for (const [name, value] of Object.entries(fields)) {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = name;
+          input.value = value;
+          form.appendChild(input);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        return;
+      }
+    } catch { /* fallback below */ }
+    window.location.href = "/SignIn?returnUrl=/";
   }, []);
 
   const logout = useCallback(() => {
@@ -362,6 +493,11 @@ export default function ProfilePage() {
 ---
 
 ## ★ Contact テーブル Web API 有効化 (EDM 2.0)
+
+> ⚠️ **EDM 2.0 では `Webapi/*` Site Settings は不要**（教訓 2 参照）。
+> geeksupport（動作済み参考サイト）は Webapi/* 設定なしで全テーブルにアクセス可能。
+> 以下の手順は **Standard Data Model (SDM) のレガシーパターン** であり、
+> 新規 Code Site では `mspp_entitypermissions` + `mspp_webroles` N:N だけで十分。
 
 ### 重大な教訓: 404 "Resource not found for the segment contact"
 
@@ -643,9 +779,11 @@ SPA は独自の React 19 バンドルで動作するため、ホスト側の Re
 - [ ] `vite.config.ts` で `base: "./"` + `inlineDynamicImports: true`
 - [ ] HashRouter を使用している
 - [ ] `api.ts` で `credentials: "same-origin"` を使用
-- [ ] `Webapi/<table>/enabled = true` が設定済み
-- [ ] `Webapi/<table>/fields` が設定済み（system table は `*`）
-- [ ] `powerpagecomponent` type=18 に `powerpagesitelanguageid` が設定済み
-- [ ] `powerpagecomponent_powerpagecomponent` N:N が Authenticated Users にリンク済み
+- [ ] **use-auth.ts が `/_api/contacts` をクエリしていない**（教訓 1）
+- [ ] テーブル権限 (`mspp_entitypermissions`) が正しい `powerpagesiteid` に紐づいている（教訓 3）
+- [ ] テーブル権限に `append=true, appendto=true` が設定されている（教訓 5）
+- [ ] テーブル権限が `Authenticated Users` ロールに N:N リンクされている
+- [ ] `pac org who` で正しい環境に接続されていることを確認（教訓 4）
+- [ ] EDM 2.0: `Webapi/*` Site Settings は不要（教訓 2）
 - [ ] `Webapi/error/innererror = true` が開発環境で有効
-- [ ] `.powerpages-site/site-settings/` に Webapi YAML が配置済み
+- [ ] `.powerpages-site/site-settings/` に Webapi YAML が配置済み（SDM の場合のみ）
