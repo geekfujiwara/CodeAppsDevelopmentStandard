@@ -4,6 +4,11 @@
 BotFramework WebChat SDK を使い、プログラム的なメッセージ送信・UI フルカスタマイズを実現する。
 
 > ⚠️ iframe 方式（`external-web-embed.md`）は簡易版。本パターンが推奨。
+>
+> 📐 **UI デザイン標準**: [webchat-sdk-design-template.md](webchat-sdk-design-template.md) を参照。
+> 外部公開 Web サイトを新規構築する際は、デザインテンプレートのレイアウト
+> （左パネル: カテゴリ別カード＋プロンプトチップス / 右パネル: WebChat）を
+> 標準として提案し、承認後に実装を進めること。
 
 ## iframe 方式との違い
 
