@@ -707,7 +707,35 @@ SPA は独自の React 19 バンドルで動作するため、ホスト側の Re
 
 ---
 
-## チェックリスト
+## レビュースキル（品質ゲート）
+
+Power Pages の品質を標準的に維持するための **設計前レビュー** と **デプロイ前レビュー** を提供する。
+
+| レビュー | タイミング | ドキュメント | スクリプト |
+|---|---|---|---|
+| **設計前レビュー** | テーブル設計完了後、SPA 実装開始前 | [reviews/pre-design-review.md](reviews/pre-design-review.md) | `scripts/review_pre_design.py` |
+| **デプロイ前レビュー** | `npm run build` 後、`pac pages upload-code-site` 前 | [reviews/pre-deploy-review.md](reviews/pre-deploy-review.md) | `scripts/review_pre_deploy.py` |
+
+### 呼び出し方
+
+```bash
+# 設計前レビュー（ローカル静的チェックのみ、Dataverse 接続不要）
+cd portal
+python ../.github/skills/power-pages/scripts/review_pre_design.py
+
+# デプロイ前レビュー（ビルド出力 + Dataverse API チェック）
+cd portal
+python ../.github/skills/power-pages/scripts/review_pre_deploy.py
+
+# CI/CD でリモートチェックをスキップする場合
+SKIP_REMOTE=1 python ../.github/skills/power-pages/scripts/review_pre_deploy.py
+```
+
+> **標準フロー**: 設計前レビュー → 実装 → ビルド → デプロイ前レビュー → デプロイ
+
+---
+
+## チェックリスト（レガシー参照用）
 
 ### 認証・認可
 - [ ] POST/PATCH/DELETE に `__RequestVerificationToken` ヘッダーを付与している（教訓 1）
