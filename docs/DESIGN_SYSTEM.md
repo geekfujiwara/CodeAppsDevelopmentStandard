@@ -37,6 +37,43 @@ Power Apps Code Apps の開発では、**[CodeAppsStarter](https://github.com/ge
 | **React Query** | データフェッチとキャッシング |
 | **Vite + TypeScript + React** | モダンなビルドツールと言語 |
 
+### 標準 Web フォント
+
+外部公開サイト（Power Pages）および Code Apps で **Win / Mac 間の表示差異をなくす** ため、Google Fonts の Web フォントに統一します。
+
+| フォント | 用途 | 選定理由 |
+|----------|------|----------|
+| **Inter** | Latin文字・数字・記号 | GitHub / Vercel / Linear 等で採用実績。Variable font で軽量（~100KB） |
+| **Noto Sans JP** | 日本語 | Google Fonts CDN が自動サブセット配信。必要な文字だけロードされ軽量 |
+
+#### HTML での読み込み（`index.html`）
+
+```html
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap"
+  rel="stylesheet"
+/>
+```
+
+#### CSS での指定（`styles/index.pcss` / `portal/src/index.css`）
+
+```css
+:root {
+  font-family:
+    "Inter",
+    "Noto Sans JP",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+}
+```
+
+> **禁止**: `Yu Gothic UI`, `Segoe UI`, `Meiryo`, `Hiragino Sans` 等の OS ローカルフォントを primary に指定しない。  
+> これらは fallback chain の末尾（`system-ui` 経由）でのみ使われる。
+
 ### 標準 UI パターン
 
 CodeAppsStarter には以下の UI パターンが実装されています:
