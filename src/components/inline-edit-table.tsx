@@ -27,7 +27,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { CsvImportExport, type CsvColumn, type CsvOperationType } from "@/components/csv-import-export"
 import { Check, X, Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -62,11 +61,6 @@ export type InlineEditTableProps<T extends { id: string | number }> = {
   addButtonLabel?: string
   emptyMessage?: string
   className?: string
-  enableCsv?: boolean
-  csvColumns?: CsvColumn<T>[]
-  csvFileName?: string
-  csvUniqueKey?: keyof T
-  onCsvImport?: (data: T[], operationsMap: Map<T, CsvOperationType>) => void
 }
 
 export function InlineEditTable<T extends { id: string | number }>({
@@ -81,11 +75,6 @@ export function InlineEditTable<T extends { id: string | number }>({
   addButtonLabel = "新規追加",
   emptyMessage = "データがありません",
   className,
-  enableCsv = false,
-  csvColumns,
-  csvFileName = "data",
-  csvUniqueKey,
-  onCsvImport,
 }: InlineEditTableProps<T>) {
   const [data, setData] = useState<T[]>(initialData)
   const [originalData] = useState<T[]>(initialData) // 元のデータを保持
@@ -265,15 +254,7 @@ export function InlineEditTable<T extends { id: string | number }>({
               {title && <CardTitle>{title}</CardTitle>}
               {description && <CardDescription>{description}</CardDescription>}
             </div>
-            {enableCsv && csvColumns && (
-              <CsvImportExport
-                columns={csvColumns}
-                data={data}
-                onImport={onCsvImport}
-                fileName={csvFileName}
-                uniqueKey={csvUniqueKey}
-              />
-            )}
+
           </div>
         </CardHeader>
       )}

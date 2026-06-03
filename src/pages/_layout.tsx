@@ -4,18 +4,25 @@ import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Sidebar } from "@/components/sidebar"
 import { SidebarProvider, useSidebarContext } from "@/components/sidebar-layout"
-import { LinkConfirmModal, useLinkModal } from "@/components/link-confirm-modal"
-import { Twitter, Youtube, BookOpen, GraduationCap, Menu } from "lucide-react"
+import { CommandPalette } from "@/components/command-palette"
+import { QuickActivityFab } from "@/components/quick-activity-fab"
+import { Menu, RefreshCw, Search } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 
 type LayoutProps = { showHeader?: boolean }
 
 function LayoutContent({ showHeader = true }: LayoutProps) {
   const [isMobileView, setIsMobileView] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const { isCollapsed, toggleSidebar, toggleMobile, isMobileOpen } = useSidebarContext()
-  const { modalData, openModal, closeModal } = useLinkModal()
+  const queryClient = useQueryClient()
 
-  const handleSocialLink = (url: string, title: string, description: string) => {
-    openModal(url, title, description)
+  const handleRefreshAll = async () => {
+    setIsRefreshing(true)
+    await queryClient.invalidateQueries()
+    toast.success("全データを更新しました")
+    setIsRefreshing(false)
   }
 
   useEffect(() => {
@@ -54,29 +61,35 @@ function LayoutContent({ showHeader = true }: LayoutProps) {
               </Button>
               <div>
                 <h1 className="text-lg font-bold text-primary">
-                  Code Apps Starter
+                  Geek Sales
                 </h1>
                 <p className="text-xs text-muted-foreground hidden sm:block">
-                  Power Apps Code Apps
+                  営業支援
                 </p>
               </div>
             </div>
 
-            {/* 右側: 機能ボタン */}
+            {/* 右側: 検索＋更新ボタン＋テーマ切替 */}
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
-                size="sm"
-                onClick={() => handleSocialLink(
-                  "https://github.com/geekfujiwara/CodeAppsDevelopmentStandard",
-                  "Geek開発標準",
-                  "Power Appsコードアプリ開発のためのコーディング規約とベストプラクティス集"
-                )}
-                className="hover:bg-accent"
+                size="icon"
+                onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+                aria-label="検索 (Ctrl+K)"
+                title="検索 (Ctrl+K)"
               >
-                <img src="./geekkumanomi.svg" className="h-6 w-6" alt="通知" />
+                <Search className="h-4 w-4" />
               </Button>
-
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleRefreshAll}
+                disabled={isRefreshing}
+                aria-label="全データを更新"
+                title="全データを更新"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              </Button>
               <ModeToggle />
             </div>
           </div>
@@ -94,81 +107,12 @@ function LayoutContent({ showHeader = true }: LayoutProps) {
               <Outlet />
             </div>
           </main>
-
-          <footer className="border-t border-border py-8 bg-card">
-          <div className="mx-auto w-full max-w-7xl px-6">
-            <div className="flex flex-col items-center space-y-6">
-              {/* クレジット */}
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">
-                  Created by <span className="font-semibold text-foreground">Geek Fujiwara</span>
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Powered by Power Apps Code Apps
-                </p>
-              </div>
-
-              {/* ソーシャルリンク */}
-              <div className="flex items-center gap-6">
-                <button
-                  onClick={() => handleSocialLink(
-                    "https://x.com/geekfujiwara",
-                    "X (Twitter)",
-                    "Geek Fujiwaraの公式Xアカウント"
-                  )}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="X (Twitter)"
-                >
-                  <Twitter className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={() => handleSocialLink(
-                    "https://www.youtube.com/@geekfujiwara",
-                    "YouTube",
-                    "Geek FujiwaraのYouTubeチャンネル - Microsoft 365やPower Platformの技術解説"
-                  )}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="YouTube"
-                >
-                  <Youtube className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={() => handleSocialLink(
-                    "https://www.udemy.com/user/gikuhuziwarateng-yuan-hong-dao/",
-                    "Udemy",
-                    "Geek FujiwaraのUdemyコース - オンライン学習プラットフォーム"
-                  )}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="Udemy"
-                >
-                  <GraduationCap className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={() => handleSocialLink(
-                    "https://www.geekfujiwara.com/",
-                    "Geek Fujiwara Blog",
-                    "技術ブログ - Microsoft 365やPower Platformに関する最新情報とTips"
-                  )}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="Blog"
-                >
-                  <BookOpen className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* リンク確認モーダル */}
-          <LinkConfirmModal
-            isOpen={modalData.isOpen}
-            onClose={closeModal}
-            url={modalData.url}
-            title={modalData.title}
-            description={modalData.description}
-          />
-        </footer>
         </div>
       </div>
+
+      {/* グローバルコンポーネント */}
+      <CommandPalette />
+      <QuickActivityFab />
     </div>
   )
 }
