@@ -7,7 +7,7 @@ import {
   statusStyles,
   priorityLabels,
   priorityStyles,
-  assetTypeLabels,
+  categoryLabels,
   type Incident,
 } from "@/lib/api";
 import {
@@ -56,8 +56,8 @@ export default function IncidentsPage() {
       const q = search.toLowerCase();
       list = list.filter(
         (i) =>
-          i.geek_title.toLowerCase().includes(q) ||
-          i.geek_reportedby?.toLowerCase().includes(q),
+          i.geek_name.toLowerCase().includes(q) ||
+          (i["_createdby_value@OData.Community.Display.V1.FormattedValue"] as string || "").toLowerCase().includes(q),
       );
     }
     return list;
@@ -198,7 +198,7 @@ export default function IncidentsPage() {
             >
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-semibold text-foreground text-sm leading-tight line-clamp-2">
-                  {item.geek_title}
+                  {item.geek_name}
                 </h3>
                 {item.geek_priority != null && (
                   <span
@@ -224,15 +224,15 @@ export default function IncidentsPage() {
                     {statusLabels[item.geek_status]}
                   </span>
                 )}
-                {item.geek_assettype != null && (
+                {item.geek_category != null && (
                   <span className="px-2 py-0.5 rounded-md text-[10px] bg-muted text-muted-foreground">
-                    {assetTypeLabels[item.geek_assettype]}
+                    {categoryLabels[item.geek_category]}
                   </span>
                 )}
               </div>
 
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>{item.geek_reportedby ?? "—"}</span>
+                <span>{(item["_createdby_value@OData.Community.Display.V1.FormattedValue"] as string) ?? "—"}</span>
                 <span>
                   {item.createdon
                     ? new Date(item.createdon).toLocaleDateString("ja-JP")

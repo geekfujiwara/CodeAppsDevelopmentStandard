@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   createIncident,
   priorityLabels,
-  assetTypeLabels,
+  categoryLabels,
   type IncidentCreate,
 } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -20,7 +20,7 @@ export default function IncidentNewPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("100000001");
-  const [assetType, setAssetType] = useState("");
+  const [category, setCategory] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,13 +30,14 @@ export default function IncidentNewPage() {
     setError(null);
 
     const payload: IncidentCreate = {
-      geek_title: title.trim(),
+      geek_name: title.trim(),
       geek_description: description.trim(),
       geek_status: 100000000, // 新規
       geek_priority: parseInt(priority),
-      geek_assettype: assetType ? parseInt(assetType) : undefined,
-      geek_reportedby: user?.fullName || undefined,
     };
+    if (category) {
+      payload.geek_category = parseInt(category);
+    }
 
     try {
       await createIncident(payload);
@@ -128,12 +129,12 @@ export default function IncidentNewPage() {
               資産タイプ
             </label>
             <select
-              value={assetType}
-              onChange={(e) => setAssetType(e.target.value)}
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
               className="w-full h-10 px-3 rounded-lg border border-border/60 bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
             >
               <option value="">選択してください</option>
-              {Object.entries(assetTypeLabels).map(([val, label]) => (
+              {Object.entries(categoryLabels).map(([val, label]) => (
                 <option key={val} value={val}>
                   {label}
                 </option>
@@ -142,7 +143,7 @@ export default function IncidentNewPage() {
           </div>
         </div>
 
-        {/* 報告者（自動入力） */}
+        {/* 報告者（CreatedBy として自動記録。カスタム列は使用しない） */}
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-foreground">報告者</label>
           <input
