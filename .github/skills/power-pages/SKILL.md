@@ -30,6 +30,20 @@ triggers:
 
 ---
 
+## サブリファレンス（必要に応じて参照）
+
+| リファレンス | 内容 |
+|---|---|
+| [Dataverse クライアント実装](references/dataverse-client.md) | `apiGet/apiPost/apiPatch/apiDelete` の実コード・anti-forgery トークン・OData クエリ・dev プロキシ・**Code Apps との対比** |
+| [認証実装](references/authentication.md) | **SSO・サインアウト・ログインボタン・認証ガード・UI フロー**の実コード一式・サーバー側 IdP/サイト設定・Code Apps との対比 |
+| [Enhanced Data Model テーブル権限](references/enhanced-data-model-permissions.md) | EDM 2.0 のテーブル権限設定・3 レイヤー権限・N:N バグ・ワークアラウンド |
+| [運用と落とし穴](references/operations-and-pitfalls.md) | ビルド・デプロイ・サイト再起動・よくあるエラーと解決策 |
+| [デザインシステム](references/design-system.md) | UI コンポーネント・テーマ・レイアウトの指針 |
+
+> **Dataverse 接続と認証の実装方法はこのファイルで概要を説明し、完全なサンプルコードは上記 References にまとめている。**
+
+---
+
 ## ★★★ 重要教訓: EDM 2.0 Code Site のテーブル権限とSSO
 
 > **実案件 (IncidentPortal02) のデバッグで確定した知見。geeksupport（動作済み参考サイト）との比較で裏取り済み。**
@@ -198,297 +212,74 @@ portal/
 
 ## ★ Web API 共有クライアント (api.ts)
 
-**すべての `/_api/` 呼び出しはこの共有クライアントを通す。**
-microsoft/power-platform-skills の `/integrate-webapi` パターンに準拠。
+**実装方法の概要**: すべての `/_api/` 呼び出しは共有クライアント `src/lib/api.ts` を通す。
+Power Pages の SPA は Dataverse Web API（`/_api`）を**直接 fetch** する（Code Apps の
+`@microsoft/power-apps/data` SDK のようなライブラリは無い）。認証はブラウザのセッション
+Cookie（`credentials: "same-origin"`）で行い、書き込み（POST/PATCH/DELETE）のみ anti-forgery
+トークンを付与する。
+
+> **完全な実装コード**（`apiGet`/`apiPost`/`apiPatch`/`apiDelete`・`ApiAuthError`・OData クエリ・
+> Lookup の `@odata.bind`・dev プロキシ）は [Dataverse クライアント実装](references/dataverse-client.md) を参照。
+
+最小の利用例:
 
 ```typescript
-/**
- * Power Pages Web API (`/_api/`) クライアント
- *
- * 認証: ブラウザのセッション Cookie（same-origin）。Bearer トークン不要。
- * 書き込み (POST/PATCH/DELETE): anti-forgery token が必須。
- */
-const BASE = "/_api";
+import { apiGet, apiPost, type ODataCollection } from "@/lib/api";
 
-export interface ODataCollection<T> {
-  value: T[];
-  "@odata.count"?: number;
-}
+// 取得（OData は { value: [...] } 形式）
+const res = await apiGet<ODataCollection<Incident>>(
+  "geek_incidents?$select=geek_name,geek_status&$orderby=createdon desc",
+);
 
-export class ApiAuthError extends Error {
-  constructor(public status: number) {
-    super(`Authentication required (${status})`);
-    this.name = "ApiAuthError";
-  }
-}
-
-/** anti-forgery token のキャッシュ */
-let cachedToken: string | null = null;
-
-async function getRequestVerificationToken(): Promise<string> {
-  if (cachedToken) return cachedToken;
-
-  // 1. DOM から取得（ページにトークンが埋め込まれている場合）
-  const input = document.querySelector<HTMLInputElement>(
-    'input[name="__RequestVerificationToken"]',
-  );
-  if (input?.value) {
-    cachedToken = input.value;
-    return cachedToken;
-  }
-
-  // 2. /_layout/tokenhtml から取得（SPA フォールバック）
-  try {
-    const res = await fetch("/_layout/tokenhtml", { credentials: "same-origin" });
-    const html = await res.text();
-    const match = html.match(/value="([^"]+)"/);
-    if (match?.[1]) {
-      cachedToken = match[1];
-      return cachedToken;
-    }
-  } catch { /* fall through */ }
-  return "";
-}
-
-function baseHeaders(): Record<string, string> {
-  return {
-    Accept: "application/json",
-    "OData-MaxVersion": "4.0",
-    "OData-Version": "4.0",
-    Prefer: 'odata.include-annotations="*"',
-  };
-}
-
-async function handleResponse<T>(res: Response, path: string): Promise<T> {
-  if (res.redirected && res.url.includes("/Account/Login")) {
-    throw new ApiAuthError(302);
-  }
-  if (res.status === 401 || res.status === 403) {
-    throw new ApiAuthError(res.status);
-  }
-  if (!res.ok) {
-    const body = await res.text();
-    console.error(`[API] ${res.status} (${path}):`, body);
-    throw new Error(`API ${res.status}: ${body}`);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json();
-}
-
-export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}/${path}`, {
-    method: "GET",
-    credentials: "same-origin",  // ★ "include" ではなく "same-origin"
-    headers: baseHeaders(),
-  });
-  return handleResponse<T>(res, path);
-}
-
-export async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const token = await getRequestVerificationToken();
-  const res = await fetch(`${BASE}/${path}`, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      ...baseHeaders(),
-      "Content-Type": "application/json",
-      __RequestVerificationToken: token,
-    },
-    body: JSON.stringify(body),
-  });
-  return handleResponse<T>(res, path);
-}
-
-export async function apiPatch(path: string, body: unknown): Promise<void> {
-  const token = await getRequestVerificationToken();
-  const res = await fetch(`${BASE}/${path}`, {
-    method: "PATCH",
-    credentials: "same-origin",
-    headers: {
-      ...baseHeaders(),
-      "Content-Type": "application/json",
-      __RequestVerificationToken: token,
-    },
-    body: JSON.stringify(body),
-  });
-  await handleResponse<void>(res, path);
-}
+// 作成（書き込みは内部で anti-forgery token を自動付与）
+await apiPost("geek_incidents", { geek_name: "新規チケット", geek_status: 100000000 });
 ```
 
-**ポイント:**
-- `credentials: "same-origin"` — Power Pages は same-site なので `include` は不要
-- `Prefer: odata.include-annotations="*"` — lookup の FormattedValue を取得
-- `handleResponse` でリダイレクト検出 + 詳細エラーログ出力
-- anti-forgery token は DOM → `/_layout/tokenhtml` フォールバックでキャッシュ
-- lookup の書き込みには `@odata.bind` を使用: `"geek_inquirerid@odata.bind": "/contacts(...)"`
+### Code Apps との接続方式の違い
+
+| 観点 | Power Pages（このスキル） | Code Apps |
+|------|--------------------------|-----------|
+| 接続 | Web API を直接 `fetch("/_api/...")` | `@microsoft/power-apps/data` SDK |
+| 取得 | `apiGet`（自前 fetch ラッパー） | `client.retrieveMultipleRecordsAsync` |
+| クエリ記法 | OData 文字列（`$select=...&$orderby=...`） | オブジェクト（`select: [...], orderBy: [...]`） |
+| レスポンス | `{ value: T[] }`（throw ベース） | `{ success, data, error }`（判定） |
+| 認証 | セッション Cookie（`same-origin`、自動） | コネクタ + SDK |
+| ユーザー実体 | contact（`Portal.User`） | systemuser（`getContext().user`） |
+| 書き込み保護 | anti-forgery トークン | SDK が内部処理 |
+| 認可 | テーブル権限 + Web ロール | Dataverse セキュリティロール |
+
+> 詳細なコード対比は [Dataverse クライアント実装 §8](references/dataverse-client.md) を参照。
 
 ---
 
 ## ★ SSO + プロフィール編集 (デフォルト実装)
 
-### use-auth.ts（★ contact テーブルを読まない — 教訓 1）
+**実装方法の概要**: 認証はサーバー側のセッション Cookie で完結する。クライアントはトークンを
+持たず、ポータルランタイムが注入する `window.Microsoft.Dynamic365.Portal.User` を信頼して
+「ログイン済みか」「誰か」を判定する。**認証判定で `/_api/contacts` をクエリしてはいけない**
+（教訓 1）。
 
-```typescript
-import { useState, useEffect, useCallback } from "react";
+`src/hooks/use-auth.ts` の `useAuth()` が以下をすべて提供する:
 
-export interface AuthUser {
-  contactId: string;
-  fullName: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-}
+| 機能 | 実現方法 |
+|------|---------|
+| 認証状態判定 | `Portal.User` を読むだけ（API 呼び出しなし） |
+| ① シングルサインオン（login） | `/SignIn` から token+provider を抽出し `/Account/Login/ExternalLogin` へ form POST（プロバイダー選択ページをスキップ） |
+| ② サインアウト（logout） | `/Account/Login/LogOff?returnUrl=%2F` へ遷移 |
+| ③ ログインボタン | ヘッダーで `login`/`logout` を認証状態に応じて出し分け |
 
-/**
- * Power Pages 認証フック
- *
- * 認証判定: ポータルが注入する window.Microsoft.Dynamic365.Portal.User を信頼する。
- * /_api/contacts をクエリしてはいけない（Table Permission がなくても認証は有効）。
- * 認証はサーバー側セッション Cookie で完結している。
- */
-export function useAuth() {
-  const [state, setState] = useState<{
-    isAuthenticated: boolean;
-    user: AuthUser | null;
-    loading: boolean;
-  }>({ isAuthenticated: false, user: null, loading: true });
+> **完全な実装コード**（`use-auth.ts` の SSO/サインアウト・ログインボタン UI・`RequireAuth`
+> 認証ガード・ルート組み込み・UI フロー図・プロフィール編集）は
+> [認証実装](references/authentication.md) を参照。
 
-  useEffect(() => {
-    const portalUser = (window as any)["Microsoft"]?.Dynamic365?.Portal?.User;
-    const contactId = portalUser?.contactId || portalUser?.id || "";
+### Code Apps との認証の違い
 
-    if (contactId) {
-      setState({
-        isAuthenticated: true,
-        user: {
-          contactId,
-          fullName: portalUser?.fullName || portalUser?.fullname || "",
-          email: portalUser?.emailAddress || portalUser?.emailaddress1 || "",
-          firstName: portalUser?.firstName || portalUser?.firstname || "",
-          lastName: portalUser?.lastName || portalUser?.lastname || "",
-          phone: portalUser?.telephone1 || "",
-        },
-        loading: false,
-      });
-    } else {
-      setState({ isAuthenticated: false, user: null, loading: false });
-    }
-  }, []);
-
-  const login = useCallback(async () => {
-    // /SignIn から anti-forgery token を取得し、直接 Entra ID に POST（クラシックページ非表示）
-    try {
-      const res = await fetch("/SignIn?returnUrl=/", { credentials: "same-origin" });
-      const html = await res.text();
-      const tokenMatch = html.match(/name="__RequestVerificationToken"[^>]*value="([^"]+)"/);
-      const providerMatch = html.match(/name="provider"[^>]*value="([^"]+)"/);
-      if (tokenMatch && providerMatch) {
-        const form = document.createElement("form");
-        form.method = "POST";
-        form.action = "/Account/Login/ExternalLogin";
-        form.style.display = "none";
-        const fields: Record<string, string> = {
-          provider: providerMatch[1],
-          returnUrl: "/",
-          __RequestVerificationToken: tokenMatch[1],
-        };
-        for (const [name, value] of Object.entries(fields)) {
-          const input = document.createElement("input");
-          input.type = "hidden";
-          input.name = name;
-          input.value = value;
-          form.appendChild(input);
-        }
-        document.body.appendChild(form);
-        form.submit();
-        return;
-      }
-    } catch { /* fallback below */ }
-    window.location.href = "/SignIn?returnUrl=/";
-  }, []);
-
-  const logout = useCallback(() => {
-    window.location.href = "/Account/Login/LogOff?returnUrl=%2F";
-  }, []);
-
-  return { ...state, login, logout };
-}
-```
-
-### profile.tsx（api.ts を使用）
-
-```tsx
-import { useState, useEffect } from "react";
-import { useAuth } from "@/hooks/use-auth";
-import { apiGet, apiPatch, ApiAuthError } from "@/lib/api";
-
-interface ContactProfile {
-  firstname: string;
-  lastname: string;
-  emailaddress1: string;
-  telephone1: string;
-}
-
-export default function ProfilePage() {
-  const { user } = useAuth();
-  const [profile, setProfile] = useState<ContactProfile>({
-    firstname: "", lastname: "", emailaddress1: "", telephone1: "",
-  });
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
-  useEffect(() => {
-    if (!user?.contactId) return;
-    fetchProfile();
-  }, [user?.contactId]);
-
-  async function fetchProfile() {
-    const path = `contacts(${user!.contactId})?$select=firstname,lastname,emailaddress1,telephone1`;
-    try {
-      const data = await apiGet<ContactProfile>(path);
-      setProfile({
-        firstname: data.firstname || "",
-        lastname: data.lastname || "",
-        emailaddress1: data.emailaddress1 || "",
-        telephone1: data.telephone1 || "",
-      });
-    } catch (e) {
-      if (e instanceof ApiAuthError) {
-        setMessage({ type: "error", text: `認証エラー (${e.status})。再ログインしてください。\nGET /_api/${path}` });
-      } else {
-        setMessage({ type: "error", text: `取得失敗。\nGET /_api/${path}\n${e instanceof Error ? e.message : String(e)}` });
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    const path = `contacts(${user!.contactId})`;
-    try {
-      await apiPatch(path, {
-        firstname: profile.firstname,
-        lastname: profile.lastname,
-        telephone1: profile.telephone1,
-      });
-      setMessage({ type: "success", text: "プロフィールを更新しました" });
-    } catch (e) {
-      if (e instanceof ApiAuthError) {
-        setMessage({ type: "error", text: `認証エラー (${e.status})。\nPATCH /_api/${path}` });
-      } else {
-        setMessage({ type: "error", text: `更新失敗。\nPATCH /_api/${path}\n${e instanceof Error ? e.message : String(e)}` });
-      }
-    }
-  }
-  // ... UI は省略（詳細はテンプレート参照）
-}
-```
-
-**旧実装との差分:**
-- ❌ 旧: 生 `fetch` + `credentials: "include"` + 手動トークン取得
-- ✅ 新: `apiGet`/`apiPatch` + `credentials: "same-origin"` + 自動トークン + 詳細エラー表示
+| 観点 | Power Pages | Code Apps |
+|------|-------------|-----------|
+| 認証の場所 | サーバー側（セッション Cookie） | クライアント + コネクタ |
+| トークン管理 | なし（Cookie 自動送信） | SDK が内部管理 |
+| ログイン | Entra ID へ form POST | コネクタのサインイン |
+| ユーザー情報 | `Portal.User`（contact） | `getContext().user`（systemuser） |
 
 ---
 
