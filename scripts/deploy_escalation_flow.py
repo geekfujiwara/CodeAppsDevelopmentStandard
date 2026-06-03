@@ -451,16 +451,18 @@ def build_clientdata() -> str:
 
     connection_references = {
         CONNREF_DATAVERSE: {
-            "connectionName": CONNREF_DATAVERSE,
-            "source": "Invoker",
-            "id": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
-            "tier": "NotSpecified",
+            "runtimeSource": "embedded",
+            "connection": {
+                "connectionReferenceLogicalName": CONNREF_DATAVERSE,
+            },
+            "api": {"name": "shared_commondataserviceforapps"},
         },
         CONNREF_OUTLOOK: {
-            "connectionName": CONNREF_OUTLOOK,
-            "source": "Invoker",
-            "id": "/providers/Microsoft.PowerApps/apis/shared_office365",
-            "tier": "NotSpecified",
+            "runtimeSource": "embedded",
+            "connection": {
+                "connectionReferenceLogicalName": CONNREF_OUTLOOK,
+            },
+            "api": {"name": "shared_office365"},
         },
     }
 
