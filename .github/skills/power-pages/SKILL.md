@@ -39,6 +39,7 @@ triggers:
 | [Enhanced Data Model テーブル権限](references/enhanced-data-model-permissions.md) | EDM 2.0 のテーブル権限設定・3 レイヤー権限・N:N バグ・ワークアラウンド |
 | [運用と落とし穴](references/operations-and-pitfalls.md) | ビルド・デプロイ・サイト再起動・よくあるエラーと解決策 |
 | [デザインシステム](references/design-system.md) | UI コンポーネント・テーマ・レイアウトの指針 |
+| [デザインテンプレート集](references/design-templates.md) | 5 種類の配色テンプレート定義。設計時に提案→選択→適用 |
 
 > **Dataverse 接続と認証の実装方法はこのファイルで概要を説明し、完全なサンプルコードは上記 References にまとめている。**
 
