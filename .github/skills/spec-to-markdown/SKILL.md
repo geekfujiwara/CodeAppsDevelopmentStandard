@@ -49,35 +49,34 @@ Power Platform 開発で使いやすい **factsheet 群** と **全体 document.
 
 ## 基本フロー
 
-1. `scripts/convert_documents.py --agent-ocr` で既定 input フォルダ、または指定された input パス内の仕様書を markdown 化する
-2. 各ファイルごとに `factsheets/*.md` を作る（画像は `pending-ocr` スタブとして出力される）
-3. `@GeekPowerCode pending_ocr.json を処理して` と依頼し、GitHub Copilot が画像を OCR する
+1. `scripts/convert_documents.py` で既定 input フォルダ、または指定された input パス内の仕様書を markdown 化する
+   - 画像ファイルが含まれる場合は **自動的に agent-ocr モードが有効化**され、`pending_ocr.json` が生成される
+2. 各ファイルごとに `factsheets/*.md` を作る
+3. `pending_ocr.json` が生成されていた場合、**エージェントはそのまま続けて画像の OCR を実行する**（ユーザーへの確認なし）
 4. 横断要件を `document.md` にまとめる
 5. 不明点・矛盾点・未記載事項は推測で埋めず `要確認` として残す
 
 ## 画像 OCR フロー（GitHub Copilot 使用）
 
-画像ファイル (`.png`, `.jpg` 等) は GitHub Copilot エージェント自身のビジョン機能で OCR する。API キーは不要。
+画像ファイル (`.png`, `.jpg` 等) は GitHub Copilot エージェント自身のビジョン機能で OCR する。API キーは不要。  
+**画像が含まれる場合はスクリプトが自動的に agent-ocr モードを有効化し、エージェントはスクリプト完了後に続けて OCR を実行する。**
 
 ### 手順
 
-**Step 1: スクリプトを `--agent-ocr` で実行**
+**Step 1: スクリプトを実行**
 
 ```bash
-python convert_documents.py --agent-ocr
+python convert_documents.py
 ```
 
 - ドキュメントファイル (PDF / Office 系) は通常通り MarkItDown で変換される
-- 画像ファイルは `pending-ocr` スタブとして出力される
-- 出力フォルダに `pending_ocr.json` が書き出される
+- 画像ファイルが含まれる場合は自動で agent-ocr モードが有効化される
+  - 画像は `pending-ocr` スタブとして出力される
+  - 出力フォルダに `pending_ocr.json` が書き出される
 
-**Step 2: エージェントに処理を依頼**
+**Step 2: エージェントが自動で OCR を継続実行**
 
-スクリプト完了後、次のように依頼する。
-
-```
-@GeekPowerCode pending_ocr.json を処理して
-```
+スクリプト完了後、`pending_ocr.json` が存在する場合、エージェントはユーザーの追加指示を待たずに **そのまま続けて** 各画像の OCR を実行する。
 
 エージェントは `pending_ocr.json` を読み、各画像を 1 枚ずつ `view` ツールで読み込んで OCR テキストを抽出し、`raw/<slug>.md` と `factsheets/<slug>.md` を更新する。
 
@@ -142,7 +141,7 @@ work/
 ## MarkItDown 方針
 
 - 変換の第一候補は **Microsoft MarkItDown**
-- 画像ファイル (`.png`, `.jpg` 等) は `--agent-ocr` フラグを使い GitHub Copilot のビジョン機能で OCR する
+- 画像ファイル (`.png`, `.jpg` 等) が含まれる場合、スクリプトが自動で agent-ocr モードを有効化し GitHub Copilot のビジョン機能で OCR する
 - スキャン PDF や画像中心資料で精度不足の場合は、OCR や Power Automate / AI Builder を併用する
 - 表や箇条書きは markdown として残し、情報欠落時は factsheet に注記する
 

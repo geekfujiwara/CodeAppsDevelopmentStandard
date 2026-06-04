@@ -26,16 +26,16 @@ cd .github/skills/spec-to-markdown/scripts
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# 画像を GitHub Copilot エージェントで OCR する場合（--agent-ocr は画像がある場合は必須）
-python convert_documents.py --agent-ocr
+# 画像が含まれる場合は自動で agent-ocr モードが有効化される
+python convert_documents.py
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
 cd .github\skills\spec-to-markdown\scripts
-# 画像を GitHub Copilot エージェントで OCR する場合（--agent-ocr は画像がある場合は必須）
-powershell -ExecutionPolicy Bypass -File run_windows.ps1 --agent-ocr
+# 画像が含まれる場合は自動で agent-ocr モードが有効化される
+powershell -ExecutionPolicy Bypass -File run_windows.ps1
 ```
 
 `run_windows.ps1` は初回実行時に仮想環境の作成とパッケージのインストールを自動で行う。  

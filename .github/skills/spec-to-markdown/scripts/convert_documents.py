@@ -423,16 +423,14 @@ def main() -> int:
     batch_started_at = datetime.now(timezone.utc).isoformat()
 
     agent_ocr_mode = args.agent_ocr
-
-    if agent_ocr_mode:
-        print("🖼️  --agent-ocr モード: 画像はエージェントが後から処理します。")
-    else:
+    if not agent_ocr_mode:
         image_files_present = any(f.suffix.lower() in IMAGE_EXTENSIONS for f in files)
         if image_files_present:
-            print(
-                "⚠️  画像ファイルが含まれています。"
-                " テキスト OCR を行うには --agent-ocr フラグを付けて実行してください。"
-            )
+            agent_ocr_mode = True
+            print("🖼️  画像ファイルを検出: agent-ocr モードを自動有効化しました。")
+
+    if agent_ocr_mode:
+        print("🖼️  agent-ocr モード: 画像はエージェントが後から処理します。")
     converter = MarkItDown()
 
     base_dir = input_path if input_path.is_dir() else input_path.parent
