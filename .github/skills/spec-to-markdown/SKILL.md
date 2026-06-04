@@ -1,6 +1,6 @@
 ---
 name: spec-to-markdown
-description: "office ドキュメントを anthropics/skills で markdown 化し、画像は agent-ocr で処理して /work/staging と /work/output に整理する。"
+description: "office ドキュメントを anthropics/skills で markdown 化し、画像は agent-ocr で処理して /work/staging と /work/docs に整理する。"
 category: ai
 argument-hint: "[任意: input フォルダのパス or ファイルパス]"
 user-invocable: true
@@ -26,7 +26,8 @@ office ドキュメント（PDF / PowerPoint / Excel / Word など）は **anthr
 出力は `/work` 配下の 2 段構成に統一する。
 
 - `/work/staging` : ファイル単位の markdown
-- `/work/output` : 業務要件 / 機能要件 / 設計要件 markdown
+- `/work/docs` : 業務要件 / 機能要件 / 設計要件 markdown
+- `/work/conversion-checklist.json` : 変換進捗（`is_completed`）管理
 
 ## 最初の依頼を簡単にする
 
@@ -34,8 +35,9 @@ office ドキュメント（PDF / PowerPoint / Excel / Word など）は **anthr
 
 - 既定入力: `work/input/`
 - 既定 staging 出力: `work/staging/`
-- 既定 output 出力: `work/output/`
-- `--input` / `--staging` / `--output` を指定した場合はそのパスを優先する
+- 既定 docs 出力: `work/docs/`
+- 既定 checklist: `work/conversion-checklist.json`
+- `--input` / `--staging` / `--docs`（互換: `--output`）/ `--checklist` を指定した場合はそのパスを優先する
 
 ## 基本フロー
 
@@ -44,10 +46,14 @@ office ドキュメント（PDF / PowerPoint / Excel / Word など）は **anthr
    - ファイル名は `元のファイル名.元の拡張子.MD`（例: `要件定義.docx.MD`）
 3. 画像ファイルは `pending_ocr.json` に記録し、agent-ocr で後続処理する
 4. 画像以外の文書は `pending_skills.json` に記録し、anthropics/skills で後続処理する
-5. `/work/output` に以下 3 つを作成する
+5. `/work/docs` に以下 3 つを作成する
    - `business-requirements.md`
    - `functional-requirements.md`
    - `design-requirements.md`
+6. `/work/conversion-checklist.json` を更新する
+   - 新規ファイルはチェックリストへ追加
+   - `is_completed=false` または更新差分ありのファイルのみ再処理
+   - 全件完了時は既存 `/work/docs` を参照して開発を継続
 
 ## agent-ocr 更新方針
 
@@ -66,17 +72,18 @@ office ドキュメント（PDF / PowerPoint / Excel / Word など）は **anthr
 
 - `source_path` の元ファイルを anthropics/skills で読み取り
 - 抽出 markdown を `staging_markdown_path` に反映
-- 処理済み後、`output` の 3 文書を更新
+- 処理済み後、`docs` の 3 文書を更新
 
 補足: anthropics/skills（Claude）は画像読解も可能だが、このスキルでは OCR の責務を agent-ocr に固定する。
 
-## `/work/output` で整理する観点
+## `/work/docs` で整理する観点
 
 ### business-requirements.md
 - 対象業務 / 目的
 - 利用者 / ロール
 - 業務フロー
 - 未確定事項 / 要確認事項
+- 要件変更履歴（変更理由を必ず併記）
 
 ### functional-requirements.md
 - Dataverse テーブル候補
@@ -85,12 +92,14 @@ office ドキュメント（PDF / PowerPoint / Excel / Word など）は **anthr
 - Power Automate の自動化要件
 - Copilot Studio / AI Builder の利用余地
 - 外部連携
+- 要件変更履歴（変更理由を必ず併記）
 
 ### design-requirements.md
 - Power Platform 全体構成案
 - セキュリティ / 権限 / 監査の論点
 - 設計上のリスク
 - Phase 0 で確認が必要な論点
+- 要件変更履歴（変更理由を必ず併記）
 
 ## 実行例
 

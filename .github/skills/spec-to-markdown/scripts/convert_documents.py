@@ -65,7 +65,7 @@ REPOSITORY_ROOT = find_repository_root(Path(__file__).resolve())
 DEFAULT_WORK_DIR = REPOSITORY_ROOT / "work"
 DEFAULT_INPUT_DIR = DEFAULT_WORK_DIR / "input"
 DEFAULT_STAGING_DIR = DEFAULT_WORK_DIR / "staging"
-DEFAULT_OUTPUT_DIR = DEFAULT_WORK_DIR / "output"
+DEFAULT_DOCS_DIR = DEFAULT_WORK_DIR / "docs"
 DEFAULT_CHECKLIST_PATH = DEFAULT_WORK_DIR / "conversion-checklist.json"
 
 
@@ -75,7 +75,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "input フォルダの文書を /work/staging に 元ファイル名.拡張子.MD で出力し、"
-            " /work/output に要件ドキュメントを出力する"
+            " /work/docs に要件ドキュメントを出力する"
         )
     )
     parser.add_argument(
@@ -93,11 +93,15 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--output",
+        "--docs",
         help=(
-            "output 出力フォルダ。"
-            f" 省略時は `{DEFAULT_OUTPUT_DIR}`"
+            "docs 出力フォルダ。"
+            f" 省略時は `{DEFAULT_DOCS_DIR}`"
         ),
+    )
+    parser.add_argument(
+        "--output",
+        help="後方互換オプション（`--docs` と同義）",
     )
     parser.add_argument(
         "--agent-ocr",
@@ -132,11 +136,11 @@ def resolve_output_path(path_arg: str | None, default_path: Path) -> Path:
 
 
 
-def discover_files(input_path: Path, staging_dir: Path, output_dir: Path) -> list[Path]:
+def discover_files(input_path: Path, staging_dir: Path, docs_dir: Path) -> list[Path]:
     if input_path.is_file():
         return [input_path] if input_path.suffix.lower() in SUPPORTED_EXTENSIONS else []
 
-    output_paths = {staging_dir.resolve(), output_dir.resolve()}
+    output_paths = {staging_dir.resolve(), docs_dir.resolve()}
     files = [
         path
         for path in sorted(input_path.rglob("*"))
@@ -272,6 +276,9 @@ def build_requirements_doc(
         "- `staging` の markdown を根拠に整理すること",
         "- 情報不足は推測せず `要確認` として残すこと",
         "",
+        "## 4. 要件変更履歴",
+        "- 記載ルール: 変更内容と理由を必ず併記する（例: `2026-06-04: xxx を変更（理由: xxx）`）",
+        "",
     ])
     return "\n".join(lines)
 
@@ -286,7 +293,7 @@ def main() -> int:
     args = parse_args()
     input_path = resolve_input_path(args.input)
     output_staging = resolve_output_path(args.staging, DEFAULT_STAGING_DIR)
-    output_dir = resolve_output_path(args.output, DEFAULT_OUTPUT_DIR)
+    docs_dir = resolve_output_path(args.docs or args.output, DEFAULT_DOCS_DIR)
     checklist_path = resolve_output_path(args.checklist, DEFAULT_CHECKLIST_PATH)
 
     if not input_path.exists():
@@ -296,7 +303,7 @@ def main() -> int:
             f" 既定入力フォルダを使う場合は `{DEFAULT_INPUT_DIR}` にファイルを配置してください。"
         )
 
-    files = discover_files(input_path, output_staging, output_dir)
+    files = discover_files(input_path, output_staging, docs_dir)
     if not files:
         raise SystemExit(
             "変換対象ファイルが見つかりません。"
@@ -304,7 +311,7 @@ def main() -> int:
         )
 
     output_staging.mkdir(parents=True, exist_ok=True)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    docs_dir.mkdir(parents=True, exist_ok=True)
 
     batch_started_at = datetime.now(timezone.utc).isoformat()
     agent_ocr_mode = args.agent_ocr or any(f.suffix.lower() in IMAGE_EXTENSIONS for f in files)
@@ -484,9 +491,9 @@ def main() -> int:
     )
     print(f"📝 wrote: {checklist_path}")
 
-    business_doc = output_dir / "business-requirements.md"
-    functional_doc = output_dir / "functional-requirements.md"
-    design_doc = output_dir / "design-requirements.md"
+    business_doc = docs_dir / "business-requirements.md"
+    functional_doc = docs_dir / "functional-requirements.md"
+    design_doc = docs_dir / "design-requirements.md"
 
     if processed_count > 0 or not (business_doc.exists() and functional_doc.exists() and design_doc.exists()):
         write_text(
@@ -538,12 +545,12 @@ def main() -> int:
         print(f"📝 wrote: {functional_doc}")
         print(f"📝 wrote: {design_doc}")
     else:
-        print("✅ 未完了変換はありません。既存の /work/output を参照して開発を進めてください。")
+        print(f"✅ 未完了変換はありません。既存の `{docs_dir}` を参照して開発を進めてください。")
 
     print(f"📁 staging: {output_staging}")
-    print(f"📁 output: {output_dir}")
+    print(f"📁 docs: {docs_dir}")
     print(f"📋 checklist: {checklist_path}")
-    print("次のステップ: checklist で is_completed=false の項目を解消し、必要時のみ output を更新してください。")
+    print("次のステップ: checklist で is_completed=false の項目を解消し、必要時のみ docs を更新してください。")
 
     return 0
 

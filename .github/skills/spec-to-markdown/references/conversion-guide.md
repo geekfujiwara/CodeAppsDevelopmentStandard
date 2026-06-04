@@ -5,7 +5,8 @@
 このスキルの出力は `/work` 配下の 2 段構成。
 
 1. `/work/staging`（ファイル単位 markdown）
-2. `/work/output`（業務要件 / 機能要件 / 設計要件）
+2. `/work/docs`（業務要件 / 機能要件 / 設計要件）
+3. `/work/conversion-checklist.json`（`is_completed` 管理）
 
 ## 2. 推奨コマンド
 
@@ -38,7 +39,8 @@ powershell -ExecutionPolicy Bypass -File run_windows.ps1
 
 - 入力: `<repo-root>/work/input/`
 - staging: `<repo-root>/work/staging/`
-- output: `<repo-root>/work/output/`
+- docs: `<repo-root>/work/docs/`
+- checklist: `<repo-root>/work/conversion-checklist.json`
 
 オプション:
 
@@ -46,7 +48,8 @@ powershell -ExecutionPolicy Bypass -File run_windows.ps1
 python convert_documents.py \
   --input /absolute/path/to/input \
   --staging /absolute/path/to/staging \
-  --output /absolute/path/to/output
+  --docs /absolute/path/to/docs \
+  --checklist /absolute/path/to/conversion-checklist.json
 ```
 
 ## 4. 出力ファイル命名
@@ -81,13 +84,14 @@ python convert_documents.py \
 - `sha256`
 - `processor` (`anthropics/skills`)
 
-## 6. output の構成
+## 6. docs の構成
 
 ### business-requirements.md
 - 対象業務 / 目的
 - 利用者 / ロール
 - 業務フロー
 - 未確定事項 / 要確認事項
+- 要件変更履歴（理由を併記）
 
 ### functional-requirements.md
 - Dataverse テーブル候補
@@ -96,14 +100,23 @@ python convert_documents.py \
 - Power Automate の自動化要件
 - Copilot Studio / AI Builder の利用余地
 - 外部連携
+- 要件変更履歴（理由を併記）
 
 ### design-requirements.md
 - Power Platform 全体構成案
 - セキュリティ / 権限 / 監査の論点
 - 設計上のリスク
 - Phase 0 で確認が必要な論点
+- 要件変更履歴（理由を併記）
 
-## 7. 処理ルール
+## 7. conversion-checklist の運用
+
+- 新規ファイルが `input` に増えたらチェックリストへ追加
+- `is_completed=false` のファイルは再処理対象
+- 既存ファイルでも `source_sha256` が変わったら再処理対象
+- 全件完了時は `docs` を参照して開発を進める
+
+## 8. 処理ルール
 
 - 画像は必ず agent-ocr
 - 画像以外は anthropics/skills
@@ -112,7 +125,7 @@ python convert_documents.py \
 
 補足: anthropics/skills（Claude）も画像読解は可能だが、この運用では OCR を agent-ocr に固定する。
 
-## 8. 備考
+## 9. 備考
 
-`convert_documents.py` は staging/output の土台作成と pending manifest 生成を担当する。  
-manifest の解消（agent-ocr / anthropics/skills 実行）後、`output` を確定版に更新する。
+`convert_documents.py` は staging/docs の土台作成と pending manifest 生成を担当する。  
+manifest の解消（agent-ocr / anthropics/skills 実行）後、`docs` を確定版に更新する。
