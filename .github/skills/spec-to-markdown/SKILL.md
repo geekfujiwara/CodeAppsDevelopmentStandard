@@ -15,6 +15,11 @@ triggers:
   - "document.md"
   - "requirements markdown"
   - "inputフォルダ"
+  - "画像をOCR"
+  - "画像を要件"
+  - "スクリーンショットを要件"
+  - "PNG を markdown"
+  - "JPG を markdown"
 ---
 
 # 仕様書→要件 markdown 変換スキル
@@ -99,6 +104,7 @@ work/
 ## MarkItDown 方針
 
 - 変換の第一候補は **Microsoft MarkItDown**
+- 画像ファイル (`.png`, `.jpg` 等) は `OPENAI_API_KEY` または `AZURE_OPENAI_*` 環境変数を設定すると LLM ビジョンで OCR できる
 - スキャン PDF や画像中心資料で精度不足の場合は、OCR や Power Automate / AI Builder を併用する
 - 表や箇条書きは markdown として残し、情報欠落時は factsheet に注記する
 

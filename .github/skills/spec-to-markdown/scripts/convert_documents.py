@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -31,6 +32,15 @@ SUPPORTED_EXTENSIONS = {
     ".txt",
     ".html",
     ".htm",
+    # 画像ファイル（OCR / LLM ビジョンで抽出）
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".bmp",
+    ".webp",
+    ".tiff",
+    ".tif",
 }
 
 
@@ -156,6 +166,43 @@ def ensure_directories(output_dir: Path) -> tuple[Path, Path]:
     raw_dir.mkdir(parents=True, exist_ok=True)
     factsheet_dir.mkdir(parents=True, exist_ok=True)
     return raw_dir, factsheet_dir
+
+
+def _build_llm_client() -> tuple[object | None, str | None]:
+    """OpenAI / Azure OpenAI クライアントを環境変数から作成する。未設定時は (None, None)。
+
+    優先順位:
+    1. AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY → Azure OpenAI
+    2. OPENAI_API_KEY → OpenAI
+
+    画像ファイル (.png/.jpg 等) の OCR にはこのクライアントが必要。
+    未設定の場合、画像は EXIF メタデータのみ抽出される。
+    """
+    try:
+        from openai import AzureOpenAI, OpenAI  # type: ignore[import-untyped]
+    except ImportError:
+        return None, None
+
+    azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip()
+    azure_key = os.environ.get("AZURE_OPENAI_API_KEY", "").strip()
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+
+    if azure_endpoint and azure_key:
+        api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+        deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+        client = AzureOpenAI(
+            azure_endpoint=azure_endpoint,
+            api_key=azure_key,
+            api_version=api_version,
+        )
+        return client, deployment
+
+    if openai_key:
+        model = os.environ.get("OPENAI_MODEL", "gpt-4o")
+        client = OpenAI(api_key=openai_key)
+        return client, model
+
+    return None, None
 
 
 def convert_file(converter: MarkItDown, source_path: Path) -> str:
@@ -326,7 +373,23 @@ def main() -> int:
 
     raw_dir, factsheet_dir = ensure_directories(output_dir)
     batch_started_at = datetime.now(timezone.utc).isoformat()
-    converter = MarkItDown()
+
+    llm_client, llm_model = _build_llm_client()
+    if llm_client:
+        print(f"🤖 LLM client detected (model={llm_model}): 画像OCRが有効です。")
+        converter = MarkItDown(llm_client=llm_client, llm_model=llm_model)
+    else:
+        image_files = [f for f in files if f.suffix.lower() in {
+            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"
+        }]
+        if image_files:
+            print(
+                "⚠️  LLM クライアント未設定: 画像ファイルは EXIF メタデータのみ抽出されます。"
+                " テキスト OCR を行うには OPENAI_API_KEY または"
+                " AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY を設定してください。"
+            )
+        converter = MarkItDown()
+
     base_dir = input_path if input_path.is_dir() else input_path.parent
 
     results: list[ConversionResult] = []
