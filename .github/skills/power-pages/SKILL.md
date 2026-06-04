@@ -34,6 +34,7 @@ triggers:
 
 | リファレンス | 内容 |
 |---|---|
+| [upstream 優先構成ガイド](references/upstream-alignment.md) | `microsoft/power-platform-skills` 基準での責務分離・実行順序・刷新方針 |
 | [Dataverse クライアント実装](references/dataverse-client.md) | `apiGet/apiPost/apiPatch/apiDelete` の実コード・anti-forgery トークン・OData クエリ・dev プロキシ・**Code Apps との対比** |
 | [認証実装](references/authentication.md) | **SSO・サインアウト・ログインボタン・認証ガード・UI フロー**の実コード一式・サーバー側 IdP/サイト設定・Code Apps との対比 |
 | [Enhanced Data Model テーブル権限](references/enhanced-data-model-permissions.md) | EDM 2.0 のテーブル権限設定・3 レイヤー権限・N:N バグ・ワークアラウンド |
@@ -42,6 +43,28 @@ triggers:
 | [デザインテンプレート集](references/design-templates.md) | 5 種類の配色テンプレート定義。設計時に提案→選択→適用 |
 
 > **Dataverse 接続と認証の実装方法はこのファイルで概要を説明し、完全なサンプルコードは上記 References にまとめている。**
+
+---
+
+## 刷新版の構成原則（upstream 優先）
+
+このスキルは `microsoft/power-platform-skills/plugins/power-pages` の以下 4 スキルを優先参照して構成する。
+
+| 領域 | upstream スキル | このスキル内の着地 |
+|---|---|---|
+| 認証・認可 | `setup-auth` | `references/authentication.md` |
+| Web ロール | `create-webroles` | `references/enhanced-data-model-permissions.md` |
+| Dataverse CRUD | `integrate-webapi` | `references/dataverse-client.md` |
+| 権限監査 | `audit-permissions` | `reviews/*` + `scripts/review_pre_deploy.py` |
+
+**標準実行順序（刷新後）**
+1. デプロイ基盤準備（`.powerpages-site` 作成）  
+2. Web ロール整備  
+3. 認証導線（SSO/ログイン/ログアウト）整備  
+4. Dataverse Web API CRUD 実装  
+5. 権限監査（ロール・テーブル権限整合）  
+
+> 詳細な責務分離と判断基準は [upstream 優先構成ガイド](references/upstream-alignment.md) を正本として扱う。
 
 ---
 

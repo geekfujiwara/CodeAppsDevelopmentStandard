@@ -6,6 +6,7 @@ Power Pages Code Site（SPA）における認証一式の実装サンプル。
 
 > **位置づけ**: SKILL.md「SSO + プロフィール編集」の詳細版。
 > Dataverse の読み書きクライアントは [Dataverse クライアント実装リファレンス](dataverse-client.md) を参照。
+> 全体の責務分離は [upstream 優先構成ガイド](upstream-alignment.md) を参照。
 
 ---
 
