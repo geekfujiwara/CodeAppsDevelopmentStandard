@@ -19,12 +19,38 @@ npm install
 npm run setup
 ```
 
-その後、必要に応じて個別に実行する。
+### macOS / Linux
 
 ```bash
 cd .github/skills/spec-to-markdown/scripts
 python -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
+# 画像が含まれる場合は自動で agent-ocr モードが有効化される
+python convert_documents.py
+```
+
+### Windows (PowerShell)
+
+```powershell
+cd .github\skills\spec-to-markdown\scripts
+# 画像が含まれる場合は自動で agent-ocr モードが有効化される
+powershell -ExecutionPolicy Bypass -File run_windows.ps1
+```
+
+`run_windows.ps1` は初回実行時に仮想環境の作成とパッケージのインストールを自動で行う。  
+引数も透過的に渡せる。
+
+```powershell
+# 入力フォルダを指定する場合
+powershell -ExecutionPolicy Bypass -File run_windows.ps1 --input C:\Users\user\Documents\specs
+```
+
+Windows で手動セットアップする場合:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python convert_documents.py
 ```
@@ -37,9 +63,15 @@ python convert_documents.py
 入力や出力を明示したい場合だけ override する。
 
 ```bash
+# macOS / Linux
 python convert_documents.py \
   --input /absolute/path/to/input \
   --output /absolute/path/to/output
+
+# Windows
+python convert_documents.py `
+  --input C:\absolute\path\to\input `
+  --output C:\absolute\path\to\output
 ```
 
 ### 入力セット運用の例
@@ -49,6 +81,7 @@ work/spec-to-markdown/input/
   customer-a/
     要件定義書.pdf
     画面一覧.xlsx
+    UI_mockup.png
   project-x/
     業務フロー.pptx
 ```
@@ -64,8 +97,10 @@ work/spec-to-markdown/input/
 - Excel (`.xls`, `.xlsx`)
 - Word (`.doc`, `.docx`)
 - markdown / text / html
+- **画像** (`.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.webp`, `.tiff`, `.tif`)
 
-> Word / markdown / html まで含めるのは、添付仕様や補足メモが混在しやすいため。
+> Word / markdown / html まで含めるのは、添付仕様や補足メモが混在しやすいため。  
+> 画像は `--agent-ocr` フラグを使い GitHub Copilot のビジョン機能でテキストを抽出する。
 
 ## 4. factsheet テンプレート
 
@@ -132,6 +167,7 @@ work/spec-to-markdown/input/
 - PDF / Office 系ファイルを markdown に寄せて扱える
 - 見出し・箇条書き・表の構造を比較的保ちやすい
 - 後段の LLM 要約や requirements 整理に渡しやすい
+- 画像は GitHub Copilot のビジョン機能（`--agent-ocr`）で OCR することで、スキャン図・スクリーンショットも対象にできる
 
 ## 8. 限界と補完方針
 
