@@ -32,7 +32,7 @@ def ask_subdomain():
     t = auth_helper.get_token(scope="https://api.powerplatform.com/.default")
     h = {"Authorization": f"Bearer {t}", "Content-Type": "application/json"}
     base = f"https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites"
-    r = requests.get(f"{base}?api-version=2024-10-01", headers=h)
+    r = requests.get(f"{base}?api-version=2022-03-01-preview", headers=h)
     sites = r.json().get("value", [])
     if not sites:
         print("  環境にサイトが見つかりません。PAGES_SUBDOMAIN を .env に手動設定してください。")
@@ -106,14 +106,14 @@ def main():
         t = auth_helper.get_token(scope="https://api.powerplatform.com/.default")
         h = {"Authorization": f"Bearer {t}", "Content-Type": "application/json"}
         base = f"https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites"
-        r = requests.get(f"{base}?api-version=2024-10-01", headers=h)
+        r = requests.get(f"{base}?api-version=2022-03-01-preview", headers=h)
         site_found = False
         for s in r.json().get("value", []):
             match = (SUBDOMAIN and s.get("subdomain") == SUBDOMAIN) or \
                     (not SUBDOMAIN and s.get("name", "").startswith(SITE_NAME))
             if match:
                 sid = s["id"]
-                rr = requests.post(f"{base}/{sid}/restart?api-version=2024-10-01", headers=h)
+                rr = requests.post(f"{base}/{sid}/restart?api-version=2022-03-01-preview", headers=h)
                 print(f"  Restart: {rr.status_code}")
                 print(f"  URL: {s.get('websiteUrl')}")
                 site_found = True

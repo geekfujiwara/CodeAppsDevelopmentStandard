@@ -282,7 +282,7 @@ create_table_permission(
 ## 核心原則
 
 1. **`pac pages upload-code-site` がサイト作成とデプロイの両方を行う** — API でサイトを事前作成する必要はない
-2. **初回は Inactive Sites に作成される** → Power Pages ポータル or PP API でアクティブ化
+2. **初回は Inactive Sites に作成される** → PP API (`2022-03-01-preview`) で `activate_site.py` を使ってアクティブ化
 3. **2回目以降は upload-code-site → restart の2ステップだけ**
 4. **Post-Upload Fix は不要** — `upload-code-site` が header/footer/page を正しく構成する
 5. **`.powerpages-site/` は upload-code-site が自動管理する** — ただし `site-settings/` YAML は手動追加して永続化できる（下記参照）
@@ -295,11 +295,51 @@ create_table_permission(
 
 ```
 初回:
-  npm run build → pac pages upload-code-site → Activate → setup_contact_webapi.py → Restart
+  npm run build
+  → pac pages upload-code-site          ← Inactive Sites に作成
+  → py portal/scripts/activate_site.py  ← PP API でアクティブ化 (api-version=2022-03-01-preview)
+  → py portal/scripts/setup_contact_webapi.py
+  → Restart (deploy.py --skip-build or PP API restart)
 
 2回目以降:
   npm run build → pac pages upload-code-site → Restart
+  (deploy.py がビルド・アップロード・リスタートを一括実行)
 ```
+
+### アクティベーション詳細
+
+> **参照**: [microsoft/power-platform-skills activate-site](https://github.com/microsoft/power-platform-skills/tree/main/plugins/power-pages/skills/activate-site)
+
+初回の `pac pages upload-code-site` はサイトを **Inactive Sites** に作成する。
+アクティブ化は **Power Platform API** (`api-version=2022-03-01-preview`) で行う。
+
+```
+POST https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites?api-version=2022-03-01-preview
+
+Body:
+{
+  "name": "<PAGES_SITE_NAME>",
+  "subdomain": "<PAGES_SUBDOMAIN>",
+  "templateName": "DefaultPortalTemplate",
+  "dataverseOrganizationId": "<org_id>",
+  "selectedBaseLanguage": 1033,
+  "websiteRecordId": "<powerpagesiteid>"     ← pac pages upload-code-site が作った ID
+}
+
+Response: 202 Accepted + Operation-Location ヘッダー
+→ Operation-Location を 10 秒間隔でポーリング
+→ OperationComplete = 成功、OperationFailed = 失敗
+```
+
+| パラメータ | 取得方法 |
+|---|---|
+| `ENV_ID` | .env |
+| `PAGES_SITE_NAME` | .env / powerpages.config.json の siteName |
+| `PAGES_SUBDOMAIN` | .env / ユーザー指定 |
+| `dataverseOrganizationId` | `GET /api/data/v9.2/organizations?$select=organizationid` |
+| `websiteRecordId` | `GET /api/data/v9.2/powerpagesites` から name で検索 |
+
+**⚠️ API バージョン注意**: `2022-03-01-preview` を使用すること。`2024-10-01` ではアクティベーションが正しく動作しない。
 
 ## 前提条件
 
@@ -314,6 +354,8 @@ create_table_permission(
 ```env
 DATAVERSE_URL=https://{org}.crm.dynamics.com/
 ENV_ID=                               # Power Platform 環境 ID
+PAGES_SITE_NAME=                      # サイト名 (powerpages.config.json の siteName と一致)
+PAGES_SUBDOMAIN=                      # サブドメイン (例: myportal → myportal.powerappsportals.com)
 ```
 
 ## プロジェクト構造（公式準拠）
@@ -663,9 +705,19 @@ npm run build
 pac pages upload-code-site --rootPath .
 ```
 
-### 2-C: サイトのアクティブ化
+### 2-C: サイトのアクティブ化（PP API 経由）
 
-Power Pages ポータルの Inactive sites から **再アクティブ化** をクリック。
+```bash
+py portal/scripts/activate_site.py
+```
+
+スクリプトが以下を自動実行:
+1. PP API でサイトが既にアクティブか確認
+2. Dataverse から Organization ID と Website Record ID を取得
+3. パラメータ確認後、PP API に POST
+4. Operation-Location をポーリングして完了待ち（最大 5 分）
+
+> カスタムサブドメインを指定する場合: `py portal/scripts/activate_site.py --subdomain my-portal`
 
 ### 2-D: Contact Web API 有効化（★初回必須）
 
