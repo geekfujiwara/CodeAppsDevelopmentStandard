@@ -421,6 +421,8 @@ portal/
 ├── vite.config.ts
 └── scripts/
     ├── deploy.py                 ← デプロイスクリプト (Build→Upload→Restart)
+    ├── activate_site.py          ← PP API サイトアクティベーション
+    ├── setup_auth.py             ← Entra ID SSO 認証設定 (Site Settings + Liquid 注入)
     └── setup_contact_webapi.py   ← Contact Web API 有効化 (EDM 2.0 対応)
 ```
 
@@ -470,6 +472,8 @@ await apiPost("geek_incidents", { geek_name: "新規チケット", geek_status: 
 
 ## ★ SSO + プロフィール編集 (デフォルト実装)
 
+> **公式リファレンス**: [microsoft/power-platform-skills setup-auth](https://github.com/microsoft/power-platform-skills/tree/main/plugins/power-pages/skills/setup-auth)
+
 **実装方法の概要**: 認証はサーバー側のセッション Cookie で完結する。クライアントはトークンを
 持たず、ポータルランタイムが注入する `window.Microsoft.Dynamic365.Portal.User` を信頼して
 「ログイン済みか」「誰か」を判定する。**認証判定で `/_api/contacts` をクエリしてはいけない**
@@ -480,9 +484,49 @@ await apiPost("geek_incidents", { geek_name: "新規チケット", geek_status: 
 | 機能 | 実現方法 |
 |------|---------|
 | 認証状態判定 | `Portal.User` を読むだけ（API 呼び出しなし） |
-| ① シングルサインオン（login） | `/SignIn` から token+provider を抽出し `/Account/Login/ExternalLogin` へ form POST（プロバイダー選択ページをスキップ） |
-| ② サインアウト（logout） | `/Account/Login/LogOff?returnUrl=%2F` へ遷移 |
-| ③ ログインボタン | ヘッダーで `login`/`logout` を認証状態に応じて出し分け |
+| ① SSO ログイン | `/_layout/tokenhtml` + `Portal.tenant` → form POST to `/Account/Login/ExternalLogin` |
+| ② サインアウト | `/Account/Login/LogOff?returnUrl=%2F` へ遷移 |
+| ③ セッション keepalive | 定期的に `/_layout/tokenhtml` をフェッチしてセッション Cookie を更新 |
+| ④ ログインボタン | ヘッダーで `login`/`logout` を認証状態に応じて出し分け |
+
+### SSO ログインフロー（Entra ID — 推奨パターン）
+
+```
+① useAuth().login() 呼び出し
+   ↓
+② fetch("/_layout/tokenhtml") → anti-forgery token 取得
+   ↓
+③ Portal.tenant から provider を解決: "https://login.windows.net/{tenantId}/"
+   ↓
+④ form POST → /Account/Login/ExternalLogin
+   { provider, returnUrl: "/", __RequestVerificationToken }
+   ↓
+⑤ Power Pages → Entra ID へリダイレクト → SSO 認証
+   ↓
+⑥ Entra ID → callback → セッション Cookie 設定 → returnUrl へリダイレクト
+```
+
+> **重要**: Provider identifier は `https://login.windows.net/{tenantId}/` であり
+> `https://login.microsoftonline.com/{tenantId}/` ではない。
+> Power Pages は Entra ID の site settings (`Authentication/OpenIdConnect/AzureAD/AuthenticationType`)
+> に `login.windows.net` を使う。
+
+### セッション keepalive
+
+SPA ではページ遷移がクライアント側で完結するため、サーバーへのリクエストが発生しない。
+セッション Cookie の `SlidingExpiration` はサーバーリクエスト時にしか更新されないため、
+keepalive なしだとユーザーがアクティブに操作中でもセッションがサイレントに期限切れする。
+
+```typescript
+// 10分間隔で /_layout/tokenhtml をフェッチしてセッションを維持
+useEffect(() => {
+  if (!isAuthenticated) return;
+  const id = setInterval(() => {
+    fetch("/_layout/tokenhtml", { credentials: "same-origin" }).catch(() => {});
+  }, 10 * 60 * 1000);
+  return () => clearInterval(id);
+}, [isAuthenticated]);
+```
 
 > **完全な実装コード**（`use-auth.ts` の SSO/サインアウト・ログインボタン UI・`RequireAuth`
 > 認証ガード・ルート組み込み・UI フロー図・プロフィール編集）は
@@ -494,8 +538,10 @@ await apiPost("geek_incidents", { geek_name: "新規チケット", geek_status: 
 |------|-------------|-----------|
 | 認証の場所 | サーバー側（セッション Cookie） | クライアント + コネクタ |
 | トークン管理 | なし（Cookie 自動送信） | SDK が内部管理 |
-| ログイン | Entra ID へ form POST | コネクタのサインイン |
+| ログイン | `/_layout/tokenhtml` + form POST to ExternalLogin | コネクタのサインイン |
+| Provider解決 | `Portal.tenant` → `login.windows.net/{tenantId}/` | コネクタが管理 |
 | ユーザー情報 | `Portal.User`（contact） | `getContext().user`（systemuser） |
+| セッション維持 | keepalive（`/_layout/tokenhtml` 定期フェッチ） | SDK が管理 |
 
 ---
 
