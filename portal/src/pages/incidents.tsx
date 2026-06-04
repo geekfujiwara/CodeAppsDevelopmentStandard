@@ -91,10 +91,10 @@ export default function IncidentsPage() {
     <div className="space-y-6">
       {/* ヘッダー */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">インシデント一覧</h1>
+        <h1 className="text-2xl font-bold text-foreground">サービスリクエスト一覧</h1>
         <Button onClick={() => navigate("/incidents/new")} className="gap-2">
           <PlusCircle className="h-4 w-4" />
-          新規報告
+          新規リクエスト
         </Button>
       </div>
 
@@ -154,7 +154,7 @@ export default function IncidentsPage() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="タイトル・報告者で検索..."
+          placeholder="タイトル・送信者で検索..."
           className="w-full h-10 pl-10 pr-4 rounded-lg border border-border/60 bg-card text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
         />
       </div>
@@ -186,7 +186,7 @@ export default function IncidentsPage() {
       {/* カードギャラリー */}
       {filtered.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">インシデントがありません</p>
+          <p className="text-muted-foreground">リクエストがありません</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -5,41 +5,42 @@
 
 :root {
   font-family:
-    "Inter",
+    "IBM Plex Sans",
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
     sans-serif;
   line-height: 1.6;
   font-weight: 400;
-  letter-spacing: -0.01em;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --radius: 0.75rem;
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --radius: 0.625rem;
+  --background: #F8F9FB;
+  --foreground: #1A1D23;
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #1A1D23;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #6366f1;
+  --popover-foreground: #1A1D23;
+  --primary: #0052CC;
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #334155;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #8b5cf6;
+  --secondary: #1B2A4A;
+  --secondary-foreground: #ffffff;
+  --muted: #F1F3F8;
+  --muted-foreground: #6B7280;
+  --accent: #2684FF;
   --accent-foreground: #ffffff;
-  --destructive: #ef4444;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #6366f1;
+  --destructive: #DC2626;
+  --border: #E5E7EB;
+  --input: #E5E7EB;
+  --ring: #0052CC;
   --header-bg: #ffffff;
-  --gradient-start: #6366f1;
-  --gradient-mid: #8b5cf6;
-  --gradient-end: #a855f7;
+  --gradient-start: #0052CC;
+  --gradient-mid: #2684FF;
+  --gradient-end: #0065FF;
+  --color-success: #059669;
+  --color-warning: #D97706;
 }
 
 @theme inline {
@@ -69,28 +70,30 @@
 }
 
 .dark {
-  --background: #030712;
-  --foreground: #f1f5f9;
+  --background: #0B1222;
+  --foreground: #E8ECF1;
   --card: #111827;
-  --card-foreground: #f1f5f9;
+  --card-foreground: #E8ECF1;
   --popover: #111827;
-  --popover-foreground: #f1f5f9;
-  --primary: #818cf8;
-  --primary-foreground: #030712;
-  --secondary: #1e293b;
+  --popover-foreground: #E8ECF1;
+  --primary: #2684FF;
+  --primary-foreground: #ffffff;
+  --secondary: #1E293B;
   --secondary-foreground: #e2e8f0;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --accent: #a78bfa;
-  --accent-foreground: #030712;
+  --muted: #1E293B;
+  --muted-foreground: #94A3B8;
+  --accent: #4C9AFF;
+  --accent-foreground: #ffffff;
   --destructive: #f87171;
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #818cf8;
-  --header-bg: #030712;
-  --gradient-start: #818cf8;
-  --gradient-mid: #a78bfa;
-  --gradient-end: #c084fc;
+  --border: #1E293B;
+  --input: #1E293B;
+  --ring: #2684FF;
+  --header-bg: #0B1222;
+  --gradient-start: #2684FF;
+  --gradient-mid: #4C9AFF;
+  --gradient-end: #0065FF;
+  --color-success: #34D399;
+  --color-warning: #FBBF24;
 }
 
 @layer base {
@@ -123,16 +126,19 @@
 
   .shadow-premium {
     box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.04),
-      0 4px 8px rgba(0, 0, 0, 0.04),
-      0 8px 16px rgba(0, 0, 0, 0.04),
-      0 16px 32px rgba(0, 0, 0, 0.02);
+      0 1px 3px rgba(0, 0, 0, 0.06),
+      0 4px 12px rgba(0, 0, 0, 0.08);
   }
   .dark .shadow-premium {
     box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.2),
-      0 4px 8px rgba(0, 0, 0, 0.15),
-      0 8px 16px rgba(0, 0, 0, 0.1);
+      0 1px 3px rgba(0, 0, 0, 0.2),
+      0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .shadow-premium-lg {
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.08),
+      0 8px 30px rgba(0, 0, 0, 0.1);
   }
 
   .header-gradient-line {
@@ -151,15 +157,15 @@
       box-shadow 0.2s ease;
   }
   .card-hover:hover {
-    transform: translateY(-2px);
+    transform: translateY(-1px);
     box-shadow:
-      0 4px 12px rgba(99, 102, 241, 0.08),
-      0 8px 24px rgba(99, 102, 241, 0.06);
+      0 4px 12px rgba(0, 82, 204, 0.08),
+      0 8px 24px rgba(0, 82, 204, 0.06);
   }
   .dark .card-hover:hover {
     box-shadow:
-      0 4px 12px rgba(129, 140, 248, 0.1),
-      0 8px 24px rgba(129, 140, 248, 0.06);
+      0 4px 12px rgba(38, 132, 255, 0.1),
+      0 8px 24px rgba(38, 132, 255, 0.06);
   }
 
   .animate-fade-in {
@@ -173,6 +179,34 @@
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+
+  /* site-14s3s: fadeInUp for staggered section animations */
+  .animate-in {
+    opacity: 0;
+    animation: fadeInUp 0.6s ease-out forwards;
+  }
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-in-1 { animation-delay: 0.1s; }
+  .animate-in-2 { animation-delay: 0.2s; }
+  .animate-in-3 { animation-delay: 0.3s; }
+  .animate-in-4 { animation-delay: 0.4s; }
+  .animate-in-5 { animation-delay: 0.5s; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-in {
+      animation: none;
+      opacity: 1;
     }
   }
 }

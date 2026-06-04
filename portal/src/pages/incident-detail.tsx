@@ -52,10 +52,10 @@ export default function IncidentDetailPage() {
       <div className="text-center py-12 space-y-3">
         <XCircle className="h-12 w-12 text-destructive mx-auto" />
         <p className="text-destructive font-medium">
-          {error ?? "インシデントが見つかりません"}
+          {error ?? "リクエストが見つかりません"}
         </p>
         <Button variant="outline" onClick={() => navigate("/incidents")}>
-          一覧に戻る
+          リクエスト一覧に戻る
         </Button>
       </div>
     );
@@ -65,7 +65,7 @@ export default function IncidentDetailPage() {
     { value: 100000000, label: "新規", icon: AlertTriangle },
     { value: 100000001, label: "対応中", icon: Clock },
     { value: 100000002, label: "解決済", icon: CheckCircle2 },
-    { value: 100000003, label: "クローズ", icon: XCircle },
+    { value: 100000003, label: "完了", icon: XCircle },
   ];
 
   const currentStepIdx = statusSteps.findIndex(
@@ -164,12 +164,12 @@ export default function IncidentDetailPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InfoItem
             icon={User}
-            label="報告者"
+            label="送信者"
             value={incident["_geek_inquirerid_value@OData.Community.Display.V1.FormattedValue"]}
           />
           <InfoItem
             icon={Monitor}
-            label="資産タイプ"
+            label="サービス種別"
             value={
               incident.geek_assettype != null
                 ? assetTypeLabels[incident.geek_assettype]

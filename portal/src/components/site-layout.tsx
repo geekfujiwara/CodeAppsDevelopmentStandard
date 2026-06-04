@@ -10,6 +10,12 @@ import {
   Menu,
   X,
   ChevronDown,
+  Home,
+  List,
+  Search,
+  User,
+  Send,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -20,10 +26,17 @@ type NavGroup = { label: string; items: NavItem[] };
 
 const navGroups: NavGroup[] = [
   {
-    label: "インシデント",
+    label: "サービス",
     items: [
-      { icon: AlertTriangle, label: "インシデント一覧", path: "/incidents" },
-      { icon: PlusCircle, label: "新規報告", path: "/incidents/new" },
+      { icon: List, label: "サービス一覧", path: "/incidents" },
+      { icon: Send, label: "リクエスト送信", path: "/incidents/new" },
+    ],
+  },
+  {
+    label: "サポート",
+    items: [
+      { icon: Search, label: "リクエスト追跡", path: "/incidents" },
+      { icon: User, label: "プロフィール", path: "/profile" },
     ],
   },
 ];
@@ -112,10 +125,10 @@ export function SiteLayout() {
             {/* ロゴ */}
             <NavLink to="/" className="flex items-center gap-2.5 shrink-0">
               <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md">
-                <AlertTriangle className="h-4 w-4 text-white" />
+                <FileText className="h-4 w-4 text-white" />
               </div>
               <span className="text-base font-semibold text-foreground hidden sm:block">
-                インシデントポータル
+                サービスリクエスト
               </span>
             </NavLink>
 
@@ -243,10 +256,75 @@ export function SiteLayout() {
 
       {/* フッター */}
       <footer className="border-t border-border/50 bg-card/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <p className="text-center text-xs text-muted-foreground">
-            Powered by Power Pages
-          </p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-7 w-7 rounded-md bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                  <FileText className="h-3.5 w-3.5 text-white" />
+                </div>
+                <span className="text-sm font-semibold text-foreground">
+                  サービスリクエスト
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                サービスリクエストの送信・追跡が
+                <br />
+                簡単にできるポータルサイトです。
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-foreground mb-2">
+                クイックリンク
+              </p>
+              <ul className="space-y-1">
+                <li>
+                  <NavLink
+                    to="/"
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    ホーム
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/incidents"
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    サービス一覧
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/incidents/new"
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    リクエスト送信
+                  </NavLink>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-foreground mb-2">
+                サポート
+              </p>
+              <ul className="space-y-1">
+                <li>
+                  <NavLink
+                    to="/profile"
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    プロフィール
+                  </NavLink>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-border/50 pt-4">
+            <p className="text-center text-[11px] text-muted-foreground">
+              Powered by Power Pages
+            </p>
+          </div>
         </div>
       </footer>
     </div>

@@ -44,7 +44,7 @@ export default function IncidentNewPage() {
       await createIncident(payload);
       navigate("/incidents");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "登録に失敗しました");
+      setError(err instanceof Error ? err.message : "送信に失敗しました");
     } finally {
       setSaving(false);
     }
@@ -61,7 +61,7 @@ export default function IncidentNewPage() {
           <ArrowLeft className="h-5 w-5 text-muted-foreground" />
         </button>
         <h1 className="text-2xl font-bold text-foreground">
-          新規インシデント報告
+          新規サービスリクエスト
         </h1>
       </div>
 
@@ -85,7 +85,7 @@ export default function IncidentNewPage() {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="障害の概要を入力"
+            placeholder="リクエストの概要を入力"
             required
             className="w-full h-10 px-3 rounded-lg border border-border/60 bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
           />
@@ -99,7 +99,7 @@ export default function IncidentNewPage() {
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="発生状況・影響範囲・再現手順などを詳しく記載"
+            placeholder="リクエストの詳細を記載してください"
             required
             rows={5}
             className="w-full px-3 py-2 rounded-lg border border-border/60 bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 resize-none"
@@ -127,7 +127,7 @@ export default function IncidentNewPage() {
 
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground">
-              資産タイプ
+              サービス種別
             </label>
             <select
               value={assetType}
@@ -157,7 +157,7 @@ export default function IncidentNewPage() {
             ) : (
               <Send className="h-4 w-4" />
             )}
-            報告する
+            送信する
           </Button>
         </div>
       </form>
