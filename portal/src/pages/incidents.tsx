@@ -57,7 +57,7 @@ export default function IncidentsPage() {
       list = list.filter(
         (i) =>
           i.geek_title.toLowerCase().includes(q) ||
-          i.geek_reportedby?.toLowerCase().includes(q),
+          (i["_geek_inquirerid_value@OData.Community.Display.V1.FormattedValue"] as string | undefined)?.toLowerCase().includes(q),
       );
     }
     return list;
@@ -232,7 +232,7 @@ export default function IncidentsPage() {
               </div>
 
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>{item.geek_reportedby ?? "—"}</span>
+                <span>{(item["_geek_inquirerid_value@OData.Community.Display.V1.FormattedValue"] as string) ?? "—"}</span>
                 <span>
                   {item.createdon
                     ? new Date(item.createdon).toLocaleDateString("ja-JP")
