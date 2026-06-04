@@ -1,13 +1,11 @@
-# 仕様書 markdown 変換ガイド
+# 仕様書 markdown 変換ガイド（anthropics/skills + agent-ocr）
 
 ## 1. 何を作るか
 
-このスキルの最初のゴールは次の 2 つ。
+このスキルの出力は `/work` 配下の 2 段構成。
 
-1. **各入力ファイルの factsheet**
-2. **全体統合 document.md**
-
-Power Platform 向け要件整理に使えるよう、出力は raw markdown の貼り付けではなく **要件の分類軸** を固定する。
+1. `/work/output-staging`（ファイル単位 markdown）
+2. `/work/output-docs`（業務要件 / 機能要件 / 設計要件）
 
 ## 2. 推奨コマンド
 
@@ -26,7 +24,6 @@ cd .github/skills/spec-to-markdown/scripts
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# 画像が含まれる場合は自動で agent-ocr モードが有効化される
 python convert_documents.py
 ```
 
@@ -34,144 +31,82 @@ python convert_documents.py
 
 ```powershell
 cd .github\skills\spec-to-markdown\scripts
-# 画像が含まれる場合は自動で agent-ocr モードが有効化される
 powershell -ExecutionPolicy Bypass -File run_windows.ps1
 ```
 
-`run_windows.ps1` は初回実行時に仮想環境の作成とパッケージのインストールを自動で行う。  
-引数も透過的に渡せる。
+## 3. 既定パス
 
-```powershell
-# 入力フォルダを指定する場合
-powershell -ExecutionPolicy Bypass -File run_windows.ps1 --input C:\Users\user\Documents\specs
-```
+- 入力: `<repo-root>/work/input/`
+- staging: `<repo-root>/work/output-staging/`
+- docs: `<repo-root>/work/output-docs/`
 
-Windows で手動セットアップする場合:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python convert_documents.py
-```
-
-既定では次を使う。
-
-- 入力: `<repo-root>/work/spec-to-markdown/input/`
-- 出力: `<repo-root>/work/spec-to-markdown/output/<input-set>-<timestamp>/`
-
-入力や出力を明示したい場合だけ override する。
+オプション:
 
 ```bash
-# macOS / Linux
 python convert_documents.py \
   --input /absolute/path/to/input \
-  --output /absolute/path/to/output
-
-# Windows
-python convert_documents.py `
-  --input C:\absolute\path\to\input `
-  --output C:\absolute\path\to\output
+  --output-staging /absolute/path/to/output-staging \
+  --output-docs /absolute/path/to/output-docs
 ```
 
-### 入力セット運用の例
+## 4. 出力ファイル命名
 
-```text
-work/spec-to-markdown/input/
-  customer-a/
-    要件定義書.pdf
-    画面一覧.xlsx
-    UI_mockup.png
-  project-x/
-    業務フロー.pptx
-```
+`output-staging` の各ファイルは次の命名に統一する。
 
-- `python convert_documents.py` の既定入力は `input/` 全体
-- `python convert_documents.py --input <repo-root>/work/spec-to-markdown/input/customer-a` とすると `customer-a-<timestamp>/` 配下へ出力される
-- `--output` を省略すると、毎回タイムスタンプ付きの別フォルダになるため上書き事故を避けやすい
+- `元のファイル名.元の拡張子.MD`
+- 例: `要件定義.docx.MD`, `画面設計.xlsx.MD`, `menu.png.MD`
 
-## 3. 対応対象
+同名衝突時は相対ディレクトリ由来のサフィックスを自動付与する。
 
-- PDF
-- PowerPoint (`.ppt`, `.pptx`)
-- Excel (`.xls`, `.xlsx`)
-- Word (`.doc`, `.docx`)
-- markdown / text / html
-- **画像** (`.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.webp`, `.tiff`, `.tif`)
+## 5. pending manifest
 
-> Word / markdown / html まで含めるのは、添付仕様や補足メモが混在しやすいため。  
-> 画像は `--agent-ocr` フラグを使い GitHub Copilot のビジョン機能でテキストを抽出する。
+### pending_ocr.json
 
-## 4. factsheet テンプレート
+画像ファイルを agent-ocr で処理するための manifest。
 
-各 factsheet は最低限次の構造にする。
+- `source_path`
+- `relative_path`
+- `staging_markdown_path`
 
-```markdown
-# {タイトル} factsheet
+### pending_skills.json
 
-## 1. Source
-- File:
-- Relative path:
-- Converted at:
+画像以外を anthropics/skills で処理するための manifest。
 
-## 2. Power Platform requirement summary
-### Business objective
-### Users / roles
-### Dataverse tables
-### Main columns / master data
-### UI / app requirements
-### Automations
-### Agent / AI opportunities
-### External integrations
-### Security / compliance
-### Open questions
+- `source_path`
+- `relative_path`
+- `staging_markdown_path`
+- `sha256`
+- `processor` (`anthropics/skills`)
 
-## 3. Extracted markdown
-```
+## 6. output-docs の構成
 
-## 5. document.md テンプレート
+### business-requirements.md
+- 対象業務 / 目的
+- 利用者 / ロール
+- 業務フロー
+- 未確定事項 / 要確認事項
 
-```markdown
-# Power Platform requirements document
+### functional-requirements.md
+- Dataverse テーブル候補
+- 主要列 / マスタ / リレーション候補
+- Code Apps / Model-Driven Apps の UI 要件
+- Power Automate の自動化要件
+- Copilot Studio / AI Builder の利用余地
+- 外部連携
 
-## 1. Conversion summary
+### design-requirements.md
+- Power Platform 全体構成案
+- セキュリティ / 権限 / 監査の論点
+- 設計上のリスク
+- Phase 0 で確認が必要な論点
 
-## 2. Source documents
+## 7. 処理ルール
 
-## 3. Cross-document requirements summary
-### Business scope
-### Users / roles
-### Dataverse design candidates
-### App design candidates
-### Automation candidates
-### Agent / AI candidates
-### Integration candidates
-### Risks / open questions
+- 画像は必ず agent-ocr
+- 画像以外は anthropics/skills
+- 推測で埋めず、情報不足は `要確認`
 
-## 4. Factsheet index
-```
+## 8. 備考
 
-## 6. 要件整理ルール
-
-- **推測で補完しない**
-- 文書間で表現が違う場合は `差分あり` と記録する
-- Power Platform 用語に正規化する
-  - 業務データ → Dataverse テーブル候補
-  - 入力 / 一覧 / ダッシュボード → App/UI 要件
-  - 通知 / 承認 / 定期処理 → Power Automate
-  - 対話 / 検索 / 要約 → Copilot Studio / AI Builder
-- 画面名・帳票名・マスタ名・外部システム名はそのまま残す
-
-## 7. MarkItDown を使う理由
-
-- PDF / Office 系ファイルを markdown に寄せて扱える
-- 見出し・箇条書き・表の構造を比較的保ちやすい
-- 後段の LLM 要約や requirements 整理に渡しやすい
-- 画像は GitHub Copilot のビジョン機能（`--agent-ocr`）で OCR することで、スキャン図・スクリーンショットも対象にできる
-
-## 8. 限界と補完方針
-
-- スキャン PDF や画像中心の資料は抽出精度が落ちる
-- 複雑な表は崩れることがある
-- 図そのものの意味は取りきれないため、図番号やキャプションを優先して残す
-- 必要に応じて Power Automate + OneDrive PDF 変換、または AI Builder の document input を組み合わせる
+`convert_documents.py` は staging/docs の土台作成と pending manifest 生成を担当する。  
+manifest の解消（agent-ocr / anthropics/skills 実行）後、`output-docs` を確定版に更新する。
