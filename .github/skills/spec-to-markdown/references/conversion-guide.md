@@ -67,6 +67,9 @@ python convert_documents.py \
 - `source_path`
 - `relative_path`
 - `staging_markdown_path`
+- `sha256`
+- `processor` (`agent-ocr`)
+- `ocr_prompt_hint`（抽出時の最小指示）
 
 ### pending_skills.json
 
@@ -105,6 +108,9 @@ python convert_documents.py \
 - 画像は必ず agent-ocr
 - 画像以外は anthropics/skills
 - 推測で埋めず、情報不足は `要確認`
+- OCR 抽出では表を markdown table 化し、判読不能箇所は `[判読不可]` とする
+
+補足: anthropics/skills（Claude）も画像読解は可能だが、この運用では OCR を agent-ocr に固定する。
 
 ## 8. 備考
 

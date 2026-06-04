@@ -55,8 +55,10 @@ office ドキュメント（PDF / PowerPoint / Excel / Word など）は **anthr
 
 - 出力先: `/work/staging`
 - ファイル名: `元のファイル名.元の拡張子.MD`
+- OCR 抽出時は表を markdown table 化し、判読不能箇所は `[判読不可]` と明記する
 
 `pending_ocr.json` の `staging_markdown_path` を使って、対象ファイルを更新する。
+`pending_ocr.json` の `ocr_prompt_hint` を agent-ocr の抽出指示として利用する。
 
 ## anthropics/skills 更新方針
 
@@ -65,6 +67,8 @@ office ドキュメント（PDF / PowerPoint / Excel / Word など）は **anthr
 - `source_path` の元ファイルを anthropics/skills で読み取り
 - 抽出 markdown を `staging_markdown_path` に反映
 - 処理済み後、`output` の 3 文書を更新
+
+補足: anthropics/skills（Claude）は画像読解も可能だが、このスキルでは OCR の責務を agent-ocr に固定する。
 
 ## `/work/output` で整理する観点
 

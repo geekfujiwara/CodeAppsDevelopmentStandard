@@ -37,6 +37,10 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", "
 HASH_CHUNK_SIZE = 8192
 PENDING_OCR_MARKER = "<!-- pending-ocr -->"
 PENDING_SKILLS_MARKER = "<!-- pending-skills -->"
+OCR_PROMPT_HINT = (
+    "画像内テキストを漏れなく markdown 化し、表は markdown table を使う。"
+    " 判読不能箇所は [判読不可] と明記する。"
+)
 
 
 @dataclass
@@ -194,6 +198,7 @@ agent-ocr での抽出待ちです。
 
 - Source: `{source_path}`
 - 方針: 画像は agent-ocr で OCR 実行
+- 抽出ルール: {OCR_PROMPT_HINT}
 """
 
 
@@ -292,6 +297,9 @@ def main() -> int:
                 "source_path": str(source_path),
                 "relative_path": relative_path.as_posix(),
                 "staging_markdown_path": str(staging_path),
+                "sha256": sha256,
+                "processor": "agent-ocr",
+                "ocr_prompt_hint": OCR_PROMPT_HINT,
             })
             results.append(
                 ConversionResult(
