@@ -35,7 +35,7 @@ triggers:
 | リファレンス | 内容 |
 |---|---|
 | [upstream 優先構成ガイド](references/upstream-alignment.md) | `microsoft/power-platform-skills` 基準での責務分離・実行順序・刷新方針 |
-| [Dataverse クライアント実装](references/dataverse-client.md) | `apiGet/apiPost/apiPatch/apiDelete` の実コード・anti-forgery トークン・OData クエリ・dev プロキシ・**Code Apps との対比** |
+| [Dataverse クライアント実装](references/dataverse-client.md) | `powerPagesFetch`/`powerPagesFetchResponse`・`WebApiErrorCode`・OData ヘルパー・ページネーション・サービスレイヤーパターン・**Code Apps との対比** |
 | [認証実装](references/authentication.md) | **SSO・サインアウト・ログインボタン・認証ガード・UI フロー**の実コード一式・サーバー側 IdP/サイト設定・Code Apps との対比 |
 | [Enhanced Data Model テーブル権限](references/enhanced-data-model-permissions.md) | EDM 2.0 のテーブル権限設定・3 レイヤー権限・N:N バグ・ワークアラウンド |
 | [運用と落とし穴](references/operations-and-pitfalls.md) | ビルド・デプロイ・サイト再起動・よくあるエラーと解決策 |
@@ -73,8 +73,8 @@ triggers:
 | 観点 | ユーザー認証・Webロール認可 | Dataverse Web API 連携 CRUD |
 |---|---|---|
 | 上流スキル | `setup-auth` + `create-webroles` | `integrate-webapi` |
-| 主目的 | ログイン/ログアウト、認証状態判定、ロールベース UI 制御 | `/_api` 経由の読み書き（`apiGet/apiPost/apiPatch/apiDelete`） |
-| 主な成果物 | `authService.ts`（AUTH_PROVIDERS 配列）・`use-auth.ts`・ログイン UI・Web ロール YAML（`.powerpages-site/web-roles/`） | `api.ts`、テーブル別 service/hooks、CRUD 画面 |
+| 主目的 | ログイン/ログアウト、認証状態判定、ロールベース UI 制御 | `/_api` 経由の読み書き（`powerPagesFetch`/`powerPagesFetchResponse`、OData ヘルパー） |
+| 主な成果物 | `authService.ts`（AUTH_PROVIDERS 配列）・`use-auth.ts`・ログイン UI・Web ロール YAML（`.powerpages-site/web-roles/`） | `powerPagesApi.ts`、テーブル別 service/hooks、CRUD 画面 |
 | サーバー側必須設定 | IdP site settings、Web ロール、テーブル権限へのロール紐付け | テーブル権限（type=18 + `adx_entitypermission_webrole`）、必要時のみ Webapi 設定 |
 | 失敗時の代表症状 | ログインループ、`/profile` 強制遷移、未認証判定ミス | 401(90040107) / 403 / 404(9004010C, 9004010D) |
 | 依存関係 | 先に認証導線を整える（ユーザー実体: contact） | 認証済みセッション Cookie 前提で CRUD を実行 |
@@ -434,7 +434,7 @@ PAGES_SITE_NAME=                      # サイト名 (powerpages.config.json の
 PAGES_SUBDOMAIN=                      # サブドメイン (例: myportal → myportal.powerappsportals.com)
 ```
 
-## プロジェクト構造（公式準拠）
+## プロジェクト構造（公式準拠 / upstream 推奨）
 
 ```text
 portal/
@@ -449,12 +449,17 @@ portal/
 │   │   └── ui/                   ← shadcn/ui コンポーネント
 │   ├── hooks/
 │   │   └── use-auth.ts           ← SSO 認証フック
+│   ├── shared/
+│   │   ├── powerPagesApi.ts      ← ★ Web API 共有クライアント (powerPagesFetch/buildODataUrl 等)
+│   │   └── services/
+│   │       └── <table>Service.ts ← テーブルごとの CRUD サービス
+│   ├── types/
+│   │   └── <table>.ts            ← エンティティ型・ドメイン型・マッパー
 │   ├── lib/
-│   │   ├── api.ts                ← ★ Web API 共有クライアント (apiGet/apiPost/apiPatch)
 │   │   └── utils.ts              ← cn() ユーティリティ
 │   └── pages/
 │       ├── home.tsx              ← ランディングページ
-│       └── profile.tsx           ← プロフィール編集 (★ api.ts を使用)
+│       └── profile.tsx           ← プロフィール編集 (★ powerPagesApi.ts を使用)
 ├── dist-site/                    ← ビルド出力 (compiledPath)
 ├── .powerpages-site/             ← upload-code-site が管理 + site-settings YAML 手動追加可
 │   └── site-settings/            ← Webapi/* 設定を YAML で永続化
@@ -470,42 +475,56 @@ portal/
 
 ---
 
-## ★ Web API 共有クライアント (api.ts)
+## ★ Web API 共有クライアント (`src/shared/powerPagesApi.ts`)
 
-**実装方法の概要**: すべての `/_api/` 呼び出しは共有クライアント `src/lib/api.ts` を通す。
+**実装方法の概要**: すべての `/_api/` 呼び出しは共有クライアント `src/shared/powerPagesApi.ts` を通す。
 Power Pages の SPA は Dataverse Web API（`/_api`）を**直接 fetch** する（Code Apps の
-`@microsoft/power-apps/data` SDK のようなライブラリは無い）。認証はブラウザのセッション
-Cookie（`credentials: "same-origin"`）で行い、書き込み（POST/PATCH/DELETE）のみ anti-forgery
-トークンを付与する。
+`@microsoft/power-apps/data` SDK のようなライブラリは無い）。
 
-> **完全な実装コード**（`apiGet`/`apiPost`/`apiPatch`/`apiDelete`・`ApiAuthError`・OData クエリ・
-> Lookup の `@odata.bind`・dev プロキシ）は [Dataverse クライアント実装](references/dataverse-client.md) を参照。
+upstream `integrate-webapi` スキル準拠の設計:
+- anti-forgery トークンを**全リクエスト**（GET 含む）に付与
+- 429・5xx を指数バックオフでリトライ（最大 3 回）
+- 403/90040107（トークン期限切れ）を検出してトークンを再取得・リトライ
+- `buildODataUrl`・`getFormattedValue`・`fetchAllPages`・`bindLookup` など OData ヘルパー群
+
+> **完全な実装コード**（`powerPagesFetch`/`powerPagesFetchResponse`・`WebApiErrorCode`・OData ヘルパー・
+> ページネーション・サービスレイヤーパターン）は [Dataverse クライアント実装](references/dataverse-client.md) を参照。
 
 最小の利用例:
 
 ```typescript
-import { apiGet, apiPost, type ODataCollection } from "@/lib/api";
+import {
+  powerPagesFetch,
+  buildODataUrl,
+  type ODataCollectionResponse,
+} from "@/shared/powerPagesApi";
+import { mapIncidentEntity, type IncidentEntity } from "@/types/incident";
 
-// 取得（OData は { value: [...] } 形式）
-const res = await apiGet<ODataCollection<Incident>>(
-  "geek_incidents?$select=geek_name,geek_status&$orderby=createdon desc",
+// 取得（ページネーション付き）
+const response = await powerPagesFetch<ODataCollectionResponse<IncidentEntity>>(
+  buildODataUrl("geek_incidents", { "$select": "geek_incidentid,geek_name,geek_status", "$orderby": "createdon desc" }),
+  { headers: { Prefer: "odata.include-annotations="OData.Community.Display.V1.FormattedValue",odata.maxpagesize=20" } }
 );
+const incidents = (response?.value ?? []).map(mapIncidentEntity);
 
 // 作成（書き込みは内部で anti-forgery token を自動付与）
-await apiPost("geek_incidents", { geek_name: "新規チケット", geek_status: 100000000 });
+await powerPagesFetch("/_api/geek_incidents", {
+  method: "POST",
+  body: JSON.stringify({ geek_name: "新規チケット", geek_status: 100000000 }),
+});
 ```
 
 ### Code Apps との接続方式の違い
 
 | 観点 | Power Pages（このスキル） | Code Apps |
-|------|--------------------------|-----------|
-| 接続 | Web API を直接 `fetch("/_api/...")` | `@microsoft/power-apps/data` SDK |
-| 取得 | `apiGet`（自前 fetch ラッパー） | `client.retrieveMultipleRecordsAsync` |
+|------|--------------------------|-----------| 
+| 接続 | `/_api/` を直接 `fetch` | `@microsoft/power-apps/data` SDK |
+| 取得 | `powerPagesFetch`（upstream 準拠） | `client.retrieveMultipleRecordsAsync` |
 | クエリ記法 | OData 文字列（`$select=...&$orderby=...`） | オブジェクト（`select: [...], orderBy: [...]`） |
-| レスポンス | `{ value: T[] }`（throw ベース） | `{ success, data, error }`（判定） |
-| 認証 | セッション Cookie（`same-origin`、自動） | コネクタ + SDK |
+| レスポンス | `ODataCollectionResponse<T>`（throw ベース） | `{ success, data, error }`（判定） |
+| 認証 | セッション Cookie（相対 URL、自動） | コネクタ + SDK |
 | ユーザー実体 | contact（`Portal.User`） | systemuser（`getContext().user`） |
-| 書き込み保護 | anti-forgery トークン | SDK が内部処理 |
+| 書き込み保護 | anti-forgery トークン（全リクエスト自動） | SDK が内部処理 |
 | 認可 | テーブル権限 + Web ロール | Dataverse セキュリティロール |
 
 > 詳細なコード対比は [Dataverse クライアント実装 §8](references/dataverse-client.md) を参照。
@@ -991,9 +1010,7 @@ SKIP_REMOTE=1 python ../.github/skills/power-pages/scripts/review_pre_deploy.py
 ## チェックリスト（レガシー参照用）
 
 ### 認証・認可
-- [ ] POST/PATCH/DELETE に `__RequestVerificationToken` ヘッダーを付与している（教訓 1）
-- [ ] `api.ts` で `credentials: "same-origin"` を使用
-- [ ] `api.ts` で `redirect: "manual"` を使用し認証切れを検知している（教訓 7）
+- [ ] `src/shared/powerPagesApi.ts` を使用している（`src/lib/api.ts` は旧パターン）
 - [ ] **use-auth.ts が `/_api/contacts` をクエリしていない**（教訓 6）
 - [ ] `Authentication/Registration/ProfileRedirectEnabled = false` を設定済み（教訓 5）
 - [ ] `AUTH_PROVIDERS` 配列で IdP を管理している（`resolveProviderIdentifier()` パターン）
@@ -1005,12 +1022,19 @@ SKIP_REMOTE=1 python ../.github/skills/power-pages/scripts/review_pre_deploy.py
 - [ ] `anonymous-users.yml` に `anonymoususersrole: true` が設定されている（未認証アクセスを許可する場合）
 - [ ] 各 YAML の `id` が UUID v4 形式で一意になっている
 
+### Dataverse CRUD（upstream `integrate-webapi` 準拠）
+- [ ] `powerPagesFetch` / `powerPagesFetchResponse` を使用（旧 `apiGet/apiPost/apiPatch` ではない）
+- [ ] `buildODataUrl` で OData URL を構築している
+- [ ] `$select` に必要なカラムを明示している（`*` を使っていない）
+- [ ] ページネーションは `Prefer: odata.maxpagesize=N` + `@odata.nextLink`（`$skip` は非サポート: 9004010B）
+- [ ] Lookup の `@odata.bind` に `ManyToOneRelationships` の Navigation Property 名を使用（教訓 4）
+- [ ] テーブルごとに `src/shared/services/<table>Service.ts` + `src/types/<table>.ts` を作成
+
 ### テーブル権限
 - [ ] EDM content JSON に `adx_entitypermission_webrole` が含まれている（教訓 2）
 - [ ] `powerpagecomponent_powerpagecomponent` N:N リンクも設定済み
 - [ ] テーブル権限に `append=true, appendto=true` が設定されている
 - [ ] Contact 権限は scope=756150004 (Self) を使用（教訓 3）
-- [ ] `@odata.bind` のターゲットが `ManyToOneRelationships` の正しい参照先テーブル（教訓 4）
 
 ### デプロイ
 - [ ] `powerpages.config.json` が存在する
