@@ -16,11 +16,52 @@ load_dotenv(os.path.join(ROOT_DIR, '.env'))
 import auth_helper, requests
 
 ENV_ID = os.environ["ENV_ID"]
-SITE_NAME = "IncidentPortal"
-SUBDOMAIN = "incidentportal01"
+SITE_NAME = os.environ.get("PAGES_SITE_NAME", "IncidentPortal")
+SUBDOMAIN = os.environ.get("PAGES_SUBDOMAIN", "")
 
 skip_build = '--skip-build' in sys.argv
 skip_restart = '--skip-restart' in sys.argv
+
+
+def ask_subdomain():
+    """PP_SUBDOMAIN が未設定の場合、PP API からサイト一覧を取得してユーザーに選択させる。"""
+    global SUBDOMAIN
+    if SUBDOMAIN:
+        return
+    print("\n[Pre] PAGES_SUBDOMAIN が .env に未設定です。サイトを検索します...")
+    t = auth_helper.get_token(scope="https://api.powerplatform.com/.default")
+    h = {"Authorization": f"Bearer {t}", "Content-Type": "application/json"}
+    base = f"https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites"
+    r = requests.get(f"{base}?api-version=2024-10-01", headers=h)
+    sites = r.json().get("value", [])
+    if not sites:
+        print("  環境にサイトが見つかりません。PAGES_SUBDOMAIN を .env に手動設定してください。")
+        sys.exit(1)
+    print("  検出されたサイト:")
+    for i, s in enumerate(sites):
+        print(f"    [{i+1}] {s.get('name', '(名前なし)')} — {s.get('subdomain', '?')}.powerappsportals.com")
+    while True:
+        choice = input(f"  デプロイ先を選択 (1-{len(sites)}): ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(sites):
+            selected = sites[int(choice) - 1]
+            SUBDOMAIN = selected.get("subdomain", "")
+            print(f"  → {SUBDOMAIN} を使用します")
+            # .env に保存
+            env_path = os.path.join(ROOT_DIR, ".env")
+            with open(env_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            if "PAGES_SUBDOMAIN=" in content:
+                import re
+                content = re.sub(r"PAGES_SUBDOMAIN=.*", f"PAGES_SUBDOMAIN={SUBDOMAIN}", content)
+            else:
+                content += f"\nPAGES_SUBDOMAIN={SUBDOMAIN}\n"
+            if "PAGES_SITE_NAME=" not in content:
+                content += f"PAGES_SITE_NAME={selected.get('name', SITE_NAME)}\n"
+            with open(env_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print(f"  .env に PAGES_SUBDOMAIN={SUBDOMAIN} を保存しました")
+            return
+        print("  無効な入力です。もう一度入力してください。")
 
 
 def run(cmd, cwd=None):
@@ -35,8 +76,11 @@ def run(cmd, cwd=None):
 
 
 def main():
+    ask_subdomain()
+
     print("=" * 50)
     print(f"Power Pages Code Site Deploy: {SITE_NAME}")
+    print(f"  Subdomain: {SUBDOMAIN}")
     print("=" * 50)
 
     # Step 1: Build
@@ -63,19 +107,26 @@ def main():
         h = {"Authorization": f"Bearer {t}", "Content-Type": "application/json"}
         base = f"https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites"
         r = requests.get(f"{base}?api-version=2024-10-01", headers=h)
+        site_found = False
         for s in r.json().get("value", []):
-            if s.get("subdomain") == SUBDOMAIN:
+            match = (SUBDOMAIN and s.get("subdomain") == SUBDOMAIN) or \
+                    (not SUBDOMAIN and s.get("name", "").startswith(SITE_NAME))
+            if match:
                 sid = s["id"]
                 rr = requests.post(f"{base}/{sid}/restart?api-version=2024-10-01", headers=h)
                 print(f"  Restart: {rr.status_code}")
                 print(f"  URL: {s.get('websiteUrl')}")
+                site_found = True
                 break
-        else:
+        if not site_found:
             print("  Site not found in PP API")
         print("  OK")
 
     print("\n" + "=" * 50)
-    print(f"DONE. URL: https://{SUBDOMAIN}.powerappsportals.com")
+    if SUBDOMAIN:
+        print(f"DONE. URL: https://{SUBDOMAIN}.powerappsportals.com")
+    else:
+        print(f"DONE. Site: {SITE_NAME}")
     print("(Allow 60-90 seconds for changes to propagate)")
     print("=" * 50)
 
