@@ -74,7 +74,7 @@ triggers:
 |---|---|---|
 | 上流スキル | `setup-auth` + `create-webroles` | `integrate-webapi` |
 | 主目的 | ログイン/ログアウト、認証状態判定、ロールベース UI 制御 | `/_api` 経由の読み書き（`powerPagesFetch`/`powerPagesFetchResponse`、OData ヘルパー） |
-| 主な成果物 | `use-auth.ts`、ログイン UI、Web ロール YAML | `api.ts`、テーブル別 service/hooks、CRUD 画面 |
+| 主な成果物 | `authService.ts`（AUTH_PROVIDERS 配列）・`use-auth.ts`・ログイン UI・Web ロール YAML（`.powerpages-site/web-roles/`） | `powerPagesApi.ts`、テーブル別 service/hooks、CRUD 画面 |
 | サーバー側必須設定 | IdP site settings、Web ロール、テーブル権限へのロール紐付け | テーブル権限（type=18 + `adx_entitypermission_webrole`）、必要時のみ Webapi 設定 |
 | 失敗時の代表症状 | ログインループ、`/profile` 強制遷移、未認証判定ミス | 401(90040107) / 403 / 404(9004010C, 9004010D) |
 | 依存関係 | 先に認証導線を整える（ユーザー実体: contact） | 認証済みセッション Cookie 前提で CRUD を実行 |
@@ -538,39 +538,71 @@ await powerPagesFetch("/_api/geek_incidents", {
 **実装方法の概要**: 認証はサーバー側のセッション Cookie で完結する。クライアントはトークンを
 持たず、ポータルランタイムが注入する `window.Microsoft.Dynamic365.Portal.User` を信頼して
 「ログイン済みか」「誰か」を判定する。**認証判定で `/_api/contacts` をクエリしてはいけない**
-（教訓 1）。
+（教訓 6）。
 
-`src/hooks/use-auth.ts` の `useAuth()` が以下をすべて提供する:
+`AUTH_PROVIDERS` 配列で対応 IdP を管理し、`src/hooks/use-auth.ts` の `useAuth()` が以下をすべて提供する:
 
 | 機能 | 実現方法 |
 |------|---------|
 | 認証状態判定 | `Portal.User` を読むだけ（API 呼び出しなし） |
-| ① SSO ログイン | `/_layout/tokenhtml` + `Portal.tenant` → form POST to `/Account/Login/ExternalLogin` |
-| ② サインアウト | `/Account/Login/LogOff?returnUrl=%2F` へ遷移 |
+| ① SSO ログイン | `/_layout/tokenhtml` + `resolveProviderIdentifier()` → form POST to `/Account/Login/ExternalLogin` |
+| ② サインアウト | `/Account/Login/LogOff?returnUrl=%2F` へ遷移（ローカルログアウト） |
 | ③ セッション keepalive | 定期的に `/_layout/tokenhtml` をフェッチしてセッション Cookie を更新 |
 | ④ ログインボタン | ヘッダーで `login`/`logout` を認証状態に応じて出し分け |
 
-### SSO ログインフロー（Entra ID — 推奨パターン）
+### 対応 Identity Provider
+
+| 種別 | Provider Identifier | 推奨用途 |
+|------|---|---|
+| **Entra ID (workforce)** | `Portal.tenant` から runtime 解決（`login.windows.net/{tenantId}/`） | 社員向け内部ポータル |
+| **Entra External ID (CIAM)** | `Authentication/OpenIdConnect/{name}/AuthenticationType` の値（ciamlogin.com URL） | **顧客向けポータル（推奨）** |
+| **OIDC (Generic)** | `Authentication/OpenIdConnect/{name}/AuthenticationType` の値 | Okta, Auth0 など |
+| **SAML2** | `Authentication/SAML2/{name}/AuthenticationType` の値 | ADFS など |
+| **ローカル認証** | N/A（`/SignIn` に `PasswordValue` フィールドで POST） | 外部 IdP 不要の場合のみ |
+
+### SSO ログインフロー（外部 IdP — 共通パターン）
 
 ```
 ① useAuth().login() 呼び出し
    ↓
-② fetch("/_layout/tokenhtml") → anti-forgery token 取得
+② AUTH_PROVIDERS[0] から provider を選択
    ↓
-③ Portal.tenant から provider を解決: "https://login.windows.net/{tenantId}/"
+③ fetch("/_layout/tokenhtml") → anti-forgery token 取得
    ↓
-④ form POST → /Account/Login/ExternalLogin
+④ resolveProviderIdentifier(provider) で provider 識別子を解決
+   - Entra ID: Portal.tenant → "https://login.windows.net/{tenantId}/"
+   - Entra External ID / OIDC: AUTH_PROVIDERS の providerIdentifier を直接使用
+   ↓
+⑤ form POST → /Account/Login/ExternalLogin
    { provider, returnUrl: "/", __RequestVerificationToken }
    ↓
-⑤ Power Pages → Entra ID へリダイレクト → SSO 認証
+⑥ Power Pages → IdP へリダイレクト → SSO 認証
    ↓
-⑥ Entra ID → callback → セッション Cookie 設定 → returnUrl へリダイレクト
+⑦ IdP → callback → セッション Cookie 設定 → returnUrl へリダイレクト
 ```
 
-> **重要**: Provider identifier は `https://login.windows.net/{tenantId}/` であり
+> **重要**: Entra ID の Provider identifier は `https://login.windows.net/{tenantId}/` であり
 > `https://login.microsoftonline.com/{tenantId}/` ではない。
-> Power Pages は Entra ID の site settings (`Authentication/OpenIdConnect/AzureAD/AuthenticationType`)
-> に `login.windows.net` を使う。
+> Entra External ID は `https://{subdomain}.ciamlogin.com/{tenantId}`（末尾 `/v2.0/` なし）。
+
+### ローカル認証ログインフロー
+
+```
+① localLogin(email, password) 呼び出し
+   ↓
+② fetch("/_layout/tokenhtml") → anti-forgery token 取得
+   ↓
+③ form POST → /SignIn（/Account/Login/Login ではない）
+   { Email, PasswordValue, ReturnUrl: "/", __RequestVerificationToken }
+   ★ フィールド名は PasswordValue（Password ではない）
+```
+
+### ログアウトモード
+
+| モード | 設定 | 動作 |
+|---|---|---|
+| **ローカルログアウト**（デフォルト） | `RPInitiatedLogout` 未設定 | Power Pages セッションのみクリア。次回は SSO。 |
+| **フェデレーテッドログアウト** | `RPInitiatedLogout=true` + `PostLogoutRedirectUri={site-url}/` | IdP セッションも含めてクリア。 |
 
 ### セッション keepalive
 
@@ -589,8 +621,9 @@ useEffect(() => {
 }, [isAuthenticated]);
 ```
 
-> **完全な実装コード**（`use-auth.ts` の SSO/サインアウト・ログインボタン UI・`RequireAuth`
-> 認証ガード・ルート組み込み・UI フロー図・プロフィール編集）は
+> **完全な実装コード**（`AUTH_PROVIDERS` 配列・`use-auth.ts`・SSO/ローカルログイン・サインアウト・
+> ログインボタン UI・`RequireAuth` 認証ガード・ルート組み込み・UI フロー図・
+> Entra External ID・ローカル認証・フェデレーテッドログアウト・クレームマッピング）は
 > [認証実装](references/authentication.md) を参照。
 
 ### Code Apps との認証の違い
@@ -600,9 +633,37 @@ useEffect(() => {
 | 認証の場所 | サーバー側（セッション Cookie） | クライアント + コネクタ |
 | トークン管理 | なし（Cookie 自動送信） | SDK が内部管理 |
 | ログイン | `/_layout/tokenhtml` + form POST to ExternalLogin | コネクタのサインイン |
-| Provider解決 | `Portal.tenant` → `login.windows.net/{tenantId}/` | コネクタが管理 |
+| Provider解決 | `resolveProviderIdentifier()` （Entra ID: Portal.tenant、他: providerIdentifier 直接） | コネクタが管理 |
 | ユーザー情報 | `Portal.User`（contact） | `getContext().user`（systemuser） |
 | セッション維持 | keepalive（`/_layout/tokenhtml` 定期フェッチ） | SDK が管理 |
+
+---
+
+## ★ Web ロール管理 (YAML ファイル — upstream 標準)
+
+> **公式リファレンス**: [microsoft/power-platform-skills create-webroles](https://github.com/microsoft/power-platform-skills/tree/main/plugins/power-pages/skills/create-webroles)
+
+Web ロールは `.powerpages-site/web-roles/` 配下の YAML ファイルで定義し、`pac pages upload-code-site` でデプロイする。
+
+```yaml
+# .powerpages-site/web-roles/authenticated-users.yml
+anonymoususersrole: false
+authenticatedusersrole: true   # ← ログインユーザーの既定ロール
+id: <UUID v4>
+name: Authenticated Users
+```
+
+**標準ロール構成:**
+
+| ファイル | authenticatedusersrole | anonymoususersrole | 用途 |
+|---|---|---|---|
+| `administrators.yml` | false | false | 管理者 |
+| `authenticated-users.yml` | **true** | false | ログイン済みユーザーの既定ロール |
+| `anonymous-users.yml` | false | **true** | 未認証ユーザーの既定ロール |
+
+> **ルール**: `authenticatedusersrole: true` と `anonymoususersrole: true` はそれぞれ 1 ファイルのみ設定可。
+
+> 完全な YAML フォーマット・UUID 生成・テーブル権限との N:N 紐付けは [Enhanced Data Model テーブル権限](references/enhanced-data-model-permissions.md) を参照。
 
 ---
 
@@ -952,6 +1013,14 @@ SKIP_REMOTE=1 python ../.github/skills/power-pages/scripts/review_pre_deploy.py
 - [ ] `src/shared/powerPagesApi.ts` を使用している（`src/lib/api.ts` は旧パターン）
 - [ ] **use-auth.ts が `/_api/contacts` をクエリしていない**（教訓 6）
 - [ ] `Authentication/Registration/ProfileRedirectEnabled = false` を設定済み（教訓 5）
+- [ ] `AUTH_PROVIDERS` 配列で IdP を管理している（`resolveProviderIdentifier()` パターン）
+- [ ] 顧客向けポータルの場合は Entra External ID (CIAM) を使用している
+
+### Web ロール
+- [ ] `.powerpages-site/web-roles/` に YAML ファイルを配置している（upstream `create-webroles` パターン）
+- [ ] `authenticated-users.yml` に `authenticatedusersrole: true` が設定されている
+- [ ] `anonymous-users.yml` に `anonymoususersrole: true` が設定されている（未認証アクセスを許可する場合）
+- [ ] 各 YAML の `id` が UUID v4 形式で一意になっている
 
 ### Dataverse CRUD（upstream `integrate-webapi` 準拠）
 - [ ] `powerPagesFetch` / `powerPagesFetchResponse` を使用（旧 `apiGet/apiPost/apiPatch` ではない）

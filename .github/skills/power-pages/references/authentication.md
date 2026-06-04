@@ -14,11 +14,31 @@ Power Pages Code Site（SPA）における認証一式の実装サンプル。
 
 | 項目 | 対応スキル | このリファレンスで扱う範囲 |
 |---|---|---|
-| ログイン/ログアウト導線 | `setup-auth` | `useAuth`、`ExternalLogin` POST、keepalive、認証ガード UI |
-| Web ロール準備 | `create-webroles` | 実行前提としてロール構成を確認（未作成だと認可検証が成立しない） |
+| ログイン/ログアウト導線 | `setup-auth` | `useAuth`（`AUTH_PROVIDERS` 配列）、`ExternalLogin` POST、keepalive、認証ガード UI |
+| Web ロール準備 | `create-webroles` | YAML ファイルによるロール定義 → [enhanced-data-model-permissions.md](enhanced-data-model-permissions.md) 参照 |
 | サーバー側強制力 | `setup-auth` + `create-webroles` + テーブル権限 | クライアント側 role check は UX 制御のみ、実際のアクセス制御はサーバー側 |
 
 > 要点: 認証スキルだけでは CRUD は成立しない。`create-webroles` とテーブル権限設定を組み合わせてはじめて一般ユーザーの認可が成立する。
+
+---
+
+## 0.2 対応 Identity Provider 一覧
+
+Power Pages は以下の認証方式をサポートする。このリファレンスは React (use-auth.ts) の実装に注目するが、認証フロー自体はサーバー側で完結するためフレームワーク非依存。
+
+| プロバイダー種別 | 概要 | ログインエンドポイント | Provider Identifier |
+|---|---|---|---|
+| **Microsoft Entra ID** | Azure AD / Entra ID（社員向け） | `/Account/Login/ExternalLogin` | `https://login.windows.net/{tenantId}/` |
+| **Entra External ID** | 顧客向け CIAM（セルフサービス登録） | `/Account/Login/ExternalLogin` | `Authentication/OpenIdConnect/{name}/AuthenticationType` の値（ciamlogin.com URL） |
+| **OpenID Connect (Generic)** | Okta, Auth0, Ping など OIDC 準拠 | `/Account/Login/ExternalLogin` | `Authentication/OpenIdConnect/{name}/AuthenticationType` の値 |
+| **SAML2** | ADFS, Shibboleth など | `/Account/Login/ExternalLogin` | `Authentication/SAML2/{name}/AuthenticationType` の値 |
+| **WS-Federation** | WS-Fed プロバイダー | `/Account/Login/ExternalLogin` | `Authentication/WsFederation/{name}/AuthenticationType` の値 |
+| **ローカル認証** | ユーザー名/パスワード（外部 IdP 不要） | `/SignIn` | N/A（直接 POST） |
+| **Microsoft Account** | Microsoft 個人/職場アカウント（ソーシャル） | `/Account/Login/ExternalLogin` | `urn:microsoft:account` |
+| **Facebook** | Facebook ソーシャルログイン | `/Account/Login/ExternalLogin` | `Facebook` |
+| **Google** | Google ソーシャルログイン | `/Account/Login/ExternalLogin` | `Google` |
+
+> **顧客向けポータルには Entra External ID (CIAM) を推奨**。Entra ID（workforce）は社員向け。`setup-auth` の Smart Inference に従うと、内部ポータル → Entra ID、顧客ポータル → Entra External ID が選択される。
 
 ---
 
@@ -38,13 +58,71 @@ Power Pages Code Site（SPA）における認証一式の実装サンプル。
 
 ---
 
-## 1. 認証フック（`src/hooks/use-auth.ts`）
+## 1. AUTH_PROVIDERS 配列パターン（マルチプロバイダー対応）
 
-SSO ログイン・サインアウト・認証状態判定をすべて担う中核。コピーしてそのまま使える完全実装。
+> **upstream 準拠**: `microsoft/power-platform-skills setup-auth` は `AUTH_PROVIDERS` 配列でマルチプロバイダーを管理する。単一プロバイダーでも同じパターンを使うことで拡張性を保つ。
+
+サイトに設定された IdP を `AUTH_PROVIDERS` 配列として定義する。`providerIdentifier` は `ExternalLogin` POST の `provider` フィールドに送る値（= サイト設定 `AuthenticationType` の値）。
+
+```typescript
+// src/services/authService.ts（マルチプロバイダー対応）
+
+/** プロバイダー識別子の解決パターン */
+export interface AuthProvider {
+  id: string;           // アプリ内 ID（例: 'entra-id', 'entra-external', 'local'）
+  type: 'entra-id' | 'oidc' | 'saml2' | 'ws-federation' | 'local' | 'social';
+  displayName: string;  // ログインボタンのラベル
+  /** ExternalLogin POST の provider 値。entra-id の場合は undefined（runtime 解決）。local は不要。 */
+  providerIdentifier?: string;
+}
+
+/**
+ * サイトに設定された IdP 一覧。
+ * entra-id: providerIdentifier を省略 → resolveProviderIdentifier() で Portal.tenant から動的解決。
+ * その他: AuthenticationType サイト設定の値を直接指定。
+ */
+export const AUTH_PROVIDERS: AuthProvider[] = [
+  // 内部ポータル（Entra ID）の例:
+  {
+    id: 'entra-id',
+    type: 'entra-id',
+    displayName: 'Microsoft アカウントでサインイン',
+    // providerIdentifier は省略 → Portal.tenant から自動解決
+  },
+  // 顧客ポータル（Entra External ID / CIAM）の例（上記の代わりに使用）:
+  // {
+  //   id: 'entra-external',
+  //   type: 'oidc',
+  //   displayName: 'サインイン',
+  //   providerIdentifier: 'https://{subdomain}.ciamlogin.com/{tenantId}',
+  // },
+];
+
+/**
+ * Entra ID（workforce）用: Portal.tenant から provider identifier を動的解決する。
+ * 他のプロバイダーは AUTH_PROVIDERS に直接 providerIdentifier を設定する。
+ */
+export function resolveProviderIdentifier(provider: AuthProvider): string {
+  if (provider.type === 'entra-id') {
+    const tenantId = (window as any)["Microsoft"]?.Dynamic365?.Portal?.tenant;
+    return `https://login.windows.net/${tenantId}/`;
+  }
+  return provider.providerIdentifier ?? '';
+}
+```
+
+> **Entra ID の特殊ケース**: Power Pages は Entra ID（workforce）のサイト設定 `Authentication/OpenIdConnect/AzureAD/AuthenticationType` に `https://login.windows.net/{tenantId}/` を自動設定する（`login.microsoftonline.com` ではない）。この値は `Portal.tenant` から runtime 解決するので SPA にハードコードしない。
+
+---
+
+## 2. 認証フック（`src/hooks/use-auth.ts`）
+
+SSO ログイン・サインアウト・認証状態判定をすべて担う中核。`AUTH_PROVIDERS` 配列のうち最初のプロバイダーでログインする。
 
 ```typescript
 // src/hooks/use-auth.ts
 import { useState, useEffect, useCallback, useRef } from "react";
+import { AUTH_PROVIDERS, resolveProviderIdentifier } from "@/services/authService";
 
 export interface AuthUser {
   contactId: string;
@@ -106,53 +184,64 @@ export function useAuth() {
     };
   }, [state.isAuthenticated]);
 
-  // ── ① シングルサインオン（SSO ログイン）──
+  // ── ① 外部 IdP ログイン（ExternalLogin POST）──
   // /_layout/tokenhtml から anti-forgery token を取得し、
-  // Portal.tenant から provider identifier を解決して直接 Entra ID に POST。
+  // provider identifier を解決して /Account/Login/ExternalLogin に POST。
   // Ref: microsoft/power-platform-skills setup-auth resolveProviderIdentifier()
-  const login = useCallback(async () => {
+  const login = useCallback(async (providerId?: string) => {
     if (window.location.hash) {
       sessionStorage.setItem("pp_return_hash", window.location.hash);
     }
 
-    // Resolve provider from Portal.tenant at runtime
-    const tenantId = (window as any)["Microsoft"]?.Dynamic365?.Portal?.tenant;
+    const provider = providerId
+      ? AUTH_PROVIDERS.find((p) => p.id === providerId) ?? AUTH_PROVIDERS[0]
+      : AUTH_PROVIDERS[0];
 
-    if (tenantId) {
-      try {
-        // Lightweight endpoint — no full HTML page parse needed
-        const tokenRes = await fetch("/_layout/tokenhtml", { credentials: "same-origin" });
-        const tokenHtml = await tokenRes.text();
-        const tokenMatch = tokenHtml.match(/value="([^"]+)"/);
-
-        if (tokenMatch) {
-          const form = document.createElement("form");
-          form.method = "POST";
-          form.action = "/Account/Login/ExternalLogin";
-          form.style.display = "none";
-          const fields: Record<string, string> = {
-            provider: `https://login.windows.net/${tenantId}/`,
-            returnUrl: "/",
-            __RequestVerificationToken: tokenMatch[1],
-          };
-          for (const [name, value] of Object.entries(fields)) {
-            const input = document.createElement("input");
-            input.type = "hidden";
-            input.name = name;
-            input.value = value;
-            form.appendChild(input);
-          }
-          document.body.appendChild(form);
-          form.submit();
-          return;
-        }
-      } catch { /* fallback below */ }
+    if (provider.type === 'local') {
+      // ローカル認証は別フォームへ（Section 5 参照）
+      window.location.href = "/SignIn?returnUrl=/";
+      return;
     }
+
+    const providerIdentifier = resolveProviderIdentifier(provider);
+    if (!providerIdentifier) {
+      window.location.href = "/SignIn?returnUrl=/";
+      return;
+    }
+
+    try {
+      // Lightweight endpoint — no full HTML page parse needed
+      const tokenRes = await fetch("/_layout/tokenhtml", { credentials: "same-origin" });
+      const tokenHtml = await tokenRes.text();
+      const tokenMatch = tokenHtml.match(/value="([^"]+)"/);
+
+      if (tokenMatch) {
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = "/Account/Login/ExternalLogin";
+        form.style.display = "none";
+        const fields: Record<string, string> = {
+          provider: providerIdentifier,
+          returnUrl: "/",
+          __RequestVerificationToken: tokenMatch[1],
+        };
+        for (const [name, value] of Object.entries(fields)) {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = name;
+          input.value = value;
+          form.appendChild(input);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        return;
+      }
+    } catch { /* fallback below */ }
     // フォールバック: 標準サインインページへ
     window.location.href = "/SignIn?returnUrl=/";
   }, []);
 
-  // ── ② サインアウト ──
+  // ── ② サインアウト（ローカルログアウト）──
   const logout = useCallback(() => {
     sessionStorage.removeItem("pp_return_hash");
     window.location.href = "/Account/Login/LogOff?returnUrl=%2F";
@@ -162,20 +251,19 @@ export function useAuth() {
 }
 ```
 
-### SSO の実装パターン
+### ExternalLogin POST パターン比較
 
 | パターン | 挙動 | 用途 |
 |------|------|------|
-| **`/_layout/tokenhtml` + `Portal.tenant` → form POST**（推奨） | anti-forgery token を軽量エンドポイントから取得、provider を runtime 解決 | 推奨（microsoft/power-platform-skills 準拠） |
+| **`/_layout/tokenhtml` + `resolveProviderIdentifier()` → form POST**（推奨） | anti-forgery token を軽量エンドポイントから取得、provider を runtime 解決 | 推奨（microsoft/power-platform-skills 準拠） |
 | **`/SignIn` HTML パース → form POST** | `/SignIn` ページ HTML をフェッチして token + provider を抽出 | レガシー（重い HTML をパースする） |
-| 単純リダイレクト `/SignIn?returnUrl=/` | 標準サインインページを経由 | 複数 IdP があるとき／フォールバック |
+| 単純リダイレクト `/SignIn?returnUrl=/` | 標準サインインページを経由 | 複数 IdP 並立時 or フォールバック |
 
-> `provider` 値はサイトの ID プロバイダー設定（AuthenticationType）と一致している必要がある。
-> 上記実装は `/SignIn` の HTML から `provider` を動的に抽出するため、値のハードコードが不要。
+> `provider` 値はサイト設定 `Authentication/OpenIdConnect/{name}/AuthenticationType`（または SAML2/WsFed）と**完全一致**する必要がある。Entra ID のみ `Portal.tenant` から runtime 解決する。
 
 ---
 
-## 2. ③ ログイン / サインアウトボタン（ヘッダー UI）
+## 3. ③ ログイン / サインアウトボタン（ヘッダー UI）
 
 ヘッダーで認証状態に応じてボタンを出し分ける。`useAuth` の `login` / `logout` を呼ぶだけ。
 
@@ -217,7 +305,7 @@ export function SiteHeader() {
 
 ---
 
-## 3. 認証ガード（ルート保護の UI フロー）
+## 4. 認証ガード（ルート保護の UI フロー）
 
 未認証ユーザーにログイン導線を出す `RequireAuth` コンポーネント。
 
@@ -264,7 +352,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
 ---
 
-## 4. ルーティングへの組み込み（UI フロー全体）
+## 5. ルーティングへの組み込み（UI フロー全体）
 
 `RequireAuth` で保護ルートを包む。公開ページ（ホーム）はガード無し。
 
@@ -309,7 +397,7 @@ export default function App() {
 
 ---
 
-## 5. 認証 UI フロー図
+## 6. 認証 UI フロー図
 
 ```mermaid
 flowchart TD
@@ -331,7 +419,7 @@ flowchart TD
 
 ---
 
-## 6. プロフィール編集の例（認証ユーザーで contact を読み書き）
+## 7. プロフィール編集の例（認証ユーザーで contact を読み書き）
 
 ログインユーザーの contact レコードを `apiGet` / `apiPatch` で読み書きする。
 `ApiAuthError` をハンドリングして再ログインを促す。
@@ -400,7 +488,7 @@ export default function ProfilePage() {
 
 ---
 
-## 7. 認証まわりの検証済み教訓
+## 8. 認証まわりの検証済み教訓
 
 | 問題 | 原因 | 解決 |
 |------|------|------|
@@ -416,11 +504,11 @@ export default function ProfilePage() {
 
 ---
 
-## 8. サーバー側の認証設定（Power Pages 管理）
+## 9. サーバー側の認証設定（Power Pages 管理）
 
 クライアントコードだけでは認証は完成しない。サーバー側で IdP とサイト設定を構成する必要がある。
 
-### 8.1 Identity Provider 設定（手動・必須）
+### 9.1 Identity Provider 設定（手動・必須）
 
 > **重要**: IdP は API からは設定できない。Power Pages 管理センターで手動構成する。
 
@@ -431,7 +519,7 @@ export default function ProfilePage() {
 4. Microsoft Entra ID を有効化（デフォルト設定で B2C/Entra ID が自動構成される）
 ```
 
-### 8.2 必須サイト設定（YAML で管理）
+### 9.2 必須サイト設定（YAML で管理）
 
 > **重要**: `pac pages upload-code-site` は毎回 YAML の値で Dataverse を上書きする。
 > 設定変更は YAML ファイルと Dataverse の両方を更新する。
@@ -452,7 +540,7 @@ name: Authentication/Registration/LoginButtonAuthenticationType
 value: "https://login.microsoftonline.com/{tenant-id}/"
 ```
 
-### 8.3 LoginButtonAuthenticationType（自動リダイレクト）
+### 9.3 LoginButtonAuthenticationType（自動リダイレクト）
 
 | 項目 | 説明 |
 |------|------|
@@ -464,7 +552,7 @@ value: "https://login.microsoftonline.com/{tenant-id}/"
 > Authority URL は `https://login.microsoftonline.com/{tenant-id}/`（末尾 `/` 必須）。
 > `https://sts.windows.net/{tenant-id}/` ではない。間違えると自動 SSO が効かない。
 
-### 8.4 ビルトイン vs カスタム OpenIdConnect
+### 9.4 ビルトイン vs カスタム OpenIdConnect
 
 | 項目 | ビルトイン (AzureAD) | カスタム OpenIdConnect |
 |------|------|------|
@@ -477,14 +565,14 @@ value: "https://login.microsoftonline.com/{tenant-id}/"
 > 特別な理由がない限りビルトイン Azure AD プロバイダーを使う。
 > カスタム OpenIdConnect は `response_type=id_token` のためトラッキング防止で callback が失敗しやすい。
 
-### 8.5 サイト可視性
+### 9.5 サイト可視性
 
 | Visibility | 動作 |
 |---|---|
 | `private` | 全ページ認証必須。開発中はこちら推奨。SPA ロード時点で認証済み |
 | `public` | 認証なしでアクセス可。公開前に Table Permission を確認 |
 
-### 8.6 トラッキング防止（Tracking Prevention）
+### 9.6 トラッキング防止（Tracking Prevention）
 
 | ブラウザ | 影響 |
 |---|---|
@@ -499,3 +587,160 @@ value: "https://login.microsoftonline.com/{tenant-id}/"
 
 > Dataverse 側のテーブル権限・Web ロール（3 レイヤー）の設定は
 > [Enhanced Data Model テーブル権限](enhanced-data-model-permissions.md) を参照。
+
+---
+
+## 10. Entra External ID（CIAM）— 顧客向けポータルの設定
+
+顧客向けポータルでは Entra ID（workforce）ではなく **Entra External ID（CIAM）** を使う。
+
+### 10.1 サイト設定 YAML（Entra External ID）
+
+```yaml
+# Authentication/OpenIdConnect/{ProviderName}/AuthenticationType
+# ProviderName 例: OpenIdConnect_1
+name: Authentication/OpenIdConnect/OpenIdConnect_1/AuthenticationType
+value: "https://{subdomain}.ciamlogin.com/{tenantId}"
+
+name: Authentication/OpenIdConnect/OpenIdConnect_1/Authority
+value: "https://{subdomain}.ciamlogin.com/{tenantId}"
+
+name: Authentication/OpenIdConnect/OpenIdConnect_1/MetadataAddress
+value: "https://{subdomain}.ciamlogin.com/{tenantId}/v2.0/.well-known/openid-configuration"
+
+name: Authentication/OpenIdConnect/OpenIdConnect_1/ClientId
+value: "{clientId}"
+
+name: Authentication/OpenIdConnect/OpenIdConnect_1/RedirectUri
+value: "https://{site-url}/signin-openidconnect_1"
+
+name: Authentication/OpenIdConnect/OpenIdConnect_1/Caption
+value: "サインイン"
+
+name: Authentication/Registration/OpenRegistrationEnabled
+value: "true"  # セルフサービス登録を許可する場合
+
+name: Authentication/Registration/ProfileRedirectEnabled
+value: "false"
+```
+
+### 10.2 AUTH_PROVIDERS 設定例（Entra External ID）
+
+```typescript
+export const AUTH_PROVIDERS: AuthProvider[] = [
+  {
+    id: 'entra-external',
+    type: 'oidc',
+    displayName: 'サインイン',
+    // AuthenticationType と一致させる（Authority URL）
+    providerIdentifier: 'https://{subdomain}.ciamlogin.com/{tenantId}',
+  },
+];
+```
+
+> **Entra External ID の URL 形式**: `https://{subdomain}.ciamlogin.com/{tenantId}` — 末尾の `/v2.0/` は不要。Entra ID（workforce）の `login.windows.net` や `login.microsoftonline.com` と混同しないこと。
+
+### 10.3 クレームマッピング（RegistrationClaimsMapping / LoginClaimsMapping）
+
+外部 IdP のクレームを Dataverse contact フィールドにマッピングする。
+
+| サイト設定 | 値（例） | タイミング |
+|---|---|---|
+| `Authentication/OpenIdConnect/{name}/RegistrationClaimsMapping` | `firstname=given_name,lastname=family_name,emailaddress1=email` | 初回サインイン時のみ（**推奨**） |
+| `Authentication/OpenIdConnect/{name}/LoginClaimsMapping` | 同上 | 毎回ログイン時（IdP が唯一の正源の場合） |
+
+> **推奨**: `RegistrationClaimsMapping` のみ設定し `LoginClaimsMapping` は設定しない。SPA でプロフィール編集を提供する場合、`LoginClaimsMapping` があると毎回ユーザーの編集内容が IdP 値で上書きされる。
+
+```yaml
+# .powerpages-site/site-settings/
+name: Authentication/OpenIdConnect/OpenIdConnect_1/RegistrationClaimsMapping
+value: "firstname=given_name,lastname=family_name,emailaddress1=email"
+```
+
+---
+
+## 11. ローカル認証（Username/Password）
+
+> **注意**: ローカル認証はデフォルトでは設定しない。外部 IdP が利用できない特別な理由がある場合のみ使用する。
+
+### 11.1 ローカルログインのフォームフィールド
+
+ローカル認証フォームは `/Account/Login/Login` ではなく **`/SignIn`** に POST する。パスワードフィールド名は `PasswordValue`（`Password` ではない）。
+
+```typescript
+// ローカルログイン（use-auth.ts 内のローカル認証分岐）
+async function localLogin(email: string, password: string): Promise<void> {
+  const tokenRes = await fetch("/_layout/tokenhtml", { credentials: "same-origin" });
+  const tokenHtml = await tokenRes.text();
+  const tokenMatch = tokenHtml.match(/value="([^"]+)"/);
+  if (!tokenMatch) throw new Error("Failed to get anti-forgery token");
+
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = "/SignIn";
+  form.style.display = "none";
+  const fields: Record<string, string> = {
+    Email: email,           // LocalLoginByEmail=true の場合
+    PasswordValue: password, // ★ Password ではなく PasswordValue
+    ReturnUrl: "/",
+    __RequestVerificationToken: tokenMatch[1],
+  };
+  for (const [name, value] of Object.entries(fields)) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  }
+  document.body.appendChild(form);
+  form.submit();
+}
+```
+
+> **重要**: `Password` フィールド名は動作しない。必ず `PasswordValue` を使う。`LocalLoginByEmail=true` の場合は `Email` フィールド、`false` の場合は `Username` フィールドを送信する。
+
+### 11.2 ローカル認証のサイト設定
+
+```yaml
+name: Authentication/Registration/LocalLoginEnabled
+value: "true"
+
+name: Authentication/Registration/LocalLoginByEmail
+value: "true"  # Email でログイン（false の場合はユーザー名）
+
+name: Authentication/Registration/OpenRegistrationEnabled
+value: "true"   # 自己登録を許可する場合
+```
+
+---
+
+## 12. ログアウトモード（ローカル vs フェデレーテッド）
+
+upstream `setup-auth` では 2 種類のログアウトモードを区別する。
+
+| モード | サイト設定 | 動作 | 推奨用途 |
+|---|---|---|---|
+| **ローカルログアウト**（デフォルト） | `RPInitiatedLogout` 未設定/false、`PostLogoutRedirectUri` 未設定 | Power Pages セッションのみクリア。IdP 側はサインイン維持。次回サインインはサイレント SSO。 | 大多数の顧客向けサイト。スムーズな UX。 |
+| **フェデレーテッドログアウト**（RP-initiated） | `RPInitiatedLogout=true` **かつ** `PostLogoutRedirectUri={site-url}/` | IdP の `end_session_endpoint` にリダイレクト。IdP 側のセッションもクリア。 | 共有デバイス、規制業種、毎回認証要求が必要なサイト。 |
+
+> **両設定は必ずセットで**: `RPInitiatedLogout=true` のみで `PostLogoutRedirectUri` を省略すると、IdP のサインアウトページでユーザーが取り残される。
+
+```typescript
+// フェデレーテッドログアウト（use-auth.ts）
+const logout = useCallback(() => {
+  sessionStorage.removeItem("pp_return_hash");
+  // ローカルログアウト（デフォルト）:
+  window.location.href = "/Account/Login/LogOff?returnUrl=%2F";
+  // フェデレーテッドログアウト（RPInitiatedLogout=true 設定時）:
+  // window.location.href = "/Account/Login/LogOff";  // PostLogoutRedirectUri がリダイレクト先を決定
+}, []);
+```
+
+```yaml
+# フェデレーテッドログアウトを有効にする場合のみ設定
+name: Authentication/OpenIdConnect/{ProviderName}/RPInitiatedLogout
+value: "true"
+
+name: Authentication/OpenIdConnect/{ProviderName}/PostLogoutRedirectUri
+value: "https://{site-url}/"  # 必ず明示設定（省略不可）
+```
