@@ -6,6 +6,19 @@ Power Pages Code Site（SPA）における認証一式の実装サンプル。
 
 > **位置づけ**: SKILL.md「SSO + プロフィール編集」の詳細版。
 > Dataverse の読み書きクライアントは [Dataverse クライアント実装リファレンス](dataverse-client.md) を参照。
+> 全体の責務分離は [upstream 優先構成ガイド](upstream-alignment.md) を参照。
+
+---
+
+## 0.1 microsoft/power-platform-skills との対応（認証・認可）
+
+| 項目 | 対応スキル | このリファレンスで扱う範囲 |
+|---|---|---|
+| ログイン/ログアウト導線 | `setup-auth` | `useAuth`、`ExternalLogin` POST、keepalive、認証ガード UI |
+| Web ロール準備 | `create-webroles` | 実行前提としてロール構成を確認（未作成だと認可検証が成立しない） |
+| サーバー側強制力 | `setup-auth` + `create-webroles` + テーブル権限 | クライアント側 role check は UX 制御のみ、実際のアクセス制御はサーバー側 |
+
+> 要点: 認証スキルだけでは CRUD は成立しない。`create-webroles` とテーブル権限設定を組み合わせてはじめて一般ユーザーの認可が成立する。
 
 ---
 

@@ -34,6 +34,7 @@ triggers:
 
 | リファレンス | 内容 |
 |---|---|
+| [upstream 優先構成ガイド](references/upstream-alignment.md) | `microsoft/power-platform-skills` 基準での責務分離・実行順序・刷新方針 |
 | [Dataverse クライアント実装](references/dataverse-client.md) | `apiGet/apiPost/apiPatch/apiDelete` の実コード・anti-forgery トークン・OData クエリ・dev プロキシ・**Code Apps との対比** |
 | [認証実装](references/authentication.md) | **SSO・サインアウト・ログインボタン・認証ガード・UI フロー**の実コード一式・サーバー側 IdP/サイト設定・Code Apps との対比 |
 | [Enhanced Data Model テーブル権限](references/enhanced-data-model-permissions.md) | EDM 2.0 のテーブル権限設定・3 レイヤー権限・N:N バグ・ワークアラウンド |
@@ -42,6 +43,47 @@ triggers:
 | [デザインテンプレート集](references/design-templates.md) | 5 種類の配色テンプレート定義。設計時に提案→選択→適用 |
 
 > **Dataverse 接続と認証の実装方法はこのファイルで概要を説明し、完全なサンプルコードは上記 References にまとめている。**
+
+---
+
+## 刷新版の構成原則（upstream 優先）
+
+このスキルは `microsoft/power-platform-skills/plugins/power-pages` の以下 4 スキルを優先参照して構成する。
+
+| 領域 | upstream スキル | このスキル内の着地 |
+|---|---|---|
+| 認証・認可 | `setup-auth` | `references/authentication.md` |
+| Web ロール | `create-webroles` | `references/enhanced-data-model-permissions.md` |
+| Dataverse CRUD | `integrate-webapi` | `references/dataverse-client.md` |
+| 権限監査 | `audit-permissions` | `reviews/*` + `scripts/review_pre_deploy.py` |
+
+**標準実行順序（刷新後）**
+1. デプロイ基盤準備（`.powerpages-site` 作成）  
+2. Web ロール整備  
+3. 認証導線（SSO/ログイン/ログアウト）整備  
+4. Dataverse Web API CRUD 実装  
+5. 権限監査（ロール・テーブル権限整合）  
+
+> 詳細な責務分離と判断基準は [upstream 優先構成ガイド](references/upstream-alignment.md) を正本として扱う。
+
+---
+
+## microsoft/power-platform-skills 比較（認証・認可 vs Dataverse CRUD）
+
+| 観点 | ユーザー認証・Webロール認可 | Dataverse Web API 連携 CRUD |
+|---|---|---|
+| 上流スキル | `setup-auth` + `create-webroles` | `integrate-webapi` |
+| 主目的 | ログイン/ログアウト、認証状態判定、ロールベース UI 制御 | `/_api` 経由の読み書き（`apiGet/apiPost/apiPatch/apiDelete`） |
+| 主な成果物 | `use-auth.ts`、ログイン UI、Web ロール YAML | `api.ts`、テーブル別 service/hooks、CRUD 画面 |
+| サーバー側必須設定 | IdP site settings、Web ロール、テーブル権限へのロール紐付け | テーブル権限（type=18 + `adx_entitypermission_webrole`）、必要時のみ Webapi 設定 |
+| 失敗時の代表症状 | ログインループ、`/profile` 強制遷移、未認証判定ミス | 401(90040107) / 403 / 404(9004010C, 9004010D) |
+| 依存関係 | 先に認証導線を整える（ユーザー実体: contact） | 認証済みセッション Cookie 前提で CRUD を実行 |
+
+**推奨適用順:**
+1. `setup-auth` で認証導線を整備  
+2. `create-webroles` でロールを確定  
+3. `integrate-webapi` で CRUD 実装  
+4. `audit-permissions` で権限妥当性を最終監査  
 
 ---
 
