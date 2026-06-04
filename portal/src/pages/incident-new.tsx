@@ -35,7 +35,9 @@ export default function IncidentNewPage() {
       geek_status: 100000000, // 新規
       geek_priority: parseInt(priority),
       geek_assettype: assetType ? parseInt(assetType) : undefined,
-      geek_reportedby: user?.fullName || undefined,
+      ...(user?.contactId
+        ? { "geek_inquirerid@odata.bind": `/contacts(${user.contactId})` }
+        : {}),
     };
 
     try {
@@ -140,17 +142,6 @@ export default function IncidentNewPage() {
               ))}
             </select>
           </div>
-        </div>
-
-        {/* 報告者（自動入力） */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">報告者</label>
-          <input
-            type="text"
-            value={user?.fullName ?? ""}
-            disabled
-            className="w-full h-10 px-3 rounded-lg border border-border/60 bg-muted text-sm text-muted-foreground"
-          />
         </div>
 
         {/* 送信ボタン */}

@@ -165,12 +165,7 @@ export default function IncidentDetailPage() {
           <InfoItem
             icon={User}
             label="報告者"
-            value={incident.geek_reportedby}
-          />
-          <InfoItem
-            icon={User}
-            label="担当者"
-            value={incident.geek_assignedto}
+            value={incident["_geek_inquirerid_value@OData.Community.Display.V1.FormattedValue"]}
           />
           <InfoItem
             icon={Monitor}

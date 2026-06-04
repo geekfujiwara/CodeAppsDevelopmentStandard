@@ -129,9 +129,7 @@ export interface Incident {
   modifiedon?: string;
   // lookup formatted values (Prefer: odata.include-annotations)
   "_geek_inquirerid_value@OData.Community.Display.V1.FormattedValue"?: string;
-  "_geek_assignedtoid_value@OData.Community.Display.V1.FormattedValue"?: string;
   _geek_inquirerid_value?: string;
-  _geek_assignedtoid_value?: string;
   [key: string]: unknown;
 }
 
@@ -146,7 +144,7 @@ export interface IncidentCreate {
 
 // ── CRUD ──
 const INCIDENT_SELECT =
-  "geek_incidentid,geek_name,geek_description,geek_status,geek_priority,geek_category,geek_ticketnumber,geek_resolution,geek_resolvedon,_geek_inquirerid_value,_geek_assignedtoid_value,createdon";
+  "geek_incidentid,geek_name,geek_description,geek_status,geek_priority,geek_category,geek_ticketnumber,geek_resolution,geek_resolvedon,_geek_inquirerid_value,createdon";
 
 export async function getIncidents(): Promise<Incident[]> {
   const data = await apiGet<ODataCollection<Incident>>(
