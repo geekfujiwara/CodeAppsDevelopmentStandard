@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 from dataclasses import dataclass
@@ -41,6 +42,10 @@ SUPPORTED_EXTENSIONS = {
     ".webp",
     ".tiff",
     ".tif",
+}
+
+IMAGE_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif",
 }
 
 
@@ -87,6 +92,15 @@ def parse_args() -> argparse.Namespace:
         help=(
             "出力フォルダのパス。"
             f" 省略時は `{DEFAULT_OUTPUT_ROOT}/<input-set>-<timestamp>/` を使用"
+        ),
+    )
+    parser.add_argument(
+        "--agent-ocr",
+        action="store_true",
+        help=(
+            "画像ファイルを pending-ocr スタブとして出力し pending_ocr.json を書き出す。"
+            " GitHub Copilot エージェントがその後に画像を1枚ずつ読み込んで OCR する。"
+            " API キー不要。"
         ),
     )
     return parser.parse_args()
@@ -352,6 +366,78 @@ def build_document(
 """
 
 
+PENDING_OCR_MARKER = "<!-- pending-ocr -->"
+
+
+def build_pending_raw(source_path: Path) -> str:
+    return f"{PENDING_OCR_MARKER}\n_エージェント OCR を待機中: `{source_path}`_\n"
+
+
+def build_pending_factsheet(
+    source_path: Path,
+    relative_path: Path,
+    sha256: str,
+    batch_started_at: str,
+) -> str:
+    title = source_path.stem
+    return f"""# {title} factsheet
+
+## 1. Source
+- File: `{source_path.name}`
+- Relative path: `{relative_path.as_posix()}`
+- Extension: `{source_path.suffix.lower()}`
+- SHA256: `{sha256}`
+- Batch converted at: `{batch_started_at}`
+- Status: `pending-ocr`
+- Message: エージェント OCR を待機中
+
+## 2. Power Platform requirement summary
+### Business objective
+- 要確認
+
+### Users / roles
+- 要確認
+
+### Dataverse tables
+- 要確認
+
+### Main columns / master data
+- 要確認
+
+### UI / app requirements
+- 要確認
+
+### Automations
+- 要確認
+
+### Agent / AI opportunities
+- 要確認
+
+### External integrations
+- 要確認
+
+### Security / compliance
+- 要確認
+
+### Open questions
+- 要確認
+
+## 3. Extracted markdown
+
+{PENDING_OCR_MARKER}
+_エージェント OCR を待機中。`pending_ocr.json` に従ってエージェントがこのセクションを埋める。_
+"""
+
+
+def write_pending_ocr_json(
+    output_dir: Path,
+    pending: list[dict[str, str]],
+) -> Path:
+    path = output_dir / "pending_ocr.json"
+    path.write_text(json.dumps(pending, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
 def main() -> int:
     args = parse_args()
     input_path = resolve_input_path(args.input)
@@ -374,25 +460,30 @@ def main() -> int:
     raw_dir, factsheet_dir = ensure_directories(output_dir)
     batch_started_at = datetime.now(timezone.utc).isoformat()
 
+    agent_ocr_mode = args.agent_ocr
+
     llm_client, llm_model = _build_llm_client()
-    if llm_client:
+    if llm_client and not agent_ocr_mode:
         print(f"🤖 LLM client detected (model={llm_model}): 画像OCRが有効です。")
         converter = MarkItDown(llm_client=llm_client, llm_model=llm_model)
     else:
-        image_files = [f for f in files if f.suffix.lower() in {
-            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"
-        }]
-        if image_files:
-            print(
-                "⚠️  LLM クライアント未設定: 画像ファイルは EXIF メタデータのみ抽出されます。"
-                " テキスト OCR を行うには OPENAI_API_KEY または"
-                " AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY を設定してください。"
-            )
+        if agent_ocr_mode:
+            print("🖼️  --agent-ocr モード: 画像はエージェントが後から処理します。")
+        else:
+            image_files_present = any(f.suffix.lower() in IMAGE_EXTENSIONS for f in files)
+            if image_files_present:
+                print(
+                    "⚠️  LLM クライアント未設定: 画像ファイルは EXIF メタデータのみ抽出されます。"
+                    " テキスト OCR を行うには OPENAI_API_KEY または"
+                    " AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY を設定してください。"
+                    " または --agent-ocr フラグを使用してください。"
+                )
         converter = MarkItDown()
 
     base_dir = input_path if input_path.is_dir() else input_path.parent
 
     results: list[ConversionResult] = []
+    pending_ocr_items: list[dict[str, str]] = []
 
     for source_path in files:
         relative_path = source_path.relative_to(base_dir)
@@ -400,6 +491,37 @@ def main() -> int:
         sha256 = sha256_of(source_path)
         raw_markdown_path = raw_dir / f"{slug}.md"
         factsheet_path = factsheet_dir / f"{slug}.md"
+
+        # --agent-ocr: 画像はスタブを書いてエージェントに委ねる
+        if agent_ocr_mode and source_path.suffix.lower() in IMAGE_EXTENSIONS:
+            write_text(raw_markdown_path, build_pending_raw(source_path))
+            write_text(factsheet_path, build_pending_factsheet(
+                source_path=source_path,
+                relative_path=relative_path,
+                sha256=sha256,
+                batch_started_at=batch_started_at,
+            ))
+            pending_ocr_items.append({
+                "source_path": str(source_path),
+                "relative_path": relative_path.as_posix(),
+                "slug": slug,
+                "raw_markdown_path": str(raw_markdown_path),
+                "factsheet_path": str(factsheet_path),
+            })
+            results.append(
+                ConversionResult(
+                    source_path=source_path,
+                    relative_path=relative_path,
+                    slug=slug,
+                    raw_markdown_path=raw_markdown_path,
+                    factsheet_path=factsheet_path,
+                    status="pending-ocr",
+                    message="エージェント OCR を待機中",
+                    sha256=sha256,
+                )
+            )
+            print(f"⏳ pending-ocr: {relative_path.as_posix()}")
+            continue
 
         try:
             markdown = convert_file(converter, source_path)
@@ -455,6 +577,12 @@ def main() -> int:
     document_path = output_dir / "document.md"
     write_text(document_path, build_document(input_path, output_dir, batch_started_at, results))
     print(f"📝 wrote: {document_path}")
+
+    if pending_ocr_items:
+        pending_json_path = write_pending_ocr_json(output_dir, pending_ocr_items)
+        print(f"\n🖼️  pending_ocr.json に {len(pending_ocr_items)} 件の画像を記録しました: {pending_json_path}")
+        print("   次のステップ: @GeekPowerCode に `pending_ocr.json を処理して` と依頼してください。")
+
     return 0
 
 

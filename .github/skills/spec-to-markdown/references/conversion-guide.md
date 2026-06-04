@@ -27,6 +27,8 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python convert_documents.py
+# 画像を GitHub Copilot エージェントで OCR する場合
+python convert_documents.py --agent-ocr
 ```
 
 ### Windows (PowerShell)
@@ -34,6 +36,8 @@ python convert_documents.py
 ```powershell
 cd .github\skills\spec-to-markdown\scripts
 powershell -ExecutionPolicy Bypass -File run_windows.ps1
+# 画像を GitHub Copilot エージェントで OCR する場合
+powershell -ExecutionPolicy Bypass -File run_windows.ps1 --agent-ocr
 ```
 
 `run_windows.ps1` は初回実行時に仮想環境の作成とパッケージのインストールを自動で行う。  
