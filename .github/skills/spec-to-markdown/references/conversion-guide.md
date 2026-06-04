@@ -26,8 +26,7 @@ cd .github/skills/spec-to-markdown/scripts
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python convert_documents.py
-# 画像を GitHub Copilot エージェントで OCR する場合
+# 画像を GitHub Copilot エージェントで OCR する場合（--agent-ocr は画像がある場合は必須）
 python convert_documents.py --agent-ocr
 ```
 
@@ -35,8 +34,7 @@ python convert_documents.py --agent-ocr
 
 ```powershell
 cd .github\skills\spec-to-markdown\scripts
-powershell -ExecutionPolicy Bypass -File run_windows.ps1
-# 画像を GitHub Copilot エージェントで OCR する場合
+# 画像を GitHub Copilot エージェントで OCR する場合（--agent-ocr は画像がある場合は必須）
 powershell -ExecutionPolicy Bypass -File run_windows.ps1 --agent-ocr
 ```
 
@@ -102,52 +100,9 @@ work/spec-to-markdown/input/
 - **画像** (`.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.webp`, `.tiff`, `.tif`)
 
 > Word / markdown / html まで含めるのは、添付仕様や補足メモが混在しやすいため。  
-> 画像は OCR / LLM ビジョンで文字を抽出する（後述の環境変数設定が必要）。
+> 画像は `--agent-ocr` フラグを使い GitHub Copilot のビジョン機能でテキストを抽出する。
 
-## 4. 画像 OCR の設定
-
-画像ファイルのテキスト抽出には **LLM クライアント** が必要。  
-環境変数を設定すると自動的に有効になる。
-
-### OpenAI を使う場合
-
-```powershell
-# Windows PowerShell
-$env:OPENAI_API_KEY = "sk-..."
-# モデルを変える場合（既定: gpt-4o）
-$env:OPENAI_MODEL = "gpt-4o"
-```
-
-```bash
-# macOS / Linux
-export OPENAI_API_KEY="sk-..."
-export OPENAI_MODEL="gpt-4o"  # 省略時は gpt-4o
-```
-
-### Azure OpenAI を使う場合
-
-```powershell
-# Windows PowerShell
-$env:AZURE_OPENAI_ENDPOINT   = "https://<リソース名>.openai.azure.com/"
-$env:AZURE_OPENAI_API_KEY    = "<APIキー>"
-$env:AZURE_OPENAI_DEPLOYMENT = "gpt-4o"           # デプロイ名（省略時: gpt-4o）
-$env:AZURE_OPENAI_API_VERSION = "2024-12-01-preview"  # 省略可
-```
-
-```bash
-# macOS / Linux
-export AZURE_OPENAI_ENDPOINT="https://<リソース名>.openai.azure.com/"
-export AZURE_OPENAI_API_KEY="<APIキー>"
-export AZURE_OPENAI_DEPLOYMENT="gpt-4o"
-```
-
-### 環境変数なしの場合
-
-LLM クライアントが未設定でも画像ファイルは処理される。  
-ただし EXIF メタデータのみ抽出され、テキスト OCR は行われない。  
-実行時に `⚠️ LLM クライアント未設定` の警告が表示される。
-
-## 5. factsheet テンプレート
+## 4. factsheet テンプレート
 
 各 factsheet は最低限次の構造にする。
 
@@ -174,7 +129,7 @@ LLM クライアントが未設定でも画像ファイルは処理される。
 ## 3. Extracted markdown
 ```
 
-## 6. document.md テンプレート
+## 5. document.md テンプレート
 
 ```markdown
 # Power Platform requirements document
@@ -196,7 +151,7 @@ LLM クライアントが未設定でも画像ファイルは処理される。
 ## 4. Factsheet index
 ```
 
-## 7. 要件整理ルール
+## 6. 要件整理ルール
 
 - **推測で補完しない**
 - 文書間で表現が違う場合は `差分あり` と記録する
@@ -207,14 +162,14 @@ LLM クライアントが未設定でも画像ファイルは処理される。
   - 対話 / 検索 / 要約 → Copilot Studio / AI Builder
 - 画面名・帳票名・マスタ名・外部システム名はそのまま残す
 
-## 8. MarkItDown を使う理由
+## 7. MarkItDown を使う理由
 
 - PDF / Office 系ファイルを markdown に寄せて扱える
 - 見出し・箇条書き・表の構造を比較的保ちやすい
 - 後段の LLM 要約や requirements 整理に渡しやすい
-- 画像は LLM ビジョン（GPT-4o 等）で OCR することで、スキャン図・スクリーンショットも対象にできる
+- 画像は GitHub Copilot のビジョン機能（`--agent-ocr`）で OCR することで、スキャン図・スクリーンショットも対象にできる
 
-## 9. 限界と補完方針
+## 8. 限界と補完方針
 
 - スキャン PDF や画像中心の資料は抽出精度が落ちる
 - 複雑な表は崩れることがある

@@ -49,14 +49,15 @@ Power Platform 開発で使いやすい **factsheet 群** と **全体 document.
 
 ## 基本フロー
 
-1. `scripts/convert_documents.py` で既定 input フォルダ、または指定された input パス内の仕様書を markdown 化する
-2. 各ファイルごとに `factsheets/*.md` を作る
-3. 横断要件を `document.md` にまとめる
-4. 不明点・矛盾点・未記載事項は推測で埋めず `要確認` として残す
+1. `scripts/convert_documents.py --agent-ocr` で既定 input フォルダ、または指定された input パス内の仕様書を markdown 化する
+2. 各ファイルごとに `factsheets/*.md` を作る（画像は `pending-ocr` スタブとして出力される）
+3. `@GeekPowerCode pending_ocr.json を処理して` と依頼し、GitHub Copilot が画像を OCR する
+4. 横断要件を `document.md` にまとめる
+5. 不明点・矛盾点・未記載事項は推測で埋めず `要確認` として残す
 
-## Agent OCR フロー（API キー不要）
+## 画像 OCR フロー（GitHub Copilot 使用）
 
-画像ファイル (`.png`, `.jpg` 等) を GitHub Copilot エージェント自身のビジョン機能で OCR する場合:
+画像ファイル (`.png`, `.jpg` 等) は GitHub Copilot エージェント自身のビジョン機能で OCR する。API キーは不要。
 
 ### 手順
 
@@ -90,15 +91,6 @@ python convert_documents.py --agent-ocr
 4. `raw_markdown_path` ファイルの `<!-- pending-ocr -->` マーカー以下を OCR テキストで上書きする
 5. `factsheet_path` ファイルの `Status: pending-ocr` を `success` に変更し、Section 3 の pending マーカーを OCR テキストで置き換える
 6. 全画像の処理完了後、`document.md` の pending-ocr エントリを更新する
-
-### OCR 方式の比較
-
-| 方式 | 設定 | 適用場面 |
-| --- | --- | --- |
-| **Agent OCR** (`--agent-ocr`) | 不要（GitHub Copilot のみ） | API キーなし環境、少数画像 |
-| **OpenAI API** | `OPENAI_API_KEY` 環境変数 | 大量画像、バッチ自動化 |
-| **Azure OpenAI** | `AZURE_OPENAI_*` 環境変数 | 社内セキュリティポリシー準拠 |
-| **EXIF のみ** | なし（既定フォールバック） | メタデータだけでよい場合 |
 
 ## 出力フォルダ構成
 
@@ -150,7 +142,7 @@ work/
 ## MarkItDown 方針
 
 - 変換の第一候補は **Microsoft MarkItDown**
-- 画像ファイル (`.png`, `.jpg` 等) は `OPENAI_API_KEY` または `AZURE_OPENAI_*` 環境変数を設定すると LLM ビジョンで OCR できる
+- 画像ファイル (`.png`, `.jpg` 等) は `--agent-ocr` フラグを使い GitHub Copilot のビジョン機能で OCR する
 - スキャン PDF や画像中心資料で精度不足の場合は、OCR や Power Automate / AI Builder を併用する
 - 表や箇条書きは markdown として残し、情報欠落時は factsheet に注記する
 
