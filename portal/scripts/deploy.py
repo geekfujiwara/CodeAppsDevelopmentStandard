@@ -1,7 +1,7 @@
 """Power Pages Code Site: Build → Upload → Restart
 
 Usage:
-    py portal/scripts/deploy.py [--skip-build] [--skip-restart]
+    py portal/scripts/deploy.py [--skip-build] [--skip-restart] [--restart-only]
 """
 import logging, os, sys, subprocess, time
 logging.disable(logging.INFO)
@@ -19,8 +19,9 @@ ENV_ID = os.environ["ENV_ID"]
 SITE_NAME = os.environ.get("PAGES_SITE_NAME", "IncidentPortal")
 SUBDOMAIN = os.environ.get("PAGES_SUBDOMAIN", "")
 
-skip_build = '--skip-build' in sys.argv
+skip_build = '--skip-build' in sys.argv or '--restart-only' in sys.argv
 skip_restart = '--skip-restart' in sys.argv
+restart_only = '--restart-only' in sys.argv
 
 
 def ask_subdomain():
@@ -93,10 +94,13 @@ def main():
         print("  OK")
 
     # Step 2: Upload
-    print("\n[2/3] Upload")
-    if not run(f'pac pages upload-code-site --rootPath "{PORTAL_DIR}"', cwd=ROOT_DIR):
-        sys.exit(1)
-    print("  OK")
+    if restart_only:
+        print("\n[2/3] Upload (skipped — restart-only)")
+    else:
+        print("\n[2/3] Upload")
+        if not run(f'pac pages upload-code-site --rootPath "{PORTAL_DIR}"', cwd=ROOT_DIR):
+            sys.exit(1)
+        print("  OK")
 
     # Step 3: Restart
     if skip_restart:
@@ -112,6 +116,11 @@ def main():
             match = (SUBDOMAIN and s.get("subdomain") == SUBDOMAIN) or \
                     (not SUBDOMAIN and s.get("name", "").startswith(SITE_NAME))
             if match:
+                status = s.get("status", "")
+                if status and status != "StateConfigured":
+                    print(f"  WARNING: Site status is '{status}' (not active)")
+                    print(f"  Run 'py portal/scripts/activate_site.py' first.")
+                    sys.exit(1)
                 sid = s["id"]
                 rr = requests.post(f"{base}/{sid}/restart?api-version=2022-03-01-preview", headers=h)
                 print(f"  Restart: {rr.status_code}")
@@ -120,6 +129,7 @@ def main():
                 break
         if not site_found:
             print("  Site not found in PP API")
+            print("  Run 'py portal/scripts/activate_site.py' to activate the site.")
         print("  OK")
 
     print("\n" + "=" * 50)
