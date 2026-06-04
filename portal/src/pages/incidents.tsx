@@ -56,7 +56,7 @@ export default function IncidentsPage() {
       const q = search.toLowerCase();
       list = list.filter(
         (i) =>
-          i.geek_title.toLowerCase().includes(q) ||
+          i.geek_title?.toLowerCase().includes(q) ||
           (i["_geek_inquirerid_value@OData.Community.Display.V1.FormattedValue"] as string | undefined)?.toLowerCase().includes(q),
       );
     }

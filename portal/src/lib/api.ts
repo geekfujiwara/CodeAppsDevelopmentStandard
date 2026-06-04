@@ -118,10 +118,12 @@ export async function apiPatch(path: string, body: unknown): Promise<void> {
 export interface Incident {
   geek_incidentid: string;
   geek_name: string;
+  geek_title?: string;
   geek_description?: string;
   geek_status?: number;
   geek_priority?: number;
   geek_category?: number;
+  geek_assettype?: number;
   geek_resolution?: string;
   geek_resolvedon?: string;
   geek_ticketnumber?: string;
@@ -134,17 +136,19 @@ export interface Incident {
 }
 
 export interface IncidentCreate {
-  geek_name: string;
+  geek_name?: string;
+  geek_title?: string;
   geek_description?: string;
   geek_status?: number;
   geek_priority?: number;
   geek_category?: number;
+  geek_assettype?: number;
   "geek_inquirerid@odata.bind"?: string;
 }
 
 // ── CRUD ──
 const INCIDENT_SELECT =
-  "geek_incidentid,geek_name,geek_description,geek_status,geek_priority,geek_category,geek_ticketnumber,geek_resolution,geek_resolvedon,_geek_inquirerid_value,createdon";
+  "geek_incidentid,geek_name,geek_title,geek_description,geek_status,geek_priority,geek_category,geek_assettype,geek_ticketnumber,geek_resolution,geek_resolvedon,_geek_inquirerid_value,createdon";
 
 export async function getIncidents(): Promise<Incident[]> {
   const data = await apiGet<ODataCollection<Incident>>(
@@ -201,3 +205,5 @@ export const categoryLabels: Record<number, string> = {
   100000005: "ソフトウェア",
   100000006: "その他",
 };
+
+export const assetTypeLabels = categoryLabels;
