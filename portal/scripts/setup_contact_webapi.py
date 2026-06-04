@@ -28,13 +28,13 @@ import auth_helper, requests
 
 DV = os.environ["DATAVERSE_URL"].rstrip("/")
 ENV_ID = os.environ["ENV_ID"]
-SITE_NAME = "IncidentPortal02"
-SUBDOMAIN = "incidentportal02"
+SITE_NAME = os.environ.get("PAGES_SITE_NAME", "IncidentPortal")
+SUBDOMAIN = os.environ.get("PAGES_SUBDOMAIN", "")
 
 # contact テーブル設定
 TABLE_LOGICAL = "contact"
 PERM_NAME = "contact - Self Read Write"
-SCOPE_SELF = 756150001
+SCOPE_SELF = 756150004  # Self scope (756150001 は Contact scope で別物)
 FIELDS = "*"  # system table は * 推奨
 
 
@@ -73,6 +73,9 @@ def main():
     log(f"  powerpagesite: {sites[0]['name']} ({site_id})")
 
     # adx_website
+    if not SUBDOMAIN:
+        log("ERROR: PAGES_SUBDOMAIN が .env に未設定です")
+        sys.exit(1)
     r = requests.get(api(f"adx_websites?$filter=contains(adx_primarydomainname,'{SUBDOMAIN}')&$select=adx_websiteid,adx_name"), headers=h())
     r.raise_for_status()
     ws = r.json()["value"]

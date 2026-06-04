@@ -1,19 +1,24 @@
-"""Power Pages: Entra ID (Azure AD) ビルトイン認証を API で有効化する。
+"""Power Pages: Entra ID SSO 認証設定 (EDM 2.0 Code Site 対応)
+
+EDM 2.0 Code Site では adx_websites テーブルが存在しないため、
+powerpagecomponents type=9 (site settings) を直接更新する。
 
 実施内容:
-1. Site Settings で AzureADLoginEnabled=true 等を設定
-2. Web テンプレートに Liquid ユーザー注入を追加
-3. サイト再起動
+1. powerpagesites からサイト ID 取得
+2. powerpagecomponents type=9 で認証 Site Settings を更新/作成
+3. PP API でサイト再起動
+
+Ref: microsoft/power-platform-skills setup-auth
+  - Provider identifier: https://login.windows.net/{tenantId}/ (NOT login.microsoftonline.com)
+  - API version: 2022-03-01-preview
 
 Usage:
     py portal/scripts/setup_auth.py
 """
 from __future__ import annotations
-import glob
 import json
 import logging
 import os
-import re
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -30,7 +35,8 @@ logging.disable(logging.INFO)
 DATAVERSE_URL = os.getenv("DATAVERSE_URL", "").rstrip("/")
 TENANT_ID = os.getenv("TENANT_ID", "")
 ENV_ID = os.getenv("ENV_ID", "")
-SITE_NAME = "IncidentPortal"
+SITE_NAME = os.getenv("PAGES_SITE_NAME", "IncidentPortal")
+SUBDOMAIN = os.getenv("PAGES_SUBDOMAIN", "")
 
 
 def h():
@@ -43,13 +49,6 @@ def h():
     }
 
 
-def h_patch():
-    """mspp_ テーブルへの PATCH には If-Match: * が必須"""
-    headers = h()
-    headers["If-Match"] = "*"
-    return headers
-
-
 def api(path):
     return f"{DATAVERSE_URL}/api/data/v9.2/{path}"
 
@@ -58,169 +57,122 @@ def log(msg):
     print(msg, flush=True)
 
 
-def upsert_site_setting(website_id: str, name: str, value: str):
-    """Site Setting を作成 or 更新"""
+def upsert_edm_site_setting(site_id: str, lang_id: str, name: str, value: str):
+    """EDM 2.0: powerpagecomponents type=9 でサイト設定を upsert"""
+    # 既存チェック
     r = requests.get(
-        api(f"adx_sitesettings?$filter=adx_name eq '{name}' and "
-            f"_adx_websiteid_value eq {website_id}&$select=adx_sitesettingid,adx_value"),
+        api(f"powerpagecomponents?$filter=powerpagecomponenttype eq 9 "
+            f"and _powerpagesiteid_value eq {site_id} and name eq '{name}'"),
         headers=h(),
     )
     existing = r.json().get("value", []) if r.status_code == 200 else []
+
+    content_json = json.dumps({"value": value})
+
     if existing:
-        sid = existing[0]["adx_sitesettingid"]
-        if existing[0].get("adx_value") == value:
+        comp_id = existing[0]["powerpagecomponentid"]
+        old_content = existing[0].get("content", "")
+        try:
+            old_val = json.loads(old_content).get("value", "")
+        except Exception:
+            old_val = old_content
+        if old_val == value:
             log(f"    {name} = {value}  (既存OK)")
             return
-        rp = requests.patch(api(f"adx_sitesettings({sid})"), headers=h(), json={"adx_value": value})
+        rp = requests.patch(
+            api(f"powerpagecomponents({comp_id})"),
+            headers=h(),
+            json={"content": content_json},
+        )
         log(f"    {name} = {value}  (update {rp.status_code})")
     else:
         body = {
-            "adx_name": name,
-            "adx_value": value,
-            "adx_websiteid@odata.bind": f"/adx_websites({website_id})",
+            "powerpagecomponenttype": 9,
+            "name": name,
+            "content": content_json,
+            "powerpagesiteid@odata.bind": f"/powerpagesites({site_id})",
         }
-        rc = requests.post(api("adx_sitesettings"), headers=h(), json=body)
+        if lang_id:
+            body["powerpagesitelanguageid@odata.bind"] = f"/powerpagesitelanguages({lang_id})"
+        rc = requests.post(api("powerpagecomponents"), headers=h(), json=body)
         log(f"    {name} = {value}  (create {rc.status_code})")
 
 
 def main():
-    # --- 1. Website ID ---
-    r = requests.get(api(f"adx_websites?$filter=adx_name eq '{SITE_NAME}'&$select=adx_websiteid,adx_name"), headers=h())
-    sites = r.json().get("value", []) if r.status_code == 200 else []
+    log("=" * 60)
+    log("Entra ID SSO 認証設定 (EDM 2.0 Code Site)")
+    log("=" * 60)
+
+    # --- 1. powerpagesites からサイト取得 ---
+    log("\n[1/3] サイト情報取得")
+    r = requests.get(api("powerpagesites"), headers=h())
+    r.raise_for_status()
+    sites = [s for s in r.json().get("value", [])
+             if (s.get("name") or "").lower() == SITE_NAME.lower()]
     if not sites:
-        r = requests.get(api("adx_websites?$select=adx_websiteid,adx_name"), headers=h())
-        sites = [s for s in r.json().get("value", []) if SITE_NAME.lower() in s.get("adx_name", "").lower()]
-    if not sites:
-        log("❌ adx_website が見つかりません")
+        log(f"❌ powerpagesites に '{SITE_NAME}' が見つかりません")
         sys.exit(1)
-    website_id = sites[0]["adx_websiteid"]
-    log(f"✓ Website: {sites[0]['adx_name']} ({website_id})")
+    site_id = sites[0]["powerpagesiteid"]
+    log(f"  Site: {sites[0]['name']} ({site_id})")
+
+    # site language
+    r = requests.get(
+        api(f"powerpagesitelanguages?$filter=_powerpagesiteid_value eq {site_id}"),
+        headers=h(),
+    )
+    langs = r.json().get("value", [])
+    lang_id = langs[0]["powerpagesitelanguageid"] if langs else ""
+    log(f"  Language: {lang_id or '(none)'}")
 
     # --- 2. 認証 Site Settings ---
-    log("\n[Site Settings] Entra ID 認証有効化")
+    log("\n[2/3] 認証 Site Settings 更新")
+
+    # Provider identifier: login.windows.net (NOT login.microsoftonline.com)
+    # Ref: microsoft/power-platform-skills setup-auth resolveProviderIdentifier()
+    provider_id = f"https://login.windows.net/{TENANT_ID}/"
+
     settings = {
         "Authentication/Registration/AzureADLoginEnabled": "true",
         "Authentication/Registration/LocalLoginEnabled": "false",
         "Authentication/Registration/ExternalLoginEnabled": "true",
         "Authentication/Registration/OpenRegistrationEnabled": "true",
         "Authentication/Registration/ProfileRedirectEnabled": "false",
-        "Authentication/Registration/LoginButtonAuthenticationType": f"https://login.microsoftonline.com/{TENANT_ID}/",
+        "Authentication/Registration/LoginButtonAuthenticationType": provider_id,
     }
     for name, value in settings.items():
-        upsert_site_setting(website_id, name, value)
+        upsert_edm_site_setting(site_id, lang_id, name, value)
 
-    # --- 3. Web テンプレートに Liquid ユーザー注入 ---
-    log("\n[Web Template] Liquid ユーザー注入")
-
-    # mspp_websiteid を取得 (adx_websiteid とは異なる)
-    r = requests.get(
-        api(f"mspp_websites?$filter=mspp_name eq '{SITE_NAME}'&$select=mspp_websiteid,mspp_name"),
-        headers=h(),
-    )
-    mspp_sites = r.json().get("value", []) if r.status_code == 200 else []
-    if not mspp_sites:
-        r = requests.get(api("mspp_websites?$select=mspp_websiteid,mspp_name"), headers=h())
-        mspp_sites = [s for s in r.json().get("value", []) if SITE_NAME.lower() in s.get("mspp_name", "").lower()]
-    if not mspp_sites:
-        log("❌ mspp_websites が見つかりません")
-        sys.exit(1)
-    mspp_wid = mspp_sites[0]["mspp_websiteid"]
-    log(f"    mspp_website: {mspp_sites[0]['mspp_name']} ({mspp_wid})")
-
-    # dist-site のアセット名を取得
-    dist_dir = os.path.join(_ROOT, "portal", "dist-site")
-    js_files = glob.glob(os.path.join(dist_dir, "assets", "index-*.js"))
-    css_files = glob.glob(os.path.join(dist_dir, "assets", "index-*.css"))
-    if not js_files or not css_files:
-        log("❌ dist-site/assets/ にビルドファイルが見つかりません")
-        sys.exit(1)
-    js_file = "assets/" + os.path.basename(js_files[0])
-    css_file = "assets/" + os.path.basename(css_files[0])
-    log(f"    Assets: /{js_file}, /{css_file}")
-
-    # Liquid ユーザー注入 + SPA ローダー
-    user_script = (
-        '{% if user %}<script>window.__PP_USER__={'
-        'userName:"{{ user.fullname | escape }}",'
-        'firstName:"{{ user.firstname | escape }}",'
-        'lastName:"{{ user.lastname | escape }}",'
-        'email:"{{ user.emailaddress1 | escape }}",'
-        'contactId:"{{ user.id }}",'
-        'userRoles:["Authenticated Users"]'
-        '};</script>{% endif %}'
-    )
-    spa_template = (
-        '<link rel="preconnect" href="https://fonts.googleapis.com" />\n'
-        '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n'
-        '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />\n'
-        f'<link rel="stylesheet" href="/{css_file}" />\n'
-        f'{user_script}\n'
-        '<div id="root"></div>\n'
-        f'<script type="module" src="/{js_file}"></script>\n'
-    )
-
-    # mspp_webtemplates から Default studio template を取得
-    r = requests.get(
-        api(f"mspp_webtemplates?$filter=_mspp_websiteid_value eq '{mspp_wid}'"
-            f"&$select=mspp_webtemplateid,mspp_name"),
-        headers=h(),
-    )
-    for wt in r.json().get("value", []):
-        if "default studio" in wt.get("mspp_name", "").lower():
-            wt_id = wt["mspp_webtemplateid"]
-            rp = requests.patch(
-                api(f"mspp_webtemplates({wt_id})"),
-                headers=h_patch(),
-                json={"mspp_source": spa_template},
-            )
-            log(f"    {wt['mspp_name']}: Liquid注入 ({rp.status_code})")
-
-    # --- 4. Home mspp_copy にも user script 注入 ---
-    log("\n[Home Page] mspp_copy に Liquid + SPA")
-    new_copy = (
-        f'{user_script}\n'
-        '<div id="root"></div>\n'
-        f'<script type="module" crossorigin src="/{js_file}"></script>\n'
-        f'<link rel="stylesheet" crossorigin href="/{css_file}">'
-    )
-    r = requests.get(
-        api(f"mspp_webpages?$filter=_mspp_websiteid_value eq '{mspp_wid}' and mspp_name eq 'Home'"
-            f"&$select=mspp_webpageid,mspp_isroot"),
-        headers=h(),
-    )
-    for p in r.json().get("value", []):
-        pid = p["mspp_webpageid"]
-        label = "Root" if p.get("mspp_isroot") else "Content"
-        rp = requests.patch(api(f"mspp_webpages({pid})"), headers=h_patch(), json={"mspp_copy": new_copy})
-        log(f"    {label} ({pid}): {rp.status_code}")
-
-    # --- 5. サイト再起動 ---
-    log("\n[Restart] サイト再起動")
+    # --- 3. サイト再起動 ---
+    log("\n[3/3] サイト再起動")
     pp_token = auth_helper.get_token(scope="https://api.powerplatform.com/.default")
     pp_h = {"Authorization": f"Bearer {pp_token}"}
-    lr = requests.get(
-        f"https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites?api-version=2024-10-01",
-        headers=pp_h,
-    )
+    base = f"https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites"
+    lr = requests.get(f"{base}?api-version=2022-03-01-preview", headers=pp_h)
     api_sid = None
     if lr.status_code == 200:
         for s in lr.json().get("value", []):
-            if SITE_NAME.lower() in s.get("name", "").lower():
-                api_sid = s.get("id") or s.get("websiteId")
+            name_match = SITE_NAME.lower() in s.get("name", "").lower()
+            sub_match = SUBDOMAIN and s.get("subdomain", "").lower() == SUBDOMAIN.lower()
+            if name_match or sub_match:
+                api_sid = s.get("id")
                 break
     if api_sid:
         rr = requests.post(
-            f"https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites/{api_sid}/restart?api-version=2024-10-01",
+            f"{base}/{api_sid}/restart?api-version=2022-03-01-preview",
             headers=pp_h,
         )
-        log(f"    restart: {rr.status_code}")
+        log(f"  Restart: {rr.status_code}")
     else:
-        log("    ⚠️ restart スキップ")
+        log("  ⚠️ restart スキップ — PP API にサイトが見つかりません")
 
-    log("\n✅ Entra ID 認証設定完了")
-    log(f"    サイト URL: https://incidentportal.powerappsportals.com")
-    log(f"    LoginButtonAuthenticationType → https://login.microsoftonline.com/{TENANT_ID}/")
-    log("    ※ 初回ログイン時にブラウザで Entra ID 認証ダイアログが表示されます")
+    site_url = f"https://{SUBDOMAIN}.powerappsportals.com" if SUBDOMAIN else "(unknown)"
+    log("\n" + "=" * 60)
+    log("✅ Entra ID SSO 認証設定完了")
+    log(f"  サイト URL: {site_url}")
+    log(f"  Provider: {provider_id}")
+    log(f"  LocalLogin: false, ProfileRedirect: false")
+    log("  ※ 60-90秒後に InPrivate ブラウザで SSO をテストしてください")
+    log("=" * 60)
 
 
 if __name__ == "__main__":
