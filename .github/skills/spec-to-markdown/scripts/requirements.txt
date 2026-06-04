@@ -1,2 +1,1 @@
-markitdown[all]==0.1.6
-openai>=1.0.0
+# convert_documents.py は標準ライブラリのみ使用
