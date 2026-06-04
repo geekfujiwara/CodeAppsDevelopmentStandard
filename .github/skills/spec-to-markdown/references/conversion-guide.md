@@ -4,8 +4,8 @@
 
 このスキルの出力は `/work` 配下の 2 段構成。
 
-1. `/work/output-staging`（ファイル単位 markdown）
-2. `/work/output-docs`（業務要件 / 機能要件 / 設計要件）
+1. `/work/staging`（ファイル単位 markdown）
+2. `/work/output`（業務要件 / 機能要件 / 設計要件）
 
 ## 2. 推奨コマンド
 
@@ -37,21 +37,21 @@ powershell -ExecutionPolicy Bypass -File run_windows.ps1
 ## 3. 既定パス
 
 - 入力: `<repo-root>/work/input/`
-- staging: `<repo-root>/work/output-staging/`
-- docs: `<repo-root>/work/output-docs/`
+- staging: `<repo-root>/work/staging/`
+- output: `<repo-root>/work/output/`
 
 オプション:
 
 ```bash
 python convert_documents.py \
   --input /absolute/path/to/input \
-  --output-staging /absolute/path/to/output-staging \
-  --output-docs /absolute/path/to/output-docs
+  --staging /absolute/path/to/staging \
+  --output /absolute/path/to/output
 ```
 
 ## 4. 出力ファイル命名
 
-`output-staging` の各ファイルは次の命名に統一する。
+`staging` の各ファイルは次の命名に統一する。
 
 - `元のファイル名.元の拡張子.MD`
 - 例: `要件定義.docx.MD`, `画面設計.xlsx.MD`, `menu.png.MD`
@@ -78,7 +78,7 @@ python convert_documents.py \
 - `sha256`
 - `processor` (`anthropics/skills`)
 
-## 6. output-docs の構成
+## 6. output の構成
 
 ### business-requirements.md
 - 対象業務 / 目的
@@ -108,5 +108,5 @@ python convert_documents.py \
 
 ## 8. 備考
 
-`convert_documents.py` は staging/docs の土台作成と pending manifest 生成を担当する。  
-manifest の解消（agent-ocr / anthropics/skills 実行）後、`output-docs` を確定版に更新する。
+`convert_documents.py` は staging/output の土台作成と pending manifest 生成を担当する。  
+manifest の解消（agent-ocr / anthropics/skills 実行）後、`output` を確定版に更新する。

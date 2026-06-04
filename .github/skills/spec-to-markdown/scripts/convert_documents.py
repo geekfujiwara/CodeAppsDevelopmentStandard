@@ -1,4 +1,4 @@
-"""spec-to-markdown の入力を /work 配下に staging/docs として出力する。"""
+"""spec-to-markdown の入力を /work 配下に staging/output として出力する。"""
 
 from __future__ import annotations
 
@@ -60,8 +60,8 @@ def find_repository_root(start_path: Path) -> Path:
 REPOSITORY_ROOT = find_repository_root(Path(__file__).resolve())
 DEFAULT_WORK_DIR = REPOSITORY_ROOT / "work"
 DEFAULT_INPUT_DIR = DEFAULT_WORK_DIR / "input"
-DEFAULT_STAGING_DIR = DEFAULT_WORK_DIR / "output-staging"
-DEFAULT_DOCS_DIR = DEFAULT_WORK_DIR / "output-docs"
+DEFAULT_STAGING_DIR = DEFAULT_WORK_DIR / "staging"
+DEFAULT_OUTPUT_DIR = DEFAULT_WORK_DIR / "output"
 
 
 
@@ -69,8 +69,8 @@ DEFAULT_DOCS_DIR = DEFAULT_WORK_DIR / "output-docs"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "input フォルダの文書を /work/output-staging に 元ファイル名.拡張子.MD で出力し、"
-            " /work/output-docs に要件ドキュメントを出力する"
+            "input フォルダの文書を /work/staging に 元ファイル名.拡張子.MD で出力し、"
+            " /work/output に要件ドキュメントを出力する"
         )
     )
     parser.add_argument(
@@ -81,17 +81,17 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--output-staging",
+        "--staging",
         help=(
             "staging 出力フォルダ。"
             f" 省略時は `{DEFAULT_STAGING_DIR}`"
         ),
     )
     parser.add_argument(
-        "--output-docs",
+        "--output",
         help=(
-            "docs 出力フォルダ。"
-            f" 省略時は `{DEFAULT_DOCS_DIR}`"
+            "output 出力フォルダ。"
+            f" 省略時は `{DEFAULT_OUTPUT_DIR}`"
         ),
     )
     parser.add_argument(
@@ -120,11 +120,11 @@ def resolve_output_path(path_arg: str | None, default_path: Path) -> Path:
 
 
 
-def discover_files(input_path: Path, staging_dir: Path, docs_dir: Path) -> list[Path]:
+def discover_files(input_path: Path, staging_dir: Path, output_dir: Path) -> list[Path]:
     if input_path.is_file():
         return [input_path] if input_path.suffix.lower() in SUPPORTED_EXTENSIONS else []
 
-    output_paths = {staging_dir.resolve(), docs_dir.resolve()}
+    output_paths = {staging_dir.resolve(), output_dir.resolve()}
     files = [
         path
         for path in sorted(input_path.rglob("*"))
@@ -232,7 +232,7 @@ def build_requirements_doc(
 
     lines.extend([
         "## 3. 備考",
-        "- `output-staging` の markdown を根拠に整理すること",
+        "- `staging` の markdown を根拠に整理すること",
         "- 情報不足は推測せず `要確認` として残すこと",
         "",
     ])
@@ -248,8 +248,8 @@ def write_pending_json(path: Path, payload: list[dict[str, str]]) -> None:
 def main() -> int:
     args = parse_args()
     input_path = resolve_input_path(args.input)
-    output_staging = resolve_output_path(args.output_staging, DEFAULT_STAGING_DIR)
-    output_docs = resolve_output_path(args.output_docs, DEFAULT_DOCS_DIR)
+    output_staging = resolve_output_path(args.staging, DEFAULT_STAGING_DIR)
+    output_dir = resolve_output_path(args.output, DEFAULT_OUTPUT_DIR)
 
     if not input_path.exists():
         raise SystemExit(
@@ -258,7 +258,7 @@ def main() -> int:
             f" 既定入力フォルダを使う場合は `{DEFAULT_INPUT_DIR}` にファイルを配置してください。"
         )
 
-    files = discover_files(input_path, output_staging, output_docs)
+    files = discover_files(input_path, output_staging, output_dir)
     if not files:
         raise SystemExit(
             "変換対象ファイルが見つかりません。"
@@ -266,7 +266,7 @@ def main() -> int:
         )
 
     output_staging.mkdir(parents=True, exist_ok=True)
-    output_docs.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     batch_started_at = datetime.now(timezone.utc).isoformat()
     agent_ocr_mode = args.agent_ocr or any(f.suffix.lower() in IMAGE_EXTENSIONS for f in files)
@@ -355,9 +355,9 @@ def main() -> int:
         write_pending_json(pending_skills_json, pending_skills_items)
         print(f"📝 wrote: {pending_skills_json}")
 
-    business_doc = output_docs / "business-requirements.md"
-    functional_doc = output_docs / "functional-requirements.md"
-    design_doc = output_docs / "design-requirements.md"
+    business_doc = output_dir / "business-requirements.md"
+    functional_doc = output_dir / "functional-requirements.md"
+    design_doc = output_dir / "design-requirements.md"
 
     write_text(
         business_doc,
@@ -408,8 +408,8 @@ def main() -> int:
     print(f"📝 wrote: {functional_doc}")
     print(f"📝 wrote: {design_doc}")
     print(f"📁 staging: {output_staging}")
-    print(f"📁 docs: {output_docs}")
-    print("次のステップ: pending_ocr.json / pending_skills.json を処理し、staging を確定してから docs を更新してください。")
+    print(f"📁 output: {output_dir}")
+    print("次のステップ: pending_ocr.json / pending_skills.json を処理し、staging を確定してから output を更新してください。")
 
     return 0
 

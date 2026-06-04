@@ -1,6 +1,6 @@
 # spec-to-markdown Windows セットアップ & 実行スクリプト
 # 使い方: powershell -ExecutionPolicy Bypass -File run_windows.ps1 [引数...]
-# 既定: work/input -> work/output-staging + work/output-docs
+# 既定: work/input -> work/staging + work/output
 
 param(
     [Parameter(ValueFromRemainingArguments = $true)]

@@ -1,6 +1,6 @@
 ---
 name: spec-to-markdown
-description: "office ドキュメントを anthropics/skills で markdown 化し、画像は agent-ocr で処理して /work/output-staging と /work/output-docs に整理する。"
+description: "office ドキュメントを anthropics/skills で markdown 化し、画像は agent-ocr で処理して /work/staging と /work/output に整理する。"
 category: ai
 argument-hint: "[任意: input フォルダのパス or ファイルパス]"
 user-invocable: true
@@ -14,8 +14,8 @@ triggers:
   - "requirements markdown"
   - "inputフォルダ"
   - "画像をOCR"
-  - "output-staging"
-  - "output-docs"
+  - "staging"
+  - "output"
 ---
 
 # 仕様書→要件 markdown 変換スキル
@@ -25,26 +25,26 @@ office ドキュメント（PDF / PowerPoint / Excel / Word など）は **anthr
 
 出力は `/work` 配下の 2 段構成に統一する。
 
-- `/work/output-staging` : ファイル単位の markdown
-- `/work/output-docs` : 業務要件 / 機能要件 / 設計要件 markdown
+- `/work/staging` : ファイル単位の markdown
+- `/work/output` : 業務要件 / 機能要件 / 設計要件 markdown
 
 ## 最初の依頼を簡単にする
 
 このスキルは **引数なしでも開始できる**。
 
 - 既定入力: `work/input/`
-- 既定 staging 出力: `work/output-staging/`
-- 既定 docs 出力: `work/output-docs/`
-- `--input` / `--output-staging` / `--output-docs` を指定した場合はそのパスを優先する
+- 既定 staging 出力: `work/staging/`
+- 既定 output 出力: `work/output/`
+- `--input` / `--staging` / `--output` を指定した場合はそのパスを優先する
 
 ## 基本フロー
 
 1. `scripts/convert_documents.py` で input 配下を走査する
-2. 各ファイルの staging ファイルを `/work/output-staging` に作成する
+2. 各ファイルの staging ファイルを `/work/staging` に作成する
    - ファイル名は `元のファイル名.元の拡張子.MD`（例: `要件定義.docx.MD`）
 3. 画像ファイルは `pending_ocr.json` に記録し、agent-ocr で後続処理する
 4. 画像以外の文書は `pending_skills.json` に記録し、anthropics/skills で後続処理する
-5. `/work/output-docs` に以下 3 つを作成する
+5. `/work/output` に以下 3 つを作成する
    - `business-requirements.md`
    - `functional-requirements.md`
    - `design-requirements.md`
@@ -53,7 +53,7 @@ office ドキュメント（PDF / PowerPoint / Excel / Word など）は **anthr
 
 画像の出力先とファイル名は新構成に合わせる。
 
-- 出力先: `/work/output-staging`
+- 出力先: `/work/staging`
 - ファイル名: `元のファイル名.元の拡張子.MD`
 
 `pending_ocr.json` の `staging_markdown_path` を使って、対象ファイルを更新する。
@@ -64,9 +64,9 @@ office ドキュメント（PDF / PowerPoint / Excel / Word など）は **anthr
 
 - `source_path` の元ファイルを anthropics/skills で読み取り
 - 抽出 markdown を `staging_markdown_path` に反映
-- 処理済み後、`output-docs` の 3 文書を更新
+- 処理済み後、`output` の 3 文書を更新
 
-## `/work/output-docs` で整理する観点
+## `/work/output` で整理する観点
 
 ### business-requirements.md
 - 対象業務 / 目的
