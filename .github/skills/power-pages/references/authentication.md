@@ -9,6 +9,18 @@ Power Pages Code Site（SPA）における認証一式の実装サンプル。
 
 ---
 
+## 0.1 microsoft/power-platform-skills との対応（認証・認可）
+
+| 項目 | 対応スキル | このリファレンスで扱う範囲 |
+|---|---|---|
+| ログイン/ログアウト導線 | `setup-auth` | `useAuth`、`ExternalLogin` POST、keepalive、認証ガード UI |
+| Web ロール準備 | `create-webroles` | 実行前提としてロール構成を確認（未作成だと認可検証が成立しない） |
+| サーバー側強制力 | `setup-auth` + `create-webroles` + テーブル権限 | クライアント側 role check は UX 制御のみ、実際のアクセス制御はサーバー側 |
+
+> 要点: 認証スキルだけでは CRUD は成立しない。`create-webroles` とテーブル権限設定を組み合わせてはじめて一般ユーザーの認可が成立する。
+
+---
+
 ## 0. 認証モデル（Code Apps との最大の違い）
 
 | 項目 | Power Pages | Code Apps |
