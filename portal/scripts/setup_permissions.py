@@ -33,8 +33,8 @@ logging.disable(logging.INFO)
 
 DATAVERSE_URL = os.getenv("DATAVERSE_URL", "").rstrip("/")
 ENV_ID = os.getenv("ENV_ID", "")
-SITE_NAME = "IncidentPortal"
-TABLE_LOGICAL = "geek_incident"
+SITE_NAME = os.getenv("PAGES_SITE_NAME", "IncidentPortal")
+TABLE_LOGICAL = os.getenv("PORTAL_TABLE_LOGICAL", "geek_incident")
 
 
 def h():
