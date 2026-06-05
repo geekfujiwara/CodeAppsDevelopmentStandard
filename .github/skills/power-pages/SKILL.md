@@ -113,18 +113,33 @@ triggers:
 
 ---
 
-### 教訓 2: EDM 2.0 テーブル権限は content JSON 内の `adx_entitypermission_webrole` が唯一の正本
+### 教訓 2: EDM 2.0 テーブル権限の Web ロール紐付けは N:N association がランタイム正本（content JSON は YAML シリアライズ形）
+
+> **重要な訂正（実機 m365status で確定）:** 以前は「content JSON が唯一の正本、N:N $ref は幽霊」と
+> 記載していたが、実機検証で **逆**だと判明した。content JSON 配列が入っていても
+> 自己参照 N:N `powerpagecomponent_powerpagecomponent` の **association が空なら 403**
+> (90040120 EntityPermissionReadIsMissing) になる。`$ref` POST で association を作成した
+> 直後に 200 になった。**ランタイム正本は N:N association**。
 
 ```
 ❌ NG: powerpagecomponent type=18 の content に entitylogicalname/scope/CRUD だけ設定
-       → content の adx_entitypermission_webrole が空 → ランタイムが権限を認識せず 403
+       → content の adx_entitypermission_webrole も N:N association も空 → 403
 
-❌ NG: powerpagecomponent_powerpagecomponent（自己参照 N:N）に $ref POST して紐付けたつもりになる
-       → 204 が返るが幽霊リンク。content の配列が空のままなので 403 のまま
+❌ NG: content JSON の adx_entitypermission_webrole 配列だけ PATCH して終わり
+       → API 単体では N:N association が作られない → 403 (90040120) のまま
+       （content 配列は YAML/git シリアライズ形であり、ランタイムは association を読む）
 
-✅ OK: content JSON に adx_entitypermission_webrole（ロール ID 配列）を含めて PATCH する
-       これがランタイム／Design Studio「ロール」列の唯一の正本
+✅ OK: (1) content JSON に adx_entitypermission_webrole（YAML/git 形）を含めて PATCH
+       (2) かつ N:N に $ref POST して association を作成（＝ランタイム正本）
+       POST .../powerpagecomponents({permId})/powerpagecomponent_powerpagecomponent/$ref
+            body: {"@odata.id": ".../powerpagecomponents({roleId})"}
 ```
+
+> `pac pages upload-code-site` で table-permissions YAML をデプロイすると、この
+> **association も自動作成される**。一方、API だけで content を編集した場合は
+> association が作られないため、`$ref` POST が必須。両方そろえるのが安全。
+> association は方向性があり、権限(type=18)→ロール(type=11) 方向で `$expand` すると見える
+> （逆方向のロール→権限 expand は空に見えることがある）。
 
 **Design Studio が書く完全な content JSON:**
 
@@ -153,7 +168,9 @@ triggers:
 **API で完結する手順:**
 1. `powerpagecomponent` type=18 を POST — content に `adx_entitypermission_webrole`（＋`websiteid`）を含む
 2. 既存権限に後からロールを追加する場合は `content` を GET → 配列にロール ID を冪等追加 → PATCH
-3. ランタイムは content のこの配列のみを読む（N:N `powerpagecomponent_powerpagecomponent` への `$ref` POST は不要・幽霊）
+3. **N:N association を `$ref` POST で作成**（`powerpagecomponent_powerpagecomponent`）。
+   これがランタイム正本。API のみの content 編集では作られないため必須
+4. 検証は association を `$expand`（権限→ロール方向）で確認する
 
 ---
 
@@ -350,46 +367,50 @@ value: "*"
 
 ---
 
-### 教訓 14: テーブル権限の Web ロール紐付けは content JSON の `adx_entitypermission_webrole` が正本 → デプロイ後に必ず書き込む
+### 教訓 14: テーブル権限の Web ロール紐付けは N:N association がランタイム正本 → デプロイ後 / API 編集後に必ず作成する
 
 ```
 ❌ NG: .powerpages-site/table-permissions/*.yml を pac pages upload-code-site で
-       デプロイしただけで「権限設定済み」と判断する
-       → powerpagecomponent type=18 レコードは作成されるが、
-         content JSON の adx_entitypermission_webrole が空のまま残る
+       デプロイしただけで「権限設定済み」と判断する（YAML に webrole 紐付けが無い場合）
+       → powerpagecomponent type=18 は作成されるが、association が空のまま
        → 管理者を含む全ユーザーが 403（Design Studio の「ロール」列が空）
 
-❌ NG: powerpagecomponent_powerpagecomponent（自己参照 N:N）に $ref POST する
-       → 204 が返るが「幽霊リンク」。Design Studio「ロール」列は空のまま、
-         ランタイムも認識せず 403 のまま（API の N:N 展開だけ紐付き済みに見える罠）
+❌ NG: content JSON の adx_entitypermission_webrole 配列だけ PATCH して終わり
+       → API 単体では N:N association が作られない → 403 (90040120) のまま
+         （content 配列は YAML/git シリアライズ形。ランタイムは association を読む）
 
-✅ OK: upload-code-site の後、type=18 の content JSON に
-       adx_entitypermission_webrole（＋ websiteid）を PATCH で書き込む
-       python scripts/setup_permissions.py   # content JSON を冪等に更新
+✅ OK: type=18 の content JSON（YAML 形）を書きつつ、N:N association を $ref POST で作成
+       python scripts/setup_permissions.py        # content + association を冪等作成
+       python scripts/relink_table_permissions.py # 全 type=18 を一括で content+association 修復
 ```
 
 **症状（実案件 IncidentPortal で発生）:**
 Design Studio の「セキュリティ → テーブルのアクセス許可」で、各権限の **「ロール」列が空欄**（Authenticated Users が割り当たっていない）。正しい `scope`/CRUD/`Webapi/*` がすべて揃っていても 403 になる。手動で Authenticated Users を割り当てると解消するが、再デプロイで再発しうる。
 
-**根本原因（実機検証で確定）:**
-ランタイム／Design Studio が参照する**正本は `powerpagecomponent` type=18 の `content` JSON 内の `adx_entitypermission_webrole` 配列**。`pac pages upload-code-site` は type=18 を作るが、この配列を空のまま残すため 403 になる。
-自己参照 N:N `powerpagecomponent_powerpagecomponent` への `$ref` POST は **204 を返すが永続化されず、ポータルは認識しない（幽霊リンク）**。`GET .../powerpagecomponent_powerpagecomponent` で紐付いて見えても、`content` の配列が空なら 403。
+**根本原因（実機検証で確定 — 以前の記述を訂正）:**
+ランタイムが参照する**正本は自己参照 N:N `powerpagecomponent_powerpagecomponent` の association**。
+content JSON の `adx_entitypermission_webrole` 配列は YAML/git シリアライズ形であり、これが
+入っていても association が空なら 403 (90040120 EntityPermissionReadIsMissing) になる。
+`pac pages upload-code-site` は YAML に webrole 紐付けがあれば association を作成するが、
+API だけで content を編集した場合は association が作られない。`$ref` POST で association を
+作成して初めてランタイムが認識する。
 
 **恒久対策（デプロイ手順に組み込む）:**
 1. `pac pages upload-code-site` でデプロイ
-2. **`python scripts/setup_permissions.py` を実行**して各 type=18 の `content.adx_entitypermission_webrole` に Authenticated Users の Web ロール ID を冪等に追加（`websiteid` も併せて設定）
+2. **`python scripts/setup_permissions.py` を実行**して各 type=18 に content（webrole 配列）と
+   **N:N association（$ref POST）の両方**を冪等作成
 3. `python scripts/review_pre_deploy.py` の **チェック 3.7** が ✅ になることを確認
 4. restart → 60〜90 秒待って `/_api/{table}` を検証
 
-**検証クエリ（正本＝content を直接確認）:**
+**検証クエリ（正本＝association を直接確認）:**
 ```
-GET /api/data/v9.2/powerpagecomponents({perm_id})?$select=content
-  → content をパースし adx_entitypermission_webrole に Web ロール ID が入っていれば OK。
-    空配列なら未設定 = 403 の原因。
-    （N:N 展開 powerpagecomponent_powerpagecomponent は幽霊リンクで紐付いて見えるため信用しない）
+GET /api/data/v9.2/powerpagecomponents({perm_id})
+    ?$expand=powerpagecomponent_powerpagecomponent($select=name,powerpagecomponenttype)
+  → 展開結果に type=11 の Web ロールが含まれていれば OK（＝ランタイム正本が紐付け済み）。
+    空なら未紐付け = 403 の原因。content の配列だけでは不十分。
 ```
 
-> 関連: 教訓 2（content の `adx_entitypermission_webrole` 必須）/ `references/operations-and-pitfalls.md`。本教訓は「**YAML デプロイでは content の配列が空のままなのでデプロイ後に必ず書き込む。N:N の $ref は幽霊なので使わない**」というデプロイ手順上の落とし穴を明示する。
+> 関連: 教訓 2（N:N association がランタイム正本）/ `references/operations-and-pitfalls.md`。本教訓は「**content 配列だけ・YAML デプロイだけでは association が空になりうるので、デプロイ後 / API 編集後に必ず $ref POST で association を作成する**」というデプロイ手順上の落とし穴を明示する。
 
 ---
 
@@ -399,10 +420,10 @@ GET /api/data/v9.2/powerpagecomponents({perm_id})?$select=content
 ❌ NG: 一度 Web ロールを紐付けた後、SPA 更新のために再度 upload-code-site を実行し、
        そのまま動作確認する
        → .powerpages-site/table-permissions/*.yml が既存 type=18 を上書きし、
-         content.adx_entitypermission_webrole を空に戻す
+         content.adx_entitypermission_webrole と N:N association をリセットする
        → 既存の全グローバル権限まで一斉に 403 になる（Design Studio「ロール」列が空に）
 
-✅ OK: upload-code-site のたびに content の Web ロールを再付与する
+✅ OK: upload-code-site のたびに content と N:N association の両方を再付与する
        python scripts/relink_table_permissions.py   # 全 type=18 を冪等に再付与＋再起動
 ```
 
@@ -414,17 +435,19 @@ GET /api/data/v9.2/powerpagecomponents({perm_id})?$select=content
 
 **根本原因（実機検証で確定）:**
 `pac pages upload-code-site` は `.powerpages-site/table-permissions/*.yml` を正として
-type=18 を上書きするが、この YAML には `adx_entitypermission_webrole` が含まれないため、
-content JSON の Web ロール配列が **毎回リセットされる**（教訓 14 が「デプロイのたびに」再発する）。
+type=18 を上書きするが、この YAML に webrole 紐付けが含まれないと、
+content JSON の Web ロール配列と N:N association が **毎回リセットされる**
+（教訓 14 が「デプロイのたびに」再発する）。
 
 **恒久対策（再デプロイ手順に固定）:**
 1. `npm run build && pac pages upload-code-site`
-2. **`python scripts/relink_table_permissions.py`** を実行（全 type=18 の content に
-   Authenticated Users を冪等再付与 → 自動で再起動）
+2. **`python scripts/relink_table_permissions.py`** を実行（全 type=18 に
+   Authenticated Users を content + N:N association の両方で冪等再付与 → 自動で再起動）
 3. 60〜90 秒待って `/_api/{table}` を検証
 
 > `setup_permissions.py`（TABLES に列挙したテーブルのみ）と異なり、
 > `relink_table_permissions.py` は**サイト上の全 type=18 を対象に一括修復**する。
+> 両スクリプトとも content JSON 配列と N:N association（$ref POST）の両方を作成する。
 > 環境変数 `RELINK_WEBROLE_NAMES`（既定 `Authenticated`, カンマ区切り）で対象ロールを変更可。
 
 ---
@@ -501,10 +524,11 @@ create_table_permission(
 | HTTP | OData Code | メッセージ | 原因 | 教訓 |
 |------|-----------|---------|------|------|
 | 401 | 90040107 | Anti-forgery token required | CSRF トークン未送信 | 教訓 1 |
-| 403 | — | Forbidden (no permission) | type=18 content の `adx_entitypermission_webrole` が空（YAML デプロイ後に未設定）。N:N の `$ref` は 204 でも幽霊で無効 | 教訓 2・14 |
+| 403 | 90040120 | EntityPermissionReadIsMissing | type=18 の N:N association が空（content 配列だけでは不十分。$ref POST 未実行 / YAML デプロイで未紐付け） | 教訓 2・14 |
+| 403 | 90040101 | AttributePermissionIsMissing | `Webapi/{table}/fields` 許可リスト外の列を要求（$select なし＝`*` 要求も含む） | 教訓 16 |
 | 403 | 90040106 | AppendTo permission missing | 参照先テーブルに appendto=false | 教訓 4 |
 | 404 | 9004010D | CDS entity resolution failed | @odata.bind のターゲットテーブルが違う | 教訓 4 |
-| 404 | 9004010C | Resource not found for segment | テーブル権限未設定 or languageid null | 教訓 2 |
+| 404 | 9004010C | Resource not found for segment | `Webapi/{table}/enabled` 未設定 or languageid null | 教訓 8 |
 | 302 | — | Redirect to /profile | ProfileRedirectEnabled=true | 教訓 5 |
 
 ---
@@ -864,7 +888,7 @@ name: Authenticated Users
 | 1 | `adx_sitesettings` | `Webapi/contact/enabled=true` | `adx_websites` |
 | 2 | `adx_sitesettings` | `Webapi/contact/fields=*` | `adx_websites` |
 | 3 | `powerpagecomponent` type=18 | テーブル権限 (Self) | `powerpagesites` + **`powerpagesitelanguages`** |
-| 4 | type=18 の content JSON | `adx_entitypermission_webrole` に Web ロール ID | type=11 (Authenticated Users) |
+| 4 | N:N association（$ref POST） | `powerpagecomponent_powerpagecomponent` でロールを紐付け | type=11 (Authenticated Users) |
 
 ### ⚠️ 致命的な落とし穴: `powerpagesitelanguageid`
 
@@ -928,7 +952,7 @@ content = json.dumps({
     "read": True, "write": True, "create": False,
     "delete": False, "append": False, "appendto": False,
     "websiteid": adx_website_id,                       # ← 必須
-    "adx_entitypermission_webrole": [auth_role_id],    # ← 必須（ランタイム正本）
+    "adx_entitypermission_webrole": [auth_role_id],    # ← YAML/git シリアライズ形
 })
 body = {
     "powerpagecomponenttype": 18,
@@ -938,17 +962,18 @@ body = {
     "powerpagesitelanguageid@odata.bind": f"/powerpagesitelanguages({lang_id})",  # ★ 必須！
 }
 
-# 3. 既存権限に後からロールを追加する場合は content を PATCH（N:N $ref は使わない）
-#   GET .../powerpagecomponents({perm_id})?$select=content → JSON パース
-#   content["adx_entitypermission_webrole"] に role_id を冪等追加 →
-#   PATCH .../powerpagecomponents({perm_id})  {"content": json.dumps(content)}
+# 3. ★ N:N association を $ref POST で作成（＝ランタイム正本。content 配列だけでは 403）
+#   POST .../powerpagecomponents({perm_id})/powerpagecomponent_powerpagecomponent/$ref
+#        body: {"@odata.id": ".../powerpagecomponents({auth_role_id})"}
+#   既存権限へのロール追加も content PATCH + この $ref POST の両方を冪等に行う
 ```
 
 > ⚠️ **よくあるミス（修正済み）:**
 > - `powerpagesitelanguageid` が null → ランタイムが権限を無視して 404
+> - **N:N association を作成せず content 配列だけ書く → 403 (90040120)**（教訓 2・14）
 > - content に `mspp_` プレフィックスの文字列値 → 整数・bool 値が正しい
 > - `credentials: "include"` → 正しくは `"same-origin"`
-> - `Webapi/<table>/fields` に明示リストのみ → system table は `*` を使う
+> - `Webapi/<table>/fields` に明示リストのみ → 列指定なし取得（`*`）で 403 になるため `*` 推奨（教訓 16）
 
 ---
 
@@ -1015,11 +1040,11 @@ value: "true"
 | HTTP | OData Code | メッセージ | 原因 | 対策 |
 |------|-----------|---------|------|------|
 | 401 | 90040107 | Anti-forgery token required | CSRF トークン未送信 | `/_layout/tokenhtml` から取得してヘッダー付与 |
-| 403 | — | Forbidden (no permission) | content に `adx_entitypermission_webrole` なし | content JSON にロール ID 配列を含める |
-| 403 | — | Forbidden (field not allowed) | `Webapi/{table}/fields` 許可リスト外の列を `$select` した | fields にクライアントの SELECT 全列を列挙（迷えば `*`）（教訓 16） |
+| 403 | 90040120 | EntityPermissionReadIsMissing | type=18 の N:N association が空（content 配列だけでは不十分） | `$ref` POST で association を作成（教訓 2・14） |
+| 403 | 90040101 | AttributePermissionIsMissing | `Webapi/{table}/fields` 許可リスト外の列を要求（$select なし＝`*` 要求も含む） | fields にクライアントの SELECT 全列を列挙（迷えば `*`）（教訓 16） |
 | 403 | 90040106 | AppendTo permission missing | 参照先テーブルに appendto=false | EDM content で `"appendto": true` に更新 |
 | 404 | 9004010D | CDS entity resolution failed | `@odata.bind` のターゲットテーブルが違う | `ManyToOneRelationships` で正しい参照先を確認 |
-| 404 | 9004010C | Resource not found for segment | テーブル権限未設定 or `powerpagesitelanguageid` null | type=18 content + languageid 設定 |
+| 404 | 9004010C | Resource not found for segment | `Webapi/{table}/enabled` 未設定 or `powerpagesitelanguageid` null | enabled=true + languageid 設定（教訓 8） |
 | 400 | 9004010A | Invalid column name | `$select` に存在しないカラム名 | `EntityDefinitions` でカラム名確認 |
 | 302 | — | Redirect to /profile | `ProfileRedirectEnabled=true` | サイト設定で `false` に変更 |
 | 302 | — | Login redirect | 未認証 | SSO ログイン or `redirect: "manual"` で検知 |

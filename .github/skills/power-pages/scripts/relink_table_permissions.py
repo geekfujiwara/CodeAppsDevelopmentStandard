@@ -6,15 +6,22 @@ Power Pages テーブル権限 Web ロール再付与スクリプト（デプロ
 （＝ランタイム正本の Web ロール紐付け）を **消去する**ことがある。
 その結果、Design Studio の「ロール」列が空になり、認証済みユーザーでも 403 になる。
 
-このスクリプトは「サイト上の全 type=18 テーブル権限」の content JSON に対し、
+このスクリプトは「サイト上の全 type=18 テーブル権限」に対し、
 指定 Web ロール（既定: Authenticated Users）を冪等に再付与する。
 **デプロイ（upload-code-site）のたびに実行すること。**
 
 前提: .env に DATAVERSE_URL, ENV_ID。再起動には PP_SUBDOMAIN。
 
-検証済みの教訓:
-- N:N `powerpagecomponent_powerpagecomponent` への $ref POST は 204 を返すが
-  ポータルは認識しない（幽霊リンク）。content JSON が唯一の正本。
+検証済みの教訓（実機 m365status で確定）:
+- ランタイムの正本は自己参照 N:N `powerpagecomponent_powerpagecomponent`
+  **アソシエーション**。content JSON の `adx_entitypermission_webrole` 配列は
+  YAML/git シリアライズ形であり、これだけ書いても association が無ければ 403
+  (90040120 EntityPermissionReadIsMissing) になる。
+- そのため本スクリプトは **(1) content JSON 配列の冪等付与** と
+  **(2) N:N association の冪等作成（$ref POST）** の両方を行う。
+- association は方向性があり、権限(type=18)→ロール(type=11) 方向で
+  `$ref` POST する（`POST .../powerpagecomponents({permId})/`
+  `powerpagecomponent_powerpagecomponent/$ref`）。
 - Web ロール名の既定一致は "Authenticated"（部分一致）。
 """
 import os
@@ -82,8 +89,33 @@ def get_webrole_ids(site_id: str, headers: dict) -> list:
     return ids
 
 
+def get_associated_role_ids(perm_id: str, headers: dict) -> set:
+    """権限(type=18)に N:N association 済みの Web ロール ID 集合を取得"""
+    r = requests.get(
+        f"{API}/powerpagecomponents({perm_id})"
+        f"?$select=powerpagecomponentid"
+        f"&$expand=powerpagecomponent_powerpagecomponent($select=powerpagecomponentid)",
+        headers=headers,
+    )
+    r.raise_for_status()
+    assoc = r.json().get("powerpagecomponent_powerpagecomponent", [])
+    return {a["powerpagecomponentid"] for a in assoc}
+
+
+def ensure_association(perm_id: str, role_id: str, headers: dict):
+    """権限→ロールの N:N association を作成（$ref POST, 冪等）。
+    これがランタイム正本。content JSON だけでは 403 になる。"""
+    requests.post(
+        f"{API}/powerpagecomponents({perm_id})/powerpagecomponent_powerpagecomponent/$ref",
+        headers=headers,
+        json={"@odata.id": f"{API}/powerpagecomponents({role_id})"},
+    ).raise_for_status()
+
+
 def relink_all(site_id: str, role_ids: list, headers: dict) -> int:
-    """全 type=18 テーブル権限の content.adx_entitypermission_webrole に role を冪等付与"""
+    """全 type=18 テーブル権限に対し、Web ロールを冪等再付与する。
+    (1) content.adx_entitypermission_webrole 配列（YAML シリアライズ形）
+    (2) N:N association（ランタイム正本）の両方を更新する。"""
     r = requests.get(
         f"{API}/powerpagecomponents?$filter=_powerpagesiteid_value eq {site_id} "
         f"and powerpagecomponenttype eq 18&$select=powerpagecomponentid,name,content&$top=500",
@@ -98,21 +130,35 @@ def relink_all(site_id: str, role_ids: list, headers: dict) -> int:
             content = json.loads(c.get("content") or "{}")
         except json.JSONDecodeError:
             content = {}
+
+        changed = False
+
+        # (1) content JSON 配列（YAML/git シリアライズ形）を冪等付与
         roles = content.get("adx_entitypermission_webrole") or []
-        missing = [rid for rid in role_ids if rid not in roles]
-        if not missing:
+        missing_in_content = [rid for rid in role_ids if rid not in roles]
+        if missing_in_content:
+            roles.extend(missing_in_content)
+            content["adx_entitypermission_webrole"] = roles
+            if not content.get("websiteid"):
+                content["websiteid"] = site_id
+            requests.patch(
+                f"{API}/powerpagecomponents({cid})",
+                headers=headers, json={"content": json.dumps(content)},
+            ).raise_for_status()
+            changed = True
+
+        # (2) N:N association（ランタイム正本）を冪等作成
+        associated = get_associated_role_ids(cid, headers)
+        missing_assoc = [rid for rid in role_ids if rid not in associated]
+        for rid in missing_assoc:
+            ensure_association(cid, rid, headers)
+            changed = True
+
+        if changed:
+            print(f"  FIXED: {name} → content={len(missing_in_content)} assoc={len(missing_assoc)} 件付与")
+            fixed += 1
+        else:
             print(f"  OK   : {name}")
-            continue
-        roles.extend(missing)
-        content["adx_entitypermission_webrole"] = roles
-        if not content.get("websiteid"):
-            content["websiteid"] = site_id
-        requests.patch(
-            f"{API}/powerpagecomponents({cid})",
-            headers=headers, json={"content": json.dumps(content)},
-        ).raise_for_status()
-        print(f"  FIXED: {name} → Web ロールを再付与")
-        fixed += 1
     return fixed
 
 

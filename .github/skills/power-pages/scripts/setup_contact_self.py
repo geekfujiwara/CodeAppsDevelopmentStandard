@@ -5,17 +5,22 @@ Power Pages contact テーブル Self 権限セットアップ（/profile 機能
 以下を content JSON 正本方式で冪等に作成する（EDM 2.0 / Code Site 対応）:
 
 1. contact テーブル権限 (powerpagecomponent type=18, scope=Self=756150004)
-   read/write=true, create/delete=false, Authenticated Users を content に紐付け
+   read/write=true, create/delete=false, Authenticated Users を content と
+   **N:N association** の両方で紐付け
 2. Webapi/contact/enabled  (powerpagecomponent type=9) = true
 3. Webapi/contact/fields    (powerpagecomponent type=9) = 使用する全列
 
-重要な教訓:
+重要な教訓（実機 m365status で確定）:
 - mspp_scope (API 確認済み): 756150000=Global / 756150001=Contact /
   756150002=Account / 756150003=Parent / **756150004=Self**
-- Web ロール紐付けの正本は content JSON の adx_entitypermission_webrole。
-  自己参照 N:N $ref POST は幽霊リンク（204 を返すが認識されない）。
-- Web API は fields 許可リスト外の列を要求すると **403** を返す。
-  クライアントが SELECT する全列（例: fullname）を必ず網羅すること。
+- Web ロール紐付けのランタイム正本は自己参照 N:N
+  `powerpagecomponent_powerpagecomponent` **アソシエーション**。
+  content JSON の adx_entitypermission_webrole だけでは association が空のまま
+  残り 403 (90040120 EntityPermissionReadIsMissing) になる。$ref POST で
+  association を作成して初めてランタイムが認識する。
+- Web API は fields 許可リスト外の列を要求すると **403**
+  (90040101 AttributePermissionIsMissing) を返す。$select なし取得は
+  全列 (`*`) 要求と同等なので、fields は `*` が最も安全。
 - 設定変更後はサイト再起動が必要（PP_SUBDOMAIN 設定時に自動実行）。
 
 前提: .env に DATAVERSE_URL, ENV_ID。再起動には PP_SUBDOMAIN。
@@ -36,10 +41,9 @@ SUBDOMAIN = os.environ.get("PP_SUBDOMAIN", "")
 API = f"{DATAVERSE_URL}/api/data/v9.2"
 
 SELF_SCOPE = 756150004  # mspp_scope: セルフ
-# /profile の checkAuth + 編集で使う全列を網羅（fields 許可リスト外は 403 になる）
-CONTACT_FIELDS = os.environ.get(
-    "CONTACT_WEBAPI_FIELDS", "firstname,lastname,emailaddress1,telephone1,fullname"
-)
+# /profile の checkAuth + 編集で使う全列。fields 許可リスト外は 403 になるため
+# `*`（全列許可）が最も安全。$select なし取得は `*` 要求と同等。
+CONTACT_FIELDS = os.environ.get("CONTACT_WEBAPI_FIELDS", "*")
 
 
 def get_headers(scope: str = None):
@@ -110,7 +114,8 @@ def create_component(site_id: str, ctype: int, name: str, content: dict, headers
 
 
 def setup_contact_permission(site_id: str, role_id: str, headers: dict):
-    """contact Self テーブル権限 (type=18) を content JSON 正本方式で作成/更新"""
+    """contact Self テーブル権限 (type=18) を content JSON と N:N association の
+    両方で作成/更新する。ランタイム正本は association。"""
     name = "Contact - Self"
     existing = find_component(site_id, 18, name, headers)
     content = {
@@ -125,6 +130,7 @@ def setup_contact_permission(site_id: str, role_id: str, headers: dict):
         "permissionfetchxml": None,
     }
     if existing:
+        perm_id = existing["powerpagecomponentid"]
         cur = json.loads(existing.get("content") or "{}")
         roles = cur.get("adx_entitypermission_webrole") or []
         if role_id not in roles:
@@ -132,12 +138,38 @@ def setup_contact_permission(site_id: str, role_id: str, headers: dict):
         cur["adx_entitypermission_webrole"] = roles
         cur["websiteid"] = site_id
         requests.patch(
-            f"{API}/powerpagecomponents({existing['powerpagecomponentid']})",
+            f"{API}/powerpagecomponents({perm_id})",
             headers=headers, json={"content": json.dumps(cur)},
         ).raise_for_status()
-        print(f"  UPDATED: {name} の Web ロール紐付けを確認/補正")
+        print(f"  UPDATED: {name} の content Web ロール紐付けを確認/補正")
     else:
-        create_component(site_id, 18, name, content, headers)
+        perm_id = create_component(site_id, 18, name, content, headers)
+
+    # ランタイム正本: N:N association を冪等作成（content だけでは 403）
+    ensure_association(perm_id, role_id, headers)
+
+
+def ensure_association(perm_id: str, role_id: str, headers: dict):
+    """権限(type=18)→Web ロール(type=11) の N:N association を冪等作成。
+    これがランタイム正本。content JSON 配列だけでは 403 になる。"""
+    r = requests.get(
+        f"{API}/powerpagecomponents({perm_id})"
+        f"?$select=powerpagecomponentid"
+        f"&$expand=powerpagecomponent_powerpagecomponent($select=powerpagecomponentid)",
+        headers=headers,
+    )
+    r.raise_for_status()
+    assoc = {a["powerpagecomponentid"]
+             for a in r.json().get("powerpagecomponent_powerpagecomponent", [])}
+    if role_id in assoc:
+        print("  ASSOC OK: N:N association は既に存在")
+        return
+    requests.post(
+        f"{API}/powerpagecomponents({perm_id})/powerpagecomponent_powerpagecomponent/$ref",
+        headers=headers,
+        json={"@odata.id": f"{API}/powerpagecomponents({role_id})"},
+    ).raise_for_status()
+    print("  ASSOC CREATED: N:N association を作成（ランタイム正本）")
 
 
 def setup_webapi_setting(site_id: str, key: str, value: str, headers: dict):
