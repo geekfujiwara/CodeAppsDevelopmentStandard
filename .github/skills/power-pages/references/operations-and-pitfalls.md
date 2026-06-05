@@ -70,6 +70,8 @@ Code Site は `pac pages upload-code-site` でのみ作成可能。
 12. **テーブル権限は 3 レイヤー全て必要** — `adx_sitesettings` + `powerpagecomponent type=18` + N:N リンク
 13. **`/_api/` は Cookie 認証（same-origin）** — Bearer トークンではない
 14. **Anti-Forgery Token は PATCH/PUT/DELETE に必須** — `/_layout/tokenhtml` から取得
+15. **再起動は `PAGES_WEBSITE_ID`（PP API の websites.id）で行う** — `siteName` の部分一致照合は登録名にスペースがあると失敗する。`.env` に ID を保存して明示的に restart する
+16. **フォントはコード側で一元管理する** — `index.html` の Google Fonts ロード + `:root` の `font-family` + Tailwind `@theme inline` の `--font-sans` の 3 箇所を揃えてビルド→再起動
 
 ---
 
