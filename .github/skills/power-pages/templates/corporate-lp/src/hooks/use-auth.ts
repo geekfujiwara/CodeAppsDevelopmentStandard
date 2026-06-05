@@ -101,64 +101,66 @@ export function useAuth() {
     };
   }, [state.isAuthenticated]);
 
-  const login = useCallback(async (providerId?: string) => {
-    if (IS_DEV) return;
-    if (window.location.hash) {
-      sessionStorage.setItem("pp_return_hash", window.location.hash);
-    }
+  const login = useCallback(() => {
+    void (async (providerId?: string) => {
+      if (IS_DEV) return;
+      if (window.location.hash) {
+        sessionStorage.setItem("pp_return_hash", window.location.hash);
+      }
 
-    const provider = providerId
-      ? AUTH_PROVIDERS.find((item) => item.id === providerId) ?? AUTH_PROVIDERS[0]
-      : AUTH_PROVIDERS[0];
+      const provider = providerId
+        ? AUTH_PROVIDERS.find((item) => item.id === providerId) ?? AUTH_PROVIDERS[0]
+        : AUTH_PROVIDERS[0];
 
-    if (!provider || provider.type === "local") {
-      window.location.href = "/SignIn?returnUrl=/";
-      return;
-    }
-
-    const providerIdentifier = resolveProviderIdentifier(provider);
-    if (!providerIdentifier) {
-      window.location.href = "/SignIn?returnUrl=/";
-      return;
-    }
-
-    try {
-      const tokenRes = await fetch("/_layout/tokenhtml", {
-        credentials: "same-origin",
-      });
-      const tokenHtml = await tokenRes.text();
-      const tokenMatch = tokenHtml.match(/value="([^"]+)"/);
-
-      if (!tokenMatch) {
+      if (!provider || provider.type === "local") {
         window.location.href = "/SignIn?returnUrl=/";
         return;
       }
 
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.action = "/Account/Login/ExternalLogin";
-      form.style.display = "none";
-
-      const fields: Record<string, string> = {
-        provider: providerIdentifier,
-        returnUrl: "/",
-        __RequestVerificationToken: tokenMatch[1],
-      };
-
-      for (const [name, value] of Object.entries(fields)) {
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = name;
-        input.value = value;
-        form.appendChild(input);
+      const providerIdentifier = resolveProviderIdentifier(provider);
+      if (!providerIdentifier) {
+        window.location.href = "/SignIn?returnUrl=/";
+        return;
       }
 
-      document.body.appendChild(form);
-      form.submit();
-      return;
-    } catch {
-      window.location.href = "/SignIn?returnUrl=/";
-    }
+      try {
+        const tokenRes = await fetch("/_layout/tokenhtml", {
+          credentials: "same-origin",
+        });
+        const tokenHtml = await tokenRes.text();
+        const tokenMatch = tokenHtml.match(/value="([^"]+)"/);
+
+        if (!tokenMatch) {
+          window.location.href = "/SignIn?returnUrl=/";
+          return;
+        }
+
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = "/Account/Login/ExternalLogin";
+        form.style.display = "none";
+
+        const fields: Record<string, string> = {
+          provider: providerIdentifier,
+          returnUrl: "/",
+          __RequestVerificationToken: tokenMatch[1],
+        };
+
+        for (const [name, value] of Object.entries(fields)) {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = name;
+          input.value = value;
+          form.appendChild(input);
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+        return;
+      } catch {
+        window.location.href = "/SignIn?returnUrl=/";
+      }
+    })();
   }, []);
 
   const logout = useCallback(() => {
