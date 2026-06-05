@@ -1,0 +1,14 @@
+# dependencies
+node_modules/
+
+# build output
+dist-site/
+
+# local env files（.env.example は追跡する）
+.env
+.env.local
+.env.*.local
+
+# logs / editor
+*.log
+.DS_Store

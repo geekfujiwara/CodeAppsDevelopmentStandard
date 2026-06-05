@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { AUTH_PROVIDERS, resolveProviderIdentifier } from "@/services/auth-service";
 
 /**
  * Power Pages SSO 認証フック（デフォルト実装）
@@ -47,6 +48,7 @@ declare global {
       Dynamic365?: {
         Portal?: {
           User?: Record<string, string> | null;
+          tenant?: string;
         };
       };
     };
@@ -87,17 +89,83 @@ export function useAuth() {
     setState({ isAuthenticated: !!user, user, loading: false });
   }, []);
 
+  const keepAliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (!state.isAuthenticated || IS_DEV) return;
+    const intervalMs = 10 * 60 * 1000;
+    keepAliveRef.current = setInterval(() => {
+      fetch("/_layout/tokenhtml", { credentials: "same-origin" }).catch(() => {});
+    }, intervalMs);
+    return () => {
+      if (keepAliveRef.current) clearInterval(keepAliveRef.current);
+    };
+  }, [state.isAuthenticated]);
+
   const login = useCallback(() => {
-    if (IS_DEV) return; // dev mode: no-op
-    const returnUrl = encodeURIComponent(
-      window.location.pathname + window.location.hash,
-    );
-    // Entra ID が唯一の IdP の場合、/SignIn は自動で SSO に直行する
-    window.location.href = `/SignIn?returnUrl=${returnUrl}`;
+    void (async (providerId?: string) => {
+      if (IS_DEV) return;
+      if (window.location.hash) {
+        sessionStorage.setItem("pp_return_hash", window.location.hash);
+      }
+
+      const provider = providerId
+        ? AUTH_PROVIDERS.find((item) => item.id === providerId) ?? AUTH_PROVIDERS[0]
+        : AUTH_PROVIDERS[0];
+
+      if (!provider || provider.type === "local") {
+        window.location.href = "/SignIn?returnUrl=/";
+        return;
+      }
+
+      const providerIdentifier = resolveProviderIdentifier(provider);
+      if (!providerIdentifier) {
+        window.location.href = "/SignIn?returnUrl=/";
+        return;
+      }
+
+      try {
+        const tokenRes = await fetch("/_layout/tokenhtml", {
+          credentials: "same-origin",
+        });
+        const tokenHtml = await tokenRes.text();
+        const tokenMatch = tokenHtml.match(/value="([^"]+)"/);
+
+        if (!tokenMatch) {
+          window.location.href = "/SignIn?returnUrl=/";
+          return;
+        }
+
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = "/Account/Login/ExternalLogin";
+        form.style.display = "none";
+
+        const fields: Record<string, string> = {
+          provider: providerIdentifier,
+          returnUrl: "/",
+          __RequestVerificationToken: tokenMatch[1],
+        };
+
+        for (const [name, value] of Object.entries(fields)) {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = name;
+          input.value = value;
+          form.appendChild(input);
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+        return;
+      } catch {
+        window.location.href = "/SignIn?returnUrl=/";
+      }
+    })();
   }, []);
 
   const logout = useCallback(() => {
     if (IS_DEV) return;
+    sessionStorage.removeItem("pp_return_hash");
     window.location.href = "/Account/Login/LogOff?returnUrl=%2F";
   }, []);
 
