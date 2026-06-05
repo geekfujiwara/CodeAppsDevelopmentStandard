@@ -64,6 +64,11 @@ triggers:
 4. Dataverse Web API CRUD 実装  
 5. 権限監査（ロール・テーブル権限整合）  
 
+> ⚠️ **デプロイ後の必須ステップ**: `pac pages upload-code-site` でテーブル権限 YAML をデプロイしても、
+> テーブル権限 ↔ Web ロールの N:N 紐付けは確実には張られない。デプロイ直後に
+> `python scripts/setup_permissions.py` を実行して N:N を確立し、`review_pre_deploy.py` の
+> チェック 3.7 が ✅ になることを確認する（さもないと管理者を含む全ユーザーが 403）。詳細は教訓 14。
+
 > 詳細な責務分離と判断基準は [upstream 優先構成ガイド](references/upstream-alignment.md) を正本として扱う。
 
 ---
@@ -304,6 +309,42 @@ triggers:
 
 ---
 
+### 教訓 14: `upload-code-site` のテーブル権限は Web ロール N:N が張られない → デプロイ後に必ず紐付ける
+
+```
+❌ NG: .powerpages-site/table-permissions/*.yml を pac pages upload-code-site で
+       デプロイしただけで「権限設定済み」と判断する
+       → powerpagecomponent type=18 レコードは作成されるが、
+         powerpagecomponent_powerpagecomponent（Web ロールへの N:N リンク）が
+         張られないことがある
+       → 管理者を含む全ユーザーが 403（テーブル権限の「ロール」列が空）
+
+✅ OK: upload-code-site の後に必ず N:N 紐付けを実行・検証する
+       python scripts/setup_permissions.py   # type=18 ↔ Authenticated Users の N:N を冪等に張る
+```
+
+**症状（実案件 IncidentPortal で発生）:**
+Design Studio の「セキュリティ → テーブルのアクセス許可」で、各権限の **「ロール」列が空欄**（Authenticated Users が割り当たっていない）。この状態だと正しい `scope`/CRUD/`Webapi/*` がすべて揃っていても 403 になる。手動で各権限に Authenticated Users を割り当てると解消するが、再デプロイで再発しうる。
+
+**根本原因:**
+`pac pages upload-code-site` は table-permissions の YAML から `powerpagecomponent` type=18 を作るが、テーブル権限 ↔ Web ロールの紐付けである自己参照 N:N `powerpagecomponent_powerpagecomponent` は YAML だけでは確実に反映されない（[Enhanced Data Model テーブル権限](references/enhanced-data-model-permissions.md) のとおり、この N:N は API で永続化する前提）。
+
+**恒久対策（デプロイ手順に組み込む）:**
+1. `pac pages upload-code-site` でデプロイ
+2. **`python scripts/setup_permissions.py` を実行**して type=18 ↔ Authenticated Users の N:N を冪等に確立（既存リンクは 409 でスキップ）
+3. `python scripts/review_pre_deploy.py` の **チェック 3.7（N:N リンクが存在する）** が ✅ になることを確認
+4. restart → 60〜90 秒待って `/_api/{table}` を検証
+
+**検証クエリ（N:N の有無を直接確認）:**
+```
+GET /api/data/v9.2/powerpagecomponents({perm_id})/powerpagecomponent_powerpagecomponent?$select=name
+  → Authenticated Users (type=11) が返れば OK。空配列なら未紐付け = 403 の原因。
+```
+
+> 関連: 教訓 2（N:N リンク必須）/ `references/operations-and-pitfalls.md`（Web API が 403 → Web ロール未紐付け → `setup_permissions.py`）。教訓 2 が「N:N が必要」を述べるのに対し、本教訓は「**YAML デプロイでは N:N が張られないのでデプロイ後に必ず実行する**」というデプロイ手順上の落とし穴を明示する。
+
+---
+
 ### まとめ: API でテーブル権限を完結する再利用パターン
 
 ```python
@@ -344,7 +385,7 @@ create_table_permission(
 | HTTP | OData Code | メッセージ | 原因 | 教訓 |
 |------|-----------|---------|------|------|
 | 401 | 90040107 | Anti-forgery token required | CSRF トークン未送信 | 教訓 1 |
-| 403 | — | Forbidden (no permission) | content に `adx_entitypermission_webrole` なし | 教訓 2 |
+| 403 | — | Forbidden (no permission) | content に `adx_entitypermission_webrole` なし／Web ロール N:N 未紐付け（YAML デプロイ後に未実行） | 教訓 2・14 |
 | 403 | 90040106 | AppendTo permission missing | 参照先テーブルに appendto=false | 教訓 4 |
 | 404 | 9004010D | CDS entity resolution failed | @odata.bind のターゲットテーブルが違う | 教訓 4 |
 | 404 | 9004010C | Resource not found for segment | テーブル権限未設定 or languageid null | 教訓 2 |
@@ -1056,6 +1097,7 @@ SKIP_REMOTE=1 python ../.github/skills/power-pages/scripts/review_pre_deploy.py
 ### テーブル権限
 - [ ] EDM content JSON に `adx_entitypermission_webrole` が含まれている（教訓 2）
 - [ ] `powerpagecomponent_powerpagecomponent` N:N リンクも設定済み
+- [ ] **`upload-code-site` 後に `setup_permissions.py` を実行し、各テーブル権限が Authenticated Users に N:N で紐付いている（Design Studio の「ロール」列が空でない）（教訓 14）**
 - [ ] テーブル権限に `append=true, appendto=true` が設定されている
 - [ ] Contact 権限は scope=756150004 (Self) を使用（教訓 3）
 
