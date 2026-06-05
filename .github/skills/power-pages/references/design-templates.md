@@ -36,6 +36,25 @@
 
 ---
 
+## 実装共通コードの監査結果（2026-06-05）
+
+`templates/` 配下の実装を走査した結果、コード実体は `templates/corporate-lp` の 1 系統で、以下 5 テンプレート（配色差分）は同一実装を共有する。
+
+| # | テンプレート名 | 実装ディレクトリ |
+|---|---|---|
+| 1 | Indigo / Violet | `templates/corporate-lp` |
+| 2 | Blue / Navy | `templates/corporate-lp` |
+| 3 | Emerald / Teal | `templates/corporate-lp` |
+| 4 | Amber / Orange | `templates/corporate-lp` |
+| 5 | Rose / Pink | `templates/corporate-lp` |
+
+上記 5 テンプレート共通の不具合は、共有実装側で修正済み:
+- `src/components/ui/button.tsx` : `bg-linear-to-r` へ統一（Tailwind CSS v4）
+- `src/components/site-layout.tsx` : `bg-linear-to-br` へ統一（Tailwind CSS v4）
+- `src/App.tsx` : `RestoreRoute` 実装（`pp_return_hash` 復元）
+
+---
+
 ## テンプレート定義
 
 ### 1. Indigo / Violet（デフォルト）
