@@ -442,8 +442,14 @@ content JSON の Web ロール配列と N:N association が **毎回リセット
 **恒久対策（再デプロイ手順に固定）:**
 1. `npm run build && pac pages upload-code-site`
 2. **`python scripts/relink_table_permissions.py`** を実行（全 type=18 に
-   Authenticated Users を content + N:N association の両方で冪等再付与 → 自動で再起動）
+   Authenticated Users を content + N:N association の両方で冪等再付与 →
+   再起動 → 最後に全件を検証し、欠落があれば非ゼロ終了）
 3. 60〜90 秒待って `/_api/{table}` を検証
+
+> **再起動は `PAGES_WEBSITE_ID`（PP API の websites().id）を最優先**で使う（最も確実）。
+> 未設定時は `PP_SUBDOMAIN` にフォールバックする。siteName と PP API 登録名が
+> 不一致（例: 'm365status' ⊄ 'M365 Status Portal'）だと subdomain 照合だけでは再起動できないため。
+> スクリプト末尾の検証で content webrole と N:N association の両方が揃うことを確認できる。
 
 > `setup_permissions.py`（TABLES に列挙したテーブルのみ）と異なり、
 > `relink_table_permissions.py` は**サイト上の全 type=18 を対象に一括修復**する。
@@ -1173,7 +1179,7 @@ pac pages upload-code-site --rootPath .
 # ★ upload-code-site は既存 type=18 の content.adx_entitypermission_webrole を消すため、
 #   デプロイのたびに全テーブル権限の Web ロールを再付与する（教訓 15）
 py ../.github/skills/power-pages/scripts/relink_table_permissions.py
-# → relink スクリプトが PP_SUBDOMAIN 設定時に自動で再起動する
+# → relink スクリプトが PAGES_WEBSITE_ID（推奨）または PP_SUBDOMAIN 設定時に自動で再起動する
 #   （未設定の場合は手動再起動）
 py ../.github/skills/standard/scripts/_restart.py
 ```
