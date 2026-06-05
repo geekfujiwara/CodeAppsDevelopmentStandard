@@ -5,7 +5,12 @@ Power Pages Web API テーブル権限設定スクリプト
 1. Site Settings (Webapi/{table}/enabled, fields) を adx_sitesettings に作成
 2. powerpagecomponent (type=18) でテーブル権限を作成
 3. Web Role (type=11) を取得または作成
-4. テーブル権限 ↔ Web Role の N:N リンクを作成
+4. テーブル権限の content JSON に adx_entitypermission_webrole（＋websiteid）を
+   書き込んで Web ロールを紐付ける（＝ランタイム正本）
+
+注意: 自己参照 N:N `powerpagecomponent_powerpagecomponent` への $ref POST は
+204 を返すがポータルは認識しない（幽霊リンク）ため使用しない。
+正本は type=18 の content JSON 内 adx_entitypermission_webrole 配列。
 
 前提: .env に DATAVERSE_URL, ENV_ID が設定済み。
 """
@@ -140,9 +145,28 @@ def get_or_create_webrole_ppc(site_id: str, headers: dict) -> str:
 
 def create_table_permission(
     table: str, scope: int, read: bool, write: bool, create: bool, delete: bool,
-    site_id: str, headers: dict,
+    site_id: str, role_id: str, website_id: str, headers: dict,
 ) -> str:
-    """テーブル権限 (powerpagecomponent type=18) を作成"""
+    """テーブル権限 (powerpagecomponent type=18) を作成し、content JSON の
+    adx_entitypermission_webrole に Web ロールを紐付ける（＝ランタイム正本）。
+
+    注意: 自己参照 N:N `powerpagecomponent_powerpagecomponent` への $ref POST は
+    204 を返すがポータルは認識しない（幽霊リンク）。content が唯一の正本。
+    """
+    scope_names = {756150000: "Global", 756150001: "Self", 756150002: "Parent", 756150003: "Account"}
+    perm_name = f"{table} - {scope_names.get(scope, 'Custom')}"
+
+    # 検証済みの content スキーマ（adx_* キー＋websiteid＋adx_entitypermission_webrole）
+    content = {
+        "entitylogicalname": table,
+        "entityname": perm_name,
+        "scope": scope,
+        "read": read, "write": write, "create": create, "delete": delete,
+        "append": True, "appendto": True,
+        "websiteid": website_id,
+        "adx_entitypermission_webrole": [role_id],
+    }
+
     # 既存チェック
     filter_q = (
         f"powerpagecomponenttype eq 18 "
@@ -150,29 +174,34 @@ def create_table_permission(
         f"and contains(name, '{table}')"
     )
     r = requests.get(
-        f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents?$filter={filter_q}",
+        f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents?$filter={filter_q}&$select=powerpagecomponentid,content",
         headers=headers,
     )
     r.raise_for_status()
     existing = r.json()["value"]
     if existing:
-        print(f"    Table Permission: already exists ({existing[0]['powerpagecomponentid']})")
-        return existing[0]["powerpagecomponentid"]
-
-    scope_names = {756150000: "Global", 756150001: "Self", 756150002: "Parent", 756150003: "Account"}
-    perm_name = f"{table} - {scope_names.get(scope, 'Custom')}"
+        perm_id = existing[0]["powerpagecomponentid"]
+        # 既存 content の adx_entitypermission_webrole に role を冪等に追加（正本を更新）
+        try:
+            cur = json.loads(existing[0].get("content") or "{}")
+        except json.JSONDecodeError:
+            cur = {}
+        roles = cur.get("adx_entitypermission_webrole") or []
+        if role_id not in roles:
+            roles.append(role_id)
+        cur["adx_entitypermission_webrole"] = roles
+        cur["websiteid"] = website_id
+        requests.patch(
+            f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({perm_id})",
+            headers=headers, json={"content": json.dumps(cur)},
+        ).raise_for_status()
+        print(f"    Table Permission: content の Web ロール紐付けを更新 ({perm_id})")
+        return perm_id
 
     body = {
         "powerpagecomponenttype": 18,
         "name": perm_name,
-        "content": json.dumps({
-            "mspp_entityname": table,
-            "mspp_scope": str(scope),
-            "mspp_read": str(read).lower(),
-            "mspp_write": str(write).lower(),
-            "mspp_create": str(create).lower(),
-            "mspp_delete": str(delete).lower(),
-        }),
+        "content": json.dumps(content),
         "powerpagesiteid@odata.bind": f"/powerpagesites({site_id})",
     }
     r = requests.post(
@@ -183,19 +212,6 @@ def create_table_permission(
     ppc_id = r.headers.get("OData-EntityId", "").split("(")[-1].rstrip(")")
     print(f"    Table Permission CREATED: {perm_name} ({ppc_id})")
     return ppc_id
-
-
-def link_permission_to_webrole(perm_id: str, role_id: str, headers: dict):
-    """テーブル権限 ↔ Web Role の自己参照 N:N リンクを作成"""
-    url = f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({perm_id})/powerpagecomponent_powerpagecomponent/$ref"
-    body = {"@odata.id": f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({role_id})"}
-    r = requests.post(url, headers=headers, json=body)
-    if r.status_code == 204:
-        print(f"    LINKED: permission → webrole")
-    elif r.status_code == 409:
-        print(f"    LINKED: already exists (skip)")
-    else:
-        r.raise_for_status()
 
 
 def restart_site():
@@ -240,11 +256,8 @@ def main():
         upsert_site_setting(f"Webapi/{table}/enabled", "true", adx_website_id, headers)
         upsert_site_setting(f"Webapi/{table}/fields", fields, adx_website_id, headers)
 
-        # テーブル権限 (powerpagecomponent)
-        perm_id = create_table_permission(table, scope, read, write, create, delete, site_id, headers)
-
-        # N:N リンク
-        link_permission_to_webrole(perm_id, role_id, headers)
+        # テーブル権限 (powerpagecomponent) — content JSON に Web ロールを紐付け（正本）
+        create_table_permission(table, scope, read, write, create, delete, site_id, role_id, adx_website_id, headers)
         print()
 
     # 4. ポータル再起動
