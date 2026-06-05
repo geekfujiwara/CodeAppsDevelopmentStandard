@@ -5,12 +5,14 @@ Power Pages Web API テーブル権限設定スクリプト
 1. Site Settings (Webapi/{table}/enabled, fields) を adx_sitesettings に作成
 2. powerpagecomponent (type=18) でテーブル権限を作成
 3. Web Role (type=11) を取得または作成
-4. テーブル権限の content JSON に adx_entitypermission_webrole（＋websiteid）を
-   書き込んで Web ロールを紐付ける（＝ランタイム正本）
+4. テーブル権限に Web ロールを (a) content JSON の adx_entitypermission_webrole
+   （YAML/git シリアライズ形）と (b) 自己参照 N:N association（ランタイム正本）の
+   両方で紐付ける
 
-注意: 自己参照 N:N `powerpagecomponent_powerpagecomponent` への $ref POST は
-204 を返すがポータルは認識しない（幽霊リンク）ため使用しない。
-正本は type=18 の content JSON 内 adx_entitypermission_webrole 配列。
+重要（実機 m365status で確定）: ランタイム正本は N:N
+`powerpagecomponent_powerpagecomponent` への $ref POST で作成する association。
+content JSON 配列だけでは association が空のまま残り 403
+(90040120 EntityPermissionReadIsMissing) になる。両方を作成すること。
 
 前提: .env に DATAVERSE_URL, ENV_ID が設定済み。
 """
@@ -32,8 +34,12 @@ SUBDOMAIN = os.environ.get("PP_SUBDOMAIN", "")
 # テーブル名と権限レベルのリスト
 TABLES = [
     # (logical_name, scope, read, write, create, delete, fields)
-    # scope: 756150000=Global, 756150001=Self(Contact), 756150002=Parent, 756150003=Account
-    ("contact", 756150001, True, True, False, False, "firstname,lastname,emailaddress1,telephone1,fullname"),
+    # mspp_scope (API で確認済み): 756150000=Global / 756150001=Contact /
+    #   756150002=Account / 756150003=Parent / 756150004=Self
+    # contact 自身（ログインユーザーの取引先担当者）の編集には Self(756150004) を使う。
+    # 注意: fields 許可リストにアプリが SELECT する全列を列挙すること。
+    #   許可リスト外の列を要求すると Web API は 403 を返す（例: fullname の付け忘れ）。
+    ("contact", 756150004, True, True, False, False, "firstname,lastname,emailaddress1,telephone1,fullname"),
     # 以下に必要なテーブルを追加:
     # ("geek_incident", 756150000, True, True, True, False, "*"),
 ]
@@ -147,13 +153,17 @@ def create_table_permission(
     table: str, scope: int, read: bool, write: bool, create: bool, delete: bool,
     site_id: str, role_id: str, website_id: str, headers: dict,
 ) -> str:
-    """テーブル権限 (powerpagecomponent type=18) を作成し、content JSON の
-    adx_entitypermission_webrole に Web ロールを紐付ける（＝ランタイム正本）。
+    """テーブル権限 (powerpagecomponent type=18) を作成し、Web ロールを
+    (1) content JSON の adx_entitypermission_webrole（YAML/git シリアライズ形）
+    (2) 自己参照 N:N `powerpagecomponent_powerpagecomponent` アソシエーション
+    の両方で紐付ける。
 
-    注意: 自己参照 N:N `powerpagecomponent_powerpagecomponent` への $ref POST は
-    204 を返すがポータルは認識しない（幽霊リンク）。content が唯一の正本。
+    重要（実機 m365status で確定）: ランタイム正本は N:N association。
+    content JSON 配列だけでは association が空のまま残り 403
+    (90040120 EntityPermissionReadIsMissing) になるため、$ref POST で
+    association を作成することが必須。
     """
-    scope_names = {756150000: "Global", 756150001: "Self", 756150002: "Parent", 756150003: "Account"}
+    scope_names = {756150000: "Global", 756150001: "Contact", 756150002: "Account", 756150003: "Parent", 756150004: "Self"}
     perm_name = f"{table} - {scope_names.get(scope, 'Custom')}"
 
     # 検証済みの content スキーマ（adx_* キー＋websiteid＋adx_entitypermission_webrole）
@@ -196,6 +206,7 @@ def create_table_permission(
             headers=headers, json={"content": json.dumps(cur)},
         ).raise_for_status()
         print(f"    Table Permission: content の Web ロール紐付けを更新 ({perm_id})")
+        ensure_association(perm_id, role_id, headers)
         return perm_id
 
     body = {
@@ -211,7 +222,32 @@ def create_table_permission(
     r.raise_for_status()
     ppc_id = r.headers.get("OData-EntityId", "").split("(")[-1].rstrip(")")
     print(f"    Table Permission CREATED: {perm_name} ({ppc_id})")
+    ensure_association(ppc_id, role_id, headers)
     return ppc_id
+
+
+def ensure_association(perm_id: str, role_id: str, headers: dict):
+    """権限(type=18)→Web ロール(type=11) の N:N association を冪等作成。
+    これがランタイム正本。content JSON 配列だけでは 403 になる。"""
+    r = requests.get(
+        f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({perm_id})"
+        f"?$select=powerpagecomponentid"
+        f"&$expand=powerpagecomponent_powerpagecomponent($select=powerpagecomponentid)",
+        headers=headers,
+    )
+    r.raise_for_status()
+    assoc = {a["powerpagecomponentid"]
+             for a in r.json().get("powerpagecomponent_powerpagecomponent", [])}
+    if role_id in assoc:
+        print("    ASSOC OK: N:N association は既に存在")
+        return
+    requests.post(
+        f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({perm_id})"
+        f"/powerpagecomponent_powerpagecomponent/$ref",
+        headers=headers,
+        json={"@odata.id": f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({role_id})"},
+    ).raise_for_status()
+    print("    ASSOC CREATED: N:N association を作成（ランタイム正本）")
 
 
 def restart_site():

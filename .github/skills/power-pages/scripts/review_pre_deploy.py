@@ -211,14 +211,21 @@ def check_environment():
 # ---------------------------------------------------------------------------
 
 def _content_has_webrole(content_str) -> bool:
-    """type=18 の content JSON 内 adx_entitypermission_webrole が非空かを判定。
-    これがランタイム正本。N:N powerpagecomponent_powerpagecomponent は幽霊なので使わない。"""
+    """type=18 の content JSON 内 adx_entitypermission_webrole（YAML/git シリアライズ形）が
+    非空かを判定。ランタイム正本は N:N association（_assoc_has_webrole 参照）。"""
     try:
         content = json.loads(content_str) if content_str else {}
     except (json.JSONDecodeError, TypeError):
         return False
     roles = content.get("adx_entitypermission_webrole")
     return bool(roles)
+
+
+def _assoc_has_webrole(perm) -> bool:
+    """type=18 に N:N association で Web ロール(type=11) が紐付いているかを判定。
+    これがランタイム正本。content 配列だけでは 403 (90040120) になる。"""
+    assoc = perm.get("powerpagecomponent_powerpagecomponent", []) or []
+    return any(a.get("powerpagecomponenttype") == 11 for a in assoc)
 
 
 def check_table_permissions():
@@ -239,11 +246,12 @@ def check_table_permissions():
         token = auth_helper.get_token(scope=f"{dv_url}/.default")
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
-        # テーブル権限一覧 (type=18)
+        # テーブル権限一覧 (type=18) — N:N association も $expand で取得
         r = requests.get(
             f"{dv_url}/api/data/v9.2/powerpagecomponents"
             "?$filter=powerpagecomponenttype eq 18"
-            "&$select=name,content,_powerpagesitelanguageid_value",
+            "&$select=name,content,_powerpagesitelanguageid_value"
+            "&$expand=powerpagecomponent_powerpagecomponent($select=name,powerpagecomponenttype)",
             headers=headers, timeout=30
         )
         if r.status_code != 200:
@@ -269,7 +277,7 @@ def check_table_permissions():
 
             entity = content.get("entitylogicalname", "?")
             scope = content.get("scope", "?")
-            has_webrole = "adx_entitypermission_webrole" in content and content["adx_entitypermission_webrole"]
+            has_webrole = _assoc_has_webrole(perm)
             has_append = content.get("append", False)
             has_appendto = content.get("appendto", False)
 
@@ -279,8 +287,8 @@ def check_table_permissions():
             else:
                 check("3.3", f"{name}: languageid 設定済み", True)
 
-            # 3.2 webrole
-            check("3.2", f"{name}: adx_entitypermission_webrole あり", has_webrole)
+            # 3.2 webrole（ランタイム正本＝N:N association）
+            check("3.2", f"{name}: N:N association で Web ロール紐付けあり", has_webrole)
 
             # 3.5 Contact scope
             if entity == "contact":
@@ -292,12 +300,12 @@ def check_table_permissions():
                 check("3.6", f"{name}: append={has_append}, appendto={has_appendto}",
                       has_append and has_appendto)
 
-        # 3.7 全権限の content webrole 検証（ランタイム正本＝content JSON の adx_entitypermission_webrole）
-        #     N:N powerpagecomponent_powerpagecomponent は幽霊リンクなので検証に使わない
+        # 3.7 全権限の N:N association 検証（ランタイム正本）
+        #     content JSON の adx_entitypermission_webrole 配列だけでは association が空になりうる
         if permissions:
             missing = [p["name"] for p in permissions
-                       if not _content_has_webrole(p.get("content"))]
-            check("3.7", f"全 {len(permissions)} 権限の content に adx_entitypermission_webrole あり"
+                       if not _assoc_has_webrole(p)]
+            check("3.7", f"全 {len(permissions)} 権限に N:N association で Web ロール紐付けあり"
                          + (f"（未設定: {', '.join(missing)}）" if missing else ""),
                   len(missing) == 0)
 
