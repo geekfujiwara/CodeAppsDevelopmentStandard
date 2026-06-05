@@ -91,14 +91,6 @@ const highlights = [
   },
 ];
 
-/**
- * 認証状態判定 — window.__PP_USER__ の有無で判定
- */
-function isAuthenticated() {
-  const ppUser = window.__PP_USER__;
-  return !!(ppUser && ppUser.contactId);
-}
-
 export default function HomePage() {
   const navigate = useNavigate();
   const { isAuthenticated, login } = useAuth();

@@ -263,11 +263,12 @@ export const fetchAllPages = async <T>(initialUrl: string, pageSize = 100): Prom
   let iterations = 0;
 
   while (nextUrl && ++iterations <= 100) {
-    const response = await powerPagesFetch<ODataCollectionResponse<T>>(nextUrl, {
+    const response: ODataCollectionResponse<T> | null =
+      await powerPagesFetch<ODataCollectionResponse<T>>(nextUrl, {
       headers: {
         Prefer: `odata.include-annotations="OData.Community.Display.V1.FormattedValue",odata.maxpagesize=${pageSize}`,
       },
-    });
+      });
     if (!response) break;
     results.push(...(response.value ?? []));
     nextUrl = response["@odata.nextLink"];

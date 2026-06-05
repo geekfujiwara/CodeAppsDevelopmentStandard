@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { apiGet, apiPatch } from "@/lib/dataverse";
+import { powerPagesFetch, buildODataUrl } from "@/lib/dataverse";
 import { Button } from "@/components/ui/button";
 import { Save, Loader2, User, CheckCircle2, AlertCircle } from "lucide-react";
 
@@ -43,9 +43,16 @@ export default function ProfilePage() {
   const fetchProfile = useCallback(async (contactId: string) => {
     setLoading(true);
     try {
-      const data = await apiGet<ContactProfile>(
-        `contacts(${contactId})?$select=firstname,lastname,emailaddress1,telephone1`,
+      const data = await powerPagesFetch<ContactProfile>(
+        buildODataUrl(`contacts(${contactId})`, {
+          $select: "firstname,lastname,emailaddress1,telephone1",
+        }),
       );
+
+      if (!data) {
+        throw new Error("Profile response is empty");
+      }
+
       setProfile({
         firstname: data.firstname || "",
         lastname: data.lastname || "",
@@ -73,10 +80,13 @@ export default function ProfilePage() {
     setSaving(true);
     setMessage(null);
     try {
-      await apiPatch(`contacts(${user.contactId})`, {
-        firstname: profile.firstname,
-        lastname: profile.lastname,
-        telephone1: profile.telephone1,
+      await powerPagesFetch(`/_api/contacts(${user.contactId})`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          firstname: profile.firstname,
+          lastname: profile.lastname,
+          telephone1: profile.telephone1,
+        }),
       });
       setMessage({ type: "success", text: "プロフィールを更新しました。" });
     } catch (e) {
