@@ -461,3 +461,23 @@ Google Fonts の `<link>` を選択テンプレートのフォントに差し替
 ```bash
 cd portal && npx vite build
 ```
+
+---
+
+## ブランディングテキスト（サイト名・ロゴ）の変更
+
+配色テンプレートとは別に、**サイト名・ロゴマークなどデプロイ固有の文言**は
+コードに直書きせず `.env` の `VITE_*` 変数で差し替える（詳細は `SKILL.md` の
+「サイト名・ロゴのブランディング設定」を参照）。
+
+```bash
+cp .env.example .env
+# VITE_SITE_NAME / VITE_SITE_LOGO_MARK を編集 → npm run build
+```
+
+| 変数 | 用途 | 既定値 |
+|------|------|--------|
+| `VITE_SITE_NAME` | ヘッダーロゴ・フッター・タブタイトルの表示名 | `Power Pages` |
+| `VITE_SITE_LOGO_MARK` | ヘッダーロゴのマーク（1〜2 文字） | `P` |
+
+値は `src/config.ts` に集約され、`home.tsx` / `site-layout.tsx` / `main.tsx` が参照する。

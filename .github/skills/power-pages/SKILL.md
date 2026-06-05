@@ -457,12 +457,14 @@ portal/
 │   │   └── <table>.ts            ← エンティティ型・ドメイン型・マッパー
 │   ├── lib/
 │   │   └── utils.ts              ← cn() ユーティリティ
+│   ├── config.ts                 ← サイト名・ロゴ等のブランディング設定（.env の VITE_* を集約）
 │   └── pages/
 │       ├── home.tsx              ← ランディングページ
 │       └── profile.tsx           ← プロフィール編集 (★ powerPagesApi.ts を使用)
 ├── dist-site/                    ← ビルド出力 (compiledPath)
 ├── .powerpages-site/             ← upload-code-site が管理 + site-settings YAML 手動追加可
 │   └── site-settings/            ← Webapi/* 設定を YAML で永続化
+├── .env.example                  ← ★ ブランディング等の VITE_* 変数サンプル（コピーして .env を作成）
 ├── powerpages.config.json        ← CLI 設定ファイル (必須)
 ├── package.json
 ├── vite.config.ts
@@ -472,6 +474,27 @@ portal/
     ├── setup_auth.py             ← Entra ID SSO 認証設定 (Site Settings + Liquid 注入)
     └── setup_contact_webapi.py   ← Contact Web API 有効化 (EDM 2.0 対応)
 ```
+
+---
+
+## サイト名・ロゴのブランディング設定（`.env` / `src/config.ts`）
+
+デプロイごとに変わる**ブランディング値はコードに直書きせず**、ビルド時の環境変数で差し替える。
+テンプレートの `.env.example` を `.env` にコピーして値を編集する（`.env` は `.gitignore` 済み）。
+
+```bash
+cp .env.example .env   # 値を編集してから npm run build
+```
+
+| 変数 | 用途 | 既定値 |
+|------|------|--------|
+| `VITE_SITE_NAME` | サイト/ブランド表示名（ヘッダーロゴ・フッター・ブラウザタブのタイトル） | `Power Pages` |
+| `VITE_SITE_LOGO_MARK` | ヘッダーロゴのマーク（1〜2 文字の頭文字） | `P` |
+
+- すべて `VITE_` プレフィックス必須（Vite はこの接頭辞の変数のみクライアントへ公開）。
+- 値は `src/config.ts`（`SITE_NAME` / `SITE_LOGO_MARK`）に集約し、未設定時は既定値へフォールバック。
+- バンドルに同梱されブラウザに露出するため、**秘密情報は置かない**。
+- `home.tsx` / `site-layout.tsx` は `@/config` を import して参照、`main.tsx` が `document.title` を設定。
 
 ---
 

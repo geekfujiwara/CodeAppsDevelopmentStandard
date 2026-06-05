@@ -17,6 +17,7 @@ import {
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SITE_NAME, SITE_LOGO_MARK } from "@/config";
 import type { LucideIcon } from "lucide-react";
 
 type NavItem = { icon: LucideIcon; label: string; path: string };
@@ -280,10 +281,10 @@ export function SiteLayout() {
             {/* ロゴ */}
             <NavLink to="/" className="flex items-center gap-2.5 shrink-0">
               <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md">
-                <span className="text-white font-bold text-sm">P</span>
+                <span className="text-white font-bold text-sm">{SITE_LOGO_MARK}</span>
               </div>
               <span className="text-base font-semibold text-foreground hidden sm:block">
-                Power Pages
+                {SITE_NAME}
               </span>
             </NavLink>
 
@@ -391,7 +392,7 @@ export function SiteLayout() {
       <footer className="border-t border-border/50 bg-card/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <p className="text-center text-xs text-muted-foreground">
-            Powered by Power Pages
+            Powered by {SITE_NAME}
           </p>
         </div>
       </footer>
