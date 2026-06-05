@@ -280,7 +280,7 @@ export function SiteLayout() {
           <div className="flex items-center justify-between h-14">
             {/* ロゴ */}
             <NavLink to="/" className="flex items-center gap-2.5 shrink-0">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md">
+              <div className="h-8 w-8 rounded-lg bg-linear-to-br from-primary to-accent flex items-center justify-center shadow-md">
                 <span className="text-white font-bold text-sm">{SITE_LOGO_MARK}</span>
               </div>
               <span className="text-base font-semibold text-foreground hidden sm:block">
