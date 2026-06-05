@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/mode-toggle";
+import { LogoutConfirmDialog } from "@/components/logout-confirm-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import {
   LayoutDashboard,
@@ -14,7 +15,7 @@ import {
   X,
   MoreHorizontal,
   ChevronDown,
-  User,
+  UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SITE_NAME, SITE_LOGO_MARK } from "@/config";
@@ -53,10 +54,11 @@ const navGroups: NavGroup[] = [
 /**
  * 認証アクション（ヘッダー右上）
  * - 未認証: ログインボタン → /SignIn 直行（自動 SSO）
- * - 認証済み: プロフィールアバター + ドロップダウン（プロフィール編集 / ログアウト）
+ * - 認証済み: 連絡先編集アイコン + ドロップダウン（連絡先情報の編集 / ログアウト）
+ *   ※ ログアウトは確認モーダル経由（onRequestLogout）。
  */
-function AuthActions() {
-  const { isAuthenticated, user, login, logout } = useAuth();
+function AuthActions({ onRequestLogout }: { onRequestLogout: () => void }) {
+  const { isAuthenticated, user, login } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,9 +94,11 @@ function AuthActions() {
       <button
         className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted transition-colors"
         onClick={() => navigate("/profile")}
+        title="連絡先情報の編集"
+        aria-label="連絡先情報の編集"
       >
         <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-          <User className="h-4 w-4 text-primary" />
+          <UserCog className="h-4 w-4 text-primary" />
         </div>
         <span className="text-xs text-muted-foreground max-w-[100px] truncate">
           {user?.fullName || "ユーザー"}
@@ -116,12 +120,15 @@ function AuthActions() {
                 navigate("/profile");
               }}
             >
-              <User className="h-4 w-4" />
-              プロフィール編集
+              <UserCog className="h-4 w-4" />
+              連絡先情報の編集
             </button>
             <button
               className="flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-muted transition-colors"
-              onClick={logout}
+              onClick={() => {
+                setOpen(false);
+                onRequestLogout();
+              }}
             >
               <LogOut className="h-4 w-4" />
               ログアウト
@@ -269,6 +276,7 @@ function OverflowMenu({ groups }: { groups: NavGroup[] }) {
 
 export function SiteLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const { isAuthenticated, login, logout } = useAuth();
 
   return (
@@ -298,7 +306,7 @@ export function SiteLayout() {
             {/* 右側アクション */}
             <div className="flex items-center gap-2">
               <ModeToggle />
-              <AuthActions />
+              <AuthActions onRequestLogout={() => setLogoutDialogOpen(true)} />
 
               {/* モバイルメニューボタン */}
               <button
@@ -356,12 +364,15 @@ export function SiteLayout() {
                     onClick={() => setMobileMenuOpen(false)}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-muted transition-colors"
                   >
-                    <User className="h-4 w-4" />
-                    プロフィール編集
+                    <UserCog className="h-4 w-4" />
+                    連絡先情報の編集
                   </NavLink>
                   <button
                     className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-muted transition-colors"
-                    onClick={logout}
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setLogoutDialogOpen(true);
+                    }}
                   >
                     <LogOut className="h-4 w-4" />
                     ログアウト
@@ -396,6 +407,13 @@ export function SiteLayout() {
           </p>
         </div>
       </footer>
+
+      {/* ログアウト確認モーダル */}
+      <LogoutConfirmDialog
+        open={logoutDialogOpen}
+        onConfirm={logout}
+        onCancel={() => setLogoutDialogOpen(false)}
+      />
     </div>
   );
 }
