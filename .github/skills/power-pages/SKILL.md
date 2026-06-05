@@ -393,6 +393,74 @@ GET /api/data/v9.2/powerpagecomponents({perm_id})?$select=content
 
 ---
 
+### 教訓 15: `upload-code-site` は既存テーブル権限の Web ロール紐付けを消す → デプロイ後に必ず再付与
+
+```
+❌ NG: 一度 Web ロールを紐付けた後、SPA 更新のために再度 upload-code-site を実行し、
+       そのまま動作確認する
+       → .powerpages-site/table-permissions/*.yml が既存 type=18 を上書きし、
+         content.adx_entitypermission_webrole を空に戻す
+       → 既存の全グローバル権限まで一斉に 403 になる（Design Studio「ロール」列が空に）
+
+✅ OK: upload-code-site のたびに content の Web ロールを再付与する
+       python scripts/relink_table_permissions.py   # 全 type=18 を冪等に再付与＋再起動
+```
+
+**症状（実案件 IncidentPortal で発生）:**
+`/profile`（contact Self）追加のために再デプロイしたところ、それまで動いていた
+`geek_inquiry` / `geek_m365incident` / `geek_m365service` の **3 つのグローバル権限の
+「ロール」列がすべて空**になり 403。デプロイ後に API で作成した `Contact - Self` だけは
+（YAML に含まれないため）影響を受けなかった。
+
+**根本原因（実機検証で確定）:**
+`pac pages upload-code-site` は `.powerpages-site/table-permissions/*.yml` を正として
+type=18 を上書きするが、この YAML には `adx_entitypermission_webrole` が含まれないため、
+content JSON の Web ロール配列が **毎回リセットされる**（教訓 14 が「デプロイのたびに」再発する）。
+
+**恒久対策（再デプロイ手順に固定）:**
+1. `npm run build && pac pages upload-code-site`
+2. **`python scripts/relink_table_permissions.py`** を実行（全 type=18 の content に
+   Authenticated Users を冪等再付与 → 自動で再起動）
+3. 60〜90 秒待って `/_api/{table}` を検証
+
+> `setup_permissions.py`（TABLES に列挙したテーブルのみ）と異なり、
+> `relink_table_permissions.py` は**サイト上の全 type=18 を対象に一括修復**する。
+> 環境変数 `RELINK_WEBROLE_NAMES`（既定 `Authenticated`, カンマ区切り）で対象ロールを変更可。
+
+---
+
+### 教訓 16: Web API は `Webapi/{table}/fields` 許可リスト外の列を要求すると 403 → クライアントの SELECT 全列を網羅する
+
+```
+❌ NG: Webapi/contact/fields = "firstname,lastname,emailaddress1,telephone1"
+       なのにクライアントが ?$select=contactid,firstname,lastname,fullname,emailaddress1
+       を投げる（fullname が許可リスト外）
+       → テーブル権限・Web ロールが正しくても 403 Forbidden（権限不足と誤認しやすい）
+
+✅ OK: クライアントが SELECT する全列を fields に列挙する
+       Webapi/contact/fields = "firstname,lastname,emailaddress1,telephone1,fullname"
+       （主キー contactid は常に許可される。迷う場合は "*"）
+```
+
+**症状（実案件 IncidentPortal で発生）:**
+contact Self 権限・`Webapi/contact/enabled=true` を設定し Web ロールも紐付け済みなのに、
+`/_api/contacts?$select=contactid,firstname,lastname,fullname,emailaddress1` が **403**。
+フロント側は「authenticated but no contact permission」と誤って解釈していた。
+
+**根本原因:**
+`fullname` を `Webapi/contact/fields` の許可リストに入れ忘れていた。Web API は
+許可リスト外の列を含むリクエストを **403** で拒否する（200＋空ではない）。
+
+**恒久対策:**
+`setup_contact_self.py` は既定で `firstname,lastname,emailaddress1,telephone1,fullname`
+を設定する（`/profile` の `checkAuth` + 編集で使う全列）。クライアントの
+`$select` を変更したら fields も合わせて更新し、再起動する。
+
+> 関連スクリプト: `scripts/setup_contact_self.py`（contact Self 権限 + Webapi 設定を
+> content JSON 正本方式で冪等作成）/ `scripts/relink_table_permissions.py`（デプロイ後の一括修復）。
+
+---
+
 ### まとめ: API でテーブル権限を完結する再利用パターン
 
 ```python
@@ -948,6 +1016,7 @@ value: "true"
 |------|-----------|---------|------|------|
 | 401 | 90040107 | Anti-forgery token required | CSRF トークン未送信 | `/_layout/tokenhtml` から取得してヘッダー付与 |
 | 403 | — | Forbidden (no permission) | content に `adx_entitypermission_webrole` なし | content JSON にロール ID 配列を含める |
+| 403 | — | Forbidden (field not allowed) | `Webapi/{table}/fields` 許可リスト外の列を `$select` した | fields にクライアントの SELECT 全列を列挙（迷えば `*`）（教訓 16） |
 | 403 | 90040106 | AppendTo permission missing | 参照先テーブルに appendto=false | EDM content で `"appendto": true` に更新 |
 | 404 | 9004010D | CDS entity resolution failed | `@odata.bind` のターゲットテーブルが違う | `ManyToOneRelationships` で正しい参照先を確認 |
 | 404 | 9004010C | Resource not found for segment | テーブル権限未設定 or `powerpagesitelanguageid` null | type=18 content + languageid 設定 |
@@ -1076,9 +1145,19 @@ py .github/skills/standard/scripts/_restart.py
 cd portal
 npm run build
 pac pages upload-code-site --rootPath .
-# → サイト再起動
+# ★ upload-code-site は既存 type=18 の content.adx_entitypermission_webrole を消すため、
+#   デプロイのたびに全テーブル権限の Web ロールを再付与する（教訓 15）
+py ../.github/skills/power-pages/scripts/relink_table_permissions.py
+# → relink スクリプトが PP_SUBDOMAIN 設定時に自動で再起動する
+#   （未設定の場合は手動再起動）
 py ../.github/skills/standard/scripts/_restart.py
 ```
+
+> `/profile`（contact Self）を使う場合は、初回のみ `setup_contact_self.py` で
+> contact 権限と `Webapi/contact/enabled|fields` を作成しておく（教訓 16）:
+> ```bash
+> py ../.github/skills/power-pages/scripts/setup_contact_self.py
+> ```
 
 ---
 
@@ -1150,8 +1229,10 @@ SKIP_REMOTE=1 python ../.github/skills/power-pages/scripts/review_pre_deploy.py
 - [ ] EDM content JSON に `adx_entitypermission_webrole`（Web ロール ID 配列）が含まれている（教訓 2）
 - [ ] content に `websiteid` が含まれている
 - [ ] **`upload-code-site` 後に `setup_permissions.py` を実行し、各テーブル権限 content の `adx_entitypermission_webrole` に Authenticated Users が入っている（Design Studio の「ロール」列が空でない）（教訓 14）**
+- [ ] **再デプロイのたびに `relink_table_permissions.py` を実行し、`upload-code-site` で消えた全 type=18 の Web ロールを再付与した（教訓 15）**
 - [ ] テーブル権限に `append=true, appendto=true` が設定されている
 - [ ] Contact 権限は scope=756150004 (Self) を使用（教訓 3）
+- [ ] **`/profile`（contact Self）を使う場合、`setup_contact_self.py` で contact 権限 + `Webapi/contact/enabled|fields` を設定し、`fields` にクライアントの SELECT 全列（`fullname` 含む）を網羅した（教訓 16）**
 
 ### デプロイ
 - [ ] `powerpages.config.json` が存在する

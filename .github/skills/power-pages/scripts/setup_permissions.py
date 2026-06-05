@@ -32,8 +32,12 @@ SUBDOMAIN = os.environ.get("PP_SUBDOMAIN", "")
 # テーブル名と権限レベルのリスト
 TABLES = [
     # (logical_name, scope, read, write, create, delete, fields)
-    # scope: 756150000=Global, 756150001=Self(Contact), 756150002=Parent, 756150003=Account
-    ("contact", 756150001, True, True, False, False, "firstname,lastname,emailaddress1,telephone1,fullname"),
+    # mspp_scope (API で確認済み): 756150000=Global / 756150001=Contact /
+    #   756150002=Account / 756150003=Parent / 756150004=Self
+    # contact 自身（ログインユーザーの取引先担当者）の編集には Self(756150004) を使う。
+    # 注意: fields 許可リストにアプリが SELECT する全列を列挙すること。
+    #   許可リスト外の列を要求すると Web API は 403 を返す（例: fullname の付け忘れ）。
+    ("contact", 756150004, True, True, False, False, "firstname,lastname,emailaddress1,telephone1,fullname"),
     # 以下に必要なテーブルを追加:
     # ("geek_incident", 756150000, True, True, True, False, "*"),
 ]
@@ -153,7 +157,7 @@ def create_table_permission(
     注意: 自己参照 N:N `powerpagecomponent_powerpagecomponent` への $ref POST は
     204 を返すがポータルは認識しない（幽霊リンク）。content が唯一の正本。
     """
-    scope_names = {756150000: "Global", 756150001: "Self", 756150002: "Parent", 756150003: "Account"}
+    scope_names = {756150000: "Global", 756150001: "Contact", 756150002: "Account", 756150003: "Parent", 756150004: "Self"}
     perm_name = f"{table} - {scope_names.get(scope, 'Custom')}"
 
     # 検証済みの content スキーマ（adx_* キー＋websiteid＋adx_entitypermission_webrole）
