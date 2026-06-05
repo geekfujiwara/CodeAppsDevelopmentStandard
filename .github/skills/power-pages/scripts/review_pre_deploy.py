@@ -210,6 +210,17 @@ def check_environment():
 # [3] テーブル権限検証
 # ---------------------------------------------------------------------------
 
+def _content_has_webrole(content_str) -> bool:
+    """type=18 の content JSON 内 adx_entitypermission_webrole が非空かを判定。
+    これがランタイム正本。N:N powerpagecomponent_powerpagecomponent は幽霊なので使わない。"""
+    try:
+        content = json.loads(content_str) if content_str else {}
+    except (json.JSONDecodeError, TypeError):
+        return False
+    roles = content.get("adx_entitypermission_webrole")
+    return bool(roles)
+
+
 def check_table_permissions():
     print("\n[3/5] テーブル権限検証")
 
@@ -281,20 +292,14 @@ def check_table_permissions():
                 check("3.6", f"{name}: append={has_append}, appendto={has_appendto}",
                       has_append and has_appendto)
 
-        # 3.7 N:N リンク確認 (サンプリング: 最初の権限)
+        # 3.7 全権限の content webrole 検証（ランタイム正本＝content JSON の adx_entitypermission_webrole）
+        #     N:N powerpagecomponent_powerpagecomponent は幽霊リンクなので検証に使わない
         if permissions:
-            first_id = permissions[0].get("powerpagecomponentid", "")
-            if first_id:
-                r_nn = requests.get(
-                    f"{dv_url}/api/data/v9.2/powerpagecomponents({first_id})"
-                    "/powerpagecomponent_powerpagecomponent?$select=name",
-                    headers=headers, timeout=30
-                )
-                if r_nn.status_code == 200:
-                    links = r_nn.json().get("value", [])
-                    check("3.7", f"{permissions[0]['name']}: N:N リンク {len(links)} 件", len(links) >= 1)
-                else:
-                    check("3.7", "N:N リンク確認", False)
+            missing = [p["name"] for p in permissions
+                       if not _content_has_webrole(p.get("content"))]
+            check("3.7", f"全 {len(permissions)} 権限の content に adx_entitypermission_webrole あり"
+                         + (f"（未設定: {', '.join(missing)}）" if missing else ""),
+                  len(missing) == 0)
 
     except ImportError:
         print(f"  {WARN} auth_helper / requests なし — スキップ")

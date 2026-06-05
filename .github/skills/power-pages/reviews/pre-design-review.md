@@ -43,7 +43,7 @@
 |---|---|---|
 | 4.1 | EDM 2.0 前提（`Webapi/*` Site Settings は使わない） | 教訓8 |
 | 4.2 | テーブル権限 content JSON に `adx_entitypermission_webrole` を含める設計 | 教訓2: 403 |
-| 4.3 | N:N リンク（`powerpagecomponent_powerpagecomponent`）も同時に設定する | 教訓2 |
+| 4.3 | content に `websiteid` を含める設計（N:N $ref は幽霊なので使わない） | 教訓2・14 |
 | 4.4 | Contact 権限は scope=756150004 (Self) を使用 | 教訓3: contactrelationship 不要 |
 | 4.5 | Lookup 参照先テーブルに `appendto=true` を設定する計画がある | 教訓4: 403 90040106 |
 | 4.6 | `powerpagesitelanguageid` を設定する計画がある | 核心: null → 404 9004010C |

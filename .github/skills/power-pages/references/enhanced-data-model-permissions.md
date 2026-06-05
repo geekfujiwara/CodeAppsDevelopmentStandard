@@ -386,7 +386,7 @@ requests.post(
 ### 開発時の注意
 
 ~~管理者で動作確認して OK でも、一般ユーザーでテストしないと 403 が発見できない。~~ **管理者でも 403 になる**。
-**全てのテーブル権限を Authenticated Users に紐づけること。** `deploy_site.py` Phase 4.5 で自動化済み。
+**全てのテーブル権限の content JSON に Authenticated Users を紐づけること。** `setup_permissions.py` で自動化。
 
 ---
 
@@ -404,9 +404,9 @@ Step 4: Site Restart（API）
 Step 5: テスト（管理者でも一般でも同じ権限設定が必要）
 ```
 
-### 自動紐づけ（推奨 — deploy_site.py Phase 4.5）
+### 自動紐づけ（推奨 — setup_permissions.py）
 
-`deploy_site.py` が Phase 4.5 で全テーブル権限を Authenticated Users に自動紐づけするため、手動作業は不要。
+`setup_permissions.py` が全テーブル権限の content JSON 内 `adx_entitypermission_webrole` に Authenticated Users を冪等に書き込むため、手動作業は不要。
 
 ### Design Studio での紐付け手順（手動が必要な場合のみ）
 

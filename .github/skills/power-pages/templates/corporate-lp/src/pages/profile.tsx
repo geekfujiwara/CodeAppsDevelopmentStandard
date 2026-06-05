@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { powerPagesFetch, buildODataUrl } from "@/lib/dataverse";
 import { Button } from "@/components/ui/button";
-import { Save, Loader2, User, CheckCircle2, AlertCircle } from "lucide-react";
+import { Save, Loader2, UserCog, CheckCircle2, AlertCircle } from "lucide-react";
 
 /**
- * プロフィール編集ページ（デフォルト実装）
+ * 連絡先情報の編集ページ（デフォルト実装）
  *
  * ログイン中ユーザー（取引先担当者 = contact）のプロフィールを
  * `/_api/contacts({contactId})` 経由で取得・更新する。
@@ -119,12 +119,12 @@ export default function ProfilePage() {
     <div className="max-w-lg mx-auto py-8 px-4">
       <div className="flex items-center gap-3 mb-6">
         <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-          <User className="h-6 w-6 text-primary" />
+          <UserCog className="h-6 w-6 text-primary" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">プロフィール編集</h1>
+          <h1 className="text-2xl font-bold text-foreground">連絡先情報の編集</h1>
           <p className="text-sm text-muted-foreground">
-            登録情報を更新できます
+            取引先担当者（連絡先）の登録情報を更新できます
           </p>
         </div>
       </div>

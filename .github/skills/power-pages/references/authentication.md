@@ -165,6 +165,22 @@ export function useAuth() {
         },
         loading: false,
       });
+
+      // ── ログイン完了後、元のページ（ハッシュ）へ戻す ──
+      // Power Pages の returnUrl はサーバーパス（Code Site では "/"）なので、
+      // SPA 内のルート（ハッシュ）はクライアント側で復元する。
+      // → 「profile を経由せず、もとのページに戻る」を実現。
+      // ※ サーバー側でも Authentication/Registration/ProfileRedirectEnabled=false が必須
+      //   （setup_auth.py で設定。これがないと既定で /profile へ誘導される）。
+      const savedHash = sessionStorage.getItem("pp_return_hash");
+      if (savedHash) {
+        sessionStorage.removeItem("pp_return_hash");
+        const current = window.location.hash;
+        const atRoot = !current || current === "#" || current === "#/";
+        if (atRoot && savedHash !== current) {
+          window.location.hash = savedHash;
+        }
+      }
     } else {
       setState({ isAuthenticated: false, user: null, loading: false });
     }
@@ -267,6 +283,13 @@ export function useAuth() {
 
 ヘッダーで認証状態に応じてボタンを出し分ける。`useAuth` の `login` / `logout` を呼ぶだけ。
 
+> **デザインテンプレート既定の認証 UX（3 点）**:
+> 1. **ログイン遷移**: クラシックページを経由せず `ExternalLogin` に直接 POST → SSO。
+>    完了後は `pp_return_hash` でログイン前のページに戻る（`/profile` を経由しない）。
+> 2. **ログアウト遷移**: 「ログアウトしますか？」の確認モーダル → 確認後すぐ LP（ルート `/`）へ。
+> 3. **連絡先情報の編集**: ヘッダーに `UserCog` アイコンを表示 → クリックで取引先担当者（contact）編集ページへ。
+>    contact テーブルの **Self スコープ** 権限が前提（→ [テーブル権限](enhanced-data-model-permissions.md)）。
+
 ```tsx
 // src/components/site-header.tsx
 import { useAuth } from "@/hooks/use-auth";
@@ -301,6 +324,61 @@ export function SiteHeader() {
     </header>
   );
 }
+```
+
+### 3.1 ログアウト確認モーダル（既定実装）
+
+ログアウトは誤操作防止のため確認モーダルを挟む。確認後に `logout()` を呼び、`logout()` は
+`/Account/Login/LogOff?returnUrl=%2F`（= LP ルート）へリダイレクトする。
+
+```tsx
+// src/components/logout-confirm-dialog.tsx（要点）
+export function LogoutConfirmDialog({
+  open, onConfirm, onCancel,
+}: { open: boolean; onConfirm: () => void; onCancel: () => void }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative w-full max-w-sm rounded-2xl border bg-card shadow-premium p-6">
+        <h2 className="text-lg font-bold">ログアウトしますか？</h2>
+        <p className="text-sm text-muted-foreground">ログアウトするとトップページに戻ります。</p>
+        <div className="mt-6 flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={onCancel}>キャンセル</Button>
+          <Button variant="destructive" className="flex-1" onClick={onConfirm}>ログアウト</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+```tsx
+// site-layout.tsx 側: ヘッダー／モバイルのログアウト導線は logout() を直接呼ばず
+// モーダルを開く。確認後に logout() を実行する。
+const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+// ...ログアウトボタン: onClick={() => setLogoutDialogOpen(true)}
+<LogoutConfirmDialog
+  open={logoutDialogOpen}
+  onConfirm={logout}
+  onCancel={() => setLogoutDialogOpen(false)}
+/>
+```
+
+### 3.2 連絡先情報の編集アイコン（既定実装）
+
+ヘッダーの認証済み状態では `UserCog` アイコン + ユーザー名を表示し、クリックで
+`/profile`（取引先担当者の編集ページ）へ遷移する。編集対象は contact テーブルで、
+**Self スコープ**のテーブル権限により本人レコードのみ読み書きできる。
+
+```tsx
+// site-layout.tsx 側（要点）
+<button onClick={() => navigate("/profile")} aria-label="連絡先情報の編集">
+  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+    <UserCog className="h-4 w-4 text-primary" />
+  </div>
+  <span>{user?.fullName}</span>
+</button>
 ```
 
 ---

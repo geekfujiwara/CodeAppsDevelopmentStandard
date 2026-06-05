@@ -37,7 +37,7 @@ export default function App() {
       <Routes>
         <Route element={<SiteLayout />}>
           <Route index element={<HomePage />} />
-          {/* プロフィール編集（認証必須・デフォルト実装） */}
+          {/* 連絡先情報の編集（取引先担当者 Self・認証必須・デフォルト実装） */}
           <Route
             path="profile"
             element={

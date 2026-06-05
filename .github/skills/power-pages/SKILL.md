@@ -113,14 +113,17 @@ triggers:
 
 ---
 
-### 教訓 2: EDM 2.0 テーブル権限は content JSON 内の `adx_entitypermission_webrole` が必須
+### 教訓 2: EDM 2.0 テーブル権限は content JSON 内の `adx_entitypermission_webrole` が唯一の正本
 
 ```
 ❌ NG: powerpagecomponent type=18 の content に entitylogicalname/scope/CRUD だけ設定
-       → ランタイムが権限を認識せず 403
+       → content の adx_entitypermission_webrole が空 → ランタイムが権限を認識せず 403
 
-✅ OK: content JSON に adx_entitypermission_webrole（ロール ID 配列）を含める
-       + powerpagecomponent_powerpagecomponent N:N リンクも設定
+❌ NG: powerpagecomponent_powerpagecomponent（自己参照 N:N）に $ref POST して紐付けたつもりになる
+       → 204 が返るが幽霊リンク。content の配列が空のままなので 403 のまま
+
+✅ OK: content JSON に adx_entitypermission_webrole（ロール ID 配列）を含めて PATCH する
+       これがランタイム／Design Studio「ロール」列の唯一の正本
 ```
 
 **Design Studio が書く完全な content JSON:**
@@ -148,9 +151,9 @@ triggers:
 ```
 
 **API で完結する手順:**
-1. `powerpagecomponent` type=18 を POST — content に `adx_entitypermission_webrole` 含む
-2. `powerpagecomponent_powerpagecomponent` N:N で Web Role コンポーネントとリンク
-3. 両方セットで初めてランタイムが認識
+1. `powerpagecomponent` type=18 を POST — content に `adx_entitypermission_webrole`（＋`websiteid`）を含む
+2. 既存権限に後からロールを追加する場合は `content` を GET → 配列にロール ID を冪等追加 → PATCH
+3. ランタイムは content のこの配列のみを読む（N:N `powerpagecomponent_powerpagecomponent` への `$ref` POST は不要・幽霊）
 
 ---
 
@@ -793,7 +796,7 @@ name: Authenticated Users
 | 1 | `adx_sitesettings` | `Webapi/contact/enabled=true` | `adx_websites` |
 | 2 | `adx_sitesettings` | `Webapi/contact/fields=*` | `adx_websites` |
 | 3 | `powerpagecomponent` type=18 | テーブル権限 (Self) | `powerpagesites` + **`powerpagesitelanguages`** |
-| 4 | `powerpagecomponent_powerpagecomponent` N:N | 権限→Web ロール紐付け | type=11 (Authenticated Users) |
+| 4 | type=18 の content JSON | `adx_entitypermission_webrole` に Web ロール ID | type=11 (Authenticated Users) |
 
 ### ⚠️ 致命的な落とし穴: `powerpagesitelanguageid`
 
@@ -849,13 +852,15 @@ PATCH /api/data/v9.2/powerpagecomponents({perm_id})
 create_site_setting("Webapi/contact/enabled", "true", website_id)
 create_site_setting("Webapi/contact/fields", "*", website_id)  # system table は * 推奨
 
-# 2. powerpagecomponent type=18 (★ powerpagesitelanguageid 必須)
+# 2. powerpagecomponent type=18 (★ powerpagesitelanguageid 必須、content に webrole を含める)
 content = json.dumps({
     "entitylogicalname": "contact",
     "entityname": "contact - Self Read Write",
     "scope": 756150004,  # Self (NOT 756150001 which is Contact scope)
     "read": True, "write": True, "create": False,
     "delete": False, "append": False, "appendto": False,
+    "websiteid": adx_website_id,                       # ← 必須
+    "adx_entitypermission_webrole": [auth_role_id],    # ← 必須（ランタイム正本）
 })
 body = {
     "powerpagecomponenttype": 18,
@@ -865,9 +870,10 @@ body = {
     "powerpagesitelanguageid@odata.bind": f"/powerpagesitelanguages({lang_id})",  # ★ 必須！
 }
 
-# 3. Authenticated Users (type=11) への N:N リンク
-POST /powerpagecomponents({perm_id})/powerpagecomponent_powerpagecomponent/$ref
-{"@odata.id": "/api/data/v9.2/powerpagecomponents({role_id})"}
+# 3. 既存権限に後からロールを追加する場合は content を PATCH（N:N $ref は使わない）
+#   GET .../powerpagecomponents({perm_id})?$select=content → JSON パース
+#   content["adx_entitypermission_webrole"] に role_id を冪等追加 →
+#   PATCH .../powerpagecomponents({perm_id})  {"content": json.dumps(content)}
 ```
 
 > ⚠️ **よくあるミス（修正済み）:**

@@ -87,6 +87,24 @@ export function useAuth() {
   useEffect(() => {
     const user = resolvePortalUser();
     setState({ isAuthenticated: !!user, user, loading: false });
+
+    // ログイン完了後、元のページ（ハッシュ）へ戻す。
+    // Power Pages の returnUrl はサーバーパス（Code Site では "/"）なので、
+    // SPA 内のルート（ハッシュ）はクライアント側で復元する。
+    // これにより「profile を経由せず、もとのページに戻る」を実現する。
+    // ※ サーバー側でも Authentication/Registration/ProfileRedirectEnabled=false が必須
+    //   （scripts/setup_auth.py で設定）。
+    if (user && !IS_DEV) {
+      const savedHash = sessionStorage.getItem("pp_return_hash");
+      if (savedHash) {
+        sessionStorage.removeItem("pp_return_hash");
+        const current = window.location.hash;
+        const atRoot = !current || current === "#" || current === "#/";
+        if (atRoot && savedHash !== current) {
+          window.location.hash = savedHash;
+        }
+      }
+    }
   }, []);
 
   const keepAliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
