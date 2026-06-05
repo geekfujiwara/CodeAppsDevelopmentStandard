@@ -39,7 +39,7 @@
 | 3.4 | scope が意図通り（Global=756150000 / Self=756150004）| ✅ | 教訓3 |
 | 3.5 | Contact 用権限は scope=756150004 (Self) | ✅ | 教訓3 |
 | 3.6 | `append=true, appendto=true` が設定されている（Lookup 使用テーブル） | ✅ | 教訓4: 403 90040106 |
-| 3.7 | N:N `powerpagecomponent_powerpagecomponent` リンクが存在する | ✅ | 教訓2 |
+| 3.7 | 全権限の content JSON に `adx_entitypermission_webrole` がある（N:N は幽霊なので検証に使わない） | ✅ | 教訓2・14 |
 
 ### 4. サイト設定検証
 
