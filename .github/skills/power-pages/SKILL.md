@@ -196,9 +196,13 @@ triggers:
 ```
 
 **SPA 側のリダイレクト復元パターン:**
-1. ログイン前: `sessionStorage.setItem("pp_return_hash", location.hash)` で保存
+1. ログイン前: `sessionStorage.setItem("pp_return_hash", location.hash)` で保存（`use-auth.ts` の `login()`）
 2. `returnUrl: "/"` でルートに戻す
-3. SPA 初期化時: `RestoreRoute` コンポーネントで `sessionStorage` から復元 → `navigate()`
+3. SPA 初期化時: `RestoreRoute` コンポーネントで `sessionStorage` から復元 → `navigate(target, { replace: true })`
+
+> ⚠️ **保存と復元はセット**: 手順 1 の保存だけでは往復が完成せず、ログイン後にディープリンク
+> （例: `#/incidents/123`）がホームに化ける。`App.tsx` の `<HashRouter>` 直下に `RestoreRoute`
+> を必ず配置すること（corporate-lp テンプレートに実装済み）。
 
 ---
 
@@ -226,14 +230,48 @@ triggers:
 
 ---
 
-### 教訓 8: EDM 2.0 Code Site では Webapi/* Site Settings は不要
+### 教訓 8: EDM 2.0 Code Site でも Webapi/* Site Settings は必須（カスタムテーブル含む）
 
 ```
-❌ NG: Webapi/contact/enabled, Webapi/contact/fields 等を作成
-       → EDM 2.0 では不要。Standard Data Model (SDM) の legacy 設定。
+❌ NG: type=18 テーブル権限（adx_entitypermission_webrole + N:N リンク）だけ設定
+       → 認可は通るが /_api/{table} エンドポイント自体が公開されず 404 (9004010C)
 
-✅ OK: powerpagecomponent type=18（テーブル権限）の content JSON だけで制御される
+✅ OK: アクセスする全テーブルに以下の 2 設定を追加する（カスタムテーブルも必須）
+       - Webapi/{table}/enabled = true
+       - Webapi/{table}/fields  = *          ← または公開する列をカンマ区切りで列挙
 ```
+
+**type=18 テーブル権限と Webapi/* 設定は役割が異なり、両方必要:**
+
+| レイヤー | 役割 | 無いと |
+|---|---|---|
+| `powerpagecomponent` type=18（テーブル権限） | **認可**（誰がどの操作をできるか） | 403 EntityPermission* |
+| `Webapi/{table}/enabled` + `/fields` | **エンドポイント公開**（`/_api/{table}` を有効化） | **404 (9004010C)** |
+
+> **実証（本リポジトリの IncidentPortal セッション）**: 新規 EDM 2.0 Code Site で
+> `geek_m365service` / `geek_m365incident` / `geek_inquiry` の type=18 権限を正しく
+> デプロイ・検証済みでも `/_api/geek_m365services` は **404**。`Webapi/{table}/enabled=true`
+> と `Webapi/{table}/fields=*` を追加して restart した直後に **404 → 302**（未認証リダイレクト＝
+> エンドポイント解決成功）に変化した。`scripts/setup_permissions.py` も全テーブルに対して
+> この 2 設定を作成しており、`operations-and-pitfalls.md` の「Web API が 404 → Webapi/{table}/enabled
+> 未設定」とも一致する。**Webapi/* は Contact 専用のレガシー設定ではなく、カスタムテーブルにも必須。**
+
+**`.powerpages-site/site-settings/` に YAML で永続化（upload-code-site で再デプロイされる）:**
+
+```yaml
+# .powerpages-site/site-settings/Webapi-geek_m365service-enabled.sitesetting.yml
+id: <UUID v4>
+name: Webapi/geek_m365service/enabled
+value: "true"
+---
+# .powerpages-site/site-settings/Webapi-geek_m365service-fields.sitesetting.yml
+id: <UUID v4>
+name: Webapi/geek_m365service/fields
+value: "*"
+```
+
+> デバッグ時は `Webapi/error/innererror = true` も追加すると `/_api/` のエラーレスポンスに
+> `innererror` が含まれ原因特定が容易になる。
 
 ---
 
@@ -690,12 +728,13 @@ name: Authenticated Users
 
 ---
 
-## ★ Contact テーブル Web API 有効化 (EDM 2.0)
+## ★ テーブル Web API 有効化 (EDM 2.0 — Contact / カスタムテーブル共通)
 
-> ⚠️ **EDM 2.0 では `Webapi/*` Site Settings は不要**（教訓 2 参照）。
-> geeksupport（動作済み参考サイト）は Webapi/* 設定なしで全テーブルにアクセス可能。
-> 以下の手順は **Standard Data Model (SDM) のレガシーパターン** であり、
-> 新規 Code Site では `mspp_entitypermissions` + `mspp_webroles` N:N だけで十分。
+> ✅ **EDM 2.0 Code Site でも `Webapi/{table}/enabled` + `Webapi/{table}/fields` は必須**（教訓 8 参照）。
+> Contact だけでなく **カスタムテーブルにも適用される**。type=18 テーブル権限は「認可」、
+> Webapi/* 設定は「`/_api/{table}` エンドポイントの公開」で役割が異なり、両方そろって初めて
+> `/_api/` が 200 を返す。どちらか欠けると 404 (9004010C)。
+> 以下は Contact を例にした手順だが、`contact` を任意のテーブル論理名に置き換えてそのまま使える。
 
 ### 重大な教訓: 404 "Resource not found for the segment contact"
 
@@ -1065,5 +1104,5 @@ SKIP_REMOTE=1 python ../.github/skills/power-pages/scripts/review_pre_deploy.py
 - [ ] HashRouter を使用している
 - [ ] `pac auth` で正しいユーザー・環境に接続されている（教訓 10）
 - [ ] テーブル権限が正しい `powerpagesiteid` に紐づいている（教訓 9）
-- [ ] EDM 2.0: `Webapi/*` Site Settings は不要（教訓 8）
+- [ ] アクセスする全テーブルに `Webapi/{table}/enabled=true` + `Webapi/{table}/fields=*` を設定済み（教訓 8）
 - [ ] `Webapi/error/innererror = true` が開発環境で有効
