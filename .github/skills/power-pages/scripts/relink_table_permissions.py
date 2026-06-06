@@ -10,7 +10,8 @@ Power Pages テーブル権限 Web ロール再付与スクリプト（デプロ
 指定 Web ロール（既定: Authenticated Users）を冪等に再付与する。
 **デプロイ（upload-code-site）のたびに実行すること。**
 
-前提: .env に DATAVERSE_URL, ENV_ID。再起動には PP_SUBDOMAIN。
+前提: .env に DATAVERSE_URL, ENV_ID。再起動には PAGES_WEBSITE_ID（推奨）
+または PP_SUBDOMAIN。最後に全 type=18 を検証し、欠落があれば非ゼロ終了する。
 
 検証済みの教訓（実機 m365status で確定）:
 - ランタイムの正本は自己参照 N:N `powerpagecomponent_powerpagecomponent`
@@ -36,6 +37,9 @@ from auth_helper import get_token
 DATAVERSE_URL = os.environ["DATAVERSE_URL"].rstrip("/")
 ENV_ID = os.environ.get("ENV_ID", "")
 SUBDOMAIN = os.environ.get("PP_SUBDOMAIN", "")
+# PP API のサイト ID（websites().id）。最も確実な再起動キー。
+# siteName と PP API 登録名の不一致（例: 'm365status' ⊄ 'M365 Status Portal'）対策。
+PAGES_WEBSITE_ID = os.environ.get("PAGES_WEBSITE_ID", "").strip()
 
 # 再付与する Web ロール名（部分一致）。複数付与したい場合はカンマ区切りで。
 WEBROLE_NAMES = os.environ.get("RELINK_WEBROLE_NAMES", "Authenticated")
@@ -163,11 +167,31 @@ def relink_all(site_id: str, role_ids: list, headers: dict) -> int:
 
 
 def restart_site():
-    if not SUBDOMAIN or not ENV_ID:
-        print("  SKIP restart: PP_SUBDOMAIN / ENV_ID 未設定")
+    """ポータルを再起動する。
+    [1] .env の PAGES_WEBSITE_ID を最優先（最も確実。siteName と PP API 登録名の
+        不一致対策）。[2] フォールバックで PP_SUBDOMAIN に一致するサイトを探す。
+    """
+    if not ENV_ID:
+        print("  SKIP restart: ENV_ID 未設定")
+        return
+    if not PAGES_WEBSITE_ID and not SUBDOMAIN:
+        print("  SKIP restart: PAGES_WEBSITE_ID / PP_SUBDOMAIN 未設定")
+        print("     → .env に PAGES_WEBSITE_ID を設定するか、手動で再起動してください。")
         return
     headers = get_headers(scope="https://api.powerplatform.com/.default")
     base = f"https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites"
+
+    # [1] PAGES_WEBSITE_ID を最優先（最も確実）
+    if PAGES_WEBSITE_ID:
+        rr = requests.post(
+            f"{base}/{PAGES_WEBSITE_ID}/restart?api-version=2024-10-01", headers=headers
+        )
+        if rr.status_code in (200, 202, 204):
+            print(f"  RESTARTED: {PAGES_WEBSITE_ID} ({rr.status_code})")
+            return
+        print(f"  WARNING: PAGES_WEBSITE_ID での再起動失敗 ({rr.status_code}) — フォールバック")
+
+    # [2] PP_SUBDOMAIN フォールバック
     r = requests.get(f"{base}?api-version=2024-10-01", headers=headers)
     r.raise_for_status()
     for site in r.json()["value"]:
@@ -175,30 +199,69 @@ def restart_site():
             requests.post(
                 f"{base}/{site['id']}/restart?api-version=2024-10-01", headers=headers
             ).raise_for_status()
-            print(f"  RESTARTED: {SUBDOMAIN}")
+            print(f"  RESTARTED: {SUBDOMAIN} ({site['id']})")
+            print(f"  HINT: .env に PAGES_WEBSITE_ID={site['id']} を設定すると次回から確実です。")
             return
-    print(f"  WARNING: subdomain '{SUBDOMAIN}' が見つかりません")
+    print(f"  WARNING: subdomain '{SUBDOMAIN}' が見つかりません — 手動で再起動してください。")
+
+
+def verify_all(site_id: str, role_ids: list, headers: dict) -> bool:
+    """全 type=18 テーブル権限で content webrole と N:N association の両方に
+    指定ロールが揃っているか検証する。1 件でも欠落があれば False を返す。
+    upload-code-site がロールを消す回帰を CI/運用で検知するための最終ゲート。"""
+    r = requests.get(
+        f"{API}/powerpagecomponents?$filter=_powerpagesiteid_value eq {site_id} "
+        f"and powerpagecomponenttype eq 18&$select=powerpagecomponentid,name,content&$top=500",
+        headers=headers,
+    )
+    r.raise_for_status()
+    ok = True
+    for c in r.json().get("value", []):
+        cid = c["powerpagecomponentid"]
+        name = c.get("name")
+        try:
+            content = json.loads(c.get("content") or "{}")
+        except json.JSONDecodeError:
+            content = {}
+        in_content = set(content.get("adx_entitypermission_webrole") or [])
+        in_assoc = get_associated_role_ids(cid, headers)
+        miss_content = [rid for rid in role_ids if rid not in in_content]
+        miss_assoc = [rid for rid in role_ids if rid not in in_assoc]
+        if miss_content or miss_assoc:
+            ok = False
+            print(f"  FAIL : {name} → content欠落={len(miss_content)} assoc欠落={len(miss_assoc)}")
+        else:
+            print(f"  PASS : {name}")
+    return ok
 
 
 def main():
     print("=== テーブル権限 Web ロール再付与（デプロイ後の修復） ===\n")
     headers = get_headers()
 
-    print("[1/4] サイト ID を取得...")
+    print("[1/5] サイト ID を取得...")
     site_id = get_site_id(headers)
     print()
 
-    print(f"[2/4] Web ロール '{WEBROLE_NAMES}' を取得...")
+    print(f"[2/5] Web ロール '{WEBROLE_NAMES}' を取得...")
     role_ids = get_webrole_ids(site_id, headers)
     print()
 
-    print("[3/4] 全テーブル権限 content の Web ロールを再付与...")
+    print("[3/5] 全テーブル権限 content の Web ロールを再付与...")
     fixed = relink_all(site_id, role_ids, headers)
     print(f"  → {fixed} 件を修復\n")
 
-    print("[4/4] ポータルを再起動...")
+    print("[4/5] content webrole + N:N association を検証...")
+    verified = verify_all(site_id, role_ids, headers)
+    print()
+
+    print("[5/5] ポータルを再起動...")
     restart_site()
-    print("\n完了! 再起動後 60-90秒でアクセス可能。")
+
+    if not verified:
+        print("\n[FAIL] 検証: 欠落しているロールがあります。content/association を確認してください。")
+        sys.exit(1)
+    print("\n[OK] 完了! 全テーブル権限にロールが揃っています。再起動後 60-90秒でアクセス可能。")
 
 
 if __name__ == "__main__":
