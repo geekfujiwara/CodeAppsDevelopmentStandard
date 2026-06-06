@@ -341,21 +341,15 @@ def phase_link_permissions(config):
     contact として認証されるため、Web ロール経由でないとテーブル権限が評価されない。
     全 Table Permission を Authenticated Users に紐づけないと 403 になる。
 
-    2つの N:N テーブルで紐づけが必要:
-    1. powerpagecomponent_powerpagecomponent (EDM v2 自己参照 N:N)
-    2. mspp_entitypermission_webrole (Standard Data Model N:N)
-    ランタイムは後者 (mspp) を参照するため、両方設定する。
-    pac pages upload-code-site はデプロイ時に mspp 側の N:N を消すバグがある。
-    さらに upload 完了後も非同期で YAML 同期が走るため、即座にリンクすると
-    後から消される。30秒待機してから紐づけを行う。
+    正しい紐づけ方法:
+    powerpagecomponents (type=18) の content JSON 内に
+    "adx_entitypermission_webrole": ["<role_id>"] を PATCH する。
+    ※ $ref POST (N:N Association API) は EDM v2 仮想エンティティでは無視される。
+    ※ Admin UI が使う方式もこの content JSON 更新。
     """
     logger.info("=" * 60)
     logger.info("Phase 4.5: Link Table Permissions → Authenticated Users [MUST]")
     logger.info("=" * 60)
-
-    import time
-    logger.info("  ⏳ Upload 非同期処理の完了を待機中 (30秒)...")
-    time.sleep(30)
 
     h = dv_headers()
 
@@ -367,7 +361,6 @@ def phase_link_permissions(config):
         return
     sites = r.json().get('value', [])
     if not sites:
-        # サイト名で一致しない場合は部分一致で試行
         r = dv_get("powerpagesites?$select=powerpagesiteid,name")
         sites = [s for s in r.json().get('value', []) if config['siteName'].lower() in s.get('name', '').lower()]
     if not sites:
@@ -390,137 +383,47 @@ def phase_link_permissions(config):
     auth_role_id = auth_role['powerpagecomponentid']
     logger.info(f"  Authenticated Users: {auth_role_id}")
 
-    # テーブル権限 (type=18) を列挙
+    # テーブル権限 (type=18) を列挙 — content を含めて取得
     r = dv_get(f"powerpagecomponents"
                f"?$filter=powerpagecomponenttype eq 18 and _powerpagesiteid_value eq {site_id}"
-               f"&$select=powerpagecomponentid,name")
+               f"&$select=powerpagecomponentid,name,content")
     if r.status_code != 200:
         logger.error(f"  ❌ テーブル権限取得失敗: {r.status_code}")
         return
     perms = r.json().get('value', [])
     logger.info(f"  テーブル権限数: {len(perms)}")
 
+    import json as _json
+
     linked_count = 0
     for p in perms:
         pid = p['powerpagecomponentid']
-        # 現在のリンクを確認
-        lr = requests.get(
-            f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({pid})/powerpagecomponent_powerpagecomponent"
-            f"?$select=powerpagecomponentid",
-            headers=h)
-        linked_ids = [l['powerpagecomponentid'] for l in lr.json().get('value', [])] if lr.status_code == 200 else []
+        content_str = p.get('content', '{}')
+        try:
+            content = _json.loads(content_str)
+        except (ValueError, TypeError):
+            content = {}
 
-        if auth_role_id in linked_ids:
-            logger.info(f"    {p['name']}: OK (already linked)")
+        current_roles = content.get('adx_entitypermission_webrole', [])
+        if auth_role_id in current_roles:
+            logger.info(f"    {p['name']}: OK (already in content)")
         else:
-            # 紐づけ
-            url = f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({pid})/powerpagecomponent_powerpagecomponent/$ref"
-            body = {"@odata.id": f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({auth_role_id})"}
-            rr = requests.post(url, json=body, headers=h)
+            # content JSON に adx_entitypermission_webrole を追加して PATCH
+            content['adx_entitypermission_webrole'] = list(set(current_roles + [auth_role_id]))
+            patch_body = {"content": _json.dumps(content)}
+            rr = requests.patch(
+                f"{DATAVERSE_URL}/api/data/v9.2/powerpagecomponents({pid})",
+                json=patch_body, headers=h)
             if rr.status_code in (200, 204):
-                logger.info(f"    {p['name']}: LINKED ({rr.status_code})")
+                logger.info(f"    {p['name']}: LINKED (content PATCH)")
                 linked_count += 1
             else:
                 logger.error(f"    {p['name']}: FAILED ({rr.status_code} {rr.text[:100]})")
 
     if linked_count > 0:
-        logger.info(f"  => {linked_count} 件のテーブル権限を紐づけました (EDM v2)")
+        logger.info(f"  => {linked_count} 件のテーブル権限を content JSON で紐づけました")
     else:
-        logger.info("  => 全て紐づけ済み (EDM v2)")
-
-    # --- Standard N:N (mspp_entitypermission_webrole) ---
-    # Power Pages ランタイムはこちらを参照する。pac pages upload-code-site が
-    # デプロイ時にこの N:N を消すため、毎回再リンクが必要。
-    logger.info("\n  [mspp N:N] mspp_entitypermission_webrole 紐づけ")
-
-    # mspp_websites から Website ID を取得
-    wr = dv_get(f"mspp_websites?$filter=mspp_websiteid eq '{site_id}'"
-                f"&$select=mspp_websiteid")
-    mspp_wid = site_id  # powerpagesiteid = mspp_websiteid (同じ)
-
-    # mspp_webroles から Authenticated Users を取得
-    rr = dv_get(f"mspp_webroles?$filter=_mspp_websiteid_value eq '{mspp_wid}'"
-                " and mspp_authenticatedusersrole eq true"
-                "&$select=mspp_webroleid,mspp_name")
-    mspp_roles = rr.json().get('value', []) if rr.status_code == 200 else []
-    if not mspp_roles:
-        # authenticatedusersrole フラグがない場合は名前で検索
-        rr = dv_get(f"mspp_webroles?$filter=_mspp_websiteid_value eq '{mspp_wid}'"
-                    "&$select=mspp_webroleid,mspp_name,mspp_authenticatedusersrole")
-        mspp_roles = [r for r in rr.json().get('value', [])
-                      if 'authenticated' in r.get('mspp_name', '').lower()]
-    if not mspp_roles:
-        logger.warning("  ⚠️ mspp Authenticated Users ロールが見つかりません")
-    else:
-        mspp_role_id = mspp_roles[0]['mspp_webroleid']
-        logger.info(f"  mspp Authenticated Users: {mspp_role_id}")
-
-        # mspp_entitypermissions を取得してリンク
-        mr = dv_get(f"mspp_entitypermissions?$filter=_mspp_websiteid_value eq '{mspp_wid}'"
-                    "&$select=mspp_entitypermissionid,mspp_entityname")
-        mspp_perms = mr.json().get('value', []) if mr.status_code == 200 else []
-
-        mspp_linked = 0
-        for mp in mspp_perms:
-            mpid = mp['mspp_entitypermissionid']
-            # 既存リンク確認
-            lr = requests.get(
-                f"{DATAVERSE_URL}/api/data/v9.2/mspp_entitypermissions({mpid})"
-                f"/mspp_entitypermission_webrole/$ref", headers=h)
-            existing_refs = lr.json().get('value', []) if lr.status_code == 200 else []
-            already = any(mspp_role_id in ref.get('@odata.id', '') for ref in existing_refs)
-
-            if already:
-                logger.info(f"    {mp['mspp_entityname']}: OK (mspp linked)")
-            else:
-                url = (f"{DATAVERSE_URL}/api/data/v9.2/"
-                       f"mspp_entitypermissions({mpid})/mspp_entitypermission_webrole/$ref")
-                body = {"@odata.id": f"{DATAVERSE_URL}/api/data/v9.2/mspp_webroles({mspp_role_id})"}
-                rr = requests.post(url, json=body, headers=h)
-                if rr.status_code in (200, 201, 204):
-                    logger.info(f"    {mp['mspp_entityname']}: LINKED (mspp)")
-                    mspp_linked += 1
-                elif rr.status_code == 409:
-                    logger.info(f"    {mp['mspp_entityname']}: OK (conflict=already linked)")
-                else:
-                    logger.error(f"    {mp['mspp_entityname']}: FAILED ({rr.status_code})")
-
-        if mspp_linked > 0:
-            logger.info(f"  => {mspp_linked} 件の mspp N:N を紐づけました")
-        else:
-            logger.info("  => 全て mspp 紐づけ済み")
-
-        # --- 検証 + リトライ ---
-        # pac upload の非同期処理がリンク後に N:N を消すケースがあるため
-        # 15秒待って再確認し、消えていたら再リンクする
-        logger.info("\n  ⏳ リンク永続化を検証中 (15秒待機)...")
-        time.sleep(15)
-
-        retry_count = 0
-        for mp in mspp_perms:
-            mpid = mp['mspp_entitypermissionid']
-            lr = requests.get(
-                f"{DATAVERSE_URL}/api/data/v9.2/mspp_entitypermissions({mpid})"
-                f"/mspp_entitypermission_webrole/$ref", headers=h)
-            existing_refs = lr.json().get('value', []) if lr.status_code == 200 else []
-            still_linked = any(mspp_role_id in ref.get('@odata.id', '') for ref in existing_refs)
-
-            if not still_linked:
-                # 再リンク
-                url = (f"{DATAVERSE_URL}/api/data/v9.2/"
-                       f"mspp_entitypermissions({mpid})/mspp_entitypermission_webrole/$ref")
-                body = {"@odata.id": f"{DATAVERSE_URL}/api/data/v9.2/mspp_webroles({mspp_role_id})"}
-                rr = requests.post(url, json=body, headers=h)
-                if rr.status_code in (200, 201, 204, 409):
-                    logger.warning(f"    {mp['mspp_entityname']}: RE-LINKED (was cleared by async upload)")
-                    retry_count += 1
-                else:
-                    logger.error(f"    {mp['mspp_entityname']}: RE-LINK FAILED ({rr.status_code})")
-
-        if retry_count > 0:
-            logger.warning(f"  => {retry_count} 件が非同期処理で消えていたため再リンクしました")
-        else:
-            logger.info("  => 検証OK: 全リンク永続化確認")
+        logger.info("  => 全て紐づけ済み")
 
 
 # ---------------------------------------------------------------------------
