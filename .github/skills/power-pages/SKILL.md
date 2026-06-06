@@ -630,6 +630,13 @@ const user = await checkAuth(); // PPUser { contactId, userName, email, ... }
 > カスタム Lookup は不要。Dataverse スキルの「報告者は createdby を利用」ルールは
 > Code Apps（モデル駆動型アプリ含む）に適用される。
 
+**セットアップスクリプト:**
+```bash
+python .github/skills/power-pages/scripts/setup_inquiry_reporter.py
+```
+Lookup 列作成・ローカライズ・Contact AppendTo 付与・Web API 確認・サイト再起動を冪等に実行する。
+`.env` に `PORTAL_TABLE_LOGICAL` を設定するだけで動作する（詳細は `.env.example` 参照）。
+
 ---
 
 ### エラーコード→教訓マッピング
@@ -667,6 +674,7 @@ const user = await checkAuth(); // PPUser { contactId, userName, email, ... }
   → pac pages upload-code-site          ← Inactive Sites に作成
   → py portal/scripts/activate_site.py  ← PP API でアクティブ化 (api-version=2022-03-01-preview)
   → py portal/scripts/setup_contact_webapi.py
+  → py .github/skills/power-pages/scripts/setup_inquiry_reporter.py  ← 報告者 Contact Lookup (教訓 19)
   → Restart (deploy.py --skip-build or PP API restart)
 
 2回目以降:
