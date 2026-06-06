@@ -1,0 +1,268 @@
+"""
+Power Pages テーブル権限 Web ロール再付与スクリプト（デプロイ後の修復）
+
+`pac pages upload-code-site` は `.powerpages-site/table-permissions/*.yml` で
+既存のテーブル権限を上書きし、content JSON の `adx_entitypermission_webrole`
+（＝ランタイム正本の Web ロール紐付け）を **消去する**ことがある。
+その結果、Design Studio の「ロール」列が空になり、認証済みユーザーでも 403 になる。
+
+このスクリプトは「サイト上の全 type=18 テーブル権限」に対し、
+指定 Web ロール（既定: Authenticated Users）を冪等に再付与する。
+**デプロイ（upload-code-site）のたびに実行すること。**
+
+前提: .env に DATAVERSE_URL, ENV_ID。再起動には PAGES_WEBSITE_ID（推奨）
+または PP_SUBDOMAIN。最後に全 type=18 を検証し、欠落があれば非ゼロ終了する。
+
+検証済みの教訓（実機 m365status で確定）:
+- ランタイムの正本は自己参照 N:N `powerpagecomponent_powerpagecomponent`
+  **アソシエーション**。content JSON の `adx_entitypermission_webrole` 配列は
+  YAML/git シリアライズ形であり、これだけ書いても association が無ければ 403
+  (90040120 EntityPermissionReadIsMissing) になる。
+- そのため本スクリプトは **(1) content JSON 配列の冪等付与** と
+  **(2) N:N association の冪等作成（$ref POST）** の両方を行う。
+- association は方向性があり、権限(type=18)→ロール(type=11) 方向で
+  `$ref` POST する（`POST .../powerpagecomponents({permId})/`
+  `powerpagecomponent_powerpagecomponent/$ref`）。
+- Web ロール名の既定一致は "Authenticated"（部分一致）。
+"""
+import os
+import sys
+import json
+import requests
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from auth_helper import get_token
+
+DATAVERSE_URL = os.environ["DATAVERSE_URL"].rstrip("/")
+ENV_ID = os.environ.get("ENV_ID", "")
+SUBDOMAIN = os.environ.get("PP_SUBDOMAIN", "")
+# PP API のサイト ID（websites().id）。最も確実な再起動キー。
+# siteName と PP API 登録名の不一致（例: 'm365status' ⊄ 'M365 Status Portal'）対策。
+PAGES_WEBSITE_ID = os.environ.get("PAGES_WEBSITE_ID", "").strip()
+
+# 再付与する Web ロール名（部分一致）。複数付与したい場合はカンマ区切りで。
+WEBROLE_NAMES = os.environ.get("RELINK_WEBROLE_NAMES", "Authenticated")
+
+API = f"{DATAVERSE_URL}/api/data/v9.2"
+
+
+def get_headers(scope: str = None):
+    token = get_token(scope=scope) if scope else get_token()
+    return {
+        "Authorization": f"Bearer {token}",
+        "OData-MaxVersion": "4.0",
+        "OData-Version": "4.0",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+
+
+def get_site_id(headers: dict) -> str:
+    r = requests.get(
+        f"{API}/powerpagesites?$top=1&$orderby=createdon desc&$select=powerpagesiteid,name",
+        headers=headers,
+    )
+    r.raise_for_status()
+    sites = r.json()["value"]
+    if not sites:
+        print("ERROR: powerpagesites にレコードが見つかりません")
+        sys.exit(1)
+    print(f"  site: {sites[0]['name']} ({sites[0]['powerpagesiteid']})")
+    return sites[0]["powerpagesiteid"]
+
+
+def get_webrole_ids(site_id: str, headers: dict) -> list:
+    """指定名（部分一致, カンマ区切り）に該当する Web ロール (type=11) の ID 一覧"""
+    names = [n.strip().lower() for n in WEBROLE_NAMES.split(",") if n.strip()]
+    r = requests.get(
+        f"{API}/powerpagecomponents?$filter=_powerpagesiteid_value eq {site_id} "
+        f"and powerpagecomponenttype eq 11&$select=powerpagecomponentid,name&$top=200",
+        headers=headers,
+    )
+    r.raise_for_status()
+    ids = []
+    for c in r.json().get("value", []):
+        cname = (c.get("name") or "").lower()
+        if any(n in cname for n in names):
+            ids.append(c["powerpagecomponentid"])
+            print(f"  webrole: {c.get('name')} ({c['powerpagecomponentid']})")
+    if not ids:
+        print(f"ERROR: Web ロール '{WEBROLE_NAMES}' が見つかりません")
+        sys.exit(1)
+    return ids
+
+
+def get_associated_role_ids(perm_id: str, headers: dict) -> set:
+    """権限(type=18)に N:N association 済みの Web ロール ID 集合を取得"""
+    r = requests.get(
+        f"{API}/powerpagecomponents({perm_id})"
+        f"?$select=powerpagecomponentid"
+        f"&$expand=powerpagecomponent_powerpagecomponent($select=powerpagecomponentid)",
+        headers=headers,
+    )
+    r.raise_for_status()
+    assoc = r.json().get("powerpagecomponent_powerpagecomponent", [])
+    return {a["powerpagecomponentid"] for a in assoc}
+
+
+def ensure_association(perm_id: str, role_id: str, headers: dict):
+    """権限→ロールの N:N association を作成（$ref POST, 冪等）。
+    これがランタイム正本。content JSON だけでは 403 になる。"""
+    requests.post(
+        f"{API}/powerpagecomponents({perm_id})/powerpagecomponent_powerpagecomponent/$ref",
+        headers=headers,
+        json={"@odata.id": f"{API}/powerpagecomponents({role_id})"},
+    ).raise_for_status()
+
+
+def relink_all(site_id: str, role_ids: list, headers: dict) -> int:
+    """全 type=18 テーブル権限に対し、Web ロールを冪等再付与する。
+    (1) content.adx_entitypermission_webrole 配列（YAML シリアライズ形）
+    (2) N:N association（ランタイム正本）の両方を更新する。"""
+    r = requests.get(
+        f"{API}/powerpagecomponents?$filter=_powerpagesiteid_value eq {site_id} "
+        f"and powerpagecomponenttype eq 18&$select=powerpagecomponentid,name,content&$top=500",
+        headers=headers,
+    )
+    r.raise_for_status()
+    fixed = 0
+    for c in r.json().get("value", []):
+        cid = c["powerpagecomponentid"]
+        name = c.get("name")
+        try:
+            content = json.loads(c.get("content") or "{}")
+        except json.JSONDecodeError:
+            content = {}
+
+        changed = False
+
+        # (1) content JSON 配列（YAML/git シリアライズ形）を冪等付与
+        roles = content.get("adx_entitypermission_webrole") or []
+        missing_in_content = [rid for rid in role_ids if rid not in roles]
+        if missing_in_content:
+            roles.extend(missing_in_content)
+            content["adx_entitypermission_webrole"] = roles
+            if not content.get("websiteid"):
+                content["websiteid"] = site_id
+            requests.patch(
+                f"{API}/powerpagecomponents({cid})",
+                headers=headers, json={"content": json.dumps(content)},
+            ).raise_for_status()
+            changed = True
+
+        # (2) N:N association（ランタイム正本）を冪等作成
+        associated = get_associated_role_ids(cid, headers)
+        missing_assoc = [rid for rid in role_ids if rid not in associated]
+        for rid in missing_assoc:
+            ensure_association(cid, rid, headers)
+            changed = True
+
+        if changed:
+            print(f"  FIXED: {name} → content={len(missing_in_content)} assoc={len(missing_assoc)} 件付与")
+            fixed += 1
+        else:
+            print(f"  OK   : {name}")
+    return fixed
+
+
+def restart_site():
+    """ポータルを再起動する。
+    [1] .env の PAGES_WEBSITE_ID を最優先（最も確実。siteName と PP API 登録名の
+        不一致対策）。[2] フォールバックで PP_SUBDOMAIN に一致するサイトを探す。
+    """
+    if not ENV_ID:
+        print("  SKIP restart: ENV_ID 未設定")
+        return
+    if not PAGES_WEBSITE_ID and not SUBDOMAIN:
+        print("  SKIP restart: PAGES_WEBSITE_ID / PP_SUBDOMAIN 未設定")
+        print("     → .env に PAGES_WEBSITE_ID を設定するか、手動で再起動してください。")
+        return
+    headers = get_headers(scope="https://api.powerplatform.com/.default")
+    base = f"https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites"
+
+    # [1] PAGES_WEBSITE_ID を最優先（最も確実）
+    if PAGES_WEBSITE_ID:
+        rr = requests.post(
+            f"{base}/{PAGES_WEBSITE_ID}/restart?api-version=2024-10-01", headers=headers
+        )
+        if rr.status_code in (200, 202, 204):
+            print(f"  RESTARTED: {PAGES_WEBSITE_ID} ({rr.status_code})")
+            return
+        print(f"  WARNING: PAGES_WEBSITE_ID での再起動失敗 ({rr.status_code}) — フォールバック")
+
+    # [2] PP_SUBDOMAIN フォールバック
+    r = requests.get(f"{base}?api-version=2024-10-01", headers=headers)
+    r.raise_for_status()
+    for site in r.json()["value"]:
+        if site.get("subdomain", "") == SUBDOMAIN:
+            requests.post(
+                f"{base}/{site['id']}/restart?api-version=2024-10-01", headers=headers
+            ).raise_for_status()
+            print(f"  RESTARTED: {SUBDOMAIN} ({site['id']})")
+            print(f"  HINT: .env に PAGES_WEBSITE_ID={site['id']} を設定すると次回から確実です。")
+            return
+    print(f"  WARNING: subdomain '{SUBDOMAIN}' が見つかりません — 手動で再起動してください。")
+
+
+def verify_all(site_id: str, role_ids: list, headers: dict) -> bool:
+    """全 type=18 テーブル権限で content webrole と N:N association の両方に
+    指定ロールが揃っているか検証する。1 件でも欠落があれば False を返す。
+    upload-code-site がロールを消す回帰を CI/運用で検知するための最終ゲート。"""
+    r = requests.get(
+        f"{API}/powerpagecomponents?$filter=_powerpagesiteid_value eq {site_id} "
+        f"and powerpagecomponenttype eq 18&$select=powerpagecomponentid,name,content&$top=500",
+        headers=headers,
+    )
+    r.raise_for_status()
+    ok = True
+    for c in r.json().get("value", []):
+        cid = c["powerpagecomponentid"]
+        name = c.get("name")
+        try:
+            content = json.loads(c.get("content") or "{}")
+        except json.JSONDecodeError:
+            content = {}
+        in_content = set(content.get("adx_entitypermission_webrole") or [])
+        in_assoc = get_associated_role_ids(cid, headers)
+        miss_content = [rid for rid in role_ids if rid not in in_content]
+        miss_assoc = [rid for rid in role_ids if rid not in in_assoc]
+        if miss_content or miss_assoc:
+            ok = False
+            print(f"  FAIL : {name} → content欠落={len(miss_content)} assoc欠落={len(miss_assoc)}")
+        else:
+            print(f"  PASS : {name}")
+    return ok
+
+
+def main():
+    print("=== テーブル権限 Web ロール再付与（デプロイ後の修復） ===\n")
+    headers = get_headers()
+
+    print("[1/5] サイト ID を取得...")
+    site_id = get_site_id(headers)
+    print()
+
+    print(f"[2/5] Web ロール '{WEBROLE_NAMES}' を取得...")
+    role_ids = get_webrole_ids(site_id, headers)
+    print()
+
+    print("[3/5] 全テーブル権限 content の Web ロールを再付与...")
+    fixed = relink_all(site_id, role_ids, headers)
+    print(f"  → {fixed} 件を修復\n")
+
+    print("[4/5] content webrole + N:N association を検証...")
+    verified = verify_all(site_id, role_ids, headers)
+    print()
+
+    print("[5/5] ポータルを再起動...")
+    restart_site()
+
+    if not verified:
+        print("\n[FAIL] 検証: 欠落しているロールがあります。content/association を確認してください。")
+        sys.exit(1)
+    print("\n[OK] 完了! 全テーブル権限にロールが揃っています。再起動後 60-90秒でアクセス可能。")
+
+
+if __name__ == "__main__":
+    main()

@@ -13,7 +13,8 @@ import {
   LogIn,
   X,
 } from "lucide-react";
-import { login } from "@/lib/auth";
+import { useAuth } from "@/hooks/use-auth";
+import { SITE_NAME } from "@/config";
 
 /**
  * ★ 機能カード定義 ★
@@ -91,21 +92,14 @@ const highlights = [
   },
 ];
 
-/**
- * 認証状態判定 — window.__PP_USER__ の有無で判定
- */
-function isAuthenticated() {
-  const ppUser = window.__PP_USER__;
-  return !!(ppUser && ppUser.contactId);
-}
-
 export default function HomePage() {
   const navigate = useNavigate();
+  const { isAuthenticated, login } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   /** 未認証→モーダル表示、認証済み→直接遷移 */
   const handleNavigate = (path: string) => {
-    if (isAuthenticated()) {
+    if (isAuthenticated) {
       navigate(path);
     } else {
       setShowLoginModal(true);
@@ -158,7 +152,7 @@ export default function HomePage() {
       <section className="text-center pt-8 lg:pt-16">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-6">
           <Zap className="h-3 w-3" />
-          Power Pages
+          {SITE_NAME}
         </div>
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground leading-tight">
           業務を、もっと

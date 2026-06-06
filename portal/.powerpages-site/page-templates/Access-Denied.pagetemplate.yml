@@ -1,0 +1,6 @@
+entityname: adx_webpage
+id: f2d74c34-f88f-42e4-89b9-8b6c082c4c67
+isdefault: false
+name: Access Denied
+rewriteurl: ~/Pages/AccessDenied.aspx
+usewebsiteheaderandfooter: true

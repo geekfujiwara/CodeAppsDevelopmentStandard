@@ -17,9 +17,19 @@ import {
   updateTerritory,
   deleteTerritory,
   getNewsInsights,
+  getIncidents,
+  createIncident,
+  updateIncident,
+  deleteIncident,
   getCurrentUserId,
 } from "@/services/dataverse-service";
-import type { CustomerCreate, OpportunityCreate, ActivityCreate, TerritoryCreate } from "@/types/dataverse";
+import type {
+  CustomerCreate,
+  OpportunityCreate,
+  ActivityCreate,
+  TerritoryCreate,
+} from "@/types/dataverse";
+import type { IncidentCreate } from "@/types/incident";
 
 // ── ログインユーザー ID ──
 export function useCurrentUserId() {
@@ -85,8 +95,13 @@ export function useCreateOpportunity() {
 export function useUpdateOpportunity() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<OpportunityCreate> }) =>
-      updateOpportunity(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<OpportunityCreate>;
+    }) => updateOpportunity(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["opportunities"] }),
   });
 }
@@ -151,8 +166,13 @@ export function useCreateTerritory() {
 export function useUpdateTerritory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<TerritoryCreate> }) =>
-      updateTerritory(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<TerritoryCreate>;
+    }) => updateTerritory(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["territories"] }),
   });
 }
@@ -162,6 +182,39 @@ export function useDeleteTerritory() {
   return useMutation({
     mutationFn: (id: string) => deleteTerritory(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["territories"] }),
+  });
+}
+
+// ── インシデント hooks ──
+export function useIncidents() {
+  return useQuery({
+    queryKey: ["incidents"],
+    queryFn: getIncidents,
+  });
+}
+
+export function useCreateIncident() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: IncidentCreate) => createIncident(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["incidents"] }),
+  });
+}
+
+export function useUpdateIncident() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<IncidentCreate> }) =>
+      updateIncident(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["incidents"] }),
+  });
+}
+
+export function useDeleteIncident() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteIncident(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["incidents"] }),
   });
 }
 

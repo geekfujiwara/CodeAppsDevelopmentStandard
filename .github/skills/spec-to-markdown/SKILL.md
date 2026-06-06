@@ -1,115 +1,112 @@
 ---
 name: spec-to-markdown
-description: "PDF・PowerPoint・Excel などの仕様書を MarkItDown ベースで markdown 化し、Power Platform 開発向け factsheet と document を整理する。"
+description: "office ドキュメントを anthropics/skills で markdown 化し、画像は agent-ocr で処理して /work/staging と /work/docs に整理する。"
 category: ai
 argument-hint: "[任意: input フォルダのパス or ファイルパス]"
 user-invocable: true
 triggers:
-  - "MarkItDown"
+  - "anthropics/skills"
   - "仕様書変換"
   - "仕様書を markdown にしたい"
   - "PDF を markdown"
   - "PowerPoint を markdown"
   - "Excel を markdown"
-  - "factsheet"
-  - "document.md"
   - "requirements markdown"
   - "inputフォルダ"
+  - "画像をOCR"
+  - "staging"
+  - "output"
 ---
 
 # 仕様書→要件 markdown 変換スキル
 
-PDF・PowerPoint・Excel・Word などの仕様書を **MarkItDown ベースで markdown に変換**し、  
-Power Platform 開発で使いやすい **factsheet 群** と **全体 document.md** に整理する。
+office ドキュメント（PDF / PowerPoint / Excel / Word など）は **anthropics/skills** で読み取り、  
+画像ファイル（PNG/JPG 等）は **agent-ocr** で OCR する。
+
+出力は `/work` 配下の 2 段構成に統一する。
+
+- `/work/staging` : ファイル単位の markdown
+- `/work/docs` : 業務要件 / 機能要件 / 設計要件 markdown
+- `/work/conversion-checklist.json` : 変換進捗（`is_completed`）管理
 
 ## 最初の依頼を簡単にする
 
-このスキルは **引数なしでも開始できる** ようにする。
+このスキルは **引数なしでも開始できる**。
 
-- 既定入力: `work/spec-to-markdown/input/`
-- 既定出力: `work/spec-to-markdown/output/<input-set>-<timestamp>/`
-- `--input` / `--output` を指定した場合はそのパスを優先する
-
-### 推奨の始め方
-
-- `@GeekPowerCode input フォルダの仕様書を requirements markdown に変換して`
-- `@GeekPowerCode /home/.../input の PDF と Excel を factsheet 化して`
-- `@GeekPowerCode spec-to-markdown`
-- `@GeekPowerCode spec-to-markdown input`
-
-## 目的
-
-出力は **Power Platform 前提の開発要件整理** に寄せる。
-単なる全文変換で終わらせず、Dataverse / Code Apps / Power Automate / Copilot Studio / AI Builder の観点で整理する。
+- 既定入力: `work/input/`
+- 既定 staging 出力: `work/staging/`
+- 既定 docs 出力: `work/docs/`
+- 既定 checklist: `work/conversion-checklist.json`
+- `--input` / `--staging` / `--docs`（互換: `--output`）/ `--checklist` を指定した場合はそのパスを優先する
 
 ## 基本フロー
 
-1. `scripts/convert_documents.py` で既定 input フォルダ、または指定された input パス内の仕様書を markdown 化する
-2. 各ファイルごとに `factsheets/*.md` を作る
-3. 横断要件を `document.md` にまとめる
-4. 不明点・矛盾点・未記載事項は推測で埋めず `要確認` として残す
+1. `scripts/convert_documents.py` で input 配下を走査する
+2. 各ファイルの staging ファイルを `/work/staging` に作成する
+   - ファイル名は `元のファイル名.元の拡張子.MD`（例: `要件定義.docx.MD`）
+3. 画像ファイルは `pending_ocr.json` に記録し、agent-ocr で後続処理する
+4. 画像以外の文書は `pending_skills.json` に記録し、anthropics/skills で後続処理する
+5. `/work/docs` に以下 3 つを作成する
+   - `business-requirements.md`
+   - `functional-requirements.md`
+   - `design-requirements.md`
+6. `/work/conversion-checklist.json` を更新する
+   - 新規ファイルはチェックリストへ追加
+   - `is_completed=false` または更新差分ありのファイルのみ再処理
+   - 全件完了時は既存 `/work/docs` を参照して開発を継続
 
-## 出力フォルダ構成
+## agent-ocr 更新方針
 
-```text
-{output}/
-  raw/                 # MarkItDown の変換結果
-  factsheets/          # ファイル単位の factsheet
-  document.md          # 全体統合ドキュメント
-```
+画像の出力先とファイル名は新構成に合わせる。
 
-### 既定フォルダ運用
+- 出力先: `/work/staging`
+- ファイル名: `元のファイル名.元の拡張子.MD`
+- OCR 抽出時は表を markdown table 化し、判読不能箇所は `[判読不可]` と明記する
 
-```text
-work/
-  spec-to-markdown/
-    input/
-      customer-a/
-      project-x/
-    output/
-      batch-2026-05-11-20-15-58/
-      customer-a-2026-05-11-20-17-42/
-```
+`pending_ocr.json` の `staging_markdown_path` を使って、対象ファイルを更新する。
+`pending_ocr.json` の `ocr_prompt_hint` を agent-ocr の抽出指示として利用する。
 
-- `input/` 直下にファイルを置いた場合は `batch-<timestamp>/`
-- `input/customer-a/` のような入力セットを指定した場合は `customer-a-<timestamp>/`
-- 出力先を固定したい場合だけ `--output /absolute/path/to/output` を使う
+## anthropics/skills 更新方針
 
-## factsheet で必ず整理する項目
+画像以外の文書は `pending_skills.json` を使って処理する。
 
+- `source_path` の元ファイルを anthropics/skills で読み取り
+- 抽出 markdown を `staging_markdown_path` に反映
+- 処理済み後、`docs` の 3 文書を更新
+
+補足: anthropics/skills（Claude）は画像読解も可能だが、このスキルでは OCR の責務を agent-ocr に固定する。
+
+## `/work/docs` で整理する観点
+
+### business-requirements.md
 - 対象業務 / 目的
 - 利用者 / ロール
+- 業務フロー
+- 未確定事項 / 要確認事項
+- 要件変更履歴（変更理由を必ず併記）
+
+### functional-requirements.md
 - Dataverse テーブル候補
 - 主要列 / マスタ / リレーション候補
 - Code Apps / Model-Driven Apps の UI 要件
 - Power Automate の自動化要件
 - Copilot Studio / AI Builder の利用余地
 - 外部連携
+- 要件変更履歴（変更理由を必ず併記）
+
+### design-requirements.md
+- Power Platform 全体構成案
 - セキュリティ / 権限 / 監査の論点
-- 未確定事項 / 要確認事項
+- 設計上のリスク
+- Phase 0 で確認が必要な論点
+- 要件変更履歴（変更理由を必ず併記）
 
-## document.md で必ず整理する項目
+## 実行例
 
-- 対象文書一覧
-- 文書間の重複 / 差分 / 矛盾
-- 共通業務フロー
-- Power Platform 全体構成の初期案
-- Phase 0 でユーザー確認が必要な論点
-
-## MarkItDown 方針
-
-- 変換の第一候補は **Microsoft MarkItDown**
-- スキャン PDF や画像中心資料で精度不足の場合は、OCR や Power Automate / AI Builder を併用する
-- 表や箇条書きは markdown として残し、情報欠落時は factsheet に注記する
-
-## 変換後の次アクション
-
-- 全体構成の判断 → `architecture`
-- Dataverse テーブル設計 → `dataverse`
-- UI 実装 → `code-apps` または `model-driven-app`
-- 自動化 → `power-automate`
-- エージェント化 → `copilot-studio`
-- AI プロンプト化 → `ai-builder`
+```bash
+cd .github/skills/spec-to-markdown/scripts
+python convert_documents.py
+```
 
 ## 参照
 

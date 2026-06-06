@@ -70,9 +70,8 @@ Code Site は `pac pages upload-code-site` でのみ作成可能。
 12. **テーブル権限は 3 レイヤー全て必要** — `adx_sitesettings` + `powerpagecomponent type=18` + N:N リンク
 13. **`/_api/` は Cookie 認証（same-origin）** — Bearer トークンではない
 14. **Anti-Forgery Token は PATCH/PUT/DELETE に必須** — `/_layout/tokenhtml` から取得
-15. **`pac pages upload-code-site` は N:N 関連付け (entitypermission_webrole) を正しく同期しない** — デプロイのたびにテーブル権限↔Web ロールのリンクが消失するため、`post_deploy.py` を毎回実行する
-16. **Lookup バインドの `@odata.bind` には SchemaName (PascalCase) を使う** — `geek_inquirerid` ではなく `geek_InquirerId` が正解。Dataverse のナビゲーションプロパティは `ReferencingEntityNavigationPropertyName` で確認する
-17. **テーブルにルックアップ列を追加したら PublishXml が必要** — 列作成だけでは Web API のメタデータに反映されない。`PublishXml` アクション実行後に利用可能になる
+15. **再起動は `PAGES_WEBSITE_ID`（PP API の websites.id）で行う** — `siteName` の部分一致照合は登録名にスペースがあると失敗する。`.env` に ID を保存して明示的に restart する
+16. **フォントはコード側で一元管理する** — `index.html` の Google Fonts ロード + `:root` の `font-family` + Tailwind `@theme inline` の `--font-sans` の 3 箇所を揃えてビルド→再起動
 
 ---
 
@@ -147,9 +146,7 @@ adx_website_id = r.json()["value"][0]["adx_websiteid"]
 |------|------|------|
 | upload-code-site で `.js blocked` | 環境で JS ブロック | 管理センター → ブロック添付ファイルから `js` 削除（`scripts/unblock_js.py`） |
 | サイト URL が 503 | プロビジョニング未完了 or 未アクティブ | Inactive Sites でアクティブ化。60-90秒待つ |
-| Web API が 403 | テーブル権限未設定 or Web ロール未紐付け | `setup_permissions.py` 実行 |
-| Web API が 400 (undeclared property) | Lookup の @odata.bind に **SchemaName** が必要 | 下記「Lookup バインドの大文字小文字」参照 |
-| Web API が 400 ($filter on lookup) | テーブル権限の Web ロール紐づけが消失 | `post_deploy.py` 実行 |
+| Web API が 403 | テーブル権限未設定 or Web ロール未紐付け（**`upload-code-site` 後は type=18 content の `adx_entitypermission_webrole` が空で 403 になりがち**。N:N の `$ref` は 204 でも幽霊で無効） | `setup_permissions.py` 実行（content の `adx_entitypermission_webrole` を書き込み） |
 | Web API が 404 | `Webapi/{table}/enabled` 未設定 | `setup_permissions.py` 実行 |
 | `/SignIn` でログインフォーム表示 | `LoginButtonAuthenticationType` 未設定/値誤り | `setup_auth.py` 実行（Authority URL を設定） |
 | SSO ボタンが 2つ表示 | `AzureADLoginEnabled=true` のまま | `AzureADLoginEnabled=false` を設定 |
@@ -160,4 +157,3 @@ adx_website_id = r.json()["value"][0]["adx_websiteid"]
 | `Object reference not set` + `ToOrganizationService` | ポータル App User の CRM 接続失敗 | Application User がロール付きで存在するか確認 |
 | 初回アクセスが 60 秒タイムアウト | コールドスタート | 正常。2〜3 分後に再試行 |
 | サイトが修復不能（500 が解消しない）| 環境が壊れた | 新サブドメインで新規作成（上記リカバリ手順）|
-| デプロイ後にテーブル権限のロール紐づけが消える | `pac pages upload-code-site` の N:N 同期バグ | `post_deploy.py` を毎回実行 |

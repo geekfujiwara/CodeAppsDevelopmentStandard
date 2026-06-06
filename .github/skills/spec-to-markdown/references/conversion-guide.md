@@ -1,13 +1,12 @@
-# 仕様書 markdown 変換ガイド
+# 仕様書 markdown 変換ガイド（anthropics/skills + agent-ocr）
 
 ## 1. 何を作るか
 
-このスキルの最初のゴールは次の 2 つ。
+このスキルの出力は `/work` 配下の 2 段構成。
 
-1. **各入力ファイルの factsheet**
-2. **全体統合 document.md**
-
-Power Platform 向け要件整理に使えるよう、出力は raw markdown の貼り付けではなく **要件の分類軸** を固定する。
+1. `/work/staging`（ファイル単位 markdown）
+2. `/work/docs`（業務要件 / 機能要件 / 設計要件）
+3. `/work/conversion-checklist.json`（`is_completed` 管理）
 
 ## 2. 推奨コマンド
 
@@ -19,7 +18,7 @@ npm install
 npm run setup
 ```
 
-その後、必要に応じて個別に実行する。
+### macOS / Linux
 
 ```bash
 cd .github/skills/spec-to-markdown/scripts
@@ -29,113 +28,104 @@ pip install -r requirements.txt
 python convert_documents.py
 ```
 
-既定では次を使う。
+### Windows (PowerShell)
 
-- 入力: `<repo-root>/work/spec-to-markdown/input/`
-- 出力: `<repo-root>/work/spec-to-markdown/output/<input-set>-<timestamp>/`
+```powershell
+cd .github\skills\spec-to-markdown\scripts
+powershell -ExecutionPolicy Bypass -File run_windows.ps1
+```
 
-入力や出力を明示したい場合だけ override する。
+## 3. 既定パス
+
+- 入力: `<repo-root>/work/input/`
+- staging: `<repo-root>/work/staging/`
+- docs: `<repo-root>/work/docs/`
+- checklist: `<repo-root>/work/conversion-checklist.json`
+
+オプション:
 
 ```bash
 python convert_documents.py \
   --input /absolute/path/to/input \
-  --output /absolute/path/to/output
+  --staging /absolute/path/to/staging \
+  --docs /absolute/path/to/docs \
+  --checklist /absolute/path/to/conversion-checklist.json
 ```
 
-### 入力セット運用の例
+## 4. 出力ファイル命名
 
-```text
-work/spec-to-markdown/input/
-  customer-a/
-    要件定義書.pdf
-    画面一覧.xlsx
-  project-x/
-    業務フロー.pptx
-```
+`staging` の各ファイルは次の命名に統一する。
 
-- `python convert_documents.py` の既定入力は `input/` 全体
-- `python convert_documents.py --input <repo-root>/work/spec-to-markdown/input/customer-a` とすると `customer-a-<timestamp>/` 配下へ出力される
-- `--output` を省略すると、毎回タイムスタンプ付きの別フォルダになるため上書き事故を避けやすい
+- `元のファイル名.元の拡張子.MD`
+- 例: `要件定義.docx.MD`, `画面設計.xlsx.MD`, `menu.png.MD`
 
-## 3. 対応対象
+同名衝突時は相対ディレクトリ由来のサフィックスを自動付与する。
 
-- PDF
-- PowerPoint (`.ppt`, `.pptx`)
-- Excel (`.xls`, `.xlsx`)
-- Word (`.doc`, `.docx`)
-- markdown / text / html
+## 5. pending manifest
 
-> Word / markdown / html まで含めるのは、添付仕様や補足メモが混在しやすいため。
+### pending_ocr.json
 
-## 4. factsheet テンプレート
+画像ファイルを agent-ocr で処理するための manifest。
 
-各 factsheet は最低限次の構造にする。
+- `source_path`
+- `relative_path`
+- `staging_markdown_path`
+- `sha256`
+- `processor` (`agent-ocr`)
+- `ocr_prompt_hint`（抽出時の最小指示）
 
-```markdown
-# {タイトル} factsheet
+### pending_skills.json
 
-## 1. Source
-- File:
-- Relative path:
-- Converted at:
+画像以外を anthropics/skills で処理するための manifest。
 
-## 2. Power Platform requirement summary
-### Business objective
-### Users / roles
-### Dataverse tables
-### Main columns / master data
-### UI / app requirements
-### Automations
-### Agent / AI opportunities
-### External integrations
-### Security / compliance
-### Open questions
+- `source_path`
+- `relative_path`
+- `staging_markdown_path`
+- `sha256`
+- `processor` (`anthropics/skills`)
 
-## 3. Extracted markdown
-```
+## 6. docs の構成
 
-## 5. document.md テンプレート
+### business-requirements.md
+- 対象業務 / 目的
+- 利用者 / ロール
+- 業務フロー
+- 未確定事項 / 要確認事項
+- 要件変更履歴（理由を併記）
 
-```markdown
-# Power Platform requirements document
+### functional-requirements.md
+- Dataverse テーブル候補
+- 主要列 / マスタ / リレーション候補
+- Code Apps / Model-Driven Apps の UI 要件
+- Power Automate の自動化要件
+- Copilot Studio / AI Builder の利用余地
+- 外部連携
+- 要件変更履歴（理由を併記）
 
-## 1. Conversion summary
+### design-requirements.md
+- Power Platform 全体構成案
+- セキュリティ / 権限 / 監査の論点
+- 設計上のリスク
+- Phase 0 で確認が必要な論点
+- 要件変更履歴（理由を併記）
 
-## 2. Source documents
+## 7. conversion-checklist の運用
 
-## 3. Cross-document requirements summary
-### Business scope
-### Users / roles
-### Dataverse design candidates
-### App design candidates
-### Automation candidates
-### Agent / AI candidates
-### Integration candidates
-### Risks / open questions
+- 新規ファイルが `input` に増えたらチェックリストへ追加
+- `is_completed=false` のファイルは再処理対象
+- 既存ファイルでも `source_sha256` が変わったら再処理対象
+- 全件完了時は `docs` を参照して開発を進める
 
-## 4. Factsheet index
-```
+## 8. 処理ルール
 
-## 6. 要件整理ルール
+- 画像は必ず agent-ocr
+- 画像以外は anthropics/skills
+- 推測で埋めず、情報不足は `要確認`
+- OCR 抽出では表を markdown table 化し、判読不能箇所は `[判読不可]` とする
 
-- **推測で補完しない**
-- 文書間で表現が違う場合は `差分あり` と記録する
-- Power Platform 用語に正規化する
-  - 業務データ → Dataverse テーブル候補
-  - 入力 / 一覧 / ダッシュボード → App/UI 要件
-  - 通知 / 承認 / 定期処理 → Power Automate
-  - 対話 / 検索 / 要約 → Copilot Studio / AI Builder
-- 画面名・帳票名・マスタ名・外部システム名はそのまま残す
+補足: anthropics/skills（Claude）も画像読解は可能だが、この運用では OCR を agent-ocr に固定する。
 
-## 7. MarkItDown を使う理由
+## 9. 備考
 
-- PDF / Office 系ファイルを markdown に寄せて扱える
-- 見出し・箇条書き・表の構造を比較的保ちやすい
-- 後段の LLM 要約や requirements 整理に渡しやすい
-
-## 8. 限界と補完方針
-
-- スキャン PDF や画像中心の資料は抽出精度が落ちる
-- 複雑な表は崩れることがある
-- 図そのものの意味は取りきれないため、図番号やキャプションを優先して残す
-- 必要に応じて Power Automate + OneDrive PDF 変換、または AI Builder の document input を組み合わせる
+`convert_documents.py` は staging/docs の土台作成と pending manifest 生成を担当する。  
+manifest の解消（agent-ocr / anthropics/skills 実行）後、`docs` を確定版に更新する。

@@ -1,1 +1,1 @@
-markitdown[all]==0.1.5
+# convert_documents.py は標準ライブラリのみ使用

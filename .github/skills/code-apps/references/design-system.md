@@ -76,6 +76,38 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 | 通知 | sonner |
 | データテーブル | TanStack React Table v8 |
 
+## 標準 Web フォント
+
+外部公開サイト（Power Pages）および Code Apps で **Win / Mac 間の表示差異をなくす** ため、Google Fonts の Web フォントに統一する。
+
+| フォント | 用途 |
+|----------|------|
+| **Inter** | Latin文字・数字・記号 |
+| **Noto Sans JP** | 日本語 |
+
+```html
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap"
+  rel="stylesheet"
+/>
+```
+
+```css
+:root {
+  font-family:
+    "Inter",
+    "Noto Sans JP",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+}
+```
+
+> `Yu Gothic UI`, `Segoe UI`, `Meiryo`, `Hiragino Sans` などの OS ローカルフォントを primary に指定しない。これらは fallback chain の末尾（`system-ui` 経由）でのみ使用する。
+
 
 ## コンポーネント・画面パターン
 

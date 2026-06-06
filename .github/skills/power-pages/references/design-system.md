@@ -91,8 +91,13 @@ box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 8px rgba(0,0,0,0.04),
 
 ### Button（グラデーションボタン）
 
-default バリアントは `bg-gradient-to-r from-primary to-accent` で視覚的にリッチ。
+default バリアントは `bg-linear-to-r from-primary to-accent` で視覚的にリッチ。
 ホバー時に `brightness-110` + `shadow-lg`。クリック時に `scale-[0.98]`。
+
+> ⚠️ **Tailwind CSS v4 のグラデーションユーティリティ名に注意**: テンプレートは Tailwind v4 を使用する。
+> v4 では `bg-gradient-to-*` が **`bg-linear-to-*`** にリネームされた（`bg-gradient-to-r` → `bg-linear-to-r`、
+> `bg-gradient-to-br` → `bg-linear-to-br`）。v4 で旧 `bg-gradient-to-*` を書くと**ユーティリティが認識されず
+> グラデーションが描画されない**（エラーも出ないため気づきにくい）。放射状/円錐は `bg-radial-*` / `bg-conic-*`。
 
 | バリアント | 用途 |
 |-----------|------|

@@ -13,6 +13,7 @@ import type {
   TerritoryCreate,
   NewsInsight,
 } from "@/types/dataverse";
+import type { Incident, IncidentCreate } from "@/types/incident";
 
 function client() {
   return getClient(dataSourcesInfo);
@@ -25,7 +26,9 @@ async function getSdkContext(): Promise<IContext | null> {
   try {
     _sdkContext = await getContext();
     return _sdkContext;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export async function getCurrentUserId(): Promise<string | null> {
@@ -34,16 +37,14 @@ export async function getCurrentUserId(): Promise<string | null> {
     const entraId = ctx?.user?.objectId;
     if (!entraId) return null;
 
-    const result = await client().retrieveMultipleRecordsAsync(
-      "systemusers",
-      {
-        select: ["systemuserid"],
-        filter: `azureactivedirectoryobjectid eq '${entraId}'`,
-        top: 1,
-      }
-    );
+    const result = await client().retrieveMultipleRecordsAsync("systemusers", {
+      select: ["systemuserid"],
+      filter: `azureactivedirectoryobjectid eq '${entraId}'`,
+      top: 1,
+    });
     if (result?.success && result.data?.length > 0) {
-      const uid = (result.data[0] as Record<string, unknown>)?.systemuserid as string;
+      const uid = (result.data[0] as Record<string, unknown>)
+        ?.systemuserid as string;
       if (uid) return uid.toLowerCase();
     }
   } catch (e) {
@@ -69,7 +70,7 @@ export async function getCustomers(): Promise<Customer[]> {
         "createdon",
       ],
       orderBy: ["geek_name asc"],
-    }
+    },
   );
   if (!result.success) throw result.error;
   return result.data ?? [];
@@ -78,18 +79,20 @@ export async function getCustomers(): Promise<Customer[]> {
 export async function createCustomer(data: CustomerCreate) {
   const result = await client().createRecordAsync<CustomerCreate, Customer>(
     "geek_customers",
-    data
+    data,
   );
   if (!result.success) throw result.error;
   return result.data;
 }
 
-export async function updateCustomer(id: string, data: Partial<CustomerCreate>) {
-  const result = await client().updateRecordAsync<Partial<CustomerCreate>, Customer>(
-    "geek_customers",
-    id,
-    data
-  );
+export async function updateCustomer(
+  id: string,
+  data: Partial<CustomerCreate>,
+) {
+  const result = await client().updateRecordAsync<
+    Partial<CustomerCreate>,
+    Customer
+  >("geek_customers", id, data);
   if (!result.success) throw result.error;
   return result.data;
 }
@@ -118,27 +121,29 @@ export async function getOpportunities(): Promise<Opportunity[]> {
         "createdon",
       ],
       orderBy: ["createdon desc"],
-    }
+    },
   );
   if (!result.success) throw result.error;
   return result.data ?? [];
 }
 
 export async function createOpportunity(data: OpportunityCreate) {
-  const result = await client().createRecordAsync<OpportunityCreate, Opportunity>(
-    "geek_opportunities",
-    data
-  );
+  const result = await client().createRecordAsync<
+    OpportunityCreate,
+    Opportunity
+  >("geek_opportunities", data);
   if (!result.success) throw result.error;
   return result.data;
 }
 
-export async function updateOpportunity(id: string, data: Partial<OpportunityCreate>) {
-  const result = await client().updateRecordAsync<Partial<OpportunityCreate>, Opportunity>(
-    "geek_opportunities",
-    id,
-    data
-  );
+export async function updateOpportunity(
+  id: string,
+  data: Partial<OpportunityCreate>,
+) {
+  const result = await client().updateRecordAsync<
+    Partial<OpportunityCreate>,
+    Opportunity
+  >("geek_opportunities", id, data);
   if (!result.success) throw result.error;
   return result.data;
 }
@@ -165,7 +170,7 @@ export async function getActivities(): Promise<Activity[]> {
         "createdon",
       ],
       orderBy: ["geek_activitydate desc"],
-    }
+    },
   );
   if (!result.success) throw result.error;
   return result.data ?? [];
@@ -174,20 +179,31 @@ export async function getActivities(): Promise<Activity[]> {
 export async function createActivity(data: ActivityCreate) {
   const result = await client().createRecordAsync<ActivityCreate, Activity>(
     "geek_activities",
-    data
+    data,
   );
   if (!result.success) throw result.error;
   return result.data;
 }
 
-export async function updateActivity(id: string, data: Partial<ActivityCreate>) {
-  console.log('[dataverse-service] updateActivity called, id:', id, 'data:', JSON.stringify(data));
-  const result = await client().updateRecordAsync<Partial<ActivityCreate>, Activity>(
-    "geek_activities",
+export async function updateActivity(
+  id: string,
+  data: Partial<ActivityCreate>,
+) {
+  console.log(
+    "[dataverse-service] updateActivity called, id:",
     id,
-    data
+    "data:",
+    JSON.stringify(data),
   );
-  console.log('[dataverse-service] updateActivity result:', result.success, result.error);
+  const result = await client().updateRecordAsync<
+    Partial<ActivityCreate>,
+    Activity
+  >("geek_activities", id, data);
+  console.log(
+    "[dataverse-service] updateActivity result:",
+    result.success,
+    result.error,
+  );
   if (!result.success) throw result.error;
   return result.data;
 }
@@ -203,7 +219,7 @@ export async function getTerritories(): Promise<Territory[]> {
     "geek_territories",
     {
       orderBy: ["geek_name asc"],
-    }
+    },
   );
   if (!result.success) throw result.error;
   return result.data ?? [];
@@ -212,24 +228,78 @@ export async function getTerritories(): Promise<Territory[]> {
 export async function createTerritory(data: TerritoryCreate) {
   const result = await client().createRecordAsync<TerritoryCreate, Territory>(
     "geek_territories",
-    data
+    data,
   );
   if (!result.success) throw result.error;
   return result.data;
 }
 
-export async function updateTerritory(id: string, data: Partial<TerritoryCreate>) {
-  const result = await client().updateRecordAsync<Partial<TerritoryCreate>, Territory>(
-    "geek_territories",
-    id,
-    data
-  );
+export async function updateTerritory(
+  id: string,
+  data: Partial<TerritoryCreate>,
+) {
+  const result = await client().updateRecordAsync<
+    Partial<TerritoryCreate>,
+    Territory
+  >("geek_territories", id, data);
   if (!result.success) throw result.error;
   return result.data;
 }
 
 export async function deleteTerritory(id: string) {
   const result = await client().deleteRecordAsync("geek_territories", id);
+  if (!result.success) throw result.error;
+}
+
+// ── インシデント ──
+export async function getIncidents(): Promise<Incident[]> {
+  const result = await client().retrieveMultipleRecordsAsync<Incident>(
+    "geek_incidents",
+    {
+      select: [
+        "geek_incidentid",
+        "geek_title",
+        "geek_description",
+        "geek_status",
+        "geek_priority",
+        "geek_assettype",
+        "geek_assetstatus",
+        "geek_reportedby",
+        "geek_assignedto",
+        "geek_resolvedon",
+        "geek_resolution",
+        "createdon",
+      ],
+      orderBy: ["createdon desc"],
+    },
+  );
+  if (!result.success) throw result.error;
+  return result.data ?? [];
+}
+
+export async function createIncident(data: IncidentCreate) {
+  const result = await client().createRecordAsync<IncidentCreate, Incident>(
+    "geek_incidents",
+    data,
+  );
+  if (!result.success) throw result.error;
+  return result.data;
+}
+
+export async function updateIncident(
+  id: string,
+  data: Partial<IncidentCreate>,
+) {
+  const result = await client().updateRecordAsync<
+    Partial<IncidentCreate>,
+    Incident
+  >("geek_incidents", id, data);
+  if (!result.success) throw result.error;
+  return result.data;
+}
+
+export async function deleteIncident(id: string) {
+  const result = await client().deleteRecordAsync("geek_incidents", id);
   if (!result.success) throw result.error;
 }
 
@@ -250,7 +320,7 @@ export async function getNewsInsights(): Promise<NewsInsight[]> {
         "createdon",
       ],
       orderBy: ["geek_generateddate desc"],
-    }
+    },
   );
   if (!result.success) throw result.error;
   return result.data ?? [];
