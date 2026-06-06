@@ -11,7 +11,7 @@
 
 | # | チェック項目 | 根拠 |
 |---|---|---|
-| 1.1 | 報告者・作成者にカスタム Lookup 列を作っていない（`createdby` で代用） | 教訓4: @odata.bind ターゲット不一致 404 / AppendTo 403 の連鎖を防止 |
+| 1.1 | 報告者・作成者の追跡に Contact への Lookup 列を使用している（`createdby` はアプリユーザーになるため使えない） | 教訓 19: Power Pages では createdby ≠ ログインユーザー |
 | 1.2 | ユーザー参照は `systemuser` テーブルへの Lookup（カスタムユーザーテーブルを作っていない） | Dataverse 標準 |
 | 1.3 | テーブル / 列のスキーマ名が英語（日本語スキーマ名は pac code add-data-source で失敗） | Dataverse 標準 |
 | 1.4 | Choice 値は `100000000` 始まり | カスタム Choice の制約 |
@@ -34,7 +34,7 @@
 | 3.2 | POST/PATCH/DELETE に __RequestVerificationToken を付与する設計 | 教訓1: 401 anti-forgery |
 | 3.3 | `credentials: "same-origin"` を使用（`"include"` ではない） | 核心原則8 |
 | 3.4 | `redirect: "manual"` で認証切れを検知する設計 | 教訓7: 302 → ログインページ追従防止 |
-| 3.5 | 報告者はPOST時に送らず、GET時に `_createdby_value` で取得する設計 | CreatedBy 標準 |
+| 3.5 | 報告者はPOST時に Contact Lookup（`@odata.bind`）でバインドし、フォームでは入力させない設計 | 教訓 19: ログインユーザーの Contact を自動取得 |
 | 3.6 | @odata.bind 使用列の参照先テーブルが ManyToOneRelationships で確認済み | 教訓4: 404 9004010D |
 
 ### 4. テーブル権限設計
@@ -77,7 +77,7 @@ python ../.github/skills/power-pages/scripts/review_pre_design.py
 - `powerpages.config.json` の存在と `compiledPath`
 - `src/lib/api.ts` の `credentials`/`redirect`/`__RequestVerificationToken` パターン
 - `src/**/*.ts{x}` で `@odata.bind` 使用時の参照先確認
-- `src/**/*.ts{x}` で `createdby` 標準の遵守（カスタム reporter 列不使用）
+- `src/**/*.ts{x}` で Contact Lookup パターンの使用確認（`@odata.bind` で contacts にバインド / `checkAuth()` でユーザー情報取得）
 - ルーターが `HashRouter` であること
 
 ---
@@ -86,7 +86,7 @@ python ../.github/skills/power-pages/scripts/review_pre_design.py
 
 | 不合格項目 | 次のアクション |
 |---|---|
-| 1.1 報告者にカスタム Lookup | テーブルから列を削除し createdby 利用に設計変更 |
+| 1.1 報告者に Contact Lookup がない | Contact への Lookup 列を追加し、フォームでは checkAuth() からログインユーザー情報を自動セット（教訓 19） |
 | 2.2 contacts クエリ | Portal.User + セッション Cookie に変更 |
 | 3.6 @odata.bind 未確認 | `EntityDefinitions/ManyToOneRelationships` で参照先を確認 |
 | 4.6 languageid 計画なし | setup_permissions.py に languageid 設定を追加 |

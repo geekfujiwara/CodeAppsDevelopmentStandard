@@ -142,37 +142,35 @@ def check_api_patterns():
           "__RequestVerificationToken" in content or "RequestVerificationToken" in content)
 
 
-def check_createdby_standard():
-    """[1.1, 3.5] CreatedBy 標準の遵守確認."""
-    print("\n[4] CreatedBy 標準")
+def check_contact_lookup_standard():
+    """[1.1, 3.5] Power Pages 報告者パターンの確認.
+    Power Pages では createdby はアプリケーションユーザーになるため、
+    報告者の追跡は Contact テーブルへの Lookup で行う。
+    checkAuth() でログインユーザー情報を取得し入力不要にする設計。
+    """
+    print("\n[4] 報告者 Contact Lookup 標準 (教訓 19)")
 
     tsx_files = find_files(SRC_DIR, "*.tsx") + find_files(SRC_DIR, "*.ts")
 
-    # カスタム reporter @odata.bind パターンを探す
-    reporter_bind_pattern = re.compile(r'(reporter|inquirer|reportedby).*@odata\.bind', re.IGNORECASE)
-    # カスタム reporter Lookup 使用パターン
-    reporter_lookup_pattern = re.compile(r'_geek_(reporter|inquirer)id_value', re.IGNORECASE)
-    # createdby の正しい使用
-    createdby_pattern = re.compile(r'_createdby_value')
+    # Contact への @odata.bind パターン（正しいパターン）
+    contact_bind_pattern = re.compile(r'(inquirer|reporter|contact).*@odata\.bind.*contacts', re.IGNORECASE)
+    # checkAuth / useAuthUser でログインユーザー取得（正しいパターン）
+    check_auth_pattern = re.compile(r'checkAuth|useAuthUser', re.IGNORECASE)
 
-    violations = []
-    uses_createdby = False
+    uses_contact_lookup = False
+    uses_auth_for_reporter = False
 
     for f in tsx_files:
         content = read_text(f)
-        if reporter_bind_pattern.search(content):
-            violations.append(f"  → {f.relative_to(PORTAL_ROOT)}: @odata.bind にカスタム reporter")
-        if reporter_lookup_pattern.search(content):
-            violations.append(f"  → {f.relative_to(PORTAL_ROOT)}: カスタム reporter Lookup 参照")
-        if createdby_pattern.search(content):
-            uses_createdby = True
+        if contact_bind_pattern.search(content):
+            uses_contact_lookup = True
+        if check_auth_pattern.search(content):
+            uses_auth_for_reporter = True
 
-    check("1.1", "カスタム reporter @odata.bind を使用していない", len(violations) == 0)
-    if violations:
-        for v in violations:
-            print(f"    {v}")
-
-    check("3.5", "報告者表示に _createdby_value を使用している", uses_createdby)
+    check("1.1", "報告者追跡に Contact Lookup (@odata.bind → contacts) を使用している",
+          uses_contact_lookup)
+    check("3.5", "ログインユーザー情報を checkAuth()/useAuthUser() で自動取得している",
+          uses_auth_for_reporter)
 
 
 def check_auth_design():
@@ -209,7 +207,7 @@ def main():
     check_powerpages_config()
     check_router()
     check_api_patterns()
-    check_createdby_standard()
+    check_contact_lookup_standard()
     check_auth_design()
 
     # サマリー
