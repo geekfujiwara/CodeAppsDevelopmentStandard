@@ -576,6 +576,69 @@ create_table_permission(
 | 756150002 | Account | 必要 | 自分の Account 配下 |
 | 756150003 | Parent | 必要 | 親権限に紐づくレコード |
 
+### 教訓 19: Power Pages では `createdby` はアプリケーションユーザーになる → 報告者は Contact Lookup で追跡する
+
+> **Code Apps との違い**: Code Apps では `createdby` = 操作ユーザー（SystemUser）なので報告者追跡に使える。
+> Power Pages では Web API 経由のレコード作成は**ポータルアプリケーションユーザー**が `createdby` に
+> 設定されるため、**実際のログインユーザー（報告者）は `createdby` では追跡できない**。
+
+```
+❌ NG（Power Pages）: createdby で報告者を追跡する設計
+       → createdby = Power Pages アプリケーションユーザー（サービスアカウント）
+       → 誰が報告したか分からない
+
+❌ NG（Power Pages）: 報告者名・メールアドレスを手入力させるフリーテキスト列
+       → ログインユーザーの Contact からすべて取得可能
+       → 入力ミス・なりすましリスク・UX 劣化
+
+✅ OK（Power Pages）: Contact テーブルへの Lookup 列で報告者を追跡
+       → POST 時に bindLookup(body, "geek_inquirerid", "contacts", user.contactId)
+       → ログインユーザーの Contact 情報（氏名・メール・会社・組織）は checkAuth() で自動取得
+       → フォームでは報告者情報を読み取り専用表示（入力不要）
+```
+
+**Power Pages の報告者パターン（標準設計）:**
+
+| 列 | 用途 | 入力 |
+|---|---|---|
+| `{prefix}_inquirerid`（Contact Lookup） | 真の報告者追跡 | 自動（`user.contactId` を `@odata.bind`） |
+| `{prefix}_contactname`（文字列、任意） | 非正規化スナップショット | 自動（`user.userName` を保存） |
+| `{prefix}_contactemail`（文字列、任意） | 非正規化スナップショット | 自動（`user.email` を保存） |
+
+**Contact Self 権限に AppendTo が必須:**
+- Inquiry → Contact の Lookup を POST 時にバインドするには、Contact 側に `appendto: true` が必要
+- 不足すると 403 / 90040106 (AppendTo permission missing)
+
+**フォーム UX パターン:**
+```tsx
+// ログインユーザーの Contact 情報を checkAuth() から取得
+const user = await checkAuth(); // PPUser { contactId, userName, email, ... }
+
+// Lookup で追跡されるため、フォームでは入力不要。読み取り専用表示のみ。
+{hasContactProfile ? (
+  <div className="...">
+    <span>報告者: {reporterName}（{reporterEmail}）</span>
+    <p>ログイン中のアカウント情報が報告者として記録されます。</p>
+  </div>
+) : (
+  // フォールバック: Contact 情報取得不可の場合のみ手入力
+  <input ... />
+)}
+```
+
+> **この設計原則は Power Pages 固有**。Code Apps では `createdby` = 操作ユーザーなので
+> カスタム Lookup は不要。Dataverse スキルの「報告者は createdby を利用」ルールは
+> Code Apps（モデル駆動型アプリ含む）に適用される。
+
+**セットアップスクリプト:**
+```bash
+python .github/skills/power-pages/scripts/setup_inquiry_reporter.py
+```
+Lookup 列作成・ローカライズ・Contact AppendTo 付与・Web API 確認・サイト再起動を冪等に実行する。
+`.env` に `PORTAL_TABLE_LOGICAL` を設定するだけで動作する（詳細は `.env.example` 参照）。
+
+---
+
 ### エラーコード→教訓マッピング
 
 | HTTP | OData Code | メッセージ | 原因 | 教訓 |
@@ -601,6 +664,7 @@ create_table_permission(
 7. **環境のクリーンアップ時は PP API のサイト一覧と照合してから削除する** — 誤削除で 500 エラー
 8. **`credentials: "same-origin"` を使う** — `"include"` ではない（same-site Cookie 認証）
 9. **powerpagecomponent type=18 には `powerpagesitelanguageid` が必須** — 未設定だと 404 になる
+10. **報告者・作成者は Contact Lookup で追跡する** — Power Pages では `createdby` はアプリケーションユーザーになるため使えない。ログインユーザーの Contact 情報を自動取得し入力不要にする（教訓 19）
 
 ## ワークフロー
 
@@ -610,6 +674,7 @@ create_table_permission(
   → pac pages upload-code-site          ← Inactive Sites に作成
   → py portal/scripts/activate_site.py  ← PP API でアクティブ化 (api-version=2022-03-01-preview)
   → py portal/scripts/setup_contact_webapi.py
+  → py .github/skills/power-pages/scripts/setup_inquiry_reporter.py  ← 報告者 Contact Lookup (教訓 19)
   → Restart (deploy.py --skip-build or PP API restart)
 
 2回目以降:

@@ -141,6 +141,8 @@ existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PR
 | **スキーマ名は英語のみ** | 日本語スキーマ名は `npx power-apps add-data-source` で失敗する |
 | **ユーザー参照は SystemUser テーブル** | カスタムユーザーテーブルを作らない |
 | **作成者・報告者は `createdby` システム列を利用** | カスタム ReportedBy Lookup は不要 |
+
+> ⚠️ **Power Pages 例外**: Power Pages では Web API 経由のレコード作成時に `createdby` がアプリケーションユーザー（サービスアカウント）になるため、`createdby` で報告者を追跡できない。Power Pages 向けテーブルでは **Contact テーブルへの Lookup 列で報告者を追跡する**設計が必須。詳細は power-pages スキルの教訓 19 を参照。
 | **Choice 値は `100000000` 始まり** | 0, 1, 2... はカスタム Choice では使用不可 |
 | **マスタテーブルは要件から網羅的に洗い出す** | カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化 |
 | **全 Lookup リレーションシップを設計書に明記** | 漏れると Lookup が機能しない |
