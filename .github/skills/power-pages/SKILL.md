@@ -657,7 +657,7 @@ Lookup 列作成・ローカライズ・Contact AppendTo 付与・Web API 確認
 
 1. **`pac pages upload-code-site` がサイト作成とデプロイの両方を行う** — API でサイトを事前作成する必要はない
 2. **初回は Inactive Sites に作成される** → PP API (`2022-03-01-preview`) で `activate_site.py` を使ってアクティブ化
-3. **2回目以降は upload-code-site → restart の2ステップだけ**
+3. **デプロイは upload-code-site → relink → restart の3ステップ** — `upload-code-site` は既存テーブル権限の Web ロール紐付けを消すため、毎回 `scripts/relink_table_permissions.py`（または統合の `scripts/deploy_site.py`）で再付与する（教訓 15）。**`npm run deploy`（build && upload-code-site だけ）で終わらせない**
 4. **Post-Upload Fix は不要** — `upload-code-site` が header/footer/page を正しく構成する
 5. **`.powerpages-site/` は upload-code-site が自動管理する** — ただし `site-settings/` YAML は手動追加して永続化できる（下記参照）
 6. **`adx_website` レコードは絶対に削除しない** — EDM 2.0 でもランタイムが起動時に参照する
@@ -675,12 +675,22 @@ Lookup 列作成・ローカライズ・Contact AppendTo 付与・Web API 確認
   → py portal/scripts/activate_site.py  ← PP API でアクティブ化 (api-version=2022-03-01-preview)
   → py portal/scripts/setup_contact_webapi.py
   → py .github/skills/power-pages/scripts/setup_inquiry_reporter.py  ← 報告者 Contact Lookup (教訓 19)
-  → Restart (deploy.py --skip-build or PP API restart)
+  → py .github/skills/power-pages/scripts/relink_table_permissions.py  ← ★ロール再付与＋再起動
 
-2回目以降:
-  npm run build → pac pages upload-code-site → Restart
-  (deploy.py がビルド・アップロード・リスタートを一括実行)
+2回目以降（推奨: 統合スクリプトで一括実行）:
+  py .github/skills/power-pages/scripts/deploy_site.py
+  （ビルド → upload-code-site → ★relink → 検証 → 再起動 を 1 コマンドで実行）
+
+2回目以降（手動の場合）:
+  npm run build → pac pages upload-code-site
+  → py .github/skills/power-pages/scripts/relink_table_permissions.py  ← ★必須（省くと 403）
 ```
+
+> ⚠️ **`npm run build && pac pages upload-code-site` だけで終わらせると、既存テーブル権限の
+> Web ロール紐付けが消えて全件 403 になる**（教訓 15）。`relink_table_permissions.py` を
+> 毎回実行するか、`deploy_site.py` で一括実行すること。両スクリプトともハードコードなし・
+> すべて `.env` 管理（`DATAVERSE_URL` / `ENV_ID` / `PAGES_WEBSITE_ID` / `PP_SUBDOMAIN` /
+> `RELINK_WEBROLE_NAMES` / `PORTAL_DIR`）。
 
 ### アクティベーション詳細
 
@@ -1231,8 +1241,8 @@ export default defineConfig({
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "deploy": "npm run build && pac pages upload-code-site --rootPath .",
-    "deploy:full": "py scripts/deploy.py"
+    "upload": "pac pages upload-code-site --rootPath . --compiledPath ./dist",
+    "deploy": "py ../.github/skills/power-pages/scripts/deploy_site.py"
   }
 }
 ```
@@ -1288,16 +1298,27 @@ py .github/skills/standard/scripts/_restart.py
 
 ## Step 3: 再デプロイ（2回目以降）
 
+### 推奨: 統合スクリプトで一括実行（再現性が高い）
+
+```bash
+cd portal
+py ../.github/skills/power-pages/scripts/deploy_site.py
+# ビルド → upload-code-site → ★ロール再付与 → 検証 → 再起動 を 1 コマンドで実行する。
+# upload-code-site が消す Web ロール紐付けを毎回必ず再付与するため、relink 忘れによる
+# 全件 403 事故（教訓 15）を構造的に防ぐ。ハードコードなし・すべて .env 管理。
+```
+
+### 手動で段階実行する場合
+
 ```bash
 cd portal
 npm run build
-pac pages upload-code-site --rootPath .
+pac pages upload-code-site --rootPath . --compiledPath ./dist
 # ★ upload-code-site は既存 type=18 の content.adx_entitypermission_webrole を消すため、
-#   デプロイのたびに全テーブル権限の Web ロールを再付与する（教訓 15）
+#   デプロイのたびに全テーブル権限の Web ロールを再付与する（教訓 15）。これを省くと 403。
 py ../.github/skills/power-pages/scripts/relink_table_permissions.py
 # → relink スクリプトが PAGES_WEBSITE_ID（推奨）または PP_SUBDOMAIN 設定時に自動で再起動する
 #   （未設定の場合は手動再起動）
-py ../.github/skills/standard/scripts/_restart.py
 ```
 
 > `/profile`（contact Self）を使う場合は、初回のみ `setup_contact_self.py` で
