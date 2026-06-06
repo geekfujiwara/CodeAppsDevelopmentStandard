@@ -124,6 +124,7 @@ for p in permissions.get("value", []):
 **原因:** Enhanced Data Model (datamodelversion: 2.0) では `mspp_entitypermission_webrole` の N:N リレーションが Dataverse Web API で設定不可能（プラットフォームバグ）。管理者はテーブル権限をバイパスするため問題が顕在化しない。
 
 **解決策:**
+
 1. Power Pages Design Studio（make.powerpages.microsoft.com）で手動設定
 2. セキュリティ → テーブルのアクセス許可 → 対象レコードを開く → ロールに Authenticated Users を追加
 3. サイト再起動
@@ -247,7 +248,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 ```typescript
 // main.tsx or App.tsx のマウント直後
 console.log("[Auth] window.__PP_USER__:", window.__PP_USER__);
-console.log("[Auth] contactId:", window.__PP_USER__?.contactId ?? "NONE (anonymous)");
+console.log(
+  "[Auth] contactId:",
+  window.__PP_USER__?.contactId ?? "NONE (anonymous)",
+);
 ```
 
 ### デプロイ後の即時確認コマンド（ブラウザ DevTools Console）
@@ -257,10 +261,21 @@ console.log("[Auth] contactId:", window.__PP_USER__?.contactId ?? "NONE (anonymo
 console.table(window.__PP_USER__);
 
 // 2. API アクセス
-fetch("/_api/{entity_set}", {redirect:"manual", headers:{"Accept":"application/json","OData-MaxVersion":"4.0","OData-Version":"4.0"}}).then(r => console.log(r.status, r.type)).catch(e => console.error(e));
+fetch("/_api/{entity_set}", {
+  redirect: "manual",
+  headers: {
+    Accept: "application/json",
+    "OData-MaxVersion": "4.0",
+    "OData-Version": "4.0",
+  },
+})
+  .then((r) => console.log(r.status, r.type))
+  .catch((e) => console.error(e));
 
 // 3. Anti-forgery token
-fetch("/_layout/tokenhtml").then(r => r.text()).then(h => console.log(h.match(/value="([^"]+)"/)?.[1]));
+fetch("/_layout/tokenhtml")
+  .then((r) => r.text())
+  .then((h) => console.log(h.match(/value="([^"]+)"/)?.[1]));
 ```
 
 ### ローカルでの動作確認
@@ -369,7 +384,7 @@ python .github/skills/power-pages/scripts/unblock_js.py
 
 ```yaml
 # 正しい YAML 例:
-id: {guid}
+id: { guid }
 name: Authentication/Registration/LoginButtonAuthenticationType
 value: "https://login.microsoftonline.com/{tenant-id}/"
 ```
@@ -402,14 +417,14 @@ value: "https://login.microsoftonline.com/{tenant-id}/"
 
 ```typescript
 // 全 fetch に redirect: 'manual' を付与
-const res = await fetch('/_api/incidents', {
-  redirect: 'manual',  // ← これが必須
-  headers: { Accept: 'application/json' },
+const res = await fetch("/_api/incidents", {
+  redirect: "manual", // ← これが必須
+  headers: { Accept: "application/json" },
 });
 
 // opaqueredirect (status=0) を検知してログインページへ
-if (res.type === 'opaqueredirect' || res.status === 0) {
-  window.location.href = '/Account/Login';
+if (res.type === "opaqueredirect" || res.status === 0) {
+  window.location.href = "/Account/Login";
 }
 ```
 
@@ -432,7 +447,7 @@ if (res.type === 'opaqueredirect' || res.status === 0) {
 
 ---
 
-### E017: Web API 404（/_api/ エンドポイント）
+### E017: Web API 404（/\_api/ エンドポイント）
 
 **症状:** `/_api/{entity}` にアクセスすると 404。
 
@@ -440,12 +455,12 @@ if (res.type === 'opaqueredirect' || res.status === 0) {
 
 **チェックリスト:**
 
-| # | 要素 | 確認方法 |
-|---|------|---------|
-| 1 | Site Setting `Webapi/{table}/enabled` = true | Dataverse mspp_sitesettings テーブル |
-| 2 | Site Setting `Webapi/{table}/fields` = * or 列リスト | 同上 |
-| 3 | Table Permission (Global scope, CRUD) | adx_entitypermission テーブル |
-| 4 | Web Role Link (Table Permission → Authenticated Users) | adx_entitypermission_webrole テーブル |
+| #   | 要素                                                   | 確認方法                              |
+| --- | ------------------------------------------------------ | ------------------------------------- |
+| 1   | Site Setting `Webapi/{table}/enabled` = true           | Dataverse mspp_sitesettings テーブル  |
+| 2   | Site Setting `Webapi/{table}/fields` = \* or 列リスト  | 同上                                  |
+| 3   | Table Permission (Global scope, CRUD)                  | adx_entitypermission テーブル         |
+| 4   | Web Role Link (Table Permission → Authenticated Users) | adx_entitypermission_webrole テーブル |
 
 > 全て設定後、サイト再起動が必要。
 
@@ -461,7 +476,7 @@ if (res.type === 'opaqueredirect' || res.status === 0) {
 
 ```yaml
 # .powerpages-site/site-settings/Authentication-Registration-AzureADLoginEnabled.sitesetting.yml
-id: {guid}
+id: { guid }
 name: Authentication/Registration/AzureADLoginEnabled
 value: "false"
 ```

@@ -341,7 +341,11 @@ def phase_link_permissions(config):
     contact として認証されるため、Web ロール経由でないとテーブル権限が評価されない。
     全 Table Permission を Authenticated Users に紐づけないと 403 になる。
 
-    powerpagecomponent_powerpagecomponent 自己参照 N:N を使用（唯一永続化する方法）。
+    2つの N:N テーブルで紐づけが必要:
+    1. powerpagecomponent_powerpagecomponent (EDM v2 自己参照 N:N)
+    2. mspp_entitypermission_webrole (Standard Data Model N:N)
+    ランタイムは後者 (mspp) を参照するため、両方設定する。
+    pac pages upload-code-site はデプロイ時に mspp 側の N:N を消すバグがある。
     """
     logger.info("=" * 60)
     logger.info("Phase 4.5: Link Table Permissions → Authenticated Users [MUST]")
@@ -414,9 +418,71 @@ def phase_link_permissions(config):
                 logger.error(f"    {p['name']}: FAILED ({rr.status_code} {rr.text[:100]})")
 
     if linked_count > 0:
-        logger.info(f"  => {linked_count} 件のテーブル権限を紐づけました")
+        logger.info(f"  => {linked_count} 件のテーブル権限を紐づけました (EDM v2)")
     else:
-        logger.info("  => 全て紐づけ済み")
+        logger.info("  => 全て紐づけ済み (EDM v2)")
+
+    # --- Standard N:N (mspp_entitypermission_webrole) ---
+    # Power Pages ランタイムはこちらを参照する。pac pages upload-code-site が
+    # デプロイ時にこの N:N を消すため、毎回再リンクが必要。
+    logger.info("\n  [mspp N:N] mspp_entitypermission_webrole 紐づけ")
+
+    # mspp_websites から Website ID を取得
+    wr = dv_get(f"mspp_websites?$filter=mspp_websiteid eq '{site_id}'"
+                f"&$select=mspp_websiteid")
+    mspp_wid = site_id  # powerpagesiteid = mspp_websiteid (同じ)
+
+    # mspp_webroles から Authenticated Users を取得
+    rr = dv_get(f"mspp_webroles?$filter=_mspp_websiteid_value eq '{mspp_wid}'"
+                " and mspp_authenticatedusersrole eq true"
+                "&$select=mspp_webroleid,mspp_name")
+    mspp_roles = rr.json().get('value', []) if rr.status_code == 200 else []
+    if not mspp_roles:
+        # authenticatedusersrole フラグがない場合は名前で検索
+        rr = dv_get(f"mspp_webroles?$filter=_mspp_websiteid_value eq '{mspp_wid}'"
+                    "&$select=mspp_webroleid,mspp_name,mspp_authenticatedusersrole")
+        mspp_roles = [r for r in rr.json().get('value', [])
+                      if 'authenticated' in r.get('mspp_name', '').lower()]
+    if not mspp_roles:
+        logger.warning("  ⚠️ mspp Authenticated Users ロールが見つかりません")
+    else:
+        mspp_role_id = mspp_roles[0]['mspp_webroleid']
+        logger.info(f"  mspp Authenticated Users: {mspp_role_id}")
+
+        # mspp_entitypermissions を取得してリンク
+        mr = dv_get(f"mspp_entitypermissions?$filter=_mspp_websiteid_value eq '{mspp_wid}'"
+                    "&$select=mspp_entitypermissionid,mspp_entityname")
+        mspp_perms = mr.json().get('value', []) if mr.status_code == 200 else []
+
+        mspp_linked = 0
+        for mp in mspp_perms:
+            mpid = mp['mspp_entitypermissionid']
+            # 既存リンク確認
+            lr = requests.get(
+                f"{DATAVERSE_URL}/api/data/v9.2/mspp_entitypermissions({mpid})"
+                f"/mspp_entitypermission_webrole/$ref", headers=h)
+            existing_refs = lr.json().get('value', []) if lr.status_code == 200 else []
+            already = any(mspp_role_id in ref.get('@odata.id', '') for ref in existing_refs)
+
+            if already:
+                logger.info(f"    {mp['mspp_entityname']}: OK (mspp linked)")
+            else:
+                url = (f"{DATAVERSE_URL}/api/data/v9.2/"
+                       f"mspp_entitypermissions({mpid})/mspp_entitypermission_webrole/$ref")
+                body = {"@odata.id": f"{DATAVERSE_URL}/api/data/v9.2/mspp_webroles({mspp_role_id})"}
+                rr = requests.post(url, json=body, headers=h)
+                if rr.status_code in (200, 201, 204):
+                    logger.info(f"    {mp['mspp_entityname']}: LINKED (mspp)")
+                    mspp_linked += 1
+                elif rr.status_code == 409:
+                    logger.info(f"    {mp['mspp_entityname']}: OK (conflict=already linked)")
+                else:
+                    logger.error(f"    {mp['mspp_entityname']}: FAILED ({rr.status_code})")
+
+        if mspp_linked > 0:
+            logger.info(f"  => {mspp_linked} 件の mspp N:N を紐づけました")
+        else:
+            logger.info("  => 全て mspp 紐づけ済み")
 
 
 # ---------------------------------------------------------------------------
@@ -430,7 +496,8 @@ def phase_restart(config):
     403 (EntityPermissionReadIsMissing) 等の原因になる。
 
     Power Platform API のサイト ID は Dataverse の powerpagesiteid とは別物。
-    必ず /websites を GET して name 一致で API 側 ID を取得してから restart する。
+    .env の PAGES_WEBSITE_ID があればそれを最優先で使う（最も確実）。
+    なければ /websites を GET して name 一致（スペース除去で正規化）で API 側 ID を取得する。
     """
     logger.info("=" * 60)
     logger.info("Phase 5: Restart (cache clear) [MUST]")
@@ -445,29 +512,55 @@ def phase_restart(config):
     token = get_token(scope='https://api.powerplatform.com/.default')
     h = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
 
+    def _restart(sid):
+        rr = requests.post(
+            f'https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites/{sid}/restart?api-version=2024-10-01',
+            headers=h)
+        if rr.status_code < 400:
+            logger.info(f"  ✅ Restart triggered: {rr.status_code}")
+        else:
+            logger.error(f"  ❌ Restart FAILED: {rr.status_code} {rr.text[:200]}")
+            logger.error("     手動で再起動してください（admin.powerplatform.microsoft.com）。")
+        return rr.status_code < 400
+
     r = requests.get(
         f'https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites?api-version=2024-10-01',
         headers=h)
+    sites = r.json().get('value', [])
 
     site_url = None
-    for s in r.json().get('value', []):
-        if config['siteName'].lower() in s.get('name', '').lower():
+
+    # [1] .env の PAGES_WEBSITE_ID を最優先（siteName と PP API 登録名の不一致対策）
+    env_site_id = os.environ.get('PAGES_WEBSITE_ID', '').strip()
+    if env_site_id:
+        match = next((s for s in sites if s.get('id') == env_site_id), None)
+        if match:
+            site_url = match.get('websiteUrl', '')
+            logger.info(f"  PAGES_WEBSITE_ID 使用: {match.get('name', '')} ({env_site_id})")
+            _restart(env_site_id)
+            return site_url
+        logger.warning(f"  ⚠️ PAGES_WEBSITE_ID={env_site_id} が PP API に見つかりません。名前照合にフォールバックします。")
+
+    # [2] 名前照合（スペース除去で正規化: 'm365status' ⊂ 'M365 Status Portal'）
+    def _norm(x):
+        return ''.join(x.lower().split())
+
+    target = _norm(config['siteName'])
+    for s in sites:
+        if target in _norm(s.get('name', '')):
             sid = s['id']
             site_url = s.get('websiteUrl', '')
-            rr = requests.post(
-                f'https://api.powerplatform.com/powerpages/environments/{ENV_ID}/websites/{sid}/restart?api-version=2024-10-01',
-                headers=h)
-            if rr.status_code < 400:
-                logger.info(f"  ✅ Restart triggered: {rr.status_code}")
-            else:
-                logger.error(f"  ❌ Restart FAILED: {rr.status_code} {rr.text[:200]}")
-                logger.error("     手動で再起動してください（admin.powerplatform.microsoft.com）。")
+            logger.info(f"  名前照合: {s.get('name', '')} ({sid})")
+            logger.info(f"  💡 .env に PAGES_WEBSITE_ID={sid} を設定すると次回から確実に再起動できます。")
+            _restart(sid)
             break
     else:
         logger.error("  ❌ Site not found in PP API — 再起動できませんでした。")
-        logger.error("     手動で再起動してください（admin.powerplatform.microsoft.com）。")
+        logger.error("     .env に PAGES_WEBSITE_ID を設定するか、手動で再起動してください。")
+        logger.error("     一覧: " + ", ".join(f"{s.get('name')}={s.get('id')}" for s in sites))
 
     return site_url
+
 
 
 # ---------------------------------------------------------------------------

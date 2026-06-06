@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && pac pages upload-code-site --rootPath . --compiledPath ./dist && py ../post_deploy.py"
+    "deploy": "py ../.github/skills/power-pages/scripts/deploy_site.py"
   },
   "dependencies": {
     "@radix-ui/react-dropdown-menu": "^2.1.15",
