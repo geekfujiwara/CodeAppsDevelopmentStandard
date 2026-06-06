@@ -346,10 +346,16 @@ def phase_link_permissions(config):
     2. mspp_entitypermission_webrole (Standard Data Model N:N)
     ランタイムは後者 (mspp) を参照するため、両方設定する。
     pac pages upload-code-site はデプロイ時に mspp 側の N:N を消すバグがある。
+    さらに upload 完了後も非同期で YAML 同期が走るため、即座にリンクすると
+    後から消される。30秒待機してから紐づけを行う。
     """
     logger.info("=" * 60)
     logger.info("Phase 4.5: Link Table Permissions → Authenticated Users [MUST]")
     logger.info("=" * 60)
+
+    import time
+    logger.info("  ⏳ Upload 非同期処理の完了を待機中 (30秒)...")
+    time.sleep(30)
 
     h = dv_headers()
 
@@ -483,6 +489,38 @@ def phase_link_permissions(config):
             logger.info(f"  => {mspp_linked} 件の mspp N:N を紐づけました")
         else:
             logger.info("  => 全て mspp 紐づけ済み")
+
+        # --- 検証 + リトライ ---
+        # pac upload の非同期処理がリンク後に N:N を消すケースがあるため
+        # 15秒待って再確認し、消えていたら再リンクする
+        logger.info("\n  ⏳ リンク永続化を検証中 (15秒待機)...")
+        time.sleep(15)
+
+        retry_count = 0
+        for mp in mspp_perms:
+            mpid = mp['mspp_entitypermissionid']
+            lr = requests.get(
+                f"{DATAVERSE_URL}/api/data/v9.2/mspp_entitypermissions({mpid})"
+                f"/mspp_entitypermission_webrole/$ref", headers=h)
+            existing_refs = lr.json().get('value', []) if lr.status_code == 200 else []
+            still_linked = any(mspp_role_id in ref.get('@odata.id', '') for ref in existing_refs)
+
+            if not still_linked:
+                # 再リンク
+                url = (f"{DATAVERSE_URL}/api/data/v9.2/"
+                       f"mspp_entitypermissions({mpid})/mspp_entitypermission_webrole/$ref")
+                body = {"@odata.id": f"{DATAVERSE_URL}/api/data/v9.2/mspp_webroles({mspp_role_id})"}
+                rr = requests.post(url, json=body, headers=h)
+                if rr.status_code in (200, 201, 204, 409):
+                    logger.warning(f"    {mp['mspp_entityname']}: RE-LINKED (was cleared by async upload)")
+                    retry_count += 1
+                else:
+                    logger.error(f"    {mp['mspp_entityname']}: RE-LINK FAILED ({rr.status_code})")
+
+        if retry_count > 0:
+            logger.warning(f"  => {retry_count} 件が非同期処理で消えていたため再リンクしました")
+        else:
+            logger.info("  => 検証OK: 全リンク永続化確認")
 
 
 # ---------------------------------------------------------------------------
