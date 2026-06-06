@@ -34,6 +34,12 @@
 番号で選んでください（デフォルト: 1）
 ```
 
+> **フォントは全テンプレート共通で Noto Sans JP に統一**（日本語サイト向け）。
+> Inter / IBM Plex Sans / DM Sans 等のラテン専用フォントは日本語グリフを持たず
+> 和欧混植で表示が崩れるため、配色のみテンプレートで切り替え、フォントは固定する。
+> 必ず以下 3 箇所を揃える: `index.html` の Google Fonts ロード / `:root` の `font-family` /
+> Tailwind v4 `@theme inline` の `--font-sans`（教訓 17 参照）。
+
 ---
 
 ## 実装共通コードの監査結果（2026-06-05）
@@ -60,9 +66,9 @@
 ### 1. Indigo / Violet（デフォルト）
 
 **印象**: モダン・先進的・クリエイティブ
-**フォント**: Inter
-**Google Fonts**: `Inter:wght@300;400;500;600;700;800`
-**font-family**: `"Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif`
+**フォント**: Noto Sans JP
+**Google Fonts**: `Noto+Sans+JP:wght@300;400;500;600;700;800`
+**font-family**: `"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
 **letter-spacing**: `-0.01em`
 **border-radius**: `0.75rem`
 
@@ -137,9 +143,9 @@
 ### 2. Blue / Navy
 
 **印象**: 信頼感・堅実・エンタープライズ
-**フォント**: IBM Plex Sans
-**Google Fonts**: `IBM+Plex+Sans:wght@300;400;500;600;700`
-**font-family**: `"IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, sans-serif`
+**フォント**: Noto Sans JP
+**Google Fonts**: `Noto+Sans+JP:wght@300;400;500;600;700`
+**font-family**: `"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
 **letter-spacing**: `0`
 **border-radius**: `0.625rem`
 **出典**: site-14s3s (Power Pages テンプレート)
@@ -215,9 +221,9 @@
 ### 3. Emerald / Teal
 
 **印象**: ナチュラル・安心感・ヘルスケア
-**フォント**: Inter
-**Google Fonts**: `Inter:wght@300;400;500;600;700;800`
-**font-family**: `"Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif`
+**フォント**: Noto Sans JP
+**Google Fonts**: `Noto+Sans+JP:wght@300;400;500;600;700;800`
+**font-family**: `"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
 **letter-spacing**: `-0.01em`
 **border-radius**: `0.75rem`
 
@@ -292,9 +298,9 @@
 ### 4. Amber / Orange
 
 **印象**: エネルギッシュ・注意喚起・建設
-**フォント**: DM Sans
-**Google Fonts**: `DM+Sans:wght@300;400;500;600;700`
-**font-family**: `"DM Sans", system-ui, -apple-system, BlinkMacSystemFont, sans-serif`
+**フォント**: Noto Sans JP
+**Google Fonts**: `Noto+Sans+JP:wght@300;400;500;600;700`
+**font-family**: `"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
 **letter-spacing**: `0`
 **border-radius**: `0.625rem`
 
@@ -369,9 +375,9 @@
 ### 5. Rose / Pink
 
 **印象**: 親しみやすい・カジュアル・サービス業
-**フォント**: Inter
-**Google Fonts**: `Inter:wght@300;400;500;600;700;800`
-**font-family**: `"Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif`
+**フォント**: Noto Sans JP
+**Google Fonts**: `Noto+Sans+JP:wght@300;400;500;600;700;800`
+**font-family**: `"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
 **letter-spacing**: `-0.01em`
 **border-radius**: `0.875rem`
 
