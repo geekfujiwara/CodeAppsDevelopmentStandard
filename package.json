@@ -9,8 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "check:env": "node scripts/bootstrap.mjs --check",
-    "setup": "node scripts/bootstrap.mjs --setup",
-    "postinstall": "node scripts/bootstrap.mjs --postinstall"
+    "setup": "node scripts/bootstrap.mjs --setup"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

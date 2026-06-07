@@ -32,7 +32,6 @@ const PYTHON_ENVS = [
 // ── CLI モード判定 ────────────────────────────────────
 function getMode(argv) {
   if (argv.includes("--setup")) return "setup";
-  if (argv.includes("--postinstall")) return "postinstall";
   return "check";
 }
 const mode = getMode(process.argv);
@@ -243,10 +242,10 @@ if (blockers.length > 0) {
   console.log("  1) 上記 ❌ の項目を解決");
   console.log("  2) npm run check:env   — 再チェック");
   console.log("  3) npm run setup       — Python bootstrap を再実行");
-  // postinstall/setup では npm install 全体を失敗させない
+  // setup では開発体験を優先し、blocker があっても処理は継続
   if (mode !== "check") {
     console.log("");
-    console.log("⚠️  postinstall/setup では開発体験を優先し、blocker があっても終了コードは 0 のままです。");
+    console.log("⚠️  setup では開発体験を優先し、blocker があっても終了コードは 0 のままです。");
   }
   console.log("");
 }

@@ -250,8 +250,11 @@ pip install -r .github/skills/standard/scripts/requirements.txt
 ### 2.4 環境事前チェック（preflight）と bootstrap
 
 ```bash
-# clone 直後の標準フロー（preflight は postinstall で自動実行）
+# clone 直後の標準フロー
 git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm install
+
+# preflight + Python venv / requirements bootstrap
+npm run setup
 
 # 明示的に再チェック
 npm run check:env
@@ -260,7 +263,7 @@ npm run check:env
 npm run setup
 ```
 
-`npm install` 時の preflight は以下を確認する。
+`npm run setup` 時の preflight は以下を確認する。
 
 - Node.js / npm のバージョン
 - Python の実行経路（`python` または `py -3`）
