@@ -250,8 +250,9 @@ pip install -r .github/skills/standard/scripts/requirements.txt
 ### 2.4 環境事前チェック（preflight）と bootstrap
 
 ```bash
-# clone 直後の標準フロー
-git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm install
+# 新規テーマ開発はフォークしたリポジトリを clone して開始
+git clone https://github.com/<your-account>/CodeAppsDevelopmentStandard .
+npm install
 
 # preflight + Python venv / requirements bootstrap
 npm run setup
