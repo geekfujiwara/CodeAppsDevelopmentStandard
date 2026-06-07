@@ -108,14 +108,21 @@ flowchart TB
 
         subgraph COL1["カラム1: 体験・対話"]
             direction TB
+            CH["Teams / Web チャネル"]
             COPILOT["Copilot Studio"]
-            UI["Code Apps / Model-Driven / Power Pages"]
+            UI["Code Apps / Canvas / Model-Driven / Power Pages"]
         end
 
         subgraph COL2["カラム2: 自動化・AI"]
             direction TB
             FLOW["Power Automate"]
             AIB["AI Builder"]
+        end
+
+        subgraph COL3["カラム3: ナレッジ・外部連携"]
+            direction TB
+            SP["SharePoint ナレッジ"]
+            EXT["MCP Server / 外部 API"]
         end
     end
 
@@ -124,10 +131,13 @@ flowchart TB
         DV["Dataverse"]
     end
 
-    USER --> COPILOT
+    USER --> CH
+    CH --> COPILOT
     USER --> UI
     COPILOT --> FLOW
     COPILOT --> AIB
+    COPILOT --> SP
+    COPILOT --> EXT
     UI --> DV
     FLOW --> DV
     AIB --> DV
@@ -139,10 +149,15 @@ flowchart TB
 | -------------- | -------------------- | ------- |
 | Dataverse      | {テーブル構成の概要} | ✅ 必須 |
 | Code Apps      | {画面の概要}         | ✅ / ❌ |
+| Canvas Apps    | {軽量 UI の概要}     | ✅ / ❌ |
 | Model-Driven   | {アプリの概要}       | ✅ / ❌ |
+| Power Pages    | {外部公開 UI の概要} | ✅ / ❌ |
 | Power Automate | {フローの概要}       | ✅ / ❌ |
 | Copilot Studio | {エージェントの概要} | ✅ / ❌ |
 | AI Builder     | {プロンプトの概要}   | ✅ / ❌ |
+| Teams / Web    | {利用チャネルの概要} | ✅ / ❌ |
+| SharePoint     | {ナレッジソースの概要} | ✅ / ❌ |
+| MCP / 外部 API | {外部連携の概要}     | ✅ / ❌ |
 
 ### 5. 判断根拠
 
