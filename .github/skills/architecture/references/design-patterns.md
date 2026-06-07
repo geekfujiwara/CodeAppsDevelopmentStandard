@@ -79,7 +79,7 @@
 
 ## 8. 設計アウトプットテンプレート
 
-このスキルで判断した結果は、以下のテンプレートでユーザーに提示する:
+このスキルで判断した結果は、**Mermaid による構成図（複数カラム形式の subgraph グループ化）を必ず含めて**、以下のテンプレートでユーザーに提示する:
 
 ```markdown
 ## アーキテクチャ設計書
@@ -94,23 +94,77 @@
 
 **パターン {A/B/C/D/E}**: {パターン名}
 
-### 3. コンポーネント構成
+### 3. 構成図（Mermaid）
+
+```mermaid
+flowchart TB
+    subgraph UX["ユーザー体験"]
+        direction TB
+        USER["ユーザー（{主なユーザー}）"]
+    end
+
+    subgraph APP["アプリケーション層"]
+        direction LR
+
+        subgraph COL1["カラム1: 体験・対話"]
+            direction TB
+            CH["Teams / Web チャネル"]
+            COPILOT["Copilot Studio"]
+            UI["Code Apps / Canvas / Model-Driven / Power Pages"]
+        end
+
+        subgraph COL2["カラム2: 自動化・AI"]
+            direction TB
+            FLOW["Power Automate"]
+            AIB["AI Builder"]
+        end
+
+        subgraph COL3["カラム3: ナレッジ・外部連携"]
+            direction TB
+            SP["SharePoint ナレッジ"]
+            EXT["MCP Server / 外部 API"]
+        end
+    end
+
+    subgraph DATA["データ層"]
+        direction TB
+        DV["Dataverse"]
+    end
+
+    USER --> CH
+    CH --> COPILOT
+    USER --> UI
+    COPILOT --> FLOW
+    COPILOT --> AIB
+    COPILOT --> SP
+    COPILOT --> EXT
+    UI --> DV
+    FLOW --> DV
+    AIB --> DV
+```
+
+### 4. コンポーネント構成
 
 | コンポーネント | 用途                 | 必要性  |
 | -------------- | -------------------- | ------- |
 | Dataverse      | {テーブル構成の概要} | ✅ 必須 |
 | Code Apps      | {画面の概要}         | ✅ / ❌ |
+| Canvas Apps    | {軽量 UI の概要}     | ✅ / ❌ |
 | Model-Driven   | {アプリの概要}       | ✅ / ❌ |
+| Power Pages    | {外部公開 UI の概要} | ✅ / ❌ |
 | Power Automate | {フローの概要}       | ✅ / ❌ |
 | Copilot Studio | {エージェントの概要} | ✅ / ❌ |
 | AI Builder     | {プロンプトの概要}   | ✅ / ❌ |
+| Teams / Web    | {利用チャネルの概要} | ✅ / ❌ |
+| SharePoint     | {ナレッジソースの概要} | ✅ / ❌ |
+| MCP / 外部 API | {外部連携の概要}     | ✅ / ❌ |
 
-### 4. 判断根拠
+### 5. 判断根拠
 
 - {なぜこのコンポーネントを選んだか}
 - {なぜ代替案を選ばなかったか}
 
-### 5. 構築フェーズ
+### 6. 構築フェーズ
 
 1. Phase 1: Dataverse — {テーブル数}テーブル
 2. Phase 2: Code Apps — {画面数}画面（※ 不要なら省略）
