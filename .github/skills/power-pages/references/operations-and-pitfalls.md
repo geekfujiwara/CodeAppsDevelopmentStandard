@@ -146,7 +146,7 @@ adx_website_id = r.json()["value"][0]["adx_websiteid"]
 |------|------|------|
 | upload-code-site で `.js blocked` | 環境で JS ブロック | 管理センター → ブロック添付ファイルから `js` 削除（`scripts/unblock_js.py`） |
 | サイト URL が 503 | プロビジョニング未完了 or 未アクティブ | Inactive Sites でアクティブ化。60-90秒待つ |
-| Web API が 403 | テーブル権限未設定 or Web ロール未紐付け（**`upload-code-site` 後は type=18 content の `adx_entitypermission_webrole` が空で 403 になりがち**。N:N の `$ref` は 204 でも幽霊で無効） | `setup_permissions.py` 実行（content の `adx_entitypermission_webrole` を書き込み） |
+| Web API が 403 | テーブル権限未設定 or Web ロール未紐付け（**`upload-code-site` 後は type=18 content の `adx_entitypermission_webrole` が空で 403 になりがち**。N:N の `$ref` は 204 でも幽霊で無効） | `relink_table_permissions.py` 実行（content + N:N association を再付与） |
 | Web API が 404 | `Webapi/{table}/enabled` 未設定 | `setup_permissions.py` 実行 |
 | `/SignIn` でログインフォーム表示 | `LoginButtonAuthenticationType` 未設定/値誤り | `setup_auth.py` 実行（Authority URL を設定） |
 | SSO ボタンが 2つ表示 | `AzureADLoginEnabled=true` のまま | `AzureADLoginEnabled=false` を設定 |
