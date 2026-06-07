@@ -250,8 +250,12 @@ pip install -r .github/skills/standard/scripts/requirements.txt
 ### 2.4 環境事前チェック（preflight）と bootstrap
 
 ```bash
-# clone 直後の標準フロー（preflight は postinstall で自動実行）
-git clone https://github.com/geekfujiwara/CodeAppsDevelopmentStandard . && npm install
+# 新規テーマ開発はフォークしたリポジトリを clone して開始
+git clone https://github.com/<your-account>/CodeAppsDevelopmentStandard .
+npm install
+
+# preflight + Python venv / requirements bootstrap
+npm run setup
 
 # 明示的に再チェック
 npm run check:env
@@ -260,13 +264,14 @@ npm run check:env
 npm run setup
 ```
 
-`npm install` 時の preflight は以下を確認する。
+`npm run setup` 時の preflight は以下を確認する。
 
 - Node.js / npm のバージョン
 - Python の実行経路（`python` または `py -3`）
 - pip（`python -m pip` または `py -3 -m pip`）
 - `npx power-apps`
 - `pac`（未導入時はインストール案内を表示）
+- `gh` + `gh auth login` が有効な場合は、デフォルトブランチの Copilot 承認バイパス設定（Branch protection の bypass app）
 
 `pac` などを OS 差分込みで強制自動インストールはせず、未導入時は **検出 + 次ステップ案内** を行う。Python と pip が利用可能な場合、以下の `.venv` と `requirements.txt` の導入を自動試行する。
 
