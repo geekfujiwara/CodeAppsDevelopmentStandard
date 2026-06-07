@@ -79,7 +79,7 @@
 
 ## 8. 設計アウトプットテンプレート
 
-このスキルで判断した結果は、以下のテンプレートでユーザーに提示する:
+このスキルで判断した結果は、**Mermaid による構成図（複数カラム形式の subgraph グループ化）を必ず含めて**、以下のテンプレートでユーザーに提示する:
 
 ```markdown
 ## アーキテクチャ設計書
@@ -94,7 +94,46 @@
 
 **パターン {A/B/C/D/E}**: {パターン名}
 
-### 3. コンポーネント構成
+### 3. 構成図（Mermaid）
+
+```mermaid
+flowchart TB
+    subgraph UX["ユーザー体験"]
+        direction TB
+        USER["ユーザー（{主なユーザー}）"]
+    end
+
+    subgraph APP["アプリケーション層"]
+        direction LR
+
+        subgraph COL1["カラム1: 体験・対話"]
+            direction TB
+            COPILOT["Copilot Studio"]
+            UI["Code Apps / Model-Driven / Power Pages"]
+        end
+
+        subgraph COL2["カラム2: 自動化・AI"]
+            direction TB
+            FLOW["Power Automate"]
+            AIB["AI Builder"]
+        end
+    end
+
+    subgraph DATA["データ層"]
+        direction TB
+        DV["Dataverse"]
+    end
+
+    USER --> COPILOT
+    USER --> UI
+    COPILOT --> FLOW
+    COPILOT --> AIB
+    UI --> DV
+    FLOW --> DV
+    AIB --> DV
+```
+
+### 4. コンポーネント構成
 
 | コンポーネント | 用途                 | 必要性  |
 | -------------- | -------------------- | ------- |
@@ -105,12 +144,12 @@
 | Copilot Studio | {エージェントの概要} | ✅ / ❌ |
 | AI Builder     | {プロンプトの概要}   | ✅ / ❌ |
 
-### 4. 判断根拠
+### 5. 判断根拠
 
 - {なぜこのコンポーネントを選んだか}
 - {なぜ代替案を選ばなかったか}
 
-### 5. 構築フェーズ
+### 6. 構築フェーズ
 
 1. Phase 1: Dataverse — {テーブル数}テーブル
 2. Phase 2: Code Apps — {画面数}画面（※ 不要なら省略）
