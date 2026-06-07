@@ -101,6 +101,7 @@ Windows 端末の開発環境準備を、フォーク済みリポジトリを使
 - 実行結果は「導入済み」「要再起動」「PATH 反映待ち」を分けて報告する。
 - 最後のユーザー向けコメントには以下を含める:
   - 「環境準備 OK（install はバックグラウンド実行中）」の明示
+  - 承認済みユーザーに対応する fork 先 URL（`https://github.com/<that-user>/CodeAppsDevelopmentStandard`）を明示
   - GitHub Copilot 側で `GeekPowerCode` カスタムエージェントへ切り替えること
   - 必要に応じて承認のバイパス等の委任レベルを調整し、好みの AI モデルを選ぶこと
   - `GeekPowerCode` に作りたいテーマを伝えて開発開始すること
