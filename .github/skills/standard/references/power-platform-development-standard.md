@@ -270,6 +270,7 @@ npm run setup
 - pip（`python -m pip` または `py -3 -m pip`）
 - `npx power-apps`
 - `pac`（未導入時はインストール案内を表示）
+- `gh` + `gh auth login` が有効な場合は、デフォルトブランチの Copilot 承認バイパス設定（Branch protection の bypass app）
 
 `pac` などを OS 差分込みで強制自動インストールはせず、未導入時は **検出 + 次ステップ案内** を行う。Python と pip が利用可能な場合、以下の `.venv` と `requirements.txt` の導入を自動試行する。
 

@@ -58,6 +58,16 @@ function firstNonEmpty(...values) {
   return values.find((v) => v && v.trim());
 }
 
+function parseGitHubRepo(originUrl) {
+  if (!originUrl) return null;
+  const normalized = originUrl.trim();
+  const https = normalized.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?$/i);
+  if (https) return { owner: https[1], repo: https[2] };
+  const ssh = normalized.match(/^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/i);
+  if (ssh) return { owner: ssh[1], repo: ssh[2] };
+  return null;
+}
+
 // ── チェック関数 ──────────────────────────────────────
 function checkNodeAndNpm() {
   const nodeVersion = process.version;
@@ -173,6 +183,68 @@ function checkEnvFile() {
   }
 }
 
+function checkCopilotBypass() {
+  const ghVersion = run("gh", ["--version"]);
+  if (ghVersion.status !== 0) {
+    log("⚠️", "Copilot 承認バイパス確認をスキップ — `gh` 未検出");
+    return;
+  }
+
+  const ghAuth = run("gh", ["auth", "status", "-h", "github.com"]);
+  if (ghAuth.status !== 0) {
+    log("⚠️", "Copilot 承認バイパス確認をスキップ — `gh auth login` が未実施");
+    return;
+  }
+
+  const origin = run("git", ["config", "--get", "remote.origin.url"]);
+  const repository = parseGitHubRepo(firstNonEmpty(origin.stdout, origin.stderr));
+  if (!repository) {
+    log("⚠️", "Copilot 承認バイパス確認をスキップ — GitHub リポジトリ情報を解決できません");
+    return;
+  }
+
+  const repoInfo = run("gh", ["api", `repos/${repository.owner}/${repository.repo}`, "--jq", ".default_branch"]);
+  if (repoInfo.status !== 0) {
+    log("⚠️", "Copilot 承認バイパス確認をスキップ — リポジトリ API 参照権限が不足しています");
+    return;
+  }
+  const defaultBranch = firstNonEmpty(repoInfo.stdout, repoInfo.stderr).trim();
+  if (!defaultBranch) {
+    log("⚠️", "Copilot 承認バイパス確認をスキップ — デフォルトブランチを取得できません");
+    return;
+  }
+
+  const protection = run("gh", [
+    "api",
+    `repos/${repository.owner}/${repository.repo}/branches/${defaultBranch}/protection`,
+    "--jq",
+    ".required_pull_request_reviews.bypass_pull_request_allowances.apps[].slug",
+  ]);
+
+  if (protection.status !== 0) {
+    log(
+      "⚠️",
+      "Copilot 承認バイパス確認をスキップ — ブランチ保護設定の参照権限が不足しています（Repo Admin 権限が必要）",
+    );
+    return;
+  }
+
+  const appSlugs = (protection.stdout ?? "")
+    .split(/\r?\n/)
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (appSlugs.includes("github-copilot") || appSlugs.includes("copilot")) {
+    log("✅", `Copilot 承認バイパス: ${defaultBranch} で許可済み`);
+    return;
+  }
+
+  log(
+    "⚠️",
+    `Copilot 承認バイパス: ${defaultBranch} で未設定です — GitHub の Branch protection > Bypass pull request requirements で GitHub Copilot を許可してください`,
+  );
+}
+
 // ── Python venv セットアップ ──────────────────────────
 function setupPythonVenv(python, pipReady, { name, scriptsDir }) {
   if (!python || !pipReady) return;
@@ -224,6 +296,7 @@ const pipReady = checkPip(python);
 checkPowerAppsCli();
 checkPac();
 checkEnvFile();
+checkCopilotBypass();
 
 if (mode !== "check") {
   for (const env of PYTHON_ENVS) {
