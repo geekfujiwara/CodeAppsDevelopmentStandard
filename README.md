@@ -55,6 +55,7 @@ $account = gh api user --jq ".login"
 git clone "https://github.com/$account/CodeAppsDevelopmentStandard" .
 npm install
 npm run setup
+
 ```
 
 > [!NOTE]
