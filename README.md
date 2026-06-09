@@ -60,7 +60,7 @@ npm run setup
 
 これで **@GeekPowerCode** のエージェントをローカルで実行でき、スムーズに新規テーマ開発を始めることができます。
 
-リポジトリがクローンできたら **@GeekPowerCode** に新規テーマ開発を依頼しましょう。 `work/input` フォルダにドキュメントや画像を配置して **/spec-to-markdown** で依頼することもできます。
+リポジトリがクローンできたら **@GeekPowerCode** に新規テーマ開発を依頼しましょう。 `/work/input` フォルダにドキュメントや画像を配置して **/spec-to-markdown** で依頼することもできます。
 
 ### チーム開発のためにリモートを用意する場合
 
@@ -68,7 +68,6 @@ npm run setup
 
 以下の **your-account**, **your-theme-repo** の部分は適切に自分のアカウント及び開発テーマ名に変更してから PowerShell で実行してください。
 
-GitHub Copilot, Claude Code などにプロンプトを入れることで対話型で進めることもできます。
 
 ```bash
 # 1. GitHub 上で空の private リポジトリを作成（Web UI または gh で）
@@ -80,6 +79,8 @@ git push -u origin main
 ```
 
 > [!TIP]
+> GitHub Copilot, Claude Code などに上記 bash をプロンプトとして入れることで対話型で進めることもできます。
+> 
 > Azure DevOps / 社内 Git / ローカル NAS など GitHub 以外のリモートを使う場合も、同じ手順で `git remote add origin <url>` を実行すれば、GitHub には何も公開せずに済みます。
 
 ### 上流の開発標準更新を取り込む
@@ -173,14 +174,8 @@ npm run setup
 
 - この開発標準の実装・運用ルールは、GitHub Copilot / Claude Code で共通利用するスキル（`.github/skills/`）に定義されています。
 - 利用者は手順書を読み込んで操作するのではなく、カスタムエージェントに要件を伝えて進める前提です。
-- GitHub Copilot の入力例（バッククオート不要）: @GeekPowerCode 在庫管理アプリを Dataverse + Code Apps で作りたい
-- Claude Code の入力例: GeekPowerCode エージェントを選択して「在庫管理アプリを Dataverse + Code Apps で作りたい」
+- GitHub Copilot や Claude Code での依頼例: GeekPowerCode エージェントを選択して、 `在庫管理をもっと効率的に行いたい。`
 - 既存仕様書がある場合の入力例: spec-to-markdown を実行して
-- 既定以外の場所を使う場合の入力例: /home/.../input の仕様書を requirements markdown に変換して
-
-> [!NOTE]
-> Microsoft Learn の現行 Code Apps 概要に合わせ、このリポジトリでは **Code Apps は SPA をホストする機能** として扱います。
-> 公式の推奨 CLI は `npx power-apps` 系に移行中で、`pac code` は将来廃止予定です。本リポジトリ内で `pac code push` を併記している箇所は、既知のテナント解決問題に対する暫定ワークアラウンドです。
 
 ---
 
