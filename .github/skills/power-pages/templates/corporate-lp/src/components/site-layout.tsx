@@ -18,7 +18,7 @@ import {
   UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SITE_NAME, SITE_LOGO_MARK } from "@/config";
+import { SITE_NAME, SITE_LOGO_MARK, SITE_NAV_GROUPS } from "@/config";
 import type { LucideIcon } from "lucide-react";
 
 type NavItem = { icon: LucideIcon; label: string; path: string };
@@ -34,22 +34,21 @@ type NavGroup = { label: string; items: NavItem[] };
  * - 営業管理: ダッシュボード / 顧客 / 商談 / パイプライン
  * - 社内ポータル: お知らせ / 申請 / マニュアル
  */
-const navGroups: NavGroup[] = [
-  {
-    label: "メイン",
-    items: [
-      { icon: LayoutDashboard, label: "ホーム", path: "/" },
-      { icon: FileText, label: "コンテンツ", path: "/content" },
-    ],
-  },
-  {
-    label: "管理",
-    items: [
-      { icon: Users, label: "ユーザー", path: "/users" },
-      { icon: Settings, label: "設定", path: "/settings" },
-    ],
-  },
-];
+const iconMap: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  content: FileText,
+  users: Users,
+  settings: Settings,
+};
+
+const navGroups: NavGroup[] = SITE_NAV_GROUPS.map((group) => ({
+  label: group.label,
+  items: group.items.map((item) => ({
+    icon: iconMap[item.iconKey ?? "dashboard"] ?? MoreHorizontal,
+    label: item.label,
+    path: item.path,
+  })),
+}));
 
 /**
  * 認証アクション（ヘッダー右上）

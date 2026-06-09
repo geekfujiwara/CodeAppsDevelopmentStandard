@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebarContext } from "./sidebar-layout";
+import { CODEAPPS_NAV_SECTIONS } from "@/config";
 
 type NavItem = {
   icon: LucideIcon;
@@ -39,33 +40,25 @@ export function Sidebar() {
 
   const positionClasses = "top-16 h-[calc(100vh-4rem)]";
 
-  const navItems: { category: string; items: NavItem[] }[] = [
-    {
-      category: "概況",
-      items: [
-        { icon: LayoutDashboard, label: "ダッシュボード", path: "dashboard" },
-        { icon: Target, label: "テリトリー", path: "territory" },
-      ],
-    },
-    {
-      category: "顧客・商談",
-      items: [
-        { icon: Building2, label: "顧客", path: "customers" },
-        { icon: Handshake, label: "商談", path: "opportunities" },
-        { icon: Columns3, label: "パイプライン", path: "pipeline" },
-      ],
-    },
-    {
-      category: "活動",
-      items: [{ icon: ClipboardList, label: "活動履歴", path: "activities" }],
-    },
-    {
-      category: "インシデント",
-      items: [
-        { icon: AlertTriangle, label: "インシデント", path: "incidents" },
-      ],
-    },
-  ];
+  const iconMap: Record<string, LucideIcon> = {
+    dashboard: LayoutDashboard,
+    territory: Target,
+    customers: Building2,
+    opportunities: Handshake,
+    pipeline: Columns3,
+    activities: ClipboardList,
+    incidents: AlertTriangle,
+  };
+
+  const navItems: { category: string; items: NavItem[] }[] =
+    CODEAPPS_NAV_SECTIONS.map((section) => ({
+      category: section.category,
+      items: section.items.map((item) => ({
+        icon: iconMap[item.iconKey ?? "dashboard"] ?? LayoutDashboard,
+        label: item.label,
+        path: item.path,
+      })),
+    }));
 
   return (
     <>

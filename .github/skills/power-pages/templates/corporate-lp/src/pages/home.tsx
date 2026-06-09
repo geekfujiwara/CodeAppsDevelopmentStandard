@@ -2,19 +2,27 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard,
-  FileText,
-  Users,
-  Settings,
   ArrowRight,
-  Zap,
-  Shield,
-  Globe,
   LogIn,
   X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { SITE_NAME } from "@/config";
+import {
+  SITE_NAME,
+  SITE_FEATURE_GROUPS,
+  SITE_HERO,
+  SITE_HIGHLIGHTS,
+} from "@/config";
+import {
+  Globe,
+  LayoutDashboard,
+  FileText,
+  Settings,
+  Shield,
+  Users,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 
 /**
  * ★ 機能カード定義 ★
@@ -24,73 +32,15 @@ import { SITE_NAME } from "@/config";
  * - items[].path: HashRouter のパス
  * - items[].color: グラデーション (Tailwind bg-linear-to-br)
  */
-const features = [
-  {
-    group: "メイン機能",
-    description: "主要な業務機能にアクセス",
-    items: [
-      {
-        icon: LayoutDashboard,
-        title: "ダッシュボード",
-        description: "主要指標をリアルタイムで確認。チームの状況を一画面で把握。",
-        path: "/",
-        color: "from-blue-500 to-indigo-600",
-      },
-      {
-        icon: FileText,
-        title: "コンテンツ管理",
-        description: "ドキュメント・ナレッジの作成・編集・公開を管理。",
-        path: "/content",
-        color: "from-emerald-500 to-teal-600",
-      },
-    ],
-  },
-  {
-    group: "管理機能",
-    description: "システム管理とユーザー管理",
-    items: [
-      {
-        icon: Users,
-        title: "ユーザー管理",
-        description: "メンバーの追加・ロール設定・アクセス権限を管理。",
-        path: "/users",
-        color: "from-orange-500 to-amber-600",
-      },
-      {
-        icon: Settings,
-        title: "設定",
-        description: "サイト全体の設定・通知・連携サービスを構成。",
-        path: "/settings",
-        color: "from-purple-500 to-violet-600",
-      },
-    ],
-  },
-];
-
-/**
- * ★ ハイライト（価値提案）定義 ★
- * LP 上部に表示する 3 カラムのバリュープロポジション。
- */
-const highlights = [
-  {
-    icon: Zap,
-    title: "高速デプロイ",
-    description:
-      "Power Pages + Dataverse で業務アプリを即座に外部公開。開発からデプロイまで数時間。",
-  },
-  {
-    icon: Shield,
-    title: "エンタープライズセキュリティ",
-    description:
-      "Entra ID 認証・テーブル権限・Web ロールで細かなアクセス制御を実現。",
-  },
-  {
-    icon: Globe,
-    title: "どこからでもアクセス",
-    description:
-      "レスポンシブ SPA でモバイル・タブレット・デスクトップすべてに対応。",
-  },
-];
+const iconMap: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  content: FileText,
+  users: Users,
+  settings: Settings,
+  zap: Zap,
+  shield: Shield,
+  globe: Globe,
+};
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -152,24 +102,28 @@ export default function HomePage() {
       <section className="text-center pt-8 lg:pt-16">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-6">
           <Zap className="h-3 w-3" />
-          {SITE_NAME}
+          {SITE_HERO.badge || SITE_NAME}
         </div>
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground leading-tight">
-          業務を、もっと
-          <span className="gradient-text">スマート</span>に。
+          {SITE_HERO.titlePrefix}
+          <span className="gradient-text">{SITE_HERO.titleHighlight}</span>
+          {SITE_HERO.titleSuffix}
         </h1>
         <p className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-          Dataverse と連携した業務ポータルで、
-          <br className="hidden sm:block" />
-          情報共有・申請・管理をワンストップで実現します。
+          {SITE_HERO.description.split("\n").map((line, index, lines) => (
+            <span key={`${line}-${index}`}>
+              {line}
+              {index < lines.length - 1 && <br className="hidden sm:block" />}
+            </span>
+          ))}
         </p>
         <div className="mt-8 flex items-center justify-center gap-3">
           <Button
             size="lg"
-            onClick={() => handleNavigate("/content")}
+            onClick={() => handleNavigate(SITE_HERO.primaryActionPath)}
             className="gap-2"
           >
-            はじめる
+            {SITE_HERO.primaryActionLabel}
             <ArrowRight className="h-4 w-4" />
           </Button>
           <Button
@@ -181,27 +135,31 @@ export default function HomePage() {
                 ?.scrollIntoView({ behavior: "smooth" });
             }}
           >
-            機能を見る
+            {SITE_HERO.secondaryActionLabel}
           </Button>
         </div>
       </section>
 
       {/* ハイライト */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {highlights.map((h) => (
-          <div
-            key={h.title}
-            className="p-6 rounded-xl border border-border/60 bg-card shadow-premium card-hover"
-          >
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-              <h.icon className="h-5 w-5 text-primary" />
+        {SITE_HIGHLIGHTS.map((h) => {
+          const Icon = iconMap[h.iconKey ?? "zap"] ?? Zap;
+
+          return (
+            <div
+              key={h.title}
+              className="p-6 rounded-xl border border-border/60 bg-card shadow-premium card-hover"
+            >
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                <Icon className="h-5 w-5 text-primary" />
+              </div>
+              <h3 className="font-semibold text-foreground mb-2">{h.title}</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {h.description}
+              </p>
             </div>
-            <h3 className="font-semibold text-foreground mb-2">{h.title}</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {h.description}
-            </p>
-          </div>
-        ))}
+          );
+        })}
       </section>
 
       {/* 機能セクション */}
@@ -216,7 +174,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        {features.map((group) => (
+        {SITE_FEATURE_GROUPS.map((group) => (
           <div key={group.group} className="space-y-4">
             <div>
               <h3 className="text-lg font-semibold text-foreground">
@@ -233,13 +191,20 @@ export default function HomePage() {
                   onClick={() => handleNavigate(item.path)}
                   className="group p-5 rounded-xl border border-border/60 bg-card shadow-premium card-hover cursor-pointer"
                 >
-                  <div
-                    className={`h-10 w-10 rounded-lg bg-linear-to-br ${item.color} flex items-center justify-center mb-4 shadow-md group-hover:scale-110 transition-transform`}
-                  >
-                    <item.icon className="h-5 w-5 text-white" />
-                  </div>
+                  {(() => {
+                   const Icon =
+                     iconMap[item.iconKey ?? "dashboard"] ?? LayoutDashboard;
+
+                   return (
+                     <div
+                       className={`h-10 w-10 rounded-lg bg-linear-to-br ${item.color} flex items-center justify-center mb-4 shadow-md group-hover:scale-110 transition-transform`}
+                     >
+                       <Icon className="h-5 w-5 text-white" />
+                     </div>
+                   );
+                  })()}
                   <h4 className="font-semibold text-foreground mb-1.5 group-hover:text-primary transition-colors">
-                    {item.title}
+                   {item.title}
                   </h4>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {item.description}
