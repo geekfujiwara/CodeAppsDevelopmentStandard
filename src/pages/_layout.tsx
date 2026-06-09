@@ -9,6 +9,7 @@ import { QuickActivityFab } from "@/components/quick-activity-fab"
 import { Menu, RefreshCw, Search } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { CODEAPPS_APP_NAME, CODEAPPS_APP_SUBTITLE } from "@/config"
 
 type LayoutProps = { showHeader?: boolean }
 
@@ -61,10 +62,10 @@ function LayoutContent({ showHeader = true }: LayoutProps) {
               </Button>
               <div>
                 <h1 className="text-lg font-bold text-primary">
-                  Geek Sales
+                  {CODEAPPS_APP_NAME}
                 </h1>
                 <p className="text-xs text-muted-foreground hidden sm:block">
-                  営業支援
+                  {CODEAPPS_APP_SUBTITLE}
                 </p>
               </div>
             </div>
