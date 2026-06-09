@@ -76,37 +76,28 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 | 通知 | sonner |
 | データテーブル | TanStack React Table v8 |
 
-## 標準 Web フォント
+## 標準フォント方針
 
-外部公開サイト（Power Pages）および Code Apps で **Win / Mac 間の表示差異をなくす** ため、Google Fonts の Web フォントに統一する。
+**Power Pages は Google Fonts 可、Code Apps は不可** とする。
 
-| フォント | 用途 |
-|----------|------|
-| **Inter** | Latin文字・数字・記号 |
-| **Noto Sans JP** | 日本語 |
-
-```html
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link
-  href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap"
-  rel="stylesheet"
-/>
-```
+- **Power Pages**: 外部公開サイトのため、テンプレートごとの Google Fonts 読み込みを許可
+- **Code Apps**: テンプレートに Google Fonts を入れず、ローカル/システムフォントのみを使用
 
 ```css
 :root {
   font-family:
-    "Inter",
-    "Noto Sans JP",
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
+    "Segoe UI",
+    "Hiragino Sans",
+    "Yu Gothic UI",
+    Meiryo,
     sans-serif;
 }
 ```
 
-> `Yu Gothic UI`, `Segoe UI`, `Meiryo`, `Hiragino Sans` などの OS ローカルフォントを primary に指定しない。これらは fallback chain の末尾（`system-ui` 経由）でのみ使用する。
+> Code Apps では `index.html` に Google Fonts の `<link>` を追加しない。Power Pages 側のフォント方針とは分けて扱う。
 
 
 ## コンポーネント・画面パターン
