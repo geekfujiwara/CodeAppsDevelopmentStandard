@@ -20,13 +20,18 @@ npx power-apps push --non-interactive
 ### Step 3: Dataverse データソース追加
 
 ```bash
-# テーブルごとに実行
+# テーブルごとに実行（PUBLISHER_PREFIX は .env から読み込み、ハードコード禁止）
+source .env  # PUBLISHER_PREFIX, DATAVERSE_URL を環境変数に読み込む
 npx power-apps add-data-source --api-id dataverse \
-  --resource-name geek_incident \
-  --org-url https://xxx.crm7.dynamics.com --non-interactive
+  --resource-name ${PUBLISHER_PREFIX}_incident \
+  --org-url ${DATAVERSE_URL} --non-interactive
 
 # 日本語エラーが出たら nameUtils.js をパッチしてリトライ
 ```
+
+> **重要**: `--resource-name` に `geek_xxx` のような literal を書かない。
+> プロジェクトの publisher prefix は環境ごとに異なるため、必ず `.env` の `PUBLISHER_PREFIX` を変数展開して使う。
+> ハードコードすると、その環境に存在しない `geek_*` テーブルを参照して失敗したり、誤って別 prefix のテーブルを生成する原因になる。
 
 ### Step 4: 技術スタック導入
 
