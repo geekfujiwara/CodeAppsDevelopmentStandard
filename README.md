@@ -73,7 +73,7 @@ npm run setup
 
 完全に手元だけで保管する以外に、**private リポジトリ** を別途用意してそこにのみ push する運用にするとチーム開発を安全に進めることができます。
 
-以下の <your-account> / <your-theme-repo> の部分は適切に自分のアカウント及び開発テーマ名に変更してから PowerShell で実行してください。
+以下の **<your-account>** / **<your-theme-repo>** の部分は適切に自分のアカウント及び開発テーマ名に変更してから PowerShell で実行してください。
 
 GitHub Copilot などにプロンプトを入れることで対話型で進めることもできます。
 
