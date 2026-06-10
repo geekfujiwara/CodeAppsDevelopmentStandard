@@ -155,15 +155,15 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
    pac auth create --name {profile-name} --environment {ENVIRONMENT_ID}
    pac auth list  # * が付いているのがアクティブ
 
-3. power.config.json は npx power-apps init で生成する
+3. power.config.json は pac code init で生成する
    → テンプレートから手動コピーしない
    → 別環境の appId が残っていると: AppLeaseMissing (409) エラー
-   → 新規環境では必ず npx power-apps init で新規生成
+   → 新規環境では必ず pac code init で新規生成
 ```
 
-### `npx power-apps init` でスキャフォールドされるファイル（手動作成禁止）
+### `pac code init` でスキャフォールドされるファイル（手動作成禁止）
 
-`npx power-apps init` は以下のファイルを自動生成する。**これらを手動作成・他プロジェクトからコピーしてはならない。**
+`pac code init` / `npx power-apps init` は以下のファイルを自動生成する。**これらを手動作成・他プロジェクトからコピーしてはならない。**
 
 | ファイル | 役割 | カスタマイズ |
 |---|---|---|
@@ -178,6 +178,25 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
 | `components.json` | shadcn/ui 設定 | ⚠ 通常変更不要 |
 
 > **原則**: SDK がスキャフォールドしたインフラファイル（`plugin-power-apps.ts`、`power.config.json`）は変更しない。開発者がカスタマイズするのは `src/` 配下のアプリコードのみ。
+>
+> **`pac code init` vs `npx power-apps init`**: 両方とも `power.config.json` を生成するが、`pac code init` は PAC CLI 認証プロファイルを使用するためテナント不一致の問題が発生しない。`npx power-apps init` は npm パッケージ独自の MSAL 認証を使用し、マルチテナント環境で `Environment not found` エラーが出ることがある。**本開発標準では `pac code init` を標準とする。**
+
+### テンプレートのプレースホルダー設計
+
+テンプレートにはサンプルの営業管理ページ（顧客・商談・テリトリー等）が含まれるが、
+これらは **テーマ開発の参考実装** であり、そのままデプロイしてはならない。
+
+```
+テンプレート構成:
+  src/config.ts         → デフォルトはダッシュボード1画面のみ。テーマに合わせて変更する
+  src/router.tsx        → デフォルトはダッシュボード1ルートのみ。テーマのページを追加する
+  src/pages/dashboard.tsx → プレースホルダー。テーマ固有のダッシュボードに置き換える
+  .env.example          → テーマ固有の設定を .env にコピーして値を設定する
+
+デプロイ前チェック:
+  npm run predeploy     → .env 設定・power.config.json 存在を自動検証
+  npm run deploy        → predeploy + build + pac code push を一括実行
+```
 
 ### .power/ と src/generated/ は SDK コマンドで生成（手動作成禁止）
 
@@ -203,20 +222,21 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
 
 ```bash
 # ── Step 1: スキャフォールド ──
-npx power-apps init --display-name "アプリ名" --environment-id {ENVIRONMENT_ID} --non-interactive
+pac code init -env {ENVIRONMENT_ID} -n "AppName"
+# ↑ power.config.json がここで生成される（environmentId, buildPath 等が記録される）
+# PAC CLI 認証プロファイルを使用するためテナント不一致なし
 npm install
 
-# ── Step 2: テンプレートクリーンアップ ──
-# ※ サンプルページを削除するが use-theme.ts は保護すること（変更禁止）
-Remove-Item "src/pages/incidents.tsx","src/pages/incident-detail.tsx","src/pages/kanban.tsx","src/pages/assets.tsx" -Force -ErrorAction SilentlyContinue
-Remove-Item "src/types/incident.ts" -Force -ErrorAction SilentlyContinue
-# ❌ Remove-Item "src/hooks/*" は禁止（use-theme.ts が消える）
+# ── Step 2: 環境設定 ──
+# .env.example を .env にコピーし、テーマ固有の値を設定する
+# VITE_CODEAPPS_APP_NAME, VITE_CODEAPPS_APP_SUBTITLE 等
 
 # ── Step 3: 初回ビルド＆デプロイ ──
-npm run build
-pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
+# ⚠ power.config.json が存在しないと pac code push は失敗する（Step 1 の init が必須）
+npm run deploy
+# → predeploy チェック → build → pac code push を自動実行
 # この時点で Power Platform にアプリが登録され Dataverse 接続が確立
-# power.config.json が自動生成される
+# power.config.json に appId が追記される
 
 # ── Step 4: データソース追加 ──
 # テーブル論理名は .env の ${PUBLISHER_PREFIX} を変数展開して組み立てる。
@@ -230,7 +250,7 @@ npx power-apps add-data-source --api-id dataverse \
 
 # ── Step 5: 開発 → 再デプロイ ──
 # src/ 配下のアプリコードを実装
-npm run build && pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
+npm run deploy
 ```
 
 ```
@@ -239,18 +259,24 @@ npm run build && pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 
 ❌ テンプレートの src/hooks/ をワイルドカード削除
    → use-theme.ts が消えてビルドが壊れる
+
+❌ テンプレートをそのままデプロイ
+   → npm run predeploy が .env 未設定を検知して失敗する
 ```
 
-### デプロイコマンドの選択（pac code push を標準とする）
+### デプロイコマンドの選択（pac code を標準とする）
 
 | コマンド | 認証基盤 | テナント問題 | 推奨度 |
 |---|---|---|---|
+| `pac code init -env {ID} -n "Name"` | PAC CLI プロファイル | なし | ✅ 標準 |
 | `pac code push -env {ID} -s {SOL}` | PAC CLI プロファイル | なし | ✅ 標準 |
-| `npx power-apps push` | npm パッケージ独自キャッシュ | 403/404 頻発 | ⚠ 動くならOK |
+| `npm run deploy` | PAC CLI プロファイル | なし | ✅ 推奨（predeploy チェック付き） |
+| `npx power-apps init` | npm パッケージ独自 MSAL | Environment not found 頻発 | ⚠ 動くならOK |
+| `npx power-apps push` | npm パッケージ独自 MSAL | 403/404 頻発 | ⚠ 動くならOK |
 
 > **注**: Microsoft は `npx power-apps` を推奨ツールとしているが、テナント解決の不具合が
-> 2026-05 時点で未修正のため、本開発標準では `pac code push` を標準採用する。
-> `npx power-apps push` が正常動作する環境ではそちらを使っても良い。
+> 2026-06 時点で未修正のため、本開発標準では `pac code init` + `pac code push` を標準採用する。
+> `npx power-apps` が正常動作する環境ではそちらを使っても良い。
 
 ### データソース追加の判断フロー
 
@@ -1497,20 +1523,33 @@ try {
 
 ---
 
-## Code Apps 開発 Tips（検証済み 2026-05-21）
+## Code Apps 開発 Tips（検証済み 2026-06-07）
 
-### 初回デプロイ: `pac code push` を使う
+### 初回セットアップ: `pac code init` を使う
 
-`npx power-apps push` はテナント不一致で 403 になるケースがある（troubleshooting.md #10 参照）。
-**初回デプロイは `pac code push` を推奨**:
+`npx power-apps init` はテナント不一致で `Environment not found` になるケースがある。
+**`pac code init` を標準とする**:
 
 ```bash
-pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
+pac code init -env {ENVIRONMENT_ID} -n "AppName"
 ```
 
-- `power.config.json` が未存在でも `-env` + `-s` 指定で初回デプロイ可能
-- 初回デプロイ後に `power.config.json` が自動生成される（appId が記録される）
-- 2回目以降は引数省略可能
+- PAC CLI 認証プロファイルを使用するためテナント不一致が発生しない
+- `power.config.json` が生成される（environmentId, buildPath 等が記録される）
+- 初回デプロイ（`pac code push`）後に appId が追記される
+
+### 初回デプロイ: `npm run deploy` を使う
+
+```bash
+npm run deploy
+# → npm run predeploy（.env チェック・power.config.json 存在チェック）
+# → npm run build
+# → pac code push
+```
+
+- `predeploy` が .env 未設定やテンプレートデフォルトのままを検知して失敗させる
+- `power.config.json` が未存在の場合もエラーを出す（先に `pac code init` が必要）
+- 初回デプロイ後に `power.config.json` に appId が記録される
 
 ### Dataverse テーブル作成時のメタデータロック回避
 
