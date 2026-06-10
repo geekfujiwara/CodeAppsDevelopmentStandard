@@ -139,13 +139,14 @@ npx power-apps add-data-source --api-id dataverse \
 
 ### 1.4 `power.config.json` は SDK で生成
 
-`power.config.json` は **`npx power-apps init` コマンドで自動生成** する。手動でテンプレートを作成したり、他のプロジェクトからコピーしない。
+`power.config.json` は **`pac code init` コマンドで自動生成** する。手動でテンプレートを作成したり、他のプロジェクトからコピーしない。
 
 ```bash
-# ✅ SDK コマンドで生成（appId, environmentId, region が自動設定される）
-# ⚠ --display-name は必ず英語（ASCII）で指定する。日本語だと環境検証で失敗する。
-npx power-apps init --display-name "AppName" \
-  --environment-id {ENVIRONMENT_ID} --non-interactive
+# ✅ PAC CLI で生成（appId, environmentId, region が自動設定される）
+pac code init -env {ENVIRONMENT_ID} -n "AppName"
+
+# ✅ npx 版でもOK（ただしマルチテナントで Environment not found になることがある）
+# npx power-apps init --display-name "AppName" --environment-id {ENVIRONMENT_ID} --non-interactive
 
 # ❌ 手動で power.config.json を作成・編集する
 # ❌ 別プロジェクトの power.config.json をコピーする（appId が環境固有のため失敗する）
@@ -154,7 +155,7 @@ npx power-apps init --display-name "AppName" \
 
 | エラー                                          | 原因                                      | 対策                             |
 | ----------------------------------------------- | ----------------------------------------- | -------------------------------- |
-| `AppLeaseMissing` (409)                         | 別環境の `appId` がハードコードされている | `npx power-apps init` で新規生成 |
+| `AppLeaseMissing` (409)                         | 別環境の `appId` がハードコードされている | `pac code init` で新規生成 |
 | `CodeAppOperationNotAllowedInEnvironment` (403) | 環境で Code Apps が未許可                 | §1.5 参照                        |
 
 ### 1.5 環境の Code Apps 有効化（前提条件）
