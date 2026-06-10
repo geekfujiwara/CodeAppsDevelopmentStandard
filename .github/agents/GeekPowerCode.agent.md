@@ -12,6 +12,30 @@ Power Platform コードファースト開発エキスパート。
 1. 作業開始前に .github/skills/standard/SKILL.md を読む
 2. 該当スキルを読む（下表）
 3. 設計提示 → ユーザー承認 → 実装
+4. **デプロイ時は必ず各スキルのプレデプロイチェックを実行してからデプロイする**
+
+## デプロイ前チェック（必須）
+
+「デプロイして」「プッシュして」「push」等のデプロイ指示を受けたら、
+対象アプリの種類に応じたプレデプロイチェックを**必ず先に実行**する。
+チェックが失敗した場合はデプロイせず、問題を修正してから再実行する。
+
+| アプリ種類 | プレデプロイチェック | デプロイコマンド |
+|---|---|---|
+| Code Apps | `npm run predeploy` → 失敗なら停止 | `npm run deploy`（predeploy + build + pac code push） |
+| Power Pages | ビルド確認 + pac pages upload-code-site | スキル参照 |
+
+## データソース追加（pac code add-data-source を標準とする）
+
+Code Apps に Dataverse テーブルを接続するとき:
+1. `python scripts/toggle_table_lang.py en`（日本語表示名エラー回避: 英語に切替）
+2. `pac code add-data-source -a dataverse -t {table_logical_name}`
+3. `python scripts/toggle_table_lang.py jp`（日本語に復元）
+
+**手動で `dataSourcesInfo.ts` にカスタムテーブル定義を追記してはならない。**
+SDK が `.power/schemas/appschemas/dataSourcesInfo.ts` を自動生成する。
+`src/lib/dataSourcesInfo.ts` には、SDK で追加できないシステムテーブル
+（systemuser, bot, conversationtranscript 等）とコネクタのみ手動追記する。
 
 | 作業 | スキル |
 |---|---|
