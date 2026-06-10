@@ -143,11 +143,13 @@ npx power-apps add-data-source --api-id dataverse \
 
 ```bash
 # ✅ SDK コマンドで生成（appId, environmentId, region が自動設定される）
-npx power-apps init --display-name "アプリ名" \
+# ⚠ --display-name は必ず英語（ASCII）で指定する。日本語だと環境検証で失敗する。
+npx power-apps init --display-name "AppName" \
   --environment-id {ENVIRONMENT_ID} --non-interactive
 
 # ❌ 手動で power.config.json を作成・編集する
 # ❌ 別プロジェクトの power.config.json をコピーする（appId が環境固有のため失敗する）
+# ❌ power.config.json なしで pac code push を実行する（"power.config.json is required" エラー）
 ```
 
 | エラー                                          | 原因                                      | 対策                             |

@@ -483,21 +483,27 @@ const myRecords = allRecords.filter(
 
 ### 対処
 
-**初回デプロイは `pac code push` を使用する**:
+**初回デプロイは `npx power-apps init` → `pac code push` の順で実行する**:
 
 ```bash
-# ✅ PAC CLI 認証プロファイルを使用（テナント問題なし）
+# ✅ Step 1: power.config.json を生成（--display-name は英語で指定すること）
+npx power-apps init --display-name "AppName" --environment-id {ENVIRONMENT_ID} --non-interactive
+
+# ✅ Step 2: PAC CLI 認証プロファイルを使用してデプロイ（テナント問題なし）
+npm run build
 pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 
-# power.config.json が未生成でも -env + -s で初回デプロイ可能
-# 初回デプロイ後に power.config.json が自動生成される
+# ⚠ power.config.json が未生成だと pac code push は失敗する
+#   エラー: "power.config.json is required to push an app"
 ```
 
 ### 備考
 
+- `npx power-apps init` で `power.config.json` を先に生成すること（`environmentId`, `buildPath` 等が記録される）
+- `--display-name` に日本語を含めると環境検証で失敗する。必ず英語名（ASCII）を指定する
 - `pac code push` は `npm run build` の成果物（`dist/`）を Power Platform にアップロードする
 - `-env` でターゲット環境、`-s` でソリューションを指定
-- 2回目以降は `power.config.json` に appId が記録されるため `-env` `-s` は省略可能
+- 初回デプロイ後に `power.config.json` に `appId` が追記され、2回目以降は `-env` `-s` は省略可能
 
 ---
 

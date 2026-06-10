@@ -203,7 +203,9 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
 
 ```bash
 # ── Step 1: スキャフォールド ──
-npx power-apps init --display-name "アプリ名" --environment-id {ENVIRONMENT_ID} --non-interactive
+# ⚠ --display-name は必ず英語（ASCII）で指定する。日本語を含めると環境検証で失敗する。
+npx power-apps init --display-name "AppName" --environment-id {ENVIRONMENT_ID} --non-interactive
+# ↑ power.config.json がここで生成される（environmentId, buildPath 等が記録される）
 npm install
 
 # ── Step 2: テンプレートクリーンアップ ──
@@ -213,10 +215,11 @@ Remove-Item "src/types/incident.ts" -Force -ErrorAction SilentlyContinue
 # ❌ Remove-Item "src/hooks/*" は禁止（use-theme.ts が消える）
 
 # ── Step 3: 初回ビルド＆デプロイ ──
+# ⚠ power.config.json が存在しないと pac code push は失敗する（Step 1 の init が必須）
 npm run build
 pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 # この時点で Power Platform にアプリが登録され Dataverse 接続が確立
-# power.config.json が自動生成される
+# power.config.json に appId が追記される
 
 # ── Step 4: データソース追加 ──
 # テーブル論理名は .env の ${PUBLISHER_PREFIX} を変数展開して組み立てる。
@@ -1499,17 +1502,24 @@ try {
 
 ## Code Apps 開発 Tips（検証済み 2026-05-21）
 
-### 初回デプロイ: `pac code push` を使う
+### 初回デプロイ: `npx power-apps init` → `pac code push`
 
 `npx power-apps push` はテナント不一致で 403 になるケースがある（troubleshooting.md #10 参照）。
 **初回デプロイは `pac code push` を推奨**:
 
 ```bash
+# ⚠ Step 1: power.config.json の生成が必須（--display-name は英語で指定）
+npx power-apps init --display-name "AppName" --environment-id {ENVIRONMENT_ID} --non-interactive
+
+# Step 2: ビルド＆デプロイ
+npm run build
 pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 ```
 
-- `power.config.json` が未存在でも `-env` + `-s` 指定で初回デプロイ可能
-- 初回デプロイ後に `power.config.json` が自動生成される（appId が記録される）
+- `power.config.json` が未存在だと `pac code push` は `power.config.json is required to push an app` エラーで失敗する
+- `npx power-apps init` で `power.config.json` を先に生成すること（`environmentId`, `buildPath` 等が記録される）
+- `--display-name` に日本語を含めると環境検証（`getEnvironmentByName`）で失敗するため、必ず英語名を指定する
+- 初回デプロイ後に `power.config.json` に `appId` が追記される
 - 2回目以降は引数省略可能
 
 ### Dataverse テーブル作成時のメタデータロック回避
