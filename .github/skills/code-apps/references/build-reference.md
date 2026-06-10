@@ -5,8 +5,9 @@
 ### Step 1: プロジェクト初期化
 
 ```bash
-npx power-apps init --display-name "アプリ名" \
-  --environment-id {ENVIRONMENT_ID} --non-interactive
+# PAC CLI 認証プロファイルを使用（テナント不一致なし）
+pac code init -env {ENVIRONMENT_ID} -n "AppName"
+# ↑ power.config.json がここで生成される
 npm install
 ```
 

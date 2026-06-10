@@ -155,15 +155,15 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
    pac auth create --name {profile-name} --environment {ENVIRONMENT_ID}
    pac auth list  # * が付いているのがアクティブ
 
-3. power.config.json は npx power-apps init で生成する
+3. power.config.json は pac code init で生成する
    → テンプレートから手動コピーしない
    → 別環境の appId が残っていると: AppLeaseMissing (409) エラー
-   → 新規環境では必ず npx power-apps init で新規生成
+   → 新規環境では必ず pac code init で新規生成
 ```
 
-### `npx power-apps init` でスキャフォールドされるファイル（手動作成禁止）
+### `pac code init` でスキャフォールドされるファイル（手動作成禁止）
 
-`npx power-apps init` は以下のファイルを自動生成する。**これらを手動作成・他プロジェクトからコピーしてはならない。**
+`pac code init` / `npx power-apps init` は以下のファイルを自動生成する。**これらを手動作成・他プロジェクトからコピーしてはならない。**
 
 | ファイル | 役割 | カスタマイズ |
 |---|---|---|
@@ -178,6 +178,8 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
 | `components.json` | shadcn/ui 設定 | ⚠ 通常変更不要 |
 
 > **原則**: SDK がスキャフォールドしたインフラファイル（`plugin-power-apps.ts`、`power.config.json`）は変更しない。開発者がカスタマイズするのは `src/` 配下のアプリコードのみ。
+>
+> **`pac code init` vs `npx power-apps init`**: 両方とも `power.config.json` を生成するが、`pac code init` は PAC CLI 認証プロファイルを使用するためテナント不一致の問題が発生しない。`npx power-apps init` は npm パッケージ独自の MSAL 認証を使用し、マルチテナント環境で `Environment not found` エラーが出ることがある。**本開発標準では `pac code init` を標準とする。**
 
 ### .power/ と src/generated/ は SDK コマンドで生成（手動作成禁止）
 
@@ -203,7 +205,9 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
 
 ```bash
 # ── Step 1: スキャフォールド ──
-npx power-apps init --display-name "アプリ名" --environment-id {ENVIRONMENT_ID} --non-interactive
+pac code init -env {ENVIRONMENT_ID} -n "AppName"
+# ↑ power.config.json がここで生成される（environmentId, buildPath 等が記録される）
+# PAC CLI 認証プロファイルを使用するためテナント不一致なし
 npm install
 
 # ── Step 2: テンプレートクリーンアップ ──
@@ -213,10 +217,11 @@ Remove-Item "src/types/incident.ts" -Force -ErrorAction SilentlyContinue
 # ❌ Remove-Item "src/hooks/*" は禁止（use-theme.ts が消える）
 
 # ── Step 3: 初回ビルド＆デプロイ ──
+# ⚠ power.config.json が存在しないと pac code push は失敗する（Step 1 の init が必須）
 npm run build
 pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 # この時点で Power Platform にアプリが登録され Dataverse 接続が確立
-# power.config.json が自動生成される
+# power.config.json に appId が追記される
 
 # ── Step 4: データソース追加 ──
 # テーブル論理名は .env の ${PUBLISHER_PREFIX} を変数展開して組み立てる。
@@ -245,12 +250,14 @@ npm run build && pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 
 | コマンド | 認証基盤 | テナント問題 | 推奨度 |
 |---|---|---|---|
+| `pac code init -env {ID} -n "Name"` | PAC CLI プロファイル | なし | ✅ 標準 |
 | `pac code push -env {ID} -s {SOL}` | PAC CLI プロファイル | なし | ✅ 標準 |
-| `npx power-apps push` | npm パッケージ独自キャッシュ | 403/404 頻発 | ⚠ 動くならOK |
+| `npx power-apps init` | npm パッケージ独自 MSAL | Environment not found 頻発 | ⚠ 動くならOK |
+| `npx power-apps push` | npm パッケージ独自 MSAL | 403/404 頻発 | ⚠ 動くならOK |
 
 > **注**: Microsoft は `npx power-apps` を推奨ツールとしているが、テナント解決の不具合が
-> 2026-05 時点で未修正のため、本開発標準では `pac code push` を標準採用する。
-> `npx power-apps push` が正常動作する環境ではそちらを使っても良い。
+> 2026-06 時点で未修正のため、本開発標準では `pac code init` + `pac code push` を標準採用する。
+> `npx power-apps` が正常動作する環境ではそちらを使っても良い。
 
 ### データソース追加の判断フロー
 
@@ -1499,17 +1506,25 @@ try {
 
 ## Code Apps 開発 Tips（検証済み 2026-05-21）
 
-### 初回デプロイ: `pac code push` を使う
+### 初回デプロイ: `pac code init` → `pac code push`
 
-`npx power-apps push` はテナント不一致で 403 になるケースがある（troubleshooting.md #10 参照）。
-**初回デプロイは `pac code push` を推奨**:
+`npx power-apps init` / `npx power-apps push` はテナント不一致で失敗するケースがある（troubleshooting.md #10 参照）。
+**初回は `pac code init` + `pac code push` を使用する**:
 
 ```bash
+# Step 1: power.config.json の生成（PAC CLI 認証プロファイルを使用）
+pac code init -env {ENVIRONMENT_ID} -n "AppName"
+
+# Step 2: ビルド＆デプロイ
+npm run build
 pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 ```
 
-- `power.config.json` が未存在でも `-env` + `-s` 指定で初回デプロイ可能
-- 初回デプロイ後に `power.config.json` が自動生成される（appId が記録される）
+- `power.config.json` が未存在だと `pac code push` は `power.config.json is required to push an app` エラーで失敗する
+- `pac code init` で `power.config.json` を先に生成すること（`environmentId`, `buildPath` 等が記録される）
+- `pac code init` は PAC CLI 認証プロファイルを使用するためテナント不一致の問題が発生しない
+- `npx power-apps init` は npm パッケージ独自の MSAL 認証を使用し `Environment not found` が出ることがある
+- 初回デプロイ後に `power.config.json` に `appId` が追記される
 - 2回目以降は引数省略可能
 
 ### Dataverse テーブル作成時のメタデータロック回避
