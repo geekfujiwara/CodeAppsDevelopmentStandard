@@ -51,10 +51,10 @@ function parseJsonEnv<T>(key: string, fallback: T): T {
 }
 
 export const CODEAPPS_APP_NAME =
-  import.meta.env.VITE_CODEAPPS_APP_NAME?.trim() || "Geek Sales"
+  import.meta.env.VITE_CODEAPPS_APP_NAME?.trim() || "Code Apps"
 
 export const CODEAPPS_APP_SUBTITLE =
-  import.meta.env.VITE_CODEAPPS_APP_SUBTITLE?.trim() || "営業支援"
+  import.meta.env.VITE_CODEAPPS_APP_SUBTITLE?.trim() || ""
 
 export const CODEAPPS_DOCUMENT_TITLE =
   import.meta.env.VITE_CODEAPPS_DOCUMENT_TITLE?.trim() || CODEAPPS_APP_NAME
