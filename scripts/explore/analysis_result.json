@@ -1,0 +1,498 @@
+{
+  "total_transcripts": 45,
+  "outcomes_total": {
+    "Resolved": 42,
+    "None": 2,
+    "Abandoned": 1
+  },
+  "channels": {
+    "pva-autonomous": 1355,
+    "pva-studio": 81
+  },
+  "event_names": {
+    "DynamicServerInitialize": 71,
+    "DynamicServerInitializeConfirmation": 71,
+    "DynamicServerToolsList": 71,
+    "DynamicPlanReceived": 132,
+    "DynamicPlanReceivedDebug": 132,
+    "DynamicPlanStepTriggered": 178,
+    "DynamicPlanStepBindUpdate": 211,
+    "DynamicPlanStepFinished": 177,
+    "DynamicPlanFinished": 47,
+    "ResponseGeneratorSupportData": 6,
+    "UniversalSearchToolTraceData": 17,
+    "startConversation": 4,
+    "DialogTracing": 4
+  },
+  "tool_servers": {
+    "EmailsManagement": 33,
+    "Microsoft Dataverse MCP Server": 38
+  },
+  "per_bot": {
+    "geek_recxexpenseagent": {
+      "count": 33,
+      "outcomes": {
+        "Resolved": 33
+      },
+      "user_msgs": 33,
+      "bot_msgs": 33,
+      "tool_events": 944,
+      "avg_duration_sec": 35.6,
+      "sample_user_texts": [
+        "未承認の経費申請のリストのapproverごとに承認依頼の内容のメールを送信する。\n承認者の名前、申請者の名前、経費申請の内容、経費申請のリンクを含めたメールにする。",
+        "未承認の経費申請のリストのapproverごとに承認依頼の内容のメールを送信する。\n承認者の名前、申請者の名前、経費申請の内容、経費申請のリンクを含めたメールにする。",
+        "未承認の経費申請のリストのapproverごとに承認依頼の内容のメールを送信する。\n承認者の名前、申請者の名前、経費申請の内容、経費申請のリンクを含めたメールにする。",
+        "未承認の経費申請のリストのapproverごとに承認依頼の内容のメールを送信する。\n承認者の名前、申請者の名前、経費申請の内容、経費申請のリンクを含めたメールにする。",
+        "未承認の経費申請のリストのapproverごとに承認依頼の内容のメールを送信する。\n承認者の名前、申請者の名前、経費申請の内容、経費申請のリンクを含めたメールにする。"
+      ]
+    },
+    "geek_invoiceCreateAgent": {
+      "count": 5,
+      "outcomes": {
+        "None": 1,
+        "Resolved": 4
+      },
+      "user_msgs": 5,
+      "bot_msgs": 5,
+      "tool_events": 58,
+      "avg_duration_sec": 13.8,
+      "sample_user_texts": [
+        "Use content from {\"value\":[{\"id\":\"AAMkADhiMmJhYWYxLWVkYTgtNDU1NC04NzZhLTEzNTZlNDQ4NjNmNABGAAAAAACoUjN6tW1QTZssYRXVb4VXBw",
+        "Use content from {\"value\":[{\"id\":\"AAMkADhiMmJhYWYxLWVkYTgtNDU1NC04NzZhLTEzNTZlNDQ4NjNmNABGAAAAAACoUjN6tW1QTZssYRXVb4VXBw",
+        "Use content from {\"value\":[{\"id\":\"AAMkADhiMmJhYWYxLWVkYTgtNDU1NC04NzZhLTEzNTZlNDQ4NjNmNABGAAAAAACoUjN6tW1QTZssYRXVb4VXBw",
+        "Use content from {\"value\":[{\"id\":\"AAMkADhiMmJhYWYxLWVkYTgtNDU1NC04NzZhLTEzNTZlNDQ4NjNmNABGAAAAAACoUjN6tW1QTZssYRXVb4VXBw",
+        "Use content from {\"value\":[{\"id\":\"AAMkADhiMmJhYWYxLWVkYTgtNDU1NC04NzZhLTEzNTZlNDQ4NjNmNABGAAAAAACoUjN6tW1QTZssYRXVb4VXBw"
+      ]
+    },
+    "geek_teai": {
+      "count": 2,
+      "outcomes": {
+        "Resolved": 2
+      },
+      "user_msgs": 5,
+      "bot_msgs": 7,
+      "tool_events": 29,
+      "avg_duration_sec": 201.9,
+      "sample_user_texts": [
+        "データバースの中にあるメンターテーブルの説明をしてください",
+        "キャリアについて相談したいです"
+      ]
+    },
+    "geek_Nbf5mZtaucLsieoBXMgNG": {
+      "count": 1,
+      "outcomes": {
+        "None": 1
+      },
+      "user_msgs": 1,
+      "bot_msgs": 1,
+      "tool_events": 4,
+      "avg_duration_sec": 29.5,
+      "sample_user_texts": [
+        "## イベントの詳細\n件名: 社内定例\nイベントの内容: \n開始時間: 2026-05-25T10:00:00.0000000"
+      ]
+    },
+    "geek_dataverseTableCreator": {
+      "count": 2,
+      "outcomes": {
+        "Resolved": 1,
+        "Abandoned": 1
+      },
+      "user_msgs": 6,
+      "bot_msgs": 8,
+      "tool_events": 26,
+      "avg_duration_sec": 130.8,
+      "sample_user_texts": [
+        "Create fruits table",
+        "create a new fruits table"
+      ]
+    },
+    "geek_OvGmr0PZOo_AQEtCZ-D9m": {
+      "count": 1,
+      "outcomes": {
+        "Resolved": 1
+      },
+      "user_msgs": 1,
+      "bot_msgs": 0,
+      "tool_events": 25,
+      "avg_duration_sec": 32.4,
+      "sample_user_texts": [
+        "金融x生成AIに関するニュースを取得して、メールを送信する。"
+      ]
+    },
+    "geek_Ww7fTc2nwh-w_92Ubep9R": {
+      "count": 1,
+      "outcomes": {
+        "Resolved": 1
+      },
+      "user_msgs": 1,
+      "bot_msgs": 1,
+      "tool_events": 35,
+      "avg_duration_sec": 32.4,
+      "sample_user_texts": [
+        "金融x生成AIに関するニュースを取得して、メールを送信する。"
+      ]
+    }
+  },
+  "conversations": [
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-06-04T02:43:15Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 29,
+      "duration_sec": 27.5
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-31T02:43:14Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 29,
+      "duration_sec": 27.0
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-25T02:43:12Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 29,
+      "duration_sec": 34.5
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-23T02:43:12Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 41,
+      "duration_sec": 38.5
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-13T02:43:10Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 38,
+      "duration_sec": 33.8
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-06-01T02:43:11Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 47,
+      "duration_sec": 37.0
+    },
+    {
+      "bot": "geek_invoiceCreateAgent",
+      "start": "2026-05-11T10:04:50Z",
+      "outcome": "None",
+      "user_msgs": 1,
+      "activities": 8,
+      "duration_sec": 11.0
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-06-05T02:43:12Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 38,
+      "duration_sec": 35.0
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-06-08T02:43:12Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 38,
+      "duration_sec": 35.3
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-15T02:43:07Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 41,
+      "duration_sec": 33.4
+    },
+    {
+      "bot": "geek_invoiceCreateAgent",
+      "start": "2026-06-08T10:06:28Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 15,
+      "duration_sec": 13.4
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-18T02:43:09Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 38,
+      "duration_sec": 41.8
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-19T02:43:09Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 41,
+      "duration_sec": 36.2
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-24T02:43:10Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 29,
+      "duration_sec": 34.6
+    },
+    {
+      "bot": "geek_invoiceCreateAgent",
+      "start": "2026-05-18T10:09:36Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 29,
+      "duration_sec": 15.2
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-06-03T02:43:13Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 29,
+      "duration_sec": 30.3
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-26T02:43:11Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 50,
+      "duration_sec": 45.9
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-06-09T02:43:12Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 35,
+      "duration_sec": 32.4
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-14T02:43:08Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 47,
+      "duration_sec": 39.9
+    },
+    {
+      "bot": "geek_invoiceCreateAgent",
+      "start": "2026-06-01T10:04:20Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 29,
+      "duration_sec": 16.6
+    },
+    {
+      "bot": "geek_teai",
+      "start": "2026-05-13T09:44:25Z",
+      "outcome": "Resolved",
+      "user_msgs": 2,
+      "activities": 26,
+      "duration_sec": 320.8
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-30T02:43:11Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 50,
+      "duration_sec": 40.1
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-06-07T02:43:14Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 29,
+      "duration_sec": 25.2
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-06-02T02:43:14Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 41,
+      "duration_sec": 36.8
+    },
+    {
+      "bot": "geek_Nbf5mZtaucLsieoBXMgNG",
+      "start": "2026-05-22T02:49:09Z",
+      "outcome": "None",
+      "user_msgs": 1,
+      "activities": 10,
+      "duration_sec": 29.5
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-27T02:43:09Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 41,
+      "duration_sec": 38.9
+    },
+    {
+      "bot": "geek_dataverseTableCreator",
+      "start": "2026-06-08T12:54:16Z",
+      "outcome": "Resolved",
+      "user_msgs": 2,
+      "activities": 32,
+      "duration_sec": 227.1
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-06-10T02:43:14Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 35,
+      "duration_sec": 32.6
+    },
+    {
+      "bot": "geek_dataverseTableCreator",
+      "start": "2026-06-08T12:58:14Z",
+      "outcome": "Abandoned",
+      "user_msgs": 1,
+      "activities": 14,
+      "duration_sec": 34.5
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-06-06T02:43:12Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 29,
+      "duration_sec": 24.3
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-29T02:43:11Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 38,
+      "duration_sec": 58.9
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-11T02:43:08Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 41,
+      "duration_sec": 40.0
+    },
+    {
+      "bot": "geek_OvGmr0PZOo_AQEtCZ-D9m",
+      "start": "2026-05-16T13:55:39Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 33,
+      "duration_sec": 32.4
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-12T02:43:08Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 29,
+      "duration_sec": 26.2
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-28T02:43:10Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 29,
+      "duration_sec": 27.7
+    },
+    {
+      "bot": "geek_Ww7fTc2nwh-w_92Ubep9R",
+      "start": "2026-05-16T13:54:26Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 45,
+      "duration_sec": 32.4
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-09T02:43:07Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 29,
+      "duration_sec": 38.2
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-21T02:43:08Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 41,
+      "duration_sec": 25.2
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-16T02:43:08Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 50,
+      "duration_sec": 50.4
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-17T02:43:08Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 29,
+      "duration_sec": 33.8
+    },
+    {
+      "bot": "geek_invoiceCreateAgent",
+      "start": "2026-05-25T10:06:24Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 15,
+      "duration_sec": 12.7
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-20T02:43:08Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 53,
+      "duration_sec": 32.4
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-10T02:43:07Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 50,
+      "duration_sec": 46.3
+    },
+    {
+      "bot": "geek_recxexpenseagent",
+      "start": "2026-05-22T02:43:08Z",
+      "outcome": "Resolved",
+      "user_msgs": 1,
+      "activities": 41,
+      "duration_sec": 34.9
+    },
+    {
+      "bot": "geek_teai",
+      "start": "2026-05-13T09:50:35Z",
+      "outcome": "Resolved",
+      "user_msgs": 2,
+      "activities": 19,
+      "duration_sec": 83.0
+    }
+  ]
+}

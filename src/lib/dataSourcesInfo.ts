@@ -15,6 +15,20 @@ export const dataSourcesInfo = {
     dataSourceType: "Dataverse",
     apis: {},
   },
+  bots: {
+    tableId: "bot",
+    version: "",
+    primaryKey: "botid",
+    dataSourceType: "Dataverse",
+    apis: {},
+  },
+  conversationtranscripts: {
+    tableId: "conversationtranscript",
+    version: "",
+    primaryKey: "conversationtranscriptid",
+    dataSourceType: "Dataverse",
+    apis: {},
+  },
   geek_incidents: {
     tableId: "geek_incident",
     version: "",
@@ -73,6 +87,22 @@ export const dataSourcesInfo = {
         ],
         responseInfo: {
           events_json: { type: "string" },
+        },
+      },
+    },
+  },
+  RefreshSummaries: {
+    tableId: "",
+    version: "",
+    dataSourceType: "Connector",
+    apis: {
+      Run: {
+        path: "/triggers/manual/run",
+        method: "POST",
+        parameters: [],
+        responseInfo: {
+          status: { type: "string" },
+          message: { type: "string" },
         },
       },
     },
