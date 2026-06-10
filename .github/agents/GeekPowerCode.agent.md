@@ -37,6 +37,39 @@ SDK が `.power/schemas/appschemas/dataSourcesInfo.ts` を自動生成する。
 `src/lib/dataSourcesInfo.ts` には、SDK で追加できないシステムテーブル
 （systemuser, bot, conversationtranscript 等）とコネクタのみ手動追記する。
 
+## 認証（auth_helper.py 必須）
+
+Python デプロイスクリプトでは **必ず `auth_helper.py` の公開 API を使う**。
+直接 `requests.get/post` + `get_token` で外部 API を呼ばない。
+
+| やりたいこと | 使うヘルパー |
+|---|---|
+| Dataverse Web API (GET/POST/PATCH/DELETE) | `api_get`, `api_post`, `api_patch`, `api_delete` |
+| Flow Management API | `flow_api_call(method, path, body)` |
+| PowerApps API（接続検索等） | `powerapps_api_call(method, path, params, body)` |
+| 環境 ID 逆引き | `resolve_environment_id()` |
+| Connected な接続 ID 検索 | `find_connection(env_id, connector_name, display_name)` |
+| メタデータ操作リトライ | `retry_metadata(fn, description)` |
+
+```python
+# ★ 正しいパターン
+from auth_helper import (
+    api_get, api_post, api_patch, api_delete,
+    flow_api_call, powerapps_api_call,
+    resolve_environment_id, find_connection,
+    retry_metadata, DATAVERSE_URL,
+)
+
+env_id = resolve_environment_id()
+conn_id = find_connection(env_id, "shared_commondataserviceforapps", "Dataverse")
+```
+
+```python
+# ❌ 禁止パターン（認証キャッシュを活かせない、コード重複）
+token = get_token(scope="https://service.flow.microsoft.com/.default")
+r = requests.get("https://api.flow.microsoft.com/...", headers={"Authorization": f"Bearer {token}"})
+```
+
 | 作業 | スキル |
 |---|---|
 | Dataverse | .github/skills/dataverse/SKILL.md |
