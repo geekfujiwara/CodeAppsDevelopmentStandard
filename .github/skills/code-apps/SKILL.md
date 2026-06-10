@@ -190,6 +190,18 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
 テンプレートにはサンプルの営業管理ページ（顧客・商談・テリトリー等）が含まれるが、
 これらは **テーマ開発の参考実装** であり、そのままデプロイしてはならない。
 
+テンプレートのデモメニューには `template: true` フラグが付いている。
+このフラグが残ったまま `npm run predeploy` を実行するとエラーになるため、削除忘れを防げる。
+
+```typescript
+// テンプレートの config.ts（初期状態）— template: true 付き
+{ label: "顧客", path: "customers", iconKey: "customers", template: true },
+// ↑ template: true が付いた行はデプロイ前に削除 or テーマ用に書き換え
+
+// テーマ固有のメニュー（template フラグなし）
+{ label: "AI CoE ダッシュボード", path: "copilot-dashboard", iconKey: "copilot" },
+```
+
 ```
 テンプレート構成:
   src/config.ts         → デフォルトはダッシュボード1画面のみ。テーマに合わせて変更する

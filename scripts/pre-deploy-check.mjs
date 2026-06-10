@@ -52,6 +52,45 @@ if (fs.existsSync(configTs)) {
   }
 }
 
+// 4. ナビ ↔ ルーター整合性チェック（テンプレート残骸防止）
+const routerPath = path.join(root, "src", "router.tsx");
+if (fs.existsSync(configTs) && fs.existsSync(routerPath)) {
+  const configContent = fs.readFileSync(configTs, "utf-8");
+  const routerContent = fs.readFileSync(routerPath, "utf-8");
+
+  // 4a. template: true が残っていないか
+  const templateMatches = configContent.match(/template:\s*true/g);
+  if (templateMatches) {
+    errors.push(
+      `config.ts に template: true のデモメニューが ${templateMatches.length} 件残っています。\n` +
+      `     → テーマに無関係なナビは削除するか、template フラグを外してください。`
+    );
+  }
+
+  // 4b. config.ts からナビパスを抽出: path: "xxx"
+  const navPaths = [...configContent.matchAll(/path:\s*["']([^"']+)["']/g)].map(m => m[1]);
+
+  // router.tsx からルートパスを抽出: path: "xxx"（コメント行を除外）
+  const routerLines = routerContent.split("\n").filter(l => !l.trim().startsWith("//"));
+  const routePaths = [...routerLines.join("\n").matchAll(/path:\s*["']([^"']+)["']/g)].map(m => m[1]);
+
+  // ナビにあるがルーターに無いパス → 孤立メニュー
+  const orphanedNav = navPaths.filter(p => !routePaths.includes(p));
+  if (orphanedNav.length > 0) {
+    errors.push(
+      `ナビゲーション (config.ts) にルートが存在しないパスがあります: ${orphanedNav.join(", ")}\n` +
+      `     → router.tsx にルートを追加するか、config.ts からナビを削除してください。`
+    );
+  }
+
+  // ルーターにあるがナビに無いパス → 隠しページ（warning のみ）
+  const hiddenRoutes = routePaths.filter(p => !navPaths.includes(p) && p !== "*" && p !== "/");
+  if (hiddenRoutes.length > 0) {
+    console.warn(`⚠ ルーター (router.tsx) にナビから到達できないページがあります: ${hiddenRoutes.join(", ")}`);
+    console.warn(`  → 意図的な隠しページでなければ config.ts にナビを追加してください。`);
+  }
+}
+
 // 結果出力
 if (errors.length > 0) {
   console.error("\n❌ デプロイ前チェック失敗:\n");

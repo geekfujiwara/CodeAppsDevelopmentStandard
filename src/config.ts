@@ -2,6 +2,8 @@ export type CodeAppsNavItemConfig = {
   label: string
   path: string
   iconKey?: string
+  /** テンプレートのデモ用メニュー。true のままデプロイすると pre-deploy チェックが失敗する */
+  template?: boolean
 }
 
 export type CodeAppsNavSectionConfig = {
@@ -13,25 +15,25 @@ const defaultNavSections: CodeAppsNavSectionConfig[] = [
   {
     category: "概況",
     items: [
-      { label: "ダッシュボード", path: "dashboard", iconKey: "dashboard" },
-      { label: "テリトリー", path: "territory", iconKey: "territory" },
+      { label: "ダッシュボード", path: "dashboard", iconKey: "dashboard", template: true },
+      { label: "テリトリー", path: "territory", iconKey: "territory", template: true },
     ],
   },
   {
     category: "顧客・商談",
     items: [
-      { label: "顧客", path: "customers", iconKey: "customers" },
-      { label: "商談", path: "opportunities", iconKey: "opportunities" },
-      { label: "パイプライン", path: "pipeline", iconKey: "pipeline" },
+      { label: "顧客", path: "customers", iconKey: "customers", template: true },
+      { label: "商談", path: "opportunities", iconKey: "opportunities", template: true },
+      { label: "パイプライン", path: "pipeline", iconKey: "pipeline", template: true },
     ],
   },
   {
     category: "活動",
-    items: [{ label: "活動履歴", path: "activities", iconKey: "activities" }],
+    items: [{ label: "活動履歴", path: "activities", iconKey: "activities", template: true }],
   },
   {
     category: "インシデント",
-    items: [{ label: "インシデント", path: "incidents", iconKey: "incidents" }],
+    items: [{ label: "インシデント", path: "incidents", iconKey: "incidents", template: true }],
   },
 ]
 

@@ -202,10 +202,15 @@ Select-String -Path "src/pages/_layout.tsx" -Pattern 'ml-64|ml-16'
   │     → Sidebar が fixed + 固定幅（w-64）であることを確認
   │     → メインコンテンツに md:ml-64 のオフセットがあることを確認
   │
-  ├─ ⑦ npm run build
+  ├─ ⑦ ナビ ↔ ルーター整合性チェック（自動: npm run predeploy）
+  │     → config.ts に template: true が残っていないか → エラー
+  │     → config.ts のナビにルーターが無いパスが無いか → エラー
+  │     → ルーターにナビが無いパスが無いか → 警告
+  │
+  ├─ ⑧ npm run build
   │     → TypeScript エラーがあれば修正
   │
-  └─ ⑧ npx power-apps push / pac code push
+  └─ ⑨ npx power-apps push / pac code push
         → デプロイ完了
 ```
 
