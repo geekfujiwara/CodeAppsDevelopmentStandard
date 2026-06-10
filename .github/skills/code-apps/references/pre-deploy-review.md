@@ -29,20 +29,18 @@ Select-String -Path "src/generated/appschemas/dataSourcesInfo.ts" \
 
 **未登録テーブルが見つかった場合の対処:**
 
-```typescript
-// src/generated/appschemas/dataSourcesInfo.ts に手動追記
-"opportunities": {
-  "tableId": "",
-  "version": "",
-  "primaryKey": "opportunityid",
-  "dataSourceType": "Dataverse",
-  "apis": {}
-},
+```bash
+# pac code add-data-source で追加する（手動追記禁止）
+# 日本語表示名エラーが出る場合は toggle_table_lang.py を使う
+python scripts/toggle_table_lang.py en
+pac code add-data-source -a dataverse -t {table_logical_name}
+python scripts/toggle_table_lang.py jp
 ```
 
-> 本来は `npx power-apps add-data-source` でテーブルを追加すべきだが、
-> 登録済みテーブル経由で OData FormattedValue でアクセスする場合や、
-> SDK 追加後も「Data source not found」となるテーブルは手動追記で対応する。
+> **手動で `dataSourcesInfo.ts` にカスタムテーブル定義を追記してはならない。**
+> SDK が `.power/schemas/appschemas/dataSourcesInfo.ts` を自動生成する。
+> `src/lib/dataSourcesInfo.ts` には、SDK で追加できないシステムテーブル
+> （`systemuser`, `bot`, `conversationtranscript` 等）とコネクタのみ手動追記する。
 
 ### 2. 統合 dataSourcesInfo インポートチェック【必須】
 
