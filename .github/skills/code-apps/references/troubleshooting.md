@@ -483,21 +483,27 @@ const myRecords = allRecords.filter(
 
 ### 対処
 
-**初回デプロイは `pac code push` を使用する**:
+**初回デプロイは `pac code init` → `pac code push` の順で実行する**:
 
 ```bash
-# ✅ PAC CLI 認証プロファイルを使用（テナント問題なし）
+# ✅ Step 1: power.config.json を生成（PAC CLI 認証プロファイルを使用）
+pac code init -env {ENVIRONMENT_ID} -n "AppName"
+
+# ✅ Step 2: ビルド＆デプロイ（テナント問題なし）
+npm run build
 pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 
-# power.config.json が未生成でも -env + -s で初回デプロイ可能
-# 初回デプロイ後に power.config.json が自動生成される
+# ⚠ power.config.json が未生成だと pac code push は失敗する
+#   エラー: "power.config.json is required to push an app"
 ```
 
 ### 備考
 
+- `pac code init` は PAC CLI 認証プロファイルを使用するためテナント不一致の問題が発生しない
+- `npx power-apps init` は npm パッケージ独自の MSAL 認証を使用し `Environment not found` が出ることがある
 - `pac code push` は `npm run build` の成果物（`dist/`）を Power Platform にアップロードする
 - `-env` でターゲット環境、`-s` でソリューションを指定
-- 2回目以降は `power.config.json` に appId が記録されるため `-env` `-s` は省略可能
+- 初回デプロイ後に `power.config.json` に `appId` が追記され、2回目以降は `-env` `-s` は省略可能
 
 ---
 

@@ -234,7 +234,9 @@ npm install
 # ── Step 3: 初回ビルド＆デプロイ ──
 # ⚠ power.config.json が存在しないと pac code push は失敗する（Step 1 の init が必須）
 npm run deploy
-# → predeploy チェック → build → pac code push を自動実行
+# → npm run predeploy（.env チェック・power.config.json 存在チェック）
+# → npm run build
+# → pac code push
 # この時点で Power Platform にアプリが登録され Dataverse 接続が確立
 # power.config.json に appId が追記される
 
@@ -1542,7 +1544,7 @@ pac code init -env {ENVIRONMENT_ID} -n "AppName"
 
 ```bash
 npm run deploy
-# → npm run predeploy（.env チェック・power.config.json 存在チェック）
+# → npm run predeploy（.env 未設定・power.config.json 未存在を検知）
 # → npm run build
 # → pac code push
 ```
