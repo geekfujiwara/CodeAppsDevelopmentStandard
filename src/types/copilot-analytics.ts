@@ -28,6 +28,32 @@ export interface BotInfo {
   modifiedon: string;
 }
 
+export interface BotComponent {
+  botcomponentid: string;
+  name: string;
+  componenttype: number; // 9=Topic, 10=Topic localization, 15=GPT
+  schemaname: string;
+  category: string | null;
+  description: string | null;
+  statecode: number;
+  _parentbotid_value: string;
+  _parentbotcomponentid_value: string | null;
+  createdon: string;
+  modifiedon: string;
+}
+
+export const COMPONENT_TYPE_LABELS: Record<number, string> = {
+  0: "Skill",
+  1: "Dialog",
+  2: "Trigger",
+  3: "Language understanding",
+  4: "Language generation",
+  5: "Dialog schema",
+  9: "トピック",
+  10: "トピック多言語",
+  15: "GPT プロンプト",
+};
+
 export const OUTCOME_LABELS: Record<number, string> = {
   100000000: "解決",
   100000001: "放棄",

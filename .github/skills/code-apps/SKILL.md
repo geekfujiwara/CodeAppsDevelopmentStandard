@@ -210,8 +210,44 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
   .env.example          → テーマ固有の設定を .env にコピーして値を設定する
 
 デプロイ前チェック:
-  npm run predeploy     → .env 設定・power.config.json 存在を自動検証
+  npm run predeploy     → .env 設定・power.config.json 存在・ナビ↔ルーター整合を自動検証
   npm run deploy        → predeploy + build + pac code push を一括実行
+```
+
+### ページ追加・削除時の必須手順（ナビ ↔ ルーター整合）
+
+ページを追加・削除するときは、以下の **3ファイルを必ず同時に更新** する。
+1つでも漏れるとプレデプロイチェックが失敗する。
+
+| ファイル | 操作 |
+|---|---|
+| `src/pages/{name}.tsx` | ページコンポーネントを作成/削除 |
+| `src/router.tsx` | ルートを追加/削除（lazy import + path） |
+| `src/config.ts` | ナビゲーションセクションにパスを追加/削除 |
+
+**テンプレートのデモページ（顧客・商談・テリトリー等）は、テーマに無関係なら3ファイル全てから削除する。**
+
+テンプレートのデモメニューには `template: true` フラグが付いている。
+このフラグが残ったまま `npm run predeploy` を実行するとエラーになるため、削除忘れを防げる。
+
+```typescript
+// テンプレートの config.ts（初期状態）
+{ label: "顧客", path: "customers", iconKey: "customers", template: true },
+{ label: "商談", path: "opportunities", iconKey: "opportunities", template: true },
+// ↑ template: true が付いた行はデプロイ前に削除 or テーマ用に書き換え
+
+// テーマ固有のメニュー（template フラグなし）
+{ label: "AI CoE ダッシュボード", path: "copilot-dashboard", iconKey: "copilot" },
+```
+
+```
+★ よくあるミス:
+  ❌ ページを追加したが config.ts のナビに入れ忘れ → 画面に到達できない
+  ❌ テンプレートのナビが残ったまま新ページを追加 → 無関係なメニューが表示される
+  ❌ ページを削除したが router.tsx にルートが残る → ビルドエラー or 空白画面
+
+  ✅ template: true のメニューを全削除 → テーマのメニューを追加
+  ✅ 3ファイル同時更新 → npm run predeploy で整合チェック → デプロイ
 ```
 
 ### .power/ と src/generated/ は SDK コマンドで生成（手動作成禁止）

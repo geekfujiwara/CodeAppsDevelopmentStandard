@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getConversationSummaries, getBots, getTranscriptContent, triggerSummaryRefresh } from "@/services/copilot-analytics-service";
+import { getConversationSummaries, getBots, getBotComponents, getTranscriptContent, triggerSummaryRefresh } from "@/services/copilot-analytics-service";
 
 export function useConversationSummaries() {
   return useQuery({
@@ -12,6 +12,13 @@ export function useBots() {
   return useQuery({
     queryKey: ["bots"],
     queryFn: getBots,
+  });
+}
+
+export function useBotComponents() {
+  return useQuery({
+    queryKey: ["botComponents"],
+    queryFn: getBotComponents,
   });
 }
 

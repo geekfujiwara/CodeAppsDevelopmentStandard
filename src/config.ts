@@ -13,27 +13,11 @@ export type CodeAppsNavSectionConfig = {
 
 const defaultNavSections: CodeAppsNavSectionConfig[] = [
   {
-    category: "概況",
+    category: "Copilot Studio",
     items: [
-      { label: "ダッシュボード", path: "dashboard", iconKey: "dashboard", template: true },
-      { label: "テリトリー", path: "territory", iconKey: "territory", template: true },
+      { label: "AI CoE ダッシュボード", path: "copilot-dashboard", iconKey: "copilot" },
+      { label: "エージェント管理", path: "agent-management", iconKey: "agents" },
     ],
-  },
-  {
-    category: "顧客・商談",
-    items: [
-      { label: "顧客", path: "customers", iconKey: "customers", template: true },
-      { label: "商談", path: "opportunities", iconKey: "opportunities", template: true },
-      { label: "パイプライン", path: "pipeline", iconKey: "pipeline", template: true },
-    ],
-  },
-  {
-    category: "活動",
-    items: [{ label: "活動履歴", path: "activities", iconKey: "activities", template: true }],
-  },
-  {
-    category: "インシデント",
-    items: [{ label: "インシデント", path: "incidents", iconKey: "incidents", template: true }],
   },
 ]
 
@@ -68,3 +52,4 @@ export const CODEAPPS_NAV_SECTIONS = parseJsonEnv(
   "VITE_CODEAPPS_NAV_SECTIONS_JSON",
   defaultNavSections,
 )
+

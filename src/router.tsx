@@ -3,9 +3,8 @@ import { lazy, Suspense } from "react";
 import Layout from "@/pages/_layout";
 
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
-
-// テンプレート標準ページ（テーマ開発時に置き換える）
-const DashboardPage = lazy(() => import("@/pages/dashboard"));
+const CopilotDashboardPage = lazy(() => import("@/pages/copilot-dashboard"));
+const AgentManagementPage = lazy(() => import("@/pages/agent-management"));
 
 // ローディングコンポーネント
 const PageLoader = () => (
@@ -40,8 +39,9 @@ export const router = createBrowserRouter(
       element: <Layout showHeader={true} />,
       errorElement: withSuspense(NotFoundPage),
       children: [
-        { index: true, element: <Navigate to="/dashboard" replace /> },
-        { path: "dashboard", element: withSuspense(DashboardPage) },
+        { index: true, element: <Navigate to="/copilot-dashboard" replace /> },
+        { path: "copilot-dashboard", element: withSuspense(CopilotDashboardPage) },
+        { path: "agent-management", element: withSuspense(AgentManagementPage) },
         // テーマ固有のルートをここに追加する
         // 例:
         // { path: "customers", element: withSuspense(CustomersPage) },

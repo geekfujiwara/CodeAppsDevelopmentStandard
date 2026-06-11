@@ -9,6 +9,8 @@ import {
   ClipboardList,
   Target,
   AlertTriangle,
+  BrainCircuit,
+  Bot,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -48,6 +50,8 @@ export function Sidebar() {
     pipeline: Columns3,
     activities: ClipboardList,
     incidents: AlertTriangle,
+    copilot: BrainCircuit,
+    agents: Bot,
   };
 
   const navItems: { category: string; items: NavItem[] }[] =

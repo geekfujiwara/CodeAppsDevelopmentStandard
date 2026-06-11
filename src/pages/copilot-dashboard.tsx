@@ -431,26 +431,9 @@ export default function CopilotDashboard() {
     });
   };
 
-  if (isLoading || !summaries) return <LoadingSkeletonCard count={4} />;
-
-  const totalConvos = summaries.length;
-  const resolved = summaries.filter((s) => s.geek_outcome === 100000000).length;
-  const abandoned = summaries.filter((s) => s.geek_outcome === 100000001).length;
-  const escalated = summaries.filter((s) => s.geek_outcome === 100000002).length;
-  const resolveRate = totalConvos > 0 ? ((resolved / totalConvos) * 100).toFixed(0) : "0";
-  const abandonRate = totalConvos > 0 ? ((abandoned / totalConvos) * 100).toFixed(0) : "0";
-  const escalateRate = totalConvos > 0 ? ((escalated / totalConvos) * 100).toFixed(0) : "0";
-  const avgDur = totalConvos > 0 ? (summaries.reduce((a, s) => a + (s.geek_durationsec ?? 0), 0) / totalConvos).toFixed(1) : "0";
-  const avgTurns = totalConvos > 0 ? (summaries.reduce((a, s) => a + (s.geek_usermsgcount ?? 0), 0) / totalConvos).toFixed(1) : "0";
-  const toolConvos = summaries.filter((s) => (s.geek_tooleventcount ?? 0) > 0).length;
-  const toolRate = totalConvos > 0 ? ((toolConvos / totalConvos) * 100).toFixed(0) : "0";
-  const fcrCount = summaries.filter((s) => s.geek_outcome === 100000000 && s.geek_usermsgcount <= 2).length;
-  const fcrRate = resolved > 0 ? ((fcrCount / resolved) * 100).toFixed(0) : "0";
-  const totalBots = bots?.length ?? 0;
-  const activeBots = new Set(summaries.map((s) => s.geek_botid)).size;
-
-  // 週次比較
+  // 週次比較（フック規則: 早期 return の前に配置）
   const weekAgo = useMemo(() => {
+    if (!summaries || summaries.length === 0) return { convoDelta: 0, rateDelta: 0 };
     const now = new Date();
     const thisWeekStart = new Date(now);
     thisWeekStart.setDate(now.getDate() - 7);
@@ -475,6 +458,24 @@ export default function CopilotDashboard() {
       rateDelta: twRate - lwRate,
     };
   }, [summaries]);
+
+  if (isLoading || !summaries) return <LoadingSkeletonCard count={4} />;
+
+  const totalConvos = summaries.length;
+  const resolved = summaries.filter((s) => s.geek_outcome === 100000000).length;
+  const abandoned = summaries.filter((s) => s.geek_outcome === 100000001).length;
+  const escalated = summaries.filter((s) => s.geek_outcome === 100000002).length;
+  const resolveRate = totalConvos > 0 ? ((resolved / totalConvos) * 100).toFixed(0) : "0";
+  const abandonRate = totalConvos > 0 ? ((abandoned / totalConvos) * 100).toFixed(0) : "0";
+  const escalateRate = totalConvos > 0 ? ((escalated / totalConvos) * 100).toFixed(0) : "0";
+  const avgDur = totalConvos > 0 ? (summaries.reduce((a, s) => a + (s.geek_durationsec ?? 0), 0) / totalConvos).toFixed(1) : "0";
+  const avgTurns = totalConvos > 0 ? (summaries.reduce((a, s) => a + (s.geek_usermsgcount ?? 0), 0) / totalConvos).toFixed(1) : "0";
+  const toolConvos = summaries.filter((s) => (s.geek_tooleventcount ?? 0) > 0).length;
+  const toolRate = totalConvos > 0 ? ((toolConvos / totalConvos) * 100).toFixed(0) : "0";
+  const fcrCount = summaries.filter((s) => s.geek_outcome === 100000000 && s.geek_usermsgcount <= 2).length;
+  const fcrRate = resolved > 0 ? ((fcrCount / resolved) * 100).toFixed(0) : "0";
+  const totalBots = bots?.length ?? 0;
+  const activeBots = new Set(summaries.map((s) => s.geek_botid)).size;
 
   const outcomeCounts: Record<number, number> = {};
   for (const s of summaries) {

@@ -1,6 +1,6 @@
 import { getClient } from "@microsoft/power-apps/data";
 import { dataSourcesInfo } from "@/lib/dataSourcesInfo";
-import type { ConversationSummary, BotInfo } from "@/types/copilot-analytics";
+import type { ConversationSummary, BotInfo, BotComponent } from "@/types/copilot-analytics";
 
 function client() {
   return getClient(dataSourcesInfo);
@@ -40,6 +40,31 @@ export async function getBots(): Promise<BotInfo[]> {
     {
       select: ["botid", "name", "schemaname", "statecode", "publishedon", "createdon", "modifiedon"],
       orderBy: ["modifiedon desc"],
+    },
+  );
+  if (!result.success) throw result.error;
+  return result.data ?? [];
+}
+
+export async function getBotComponents(): Promise<BotComponent[]> {
+  const result = await client().retrieveMultipleRecordsAsync<BotComponent>(
+    "botcomponents",
+    {
+      select: [
+        "botcomponentid",
+        "name",
+        "componenttype",
+        "schemaname",
+        "category",
+        "description",
+        "statecode",
+        "_parentbotid_value",
+        "_parentbotcomponentid_value",
+        "createdon",
+        "modifiedon",
+      ],
+      filter: "_parentbotcomponentid_value eq null",
+      orderBy: ["componenttype asc", "name asc"],
     },
   );
   if (!result.success) throw result.error;

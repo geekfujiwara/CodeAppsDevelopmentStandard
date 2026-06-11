@@ -15,20 +15,6 @@ export const dataSourcesInfo = {
     dataSourceType: "Dataverse",
     apis: {},
   },
-  bots: {
-    tableId: "bot",
-    version: "",
-    primaryKey: "botid",
-    dataSourceType: "Dataverse",
-    apis: {},
-  },
-  conversationtranscripts: {
-    tableId: "conversationtranscript",
-    version: "",
-    primaryKey: "conversationtranscriptid",
-    dataSourceType: "Dataverse",
-    apis: {},
-  },
   geek_incidents: {
     tableId: "geek_incident",
     version: "",
