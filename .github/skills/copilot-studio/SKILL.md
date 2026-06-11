@@ -72,6 +72,7 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 | [ニュース配信エージェント](references/market-research-report.md) | RSS + Web検索 + Work IQ MCP によるニュース収集・配信エージェント構築 |
 | [ニュース配信デプロイガイド](references/market-research-deployment-guide.md) | ニュース配信エージェントのデプロイ手順 |
 | [ニュース配信メールテンプレート](references/market-research-email-template.md) | ニュース配信メールの HTML テンプレート |
+| [トランスクリプト分析](references/transcript-analytics.md) | 会話トランスクリプトの分析パターン（ボット識別・ユーザー識別） |
 
 ## 外部公開 Web サイト開発フロー（必須）
 
