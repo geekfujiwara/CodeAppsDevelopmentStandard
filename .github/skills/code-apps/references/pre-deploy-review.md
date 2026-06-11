@@ -149,6 +149,55 @@ import { createHashRouter, Navigate } from "react-router-dom";
 export const router = createHashRouter([...]);
 ```
 
+#### 5-1. createHashRouter に basename を渡してはならない
+
+> **実際に発生した障害（2026-06-11）:**
+> `createBrowserRouter` → `createHashRouter` に変更した際、`basename` オプションをそのまま残したところ、
+> 全ルートがマッチしなくなり白紙画面になった。
+
+`createHashRouter` はルーティングを `#` 以降で行うため、`basename`（パス名ベース）は不要。
+`basename` を渡すとハッシュ部分に余計なパスプレフィックスが追加され、ルートが一切マッチしなくなる。
+
+```typescript
+// ❌ basename を渡す → 白紙画面（全ルート不一致）
+export const router = createHashRouter([...], {
+  basename: BASENAME,
+});
+
+// ✅ basename なし
+export const router = createHashRouter([...]);
+```
+
+**チェック方法:**
+
+```bash
+# createHashRouter に basename が渡されていないか確認
+Select-String -Path "src/router.tsx" -Pattern 'basename'
+```
+
+### 5b. scrollIntoView 使用チェック
+
+Radix UI `ScrollArea` 内で `scrollIntoView()` を使ってはならない。
+`scrollIntoView` は ScrollArea の内部コンテナだけでなくページ全体の祖先要素もスクロールさせるため、
+画面が意図せずジャンプする。
+
+> **実際に発生した障害（2026-06-11）:**
+> 会話チャットパネルで `bottomRef.current?.scrollIntoView({ behavior: "smooth" })` を使ったところ、
+> 会話を選択するたびにページ全体が上下に飛び回った。
+
+**チェック方法:**
+
+```bash
+# ScrollArea を使っているファイルで scrollIntoView の使用を検出
+Get-ChildItem -Path "src" -Recurse -Include "*.ts","*.tsx" -File |
+  Select-String -Pattern 'scrollIntoView' |
+  ForEach-Object { $_.Path + ":" + $_.LineNumber + " → " + $_.Line.Trim() }
+```
+
+**代替案:**
+- `key` prop でコンポーネントを再マウントする（ScrollArea がリセットされ先頭から表示）
+- ScrollArea の Viewport ref を取得して `viewport.scrollTop = viewport.scrollHeight` で制御する
+
 ### 5a. React フック規則チェック
 
 React のフック規則違反（条件付きフック呼び出し）は本番でのみクラッシュすることがある（React error #310）。
@@ -219,6 +268,11 @@ Select-String -Path "src/pages/_layout.tsx" -Pattern 'ml-64|ml-16'
   │
   ├─ ⑤ ルーター種別チェック（createHashRouter 必須）
   │     → createBrowserRouter を使っていたら createHashRouter に修正
+  │     → createHashRouter に basename が渡されていないことを確認
+  │
+  ├─ ⑤a scrollIntoView 使用チェック
+  │     → ScrollArea 内で scrollIntoView を使っていないことを確認
+  │     → 使用箇所があれば削除（ページ全体がジャンプする原因）
   │
   ├─ ⑥ サイドバー fixed レイアウトチェック
   │     → Sidebar が fixed + 固定幅（w-64）であることを確認

@@ -1,11 +1,13 @@
-﻿import { createBrowserRouter, Navigate } from "react-router-dom";
+﻿import { createHashRouter, Navigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import Layout from "@/pages/_layout";
 
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
 
-// テンプレート標準ページ（テーマ開発時に置き換える）
-const DashboardPage = lazy(() => import("@/pages/dashboard"));
+// テーマ固有ページ
+const CopilotDashboardPage = lazy(() => import("@/pages/copilot-dashboard"));
+const ConversationsPage = lazy(() => import("@/pages/conversations"));
+const AgentManagementPage = lazy(() => import("@/pages/agent-management"));
 
 // ローディングコンポーネント
 const PageLoader = () => (
@@ -27,29 +29,24 @@ const withSuspense = (
 );
 
 // IMPORTANT: Do not remove or modify the code below!
-// Normalize basename when hosted in Power Apps
-const BASENAME = new URL(".", location.href).pathname;
+// Normalize URL when hosted in Power Apps (remove trailing index.html)
 if (location.pathname.endsWith("/index.html")) {
-  history.replaceState(null, "", BASENAME + location.search + location.hash);
+  const base = new URL(".", location.href).pathname;
+  history.replaceState(null, "", base + location.search + location.hash);
 }
 
-export const router = createBrowserRouter(
+export const router = createHashRouter(
   [
     {
       path: "/",
       element: <Layout showHeader={true} />,
       errorElement: withSuspense(NotFoundPage),
       children: [
-        { index: true, element: <Navigate to="/dashboard" replace /> },
-        { path: "dashboard", element: withSuspense(DashboardPage) },
-        // テーマ固有のルートをここに追加する
-        // 例:
-        // { path: "customers", element: withSuspense(CustomersPage) },
-        // { path: "customers/:id", element: withSuspense(CustomerDetailPage) },
+        { index: true, element: <Navigate to="/copilot-dashboard" replace /> },
+        { path: "copilot-dashboard", element: withSuspense(CopilotDashboardPage) },
+        { path: "conversations", element: withSuspense(ConversationsPage) },
+        { path: "agent-management", element: withSuspense(AgentManagementPage) },
       ],
     },
   ],
-  {
-    basename: BASENAME, // IMPORTANT: Set basename for proper routing when hosted in Power Apps
-  },
 );
