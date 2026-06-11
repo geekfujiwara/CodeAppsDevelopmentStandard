@@ -96,3 +96,86 @@ export function useCurrentUserId() {
 - **systemuserid が取れない場合は空配列**: null で全データ表示しない（セキュリティリスク）
 - **`objectId` は Entra AAD Object ID**: Dataverse の `systemuserid` とは異なる
 - **`executeAsync` も CSP でブロック**: `retrieveMultipleRecordsAsync` だけが CSP 安全
+
+---
+
+## 複数ユーザーの一括照合パターン
+
+会話一覧やダッシュボードなど、複数ユーザーの情報を一度に表示する場合のパターン。
+
+### ユースケース
+
+- Copilot Studio 会話トランスクリプトの一覧で「誰が会話したか」を表示
+- アクティビティ一覧で担当者名を表示
+
+### サービス関数
+
+```typescript
+// src/services/user-service.ts（または既存のサービスファイルに追加）
+export interface UserInfo {
+  systemuserid: string;
+  fullname: string;
+  internalemailaddress: string;
+  jobtitle: string | null;
+  azureactivedirectoryobjectid: string;
+}
+
+export async function getSystemUsersByAadIds(
+  aadIds: string[],
+): Promise<Record<string, UserInfo>> {
+  if (aadIds.length === 0) return {};
+  const filterParts = aadIds.map(
+    (id) => `azureactivedirectoryobjectid eq '${id}'`,
+  );
+  const result = await client().retrieveMultipleRecordsAsync<UserInfo>(
+    "systemusers",
+    {
+      select: [
+        "systemuserid", "fullname",
+        "internalemailaddress", "jobtitle",
+        "azureactivedirectoryobjectid",
+      ],
+      filter: filterParts.join(" or "),
+    },
+  );
+  if (!result.success) throw result.error;
+  const map: Record<string, UserInfo> = {};
+  for (const u of result.data ?? []) {
+    map[u.azureactivedirectoryobjectid] = u;
+  }
+  return map;
+}
+```
+
+### TanStack Query フック
+
+```typescript
+export function useUserMap(aadIds: string[]) {
+  const key = [...new Set(aadIds.filter(Boolean))].sort().join(",");
+  return useQuery({
+    queryKey: ["userMap", key],
+    queryFn: () => getSystemUsersByAadIds([...new Set(aadIds.filter(Boolean))]),
+    enabled: aadIds.filter(Boolean).length > 0,
+  });
+}
+```
+
+### 利用側（ページコンポーネント）
+
+```typescript
+// 一覧データから AAD ID を収集 → useUserMap でバッチ取得
+const aadIds = useMemo(
+  () => (records ?? []).map((r) => r.userAadId).filter(Boolean),
+  [records],
+);
+const { data: userMap = {} } = useUserMap(aadIds);
+
+// 表示時に O(1) で名前解決
+const userName = userMap[record.userAadId]?.fullname;
+```
+
+### 注意事項
+
+- **型定義は `types/` ディレクトリに置く**: サービスとフックの両方が参照するため、循環依存を避ける
+- **AAD ID が空文字やnullの場合を `filter(Boolean)` で除外**: 空文字で OData フィルタを組むとエラー
+- **重複排除 `new Set()` でクエリを最適化**: 同じユーザーが複数レコードに現れても 1 回だけ取得

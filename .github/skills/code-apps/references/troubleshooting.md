@@ -941,3 +941,94 @@ Warning: componentWillReceiveProps has been renamed, and is not recommended for 
 
 ブラウザ DevTools のコンソールフィルタでソースを確認する。
 Power Apps プラットフォーム由来の警告はアプリの動作に影響しないため修正不要。
+
+---
+
+## 18. cmdk (Combobox) の `onSelect` が値を小文字化する
+
+### 症状
+
+shadcn/ui の `Combobox`（内部で cmdk ライブラリを使用）で、選択した値が小文字に変換される。
+大文字小文字が混在する ID やスキーマ名でフィルタが一致しなくなる。
+
+### 原因
+
+cmdk ライブラリの `CommandItem` の `onSelect` コールバックは、
+内部で `value.toLowerCase()` を適用した値を引数として渡す。
+
+```tsx
+// ❌ callback arg は小文字化されている
+<CommandItem
+  value="MyAgent_Schema"
+  onSelect={(val) => {
+    // val === "myagent_schema" ← 小文字化されている！
+    onValueChange(val);
+  }}
+/>
+```
+
+### 解決策
+
+コールバック引数を使わず、`options` 配列から元の `value` を参照する。
+
+```tsx
+// ✅ option.value をそのまま使う
+<CommandItem
+  value={option.value}
+  onSelect={() => {
+    onValueChange(option.value);  // ← 元の大文字小文字を保持
+  }}
+/>
+```
+
+### 影響範囲
+
+- `src/components/ui/combobox.tsx` の `onSelect` ハンドラ
+- Combobox を使用しているすべてのページ（エージェント選択、テリトリー選択等）
+- Dataverse のスキーマ名は大文字小文字混在（例: `geek_MyAgent`）のため、この問題を踏みやすい
+
+---
+
+## 19. 連続文字列（HTML / URL）が `break-words` で折り返せない
+
+### 症状
+
+ユーザーが HTML コードや長い URL を入力した場合、チャットバブルやテーブルセルから
+テキストがはみ出す。`whitespace-pre-wrap` + `break-words` を指定しても効果がない。
+
+### 原因
+
+`overflow-wrap: break-word`（Tailwind の `break-words`）は、
+**単語の区切り（スペース）がある前提** で折り返しを行う。
+`<div class="very-long-unbroken-html-string-without-spaces">` のように
+スペースが一切ないテキストでは折り返されない。
+
+### 解決策
+
+`break-all` + `overflow-hidden` + `min-w-0` の 3 点セットを使う。
+
+```tsx
+// ❌ スペースのない長文が折り返されない
+<div className="whitespace-pre-wrap break-words">
+  {longUnbrokenText}
+</div>
+
+// ✅ 任意の位置で折り返し + はみ出し防止
+<div className="whitespace-pre-wrap break-all overflow-hidden min-w-0">
+  {longUnbrokenText}
+</div>
+```
+
+### 各クラスの役割
+
+| クラス | 役割 |
+|---|---|
+| `break-all` | 単語の途中でも折り返す（`word-break: break-all`） |
+| `overflow-hidden` | はみ出したコンテンツを非表示にする（安全弁） |
+| `min-w-0` | flex 子要素のデフォルト `min-width: auto` をリセット。これがないと flex コンテナがコンテンツ幅まで広がる |
+
+### 適用場面
+
+- チャットメッセージバブル（ユーザー入力に HTML/URL が含まれうる場合）
+- インラインテーブルのテキストセル
+- ツール呼び出し結果の表示パネル
