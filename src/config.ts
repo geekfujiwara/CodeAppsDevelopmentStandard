@@ -13,27 +13,17 @@ export type CodeAppsNavSectionConfig = {
 
 const defaultNavSections: CodeAppsNavSectionConfig[] = [
   {
-    category: "概況",
+    category: "分析",
     items: [
-      { label: "ダッシュボード", path: "dashboard", iconKey: "dashboard", template: true },
-      { label: "テリトリー", path: "territory", iconKey: "territory", template: true },
+      { label: "ダッシュボード", path: "copilot-dashboard", iconKey: "dashboard" },
+      { label: "会話", path: "conversations", iconKey: "conversations" },
     ],
   },
   {
-    category: "顧客・商談",
+    category: "管理",
     items: [
-      { label: "顧客", path: "customers", iconKey: "customers", template: true },
-      { label: "商談", path: "opportunities", iconKey: "opportunities", template: true },
-      { label: "パイプライン", path: "pipeline", iconKey: "pipeline", template: true },
+      { label: "エージェント", path: "agent-management", iconKey: "agents" },
     ],
-  },
-  {
-    category: "活動",
-    items: [{ label: "活動履歴", path: "activities", iconKey: "activities", template: true }],
-  },
-  {
-    category: "インシデント",
-    items: [{ label: "インシデント", path: "incidents", iconKey: "incidents", template: true }],
   },
 ]
 

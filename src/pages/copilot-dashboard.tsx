@@ -416,6 +416,34 @@ export default function CopilotDashboard() {
   const [selected, setSelected] = useState<ConversationSummary | null>(null);
   const refresh = useRefreshSummaries();
 
+  // 週次比較（フック規則: 早期returnの前に配置）
+  const weekAgo = useMemo(() => {
+    if (!summaries) return { convoDelta: 0, rateDelta: 0 };
+    const now = new Date();
+    const thisWeekStart = new Date(now);
+    thisWeekStart.setDate(now.getDate() - 7);
+    const lastWeekStart = new Date(thisWeekStart);
+    lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+
+    const thisWeek = summaries.filter((s) => new Date(s.geek_starttime) >= thisWeekStart);
+    const lastWeek = summaries.filter((s) => {
+      const d = new Date(s.geek_starttime);
+      return d >= lastWeekStart && d < thisWeekStart;
+    });
+
+    const twCount = thisWeek.length;
+    const lwCount = lastWeek.length;
+    const twResolved = thisWeek.filter((s) => s.geek_outcome === 100000000).length;
+    const lwResolved = lastWeek.filter((s) => s.geek_outcome === 100000000).length;
+    const twRate = twCount > 0 ? (twResolved / twCount) * 100 : 0;
+    const lwRate = lwCount > 0 ? (lwResolved / lwCount) * 100 : 0;
+
+    return {
+      convoDelta: twCount - lwCount,
+      rateDelta: twRate - lwRate,
+    };
+  }, [summaries]);
+
   const handleSync = () => {
     refresh.mutate(undefined, {
       onSuccess: (res) => {
@@ -448,33 +476,6 @@ export default function CopilotDashboard() {
   const fcrRate = resolved > 0 ? ((fcrCount / resolved) * 100).toFixed(0) : "0";
   const totalBots = bots?.length ?? 0;
   const activeBots = new Set(summaries.map((s) => s.geek_botid)).size;
-
-  // 週次比較
-  const weekAgo = useMemo(() => {
-    const now = new Date();
-    const thisWeekStart = new Date(now);
-    thisWeekStart.setDate(now.getDate() - 7);
-    const lastWeekStart = new Date(thisWeekStart);
-    lastWeekStart.setDate(thisWeekStart.getDate() - 7);
-
-    const thisWeek = summaries.filter((s) => new Date(s.geek_starttime) >= thisWeekStart);
-    const lastWeek = summaries.filter((s) => {
-      const d = new Date(s.geek_starttime);
-      return d >= lastWeekStart && d < thisWeekStart;
-    });
-
-    const twCount = thisWeek.length;
-    const lwCount = lastWeek.length;
-    const twResolved = thisWeek.filter((s) => s.geek_outcome === 100000000).length;
-    const lwResolved = lastWeek.filter((s) => s.geek_outcome === 100000000).length;
-    const twRate = twCount > 0 ? (twResolved / twCount) * 100 : 0;
-    const lwRate = lwCount > 0 ? (lwResolved / lwCount) * 100 : 0;
-
-    return {
-      convoDelta: twCount - lwCount,
-      rateDelta: twRate - lwRate,
-    };
-  }, [summaries]);
 
   const outcomeCounts: Record<number, number> = {};
   for (const s of summaries) {
