@@ -141,6 +141,28 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 > テキスト省略が必要な場合すべて。縦スクロールのみが必要な場面では `ScrollArea` を使わず
 > 素の `div` を使う。
 
+### ScrollArea を flex レイアウトで使う場合は `h-0` を併用する
+
+`ScrollArea` に `flex-1` だけを指定してもスクロールが効かない。
+`flex-1` のデフォルト `min-height: auto` により、ScrollArea がコンテンツ全体の高さまで膨張してしまうため。
+`h-0` を併用して min-height を 0 にリセットすることで、flex-grow で伸縮しつつ高さが確定する。
+
+```tsx
+// ❌ flex-1 だけ → スクロールが効かず見切れる
+<div className="flex flex-col h-full">
+  <div className="shrink-0">ヘッダー</div>
+  <ScrollArea className="flex-1 px-4">...</ScrollArea>
+</div>
+
+// ✅ flex-1 + h-0 → スクロールが正しく動作
+<div className="flex flex-col h-full">
+  <div className="shrink-0">ヘッダー</div>
+  <ScrollArea className="flex-1 h-0 px-4">...</ScrollArea>
+</div>
+```
+
+> 親コンテナにも `overflow-hidden` を指定すること（ScrollArea が親を超えて膨張するのを防ぐ）。
+
 ### truncate チェーン（必須パターン）
 
 `truncate` を効かせるには、**ルート要素から対象テキストまで `min-w-0` チェーンが途切れないこと**が必要:
