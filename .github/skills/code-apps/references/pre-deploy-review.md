@@ -149,6 +149,28 @@ import { createHashRouter, Navigate } from "react-router-dom";
 export const router = createHashRouter([...]);
 ```
 
+### 5a. React フック規則チェック
+
+React のフック規則違反（条件付きフック呼び出し）は本番でのみクラッシュすることがある（React error #310）。
+**早期 return の前にすべてのフック（useState, useMemo, useQuery 等）を配置すること。**
+
+```typescript
+// ❌ 早期 return の後に useMemo → ロード完了時にフック数が変わりクラッシュ
+export default function Page() {
+  const { data, isLoading } = useQuery(...);
+  if (isLoading) return <Loading />;
+  const computed = useMemo(() => ..., [data]); // ← ここでクラッシュ
+}
+
+// ✅ すべてのフックを早期 return の前に配置
+export default function Page() {
+  const { data, isLoading } = useQuery(...);
+  const computed = useMemo(() => data ? ... : fallback, [data]);
+  if (isLoading) return <Loading />;
+  // computed を安全に使用
+}
+```
+
 ### 6. サイドバー fixed レイアウトチェック
 
 サイドバーが flex レイアウト内に固定幅なしで配置されていると、ページ遷移時に幅が崩れる。

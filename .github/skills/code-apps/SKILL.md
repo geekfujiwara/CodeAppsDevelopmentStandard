@@ -228,12 +228,18 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
 
 ❌ src/lib/dataSourcesInfo.ts にカスタムテーブル定義を手動追記
    → SDK 自動生成と重複し、将来の add-data-source 実行時に不整合が起きる
+   → 手動追記だけでは Power Apps プラットフォームがテーブルへのアクセスを許可しない
 
 ✅ pac code add-data-source -a dataverse -t {table} で各テーブルを追加
    → .power/schemas/appschemas/dataSourcesInfo.ts が自動更新される
    → その後 npm run build が成功する
    → 日本語表示名エラー時は toggle_table_lang.py で英語に切り替えてから実行
+   → システムテーブル（bot, botcomponent, conversationtranscript 等）も登録可能
 ```
+
+> **注意**: `systemuser` テーブルは `pac code add-data-source` で追加できない場合がある。
+> その場合のみ `src/lib/dataSourcesInfo.ts` に手動追記する。
+> それ以外のテーブルは必ず SDK コマンドで追加すること。
 
 ### 標準ワークフロー（この順序で進める）
 
