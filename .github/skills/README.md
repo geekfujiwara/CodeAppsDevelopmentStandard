@@ -37,7 +37,12 @@ skill-name/
     build-reference.md              # ビルドリファレンス
   scripts/
     add_app_to_solution.py
+  samples/
+    geek-sales/                     # リファレンス実装（テーマへの同期対象外）
 ```
+
+> `samples/` には過去テーマの完全実装をリファレンスとして置く。
+> テーマプロジェクトへの標準同期（sync-standards）では `samples/` は配布されない。
 
 ### YAML フロントマター規約
 
