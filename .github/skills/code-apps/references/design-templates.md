@@ -11,10 +11,26 @@
 1. ユーザーが Code Apps の構築を依頼
 2. エージェントがこのファイルを読み込み、テンプレート一覧を提示
 3. ユーザーが 1 つ選択
-4. 選択されたテンプレートの CSS Variables を styles/index.pcss の :root / .dark に適用
-5. --radius をテンプレート指定値に変更
-6. design-system.md の設計フェーズ（画面一覧・コンポーネント選定）と合わせてユーザー承認を得る
+4. apply_design_template.py で styles/index.pcss の :root / .dark に適用（--radius 含む）
+5. design-system.md の設計フェーズ（画面一覧・コンポーネント選定）と合わせてユーザー承認を得る
 ```
+
+### スクリプトで適用（推奨）
+
+手動コピーではなく [`scripts/apply_design_template.py`](../scripts/apply_design_template.py) を使う。
+このファイル（design-templates.md）をパースして適用するため、ドキュメントと適用結果が乖離しない:
+
+```bash
+# テンプレート一覧
+python .github/skills/code-apps/scripts/apply_design_template.py --list
+
+# テンプレート 3 を適用（--dry-run で事前確認可）
+python .github/skills/code-apps/scripts/apply_design_template.py 3 --project <プロジェクトルート>
+```
+
+- 対象は `styles/index.pcss`（なければ `src/index.css`）の `:root` / `.dark` ブロック内の変数値のみ
+- `--badge-*` と `@theme inline` ブロックは自動的に保護される
+- 冪等（再実行しても変更なしと報告される）
 
 ### 提案フォーマット（ユーザーに見せる形式）
 

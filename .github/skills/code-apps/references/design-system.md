@@ -72,7 +72,7 @@ Code Apps の画面を設計・実装する。
 1. `design-templates.md` を読み込む
 2. テンプレート一覧表をユーザーに提示
 3. ユーザーが番号で選択
-4. 選択テンプレートの CSS Variables を `styles/index.pcss` の `:root` / `.dark` に適用
+4. `scripts/apply_design_template.py <番号> --project <ルート>` で `styles/index.pcss` に適用
 5. デフォルト未指定の場合は **1. Ocean Blue**（CodeAppsStarter 初期テーマ）を使用
 
 > テンプレートはビルド時に確定する（ランタイム切替は行わない）。
