@@ -2,6 +2,10 @@
   "name": "codeapps-development-standard",
   "private": true,
   "version": "2.0.0",
-  "description": "Power Platform コードファースト開発標準（スキル・エージェント・リファレンス）。アプリの雛形は CodeAppsStarter、テーマへの取り込みは npm run sync-standards（CodeAppsStarter 同梱）を参照。",
-  "type": "module"
+  "description": "Power Platform コードファースト開発標準（スキル・エージェント・リファレンス）",
+  "type": "module",
+  "scripts": {
+    "check:env": "node scripts/bootstrap.mjs --check",
+    "setup": "node scripts/bootstrap.mjs --setup"
+  }
 }
