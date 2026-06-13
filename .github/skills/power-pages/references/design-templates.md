@@ -1,6 +1,6 @@
 # Power Pages デザインテンプレート集
 
-> **用途**: Power Pages Code Site の設計フェーズでユーザーにテンプレートを提案し、選択されたテンプレートの CSS 変数一式を `src/index.css` に適用する。
+> **用途**: Power Pages Code Site の設計フェーズでユーザーにテンプレートを提案し、選択されたテンプレートの CSS 変数一式を CSS ファイルに適用する。
 > **ランタイム切替ではない**: デプロイされるサイトは常に 1 テンプレート。設計時に選択する。
 
 ---
@@ -10,54 +10,71 @@
 ```
 1. ユーザーが Power Pages サイト構築を依頼
 2. エージェントがこのファイルを読み込み、テンプレート一覧を提示
-3. ユーザーが 1 つ選択
-4. 選択されたテンプレートの CSS Variables を portal/src/index.css の :root / .dark に適用
+3. ユーザーが視覚プレビューを確認して 1 つ選択
+4. 選択されたテンプレートの CSS Variables を :root / .dark に適用
 5. index.html のフォント <link> をテンプレート指定のものに差し替え
 6. card-hover シャドウをテンプレートの primary カラーに合わせて調整
 ```
 
 ### 提案フォーマット（ユーザーに見せる形式）
 
-テンプレート一覧を以下の形式で提示すること:
+テンプレート一覧と視覚プレビューへのパスを以下の形式で提示すること:
 
 ```
 ## デザインテンプレートを選んでください
 
-| # | テンプレート名 | 配色 | 印象 |
-|---|--------------|------|------|
-| 1 | Indigo / Violet | 🟣 インディゴ + バイオレット | モダン・先進的・クリエイティブ |
-| 2 | Blue / Navy | 🔵 ブルー + ネイビー | 信頼感・堅実・エンタープライズ |
-| 3 | Emerald / Teal | 🟢 エメラルド + ティール | ナチュラル・安心感・ヘルスケア |
-| 4 | Amber / Orange | 🟠 アンバー + オレンジ | エネルギッシュ・注意喚起・建設 |
-| 5 | Rose / Pink | 🌸 ローズ + ピンク | 親しみやすい・カジュアル・サービス業 |
+| # | テンプレート名 | 配色 | 印象 | プレビュー |
+|---|--------------|------|------|-----------|
+| 1 | Indigo / Violet | 🟣 インディゴ + バイオレット | モダン・先進的・クリエイティブ | previews/indigo-violet.html |
+| 2 | Blue / Navy | 🔵 ブルー + ネイビー | 信頼感・堅実・エンタープライズ | previews/blue-navy.html |
+| 3 | Emerald / Teal | 🟢 エメラルド + ティール | ナチュラル・安心感・ヘルスケア | previews/emerald-teal.html |
+| 4 | Amber / Orange | 🟠 アンバー + オレンジ | エネルギッシュ・注意喚起・建設 | previews/amber-orange.html |
+| 5 | Rose / Pink | 🌸 ローズ + ピンク | 親しみやすい・カジュアル・サービス業 | previews/rose-pink.html |
 
+プレビュー HTML をブラウザで開くと実際の配色・レイアウト（ヘッダー・グラデーションヒーロー・カード）を確認できます。
 番号で選んでください（デフォルト: 1）
 ```
 
 > **フォントは全テンプレート共通で Noto Sans JP に統一**（日本語サイト向け）。
 > Inter / IBM Plex Sans / DM Sans 等のラテン専用フォントは日本語グリフを持たず
 > 和欧混植で表示が崩れるため、配色のみテンプレートで切り替え、フォントは固定する。
-> 必ず以下 3 箇所を揃える: `index.html` の Google Fonts ロード / `:root` の `font-family` /
-> Tailwind v4 `@theme inline` の `--font-sans`（教訓 17 参照）。
 
 ---
 
-## 実装共通コードの監査結果（2026-06-05）
+## テンプレート適用手順（エージェント向け）
 
-`templates/` 配下の実装を走査した結果、コード実体は `templates/corporate-lp` の 1 系統で、以下 5 テンプレート（配色差分）は同一実装を共有する。
+テンプレートが選択されたら、以下の項目を編集する:
 
-| # | テンプレート名 | 実装ディレクトリ |
-|---|---|---|
-| 1 | Indigo / Violet | `templates/corporate-lp` |
-| 2 | Blue / Navy | `templates/corporate-lp` |
-| 3 | Emerald / Teal | `templates/corporate-lp` |
-| 4 | Amber / Orange | `templates/corporate-lp` |
-| 5 | Rose / Pink | `templates/corporate-lp` |
+### 1. `index.html` のフォント `<link>`
 
-上記 5 テンプレート共通の不具合は、共有実装側で修正済み:
-- `src/components/ui/button.tsx` : `bg-linear-to-r` へ統一（Tailwind CSS v4）
-- `src/components/site-layout.tsx` : `bg-linear-to-br` へ統一（Tailwind CSS v4）
-- `src/App.tsx` : `RestoreRoute` 実装（`pp_return_hash` 復元）
+```html
+<link
+  href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700;800&display=swap"
+  rel="stylesheet"
+/>
+```
+
+### 2. `src/index.css`（または CSS エントリーポイント）の `:root`
+
+差し替え対象:
+- `font-family` / `letter-spacing` / `--radius`
+- すべての CSS Variables（Light Mode）
+
+`.dark` ブロックのすべての CSS Variables（Dark Mode）
+
+`.card-hover:hover` / `.dark .card-hover:hover` のシャドウカラー
+
+### 3. `index.html` の `theme-color` メタタグ
+
+```html
+<meta name="theme-color" content="{--primary の Light Mode 値}">
+```
+
+### 4. ビルド確認
+
+```bash
+npx vite build
+```
 
 ---
 
@@ -71,6 +88,7 @@
 **font-family**: `"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
 **letter-spacing**: `-0.01em`
 **border-radius**: `0.75rem`
+**視覚プレビュー**: [previews/indigo-violet.html](previews/indigo-violet.html)
 
 #### Light Mode `:root`
 
@@ -148,7 +166,7 @@
 **font-family**: `"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
 **letter-spacing**: `0`
 **border-radius**: `0.625rem`
-**出典**: site-14s3s (Power Pages テンプレート)
+**視覚プレビュー**: [previews/blue-navy.html](previews/blue-navy.html)
 
 #### Light Mode `:root`
 
@@ -226,6 +244,7 @@
 **font-family**: `"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
 **letter-spacing**: `-0.01em`
 **border-radius**: `0.75rem`
+**視覚プレビュー**: [previews/emerald-teal.html](previews/emerald-teal.html)
 
 #### Light Mode `:root`
 
@@ -303,6 +322,7 @@
 **font-family**: `"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
 **letter-spacing**: `0`
 **border-radius**: `0.625rem`
+**視覚プレビュー**: [previews/amber-orange.html](previews/amber-orange.html)
 
 #### Light Mode `:root`
 
@@ -380,6 +400,7 @@
 **font-family**: `"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
 **letter-spacing**: `-0.01em`
 **border-radius**: `0.875rem`
+**視覚プレビュー**: [previews/rose-pink.html](previews/rose-pink.html)
 
 #### Light Mode `:root`
 
@@ -449,51 +470,10 @@
 
 ---
 
-## テンプレート適用手順（エージェント向け）
-
-テンプレートが選択されたら、以下の 4 ファイルを編集する:
-
-### 1. `portal/index.html`
-
-Google Fonts の `<link>` を選択テンプレートのフォントに差し替え:
-
-```html
-<link
-  href="https://fonts.googleapis.com/css2?family={テンプレートのGoogle Fonts}&family=JetBrains+Mono:wght@400;500;600&display=swap"
-  rel="stylesheet"
-/>
-```
-
-### 2. `portal/src/index.css`
-
-`:root` ブロックの以下を差し替え:
-- `font-family`
-- `letter-spacing`
-- `--radius`
-- すべての `--color-*` CSS Variables（Light Mode）
-
-`.dark` ブロックの:
-- すべての `--color-*` CSS Variables（Dark Mode）
-
-`.card-hover:hover` / `.dark .card-hover:hover` のシャドウカラーを差し替え
-
-### 3. `portal/src/index.css` の `theme-color` メタタグ
-
-`portal/index.html` の `<meta name="theme-color">` を `--primary` の Light Mode 値に合わせる。
-
-### 4. ビルド確認
-
-```bash
-cd portal && npx vite build
-```
-
----
-
 ## ブランディングテキスト（サイト名・ロゴ）の変更
 
 配色テンプレートとは別に、**サイト名・ロゴマークなどデプロイ固有の文言**は
-コードに直書きせず `.env` の `VITE_*` 変数で差し替える（詳細は `SKILL.md` の
-「サイト名・ロゴのブランディング設定」を参照）。
+コードに直書きせず `.env` の `VITE_*` 変数で差し替える。
 
 ```bash
 cp .env.example .env
@@ -504,5 +484,3 @@ cp .env.example .env
 |------|------|--------|
 | `VITE_SITE_NAME` | ヘッダーロゴ・フッター・タブタイトルの表示名 | `Power Pages` |
 | `VITE_SITE_LOGO_MARK` | ヘッダーロゴのマーク（1〜2 文字） | `P` |
-
-値は `src/config.ts` に集約され、`home.tsx` / `site-layout.tsx` / `main.tsx` が参照する。

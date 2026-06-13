@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emerald / Teal プレビュー — Code Apps</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --radius: 0.75rem;
+  --background: #f0fdf4;
+  --foreground: #052e16;
+  --card: #ffffff;
+  --card-foreground: #052e16;
+  --primary: #059669;
+  --primary-foreground: #ffffff;
+  --secondary: #d1fae5;
+  --secondary-foreground: #064e3b;
+  --muted: #ecfdf5;
+  --muted-foreground: #4b5563;
+  --border: #d1fae5;
+  --sidebar: #ecfdf5;
+  --sidebar-foreground: #052e16;
+  --sidebar-accent: #d1fae5;
+  --header-bg: #ffffff;
+}
+
+body { background: var(--background); color: var(--foreground); height: 100vh; display: flex; flex-direction: column; font-size: 13px; line-height: 1.5; }
+
+.hdr { background: var(--header-bg); border-bottom: 1px solid var(--border); height: 52px; display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; }
+.logo { background: var(--primary); color: var(--primary-foreground); width: 30px; height: 30px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
+.hdr-title { font-weight: 600; font-size: 14px; color: var(--foreground); }
+
+.layout { display: flex; flex: 1; overflow: hidden; }
+
+.side { width: 180px; background: var(--sidebar); border-right: 1px solid var(--border); padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.nav { padding: 8px 10px; border-radius: var(--radius); color: var(--sidebar-foreground); font-size: 12px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.nav.on { background: var(--sidebar-accent); color: var(--primary); font-weight: 600; }
+.dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .7; flex-shrink: 0; }
+
+.main { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.pg-title { font-size: 18px; font-weight: 700; color: var(--foreground); }
+
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.sc { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.sc-lbl { font-size: 10px; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.sc-val { font-size: 22px; font-weight: 700; color: var(--foreground); margin-top: 4px; }
+.sc-tag { display: inline-block; background: var(--secondary); color: var(--secondary-foreground); border-radius: 4px; padding: 1px 8px; font-size: 10px; font-weight: 600; margin-top: 6px; }
+
+.tbl-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.tbl-hdr { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.tbl-title { font-weight: 600; font-size: 13px; color: var(--foreground); }
+.btn { background: var(--primary); color: var(--primary-foreground); border: none; border-radius: var(--radius); padding: 6px 12px; font-size: 11px; font-weight: 600; cursor: pointer; }
+table { width: 100%; border-collapse: collapse; }
+th { padding: 7px 16px; text-align: left; background: var(--muted); color: var(--muted-foreground); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+td { padding: 10px 16px; border-top: 1px solid var(--border); color: var(--card-foreground); font-size: 12px; }
+tr:hover td { background: var(--muted); }
+
+.preview-label { position: fixed; bottom: 12px; right: 14px; background: var(--primary); color: var(--primary-foreground); padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; opacity: .85; }
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="logo">A</div>
+  <span class="hdr-title">業務アプリ</span>
+</div>
+<div class="layout">
+  <div class="side">
+    <div class="nav on"><span class="dot"></span>ダッシュボード</div>
+    <div class="nav"><span class="dot"></span>案件一覧</div>
+    <div class="nav"><span class="dot"></span>顧客管理</div>
+    <div class="nav"><span class="dot"></span>レポート</div>
+    <div class="nav"><span class="dot"></span>設定</div>
+  </div>
+  <div class="main">
+    <div class="pg-title">ダッシュボード</div>
+    <div class="stats">
+      <div class="sc"><div class="sc-lbl">今月の売上</div><div class="sc-val">¥4.2M</div><div class="sc-tag">+12.5%</div></div>
+      <div class="sc"><div class="sc-lbl">進行中案件</div><div class="sc-val">38</div><div class="sc-tag">+3件</div></div>
+      <div class="sc"><div class="sc-lbl">成約率</div><div class="sc-val">67%</div><div class="sc-tag">+2.1pt</div></div>
+    </div>
+    <div class="tbl-card">
+      <div class="tbl-hdr">
+        <span class="tbl-title">最近の案件</span>
+        <button class="btn">＋ 新規追加</button>
+      </div>
+      <table>
+        <thead><tr><th>案件名</th><th>担当者</th><th>ステータス</th><th>金額</th></tr></thead>
+        <tbody>
+          <tr><td>A社 システム刷新</td><td>田中 太郎</td><td>提案中</td><td>¥1,200,000</td></tr>
+          <tr><td>B社 DX推進</td><td>鈴木 花子</td><td>成約</td><td>¥850,000</td></tr>
+          <tr><td>C社 業務改善</td><td>佐藤 一郎</td><td>交渉中</td><td>¥2,100,000</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div class="preview-label">Emerald / Teal</div>
+</body>
+</html>
