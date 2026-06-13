@@ -4,15 +4,15 @@
  * pac code push / npx power-apps push の前に実行し、
  * テーマ固有のカスタマイズが行われていることを確認する。
  *
- * Usage: node scripts/pre-deploy-check.mjs
- * npm script: "predeploy": "node scripts/pre-deploy-check.mjs"
+ * Usage: node .github/skills/code-apps/scripts/pre-deploy-check.mjs
+ * npm script: "predeploy": "node .github/skills/code-apps/scripts/pre-deploy-check.mjs"
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
-const root = path.resolve(path.dirname(__filename), "..");
+const root = path.resolve(path.dirname(__filename), "../../../..");
 
 const errors = [];
 
