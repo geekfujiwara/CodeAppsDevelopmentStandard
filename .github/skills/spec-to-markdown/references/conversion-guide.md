@@ -2,11 +2,19 @@
 
 ## 1. 何を作るか
 
-このスキルの出力は `/work` 配下の 2 段構成。
+このスキルの出力は `spec/` 配下の構成。
 
-1. `/work/staging`（ファイル単位 markdown）
-2. `/work/docs`（業務要件 / 機能要件 / 設計要件）
-3. `/work/conversion-checklist.json`（`is_completed` 管理）
+```
+spec/
+├── input/                     # 変換元ドキュメントを置く
+├── output/
+│   ├── staging/               # ファイル単位 markdown
+│   └── docs/                  # 業務要件 / 機能要件 / 設計要件
+└── .cache/                    # システム内部用
+    ├── conversion-checklist.json
+    ├── pending_ocr.json
+    └── pending_skills.json
+```
 
 ## 2. 推奨コマンド
 
@@ -37,19 +45,20 @@ powershell -ExecutionPolicy Bypass -File run_windows.ps1
 
 ## 3. 既定パス
 
-- 入力: `<repo-root>/work/input/`
-- staging: `<repo-root>/work/staging/`
-- docs: `<repo-root>/work/docs/`
-- checklist: `<repo-root>/work/conversion-checklist.json`
+- 入力: `<repo-root>/spec/input/`
+- staging: `<repo-root>/spec/output/staging/`
+- docs: `<repo-root>/spec/output/docs/`
+- checklist: `<repo-root>/spec/.cache/conversion-checklist.json`
+- pending JSON: checklist と同じ `spec/.cache/` に自動配置
 
-オプション:
+オプション（checklist のパスを変えると pending JSON も同じディレクトリに移動する）:
 
 ```bash
 python convert_documents.py \
   --input /absolute/path/to/input \
   --staging /absolute/path/to/staging \
   --docs /absolute/path/to/docs \
-  --checklist /absolute/path/to/conversion-checklist.json
+  --checklist /absolute/path/to/.cache/conversion-checklist.json
 ```
 
 ## 4. 出力ファイル命名
@@ -111,10 +120,10 @@ python convert_documents.py \
 
 ## 7. conversion-checklist の運用
 
-- 新規ファイルが `input` に増えたらチェックリストへ追加
+- 新規ファイルが `spec/input/` に増えたらチェックリストへ追加
 - `is_completed=false` のファイルは再処理対象
 - 既存ファイルでも `source_sha256` が変わったら再処理対象
-- 全件完了時は `docs` を参照して開発を進める
+- 全件完了時は `spec/output/docs/` を参照して開発を進める
 
 ## 8. 処理ルール
 
@@ -127,5 +136,6 @@ python convert_documents.py \
 
 ## 9. 備考
 
-`convert_documents.py` は staging/docs の土台作成と pending manifest 生成を担当する。  
-manifest の解消（agent-ocr / anthropics/skills 実行）後、`docs` を確定版に更新する。
+`convert_documents.py` は `spec/output/staging/`・`spec/output/docs/` の土台作成と  
+`spec/.cache/` への pending manifest 生成を担当する。  
+manifest の解消（agent-ocr / anthropics/skills 実行）後、`spec/output/docs/` を確定版に更新する。
