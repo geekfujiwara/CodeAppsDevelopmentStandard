@@ -41,6 +41,11 @@ OCR_PROMPT_HINT = (
     "画像内テキストを漏れなく markdown 化し、表は markdown table を使う。"
     " 判読不能箇所は [判読不可] と明記する。"
 )
+SKILLS_CONTEXT_HINT = (
+    "ドキュメント全体を markdown 化する。表は markdown table、見出しは # を使う。"
+    " 業務要件・機能要件・設計要件として整理できる情報を漏れなく抽出する。"
+    " 判読不能箇所は [判読不可] と明記する。"
+)
 
 
 @dataclass
@@ -240,49 +245,286 @@ agent-ocr での抽出待ちです。
 
 
 
-def build_requirements_doc(
-    title: str,
-    batch_started_at: str,
-    results: list[ConversionResult],
-    focus_items: list[str],
-) -> str:
-    lines = [
-        f"# {title}",
-        "",
-        "## 1. 変換対象ファイル",
-        "",
-        f"- Batch converted at: `{batch_started_at}`",
-        f"- Files: {len(results)}",
-        "",
-        "| Source | Staging markdown | Status | Note |",
-        "| --- | --- | --- | --- |",
-    ]
-
+def _build_file_table_rows(results: list[ConversionResult]) -> str:
+    rows = []
     for item in results:
         note = item.message.replace("\n", " ")
-        lines.append(
+        rows.append(
             f"| `{item.relative_path.as_posix()}` | `{item.staging_path.name}` | `{item.status}` | {note} |"
         )
+    return "\n".join(rows)
 
-    lines.extend([
-        "",
-        "## 2. 要件整理",
-        "",
-    ])
-    for focus in focus_items:
-        lines.extend([f"### {focus}", "- 要確認", ""])
 
-    lines.extend([
-        "## 3. 備考",
-        "- `spec/output/staging/` の markdown を根拠に整理すること",
-        "- 情報不足は推測せず `要確認` として残すこと",
-        "",
-        "## 4. 要件変更履歴",
-        "- 記載ルール: 変更内容と理由を必ず併記する（例: `2026-06-04: xxx を変更（理由: xxx）`）",
-        "",
-    ])
-    return "\n".join(lines)
+def _file_table_header(batch_started_at: str, results: list[ConversionResult]) -> str:
+    return (
+        f"- Batch converted at: `{batch_started_at}`\n"
+        f"- Files: {len(results)}\n"
+        "\n"
+        "| Source | Staging markdown | Status | Note |\n"
+        "| --- | --- | --- | --- |\n"
+        f"{_build_file_table_rows(results)}"
+    )
 
+
+def build_business_requirements_doc(batch_started_at: str, results: list[ConversionResult]) -> str:
+    date_prefix = batch_started_at[:10]
+    return f"""# 業務要件
+
+## 1. 変換対象ファイル
+
+{_file_table_header(batch_started_at, results)}
+
+## 2. 概要
+
+- **対象業務 / 目的**: 要確認
+- **プロジェクト背景**: 要確認
+- **スコープ**: 要確認
+
+## 3. ステークホルダー / ロール
+
+| ロール | 担当業務 | 主な関心事 |
+| --- | --- | --- |
+| 要確認 | 要確認 | 要確認 |
+
+## 4. ユーザーストーリー
+
+<!-- staging の内容を根拠に As a [ロール], I want [機能], so that [価値]. 形式で記載 -->
+
+- As a 要確認, I want 要確認, so that 要確認.
+
+## 5. 業務フロー
+
+<!-- staging の業務フロー図・手順を転記・整理する -->
+
+要確認
+
+## 6. 未確定事項 / 要確認事項
+
+| # | 項目 | 確認先 | 期限 | ステータス |
+| --- | --- | --- | --- | --- |
+| 1 | 要確認 | 要確認 | 要確認 | open |
+
+## 7. 備考
+
+- `spec/output/staging/` の markdown を根拠に整理すること
+- 情報不足は推測せず `要確認` として残すこと
+
+## 8. 要件変更履歴
+
+- 記載ルール: 変更内容と理由を必ず併記する（例: `{date_prefix}: xxx を変更（理由: xxx）`）
+"""
+
+
+def build_functional_requirements_doc(batch_started_at: str, results: list[ConversionResult]) -> str:
+    date_prefix = batch_started_at[:10]
+    return f"""# 機能要件
+
+## 1. 変換対象ファイル
+
+{_file_table_header(batch_started_at, results)}
+
+## 2. 機能一覧
+
+<!-- Must / Should / Could / Won't で優先度を記載 (MoSCoW) -->
+
+| # | 機能名 | 優先度 (MoSCoW) | 概要 | 受け入れ条件 |
+| --- | --- | --- | --- | --- |
+| 1 | 要確認 | Must | 要確認 | 要確認 |
+
+## 3. データモデル候補
+
+### Dataverse テーブル候補
+
+| テーブル名 | 主な列 | マスタ / リレーション | 備考 |
+| --- | --- | --- | --- |
+| 要確認 | 要確認 | 要確認 | 要確認 |
+
+## 4. UI 要件
+
+### Code Apps / Model-Driven Apps
+
+- 要確認
+
+## 5. 自動化要件
+
+### Power Automate フロー候補
+
+- 要確認
+
+## 6. AI / 連携要件
+
+### Copilot Studio / AI Builder
+
+- 要確認
+
+### 外部連携
+
+- 要確認
+
+## 7. 非機能要件
+
+| 区分 | 内容 | 指標 |
+| --- | --- | --- |
+| パフォーマンス | 要確認 | 要確認 |
+| セキュリティ | 要確認 | 要確認 |
+| 可用性 | 要確認 | 要確認 |
+| スケーラビリティ | 要確認 | 要確認 |
+
+## 8. 備考
+
+- `spec/output/staging/` の markdown を根拠に整理すること
+- 情報不足は推測せず `要確認` として残すこと
+
+## 9. 要件変更履歴
+
+- 記載ルール: 変更内容と理由を必ず併記する（例: `{date_prefix}: xxx を変更（理由: xxx）`）
+"""
+
+
+def build_design_requirements_doc(batch_started_at: str, results: list[ConversionResult]) -> str:
+    date_prefix = batch_started_at[:10]
+    return f"""# 設計要件
+
+## 1. 変換対象ファイル
+
+{_file_table_header(batch_started_at, results)}
+
+## 2. Power Platform 全体構成案
+
+<!-- アーキテクチャ図（mermaid / テキスト）や構成の説明を記載 -->
+
+要確認
+
+## 3. コンポーネント設計
+
+| コンポーネント | 種別 | 役割 | 依存 | 備考 |
+| --- | --- | --- | --- | --- |
+| 要確認 | 要確認 | 要確認 | 要確認 | 要確認 |
+
+## 4. セキュリティ / 権限 / 監査
+
+| 区分 | 内容 | 対応方針 |
+| --- | --- | --- |
+| 認証 / 認可 | 要確認 | 要確認 |
+| データアクセス制御 | 要確認 | 要確認 |
+| 監査ログ | 要確認 | 要確認 |
+
+## 5. 設計上のリスク
+
+| # | リスク | 影響度 | 発生確率 | 対応方針 |
+| --- | --- | --- | --- | --- |
+| 1 | 要確認 | 高/中/低 | 高/中/低 | 要確認 |
+
+## 6. Phase 0 確認事項
+
+- 要確認
+
+## 7. 実装タスク分解
+
+<!-- 開発着手前に確認・合意する粒度で記載 -->
+
+| # | タスク | 依存タスク | 優先度 | 見積 (h) | 担当 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 要確認 | なし | 高 | 要確認 | 要確認 |
+
+## 8. 備考
+
+- `spec/output/staging/` の markdown を根拠に整理すること
+- 情報不足は推測せず `要確認` として残すこと
+
+## 9. 要件変更履歴
+
+- 記載ルール: 変更内容と理由を必ず併記する（例: `{date_prefix}: xxx を変更（理由: xxx）`）
+"""
+
+
+def build_test_requirements_doc(batch_started_at: str, results: list[ConversionResult]) -> str:
+    date_prefix = batch_started_at[:10]
+    return f"""# テスト要件
+
+## 1. 変換対象ファイル
+
+{_file_table_header(batch_started_at, results)}
+
+## 2. テスト戦略
+
+- **テスト方針**: 要確認
+- **テスト環境**: 要確認
+- **自動化範囲**: 要確認
+
+## 3. テストシナリオ
+
+<!-- functional-requirements.md の機能一覧と対応させて記載 -->
+
+| # | シナリオ名 | 前提条件 | 操作手順 | 期待結果 | 優先度 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 要確認 | 要確認 | 要確認 | 要確認 | 高/中/低 |
+
+## 4. 受け入れ条件
+
+<!-- functional-requirements.md の機能一覧 #N に対応させて記載 -->
+
+| # | 機能名 | 受け入れ条件 | 確認方法 |
+| --- | --- | --- | --- |
+| 1 | 要確認 | 要確認 | 要確認 |
+
+## 5. 非機能テスト
+
+| 区分 | テスト内容 | 合格基準 |
+| --- | --- | --- |
+| パフォーマンス | 要確認 | 要確認 |
+| セキュリティ | 要確認 | 要確認 |
+| ユーザビリティ | 要確認 | 要確認 |
+| 可用性 | 要確認 | 要確認 |
+
+## 6. 備考
+
+- `spec/output/staging/` の markdown を根拠に整理すること
+- 情報不足は推測せず `要確認` として残すこと
+
+## 7. 要件変更履歴
+
+- 記載ルール: 変更内容と理由を必ず併記する（例: `{date_prefix}: xxx を変更（理由: xxx）`）
+"""
+
+
+def build_index_doc(batch_started_at: str, results: list[ConversionResult]) -> str:
+    completed = sum(1 for r in results if r.status == "already-completed")
+    pending = len(results) - completed
+    date_prefix = batch_started_at[:10]
+    return f"""# 要件定義書 インデックス
+
+- Batch converted at: `{batch_started_at}`
+- 変換ファイル数: {len(results)} ({completed} 完了 / {pending} 処理待ち)
+
+## ドキュメント一覧
+
+| ドキュメント | 説明 | 主な利用者 |
+| --- | --- | --- |
+| [業務要件](business-requirements.md) | 対象業務・ステークホルダー・ユーザーストーリー・業務フロー | PO / BA / 開発者 |
+| [機能要件](functional-requirements.md) | 機能一覧(MoSCoW)・データモデル・非機能要件 | 開発者 / アーキテクト |
+| [設計要件](design-requirements.md) | 全体構成・コンポーネント・リスク・実装タスク分解 | アーキテクト / 開発者 |
+| [テスト要件](test-requirements.md) | テストシナリオ・受け入れ条件・非機能テスト | QA / 開発者 |
+
+## 処理状況
+
+{_file_table_header(batch_started_at, results)}
+
+## 開発利用フロー
+
+1. `spec/output/staging/` の変換完了を確認する（`conversion-checklist.json` で `is_completed=true`）
+2. staging の内容を元に各 docs の `要確認` を実際の要件に更新する
+3. 機能要件の MoSCoW 優先度を PO と合意する
+4. 設計要件の実装タスク分解を確定させ、開発に着手する
+5. テスト要件の受け入れ条件を機能要件と紐付ける
+6. 変更が発生した場合は各 docs の **要件変更履歴** に記録する
+
+## 備考
+
+- 情報不足は推測せず `要確認` として残すこと
+- `要確認` が残っているセクションは必ず PO / BA と確認すること
+- {date_prefix} 現在の情報が反映されています
+"""
 
 
 def write_pending_json(path: Path, payload: list[dict[str, str]]) -> None:
@@ -424,6 +666,7 @@ def main() -> int:
                     "staging_markdown_path": str(staging_path),
                     "sha256": sha256,
                     "processor": "anthropics/skills",
+                    "context_hint": SKILLS_CONTEXT_HINT,
                 })
                 processor = "anthropics/skills"
                 status = "pending-skills"
@@ -438,6 +681,7 @@ def main() -> int:
                 "staging_markdown_path": str(staging_path),
                 "sha256": sha256,
                 "processor": "anthropics/skills",
+                "context_hint": SKILLS_CONTEXT_HINT,
             })
             processor = "anthropics/skills"
             status = "pending-skills"
@@ -498,56 +742,24 @@ def main() -> int:
     business_doc = docs_dir / "business-requirements.md"
     functional_doc = docs_dir / "functional-requirements.md"
     design_doc = docs_dir / "design-requirements.md"
+    test_doc = docs_dir / "test-requirements.md"
+    index_doc = docs_dir / "index.md"
 
-    if processed_count > 0 or not (business_doc.exists() and functional_doc.exists() and design_doc.exists()):
-        write_text(
-            business_doc,
-            build_requirements_doc(
-                title="業務要件",
-                batch_started_at=batch_started_at,
-                results=results,
-                focus_items=[
-                    "対象業務 / 目的",
-                    "利用者 / ロール",
-                    "業務フロー",
-                    "未確定事項 / 要確認事項",
-                ],
-            ),
-        )
-        write_text(
-            functional_doc,
-            build_requirements_doc(
-                title="機能要件",
-                batch_started_at=batch_started_at,
-                results=results,
-                focus_items=[
-                    "Dataverse テーブル候補",
-                    "主要列 / マスタ / リレーション候補",
-                    "Code Apps / Model-Driven Apps の UI 要件",
-                    "Power Automate の自動化要件",
-                    "Copilot Studio / AI Builder の利用余地",
-                    "外部連携",
-                ],
-            ),
-        )
-        write_text(
-            design_doc,
-            build_requirements_doc(
-                title="設計要件",
-                batch_started_at=batch_started_at,
-                results=results,
-                focus_items=[
-                    "Power Platform 全体構成案",
-                    "セキュリティ / 権限 / 監査の論点",
-                    "設計上のリスク",
-                    "Phase 0 で確認が必要な論点",
-                ],
-            ),
-        )
+    all_docs_exist = all(
+        p.exists() for p in [business_doc, functional_doc, design_doc, test_doc, index_doc]
+    )
+    if processed_count > 0 or not all_docs_exist:
+        write_text(business_doc, build_business_requirements_doc(batch_started_at, results))
+        write_text(functional_doc, build_functional_requirements_doc(batch_started_at, results))
+        write_text(design_doc, build_design_requirements_doc(batch_started_at, results))
+        write_text(test_doc, build_test_requirements_doc(batch_started_at, results))
+        write_text(index_doc, build_index_doc(batch_started_at, results))
 
         print(f"📝 wrote: {business_doc}")
         print(f"📝 wrote: {functional_doc}")
         print(f"📝 wrote: {design_doc}")
+        print(f"📝 wrote: {test_doc}")
+        print(f"📝 wrote: {index_doc}")
     else:
         print(f"✅ 未完了変換はありません。既存の `{docs_dir}` を参照して開発を進めてください。")
 
