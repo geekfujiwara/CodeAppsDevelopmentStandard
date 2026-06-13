@@ -191,38 +191,43 @@ npm run setup
 
 ## リポジトリ構成
 
+本リポジトリは **開発標準コンテンツの供給元** であり、それ自体は実行可能なアプリではありません。
+ルートには `.github/` / `.claude/` とドキュメントのみを置き、**テーマへ同期される共有ファイルは
+`.github/template-root/` 配下に集約**しています（同期時にテーマのルートへ展開される）。
+
 ```text
 .
 ├── .github/
 │   ├── agents/                      # Copilot カスタムエージェント定義
-│   └── skills/                      # 製品単位で統合された 11 スキル
-│       ├── architecture/            # アーキテクチャ設計
-│       ├── standard/                # 共通基盤（認証・アイコン・メールテンプレート）
-│       ├── dataverse/               # テーブル設計・構築・セキュリティロール
-│       ├── code-apps/               # Code Apps 開発（UI 設計・CSP・メール送信含む）
-│       ├── power-pages/             # Power Pages コードサイト開発・デプロイ
-│       ├── generative-page/         # Generative Pages 開発
-│       ├── model-driven-app/        # モデル駆動型アプリ構築
-│       ├── copilot-studio/          # エージェント構築・トリガー・ニュース配信
-│       ├── power-automate/          # クラウドフロー作成・デプロイ
-│       ├── ai-builder/              # AI プロンプト作成
-│       ├── spec-to-markdown/        # 仕様書→要件 markdown 変換
-│       └── code-apps/samples/geek-sales/   # リファレンス実装（同期対象外）
-│           （power-pages/samples/portal/ 等、各スキルの samples/ も同様）
+│   ├── skills/                      # 製品単位で統合された 11 スキル
+│   │   ├── architecture/            # アーキテクチャ設計
+│   │   ├── standard/                # 共通基盤（認証・アイコン・メールテンプレート）
+│   │   ├── dataverse/               # テーブル設計・構築・セキュリティロール
+│   │   ├── code-apps/               # Code Apps 開発（UI 設計・CSP・メール送信含む）
+│   │   │   └── samples/geek-sales/  # リファレンス実装（同期対象外）
+│   │   ├── power-pages/             # Power Pages コードサイト開発・デプロイ
+│   │   │   └── samples/portal/      # リファレンス実装（同期対象外）
+│   │   ├── generative-page/         # Generative Pages 開発
+│   │   ├── model-driven-app/        # モデル駆動型アプリ構築
+│   │   ├── copilot-studio/          # エージェント構築・トリガー・ニュース配信
+│   │   ├── power-automate/          # クラウドフロー作成・デプロイ
+│   │   ├── ai-builder/              # AI プロンプト作成
+│   │   └── spec-to-markdown/        # 仕様書→要件 markdown 変換
+│   └── template-root/               # ★ テーマへ同期される共有ファイル（テーマのルートに展開）
+│       ├── auth_helper.py           #   MSAL 認証ヘルパー → テーマの ./auth_helper.py
+│       ├── patch-nameutils.cjs      #   日本語 DisplayName パッチ → ./patch-nameutils.cjs
+│       ├── .env.example             #   環境変数テンプレート → ./.env.example
+│       ├── public/maps/             #   日本地図 SVG（japan-map 共有アセット）→ ./public/maps/
+│       └── scripts/                 #   bootstrap.mjs / pre-deploy-check.mjs → ./scripts/
 ├── .claude/
 │   └── agents/                      # Claude Code カスタムエージェント定義
-├── scripts/                         # 環境チェック・ブートストラップ・プレデプロイチェック
-├── public/maps/                     # 日本地図 SVG（japan-map スキルの共有アセット）
-├── work/                            # spec-to-markdown の作業ディレクトリ
-├── auth_helper.py                   # MSAL 認証ヘルパー（テーマへ同期）
-├── patch-nameutils.cjs              # 日本語 DisplayName パッチ（テーマへ同期）
-├── .env.example                     # 環境変数テンプレート
 ├── SAMPLES.md                       # サンプル実装ガイド
 └── README.md
 ```
 
-> アプリの実装（`src/` / `vite.config.ts` 等）は本リポジトリには置かない。
+> アプリの実装（`src/` / `vite.config.ts` 等）も SDK 生成物（`.power/` 等）も本リポジトリには置かない。
 > 雛形は [CodeAppsStarter](https://github.com/geekfujiwara/CodeAppsStarter)、リファレンス実装は各スキルの `samples/` にある。
+> `.github/template-root/` 配下のファイルは `npm run sync-standards`（CodeAppsStarter 同梱）でテーマのルートに展開される。
 
 ---
 
