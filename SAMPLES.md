@@ -53,7 +53,8 @@ CodeAppsStarter の雛形をそのまま使います:
 ## 既存プロジェクトに開発標準だけ導入する場合
 
 CodeAppsStarter を使わず、既存のプロジェクトに標準を取り込む場合は、本リポジトリを shallow clone して
-`.github/` と共有ファイル（`auth_helper.py` / `patch-nameutils.cjs` / `public/maps/` / `scripts/`）をコピーします
-（CodeAppsStarter の `scripts/sync-standards.mjs` をコピーして実行するのが最も簡単です）。
+`.github/`（スキル・エージェント）と `.github/template-root/` 配下の共有ファイル
+（`auth_helper.py` / `patch-nameutils.cjs` / `public/maps/` / `scripts/` / `.env.example`）を
+プロジェクトのルートに展開します（CodeAppsStarter の `scripts/sync-standards.mjs` をコピーして実行するのが最も簡単です）。
 
 新規テーマ開始時のクリーン確認は [新規テーマ開始チェックリスト](./.github/skills/code-apps/references/new-theme-checklist.md) を参照してください。
