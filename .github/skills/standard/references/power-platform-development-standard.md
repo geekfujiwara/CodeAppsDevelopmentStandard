@@ -83,27 +83,12 @@ node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js
 
 **重要**: PowerShell では `$` のエスケープ問題でパッチが適用されないことがある。**必ず Node.js スクリプト方式を使うこと。**
 
-```javascript
-// patch-nameutils.cjs — プロジェクトルートに配置
-const fs = require("fs");
-const p =
-  "node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js";
-let c = fs.readFileSync(p, "utf8");
-const oldPat = "[^a-zA-Z0-9_$]/g, '_')";
-const newPat =
-  "[^a-zA-Z0-9_$\\u00C0-\\u024F\\u0370-\\u03FF\\u0400-\\u04FF\\u3000-\\u9FFF\\uAC00-\\uD7AF\\uF900-\\uFAFF]/g, '_')";
-if (c.includes(oldPat)) {
-  c = c.replace(oldPat, newPat);
-  fs.writeFileSync(p, c);
-  console.log("Patched successfully");
-} else {
-  console.log("Already patched or pattern not found");
-}
-```
+パッチスクリプト実体は code-apps スキルに同梱（`.github/skills/code-apps/references/patch-nameutils.cjs`）。
+`.github/` 同期でテーマに配布されるため、テーマ側で別途用意する必要はない。
 
 ```bash
-# パッチ適用
-node patch-nameutils.cjs
+# パッチ適用（プロジェクトルート = node_modules がある場所で実行）
+node .github/skills/code-apps/references/patch-nameutils.cjs
 
 # パッチ検証（適用後に必ず実行）
 node -e "const c=require('fs').readFileSync('node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js','utf8');c.split('\n').forEach((l,i)=>{if(l.includes('replace')&&l.includes('a-zA-Z'))console.log(i+':',l.trim())})"
@@ -117,7 +102,7 @@ npx power-apps add-data-source --api-id dataverse \
 
 > **なぜ PowerShell ではダメなのか**: `$` は PowerShell で変数展開文字。正規表現内の `$` を含む文字列を `-replace` やバッククォートでエスケープしても、特殊文字の二重エスケープや `\u` Unicode エスケープの不整合でパッチが「適用されたように見えて実は変わっていない」問題が発生した。Node.js スクリプトなら JavaScript のネイティブ文字列処理でこの問題を回避できる。
 
-> **注意**: `npm install` を再実行すると `node_modules` が再生成されパッチが消える。データソース追加のたびに `node patch-nameutils.cjs` を実行すること。
+> **注意**: `npm install` を再実行すると `node_modules` が再生成されパッチが消える。データソース追加のたびに `node .github/skills/code-apps/references/patch-nameutils.cjs` を実行すること。
 
 > **PAC CLI との関係**: `pac code add-data-source` は内部で `@microsoft/power-apps` の CLI スクリプトを呼び出す。SDK v1.0.x ではスクリプトパスが変更されたため `pac code` 経由では `Could not find the PowerApps CLI script` エラーになる。**`npx power-apps add-data-source` を使用すること**。
 
@@ -1445,7 +1430,7 @@ publish_to_channels(bot_id)
 ❌ git clone 後に dataSourcesInfo.ts を再生成せずにビルドする（`npx power-apps add-data-source` で全テーブルを再追加）
 ❌ PAC CLI の認証プロファイルを作成せずに push する（pac auth create が必要）
 ❌ get_token() に旧インターフェース（3引数）で呼び出す（auth_helper は .env から自動読み込み。scope のみ指定）
-❌ nameUtils.js パッチを PowerShell で適用しようとする（$ エスケープで失敗。node patch-nameutils.cjs を使え）
+❌ nameUtils.js パッチを PowerShell で適用しようとする（$ エスケープで失敗。node .github/skills/code-apps/references/patch-nameutils.cjs を使え）
 ❌ SDK の createdbyname 等に依存して UI 表示する（undefined になる。_xxx_value + useMemo で名前解決せよ）
 ❌ deploy_flow.py に接続 ID をハードコードする（環境が変わると ConnectionNotFound。毎回自動検索せよ）
 ❌ api_get() の戻り値に .json() を呼ぶ（dict が直返し。そのまま使え）

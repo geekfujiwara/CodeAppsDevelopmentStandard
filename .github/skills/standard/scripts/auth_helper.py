@@ -331,6 +331,8 @@ def api_request(path: str, body: dict, method: str = "PUT", scope: str | None = 
 FLOW_API = "https://api.flow.microsoft.com"
 FLOW_API_VERSION = "api-version=2016-11-01"
 
+POWERAPPS_API = "https://api.powerapps.com"
+
 
 def flow_api_call(
     method: str,
@@ -356,6 +358,93 @@ def flow_api_call(
     if resp.status_code == 204 or not resp.text:
         return {}
     return resp.json()
+
+
+def powerapps_api_call(
+    method: str,
+    path: str,
+    params: dict | None = None,
+    body: dict | None = None,
+    timeout: int = 120,
+) -> dict:
+    """
+    PowerApps API を呼び出す。
+
+    自動的に ``https://service.powerapps.com/.default`` スコープで認証する。
+    """
+    token = get_token(scope="https://service.powerapps.com/.default")
+    url = f"{POWERAPPS_API}{path}"
+    if params is None:
+        params = {}
+    params.setdefault("api-version", "2016-11-01")
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    resp = requests.request(method, url, headers=headers, params=params, json=body, timeout=timeout)
+    resp.raise_for_status()
+    if resp.status_code == 204 or not resp.text:
+        return {}
+    return resp.json()
+
+
+# ---------- Flow / PowerApps ユーティリティ ----------
+
+
+def resolve_environment_id() -> str:
+    """DATAVERSE_URL から環境 ID を逆引きする。"""
+    data = flow_api_call(
+        "GET",
+        "/providers/Microsoft.ProcessSimple/environments",
+    )
+    dv_url = DATAVERSE_URL.rstrip("/")
+    for env in data.get("value", []):
+        instance_url = (
+            env.get("properties", {})
+            .get("linkedEnvironmentMetadata", {})
+            .get("instanceUrl", "")
+            or ""
+        ).rstrip("/")
+        if instance_url == dv_url:
+            return env["name"]
+    raise RuntimeError(f"環境が見つかりません: {dv_url}")
+
+
+def find_connection(env_id: str, connector_name: str, display_name: str = "") -> str:
+    """環境内で Connected な接続 ID を検索する。見つからなければ sys.exit(1)。"""
+    import sys as _sys
+
+    label = display_name or connector_name
+    for attempt in range(3):
+        try:
+            data = powerapps_api_call(
+                "GET",
+                f"/providers/Microsoft.PowerApps/apis/{connector_name}/connections",
+                params={"$filter": f"environment eq '{env_id}'"},
+            )
+        except requests.exceptions.Timeout:
+            wait = 15 * (attempt + 1)
+            print(f"  ⚠ {label}: タイムアウト → {wait}s 待機してリトライ...")
+            time.sleep(wait)
+            continue
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == 504:
+                wait = 15 * (attempt + 1)
+                print(f"  ⚠ {label}: 504 → {wait}s 待機してリトライ...")
+                time.sleep(wait)
+                continue
+            raise
+
+        for conn in data.get("value", []):
+            statuses = conn.get("properties", {}).get("statuses", [])
+            if any(s.get("status") == "Connected" for s in statuses):
+                return conn["name"]
+        break
+
+    print(f"  ❌ {label} ({connector_name}): Connected な接続が見つかりません")
+    print(f"     → https://make.powerautomate.com/connections で作成してください")
+    _sys.exit(1)
 
 
 # ---------- メタデータ操作リトライ ----------

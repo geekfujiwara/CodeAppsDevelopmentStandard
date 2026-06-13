@@ -87,25 +87,16 @@ if __name__ == "__main__":
 
 ## フォールバック: npx power-apps add-data-source 用パッチ
 
-`npx power-apps add-data-source` を使う場合は `patch-nameutils.cjs` で Node.js パッチを適用する。
+`npx power-apps add-data-source` を使う場合は、このスキル同梱の [`patch-nameutils.cjs`](patch-nameutils.cjs) で Node.js パッチを適用する。
+`node_modules/@microsoft/power-apps-actions/.../nameUtils.js` の文字許容パターンに CJK 等を追加する。
 
-```javascript
-// patch-nameutils.cjs — プロジェクトルートに配置
-const fs = require('fs');
-const p = 'node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js';
-let c = fs.readFileSync(p, 'utf8');
-const oldPat = "[^a-zA-Z0-9_$]/g, '_')";
-const newPat = "[^a-zA-Z0-9_$\\u00C0-\\u024F\\u0370-\\u03FF\\u0400-\\u04FF\\u3000-\\u9FFF\\uAC00-\\uD7AF\\uF900-\\uFAFF]/g, '_')";
-if (c.includes(oldPat)) {
-  c = c.replace(oldPat, newPat);
-  fs.writeFileSync(p, c);
-  console.log('Patched successfully');
-} else {
-  console.log('Already patched or pattern not found');
-}
+```bash
+# プロジェクトルート（node_modules がある場所）で実行する
+node .github/skills/code-apps/references/patch-nameutils.cjs
 ```
 
-> `npm install` 後に毎回 `node patch-nameutils.cjs` を実行する必要がある。
+> `npm install` 後に毎回 `node .github/skills/code-apps/references/patch-nameutils.cjs` を実行する必要がある
+> （`node_modules` が再生成されパッチが消えるため）。スクリプト実体はこのスキルに同梱され、`.github/` 同期でテーマに配布される。
 
 ## スキーマ名は英語のみ
 

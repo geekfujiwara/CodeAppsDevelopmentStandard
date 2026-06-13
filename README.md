@@ -66,8 +66,8 @@ npm run setup
 > チームで開発する場合は、後から [リモートを用意](#チーム開発のためにリモートを用意する場合) して移行・統合できます。
 > 最初からチーム用の private リポジトリを作りたい場合は、`gh repo create <your-account>/<your-theme-repo> --template geekfujiwara/CodeAppsStarter --private --clone` でテンプレートから生成して `cd` 後に `npm install && npm run setup` を実行します。
 
-`npm run setup` が本リポジトリ（CodeAppsDevelopmentStandard）から `.github/`（エージェント・スキル）と
-共有ファイル（`auth_helper.py` / `patch-nameutils.cjs` / `public/maps/` / 標準スクリプト）を同期します。
+`npm run setup` が本リポジトリ（CodeAppsDevelopmentStandard）から `.github/`（エージェント・スキル。
+認証ヘルパー・日本語パッチ・地図 SVG 等のスキル所有アセットを含む）と `scripts/`（共通ツール）・`.env.example` を同期します。
 
 これで **@GeekPowerCode** のエージェントをローカルで実行でき、スムーズに新規テーマ開発を始めることができます。
 
@@ -150,8 +150,8 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 - 実行結果は「導入済み」「要再起動」「PATH 反映待ち」を分けて報告する。
 - 最後のユーザー向けコメントには以下を含める:
   - 「環境準備 OK（ツール導入と動作確認まで完了）」の明示
-  - 次のアクションとして README の「クイックスタート」を実行することを案内
-  - クイックスタートでは `npx degit geekfujiwara/CodeAppsStarter .` でテンプレートをローカルに展開し、`npm run setup` で開発標準を同期する方針である旨を補足
+  - 次のアクションとして README の「クイックスタート」を実行してローカルに clone することを案内
+  - クイックスタートはリモートに fork せず、本リポジトリをローカルに直接 clone する方針である旨を補足
   - クイックスタート完了後は GitHub Copilot 側で `GeekPowerCode` カスタムエージェントへ切り替え、作りたいテーマを伝えて開発開始すること
   - 可能なら現在ディレクトリ名からテーマ候補を推測し、推奨プロンプトを 1 つ提案すること
 ```
@@ -191,43 +191,43 @@ npm run setup
 
 ## リポジトリ構成
 
-本リポジトリは **開発標準コンテンツの供給元** であり、それ自体は実行可能なアプリではありません。
-ルートには `.github/` / `.claude/` とドキュメントのみを置き、**テーマへ同期される共有ファイルは
-`.github/template-root/` 配下に集約**しています（同期時にテーマのルートへ展開される）。
-
 ```text
 .
 ├── .github/
 │   ├── agents/                      # Copilot カスタムエージェント定義
-│   ├── skills/                      # 製品単位で統合された 11 スキル
-│   │   ├── architecture/            # アーキテクチャ設計
-│   │   ├── standard/                # 共通基盤（認証・アイコン・メールテンプレート）
-│   │   ├── dataverse/               # テーブル設計・構築・セキュリティロール
-│   │   ├── code-apps/               # Code Apps 開発（UI 設計・CSP・メール送信含む）
-│   │   │   └── samples/geek-sales/  # リファレンス実装（同期対象外）
-│   │   ├── power-pages/             # Power Pages コードサイト開発・デプロイ
-│   │   │   └── samples/portal/      # リファレンス実装（同期対象外）
-│   │   ├── generative-page/         # Generative Pages 開発
-│   │   ├── model-driven-app/        # モデル駆動型アプリ構築
-│   │   ├── copilot-studio/          # エージェント構築・トリガー・ニュース配信
-│   │   ├── power-automate/          # クラウドフロー作成・デプロイ
-│   │   ├── ai-builder/              # AI プロンプト作成
-│   │   └── spec-to-markdown/        # 仕様書→要件 markdown 変換
-│   └── template-root/               # ★ テーマへ同期される共有ファイル（テーマのルートに展開）
-│       ├── auth_helper.py           #   MSAL 認証ヘルパー → テーマの ./auth_helper.py
-│       ├── patch-nameutils.cjs      #   日本語 DisplayName パッチ → ./patch-nameutils.cjs
-│       ├── .env.example             #   環境変数テンプレート → ./.env.example
-│       ├── public/maps/             #   日本地図 SVG（japan-map 共有アセット）→ ./public/maps/
-│       └── scripts/                 #   bootstrap.mjs / pre-deploy-check.mjs → ./scripts/
+│   └── skills/                      # 製品単位で統合された 11 スキル
+│       ├── architecture/            # アーキテクチャ設計
+│       ├── standard/                # 共通基盤（認証・アイコン・メールテンプレート）
+│       ├── dataverse/               # テーブル設計・構築・セキュリティロール
+│       ├── code-apps/               # Code Apps 開発（UI 設計・CSP・メール送信含む）
+│       ├── power-pages/             # Power Pages コードサイト開発・デプロイ
+│       ├── generative-page/         # Generative Pages 開発
+│       ├── model-driven-app/        # モデル駆動型アプリ構築
+│       ├── copilot-studio/          # エージェント構築・トリガー・ニュース配信
+│       ├── power-automate/          # クラウドフロー作成・デプロイ
+│       ├── ai-builder/              # AI プロンプト作成
+│       ├── spec-to-markdown/        # 仕様書→要件 markdown 変換
+│       │
+│       │   # スキルが所有するアセットはそのスキル配下に置く（例）:
+│       ├── standard/scripts/auth_helper.py              # MSAL 認証ヘルパー
+│       ├── code-apps/references/patch-nameutils.cjs     # 日本語 DisplayName パッチ
+│       ├── code-apps/references/maps/                   # 日本地図 SVG
+│       └── */samples/                                   # リファレンス実装（同期対象外）
 ├── .claude/
 │   └── agents/                      # Claude Code カスタムエージェント定義
-├── SAMPLES.md                       # サンプル実装ガイド
+├── scripts/                         # bootstrap.mjs / pre-deploy-check.mjs（プロジェクト共通ツール）
+├── .env.example                     # 環境変数テンプレート
+├── .gitignore
+├── package.json
+├── LICENSE
 └── README.md
 ```
 
-> アプリの実装（`src/` / `vite.config.ts` 等）も SDK 生成物（`.power/` 等）も本リポジトリには置かない。
-> 雛形は [CodeAppsStarter](https://github.com/geekfujiwara/CodeAppsStarter)、リファレンス実装は各スキルの `samples/` にある。
-> `.github/template-root/` 配下のファイルは `npm run sync-standards`（CodeAppsStarter 同梱）でテーマのルートに展開される。
+> **root には慣習的なリポ直下ファイル（README / .env.example / .gitignore / package.json / LICENSE）と
+> プロジェクト共通ツール（`scripts/`）だけを置く。** 認証ヘルパー・日本語パッチ・地図 SVG など
+> 「特定スキルが所有するアセット」はそのスキル配下に置き、`.github/` 同期でテーマに配布する。
+> アプリの実装（`src/` / `vite.config.ts` 等）は本リポジトリには置かない（雛形は
+> [CodeAppsStarter](https://github.com/geekfujiwara/CodeAppsStarter)、リファレンス実装は各スキルの `samples/`）。
 
 ---
 
@@ -237,7 +237,7 @@ npm run setup
 - [.github/skills/dataverse/references/dataverse-guide.md](./.github/skills/dataverse/references/dataverse-guide.md)
 - [.github/skills/code-apps/references/connector-reference.md](./.github/skills/code-apps/references/connector-reference.md)
 - [.github/skills/code-apps/references/advanced-patterns.md](./.github/skills/code-apps/references/advanced-patterns.md)
-- [SAMPLES.md](./SAMPLES.md)
+- [サンプル実装一覧（.github/skills/README.md）](./.github/skills/README.md#サンプル実装一覧)
 
 ---
 

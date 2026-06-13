@@ -354,7 +354,7 @@ PowerProvider → ThemeProvider → SonnerProvider → QueryProvider → RouterP
 ### パターン 6: 日本地図ダッシュボード
 
 詳細な実装パターン・コンポーネント定義・Dataverse 連携は [日本地図パターン](japan-map-pattern.md) を参照。
-SVG アセットは `public/maps/` に格納（map-full.svg / map-mobile.svg / map-circle.svg / map-polygon.svg）。
+SVG アセットはこのスキルに同梱（`.github/skills/code-apps/references/maps/`: map-full.svg / map-mobile.svg / map-circle.svg / map-polygon.svg）。利用時にテーマの `public/maps/` へコピーする。
 
 ```tsx
 // ページ構成: StatsCards → JapanMap + 詳細パネル + ListTable
