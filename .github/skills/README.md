@@ -44,6 +44,29 @@ skill-name/
 > `samples/` には過去テーマの完全実装をリファレンスとして置く。
 > テーマプロジェクトへの標準同期（sync-standards）では `samples/` は配布されない。
 
+### サンプル実装一覧
+
+各スキルの `samples/` にある参考実装。**読むためのリファレンス**であり、新規テーマの雛形には使わない
+（新規テーマは [CodeAppsStarter](https://github.com/geekfujiwara/CodeAppsStarter) テンプレートから生成する）。
+
+| サンプル | 場所 | 題材 |
+|---|---|---|
+| Geek Sales | `code-apps/samples/geek-sales/` | 営業支援（顧客・商談・パイプライン・テリトリー・Copilot 分析） |
+| Power Pages ポータル | `power-pages/samples/portal/` | Power Pages サイト実体（web-templates / page-templates） |
+| Corporate LP テンプレート | `power-pages/templates/corporate-lp/` | コーポレート LP（雛形として利用可） |
+
+**サンプルに含まれない SDK 生成物**（手で作らず各テーマで生成させる）:
+
+| パス | 生成コマンド |
+|------|------|
+| `.power/` | `pac code init` |
+| `src/generated/` | `pac code add-data-source` |
+| `power.config.json` | `pac code init` |
+
+サンプルの読み方（ドメイン依存は 4 層のみ。`_layout.tsx` / `components/` / `providers/` / `styles/` は雛形のまま使う）:
+`src/types/{domain}.ts` / `src/services/{domain}-service.ts` / `src/hooks/use-{domain}.ts` / `src/pages/*.tsx`。
+新規テーマ開始時のクリーン確認は [新規テーマ開始チェックリスト](code-apps/references/new-theme-checklist.md) を参照。
+
 ### YAML フロントマター規約
 
 ```yaml

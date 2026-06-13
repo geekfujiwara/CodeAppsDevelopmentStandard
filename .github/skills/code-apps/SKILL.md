@@ -329,7 +329,7 @@ npm run deploy
 │           python scripts/toggle_table_lang.py jp  ← 日本語に復元
 │
 ├─ フォールバック: npx power-apps add-data-source
-│   └─ node patch-nameutils.cjs  ← 日本語パッチ適用
+│   └─ node .github/skills/code-apps/references/patch-nameutils.cjs  ← 日本語パッチ適用
 │   └─ npx power-apps add-data-source --api-id dataverse
 │        --resource-name {table} --org-url {DATAVERSE_URL} --non-interactive
 │   └─ 成功 → 完了（Model/Service ファイルも生成される）✅

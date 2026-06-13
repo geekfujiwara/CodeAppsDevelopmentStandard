@@ -11,7 +11,8 @@ Generative Pages で日本地図を表示し、都道府県別のデータ可視
 > **CSP 注意**: Google Maps iframe 方式を使う場合は、環境の **Content Security Policy（CSP）** に `frame-src` を追加する必要がある。
 > 詳細は本ドキュメント内の [Google Maps iframe 方式](#google-maps-iframe-方式) および [Code Apps CSP 構成](../../code-apps/references/csp.md) を参照。
 
-SVG アセットは `public/maps/` に格納済み。
+SVG アセットは code-apps スキルに同梱（`.github/skills/code-apps/references/maps/`）。
+Generative Pages では文字列リテラルとして埋め込むため、そこから内容をコピーして使う。
 
 > **出典**: [geolonia/japanese-prefectures](https://github.com/geolonia/japanese-prefectures)（GFDL ライセンス）
 
@@ -81,12 +82,12 @@ SVG アセットは `public/maps/` に格納済み。
 // map-circle.svg または map-polygon.svg の内容をそのまま変数に格納する
 // ============================================================
 const JAPAN_MAP_SVG = `<svg class="geolonia-svg-map" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
-  <!-- public/maps/ から SVG の内容をコピー＆ペースト -->
+  <!-- .github/skills/code-apps/references/maps/ から SVG の内容をコピー＆ペースト -->
 </svg>`;
 ```
 
 > **重要**: Generative Pages は単一 `.tsx` ファイル構成のため、SVG を外部ファイルとして fetch できない。
-> `public/maps/` の SVG ファイルの内容をコピーして TypeScript 文字列リテラルとして埋め込む。
+> `.github/skills/code-apps/references/maps/` の SVG ファイルの内容をコピーして TypeScript 文字列リテラルとして埋め込む。
 
 ### 地図レンダリング + インタラクション
 
