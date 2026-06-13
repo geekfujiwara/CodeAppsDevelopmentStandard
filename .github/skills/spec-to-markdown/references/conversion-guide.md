@@ -9,7 +9,12 @@ spec/
 ├── input/                     # 変換元ドキュメントを置く
 ├── output/
 │   ├── staging/               # ファイル単位 markdown
-│   └── docs/                  # 業務要件 / 機能要件 / 設計要件
+│   └── docs/                  # 業務要件 / 機能要件 / 設計要件 / テスト要件 + インデックス
+│       ├── index.md
+│       ├── business-requirements.md
+│       ├── functional-requirements.md
+│       ├── design-requirements.md
+│       └── test-requirements.md
 └── .cache/                    # システム内部用
     ├── conversion-checklist.json
     ├── pending_ocr.json
@@ -92,30 +97,44 @@ python convert_documents.py \
 - `staging_markdown_path`
 - `sha256`
 - `processor` (`anthropics/skills`)
+- `context_hint`（抽出時の観点ヒント — どの要件観点で読み取るかを明示）
 
 ## 6. docs の構成
 
+### index.md
+- ドキュメント一覧（各 docs へのリンク・役割・主な利用者）
+- 処理状況テーブル
+- 開発利用フロー（番号付き手順）
+
 ### business-requirements.md
-- 対象業務 / 目的
-- 利用者 / ロール
+- 概要（対象業務・プロジェクト背景・スコープ）
+- ステークホルダー / ロール（表）
+- ユーザーストーリー（As a…I want…so that…形式）
 - 業務フロー
-- 未確定事項 / 要確認事項
+- 未確定事項 / 要確認事項（表）
 - 要件変更履歴（理由を併記）
 
 ### functional-requirements.md
-- Dataverse テーブル候補
-- 主要列 / マスタ / リレーション候補
-- Code Apps / Model-Driven Apps の UI 要件
-- Power Automate の自動化要件
-- Copilot Studio / AI Builder の利用余地
-- 外部連携
+- 機能一覧（MoSCoW 優先度・受け入れ条件の表）
+- Dataverse テーブル候補（表）
+- UI 要件 / 自動化要件 / AI 連携要件
+- 非機能要件（パフォーマンス・セキュリティ・可用性・スケーラビリティの表）
 - 要件変更履歴（理由を併記）
 
 ### design-requirements.md
 - Power Platform 全体構成案
-- セキュリティ / 権限 / 監査の論点
-- 設計上のリスク
-- Phase 0 で確認が必要な論点
+- コンポーネント設計（表）
+- セキュリティ / 権限 / 監査（表）
+- 設計上のリスク（影響度・発生確率・対応方針の表）
+- Phase 0 確認事項
+- 実装タスク分解（タスク・依存・優先度・見積の表）
+- 要件変更履歴（理由を併記）
+
+### test-requirements.md
+- テスト戦略
+- テストシナリオ（前提条件・操作手順・期待結果・優先度の表）
+- 受け入れ条件（functional の機能 # と対応させた表）
+- 非機能テスト（合格基準の表）
 - 要件変更履歴（理由を併記）
 
 ## 7. conversion-checklist の運用
@@ -128,13 +147,24 @@ python convert_documents.py \
 ## 8. 処理ルール
 
 - 画像は必ず agent-ocr
-- 画像以外は anthropics/skills
+- 画像以外は anthropics/skills（`context_hint` を参照して抽出観点を確認）
 - 推測で埋めず、情報不足は `要確認`
 - OCR 抽出では表を markdown table 化し、判読不能箇所は `[判読不可]` とする
 
 補足: anthropics/skills（Claude）も画像読解は可能だが、この運用では OCR を agent-ocr に固定する。
 
-## 9. 備考
+## 9. staging → docs 統合後の開発フロー
+
+staging が全件完了したら、以下の流れで開発に入る。
+
+1. **要件合意**: `business-requirements.md` の未確定事項を PO / BA と確認し、`要確認` を解消する
+2. **優先度合意**: `functional-requirements.md` の MoSCoW 優先度を PO と合意する
+3. **設計確定**: `design-requirements.md` の実装タスク分解を確定させる
+4. **テスト設計**: `test-requirements.md` の受け入れ条件を `functional-requirements.md` の機能 # と紐付ける
+5. **開発着手**: `design-requirements.md` の実装タスク表を元にタスクを割り当てる
+6. **変更管理**: 仕様変更時は各 docs の「要件変更履歴」に変更内容と理由を記録する
+
+## 10. 備考
 
 `convert_documents.py` は `spec/output/staging/`・`spec/output/docs/` の土台作成と  
 `spec/.cache/` への pending manifest 生成を担当する。  
