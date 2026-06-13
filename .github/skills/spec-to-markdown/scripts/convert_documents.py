@@ -1,4 +1,4 @@
-"""spec-to-markdown の入力を /work 配下に staging/output として出力する。"""
+"""spec-to-markdown の入力を /spec 配下に output/staging・output/docs として出力する。"""
 
 from __future__ import annotations
 
@@ -62,11 +62,12 @@ def find_repository_root(start_path: Path) -> Path:
 
 
 REPOSITORY_ROOT = find_repository_root(Path(__file__).resolve())
-DEFAULT_WORK_DIR = REPOSITORY_ROOT / "work"
-DEFAULT_INPUT_DIR = DEFAULT_WORK_DIR / "input"
-DEFAULT_STAGING_DIR = DEFAULT_WORK_DIR / "staging"
-DEFAULT_DOCS_DIR = DEFAULT_WORK_DIR / "docs"
-DEFAULT_CHECKLIST_PATH = DEFAULT_WORK_DIR / "conversion-checklist.json"
+DEFAULT_SPEC_DIR = REPOSITORY_ROOT / "spec"
+DEFAULT_INPUT_DIR = DEFAULT_SPEC_DIR / "input"
+DEFAULT_STAGING_DIR = DEFAULT_SPEC_DIR / "output" / "staging"
+DEFAULT_DOCS_DIR = DEFAULT_SPEC_DIR / "output" / "docs"
+DEFAULT_CACHE_DIR = DEFAULT_SPEC_DIR / ".cache"
+DEFAULT_CHECKLIST_PATH = DEFAULT_CACHE_DIR / "conversion-checklist.json"
 
 
 
@@ -74,8 +75,8 @@ DEFAULT_CHECKLIST_PATH = DEFAULT_WORK_DIR / "conversion-checklist.json"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "input フォルダの文書を /work/staging に 元ファイル名.拡張子.MD で出力し、"
-            " /work/docs に要件ドキュメントを出力する"
+            "input フォルダの文書を /spec/output/staging に 元ファイル名.拡張子.MD で出力し、"
+            " /spec/output/docs に要件ドキュメントを出力する"
         )
     )
     parser.add_argument(
@@ -273,7 +274,7 @@ def build_requirements_doc(
 
     lines.extend([
         "## 3. 備考",
-        "- `staging` の markdown を根拠に整理すること",
+        "- `spec/output/staging/` の markdown を根拠に整理すること",
         "- 情報不足は推測せず `要確認` として残すこと",
         "",
         "## 4. 要件変更履歴",
@@ -295,6 +296,7 @@ def main() -> int:
     output_staging = resolve_output_path(args.staging, DEFAULT_STAGING_DIR)
     docs_dir = resolve_output_path(args.docs or args.output, DEFAULT_DOCS_DIR)
     checklist_path = resolve_output_path(args.checklist, DEFAULT_CHECKLIST_PATH)
+    cache_dir = checklist_path.parent
 
     if not input_path.exists():
         raise SystemExit(
@@ -464,7 +466,9 @@ def main() -> int:
         })
         processed_count += 1
 
-    pending_ocr_json = output_staging / "pending_ocr.json"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    pending_ocr_json = cache_dir / "pending_ocr.json"
     if pending_ocr_items:
         write_pending_json(pending_ocr_json, pending_ocr_items)
         print(f"📝 wrote: {pending_ocr_json}")
@@ -472,7 +476,7 @@ def main() -> int:
         pending_ocr_json.unlink()
         print(f"🧹 removed: {pending_ocr_json}")
 
-    pending_skills_json = output_staging / "pending_skills.json"
+    pending_skills_json = cache_dir / "pending_skills.json"
     if pending_skills_items:
         write_pending_json(pending_skills_json, pending_skills_items)
         print(f"📝 wrote: {pending_skills_json}")
