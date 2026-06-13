@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emerald / Teal プレビュー — Power Pages</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  font-family: "Noto Sans JP", system-ui, -apple-system, sans-serif;
+  --radius: 0.75rem;
+  --background: #f0fdf4;
+  --foreground: #052e16;
+  --card: #ffffff;
+  --card-foreground: #052e16;
+  --primary: #059669;
+  --primary-foreground: #ffffff;
+  --secondary: #ecfdf5;
+  --secondary-foreground: #064e3b;
+  --muted: #ecfdf5;
+  --muted-foreground: #6b7280;
+  --border: #d1fae5;
+  --header-bg: #ffffff;
+  --gradient-start: #059669;
+  --gradient-mid: #14b8a6;
+  --gradient-end: #2dd4bf;
+}
+
+body { background: var(--background); color: var(--foreground); font-size: 14px; line-height: 1.6; }
+
+.hdr { background: var(--header-bg); border-bottom: 1px solid var(--border); height: 64px; display: flex; align-items: center; padding: 0 40px; gap: 32px; position: sticky; top: 0; z-index: 10; }
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.logo-mark { background: var(--primary); color: var(--primary-foreground); width: 34px; height: 34px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; }
+.logo-name { font-weight: 700; font-size: 16px; color: var(--foreground); }
+.nav { display: flex; gap: 28px; flex: 1; }
+.nav-link { color: var(--muted-foreground); font-size: 13px; text-decoration: none; font-weight: 500; }
+.nav-link.active { color: var(--primary); font-weight: 600; }
+.login-btn { background: var(--primary); color: var(--primary-foreground); border: none; border-radius: var(--radius); padding: 9px 20px; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+.hero { background: linear-gradient(135deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end)); padding: 64px 40px; text-align: center; color: #fff; }
+.hero-tag { display: inline-block; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 4px 14px; font-size: 11px; font-weight: 600; letter-spacing: .06em; margin-bottom: 18px; }
+.hero-title { font-size: 32px; font-weight: 700; line-height: 1.25; margin-bottom: 14px; }
+.hero-sub { font-size: 15px; opacity: .9; margin-bottom: 32px; max-width: 520px; margin-left: auto; margin-right: auto; }
+.hero-actions { display: flex; gap: 12px; justify-content: center; }
+.hero-btn { background: #fff; color: var(--gradient-start); border: none; border-radius: var(--radius); padding: 12px 28px; font-size: 14px; font-weight: 700; cursor: pointer; }
+.hero-btn-ghost { background: transparent; color: #fff; border: 2px solid rgba(255,255,255,.65); border-radius: var(--radius); padding: 12px 28px; font-size: 14px; font-weight: 600; cursor: pointer; }
+
+.section { padding: 48px 40px; }
+.section-title { font-size: 20px; font-weight: 700; margin-bottom: 24px; text-align: center; color: var(--foreground); }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+.card-icon { width: 44px; height: 44px; background: var(--secondary); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 14px; }
+.card-title { font-weight: 700; font-size: 15px; margin-bottom: 8px; color: var(--card-foreground); }
+.card-desc { font-size: 13px; color: var(--muted-foreground); line-height: 1.7; }
+
+.footer { background: var(--muted); border-top: 1px solid var(--border); padding: 20px 40px; text-align: center; font-size: 12px; color: var(--muted-foreground); }
+
+.preview-label { position: fixed; bottom: 12px; right: 14px; background: var(--primary); color: var(--primary-foreground); padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; opacity: .85; }
+</style>
+</head>
+<body>
+<div class="hdr">
+  <a class="logo" href="#">
+    <div class="logo-mark">G</div>
+    <span class="logo-name">Geek Portal</span>
+  </a>
+  <div class="nav">
+    <a class="nav-link active" href="#">ホーム</a>
+    <a class="nav-link" href="#">サービス</a>
+    <a class="nav-link" href="#">お知らせ</a>
+    <a class="nav-link" href="#">お問い合わせ</a>
+  </div>
+  <button class="login-btn">ログイン</button>
+</div>
+
+<div class="hero">
+  <div class="hero-tag">POWER PLATFORM</div>
+  <div class="hero-title">業務をもっとスマートに</div>
+  <div class="hero-sub">Power Platform で実現するデジタルワークプレイス。データ活用・自動化・AIを一元管理。</div>
+  <div class="hero-actions">
+    <button class="hero-btn">はじめる</button>
+    <button class="hero-btn-ghost">詳しく見る</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">サービス一覧</div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-icon">📊</div>
+      <div class="card-title">データ分析</div>
+      <div class="card-desc">リアルタイムデータで経営判断をサポート。直感的なダッシュボードで可視化します。</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔄</div>
+      <div class="card-title">業務自動化</div>
+      <div class="card-desc">Power Automate を活用し、繰り返しの作業を自動化。業務効率を大幅に改善します。</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🤖</div>
+      <div class="card-title">AIアシスタント</div>
+      <div class="card-desc">Copilot Studio で構築したAIエージェントが社内FAQ・承認フローを自動対応します。</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">© 2025 Geek Portal. Powered by Power Platform.</div>
+<div class="preview-label">Emerald / Teal</div>
+</body>
+</html>
