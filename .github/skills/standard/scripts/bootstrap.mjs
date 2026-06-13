@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 
 // ── 定数 ──────────────────────────────────────────────
 const __filename = fileURLToPath(import.meta.url);
-const repoRoot = path.resolve(path.dirname(__filename), "..");
+const repoRoot = path.resolve(path.dirname(__filename), "../../../..");
 const projectName = path.basename(repoRoot);
 const isWindows = process.platform === "win32";
 

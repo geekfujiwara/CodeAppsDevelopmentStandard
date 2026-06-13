@@ -5,7 +5,7 @@
   "description": "Power Platform コードファースト開発標準（スキル・エージェント・リファレンス）",
   "type": "module",
   "scripts": {
-    "check:env": "node scripts/bootstrap.mjs --check",
-    "setup": "node scripts/bootstrap.mjs --setup"
+    "check:env": "node .github/skills/standard/scripts/bootstrap.mjs --check",
+    "setup": "node .github/skills/standard/scripts/bootstrap.mjs --setup"
   }
 }
