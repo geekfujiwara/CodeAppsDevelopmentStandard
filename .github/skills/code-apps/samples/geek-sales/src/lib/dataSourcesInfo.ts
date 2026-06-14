@@ -29,10 +29,12 @@ export const dataSourcesInfo = {
     dataSourceType: "Dataverse",
     apis: {},
   },
-  geek_incidents: {
-    tableId: "geek_incident",
+  // カスタムインシデントテーブル（pac code add-data-source で追加できない場合の手動追加）
+  // PUBLISHER_PREFIX に応じたテーブル名で登録する
+  [`${import.meta.env.VITE_PUBLISHER_PREFIX ?? "geek"}_incidents`]: {
+    tableId: `${import.meta.env.VITE_PUBLISHER_PREFIX ?? "geek"}_incident`,
     version: "",
-    primaryKey: "geek_incidentid",
+    primaryKey: `${import.meta.env.VITE_PUBLISHER_PREFIX ?? "geek"}_incidentid`,
     dataSourceType: "Dataverse",
     apis: {},
   },

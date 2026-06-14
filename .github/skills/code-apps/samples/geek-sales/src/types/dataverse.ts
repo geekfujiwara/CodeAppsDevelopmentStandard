@@ -1,4 +1,9 @@
 // Dataverse テーブル型定義
+//
+// フィールド名（geek_*）はサンプルのパブリッシャープレフィックス "geek" を反映している。
+// PUBLISHER_PREFIX を変更した場合はフィールド名も一括置換すること（例: geek_ → myco_）。
+// サービス層（dataverse-service.ts）はテーブル名・フィールド名を PUBLISHER_PREFIX から
+// 動的に構築するため、型定義の更新は IDE 補完のためのみ必要。
 
 // ── 顧客 (geek_customer) ──
 export interface Customer {
