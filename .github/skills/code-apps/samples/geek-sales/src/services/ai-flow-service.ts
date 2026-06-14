@@ -166,7 +166,7 @@ export async function sendOutlookEmail(
       },
     });
 
-    if (result.success && result.data?.result === "sent") {
+    if (result.success) {
       return true;
     }
     console.warn("[Outlook Flow] SendOutlookEmail failed:", result);
@@ -205,8 +205,8 @@ export async function createOutlookEvent(
       },
     });
 
-    if (result.success && result.data?.result === "created") {
-      return result.data.eventId || "created";
+    if (result.success) {
+      return result.data?.eventId ?? "created";
     }
     console.warn("[Outlook Flow] CreateOutlookEvent failed:", result);
     return null;

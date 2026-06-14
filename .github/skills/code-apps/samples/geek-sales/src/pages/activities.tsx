@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef } from "react";
+import { PUBLISHER_PREFIX } from "@/config";
 import { ListTable, type TableColumn, type FilterConfig } from "@/components/list-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useActivities, useCustomers, useOpportunities, useCreateActivity, useUpdateActivity, useDeleteActivity } from "@/hooks/use-dataverse";
 import { ActivityTypeOptions, type Activity, type ActivityCreate } from "@/types/dataverse";
 import { LoadingSkeletonCard } from "@/components/loading-skeleton";
@@ -16,6 +17,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Plus, Trash2, List, Clock, Phone, Mail, Users, Video, MessageSquare } from "lucide-react";
 
 type ViewMode = "table" | "timeline";
+type ScheduleTab = "scheduled" | "completed" | "all";
 
 const activityIcon = (type?: number) => {
   switch (type) {
@@ -49,7 +51,10 @@ export default function ActivitiesPage() {
   const [editItem, setEditItem] = useState<Activity | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Activity | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const [scheduleTab, setScheduleTab] = useState<ScheduleTab>("scheduled");
   const submitRef = useRef<(() => void) | null>(null);
+
+  const P = PUBLISHER_PREFIX;
 
   const customerMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -63,10 +68,22 @@ export default function ActivitiesPage() {
     return m;
   }, [opportunities]);
 
+  // スケジュールタブによる事前フィルタ
+  const scheduleFilteredActivities = useMemo(() => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (scheduleTab === "scheduled") {
+      return activities.filter(a => (a.geek_activitydate?.split("T")[0] ?? "") >= todayStr);
+    }
+    if (scheduleTab === "completed") {
+      return activities.filter(a => (a.geek_activitydate?.split("T")[0] ?? "") < todayStr);
+    }
+    return activities;
+  }, [activities, scheduleTab]);
+
   const columns: TableColumn<Activity>[] = useMemo(() => [
-    { key: "geek_name", label: "件名", sortable: true },
+    { key: `${P}_name`, label: "件名", sortable: true },
     {
-      key: "geek_type",
+      key: `${P}_type`,
       label: "種別",
       render: (item) =>
         item.geek_type !== undefined ? (
@@ -90,7 +107,7 @@ export default function ActivitiesPage() {
       },
     },
     {
-      key: "geek_activitydate",
+      key: `${P}_activitydate`,
       label: "活動日",
       sortable: true,
       render: (item) =>
@@ -102,7 +119,7 @@ export default function ActivitiesPage() {
 
   const filters: FilterConfig<Activity>[] = useMemo(() => [
     {
-      key: "geek_type" as keyof Activity,
+      key: `${P}_type` as keyof Activity,
       label: "種別",
       placeholder: "種別で絞込",
       options: Object.entries(ActivityTypeOptions).map(([value, label]) => ({
@@ -132,9 +149,9 @@ export default function ActivitiesPage() {
     }
   };
 
-  // タイムライン用：日付でグループ化
+  // タイムライン用：日付でグループ化（スケジュールタブフィルタ適用済み）
   const timelineGroups = useMemo(() => {
-    const sorted = [...activities].sort(
+    const sorted = [...scheduleFilteredActivities].sort(
       (a, b) =>
         new Date(b.geek_activitydate ?? b.createdon ?? "").getTime() -
         new Date(a.geek_activitydate ?? a.createdon ?? "").getTime(),
@@ -147,12 +164,21 @@ export default function ActivitiesPage() {
       groups.set(dateStr, list);
     });
     return Array.from(groups.entries());
-  }, [activities]);
+  }, [scheduleFilteredActivities]);
 
   if (isLoading) return <div className="p-4 md:p-6"><LoadingSkeletonCard variant="detailed" count={3} /></div>;
 
   return (
     <div className="p-4 md:p-6 space-y-4">
+      {/* スケジュールタブ（予定 / 完了 / すべて）*/}
+      <Tabs value={scheduleTab} onValueChange={(v) => setScheduleTab(v as ScheduleTab)}>
+        <TabsList>
+          <TabsTrigger value="scheduled">予定</TabsTrigger>
+          <TabsTrigger value="completed">完了</TabsTrigger>
+          <TabsTrigger value="all">すべて</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">活動履歴</h2>
         <div className="flex items-center gap-2">
@@ -174,9 +200,9 @@ export default function ActivitiesPage() {
 
       {viewMode === "table" ? (
         <ListTable<Activity>
-          data={activities}
+          data={scheduleFilteredActivities}
           columns={columns}
-          searchKeys={["geek_name", "geek_content"]}
+          searchKeys={[`${P}_name`, `${P}_content`]}
           searchPlaceholder="件名・内容で検索..."
           filters={filters}
           onRowClick={(item) => { setEditItem(item); setIsFormOpen(true); }}
@@ -351,6 +377,7 @@ function ActivityForm({
         <div>
           <Label>活動日</Label>
           <Input type="date" value={activityDate} onChange={(e) => setActivityDate(e.target.value)} />
+          <p className="text-xs text-muted-foreground mt-1">今日以降の日付は「予定」、過去の日付は「完了」として分類されます</p>
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

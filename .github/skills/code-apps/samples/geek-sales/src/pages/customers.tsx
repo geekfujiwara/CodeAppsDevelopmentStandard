@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef } from "react";
+import { PUBLISHER_PREFIX } from "@/config";
 import { useNavigate } from "react-router-dom";
 import { ListTable, type TableColumn, type FilterConfig } from "@/components/list-table";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,8 @@ export default function CustomersPage() {
   const [industryTab, setIndustryTab] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const submitRef = useRef<(() => void) | null>(null);
+
+  const P = PUBLISHER_PREFIX;
 
   // ── 顧客別の商談サマリ ──
   const oppSummaryByCustomer = useMemo(() => {
@@ -82,16 +85,16 @@ export default function CustomersPage() {
 
   // ── テーブル列定義 ──
   const columns: TableColumn<Customer>[] = useMemo(() => [
-    { key: "geek_name", label: "会社名", sortable: true },
+    { key: `${P}_name`, label: "会社名", sortable: true },
     {
-      key: "geek_industry",
+      key: `${P}_industry`,
       label: "業種",
       render: (item) =>
         item.geek_industry !== undefined ? (
           <Badge variant="secondary" className="text-xs">{IndustryOptions[item.geek_industry] ?? ""}</Badge>
         ) : null,
     },
-    { key: "geek_contactperson", label: "担当者名" },
+    { key: `${P}_contactperson`, label: "担当者名" },
     {
       key: "_opp_summary" as keyof Customer,
       label: "商談",
@@ -124,7 +127,7 @@ export default function CustomersPage() {
 
   const filters: FilterConfig<Customer>[] = useMemo(() => [
     {
-      key: "geek_industry" as keyof Customer,
+      key: `${P}_industry` as keyof Customer,
       label: "業種",
       placeholder: "業種で絞込",
       options: Object.entries(IndustryOptions).map(([value, label]) => ({
@@ -202,7 +205,7 @@ export default function CustomersPage() {
         <ListTable<Customer>
           data={filteredCustomers}
           columns={columns}
-          searchKeys={["geek_name", "geek_contactperson"]}
+          searchKeys={[`${P}_name`, `${P}_contactperson`]}
           searchPlaceholder="会社名・担当者名で検索..."
           filters={filters}
           onRowClick={(item) => navigate(`/customers/${item.geek_customerid}`)}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { PUBLISHER_PREFIX } from "@/config";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -79,6 +80,8 @@ export default function CustomerDetailPage() {
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const P = PUBLISHER_PREFIX;
 
   // 編集用 state
   const [editName, setEditName] = useState("");
@@ -185,9 +188,9 @@ export default function CustomerDetailPage() {
 
   const oppColumns: TableColumn<OpportunityRow>[] = useMemo(
     () => [
-      { key: "geek_name", label: "商談名", sortable: true },
+      { key: `${P}_name`, label: "商談名", sortable: true },
       {
-        key: "geek_stage",
+        key: `${P}_stage`,
         label: "フェーズ",
         render: (item) =>
           item.geek_stage != null ? (
@@ -197,7 +200,7 @@ export default function CustomerDetailPage() {
           ) : null,
       },
       {
-        key: "geek_amount",
+        key: `${P}_amount`,
         label: "金額",
         align: "right" as const,
         render: (item) =>
@@ -206,7 +209,7 @@ export default function CustomerDetailPage() {
             : "",
       },
       {
-        key: "geek_expectedclosedate",
+        key: `${P}_expectedclosedate`,
         label: "予定日",
         render: (item) =>
           item.geek_expectedclosedate
@@ -219,9 +222,9 @@ export default function CustomerDetailPage() {
 
   const actColumns: TableColumn<ActivityRow>[] = useMemo(
     () => [
-      { key: "geek_name", label: "件名", sortable: true },
+      { key: `${P}_name`, label: "件名", sortable: true },
       {
-        key: "geek_type",
+        key: `${P}_type`,
         label: "種別",
         render: (item) =>
           item.geek_type != null ? (
@@ -231,14 +234,14 @@ export default function CustomerDetailPage() {
           ) : null,
       },
       {
-        key: "geek_activitydate",
+        key: `${P}_activitydate`,
         label: "日付",
         render: (item) =>
           item.geek_activitydate
             ? new Date(item.geek_activitydate).toLocaleDateString("ja-JP")
             : "",
       },
-      { key: "geek_content", label: "内容" },
+      { key: `${P}_content`, label: "内容" },
     ],
     [],
   );
@@ -590,7 +593,7 @@ export default function CustomerDetailPage() {
             <ListTable
               data={relatedOpportunities as OpportunityRow[]}
               columns={oppColumns}
-              searchKeys={["geek_name"]}
+              searchKeys={[`${P}_name`]}
               onRowClick={(row) =>
                 navigate(`/opportunities/${row.geek_opportunityid}`)
               }
@@ -618,7 +621,7 @@ export default function CustomerDetailPage() {
             <ListTable
               data={relatedActivities as ActivityRow[]}
               columns={actColumns}
-              searchKeys={["geek_name"]}
+              searchKeys={[`${P}_name`]}
             />
           )}
         </CardContent>

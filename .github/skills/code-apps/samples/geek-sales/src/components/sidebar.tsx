@@ -1,19 +1,10 @@
 import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  LayoutDashboard,
-  Building2,
-  Handshake,
-  Columns3,
-  ClipboardList,
-  Target,
-  AlertTriangle,
-  type LucideIcon,
-} from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebarContext } from "./sidebar-layout";
-import { CODEAPPS_NAV_SECTIONS } from "@/config";
+import { NAV_SECTIONS, ICON_MAP } from "@/config";
 
 type NavItem = {
   icon: LucideIcon;
@@ -40,21 +31,11 @@ export function Sidebar() {
 
   const positionClasses = "top-16 h-[calc(100vh-4rem)]";
 
-  const iconMap: Record<string, LucideIcon> = {
-    dashboard: LayoutDashboard,
-    territory: Target,
-    customers: Building2,
-    opportunities: Handshake,
-    pipeline: Columns3,
-    activities: ClipboardList,
-    incidents: AlertTriangle,
-  };
-
   const navItems: { category: string; items: NavItem[] }[] =
-    CODEAPPS_NAV_SECTIONS.map((section) => ({
+    NAV_SECTIONS.map((section) => ({
       category: section.category,
       items: section.items.map((item) => ({
-        icon: iconMap[item.iconKey ?? "dashboard"] ?? LayoutDashboard,
+        icon: ICON_MAP[item.iconKey] ?? ICON_MAP.dashboard,
         label: item.label,
         path: item.path,
       })),

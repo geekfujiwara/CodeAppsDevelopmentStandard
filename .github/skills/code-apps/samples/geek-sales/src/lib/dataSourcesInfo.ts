@@ -29,10 +29,12 @@ export const dataSourcesInfo = {
     dataSourceType: "Dataverse",
     apis: {},
   },
-  geek_incidents: {
-    tableId: "geek_incident",
+  // カスタムインシデントテーブル（pac code add-data-source で追加できない場合の手動追加）
+  // PUBLISHER_PREFIX に応じたテーブル名で登録する
+  [`${import.meta.env.VITE_PUBLISHER_PREFIX ?? "geek"}_incidents`]: {
+    tableId: `${import.meta.env.VITE_PUBLISHER_PREFIX ?? "geek"}_incident`,
     version: "",
-    primaryKey: "geek_incidentid",
+    primaryKey: `${import.meta.env.VITE_PUBLISHER_PREFIX ?? "geek"}_incidentid`,
     dataSourceType: "Dataverse",
     apis: {},
   },
@@ -103,6 +105,64 @@ export const dataSourcesInfo = {
         responseInfo: {
           status: { type: "string" },
           message: { type: "string" },
+        },
+      },
+    },
+  },
+  SendOutlookEmail: {
+    tableId: "",
+    version: "",
+    dataSourceType: "Connector",
+    apis: {
+      Run: {
+        path: "/triggers/manual/run",
+        method: "POST",
+        parameters: [
+          { name: "text", in: "body", required: true, type: "string" },
+          { name: "text_1", in: "body", required: true, type: "string" },
+          { name: "text_2", in: "body", required: true, type: "string" },
+        ],
+        responseInfo: {
+          result: { type: "string" },
+        },
+      },
+    },
+  },
+  CreateOutlookEvent: {
+    tableId: "",
+    version: "",
+    dataSourceType: "Connector",
+    apis: {
+      Run: {
+        path: "/triggers/manual/run",
+        method: "POST",
+        parameters: [
+          { name: "text", in: "body", required: true, type: "string" },
+          { name: "text_1", in: "body", required: true, type: "string" },
+          { name: "text_2", in: "body", required: true, type: "string" },
+          { name: "text_3", in: "body", required: true, type: "string" },
+          { name: "text_4", in: "body", required: true, type: "string" },
+        ],
+        responseInfo: {
+          result: { type: "string" },
+          eventId: { type: "string" },
+        },
+      },
+    },
+  },
+  GenerateTerritoryNews: {
+    tableId: "",
+    version: "",
+    dataSourceType: "Connector",
+    apis: {
+      Run: {
+        path: "/triggers/manual/run",
+        method: "POST",
+        parameters: [
+          { name: "text", in: "body", required: true, type: "string" },
+        ],
+        responseInfo: {
+          airesult: { type: "string" },
         },
       },
     },
