@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef } from "react";
+import { PUBLISHER_PREFIX } from "@/config";
 import { ListTable, type TableColumn, type FilterConfig } from "@/components/list-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,8 @@ export default function ActivitiesPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const submitRef = useRef<(() => void) | null>(null);
 
+  const P = PUBLISHER_PREFIX;
+
   const customerMap = useMemo(() => {
     const m = new Map<string, string>();
     customers.forEach((c) => m.set(c.geek_customerid, c.geek_name));
@@ -64,9 +67,9 @@ export default function ActivitiesPage() {
   }, [opportunities]);
 
   const columns: TableColumn<Activity>[] = useMemo(() => [
-    { key: "geek_name", label: "件名", sortable: true },
+    { key: `${P}_name`, label: "件名", sortable: true },
     {
-      key: "geek_type",
+      key: `${P}_type`,
       label: "種別",
       render: (item) =>
         item.geek_type !== undefined ? (
@@ -90,7 +93,7 @@ export default function ActivitiesPage() {
       },
     },
     {
-      key: "geek_activitydate",
+      key: `${P}_activitydate`,
       label: "活動日",
       sortable: true,
       render: (item) =>
@@ -102,7 +105,7 @@ export default function ActivitiesPage() {
 
   const filters: FilterConfig<Activity>[] = useMemo(() => [
     {
-      key: "geek_type" as keyof Activity,
+      key: `${P}_type` as keyof Activity,
       label: "種別",
       placeholder: "種別で絞込",
       options: Object.entries(ActivityTypeOptions).map(([value, label]) => ({
@@ -176,7 +179,7 @@ export default function ActivitiesPage() {
         <ListTable<Activity>
           data={activities}
           columns={columns}
-          searchKeys={["geek_name", "geek_content"]}
+          searchKeys={[`${P}_name`, `${P}_content`]}
           searchPlaceholder="件名・内容で検索..."
           filters={filters}
           onRowClick={(item) => { setEditItem(item); setIsFormOpen(true); }}

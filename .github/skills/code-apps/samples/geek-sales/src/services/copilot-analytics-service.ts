@@ -1,41 +1,46 @@
 import { getClient } from "@microsoft/power-apps/data";
 import { dataSourcesInfo } from "@/lib/dataSourcesInfo";
+import { PUBLISHER_PREFIX } from "@/config";
 import type { ConversationSummary, BotInfo } from "@/types/copilot-analytics";
+
+// テーブル名・フィールド名はパブリッシャープレフィックスから動的に構築する
+const P = PUBLISHER_PREFIX;
 
 function client() {
   return getClient(dataSourcesInfo);
 }
 
 export async function getConversationSummaries(): Promise<ConversationSummary[]> {
-  const result = await client().retrieveMultipleRecordsAsync<ConversationSummary>(
-    "geek_conversationsummaries",
+  const result = await client().retrieveMultipleRecordsAsync(
+    `${P}_conversationsummaries`,
     {
       select: [
-        "geek_conversationsummaryid",
-        "geek_name",
-        "geek_transcriptid",
-        "geek_botname",
-        "geek_botid",
-        "geek_starttime",
-        "geek_outcome",
-        "geek_channel",
-        "geek_usermsgcount",
-        "geek_botmsgcount",
-        "geek_tooleventcount",
-        "geek_durationsec",
-        "geek_toolservers",
-        "geek_firstusertext",
+        `${P}_conversationsummaryid`,
+        `${P}_name`,
+        `${P}_transcriptid`,
+        `${P}_botname`,
+        `${P}_botid`,
+        `${P}_starttime`,
+        `${P}_outcome`,
+        `${P}_channel`,
+        `${P}_usermsgcount`,
+        `${P}_botmsgcount`,
+        `${P}_tooleventcount`,
+        `${P}_durationsec`,
+        `${P}_toolservers`,
+        `${P}_firstusertext`,
         "createdon",
       ],
-      orderBy: ["geek_starttime desc"],
+      orderBy: [`${P}_starttime desc`],
     },
   );
   if (!result.success) throw result.error;
-  return result.data ?? [];
+  return (result.data ?? []) as ConversationSummary[];
 }
 
 export async function getBots(): Promise<BotInfo[]> {
-  const result = await client().retrieveMultipleRecordsAsync<BotInfo>(
+  // bots は Dataverse システムテーブル — プレフィックス不要
+  const result = await client().retrieveMultipleRecordsAsync(
     "bots",
     {
       select: ["botid", "name", "schemaname", "statecode", "publishedon", "createdon", "modifiedon"],
@@ -43,7 +48,7 @@ export async function getBots(): Promise<BotInfo[]> {
     },
   );
   if (!result.success) throw result.error;
-  return result.data ?? [];
+  return (result.data ?? []) as BotInfo[];
 }
 
 export async function triggerSummaryRefresh(): Promise<{ status: string; message: string }> {
@@ -65,6 +70,7 @@ export async function triggerSummaryRefresh(): Promise<{ status: string; message
 }
 
 export async function getTranscriptContent(transcriptId: string): Promise<string> {
+  // conversationtranscripts は Dataverse システムテーブル — プレフィックス不要
   const result = await client().retrieveMultipleRecordsAsync<{ content: string }>(
     "conversationtranscripts",
     {

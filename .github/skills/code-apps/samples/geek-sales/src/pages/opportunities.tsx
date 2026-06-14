@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef } from "react";
+import { PUBLISHER_PREFIX } from "@/config";
 import { useNavigate } from "react-router-dom";
 import { ListTable, type TableColumn, type FilterConfig } from "@/components/list-table";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,8 @@ export default function OpportunitiesPage() {
   const [stageFilter, setStageFilter] = useState<number | null>(null);
   const submitRef = useRef<(() => void) | null>(null);
 
+  const P = PUBLISHER_PREFIX;
+
   const customerMap = useMemo(() => {
     const m = new Map<string, string>();
     customers.forEach((c) => m.set(c.geek_customerid, c.geek_name));
@@ -55,9 +58,9 @@ export default function OpportunitiesPage() {
   );
 
   const columns: TableColumn<Opportunity>[] = useMemo(() => [
-    { key: "geek_name", label: "商談名", sortable: true },
+    { key: `${P}_name`, label: "商談名", sortable: true },
     {
-      key: "geek_stage",
+      key: `${P}_stage`,
       label: "フェーズ",
       sortable: true,
       render: (item) => (
@@ -73,7 +76,7 @@ export default function OpportunitiesPage() {
       },
     },
     {
-      key: "geek_amount",
+      key: `${P}_amount`,
       label: "金額",
       sortable: true,
       align: "right",
@@ -81,14 +84,14 @@ export default function OpportunitiesPage() {
         item.geek_amount != null ? `¥${item.geek_amount.toLocaleString()}` : "",
     },
     {
-      key: "geek_probability",
+      key: `${P}_probability`,
       label: "確度",
       align: "center",
       render: (item) =>
         item.geek_probability !== undefined ? `${item.geek_probability}%` : "",
     },
     {
-      key: "geek_expectedclosedate",
+      key: `${P}_expectedclosedate`,
       label: "予定完了日",
       render: (item) =>
         item.geek_expectedclosedate
@@ -99,7 +102,7 @@ export default function OpportunitiesPage() {
 
   const filters: FilterConfig<Opportunity>[] = useMemo(() => [
     {
-      key: "geek_stage" as keyof Opportunity,
+      key: `${P}_stage` as keyof Opportunity,
       label: "フェーズ",
       placeholder: "フェーズで絞込",
       options: Object.entries(StageOptions).map(([value, label]) => ({
@@ -214,7 +217,7 @@ export default function OpportunitiesPage() {
       <ListTable<Opportunity>
         data={filteredOpportunities}
         columns={columns}
-        searchKeys={["geek_name"]}
+        searchKeys={[`${P}_name`]}
         searchPlaceholder="商談名で検索..."
         filters={filters}
         onRowClick={(item) => navigate(`/opportunities/${item.geek_opportunityid}`)}

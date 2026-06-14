@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef } from "react";
+import { PUBLISHER_PREFIX } from "@/config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,6 +68,8 @@ export default function TerritoryPage() {
   const [showSummary, setShowSummary] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const submitRef = useRef<(() => void) | null>(null);
+
+  const P = PUBLISHER_PREFIX;
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -208,14 +211,14 @@ export default function TerritoryPage() {
   const columns: TableColumn<TerritoryRow>[] = useMemo(
     () => [
       {
-        key: "geek_name",
+        key: `${P}_name`,
         label: "顧客",
         sortable: true,
         render: (item) =>
           customerMap.get(item._geek_customerid_value ?? "") ?? item.geek_name,
       },
       {
-        key: "geek_budget",
+        key: `${P}_budget`,
         label: "予算",
         align: "right" as const,
         render: (item) =>
@@ -264,7 +267,7 @@ export default function TerritoryPage() {
           `${oppCountByCustomer.get(item._geek_customerid_value ?? "") ?? 0}件`,
       },
       {
-        key: "geek_fiscalyear",
+        key: `${P}_fiscalyear`,
         label: "年度",
         render: (item) => (item.geek_fiscalyear ? `${item.geek_fiscalyear}` : "-"),
       },
@@ -493,7 +496,7 @@ export default function TerritoryPage() {
                 <ListTable
                   data={myTerritories as TerritoryRow[]}
                   columns={columns}
-                  searchKeys={["geek_name"]}
+                  searchKeys={[`${P}_name`]}
                   onRowClick={(row) => {
                     setEditItem(row);
                     setIsFormOpen(true);
