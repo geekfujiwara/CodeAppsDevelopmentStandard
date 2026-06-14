@@ -46,8 +46,8 @@ skill-name/
 
 ### サンプル実装一覧
 
-各スキルの `samples/` にある参考実装。**読むためのリファレンス**であり、新規テーマの雛形には使わない
-（新規テーマは [CodeAppsStarter](https://github.com/geekfujiwara/CodeAppsStarter) テンプレートから生成する）。
+各スキルの `samples/` にある参考実装。**読むためのリファレンス**であり、そのままコピーして新規テーマの雛形には使わない
+（新規テーマは `.github/` を取得後、**@GeekPowerCode** がサンプルを参照して scaffold する）。
 
 | サンプル | 場所 | 題材 |
 |---|---|---|

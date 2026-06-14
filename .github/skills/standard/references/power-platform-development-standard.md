@@ -1665,7 +1665,6 @@ python .github/skills/power-pages/scripts/deploy_placeholder.py \
 - [Power Automate Management API](https://learn.microsoft.com/ja-jp/power-automate/web-api)
 - [Copilot Studio 公式ドキュメント](https://learn.microsoft.com/ja-jp/microsoft-copilot-studio/)
 - [Dataverse Web API リファレンス](https://learn.microsoft.com/ja-jp/power-apps/developer/data-platform/webapi/overview)
-- [CodeAppsStarter テンプレート](https://github.com/geekfujiwara/CodeAppsStarter)
 - [CodeAppsDevelopmentStandard](https://github.com/geekfujiwara/CodeAppsDevelopmentStandard)
 
 ---
