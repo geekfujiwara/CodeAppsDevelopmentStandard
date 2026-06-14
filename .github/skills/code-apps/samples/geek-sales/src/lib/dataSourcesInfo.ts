@@ -109,4 +109,62 @@ export const dataSourcesInfo = {
       },
     },
   },
+  SendOutlookEmail: {
+    tableId: "",
+    version: "",
+    dataSourceType: "Connector",
+    apis: {
+      Run: {
+        path: "/triggers/manual/run",
+        method: "POST",
+        parameters: [
+          { name: "text", in: "body", required: true, type: "string" },
+          { name: "text_1", in: "body", required: true, type: "string" },
+          { name: "text_2", in: "body", required: true, type: "string" },
+        ],
+        responseInfo: {
+          result: { type: "string" },
+        },
+      },
+    },
+  },
+  CreateOutlookEvent: {
+    tableId: "",
+    version: "",
+    dataSourceType: "Connector",
+    apis: {
+      Run: {
+        path: "/triggers/manual/run",
+        method: "POST",
+        parameters: [
+          { name: "text", in: "body", required: true, type: "string" },
+          { name: "text_1", in: "body", required: true, type: "string" },
+          { name: "text_2", in: "body", required: true, type: "string" },
+          { name: "text_3", in: "body", required: true, type: "string" },
+          { name: "text_4", in: "body", required: true, type: "string" },
+        ],
+        responseInfo: {
+          result: { type: "string" },
+          eventId: { type: "string" },
+        },
+      },
+    },
+  },
+  GenerateTerritoryNews: {
+    tableId: "",
+    version: "",
+    dataSourceType: "Connector",
+    apis: {
+      Run: {
+        path: "/triggers/manual/run",
+        method: "POST",
+        parameters: [
+          { name: "text", in: "body", required: true, type: "string" },
+        ],
+        responseInfo: {
+          airesult: { type: "string" },
+        },
+      },
+    },
+  },
 };

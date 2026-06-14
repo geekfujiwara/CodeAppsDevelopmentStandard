@@ -3,6 +3,7 @@ import { PUBLISHER_PREFIX } from "@/config";
 import { useNavigate } from "react-router-dom";
 import { ListTable, type TableColumn, type FilterConfig } from "@/components/list-table";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +14,7 @@ import { StageOptions, type Opportunity, type OpportunityCreate } from "@/types/
 import { LoadingSkeletonCard } from "@/components/loading-skeleton";
 import { FormModal } from "@/components/form-modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Plus, Trash2, TrendingUp, Trophy, XCircle, Handshake } from "lucide-react";
+import { Plus, Trash2, TrendingUp, Trophy, XCircle, Handshake, Target } from "lucide-react";
 import { StageProgressBar } from "@/components/stage-progress-bar";
 
 export default function OpportunitiesPage() {
@@ -98,6 +99,22 @@ export default function OpportunitiesPage() {
           ? new Date(item.geek_expectedclosedate).toLocaleDateString("ja-JP")
           : "",
     },
+    {
+      key: "weighted_amount",
+      label: "見込額",
+      align: "right" as const,
+      render: (item) => {
+        const amount = item.geek_amount ?? 0;
+        const prob = item.geek_probability ?? 0;
+        const weighted = amount * prob / 100;
+        if (weighted === 0) return null;
+        return (
+          <Badge variant="secondary" className="text-xs whitespace-nowrap">
+            見込¥{Math.round(weighted / 10000).toLocaleString()}万
+          </Badge>
+        );
+      },
+    },
   ], [customerMap]);
 
   const filters: FilterConfig<Opportunity>[] = useMemo(() => [
@@ -137,7 +154,11 @@ export default function OpportunitiesPage() {
       .filter((o) => o.geek_stage === 100000004)
       .reduce((s, o) => s + (o.geek_amount ?? 0), 0);
     const lostCount = opportunities.filter((o) => o.geek_stage === 100000005).length;
-    return { activeCount: active.length, pipelineTotal, wonTotal, lostCount };
+    const weightedTotal = active.reduce(
+      (s, o) => s + (o.geek_amount ?? 0) * (o.geek_probability ?? 0) / 100,
+      0,
+    );
+    return { activeCount: active.length, pipelineTotal, wonTotal, lostCount, weightedTotal };
   }, [opportunities]);
 
   return (
@@ -150,7 +171,7 @@ export default function OpportunitiesPage() {
       </div>
 
       {/* サマリーバナー */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card>
           <CardContent className="p-3 flex items-center gap-3">
             <Handshake className="h-5 w-5 text-blue-500 shrink-0" />
@@ -184,6 +205,16 @@ export default function OpportunitiesPage() {
             <div>
               <p className="text-xs text-muted-foreground">失注</p>
               <p className="text-lg font-bold">{summaryStats.lostCount}件</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3 flex items-center gap-3">
+            <Target className="h-5 w-5 text-amber-500 shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground">重み付きパイプライン</p>
+              <p className="text-lg font-bold">¥{Math.round(summaryStats.weightedTotal / 10000).toLocaleString()}万</p>
+              <p className="text-xs text-muted-foreground">確度加重合計</p>
             </div>
           </CardContent>
         </Card>
