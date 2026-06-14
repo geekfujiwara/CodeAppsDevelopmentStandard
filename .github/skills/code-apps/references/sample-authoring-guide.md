@@ -119,23 +119,37 @@ export const FEATURE_COPILOT =
 フラグが `false` でも関連コンポーネントはコードに残す（削除しない）。
 学習者が「`true` にするとどうなるか」を確認できることがサンプルとしての価値。
 
-### 2-4. ナビゲーション構成（`VITE_CODEAPPS_NAV_SECTIONS_JSON`）
+### 2-4. ナビゲーション構成はコードに固定する
 
-サンプルのナビゲーション構成は `VITE_CODEAPPS_NAV_SECTIONS_JSON` で env var として提供する。
-これによりカスタマイザーは**再ビルドなし**でページ構成を確認でき、何を変えれば何が変わるかが一目瞭然になる。
+サンプルのナビゲーション構成は `src/config.ts` にコードとして直接記述する。
+`VITE_CODEAPPS_NAV_SECTIONS_JSON`（env var の JSON 配列）は**サンプルでは使わない**。
 
-```env
-VITE_CODEAPPS_NAV_SECTIONS_JSON=[
-  {"category":"メイン","items":[
-    {"label":"ダッシュボード","path":"dashboard","iconKey":"dashboard"},
-    {"label":"経費申請","path":"expenses","iconKey":"receipt"}
-  ]},
-  {"category":"管理","items":[
-    {"label":"承認","path":"approvals","iconKey":"check"},
-    {"label":"分析","path":"analytics","iconKey":"chart"}
-  ]}
+**理由:**
+- TypeScript で型安全に書ける（IDE 補完・コンパイルエラーが効く）
+- JSON 文字列より可読性が高く、カスタマイズ箇所がコードとして明示できる
+- Code Apps は変更のたびに再ビルドが必要なため、env var にしても再ビルド不要のメリットがない
+
+```typescript
+// src/config.ts — ナビゲーション構成はここに直接書く
+export const NAV_SECTIONS: NavSection[] = [
+  {
+    category: "メイン",
+    items: [
+      { label: "ダッシュボード", path: "dashboard", iconKey: "dashboard" },
+      { label: "経費申請",       path: "expenses",  iconKey: "receipt"   },
+    ],
+  },
+  {
+    category: "管理",
+    items: [
+      { label: "承認",   path: "approvals", iconKey: "check" },
+      { label: "分析",   path: "analytics", iconKey: "chart" },
+    ],
+  },
 ]
 ```
+
+ページを追加・削除する際は `src/config.ts` と `src/router.tsx` を合わせて編集する（ルーターとナビの整合はプレデプロイチェックで検証される）。
 
 ---
 
@@ -168,10 +182,7 @@ samples/
 VITE_CODEAPPS_APP_NAME={アプリ表示名}
 VITE_CODEAPPS_APP_SUBTITLE={サブタイトル}
 VITE_CODEAPPS_DOCUMENT_TITLE={ブラウザタブのタイトル}
-
-# ── ナビゲーション構成（変更推奨） ──────────────────────────
-# ページを追加・削除する場合はこの JSON を編集してください
-VITE_CODEAPPS_NAV_SECTIONS_JSON=[{"category":"メイン","items":[...]}]
+# ナビゲーション構成は src/config.ts に直接記述（env var では管理しない）
 
 # ── 機能フラグ（変更推奨） ──────────────────────────────────
 # true にすると対応タブ・機能が表示されます
@@ -261,11 +272,11 @@ CONNREF_OUTLOOK=myprefix_shared_office365_xxxxxxxx
 
 ## カスタマイズポイント
 
-| 変数 | 説明 |
+| 変更箇所 | 説明 |
 |---|---|
-| `VITE_CODEAPPS_APP_NAME` | アプリ名を変更 |
-| `VITE_CODEAPPS_NAV_SECTIONS_JSON` | ページ構成を変更 |
-| `VITE_FEATURE_*` | 機能の有効/無効を切替 |
+| `VITE_CODEAPPS_APP_NAME`（.env） | アプリ名を変更 |
+| `src/config.ts` の `NAV_SECTIONS` | ページ構成を変更（コードで直接編集） |
+| `VITE_FEATURE_*`（.env） | 機能の有効/無効を切替 |
 
 ## Dataverse テーブル
 
