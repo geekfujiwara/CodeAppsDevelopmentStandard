@@ -156,7 +156,7 @@ parseJsonEnv("VITE_CODEAPPS_NAV_SECTIONS_JSON", defaultNav)
 # {サンプル名}（{業務テーマ}）— カスタマイズガイド
 # ==========================================================
 # このファイルをプロジェクトルートの .env にコピーして値を入力してください。
-# ルート .env.example に記載の共通変数（DATAVERSE_URL / TENANT_ID 等）も別途必要です。
+# 共通 .env.example（.github/skills/standard/references/.env.example）に記載の共通変数（DATAVERSE_URL / TENANT_ID 等）も別途必要です。
 # ==========================================================
 
 # ── アプリ表示（変更推奨） ──────────────────────────────────
@@ -224,7 +224,7 @@ VITE_FEATURE_{機能名}=false    # {機能の説明}
 ## セットアップ手順
 
 ```bash
-# 1. 共通設定（ルート .env.example → .env にコピー）
+# 1. 共通設定（共通 .env.example（standard/references）→ .env にコピー）
 # 2. サンプル固有設定（samples/{name}/.env.example の内容を .env に追記）
 # 3. Dataverse テーブルの作成
 python scripts/setup_dataverse.py

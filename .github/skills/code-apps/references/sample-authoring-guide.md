@@ -156,7 +156,7 @@ export const NAV_SECTIONS: NavSection[] = [
 ## 3. サンプル内 `.env.example` の構造
 
 各サンプルディレクトリに `.env.example` を置き、**そのサンプル固有の変数だけ**を記載する。
-ルート `.env.example` に記載の共通変数（`DATAVERSE_URL` 等）は重複させない。
+共通 `.env.example`（`.github/skills/standard/references/.env.example`）に記載の共通変数（`DATAVERSE_URL` 等）は重複させない。
 
 ### ファイル配置
 
@@ -175,7 +175,7 @@ samples/
 # {サンプル名}（{業務テーマ}）— カスタマイズガイド
 # ==========================================================
 # このファイルをプロジェクトルートの .env にコピーして値を入力してください。
-# ルート .env.example に記載の共通変数（DATAVERSE_URL / TENANT_ID 等）も別途必要です。
+# 共通 .env.example（.github/skills/standard/references/.env.example）に記載の共通変数（DATAVERSE_URL / TENANT_ID 等）も別途必要です。
 # ==========================================================
 
 # ── アプリ表示（変更推奨） ──────────────────────────────────
@@ -218,13 +218,13 @@ BOT_SCHEMA=
 
 ```
 利用者の手順:
-1. ルート .env.example をコピー → .env（共通変数を入力）
+1. 共通 .env.example（standard/references）をコピー → .env（共通変数を入力）
 2. 使いたいサンプルの samples/{name}/.env.example をコピー → .env に追記（サンプル固有変数を入力）
 3. npm run dev / npm run deploy
 ```
 
 ```env
-# ===== 共通（ルート .env.example から） =====
+# ===== 共通（standard/references の .env.example から） =====
 DATAVERSE_URL=https://myorg.crm.dynamics.com/
 TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ENV_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
@@ -265,7 +265,7 @@ CONNREF_OUTLOOK=myprefix_shared_office365_xxxxxxxx
 
 ## 使い方
 
-1. ルート `.env.example` を `.env` にコピーして共通設定を入力
+1. 共通 `.env.example`（standard/references）を `.env` にコピーして共通設定を入力
 2. `samples/{name}/.env.example` の内容を `.env` に追記
 3. 機能フラグ（`VITE_FEATURE_*`）を用途に合わせて設定
 4. `npm run dev` で動作確認

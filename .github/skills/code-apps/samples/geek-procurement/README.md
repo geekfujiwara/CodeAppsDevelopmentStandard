@@ -26,7 +26,7 @@
 ## セットアップ手順
 
 ```bash
-cp ../../.env.example .env
+cp ../../../standard/references/.env.example .env
 python scripts/setup_dataverse.py
 python scripts/toggle_table_lang.py en
 pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_purchase_request

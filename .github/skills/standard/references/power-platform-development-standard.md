@@ -266,7 +266,7 @@ npm run setup
 - `.github/skills/spec-to-markdown/scripts/.venv` — markitdown 等
 - `.github/skills/standard/scripts/.venv` — azure-identity / requests 等（auth_helper 用）
 
-また `.env` ファイルの存在も確認し、未作成であれば `cp .env.example .env` を案内する。
+また `.env` ファイルの存在も確認し、未作成であれば `.github/skills/standard/references/.env.example` を `.env` にコピーするよう案内する。
 
 #### 共通認証ヘルパー `.github/skills/standard/scripts/auth_helper.py`
 

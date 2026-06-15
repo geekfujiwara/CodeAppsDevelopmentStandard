@@ -45,6 +45,7 @@ triggers:
 |---|---|
 | [Power Platform 開発標準](references/power-platform-development-standard.md) | 設計原則・Phase 別手順・チェックリストをまとめた全体ガイド |
 | [認証リファレンス](references/auth-patterns.md) | auth_helper.py の詳細実装・認証パターン |
+| [.env サンプル](references/.env.example) | 全フェーズ共通の `.env` テンプレート（各テーマで `.env` にコピーして値を設定） |
 
 ### 共有ユーティリティ（複数スキルから参照される横断リファレンス）
 
