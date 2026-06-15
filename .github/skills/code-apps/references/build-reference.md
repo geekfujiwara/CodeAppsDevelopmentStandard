@@ -1,5 +1,17 @@
 # Code Apps 構築リファレンス
 
+> **本ドキュメントは SKILL.md「標準ワークフロー（Step 1〜6）」の詳細版である。**
+> SKILL.md の 6 ステップと本リファレンスの 8 ステップの対応:
+>
+> | SKILL.md | 本リファレンス |
+> |---|---|
+> | Step 1 スキャフォールド | Step 1 |
+> | Step 2 vite.config.ts 確認 | Step 2 |
+> | Step 3 環境設定 | （.env コピー — 本リファレンスでは省略） |
+> | Step 4 初回ビルド＆デプロイ | Step 3 |
+> | Step 5 データソース追加 | Step 4 |
+> | Step 6 開発→再デプロイ | Step 5〜8（技術スタック → DataverseService → 型定義 → ビルド検証） |
+
 ## 構築手順
 
 ### Step 1: プロジェクト初期化
@@ -11,30 +23,169 @@ pac code init -env {ENVIRONMENT_ID} -n "AppName"
 npm install
 ```
 
-### Step 2: 先にビルド＆デプロイ
+### Step 2: vite.config.ts 必須設定の確認（検証済 2026-06-15）
 
-```bash
-npm run build
-npx power-apps push --non-interactive
+`pac code init` が生成した `vite.config.ts` を確認し、以下の必須設定が含まれていることを検証する。
+**この手順を飛ばすと、デプロイ後にアセット 404 やモジュール解決エラーでアプリが起動しない。**
+
+#### チェックリスト
+
+```
+□ base: "./" が設定されている
+□ rollupOptions.external に "@microsoft/power-apps" が含まれていない
+□ plugins に powerApps() が含まれている
+□ resolve.alias に "@" → "./src" が設定されている
 ```
 
-### Step 3: Dataverse データソース追加
+#### ① `base: "./"` — 相対パスベース（必須）
+
+Power Apps はアプリを `powerplatformusercontent.com` の深いサブディレクトリパスでホストする。
+`base` 未指定（デフォルト `"/"`）だとアセット参照がルート相対（`/assets/index-xxx.js`）になり、
+すべての CSS / JS / フォントファイルが **404** になる。
+
+```typescript
+// ❌ アセットが 404 になる
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  // base 未指定 → デフォルト "/" → 404
+})
+
+// ✅ 相対パスで正しく解決される
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  base: "./",  // ← 必須
+})
+```
+
+#### ② `@microsoft/power-apps` を external にしない（必須）
+
+`@microsoft/power-apps` SDK は **バンドルに含めて vendor チャンクに統合** する。
+`external` に指定するとビルド出力にベアモジュール指定子（`import { getClient } from "@microsoft/power-apps/data"`）が
+そのまま残り、ブラウザが `Failed to resolve module specifier` エラーを出す。
+
+```typescript
+// ❌ ブラウザが "@microsoft/power-apps" を解決できずエラー
+build: {
+  rollupOptions: {
+    external: ["@microsoft/power-apps"],  // 絶対に使わない
+  }
+}
+
+// ✅ vendor チャンクにバンドル（external 指定なし）
+build: {
+  rollupOptions: {
+    output: {
+      manualChunks: (id) => {
+        if (id.includes('node_modules')) {
+          return 'vendor'
+        }
+      },
+    },
+  },
+}
+```
+
+#### ③ `@microsoft/power-apps` のサブパスインポート（必須）
+
+`@microsoft/power-apps` パッケージはルートエクスポート（`"."`）を提供していない。
+必ずサブパスを指定してインポートする。
+
+```typescript
+// ❌ ビルドエラー: "." is not exported from package @microsoft/power-apps
+import { getClient } from "@microsoft/power-apps";
+
+// ✅ 正しいサブパスインポート
+import { getClient } from "@microsoft/power-apps/data";
+import { getContext } from "@microsoft/power-apps/app";
+import type { IContext } from "@microsoft/power-apps/app";
+```
+
+| サブパス | エクスポート |
+|---|---|
+| `@microsoft/power-apps/data` | `getClient`, `DataClient` 型, `IOperationResult` 型 |
+| `@microsoft/power-apps/app` | `getContext`, `IContext` 型 |
+| `@microsoft/power-apps/data/metadata/dataverse` | `EntityMetadata`, `GetEntityMetadataOptions` 型 |
+| `@microsoft/power-apps/telemetry` | テレメトリ API |
+
+#### ④ 完全な vite.config.ts テンプレート
+
+```typescript
+import { defineConfig } from "vite";
+import path from "path";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import { powerApps, POWER_APPS_CORS_ORIGINS } from "./plugins/plugin-power-apps";
+
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),
+    powerApps()  // dev-only: CORS + 起動 URL 表示
+  ],
+  base: "./",  // ← 必須: Power Apps サブディレクトリ対応
+  server: {
+    cors: {
+      origin: POWER_APPS_CORS_ORIGINS
+    }
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+  build: {
+    rollupOptions: {
+      // ⚠ external に @microsoft/power-apps を含めないこと
+      output: {
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('recharts')) return 'chart-vendor'
+            if (id.includes('@dnd-kit')) return 'dnd-vendor'
+            if (id.includes('clsx') || id.includes('tailwind-merge') ||
+                id.includes('date-fns') || id.includes('class-variance-authority')) {
+              return 'utils-vendor'
+            }
+            // React + @microsoft/power-apps + 全 React 依存 = vendor
+            return 'vendor'
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1500,
+  },
+})
+```
+
+### Step 3: 初回ビルド＆デプロイ
+
+```bash
+# PAC CLI を使用（テナント不一致なし）
+npm run build
+pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
+```
+
+> **注意**: `npx power-apps push` はテナント解決の不具合で 403/404 になることがある。
+> `pac code push` を標準とする。`npm run deploy` が `pac code push` を内包する場合はそちらを使用。
+
+### Step 4: Dataverse データソース追加
 
 ```bash
 # テーブルごとに実行（PUBLISHER_PREFIX は .env から読み込み、ハードコード禁止）
-source .env  # PUBLISHER_PREFIX, DATAVERSE_URL を環境変数に読み込む
-npx power-apps add-data-source --api-id dataverse \
-  --resource-name ${PUBLISHER_PREFIX}_incident \
-  --org-url ${DATAVERSE_URL} --non-interactive
+# 日本語表示名エラー回避: 一時的に英語に切替
+python scripts/toggle_table_lang.py en
 
-# 日本語エラーが出たら nameUtils.js をパッチしてリトライ
+# pac code add-data-source で追加
+pac code add-data-source -a dataverse -t {PUBLISHER_PREFIX}_{table}
+# 全テーブルに対して繰り返す
+
+# 日本語に復元
+python scripts/toggle_table_lang.py jp
 ```
 
-> **重要**: `--resource-name` に `geek_xxx` のような literal を書かない。
-> プロジェクトの publisher prefix は環境ごとに異なるため、必ず `.env` の `PUBLISHER_PREFIX` を変数展開して使う。
-> ハードコードすると、その環境に存在しない `geek_*` テーブルを参照して失敗したり、誤って別 prefix のテーブルを生成する原因になる。
+> **重要**: テーブル論理名に `geek_xxx` のような literal を書かない。
+> publisher prefix は環境ごとに異なるため、必ず `.env` の `PUBLISHER_PREFIX` を変数展開して使う。
 
-### Step 4: 技術スタック導入
+### Step 5: 技術スタック導入
 
 ```bash
 # Tailwind CSS
@@ -53,7 +204,6 @@ npm install react-router
 
 > **重要**: ルーター生成は必ず `createHashRouter` を使用すること。
 > `createBrowserRouter` は Power Apps iframe 内で初期ロード時に 404 になる。
-> 詳細は [トラブルシューティング #14](troubleshooting.md#14-createbrowserrouter-で初期画面が-404-になる検証済-2026-05-28) を参照。
 
 ```typescript
 // src/router.tsx — 必ず createHashRouter を使用
@@ -72,40 +222,119 @@ export const router = createHashRouter([
 ]);
 ```
 
-### Step 5: DataverseService パターンで CRUD 実装
+### Step 6: DataverseService パターンで CRUD 実装
+
+#### `getClient(dataSourcesInfo)` — dataSourcesInfo は必須引数
+
+`getClient()` は **`dataSourcesInfo` を必ず渡す**。引数なしで呼ぶと SDK がデータソース情報を持たないため、
+Power Apps ランタイム上で Dataverse に一切接続できない（エラーも出ずに空データになる）。
+
+`dataSourcesInfo` は Step 4 の `pac code add-data-source` 実行時に `.power/schemas/appschemas/dataSourcesInfo.ts` に自動生成される。
 
 ```typescript
-import { DataverseService } from "../services/DataverseService";
+// src/lib/dataverse-service.ts
+import { getClient } from "@microsoft/power-apps/data";
+import type { IOperationOptions } from "@microsoft/power-apps/data";
+import { dataSourcesInfo } from "../../.power/schemas/appschemas/dataSourcesInfo";
+// ※ フロー連携・Copilot Studio 連携時は統合 dataSourcesInfo を使用:
+//   import { dataSourcesInfo } from "@/lib/dataSourcesInfo";
+//   → 詳細: references/data-source-patterns.md「統合 dataSourcesInfo」
 
-// 一覧取得
-const incidents = await DataverseService.GetItems(
-  "geek_incidents",
-  "$select=geek_name,geek_status,geek_priority" +
-    "&$expand=geek_incidentcategoryid($select=geek_name)" +
-    "&$expand=createdby($select=fullname)" +
-    "&$orderby=createdon desc",
-);
+const client = getClient(dataSourcesInfo);
 
-// レコード作成（Lookup は @odata.bind で設定）
-await DataverseService.PostItem("geek_incidents", {
-  geek_name: "ネットワーク障害",
-  geek_description: "本社3Fで接続不可",
-  geek_priority: 100000000, // 緊急
-  geek_status: 100000000, // 新規
-  "geek_incidentcategoryid@odata.bind": `/geek_incidentcategories(${categoryId})`,
-  "geek_assignedtoid@odata.bind": `/systemusers(${userId})`,
-});
-
-// レコード更新
-await DataverseService.PatchItem("geek_incidents", incidentId, {
-  geek_status: 100000001, // 対応中
-});
-
-// レコード削除
-await DataverseService.DeleteItem("geek_incidents", incidentId);
+export const DataverseService = {
+  async GetItems<T>(dataSourceName: string, options?: IOperationOptions): Promise<T[]> {
+    const result = await client.retrieveMultipleRecordsAsync<T>(dataSourceName, options);
+    if (!result.success) throw result.error;
+    return result.data ?? [];
+  },
+  async CreateItem<T>(dataSourceName: string, body: Record<string, unknown>): Promise<T> {
+    const result = await client.createRecordAsync<Record<string, unknown>, T>(dataSourceName, body);
+    if (!result.success) throw result.error;
+    return result.data;
+  },
+  async UpdateItem<T>(dataSourceName: string, id: string, body: Record<string, unknown>): Promise<T> {
+    const result = await client.updateRecordAsync<Record<string, unknown>, T>(dataSourceName, id, body);
+    if (!result.success) throw result.error;
+    return result.data;
+  },
+  async DeleteItem(dataSourceName: string, id: string): Promise<void> {
+    const result = await client.deleteRecordAsync(dataSourceName, id);
+    if (!result.success) throw result.error;
+  },
+};
 ```
 
-### Step 6: 型定義
+```
+❌ getClient() — 引数なし
+   → SDK がデータソース情報を持たず Dataverse に接続できない（空データ / 無反応）
+
+❌ client.get("inv_products?$select=...") — 生の HTTP メソッド
+   → getClient(dataSourcesInfo) が返す DataClient には get/post/patch メソッドは存在しない
+   → SDK 公式の retrieveMultipleRecordsAsync / createRecordAsync 等を使用すること
+
+✅ getClient(dataSourcesInfo) + retrieveMultipleRecordsAsync
+   → CSP 安全（postMessage ベース）で正しく Dataverse に接続される
+```
+
+#### Hook での使用パターン（TanStack React Query）
+
+```typescript
+// src/hooks/use-products.ts
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DataverseService } from "@/lib/dataverse-service";
+import type { Product } from "@/types";
+
+const DATA_SOURCE = "inv_products";  // dataSourcesInfo のキー名
+
+export function useProducts() {
+  return useQuery<Product[]>({
+    queryKey: ["products"],
+    queryFn: () =>
+      DataverseService.GetItems<Product>(DATA_SOURCE, {
+        select: ["inv_productid", "inv_name", "inv_productcode", "inv_category"],
+        orderBy: ["inv_productcode asc"],
+      }),
+  });
+}
+
+export function useCreateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      DataverseService.CreateItem(DATA_SOURCE, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
+  });
+}
+```
+
+> **IOperationOptions**: `{ select?, filter?, orderBy?, top?, skip?, maxPageSize? }`
+> OData クエリ文字列ではなく、オブジェクト形式で指定する。
+
+#### vite-env.d.ts — SDK の手動型宣言は不要
+
+`@microsoft/power-apps` パッケージは `dist/data/index.d.ts` 等の正式な型定義を提供している。
+`vite-env.d.ts` に `declare module "@microsoft/power-apps/data"` を手動で書くと
+SDK の正式な型と競合し、`getClient` の引数 `dataSourcesInfo` が認識されなくなる。
+
+```typescript
+// vite-env.d.ts — ✅ CSS モジュール宣言のみ（SDK 型宣言は書かない）
+declare module "*.css" {
+  const content: string;
+  export default content;
+}
+```
+
+```
+❌ vite-env.d.ts に declare module "@microsoft/power-apps/data" { ... } を追記
+   → SDK の正式型定義を上書きし、getClient() が引数なしで呼べてしまう
+   → 実行時に Dataverse に接続できない
+
+✅ SDK パッケージの型定義をそのまま使用
+   → getClient(dataSourcesInfo) が必須引数として型チェックされる
+```
+
+### Step 7: 型定義
 
 ```typescript
 // Choice 値は 100000000 始まり
@@ -135,14 +364,14 @@ export const statusColors: Record<IncidentStatus, string> = {
 };
 ```
 
-### Step 7: ビルド＆再デプロイ
+### Step 8: ビルド＆再デプロイ
 
 ```bash
 npm run build
-npx power-apps push --non-interactive
+pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 ```
 
-### Step 7.1: ビルド後検証 — Circular chunk 警告チェック（必須）
+### Step 8.1: ビルド後検証 — Circular chunk 警告チェック（必須）
 
 `npm run build` の出力に **`Circular chunk`** 警告が含まれていないか確認する。
 この警告があると Power Apps ランタイムで `ReferenceError: Cannot access 'X' before initialization` が発生し、アプリが起動しない。
@@ -193,7 +422,7 @@ build: {
    → Circular chunk 警告なし → Power Apps で正常動作
 ```
 
-### Step 7.2: ビルド後検証 — CSP 違反チェック（必須）
+### Step 8.2: ビルド後検証 — CSP 違反チェック（必須）
 
 ビルド成功後、デプロイ前に以下を検証する:
 
@@ -207,7 +436,7 @@ grep -rn "https://" src/ --include="*.ts" --include="*.tsx" | grep -v "// " | gr
 
 上記に該当するコードが残っていたら削除する。Power Apps ランタイムは `connect-src 'none'` で外部通信をすべてブロックする。
 
-### Step 7.3: テンプレート残留チェック（必須）
+### Step 8.3: テンプレート残留チェック（必須）
 
 ```bash
 # テンプレートページが残っていないこと

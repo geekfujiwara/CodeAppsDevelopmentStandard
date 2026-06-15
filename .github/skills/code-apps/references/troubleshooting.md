@@ -413,34 +413,29 @@ python toggle_table_lang.py jp
 
 ---
 
-## 11. `pac code add-data-source` がサービスファイルを生成しない
+## 11. `pac code add-data-source` のサービスファイル生成（検証済 2026-06-15 — 修正）
 
-### 症状
+### 2026-06-15 時点の検証結果
 
-`pac code add-data-source -a dataverse -t {table}` は成功するが、
-`src/generated/services/` が空のまま。`src/generated/models/CommonModels.ts` のみ存在。
+`pac code add-data-source -a dataverse -t {table}` は **フル生成**（Model + Service + index.ts）を行う。
+以前のバージョンでは最小構成のみだった可能性があるが、現行版では `npx power-apps add-data-source` と同等の生成物が得られる。
 
-### 原因
+### 生成されるファイル（pac code / npx power-apps 共通）
 
-`pac code add-data-source` は `npx power-apps add-data-source` と生成物が異なる。
-PAC CLI 版は最小構成（スキーマ JSON + `dataSourcesInfo.ts` + `CommonModels.ts`）のみを生成し、
-per-table の TypeScript Model/Service ファイルは生成しない。
+| ファイル | 生成 |
+|---|---|
+| `.power/schemas/dataverse/*.Schema.json` | ✅ |
+| `.power/schemas/appschemas/dataSourcesInfo.ts` | ✅ |
+| `src/generated/models/CommonModels.ts` | ✅ |
+| `src/generated/models/{Table}Model.ts` | ✅ |
+| `src/generated/services/{Table}Service.ts` | ✅ |
+| `src/generated/index.ts` | ✅ |
 
-### 対処
+### 推奨: 自前 DataverseService ラッパーの使用
 
-`getClient(dataSourcesInfo)` を直接使用してサービスレイヤーを自前構築する。
-Code Apps SKILL.md の「★ 例外: `pac code add-data-source` が最小構成のみ生成する場合」セクションを参照。
-
-### 生成されるファイル比較
-
-| ファイル | `npx power-apps` | `pac code` |
-|---|---|---|
-| `.power/schemas/dataverse/*.Schema.json` | ✅ | ✅ |
-| `.power/schemas/appschemas/dataSourcesInfo.ts` | ✅ | ✅ |
-| `src/generated/models/CommonModels.ts` | ✅ | ✅ |
-| `src/generated/models/{Table}Model.ts` | ✅ | ❌ |
-| `src/generated/services/{Table}Service.ts` | ✅ | ❌ |
-| `src/generated/index.ts` | ✅ | ❌ |
+生成された Service クラス（`Inv_productsService.create(...)` 等）はそのまま使えるが、
+汎用 CRUD ラッパーを 1 ファイルで管理する方が TanStack React Query との統合が容易。
+→ 詳細テンプレート: **build-reference.md Step 6**
 
 ---
 
@@ -817,6 +812,100 @@ export const router = createHashRouter([...]);
 - `createHashRouter` は Power Pages でも必須（同じ理由）
 - ディープリンクの `basename` 設定は不要になる
 
+## 25. Dataverse に接続できない / データが空で返る（検証済 2026-06-15）
+
+### 症状
+
+Power Apps にデプロイ後、アプリは表示されるがテーブルのデータが一切取得できない。
+ブラウザコンソールに明確なエラーは出ず、クエリが空配列を返すか、
+`TypeError: client.retrieveMultipleRecordsAsync is not a function` になる。
+
+### 原因
+
+`getClient()` を **引数なしで呼んでいる**。
+
+`@microsoft/power-apps/data` の `getClient` は `dataSourcesInfo` が **必須引数**:
+
+```typescript
+// SDK 型定義（node_modules/@microsoft/power-apps/dist/data/powerAppsData.d.ts）
+export declare function getClient(dataSourcesInfo: DataSourcesInfo): DataClient;
+```
+
+引数なしだと SDK がデータソース情報を持たず、Power Apps ランタイムとの postMessage 通信が確立されない。
+
+### 原因パターン
+
+**パターン A**: `vite-env.d.ts` に手動で `declare module "@microsoft/power-apps/data"` を書いている
+
+```typescript
+// ❌ vite-env.d.ts で SDK の型を上書きしてしまう
+declare module "@microsoft/power-apps/data" {
+  interface PowerAppsClient {
+    get(url: string): Promise<Response>;
+    post(url: string, options?: RequestInit): Promise<Response>;
+  }
+  export function getClient(): PowerAppsClient;  // ← 引数なしで定義
+}
+```
+
+→ TypeScript が SDK の正式な `.d.ts` より `vite-env.d.ts` を優先し、`getClient()` が引数なしで型チェックを通ってしまう。
+→ 実行時に `DataClient` ではなく `undefined` が返り、Dataverse に接続不可。
+
+**パターン B**: 古いドキュメントのコードをそのまま使用
+
+```typescript
+// ❌ 旧パターン: 引数なし + 生 HTTP メソッド
+const client = getClient();
+const result = await client.get(`inv_products?$select=inv_name`);
+```
+
+→ `DataClient` には `get` / `post` / `patch` メソッドは存在しない。
+→ SDK 公式の `retrieveMultipleRecordsAsync` / `createRecordAsync` 等を使用すること。
+
+### 対処
+
+**① `vite-env.d.ts` から SDK 手動型宣言を削除:**
+
+```typescript
+// ✅ CSS モジュール宣言のみ残す
+declare module "*.css" {
+  const content: string;
+  export default content;
+}
+```
+
+**② `dataverse-service.ts` で `getClient(dataSourcesInfo)` を使用:**
+
+```typescript
+import { getClient } from "@microsoft/power-apps/data";
+import type { IOperationOptions } from "@microsoft/power-apps/data";
+import { dataSourcesInfo } from "../../.power/schemas/appschemas/dataSourcesInfo";
+
+const client = getClient(dataSourcesInfo);
+
+export const DataverseService = {
+  async GetItems<T>(dataSourceName: string, options?: IOperationOptions): Promise<T[]> {
+    const result = await client.retrieveMultipleRecordsAsync<T>(dataSourceName, options);
+    if (!result.success) throw result.error;
+    return result.data ?? [];
+  },
+  // CreateItem, UpdateItem, DeleteItem も同様
+};
+```
+
+**③ Hook で OData 文字列ではなく IOperationOptions オブジェクトを使用:**
+
+```typescript
+// ❌ OData クエリ文字列
+DataverseService.GetItems("inv_products", "$select=inv_name&$orderby=inv_name asc");
+
+// ✅ IOperationOptions オブジェクト
+DataverseService.GetItems<Product>("inv_products", {
+  select: ["inv_productid", "inv_name"],
+  orderBy: ["inv_name asc"],
+});
+```
+
 ---
 
 ## 15. サイドバーの幅がページ遷移で崩れる（検証済 2026-05-28）
@@ -1032,3 +1121,142 @@ cmdk ライブラリの `CommandItem` の `onSelect` コールバックは、
 - チャットメッセージバブル（ユーザー入力に HTML/URL が含まれうる場合）
 - インラインテーブルのテキストセル
 - ツール呼び出し結果の表示パネル
+
+---
+
+## 22. デプロイ後にアセット（CSS / JS / フォント）が 404 になる（検証済 2026-06-15）
+
+### 症状
+
+`pac code push` / `npx power-apps push` でデプロイ後、アプリを開くと白画面。
+ブラウザの DevTools ネットワークタブで CSS・JS・フォントファイルがすべて 404。
+
+### 原因
+
+`vite.config.ts` に `base: "./"` が未設定。デフォルトの `base: "/"` では、
+ビルド出力の HTML が `/assets/index-xxx.js` のようなルート相対パスでアセットを参照する。
+Power Apps はアプリを `powerplatformusercontent.com` の深いサブディレクトリでホストするため、
+ルート相対パスでは正しいファイルに到達できない。
+
+### 対処
+
+```typescript
+// vite.config.ts
+export default defineConfig({
+  base: "./",  // ← 必須: 相対パスでアセットを参照
+  // ...
+})
+```
+
+### 確認方法
+
+ビルド後に `dist/index.html` を開き、`<script>` と `<link>` のパスを確認する。
+
+```html
+<!-- ❌ base 未指定 → ルート相対パス → 404 -->
+<script type="module" src="/assets/index-xxx.js"></script>
+
+<!-- ✅ base: "./" → 相対パス → 正しく解決 -->
+<script type="module" src="./assets/index-xxx.js"></script>
+```
+
+→ 詳細: [ビルドリファレンス Step 2](build-reference.md)
+
+---
+
+## 23. `@microsoft/power-apps` の `Failed to resolve module specifier` エラー（検証済 2026-06-15）
+
+### 症状
+
+デプロイ後、ブラウザコンソールに以下のエラーが表示されアプリが起動しない:
+
+```
+Uncaught TypeError: Failed to resolve module specifier "@microsoft/power-apps".
+Relative references must start with either "/", "./", or "../".
+```
+
+### 原因
+
+`vite.config.ts` の `rollupOptions.external` に `@microsoft/power-apps` が含まれている。
+`external` に指定されたパッケージはバンドルに含まれず、ビルド出力に
+`import { getClient } from "@microsoft/power-apps/data"` のようなベアモジュール指定子が残る。
+ブラウザはインポートマップなしではベアモジュール指定子を解決できない。
+
+### 対処
+
+```typescript
+// vite.config.ts
+build: {
+  rollupOptions: {
+    // ❌ @microsoft/power-apps を external にしてはならない
+    // external: ["@microsoft/power-apps"],
+
+    output: {
+      manualChunks: (id) => {
+        if (id.includes('node_modules')) {
+          // ✅ @microsoft/power-apps は vendor に含める
+          return 'vendor'
+        }
+      },
+    },
+  },
+},
+```
+
+### 補足
+
+`@microsoft/power-apps` はルートエクスポート（`"."`）を提供していない。
+インポートは必ずサブパスを指定する:
+
+```typescript
+// ❌ ビルドエラー: "." is not exported
+import { getClient } from "@microsoft/power-apps";
+
+// ✅ サブパスインポート
+import { getClient } from "@microsoft/power-apps/data";
+import { getContext } from "@microsoft/power-apps/app";
+```
+
+→ 詳細: [ビルドリファレンス Step 2](build-reference.md)
+
+---
+
+## 24. WOFF2 フォントが Power Apps ストレージプロキシで破損する（検証済 2026-06-15）
+
+### 症状
+
+デプロイ後、ブラウザコンソールに以下の警告が表示される:
+
+```
+Failed to decode downloaded font: .../assets/geist-latin-wght-normal-xxx.woff2
+OTS parsing error: Size of decompressed WOFF 2.0 is less than compressed size
+```
+
+テキストは表示されるが、カスタムフォント（Geist 等）がフォールバックフォントに置き換わる。
+
+### 原因
+
+Power Apps のストレージプロキシ（`powerplatformusercontent.com/powerapps/appruntime/.../storageproxy/...`）が
+WOFF2 バイナリファイルを配信する際に、Content-Encoding やバイナリ処理の不整合でファイルが破損する場合がある。
+
+### 対処
+
+1. **システムフォントを使う（推奨）**: カスタム WOFF2 フォントの代わりに OS 標準フォントを使用する。
+
+```css
+/* index.css — システムフォントスタック */
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans JP", sans-serif;
+}
+```
+
+2. **CDN フォントを使う**: Google Fonts 等の CDN から読み込む（CSP の `font-src` 追加が必要）。
+
+3. **許容する**: フォント破損は視覚的な問題のみ。アプリの機能には影響しない。ブラウザはシステムフォントにフォールバックする。
+
+### 影響範囲
+
+- `@fontsource/geist` 等の npm フォントパッケージ
+- `public/` や `assets/` に配置した `.woff2` / `.woff` ファイル
+- `.ttf` / `.otf` でも同様の問題が発生する可能性がある

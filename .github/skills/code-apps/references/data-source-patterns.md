@@ -8,64 +8,79 @@
 
 ## SDK 生成コードの構成
 
-### `npx power-apps add-data-source` の場合（フル生成）
+### `pac code add-data-source` / `npx power-apps add-data-source` 共通（検証済 2026-06-15）
+
+どちらのコマンドも以下のフル構成を生成する:
 
 ```
 src/generated/
-├── index.ts
+├── index.ts                           # 全 Model/Service の re-export
 ├── models/
-│   ├── CommonModels.ts
-│   ├── {Prefix}_{entities}Model.ts    # エンティティ型 + Choice 値
-│   └── SystemusersModel.ts
+│   ├── CommonModels.ts                # IGetOptions, IGetAllOptions
+│   ├── {Prefix}_{entities}Model.ts    # エンティティ型 + Choice 値定数
+│   └── SystemusersModel.ts            # （systemuser 追加時のみ）
 └── services/
-    ├── {Prefix}_{entities}Service.ts   # create/update/delete/get/getAll
-    └── SystemusersService.ts
-```
-
-### `pac code add-data-source` の場合（最小構成）
-
-```
-src/generated/
-├── models/
-│   └── CommonModels.ts    # IGetOptions のみ
-└── services/              # 空（サービスファイルなし）
+    ├── {Prefix}_{entities}Service.ts   # create/update/delete/get/getAll + getMetadata
+    └── SystemusersService.ts           # （systemuser 追加時のみ）
 
 .power/schemas/
 ├── appschemas/
-│   └── dataSourcesInfo.ts  # テーブルエントリ（primaryKey等）
+│   └── dataSourcesInfo.ts             # テーブルエントリ（primaryKey 等）
 └── dataverse/
-    └── {table}.Schema.json  # テーブルスキーマ
+    └── {table}.Schema.json            # テーブルスキーマ JSON
 ```
 
-→ この場合は `getClient(dataSourcesInfo)` を直接使用してサービスレイヤーを自前構築する。
+生成された Service クラスは内部で `getClient(dataSourcesInfo)` を使用しており、
+そのまま使用するか、自前の DataverseService ラッパーを作成するかは自由。
 
-## 自前サービスレイヤーの実装パターン
+> **自前 DataverseService を推奨する理由**: 生成 Service（`Inv_productsService.create(...)` 等）は
+> エンティティごとに分かれているため、共通のエラーハンドリングや TanStack React Query との統合が煩雑になる。
+> 汎用 CRUD ラッパーを 1 ファイルで管理する方がコードの見通しが良い。
+
+## 自前サービスレイヤーの実装パターン（検証済 2026-06-15）
+
+`getClient()` は **`dataSourcesInfo` が必須引数**。引数なしで呼ぶと Dataverse に接続できない。
 
 ```typescript
-// src/services/dataverse-service.ts
+// src/lib/dataverse-service.ts
 import { getClient } from "@microsoft/power-apps/data";
-import { dataSourcesInfo } from "@/lib/dataSourcesInfo";
+import type { IOperationOptions } from "@microsoft/power-apps/data";
+import { dataSourcesInfo } from "../../.power/schemas/appschemas/dataSourcesInfo";
 
-function client() {
-  return getClient(dataSourcesInfo);
-}
+const client = getClient(dataSourcesInfo);
 
-export async function getRecords(): Promise<MyRecord[]> {
-  const result = await client().retrieveMultipleRecordsAsync<MyRecord>(
-    "prefix_tablename",  // EntitySetName（dataSourcesInfo のキー）
-    {
-      select: ["prefix_id", "prefix_name", "createdon"],
-      orderBy: ["prefix_name asc"],
-    }
-  );
-  if (!result.success) throw result.error;
-  return result.data ?? [];
-}
+export const DataverseService = {
+  async GetItems<T>(dataSourceName: string, options?: IOperationOptions): Promise<T[]> {
+    const result = await client.retrieveMultipleRecordsAsync<T>(dataSourceName, options);
+    if (!result.success) throw result.error;
+    return result.data ?? [];
+  },
+  async CreateItem<T>(dataSourceName: string, body: Record<string, unknown>): Promise<T> {
+    const result = await client.createRecordAsync<Record<string, unknown>, T>(dataSourceName, body);
+    if (!result.success) throw result.error;
+    return result.data;
+  },
+  async UpdateItem<T>(dataSourceName: string, id: string, body: Record<string, unknown>): Promise<T> {
+    const result = await client.updateRecordAsync<Record<string, unknown>, T>(dataSourceName, id, body);
+    if (!result.success) throw result.error;
+    return result.data;
+  },
+  async DeleteItem(dataSourceName: string, id: string): Promise<void> {
+    const result = await client.deleteRecordAsync(dataSourceName, id);
+    if (!result.success) throw result.error;
+  },
+};
+```
+
+```
+❌ getClient() — 引数なし → Dataverse に接続できない
+❌ client.get("entitySet?$select=...") — DataClient に get/post メソッドは存在しない
+✅ getClient(dataSourcesInfo) + retrieveMultipleRecordsAsync 等の SDK 公式メソッド
 ```
 
 ## 統合 dataSourcesInfo（フロー・Copilot Studio 使用時は必須）
 
-`getClient()` はシングルトン。最初に初期化された dataSourcesInfo にフロー/コネクタが含まれないと
+`getClient(dataSourcesInfo)` はシングルトン。最初の呼び出しで渡した `dataSourcesInfo` にフロー/コネクタが含まれないと
 `Data source not found` エラーになる。
 
 ```typescript
