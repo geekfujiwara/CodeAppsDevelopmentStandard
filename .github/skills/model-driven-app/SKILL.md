@@ -74,10 +74,10 @@ webresourceid: アイコン用 WebResource ID
 ### uniquename は英語のみ
 
 ```
-✅ uniquename: "IncidentManagement"
-❌ uniquename: "インシデント管理"
+✅ uniquename: "ProjectManagement"
+❌ uniquename: "プロジェクト管理"
 → 英数字とアンダースコアのみ許容
-→ 作成時にソリューション publisher prefix が自動付与（例: new_IncidentManagement）
+→ 作成時にソリューション publisher prefix が自動付与（例: new_ProjectManagement）
 ```
 
 ### SiteMap が必須（ValidateApp で検証される）
@@ -329,13 +329,13 @@ else:
 # === 必須（共通）===
 DATAVERSE_URL=https://{org}.crm7.dynamics.com/
 TENANT_ID={your-tenant-id}
-SOLUTION_NAME=IncidentManagement
+SOLUTION_NAME=ProjectManagement
 PUBLISHER_PREFIX=geek
 
 # === モデル駆動型アプリ オプション ===
-APP_DISPLAY_NAME=インシデント管理           # 未設定時は SOLUTION_NAME から生成
-APP_UNIQUE_NAME=IncidentManagement          # 未設定時は SOLUTION_NAME を使用
-APP_DESCRIPTION=インシデント管理アプリ      # 未設定時は自動生成
+APP_DISPLAY_NAME=プロジェクト管理           # 未設定時は SOLUTION_NAME から生成
+APP_UNIQUE_NAME=ProjectManagement          # 未設定時は SOLUTION_NAME を使用
+APP_DESCRIPTION=プロジェクト管理アプリ      # 未設定時は自動生成
 ```
 
 

@@ -159,7 +159,7 @@ def get_solution_tables():
 def _detect_theme(name_no_prefix, all_logical_names):
     """テーブル名からテーマキーを検出する。
 
-    例: "incident" → "incident", "incidentcomment" → "incident",
+    例: "project" → "project", "projecttask" → "project",
         "market_insight" → "market_insight"
 
     他のテーブル名のプレフィックスに一致する場合はそのテーマにまとめる。
@@ -171,7 +171,7 @@ def _detect_theme(name_no_prefix, all_logical_names):
         if len(parts) > 1:
             all_names.append(parts[1])
 
-    # 自分の名前が他テーブル名で始まるか（例: incidentcomment → incident）
+    # 自分の名前が他テーブル名で始まるか（例: projecttask → project）
     for other in sorted(all_names, key=len):
         if other != name_no_prefix and name_no_prefix.startswith(other):
             return other
@@ -200,7 +200,7 @@ def build_sitemap_xml(tables, app_display_name):
 
     テーブルを以下のルールでグループ化:
       1. マスタ系: テーブル名に category, priority, asset, master, type, status が含まれる
-      2. 別テーマ: インシデント系でも マスタ系でもないテーブル（market_insight 等）
+      2. 別テーマ: メインテーマでもマスタ系でもないテーブル（market_insight 等）
       3. トランザクション系: 上記以外（メインの業務データ）
     """
     print("\n=== Step 2: SiteMap XML 構築 ===")
@@ -216,7 +216,7 @@ def build_sitemap_xml(tables, app_display_name):
             prefixes.add(parts[0])
 
     # メインテーマのテーブル群を特定（最も多いテーブルを含むテーマ）
-    # incident を含むテーブルを「インシデント管理」グループにまとめる
+    # メインテーマのテーブル群を同じグループにまとめる（例: project 系を「プロジェクト管理」グループに）
     theme_groups = {}  # theme_key -> list of tables
     master_tables = []
 

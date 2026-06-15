@@ -46,7 +46,7 @@ from auth_helper import (
 load_dotenv()
 
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
-SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
+SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "SampleSolution")
 
 API = f"{DATAVERSE_URL}/api/data/v9.2"
 FLOW_DISPLAY_NAME = "SharePoint ドキュメント要約 Teams 通知"
