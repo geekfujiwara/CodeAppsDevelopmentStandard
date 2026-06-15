@@ -240,8 +240,9 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
    → システムテーブル（bot, botcomponent, conversationtranscript 等）も登録可能
 ```
 
-> **注意**: `systemuser` テーブルは `pac code add-data-source` で追加できない場合がある。
-> その場合のみ `src/lib/dataSourcesInfo.ts` に手動追記する。
+> **注意**: `systemuser` テーブルも通常は `pac code add-data-source -a dataverse -t systemuser` で追加できる（検証済 2026-06-15）。
+> 追加できれば `src/lib/dataSourcesInfo.ts` は生成ファイルを re-export するだけでよい。
+> 環境によって追加できない場合のみ `src/lib/dataSourcesInfo.ts` に手動追記する。
 > それ以外のテーブルは必ず SDK コマンドで追加すること。
 
 ### 標準ワークフロー（この順序で進める）
@@ -381,8 +382,8 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 
 **手動で `dataSourcesInfo.ts` にカスタムテーブル定義を追記してはならない。**
 SDK が `.power/schemas/appschemas/dataSourcesInfo.ts` を自動生成する。
-`src/lib/dataSourcesInfo.ts` には、SDK で追加できないシステムテーブル
-（`systemuser`, `bot`, `conversationtranscript` 等）とコネクタのみ手動追記する。
+`src/lib/dataSourcesInfo.ts` は基本的にこの生成ファイルを re-export するだけにする。
+SDK の add-data-source で追加**できなかった**システムテーブル（`bot`, `conversationtranscript` 等）やコネクタのみ手動追記する。
 
 ### 日本語 DisplayName サニタイズエラーの回避
 

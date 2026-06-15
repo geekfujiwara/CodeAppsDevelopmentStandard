@@ -4,7 +4,9 @@
 
 1. **カスタムテーブルは `pac code add-data-source` で追加** → `.power/schemas/appschemas/dataSourcesInfo.ts` が自動更新
 2. **手動で `dataSourcesInfo.ts` にカスタムテーブル定義を追記してはならない**
-3. **`src/lib/dataSourcesInfo.ts`** にはシステムテーブル（systemuser, bot 等）とコネクタのみ手動追記
+3. **`systemuser` も `pac code add-data-source -t systemuser` で追加できる**（検証済 2026-06-15）。
+   追加できれば `src/lib/dataSourcesInfo.ts` は生成ファイルを re-export するだけでよく、手動定義は不要
+4. **`src/lib/dataSourcesInfo.ts`** への手動追記は、SDK の add-data-source で追加**できなかった**システムテーブルやコネクタに限る（最後の手段）
 
 ## SDK 生成コードの構成
 
@@ -83,14 +85,31 @@ export const DataverseService = {
 `getClient(dataSourcesInfo)` はシングルトン。最初の呼び出しで渡した `dataSourcesInfo` にフロー/コネクタが含まれないと
 `Data source not found` エラーになる。
 
+### 基本: 生成ファイルをそのまま re-export（systemuser も add-data-source 済みの場合）
+
+`systemuser` を含む全テーブルを `pac code add-data-source` で追加できていれば、
+`src/lib/dataSourcesInfo.ts` は生成ファイルを再エクスポートするだけでよい（手書き定義・型注釈は不要）。
+
+```typescript
+// src/lib/dataSourcesInfo.ts
+import { dataSourcesInfo } from "../../.power/schemas/appschemas/dataSourcesInfo";
+
+export default dataSourcesInfo;
+```
+
+> `pac code add-data-source -a dataverse -t systemuser` で `systemusers` が生成 `dataSourcesInfo` に含まれる（検証済 2026-06-15）。
+> `DataSourcesInfo` 型は SDK が公開エクスポートしていないため、手書きの型注釈を付けようとすると import エラーになる。
+> → [トラブルシューティング #26](troubleshooting.md)
+
+### 応用: SDK で追加できなかったテーブル/コネクタを足す場合のみ spread
+
 ```typescript
 // src/lib/dataSourcesInfo.ts
 import { dataSourcesInfo as powerInfo } from "../../.power/schemas/appschemas/dataSourcesInfo";
 
-export const dataSourcesInfo = {
+export default {
   ...powerInfo,
-  // SDK で追加できないシステムテーブル
-  systemusers: { tableId: "systemuser", version: "", primaryKey: "systemuserid", dataSourceType: "Dataverse", apis: {} },
+  // SDK の add-data-source で追加できなかったシステムテーブル/コネクタのみここに足す
   bots: { tableId: "bot", version: "", primaryKey: "botid", dataSourceType: "Dataverse", apis: {} },
   // コネクタは npx power-apps add-flow で追加後にここにマージ
 };
