@@ -175,11 +175,14 @@ function checkPowerAppsCli() {
 
 function checkEnvFile() {
   const envPath = path.join(repoRoot, ".env");
-  const examplePath = path.join(repoRoot, ".env.example");
+  const examplePath = path.join(repoRoot, ".github", "skills", "standard", "references", ".env.example");
+  const copyHint = isWindows
+    ? "Copy-Item .github/skills/standard/references/.env.example .env"
+    : "cp .github/skills/standard/references/.env.example .env";
   if (fs.existsSync(envPath)) {
     log("✅", ".env ファイルを検出");
   } else if (fs.existsSync(examplePath)) {
-    log("⚠️", ".env が未作成です — `cp .env.example .env` で作成し、環境値を設定してください");
+    log("⚠️", `.env が未作成です — \`${copyHint}\` で作成し、環境値を設定してください`);
   }
 }
 

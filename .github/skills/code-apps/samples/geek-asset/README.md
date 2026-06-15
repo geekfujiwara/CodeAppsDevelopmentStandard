@@ -54,8 +54,8 @@ IT機器・備品の台帳管理・貸出管理・廃棄申請・棚卸を一元
 ### 1. 環境変数の設定
 
 ```bash
-# ルート .env.example を .env にコピー（共通変数を入力）
-cp ../../.env.example .env
+# 共通 .env.example（standard/references）を .env にコピー（共通変数を入力）
+cp ../../../standard/references/.env.example .env
 # このサンプル固有の変数を .env に追記（.env.example 参照）
 ```
 
