@@ -254,14 +254,14 @@ Code Apps 側の生成結果:
             "operationId": "CreateRecord",
         },
         "parameters": {
-            "entityName": f"{PREFIX}_incidents",
+            "entityName": f"{PREFIX}_records",
             "item": {
                 f"{PREFIX}_name": "@{outputs('Compose_Title')}",
                 f"{PREFIX}_status": 100000000,
                 # ★ Lookup は odata.bind でエンティティパスを指定
                 f"{PREFIX}_CategoryId@odata.bind": (
-                    f"/{PREFIX}_incidentcategories("
-                    f"@{{first(outputs('List_Categories')?['body/value'])?['{PREFIX}_incidentcategoryid']}})"
+                    f"/{PREFIX}_categories("
+                    f"@{{first(outputs('List_Categories')?['body/value'])?['{PREFIX}_categoryid']}})"
                 ),
             },
         },

@@ -74,10 +74,10 @@ webresourceid: アイコン用 WebResource ID
 ### uniquename は英語のみ
 
 ```
-✅ uniquename: "IncidentManagement"
-❌ uniquename: "インシデント管理"
+✅ uniquename: "ProjectManagement"
+❌ uniquename: "プロジェクト管理"
 → 英数字とアンダースコアのみ許容
-→ 作成時にソリューション publisher prefix が自動付与（例: new_IncidentManagement）
+→ 作成時にソリューション publisher prefix が自動付与（例: new_ProjectManagement）
 ```
 
 ### SiteMap が必須（ValidateApp で検証される）
@@ -108,7 +108,7 @@ webresourceid: アイコン用 WebResource ID
 
 - `Area`: ナビゲーションの最上位区分
 - `Group`: Area 内のグループ（複数テーブルをまとめる）
-- `SubArea`: 個別テーブルへのナビゲーション。`Entity` は **論理名**（例: `geek_incident`）
+- `SubArea`: 個別テーブルへのナビゲーション。`Entity` は **論理名**（例: `geek_project`）
 - 複数の Area / Group を定義可能（例: マスタデータとトランザクションデータを分離）
 
 ### ShowGroups="true" を必ず指定する【必須】
@@ -329,13 +329,13 @@ else:
 # === 必須（共通）===
 DATAVERSE_URL=https://{org}.crm7.dynamics.com/
 TENANT_ID={your-tenant-id}
-SOLUTION_NAME=IncidentManagement
+SOLUTION_NAME=ProjectManagement
 PUBLISHER_PREFIX=geek
 
 # === モデル駆動型アプリ オプション ===
-APP_DISPLAY_NAME=インシデント管理           # 未設定時は SOLUTION_NAME から生成
-APP_UNIQUE_NAME=IncidentManagement          # 未設定時は SOLUTION_NAME を使用
-APP_DESCRIPTION=インシデント管理アプリ      # 未設定時は自動生成
+APP_DISPLAY_NAME=プロジェクト管理           # 未設定時は SOLUTION_NAME から生成
+APP_UNIQUE_NAME=ProjectManagement          # 未設定時は SOLUTION_NAME を使用
+APP_DESCRIPTION=プロジェクト管理アプリ      # 未設定時は自動生成
 ```
 
 

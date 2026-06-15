@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 URL = os.environ["DATAVERSE_URL"].rstrip("/")
-SOL = os.environ.get("SOLUTION_NAME", "IncidentManagement")
+SOL = os.environ.get("SOLUTION_NAME", "SampleSolution")
 FLOW_ID = "7bfda812-803b-4d5e-a992-b5af6153c572"
 
 token = get_token()
@@ -18,7 +18,7 @@ API = URL + "/api/data/v9.2"
 # 1. workflow テーブルで検索
 print("=== Workflow テーブル検索 ===")
 # name で検索
-r = requests.get(f"{API}/workflows?$filter=contains(name,'インシデント')&$select=workflowid,name,category,statecode&$top=10", headers=h)
+r = requests.get(f"{API}/workflows?$filter=contains(name,'{SOL}')&$select=workflowid,name,category,statecode&$top=10", headers=h)
 r.raise_for_status()
 flows = r.json().get("value", [])
 print(f"Found: {len(flows)}")

@@ -83,22 +83,22 @@ root_bu_id = bu["value"][0]["businessunitid"]
 prv{Verb}{TableSchemaName}
 
 Verb: Create, Read, Write, Delete, Append, AppendTo, Assign, Share
-TableSchemaName: テーブルのスキーマ名（prefix 含む。例: geek_Incident）
+TableSchemaName: テーブルのスキーマ名（prefix 含む。例: geek_Project）
 
 例:
-  prvCreategeek_Incident    → geek_Incident テーブルの作成権限
-  prvReadgeek_Incident      → geek_Incident テーブルの読み取り権限
-  prvWritegeek_Incident     → geek_Incident テーブルの書き込み権限
-  prvDeletegeek_Incident    → geek_Incident テーブルの削除権限
-  prvAppendgeek_Incident    → geek_Incident テーブルへの追加権限
-  prvAppendTogeek_Incident  → geek_Incident テーブルへの追加先権限
-  prvAssigngeek_Incident    → geek_Incident テーブルの割り当て権限
-  prvSharegeek_Incident     → geek_Incident テーブルの共有権限
+  prvCreategeek_Project    → geek_Project テーブルの作成権限
+  prvReadgeek_Project      → geek_Project テーブルの読み取り権限
+  prvWritegeek_Project     → geek_Project テーブルの書き込み権限
+  prvDeletegeek_Project    → geek_Project テーブルの削除権限
+  prvAppendgeek_Project    → geek_Project テーブルへの追加権限
+  prvAppendTogeek_Project  → geek_Project テーブルへの追加先権限
+  prvAssigngeek_Project    → geek_Project テーブルの割り当て権限
+  prvSharegeek_Project     → geek_Project テーブルの共有権限
 ```
 
 > **重要**: 権限名の `{TableSchemaName}` 部分はテーブルの **SchemaName**（大文字始まり）を使う。LogicalName（全小文字）ではない。
-> 例: `geek_Incident`（SchemaName）→ `prvReadgeek_Incident` ✅
->     `geek_incident`（LogicalName）→ `prvReadgeek_incident` ❌（権限が見つからない場合あり）
+> 例: `geek_Project`（SchemaName）→ `prvReadgeek_Project` ✅
+>     `geek_project`（LogicalName）→ `prvReadgeek_project` ❌（権限が見つからない場合あり）
 
 ### PrivilegeDepth（権限の深度）
 
@@ -203,8 +203,8 @@ privs = api_get(
 ### 権限名の SchemaName → LogicalName フォールバック
 
 ```python
-# SchemaName（geek_Incident）で検索して 0 件の場合、
-# LogicalName（geek_incident）で再検索するフォールバックが推奨
+# SchemaName（geek_Project）で検索して 0 件の場合、
+# LogicalName（geek_project）で再検索するフォールバックが推奨
 for verb in TABLE_VERBS:
     filter_parts.append(f"name eq 'prv{verb}{schema_name}'")
 # 0 件 → logical_name で再検索
@@ -283,7 +283,7 @@ headers["MSCRM.SolutionName"] = SOLUTION_NAME
 # === 必須（共通）===
 DATAVERSE_URL=https://{org}.crm7.dynamics.com/
 TENANT_ID={your-tenant-id}
-SOLUTION_NAME=IncidentManagement
+SOLUTION_NAME=SampleSolution
 PUBLISHER_PREFIX=geek
 
 # === セキュリティロール オプション ===

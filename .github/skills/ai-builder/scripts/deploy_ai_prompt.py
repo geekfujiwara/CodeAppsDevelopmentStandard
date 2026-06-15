@@ -46,7 +46,7 @@ from auth_helper import (
 )
 
 # ── 環境変数 ──────────────────────────────────────────────
-SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
+SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "SampleSolution")
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
 BOT_ID_OR_URL = os.environ.get("AI_PROMPT_BOT_ID") or os.environ.get("BOT_ID", "")
 
@@ -58,13 +58,13 @@ BOT_ID = m.group(1) if m else BOT_ID_OR_URL
 GPT_TEMPLATE_ID = "edfdb190-3791-45d8-9a6c-8f90a37c278a"
 
 # ── AI Prompt 定義（★ プロジェクトに合わせて書き換える）───
-PROMPT_NAME = "Summarize Document For Incident"
-PROMPT_DESCRIPTION = "SharePoint ドキュメントの内容を要約し、カテゴリを判定してインシデント登録用の情報を生成する"
+PROMPT_NAME = "Summarize Document"
+PROMPT_DESCRIPTION = "SharePoint ドキュメントの内容を要約し、カテゴリを判定してレコード登録用の情報を生成する"
 
 PROMPT_SEGMENTS = [
     {"type": "literal", "text": (
         "あなたはドキュメント分析の専門家です。以下のドキュメントを分析し、"
-        "インシデント管理システムに登録するための情報を作成してください。\n\n"
+        "システムに登録するための情報を作成してください。\n\n"
         "ファイル名: "
     )},
     {"type": "inputVariable", "id": "filename"},

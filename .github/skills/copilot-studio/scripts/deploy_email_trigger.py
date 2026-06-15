@@ -25,7 +25,7 @@ from auth_helper import (
 
 # ---------- 設定 ----------
 
-SOLUTION_NAME = os.getenv("SOLUTION_NAME", "IncidentManagement")
+SOLUTION_NAME = os.getenv("SOLUTION_NAME", "SampleSolution")
 BOT_ID = os.getenv("BOT_ID", "")
 BOT_SCHEMA = os.getenv("BOT_SCHEMA", "")
 ENV_ID = os.getenv("ENV_ID", "")

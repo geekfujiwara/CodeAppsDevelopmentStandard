@@ -27,7 +27,7 @@ from auth_helper import DATAVERSE_URL, get_token, api_get, api_patch
 
 load_dotenv()
 
-SOLUTION_NAME = os.getenv("SOLUTION_NAME", "IncidentManagement")
+SOLUTION_NAME = os.getenv("SOLUTION_NAME", "SampleSolution")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@example.com")
 
 # ── スケジュール設定 ──

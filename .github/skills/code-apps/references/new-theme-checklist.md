@@ -41,9 +41,10 @@ npx degit geekfujiwara/CodeAppsDevelopmentStandard .github
 ## 初期化の正しい順序
 
 ```
+0. テンプレート scaffold        ← vite.config.ts / plugins/ / styles/ / src/ 一式（@GeekPowerCode が scaffold）
 1. .env 設定（.env.example をコピーして新テーマの値を入れる）
 2. デザインテンプレート選択（design-templates.md → apply_design_template.py）
-3. pac code init                  ← .power/ は SDK が生成（手で作らない）
+3. pac code init                  ← power.config.json / .power/ を生成（手で作らない）
 4. pac code add-data-source ...   ← src/generated/ が生成される
 5. 設計フェーズ（design-system.md）→ ユーザー承認 → 実装
 ```

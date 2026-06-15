@@ -19,7 +19,7 @@ load_dotenv()
 
 DATAVERSE_URL = os.environ["DATAVERSE_URL"].rstrip("/")
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
-SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
+SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "SampleSolution")
 
 API = f"{DATAVERSE_URL}/api/data/v9.2"
 
@@ -101,10 +101,10 @@ def main():
     # ── 1. テーブル（Entity）追加 ──
     print("\n--- テーブル ---")
     tables = [
-        f"{PREFIX}_incident",
-        f"{PREFIX}_incidentcategory",
+        f"{PREFIX}_record",
+        f"{PREFIX}_category",
         f"{PREFIX}_location",
-        f"{PREFIX}_incidentcomment",
+        f"{PREFIX}_comment",
     ]
     for table in tables:
         # テーブルの MetadataId を取得
@@ -139,7 +139,7 @@ def main():
     # ── 3. Cloud Flow 追加 ──
     print("\n--- Cloud Flow ---")
     # フローを検索（workflow テーブル）
-    flow_name = "インシデントステータス変更通知"
+    flow_name = "レコードステータス変更通知"
     resp = api_get(f"/workflows?$filter=name eq '{flow_name}' and category eq 5&$select=workflowid,name,statecode")
     flows = resp.get("value", [])
     if flows:

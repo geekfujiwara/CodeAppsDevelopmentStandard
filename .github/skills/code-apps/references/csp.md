@@ -46,6 +46,23 @@ Code Apps は以下のデフォルト CSP で動作する:
 
 > **重要**: カスタム値はデフォルト値に**マージ**される。デフォルト値が `'none'` の場合はカスタム値で**置換**される。
 
+## CSP 安全な SDK メソッド一覧
+
+Code Apps iframe は `connect-src: 'none'` のため、**postMessage ベースの SDK メソッドのみ使用可能**。直接 `fetch` や `executeAsync`（fetch ベース）は CSP でブロックされる。
+
+| メソッド | 安全 | 備考 |
+|---|---|---|
+| `retrieveMultipleRecordsAsync` | ✅ | 一覧取得 |
+| `retrieveRecordAsync` | ✅ | 単一取得 |
+| `createRecordAsync` | ✅ | 作成 |
+| `updateRecordAsync` | ✅ | 更新 |
+| `deleteRecordAsync` | ✅ | 削除 |
+| `executeAsync` | ❌ | fetch ベース → CSP ブロック |
+| `fetch()` 直接 | ❌ | CSP ブロック |
+
+> `WhoAmI` は使えないため、ログインユーザーは `systemuser` テーブルの `azureactivedirectoryobjectid` で
+> `getContext().user.objectId`（AAD Object ID）→ `systemuserid` をマッピングする（→ [ユーザー識別](user-identity.md)）。
+
 ## よくあるユースケースと必要な設定
 
 ### 1. Google Maps iframe 埋め込み（地図表示）

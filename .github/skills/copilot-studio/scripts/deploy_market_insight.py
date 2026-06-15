@@ -27,7 +27,7 @@ load_dotenv()
 
 # ── 環境変数 ──────────────────────────────────────────────
 DATAVERSE_URL = os.environ["DATAVERSE_URL"].rstrip("/")
-SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
+SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "SampleSolution")
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
 
 BOT_ID = "26ce6549-7837-f111-88b3-0022482f3ac7"

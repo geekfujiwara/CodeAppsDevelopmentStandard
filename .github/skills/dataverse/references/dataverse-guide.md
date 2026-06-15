@@ -207,7 +207,7 @@ Choice フィールドは列挙型の値を持ちます。
 
 ```typescript
 const items = await DataverseService.GetItems(
-  "incidents",
+  "records",
   "$select=title,prioritycode",
 );
 // prioritycode は数値で返される（例: 1 = 高, 2 = 中, 3 = 低）
@@ -216,8 +216,8 @@ const items = await DataverseService.GetItems(
 ### 書き込み
 
 ```typescript
-await DataverseService.PostItem("incidents", {
-  title: "新規インシデント",
+await DataverseService.PostItem("records", {
+  title: "新規レコード",
   prioritycode: 1, // 数値で指定
 });
 ```
@@ -231,7 +231,7 @@ const priorityMap: Record<number, string> = {
   3: "低",
 };
 
-const priorityLabel = priorityMap[incident.prioritycode] ?? "未設定";
+const priorityLabel = priorityMap[record.prioritycode] ?? "未設定";
 ```
 
 ---

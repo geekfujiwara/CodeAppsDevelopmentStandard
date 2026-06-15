@@ -45,7 +45,7 @@ load_dotenv()
 
 # ── 環境変数 ──────────────────────────────────────────────
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
-SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
+SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "SampleSolution")
 
 # ── フロー設定（★ プロジェクトに合わせて書き換える） ─────
 FLOW_DISPLAY_NAME = "ステータス変更通知"
@@ -220,7 +220,7 @@ def build_flow_definition() -> dict:
                     },
                     "parameters": {
                         "subscriptionRequest/message": 3,  # Update
-                        "subscriptionRequest/entityname": f"{PREFIX}_incident",
+                        "subscriptionRequest/entityname": f"{PREFIX}_table",
                         "subscriptionRequest/scope": 4,    # Organization
                         "subscriptionRequest/filteringattributes": f"{PREFIX}_status",
                         "subscriptionRequest/runas": 3,    # Modifying user

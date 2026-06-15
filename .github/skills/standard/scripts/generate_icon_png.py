@@ -1,5 +1,8 @@
 """
-PNG アイコン生成スクリプト — シールド＋ライトニング（パターン A）
+PNG アイコン生成スクリプト — テーマ非依存の汎用プレースホルダー（4 点スパークル）
+
+★ 本スクリプトはニュートラルな既定アイコンを生成する。
+  テーマごとにモチーフ・配色を差し替えて使うこと（→ standard/references/icon-creation.md のアイコン画像提案フロー）。
 
 Teams チャネル要件:
   - colorIcon: 192x192 PNG (< 100KB)
@@ -11,95 +14,67 @@ import base64
 import math
 from PIL import Image, ImageDraw
 
-def draw_shield_bolt(size: int, transparent_bg: bool = False, outline_only: bool = False) -> Image.Image:
-    """シールド＋ライトニングアイコンを描画する"""
+
+def _sparkle_points(cx: float, cy: float, radius: float, waist: float):
+    """中心 (cx, cy) の 4 点スパークル（きらめき）ポリゴン座標を返す。"""
+    return [
+        (cx, cy - radius),
+        (cx + waist, cy - waist),
+        (cx + radius, cy),
+        (cx + waist, cy + waist),
+        (cx, cy + radius),
+        (cx - waist, cy + waist),
+        (cx - radius, cy),
+        (cx - waist, cy - waist),
+    ]
+
+
+def draw_agent_icon(size: int, transparent_bg: bool = False, outline_only: bool = False) -> Image.Image:
+    """テーマ非依存の汎用アイコン（角丸背景 + 4 点スパークル）を描画する。
+
+    テーマ固有のアイコンにする場合は、この関数のモチーフ（スパークル）を
+    目的に合わせた図形に差し替える（→ icon-creation.md）。
+    """
     img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    
+
     s = size  # shorthand
-    margin = s * 0.08
-    
+
     if not transparent_bg:
-        # 濃紺グラデーション風の角丸背景
-        # Pillow の rounded_rectangle を使用
+        # 角丸正方形の背景（ブランドカラーに合わせて変更可）
         bg_color = (30, 41, 59, 255)  # #1e293b
         corner_r = int(s * 0.2)
-        draw.rounded_rectangle(
-            [0, 0, s - 1, s - 1],
-            radius=corner_r,
-            fill=bg_color
-        )
-    
-    # シールド座標
+        draw.rounded_rectangle([0, 0, s - 1, s - 1], radius=corner_r, fill=bg_color)
+
     cx, cy = s / 2, s / 2
-    shield_top = s * 0.16
-    shield_bottom = s * 0.86
-    shield_left = s * 0.28
-    shield_right = s * 0.72
-    shield_mid_y = s * 0.52
-    
-    # シールドパス（ポリゴン近似）
-    shield_points = []
-    # 上部: 頂点
-    shield_points.append((cx, shield_top))
-    # 右上のカーブ
-    shield_points.append((shield_right, shield_top + s * 0.10))
-    # 右側ストレート
-    shield_points.append((shield_right, shield_mid_y))
-    # 右下のカーブ（下に絞る）
-    shield_points.append((shield_right - s * 0.02, shield_mid_y + s * 0.12))
-    shield_points.append((cx + s * 0.12, shield_bottom - s * 0.10))
-    # 底部頂点
-    shield_points.append((cx, shield_bottom))
-    # 左下のカーブ
-    shield_points.append((cx - s * 0.12, shield_bottom - s * 0.10))
-    shield_points.append((shield_left + s * 0.02, shield_mid_y + s * 0.12))
-    # 左側ストレート
-    shield_points.append((shield_left, shield_mid_y))
-    # 左上のカーブ
-    shield_points.append((shield_left, shield_top + s * 0.10))
-    
+
     if outline_only:
-        # アウトラインのみ（白、透明背景）
-        draw.polygon(shield_points, outline=(255, 255, 255, 255), fill=None)
-        # 稲妻（白）
-        bolt_color = (255, 255, 255, 255)
+        # outlineIcon: 白い線画のみ（背景透明）
+        main = _sparkle_points(cx, cy, s * 0.34, s * 0.09)
+        draw.polygon(main, outline=(255, 255, 255, 255))
     else:
-        # シールド塗りつぶし
-        shield_color = (226, 232, 240, 240)  # #e2e8f0 with slight transparency
-        draw.polygon(shield_points, fill=shield_color, outline=(148, 163, 184, 100))
-        bolt_color = (251, 191, 36, 255)  # #fbbf24
-    
-    # ライトニングボルト
-    bolt_cx = cx
-    bolt_top = shield_top + s * 0.14
-    bolt_bottom = shield_bottom - s * 0.12
-    bolt_mid = (bolt_top + bolt_bottom) / 2
-    
-    bolt_points = [
-        (bolt_cx + s * 0.05, bolt_top),       # 右上
-        (bolt_cx - s * 0.10, bolt_mid),         # 左中
-        (bolt_cx + s * 0.02, bolt_mid),         # 中点上
-        (bolt_cx - s * 0.05, bolt_bottom),      # 左下
-        (bolt_cx + s * 0.12, bolt_mid - s * 0.02),  # 右中
-        (bolt_cx + s * 0.00, bolt_mid - s * 0.02),  # 中点下
-    ]
-    draw.polygon(bolt_points, fill=bolt_color)
-    
+        # メインスパークル（白）
+        main = _sparkle_points(cx, cy, s * 0.30, s * 0.08)
+        draw.polygon(main, fill=(255, 255, 255, 240))
+        # サブスパークル（アクセント・小）
+        sub = _sparkle_points(s * 0.74, s * 0.28, s * 0.10, s * 0.028)
+        draw.polygon(sub, fill=(251, 191, 36, 255))  # #fbbf24
+
     return img
+
 
 
 def generate_icons():
     """3 種類の PNG アイコンを生成し、Base64 エンコードして返す"""
     
     # 1. iconbase64 用 (240x240)
-    icon_main = draw_shield_bolt(240, transparent_bg=False)
+    icon_main = draw_agent_icon(240, transparent_bg=False)
     
     # 2. colorIcon 用 (192x192)
-    icon_color = draw_shield_bolt(192, transparent_bg=False)
+    icon_color = draw_agent_icon(192, transparent_bg=False)
     
     # 3. outlineIcon 用 (32x32, 白い透明背景)
-    icon_outline = draw_shield_bolt(32, transparent_bg=True, outline_only=True)
+    icon_outline = draw_agent_icon(32, transparent_bg=True, outline_only=True)
     
     results = {}
     for name, img in [("main", icon_main), ("color", icon_color), ("outline", icon_outline)]:

@@ -7,7 +7,7 @@
 ```
 原因: TableSchemaName の大文字小文字が一致していない
 対策: EntityDefinitions から SchemaName を取得して使う（LogicalName ではない）
-     例: geek_Incident（SchemaName）≠ geek_incident（LogicalName）
+     例: geek_Project（SchemaName）≠ geek_project（LogicalName）
 
 教訓:
   実環境では SchemaName が全小文字（LogicalName と同じ）でマッチするケースが確認された。

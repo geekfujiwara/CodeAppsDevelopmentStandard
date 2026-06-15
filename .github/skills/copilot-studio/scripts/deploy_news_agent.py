@@ -30,8 +30,8 @@ load_dotenv()
 
 # ── 環境変数 ────────────────────────────────────────────────
 DATAVERSE_URL = _DV_URL
-SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
-SOLUTION_DISPLAY_NAME = os.environ.get("SOLUTION_DISPLAY_NAME", "インシデント管理")
+SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "SampleSolution")
+SOLUTION_DISPLAY_NAME = os.environ.get("SOLUTION_DISPLAY_NAME", "サンプルソリューション")
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
 
 BOT_NAME = "ニュースレポーター"

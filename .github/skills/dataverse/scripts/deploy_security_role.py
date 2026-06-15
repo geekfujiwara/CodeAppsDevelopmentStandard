@@ -63,8 +63,8 @@ API = f"{DATAVERSE_URL}/api/data/v9.2"
 
 ROLE_DEFINITIONS = [
     {
-        "name": "インシデント管理 管理者",
-        "description": "インシデント管理アプリの全テーブルに対するフルアクセス権限",
+        "name": "{ソリューション名} 管理者",
+        "description": "アプリの全テーブルに対するフルアクセス権限",
         "table_privileges": {
             "*": {
                 "Create": "Global",
@@ -80,8 +80,8 @@ ROLE_DEFINITIONS = [
         "extra_privileges": [],
     },
     {
-        "name": "インシデント管理 ユーザー",
-        "description": "インシデント管理アプリの基本的な CRUD 権限",
+        "name": "{ソリューション名} ユーザー",
+        "description": "アプリの基本的な CRUD 権限",
         "table_privileges": {
             "*": {
                 "Create": "Local",
@@ -94,7 +94,7 @@ ROLE_DEFINITIONS = [
                 "Share": "Basic",
             },
             # マスタテーブルは読み取り専用
-            f"{PREFIX}_IncidentCategory": {
+            f"{PREFIX}_Category": {
                 "Create": None,
                 "Read": "Global",
                 "Write": None,
@@ -118,8 +118,8 @@ ROLE_DEFINITIONS = [
         "extra_privileges": [],
     },
     {
-        "name": "インシデント管理 閲覧者",
-        "description": "インシデント管理アプリの読み取りのみ。編集・削除不可",
+        "name": "{ソリューション名} 閲覧者",
+        "description": "アプリの読み取りのみ。編集・削除不可",
         "table_privileges": {
             "*": {
                 "Create": None,

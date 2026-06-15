@@ -49,14 +49,14 @@ python ./deploy_model_driven_app.py
 - テーブルのテーマに合わせた **SVG アイコン（32x32）を自動生成**
 - **Web Resource（type=11, SVG）**として Dataverse に登録
 - `EntityMetadata.IconVectorName` にWeb Resource名を設定
-- テーブル名からテーマを自動判定（incident→警告、category→フォルダ、priority→フラグ等）
+- テーブル名からテーマを自動判定（category→フォルダ、priority→フラグ、asset→箱等）
 
 ```bash
 # 全テーブルを一括カスタマイズ
 python ./customize_views_forms.py
 
 # 特定テーブルのみ
-python ./customize_views_forms.py geek_incident
+python ./customize_views_forms.py geek_project
 ```
 
 ### テーブルアイコン API パターン
@@ -107,10 +107,10 @@ requests.put(
 <SiteMap IntroducedVersion="7.0.0.0">
   <Area Id="MainArea" ShowGroups="true" IntroducedVersion="7.0.0.0">
     <Titles><Title LCID="1041" Title="アプリ名" /></Titles>
-    <Group Id="grp_incident" IntroducedVersion="7.0.0.0" IsProfile="false">
-      <Titles><Title LCID="1041" Title="インシデント" /></Titles>
-      <SubArea Id="sub_incident" Entity="prefix_incident" AvailableOffline="true" />
-      <SubArea Id="sub_comment" Entity="prefix_incidentcomment" AvailableOffline="true" />
+    <Group Id="grp_project" IntroducedVersion="7.0.0.0" IsProfile="false">
+      <Titles><Title LCID="1041" Title="プロジェクト" /></Titles>
+      <SubArea Id="sub_project" Entity="prefix_project" AvailableOffline="true" />
+      <SubArea Id="sub_task" Entity="prefix_projecttask" AvailableOffline="true" />
     </Group>
     <Group Id="grp_master" IntroducedVersion="7.0.0.0" IsProfile="false">
       <Titles><Title LCID="1041" Title="マスタ" /></Titles>
@@ -130,9 +130,9 @@ requests.put(
 <SiteMap IntroducedVersion="7.0.0.0">
   <Area Id="OperationArea" ShowGroups="true" IntroducedVersion="7.0.0.0">
     <Titles><Title LCID="1041" Title="運用管理" /></Titles>
-    <Group Id="IncidentGroup" IntroducedVersion="7.0.0.0" IsProfile="false">
-      <Titles><Title LCID="1041" Title="インシデント" /></Titles>
-      <SubArea Id="sub_incident" Entity="prefix_incident" AvailableOffline="true" />
+    <Group Id="ProjectGroup" IntroducedVersion="7.0.0.0" IsProfile="false">
+      <Titles><Title LCID="1041" Title="プロジェクト" /></Titles>
+      <SubArea Id="sub_project" Entity="prefix_project" AvailableOffline="true" />
     </Group>
   </Area>
   <Area Id="AdminArea" ShowGroups="true" IntroducedVersion="7.0.0.0">
@@ -151,7 +151,7 @@ requests.put(
 テーブル名から以下のルールでグループ化:
 
 1. **マスタ系**: テーブル名に `category`, `priority`, `asset`, `master`, `type`, `status`, `location`, `department` を含む → 「マスタデータ」グループ
-2. **テーマ別トランザクション**: 共通プレフィックスを持つテーブルをまとめる（例: `incident` + `incidentcomment` → 「インシデント」グループ）
+2. **テーマ別トランザクション**: 共通プレフィックスを持つテーブルをまとめる（例: `project` + `projecttask` → 「プロジェクト」グループ）
 3. **その他**: 独立したテーマのテーブルは独自グループ（例: `market_insight` → 「市場インサイト」グループ）
 
 > ★ **全パターンで `ShowGroups="true"`・`IntroducedVersion="7.0.0.0"`・`<Titles>` 要素・`AvailableOffline="true"` を必ず含める。**

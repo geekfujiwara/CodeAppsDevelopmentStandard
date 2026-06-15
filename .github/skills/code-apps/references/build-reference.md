@@ -5,7 +5,7 @@
 >
 > | SKILL.md | 本リファレンス |
 > |---|---|
-> | Step 1 スキャフォールド | Step 1 |
+> | Step 0 テンプレート scaffold + Step 1 init | Step 1 |
 > | Step 2 vite.config.ts 確認 | Step 2 |
 > | Step 3 環境設定 | （.env コピー — 本リファレンスでは省略） |
 > | Step 4 初回ビルド＆デプロイ | Step 3 |
@@ -14,18 +14,22 @@
 
 ## 構築手順
 
-### Step 1: プロジェクト初期化
+### Step 1: テンプレート scaffold + プロジェクト初期化
 
 ```bash
-# PAC CLI 認証プロファイルを使用（テナント不一致なし）
-pac code init -env {ENVIRONMENT_ID} -n "AppName"
-# ↑ power.config.json がここで生成される
+# ① テンプレート scaffold（vite.config.ts / plugins/plugin-power-apps.ts / styles/ / src/ 一式）
+#    標準では @GeekPowerCode が scaffold する。手動で行う場合:
+#    npx degit github:microsoft/PowerAppsCodeApps/templates/vite .
 npm install
+
+# ② Power Apps 初期化 — power.config.json のみ生成（PAC CLI 認証でテナント不一致なし）
+pac code init -env {ENVIRONMENT_ID} -n "AppName"
+# ↑ vite.config.ts や plugins/ は生成しない（①のテンプレート由来）
 ```
 
 ### Step 2: vite.config.ts 必須設定の確認（検証済 2026-06-15）
 
-`pac code init` が生成した `vite.config.ts` を確認し、以下の必須設定が含まれていることを検証する。
+テンプレートに含まれる `vite.config.ts` を確認し、以下の必須設定が含まれていることを検証する。
 **この手順を飛ばすと、デプロイ後にアセット 404 やモジュール解決エラーでアプリが起動しない。**
 
 #### チェックリスト
@@ -338,7 +342,7 @@ declare module "*.css" {
 
 ```typescript
 // Choice 値は 100000000 始まり
-export enum IncidentStatus {
+export enum RecordStatus {
   NEW = 100000000,
   IN_PROGRESS = 100000001,
   ON_HOLD = 100000002,
@@ -346,21 +350,21 @@ export enum IncidentStatus {
   CLOSED = 100000004,
 }
 
-export const statusLabels: Record<IncidentStatus, string> = {
-  [IncidentStatus.NEW]: "新規",
-  [IncidentStatus.IN_PROGRESS]: "対応中",
-  [IncidentStatus.ON_HOLD]: "保留",
-  [IncidentStatus.RESOLVED]: "解決済",
-  [IncidentStatus.CLOSED]: "クローズ",
+export const statusLabels: Record<RecordStatus, string> = {
+  [RecordStatus.NEW]: "新規",
+  [RecordStatus.IN_PROGRESS]: "対応中",
+  [RecordStatus.ON_HOLD]: "保留",
+  [RecordStatus.RESOLVED]: "解決済",
+  [RecordStatus.CLOSED]: "クローズ",
 };
 
 // Tailwind クラスも型安全に
-export const statusColors: Record<IncidentStatus, string> = {
-  [IncidentStatus.NEW]: "bg-blue-100 text-blue-800",
-  [IncidentStatus.IN_PROGRESS]: "bg-yellow-100 text-yellow-800",
-  [IncidentStatus.ON_HOLD]: "bg-gray-100 text-gray-800",
-  [IncidentStatus.RESOLVED]: "bg-green-100 text-green-800",
-  [IncidentStatus.CLOSED]: "bg-red-100 text-red-800",
+export const statusColors: Record<RecordStatus, string> = {
+  [RecordStatus.NEW]: "bg-blue-100 text-blue-800",
+  [RecordStatus.IN_PROGRESS]: "bg-yellow-100 text-yellow-800",
+  [RecordStatus.ON_HOLD]: "bg-gray-100 text-gray-800",
+  [RecordStatus.RESOLVED]: "bg-green-100 text-green-800",
+  [RecordStatus.CLOSED]: "bg-red-100 text-red-800",
 };
 ```
 
@@ -440,7 +444,7 @@ grep -rn "https://" src/ --include="*.ts" --include="*.tsx" | grep -v "// " | gr
 
 ```bash
 # テンプレートページが残っていないこと
-ls src/pages/ | grep -v "incident\|not-found\|_layout"
+ls src/pages/ | grep -v "dashboard\|not-found\|_layout"
 
 # テンプレート専用コンポーネントが残っていないこと
 grep -rn "learn-client\|learn-catalog\|chart-dashboard\|gantt-chart\|kanban-board\|tree-structure" src/ --include="*.ts" --include="*.tsx"

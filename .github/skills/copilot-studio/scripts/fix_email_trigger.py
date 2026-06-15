@@ -28,7 +28,7 @@ load_dotenv()
 
 BOT_ID = os.getenv("BOT_ID", "")
 BOT_SCHEMA = os.getenv("BOT_SCHEMA", "")
-SOLUTION_NAME = os.getenv("SOLUTION_NAME", "IncidentManagement")
+SOLUTION_NAME = os.getenv("SOLUTION_NAME", "SampleSolution")
 WF_ID = os.getenv("WF_ID", "")
 
 
@@ -331,7 +331,7 @@ def main():
     print("=" * 60)
     if not is_active:
         print("  ⚠️ フローがまだ Draft です。Power Automate UI で手動有効化してください:")
-        print("     https://make.powerautomate.com → ソリューション → インシデント管理")
+        print("     https://make.powerautomate.com → ソリューション → 対象ソリューション")
         print("     → Word日報出力 - メール受信トリガー → オンにする")
 
 

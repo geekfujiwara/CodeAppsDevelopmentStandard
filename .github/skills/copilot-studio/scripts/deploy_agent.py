@@ -1,7 +1,8 @@
 """
-Copilot Studio エージェント設定スクリプト — サンプル実装（インシデント管理アシスタント）
+Copilot Studio エージェント設定スクリプト — テーマ非依存テンプレート
 
-★ 本スクリプトはサンプル実装です。エージェント名・Instructions・推奨プロンプトをプロジェクトに合わせて書き換えてください。
+★ 本スクリプトはテンプレートです。エージェント名・Instructions・推奨プロンプト等の
+  「テーマ定義」セクション（{...} プレースホルダー）を、設計フェーズで決めた内容に書き換えてから実行してください。
 ★ API ヘルパー、トピック削除、生成オーケストレーション有効化、PvaPublish のパターンは共通テンプレートとして再利用できます。
 
 Phase 3: UI で作成済みの Bot に対して設定を適用
@@ -45,12 +46,18 @@ load_dotenv()
 
 # ── 環境変数 ────────────────────────────────────────────────
 DATAVERSE_URL = _DV_URL
-SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
+SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "SampleSolution")
 SOLUTION_DISPLAY_NAME = os.environ.get("SOLUTION_DISPLAY_NAME", "")
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
 
-BOT_NAME = "インシデント管理アシスタント"
-BOT_SCHEMA = f"{PREFIX}_IncidentAssistant"
+# ═════════════════════════════════════════════════════════════════
+#  テーマ定義（プレースホルダー）— 使用前に必ずテーマに合わせて置換する
+#  設計フェーズ（設計提示 → ユーザー承認）で決めた内容に書き換えること。
+#  以下の `{...}` はフォーマットを示すプレースホルダーで、特定テーマを意図しない。
+# ═════════════════════════════════════════════════════════════════
+
+BOT_NAME = "{エージェント名}"          # 例: "○○管理アシスタント"
+BOT_SCHEMA = f"{PREFIX}_Assistant"     # スキーマ名（prefix + PascalCase）
 
 # ── API ヘルパー ─────────────────────────────────────────
 
@@ -100,63 +107,31 @@ def api_delete(path):
 # ── GPT Instructions ─────────────────────────────────────
 
 GPT_INSTRUCTIONS = f"""\
-あなたは「インシデント管理アシスタント」です。社内のITインシデント管理を支援するAIエージェントです。
-インシデントの起票・検索・ステータス確認、IT資産情報の照会を行います。
+あなたは「{{エージェント名}}」です。{{エージェントの役割を1〜2文で記述する}}
 
 ## 利用可能なテーブル
 
-### {PREFIX}_incident（インシデント）
-- {PREFIX}_name: テキスト（インシデントタイトル）★必須
-- {PREFIX}_description: テキスト（説明・詳細）
+（テーマで使う Dataverse テーブルを以下の形式で列挙する。下記はフォーマット例であり特定テーマを意図しない）
+
+### {PREFIX}_{{table}}（{{テーブル表示名}}）
+- {PREFIX}_name: テキスト（{{主項目}}）★必須
+- {PREFIX}_{{column}}: テキスト（{{説明}}）
 - {PREFIX}_status: Choice（ステータス）
-  - 100000000 = 新規
-  - 100000001 = 対応中
-  - 100000002 = 解決済
-  - 100000003 = クローズ
-- {PREFIX}_resolution: テキスト（解決内容）
-- _{PREFIX}_categoryid_value: Lookup → {PREFIX}_incidentcategory（カテゴリ）
-- _{PREFIX}_priorityid_value: Lookup → {PREFIX}_priority（優先度）
+  - 100000000 = {{状態1}}
+  - 100000001 = {{状態2}}
+  - 100000002 = {{状態3}}
+- _{PREFIX}_{{lookup}}id_value: Lookup → {PREFIX}_{{related_table}}（{{関連表示名}}）
 - _{PREFIX}_assignedtoid_value: Lookup → systemuser（担当者）
-- _{PREFIX}_itassetid_value: Lookup → {PREFIX}_itasset（対象IT資産）
-- createdby: システム列（起票者）
+- createdby: システム列（作成者）
 
-### {PREFIX}_incidentcategory（インシデントカテゴリ）
-- {PREFIX}_name: テキスト（カテゴリ名）
-- カテゴリ一覧: ハードウェア障害、ソフトウェア障害、ネットワーク障害、セキュリティ、その他
-
-### {PREFIX}_priority（優先度）
-- {PREFIX}_name: テキスト（優先度名）
-- {PREFIX}_level: 整数（レベル。1が最高）
-- 優先度一覧: 高（レベル1）、中（レベル2）、低（レベル3）
-
-### {PREFIX}_itasset（IT資産）
-- {PREFIX}_name: テキスト（資産名）
-- {PREFIX}_assettype: Choice（資産タイプ）
-  - 100000000 = ノートPC
-  - 100000001 = デスクトップPC
-  - 100000002 = モニター
-  - 100000003 = プリンター
-  - 100000004 = ネットワーク機器
-  - 100000005 = サーバー
-  - 100000006 = その他
-- {PREFIX}_assetnumber: テキスト（資産番号）
-- {PREFIX}_manufacturer: テキスト（メーカー）
-- {PREFIX}_modelname: テキスト（型番）
-- {PREFIX}_status: Choice（ステータス）
-  - 100000000 = 使用中
-  - 100000001 = 在庫
-  - 100000002 = 修理中
-  - 100000003 = 廃棄
-
-### {PREFIX}_incidentcomment（インシデントコメント）
-- {PREFIX}_name: テキスト（コメントタイトル）
-- {PREFIX}_content: テキスト（コメント内容）
-- _{PREFIX}_incidentid_value: Lookup → {PREFIX}_incident
+### {PREFIX}_{{related_table}}（{{関連テーブル表示名}}）
+- {PREFIX}_name: テキスト（{{名称}}）
+- {{値一覧があれば列挙する}}
 
 ## 行動指針
 
 1. ユーザーの意図を正確に理解し、適切なDataverse操作を実行する
-2. インシデントの新規起票時は、タイトル・カテゴリ・優先度・説明を必ず確認してから作成する
+2. レコード新規作成時は、必須項目を必ず確認してから作成する
 3. 検索結果はテーブル形式で見やすく整形して表示する
 4. 日本語で丁寧かつ簡潔に応答する
 5. Choice値は整数値（100000000等）で指定する
@@ -165,95 +140,67 @@ GPT_INSTRUCTIONS = f"""\
 
 ## よくある操作パターン
 
-### インシデント起票
-タイトル・カテゴリ・優先度・説明をヒアリング → {PREFIX}_incident にレコード作成
+（テーマに応じた代表的な操作を記述する。例: レコード起票 / 検索 / ステータス更新 / 関連情報照会）
 
-### ステータス確認
-条件（ステータス・カテゴリ等）でフィルタして一覧表示
+### {{操作名1}}
+{{ヒアリング項目}} → {PREFIX}_{{table}} にレコード作成
 
-### ステータス更新
-対象インシデントを特定 → {PREFIX}_status を更新
+### {{操作名2}}
+条件でフィルタして一覧表示
 
-### IT資産照会
-資産番号や名前で検索 → 詳細情報を表示
-
-### コメント追加
-インシデントを特定 → {PREFIX}_incidentcomment に新規作成
+### {{操作名3}}
+対象レコードを特定 → {PREFIX}_status を更新
 """
 
 # instructions を |- ブロック形式で手動構築（yaml.dump の quoted scalar では UI が認識しない）
 
 # ── 推奨プロンプト（GPT コンポーネントの conversationStarters） ────────
 PREFERRED_PROMPTS = [
-    {"title": "\U0001f4dd インシデントを起票", "text": "新しいインシデントを起票したいです"},
-    {"title": "\U0001f50d インシデントを検索", "text": "現在対応中のインシデント一覧を表示してください"},
-    {"title": "\U0001f4ca ステータス確認", "text": "未対応（新規）のインシデントは何件ありますか？"},
-    {"title": "\U0001f4bb IT資産を検索", "text": "ノートPCの資産一覧を表示してください"},
-    {"title": "\U0001f504 ステータス更新", "text": "インシデントのステータスを更新したいです"},
+    {"title": "\U0001f4dd {操作1}", "text": "{プロンプト文1}"},
+    {"title": "\U0001f50d {操作2}", "text": "{プロンプト文2}"},
+    {"title": "\U0001f4ca {操作3}", "text": "{プロンプト文3}"},
+    {"title": "\U0001f504 {操作4}", "text": "{プロンプト文4}"},
 ]
 
 # conversationStarters は PVA ダブル改行フォーマットで構築（後述の GPT_YAML 内で使用）
 
 # ── 会話の開始のクイック返信（ConversationStart トピックの quickReplies） ──
 QUICK_REPLIES = [
-    "新しいインシデントを起票する",
-    "対応中のインシデントを確認",
-    "IT資産を検索する",
-    "未対応のインシデントを確認",
+    "{クイック返信1}",
+    "{クイック返信2}",
+    "{クイック返信3}",
+    "{クイック返信4}",
 ]
 
 # ── 会話の開始メッセージ（ConversationStart トピックの挨拶テキスト） ──
-GREETING_MESSAGE = "こんにちは！インシデント管理アシスタントです \U0001f6e1\ufe0f\nインシデントの起票・検索・ステータス更新、IT資産の照会など、お気軽にお申し付けください。"
+GREETING_MESSAGE = "{挨拶メッセージ。エージェントの役割とできることを簡潔に案内する}"
 
-BOT_DESCRIPTION = "社内インシデントの起票・検索・ステータス確認、IT資産の照会を行うAIアシスタントです。自然言語で指示するだけでDataverseのデータ操作を自動実行します。"
+BOT_DESCRIPTION = "{エージェントの説明。1〜2文で役割を記述する}"
 
 # ── Teams チャネル公開設定 ─────────────────────────────────
 # applicationmanifestinformation.teams に格納される値
-TEAMS_SHORT_DESCRIPTION = "社内インシデントの起票・検索・管理を行うAIアシスタント"  # 最大80文字
+TEAMS_SHORT_DESCRIPTION = "{短い説明（最大80文字）}"  # 最大80文字
 TEAMS_LONG_DESCRIPTION = (
-    "インシデント管理アシスタントは、社内ITインシデントの起票、検索、ステータス更新、IT資産照会を支援するAIエージェントです。\n\n"
-    "【主な機能】\n"
-    "・インシデントの新規起票（タイトル・カテゴリ・優先度・説明を指定）\n"
-    "・インシデント一覧の検索・フィルタリング（ステータス・優先度・カテゴリ別）\n"
-    "・ステータス更新（新規→対応中→解決済→クローズ）\n"
-    "・IT資産の照会（資産番号・名前・タイプで検索）\n"
-    "・コメントの追加\n\n"
-    "自然言語で指示するだけで、Dataverse上のデータ操作を自動実行します。"
+    "{エージェントの詳細説明。主な機能を箇条書きで記述する（最大3400文字）}"
 )  # 最大3400文字
 TEAMS_ACCENT_COLOR = "#1e293b"  # 背景色（濃紺 — Code Apps と統一）
-TEAMS_DEVELOPER_NAME = "Geek Fujiwara"  # 最大32文字
+TEAMS_DEVELOPER_NAME = "{開発者名}"  # 最大32文字
 TEAMS_WEBSITE = ""  # 空欄ならデフォルト維持
 TEAMS_PRIVACY_URL = ""  # 空欄ならデフォルト維持
 TEAMS_TERMS_URL = ""  # 空欄ならデフォルト維持
 
-# ── アイコン SVG（パターン A: シールド＋ライトニング） ────
+# ── アイコン SVG（任意・参考）────
+# 実際のアイコンは generate_icon_png.py で生成し set_icon() で登録する。
+# 下記はテーマに合わせて差し替えるニュートラルなプレースホルダー。
 ICON_SVG = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#1e293b"/>
       <stop offset="100%" style="stop-color:#334155"/>
     </linearGradient>
-    <linearGradient id="shield" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#e2e8f0"/>
-      <stop offset="100%" style="stop-color:#cbd5e1"/>
-    </linearGradient>
-    <linearGradient id="bolt" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#fbbf24"/>
-      <stop offset="100%" style="stop-color:#f59e0b"/>
-    </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.3"/>
-    </filter>
   </defs>
   <rect width="240" height="240" rx="48" ry="48" fill="url(#bg)"/>
-  <path d="M120 38 L172 62 C172 62 176 120 172 148 C168 172 148 192 120 206 C92 192 72 172 68 148 C64 120 68 62 68 62 Z"
-        fill="url(#shield)" filter="url(#shadow)" opacity="0.95"/>
-  <path d="M120 50 L164 70 C164 70 167 120 164 144 C161 164 144 182 120 194 C96 182 79 164 76 144 C73 120 76 70 76 70 Z"
-        fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.4"/>
-  <path d="M132 72 L108 128 L126 128 L112 176 L148 116 L128 116 Z"
-        fill="url(#bolt)" filter="url(#shadow)"/>
-  <path d="M130 76 L110 124 L126 124 L114 170"
-        fill="none" stroke="#fde68a" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <circle cx="120" cy="120" r="56" fill="none" stroke="#e2e8f0" stroke-width="8"/>
 </svg>'''
 
 # ★ PVA パーサーは「ダブル改行（\n\n）区切り」の独自 YAML フォーマットのみ認識する
@@ -362,7 +309,7 @@ def find_bot() -> str:
     print(f"    4. 「エージェント設定 (オプション)」を展開:")
     print(f"       - 言語: 日本語 (日本)")
     print(f"       - ソリューション: {sol_label}")
-    print(f"       - スキーマ名: {PREFIX}_incident_management_assistant")
+    print(f"       - スキーマ名: {PREFIX}_assistant")
     print(f"    5. 「作成」をクリック")
     print(f"    6. 作成後のブラウザ URL をそのまま .env に貼り付け:")
     print(f"       BOT_ID=https://copilotstudio.../bots/xxxxxxxx-xxxx-xxxx-.../overview")
@@ -830,12 +777,9 @@ def main():
     print("  1. ナレッジの追加:")
     print("     → https://copilotstudio.microsoft.com/ にアクセス")
     print(f"     → 「{BOT_NAME}」を選択 → ナレッジ タブ")
-    print("     → Dataverse を選択 → 以下のテーブルを追加:")
-    print(f"       - {PREFIX}_incident（インシデント）")
-    print(f"       - {PREFIX}_incidentcategory（カテゴリ）")
-    print(f"       - {PREFIX}_priority（優先度）")
-    print(f"       - {PREFIX}_itasset（IT資産）")
-    print(f"       - {PREFIX}_incidentcomment（コメント）")
+    print("     → Dataverse を選択 → テーマで使うテーブルを追加:")
+    print(f"       - {PREFIX}_{{table}}（主テーブル）")
+    print(f"       - {PREFIX}_{{related_table}}（関連テーブル）")
     print()
     print("  2. ツール（Dataverse MCP Server）の追加:")
     print("     → ツール タブ → Dataverse MCP Server を追加")

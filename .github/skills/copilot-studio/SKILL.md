@@ -119,7 +119,7 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 Dataverse テーブル・Code Apps・Power Automate フロー・Copilot Studio エージェントは **すべて同一のソリューション内** に含める。
 
 ```
-SOLUTION_NAME=IncidentManagement  ← .env で定義。全フェーズで同じ値を使用
+SOLUTION_NAME=SampleSolution  ← .env で定義。全フェーズで同じ値を使用
 PUBLISHER_PREFIX=geek              ← ソリューション発行者の prefix
 ```
 

@@ -1,7 +1,9 @@
 """
-Power Automate フローデプロイ — インシデント起票通知
+Power Automate フローデプロイ — レコード作成通知（サンプル）
 
-Phase 2.5: インシデント新規作成トリガー → 起票者取得 → 管理者にHTML通知メール送信
+★ 本スクリプトはサンプル実装です。テーブル名・列名・メール本文をプロジェクトに合わせて書き換えてください。
+
+Phase 2.5: レコード新規作成トリガー → 作成者取得 → 管理者にHTML通知メール送信
 
 特徴:
   - 接続参照（Connection Reference）＋ Invoker モード → ソリューション ALM 対応
@@ -35,7 +37,7 @@ from auth_helper import (
 load_dotenv()
 
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
-SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "IncidentManagement")
+SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "SampleSolution")
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
 
 API = f"{DATAVERSE_URL}/api/data/v9.2"
@@ -43,7 +45,7 @@ POWERAPPS_API = "https://api.powerapps.com"
 FLOW_API = "https://api.flow.microsoft.com"
 API_VER = "api-version=2016-11-01"
 
-FLOW_DISPLAY_NAME = "インシデント起票通知"
+FLOW_DISPLAY_NAME = "レコード作成通知"
 
 CONNREF_DATAVERSE = f"{PREFIX}_connref_dataverse"
 CONNREF_OUTLOOK = f"{PREFIX}_connref_outlook"
@@ -234,9 +236,9 @@ def build_email_html() -> str:
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">\n'
         '<tr><td>\n'
         '<div style="font-size:13px;color:#94a3b8;letter-spacing:2px;'
-        'text-transform:uppercase;margin-bottom:8px;">INCIDENT MANAGEMENT</div>\n'
+        'text-transform:uppercase;margin-bottom:8px;">NOTIFICATION</div>\n'
         '<div style="font-size:22px;font-weight:700;color:#ffffff;line-height:1.4;">'
-        '&#128680; 新しいインシデントが起票されました</div>\n'
+        '&#128680; 新しいレコードが作成されました</div>\n'
         '</td></tr>\n'
         '</table>\n'
         '</td>\n'
@@ -246,7 +248,7 @@ def build_email_html() -> str:
         '<tr>\n'
         '<td style="padding:32px 40px 16px;">\n'
         '<div style="font-size:11px;color:#64748b;text-transform:uppercase;'
-        'letter-spacing:2px;margin-bottom:8px;">インシデントタイトル</div>\n'
+        'letter-spacing:2px;margin-bottom:8px;">タイトル</div>\n'
         "<div style=\"font-size:20px;font-weight:700;color:#0f172a;line-height:1.4;\">"
         "@{triggerOutputs()?['body/{prefix}_name']}</div>\n"
         '</td>\n'
@@ -285,7 +287,7 @@ def build_email_html() -> str:
         '<!-- 起票者 -->\n'
         '<tr style="background-color:#f8fafc;">\n'
         '<td style="padding:14px 20px;width:140px;border-bottom:1px solid #e2e8f0;">\n'
-        '<div style="font-size:13px;font-weight:600;color:#475569;">&#128100; 起票者</div>\n'
+        '<div style="font-size:13px;font-weight:600;color:#475569;">&#128100; 作成者</div>\n'
         '</td>\n'
         '<td style="padding:14px 20px;border-bottom:1px solid #e2e8f0;">\n'
         '<span style="font-size:14px;color:#0f172a;">'
@@ -296,7 +298,7 @@ def build_email_html() -> str:
         '<!-- 起票日時 -->\n'
         '<tr>\n'
         '<td style="padding:14px 20px;width:140px;">\n'
-        '<div style="font-size:13px;font-weight:600;color:#475569;">&#128197; 起票日時</div>\n'
+        '<div style="font-size:13px;font-weight:600;color:#475569;">&#128197; 作成日時</div>\n'
         '</td>\n'
         '<td style="padding:14px 20px;">\n'
         '<span style="font-size:14px;color:#0f172a;">'
@@ -332,7 +334,7 @@ def build_email_html() -> str:
         '<tr>\n'
         '<td style="padding:0 40px 32px;">\n'
         '<div style="font-size:12px;color:#94a3b8;line-height:1.6;text-align:center;">'
-        'このメールはインシデント管理システムから自動送信されています。<br>'
+        'このメールは本システムから自動送信されています。<br>'
         'Powered by Power Automate &amp; Dataverse'
         '</div>\n'
         '</td>\n'
@@ -364,7 +366,7 @@ def build_clientdata() -> str:
 
     # メール件名（replace で PREFIX 埋め込み）
     email_subject = (
-        "\U0001f6a8 [インシデント起票] @{triggerOutputs()?['body/{prefix}_name']}"
+        "\U0001f6a8 [レコード作成] @{triggerOutputs()?['body/{prefix}_name']}"
     ).replace("{prefix}", PREFIX)
 
     definition = {
@@ -375,7 +377,7 @@ def build_clientdata() -> str:
             "$connections": {"defaultValue": {}, "type": "Object"},
         },
         "triggers": {
-            "When_incident_created": {
+            "When_record_created": {
                 "type": "OpenApiConnectionWebhook",
                 "inputs": {
                     "host": {
@@ -385,7 +387,7 @@ def build_clientdata() -> str:
                     },
                     "parameters": {
                         "subscriptionRequest/message": 1,       # 1 = Create
-                        "subscriptionRequest/entityname": f"{PREFIX}_incident",
+                        "subscriptionRequest/entityname": f"{PREFIX}_table",
                         "subscriptionRequest/scope": 4,         # Organization
                         "subscriptionRequest/runas": 3,         # Modifying user
                     },
@@ -502,7 +504,7 @@ def deploy():
         "statuscode": 1,
         "primaryentity": "none",
         "clientdata": clientdata,
-        "description": "新しいインシデントが起票されたとき、管理者に通知メールを送信するフロー",
+        "description": "新しいレコードが作成されたとき、管理者に通知メールを送信するフロー",
     }
 
     session_sol = get_session()
@@ -543,7 +545,7 @@ def deploy():
 
 def main():
     print("=" * 60)
-    print("  Power Automate フローデプロイ — インシデント起票通知")
+    print("  Power Automate フローデプロイ — レコード作成通知")
     print(f"  フロー名: {FLOW_DISPLAY_NAME}")
     print(f"  ソリューション: {SOLUTION_NAME}")
     print(f"  通知先: {ADMIN_EMAIL}")
@@ -563,13 +565,13 @@ def main():
     print("\n=== Step 3: 接続参照の作成 ===")
     create_connection_reference(
         logical_name=CONNREF_DATAVERSE,
-        display_name="Dataverse (インシデント管理)",
+        display_name="Dataverse (レコード通知)",
         connector_id="/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
         connection_id=connections["shared_commondataserviceforapps"],
     )
     create_connection_reference(
         logical_name=CONNREF_OUTLOOK,
-        display_name="Office 365 Outlook (インシデント管理)",
+        display_name="Office 365 Outlook (レコード通知)",
         connector_id="/providers/Microsoft.PowerApps/apis/shared_office365",
         connection_id=connections["shared_office365"],
     )
@@ -577,8 +579,8 @@ def main():
     # Step 4: フロー定義構築
     print("\n=== Step 4: フロー定義構築 ===")
     print("  HTML メールテンプレート構築完了")
-    print(f"  トリガー: {PREFIX}_incident レコード作成時")
-    print("  アクション: 起票者取得 → ステータスラベル変換 → 管理者メール送信")
+    print(f"  トリガー: {PREFIX}_table レコード作成時")
+    print("  アクション: 作成者取得 → ステータスラベル変換 → 管理者メール送信")
 
     # Step 5-7: デプロイ
     wf_id = deploy()
@@ -587,7 +589,7 @@ def main():
     print("\n" + "=" * 60)
     print("  ✅ デプロイ完了!")
     print(f"  フロー: {FLOW_DISPLAY_NAME}")
-    print(f"  トリガー: インシデント新規作成時")
+    print(f"  トリガー: レコード新規作成時")
     print(f"  通知先: {ADMIN_EMAIL}")
     print(f"  Workflow ID: {wf_id}")
     print("=" * 60)
@@ -596,9 +598,9 @@ def main():
 if __name__ == "__main__":
     main()
 """
-Power Automate フローデプロイスクリプト — インシデント新規作成通知
+Power Automate フローデプロイスクリプト — レコード新規作成通知（サンプル・旧版）
 
-新規インシデント作成トリガー → 作成者取得 → メール送信
+新規レコード作成トリガー → 作成者取得 → メール送信
 
 使い方:
   1. .env に DATAVERSE_URL, TENANT_ID を設定
@@ -631,7 +633,7 @@ POWERAPPS_API = "https://api.powerapps.com"
 API_VER = "api-version=2016-11-01"
 GRAPH_API = "https://graph.microsoft.com"
 
-FLOW_DISPLAY_NAME = "インシデント新規作成通知"
+FLOW_DISPLAY_NAME = "レコード新規作成通知"
 
 CONNECTORS_NEEDED = {
     "shared_commondataserviceforapps": "Dataverse",
@@ -741,8 +743,8 @@ def build_flow_definition(connections: dict, user_object_id: str) -> dict:
     # メール本文 — f-string と Power Automate 式の混在を避けるため連結で構築
     email_body_parts = [
         "<html><body>",
-        "<h2>🆕 新しいインシデントが作成されました</h2>",
-        "<p>以下のインシデントが新規登録されました。確認してください。</p>",
+        "<h2>🆕 新しいレコードが作成されました</h2>",
+        "<p>以下のレコードが新規登録されました。確認してください。</p>",
         "<table border='1' cellpadding='8' cellspacing='0' style='border-collapse:collapse; width:100%; max-width:600px;'>",
     ]
     # タイトル行 — PREFIX を含むため f-string で構築
@@ -765,7 +767,7 @@ def build_flow_definition(connections: dict, user_object_id: str) -> dict:
     email_body_parts.extend([
         "</table>",
         "<br/>",
-        "<p style='color:#666;font-size:12px;'>このメールはインシデント管理システムから自動送信されています。</p>",
+        "<p style='color:#666;font-size:12px;'>このメールは本システムから自動送信されています。</p>",
         "</body></html>",
     ])
     email_body = "".join(email_body_parts)
@@ -781,7 +783,7 @@ def build_flow_definition(connections: dict, user_object_id: str) -> dict:
             "$connections": {"defaultValue": {}, "type": "Object"},
         },
         "triggers": {
-            "When_incident_created": {
+            "When_record_created": {
                 "type": "OpenApiConnectionWebhook",
                 "inputs": {
                     "host": {
@@ -791,7 +793,7 @@ def build_flow_definition(connections: dict, user_object_id: str) -> dict:
                     },
                     "parameters": {
                         "subscriptionRequest/message": 1,  # ← 1 = Create（新規作成）
-                        "subscriptionRequest/entityname": f"{PREFIX}_incident",
+                        "subscriptionRequest/entityname": f"{PREFIX}_table",
                         "subscriptionRequest/scope": 4,
                         "subscriptionRequest/runas": 3,
                     },
@@ -853,7 +855,7 @@ def build_flow_definition(connections: dict, user_object_id: str) -> dict:
                             "parameters": {
                                 "emailMessage/To": "@outputs('Get_Creator')?['body/internalemailaddress']",
                                 "emailMessage/Subject": (
-                                    "【インシデント管理】新しいインシデントが作成されました"
+                                    "【通知】新しいレコードが作成されました"
                                 ),
                                 "emailMessage/Body": email_body,
                                 "emailMessage/Importance": "Normal",
@@ -952,8 +954,8 @@ def main():
     deploy_flow(env_id, definition, conn_refs)
 
     print("\n✅ 完了!")
-    print("  トリガー: インシデントが新規作成されたとき")
-    print("  アクション: 作成者に「新しいインシデントが作成されました」メール通知")
+    print("  トリガー: レコードが新規作成されたとき")
+    print("  アクション: 作成者に「新しいレコードが作成されました」メール通知")
 
 
 if __name__ == "__main__":

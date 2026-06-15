@@ -38,7 +38,7 @@ trigger = {
                 "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365",
             },
             "parameters": {
-                "subjectFilter": "【社内インシデント】",  # 件名フィルタ
+                "subjectFilter": "【件名キーワード】",  # 件名フィルタ
             },
             "authentication": "@parameters('$authentication')",
         },

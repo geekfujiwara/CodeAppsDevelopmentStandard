@@ -20,7 +20,7 @@
 
 使い方:
   python .github/skills/model-driven-app/scripts/customize_views_forms.py                # 全テーブル
-  python .github/skills/model-driven-app/scripts/customize_views_forms.py geek_incident  # 特定テーブル
+  python .github/skills/model-driven-app/scripts/customize_views_forms.py geek_project  # 特定テーブル
 """
 
 import base64
@@ -462,9 +462,9 @@ def customize_main_form(entity_logical_name, attributes, entity_display_name="")
 # テーブル名キーワード → アイコン定義（SVG path ベース）
 # color: アイコンメインカラー, bg: 背景色, path: SVG path (viewBox 0 0 24 24)
 ICON_THEMES = {
-    # インシデント系
-    "incident":  {"color": "#D94A4A", "bg": "#FEE8E8",
-                  "path": "M12 2L1 21h22L12 2zm0 4l7.5 13h-15L12 6zm-1 5v4h2v-4h-2zm0 5v2h2v-2h-2z"},
+    # トランザクション系（テーブル名キーワードに合わせて調整）
+    "task":      {"color": "#4A7FD9", "bg": "#E8EFFE",
+                  "path": "M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"},
     "comment":   {"color": "#4A7FD9", "bg": "#E8EFFE",
                   "path": "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"},
     # マスタ系

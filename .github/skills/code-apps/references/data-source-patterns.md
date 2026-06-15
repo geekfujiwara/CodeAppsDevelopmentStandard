@@ -39,6 +39,35 @@ src/generated/
 > エンティティごとに分かれているため、共通のエラーハンドリングや TanStack React Query との統合が煩雑になる。
 > 汎用 CRUD ラッパーを 1 ファイルで管理する方がコードの見通しが良い。
 
+### TanStack React Query フックパターン
+
+自前 `DataverseService` ラッパーを React Query で包むと、キャッシュ・再フェッチ・楽観的更新が簡潔になる。
+
+```typescript
+// hooks/useRecords.ts
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
+export function useRecords() {
+  return useQuery({
+    queryKey: ["records"],
+    queryFn: () =>
+      DataverseService.GetItems(
+        "{prefix}_records",
+        "$select={prefix}_name,{prefix}_status&$orderby=createdon desc",
+      ),
+  });
+}
+
+export function useCreateRecord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateRecordInput) =>
+      DataverseService.PostItem("{prefix}_records", data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["records"] }),
+  });
+}
+```
+
 ## 自前サービスレイヤーの実装パターン（検証済 2026-06-15）
 
 `getClient()` は **`dataSourcesInfo` が必須引数**。引数なしで呼ぶと Dataverse に接続できない。
