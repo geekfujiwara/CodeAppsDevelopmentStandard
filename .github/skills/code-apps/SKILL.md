@@ -234,13 +234,12 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
    → .power/schemas/appschemas/dataSourcesInfo.ts が自動更新される
    → その後 npm run build が成功する
    → 日本語表示名エラー時は toggle_table_lang.py で英語に切り替えてから実行
-   → システムテーブル（bot, botcomponent, conversationtranscript 等）も登録可能
+   → systemuser・bot 等のシステムテーブルも同じコマンドで追加できる
 ```
 
-> **注意**: `systemuser` テーブルも通常は `pac code add-data-source -a dataverse -t systemuser` で追加できる（検証済 2026-06-15）。
-> 追加できれば `src/lib/dataSourcesInfo.ts` は生成ファイルを re-export するだけでよい。
-> 環境によって追加できない場合のみ `src/lib/dataSourcesInfo.ts` に手動追記する。
-> それ以外のテーブルは必ず SDK コマンドで追加すること。
+> **`src/lib/dataSourcesInfo.ts` は生成ファイルを re-export するだけ。**
+> `export { dataSourcesInfo as default } from "../../.power/schemas/appschemas/dataSourcesInfo"` の 1 行でよい。
+> 手動でテーブルを書き足すのは、コネクタ等 add-data-source で追加できないものに限る。
 
 ### 標準ワークフロー（この順序で進める）
 
@@ -377,10 +376,8 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 日本語エラー時は `toggle_table_lang.py` で一時的に英語に切り替えて実行する。
 `npx power-apps add-data-source` はフォールバック（`patch-nameutils.cjs` 適用が必要）。
 
-**手動で `dataSourcesInfo.ts` にカスタムテーブル定義を追記してはならない。**
-SDK が `.power/schemas/appschemas/dataSourcesInfo.ts` を自動生成する。
-`src/lib/dataSourcesInfo.ts` は基本的にこの生成ファイルを re-export するだけにする。
-SDK の add-data-source で追加**できなかった**システムテーブル（`bot`, `conversationtranscript` 等）やコネクタのみ手動追記する。
+**`dataSourcesInfo.ts` にテーブルを手書きしない。**
+SDK が `.power/schemas/appschemas/dataSourcesInfo.ts` を自動生成し、`src/lib/dataSourcesInfo.ts` はそれを re-export するだけ。
 
 ### 日本語 DisplayName サニタイズエラーの回避
 
@@ -418,9 +415,8 @@ SDK の `getContext().app.queryParams` で親ウィンドウの URL パラメー
 
 ### SDK 生成サービスとデータソースパターン
 
-`pac code add-data-source` で `.power/schemas/appschemas/dataSourcesInfo.ts` が自動更新される。
-カスタムテーブルを手動で `dataSourcesInfo.ts` に追記してはならない。
-`src/lib/dataSourcesInfo.ts` にはシステムテーブル（systemuser 等）とコネクタのみ手動追記する。
+`pac code add-data-source` で `.power/schemas/appschemas/dataSourcesInfo.ts` が自動更新される（systemuser 等も同様）。
+`src/lib/dataSourcesInfo.ts` はこの生成ファイルを re-export するだけ。手書き追記はコネクタ等に限る。
 
 フロー連携時は統合 `dataSourcesInfo` が必須（`getClient(dataSourcesInfo)` はシングルトンのため、最初の呼び出しで全データソースを含める必要がある）。
 
@@ -576,9 +572,8 @@ python scripts/toggle_table_lang.py jp
 ```
 
 - `pac code add-data-source` は PAC CLI 認証を使用（テナント不一致なし）
-- `.power/schemas/appschemas/dataSourcesInfo.ts` が自動更新される
-- **手動で `dataSourcesInfo.ts` にカスタムテーブル定義を追記してはならない**
-- `src/lib/dataSourcesInfo.ts` にはシステムテーブル（systemuser 等）とコネクタのみ手動追記可
+- `.power/schemas/appschemas/dataSourcesInfo.ts` が自動更新される（systemuser 等も同じコマンドで追加）
+- `src/lib/dataSourcesInfo.ts` は生成ファイルを re-export するだけ。手動追記はコネクタ等に限る
 - `toggle_table_lang.py` は `scripts/` に配置（テーブル定義はプロジェクトごとにカスタマイズ）
 
 ### Dataverse テーブル作成時のメタデータロック回避
