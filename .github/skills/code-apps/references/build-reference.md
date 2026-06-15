@@ -142,6 +142,131 @@ npm run build
 npx power-apps push --non-interactive
 ```
 
+### Step 7.0: vite.config.ts 必須設定（検証済 2026-06-15）
+
+Power Apps にデプロイする Code Apps は以下の vite.config.ts 設定が **必須**。
+これらを守らないとデプロイ後にアセット 404 やモジュール解決エラーでアプリが起動しない。
+
+#### ① `base: "./"` — 相対パスベース（必須）
+
+Power Apps はアプリを `powerplatformusercontent.com` の深いサブディレクトリパスでホストする。
+`base` 未指定（デフォルト `"/"`）だとアセット参照がルート相対（`/assets/index-xxx.js`）になり、
+すべての CSS / JS / フォントファイルが **404** になる。
+
+```typescript
+// ❌ アセットが 404 になる
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  // base 未指定 → デフォルト "/" → 404
+})
+
+// ✅ 相対パスで正しく解決される
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  base: "./",  // ← 必須
+})
+```
+
+#### ② `@microsoft/power-apps` を external にしない（必須）
+
+`@microsoft/power-apps` SDK は **バンドルに含めて vendor チャンクに統合** する。
+`external` に指定するとビルド出力にベアモジュール指定子（`import { getClient } from "@microsoft/power-apps/data"`）が
+そのまま残り、ブラウザが `Failed to resolve module specifier` エラーを出す。
+
+```typescript
+// ❌ ブラウザが "@microsoft/power-apps" を解決できずエラー
+build: {
+  rollupOptions: {
+    external: ["@microsoft/power-apps"],  // 絶対に使わない
+  }
+}
+
+// ✅ vendor チャンクにバンドル（external 指定なし）
+build: {
+  rollupOptions: {
+    output: {
+      manualChunks: (id) => {
+        if (id.includes('node_modules')) {
+          // @microsoft/power-apps は vendor に含まれる
+          return 'vendor'
+        }
+      },
+    },
+  },
+}
+```
+
+#### ③ `@microsoft/power-apps` のサブパスインポート（必須）
+
+`@microsoft/power-apps` パッケージはルートエクスポート（`"."`）を提供していない。
+必ずサブパスを指定してインポートする。
+
+```typescript
+// ❌ ビルドエラー: "." is not exported from package @microsoft/power-apps
+import { getClient } from "@microsoft/power-apps";
+
+// ✅ 正しいサブパスインポート
+import { getClient } from "@microsoft/power-apps/data";
+import { getContext } from "@microsoft/power-apps/app";
+import type { IContext } from "@microsoft/power-apps/app";
+```
+
+| サブパス | エクスポート |
+|---|---|
+| `@microsoft/power-apps/data` | `getClient`, `DataClient` 型, `IOperationResult` 型 |
+| `@microsoft/power-apps/app` | `getContext`, `IContext` 型 |
+| `@microsoft/power-apps/data/metadata/dataverse` | `EntityMetadata`, `GetEntityMetadataOptions` 型 |
+| `@microsoft/power-apps/telemetry` | テレメトリ API |
+
+#### ④ 完全な vite.config.ts テンプレート
+
+```typescript
+import { defineConfig } from "vite";
+import path from "path";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import { powerApps, POWER_APPS_CORS_ORIGINS } from "./plugins/plugin-power-apps";
+
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),
+    powerApps()  // dev-only: CORS + 起動 URL 表示
+  ],
+  base: "./",  // ← 必須: Power Apps サブディレクトリ対応
+  server: {
+    cors: {
+      origin: POWER_APPS_CORS_ORIGINS
+    }
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+  build: {
+    rollupOptions: {
+      // ⚠ external に @microsoft/power-apps を含めないこと
+      output: {
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('recharts')) return 'chart-vendor'
+            if (id.includes('@dnd-kit')) return 'dnd-vendor'
+            if (id.includes('clsx') || id.includes('tailwind-merge') ||
+                id.includes('date-fns') || id.includes('class-variance-authority')) {
+              return 'utils-vendor'
+            }
+            // React + @microsoft/power-apps + 全 React 依存 = vendor
+            return 'vendor'
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1500,
+  },
+})
+```
+
 ### Step 7.1: ビルド後検証 — Circular chunk 警告チェック（必須）
 
 `npm run build` の出力に **`Circular chunk`** 警告が含まれていないか確認する。

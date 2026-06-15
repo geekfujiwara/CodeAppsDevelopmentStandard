@@ -1032,3 +1032,142 @@ cmdk ライブラリの `CommandItem` の `onSelect` コールバックは、
 - チャットメッセージバブル（ユーザー入力に HTML/URL が含まれうる場合）
 - インラインテーブルのテキストセル
 - ツール呼び出し結果の表示パネル
+
+---
+
+## 22. デプロイ後にアセット（CSS / JS / フォント）が 404 になる（検証済 2026-06-15）
+
+### 症状
+
+`pac code push` / `npx power-apps push` でデプロイ後、アプリを開くと白画面。
+ブラウザの DevTools ネットワークタブで CSS・JS・フォントファイルがすべて 404。
+
+### 原因
+
+`vite.config.ts` に `base: "./"` が未設定。デフォルトの `base: "/"` では、
+ビルド出力の HTML が `/assets/index-xxx.js` のようなルート相対パスでアセットを参照する。
+Power Apps はアプリを `powerplatformusercontent.com` の深いサブディレクトリでホストするため、
+ルート相対パスでは正しいファイルに到達できない。
+
+### 対処
+
+```typescript
+// vite.config.ts
+export default defineConfig({
+  base: "./",  // ← 必須: 相対パスでアセットを参照
+  // ...
+})
+```
+
+### 確認方法
+
+ビルド後に `dist/index.html` を開き、`<script>` と `<link>` のパスを確認する。
+
+```html
+<!-- ❌ base 未指定 → ルート相対パス → 404 -->
+<script type="module" src="/assets/index-xxx.js"></script>
+
+<!-- ✅ base: "./" → 相対パス → 正しく解決 -->
+<script type="module" src="./assets/index-xxx.js"></script>
+```
+
+→ 詳細: [ビルドリファレンス Step 7.0](build-reference.md#step-70-viteconfigts-必須設定検証済-2026-06-15)
+
+---
+
+## 23. `@microsoft/power-apps` の `Failed to resolve module specifier` エラー（検証済 2026-06-15）
+
+### 症状
+
+デプロイ後、ブラウザコンソールに以下のエラーが表示されアプリが起動しない:
+
+```
+Uncaught TypeError: Failed to resolve module specifier "@microsoft/power-apps".
+Relative references must start with either "/", "./", or "../".
+```
+
+### 原因
+
+`vite.config.ts` の `rollupOptions.external` に `@microsoft/power-apps` が含まれている。
+`external` に指定されたパッケージはバンドルに含まれず、ビルド出力に
+`import { getClient } from "@microsoft/power-apps/data"` のようなベアモジュール指定子が残る。
+ブラウザはインポートマップなしではベアモジュール指定子を解決できない。
+
+### 対処
+
+```typescript
+// vite.config.ts
+build: {
+  rollupOptions: {
+    // ❌ @microsoft/power-apps を external にしてはならない
+    // external: ["@microsoft/power-apps"],
+
+    output: {
+      manualChunks: (id) => {
+        if (id.includes('node_modules')) {
+          // ✅ @microsoft/power-apps は vendor に含める
+          return 'vendor'
+        }
+      },
+    },
+  },
+},
+```
+
+### 補足
+
+`@microsoft/power-apps` はルートエクスポート（`"."`）を提供していない。
+インポートは必ずサブパスを指定する:
+
+```typescript
+// ❌ ビルドエラー: "." is not exported
+import { getClient } from "@microsoft/power-apps";
+
+// ✅ サブパスインポート
+import { getClient } from "@microsoft/power-apps/data";
+import { getContext } from "@microsoft/power-apps/app";
+```
+
+→ 詳細: [ビルドリファレンス Step 7.0](build-reference.md#step-70-viteconfigts-必須設定検証済-2026-06-15)
+
+---
+
+## 24. WOFF2 フォントが Power Apps ストレージプロキシで破損する（検証済 2026-06-15）
+
+### 症状
+
+デプロイ後、ブラウザコンソールに以下の警告が表示される:
+
+```
+Failed to decode downloaded font: .../assets/geist-latin-wght-normal-xxx.woff2
+OTS parsing error: Size of decompressed WOFF 2.0 is less than compressed size
+```
+
+テキストは表示されるが、カスタムフォント（Geist 等）がフォールバックフォントに置き換わる。
+
+### 原因
+
+Power Apps のストレージプロキシ（`powerplatformusercontent.com/powerapps/appruntime/.../storageproxy/...`）が
+WOFF2 バイナリファイルを配信する際に、Content-Encoding やバイナリ処理の不整合でファイルが破損する場合がある。
+
+### 対処
+
+1. **システムフォントを使う（推奨）**: カスタム WOFF2 フォントの代わりに OS 標準フォントを使用する。
+
+```css
+/* index.css — システムフォントスタック */
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans JP", sans-serif;
+}
+```
+
+2. **CDN フォントを使う**: Google Fonts 等の CDN から読み込む（CSP の `font-src` 追加が必要）。
+
+3. **許容する**: フォント破損は視覚的な問題のみ。アプリの機能には影響しない。ブラウザはシステムフォントにフォールバックする。
+
+### 影響範囲
+
+- `@fontsource/geist` 等の npm フォントパッケージ
+- `public/` や `assets/` に配置した `.woff2` / `.woff` ファイル
+- `.ttf` / `.otf` でも同様の問題が発生する可能性がある
