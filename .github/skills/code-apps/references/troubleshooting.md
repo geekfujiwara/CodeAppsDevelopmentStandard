@@ -1260,3 +1260,98 @@ WOFF2 バイナリファイルを配信する際に、Content-Encoding やバイ
 - `@fontsource/geist` 等の npm フォントパッケージ
 - `public/` や `assets/` に配置した `.woff2` / `.woff` ファイル
 - `.ttf` / `.otf` でも同様の問題が発生する可能性がある
+
+---
+
+## 25. サンプルを流用すると `styles/index.pcss` / `plugins/plugin-power-apps.ts` が欠落しビルド失敗（検証済 2026-06-15）
+
+### 症状
+
+`pac code init` を使わずサンプル（`samples/geek-*`）の `src/` だけを別プロジェクトにコピーして開発を始めると、
+`npm run build` が以下のいずれかで失敗する:
+
+```
+[@tailwindcss/vite:generate:build] Can't resolve '../styles/index.pcss' in '.../src'
+```
+
+```
+error TS2307: Cannot find module './plugins/plugin-power-apps' or its corresponding type declarations.
+```
+
+### 原因
+
+`pac code init` がスキャフォールドするファイルのうち、**`src/` の外にあるファイルがコピー漏れする**。
+
+| ファイル | 参照元 | 役割 |
+|---|---|---|
+| `styles/index.pcss` | `src/index.css` の `@import "../styles/index.pcss"` | Tailwind v4 テーマ（CSS Variables 一式） |
+| `plugins/plugin-power-apps.ts` | `vite.config.ts` の `import { powerApps, POWER_APPS_CORS_ORIGINS } from "./plugins/plugin-power-apps"` | Vite 開発サーバー用プラグイン（**`apply: "serve"` の dev 専用**） |
+
+`plugin-power-apps.ts` は `apply: "serve"` のため**本番ビルドの実行には不要**だが、
+`vite.config.ts` の `import` 文がトップレベルにあるため、ファイルが存在しないとビルドが起動しない。
+
+### 対処
+
+1. **正攻法**: `pac code init` を空フォルダで実行し、生成された `styles/` と `plugins/` を残したまま `src/` を実装する
+   （サンプルをそのまま出発点にしない → [新規テーマ開始チェックリスト](new-theme-checklist.md)）。
+2. **既にサンプルを流用してしまった場合**: 不足ファイルをサンプルから補完する。
+   - `styles/index.pcss` … 任意のサンプル（`samples/geek-*/styles/index.pcss`）からコピーし、配色を調整
+   - `plugins/plugin-power-apps.ts` … 任意のサンプル（`samples/geek-*/plugins/plugin-power-apps.ts`）からコピー（中身は全テーマ共通）
+
+### 予防
+
+`pac code init` がスキャフォールドするインフラは `src/` だけではない。
+プロジェクト直下の **`styles/` `plugins/` `vite.config.ts` `index.html` `components.json`** も含めて一式で扱う。
+
+---
+
+## 26. `DataSourcesInfo` 型は `@microsoft/power-apps` からエクスポートされない（検証済 2026-06-15）
+
+### 症状
+
+`src/lib/dataSourcesInfo.ts` を手書きする際に型注釈を付けようとすると、import がすべて失敗する:
+
+```
+error TS2307: Cannot find module '@microsoft/power-apps' ...          // ルート import
+error TS2305: Module '"@microsoft/power-apps/data"' has no exported member 'DataSourcesInfo'.
+```
+
+### 原因
+
+`@microsoft/power-apps`（v1.2.2）は **`DataSourcesInfo` という型を公開エクスポートしていない**。
+`/data` サブパスが公開するのは `getClient` / `IOperationOptions` / `IOperationResult` / `DataClient` のみ。
+内部型（`IDataSourceInfo` 等）は `internal/...` にあり、公開 API として import すべきではない。
+
+### 対処（推奨）: 生成ファイルをそのまま re-export する
+
+`src/lib/dataSourcesInfo.ts` で型を手書きせず、SDK が生成した `dataSourcesInfo` を再エクスポートする。
+型は生成オブジェクトから推論されるため、手書きの型注釈は不要。
+
+```typescript
+// src/lib/dataSourcesInfo.ts
+import { dataSourcesInfo } from "../../.power/schemas/appschemas/dataSourcesInfo";
+
+export default dataSourcesInfo;
+```
+
+フロー/コネクタや SDK で追加できないテーブルを足す場合のみ spread する:
+
+```typescript
+import { dataSourcesInfo as powerInfo } from "../../.power/schemas/appschemas/dataSourcesInfo";
+
+export default {
+  ...powerInfo,
+  // SDK の add-data-source で追加できなかったテーブル/コネクタのみここに足す
+};
+```
+
+### どうしても型注釈が必要な場合
+
+`getClient` の引数型から導出する（公開 API の範囲で完結する）:
+
+```typescript
+import { type getClient } from "@microsoft/power-apps/data";
+type DataSourcesInfo = Parameters<typeof getClient>[0];
+```
+
+→ 関連: [データソースパターン](data-source-patterns.md)

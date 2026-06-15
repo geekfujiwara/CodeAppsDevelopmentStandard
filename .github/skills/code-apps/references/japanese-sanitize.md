@@ -98,6 +98,91 @@ node .github/skills/code-apps/references/patch-nameutils.cjs
 > `npm install` 後に毎回 `node .github/skills/code-apps/references/patch-nameutils.cjs` を実行する必要がある
 > （`node_modules` が再生成されパッチが消えるため）。スクリプト実体はこのスキルに同梱され、`.github/` 同期でテーマに配布される。
 
+## より堅牢な方法: 表示名を退避＆復元する（推奨・検証済 2026-06-15）
+
+上記テンプレートは TABLES に**日本語表示名をハードコード**する必要があり、テーブルが増えるたびに保守が必要。
+また「日本語に復元」する際、現在の表示名を `UserLocalizedLabel` から読むと、
+**英語に切替済みの状態では英語ラベルを拾ってしまい**、元の日本語名が失われる事故が起きる。
+
+これを避けるには、英語化の直前に**現在の表示名をファイルに退避**し、復元時はそのバックアップから書き戻す。
+言語コードは `UserLocalizedLabel` ではなく `LocalizedLabels` の **1041（日本語）を明示的に**読む。
+
+```python
+"""テーブル表示名を英語化／日本語復元する（退避＆復元方式）。
+
+usage:
+  python toggle_lang.py en   # 現在の日本語名を .lang_backup.json に退避し英語化
+  python toggle_lang.py jp   # .lang_backup.json から日本語名を復元
+"""
+import json, os, sys
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
+# auth_helper.py のあるパスを通す（プロジェクト構成に合わせて調整）
+sys.path.insert(0, os.path.join(".github", "skills", "standard", "scripts"))
+from auth_helper import api_get, api_request
+
+PREFIX = os.environ["PUBLISHER_PREFIX"].strip()
+# ── プロジェクト固有: (論理名サフィックス, 英語DisplayName, 英語Plural) のみ定義 ──
+# 日本語名はハードコードしない（退避ファイルから復元するため）
+EN = {
+    "customer": ("Customer", "Customers"),
+    # "engineer": ("Engineer", "Engineers"), ...
+}
+BACKUP = Path(".lang_backup.json")
+
+
+def label(text, code):
+    return {"LocalizedLabels": [{"Label": text, "LanguageCode": code}]}
+
+
+def get_meta(logical):
+    return api_get(
+        f"EntityDefinitions(LogicalName='{logical}')"
+        "?$select=MetadataId,DisplayName,DisplayCollectionName"
+    )
+
+
+def put_names(mid, disp, coll, code):
+    api_request(f"EntityDefinitions({mid})", {
+        "@odata.type": "#Microsoft.Dynamics.CRM.EntityMetadata",
+        "MetadataId": mid,
+        "DisplayName": label(disp, code),
+        "DisplayCollectionName": label(coll, code),
+    }, method="PUT")
+
+
+def to_english():
+    backup = {}
+    for suffix, (en_d, en_p) in EN.items():
+        logical = f"{PREFIX}_{suffix}"
+        m = get_meta(logical)
+        # ✅ 1041（日本語）を明示的に拾う。UserLocalizedLabel は UI 言語に依存し不確実
+        jp = next((l for l in m["DisplayName"]["LocalizedLabels"] if l["LanguageCode"] == 1041), None)
+        jpc = next((l for l in m["DisplayCollectionName"]["LocalizedLabels"] if l["LanguageCode"] == 1041), None)
+        if jp:
+            backup[logical] = {"disp": jp["Label"], "coll": jpc["Label"]}
+        put_names(m["MetadataId"], en_d, en_p, 1033)
+        print(f"  {logical} → {en_d}")
+    BACKUP.write_text(json.dumps(backup, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def to_japanese():
+    backup = json.loads(BACKUP.read_text(encoding="utf-8"))
+    for logical, v in backup.items():
+        put_names(get_meta(logical)["MetadataId"], v["disp"], v["coll"], 1041)
+        print(f"  {logical} → {v['disp']}")
+
+
+if __name__ == "__main__":
+    mode = sys.argv[1] if len(sys.argv) > 1 else "en"
+    (to_english if mode == "en" else to_japanese)()
+```
+
+> **メリット**: 日本語名を二重管理しない／復元漏れが起きない。
+> 英語化は 1033、復元は退避済みの 1041 ラベルを書き戻すため、UI 言語設定に左右されない。
+
 ## スキーマ名は英語のみ
 
 ```
