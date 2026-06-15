@@ -5,7 +5,7 @@
 >
 > | SKILL.md | 本リファレンス |
 > |---|---|
-> | Step 1 スキャフォールド | Step 1 |
+> | Step 0 テンプレート scaffold + Step 1 init | Step 1 |
 > | Step 2 vite.config.ts 確認 | Step 2 |
 > | Step 3 環境設定 | （.env コピー — 本リファレンスでは省略） |
 > | Step 4 初回ビルド＆デプロイ | Step 3 |
@@ -14,18 +14,22 @@
 
 ## 構築手順
 
-### Step 1: プロジェクト初期化
+### Step 1: テンプレート scaffold + プロジェクト初期化
 
 ```bash
-# PAC CLI 認証プロファイルを使用（テナント不一致なし）
-pac code init -env {ENVIRONMENT_ID} -n "AppName"
-# ↑ power.config.json がここで生成される
+# ① テンプレート scaffold（vite.config.ts / plugins/plugin-power-apps.ts / styles/ / src/ 一式）
+#    標準では @GeekPowerCode が scaffold する。手動で行う場合:
+#    npx degit github:microsoft/PowerAppsCodeApps/templates/vite .
 npm install
+
+# ② Power Apps 初期化 — power.config.json のみ生成（PAC CLI 認証でテナント不一致なし）
+pac code init -env {ENVIRONMENT_ID} -n "AppName"
+# ↑ vite.config.ts や plugins/ は生成しない（①のテンプレート由来）
 ```
 
 ### Step 2: vite.config.ts 必須設定の確認（検証済 2026-06-15）
 
-`pac code init` が生成した `vite.config.ts` を確認し、以下の必須設定が含まれていることを検証する。
+テンプレートに含まれる `vite.config.ts` を確認し、以下の必須設定が含まれていることを検証する。
 **この手順を飛ばすと、デプロイ後にアセット 404 やモジュール解決エラーでアプリが起動しない。**
 
 #### チェックリスト

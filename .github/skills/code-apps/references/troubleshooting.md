@@ -1267,7 +1267,7 @@ WOFF2 バイナリファイルを配信する際に、Content-Encoding やバイ
 
 ### 症状
 
-`pac code init` を使わずサンプル（`samples/geek-*`）の `src/` だけを別プロジェクトにコピーして開発を始めると、
+テンプレート scaffold を経ずにサンプル（`samples/geek-*`）の `src/` だけを別プロジェクトにコピーして開発を始めると、
 `npm run build` が以下のいずれかで失敗する:
 
 ```
@@ -1280,7 +1280,7 @@ error TS2307: Cannot find module './plugins/plugin-power-apps' or its correspond
 
 ### 原因
 
-`pac code init` がスキャフォールドするファイルのうち、**`src/` の外にあるファイルがコピー漏れする**。
+テンプレートが scaffold するファイルのうち、**`src/` の外にあるファイルがコピー漏れする**。
 
 | ファイル | 参照元 | 役割 |
 |---|---|---|
@@ -1292,7 +1292,7 @@ error TS2307: Cannot find module './plugins/plugin-power-apps' or its correspond
 
 ### 対処
 
-1. **正攻法**: `pac code init` を空フォルダで実行し、生成された `styles/` と `plugins/` を残したまま `src/` を実装する
+1. **正攻法**: テンプレートから scaffold し、含まれる `styles/` と `plugins/` を残したまま `src/` を実装する
    （サンプルをそのまま出発点にしない → [新規テーマ開始チェックリスト](new-theme-checklist.md)）。
 2. **既にサンプルを流用してしまった場合**: 不足ファイルをサンプルから補完する。
    - `styles/index.pcss` … 任意のサンプル（`samples/geek-*/styles/index.pcss`）からコピーし、配色を調整
@@ -1300,8 +1300,8 @@ error TS2307: Cannot find module './plugins/plugin-power-apps' or its correspond
 
 ### 予防
 
-`pac code init` がスキャフォールドするインフラは `src/` だけではない。
-プロジェクト直下の **`styles/` `plugins/` `vite.config.ts` `index.html` `components.json`** も含めて一式で扱う。
+テンプレートが scaffold するインフラは `src/` だけではない。
+プロジェクト直下の **`styles/` `plugins/` `vite.config.ts` `index.html`** も含めて一式で扱う。
 
 ---
 

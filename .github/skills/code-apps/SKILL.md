@@ -165,25 +165,39 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
    → 新規環境では必ず pac code init で新規生成
 ```
 
-### `pac code init` でスキャフォールドされるファイル（手動作成禁止）
+### 標準ワークフロー（概要）
 
-`pac code init` / `npx power-apps init` は以下のファイルを自動生成する。**これらを手動作成・他プロジェクトからコピーしてはならない。**
+Code Apps のプロジェクトは **3 つの生成段階** で構成される。**各段階の生成物を手動作成・他プロジェクトからコピーしてはならない。**
 
-| ファイル | 役割 | カスタマイズ |
+```
+① テンプレート scaffold    → React/Vite プロジェクト一式
+   （vite.config.ts, plugins/plugin-power-apps.ts, styles/, src/, tsconfig*, package.json, index.html, eslint.config.js）
+② pac code init            → power.config.json のみ（+ .power/ ディレクトリ）
+③ pac code add-data-source → .power/schemas/appschemas/dataSourcesInfo.ts, src/generated/
+```
+
+> **重要**: `pac code init` は `vite.config.ts` や `plugins/plugin-power-apps.ts` を生成**しない**。
+> これらは①のテンプレート由来。`init` がやるのは認証と `power.config.json` の生成だけ。
+> 詳細手順は下記「標準ワークフロー（この順序で進める）」と [ビルドリファレンス](references/build-reference.md) を参照。
+
+### ファイルの出所（誰が生成するか — 手動作成禁止）
+
+| 生成元 | 生成されるファイル | カスタマイズ |
 |---|---|---|
-| `power.config.json` | 環境 ID・アプリ ID（環境固有） | ❌ 禁止 |
-| `plugins/plugin-power-apps.ts` | Vite 開発サーバー用 Power Apps プラグイン（CORS・ミドルウェア・起動 URL 表示） | ❌ 不要 |
-| `vite.config.ts` | Vite 設定（power-apps プラグイン組み込み済み） | ⚠ `manualChunks` 等の追加のみ。**`base: "./'" 必須、`external` に `@microsoft/power-apps` を含めないこと**。→ [ビルドリファレンス Step 2](references/build-reference.md) |
-| `tsconfig.json` / `tsconfig.app.json` / `tsconfig.node.json` | TypeScript 設定 | ⚠ パスエイリアス等の追加のみ |
-| `eslint.config.js` | ESLint 設定 | ⚠ ルール追加のみ |
-| `index.html` | エントリ HTML | ❌ 不要 |
-| `package.json` | 依存関係（`@microsoft/power-apps` 等） | ⚠ 依存追加のみ |
-| `src/main.tsx` / `src/App.tsx` / `src/index.css` | React エントリポイント | ✅ 自由にカスタマイズ |
-| `components.json` | shadcn/ui 設定 | ⚠ 通常変更不要 |
+| **① テンプレート scaffold**<br>（`@GeekPowerCode` の scaffold / `npx degit` の Vite スターター） | `vite.config.ts` | ⚠ `base: "./"` 必須・`external` に `@microsoft/power-apps` を含めない。`manualChunks` 追加のみ → [ビルドリファレンス Step 2](references/build-reference.md) |
+| | `plugins/plugin-power-apps.ts` | ❌ 変更不要（Vite 開発サーバー用・`apply: "serve"` の dev 専用） |
+| | `styles/index.pcss` | ✅ 配色テンプレートで差し替え可 → [デザインテンプレート集](references/design-templates.md) |
+| | `tsconfig.json` / `tsconfig.app.json` / `tsconfig.node.json` | ⚠ パスエイリアス等の追加のみ |
+| | `eslint.config.js` | ⚠ ルール追加のみ |
+| | `index.html` | ❌ 不要 |
+| | `package.json` | ⚠ 依存追加のみ |
+| | `src/main.tsx` / `src/App.tsx` / `src/index.css` | ✅ 自由にカスタマイズ |
+| **② `pac code init`** | `power.config.json`（環境 ID・アプリ ID） | ❌ 禁止（環境固有） |
+| **③ `pac code add-data-source`** | `.power/schemas/appschemas/dataSourcesInfo.ts` / `src/generated/` | ❌ 手動編集禁止（SDK が管理） |
 
-> **原則**: SDK がスキャフォールドしたインフラファイル（`plugin-power-apps.ts`、`power.config.json`）は変更しない。開発者がカスタマイズするのは `src/` 配下のアプリコードのみ。
+> **よくある失敗**: サンプルの `src/` だけを別プロジェクトにコピーして始めると、①由来の `plugins/` や `styles/` が欠落しビルドが失敗する → [トラブルシューティング #25](references/troubleshooting.md)。
 >
-> **`pac code init` vs `npx power-apps init`**: 両方とも `power.config.json` を生成するが、`pac code init` は PAC CLI 認証プロファイルを使用するためテナント不一致の問題が発生しない。`npx power-apps init` は npm パッケージ独自の MSAL 認証を使用し、マルチテナント環境で `Environment not found` エラーが出ることがある。**本開発標準では `pac code init` を標準とする。**
+> **`pac code init` vs `npx power-apps init`**: どちらも認証して `power.config.json` を生成するだけだが、`pac code init` は PAC CLI 認証プロファイルを使うためテナント不一致が起きない。`npx power-apps init` は npm パッケージ独自の MSAL 認証で、マルチテナント環境で `Environment not found` エラーが出ることがある。**本開発標準では `pac code init` を標準とする。**
 
 ### テンプレートのプレースホルダー設計
 
@@ -246,14 +260,21 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
 以下が **上から順に実行すれば問題なく動く** 統一フローである。
 
 ```bash
-# ── Step 1: スキャフォールド ──
-pac code init -env {ENVIRONMENT_ID} -n "AppName"
-# ↑ power.config.json がここで生成される（environmentId, buildPath 等が記録される）
-# PAC CLI 認証プロファイルを使用するためテナント不一致なし
+# ── Step 0: テンプレート scaffold ──
+# 空フォルダに Code Apps テンプレート（Vite スターター）を展開する。
+# vite.config.ts / plugins/plugin-power-apps.ts / styles/ / tsconfig* / index.html / src/ 一式がここで揃う。
+# 標準では @GeekPowerCode が scaffold する。手動で行う場合:
+#   npx degit github:microsoft/PowerAppsCodeApps/templates/vite .
 npm install
 
+# ── Step 1: Power Apps 初期化（power.config.json を生成）──
+pac code init -env {ENVIRONMENT_ID} -n "AppName"
+# ↑ power.config.json がここで生成される（environmentId, buildPath 等が記録される）
+# ⚠ vite.config.ts や plugins/ は生成しない（それらは Step 0 のテンプレート由来）
+# PAC CLI 認証プロファイルを使用するためテナント不一致なし
+
 # ── Step 2: vite.config.ts 必須設定の確認 ──
-# pac code init が生成した vite.config.ts を確認し、以下を検証する:
+# テンプレートに含まれる vite.config.ts を確認し、以下を検証する:
 #   □ base: "./" が設定されている（未設定 → アセット 404）
 #   □ rollupOptions.external に "@microsoft/power-apps" が含まれていない（含めると → モジュール解決エラー）
 #   □ plugins に powerApps() が含まれている
@@ -532,12 +553,17 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 
 ## Code Apps 開発 Tips（検証済み 2026-06-10）
 
-### 初回セットアップ: `pac code init` を使う
+### 初回セットアップ: テンプレート scaffold → `pac code init`
 
-`npx power-apps init` はテナント不一致で `Environment not found` になるケースがある。
-**`pac code init` を標準とする**:
+まず Code Apps テンプレート（Vite スターター）を展開してから初期化する。
+`pac code init` は `power.config.json` を生成するだけで、`vite.config.ts` / `plugins/` 等は生成しない（テンプレート由来）。
+`npx power-apps init` はテナント不一致で `Environment not found` になるケースがあるため **`pac code init` を標準とする**:
 
 ```bash
+# ① テンプレート scaffold（@GeekPowerCode が scaffold / 手動なら degit）
+#   npx degit github:microsoft/PowerAppsCodeApps/templates/vite .
+npm install
+# ② Power Apps 初期化（power.config.json のみ生成）
 pac code init -env {ENVIRONMENT_ID} -n "AppName"
 ```
 
