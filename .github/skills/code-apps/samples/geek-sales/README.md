@@ -5,7 +5,7 @@ Code Apps サンプル実装。Power Automate AI フロー連携と Copilot Stud
 機能フラグで段階的に有効化できます。
 
 > **新規テーマの雛形には使わない。**
-> 新しいテーマは [CodeAppsStarter](https://github.com/geekfujiwara/CodeAppsStarter) から生成すること。
+> 新しいテーマは `.github/` を取得後、**@GeekPowerCode** に scaffold を依頼すること。
 
 ---
 

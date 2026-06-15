@@ -1,6 +1,6 @@
 ---
 name: design-system
-description: "CodeAppsStarter のデザインシステムを利用して Code Apps の UI を構築する。shadcn/ui + Tailwind CSS v4 のコンポーネントライブラリによる画面設計・コンポーネント選定。"
+description: "Code Apps のデザインシステムを利用して UI を構築する。shadcn/ui + Tailwind CSS v4 のコンポーネントライブラリによる画面設計・コンポーネント選定。"
 category: ui
 triggers:
   - "Code Apps デザイン"
@@ -38,7 +38,7 @@ triggers:
 
 # Code Apps デザインシステムスキル
 
-**[CodeAppsStarter](https://github.com/geekfujiwara/CodeAppsStarter)** のコンポーネントライブラリを使い、
+Code Apps 標準のコンポーネントライブラリ（shadcn/ui + Tailwind CSS）を使い、
 Code Apps の画面を設計・実装する。
 
 > **前提**: アプリの初期化・Dataverse 接続・デプロイは `code-apps` スキル（[SKILL.md](../SKILL.md)）を参照。
@@ -73,7 +73,7 @@ Code Apps の画面を設計・実装する。
 2. テンプレート一覧表をユーザーに提示
 3. ユーザーが番号で選択
 4. 選択テンプレートの CSS Variables を `styles/index.pcss` の `:root` / `.dark` に適用
-5. デフォルト未指定の場合は **1. Ocean Blue**（CodeAppsStarter 初期テーマ）を使用
+5. デフォルト未指定の場合は **1. Ocean Blue** を使用
 
 > テンプレートはビルド時に確定する（ランタイム切替は行わない）。
 > 切り替えるのは配色と `--radius` のみ。フォントはシステムフォント固定（下記「標準フォント方針」参照）、

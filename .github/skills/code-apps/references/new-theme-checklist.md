@@ -6,13 +6,14 @@
 ## 前提: 正しい開始方法
 
 ```
-✅ CodeAppsStarter テンプレートから生成 → npm run setup で標準を同期
-❌ CodeAppsDevelopmentStandard を clone してテーマ開発を始める（廃止された方式）
+✅ 空のフォルダ/リポジトリに .github/ を取得 → @GeekPowerCode に scaffold を依頼
+❌ サンプル（samples/geek-*）をそのままテーマ開発の出発点にする
 ```
 
 ```bash
-gh repo create <account>/<theme-repo> --template geekfujiwara/CodeAppsStarter --private --clone
-npm install && npm run setup
+mkdir <your-theme-name> && cd <your-theme-name>
+npx degit geekfujiwara/CodeAppsDevelopmentStandard .github
+# 取得後、@GeekPowerCode に「新規テーマ: [テーマ名]を作成してください」と依頼
 ```
 
 ## チェックリスト（実装開始前）
@@ -52,6 +53,6 @@ npm install && npm run setup
 | 見つけたもの | 対処 |
 |---|---|
 | `.power/` / `src/generated/` / `power.config.json` | 削除 → 手順 3〜4 で SDK に再生成させる |
-| 前テーマの業務画面（`src/pages/*.tsx`） | 削除し、CodeAppsStarter の雛形ページ構成に戻す |
+| 前テーマの業務画面（`src/pages/*.tsx`） | 削除し、@GeekPowerCode に新規テーマとして scaffold し直すよう依頼 |
 | 前テーマのテーブル参照（dataSourcesInfo / services / types） | 削除。**コメントアウトで残さない**（ビルドエラー・接続エラーの温床） |
 | 前テーマの配色 | `apply_design_template.py 1 --project .` で Ocean Blue に戻すか、新テーマのテンプレートを適用 |

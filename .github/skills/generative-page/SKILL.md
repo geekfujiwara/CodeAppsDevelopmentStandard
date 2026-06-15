@@ -197,7 +197,7 @@ var period = woDateMap.get(woId) || "";  // "2026-04" (実作業月)
 ### Step 0.5: モデル駆動型アプリ作成（Dataverse テーブル作成後・Generative Page 作成前）
 
 > **Generative Page はモデル駆動型アプリのページとして動作する。**
-> Dataverse テーブル作成（Phase 1）完了後、Generative Page のコード開発に入る前に、
+> Dataverse テーブル作成（Phase 2）完了後、Generative Page のコード開発に入る前に、
 > **`model-driven-app` スキル（`.github/skills/model-driven-app/SKILL.md`）を読み込み、
 > モデル駆動型アプリを作成する。**
 
