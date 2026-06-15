@@ -232,7 +232,7 @@ def build_sitemap_xml(tables, app_display_name):
             continue
 
         # テーマ判定: テーブル名の主キーワードでグループ化
-        # 例: geek_incident → "incident", geek_incidentcomment → "incident"
+        # 例: geek_project → "project", geek_projecttask → "project"
         #     geek_market_insight → "market_insight"
         theme_key = _detect_theme(name_no_prefix, [tt["logical_name"] for tt in tables])
         if theme_key not in theme_groups:

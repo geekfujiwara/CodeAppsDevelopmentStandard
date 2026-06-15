@@ -20,7 +20,7 @@
 
 使い方:
   python .github/skills/model-driven-app/scripts/customize_views_forms.py                # 全テーブル
-  python .github/skills/model-driven-app/scripts/customize_views_forms.py geek_incident  # 特定テーブル
+  python .github/skills/model-driven-app/scripts/customize_views_forms.py geek_project  # 特定テーブル
 """
 
 import base64

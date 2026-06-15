@@ -108,7 +108,7 @@ webresourceid: アイコン用 WebResource ID
 
 - `Area`: ナビゲーションの最上位区分
 - `Group`: Area 内のグループ（複数テーブルをまとめる）
-- `SubArea`: 個別テーブルへのナビゲーション。`Entity` は **論理名**（例: `geek_incident`）
+- `SubArea`: 個別テーブルへのナビゲーション。`Entity` は **論理名**（例: `geek_project`）
 - 複数の Area / Group を定義可能（例: マスタデータとトランザクションデータを分離）
 
 ### ShowGroups="true" を必ず指定する【必須】

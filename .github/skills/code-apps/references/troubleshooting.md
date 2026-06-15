@@ -491,8 +491,8 @@ TS2307: Cannot find module '@/hooks/use-theme'
 
 ```powershell
 # ✅ 正しい: 個別ファイルを指定して削除
-Remove-Item "src/pages/incidents.tsx","src/pages/incident-detail.tsx","src/pages/kanban.tsx","src/pages/assets.tsx" -Force
-Remove-Item "src/types/incident.ts" -Force
+Remove-Item "src/pages/sample-list.tsx","src/pages/sample-detail.tsx","src/pages/kanban.tsx" -Force
+Remove-Item "src/types/sample.ts" -Force
 
 # ❌ 危険: ディレクトリごとワイルドカード削除
 Remove-Item "src/hooks/*" -Force

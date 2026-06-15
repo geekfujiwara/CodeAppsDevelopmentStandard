@@ -338,7 +338,7 @@ declare module "*.css" {
 
 ```typescript
 // Choice 値は 100000000 始まり
-export enum IncidentStatus {
+export enum RecordStatus {
   NEW = 100000000,
   IN_PROGRESS = 100000001,
   ON_HOLD = 100000002,
@@ -346,21 +346,21 @@ export enum IncidentStatus {
   CLOSED = 100000004,
 }
 
-export const statusLabels: Record<IncidentStatus, string> = {
-  [IncidentStatus.NEW]: "新規",
-  [IncidentStatus.IN_PROGRESS]: "対応中",
-  [IncidentStatus.ON_HOLD]: "保留",
-  [IncidentStatus.RESOLVED]: "解決済",
-  [IncidentStatus.CLOSED]: "クローズ",
+export const statusLabels: Record<RecordStatus, string> = {
+  [RecordStatus.NEW]: "新規",
+  [RecordStatus.IN_PROGRESS]: "対応中",
+  [RecordStatus.ON_HOLD]: "保留",
+  [RecordStatus.RESOLVED]: "解決済",
+  [RecordStatus.CLOSED]: "クローズ",
 };
 
 // Tailwind クラスも型安全に
-export const statusColors: Record<IncidentStatus, string> = {
-  [IncidentStatus.NEW]: "bg-blue-100 text-blue-800",
-  [IncidentStatus.IN_PROGRESS]: "bg-yellow-100 text-yellow-800",
-  [IncidentStatus.ON_HOLD]: "bg-gray-100 text-gray-800",
-  [IncidentStatus.RESOLVED]: "bg-green-100 text-green-800",
-  [IncidentStatus.CLOSED]: "bg-red-100 text-red-800",
+export const statusColors: Record<RecordStatus, string> = {
+  [RecordStatus.NEW]: "bg-blue-100 text-blue-800",
+  [RecordStatus.IN_PROGRESS]: "bg-yellow-100 text-yellow-800",
+  [RecordStatus.ON_HOLD]: "bg-gray-100 text-gray-800",
+  [RecordStatus.RESOLVED]: "bg-green-100 text-green-800",
+  [RecordStatus.CLOSED]: "bg-red-100 text-red-800",
 };
 ```
 
@@ -440,7 +440,7 @@ grep -rn "https://" src/ --include="*.ts" --include="*.tsx" | grep -v "// " | gr
 
 ```bash
 # テンプレートページが残っていないこと
-ls src/pages/ | grep -v "incident\|not-found\|_layout"
+ls src/pages/ | grep -v "dashboard\|not-found\|_layout"
 
 # テンプレート専用コンポーネントが残っていないこと
 grep -rn "learn-client\|learn-catalog\|chart-dashboard\|gantt-chart\|kanban-board\|tree-structure" src/ --include="*.ts" --include="*.tsx"

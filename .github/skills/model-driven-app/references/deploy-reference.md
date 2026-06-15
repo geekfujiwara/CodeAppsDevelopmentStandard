@@ -56,7 +56,7 @@ python ./deploy_model_driven_app.py
 python ./customize_views_forms.py
 
 # 特定テーブルのみ
-python ./customize_views_forms.py geek_incident
+python ./customize_views_forms.py geek_project
 ```
 
 ### テーブルアイコン API パターン
