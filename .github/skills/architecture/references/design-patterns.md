@@ -168,11 +168,11 @@ flowchart TB
 
 1. Phase 2: Dataverse — {テーブル数}テーブル
 2. Phase 3: Security Role — （必要な場合）
-3. Phase 4: Code Apps — {画面数}画面（※ 不要なら省略）
-   3'. Phase 4: Model-Driven Apps — テーブルから自動生成（※ Code Apps と排他）
+3. Phase 4: AI Builder — {プロンプト数}プロンプト（Power Automate から呼ぶ場合のみ）
 4. Phase 5: Power Automate — {フロー数}フロー（※ 不要なら省略）
-5. Phase 6: Copilot Studio — {エージェント数}エージェント（※ 不要なら省略）
-6. AI Builder — {プロンプト数}プロンプト（※ 不要なら省略）
+5. Phase 6: Code Apps — {画面数}画面（※ 不要なら省略）
+   5'. Phase 6: Model-Driven Apps — テーブルから自動生成（※ Code Apps と排他）
+6. Phase 7: Copilot Studio — {エージェント数}エージェント（※ 不要なら省略）
 
 この設計で進めてよいですか？
 ```
