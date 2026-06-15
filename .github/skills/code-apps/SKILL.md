@@ -176,7 +176,7 @@ PUBLISHER_PREFIX={prefix}          ← ソリューション発行者の prefix
 |---|---|---|
 | `power.config.json` | 環境 ID・アプリ ID（環境固有） | ❌ 禁止 |
 | `plugins/plugin-power-apps.ts` | Vite 開発サーバー用 Power Apps プラグイン（CORS・ミドルウェア・起動 URL 表示） | ❌ 不要 |
-| `vite.config.ts` | Vite 設定（power-apps プラグイン組み込み済み） | ⚠ `manualChunks` 等の追加のみ。**`base: "./"` 必須、`external` に `@microsoft/power-apps` を含めないこと**。→ [ビルドリファレンス Step 7.0](references/build-reference.md) |
+| `vite.config.ts` | Vite 設定（power-apps プラグイン組み込み済み） | ⚠ `manualChunks` 等の追加のみ。**`base: "./'" 必須、`external` に `@microsoft/power-apps` を含めないこと**。→ [ビルドリファレンス Step 2](references/build-reference.md) |
 | `tsconfig.json` / `tsconfig.app.json` / `tsconfig.node.json` | TypeScript 設定 | ⚠ パスエイリアス等の追加のみ |
 | `eslint.config.js` | ESLint 設定 | ⚠ ルール追加のみ |
 | `index.html` | エントリ HTML | ❌ 不要 |
@@ -424,7 +424,7 @@ SDK の `getContext().app.queryParams` で親ウィンドウの URL パラメー
 カスタムテーブルを手動で `dataSourcesInfo.ts` に追記してはならない。
 `src/lib/dataSourcesInfo.ts` にはシステムテーブル（systemuser 等）とコネクタのみ手動追記する。
 
-フロー連携時は統合 `dataSourcesInfo` が必須（`getClient()` シングルトン問題）。
+フロー連携時は統合 `dataSourcesInfo` が必須（`getClient(dataSourcesInfo)` はシングルトンのため、最初の呼び出しで全データソースを含める必要がある）。
 
 → 詳細: **[データソースパターン](references/data-source-patterns.md)**
 

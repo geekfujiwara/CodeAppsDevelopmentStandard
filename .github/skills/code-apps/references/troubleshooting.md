@@ -413,34 +413,29 @@ python toggle_table_lang.py jp
 
 ---
 
-## 11. `pac code add-data-source` がサービスファイルを生成しない
+## 11. `pac code add-data-source` のサービスファイル生成（検証済 2026-06-15 — 修正）
 
-### 症状
+### 2026-06-15 時点の検証結果
 
-`pac code add-data-source -a dataverse -t {table}` は成功するが、
-`src/generated/services/` が空のまま。`src/generated/models/CommonModels.ts` のみ存在。
+`pac code add-data-source -a dataverse -t {table}` は **フル生成**（Model + Service + index.ts）を行う。
+以前のバージョンでは最小構成のみだった可能性があるが、現行版では `npx power-apps add-data-source` と同等の生成物が得られる。
 
-### 原因
+### 生成されるファイル（pac code / npx power-apps 共通）
 
-`pac code add-data-source` は `npx power-apps add-data-source` と生成物が異なる。
-PAC CLI 版は最小構成（スキーマ JSON + `dataSourcesInfo.ts` + `CommonModels.ts`）のみを生成し、
-per-table の TypeScript Model/Service ファイルは生成しない。
+| ファイル | 生成 |
+|---|---|
+| `.power/schemas/dataverse/*.Schema.json` | ✅ |
+| `.power/schemas/appschemas/dataSourcesInfo.ts` | ✅ |
+| `src/generated/models/CommonModels.ts` | ✅ |
+| `src/generated/models/{Table}Model.ts` | ✅ |
+| `src/generated/services/{Table}Service.ts` | ✅ |
+| `src/generated/index.ts` | ✅ |
 
-### 対処
+### 推奨: 自前 DataverseService ラッパーの使用
 
-`getClient(dataSourcesInfo)` を直接使用してサービスレイヤーを自前構築する。
-Code Apps SKILL.md の「★ 例外: `pac code add-data-source` が最小構成のみ生成する場合」セクションを参照。
-
-### 生成されるファイル比較
-
-| ファイル | `npx power-apps` | `pac code` |
-|---|---|---|
-| `.power/schemas/dataverse/*.Schema.json` | ✅ | ✅ |
-| `.power/schemas/appschemas/dataSourcesInfo.ts` | ✅ | ✅ |
-| `src/generated/models/CommonModels.ts` | ✅ | ✅ |
-| `src/generated/models/{Table}Model.ts` | ✅ | ❌ |
-| `src/generated/services/{Table}Service.ts` | ✅ | ❌ |
-| `src/generated/index.ts` | ✅ | ❌ |
+生成された Service クラス（`Inv_productsService.create(...)` 等）はそのまま使えるが、
+汎用 CRUD ラッパーを 1 ファイルで管理する方が TanStack React Query との統合が容易。
+→ 詳細テンプレート: **build-reference.md Step 6**
 
 ---
 
@@ -1165,7 +1160,7 @@ export default defineConfig({
 <script type="module" src="./assets/index-xxx.js"></script>
 ```
 
-→ 詳細: [ビルドリファレンス Step 7.0](build-reference.md#step-70-viteconfigts-必須設定検証済-2026-06-15)
+→ 詳細: [ビルドリファレンス Step 2](build-reference.md)
 
 ---
 
@@ -1222,7 +1217,7 @@ import { getClient } from "@microsoft/power-apps/data";
 import { getContext } from "@microsoft/power-apps/app";
 ```
 
-→ 詳細: [ビルドリファレンス Step 7.0](build-reference.md#step-70-viteconfigts-必須設定検証済-2026-06-15)
+→ 詳細: [ビルドリファレンス Step 2](build-reference.md)
 
 ---
 

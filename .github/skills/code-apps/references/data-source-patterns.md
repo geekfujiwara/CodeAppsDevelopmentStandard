@@ -8,36 +8,34 @@
 
 ## SDK 生成コードの構成
 
-### `npx power-apps add-data-source` の場合（フル生成）
+### `pac code add-data-source` / `npx power-apps add-data-source` 共通（検証済 2026-06-15）
+
+どちらのコマンドも以下のフル構成を生成する:
 
 ```
 src/generated/
-├── index.ts
+├── index.ts                           # 全 Model/Service の re-export
 ├── models/
-│   ├── CommonModels.ts
-│   ├── {Prefix}_{entities}Model.ts    # エンティティ型 + Choice 値
-│   └── SystemusersModel.ts
+│   ├── CommonModels.ts                # IGetOptions, IGetAllOptions
+│   ├── {Prefix}_{entities}Model.ts    # エンティティ型 + Choice 値定数
+│   └── SystemusersModel.ts            # （systemuser 追加時のみ）
 └── services/
-    ├── {Prefix}_{entities}Service.ts   # create/update/delete/get/getAll
-    └── SystemusersService.ts
-```
-
-### `pac code add-data-source` の場合（最小構成）
-
-```
-src/generated/
-├── models/
-│   └── CommonModels.ts    # IGetOptions のみ
-└── services/              # 空（サービスファイルなし）
+    ├── {Prefix}_{entities}Service.ts   # create/update/delete/get/getAll + getMetadata
+    └── SystemusersService.ts           # （systemuser 追加時のみ）
 
 .power/schemas/
 ├── appschemas/
-│   └── dataSourcesInfo.ts  # テーブルエントリ（primaryKey等）
+│   └── dataSourcesInfo.ts             # テーブルエントリ（primaryKey 等）
 └── dataverse/
-    └── {table}.Schema.json  # テーブルスキーマ
+    └── {table}.Schema.json            # テーブルスキーマ JSON
 ```
 
-→ この場合は `getClient(dataSourcesInfo)` を直接使用してサービスレイヤーを自前構築する。
+生成された Service クラスは内部で `getClient(dataSourcesInfo)` を使用しており、
+そのまま使用するか、自前の DataverseService ラッパーを作成するかは自由。
+
+> **自前 DataverseService を推奨する理由**: 生成 Service（`Inv_productsService.create(...)` 等）は
+> エンティティごとに分かれているため、共通のエラーハンドリングや TanStack React Query との統合が煩雑になる。
+> 汎用 CRUD ラッパーを 1 ファイルで管理する方がコードの見通しが良い。
 
 ## 自前サービスレイヤーの実装パターン（検証済 2026-06-15）
 
@@ -82,7 +80,7 @@ export const DataverseService = {
 
 ## 統合 dataSourcesInfo（フロー・Copilot Studio 使用時は必須）
 
-`getClient()` はシングルトン。最初に初期化された dataSourcesInfo にフロー/コネクタが含まれないと
+`getClient(dataSourcesInfo)` はシングルトン。最初の呼び出しで渡した `dataSourcesInfo` にフロー/コネクタが含まれないと
 `Data source not found` エラーになる。
 
 ```typescript
