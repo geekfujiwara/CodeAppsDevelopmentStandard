@@ -11,141 +11,19 @@ pac code init -env {ENVIRONMENT_ID} -n "AppName"
 npm install
 ```
 
-### Step 2: 先にビルド＆デプロイ
+### Step 2: vite.config.ts 必須設定の確認（検証済 2026-06-15）
 
-```bash
-npm run build
-npx power-apps push --non-interactive
+`pac code init` が生成した `vite.config.ts` を確認し、以下の必須設定が含まれていることを検証する。
+**この手順を飛ばすと、デプロイ後にアセット 404 やモジュール解決エラーでアプリが起動しない。**
+
+#### チェックリスト
+
 ```
-
-### Step 3: Dataverse データソース追加
-
-```bash
-# テーブルごとに実行（PUBLISHER_PREFIX は .env から読み込み、ハードコード禁止）
-source .env  # PUBLISHER_PREFIX, DATAVERSE_URL を環境変数に読み込む
-npx power-apps add-data-source --api-id dataverse \
-  --resource-name ${PUBLISHER_PREFIX}_incident \
-  --org-url ${DATAVERSE_URL} --non-interactive
-
-# 日本語エラーが出たら nameUtils.js をパッチしてリトライ
+□ base: "./" が設定されている
+□ rollupOptions.external に "@microsoft/power-apps" が含まれていない
+□ plugins に powerApps() が含まれている
+□ resolve.alias に "@" → "./src" が設定されている
 ```
-
-> **重要**: `--resource-name` に `geek_xxx` のような literal を書かない。
-> プロジェクトの publisher prefix は環境ごとに異なるため、必ず `.env` の `PUBLISHER_PREFIX` を変数展開して使う。
-> ハードコードすると、その環境に存在しない `geek_*` テーブルを参照して失敗したり、誤って別 prefix のテーブルを生成する原因になる。
-
-### Step 4: 技術スタック導入
-
-```bash
-# Tailwind CSS
-npm install -D tailwindcss @tailwindcss/vite
-
-# shadcn/ui
-npx shadcn@latest init
-npx shadcn@latest add button card dialog table tabs badge input select textarea
-
-# TanStack React Query
-npm install @tanstack/react-query
-
-# React Router
-npm install react-router
-```
-
-> **重要**: ルーター生成は必ず `createHashRouter` を使用すること。
-> `createBrowserRouter` は Power Apps iframe 内で初期ロード時に 404 になる。
-> 詳細は [トラブルシューティング #14](troubleshooting.md#14-createbrowserrouter-で初期画面が-404-になる検証済-2026-05-28) を参照。
-
-```typescript
-// src/router.tsx — 必ず createHashRouter を使用
-import { createHashRouter, Navigate } from "react-router-dom";
-
-export const router = createHashRouter([
-  {
-    path: "/",
-    element: <Layout />,
-    children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
-      { path: "dashboard", element: <DashboardPage /> },
-      // ...
-    ],
-  },
-]);
-```
-
-### Step 5: DataverseService パターンで CRUD 実装
-
-```typescript
-import { DataverseService } from "../services/DataverseService";
-
-// 一覧取得
-const incidents = await DataverseService.GetItems(
-  "geek_incidents",
-  "$select=geek_name,geek_status,geek_priority" +
-    "&$expand=geek_incidentcategoryid($select=geek_name)" +
-    "&$expand=createdby($select=fullname)" +
-    "&$orderby=createdon desc",
-);
-
-// レコード作成（Lookup は @odata.bind で設定）
-await DataverseService.PostItem("geek_incidents", {
-  geek_name: "ネットワーク障害",
-  geek_description: "本社3Fで接続不可",
-  geek_priority: 100000000, // 緊急
-  geek_status: 100000000, // 新規
-  "geek_incidentcategoryid@odata.bind": `/geek_incidentcategories(${categoryId})`,
-  "geek_assignedtoid@odata.bind": `/systemusers(${userId})`,
-});
-
-// レコード更新
-await DataverseService.PatchItem("geek_incidents", incidentId, {
-  geek_status: 100000001, // 対応中
-});
-
-// レコード削除
-await DataverseService.DeleteItem("geek_incidents", incidentId);
-```
-
-### Step 6: 型定義
-
-```typescript
-// Choice 値は 100000000 始まり
-export enum IncidentStatus {
-  NEW = 100000000,
-  IN_PROGRESS = 100000001,
-  ON_HOLD = 100000002,
-  RESOLVED = 100000003,
-  CLOSED = 100000004,
-}
-
-export const statusLabels: Record<IncidentStatus, string> = {
-  [IncidentStatus.NEW]: "新規",
-  [IncidentStatus.IN_PROGRESS]: "対応中",
-  [IncidentStatus.ON_HOLD]: "保留",
-  [IncidentStatus.RESOLVED]: "解決済",
-  [IncidentStatus.CLOSED]: "クローズ",
-};
-
-// Tailwind クラスも型安全に
-export const statusColors: Record<IncidentStatus, string> = {
-  [IncidentStatus.NEW]: "bg-blue-100 text-blue-800",
-  [IncidentStatus.IN_PROGRESS]: "bg-yellow-100 text-yellow-800",
-  [IncidentStatus.ON_HOLD]: "bg-gray-100 text-gray-800",
-  [IncidentStatus.RESOLVED]: "bg-green-100 text-green-800",
-  [IncidentStatus.CLOSED]: "bg-red-100 text-red-800",
-};
-```
-
-### Step 7: ビルド＆再デプロイ
-
-```bash
-npm run build
-npx power-apps push --non-interactive
-```
-
-### Step 7.0: vite.config.ts 必須設定（検証済 2026-06-15）
-
-Power Apps にデプロイする Code Apps は以下の vite.config.ts 設定が **必須**。
-これらを守らないとデプロイ後にアセット 404 やモジュール解決エラーでアプリが起動しない。
 
 #### ① `base: "./"` — 相対パスベース（必須）
 
@@ -187,7 +65,6 @@ build: {
     output: {
       manualChunks: (id) => {
         if (id.includes('node_modules')) {
-          // @microsoft/power-apps は vendor に含まれる
           return 'vendor'
         }
       },
@@ -267,7 +144,179 @@ export default defineConfig({
 })
 ```
 
-### Step 7.1: ビルド後検証 — Circular chunk 警告チェック（必須）
+### Step 3: 初回ビルド＆デプロイ
+
+```bash
+# PAC CLI を使用（テナント不一致なし）
+npm run build
+pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
+```
+
+> **注意**: `npx power-apps push` はテナント解決の不具合で 403/404 になることがある。
+> `pac code push` を標準とする。`npm run deploy` が `pac code push` を内包する場合はそちらを使用。
+
+### Step 4: Dataverse データソース追加
+
+```bash
+# テーブルごとに実行（PUBLISHER_PREFIX は .env から読み込み、ハードコード禁止）
+# 日本語表示名エラー回避: 一時的に英語に切替
+python scripts/toggle_table_lang.py en
+
+# pac code add-data-source で追加
+pac code add-data-source -a dataverse -t {PUBLISHER_PREFIX}_{table}
+# 全テーブルに対して繰り返す
+
+# 日本語に復元
+python scripts/toggle_table_lang.py jp
+```
+
+> **重要**: テーブル論理名に `geek_xxx` のような literal を書かない。
+> publisher prefix は環境ごとに異なるため、必ず `.env` の `PUBLISHER_PREFIX` を変数展開して使う。
+
+### Step 5: 技術スタック導入
+
+```bash
+# Tailwind CSS
+npm install -D tailwindcss @tailwindcss/vite
+
+# shadcn/ui
+npx shadcn@latest init
+npx shadcn@latest add button card dialog table tabs badge input select textarea
+
+# TanStack React Query
+npm install @tanstack/react-query
+
+# React Router
+npm install react-router
+```
+
+> **重要**: ルーター生成は必ず `createHashRouter` を使用すること。
+> `createBrowserRouter` は Power Apps iframe 内で初期ロード時に 404 になる。
+
+```typescript
+// src/router.tsx — 必ず createHashRouter を使用
+import { createHashRouter, Navigate } from "react-router-dom";
+
+export const router = createHashRouter([
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      { index: true, element: <Navigate to="/dashboard" replace /> },
+      { path: "dashboard", element: <DashboardPage /> },
+      // ...
+    ],
+  },
+]);
+```
+
+### Step 6: DataverseService パターンで CRUD 実装
+
+#### サブパスインポートを使用した DataverseService
+
+```typescript
+// src/lib/dataverse-service.ts
+import { getClient } from "@microsoft/power-apps/data";
+
+const client = getClient();
+
+export const DataverseService = {
+  async GetItems(entitySet: string, query: string) {
+    const result = await client.get(`${entitySet}?${query}`);
+    const data = await result.json();
+    return data.value ?? [];
+  },
+
+  async PostItem(entitySet: string, body: Record<string, unknown>) {
+    const result = await client.post(entitySet, {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return result;
+  },
+
+  async PatchItem(entitySet: string, id: string, body: Record<string, unknown>) {
+    const result = await client.patch(`${entitySet}(${id})`, {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return result;
+  },
+
+  async DeleteItem(entitySet: string, id: string) {
+    const result = await client.delete(`${entitySet}(${id})`);
+    return result;
+  },
+};
+```
+
+> **注意**: `import { getClient } from "@microsoft/power-apps"` （ルートインポート）は使用不可。
+> パッケージはルートエクスポートを提供していないため、ビルドエラーになる。
+> 必ず `@microsoft/power-apps/data` からインポートすること。
+
+#### SDK retrieveMultipleRecordsAsync を使用するパターン
+
+```typescript
+// src/services/dataverse-service.ts
+import { getClient } from "@microsoft/power-apps/data";
+import { getContext } from "@microsoft/power-apps/app";
+import { dataSourcesInfo } from "@/lib/dataSourcesInfo";
+
+function client() {
+  return getClient(dataSourcesInfo);
+}
+
+export async function getRecords<T>(
+  entitySetName: string,
+  options: { select?: string[]; filter?: string; orderBy?: string[] }
+): Promise<T[]> {
+  const result = await client().retrieveMultipleRecordsAsync<T>(
+    entitySetName,
+    options,
+  );
+  if (!result.success) throw result.error;
+  return result.data ?? [];
+}
+```
+
+### Step 7: 型定義
+
+```typescript
+// Choice 値は 100000000 始まり
+export enum IncidentStatus {
+  NEW = 100000000,
+  IN_PROGRESS = 100000001,
+  ON_HOLD = 100000002,
+  RESOLVED = 100000003,
+  CLOSED = 100000004,
+}
+
+export const statusLabels: Record<IncidentStatus, string> = {
+  [IncidentStatus.NEW]: "新規",
+  [IncidentStatus.IN_PROGRESS]: "対応中",
+  [IncidentStatus.ON_HOLD]: "保留",
+  [IncidentStatus.RESOLVED]: "解決済",
+  [IncidentStatus.CLOSED]: "クローズ",
+};
+
+// Tailwind クラスも型安全に
+export const statusColors: Record<IncidentStatus, string> = {
+  [IncidentStatus.NEW]: "bg-blue-100 text-blue-800",
+  [IncidentStatus.IN_PROGRESS]: "bg-yellow-100 text-yellow-800",
+  [IncidentStatus.ON_HOLD]: "bg-gray-100 text-gray-800",
+  [IncidentStatus.RESOLVED]: "bg-green-100 text-green-800",
+  [IncidentStatus.CLOSED]: "bg-red-100 text-red-800",
+};
+```
+
+### Step 8: ビルド＆再デプロイ
+
+```bash
+npm run build
+pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
+```
+
+### Step 8.1: ビルド後検証 — Circular chunk 警告チェック（必須）
 
 `npm run build` の出力に **`Circular chunk`** 警告が含まれていないか確認する。
 この警告があると Power Apps ランタイムで `ReferenceError: Cannot access 'X' before initialization` が発生し、アプリが起動しない。
@@ -318,7 +367,7 @@ build: {
    → Circular chunk 警告なし → Power Apps で正常動作
 ```
 
-### Step 7.2: ビルド後検証 — CSP 違反チェック（必須）
+### Step 8.2: ビルド後検証 — CSP 違反チェック（必須）
 
 ビルド成功後、デプロイ前に以下を検証する:
 
@@ -332,7 +381,7 @@ grep -rn "https://" src/ --include="*.ts" --include="*.tsx" | grep -v "// " | gr
 
 上記に該当するコードが残っていたら削除する。Power Apps ランタイムは `connect-src 'none'` で外部通信をすべてブロックする。
 
-### Step 7.3: テンプレート残留チェック（必須）
+### Step 8.3: テンプレート残留チェック（必須）
 
 ```bash
 # テンプレートページが残っていないこと

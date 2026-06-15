@@ -255,20 +255,25 @@ pac code init -env {ENVIRONMENT_ID} -n "AppName"
 # PAC CLI 認証プロファイルを使用するためテナント不一致なし
 npm install
 
-# ── Step 2: 環境設定 ──
+# ── Step 2: vite.config.ts 必須設定の確認 ──
+# pac code init が生成した vite.config.ts を確認し、以下を検証する:
+#   □ base: "./" が設定されている（未設定 → アセット 404）
+#   □ rollupOptions.external に "@microsoft/power-apps" が含まれていない（含めると → モジュール解決エラー）
+#   □ plugins に powerApps() が含まれている
+# 詳細テンプレートは → references/build-reference.md Step 2
+
+# ── Step 3: 環境設定 ──
 # .env.example を .env にコピーし、テーマ固有の値を設定する
 # VITE_CODEAPPS_APP_NAME, VITE_CODEAPPS_APP_SUBTITLE 等
 
-# ── Step 3: 初回ビルド＆デプロイ ──
+# ── Step 4: 初回ビルド＆デプロイ ──
 # ⚠ power.config.json が存在しないと pac code push は失敗する（Step 1 の init が必須）
-npm run deploy
-# → npm run predeploy（.env チェック・power.config.json 存在チェック）
-# → npm run build
-# → pac code push
+npm run build
+pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 # この時点で Power Platform にアプリが登録され Dataverse 接続が確立
 # power.config.json に appId が追記される
 
-# ── Step 4: データソース追加 ──
+# ── Step 5: データソース追加 ──
 # テーブル論理名は .env の ${PUBLISHER_PREFIX} を変数展開して組み立てる。
 # `geek_*` 等の literal をハードコードしないこと。
 
@@ -282,12 +287,26 @@ pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_{table_basename}
 # 日本語に復元
 python scripts/toggle_table_lang.py jp
 
-# ── Step 5: 開発 → 再デプロイ ──
+# ── Step 6: 開発 → 再デプロイ ──
 # src/ 配下のアプリコードを実装
-npm run deploy
+# ⚠ @microsoft/power-apps はサブパスインポートを使用すること:
+#   import { getClient } from "@microsoft/power-apps/data";
+#   import { getContext } from "@microsoft/power-apps/app";
+#   ❌ import { getClient } from "@microsoft/power-apps";  ← ルートインポートはビルドエラー
+npm run build
+pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 ```
 
 ```
+❌ vite.config.ts の base: "./" を設定せずにデプロイ
+   → Power Apps 上でアセット（CSS/JS/フォント）がすべて 404
+
+❌ @microsoft/power-apps を rollupOptions.external に指定
+   → ブラウザが "Failed to resolve module specifier" エラーでアプリが起動しない
+
+❌ @microsoft/power-apps をルートからインポート
+   → "." is not exported from package エラーでビルド失敗
+
 ❌ ローカルで全部作ってから最後にデプロイ
    → Dataverse 接続が確立されず add-data-source が失敗する
 
