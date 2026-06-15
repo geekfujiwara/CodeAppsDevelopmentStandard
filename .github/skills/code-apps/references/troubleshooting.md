@@ -817,6 +817,100 @@ export const router = createHashRouter([...]);
 - `createHashRouter` は Power Pages でも必須（同じ理由）
 - ディープリンクの `basename` 設定は不要になる
 
+## 25. Dataverse に接続できない / データが空で返る（検証済 2026-06-15）
+
+### 症状
+
+Power Apps にデプロイ後、アプリは表示されるがテーブルのデータが一切取得できない。
+ブラウザコンソールに明確なエラーは出ず、クエリが空配列を返すか、
+`TypeError: client.retrieveMultipleRecordsAsync is not a function` になる。
+
+### 原因
+
+`getClient()` を **引数なしで呼んでいる**。
+
+`@microsoft/power-apps/data` の `getClient` は `dataSourcesInfo` が **必須引数**:
+
+```typescript
+// SDK 型定義（node_modules/@microsoft/power-apps/dist/data/powerAppsData.d.ts）
+export declare function getClient(dataSourcesInfo: DataSourcesInfo): DataClient;
+```
+
+引数なしだと SDK がデータソース情報を持たず、Power Apps ランタイムとの postMessage 通信が確立されない。
+
+### 原因パターン
+
+**パターン A**: `vite-env.d.ts` に手動で `declare module "@microsoft/power-apps/data"` を書いている
+
+```typescript
+// ❌ vite-env.d.ts で SDK の型を上書きしてしまう
+declare module "@microsoft/power-apps/data" {
+  interface PowerAppsClient {
+    get(url: string): Promise<Response>;
+    post(url: string, options?: RequestInit): Promise<Response>;
+  }
+  export function getClient(): PowerAppsClient;  // ← 引数なしで定義
+}
+```
+
+→ TypeScript が SDK の正式な `.d.ts` より `vite-env.d.ts` を優先し、`getClient()` が引数なしで型チェックを通ってしまう。
+→ 実行時に `DataClient` ではなく `undefined` が返り、Dataverse に接続不可。
+
+**パターン B**: 古いドキュメントのコードをそのまま使用
+
+```typescript
+// ❌ 旧パターン: 引数なし + 生 HTTP メソッド
+const client = getClient();
+const result = await client.get(`inv_products?$select=inv_name`);
+```
+
+→ `DataClient` には `get` / `post` / `patch` メソッドは存在しない。
+→ SDK 公式の `retrieveMultipleRecordsAsync` / `createRecordAsync` 等を使用すること。
+
+### 対処
+
+**① `vite-env.d.ts` から SDK 手動型宣言を削除:**
+
+```typescript
+// ✅ CSS モジュール宣言のみ残す
+declare module "*.css" {
+  const content: string;
+  export default content;
+}
+```
+
+**② `dataverse-service.ts` で `getClient(dataSourcesInfo)` を使用:**
+
+```typescript
+import { getClient } from "@microsoft/power-apps/data";
+import type { IOperationOptions } from "@microsoft/power-apps/data";
+import { dataSourcesInfo } from "../../.power/schemas/appschemas/dataSourcesInfo";
+
+const client = getClient(dataSourcesInfo);
+
+export const DataverseService = {
+  async GetItems<T>(dataSourceName: string, options?: IOperationOptions): Promise<T[]> {
+    const result = await client.retrieveMultipleRecordsAsync<T>(dataSourceName, options);
+    if (!result.success) throw result.error;
+    return result.data ?? [];
+  },
+  // CreateItem, UpdateItem, DeleteItem も同様
+};
+```
+
+**③ Hook で OData 文字列ではなく IOperationOptions オブジェクトを使用:**
+
+```typescript
+// ❌ OData クエリ文字列
+DataverseService.GetItems("inv_products", "$select=inv_name&$orderby=inv_name asc");
+
+// ✅ IOperationOptions オブジェクト
+DataverseService.GetItems<Product>("inv_products", {
+  select: ["inv_productid", "inv_name"],
+  orderBy: ["inv_name asc"],
+});
+```
+
 ---
 
 ## 15. サイドバーの幅がページ遷移で崩れる（検証済 2026-05-28）

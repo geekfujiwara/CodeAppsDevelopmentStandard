@@ -39,28 +39,45 @@ src/generated/
 
 → この場合は `getClient(dataSourcesInfo)` を直接使用してサービスレイヤーを自前構築する。
 
-## 自前サービスレイヤーの実装パターン
+## 自前サービスレイヤーの実装パターン（検証済 2026-06-15）
+
+`getClient()` は **`dataSourcesInfo` が必須引数**。引数なしで呼ぶと Dataverse に接続できない。
 
 ```typescript
-// src/services/dataverse-service.ts
+// src/lib/dataverse-service.ts
 import { getClient } from "@microsoft/power-apps/data";
-import { dataSourcesInfo } from "@/lib/dataSourcesInfo";
+import type { IOperationOptions } from "@microsoft/power-apps/data";
+import { dataSourcesInfo } from "../../.power/schemas/appschemas/dataSourcesInfo";
 
-function client() {
-  return getClient(dataSourcesInfo);
-}
+const client = getClient(dataSourcesInfo);
 
-export async function getRecords(): Promise<MyRecord[]> {
-  const result = await client().retrieveMultipleRecordsAsync<MyRecord>(
-    "prefix_tablename",  // EntitySetName（dataSourcesInfo のキー）
-    {
-      select: ["prefix_id", "prefix_name", "createdon"],
-      orderBy: ["prefix_name asc"],
-    }
-  );
-  if (!result.success) throw result.error;
-  return result.data ?? [];
-}
+export const DataverseService = {
+  async GetItems<T>(dataSourceName: string, options?: IOperationOptions): Promise<T[]> {
+    const result = await client.retrieveMultipleRecordsAsync<T>(dataSourceName, options);
+    if (!result.success) throw result.error;
+    return result.data ?? [];
+  },
+  async CreateItem<T>(dataSourceName: string, body: Record<string, unknown>): Promise<T> {
+    const result = await client.createRecordAsync<Record<string, unknown>, T>(dataSourceName, body);
+    if (!result.success) throw result.error;
+    return result.data;
+  },
+  async UpdateItem<T>(dataSourceName: string, id: string, body: Record<string, unknown>): Promise<T> {
+    const result = await client.updateRecordAsync<Record<string, unknown>, T>(dataSourceName, id, body);
+    if (!result.success) throw result.error;
+    return result.data;
+  },
+  async DeleteItem(dataSourceName: string, id: string): Promise<void> {
+    const result = await client.deleteRecordAsync(dataSourceName, id);
+    if (!result.success) throw result.error;
+  },
+};
+```
+
+```
+❌ getClient() — 引数なし → Dataverse に接続できない
+❌ client.get("entitySet?$select=...") — DataClient に get/post メソッドは存在しない
+✅ getClient(dataSourcesInfo) + retrieveMultipleRecordsAsync 等の SDK 公式メソッド
 ```
 
 ## 統合 dataSourcesInfo（フロー・Copilot Studio 使用時は必須）

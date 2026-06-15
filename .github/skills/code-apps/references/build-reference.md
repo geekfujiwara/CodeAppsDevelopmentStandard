@@ -212,71 +212,111 @@ export const router = createHashRouter([
 
 ### Step 6: DataverseService パターンで CRUD 実装
 
-#### サブパスインポートを使用した DataverseService
+#### `getClient(dataSourcesInfo)` — dataSourcesInfo は必須引数
+
+`getClient()` は **`dataSourcesInfo` を必ず渡す**。引数なしで呼ぶと SDK がデータソース情報を持たないため、
+Power Apps ランタイム上で Dataverse に一切接続できない（エラーも出ずに空データになる）。
+
+`dataSourcesInfo` は Step 4 の `pac code add-data-source` 実行時に `.power/schemas/appschemas/dataSourcesInfo.ts` に自動生成される。
 
 ```typescript
 // src/lib/dataverse-service.ts
 import { getClient } from "@microsoft/power-apps/data";
+import type { IOperationOptions } from "@microsoft/power-apps/data";
+import { dataSourcesInfo } from "../../.power/schemas/appschemas/dataSourcesInfo";
 
-const client = getClient();
+const client = getClient(dataSourcesInfo);
 
 export const DataverseService = {
-  async GetItems(entitySet: string, query: string) {
-    const result = await client.get(`${entitySet}?${query}`);
-    const data = await result.json();
-    return data.value ?? [];
+  async GetItems<T>(dataSourceName: string, options?: IOperationOptions): Promise<T[]> {
+    const result = await client.retrieveMultipleRecordsAsync<T>(dataSourceName, options);
+    if (!result.success) throw result.error;
+    return result.data ?? [];
   },
-
-  async PostItem(entitySet: string, body: Record<string, unknown>) {
-    const result = await client.post(entitySet, {
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    return result;
+  async CreateItem<T>(dataSourceName: string, body: Record<string, unknown>): Promise<T> {
+    const result = await client.createRecordAsync<Record<string, unknown>, T>(dataSourceName, body);
+    if (!result.success) throw result.error;
+    return result.data;
   },
-
-  async PatchItem(entitySet: string, id: string, body: Record<string, unknown>) {
-    const result = await client.patch(`${entitySet}(${id})`, {
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    return result;
+  async UpdateItem<T>(dataSourceName: string, id: string, body: Record<string, unknown>): Promise<T> {
+    const result = await client.updateRecordAsync<Record<string, unknown>, T>(dataSourceName, id, body);
+    if (!result.success) throw result.error;
+    return result.data;
   },
-
-  async DeleteItem(entitySet: string, id: string) {
-    const result = await client.delete(`${entitySet}(${id})`);
-    return result;
+  async DeleteItem(dataSourceName: string, id: string): Promise<void> {
+    const result = await client.deleteRecordAsync(dataSourceName, id);
+    if (!result.success) throw result.error;
   },
 };
 ```
 
-> **注意**: `import { getClient } from "@microsoft/power-apps"` （ルートインポート）は使用不可。
-> パッケージはルートエクスポートを提供していないため、ビルドエラーになる。
-> 必ず `@microsoft/power-apps/data` からインポートすること。
+```
+❌ getClient() — 引数なし
+   → SDK がデータソース情報を持たず Dataverse に接続できない（空データ / 無反応）
 
-#### SDK retrieveMultipleRecordsAsync を使用するパターン
+❌ client.get("inv_products?$select=...") — 生の HTTP メソッド
+   → getClient(dataSourcesInfo) が返す DataClient には get/post/patch メソッドは存在しない
+   → SDK 公式の retrieveMultipleRecordsAsync / createRecordAsync 等を使用すること
+
+✅ getClient(dataSourcesInfo) + retrieveMultipleRecordsAsync
+   → CSP 安全（postMessage ベース）で正しく Dataverse に接続される
+```
+
+#### Hook での使用パターン（TanStack React Query）
 
 ```typescript
-// src/services/dataverse-service.ts
-import { getClient } from "@microsoft/power-apps/data";
-import { getContext } from "@microsoft/power-apps/app";
-import { dataSourcesInfo } from "@/lib/dataSourcesInfo";
+// src/hooks/use-products.ts
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DataverseService } from "@/lib/dataverse-service";
+import type { Product } from "@/types";
 
-function client() {
-  return getClient(dataSourcesInfo);
+const DATA_SOURCE = "inv_products";  // dataSourcesInfo のキー名
+
+export function useProducts() {
+  return useQuery<Product[]>({
+    queryKey: ["products"],
+    queryFn: () =>
+      DataverseService.GetItems<Product>(DATA_SOURCE, {
+        select: ["inv_productid", "inv_name", "inv_productcode", "inv_category"],
+        orderBy: ["inv_productcode asc"],
+      }),
+  });
 }
 
-export async function getRecords<T>(
-  entitySetName: string,
-  options: { select?: string[]; filter?: string; orderBy?: string[] }
-): Promise<T[]> {
-  const result = await client().retrieveMultipleRecordsAsync<T>(
-    entitySetName,
-    options,
-  );
-  if (!result.success) throw result.error;
-  return result.data ?? [];
+export function useCreateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      DataverseService.CreateItem(DATA_SOURCE, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
+  });
 }
+```
+
+> **IOperationOptions**: `{ select?, filter?, orderBy?, top?, skip?, maxPageSize? }`
+> OData クエリ文字列ではなく、オブジェクト形式で指定する。
+
+#### vite-env.d.ts — SDK の手動型宣言は不要
+
+`@microsoft/power-apps` パッケージは `dist/data/index.d.ts` 等の正式な型定義を提供している。
+`vite-env.d.ts` に `declare module "@microsoft/power-apps/data"` を手動で書くと
+SDK の正式な型と競合し、`getClient` の引数 `dataSourcesInfo` が認識されなくなる。
+
+```typescript
+// vite-env.d.ts — ✅ CSS モジュール宣言のみ（SDK 型宣言は書かない）
+declare module "*.css" {
+  const content: string;
+  export default content;
+}
+```
+
+```
+❌ vite-env.d.ts に declare module "@microsoft/power-apps/data" { ... } を追記
+   → SDK の正式型定義を上書きし、getClient() が引数なしで呼べてしまう
+   → 実行時に Dataverse に接続できない
+
+✅ SDK パッケージの型定義をそのまま使用
+   → getClient(dataSourcesInfo) が必須引数として型チェックされる
 ```
 
 ### Step 7: 型定義
