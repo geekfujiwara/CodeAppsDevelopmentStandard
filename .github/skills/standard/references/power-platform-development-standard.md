@@ -1448,31 +1448,70 @@ publish_to_channels(bot_id)
 
 ```mermaid
 flowchart TD
-    P0["🎨 Phase 0: 設計（ユーザー確認必須）\n1. ユーザー要件ヒアリング\n2. テーブル設計（スキーマ名・列・型・Choice値）\n3. リレーションシップ設計\n4. デモデータ計画\n5. ★ ユーザーに設計を提示し承認を得る"]
+    P0["🔧 Phase 0: 事前準備\n1. make.powerapps.com > ⚙️ > セッション詳細 > 詳細コピー\n2. コピー内容をチャットに貼り付け（ENV_ID・URL・Prefix確認）\n3. デバイスコードログイン（auth_helper.py）\n4. 既存ソリューション・パブリッシャー確認"]
 
-    P1["🗄️ Phase 1: Dataverse 構築\n1. ソリューション作成\n2. テーブル作成（マスタ → 主 → 従属）\n3. Lookup リレーションシップ作成（リトライ付き）\n4. 日本語ローカライズ（PUT + MetadataId）\n5. 全テーブルにデモデータ投入\n6. テーブル・リレーションシップ検証"]
+    P1["🎨 Phase 1: 設計（ユーザー確認必須）\n1. アーキテクチャ設計（コンポーネント選定）\n2. テーブル設計（スキーマ名・列・型・Choice値）\n3. リレーションシップ設計\n4. デモデータ計画\n5. ★ ユーザーに設計を提示し承認を得る"]
 
-    P2D["🎨 Phase 2 設計: Code Apps UI\n1. code-apps スキルの references/design-system.md で設計\n2. 画面構成・コンポーネント選定\n3. Lookup 名前解決パターン設計\n4. ★ ユーザーに UI 設計を提示し承認を得る"]
+    P2["🗄️ Phase 2: Dataverse 構築\n1. ソリューション作成\n2. テーブル作成（マスタ → 主 → 従属）\n3. Lookup リレーションシップ作成（リトライ付き）\n4. 日本語ローカライズ（PUT + MetadataId）\n5. 全テーブルにデモデータ投入\n6. テーブル・リレーションシップ検証"]
 
-    P2["⚛️ Phase 2 実装: Code Apps\n1. npx power-apps init\n2. build & push（先にデプロイ！）\n3. npx power-apps add-data-source\n4. 承認済み設計に従い実装\n5. ビルド & 再デプロイ"]
+    P3["🔒 Phase 3: Security Role\n1. セキュリティロール設計・ユーザー承認\n2. セキュリティロール作成・権限設定"]
 
-    P25D["📋 Phase 2.5 設計: Power Automate\n1. フロー名・トリガー・アクション設計\n2. 接続・通知先・メール本文設計\n3. ★ ユーザーに設計を提示し承認を得る"]
+    P4D["🎨 Phase 4 設計: Code Apps UI\n1. code-apps スキルの references/design-system.md で設計\n2. 画面構成・コンポーネント選定\n3. Lookup 名前解決パターン設計\n4. ★ ユーザーに UI 設計を提示し承認を得る"]
 
-    P25["⚡ Phase 2.5 実装: Power Automate\n1. Flow API / PowerApps API 認証\n2. 環境 ID 解決・接続検索\n3. フロー定義 JSON 構築\n4. POST or PATCH でデプロイ"]
+    P4["⚛️ Phase 4 実装: Code Apps\n1. npx power-apps init\n2. build & push（先にデプロイ！）\n3. npx power-apps add-data-source\n4. 承認済み設計に従い実装\n5. ビルド & 再デプロイ"]
 
-    P3D["📋 Phase 3 設計: Copilot Studio\n1. エージェント名・Instructions 設計\n2. 会話スターター・ナレッジ・ツール設計\n3. ★ ユーザーに設計を提示し承認を得る"]
+    P5D["📋 Phase 5 設計: Power Automate\n1. フロー名・トリガー・アクション設計\n2. 接続・通知先・メール本文設計\n3. ★ ユーザーに設計を提示し承認を得る"]
 
-    P3["🤖 Phase 3 実装: Copilot Studio\n1. UI で Bot 作成\n2. カスタムトピック全削除\n3. 生成オーケストレーション有効化\n4. 指示（Instructions）設定\n5. ★ ナレッジ追加（UI で手動）\n6. ★ MCP Server 追加（UI で手動）\n7. エージェント公開"]
+    P5["⚡ Phase 5 実装: Power Automate\n1. Flow API / PowerApps API 認証\n2. 環境 ID 解決・接続検索\n3. フロー定義 JSON 構築\n4. POST or PATCH でデプロイ"]
 
-    P0 --> P1
-    P1 --> P2D --> P2
-    P1 --> P25D --> P25
-    P1 --> P3D --> P3
+    P6D["📋 Phase 6 設計: Copilot Studio\n1. エージェント名・Instructions 設計\n2. 会話スターター・ナレッジ・ツール設計\n3. ★ ユーザーに設計を提示し承認を得る"]
+
+    P6["🤖 Phase 6 実装: Copilot Studio\n1. UI で Bot 作成\n2. カスタムトピック全削除\n3. 生成オーケストレーション有効化\n4. 指示（Instructions）設定\n5. ★ ナレッジ追加（UI で手動）\n6. ★ MCP Server 追加（UI で手動）\n7. エージェント公開"]
+
+    P0 --> P1 --> P2 --> P3
+    P3 --> P4D --> P4
+    P3 --> P5D --> P5
+    P3 --> P6D --> P6
 ```
 
-### Phase 0: 設計フェーズの詳細
+### Phase 0: 事前準備の詳細
 
-設計フェーズでは、**ユーザーの要件をもとにデータベース設計を行い、承認を得てから構築に進む**。
+Phase 0 ではパブリッシャー prefix・環境 ID・Dataverse URL を確定させる。
+これらが不明なままテーブルやソリューション名を決めると、後でスキーマ名・prefix の修正が必要になる。
+
+#### Step 1: セッション詳細の取得
+
+1. [make.powerapps.com](https://make.powerapps.com) を開き、**開発に使う環境**（デフォルト環境は使わない）を選択する
+2. 右上の **設定（歯車 ⚙️）** > **セッション詳細** を開く
+3. **「詳細コピー」** ボタンをクリックしてクリップボードにコピーする
+4. コピーした内容をチャットに貼り付ける
+
+貼り付け内容から以下を確認する:
+
+| 項目 | 確認内容 |
+|---|---|
+| `instanceUrl` | Dataverse URL（`DATAVERSE_URL` に設定） |
+| `environmentId` | 環境 ID（`ENV_ID` に設定） |
+| `tenantId` | テナント ID（`TENANT_ID` に設定） |
+
+#### Step 2: デバイスコードログイン
+
+```bash
+python .github/skills/standard/scripts/auth_helper.py
+```
+
+ブラウザでデバイスコード認証を済ませる。以降は 2 層キャッシュにより再認証不要。
+
+#### Step 3: パブリッシャー・既存ソリューション確認
+
+環境に存在するパブリッシャー（prefix）と既存ソリューション（表示名・スキーマ名）を確認してチャットに共有する。
+**prefix が確定してから、テーブルスキーマ名・ソリューション名の設計（Phase 1）に進む。**
+
+---
+
+### Phase 1: 設計フェーズの詳細
+
+設計フェーズでは、**ユーザーの要件をもとにアーキテクチャとデータベース設計を行い、承認を得てから構築に進む**。
 設計なしにテーブルを作成してはならない。
 
 #### Step 1: ユーザー要件のヒアリング
@@ -1522,15 +1561,15 @@ flowchart TD
 
 - 「**この設計で進めてよいですか？**」と明示的に確認する
 - フィードバックがあれば修正して再提示
-- 承認を得てから Phase 1 に進む
+- 承認を得てから Phase 2 に進む
 
 > **教訓**: 設計フェーズを省略してテーブルを作成すると、リレーションシップの漏れ（カテゴリ↔インシデントの Lookup 未設定）、デモデータの漏れ（コメントテーブルにデータなし）、必要なマスタテーブルの漏れ（設備マスタ未作成）が発生する。設計レビューで防止できる。
 
-### Phase 2/2.5/3 の設計フェーズ（各フェーズ共通原則）
+### Phase 4/5/6 の設計フェーズ（各フェーズ共通原則）
 
 **Dataverse だけでなく、Code Apps・Power Automate・Copilot Studio のいずれも、実装前に設計をユーザーに提示して承認を得る。**
 
-#### Code Apps UI 設計（Phase 2 開始前）
+#### Code Apps UI 設計（Phase 4 開始前）
 
 `code-apps` スキルを使い、以下を設計してユーザーに提示:
 
@@ -1540,7 +1579,7 @@ flowchart TD
 - Lookup 名前解決パターン（`_xxx_value` + `useMemo` Map）
 - ナビゲーション構造
 
-#### Power Automate フロー設計（Phase 2.5 開始前）
+#### Power Automate フロー設計（Phase 5 開始前）
 
 以下を設計してユーザーに提示:
 
@@ -1550,7 +1589,7 @@ flowchart TD
 - 必要な接続（Dataverse, Office 365 Outlook, Teams 等）
 - 通知先・メール件名・本文の概要
 
-#### Copilot Studio エージェント設計（Phase 3 開始前）
+#### Copilot Studio エージェント設計（Phase 6 開始前）
 
 以下を設計してユーザーに提示:
 
@@ -1576,18 +1615,18 @@ flowchart TD
 - [ ] 全 Lookup リレーションシップが設計書に記載済み
 - [ ] デモデータが全テーブル（従属テーブル含む）に計画済み
 
-### Code Apps UI 設計（Phase 2 開始前）
+### Code Apps UI 設計（Phase 4 開始前）
 
 - [ ] `code-apps` スキルで画面構成・コンポーネントを設計済み
 - [ ] Lookup 名前解決パターン（`_xxx_value` + `useMemo` Map）を設計に含めた
 - [ ] **ユーザーに UI 設計を提示し、承認を得た**
 
-### Power Automate フロー設計（Phase 2.5 開始前）
+### Power Automate フロー設計（Phase 5 開始前）
 
 - [ ] フロー名・トリガー・アクション一覧・接続・通知先を設計済み
 - [ ] **ユーザーにフロー設計を提示し、承認を得た**
 
-### Copilot Studio エージェント設計（Phase 3 開始前）
+### Copilot Studio エージェント設計（Phase 6 開始前）
 
 - [ ] エージェント名・Instructions・会話スターター・ナレッジ・ツールを設計済み
 - [ ] **ユーザーにエージェント設計を提示し、承認を得た**
