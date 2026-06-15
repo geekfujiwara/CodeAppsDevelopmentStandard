@@ -281,7 +281,7 @@ Power Pages を選ぶ条件（すべて該当する場合のみ）:
 > 詳細な開発・デプロイ手順は [power-pages/SKILL.md](../power-pages/SKILL.md) を参照。
 
 > **⚠️ Power Pages を選択した場合の開発フロー注意**:
-> Power Pages はプロビジョニングに **10〜20 分** かかる。Phase 2 で着手したらプロビジョニング完了を待ってから開発を続ける。
+> Power Pages はプロビジョニングに **10〜20 分** かかる。Phase 6 で着手したらプロビジョニング完了を待ってから開発を続ける。
 > 詳細は `power-pages` スキルを参照。
 
 ### 内部ユーザー向け: Code Apps vs Canvas Apps vs Model-Driven Apps

@@ -11,75 +11,32 @@ Power Platform コードファースト開発エキスパート。
 
 作業を始める前に **必ず** 以下を確認する:
 
-1. `spec/requirements.md` が存在すれば読み込む
-   - 未実装機能（🔴）・実装中（🟡）・受け入れ基準・テスト要件を把握してから実装に進む
-   - 指示された機能が受け入れ基準を満たしているかを実装中に照合する
-2. 機能実装が完了したら `spec/requirements.md` のステータスを更新する
-   - 🔴 未実装 → 🟡 実装中 → ✅ 実装済
-   - 受け入れ基準のチェックボックスも更新する
+1. `spec/requirements.md` が存在すれば読み込む（未実装機能・受け入れ基準・テスト要件を把握）
+2. 機能実装完了後に `spec/requirements.md` のステータスを更新する（🔴 未実装 → 🟡 実装中 → ✅ 実装済）
 
 ## ルール
 
-1. 作業開始前に .github/skills/standard/SKILL.md を読む
+1. 作業開始前に `.github/skills/standard/SKILL.md` を読む
 2. 該当スキルを読む（下表）
 3. 設計提示 → ユーザー承認 → 実装
 4. **デプロイ時は必ず各スキルのプレデプロイチェックを実行してからデプロイする**
 
 ## デプロイ前チェック（必須）
 
-「デプロイして」「プッシュして」「push」等のデプロイ指示を受けたら、
-対象アプリの種類に応じたプレデプロイチェックを**必ず先に実行**する。
-チェックが失敗した場合はデプロイせず、問題を修正してから再実行する。
+「デプロイして」「push」等の指示を受けたら対象アプリに応じたチェックを**先に実行**し、失敗したら停止する。
 
-| アプリ種類 | プレデプロイチェック | デプロイコマンド |
+| アプリ種類 | プレデプロイ | デプロイ |
 |---|---|---|
-| Code Apps | `npm run predeploy` → 失敗なら停止 | `npm run deploy`（predeploy + build + pac code push） |
-| Power Pages | ビルド確認 + pac pages upload-code-site | スキル参照 |
+| Code Apps | `npm run predeploy`（失敗なら停止） | `npm run deploy` |
+| Power Pages | ビルド確認 | スキル参照 |
 
-## データソース追加（pac code add-data-source を標準とする）
+## 重要制約
 
-Code Apps に Dataverse テーブルを接続するとき:
-1. `python scripts/toggle_table_lang.py en`（日本語表示名エラー回避: 英語に切替）
-2. `pac code add-data-source -a dataverse -t {table_logical_name}`
-3. `python scripts/toggle_table_lang.py jp`（日本語に復元）
+- **認証**: Python スクリプトでは必ず `auth_helper.py` の API を使う（`requests` 直呼び禁止）
+- **データソース**: `npx power-apps add-data-source` で追加（`dataSourcesInfo.ts` 手動追記禁止）
+- 詳細は `.github/skills/standard/SKILL.md` および各スキルを参照
 
-**手動で `dataSourcesInfo.ts` にカスタムテーブル定義を追記してはならない。**
-SDK が `.power/schemas/appschemas/dataSourcesInfo.ts` を自動生成する。
-`src/lib/dataSourcesInfo.ts` には、SDK で追加できないシステムテーブル
-（systemuser, bot, conversationtranscript 等）とコネクタのみ手動追記する。
-
-## 認証（auth_helper.py 必須）
-
-Python デプロイスクリプトでは **必ず `auth_helper.py` の公開 API を使う**。
-直接 `requests.get/post` + `get_token` で外部 API を呼ばない。
-
-| やりたいこと | 使うヘルパー |
-|---|---|
-| Dataverse Web API (GET/POST/PATCH/DELETE) | `api_get`, `api_post`, `api_patch`, `api_delete` |
-| Flow Management API | `flow_api_call(method, path, body)` |
-| PowerApps API（接続検索等） | `powerapps_api_call(method, path, params, body)` |
-| 環境 ID 逆引き | `resolve_environment_id()` |
-| Connected な接続 ID 検索 | `find_connection(env_id, connector_name, display_name)` |
-| メタデータ操作リトライ | `retry_metadata(fn, description)` |
-
-```python
-# ★ 正しいパターン
-from auth_helper import (
-    api_get, api_post, api_patch, api_delete,
-    flow_api_call, powerapps_api_call,
-    resolve_environment_id, find_connection,
-    retry_metadata, DATAVERSE_URL,
-)
-
-env_id = resolve_environment_id()
-conn_id = find_connection(env_id, "shared_commondataserviceforapps", "Dataverse")
-```
-
-```python
-# ❌ 禁止パターン（認証キャッシュを活かせない、コード重複）
-token = get_token(scope="https://service.flow.microsoft.com/.default")
-r = requests.get("https://api.flow.microsoft.com/...", headers={"Authorization": f"Bearer {token}"})
-```
+## スキル一覧
 
 | 作業 | スキル |
 |---|---|
