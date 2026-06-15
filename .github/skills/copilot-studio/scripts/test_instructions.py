@@ -20,8 +20,8 @@ bot_id = "05be3e2f-9133-f111-88b5-7ced8dea312a"
 # configuration に instructions と description を含めてみる
 config = {
     "$kind": "BotConfiguration",
-    "description": "社内のインシデント（障害・問題）を管理するためのAIアシスタントです。インシデントの起票、ステータス管理、コメント追加などを行います。",
-    "instructions": "あなたは「インシデント管理アシスタント」です。社内のインシデント（障害・問題）を管理するためのAIエージェントです。\n\nユーザーの意図を正確に理解し、Dataverse のデータ操作を実行してください。日本語で丁寧に応答してください。",
+    "description": "社内業務を支援する AI アシスタントです。Dataverse のデータ操作を行います。",
+    "instructions": "あなたは業務支援 AI エージェントです。\n\nユーザーの意図を正確に理解し、Dataverse のデータ操作を実行してください。日本語で丁寧に応答してください。",
     "settings": {
         "GenerativeActionsEnabled": True,
     },
@@ -42,7 +42,7 @@ r = requests.patch(
     headers=h,
     json={
         "configuration": json.dumps(config, ensure_ascii=False),
-        "description": "社内のインシデント（障害・問題）を管理するためのAIアシスタントです。",
+        "description": "社内業務を支援する AI アシスタントです。",
     },
 )
 print(f"PATCH status: {r.status_code}")

@@ -27,7 +27,7 @@ import requests
 from dotenv import load_dotenv
 load_dotenv()
 
-SOLUTION_NAME = os.getenv("SOLUTION_NAME", "IncidentManagement")
+SOLUTION_NAME = os.getenv("SOLUTION_NAME", "SampleSolution")
 BOT_ID = os.getenv("BOT_ID", "")
 BOT_SCHEMA = os.getenv("BOT_SCHEMA", "")
 FLOW_NAME = "Word日報出力 - メール受信トリガー"

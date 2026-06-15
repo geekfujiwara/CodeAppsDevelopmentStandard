@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 URL = os.environ["DATAVERSE_URL"].rstrip("/")
-SOL = os.environ.get("SOLUTION_NAME", "IncidentManagement")
+SOL = os.environ.get("SOLUTION_NAME", "SampleSolution")
 APP_ID = "28e3fd52-3052-4cbf-9efa-e8067a094b1d"
 
 token = get_token()
@@ -25,7 +25,7 @@ if r.ok:
 else:
     print(f"  canvasappid 直接検索失敗 ({r.status_code}), name フィルタで検索...")
     # Power Apps の appId は PowerApps API 側の ID、Dataverse 側は別 ID の可能性
-    r2 = requests.get(f"{API}/canvasapps?$filter=contains(displayname,'インシデント')&$select=canvasappid,name,displayname", headers=h)
+    r2 = requests.get(f"{API}/canvasapps?$filter=contains(displayname,'{SOL}')&$select=canvasappid,name,displayname", headers=h)
     r2.raise_for_status()
     apps = r2.json().get("value", [])
     if apps:

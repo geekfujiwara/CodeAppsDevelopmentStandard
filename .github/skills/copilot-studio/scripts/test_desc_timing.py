@@ -8,7 +8,7 @@ s = get_session()
 url = os.getenv("DATAVERSE_URL").rstrip("/")
 comp_id = "cf20b37f-bd2a-4b77-8889-4cfc01a570a0"
 bot_id = "05be3e2f-9133-f111-88b5-7ced8dea312a"
-desc_text = "社内のインシデント管理AIエージェント"
+desc_text = "社内業務を支援する AI エージェント"
 
 def check():
     r = s.get(f"{url}/api/data/v9.2/botcomponents({comp_id})?$select=description")

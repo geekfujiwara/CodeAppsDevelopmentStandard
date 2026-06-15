@@ -283,7 +283,7 @@ headers["MSCRM.SolutionName"] = SOLUTION_NAME
 # === 必須（共通）===
 DATAVERSE_URL=https://{org}.crm7.dynamics.com/
 TENANT_ID={your-tenant-id}
-SOLUTION_NAME=IncidentManagement
+SOLUTION_NAME=SampleSolution
 PUBLISHER_PREFIX=geek
 
 # === セキュリティロール オプション ===
