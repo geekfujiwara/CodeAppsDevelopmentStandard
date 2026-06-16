@@ -63,8 +63,8 @@ Cowork から Dataverse を直接操作できるようにする。
 
 | スクリプト | 用途 |
 |---|---|
-| [scripts/setup_entra_oauth.ps1](scripts/setup_entra_oauth.ps1) | Entra OAuth クライアントアプリの作成・`mcp.tools` 権限付与・シークレット作成・`.env` 書き込み（Step 2） |
-| [scripts/register_mcp_client.py](scripts/register_mcp_client.py) | Client ID を Dataverse 許可 MCP クライアント（`allowedmcpclients`）に登録・有効化・確認（Step 3） |
+| [scripts/setup_entra_oauth.ps1](scripts/setup_entra_oauth.ps1) | Entra OAuth クライアントアプリの作成・`mcp.tools` 権限付与・シークレット作成・`.env` 書き込み（Step 3） |
+| [scripts/register_mcp_client.py](scripts/register_mcp_client.py) | Client ID を Dataverse 許可 MCP クライアント（`allowedmcpclients`）に登録・有効化・確認（Step 4） |
 
 ## ワークフロー（正常系）
 
@@ -96,7 +96,26 @@ Cowork から Dataverse を直接操作できるようにする。
 > 最初は **1スキル + Dataverse MCP コネクタ**の最小構成で公開・疎通確認し、動いたら
 > 残りのスキルを追加する流れが安全（コネクタ認証の検証を先に済ませられる）。
 
-### Step 1: スキル（SKILL.md）を作る
+### Step 1: 対象テーブルを `describe` でスキーマ確認（クエリを書く前に必須）
+
+**スキル本文にクエリを書く前に、必ず `describe` で対象テーブルの実スキーマを確認する。**
+テーブル名・列名・**ルックアップ（外部キー）列の正確な名前**を推測で書かない（推測は実行時の
+`Read query Failed` の主因。特に FK 列は環境やクエリ方式で表記が異なる）。
+
+1. 対象テーブルごとに `describe` を実行し、以下を確定する:
+   - **テーブル名**（論理名 / コレクション名のどちらをクエリで使うか）
+   - **列の論理名**（表示名ではなく論理名）
+   - **ルックアップ列の表記**: `describe` の結果に出る実際の列名を使う。
+     `read_query` のクエリ方式に合わせること（Web API/OData 形式の `_xxxid_value` と
+     SQL/論理名 `xxxid` は別物。**describe が返す名前をそのまま使う**）。
+   - **選択肢（Picklist）の値とラベル**の対応
+2. 確認できたスキーマだけを使ってクエリを書く。describe に無い列・テーブルは使わない。
+3. スキル本文の冒頭にも「Step 1: 対象テーブルを `describe` で確認してからクエリする」を入れ、
+   **生成するスキル自身も実行時に describe で裏取りする**手順にする（下のテンプレート参照）。
+
+> 確認結果は「対象データ（テーブル）」表に**論理名で**まとめる。表示名は補足に留める。
+
+### Step 2: スキル（SKILL.md）を作る
 
 `skills/<skill-name>/SKILL.md` を作成。**フォルダ名と frontmatter `name` を完全一致**させ、
 `name` は kebab-case（小文字英数とハイフン、連続/先頭/末尾ハイフン禁止）。
@@ -117,7 +136,11 @@ metadata:
 本文は **ワークフロー**として書く（番号付き手順／使用ツール名を明示／出力フォーマットを定義）。
 本文は約 1,500〜2,000 語以内。詳細は `references/` に逃がす（コンパニオンファイルは最大20・各5MB）。
 
-### Step 2: Entra アプリ（OAuth クライアント）を作成・構成
+> **生成するスキル本文の必須ルール**: ワークフローの最初の Step を
+> 「対象テーブルを `describe` でスキーマ確認（列名・FK 列名を確定）」とする。
+> クエリ例の列名は describe で確認済みのものだけを使い、未確認の列を推測で書かない。
+
+### Step 3: Entra アプリ（OAuth クライアント）を作成・構成
 
 Dataverse MCP は Microsoft ファーストパーティ API のため、トークンの **audience が Dataverse 自身**
 （`https://<org>.crm.dynamics.com`）である必要がある。**SSO 方式は audience が「自前アプリ」になり失敗する**
@@ -168,7 +191,7 @@ $secret = az ad app credential reset --id $appId --display-name "cowork-oauth" `
 >   `.default` にすることで、このアプリに静的設定された `mcp.tools` が要求される。
 > - **シークレットは機密**。`.env` は `.gitignore` で除外する。スキルや manifest には絶対に書かない。
 
-### Step 3: Entra Client ID を許可 MCP クライアントに登録（必須）
+### Step 4: Entra Client ID を許可 MCP クライアントに登録（必須）
 
 OAuth 認可コードフローでは Dataverse に提示されるトークンの **appid がこのカスタムアプリ**になる。
 そのため、**Entra の Client ID を `allowedmcpclients` テーブルに登録・有効化**しないと、認証は通っても
@@ -192,7 +215,7 @@ python .github/skills/cowork/scripts/register_mcp_client.py --app-id <CLIENT_ID>
 > GUI なら Power Platform 管理センター → 環境 → 設定 → 機能 →
 > Dataverse MCP の詳細設定（`etn=allowedmcpclient`）で +New。
 
-### Step 4: Teams 開発者ポータルで OAuth client 登録 → registrationId 取得（ブラウザ）
+### Step 5: Teams 開発者ポータルで OAuth client 登録 → registrationId 取得（ブラウザ）
 
 [dev.teams.microsoft.com/tools](https://dev.teams.microsoft.com/tools) → Tools →
 **OAuth client registration** → New（**SSO client registration ではない**）。
@@ -218,7 +241,7 @@ Save すると **OAuth client registration ID** が発行される。これを `
 > （SSO 方式のような `Base64("<tenantId>##<regId>")` 変換は不要）。
 
 
-### Step 5: manifest.json を作成
+### Step 6: manifest.json を作成
 
 ```jsonc
 {
@@ -243,7 +266,7 @@ Save すると **OAuth client registration ID** が発行される。これを `
           "mcpToolDescription": { "file": "dataverse-mcp-tools.json" },
           "authorization": {
             "type": "OAuthPluginVault",
-            "referenceId": "<Step 4 の OAuth registration ID（.env の COWORK_OAUTH_REGISTRATION_ID）>"
+            "referenceId": "<Step 5 の OAuth registration ID（.env の COWORK_OAUTH_REGISTRATION_ID）>"
           }
         }
       }
@@ -274,7 +297,7 @@ Save すると **OAuth client registration ID** が発行される。これを `
   ```
 - アイコンは `generate_icon_png.py`（standard/scripts）の `draw_agent_icon(192...)` / `draw_agent_icon(32, transparent_bg=True, outline_only=True)` で生成可。
 
-### Step 6: パッケージ（.zip）をビルド
+### Step 7: パッケージ（.zip）をビルド
 
 **manifest.json をルートに**置いて圧縮する（フォルダごと圧縮しない）。ツール説明 JSON も含める。
 
@@ -285,7 +308,7 @@ Compress-Archive -Path manifest.json, color.png, outline.png, dataverse-mcp-tool
 
 ZIP 検証: ルートに `manifest.json` / `dataverse-mcp-tools.json`、`skills/<skill-name>/SKILL.md` が含まれること。
 
-### Step 7: アップロード（M365 管理センター → エージェント画面）
+### Step 8: アップロード（M365 管理センター → エージェント画面）
 
 > ⚠️ Cowork プラグインは**「統合アプリ」ではなく、新しい「エージェント」画面**からアップロードする（UI 変更済み）。
 
@@ -300,18 +323,18 @@ ZIP 検証: ルートに `manifest.json` / `dataverse-mcp-tools.json`、`skills/
 > アップロード検証でエラーバーが出たら、同じファイルを再選択しても再検証されない。
 > エラーバーを閉じてから zip を選び直すこと。
 
-### Step 8: Cowork で利用・初回同意
+### Step 9: Cowork で利用・初回同意
 
 1. Cowork でスキルのトリガー語（例: 「年間レビュー資料を作って」）を入力
 2. 初回は Dataverse MCP コネクタの **OAuth 同意**が走る（Enterprise Token Store 経由）
 3. 同意後、`read_query` 等が実行されデータ取得 → 資料生成
 
-### Step 9: プラグインの更新（再公開）
+### Step 10: プラグインの更新（再公開）
 
 スキル本文・manifest・アイコン等を変更したら、**同じ `id` のまま再公開**する。
 
 1. manifest.json の **`version` をインクリメント**（例: `1.0.0` → `1.0.1`）。`id` は変更しない。
-2. zip を再ビルド（Step 6 と同じ。`dataverse-mcp-tools.json` も忘れず含める）。
+2. zip を再ビルド（Step 7 と同じ。`dataverse-mcp-tools.json` も忘れず含める）。
 3. 管理センター → **エージェント（Agents）** → 対象エージェントを開く →
    **More actions** → **Update in store**。
 4. **Update agent** ウィザードで新しい zip をアップロード（検証が再実行される）。
@@ -326,6 +349,8 @@ ZIP 検証: ルートに `manifest.json` / `dataverse-mcp-tools.json`、`skills/
 ## 検証チェックリスト
 
 - [ ] `check_mcp_client.py cowork` が ✅
+- [ ] **対象テーブルを `describe` で確認**し、テーブル名・列名・**FK 列名**を確定（推測でクエリを書かない）
+- [ ] 生成したスキル本文の最初の Step が「`describe` でスキーマ確認」になっている
 - [ ] フォルダ名 = SKILL.md `name`（kebab-case）
 - [ ] Entra: redirect URI×2 / Dynamics CRM **mcp.tools** / クライアントシークレット（.env）— `scripts/setup_entra_oauth.ps1`
 - [ ] Power Platform: Entra の **Client ID** を許可された MCP クライアントとして登録・有効化— `scripts/register_mcp_client.py`（`--check` で検証）
