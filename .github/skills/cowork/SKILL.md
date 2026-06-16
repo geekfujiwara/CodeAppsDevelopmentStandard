@@ -313,11 +313,11 @@ ZIP 検証: ルートに `manifest.json` / `dataverse-mcp-tools.json`、`skills/
 > ⚠️ Cowork プラグインは**「統合アプリ」ではなく、新しい「エージェント」画面**からアップロードする（UI 変更済み）。
 
 1. [Microsoft 365 管理センター](https://admin.cloud.microsoft/) → 左ナビ **エージェント（Agents）** (`#/agents/all`)
-2. **Registry** タブ → ツールバー **More actions** → **Add agent** → **Upload agent** ウィザード起動
+2. **Registry** タブ → ツールバー右の **More actions（…、Export の隣）** → **Add agent** → **Upload agent** ウィザード起動
 3. **Upload**: `<name>.zip` を選択→manifest 検証が走る（エラーが出たら troubleshooting 参照）
-4. **Publish to users**: 公開対象（All users / 特定ユーザー）と事前インストール（None 推奨）を選択
-5. **Apply template**（既定ポリシーで Next）→ **Accept permissions** → **Review & finish** → **Publish**
-6. 「You uploaded <name>」表示で完了。詳細パネルの Status が **Available** になる
+4. **Publish to users**: 公開対象（All users / 特定ユーザー）と Install（None 推奨）を選択
+5. **Apply template**（Default で Next）→ **Accept permissions**（権限不要なら「No required permissions」）→ **Review & finish** → **Publish**
+6. 「You uploaded <name>」表示で完了 → **Close**。詳細パネルの Status が **Available** になる
 7. **Cowork → Sources & Skills** にスキル＋Dataverse MCP コネクタが表示されることを確認
 
 > アップロード検証でエラーバーが出たら、同じファイルを再選択しても再検証されない。
@@ -332,19 +332,21 @@ ZIP 検証: ルートに `manifest.json` / `dataverse-mcp-tools.json`、`skills/
 ### Step 10: プラグインの更新（再公開）
 
 スキル本文・manifest・アイコン等を変更したら、**同じ `id` のまま再公開**する。
+更新も新規と同じ **Add agent → Upload agent ウィザード**を使う（専用の更新メニューはない）。
 
-1. manifest.json の **`version` をインクリメント**（例: `1.0.0` → `1.0.1`）。`id` は変更しない。
+1. manifest.json の **`version` をインクリメント**（例: `1.0.2` → `1.0.3`）。`id` は変更しない。
 2. zip を再ビルド（Step 7 と同じ。`dataverse-mcp-tools.json` も忘れず含める）。
-3. 管理センター → **エージェント（Agents）** → 対象エージェントを開く →
-   **More actions** → **Update in store**。
-4. **Update agent** ウィザードで新しい zip をアップロード（検証が再実行される）。
-5. **Accept permissions** → **Review & finish** → **Publish**。
-   「<name> was updated successfully」で完了。
+3. 管理センター → **エージェント（Agents）** (`#/agents/all`) → **Registry** タブ →
+   ツールバー右の **More actions（…、Export の隣）** → **Add agent**。
+4. **Upload agent** で新しい zip を選択 → 検証が再実行される（`id` が一致するため更新として処理される）。
+5. **Publish to users**（公開対象と Install を選択。**更新時も再選択が必要**） →
+   **Apply template**（Default で Next）→ **Accept permissions** → **Review & finish** → **Publish**。
+6. 「**You uploaded \<name\>**」表示で完了 → **Close**。
 
 > 注意:
 > - `id` を変えると別エージェント扱いになり、既存の公開設定・同意が引き継がれない。
 > - 詳細パネルの Version / 説明文表示はテナント側キャッシュで反映が数分遅れることがある。
-> - 公開対象（All users 等）は更新時に再選択不要（前回設定を継承）。
+> - **公開対象（All users / Install None 等）はウィザードで毎回選択**する（前回設定は自動継承されない）。
 
 ## 検証チェックリスト
 
