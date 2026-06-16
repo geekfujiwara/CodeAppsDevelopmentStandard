@@ -1,6 +1,6 @@
 ---
 name: cowork
-description: "目的特化型の Copilot Cowork プラグイン（M365 アプリパッケージ）を開発する。Agent Skills（SKILL.md）と Dataverse MCP コネクタをセットにし、Entra ID SSO 認証を構成して Teams 開発者ポータルで referenceId を取得、M365 管理センターのエージェント画面からアップロード・公開して Cowork から Dataverse を利用可能にする。"
+description: "目的特化型の Copilot Cowork プラグイン（M365 アプリパッケージ）を開発する。Agent Skills（SKILL.md）と Dataverse MCP コネクタをセットにし、Entra ID の OAuth 2.0 認可コードフロー認証を構成して Teams 開発者ポータルで registrationId を取得、M365 管理センターのエージェント画面からアップロード・公開して Cowork から Dataverse を利用可能にする。"
 category: automation
 triggers:
   - "Cowork"
@@ -29,7 +29,7 @@ triggers:
 # Cowork プラグイン開発（Dataverse MCP セット）
 
 目的特化型の **Copilot Cowork プラグイン**（M365 アプリパッケージ `.zip`）を作る。
-ビジネススキル（`SKILL.md`）と **Dataverse MCP コネクタ**をセットにし、**Entra ID SSO 認証**で
+ビジネススキル（`SKILL.md`）と **Dataverse MCP コネクタ**をセットにし、**Entra ID の OAuth 2.0 認可コードフロー認証**で
 Cowork から Dataverse を直接操作できるようにする。
 
 > 前提: 利用テナントが [Frontier プレビュー](https://adoption.microsoft.com/en-us/copilot/frontier-program/) に参加していること。
@@ -56,7 +56,45 @@ Cowork から Dataverse を直接操作できるようにする。
 2. **Frontier 参加**（管理者も Copilot → Settings → Frontier に登録）。
 3. ツール: Azure CLI（`az`）、PowerShell、Python（アイコン生成）。
 
+## スキル同梱スクリプト（再利用）
+
+`scripts/` のスクリプトは汎用化されており、どのテナント・環境でも `.env`（`TENANT_ID` /
+`DATAVERSE_URL` / `PUBLISHER_PREFIX` / `COWORK_OAUTH_CLIENT_ID`）を参照して動作する。
+
+| スクリプト | 用途 |
+|---|---|
+| [scripts/setup_entra_oauth.ps1](scripts/setup_entra_oauth.ps1) | Entra OAuth クライアントアプリの作成・`mcp.tools` 権限付与・シークレット作成・`.env` 書き込み（Step 2） |
+| [scripts/register_mcp_client.py](scripts/register_mcp_client.py) | Client ID を Dataverse 許可 MCP クライアント（`allowedmcpclients`）に登録・有効化・確認（Step 3） |
+
 ## ワークフロー（正常系）
+
+### Step 0: ヒアリング（プラグイン構想の提案）
+
+ユーザーが「プラグインを作りたい」「Cowork で〜したい」と相談してきたら、**いきなり実装に入らず**
+まず構想を提案する。以下の流れで会話を始める。
+
+1. **目的の確認**: 「Cowork 用のプラグインとして作りますか？ 例えば『〇〇業務を Cowork から
+   Dataverse のデータで支援する』ような形を想定しています」と確認する。
+2. **対象データの把握**: 連携する Dataverse 環境／テーブル（顧客・契約・実績など）をヒアリング。
+   不明なら `describe` / `search` 系で既存テーブルを軽く調べて候補を出す。
+3. **スキル案を5つ提案**: その業務ドメインで Cowork が役立つ**スキルを5つ程度**列挙する。
+   各スキルは「名前（kebab-case）＋一言の用途＋トリガー語の例」をセットで示す。
+
+   例（保守契約ドメインの場合）:
+   | スキル名 | 用途 | トリガー語の例 |
+   |---|---|---|
+   | `annual-customer-review` | 年次レビュー資料作成 | 「年間レビュー資料を作って」 |
+   | `contract-renewal-proposal` | 契約更新提案の下書き | 「更新提案をまとめて」 |
+   | `incident-trend-report` | 障害傾向レポート | 「故障傾向を分析して」 |
+   | `equipment-lifecycle-plan` | 機器更新計画 | 「更新計画を提案して」 |
+   | `cost-optimization-summary` | コスト最適化提案 | 「コスト削減案を出して」 |
+
+4. **プラグイン名を提案**: 5つのスキル群を束ねる**プラグイン名（短縮名 / 正式名）を 2〜3 案**提示する。
+   個社名は避け、業務ドメインが伝わる名前にする（例: 「MFP 年間レビュー」「保守契約アシスタント」）。
+5. **合意**: ユーザーが採用するスキル（1つでも複数でも可）とプラグイン名を選んだら、Step 1 以降に進む。
+
+> 最初は **1スキル + Dataverse MCP コネクタ**の最小構成で公開・疎通確認し、動いたら
+> 残りのスキルを追加する流れが安全（コネクタ認証の検証を先に済ませられる）。
 
 ### Step 1: スキル（SKILL.md）を作る
 
@@ -79,10 +117,23 @@ metadata:
 本文は **ワークフロー**として書く（番号付き手順／使用ツール名を明示／出力フォーマットを定義）。
 本文は約 1,500〜2,000 語以内。詳細は `references/` に逃がす（コンパニオンファイルは最大20・各5MB）。
 
-### Step 2: Entra アプリ（SSO クライアント）を作成・構成
+### Step 2: Entra アプリ（OAuth クライアント）を作成・構成
 
-Dataverse は Microsoft ファーストパーティ API のため、**Entra ID SSO 方式**を使う（シークレット不要）。
-Azure CLI で自動化する。
+Dataverse MCP は Microsoft ファーストパーティ API のため、トークンの **audience が Dataverse 自身**
+（`https://<org>.crm.dynamics.com`）である必要がある。**SSO 方式は audience が「自前アプリ」になり失敗する**
+（→ troubleshooting #14）。そのため **OAuth 2.0 認可コードフロー**を使い、Enterprise Token Store に
+Dataverse 宛のトークンを直接取得させる。**クライアントシークレットが必要**。値は `.env` に保存する。
+
+**再利用スクリプト（推奨）**: [scripts/setup_entra_oauth.ps1](scripts/setup_entra_oauth.ps1) が
+アプリ登録・`mcp.tools` 権限付与・シークレット作成・`.env` 書き込みを一括で行う（値は `.env` から取得）。
+
+```powershell
+# TENANT_ID は .env から取得。表示名やシークレット有効年数はパラメータで上書き可
+./.github/skills/cowork/scripts/setup_entra_oauth.ps1
+# 例: ./setup_entra_oauth.ps1 -DisplayName "Contoso-Cowork-OAuth" -TenantId <GUID>
+```
+
+手動で行う場合の同等コマンド:
 
 ```powershell
 $env:PATH = "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin;$env:PATH"
@@ -95,61 +146,79 @@ $appId = az ad app create --display-name "Cowork-DataverseMCP-OAuth" `
     "https://teams.microsoft.com/api/platform/v1.0/oAuthConsentRedirect" `
   --sign-in-audience AzureADMyOrg --query appId -o tsv
 
-# 2. Application ID URI を設定
-az ad app update --id $appId --identifier-uris "api://$appId" --only-show-errors
-
-# 3. Dynamics CRM の委任権限 user_impersonation を付与
+# 2. Dynamics CRM の委任権限 mcp.tools を付与（Dataverse MCP 専用スコープ）
 az ad app permission add --id $appId `
   --api 00000007-0000-0000-c000-000000000000 `
-  --api-permissions 78ce3f0f-a1ce-49c2-8cde-64b5c0896db4=Scope --only-show-errors
+  --api-permissions a4c5bee6-25ff-4bb5-b926-b7eb8062ae7a=Scope --only-show-errors
 
-# 4. スコープ access_as_user を公開（Graph PATCH。ボディは api でラップ）
-$objId = az ad app show --id $appId --query id -o tsv
-$scopeId = [guid]::NewGuid().ToString()
-$scope = @{ api = @{ oauth2PermissionScopes = @(@{
-  adminConsentDescription="Allow Cowork to access Dataverse MCP as the user.";
-  adminConsentDisplayName="Access Dataverse MCP"; id=$scopeId; isEnabled=$true;
-  type="User"; userConsentDescription="Allow Cowork to access Dataverse MCP as you.";
-  userConsentDisplayName="Access Dataverse MCP"; value="access_as_user" }) } } | ConvertTo-Json -Depth 6
-$scope | Out-File "$env:TEMP\scope.json" -Encoding utf8
-az rest --method PATCH --uri "https://graph.microsoft.com/v1.0/applications/$objId" `
-  --headers "Content-Type=application/json" --body "@$env:TEMP\scope.json" --only-show-errors
-
-# 5. Enterprise Token Store を事前承認（スコープ公開後に別 PATCH で実行）
-$pre = @{ api = @{ preAuthorizedApplications = @(@{
-  appId="ab3be6b7-f5df-413d-ac2d-abf1e3fd9c0b"; delegatedPermissionIds=@($scopeId) }) } } | ConvertTo-Json -Depth 6
-$pre | Out-File "$env:TEMP\preauth.json" -Encoding utf8
-az rest --method PATCH --uri "https://graph.microsoft.com/v1.0/applications/$objId" `
-  --headers "Content-Type=application/json" --body "@$env:TEMP\preauth.json" --only-show-errors
+# 3. クライアントシークレットを作成（OAuth 認可コードフローに必須）→ .env に保存
+$secret = az ad app credential reset --id $appId --display-name "cowork-oauth" `
+  --years 2 --query password -o tsv
+# .env の COWORK_OAUTH_CLIENT_ID / COWORK_OAUTH_CLIENT_SECRET に書き込む（Git にコミットしない）
+(Get-Content .env) `
+  -replace '^COWORK_OAUTH_CLIENT_ID=.*', "COWORK_OAUTH_CLIENT_ID=$appId" `
+  -replace '^COWORK_OAUTH_CLIENT_SECRET=.*', "COWORK_OAUTH_CLIENT_SECRET=$secret" |
+  Set-Content .env
 ```
 
-> ポイント: スコープ公開（手順4）と事前承認（手順5）は**別 PATCH に分ける**。同一ボディに含めると
-> `delegatedPermissionIds has a Permission Id that cannot be found` で失敗する（→ troubleshooting）。
-> `oauth2PermissionScopes` は必ず `api` プロパティでラップする。
+> ポイント:
+> - SSO と違い `Expose an API`（スコープ公開）も `preAuthorizedApplications` 事前承認も**不要**。
+>   認可コードフローは Dynamics CRM の委任スコープ `mcp.tools` を直接同意するため。
+> - API 権限は **`mcp.tools` のみ**でよい（`user_impersonation` は不要）。OAuth registration の scope を
+>   `.default` にすることで、このアプリに静的設定された `mcp.tools` が要求される。
+> - **シークレットは機密**。`.env` は `.gitignore` で除外する。スキルや manifest には絶対に書かない。
 
-### Step 3: Teams 開発者ポータルで SSO 登録 → referenceId 取得（ブラウザ）
+### Step 3: Entra Client ID を許可 MCP クライアントに登録（必須）
+
+OAuth 認可コードフローでは Dataverse に提示されるトークンの **appid がこのカスタムアプリ**になる。
+そのため、**Entra の Client ID を `allowedmcpclients` テーブルに登録・有効化**しないと、認証は通っても
+データ取得時に失敗する（ブログでも「抜けると plugin は正常に見えても Dataverse 利用時に失敗」と強調）。
+
+**再利用スクリプト（推奨）**: [scripts/register_mcp_client.py](scripts/register_mcp_client.py)（汎用・どのテナントでも可）。
+
+```powershell
+# .env の COWORK_OAUTH_CLIENT_ID を登録（未登録なら作成、既存なら有効化）
+python .github/skills/cowork/scripts/register_mcp_client.py
+
+# 状態確認のみ（副作用なし）
+python .github/skills/cowork/scripts/register_mcp_client.py --check
+# 一覧
+python .github/skills/cowork/scripts/register_mcp_client.py --list
+# app id を明示
+python .github/skills/cowork/scripts/register_mcp_client.py --app-id <CLIENT_ID> --name "Cowork Dataverse MCP"
+```
+
+> uniquename 未指定時は `<PUBLISHER_PREFIX>_<name のスラッグ>` で生成される。
+> GUI なら Power Platform 管理センター → 環境 → 設定 → 機能 →
+> Dataverse MCP の詳細設定（`etn=allowedmcpclient`）で +New。
+
+### Step 4: Teams 開発者ポータルで OAuth client 登録 → registrationId 取得（ブラウザ）
 
 [dev.teams.microsoft.com/tools](https://dev.teams.microsoft.com/tools) → Tools →
-**Microsoft Entra SSO client ID registration** → New。
+**OAuth client registration** → New（**SSO client registration ではない**）。
 
 | フィールド | 値 |
 |---|---|
-| Registration name | `Dataverse MCP (<org>)` |
-| Base URL | `https://<org>.crm.dynamics.com/api/mcp` |
-| Restrict usage by org | `Any Microsoft 365 Organization`（複数テナント配布時） |
-| Restrict usage by app | `Any Teams app`（公開前は未確定でよい） |
-| Client ID | Step 2 の `$appId` |
+| Registration name | `Dataverse MCP OAuth (<org>)` |
+| Base URL | `https://<org>.crm.dynamics.com`（**`/api/mcp` は付けない**。MCP URL は manifest 側に書く） |
+| Client ID | `.env` の `COWORK_OAUTH_CLIENT_ID` |
+| Client secret | `.env` の `COWORK_OAUTH_CLIENT_SECRET`（**画面に直接貼る／質問ツール禁止**） |
+| Authorization endpoint | `https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/authorize` |
+| Token endpoint | `https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/token` |
+| Refresh endpoint | `https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/token` |
+| Scope | `https://<org>.crm.dynamics.com/.default offline_access`（`.default` で静的権限＝`mcp.tools`、`offline_access` でリフレッシュトークン） |
+| Enable PKCE | 有効（推奨） |
+| Restrict usage by org | `My organization only`（単一テナント）／`Any Microsoft 365 Organization`（複数テナント配布時） |
+| Restrict usage by app | `Any Teams app`（**ストア検証が通るまではこちら**。公開・疎通確認後に Existing Teams app へ切替可） |
 
-Save すると **SSO registration ID** が発行される。
+Save すると **OAuth client registration ID** が発行される。これを `.env` の
+`COWORK_OAUTH_REGISTRATION_ID` に保存する。
 
-> **referenceId の形式**: manifest に書く値は `Base64( "<tenantId>##<registrationId>" )`。
-> 例: `f092b281-...##dc97a18b-...` を base64 化した文字列をそのまま `referenceId` に入れる。
-> ```powershell
-> [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("<tenantId>##<registrationId>"))
-> ```
-> ポータルが既に base64 形式の ID を提示する場合はそれをそのまま使う。
+> **referenceId の値**: OAuth 方式では発行された **registration ID をそのまま** `referenceId` に使う
+> （SSO 方式のような `Base64("<tenantId>##<regId>")` 変換は不要）。
 
-### Step 4: manifest.json を作成
+
+### Step 5: manifest.json を作成
 
 ```jsonc
 {
@@ -174,7 +243,7 @@ Save すると **SSO registration ID** が発行される。
           "mcpToolDescription": { "file": "dataverse-mcp-tools.json" },
           "authorization": {
             "type": "OAuthPluginVault",
-            "referenceId": "<Step 3 の SSO registration ID>"
+            "referenceId": "<Step 4 の OAuth registration ID（.env の COWORK_OAUTH_REGISTRATION_ID）>"
           }
         }
       }
@@ -205,7 +274,7 @@ Save すると **SSO registration ID** が発行される。
   ```
 - アイコンは `generate_icon_png.py`（standard/scripts）の `draw_agent_icon(192...)` / `draw_agent_icon(32, transparent_bg=True, outline_only=True)` で生成可。
 
-### Step 5: パッケージ（.zip）をビルド
+### Step 6: パッケージ（.zip）をビルド
 
 **manifest.json をルートに**置いて圧縮する（フォルダごと圧縮しない）。ツール説明 JSON も含める。
 
@@ -216,7 +285,7 @@ Compress-Archive -Path manifest.json, color.png, outline.png, dataverse-mcp-tool
 
 ZIP 検証: ルートに `manifest.json` / `dataverse-mcp-tools.json`、`skills/<skill-name>/SKILL.md` が含まれること。
 
-### Step 6: アップロード（M365 管理センター → エージェント画面）
+### Step 7: アップロード（M365 管理センター → エージェント画面）
 
 > ⚠️ Cowork プラグインは**「統合アプリ」ではなく、新しい「エージェント」画面**からアップロードする（UI 変更済み）。
 
@@ -231,18 +300,18 @@ ZIP 検証: ルートに `manifest.json` / `dataverse-mcp-tools.json`、`skills/
 > アップロード検証でエラーバーが出たら、同じファイルを再選択しても再検証されない。
 > エラーバーを閉じてから zip を選び直すこと。
 
-### Step 7: Cowork で利用・初回同意
+### Step 8: Cowork で利用・初回同意
 
 1. Cowork でスキルのトリガー語（例: 「年間レビュー資料を作って」）を入力
 2. 初回は Dataverse MCP コネクタの **OAuth 同意**が走る（Enterprise Token Store 経由）
 3. 同意後、`read_query` 等が実行されデータ取得 → 資料生成
 
-### Step 8: プラグインの更新（再公開）
+### Step 9: プラグインの更新（再公開）
 
 スキル本文・manifest・アイコン等を変更したら、**同じ `id` のまま再公開**する。
 
 1. manifest.json の **`version` をインクリメント**（例: `1.0.0` → `1.0.1`）。`id` は変更しない。
-2. zip を再ビルド（Step 5 と同じ。`dataverse-mcp-tools.json` も忘れず含める）。
+2. zip を再ビルド（Step 6 と同じ。`dataverse-mcp-tools.json` も忘れず含める）。
 3. 管理センター → **エージェント（Agents）** → 対象エージェントを開く →
    **More actions** → **Update in store**。
 4. **Update agent** ウィザードで新しい zip をアップロード（検証が再実行される）。
@@ -258,8 +327,9 @@ ZIP 検証: ルートに `manifest.json` / `dataverse-mcp-tools.json`、`skills/
 
 - [ ] `check_mcp_client.py cowork` が ✅
 - [ ] フォルダ名 = SKILL.md `name`（kebab-case）
-- [ ] Entra: identifierUri / redirect URI×2 / access_as_user / Enterprise Token Store 事前承認
-- [ ] Teams ポータルで referenceId 発行済み → manifest に反映
+- [ ] Entra: redirect URI×2 / Dynamics CRM **mcp.tools** / クライアントシークレット（.env）— `scripts/setup_entra_oauth.ps1`
+- [ ] Power Platform: Entra の **Client ID** を許可された MCP クライアントとして登録・有効化— `scripts/register_mcp_client.py`（`--check` で検証）
+- [ ] Teams ポータル **OAuth client registration**（SSO ではない）: Base URL は `/api/mcp` なし、scope は `.default offline_access`、Restrict by app = Any Teams app → registrationId を manifest に反映
 - [ ] manifest に `mcpToolDescription: { file: "dataverse-mcp-tools.json" }`（JSONツール定義）
 - [ ] ZIP ルートに manifest.json / dataverse-mcp-tools.json、skills/<name>/SKILL.md
 - [ ] 管理センターの**エージェント画面**からアップロード→Publish→Status=Available

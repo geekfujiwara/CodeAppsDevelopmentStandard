@@ -123,3 +123,26 @@ Compress-Archive -Path manifest.json, color.png, outline.png, skills -Destinatio
 
 > 補足: エラーバーを閉じずに同じファイルを再選択しても再検証されない。
 > エラーバー（`Close message bar`）を閉じ、ファイル入力をクリアしてから選び直す。
+
+## 14. Cowork でコネクタ認証が失敗する（SSO 方式は Dataverse で使えない）
+
+**症状**: アップロード・公開は成功し Cowork にプラグインが表示されるが、コネクタ接続で
+赤い「！」が出て「再試行」になる。スキルを実行してもデータ取得に至らない。
+
+**原因**: Dataverse MCP は Microsoft ファーストパーティ API で、受け取るトークンの
+**audience（aud）が Dataverse 自身**（`https://<org>.crm.dynamics.com`）であることを要求する。
+一方 **Entra SSO 方式**（Teams ポータルの「Microsoft Entra SSO client ID registration」）は、
+Enterprise Token Store が **自前アプリ（`api://<appId>`）宛て**のトークンを発行する。audience が
+Dataverse ではないため Dataverse 側が拒否し、認証が通らない（自前で OBO 交換でもしない限り不可）。
+
+**対処**: **OAuth 2.0 認可コードフロー**に切り替える（→ SKILL.md Step 2〜3）。
+- Teams ポータルでは **SSO client registration ではなく「OAuth client registration」**を使う。
+- Entra アプリに**クライアントシークレット**を作成し `.env` に保存（Git 非コミット）。
+- Scope に `https://<org>.crm.dynamics.com/user_impersonation` を指定 → Enterprise Token Store が
+  **Dataverse 宛トークンを直接取得**するので audience が一致して通る。
+- OAuth 方式では `Expose an API`・`preAuthorizedApplications`・`identifierUris` は不要。
+- referenceId は発行された **registration ID をそのまま**使う（`Base64("tenant##regId")` 変換は SSO 専用）。
+
+> 見分け方: コネクタの「！」にカーソルを合わせ、`AADSTS500011`（リソース未登録）や
+> `invalid audience` 系のメッセージが出ていれば audience 不一致 = SSO 方式が原因。
+
