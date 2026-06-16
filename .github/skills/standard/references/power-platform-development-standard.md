@@ -328,7 +328,22 @@ python .github/skills/standard/scripts/auth_helper.py
 
 ### 2.4 Dataverse MCP サーバー設定
 
-`.mcp/` ディレクトリ内に Dataverse MCP サーバー設定を配置する。これにより GitHub Copilot から直接テーブル操作が可能になる。
+VS Code / GitHub Copilot から Dataverse を直接操作するには、ワークスペース直下に `.vscode/mcp.json` を配置する（URL は `.env` の `DATAVERSE_URL` から導出、末尾スラッシュなしで `/api/mcp` を付与）。
+
+```jsonc
+// .vscode/mcp.json
+{
+  "servers": {
+    "DataverseMcp": {
+      "type": "http",
+      "url": "https://{org}.crm.dynamics.com/api/mcp"
+    }
+  }
+}
+```
+
+起動前にクライアントの有効状態を確認する（`python .github/skills/standard/scripts/check_mcp_client.py copilot`）。
+詳細な手順・トラブルシュート（IPv6 不通時の回避等）は [Dataverse MCP 登録](dataverse-mcp-setup.md) を参照。
 
 ---
 
