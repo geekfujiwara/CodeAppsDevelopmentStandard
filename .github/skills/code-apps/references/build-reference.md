@@ -17,6 +17,9 @@
 ### Step 1: テンプレート scaffold + プロジェクト初期化
 
 ```bash
+# ⓪ .gitignore が存在しなければテンプレートからコピー（node_modules/ 等の除外に必須）
+cp -n .github/skills/standard/references/gitignore-template .gitignore
+
 # ① テンプレート scaffold（vite.config.ts / plugins/plugin-power-apps.ts / styles/ / src/ 一式）
 #    標準では @GeekPowerCode が scaffold する。手動で行う場合:
 #    npx degit github:microsoft/PowerAppsCodeApps/templates/vite .

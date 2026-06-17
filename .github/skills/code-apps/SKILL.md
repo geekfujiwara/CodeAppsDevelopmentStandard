@@ -177,6 +177,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 ```bash
 # Step 0: テンプレート scaffold（標準では @GeekPowerCode が scaffold）
+cp -n .github/skills/standard/references/gitignore-template .gitignore   # .gitignore がなければコピー
 npm install
 
 # Step 1: 初期化 — power.config.json を生成（PAC CLI 認証でテナント不一致なし）

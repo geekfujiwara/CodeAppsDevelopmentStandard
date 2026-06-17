@@ -12,11 +12,18 @@
 
 ```bash
 mkdir <your-theme-name> && cd <your-theme-name>
-npx degit geekfujiwara/CodeAppsDevelopmentStandard .github
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
+cp .github/skills/standard/references/gitignore-template .gitignore
 # 取得後、@GeekPowerCode に「新規テーマ: [テーマ名]を作成してください」と依頼
 ```
 
 ## チェックリスト（実装開始前）
+
+### 0. `.gitignore` が存在すること
+
+- [ ] ルートに `.gitignore` がある — なければ `cp .github/skills/standard/references/gitignore-template .gitignore` でコピー
+
+> `.gitignore` がないと `node_modules/`・`dist/`・`.power/`・`.env`・`src/generated/` 等がすべてコミット対象になる。
 
 ### 1. SDK 生成物が存在しないこと（あれば前テーマの残骸）
 

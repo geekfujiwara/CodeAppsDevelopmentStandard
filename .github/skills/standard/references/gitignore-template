@@ -1,0 +1,80 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Copilot memories (session/user notes)
+memories/
+
+# spec-to-markdown default workspace
+work/input/*
+!work/input/.gitkeep
+work/staging/
+work/docs/
+work/conversion-checklist.json
+
+# Build output
+dist/
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# IDE
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Authentication cache (auth_helper.py)
+.auth_record.json
+
+# Power Platform
+.power/
+.auth_record.json
+*.log
+
+# SDK generated (npx power-apps add-data-source で再生成)
+src/generated/
+power.config.json
+
+# App-specific code (テンプレートには含めない)
+src/pages/incident-*.tsx
+src/pages/incidents.tsx
+src/hooks/use-incidents.ts
+src/services/incident-service.ts
+src/lib/incident-types.ts
+
+# Python
+__pycache__/
+
+# Generated images (preview/test)
+*_preview.png
+*_icon.png
+*.pyc
+.venv/
+
+# Debug artifacts
+scripts/*_debug.json
+deploy_log*.txt
+dump_*.txt
+cs_data.txt
+gpt_data.txt
+check_log.txt
+icon_*.png
+icon_*.txt
+icon_preview.svg
+
+# Build info
+tsconfig.tsbuildinfo

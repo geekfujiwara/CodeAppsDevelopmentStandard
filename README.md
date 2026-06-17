@@ -141,11 +141,15 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 
 ### 手順
 
-テーマ用ワークスペースフォルダを開いた状態で、以下のコマンドを実行してエージェント・スキルを取得します。
+テーマ用ワークスペースフォルダを開いた状態で、以下のコマンドを実行してエージェント・スキルと `.gitignore` を取得します。
 
 ```bash
 npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
+cp .github/skills/standard/references/gitignore-template .gitignore
 ```
+
+> [!NOTE]
+> `.gitignore` がないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になります。必ずコピーしてください。
 
 取得後、**@GeekPowerCode** に新規テーマ開発を依頼します。`spec/input/` フォルダにドキュメントや画像を配置して **/spec-to-markdown** で依頼することもできます。
 
@@ -165,7 +169,10 @@ gh repo create <your-account>/<your-theme-repo> --private --clone && cd <your-th
 # 2. エージェント・スキルを取得
 npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
 
-# 3. @GeekPowerCode にプロジェクト scaffold を依頼
+# 3. .gitignore をコピー（node_modules/ 等の除外に必須）
+cp .github/skills/standard/references/gitignore-template .gitignore
+
+# 4. @GeekPowerCode にプロジェクト scaffold を依頼
 ```
 
 > [!TIP]
