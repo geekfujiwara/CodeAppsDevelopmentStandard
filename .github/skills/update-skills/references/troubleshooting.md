@@ -38,3 +38,26 @@
 ## 8. push 直前スキャンでシークレットが見つかった
 - 即中止。コミット済みなら `git restore --staged` / 履歴に入っていれば該当コミットを作り直す。
 - `.env` がステージされていないか（`.gitignore` 済みか）を必ず確認する。
+
+## 9. `validate_skill.py` が Windows コンソールで `UnicodeEncodeError`（❌ 等）
+- 原因: 既定コンソールが cp932 で、絵文字マーカーを出力できない。
+- 対処: スクリプトは `sys.stdout.reconfigure(encoding="utf-8")` を試み、失敗時は `[NG]`/`[WARN]`/`[OK]` の
+  ASCII マーカーに自動フォールバックするため、そのまま動く。明示的に UTF-8 化したい場合は
+  `$env:PYTHONIOENCODING="utf-8"` を設定する。
+
+## 10. `@odata.bind` 等が「実メールらしき値」として誤検出される
+- 原因: `parentbotid@odata.bind` のような OData アノテーションが `@` を含む。
+- 対処: validator は `@odata.` / `@microsoft.` / `@xmlns.` と `noreply.github.com` を許可リストで除外する。
+  別パターンの誤検出は `validate_skill.py` の `NON_EMAIL_RE` / `EMAIL_ALLOW` に追記する。
+
+## 11. `publish_skill.py` の clone 先で commit が `please tell me who you are`
+- 原因: 新規 clone には git identity（user.name / user.email）が未設定。
+- 対処: `publish_skill.py` は `gh api user` のログインから identity を解決して
+  `git -c user.name=... -c user.email=...` でコミットするため通常は自動解決する。
+  手動でクローンした場合は `git config user.name` / `git config user.email` を設定してからコミットする。
+
+## 12. `publish_skill.py` の使い方メモ
+- 必須: `.env` に `SKILL_PR_REPO`（owner/repo）。`gh auth status` が認証済みであること。
+- 主オプション: `--skill <name>`（必須）/ `--extra <path>`（README・agents 等の集約ファイルを同時反映、複数可）/
+  `--branch`（既定 `skill/<name>`）/ `--dry-run`（push・PR をスキップして検証のみ）。
+- 既存の同名ブランチ/PR があれば自動で更新（新規 PR を作らない）。
