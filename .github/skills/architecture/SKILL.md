@@ -141,6 +141,30 @@ triggers:
    — LLM が Instructions に基づいてツール呼び出しを自律的に判断
 ```
 
+### ★ 構築アーキテクチャの選択（Copilot Studio 採用時に必ず確認）
+
+Copilot Studio を採用すると決まったら、**v2（新アーキ）/ v1（旧アーキ）のどちらで作るかを必ずユーザーに確認する**。
+**特に希望がなければ v2 を推奨する**（UI 操作なしで自動構築でき、再現性・量産性に優れるため）。
+
+AskUserQuestion で次のように尋ねる:
+
+> Copilot Studio エージェントの構築方法を選べます。どちらにしますか？
+> - **v2（新アーキテクチャ / cliagent）【推奨】**: Dataverse API だけで UI 操作なしに自動構築。フラット Python スキルでツール挙動を実装。再現構築・量産向け。
+> - **v1（旧アーキテクチャ / classic）**: Bot 作成は UI 手動。conversationStarters・会話の開始・クイック返信の作り込みや、外部公開・トリガー・ニュース配信などの既存 references 資産を流用したい場合。
+
+| 選択 | 使用スキル |
+|---|---|
+| **v2（推奨・既定）** | [`copilot-studio-v2`](../copilot-studio-v2/SKILL.md) |
+| v1 | [`copilot-studio`](../copilot-studio/SKILL.md) |
+
+| 判断軸 | v2（新アーキ） | v1（旧アーキ） |
+|---|---|---|
+| 自動構築（UI 操作不要） | ✅ | ❌ UI 手動が必要 |
+| conversationStarters / 会話の開始 / クイック返信の作り込み | △ | ✅ |
+| 外部公開（Web 埋め込み・WebChat SDK）・トリガー・ニュース配信の既存資産 | △ | ✅ |
+| 再現構築・量産・プログラム的改変 | ✅ | △ |
+| フラット Python スキルでツール挙動を実装 | ✅ | ― |
+
 ---
 
 ## 4. Power Automate を使う判断ポイント
