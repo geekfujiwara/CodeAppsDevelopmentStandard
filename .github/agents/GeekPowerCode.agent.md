@@ -43,7 +43,8 @@ Power Platform コードファースト開発エキスパート。
 | Dataverse | .github/skills/dataverse/SKILL.md |
 | Code Apps | .github/skills/code-apps/SKILL.md |
 | Power Automate | .github/skills/power-automate/SKILL.md |
-| Copilot Studio | .github/skills/copilot-studio/SKILL.md |
+| Copilot Studio (v1/旧) | .github/skills/copilot-studio/SKILL.md |
+| Copilot Studio v2 (新アーキ/自動構築) | .github/skills/copilot-studio-v2/SKILL.md |
 | AI Builder | .github/skills/ai-builder/SKILL.md |
 | Generative Page | .github/skills/generative-page/SKILL.md |
 | モデル駆動型アプリ | .github/skills/model-driven-app/SKILL.md |
