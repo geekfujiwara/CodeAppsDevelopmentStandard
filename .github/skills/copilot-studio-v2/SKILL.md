@@ -1,6 +1,6 @@
 ---
 name: copilot-studio-v2
-description: "Copilot Studio の「全く新しいアーキテクチャ」（cliagent テンプレート）エージェントを Dataverse Web API だけで完全自動構築する。UI 手動作成不要。Bot 作成・Instructions/モデル/メモリ設定・フラット Python スキル添付までスクリプトで完結。"
+description: "Copilot Studio の「全く新しいアーキテクチャ」（cliagent テンプレート）エージェントを Dataverse Web API だけで完全自動構築する。UI 手動作成不要。Bot 作成・Instructions/モデル/メモリ設定・フラット Python スキル添付・アイコン登録・MCP サーバー追加（Dataverse / Work IQ）・公開までスクリプトで完結。"
 category: automation
 triggers:
   - "Copilot Studio v2"
@@ -20,6 +20,12 @@ triggers:
   - "enableMemory"
   - "Sonnet46"
   - "エージェント v2"
+  - "エージェント アイコン"
+  - "MCP サーバー 追加"
+  - "Dataverse MCP"
+  - "Work IQ"
+  - "PvaPublish"
+  - "エージェント 公開"
 ---
 
 # Copilot Studio v2（新アーキテクチャ）エージェント構築スキル
@@ -58,13 +64,28 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 
 ```
 1. .env 準備（DATAVERSE_URL / TENANT_ID / 任意で SOLUTION_NAME・PUBLISHER_PREFIX）
-2. 設計提示 → ユーザー承認（名前・Instructions・モデル・スキル構成）
+2. 設計提示 → ユーザー承認（名前・Instructions・モデル・スキル・アイコン・MCP 構成）
 3. scripts/create_agent.py     … cliagent Bot を API 作成 + プロビジョニング待ち
-4. scripts/attach_skill.py     … フラット Python スキルを添付（type=9 + type=14）
-5. scripts/verify_agent.py     … 構造検証（filedata 実体ダウンロード確認）
-6. pac copilot list            … Provisioned / Active を確認
-7. Preview で動作テスト（ユーザー）
+4. scripts/set_icon.py         … アイコン登録（240 / Teams color 192 / outline 32）
+5. scripts/attach_skill.py     … フラット Python スキルを添付（type=9 + type=14）
+6. scripts/add_mcp_server.py   … MCP サーバー追加（Dataverse / Work IQ 等・接続参照込み）
+7. scripts/publish_agent.py    … PvaPublish で公開
+8. scripts/verify_agent.py     … 構造検証（filedata 実体ダウンロード確認）
+9. pac copilot list            … Published / Active / Provisioned を確認
+10. UI で MCP サーバーを「確認(Confirm)」… ★MCP 含む場合の正常系（後述）
+11. Preview で動作テスト（ユーザー）
 ```
+
+> **一括実行**: 上記 3〜7 は [scripts/deploy_agent.py](scripts/deploy_agent.py) で
+> ワンショット実行できる（`.env` の構成に従い作成→アイコン→スキル→MCP→公開を連結）。
+
+### MCP を含む場合の「確認(Confirm)」は正常系（重要）
+
+MCP サーバーを API で追加し公開しても、**初回は Copilot Studio UI で MCP サーバーの
+「確認(Confirm)」が一度必要**になることがある。これは Dataverse レコードを変更せず
+（Confirm 前後で差分なし）、セッション側で接続を再バインドする動作。**再公開だけでは
+エラーが消えないことがある**ため、自動デプロイの最後に「UI で一度 Confirm する」手順を
+**正常系として組み込む**。詳細は [MCP サーバーの追加](references/mcp-servers.md) を参照。
 
 ## 必須要件・落とし穴（実機検証済み）
 
@@ -124,6 +145,22 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 
 詳細は [スキルバンドル構造](references/skill-bundle-structure.md) を参照。
 
+### アイコン・MCP・公開（実機検証済み）
+
+```
+✅ アイコンは bots.iconbase64(240) ＋ teams.colorIcon(192)/outlineIcon(32) の 3 か所へ登録
+   ⚠ bots を PATCH する際は name 列を必ず同送（無いと 0x80040265 エラー）
+✅ MCP は botcomponent type=9 / data の kind:McpTool（connector/operationId/接続参照）
+   ⚠ 接続参照の論理名はコネクタ名を「フル」で：{botschema}.cr.{connector}.{接続GUID}
+     切詰めると公開時に「1 missing connection reference」で失敗する
+   ⚠ 対象コネクタの Connected な接続が環境に必要（接続自体は API 作成不可）
+✅ 公開は PvaPublish。状態確認は pac copilot list（publishedon は None のことがある）
+⚠ MCP 含む場合は公開後に UI で MCP サーバーの「確認(Confirm)」が一度必要（正常系）
+```
+
+詳細は [MCP サーバーの追加](references/mcp-servers.md) と
+[アイコン登録と公開](references/icon-and-publish.md) を参照。
+
 ### よくあるエラー
 
 | 症状 | 原因 | 対処 |
@@ -131,6 +168,9 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 | `0x8004023b "Connection State is closed"` | Bot プロビジョニング直後で認可セッション未確立 | 数秒待って **リトライ**（一時エラー） |
 | `undeclared property 'parentbotcomponentid'` | 親ナビ名が誤り | `ParentBotComponentId`（Pascalケース）を使う |
 | `bot $select` で 400 | 新アーキに存在しない列を指定 | 全列取得してから必要列をフィルタ |
+| `0x80040265`（bots 更新不可） | PATCH に `name` 列を含めていない | アイコン等の PATCH でも `name` を同送 |
+| 公開時 `1 missing connection reference` | 接続参照の論理名でコネクタ名を切詰めた | コネクタ名は**フル**で論理名を生成 |
+| 公開後も MCP がエラー | UI の「確認(Confirm)」未実施 | UI で MCP サーバーを **Confirm**（再公開だけでは消えないことがある） |
 | 日本語出力で `UnicodeEncodeError`（cp932） | Windows コンソール既定 | `sys.stdout.reconfigure(encoding="utf-8")` |
 
 ## スクリプト一覧
@@ -138,7 +178,11 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 | スクリプト | 用途 |
 |---|---|
 | [scripts/create_agent.py](scripts/create_agent.py) | cliagent Bot を API 作成 + プロビジョニング待ち |
+| [scripts/set_icon.py](scripts/set_icon.py) | アイコン登録（iconbase64 / Teams color / outline） |
 | [scripts/attach_skill.py](scripts/attach_skill.py) | フラット Python スキルを添付（type=9 + type=14） |
+| [scripts/add_mcp_server.py](scripts/add_mcp_server.py) | MCP サーバー追加（接続参照 + McpTool。Dataverse / Work IQ） |
+| [scripts/publish_agent.py](scripts/publish_agent.py) | PvaPublish で公開（リトライ付き） |
+| [scripts/deploy_agent.py](scripts/deploy_agent.py) | 一括: 作成→アイコン→スキル→MCP→公開 を連結 |
 | [scripts/verify_agent.py](scripts/verify_agent.py) | 構造検証（filedata 実体ダウンロード確認） |
 | [scripts/analyze_agent.py](scripts/analyze_agent.py) | 既存エージェントの構成・コンポーネントをダンプ |
 
@@ -151,6 +195,8 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 | [新アーキテクチャ構造](references/new-architecture.md) | cliagent の BotConfiguration / botcomponents 全体像と v1 との対比 |
 | [フラット Python スキルの書き方](references/flat-python-skill.md) | JS 不使用・Base64 画像・フラット構成の実装テンプレート |
 | [スキルバンドル構造](references/skill-bundle-structure.md) | type=9/14・親バインド・filedata アップロードの詳細 |
+| [MCP サーバーの追加](references/mcp-servers.md) | 接続参照規約・operationId・公開後の Confirm（正常系） |
+| [アイコン登録と公開](references/icon-and-publish.md) | iconbase64/Teams アイコン・PvaPublish・name 同送の注意 |
 
 ## .env 必須項目
 
@@ -166,4 +212,10 @@ PUBLISHER_PREFIX=geek
 AGENT_NAME=my-new-agent
 AGENT_SCHEMA=geek_mynewagent
 AGENT_MODEL_SERIES=Sonnet46
+# set_icon.py 用（任意）
+ICON_TEXT=A
+ICON_BG_COLOR=#2563EB
+ICON_ACCENT_COLOR=#22C55E
+# deploy_agent.py の MCP 一括追加（"connector|表示名" をカンマ区切り）
+MCP_CONNECTORS=shared_commondataserviceforapps|Microsoft Dataverse MCP サーバー
 ```
