@@ -67,17 +67,18 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 2. 設計提示 → ユーザー承認（名前・Instructions・モデル・スキル・アイコン・MCP 構成）
 3. scripts/create_agent.py     … cliagent Bot を API 作成 + プロビジョニング待ち
 4. scripts/set_icon.py         … アイコン登録（240 / Teams color 192 / outline 32）
-5. scripts/attach_skill.py     … フラット Python スキルを添付（type=9 + type=14）
-6. scripts/add_mcp_server.py   … MCP サーバー追加（Dataverse / Work IQ 等・接続参照込み）
-7. scripts/publish_agent.py    … PvaPublish で公開
-8. scripts/verify_agent.py     … 構造検証（filedata 実体ダウンロード確認）
-9. pac copilot list            … Published / Active / Provisioned を確認
-10. UI で MCP サーバーを「確認(Confirm)」… ★MCP 含む場合の正常系（後述）
-11. Preview で動作テスト（ユーザー）
+5. scripts/set_app_details.py  … Edit details(説明文・開発元・リンク・Teams 設定・M365 有効化)
+6. scripts/attach_skill.py     … フラット Python スキルを添付（type=9 + type=14）
+7. scripts/add_mcp_server.py   … MCP サーバー追加（Dataverse / Work IQ 等・接続参照込み）
+8. scripts/publish_agent.py    … PvaPublish で公開
+9. scripts/verify_agent.py     … 構造検証（filedata 実体ダウンロード確認）
+10. pac copilot list           … Published / Active / Provisioned を確認
+11. UI で MCP サーバーを「確認(Confirm)」… ★MCP 含む場合の正常系（後述）
+12. Preview で動作テスト（ユーザー）
 ```
 
-> **一括実行**: 上記 3〜7 は [scripts/deploy_agent.py](scripts/deploy_agent.py) で
-> ワンショット実行できる（`.env` の構成に従い作成→アイコン→スキル→MCP→公開を連結）。
+> **一括実行**: 上記 3〜8 は [scripts/deploy_agent.py](scripts/deploy_agent.py) で
+> ワンショット実行できる（`.env` の構成に従い作成→アイコン→Edit details→スキル→MCP→公開を連結）。
 
 ### MCP を含む場合の「確認(Confirm)」は正常系（重要）
 
@@ -179,10 +180,11 @@ MCP サーバーを API で追加し公開しても、**初回は Copilot Studio
 |---|---|
 | [scripts/create_agent.py](scripts/create_agent.py) | cliagent Bot を API 作成 + プロビジョニング待ち |
 | [scripts/set_icon.py](scripts/set_icon.py) | アイコン登録（iconbase64 / Teams color / outline） |
+| [scripts/set_app_details.py](scripts/set_app_details.py) | Edit details 設定（PVA ゲートウェイ）。アイコン・説明文・開発元・リンク・MPN・store表示・Teams scopes・通話・SSO・M365 有効化。未設定はデフォルト補完 |
 | [scripts/attach_skill.py](scripts/attach_skill.py) | フラット Python スキルを添付（type=9 + type=14） |
 | [scripts/add_mcp_server.py](scripts/add_mcp_server.py) | MCP サーバー追加（接続参照 + McpTool。Dataverse / Work IQ） |
 | [scripts/publish_agent.py](scripts/publish_agent.py) | PvaPublish で公開（リトライ付き） |
-| [scripts/deploy_agent.py](scripts/deploy_agent.py) | 一括: 作成→アイコン→スキル→MCP→公開 を連結 |
+| [scripts/deploy_agent.py](scripts/deploy_agent.py) | 一括: 作成→アイコン→Edit details→スキル→MCP→公開 を連結 |
 | [scripts/verify_agent.py](scripts/verify_agent.py) | 構造検証（filedata 実体ダウンロード確認） |
 | [scripts/analyze_agent.py](scripts/analyze_agent.py) | 既存エージェントの構成・コンポーネントをダンプ |
 
@@ -197,6 +199,7 @@ MCP サーバーを API で追加し公開しても、**初回は Copilot Studio
 | [スキルバンドル構造](references/skill-bundle-structure.md) | type=9/14・親バインド・filedata アップロードの詳細 |
 | [MCP サーバーの追加](references/mcp-servers.md) | 接続参照規約・operationId・公開後の Confirm（正常系） |
 | [アイコン登録と公開](references/icon-and-publish.md) | iconbase64/Teams アイコン・PvaPublish・name 同送の注意 |
+| [Edit details(チャネル メタデータ)](references/app-details.md) | Publish の Edit details を保存する PVA ゲートウェイ API・ペイロード対応・アイコン要件・ドラフト→公開 |
 
 ## .env 必須項目
 
