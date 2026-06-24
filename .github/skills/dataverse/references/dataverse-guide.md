@@ -308,6 +308,42 @@ try {
 
 ---
 
+## 標準テーブル再利用ガイド
+
+新規テーブルを設計する前に、`scan_environment.py` で環境をスキャンし、以下の標準テーブルを**再利用**できないか必ず検討する。多くの環境では Dynamics 365 / Field Service 等によりすでに整備済み。
+
+### 再利用すべき代表的な標準テーブル
+
+| 論理名 | 用途 | 再利用方針 |
+|---|---|---|
+| `systemuser` | ユーザー（担当者・所有者） | **カスタムユーザーテーブルを作らない**。Lookup または `ownerid`/`createdby`/`modifiedby` を使う |
+| `businessunit` / `team` | 組織・チーム | 行レベルセキュリティ・テリトリ表現に活用 |
+| `account` | 取引先企業（顧客） | 顧客マスタを新規作成しない。customer 型 Lookup で参照 |
+| `contact` | 取引先担当者（顧客個人） | account と対で再利用 |
+| `lead` / `opportunity` / `campaign` | リード・商談・キャンペーン | 標準テーブルが要件に合うなら再利用を検討 |
+| `product` / `pricelevel` / `uom` | 製品・価格表・単位 | 製品マスタを新規作成しない |
+| `transactioncurrency` | 通貨 | 複数通貨対応は標準機能を使う |
+| `activitypointer` 系 | 活動（タスク/メール/電話） | 活動記録は標準の activity テーブルを活用 |
+
+### 顧客参照は customer 型 Lookup
+
+`account` と `contact` の両方を指せるポリモーフィックな Lookup（customer 型）を使う。標準の `opportunity.customerid` と同じ構造。
+
+```python
+# customer 型 Lookup の書き込み（account の場合）
+{ "{prefix}_customerid_account@odata.bind": "/accounts({account-id})" }
+# contact の場合
+{ "{prefix}_customerid_contact@odata.bind": "/contacts({contact-id})" }
+```
+
+### 再利用するか新規にするかの判断軸
+
+- 標準/既存テーブルの**列が要件をおおむね満たす** → 再利用（不足列はカスタム列として追加）。
+- 既存テーブルと**概念が重複**する → 新規作成しない（二重管理になる）。
+- 既存にない**要件固有の概念** → 新規作成。
+
+---
+
 ## トラブルシューティング
 
 ### データソース名のエラー
