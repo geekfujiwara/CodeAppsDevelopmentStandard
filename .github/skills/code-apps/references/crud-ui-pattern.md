@@ -21,6 +21,98 @@
 4. **作成（新規）だけはモーダル or 専用インラインフォームでよい**
    - 既存レコードの編集はインライン。新規作成は一覧上部のフォーム／ダイアログで可。
 
+5. **削除確認はブラウザの `confirm()` ではなくモーダル（AlertDialog）**
+   - ブラウザ標準のポップアップ（`window.confirm` / `alert`）は使わない。アプリのテーマと不一致でデザインが崩れるため。
+   - Promise ベースの `useConfirm()` フックで `if (!(await confirm({...}))) return` の形に置き換える。削除は `destructive: true`。
+
+---
+
+## 削除確認モーダル（Promise ベース）
+
+`AlertDialog`（shadcn/radix）をアプリ全体に 1 つ置き、`useConfirm()` で呼び出す。`window.confirm` と同じ「ガード」記法のまま、見た目だけモーダルになる。
+
+`src/providers/confirm-provider.tsx`:
+
+```tsx
+import { createContext, useCallback, useContext, useRef, useState } from "react"
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+
+export type ConfirmOptions = {
+  title?: string; description?: string
+  confirmText?: string; cancelText?: string; destructive?: boolean
+}
+type ConfirmFn = (options?: ConfirmOptions) => Promise<boolean>
+const ConfirmContext = createContext<ConfirmFn | null>(null)
+
+export function ConfirmProvider({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const [opts, setOpts] = useState<ConfirmOptions>({})
+  const resolver = useRef<(v: boolean) => void>(() => {})
+  const confirm = useCallback<ConfirmFn>((options) => {
+    setOpts(options ?? {}); setOpen(true)
+    return new Promise<boolean>((resolve) => { resolver.current = resolve })
+  }, [])
+  const close = (v: boolean) => { setOpen(false); resolver.current(v) }
+  return (
+    <ConfirmContext.Provider value={confirm}>
+      {children}
+      <AlertDialog open={open} onOpenChange={(o) => { if (!o) close(false) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{opts.title ?? "確認"}</AlertDialogTitle>
+            {opts.description ? <AlertDialogDescription className="whitespace-pre-wrap">{opts.description}</AlertDialogDescription> : null}
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => close(false)}>{opts.cancelText ?? "キャンセル"}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => close(true)}
+              className={cn(opts.destructive && buttonVariants({ variant: "destructive" }))}>
+              {opts.confirmText ?? "OK"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </ConfirmContext.Provider>
+  )
+}
+export function useConfirm(): ConfirmFn {
+  const ctx = useContext(ConfirmContext)
+  if (!ctx) throw new Error("useConfirm must be used within a ConfirmProvider")
+  return ctx
+}
+```
+
+`App.tsx` で `RouterProvider` を `ConfirmProvider` で包む（他の Provider より内側、Router より外側）:
+
+```tsx
+<QueryProvider>
+  <ConfirmProvider>
+    <RouterProvider router={router} />
+  </ConfirmProvider>
+</QueryProvider>
+```
+
+各削除ハンドラ:
+
+```tsx
+const confirm = useConfirm()
+
+const handleDelete = async (item) => {
+  if (!(await confirm({
+    title: "削除の確認",
+    description: `「${item.name}」を削除しますか？`,
+    confirmText: "削除",
+    destructive: true,
+  }))) return
+  await deleteMutation.mutateAsync(item.id)
+  toast.success("削除しました")
+}
+```
+
 ---
 
 ## テーブル一覧（行クリック）
@@ -137,3 +229,4 @@ return editing ? (
 - [ ] 保存／キャンセル／削除がインラインに揃っている
 - [ ] 詳細は ID 保持＋クエリ導出で最新値を反映
 - [ ] 対象切替時に編集モードをリセット（`useEffect`）
+- [ ] 削除確認は `useConfirm()` モーダル（ブラウザ `confirm()` を使わない）
