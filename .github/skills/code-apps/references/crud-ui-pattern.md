@@ -220,6 +220,97 @@ return editing ? (
 
 ---
 
+## 一覧の検索・フィルター・重要列（標準）
+
+一覧は単なる名称検索で終わらせず、**「誰のレコードか（所有者）」「金額などの重要数値」を列として表示し、それらで絞り込み・検索できる**ようにする。営業系（リード・商談・活動・キャンペーン等）の一覧はこの構成を標準とする。
+
+### 構成要素
+
+| 要素 | 内容 |
+|---|---|
+| 検索ボックス | 名称＋関連名（取引先名・会社名・メール等）を横断検索 |
+| フィルター（ステータス/ステージ） | OptionSet ラベルから `Select` を生成。`"all"` で全件 |
+| フィルター（所有者） | **実データに存在する所有者のみ**列挙（全ユーザーを出さない） |
+| 重要列（所有者） | `_owninguser_value` + systemusers Map で名前表示（→ [Lookup 名前解決](lookup-resolution.md)） |
+| 重要列（金額） | `formatCurrency`。絞り込み結果の**合計**もツールバーに表示 |
+| 件数・合計表示 | `{filtered.length} 件 / 合計 {formatCurrency(total)}` |
+
+### 実装パターン
+
+```tsx
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+const { data: rows = [] } = useOpportunities()
+const { data: users = [] } = useSystemUsers()
+
+const [search, setSearch] = useState("")
+const [stageFilter, setStageFilter] = useState("all")
+const [ownerFilter, setOwnerFilter] = useState("all")
+
+// 所有者名の Map（→ lookup-resolution.md）
+const userMap = useMemo(() => {
+  const m = new Map<string, string>()
+  users.forEach((u) => m.set(u.systemuserid, u.fullname ?? ""))
+  return m
+}, [users])
+
+// フィルターの所有者候補は「実データに存在する所有者」だけ
+const ownerOptions = useMemo(() => {
+  const ids = new Set<string>()
+  rows.forEach((r) => { if (r._owninguser_value) ids.add(r._owninguser_value) })
+  return Array.from(ids).map((id) => ({ id, name: userMap.get(id) ?? id }))
+}, [rows, userMap])
+
+// 検索 + フィルターを一度に適用
+const filtered = useMemo(() => {
+  const s = search.toLowerCase()
+  return rows.filter((r) => {
+    if (s) {
+      const acc = r._{prefix}_accountid_value ? (accountMap.get(r._{prefix}_accountid_value) ?? "").toLowerCase() : ""
+      if (!r.{prefix}_name?.toLowerCase().includes(s) && !acc.includes(s)) return false
+    }
+    if (stageFilter !== "all" && String(r.{prefix}_stage) !== stageFilter) return false
+    if (ownerFilter !== "all" && r._owninguser_value !== ownerFilter) return false
+    return true
+  })
+}, [rows, search, stageFilter, ownerFilter, accountMap])
+
+const totalAmount = useMemo(() => filtered.reduce((sum, r) => sum + (r.{prefix}_amount ?? 0), 0), [filtered])
+```
+
+ツールバー（検索 + 2 フィルター + 件数/合計）:
+
+```tsx
+<div className="flex flex-wrap items-center gap-2">
+  <div className="relative w-full max-w-xs">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+    <Input placeholder="商談名・取引先で検索..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+  </div>
+  <Select value={stageFilter} onValueChange={setStageFilter}>
+    <SelectTrigger className="w-36"><SelectValue placeholder="ステージ" /></SelectTrigger>
+    <SelectContent>
+      <SelectItem value="all">全ステージ</SelectItem>
+      {Object.entries(opportunityStageLabels).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+    </SelectContent>
+  </Select>
+  <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+    <SelectTrigger className="w-44"><SelectValue placeholder="所有者" /></SelectTrigger>
+    <SelectContent>
+      <SelectItem value="all">全所有者</SelectItem>
+      {ownerOptions.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+    </SelectContent>
+  </Select>
+  <div className="ml-auto text-sm text-muted-foreground">
+    {filtered.length} 件 / 合計 <span className="font-semibold text-foreground">{formatCurrency(totalAmount)}</span>
+  </div>
+</div>
+```
+
+> **所有者列を表示するには `$select` に `_owninguser_value` を含めること**（Dataverse のデータ取得 hook 側）。値の解決は [Lookup 名前解決リファレンス](lookup-resolution.md) の「所有者（Owner）列」を参照。
+> レスポンシブで列を出し分ける場合は `hidden md:table-cell` / `hidden lg:table-cell` / `hidden xl:table-cell` を使い、重要列（所有者・金額）は早い段階（`md`/`lg`）で表示する。
+
+---
+
 ## チェックリスト（CRUD 画面実装時）
 
 - [ ] 一覧の行／カード全体がクリックで詳細を開く（`cursor-pointer` + ホバー）
@@ -230,3 +321,7 @@ return editing ? (
 - [ ] 詳細は ID 保持＋クエリ導出で最新値を反映
 - [ ] 対象切替時に編集モードをリセット（`useEffect`）
 - [ ] 削除確認は `useConfirm()` モーダル（ブラウザ `confirm()` を使わない）
+- [ ] 一覧に所有者列・重要数値列（金額等）を表示している
+- [ ] ステータス/ステージと所有者で絞り込め、名称＋関連名で検索できる
+- [ ] 所有者フィルターは実データに存在する所有者のみ列挙している
+- [ ] 所有者表示用に `$select` へ `_owninguser_value` を含めている
