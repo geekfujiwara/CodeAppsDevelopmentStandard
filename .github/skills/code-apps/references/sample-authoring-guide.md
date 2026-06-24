@@ -225,7 +225,7 @@ BOT_SCHEMA=
 
 ```env
 # ===== 共通（standard/references の .env.example から） =====
-DATAVERSE_URL=https://myorg.crm.dynamics.com/
+DATAVERSE_URL=https://<org>.crm.dynamics.com/
 TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ENV_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 SOLUTION_NAME=MyExpenseApp
