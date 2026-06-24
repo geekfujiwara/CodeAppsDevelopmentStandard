@@ -9,7 +9,7 @@ load_dotenv()
 
 URL = os.environ["DATAVERSE_URL"].rstrip("/")
 SOL = os.environ.get("SOLUTION_NAME", "SampleSolution")
-APP_ID = "28e3fd52-3052-4cbf-9efa-e8067a094b1d"
+APP_ID = os.environ["APP_ID"]
 
 token = get_token()
 h = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"}
