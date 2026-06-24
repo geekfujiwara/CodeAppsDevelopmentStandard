@@ -54,6 +54,53 @@ const columns = [
 ];
 ```
 
+## 所有者（Owner）列 — 「誰のレコードか」を表示
+
+「誰のレコードか」を一覧・詳細に表示するのは所有者 Lookup（`_owninguser_value`）の名前解決そのもの。`systemuser` テーブルをデータソースに追加し、`useMemo` Map で `systemuserid → fullname` を引く。
+
+### 1. `$select` に所有者列を含める（必須）
+
+SDK 生成サービスは指定した列しか返さない。**所有者を表示するテーブルの取得 hook の `$select` に `_owninguser_value` を必ず追加する。** これを忘れると `_owninguser_value` が `undefined` になり所有者が空欄になる。
+
+```typescript
+export function useOpportunities() {
+  return useQuery<Opportunity[]>({
+    queryKey: ["opportunities"],
+    queryFn: () => DataverseService.GetItems<Opportunity>("{prefix}_opportunities", {
+      select: ["{prefix}_opportunityid", "{prefix}_name", "{prefix}_amount", /* ... */, "_owninguser_value"],
+      orderBy: ["createdon desc"],
+    }),
+  })
+}
+```
+
+型にも追加する:
+
+```typescript
+export interface Opportunity {
+  // ...
+  _owninguser_value?: string
+}
+```
+
+### 2. systemusers の Map で名前解決
+
+```typescript
+const { data: users = [] } = useSystemUsers()
+const userMap = useMemo(() => {
+  const m = new Map<string, string>()
+  users.forEach((u) => m.set(u.systemuserid, u.fullname ?? ""))
+  return m
+}, [users])
+
+// 一覧の所有者セル
+<td>{row._owninguser_value ? userMap.get(row._owninguser_value) ?? "" : ""}</td>
+```
+
+> `useSystemUsers` は `systemusers` を `select: ["systemuserid", "fullname", "internalemailaddress"]`, `filter: "isdisabled eq false"` で取得する。`fullname` は省略可型のため Map 格納時は `?? ""` でフォールバックする（`Map<string, string>` の型エラー回避）。
+> 所有者でフィルター・検索する一覧 UI の組み込み方は [CRUD UI 標準パターン](crud-ui-pattern.md) の「一覧の検索・フィルター・重要列」を参照。
+> 所有者ベースのアクセス制御（自分のレコードのみ操作可など）は [owner-guard-pattern.md](owner-guard-pattern.md)。
+
 ## パターン 2: OData FormattedValue（データソース未登録テーブル向け）
 
 データソースに追加できないテーブルの Lookup 名は、

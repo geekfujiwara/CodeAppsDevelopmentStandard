@@ -17,6 +17,7 @@
 |--------------|-----------|------|-----------|
 | `ListTable` | `@/components/list-table` | 検索・ソート・ページネーション付きテーブル | `data: T[]`, `columns: TableColumn<T>[]`, `filters?: FilterConfig<T>[]`, `searchKeys?: string[]` |
 | `InlineEditTable` | `@/components/inline-edit-table` | インライン編集テーブル（text/textarea/lookup/select）、行追加・削除、CSV インポート対応 | `data: T[]`, `columns: EditableColumn<T>[]`, `onUpdate`, `onAdd`, `onDelete` |
+| `StagePath` | `@/components/stage-path` | OptionSet（ステージ/ステータス）を Salesforce 風の矢羽で表示・クリックで変更。詳細は [ステージ矢羽パターン](stage-path-pattern.md) | `stages: StagePathItem[]`, `current?: number`, `negativeValue?: number`, `onSelect?` |
 
 #### ListTable の列定義
 
