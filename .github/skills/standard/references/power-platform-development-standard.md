@@ -1,7 +1,7 @@
-# Power Platform コードファースト開発標準
+# AI ファースト開発標準
 
-> **Geek Fujiwara 作成** — Power Apps Code Apps・Dataverse・Copilot Studio を VS Code + GitHub Copilot でコードファーストに構築するための開発標準。  
-> GitHub Copilot Agent モードとスキルベースの開発ワークフローにより、VS Code から Power Platform ソリューションを構築する実践ガイド。
+> **Geek Fujiwara 作成** — Power Apps Code Apps・Dataverse・Copilot Studio・Azure サービスを VS Code + GitHub Copilot で AI ファーストに構築するための開発標準。  
+> GitHub Copilot Agent モードとスキルベースの開発ワークフローにより、VS Code から Power Platform / Azure ソリューションを構築する実践ガイド。
 
 > [!NOTE]
 > 推奨モデル: Claude Opus 4.6
