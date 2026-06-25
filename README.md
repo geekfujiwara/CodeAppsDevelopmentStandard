@@ -144,7 +144,7 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 テーマ用ワークスペースフォルダを開いた状態で、以下のコマンドを実行してエージェント・スキルと `.gitignore` を取得します。
 
 ```bash
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github && \
 cp .github/skills/standard/references/gitignore-template .gitignore
 ```
 
@@ -166,8 +166,9 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 # 1. GitHub 上で空の private リポジトリを作成してクローン
 gh repo create <your-account>/<your-theme-repo> --private --clone && cd <your-theme-repo>
 
-# 2. エージェント・スキルを取得
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
+# 2. エージェント・スキルと .gitignore を取得
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github && \
+cp .github/skills/standard/references/gitignore-template .gitignore
 
 # 3. .gitignore をコピー（node_modules/ 等の除外に必須）
 cp .github/skills/standard/references/gitignore-template .gitignore
