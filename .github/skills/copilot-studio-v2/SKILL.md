@@ -73,7 +73,7 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 8. scripts/publish_agent.py    … PvaPublish で公開
 9. scripts/verify_agent.py     … 構造検証（filedata 実体ダウンロード確認）
 10. pac copilot list           … Published / Active / Provisioned を確認
-11. UI で MCP サーバーを「確認(Confirm)」… ★MCP 含む場合の正常系（後述）
+11. UI で MCP サーバーを「確認(Confirm)」… ★MCP 含む場合の正常系。Confirm が失敗する場合は手順後述
 12. Preview で動作テスト（ユーザー）
 ```
 
@@ -86,7 +86,14 @@ MCP サーバーを API で追加し公開しても、**初回は Copilot Studio
 「確認(Confirm)」が一度必要**になることがある。これは Dataverse レコードを変更せず
 （Confirm 前後で差分なし）、セッション側で接続を再バインドする動作。**再公開だけでは
 エラーが消えないことがある**ため、自動デプロイの最後に「UI で一度 Confirm する」手順を
-**正常系として組み込む**。詳細は [MCP サーバーの追加](references/mcp-servers.md) を参照。
+**正常系として組み込む**。
+
+**新しい Copilot Studio UI では「確認(Confirm)」を押しても接続できないケースがある。**
+その場合は `add_mcp_server.py` を再実行（削除→再登録）→ 再公開 → UI で再 Confirm が解決策。
+詳細は [MCP サーバーの追加](references/mcp-servers.md) を参照。
+
+> **PAC CLI との関係**: `pac copilot` コマンドには MCP サーバーを追加・管理する
+> 専用サブコマンドは存在しないため、MCP 操作は引き続き Dataverse Web API で行う。
 
 ## 必須要件・落とし穴（実機検証済み）
 
@@ -172,6 +179,7 @@ MCP サーバーを API で追加し公開しても、**初回は Copilot Studio
 | `0x80040265`（bots 更新不可） | PATCH に `name` 列を含めていない | アイコン等の PATCH でも `name` を同送 |
 | 公開時 `1 missing connection reference` | 接続参照の論理名でコネクタ名を切詰めた | コネクタ名は**フル**で論理名を生成 |
 | 公開後も MCP がエラー | UI の「確認(Confirm)」未実施 | UI で MCP サーバーを **Confirm**（再公開だけでは消えないことがある） |
+| **UI の Confirm を押しても接続できない** | 接続参照バインドが古い状態で残っている（新 UI で頻発） | `add_mcp_server.py` を再実行（削除→再登録）→ `publish_agent.py` → UI で再 Confirm |
 | 日本語出力で `UnicodeEncodeError`（cp932） | Windows コンソール既定 | `sys.stdout.reconfigure(encoding="utf-8")` |
 
 ## スクリプト一覧
