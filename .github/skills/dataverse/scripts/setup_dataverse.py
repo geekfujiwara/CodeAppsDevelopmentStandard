@@ -136,18 +136,12 @@ TABLES = [
 
 LOOKUPS = [
     # 通常の Lookup:
-    # {"schema": f"{PREFIX}_samplemain_{PREFIX}_samplemaster",
-    #  "referencing": f"{PREFIX}_samplemain",
-    #  "referenced": f"{PREFIX}_samplemaster",
-    #  "lookup_attr": f"{PREFIX}_samplemasterid",
-    #  "lookup_display": "Sample Master"},
+    # {"from_table": f"{PREFIX}_samplemain", "column_logical": f"{PREFIX}_samplemasterid",
+    #  "display": "Sample Master", "to_table": f"{PREFIX}_samplemaster"},
 
     # SystemUser への Lookup（担当者等）:
-    # {"schema": f"{PREFIX}_samplemain_systemuser_assignee",
-    #  "referencing": f"{PREFIX}_samplemain",
-    #  "referenced": "systemuser",
-    #  "lookup_attr": f"{PREFIX}_assigneeid",
-    #  "lookup_display": "Assigned To"},
+    # {"from_table": f"{PREFIX}_samplemain", "column_logical": f"{PREFIX}_assigneeid",
+    #  "display": "Assigned To", "to_table": "systemuser"},
 ]
 
 # ── ローカライズ定義 ─────────────────────────────────────
@@ -382,22 +376,39 @@ def create_lookups():
     print("\n=== Step 3: Lookup リレーションシップ作成 ===")
 
     for lk in LOOKUPS:
+        col_logical = lk["column_logical"]
+        from_table = lk["from_table"]
+        to_table = lk["to_table"]
+
+        # 既存 Lookup 属性チェック（べき等: 存在すればスキップ）
+        try:
+            api_get(f"EntityDefinitions(LogicalName='{from_table}')/Attributes(LogicalName='{col_logical}')?$select=LogicalName")
+            print(f"  Lookup '{col_logical}' は既存。スキップ。")
+            continue
+        except Exception:
+            pass
+
         def _create(l=lk):
             body = {
-                "@odata.type": "#Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
-                "SchemaName": l["schema"],
-                "ReferencedEntity": l["referenced"],
-                "ReferencingEntity": l["referencing"],
+                "@odata.type": "#Microsoft.Dynamics.CRM.CreateOneToManyRequest",
+                "OneToManyRelationship": {
+                    "@odata.type": "#Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
+                    "ReferencedEntity": l["to_table"],
+                    "ReferencingEntity": l["from_table"],
+                    "SchemaName": f"{l['from_table']}_{l['column_logical']}",
+                    "ReferencingAttribute": l["column_logical"],
+                },
                 "Lookup": {
-                    "SchemaName": l["lookup_attr"],
-                    "DisplayName": label_jp(l["lookup_display"]),
+                    "@odata.type": "#Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+                    "SchemaName": l["column_logical"],
+                    "DisplayName": label_jp(l["display"]),
                     "RequiredLevel": {"Value": "None"},
                 },
             }
-            api_post("RelationshipDefinitions", body, solution=SOLUTION_NAME)
-            print(f"  Lookup '{l['schema']}' 作成完了")
+            api_post("CreateOneToMany", body, solution=SOLUTION_NAME)
+            print(f"  Lookup '{col_logical}' 作成完了")
 
-        retry_metadata(_create, f"Lookup {lk['schema']}")
+        retry_metadata(_create, f"Lookup {col_logical}")
         time.sleep(5)
 
 
