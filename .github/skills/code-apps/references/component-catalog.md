@@ -10,6 +10,7 @@
 | `HamburgerMenu` | `@/components/hamburger-menu` | モバイル用ハンバーガーメニュー |
 | `FullscreenWrapper` | `@/components/fullscreen-wrapper` | コンテンツをフルスクリーン表示するラッパー |
 | `ModeToggle` | `@/components/mode-toggle` | ダーク/ライト/システムテーマ切替 |
+| `RecordListPanel` | `@/components/record-list-panel` | 詳細ページの左サイドに同種レコード一覧を表示。ワンクリックで他レコードへ切替。詳細は [CRUD UI 標準パターン](crud-ui-pattern.md) |
 
 ### データ表示 — テーブル系
 

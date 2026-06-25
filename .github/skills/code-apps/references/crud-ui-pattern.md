@@ -311,16 +311,341 @@ const totalAmount = useMemo(() => filtered.reduce((sum, r) => sum + (r.{prefix}_
 
 ---
 
+## 詳細ページパターン（フルページ遷移 + RecordListPanel）
+
+詳細画面はモーダルではなく**フルページ遷移**で表示する。一覧からの行クリックで `navigate('/items/${id}')` し、専用の詳細ページコンポーネントへルーティングする。
+
+### レイアウト構成
+
+```
+┌─────────────────────────────────────────────────────┐
+│ [←] レコード名               [一覧] [編集] [削除]    │
+├──────────┬──────────────────────────────────────────┤
+│ 一覧パネル │  Card                                    │
+│ (トグル)  │  ├ CardHeader: セクションタイトル           │
+│          │  └ CardContent: 2カラム grid のフィールド   │
+│  ● 現在   │     表示モード: <p> / <Badge>             │
+│    他1    │     編集モード: <Input> / <Select>        │
+│    他2    │                                          │
+│    ...   │                                          │
+└──────────┴──────────────────────────────────────────┘
+```
+
+### 構成要素
+
+| 要素 | 説明 |
+|---|---|
+| ヘッダー行 | 戻るボタン（`ArrowLeft`）＋レコード名＋アクションボタン群 |
+| `RecordListPanel` | 左サイドに同一種類のレコード一覧を表示。ワンクリックで他レコードへ切替。トグルで表示/非表示 |
+| `Card` | フィールドを 2 カラム `grid` で配置。`editing` ステートで表示/入力を切替 |
+| アクションボタン | 表示モード: `一覧` `編集` `削除` ／ 編集モード: `保存` `キャンセル` |
+
+### ルーティング
+
+一覧ページと詳細ページを別コンポーネントにし、`react-router-dom` でルーティングする。
+
+```tsx
+// router.tsx
+const ItemsPage = lazy(() => import("@/pages/items"))
+const ItemDetailPage = lazy(() => import("@/pages/item-detail"))
+
+// routes 内
+{ path: "items", element: withSuspense(ItemsPage) },
+{ path: "items/:id", element: withSuspense(ItemDetailPage) },
+```
+
+一覧ページの行クリック:
+
+```tsx
+const navigate = useNavigate()
+
+<tr
+  className="border-t hover:bg-accent/50 transition-colors cursor-pointer"
+  onClick={() => navigate(`/items/${item.id}`)}
+>
+```
+
+> **一覧ページの新規作成はダイアログのまま**（作成だけは一覧上部で完結してよい）。
+> 一覧ページからは `useUpdateXxx` を削除し、編集は詳細ページに任せる。
+
+### RecordListPanel コンポーネント
+
+詳細ページの左サイドに表示するレコード一覧パネル。同一種類の全レコードを表示し、クリックで他レコードの詳細へ遷移する。
+
+`src/components/record-list-panel.tsx`:
+
+```tsx
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { X } from "lucide-react"
+
+export interface RecordListItem {
+  id: string
+  title: string
+  subtitle?: string
+  meta?: string
+}
+
+interface RecordListPanelProps {
+  heading: string
+  items: RecordListItem[]
+  currentId?: string
+  onSelect: (id: string) => void
+  onClose: () => void
+  className?: string
+}
+
+export function RecordListPanel({ heading, items, currentId, onSelect, onClose, className }: RecordListPanelProps) {
+  return (
+    <aside className={cn("flex w-72 shrink-0 flex-col rounded-lg border bg-card", className)}>
+      <div className="flex items-center justify-between border-b px-3 py-2">
+        <div className="text-sm font-semibold">
+          {heading}
+          <span className="ml-1 text-xs font-normal text-muted-foreground">({items.length})</span>
+        </div>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="一覧を閉じる">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <ScrollArea className="max-h-[calc(100vh-12rem)] flex-1">
+        <ul className="p-1">
+          {items.map((item) => {
+            const active = item.id === currentId
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(item.id)}
+                  className={cn(
+                    "w-full rounded-md px-3 py-2 text-left transition-colors",
+                    active
+                      ? "bg-primary/10 border-l-2 border-primary"
+                      : "border-l-2 border-transparent hover:bg-muted",
+                  )}
+                >
+                  <div className={cn("truncate text-sm", active ? "font-semibold text-primary" : "font-medium")}>
+                    {item.title}
+                  </div>
+                  {item.subtitle && <div className="truncate text-xs text-muted-foreground">{item.subtitle}</div>}
+                  {item.meta && <div className="truncate text-xs text-muted-foreground">{item.meta}</div>}
+                </button>
+              </li>
+            )
+          })}
+          {items.length === 0 && (
+            <li className="px-3 py-4 text-center text-sm text-muted-foreground">レコードがありません</li>
+          )}
+        </ul>
+      </ScrollArea>
+    </aside>
+  )
+}
+```
+
+### 詳細ページの完全テンプレート
+
+```tsx
+import { useParams, useNavigate } from "react-router-dom"
+import { useItems, useUpdateItem, useDeleteItem } from "@/hooks/use-dataverse"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { RecordListPanel } from "@/components/record-list-panel"
+import { useConfirm } from "@/providers/confirm-provider"
+import { ArrowLeft, Pencil, Trash2, Save, X, List } from "lucide-react"
+import { toast } from "sonner"
+import { useState, useMemo } from "react"
+
+export default function ItemDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const { data: items = [] } = useItems()
+  const updateItem = useUpdateItem()
+  const deleteItem = useDeleteItem()
+  const confirm = useConfirm()
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState<Record<string, unknown>>({})
+  const [showList, setShowList] = useState(false)
+
+  // ID でクエリ結果から導出（キャッシュ更新で最新値を反映）
+  const item = useMemo(() => items.find(i => i.{prefix}_itemid === id), [items, id])
+  if (!item) return <div className="p-8 text-center text-muted-foreground">レコードが見つかりません</div>
+
+  const startEdit = () => {
+    setForm({
+      {prefix}_name: item.{prefix}_name,
+      {prefix}_field1: item.{prefix}_field1 ?? "",
+      {prefix}_field2: item.{prefix}_field2 ?? "",
+    })
+    setEditing(true)
+  }
+
+  const handleSave = async () => {
+    await updateItem.mutateAsync({ id: item.{prefix}_itemid, body: form })
+    toast.success("保存しました")
+    setEditing(false)
+  }
+
+  const handleDelete = async () => {
+    if (!(await confirm({
+      title: "削除の確認",
+      description: `「${item.{prefix}_name}」を削除しますか？`,
+      confirmText: "削除",
+      destructive: true,
+    }))) return
+    await deleteItem.mutateAsync(item.{prefix}_itemid)
+    toast.success("削除しました")
+    navigate("/items")  // 一覧へ戻る
+  }
+
+  return (
+    <div className="flex gap-4">
+      {/* 左サイド: レコード一覧パネル（トグル） */}
+      {showList && (
+        <RecordListPanel
+          heading="アイテム一覧"
+          items={items.map(i => ({
+            id: i.{prefix}_itemid,
+            title: i.{prefix}_name,
+            subtitle: i.{prefix}_field1 ?? undefined,
+          }))}
+          currentId={item.{prefix}_itemid}
+          onSelect={(rid) => navigate(`/items/${rid}`)}
+          onClose={() => setShowList(false)}
+        />
+      )}
+
+      {/* メインコンテンツ */}
+      <div className="min-w-0 flex-1 space-y-4">
+        {/* ヘッダー: 戻る + レコード名 + アクションボタン */}
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/items")}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h2 className="text-2xl font-bold flex-1">{item.{prefix}_name}</h2>
+          <Button
+            variant={showList ? "secondary" : "outline"}
+            onClick={() => setShowList(v => !v)}
+          >
+            <List className="h-4 w-4" />一覧
+          </Button>
+          {!editing && (
+            <Button variant="outline" onClick={startEdit}>
+              <Pencil className="h-4 w-4" />編集
+            </Button>
+          )}
+          {!editing && (
+            <Button variant="destructive" onClick={handleDelete}>
+              <Trash2 className="h-4 w-4" />削除
+            </Button>
+          )}
+          {editing && (
+            <Button onClick={handleSave} disabled={updateItem.isPending}>
+              <Save className="h-4 w-4" />保存
+            </Button>
+          )}
+          {editing && (
+            <Button variant="outline" onClick={() => setEditing(false)}>
+              <X className="h-4 w-4" />キャンセル
+            </Button>
+          )}
+        </div>
+
+        {/* フィールドカード */}
+        <Card>
+          <CardHeader><CardTitle>アイテム詳細</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>名称</Label>
+                {editing
+                  ? <Input value={(form.{prefix}_name as string) ?? ""} onChange={e => setForm({ ...form, {prefix}_name: e.target.value })} />
+                  : <p className="mt-1">{item.{prefix}_name}</p>}
+              </div>
+              <div>
+                <Label>フィールド1</Label>
+                {editing
+                  ? <Input value={(form.{prefix}_field1 as string) ?? ""} onChange={e => setForm({ ...form, {prefix}_field1: e.target.value })} />
+                  : <p className="mt-1">{item.{prefix}_field1 ?? "-"}</p>}
+              </div>
+              {/* 全幅フィールド（説明文等） */}
+              <div className="md:col-span-2">
+                <Label>説明</Label>
+                {editing
+                  ? <Textarea value={(form.{prefix}_description as string) ?? ""} onChange={e => setForm({ ...form, {prefix}_description: e.target.value })} />
+                  : <p className="mt-1 whitespace-pre-wrap">{item.{prefix}_description ?? "-"}</p>}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+```
+
+### フィールド種別ごとの表示/編集切替
+
+| フィールド種別 | 表示モード | 編集モード |
+|---|---|---|
+| テキスト | `<p className="mt-1">{value}</p>` | `<Input value={form.field} onChange={...} />` |
+| 数値（金額等） | `<p className="mt-1">{formatCurrency(value)}</p>` | `<Input type="number" value={String(form.field)} onChange={...} />` |
+| 日付 | `<p className="mt-1">{formatDate(value)}</p>` | `<Input type="date" value={form.field} onChange={...} />` |
+| OptionSet | `<Badge className={colorMap[value]}>{labelMap[value]}</Badge>` | `<Select value={String(form.field)} onValueChange={...}>` |
+| Lookup | `<p className="mt-1">{lookupMap.get(value)}</p>` | `<Select value={form.field} onValueChange={...}>` |
+| 複数行テキスト | `<p className="mt-1 whitespace-pre-wrap">{value}</p>` | `<Textarea value={form.field} onChange={...} />` |
+| ステータス/ステージ | `StagePath` コンポーネント（[ステージ矢羽パターン](stage-path-pattern.md)） | 同左（クリックで即更新） |
+
+> **Lookup フィールドの書き込み**: Dataverse の Lookup は `@odata.bind` 形式で送信する。
+> ```tsx
+> // 読み取り: _parentcustomerid_value (GUID)
+> // 書き込み:
+> body["parentcustomerid_account@odata.bind"] = `/accounts(${selectedAccountId})`
+> ```
+
+### サマリーヘッダー（オプション）
+
+リードや商談など情報量の多いエンティティでは、フィールドカードの上に**サマリーヘッダー**を追加する。主要 4 項目をアイコン付きで横並びに表示する。
+
+```tsx
+<Card>
+  <CardContent className="py-4">
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="flex items-start gap-2">
+        <Building2 className="mt-0.5 h-4 w-4 text-muted-foreground" />
+        <div className="min-w-0">
+          <div className="text-xs text-muted-foreground">会社名</div>
+          <div className="truncate text-sm font-medium">{item.company ?? "-"}</div>
+        </div>
+      </div>
+      {/* 他 3 項目... */}
+    </div>
+    {/* ステータス矢羽（オプション） */}
+    <div className="mt-4 border-t pt-4">
+      <StagePath stages={statusItems} current={item.status} onSelect={handleStatusSelect} />
+    </div>
+  </CardContent>
+</Card>
+```
+
+---
+
 ## チェックリスト（CRUD 画面実装時）
 
-- [ ] 一覧の行／カード全体がクリックで詳細を開く（`cursor-pointer` + ホバー）
+- [ ] 一覧の行／カード全体がクリックで詳細**ページ**へ遷移する（`navigate`、`cursor-pointer` + ホバー）
 - [ ] 「目」アイコン等の小さな詳細ボタンを置いていない
 - [ ] 行内の削除・クイック操作は `e.stopPropagation()`
-- [ ] 詳細の編集はインライン（モーダルを開かない）
-- [ ] 保存／キャンセル／削除がインラインに揃っている
+- [ ] 詳細画面はモーダルではなくフルページ遷移（`/items/:id` ルート）
+- [ ] 詳細にインライン編集モード（`editing` ステート）がある
+- [ ] 保存／キャンセル／削除がヘッダーに揃っている
+- [ ] `RecordListPanel` で同種レコード一覧をトグル表示し、ワンクリックで切替できる
 - [ ] 詳細は ID 保持＋クエリ導出で最新値を反映
 - [ ] 対象切替時に編集モードをリセット（`useEffect`）
 - [ ] 削除確認は `useConfirm()` モーダル（ブラウザ `confirm()` を使わない）
+- [ ] 削除後は `navigate("/items")` で一覧へ戻る
+- [ ] 一覧ページの新規作成はダイアログ、編集は詳細ページに委譲
 - [ ] 一覧に所有者列・重要数値列（金額等）を表示している
 - [ ] ステータス/ステージと所有者で絞り込め、名称＋関連名で検索できる
 - [ ] 所有者フィルターは実データに存在する所有者のみ列挙している
