@@ -12,7 +12,7 @@
 
 ```bash
 mkdir <your-theme-name> && cd <your-theme-name>
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github && \
 cp .github/skills/standard/references/gitignore-template .gitignore
 # 取得後、@GeekPowerCode に「新規テーマ: [テーマ名]を作成してください」と依頼
 ```
