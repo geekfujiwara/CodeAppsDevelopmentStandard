@@ -51,6 +51,12 @@ triggers:
   - "フロー呼び出し"
   - "フロー連携"
   - "AI Builder"
+  - "詳細画面"
+  - "詳細ページ"
+  - "detail page"
+  - "RecordListPanel"
+  - "レコード一覧パネル"
+  - "インライン編集"
   - "executeAsync"
   - "dataSourcesInfo"
   - "Copilot Studio コネクタ"
@@ -125,6 +131,8 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 2. [デザインシステム](references/design-system.md) を読み込み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計する。
 3. 設計（選択テンプレート＋画面設計）を提示し、「この設計で進めてよいですか？」と承認を得る。
 4. 承認後、選択テンプレートの CSS Variables を `styles/index.pcss` に適用してから実装する（変数一式・適用手順は [デザインテンプレート集](references/design-templates.md)）。
+
+> **CRUD 画面は [CRUD UI 標準パターン](references/crud-ui-pattern.md) に必ず従う**: 一覧は行／カード全体をクリックして詳細を開く（目アイコン等の小さなクリック領域は使わない）、詳細の編集はモーダルではなくインライン編集モード、行内の削除・クイック操作は `e.stopPropagation()`、削除確認はブラウザの `confirm()` ではなくモーダル（`useConfirm()` / AlertDialog）。**指示がなくても、テーブルごとに「一覧・詳細（インライン編集）・作成・削除」を標準実装すること。**
 
 > **設計で提示する内容**: 選択テンプレート、画面一覧（ページ名・ルート）、各画面のコンポーネント構成、カラム定義、Lookup 名前解決方法（`_xxx_value` + `useMemo` Map）、ナビゲーション構造。
 
@@ -266,8 +274,21 @@ SDK の `getContext().app.queryParams` で親ウィンドウの URL パラメー
 SDK 生成サービスは Lookup 名フィールド（`createdbyname` 等）を返さない。
 `_xxx_value`（GUID）+ `useMemo` マップで名前解決する。
 データソース未登録テーブルの場合は OData FormattedValue アノテーションを使う。
+**所有者（「誰のレコードか」）の表示は `_owninguser_value` + `systemusers` Map で解決する**（取得 hook の `$select` に `_owninguser_value` を含めること）。
 
 → 詳細: **[Lookup 名前解決リファレンス](references/lookup-resolution.md)**
+
+### 一覧の検索・フィルター・重要列（所有者・金額）
+
+営業系の一覧は名称検索だけで終わらせず、**所有者列・金額列などの重要項目を表示し、ステータス／所有者で絞り込み・横断検索できる**構成を標準とする。所有者フィルターは実データに存在する所有者のみを列挙し、絞り込み結果の件数・合計をツールバーに表示する。
+
+→ 詳細: **[CRUD UI 標準パターン](references/crud-ui-pattern.md)** の「一覧の検索・フィルター・重要列」
+
+### ステージ矢羽（Stage Path）— OptionSet の進捗を可視化＆クリックで変更
+
+商談ステージ・リードステータス等、順序を持つ OptionSet を Salesforce 風の矢羽（シェブロン）で表示する。`onSelect` でその場ステージ変更（patch）も可能。失注・不認定など否定的終端は `negativeValue` で赤表示。
+
+→ 詳細: **[ステージ矢羽パターン](references/stage-path-pattern.md)**
 
 ### scaffold 時に含めないファイル
 
@@ -316,9 +337,10 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [デザインテンプレート集](references/design-templates.md) | 設計時に選択する配色テンプレート 6 種（プレビュー HTML・CSS Variables 一式・light/dark 対応） |
 | [デザインシステム](references/design-system.md) | shadcn/ui + Tailwind CSS v4 のコンポーネント選定・画面設計パターン |
 | [コンポーネントカタログ](references/component-catalog.md) | 全コンポーネントの詳細仕様・使用例 |
+| [ステージ矢羽パターン](references/stage-path-pattern.md) | OptionSet（ステージ／ステータス）を Salesforce 風の矢羽で可視化・クリックで変更 |
 | [構築リファレンス](references/build-reference.md) | ビルド・デプロイの詳細手順・vite.config.ts 必須設定・TypeScript エラー対処 |
 | [データソースパターン](references/data-source-patterns.md) | SDK 生成サービス・dataSourcesInfo・getClient(dataSourcesInfo)・TanStack React Query |
-| [Lookup 名前解決](references/lookup-resolution.md) | クライアントサイド名前解決・OData FormattedValue パターン |
+| [Lookup 名前解決](references/lookup-resolution.md) | クライアントサイド名前解決・OData FormattedValue パターン・所有者（Owner）列の表示 |
 | [日本語サニタイズ](references/japanese-sanitize.md) | 日本語 DisplayName エラーの回避（toggle_table_lang.py / patch-nameutils.cjs） |
 | [CSP 構成](references/csp.md) | iframe 埋め込み・外部 API 接続時の CSP 設定・CSP 安全な SDK メソッド一覧 |
 | [ユーザー識別](references/user-identity.md) | ログインユーザーの systemuserid 取得パターン（CSP 安全） |

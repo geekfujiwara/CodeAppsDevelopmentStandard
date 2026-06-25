@@ -25,6 +25,19 @@ import re
 import sys
 from pathlib import Path
 
+# Windows の既定コンソール（cp932 等）でも絵文字・日本語を出力できるようにする
+try:
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    sys.stderr.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+except Exception:
+    pass
+
+# 出力先が UTF-8 でない場合は ASCII マーカーにフォールバックする
+_UTF8_OUT = (getattr(sys.stdout, "encoding", "") or "").lower().startswith("utf")
+MARK_NG = "\u274c" if _UTF8_OUT else "[NG]"
+MARK_WARN = "\u26a0\ufe0f " if _UTF8_OUT else "[WARN]"
+MARK_OK = "\u2705" if _UTF8_OUT else "[OK]"
+
 # --- 設定（環境変数 .env で上書き可能） ---------------------------------------
 
 DEFAULT_SKILLS_DIR = ".github/skills"
@@ -37,6 +50,8 @@ ALLOWLIST = {
     "a4c5bee6-25ff-4bb5-b926-b7eb8062ae7a",  # Dynamics CRM mcp.tools 委任スコープ ID（固定）
     "ab3be6b7-f5df-413d-ac2d-abf1e3fd9c0b",  # Enterprise Token Store アプリ ID（固定）
     "6ab48b67-cd74-4ad4-81af-5932984589be",  # Cowork/Token Store 関連の well-known ID（固定）
+    "96ff4394-9197-43aa-b393-6a41652e21f8",  # Power Virtual Agents Service 第一者アプリ ID（固定）
+    "00000000-0000-0000-0000-000000000000",  # 空 GUID（既定値プレースホルダー）
     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",   # プレースホルダー
 }
 
@@ -49,7 +64,10 @@ GUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F
 CRM_URL_RE = re.compile(r"https://[a-z0-9-]+\.crm[0-9]*\.dynamics\.com", re.IGNORECASE)
 SECRET_RE = re.compile(r"\b[0-9A-Za-z]{2,3}~[0-9A-Za-z._~-]{30,}\b")  # client secret 様
 EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
-EMAIL_ALLOW = ("example.com", "example.org", "contoso.com")
+EMAIL_ALLOW = ("example.com", "example.org", "contoso.com", "noreply.github.com")
+# メールではない `@` トークン（OData バインド注釈・XML 名前空間等）の誤検出を除外する
+# 例: parentbotid@odata.bind / value@odata.type / @microsoft.foo
+NON_EMAIL_RE = re.compile(r"@(odata|microsoft|xmlns)\.", re.IGNORECASE)
 # プレースホルダー的な組織名（<org> / {org} / yourorg）は許容
 CRM_PLACEHOLDER = re.compile(r"https://(<org>|\{org\}|yourorg|\{[^}]+\})\.crm", re.IGNORECASE)
 
@@ -81,7 +99,7 @@ class Report:
         self.warnings.append(msg)
 
     def print(self) -> None:
-        status = "❌" if self.errors else ("⚠️ " if self.warnings else "✅")
+        status = MARK_NG if self.errors else (MARK_WARN if self.warnings else MARK_OK)
         print(f"{status} {self.skill}")
         for e in self.errors:
             print(f"   ERROR: {e}")
@@ -91,21 +109,23 @@ class Report:
 
 def scan_secrets(path: Path, rep: Report) -> None:
     try:
-        text = path.read_text(encoding="utf-8", errors="ignore")
+        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
     except Exception:
         return
     rel = path.name
-    for m in GUID_RE.findall(text):
-        if m.lower() not in ALLOWLIST:
-            rep.err(f"{rel}: 実 GUID らしき値 {m}（プレースホルダーに置換）")
-    for line in text.splitlines():
+    for i, line in enumerate(lines, 1):
+        for g in GUID_RE.findall(line):
+            if g.lower() not in ALLOWLIST:
+                rep.err(f"{rel}:{i}: 実 GUID らしき値 {g}（プレースホルダーに置換）")
         if CRM_URL_RE.search(line) and not CRM_PLACEHOLDER.search(line):
-            rep.err(f"{rel}: 実 Dataverse URL らしき値（<org> 等に置換）: {line.strip()[:80]}")
-    for m in SECRET_RE.findall(text):
-        rep.err(f"{rel}: クライアントシークレット様の文字列を検出")
-    for m in EMAIL_RE.findall(text):
-        if not any(m.lower().endswith(a) for a in EMAIL_ALLOW):
-            rep.warn(f"{rel}: 実メールアドレスらしき値 {m}（admin@example.com 等に置換）")
+            rep.err(f"{rel}:{i}: 実 Dataverse URL らしき値（<org> 等に置換）: {line.strip()[:80]}")
+        if SECRET_RE.search(line):
+            rep.err(f"{rel}:{i}: クライアントシークレット様の文字列を検出")
+        for em in EMAIL_RE.findall(line):
+            if NON_EMAIL_RE.search(em):
+                continue
+            if not any(em.lower().endswith(a) for a in EMAIL_ALLOW):
+                rep.warn(f"{rel}:{i}: 実メールアドレスらしき値 {em}（admin@example.com 等に置換）")
 
 
 def validate_skill(skill_dir: Path) -> Report:

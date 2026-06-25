@@ -45,6 +45,7 @@ triggers:
 |---|---|
 | [scripts/validate_skill.py](scripts/validate_skill.py) | 構成検証: フォルダ名＝`name` 一致 / Step 番号が整数連番 / `references`・`scripts` の有無 / 秘匿情報スキャン（Step 3・7） |
 | [scripts/manage_skill_pr.py](scripts/manage_skill_pr.py) | リモートのオープン PR を走査し、対象スキルに触れる PR を検出して「更新 or 新規」とマージ順を提示（Step 5） |
+| [scripts/publish_skill.py](scripts/publish_skill.py) | 公開を一括自動化: PR 先リポジトリを一時 clone → ブランチ → スキル＋集約ファイルをコピー → 検証 → commit → push → PR 作成/更新（Step 6）。`--dry-run` 対応 |
 
 ## 標準フォルダ構成
 
@@ -73,6 +74,8 @@ triggers:
    冗長な背景説明やコード全文は書かず `references/` へ逃がす。
 2. **`references/`（参考・異常系）**: `troubleshooting.md`（異常系）と必要な参考資料を置く。
 3. **`scripts/`（利用スクリプト）**: 手順内で使ったスクリプトを置く。手作業を残さずスクリプト化する。
+4. **集約ファイルの同時更新（新規スキル時は必須）**: スキルを新規追加したら、カタログ `../README.md` の
+   一覧表と、参照する `../../agents/*.agent.md` のスキル表にも**1 行追加**する（追加漏れの定番）。
 
 > frontmatter は `name`（フォルダ名と一致）/ `description` / `category` / `triggers` を必須とする
 > （[README の YAML 規約](../README.md) 準拠）。`description` にトリガー語は詰め込みすぎない。
@@ -129,8 +132,27 @@ python .github/skills/update-skills/scripts/manage_skill_pr.py --skill <skill-na
 
 ### Step 6: PR を作成 / 既存 PR を更新する
 
+> **前提（作業ディレクトリ ≠ PR 先リポジトリ）**: スキルを編集している場所が PR 先リポジトリの作業ツリー
+> とは限らない（git 管理外のワークスペースで編集していることがある）。その場合は **PR 先リポジトリ
+> （`SKILL_PR_REPO`）を一時 clone** し、そこへスキルをコピーして PR を作る。
+
+**推奨（自動）**: 一括スクリプトで実行する。clone → ブランチ → コピー → 検証 → commit → push → PR まで自動。
+
+```powershell
+# .env に SKILL_PR_REPO を設定（owner/repo）。新規スキル時は集約ファイルを --extra で同時反映
+python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name> `
+  --extra .github/skills/README.md --extra .github/agents/<Agent>.agent.md
+# push せず検証だけ確認したいとき
+python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name> --dry-run
+```
+
+- 既存の同名ブランチ/PR があれば**更新**（新規 PR を作らない）。
+- commit 用の git identity は `gh` のログインユーザーから自動解決する。
+
+**手動で行う場合**:
+
 1. 対象リポジトリの作業クローンを用意（既存ブランチがあればそれを `checkout`）。
-2. スキルの差分（`SKILL.md` / `references/` / `scripts/`）をクローンへ反映する。
+2. スキルの差分（`SKILL.md` / `references/` / `scripts/`）＋集約ファイルをクローンへ反映する。
 3. **push 前に再度 `validate_skill.py` を実行**し、秘匿情報が混入していないことを確認する。
 4. コミット → `gh pr create`（新規）または既存ブランチへ `git push`（更新）。
    既存 PR 更新時は新しい PR を作らない。
@@ -149,6 +171,7 @@ python .github/skills/update-skills/scripts/manage_skill_pr.py --skill <skill-na
 - [ ] フォルダ名 ＝ frontmatter `name`（kebab-case）／`category`・`triggers` あり
 - [ ] `SKILL.md` は正常系のみ。異常系は `references/troubleshooting.md`、参考は `references/`
 - [ ] 利用スクリプトは `scripts/` に集約。手作業を極力残していない
+- [ ] 新規スキルは README カタログ＋参照する `agents/*.agent.md` のスキル表にも 1 行追加した
 - [ ] パラメータは `references/.env.example` に定義、実値は `.env`（`.gitignore` 済み）
 - [ ] 会社名・個別 PJ 名・実 GUID/URL/メール/シークレットが無い（`validate_skill.py` が ✅）
 - [ ] 手順の番号は**整数の Step で連番**（飛び・重複なし）

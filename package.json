@@ -2,7 +2,7 @@
   "name": "codeapps-development-standard",
   "private": true,
   "version": "2.0.0",
-  "description": "Power Platform コードファースト開発標準（スキル・エージェント・リファレンス）",
+  "description": "AI ファースト開発標準（Power Platform / Azure 向けスキル・エージェント・リファレンス）",
   "type": "module",
   "scripts": {
     "check:env": "node .github/skills/standard/scripts/bootstrap.mjs --check",

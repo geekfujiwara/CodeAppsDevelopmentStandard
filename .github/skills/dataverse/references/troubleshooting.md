@@ -153,3 +153,66 @@ python scripts/check_data.py
 - Dataverse API 調査スクリプト
 - デモデータ投入スクリプト
 - エンティティメタデータ確認スクリプト
+
+---
+
+## 5. 既存テーブルを再利用せず重複作成して二重管理になる
+
+### 症状
+
+顧客・製品・ユーザーなど、すでに標準/既存テーブルがあるのにカスタムテーブルを新規作成し、
+データが 2 カ所に分散してレポート・検索が不整合になる。
+
+### 原因
+
+設計前に環境スキャンをしていない。「顧客 = account/contact」「製品 = product」「ユーザー = systemuser」
+という標準テーブルの存在を見落としている。
+
+### 対処
+
+- 設計前に `scan_environment.py` を実行し、再利用レポートをユーザーと合意する。
+- ユーザー参照は `ownerid`/`createdby`/`modifiedby` システム列＋`systemuser` Lookup。
+- 顧客参照は customer 型 Lookup（account/contact ポリモーフィック）。
+
+---
+
+## 6. 標準テーブルの EntitySetName / NavProp を推測して失敗
+
+### 症状
+
+標準テーブルへの Lookup やクエリで `account` → `accounts` のように推測したが、
+`contact` → `contacts`、`opportunity` → `opportunities` など複数形が不規則で 404/400 になる。
+
+### 対処
+
+EntitySetName と NavProp は必ず API から取得する（推測しない）。
+
+```python
+# EntitySetName
+api_get("EntityDefinitions(LogicalName='opportunity')?$select=EntitySetName")
+# NavProp（customer 型は account/contact で別名）
+api_get("EntityDefinitions(LogicalName='opportunity')/ManyToOneRelationships"
+        "?$filter=ReferencedEntity eq 'account'&$select=ReferencingEntityNavigationPropertyName")
+```
+
+---
+
+## 7. customer 型 Lookup の @odata.bind で account/contact の別名を誤る
+
+### 症状
+
+customer 型（account/contact ポリモーフィック）の Lookup を設定する際、
+`{lookup}@odata.bind` だけで設定しようとして 400 エラーになる。
+
+### 対処
+
+customer 型は**ターゲット型ごとの別名 NavProp** を使う。
+
+```json
+// account を指す
+{ "{prefix}_customerid_account@odata.bind": "/accounts({id})" }
+// contact を指す
+{ "{prefix}_customerid_contact@odata.bind": "/contacts({id})" }
+```
+
+正確な別名は `ManyToOneRelationships` の `ReferencingEntityNavigationPropertyName` で確認する。

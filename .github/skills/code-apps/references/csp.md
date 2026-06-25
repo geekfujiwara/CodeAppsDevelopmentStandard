@@ -143,7 +143,7 @@ Power Platform API で CSP をプログラム的に設定できる。
 **1. 認証トークン取得**:
 ```powershell
 $tenantId = "<your-tenant-id>"
-$clientId = "9cee029c-6210-4654-90bb-17e6e9d36617"  # Power Platform CLI の client ID
+$clientId = "<powerplatform-cli-client-id>"  # Power Platform CLI の public client ID
 $token = azureauth aad --resource "https://api.powerplatform.com/" --tenant $tenantId --client $clientId --output token | ConvertTo-SecureString -AsPlainText -Force
 ```
 

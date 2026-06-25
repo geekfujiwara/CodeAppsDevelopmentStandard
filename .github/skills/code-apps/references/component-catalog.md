@@ -10,6 +10,7 @@
 | `HamburgerMenu` | `@/components/hamburger-menu` | モバイル用ハンバーガーメニュー |
 | `FullscreenWrapper` | `@/components/fullscreen-wrapper` | コンテンツをフルスクリーン表示するラッパー |
 | `ModeToggle` | `@/components/mode-toggle` | ダーク/ライト/システムテーマ切替 |
+| `RecordListPanel` | `@/components/record-list-panel` | 詳細ページの左サイドに同種レコード一覧を表示。ワンクリックで他レコードへ切替。詳細は [CRUD UI 標準パターン](crud-ui-pattern.md) |
 
 ### データ表示 — テーブル系
 
@@ -17,6 +18,7 @@
 |--------------|-----------|------|-----------|
 | `ListTable` | `@/components/list-table` | 検索・ソート・ページネーション付きテーブル | `data: T[]`, `columns: TableColumn<T>[]`, `filters?: FilterConfig<T>[]`, `searchKeys?: string[]` |
 | `InlineEditTable` | `@/components/inline-edit-table` | インライン編集テーブル（text/textarea/lookup/select）、行追加・削除、CSV インポート対応 | `data: T[]`, `columns: EditableColumn<T>[]`, `onUpdate`, `onAdd`, `onDelete` |
+| `StagePath` | `@/components/stage-path` | OptionSet（ステージ/ステータス）を Salesforce 風の矢羽で表示・クリックで変更。詳細は [ステージ矢羽パターン](stage-path-pattern.md) | `stages: StagePathItem[]`, `current?: number`, `negativeValue?: number`, `onSelect?` |
 
 #### ListTable の列定義
 
