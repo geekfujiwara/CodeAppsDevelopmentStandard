@@ -45,9 +45,12 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 | メモリ | （個別設定） | `agentSettings.enableMemory: true` |
 | スキル | （ナレッジ/トピック） | **フラット Python スキルバンドル**（type=9 + type=14 子ファイル） |
 | 自動化適性 | △ UI 介在が必要 | ◎ **エンドツーエンドでスクリプト完結** |
+| **Code Apps からの呼び出し** | ✅ DirectLine チャネル経由で呼び出し可能 | ❌ **直接呼び出し不可** |
 
 > **このスキルを選ぶ理由**: Bot 作成からスキル添付まで **人手の UI 操作ゼロ** で構築できる。
 > CI/再現構築・量産・プログラム的な改変に向く。
+>
+> ⚠️ **Code Apps から Copilot Studio を呼び出す場合は v1（`copilot-studio` スキル）を使うこと。**
 
 ## いつ v2 を使うか（architecture スキルでの分岐）
 
@@ -59,6 +62,14 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 | UI 操作なしで自動構築したい | conversationStarters / 会話の開始 / クイック返信を細かく作り込みたい |
 | フラット Python スキルでツール挙動を実装したい | 既存の v1 references（外部公開・トリガー・ニュース配信）資産を流用したい |
 | 再現構築・量産・プログラム的改変 | クラシックなナレッジ/トピック中心の構成 |
+| — | **Code Apps から直接呼び出したい** ← **v1 必須** |
+
+> ⚠️ **Code Apps からの呼び出しは v1（`copilot-studio` スキル）のみ対応**
+>
+> Copilot Studio v2（cliagent）は Code Apps から **直接呼び出すことができない**。
+> Code Apps に Copilot Studio エージェントを組み込む場合は **`copilot-studio`（v1）スキル** を使用すること。
+> v1 は DirectLine チャネル経由で Code Apps の Microsoft Copilot Studio コネクタから呼び出せる。
+> 詳細は [`copilot-studio` スキル](../copilot-studio/SKILL.md) を参照。
 
 ## 構築フロー（完全自動）
 
