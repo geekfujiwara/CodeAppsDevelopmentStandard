@@ -12,7 +12,7 @@
   8. .env.example カバレッジ（警告）: scripts が環境変数を使うのに references/.env.example が無い。
   9. 内部リンク実在（警告）: SKILL.md/references の Markdown リンク先が実在するか（stale ref）。
  10. 番号連番・frontmatter lint（警告）: ## 番号（N. / フェーズ N）連番、description 過長・
-     trigger 過多・本文肥大（Anthropic 推奨の SKILL.md 本文 500 行未満）。
+     trigger 過多・本文肥大（トークン概算で Anthropic 上限 5,000 語 ≈ 6,500 トークン超）。
 
 依存なし（標準ライブラリのみ）。どのリポジトリでも動く。
 
@@ -237,6 +237,14 @@ def check_internal_links(skill_dir: Path, rep: Report) -> None:
                 rep.warn(f"{md.name}:{i}: リンク切れ（参照先が無い）: {target}")
 
 
+def estimate_tokens(text: str) -> int:
+    """依存なしのトークン概算。ASCII（英語/コード/記号）は約 4 文字/トークン、
+    日本語等の非 ASCII は約 1 文字/トークンとみなす。やや過大評価寄りの保守的な目安。"""
+    ascii_n = sum(1 for c in text if ord(c) < 128)
+    other = len(text) - ascii_n
+    return round(ascii_n / 4 + other)
+
+
 def check_numbering_and_frontmatter(text: str, rep: Report) -> None:
     """## レベルの番号（N. / フェーズ N）連番、description 過長・trigger 過多・本文肥大。"""
     # ## レベルの番号連番（Step は別途 ERROR でチェック済みのため除外）
@@ -263,12 +271,15 @@ def check_numbering_and_frontmatter(text: str, rep: Report) -> None:
         body = text[fm.end():]
     else:
         body = text
-    # Anthropic 推奨: SKILL.md 本文は 500 行未満（超過は progressive disclosure で分割）
-    body_lines = body.count("\n") + 1
-    if body_lines > 500:
+    # Anthropic 推奨: SKILL.md 本文は 5,000 語（≈6,500 トークン）が絶対上限。
+    # 文脈を消費するのはトークンなので、行数でなくトークン概算で判定する
+    # （ASCII は約 4 文字/トークン、日本語等の非 ASCII は約 1 文字/トークン）。
+    tokens = estimate_tokens(body)
+    if tokens > 6500:
+        body_lines = body.count("\n") + 1
         rep.warn(
-            f"SKILL.md 本文が {body_lines} 行（Anthropic 推奨は 500 行未満）。"
-            f"詳細を references/ へ分割（progressive disclosure）を検討"
+            f"SKILL.md 本文が約 {tokens} トークン（{body_lines} 行）。Anthropic 上限"
+            f" 5,000 語（≈6,500 トークン）超。references/ へ分割（progressive disclosure）を検討"
         )
 
 
