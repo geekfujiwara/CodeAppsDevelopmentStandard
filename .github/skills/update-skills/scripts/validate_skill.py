@@ -63,6 +63,7 @@ ALLOWLIST = {
     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",   # プレースホルダー
     "11111111-2222-3333-4444-555555555555",  # 汎用プレースホルダー（例示用）
     "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",   # 汎用プレースホルダー（例示用）
+    "00000001-0000-0000-0001-00000000009b",  # Dataverse Default Solution（全環境固定）
 }
 
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")

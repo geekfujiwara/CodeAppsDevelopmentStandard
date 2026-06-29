@@ -1086,3 +1086,198 @@ await (window as any).Xrm.WebApi.online.deleteRecord("my_entity", recordId);
 
 **注意**: Gallery 原本は Chart.js を使用しているが、Generative Pages では **D3.js v7 のみ使用可能**。
 上記すべてのパターンは D3.js または純 CSS/HTML で実装済み。
+
+## GeneratedComponent 基本構造（雛形）
+
+`.tsx` の単一ファイル雛形。import・カラーパレット `P`・モーダル/トースト state を含む。
+
+**基本構造:**
+
+```typescript
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
+import type {
+  ReadableTableRow,
+  GeneratedComponentProps,
+  entity_name,
+} from "./RuntimeTypes";
+import {
+  makeStyles,
+  tokens,
+  Card,
+  Text,
+  Button,
+  Spinner,
+  Input,
+  Badge,
+  Dropdown,
+  Option,
+  TabList,
+  Tab,
+  Dialog,
+  DialogSurface,
+  DialogBody,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Field,
+} from "@fluentui/react-components";
+import {
+  DismissRegular,
+  OpenRegular,
+  SaveRegular,
+  SearchRegular,
+  /* その他必要なアイコン */
+} from "@fluentui/react-icons";
+import * as d3 from "d3";
+
+/* カラーパレット（全ページ共通 — 詳細は genpage-design-system.md 参照） */
+var P = {
+  blue: "#2563eb", blueDark: "#1d4ed8", blueLight: "#dbeafe",
+  teal: "#0d9488", tealLight: "#ccfbf1",
+  coral: "#dc2626", coralLight: "#fee2e2",
+  amber: "#d97706", amberLight: "#fef3c7",
+  red: "#dc2626", green: "#16a34a", greenLight: "#dcfce7",
+  gray50: "#f9fafb", gray100: "#f3f4f6", gray200: "#e5e7eb",
+  gray300: "#d1d5db", gray400: "#9ca3af", gray500: "#6b7280",
+  gray700: "#374151", gray800: "#1f2937", gray900: "#111827",
+  white: "#ffffff",
+};
+
+// ユーティリティ関数（loadAllRows, fkId, num, parseDate 等）
+// サブコンポーネント（トップレベル関数）
+
+/* ---------- スタイル ---------- */
+const useStyles = makeStyles({
+  root: { /* ... */ },
+  /* モーダル・トースト用スタイルは不要 — インラインスタイルで実装 */
+});
+
+/* ---------- メインコンポーネント ---------- */
+const GeneratedComponent = (props: GeneratedComponentProps) => {
+  const styles = useStyles();
+  const { dataApi } = props;
+
+  /* --- データ state --- */
+  const [items, setItems] = useState<ReadableTableRow<entity_name>[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  /* --- モーダル state（★初回デプロイに必ず含める） --- */
+  const [selectedItem, setSelectedItem] = useState<ReadableTableRow<entity_name> | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editStatus, setEditStatus] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  /* openModal, closeModal, handleSave → code-patterns.md §15 参照 */
+
+  return (
+    <div className={styles.root}>
+      {/* メインコンテンツ */}
+
+      {/* ★ モーダル編集フォーム（Dialog + ボタン式 Choice） → code-patterns.md §15.4 */}
+
+      {/* ★ トースト通知 → code-patterns.md §15.5 */}
+      {toast && (
+        <div style={{
+          position: "fixed", top: 16, right: 16, zIndex: 9999,
+          padding: "10px 16px", borderRadius: 8,
+          backgroundColor: P.teal, color: "#fff",
+          fontSize: 13, fontWeight: 500,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+        }}>✓ {toast}</div>
+      )}
+    </div>
+  );
+};
+
+export default GeneratedComponent;
+```
+
+> **★ モーダル・トースト・ボタン式 Choice は Tier 1 — 初回デプロイに必ず含める。**
+> 完全な実装コードは 本ファイル §15 を参照。
+
+## ダークモード（themeToVars パターン）
+
+> **⚠️ デフォルトでは実装しない。ユーザーが明示的に要求した場合のみ使用する。**
+
+FluentProvider を追加せず、CSS 変数でテーマを切り替える:
+
+```typescript
+import { webDarkTheme, webLightTheme } from "@fluentui/react-components";
+
+function themeToVars(theme: Record<string, string>): React.CSSProperties {
+  const v: Record<string, string> = {};
+  Object.entries(theme).forEach(([k, val]) => { v["--" + k] = val; });
+  return v as React.CSSProperties;
+}
+
+// JSX
+<div style={{ ...themeToVars((isDark ? webDarkTheme : webLightTheme) as unknown as Record<string, string>), height: "100%", overflow: "auto" }}>
+  <div className={styles.root}>
+    {/* コンテンツ */}
+  </div>
+</div>
+```
+
+## 多言語対応パターン
+
+```typescript
+function detectLanguage(): { code: string; name: string } {
+  const uiLang =
+    (typeof Xrm !== "undefined" &&
+      Xrm.Utility?.getGlobalContext()?.userSettings?.languageId) ||
+    1041;
+  if (uiLang === 1033) return { code: "en-US", name: "English" };
+  return { code: "ja-JP", name: "Japanese" };
+}
+
+const T: Record<string, Record<string, string>> = {
+  "ja-JP": { title: "ダッシュボード", save: "保存" },
+  "en-US": { title: "Dashboard", save: "Save" },
+};
+
+// コンポーネント内
+const lang = useMemo(() => detectLanguage(), []);
+const t = useCallback(
+  (k: string): string => T[lang.code]?.[k] || T["en-US"]?.[k] || k,
+  [lang.code],
+);
+```
+
+## D3.js チャートパターン
+
+
+- **棒グラフ**: `useRef<SVGSVGElement>` + `useEffect` 内で D3 描画
+- **ドーナツ**: `d3.pie()` + `d3.arc()` でセグメント描画
+- **地図**: SVG パスデータ + バブルオーバーレイ
+
+全チャートで共通ポイント:
+
+- `svg.selectAll("*").remove()` でクリーンアップしてから描画
+- ツールチップは `position: absolute` の `div` を `ref` で管理
+- レスポンシブ: `viewBox` を設定し `width: "100%"` + `height: "auto"`
+
+## ウィンドウキャッシュパターン
+
+ページ間遷移でデータを保持する:
+
+```typescript
+let _cache: MyData | null = (window as any).__ppMyPageData ?? null;
+
+// loadData 完了後
+_cache = result;
+(window as any).__ppMyPageData = result;
+
+// 初回レンダリング
+const [state, setState] = useState({
+  data: _cache,
+  loading: _cache === null,
+  error: null,
+});
+```

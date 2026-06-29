@@ -49,6 +49,7 @@ ALLOWLIST = {
     "edfdb190-3791-45d8-9a6c-8f90a37c278a",  # AI Builder GPT Dynamic Prompt テンプレート ID（全環境固定）
     "11111111-2222-3333-4444-555555555555",  # 汎用プレースホルダー（例示用）
     "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",   # 汎用プレースホルダー（例示用）
+    "00000001-0000-0000-0001-00000000009b",  # Dataverse Default Solution（全環境固定）
 }
 
 GUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
