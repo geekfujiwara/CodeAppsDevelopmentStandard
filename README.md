@@ -144,8 +144,7 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 テーマ用ワークスペースフォルダを開いた状態で、以下のコマンドを実行してエージェント・スキルと `.gitignore` を取得します。
 
 ```bash
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github && \
-cp .github/skills/standard/references/gitignore-template .gitignore
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github && cp .github/skills/standard/references/gitignore-template .gitignore
 ```
 
 > [!NOTE]

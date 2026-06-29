@@ -9,7 +9,10 @@ load_dotenv()
 
 URL = os.environ["DATAVERSE_URL"].rstrip("/")
 SOL = os.environ.get("SOLUTION_NAME", "SampleSolution")
-FLOW_ID = "7bfda812-803b-4d5e-a992-b5af6153c572"
+# フロー Workflow ID は .env（FLOW_WORKFLOW_ID）または第1引数で渡す
+FLOW_ID = (sys.argv[1] if len(sys.argv) > 1 else os.environ.get("FLOW_WORKFLOW_ID", "")).strip()
+if not FLOW_ID:
+    sys.exit("FLOW_WORKFLOW_ID が未設定です（.env または引数で指定してください）")
 
 token = get_token()
 h = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json", "OData-MaxVersion": "4.0", "OData-Version": "4.0"}

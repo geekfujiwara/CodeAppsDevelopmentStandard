@@ -45,31 +45,28 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 | メモリ | （個別設定） | `agentSettings.enableMemory: true` |
 | スキル | （ナレッジ/トピック） | **フラット Python スキルバンドル**（type=9 + type=14 子ファイル） |
 | 自動化適性 | △ UI 介在が必要 | ◎ **エンドツーエンドでスクリプト完結** |
-| **Code Apps からの呼び出し** | ✅ DirectLine チャネル経由で呼び出し可能 | ❌ **直接呼び出し不可** |
 
 > **このスキルを選ぶ理由**: Bot 作成からスキル添付まで **人手の UI 操作ゼロ** で構築できる。
 > CI/再現構築・量産・プログラム的な改変に向く。
->
-> ⚠️ **Code Apps から Copilot Studio を呼び出す場合は v1（`copilot-studio` スキル）を使うこと。**
 
 ## いつ v2 を使うか（architecture スキルでの分岐）
 
 `architecture` スキルの Copilot Studio 選定時に、ユーザーへ **v2 / v1 のどちらで作るか** を確認する。
-**特に希望がなければ v2 を推奨**（自動構築できるため）。判断材料は下表。
+**判断の起点は「他サービスと連携して使うか、単独で使うか」**:
 
-| v2（新アーキ）が向く | v1（旧アーキ）が向く |
+- **連携利用（Code Apps / Web サイト / 他システムから呼び出す）→ v1 を推奨**。
+  v2（cliagent）は **Code Apps から呼び出せず・Web サイトにも埋め込めない**致命的制約があるため。
+- **単独利用（Teams / Copilot Studio 単体の対話のみ）→ v2 を推奨**（UI 操作なしで自動構築できるため）。
+
+> **致命的制約**: v2 のエージェントは Code Apps の `ExecuteCopilotAsyncV2` 連携や WebChat SDK での
+> 外部公開に**対応しない**。これらのシナリオでは必ず v1 を選ぶ。
+
+| v2（新アーキ）が向く＝単独利用 | v1（旧アーキ）が向く＝連携利用 |
 |---|---|
-| UI 操作なしで自動構築したい | conversationStarters / 会話の開始 / クイック返信を細かく作り込みたい |
-| フラット Python スキルでツール挙動を実装したい | 既存の v1 references（外部公開・トリガー・ニュース配信）資産を流用したい |
+| Teams 等で単独利用し、外部から呼び出さない | **Code Apps / Web サイト / 他システムから呼び出す（v2 不可）** |
+| UI 操作なしで自動構築したい | 外部公開（Web 埋め込み・WebChat SDK）・トリガー・ニュース配信の既存資産を流用したい |
+| フラット Python スキルでツール挙動を実装したい | conversationStarters / 会話の開始 / クイック返信を細かく作り込みたい |
 | 再現構築・量産・プログラム的改変 | クラシックなナレッジ/トピック中心の構成 |
-| — | **Code Apps から直接呼び出したい** ← **v1 必須** |
-
-> ⚠️ **Code Apps からの呼び出しは v1（`copilot-studio` スキル）のみ対応**
->
-> Copilot Studio v2（cliagent）は Code Apps から **直接呼び出すことができない**。
-> Code Apps に Copilot Studio エージェントを組み込む場合は **`copilot-studio`（v1）スキル** を使用すること。
-> v1 は DirectLine チャネル経由で Code Apps の Microsoft Copilot Studio コネクタから呼び出せる。
-> 詳細は [`copilot-studio` スキル](../copilot-studio/SKILL.md) を参照。
 
 ## 構築フロー（完全自動）
 
@@ -84,7 +81,7 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 8. scripts/publish_agent.py    … PvaPublish で公開
 9. scripts/verify_agent.py     … 構造検証（filedata 実体ダウンロード確認）
 10. pac copilot list           … Published / Active / Provisioned を確認
-11. UI で MCP サーバーを「確認(Confirm)」… ★MCP 含む場合の正常系。Confirm が失敗する場合は手順後述
+11. UI で MCP サーバーを「確認(Confirm)」… ★MCP 含む場合の正常系（後述）
 12. Preview で動作テスト（ユーザー）
 ```
 
@@ -97,14 +94,7 @@ MCP サーバーを API で追加し公開しても、**初回は Copilot Studio
 「確認(Confirm)」が一度必要**になることがある。これは Dataverse レコードを変更せず
 （Confirm 前後で差分なし）、セッション側で接続を再バインドする動作。**再公開だけでは
 エラーが消えないことがある**ため、自動デプロイの最後に「UI で一度 Confirm する」手順を
-**正常系として組み込む**。
-
-**新しい Copilot Studio UI では「確認(Confirm)」を押しても接続できないケースがある。**
-その場合は `add_mcp_server.py` を再実行（削除→再登録）→ 再公開 → UI で再 Confirm が解決策。
-詳細は [MCP サーバーの追加](references/mcp-servers.md) を参照。
-
-> **PAC CLI との関係**: `pac copilot` コマンドには MCP サーバーを追加・管理する
-> 専用サブコマンドは存在しないため、MCP 操作は引き続き Dataverse Web API で行う。
+**正常系として組み込む**。詳細は [MCP サーバーの追加](references/mcp-servers.md) を参照。
 
 ## 必須要件・落とし穴（実機検証済み）
 
@@ -182,16 +172,7 @@ MCP サーバーを API で追加し公開しても、**初回は Copilot Studio
 
 ### よくあるエラー
 
-| 症状 | 原因 | 対処 |
-|---|---|---|
-| `0x8004023b "Connection State is closed"` | Bot プロビジョニング直後で認可セッション未確立 | 数秒待って **リトライ**（一時エラー） |
-| `undeclared property 'parentbotcomponentid'` | 親ナビ名が誤り | `ParentBotComponentId`（Pascalケース）を使う |
-| `bot $select` で 400 | 新アーキに存在しない列を指定 | 全列取得してから必要列をフィルタ |
-| `0x80040265`（bots 更新不可） | PATCH に `name` 列を含めていない | アイコン等の PATCH でも `name` を同送 |
-| 公開時 `1 missing connection reference` | 接続参照の論理名でコネクタ名を切詰めた | コネクタ名は**フル**で論理名を生成 |
-| 公開後も MCP がエラー | UI の「確認(Confirm)」未実施 | UI で MCP サーバーを **Confirm**（再公開だけでは消えないことがある） |
-| **UI の Confirm を押しても接続できない** | 接続参照バインドが古い状態で残っている（新 UI で頻発） | `add_mcp_server.py` を再実行（削除→再登録）→ `publish_agent.py` → UI で再 Confirm |
-| 日本語出力で `UnicodeEncodeError`（cp932） | Windows コンソール既定 | `sys.stdout.reconfigure(encoding="utf-8")` |
+異常系（症状→原因→対処の一覧）は [references/troubleshooting.md](references/troubleshooting.md) を参照。
 
 ## スクリプト一覧
 
