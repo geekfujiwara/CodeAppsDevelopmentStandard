@@ -273,9 +273,9 @@ headers["MSCRM.SolutionName"] = SOLUTION_NAME
 
 ## テンプレート・デプロイ
 
-ロールテンプレートパターン・デプロイスクリプトの詳細は [デプロイリファレンス](references/deploy-reference.md) を参照。
+ロールテンプレートパターン・デプロイスクリプトの詳細は [デプロイリファレンス](security-role-deploy-reference.md) を参照。
 
-トラブルシューティングは [トラブルシューティング](references/troubleshooting.md) を参照。
+トラブルシューティングは [トラブルシューティング](security-role-troubleshooting.md) を参照。
 
 ## .env パラメータ
 

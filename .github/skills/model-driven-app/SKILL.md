@@ -325,6 +325,9 @@ else:
 
 ## .env パラメータ
 
+全パラメータの定義（取得元コメント付き）は [references/.env.example](references/.env.example) を参照。
+実値はリポジトリルートの `.env` に置く（`.gitignore` 済み）。
+
 ```env
 # === 必須（共通）===
 DATAVERSE_URL=https://{org}.crm7.dynamics.com/

@@ -4,19 +4,13 @@ description: "Power Apps Code Apps（コードファースト）の初期化・D
 category: ui
 triggers:
   - "Code Apps"
-  - "power-apps init"
-  - "power-apps push"
-  - "add-data-source"
-  - "DataverseService"
+  - "Code Apps デプロイ"
+  - "Code Apps デザイン"
   - "Tailwind"
   - "shadcn"
   - "React"
   - "TypeScript"
-  - "Vite"
-  - "Code Apps デプロイ"
-  - "nameUtils パッチ"
   - "日本語サニタイズ"
-  - "Code Apps デザイン"
   - "UI 設計"
   - "コンポーネント選定"
   - "画面レイアウト"
@@ -26,52 +20,21 @@ triggers:
   - "ガントチャート"
   - "ダッシュボード"
   - "フォーム"
-  - "デザイン例"
-  - "iframe"
-  - "embed"
-  - "埋め込み"
   - "CSP"
   - "Content Security Policy"
-  - "frame-src"
-  - "connect-src"
+  - "埋め込み"
   - "メール送信"
-  - "PDF添付"
   - "PDF生成"
-  - "htmlToPdfBase64"
-  - "ContentBytes"
-  - "base64"
-  - "html2canvas"
-  - "jsPDF"
   - "日本地図"
   - "地図"
-  - "マップ"
-  - "JapanMap"
-  - "add-flow"
-  - "list-flows"
-  - "フロー呼び出し"
   - "フロー連携"
   - "AI Builder"
   - "詳細画面"
-  - "詳細ページ"
-  - "detail page"
-  - "RecordListPanel"
-  - "レコード一覧パネル"
   - "インライン編集"
-  - "executeAsync"
-  - "dataSourcesInfo"
   - "Copilot Studio コネクタ"
-  - "Copilot Studio 直接"
-  - "ExecuteCopilotAsyncV2"
-  - "shared_microsoftcopilotstudio"
   - "エージェント呼び出し"
-  - "会話継続"
-  - "conversationId"
   - "デプロイして"
-  - "プッシュして"
   - "ディープリンク"
-  - "deep link"
-  - "queryParams"
-  - "パラメータ渡し"
   - "URL パラメータ"
 ---
 
@@ -108,15 +71,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
         ⑨ src/ 実装 → npm run build → pac code push（反復）
 ```
 
-### この後の章構成
-
-| 章 | 内容 |
-|---|---|
-| §1 概要（本章） | 標準ワークフロー全体像・大前提・設計フェーズ（デザインテンプレート選択） |
-| [§2 初回デプロイ](#2-初回デプロイ) | 環境前提・scaffold・init・初回 build & push |
-| [§3 データソース接続](#3-データソース接続) | add-data-source・dataSourcesInfo・Lookup 名前解決 |
-| [§4 改善デプロイ](#4-改善デプロイ) | 開発時の必須ルール・再デプロイ・プレデプロイレビュー |
-| [§5 リファレンス](#5-リファレンス) | 全リファレンス索引・技術スタック・.env |
+> 章構成: §1 概要（本章・設計フェーズ）→ §2 初回デプロイ → §3 データソース接続 → §4 改善デプロイ → §5 リファレンス索引。
 
 > [!NOTE]
 > 本スキル内のコード例は `{prefix}_tablename` 等のプレースホルダーで汎用化されています。
@@ -355,3 +310,4 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [新規テーマ開始チェックリスト](references/new-theme-checklist.md) | 前テーマの残骸がないクリーン開始の確認手順・scaffold 時に含めないファイル |
 | [トラブルシューティング](references/troubleshooting.md) | 頻出エラーと対処法（GUID フィルタ・`.toLowerCase()` 統一・テンプレート削除時の use-theme 巻き添え 等） |
 | [サンプル作成ガイド](references/sample-authoring-guide.md) | 公開リポジトリ向けサンプルのセキュリティ要件・環境変数ルール・feature flag 命名規則 |
+| [.env サンプル](references/.env.example) | `scripts/` が参照する環境変数のプレースホルダー定義（実値はルートの `.env`） |
