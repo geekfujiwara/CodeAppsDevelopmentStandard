@@ -43,7 +43,8 @@ triggers:
 
 | スクリプト | 用途 |
 |---|---|
-| [scripts/validate_skill.py](scripts/validate_skill.py) | 構成検証: フォルダ名＝`name` 一致 / Step 番号が整数連番 / `references`・`scripts` の有無 / 役割分離（異常系の直書き）/ 集約ファイル登録・`.env.example` カバレッジ・内部リンク実在・frontmatter lint / 秘匿情報スキャン（Step 3・7） |
+| [scripts/validate_skill.py](scripts/validate_skill.py) | 構成検証: フォルダ名＝`name` 一致 / Step 番号が整数連番 / `references`・`scripts` の有無 / 役割分離（異常系の直書き）/ 集約ファイル登録・`.env.example` カバレッジ・内部リンク実在・frontmatter lint・本文トークン上限 / 秘匿情報スキャン（Step 3・7） |
+| [scripts/section_tokens.py](scripts/section_tokens.py) | SKILL.md を `##` セクション単位でトークン概算し、上限超過時に **どのセクションを `references/` へ逃がすか**（progressive disclosure）を提示（Step 1） |
 | [scripts/manage_skill_pr.py](scripts/manage_skill_pr.py) | リモートのオープン PR を走査し、対象スキルに触れる PR を検出して「更新 or 新規」とマージ順を提示（Step 5） |
 | [scripts/publish_skill.py](scripts/publish_skill.py) | 公開を一括自動化: PR 先リポジトリを一時 clone → ブランチ → スキル＋集約ファイルをコピー → 検証 → commit → push → PR 作成/更新（Step 6）。`--dry-run` 対応 |
 
@@ -76,6 +77,17 @@ triggers:
 3. **`scripts/`（利用スクリプト）**: 手順内で使ったスクリプトを置く。手作業を残さずスクリプト化する。
 4. **集約ファイルの同時更新（新規スキル時は必須）**: スキルを新規追加したら、カタログ `../README.md` の
    一覧表と、参照する `../../agents/*.agent.md` のスキル表にも**1 行追加**する（追加漏れの定番）。
+
+#### Progressive disclosure（本文を上限内に収める分割）
+
+`SKILL.md` 本文は **Anthropic 上限 5,000 語 ≈ 6,500 トークン**を超えてはならない（文脈消費はトークン基準。
+日本語は密なので**文字数≒トークン数**で見る）。超えたら以下の方針で `references/` へ逃がす:
+
+- **SKILL.md に残す**: 正常系の手順の骨子・判断フロー・各トピックの**要点 1〜数行＋ references へのポインタ**。
+- **`references/` へ移す**: 詳細な表・コード全文・異常系（`troubleshooting.md`）・長い背景説明・
+  **同時に使わない**個別トピック（相互排他なら分けるほどトークン節約になる）。
+- どのセクションが重いかは [`section_tokens.py`](scripts/section_tokens.py) で測り、**大きい順に**逃がす。
+- 分割後は `validate_skill.py` の本文トークン WARN が消えるまで繰り返す。
 
 > frontmatter は `name`（フォルダ名と一致）/ `description` / `category` / `triggers` を必須とする
 > （[README の YAML 規約](../README.md) 準拠）。`description` にトリガー語は詰め込みすぎない。
