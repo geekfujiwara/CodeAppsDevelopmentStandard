@@ -140,10 +140,10 @@ export async function getSystemUsersByAadIds(
 ### 推奨: バックフィル時に AAD ID を保存
 
 トランスクリプトの content JSON は巨大なため、フロントエンドで毎回パースするのは非効率。
-サマリーテーブルのカラム（例: `geek_useraadid`）にバックフィルスクリプトで事前抽出しておく。
+サマリーテーブルのカラム（例: `{prefix}_useraadid`）にバックフィルスクリプトで事前抽出しておく。
 
 ```python
-# backfill_summaries.py に追加
+# バックフィルスクリプトに追加する例
 user_aad_id = None
 for a in acts:
     if a.get("type") == "message":
