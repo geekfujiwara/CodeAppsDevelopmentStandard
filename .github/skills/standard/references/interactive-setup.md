@@ -28,6 +28,24 @@ pac auth list
 pac auth create --name {ProfileName}
 ```
 
+### PAC profile が作成できない場合（セッション詳細から手動取得）
+
+PAC CLI が未インストール、または `pac auth create` が実行できない環境では、**Power Apps ポータルのセッション詳細** から必要な値を直接取得する。
+
+1. [make.powerapps.com](https://make.powerapps.com) を開く
+2. 右上の **⚙（設定）** → **セッション詳細** をクリック
+3. 以下の値を `.env` に設定する
+
+| セッション詳細の項目 | .env キー |
+|---|---|
+| Instance URL | `DATAVERSE_URL` |
+| Tenant ID | `TENANT_ID` |
+| Environment ID | `ENV_ID` |
+
+> この場合 `PAC_AUTH_PROFILE` は空欄のままで可。Python 認証は `auth_helper.py` のデバイスコードフローで行われる。
+
+セッション詳細から値を取得したら **Step 4（.env 作成）** に進む。
+
 ## Step 3: 環境一覧の取得と選択
 
 ```powershell
