@@ -1,6 +1,6 @@
 ---
 name: update-skills
-description: "スキル（SKILL.md）を新規作成または更新し、リモートリポジトリへ PR を作成・更新する。SKILL.md は正常系、references に参考情報と異常系、scripts に利用スクリプトを置き、すべて汎用化してパラメータを .env.example に外出しする（実値は .env）。会社・個別プロジェクト情報を排除して秘匿化し、Step 番号は整数で統一。最後に番号整合・自動化観点（Learn は MCP で検証、ブラウザ操作は Playwright MCP）をレビューし、既存のオープン PR があればそれを更新してコンフリクトを避け、無関係なら新規 PR を作成しつつマージ順を提示する。"
+description: "スキル（SKILL.md）を新規作成・更新し、リモートへ PR を作成・更新する。SKILL.md は正常系、references に参考情報・異常系、scripts に汎用化したスクリプトを置き、パラメータは .env.example へ外出しする（実値は .env）。会社・個別情報を秘匿化し、番号整合・自動化（Learn/Playwright MCP）・既存オープン PR との整合（更新優先・マージ順提示）までレビューする。"
 category: architecture
 triggers:
   - "スキル作成"
@@ -43,7 +43,7 @@ triggers:
 
 | スクリプト | 用途 |
 |---|---|
-| [scripts/validate_skill.py](scripts/validate_skill.py) | 構成検証: フォルダ名＝`name` 一致 / Step 番号が整数連番 / `references`・`scripts` の有無 / 役割分離（異常系の直書き）/ 秘匿情報スキャン（Step 3・7） |
+| [scripts/validate_skill.py](scripts/validate_skill.py) | 構成検証: フォルダ名＝`name` 一致 / Step 番号が整数連番 / `references`・`scripts` の有無 / 役割分離（異常系の直書き）/ 集約ファイル登録・`.env.example` カバレッジ・内部リンク実在・frontmatter lint / 秘匿情報スキャン（Step 3・7） |
 | [scripts/manage_skill_pr.py](scripts/manage_skill_pr.py) | リモートのオープン PR を走査し、対象スキルに触れる PR を検出して「更新 or 新規」とマージ順を提示（Step 5） |
 | [scripts/publish_skill.py](scripts/publish_skill.py) | 公開を一括自動化: PR 先リポジトリを一時 clone → ブランチ → スキル＋集約ファイルをコピー → 検証 → commit → push → PR 作成/更新（Step 6）。`--dry-run` 対応 |
 
@@ -171,10 +171,12 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 - [ ] フォルダ名 ＝ frontmatter `name`（kebab-case）／`category`・`triggers` あり
 - [ ] `SKILL.md` は正常系のみ。異常系（よくあるエラー/トラブル/デバッグ等）は `references/troubleshooting.md`、参考は `references/`（`validate_skill.py` の役割分離 WARN が出ないこと）
 - [ ] 利用スクリプトは `scripts/` に集約。手作業を極力残していない
-- [ ] 新規スキルは README カタログ＋参照する `agents/*.agent.md` のスキル表にも 1 行追加した
-- [ ] パラメータは `references/.env.example` に定義、実値は `.env`（`.gitignore` 済み）
+- [ ] 新規スキルは README カタログ＋参照する `agents/*.agent.md` のスキル表にも 1 行追加した（登録漏れ WARN が出ないこと）
+- [ ] パラメータは `references/.env.example` に定義、実値は `.env`（`.gitignore` 済み）（カバレッジ WARN が出ないこと）
+- [ ] SKILL.md/references の Markdown リンクが実在する（リンク切れ WARN が出ないこと）
+- [ ] `description` は要点に絞り `triggers` を詰め込みすぎない／本文が肥大していない（frontmatter lint WARN が出ないこと）
 - [ ] 会社名・個別 PJ 名・実 GUID/URL/メール/シークレットが無い（`validate_skill.py` が ✅）
-- [ ] 手順の番号は**整数の Step で連番**（飛び・重複なし）
+- [ ] 手順の番号は**整数で連番**（`Step N` / `## N.` / `フェーズ N` いずれも飛び・重複なし）
 - [ ] 公式仕様は **Learn MCP** で検証、ブラウザ操作は **Playwright MCP** で自動化
 - [ ] 既存オープン PR を確認（`manage_skill_pr.py`）→ 関連あれば**更新**、無関係なら**新規＋マージ順提示**
 - [ ] push 前に秘匿情報スキャン済み

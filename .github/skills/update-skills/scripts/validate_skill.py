@@ -8,6 +8,11 @@
   5. 秘匿情報スキャン（実 GUID / *.crm*.dynamics.com / 実メール / クライアントシークレット様）。
   6. 役割分離（警告）: SKILL.md（正常系）に異常系（よくあるエラー/トラブル/デバッグ等）の
      実体（エラー対処表・references 誘導なしの長文）が直書きされていないか。
+  7. 集約ファイル登録（警告）: README カタログ・agents/*.agent.md への登録漏れ。
+  8. .env.example カバレッジ（警告）: scripts が環境変数を使うのに references/.env.example が無い。
+  9. 内部リンク実在（警告）: SKILL.md/references の Markdown リンク先が実在するか（stale ref）。
+ 10. 番号連番・frontmatter lint（警告）: ## 番号（N. / フェーズ N）連番、description 過長・
+     trigger 過多・本文肥大。
 
 依存なし（標準ライブラリのみ）。どのリポジトリでも動く。
 
@@ -181,6 +186,87 @@ def check_role_separation(text: str, rep: Report) -> None:
             )
 
 
+def check_registration(skill_dir: Path, rep: Report) -> None:
+    """スキルが README カタログと agents/*.agent.md の両方に登録されているか（追加漏れの定番）。"""
+    name = skill_dir.name
+    readme = skill_dir.parent / "README.md"
+    if readme.is_file():
+        if f"]({name}/SKILL.md)" not in readme.read_text(encoding="utf-8", errors="ignore"):
+            rep.warn(f"README カタログ（{readme.name}）に未登録（1 行追加する）")
+    agents_dir = skill_dir.parent.parent / "agents"
+    if agents_dir.is_dir():
+        agent_files = list(agents_dir.glob("*.agent.md"))
+        registered = any(
+            f"skills/{name}/SKILL.md" in af.read_text(encoding="utf-8", errors="ignore")
+            for af in agent_files
+        )
+        if agent_files and not registered:
+            rep.warn("agents/*.agent.md のスキル表に未登録（参照すべき agent があれば 1 行追加）")
+
+
+def check_env_example(skill_dir: Path, rep: Report) -> None:
+    """scripts が環境変数を使うのに references/.env.example が無いか。"""
+    scripts = skill_dir / "scripts"
+    if not scripts.is_dir():
+        return
+    uses_env = False
+    for p in scripts.glob("*.py"):
+        if re.search(r"os\.environ|getenv", p.read_text(encoding="utf-8", errors="ignore")):
+            uses_env = True
+            break
+    if uses_env and not (skill_dir / "references" / ".env.example").is_file():
+        rep.warn("scripts が環境変数を使うが references/.env.example が無い（パラメータを定義する）")
+
+
+def check_internal_links(skill_dir: Path, rep: Report) -> None:
+    """Markdown リンクが指す相対パス（references/scripts/別スキル）が実在するか（stale ref 検出）。"""
+    link_re = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+    for md in [skill_dir / "SKILL.md", *sorted((skill_dir / "references").glob("*.md"))]:
+        if not md.is_file():
+            continue
+        for i, line in enumerate(md.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+            for target in link_re.findall(line):
+                t = target.strip().split("#", 1)[0].split(" ", 1)[0]
+                if not t or t.startswith(("http://", "https://", "mailto:")) or "://" in t:
+                    continue
+                # プレースホルダー（url / path 等の裸の語や {..}/<..>）は対象外
+                if ("/" not in t and "." not in t) or "{" in t or "<" in t:
+                    continue
+                if (md.parent / t).exists():
+                    continue
+                rep.warn(f"{md.name}:{i}: リンク切れ（参照先が無い）: {target}")
+
+
+def check_numbering_and_frontmatter(text: str, rep: Report) -> None:
+    """## レベルの番号（N. / フェーズ N）連番、description 過長・trigger 過多・本文肥大。"""
+    # ## レベルの番号連番（Step は別途 ERROR でチェック済みのため除外）
+    nums = []
+    for m in re.finditer(r"^##\s+(?:フェーズ|Phase)?\s*(\d+)[.\s　)]", text, re.MULTILINE):
+        if re.match(r"^##\s+Step\b", m.group(0)):
+            continue
+        nums.append(int(m.group(1)))
+    if nums:
+        expected = list(range(nums[0], nums[0] + len(nums)))
+        if nums != expected:
+            rep.warn(f"## 見出しの番号が連番でない: {nums}（期待: {expected}）")
+
+    # frontmatter（最初の --- ブロック）から description / triggers を取得
+    fm = re.match(r"^---\n(.*?)\n---", text, re.DOTALL)
+    if fm:
+        block = fm.group(1)
+        dm = re.search(r"^description:\s*(.+)$", block, re.MULTILINE)
+        if dm and len(dm.group(1)) > 300:
+            rep.warn(f"description が長い（{len(dm.group(1))}字）。要点に絞る（トリガー語を詰め込みすぎない）")
+        trig = len(re.findall(r"^\s*-\s+", block, re.MULTILINE))
+        if trig > 40:
+            rep.warn(f"triggers が多い（{trig}個）。代表的な語に絞り込みを検討")
+        body = text[fm.end():]
+    else:
+        body = text
+    if len(body) > 35000:
+        rep.warn(f"SKILL.md 本文が長い（{len(body)}字）。詳細を references/ へ分割を検討")
+
+
 def validate_skill(skill_dir: Path) -> Report:
     rep = Report(skill_dir.name)
     folder = skill_dir.name
@@ -219,6 +305,14 @@ def validate_skill(skill_dir: Path) -> Report:
 
     # 役割分離（正常系=SKILL.md / 異常系=references）
     check_role_separation(text, rep)
+    # ## レベル番号の連番・frontmatter lint・本文肥大
+    check_numbering_and_frontmatter(text, rep)
+    # 集約ファイル（README カタログ / agents）への登録
+    check_registration(skill_dir, rep)
+    # scripts の環境変数に対する .env.example の有無
+    check_env_example(skill_dir, rep)
+    # Markdown リンク切れ（stale ref）
+    check_internal_links(skill_dir, rep)
 
     # references / scripts の有無
     if not (skill_dir / "references").is_dir():
