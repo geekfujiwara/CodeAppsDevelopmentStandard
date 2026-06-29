@@ -355,3 +355,4 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [新規テーマ開始チェックリスト](references/new-theme-checklist.md) | 前テーマの残骸がないクリーン開始の確認手順・scaffold 時に含めないファイル |
 | [トラブルシューティング](references/troubleshooting.md) | 頻出エラーと対処法（GUID フィルタ・`.toLowerCase()` 統一・テンプレート削除時の use-theme 巻き添え 等） |
 | [サンプル作成ガイド](references/sample-authoring-guide.md) | 公開リポジトリ向けサンプルのセキュリティ要件・環境変数ルール・feature flag 命名規則 |
+| [.env サンプル](references/.env.example) | `scripts/` が参照する環境変数のプレースホルダー定義（実値はルートの `.env`） |
