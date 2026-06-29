@@ -6,6 +6,8 @@
   3. Step 見出し（## / ### Step N）が整数で連番になっている（飛び・重複なし）。
   4. references/ と scripts/ の有無（無ければ警告）。
   5. 秘匿情報スキャン（実 GUID / *.crm*.dynamics.com / 実メール / クライアントシークレット様）。
+  6. 役割分離（警告）: SKILL.md（正常系）に異常系（よくあるエラー/トラブル/デバッグ等）の
+     実体（エラー対処表・references 誘導なしの長文）が直書きされていないか。
 
 依存なし（標準ライブラリのみ）。どのリポジトリでも動く。
 
@@ -62,6 +64,17 @@ NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FM_NAME_RE = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
 FM_KEY_RE = lambda k: re.compile(rf"^{k}:\s*", re.MULTILINE)
 STEP_RE = re.compile(r"^#{2,3}\s+Step\s+(\d+)\b", re.MULTILINE)
+
+# 役割分離チェック: SKILL.md（正常系）に異常系の実体が残っていないか。
+# 見出しテキストが「異常系」を示し、かつその節がポインタ（references/ へのリンク）でなく
+# 実体（複数行の表・長い本文）を含む場合に WARN を出す。
+HEADING_RE = re.compile(r"^(#{2,6})\s+(.*\S)\s*$", re.MULTILINE)
+ABNORMAL_HEADING_RE = re.compile(
+    r"(トラブル|よくある(エラー|失敗|ミス|間違)|エラー(コード|早見|一覧|集)"
+    r"|既知の(問題|不具合|バグ)|落とし穴|デバッグ|不具合|失敗例|ハマりどころ"
+    r"|詰まりどころ|troubleshoot)",
+    re.IGNORECASE,
+)
 
 GUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 CRM_URL_RE = re.compile(r"https://[a-z0-9-]+\.crm[0-9]*\.dynamics\.com", re.IGNORECASE)
@@ -131,6 +144,43 @@ def scan_secrets(path: Path, rep: Report) -> None:
                 rep.warn(f"{rel}:{i}: 実メールアドレスらしき値 {em}（admin@example.com 等に置換）")
 
 
+def check_role_separation(text: str, rep: Report) -> None:
+    """SKILL.md に異常系の実体が残っていないか（正常系=SKILL.md / 異常系=references）を検査。
+
+    異常系を示す見出しの節が「ポインタ（references/ への誘導）」ではなく、複数行の表や
+    長い本文を直書きしている場合に WARN を出す。ヒューリスティックのため WARN 止まり。
+    """
+    headings = [(m.start(), len(m.group(1)), m.group(2)) for m in HEADING_RE.finditer(text)]
+    for idx, (pos, level, title) in enumerate(headings):
+        if not ABNORMAL_HEADING_RE.search(title):
+            continue
+        # 本文 = この見出しの次行から、同レベル以上の次見出しまで
+        end = len(text)
+        for npos, nlevel, _ in headings[idx + 1:]:
+            if nlevel <= level:
+                end = npos
+                break
+        body = text[pos:end].splitlines()[1:]
+        non_empty = [l for l in body if l.strip()]
+        table_lines = [l for l in body if l.lstrip().startswith("|")]
+        links_ref = any("references/" in l for l in body)
+        # エラー表（ヘッダに 症状/原因/対処/解決/エラーコード 等を含む）は明確な異常系。
+        header = "".join(table_lines[:1])
+        error_table = bool(re.search(r"症状|原因|対処|解決|エラーコード|現象|回避策", header))
+        line_no = text[:pos].count("\n") + 1
+        if error_table:
+            rep.warn(
+                f"SKILL.md:{line_no}: 異常系の見出し『{title}』にエラー対処表を直書き。"
+                f"references/troubleshooting.md へ分離を検討"
+            )
+        elif not links_ref and (len(table_lines) >= 2 or len(non_empty) >= 5):
+            # references/ への誘導もなく実体（表/長文）を直書きしている。
+            rep.warn(
+                f"SKILL.md:{line_no}: 異常系の見出し『{title}』が実体を直書きし"
+                f" references/ へ誘導していない。troubleshooting.md へ分離を検討"
+            )
+
+
 def validate_skill(skill_dir: Path) -> Report:
     rep = Report(skill_dir.name)
     folder = skill_dir.name
@@ -166,6 +216,9 @@ def validate_skill(skill_dir: Path) -> Report:
         expected = list(range(steps[0], steps[0] + len(steps)))
         if steps != expected:
             rep.err(f"Step 番号が整数連番でない: {steps}（期待: {expected}）")
+
+    # 役割分離（正常系=SKILL.md / 異常系=references）
+    check_role_separation(text, rep)
 
     # references / scripts の有無
     if not (skill_dir / "references").is_dir():

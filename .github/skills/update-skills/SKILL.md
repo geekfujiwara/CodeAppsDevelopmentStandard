@@ -43,7 +43,7 @@ triggers:
 
 | スクリプト | 用途 |
 |---|---|
-| [scripts/validate_skill.py](scripts/validate_skill.py) | 構成検証: フォルダ名＝`name` 一致 / Step 番号が整数連番 / `references`・`scripts` の有無 / 秘匿情報スキャン（Step 3・7） |
+| [scripts/validate_skill.py](scripts/validate_skill.py) | 構成検証: フォルダ名＝`name` 一致 / Step 番号が整数連番 / `references`・`scripts` の有無 / 役割分離（異常系の直書き）/ 秘匿情報スキャン（Step 3・7） |
 | [scripts/manage_skill_pr.py](scripts/manage_skill_pr.py) | リモートのオープン PR を走査し、対象スキルに触れる PR を検出して「更新 or 新規」とマージ順を提示（Step 5） |
 | [scripts/publish_skill.py](scripts/publish_skill.py) | 公開を一括自動化: PR 先リポジトリを一時 clone → ブランチ → スキル＋集約ファイルをコピー → 検証 → commit → push → PR 作成/更新（Step 6）。`--dry-run` 対応 |
 
@@ -169,7 +169,7 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 ## 検証チェックリスト
 
 - [ ] フォルダ名 ＝ frontmatter `name`（kebab-case）／`category`・`triggers` あり
-- [ ] `SKILL.md` は正常系のみ。異常系は `references/troubleshooting.md`、参考は `references/`
+- [ ] `SKILL.md` は正常系のみ。異常系（よくあるエラー/トラブル/デバッグ等）は `references/troubleshooting.md`、参考は `references/`（`validate_skill.py` の役割分離 WARN が出ないこと）
 - [ ] 利用スクリプトは `scripts/` に集約。手作業を極力残していない
 - [ ] 新規スキルは README カタログ＋参照する `agents/*.agent.md` のスキル表にも 1 行追加した
 - [ ] パラメータは `references/.env.example` に定義、実値は `.env`（`.gitignore` 済み）
