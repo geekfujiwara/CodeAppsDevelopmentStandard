@@ -51,7 +51,7 @@ triggers:
 
 ```
 <skill-name>/                 # kebab-case。frontmatter name と完全一致
-├── SKILL.md                  # 正常系のワークフロー（本文 ~1,500–2,000 語以内）
+├── SKILL.md                  # 正常系のワークフロー（Anthropic 推奨: 本文 500 行未満／5,000 語以内）
 ├── references/               # 参考情報・異常系（オンデマンド読込）
 │   ├── troubleshooting.md    # 異常系・既知の不具合
 │   ├── .env.example          # スクリプトが使うパラメータの定義（実値は書かない）

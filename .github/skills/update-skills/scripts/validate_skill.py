@@ -12,7 +12,7 @@
   8. .env.example カバレッジ（警告）: scripts が環境変数を使うのに references/.env.example が無い。
   9. 内部リンク実在（警告）: SKILL.md/references の Markdown リンク先が実在するか（stale ref）。
  10. 番号連番・frontmatter lint（警告）: ## 番号（N. / フェーズ N）連番、description 過長・
-     trigger 過多・本文肥大。
+     trigger 過多・本文肥大（Anthropic 推奨の SKILL.md 本文 500 行未満）。
 
 依存なし（標準ライブラリのみ）。どのリポジトリでも動く。
 
@@ -263,8 +263,13 @@ def check_numbering_and_frontmatter(text: str, rep: Report) -> None:
         body = text[fm.end():]
     else:
         body = text
-    if len(body) > 35000:
-        rep.warn(f"SKILL.md 本文が長い（{len(body)}字）。詳細を references/ へ分割を検討")
+    # Anthropic 推奨: SKILL.md 本文は 500 行未満（超過は progressive disclosure で分割）
+    body_lines = body.count("\n") + 1
+    if body_lines > 500:
+        rep.warn(
+            f"SKILL.md 本文が {body_lines} 行（Anthropic 推奨は 500 行未満）。"
+            f"詳細を references/ へ分割（progressive disclosure）を検討"
+        )
 
 
 def validate_skill(skill_dir: Path) -> Report:
