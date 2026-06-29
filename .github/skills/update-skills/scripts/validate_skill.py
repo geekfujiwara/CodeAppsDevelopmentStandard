@@ -4,13 +4,13 @@
   1. SKILL.md が存在し、frontmatter の name がフォルダ名と一致する（kebab-case）。
   2. frontmatter に description / category / triggers がある。
   3. Step 見出し（## / ### Step N）が整数で連番になっている（飛び・重複なし）。
-  4. references/ と scripts/ の有無（無ければ警告）。
+  4. references/ の有無、および SKILL.md が参照する scripts/ の実在（無ければ警告）。
   5. 秘匿情報スキャン（実 GUID / *.crm*.dynamics.com / 実メール / クライアントシークレット様）。
   6. 役割分離（警告）: SKILL.md（正常系）に異常系（よくあるエラー/トラブル/デバッグ等）の
      実体（エラー対処表・references 誘導なしの長文）が直書きされていないか。
   7. 集約ファイル登録（警告）: README カタログ・agents/*.agent.md への登録漏れ。
   8. .env.example カバレッジ（警告）: scripts が環境変数を使うのに references/.env.example が無い。
-  9. 内部リンク実在（警告）: SKILL.md/references の Markdown リンク先が実在するか（stale ref）。
+  9. 内部リンク実在（エラー）: SKILL.md/references の Markdown リンク先が実在するか（404 になる不具合）。
  10. 番号連番・frontmatter lint（警告）: ## 番号（N. / フェーズ N）連番、description 過長・
      trigger 過多・本文肥大（トークン概算で Anthropic 上限 5,000 語 ≈ 6,500 トークン超）。
 
@@ -238,7 +238,8 @@ def check_internal_links(skill_dir: Path, rep: Report) -> None:
                     continue
                 if (md.parent / t).exists():
                     continue
-                rep.warn(f"{md.name}:{i}: リンク切れ（参照先が無い）: {target}")
+                # リンク切れは実際に 404 になる不具合のため ERROR（ブロッキング）
+                rep.err(f"{md.name}:{i}: リンク切れ（参照先が無い）: {target}")
 
 
 def estimate_tokens(text: str) -> int:
@@ -337,8 +338,10 @@ def validate_skill(skill_dir: Path) -> Report:
     # references / scripts の有無
     if not (skill_dir / "references").is_dir():
         rep.warn("references/ が無い（参考情報・異常系の置き場）")
-    if not (skill_dir / "scripts").is_dir():
-        rep.warn("scripts/ が無い（利用スクリプトの置き場）")
+    # scripts/ は全スキル必須ではない。SKILL.md が scripts/ を参照しているのに
+    # ディレクトリが無い場合のみ（＝実害がある不整合）警告する。
+    if "scripts/" in text and not (skill_dir / "scripts").is_dir():
+        rep.warn("SKILL.md が scripts/ を参照しているが scripts/ ディレクトリが無い")
 
     # 秘匿情報スキャン（テキスト系ファイルのみ）
     exts = {".md", ".py", ".ps1", ".json", ".jsonc", ".ts", ".tsx", ".env", ".example"}
