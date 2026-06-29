@@ -54,6 +54,8 @@ ALLOWLIST = {
     "edfdb190-3791-45d8-9a6c-8f90a37c278a",  # AI Builder GPT Dynamic Prompt テンプレート ID（全環境固定）
     "00000000-0000-0000-0000-000000000000",  # 空 GUID（既定値プレースホルダー）
     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",   # プレースホルダー
+    "11111111-2222-3333-4444-555555555555",  # 汎用プレースホルダー（例示用）
+    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",   # 汎用プレースホルダー（例示用）
 }
 
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")

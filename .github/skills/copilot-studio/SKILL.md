@@ -291,8 +291,11 @@ Instructions テンプレート・既存エージェント改善パターンは 
 
 ## .env 必須項目
 
+全パラメータの定義（取得元コメント付き）は [references/.env.example](references/.env.example) を参照。
+実値はリポジトリルートの `.env` に置く（`.gitignore` 済み）。
+
 ```env
-DATAVERSE_URL=https://xxx.crm7.dynamics.com
+DATAVERSE_URL=https://{org}.crm.dynamics.com/
 SOLUTION_NAME=SolutionName
 PUBLISHER_PREFIX=prefix
 BOT_ID=https://copilotstudio.../bots/xxxxxxxx-xxxx-.../overview
