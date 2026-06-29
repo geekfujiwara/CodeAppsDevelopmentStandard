@@ -73,6 +73,14 @@ triggers:
   - "queryParams"
   - "パラメータ渡し"
   - "URL パラメータ"
+  - "画像"
+  - "Image 列"
+  - "EntityImage"
+  - "downloadImageFromRecord"
+  - "uploadFileToRecord"
+  - "画像アップロード"
+  - "画像表示"
+  - "RecordImage"
 ---
 
 # Code Apps 開発スキル
@@ -354,4 +362,5 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [プレデプロイレビュー](references/pre-deploy-review.md) | 「デプロイして」「プッシュして」時の自動チェック手順 |
 | [新規テーマ開始チェックリスト](references/new-theme-checklist.md) | 前テーマの残骸がないクリーン開始の確認手順・scaffold 時に含めないファイル |
 | [トラブルシューティング](references/troubleshooting.md) | 頻出エラーと対処法（GUID フィルタ・`.toLowerCase()` 統一・テンプレート削除時の use-theme 巻き添え 等） |
+| [画像列の表示パターン](references/image-handling.md) | Dataverse Image 列の表示・アップロード（`downloadImageFromRecord` → base64 data URI・失敗パターン・`pac` vs `npx` 差異） |
 | [サンプル作成ガイド](references/sample-authoring-guide.md) | 公開リポジトリ向けサンプルのセキュリティ要件・環境変数ルール・feature flag 命名規則 |

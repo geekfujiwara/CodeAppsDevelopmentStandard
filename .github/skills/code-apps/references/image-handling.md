@@ -165,31 +165,43 @@ export function RecordImage({ src, alt, className = "", isLoading }: RecordImage
 }
 ```
 
-### ページでの使用
+### 詳細ページでの使用（[詳細ページパターン](crud-ui-pattern.md) に準拠）
+
+詳細ページは `useParams` で ID を取得し、`useImage` hook で画像をフェッチする。
 
 ```tsx
-export default function LabsPage() {
-  const { data: labs = [], isLoading } = labHooks.useAll()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+import { useParams, useNavigate } from "react-router-dom"
+import { useState, useMemo } from "react"
+import { labHooks } from "@/hooks/use-dataverse"
+import { RecordImage } from "@/components/record-image"
+
+export default function LabDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const { data: labs = [] } = labHooks.useAll()
 
   // useImage は early return より前で呼ぶ（React hooks ルール）
-  const imageQuery = labHooks.useImage(selectedId)
+  const imageQuery = labHooks.useImage(id ?? null)
 
-  if (isLoading) return <LoadingSkeletonList />
+  const lab = useMemo(() => labs.find(l => l.geek_labid === id), [labs, id])
+  if (!lab) return <div className="p-8 text-center text-muted-foreground">レコードが見つかりません</div>
 
-  if (selectedId && selected) {
-    return (
+  return (
+    <div className="space-y-4">
+      {/* ヘッダー・フィールドカード（crud-ui-pattern.md の詳細ページテンプレート準拠） */}
       <RecordImage
         src={imageQuery.data as string | null}
-        alt={selected.name ?? ""}
+        alt={lab.geek_name ?? ""}
         className="w-full h-48 sm:h-64"
         isLoading={imageQuery.isLoading}
       />
-    )
-  }
-  // ... 一覧表示 ...
+      {/* ... フィールドカード ... */}
+    </div>
+  )
 }
 ```
+
+> **hooks のルール**: `useImage` を含む全 hooks は `if (!lab)` などの early return より**前**に呼ぶこと。`enabled: !!id` フラグで実際のフェッチを制御する。
 
 ---
 
