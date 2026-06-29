@@ -77,11 +77,60 @@ API で MCP ツール＋接続参照を作成し公開しても、初回は Copi
 > 自動化メモ: この UI 操作は Playwright MCP（`browser_navigate` / `browser_click`）で
 > 自動化できる。対象は対象サーバー詳細パネルの「確認 / Confirm」ボタン。
 
+## 「確認(Confirm)」が失敗する場合の対処（削除→再登録）★
+
+**新しい Copilot Studio UI** では、MCP サーバーの「確認(Confirm)」を押しても
+接続が完了しない（エラーが消えない）ケースがある。
+
+### 原因
+
+UI の Confirm 操作はセッション側の接続バインドを更新するが、
+接続参照と McpTool レコードが古い状態のまま残っている場合に
+バインドが完了しないことがある。
+
+### 対処：MCP サーバーを削除→再登録する
+
+`add_mcp_server.py` は**冪等設計**（実行のたびに既存 McpTool を削除して再作成）のため、
+再実行するだけで「削除→再登録」と同等の効果が得られる。
+
+```bash
+# Dataverse MCP の場合
+python add_mcp_server.py --connector shared_commondataserviceforapps \
+    --display "Microsoft Dataverse MCP サーバー"
+
+# Work IQ OneDrive の場合
+python add_mcp_server.py --connector shared_workiqonedrive \
+    --display "Work IQ OneDrive (Preview)"
+
+# 再登録後は再公開が必要
+python publish_agent.py
+```
+
+再登録後に Copilot Studio UI を開き直し、MCP サーバーが正常に表示されることを確認する。
+その後、UI で改めて「確認(Confirm)」を押すと接続が完了する。
+
+### PAC CLI による対応について（調査結果）
+
+`pac copilot` コマンドには MCP サーバーを追加・管理する専用サブコマンドは**存在しない**。
+調査した主なコマンド群:
+
+| コマンド | 用途 | MCP 追加 |
+|---|---|---|
+| `pac copilot list` | エージェント一覧 | ✗ |
+| `pac copilot create` | エージェント作成（YAML テンプレート） | ✗ |
+| `pac copilot publish` | エージェント公開 | ✗ |
+| `pac copilot clone` / `push` / `pull` | ワークスペース操作 | ✗ |
+| `pac copilot status` | デプロイ状態確認 | ✗ |
+
+**結論**: MCP サーバーの追加・再登録は引き続き **Dataverse Web API**（`add_mcp_server.py`）で
+行う必要がある。PAC CLI での代替手段は現時点（2025 年）では提供されていない。
+
 ## 既知エラーと対処
 
 | 症状 | 原因 | 対処 |
 |---|---|---|
 | 公開時 `1 missing connection reference` | 接続参照の論理名でコネクタ名を切詰めた | コネクタ名は**フル**で `{botschema}.cr.{connector}.{guid}` |
 | 実行時に MCP が反応しない / 認可エラー | 公開後の Confirm 未実施、または接続未承認 | UI で **Confirm** ＋ 接続の承認を確認 |
+| **UI の Confirm を押しても接続できない** | 接続参照バインドが古い状態で残っている | `add_mcp_server.py` を再実行（削除→再登録）→ 再公開 → UI で再 Confirm |
 | `Connected な接続がありません` | 環境に該当コネクタの接続が無い | make.powerautomate.com で接続を作成/承認 |
 | `operationId を検出できません` | Swagger 取得不可かつ既知表に無い | `--operation` で明示指定 |
