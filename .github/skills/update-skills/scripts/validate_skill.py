@@ -60,6 +60,7 @@ ALLOWLIST = {
     "96ff4394-9197-43aa-b393-6a41652e21f8",  # Power Virtual Agents Service 第一者アプリ ID（固定）
     "edfdb190-3791-45d8-9a6c-8f90a37c278a",  # AI Builder GPT Dynamic Prompt テンプレート ID（全環境固定）
     "00000000-0000-0000-0000-000000000000",  # 空 GUID（既定値プレースホルダー）
+    "00000000-0000-0000-0000-000000000001",  # 開発用モックの定番 ID（プレースホルダー）
     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",   # プレースホルダー
     "11111111-2222-3333-4444-555555555555",  # 汎用プレースホルダー（例示用）
     "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",   # 汎用プレースホルダー（例示用）
