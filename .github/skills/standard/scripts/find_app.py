@@ -11,7 +11,7 @@ h = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 API = URL + "/api/data/v9.2"
 
 # ソリューション内コンポーネント
-SOL_ID = "e24ef4f2-2433-f111-88b5-7ced8dea312a"
+SOL_ID = os.getenv("SOLUTION_ID", "")
 r = requests.get(f"{API}/solutioncomponents?$filter=_solutionid_value eq {SOL_ID}&$select=componenttype,objectid&$top=50", headers=h)
 r.raise_for_status()
 comps = r.json().get("value", [])

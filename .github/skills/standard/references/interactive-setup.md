@@ -58,8 +58,8 @@ pac env list
 
 ```
 番号 | 環境名                | 環境 ID                              | URL
-1    | Development           | fd2c6c62-f1ff-e09a-ae45-667765dd2502 | https://org-dev.crm.dynamics.com
-2    | Production            | xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx | https://org-prod.crm.dynamics.com
+1    | Development           | xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx | https://{org-dev}.crm.dynamics.com
+2    | Production            | yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy | https://{org-prod}.crm.dynamics.com
 ```
 
 > ユーザーが番号で選べるようにする。

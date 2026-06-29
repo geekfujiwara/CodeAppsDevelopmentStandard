@@ -53,6 +53,8 @@ ALLOWLIST = {
     "96ff4394-9197-43aa-b393-6a41652e21f8",  # Power Virtual Agents Service 第一者アプリ ID（固定）
     "00000000-0000-0000-0000-000000000000",  # 空 GUID（既定値プレースホルダー）
     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",   # プレースホルダー
+    "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy",   # プレースホルダー（2つ目の例示用）
+    "953b9fac-1e5e-e611-80d6-00155ded156f",  # Power Apps モデル駆動型アプリ デフォルトアイコン WebResource ID（固定）
 }
 
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
