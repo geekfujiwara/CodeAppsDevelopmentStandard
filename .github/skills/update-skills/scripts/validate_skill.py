@@ -64,6 +64,8 @@ ALLOWLIST = {
     "11111111-2222-3333-4444-555555555555",  # 汎用プレースホルダー（例示用）
     "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",   # 汎用プレースホルダー（例示用）
     "00000001-0000-0000-0001-00000000009b",  # Dataverse Default Solution（全環境固定）
+    "953b9fac-1e5e-e611-80d6-00155ded156f",  # システムデフォルト WebResource（標準アイコン・全環境固定）
+    "4273edbd-ac1d-40d3-9fb2-095c621b552d",  # 標準フォームコントロール CLASSID（全環境固定）
 }
 
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")

@@ -50,6 +50,8 @@ ALLOWLIST = {
     "11111111-2222-3333-4444-555555555555",  # 汎用プレースホルダー（例示用）
     "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",   # 汎用プレースホルダー（例示用）
     "00000001-0000-0000-0001-00000000009b",  # Dataverse Default Solution（全環境固定）
+    "953b9fac-1e5e-e611-80d6-00155ded156f",  # システムデフォルト WebResource（標準アイコン・全環境固定）
+    "4273edbd-ac1d-40d3-9fb2-095c621b552d",  # 標準フォームコントロール CLASSID（全環境固定）
 }
 
 GUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
