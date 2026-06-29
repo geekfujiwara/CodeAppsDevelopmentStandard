@@ -89,7 +89,20 @@ pip install -r requirements.txt
 ```
 
 `.env` に `DATAVERSE_URL` と `TENANT_ID` が設定済みなので、auth_helper.py が利用可能になる。
-初回実行時にデバイスコード認証が走り、以後はキャッシュで自動認証。
+
+### PAC プロファイルを Python API 実行にも応用する
+
+Step 2 で `pac auth create` が完了し `.env` に `PAC_AUTH_PROFILE` が設定されている場合、
+`auth_helper.py` は **デバイスコード認証の代わりに PAC CLI プロファイルを自動的に使用する**。
+
+動作フロー:
+1. `get_token()` 呼び出し時に `PAC_AUTH_PROFILE` の有無を確認
+2. 設定されている場合: `pac auth select --name {profile}` → `pac auth token --resource {url}` を実行
+3. 取得したトークンをインメモリキャッシュに格納（JWT の exp から有効期限を自動取得）
+4. PAC CLI が見つからない・失敗した場合は DeviceCode フローへ自動フォールバック
+
+`PAC_AUTH_PROFILE` を設定することで、Step 6 以降の Dataverse API 呼び出しがすべて
+PAC プロファイル経由で認証される（初回のデバイスコード入力が不要になる）。
 
 ## Step 6: 既存パブリッシャーの確認と選択
 

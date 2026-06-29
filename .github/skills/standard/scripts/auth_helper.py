@@ -6,7 +6,22 @@ Power Platform Dataverse デプロイスクリプト用 共通認証ヘルパー
 ※ Power Apps を利用するエンドユーザーの認証は Power Apps SDK が処理するため、
   本モジュールの対象外。
 
-認証の仕組み（2 層キャッシュ）:
+認証モード（優先順）:
+  1. PAC CLI プロファイル（.env に PAC_AUTH_PROFILE が設定されている場合）
+     - pac auth select → pac auth token でトークンを取得
+     - インタラクティブセットアップで pac auth create 済みの場合に自動利用
+     - デバイスコード認証が不要（インタラクティブ認証済みプロファイルを再利用）
+  2. DeviceCodeCredential（PAC CLI が未設定または失敗した場合のフォールバック）
+     - 2 層キャッシュ（AuthenticationRecord + MSAL 永続キャッシュ）
+     - 初回のみデバイスコード認証が走り、以後はサイレントリフレッシュ
+
+PAC CLI 認証の仕組み:
+  - PAC_AUTH_PROFILE に pac auth create で作成したプロファイル名を設定
+  - get_token() 呼び出し時に pac auth select → pac auth token を実行
+  - JWT の exp クレームから有効期限を取得してインメモリキャッシュで管理
+  - pac CLI が見つからない・失敗した場合は DeviceCode フローへ自動フォールバック
+
+DeviceCode 認証の仕組み（2 層キャッシュ）:
   1. AuthenticationRecord (.auth_record.json)
      - アカウント情報（テナント・ユーザー等）を保存
      - これだけではトークンは保存されない
@@ -31,7 +46,7 @@ Power Platform Dataverse デプロイスクリプト用 共通認証ヘルパー
   # Flow API 用トークン
   token = get_token(scope="https://service.flow.microsoft.com/.default")
 
-  # requests.Session（Bearer ヘッダー付き）
+  # requests.Session（******
   session = get_session()
   resp = session.get(f"{DATAVERSE_URL}/api/data/v9.2/accounts")
 
@@ -44,6 +59,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -63,6 +79,7 @@ load_dotenv()
 
 TENANT_ID: str = os.getenv("TENANT_ID", "")
 DATAVERSE_URL: str = os.getenv("DATAVERSE_URL", "").rstrip("/")
+PAC_AUTH_PROFILE: str = os.getenv("PAC_AUTH_PROFILE", "")
 
 # AuthenticationRecord の保存先（プロジェクトルートの .auth_record.json）
 _PROJECT_ROOT = Path(__file__).resolve().parent
@@ -157,6 +174,94 @@ def _save_auth_record(record: AuthenticationRecord) -> None:
     )
 
 
+
+# ---------- PAC CLI 認証ヘルパー ----------
+
+
+def _decode_jwt_exp(token: str) -> float | None:
+    """JWT の exp クレームをUnix タイムスタンプ (float) として取得する（署名検証なし）。
+
+    PAC CLI が返すトークンは標準 JWT のため、ペイロードから有効期限を取得できる。
+    解析に失敗した場合は None を返す。
+    """
+    try:
+        import base64
+
+        parts = token.split(".")
+        if len(parts) != 3:
+            return None
+        payload_b64 = parts[1]
+        # Base64url は padding なしのため補完する
+        padding = (4 - len(payload_b64) % 4) % 4
+        payload_b64 += "=" * padding
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        exp = payload.get("exp")
+        return float(exp) if exp is not None else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _pac_get_token(scope: str) -> str | None:
+    """PAC CLI プロファイルを使ってアクセストークンを取得する。
+
+    PAC_AUTH_PROFILE が設定されており、pac CLI が PATH に存在する場合のみ機能する。
+    失敗した場合は None を返し、呼び出し元が DeviceCode フローへフォールバックする。
+
+    Args:
+        scope: OAuth2 スコープ（例: ``https://org.dynamics.com/.default``）。
+
+    Returns:
+        アクセストークン文字列、または None。
+    """
+    if not PAC_AUTH_PROFILE:
+        return None
+
+    # /.default サフィックスを除いたリソース URL（pac auth token --resource の引数）
+    resource = scope[: -len("/.default")] if scope.endswith("/.default") else scope
+
+    try:
+        # 指定プロファイルを選択（すでに選択済みでも副作用なし）
+        subprocess.run(
+            ["pac", "auth", "select", "--name", PAC_AUTH_PROFILE],
+            capture_output=True,
+            timeout=15,
+        )
+        # アクセストークンを取得
+        result = subprocess.run(
+            ["pac", "auth", "token", "--resource", resource],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            token = result.stdout.strip()
+            if token:
+                print(
+                    f"[auth_helper] PAC CLI プロファイル '{PAC_AUTH_PROFILE}' からトークンを取得しました",
+                    file=sys.stderr,
+                )
+                return token
+        # pac auth token が失敗した場合は stderr を表示してフォールバック
+        if result.stderr.strip():
+            print(
+                f"[auth_helper] pac auth token 失敗（DeviceCode フローにフォールバック）: "
+                f"{result.stderr.strip()}",
+                file=sys.stderr,
+            )
+    except FileNotFoundError:
+        print(
+            "[auth_helper] pac コマンドが見つかりません（DeviceCode フローにフォールバック）",
+            file=sys.stderr,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            "[auth_helper] pac auth token タイムアウト（DeviceCode フローにフォールバック）",
+            file=sys.stderr,
+        )
+
+    return None
+
+
 # ---------- 公開 API ----------
 
 # Python 3.14 で MSAL 内部トークンキャッシュが壊れる問題の回避策:
@@ -190,6 +295,14 @@ def get_token(scope: str | None = None) -> str:
         token_str, expires_on = _inmemory_tokens[scope]
         if time.time() < expires_on - 60:
             return token_str
+
+    # PAC CLI プロファイルが設定されている場合は先に試みる
+    if PAC_AUTH_PROFILE:
+        pac_token = _pac_get_token(scope)
+        if pac_token:
+            expires_on = _decode_jwt_exp(pac_token) or (time.time() + 3000)
+            _inmemory_tokens[scope] = (pac_token, expires_on)
+            return pac_token
 
     credential = _ensure_credential()
 
