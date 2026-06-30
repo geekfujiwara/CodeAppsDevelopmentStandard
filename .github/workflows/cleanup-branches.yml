@@ -1,0 +1,62 @@
+name: 不要ブランチの一括削除
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'ドライラン（true=削除せず一覧表示のみ、false=実際に削除）'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: ブランチ一覧取得・削除
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          echo "=== 保持するブランチ: main ==="
+          echo "=== ドライラン: $DRY_RUN ==="
+          echo ""
+
+          # main 以外のブランチを全て取得
+          BRANCHES=$(gh api repos/$REPO/branches --paginate --jq '.[].name' | grep -v '^main$')
+          COUNT=$(echo "$BRANCHES" | grep -c . || true)
+
+          echo "=== 削除対象ブランチ一覧（${COUNT}件）==="
+          echo "$BRANCHES"
+          echo ""
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "ドライランのため削除はスキップしました。"
+            echo "実際に削除するには dry_run=false で再実行してください。"
+          else
+            echo "=== 削除開始 ==="
+            DELETED=0
+            FAILED=0
+            while IFS= read -r branch; do
+              if [ -z "$branch" ]; then
+                continue
+              fi
+              echo -n "削除中: $branch ... "
+              if gh api -X DELETE repos/$REPO/git/refs/heads/$branch 2>/dev/null; then
+                echo "✅ 完了"
+                DELETED=$((DELETED + 1))
+              else
+                echo "❌ 失敗（保護ブランチ or 権限不足）"
+                FAILED=$((FAILED + 1))
+              fi
+            done <<< "$BRANCHES"
+            echo ""
+            echo "=== 完了: 削除成功 ${DELETED}件 / 失敗 ${FAILED}件 ==="
+          fi
