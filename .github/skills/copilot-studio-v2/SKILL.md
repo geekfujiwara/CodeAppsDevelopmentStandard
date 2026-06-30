@@ -52,12 +52,20 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 ## いつ v2 を使うか（architecture スキルでの分岐）
 
 `architecture` スキルの Copilot Studio 選定時に、ユーザーへ **v2 / v1 のどちらで作るか** を確認する。
-**特に希望がなければ v2 を推奨**（自動構築できるため）。判断材料は下表。
+**判断の起点は「他サービスと連携して使うか、単独で使うか」**:
 
-| v2（新アーキ）が向く | v1（旧アーキ）が向く |
+- **連携利用（Code Apps / Web サイト / 他システムから呼び出す）→ v1 を推奨**。
+  v2（cliagent）は **Code Apps から呼び出せず・Web サイトにも埋め込めない**致命的制約があるため。
+- **単独利用（Teams / Copilot Studio 単体の対話のみ）→ v2 を推奨**（UI 操作なしで自動構築できるため）。
+
+> **致命的制約**: v2 のエージェントは Code Apps の `ExecuteCopilotAsyncV2` 連携や WebChat SDK での
+> 外部公開に**対応しない**。これらのシナリオでは必ず v1 を選ぶ。
+
+| v2（新アーキ）が向く＝単独利用 | v1（旧アーキ）が向く＝連携利用 |
 |---|---|
-| UI 操作なしで自動構築したい | conversationStarters / 会話の開始 / クイック返信を細かく作り込みたい |
-| フラット Python スキルでツール挙動を実装したい | 既存の v1 references（外部公開・トリガー・ニュース配信）資産を流用したい |
+| Teams 等で単独利用し、外部から呼び出さない | **Code Apps / Web サイト / 他システムから呼び出す（v2 不可）** |
+| UI 操作なしで自動構築したい | 外部公開（Web 埋め込み・WebChat SDK）・トリガー・ニュース配信の既存資産を流用したい |
+| フラット Python スキルでツール挙動を実装したい | conversationStarters / 会話の開始 / クイック返信を細かく作り込みたい |
 | 再現構築・量産・プログラム的改変 | クラシックなナレッジ/トピック中心の構成 |
 
 ## 構築フロー（完全自動）
@@ -164,15 +172,7 @@ MCP サーバーを API で追加し公開しても、**初回は Copilot Studio
 
 ### よくあるエラー
 
-| 症状 | 原因 | 対処 |
-|---|---|---|
-| `0x8004023b "Connection State is closed"` | Bot プロビジョニング直後で認可セッション未確立 | 数秒待って **リトライ**（一時エラー） |
-| `undeclared property 'parentbotcomponentid'` | 親ナビ名が誤り | `ParentBotComponentId`（Pascalケース）を使う |
-| `bot $select` で 400 | 新アーキに存在しない列を指定 | 全列取得してから必要列をフィルタ |
-| `0x80040265`（bots 更新不可） | PATCH に `name` 列を含めていない | アイコン等の PATCH でも `name` を同送 |
-| 公開時 `1 missing connection reference` | 接続参照の論理名でコネクタ名を切詰めた | コネクタ名は**フル**で論理名を生成 |
-| 公開後も MCP がエラー | UI の「確認(Confirm)」未実施 | UI で MCP サーバーを **Confirm**（再公開だけでは消えないことがある） |
-| 日本語出力で `UnicodeEncodeError`（cp932） | Windows コンソール既定 | `sys.stdout.reconfigure(encoding="utf-8")` |
+異常系（症状→原因→対処の一覧）は [references/troubleshooting.md](references/troubleshooting.md) を参照。
 
 ## スクリプト一覧
 

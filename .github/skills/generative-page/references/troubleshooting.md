@@ -27,7 +27,7 @@ dotnet tool update --global Microsoft.PowerApps.CLI.Tool
 pac auth list
 
 # 新規作成（対話式ブラウザ認証）
-pac auth create --environment https://your-env.crm7.dynamics.com
+pac auth create --environment https://{org}.crm.dynamics.com
 
 # 既存プロファイルに切り替え
 pac auth select --index <n>

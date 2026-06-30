@@ -466,20 +466,8 @@ except Exception as e:
 
 ### デバッグ JSON 出力（失敗時のフォールバック）
 
-```python
-# 有効化が万一失敗した場合のフォールバック
-try:
-    api_patch(f"workflows({wf_id})", {"statecode": 1, "statuscode": 2})
-except Exception as e:
-    debug_path = "flow_definition_debug.json"
-    with open(debug_path, "w", encoding="utf-8") as f:
-        json.dump({"workflow_body": workflow_body, "error": str(e)}, f, ensure_ascii=False, indent=2)
-    print(f"  ❌ 有効化失敗: {e}")
-    print(f"  デバッグ JSON: {debug_path}")
-    print("  → Power Automate UI で手動有効化してください")
-    print(f"     https://make.powerautomate.com/environments/{env_id}/flows/{wf_id}")
-    sys.exit(1)
-```
+有効化が失敗した場合のデバッグ JSON 出力・手動有効化フォールバックは
+[references/troubleshooting.md](references/troubleshooting.md#有効化失敗時のデバッグ-json-出力フォールバック) を参照。
 
 ## 通知デザイン（デフォルト適用 — ユーザー指定不要）
 
@@ -507,8 +495,11 @@ except Exception as e:
 
 ## .env 必須項目
 
+全パラメータの定義（取得元コメント付き）は [references/.env.example](references/.env.example) を参照。
+実値はリポジトリルートの `.env` に置く（`.gitignore` 済み）。
+
 ```env
-DATAVERSE_URL=https://xxx.crm7.dynamics.com
+DATAVERSE_URL=https://{org}.crm.dynamics.com/
 SOLUTION_NAME=SolutionName
 PUBLISHER_PREFIX=prefix
 # 接続 ID はハードコードしない。deploy_flow.py が PowerApps API で自動検索する
@@ -516,12 +507,5 @@ PUBLISHER_PREFIX=prefix
 
 ## よくあるエラーと解決策
 
-| エラー                                  | 原因                                           | 解決策                                                         |
-| --------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- |
-| `AzureResourceManagerRequestFailed`     | 接続参照なしで直接接続 ID 指定                 | Step 2 の接続参照パターンに変更                                |
-| `InvalidOpenApiFlow` (0x80060467)       | 存在しないパラメータを指定                     | operationSchema を確認（body/subject 等）                      |
-| `WorkflowOperationInputsApiOperationNotFound` | 存在しない operationId                   | 正しい operationId を確認（UploadFile → UpdateEntityFileImageFieldContent） |
-| PowerApps API 504 GatewayTimeout        | 接続検索のタイムアウト                         | 3回リトライ + timeout=120                                      |
-| Webhook トリガーが発火しない            | /start 未呼び出し                              | 有効化後に Flow API /start を呼ぶ                              |
-| フロー実行時に接続エラー                | 接続が Error/Disconnected 状態                 | Power Automate UI で接続を再認証                               |
-| `AppLeaseMissing` / `ConnectionNotFound` | 環境が変わった / 接続 ID が古い               | PowerApps API で毎回 Connected 接続を検索                     |
+エラー→原因→解決策の一覧（`AzureResourceManagerRequestFailed` / `InvalidOpenApiFlow` /
+504 GatewayTimeout / 接続エラー 等）は [references/troubleshooting.md](references/troubleshooting.md#よくあるエラーと解決策) を参照。
