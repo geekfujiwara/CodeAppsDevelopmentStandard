@@ -60,11 +60,7 @@ function client() { return getClient(dataSourcesInfo) }
 async function getImage(table: string, id: string, imageColumn: string): Promise<string | null> {
   const result = await client().downloadImageFromRecord(table, id, imageColumn, false)
   if (result.success && result.data && result.data.byteLength > 0) {
-    const bytes = new Uint8Array(result.data)
-    let binary = ""
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i])
-    }
+    const binary = new TextDecoder("latin1").decode(result.data)
     return `data:image/jpeg;base64,${btoa(binary)}`
   }
   return null
@@ -73,7 +69,7 @@ async function getImage(table: string, id: string, imageColumn: string): Promise
 
 **ポイント**:
 - `Blob` + `URL.createObjectURL()` は CSP（`img-src` に `blob:` なし）でブロックされるため使えない
-- `Uint8Array` → `String.fromCharCode` → `btoa()` で base64 に変換し `data:` URI を生成する
+- `TextDecoder("latin1").decode()` で `ArrayBuffer` をそのまま文字列化し `btoa()` で base64 に変換して `data:` URI を生成する（`Uint8Array` への変換・ループ不要）
 - `fullSize` パラメータ: `false` でサムネイル、`true` でフルサイズ
 
 ### 汎用 CRUD ファクトリでの組み込み例
@@ -92,11 +88,7 @@ function createCrud(tableName: string, imageColumn?: string) {
             table, id, imageColumn, false
           )
           if (result.success && result.data && result.data.byteLength > 0) {
-            const bytes = new Uint8Array(result.data)
-            let binary = ""
-            for (let i = 0; i < bytes.byteLength; i++) {
-              binary += String.fromCharCode(bytes[i])
-            }
+            const binary = new TextDecoder("latin1").decode(result.data)
             return `data:image/jpeg;base64,${btoa(binary)}`
           }
           return null
@@ -126,7 +118,7 @@ function createHooks(key: string, service: ReturnType<typeof createCrud>) {
     // ... CRUD hooks ...
     useImage: (id: string | null) => useQuery({
       queryKey: [key, "image", id],
-      queryFn: () => service.getImage!(id!),
+      queryFn: () => service.getImage && id ? service.getImage(id) : Promise.resolve(null),
       enabled: !!id && !!service.getImage,
       staleTime: 5 * 60 * 1000,
     }),
