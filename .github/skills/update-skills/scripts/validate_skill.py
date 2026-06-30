@@ -62,6 +62,7 @@ ALLOWLIST = {
     "00000000-0000-0000-0000-000000000000",  # 空 GUID（既定値プレースホルダー）
     "00000000-0000-0000-0000-000000000001",  # 開発用モックの定番 ID（プレースホルダー）
     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",   # プレースホルダー
+    "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy",   # プレースホルダー（2つ目の例示用）
     "11111111-2222-3333-4444-555555555555",  # 汎用プレースホルダー（例示用）
     "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",   # 汎用プレースホルダー（例示用）
     "00000001-0000-0000-0001-00000000009b",  # Dataverse Default Solution（全環境固定）
