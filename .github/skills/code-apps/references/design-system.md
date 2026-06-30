@@ -123,7 +123,7 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 
 ## コンポーネント・画面パターン
 
-コンポーネントカタログ・ユーティリティ・テーマ変数・画面設計パターンの詳細は [コンポーネントリファレンス](references/component-catalog.md) を参照。
+コンポーネントカタログ・ユーティリティ・テーマ変数・画面設計パターンの詳細は [コンポーネントリファレンス](component-catalog.md) を参照。
 
 ## レスポンシブファースト設計原則
 
@@ -231,6 +231,6 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 | 確認ダイアログ | `ConfirmDialog`（destructive 対応）or `AlertDialog` |
 | ローディング | `LoadingSkeletonGrid`（variant: default/compact/detailed） |
 | コード表示 | `CodeBlock`（コピー機能付き） |
-| 地域別データを地図で可視化 | `JapanMap`（SVG 都道府県クリック + 色分け + 地方フィルタ）— [日本地図パターン](references/japan-map-pattern.md) 参照 |
-| AI エージェントと対話 | `CopilotChatPage`（Copilot Studio 直接統合チャット UI）— [Copilot チャットパターン](references/copilot-chat-pattern.md) 参照 |
-| レコードの読み取り専用制御 | オーナーガード（ログインユーザー vs 担当者の比較で isReadOnly 判定）— [オーナーガードパターン](references/owner-guard-pattern.md) 参照 |
+| 地域別データを地図で可視化 | `JapanMap`（SVG 都道府県クリック + 色分け + 地方フィルタ）— [日本地図パターン](japan-map-pattern.md) 参照 |
+| AI エージェントと対話 | `CopilotChatPage`（Copilot Studio 直接統合チャット UI）— [Copilot チャットパターン](copilot-chat-pattern.md) 参照 |
+| レコードの読み取り専用制御 | オーナーガード（ログインユーザー vs 担当者の比較で isReadOnly 判定）— [オーナーガードパターン](owner-guard-pattern.md) 参照 |

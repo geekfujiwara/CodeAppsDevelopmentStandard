@@ -187,11 +187,11 @@ headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json
            "OData-MaxVersion": "4.0", "OData-Version": "4.0"}
 
 # テーブル権限(type=18)の powerpagecomponentid
-PERM_ID = "01a5cf4c-ee5a-f111-a825-7ced8d3ce773"
+PERM_ID = "{permission-id}"
 # Web Role (Authenticated Users) の ID（EDM では webrole id と同一）
-ROLE_ID = "7e158fa3-602e-4a62-93c3-06d54022438e"
+ROLE_ID = "{role-id}"
 # adx_website の ID
-WEBSITE_ID = "83535722-1daf-4523-ac12-374fd93cd8eb"
+WEBSITE_ID = "{website-id}"
 
 # 1) 現在の content を取得
 r = requests.get(

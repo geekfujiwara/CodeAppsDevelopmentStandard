@@ -47,5 +47,10 @@ Power Platform コードファースト開発エキスパート。
 | Copilot Studio v2 (新アーキ/自動構築) | .github/skills/copilot-studio-v2/SKILL.md |
 | AI Builder | .github/skills/ai-builder/SKILL.md |
 | Generative Page | .github/skills/generative-page/SKILL.md |
+| Power Pages | .github/skills/power-pages/SKILL.md |
 | モデル駆動型アプリ | .github/skills/model-driven-app/SKILL.md |
 | アーキテクチャ判断 | .github/skills/architecture/SKILL.md |
+| 仕様→Markdown 変換 | .github/skills/spec-to-markdown/SKILL.md |
+| Cowork / MCP クライアント登録 | .github/skills/cowork/SKILL.md |
+| サンプル公開パッケージング | .github/skills/package-sample/SKILL.md |
+| スキル作成・更新 | .github/skills/update-skills/SKILL.md |

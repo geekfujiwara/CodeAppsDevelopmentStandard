@@ -207,3 +207,4 @@ iframe 埋め込み（地図等）を実装する場合の手順:
 - **CSP 設定は環境レベル**。同一環境内の全 Code Apps に適用される
 - **`sandbox` 属性を適切に設定**。`allow-scripts allow-same-origin allow-popups` で地図操作・ポップアップを許可
 - **iframe の代替手段も検討**。CSP 設定が困難な場合は SVG 地図やリンクボタンで代替できる
+- **`blob:` URL は `img-src` でブロックされる**（検証済み 2026-06-29）。`downloadImageFromRecord` で取得した `Uint8Array` を `URL.createObjectURL()` で表示しようとすると CSP 違反。代わりに `btoa()` で base64 変換し `data:` URI を使う（→ [画像列の表示パターン](image-handling.md)）

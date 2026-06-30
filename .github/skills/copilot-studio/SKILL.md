@@ -5,7 +5,6 @@ category: automation
 triggers:
   - "Copilot Studio"
   - "エージェント作成"
-  - "Bot"
   - "生成オーケストレーション"
   - "Instructions"
   - "指示"
@@ -17,11 +16,9 @@ triggers:
   - "Copilot Studio トリガー"
   - "メール受信"
   - "エージェント自動起動"
-  - "ExternalTriggerComponent"
   - "ExecuteCopilot"
   - "Power Automate トリガー"
   - "Office 365 Outlook"
-  - "OnNewEmailV3"
   - "メールトリガー"
   - "自動リサーチ"
   - "レポート自動生成"
@@ -33,22 +30,10 @@ triggers:
   - "ニュースエージェント"
   - "外部公開"
   - "Web埋め込み"
-  - "iframe"
   - "認証なし"
   - "静的Webサイト"
-  - "Azure Storage"
   - "WebChat SDK"
-  - "DirectLine"
-  - "トークンエンドポイント"
-  - "ネイティブアプリ"
-  - "styleOptions"
-  - "カルーセル"
-  - "プロンプトチップス"
   - "デザインテンプレート"
-  - "左パネル"
-  - "カテゴリ別カード"
-  - "AI タイピング"
-  - "グラデーション枠"
   - "外部Webデザイン"
   - "ランディングページ"
 ---
@@ -68,7 +53,7 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 | [**外部公開デザインテンプレート**](references/webchat-sdk-design-template.md) | **標準 UI デザイン**：左パネル（カテゴリ別カード＋プロンプトチップス）＋ 右 WebChat パネル（グラデーション枠・AI タイピング Tips） |
 | [外部トリガー](references/trigger.md) | メール受信・Teams メッセージ・スケジュール等のトリガー追加 |
 | [トリガーパターン](references/trigger-patterns.md) | トリガーの設定パターン集 |
-| [トリガートラブルシューティング](references/trigger-troubleshooting.md) | トリガー関連のトラブルシューティング |
+| [トラブルシューティング](references/troubleshooting.md) | トリガー関連を中心とした異常系・トラブルシューティング |
 | [ニュース配信エージェント](references/market-research-report.md) | RSS + Web検索 + Work IQ MCP によるニュース収集・配信エージェント構築 |
 | [ニュース配信デプロイガイド](references/market-research-deployment-guide.md) | ニュース配信エージェントのデプロイ手順 |
 | [ニュース配信メールテンプレート](references/market-research-email-template.md) | ニュース配信メールの HTML テンプレート |
@@ -291,8 +276,11 @@ Instructions テンプレート・既存エージェント改善パターンは 
 
 ## .env 必須項目
 
+全パラメータの定義（取得元コメント付き）は [references/.env.example](references/.env.example) を参照。
+実値はリポジトリルートの `.env` に置く（`.gitignore` 済み）。
+
 ```env
-DATAVERSE_URL=https://xxx.crm7.dynamics.com
+DATAVERSE_URL=https://{org}.crm.dynamics.com/
 SOLUTION_NAME=SolutionName
 PUBLISHER_PREFIX=prefix
 BOT_ID=https://copilotstudio.../bots/xxxxxxxx-xxxx-.../overview

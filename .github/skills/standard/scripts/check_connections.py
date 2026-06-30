@@ -5,7 +5,9 @@ from auth_helper import get_token
 from dotenv import load_dotenv
 load_dotenv()
 
-ENV_ID = os.getenv("ENV_ID", "")
+ENV_ID = os.environ.get("ENV_ID", "").strip()
+if not ENV_ID:
+    sys.exit("ENV_ID が未設定です（.env で指定してください）")
 
 PA_API = "https://api.powerapps.com"
 token = get_token(scope="https://service.powerapps.com/.default")

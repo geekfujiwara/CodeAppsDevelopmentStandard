@@ -383,7 +383,7 @@ function VendorsContent() {
                 type="email"
                 value={formData.email}
                 onChange={update("email")}
-                placeholder="example@company.com"
+                placeholder="example@example.com"
               />
             </div>
             {/* 電話 */}

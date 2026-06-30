@@ -251,8 +251,9 @@ def main():
     add_mcp_server(sess, bot_id, bot_schema, args.connector, args.display, args.operation)
 
     print("\n✅ 完了。Copilot Studio でエージェントを公開してください。")
-    print("   ※ 公開後、UI で MCP サーバーの「確認(Confirm)」が一度必要な場合があります"
-          "（references/mcp-servers.md）。")
+    print("   ※ 公開後、UI で MCP サーバーの「確認(Confirm)」が一度必要な場合があります")
+    print("   ※ UI の Confirm が失敗する場合は、本スクリプトを再実行（削除→再登録）→ 再公開 → 再 Confirm")
+    print("   （references/mcp-servers.md）。")
 
 
 if __name__ == "__main__":
