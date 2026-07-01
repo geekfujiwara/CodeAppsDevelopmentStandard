@@ -1,7 +1,10 @@
-# Code Apps デザインテンプレート集
+# Code Apps デザインテンプレート集（レイアウト）
 
-> **用途**: Code Apps の設計フェーズでユーザーにデザインテンプレートを提案し、選択されたテンプレートの CSS 変数一式を `styles/index.pcss`（または任意の CSS ファイル）の `:root` / `.dark` に適用する。
-> **ランタイム切替ではない**: デプロイされるアプリは常に 1 テンプレート。設計時に選択する（ダーク/ライト切替は `ThemeProvider` + `ModeToggle` で行う）。
+> **用途**: Code Apps の設計フェーズで **画面の骨格（レイアウト）** をユーザーに提案し、選択されたレイアウトのアプリシェル構造（React + Tailwind + shadcn/ui）で実装する。
+> **配色とは別軸**: このファイルは **レイアウト（画面構造）** のみを定義する。色は [カラーパレット集](color-palettes.md) を参照。設計フェーズでは **レイアウトを選択 → 配色を選択** の順で提案する。
+> **ランタイム切替ではない**: デプロイされるアプリは常に 1 レイアウト。設計時に選択する。
+
+> **既存 samples はそのまま**: `samples/` の各アプリ（geek-sales / geek-hr 等）は **Sidebar レイアウト（下記 #1）** をベースに機能実装済み。テンプレートは色違いではなく、**画面の骨格の違い**で選ぶ。
 
 ---
 
@@ -9,592 +12,241 @@
 
 ```
 1. ユーザーが Code Apps の構築を依頼
-2. エージェントがこのファイルを読み込み、テンプレート一覧を提示
+2. エージェントがこのファイルを読み込み、レイアウト一覧＋プレビューを提示
 3. ユーザーが視覚プレビューを確認して 1 つ選択
-4. 選択されたテンプレートの CSS Variables を :root / .dark に適用
-5. --radius をテンプレート指定値に変更
-6. design-system.md の設計フェーズ（画面一覧・コンポーネント選定）と合わせてユーザー承認を得る
+4. 続いて color-palettes.md でカラーパレットを選択
+5. design-system.md の設計フェーズ（画面一覧・コンポーネント選定）と合わせてユーザー承認を得る
+6. 承認後、選択レイアウトのアプリシェルで実装（配色は選択パレットの CSS Variables を適用）
 ```
 
 ### 提案フォーマット（ユーザーに見せる形式）
 
-テンプレート一覧と視覚プレビューへのパスを以下の形式で提示すること:
-
 ```
-## デザインテンプレートを選んでください
+## デザインテンプレート（レイアウト）を選んでください
 
-| # | テンプレート名 | 配色 | 印象 | プレビュー |
-|---|--------------|------|------|-----------|
-| 1 | Ocean Blue | 🔵 ブルー | 爽やか・標準・業務アプリ全般 | previews/ocean-blue.html |
-| 2 | Indigo / Violet | 🟣 インディゴ + バイオレット | モダン・先進的・クリエイティブ | previews/indigo-violet.html |
-| 3 | Emerald / Teal | 🟢 エメラルド + ティール | ナチュラル・安心感・ヘルスケア | previews/emerald-teal.html |
-| 4 | Amber / Orange | 🟠 アンバー + オレンジ | エネルギッシュ・製造・建設 | previews/amber-orange.html |
-| 5 | Rose / Pink | 🌸 ローズ + ピンク | 親しみやすい・カジュアル・サービス業 | previews/rose-pink.html |
-| 6 | Slate Mono | ⚫ スレート（モノトーン） | ミニマル・堅実・エンタープライズ | previews/slate-mono.html |
+| # | レイアウト名 | 骨格 | 向いている用途 | プレビュー |
+|---|-----------|------|--------------|-----------|
+| 1 | Sidebar（標準） | 固定左ナビ + フル高さコンテンツ | 業務アプリ全般（samples の標準） | previews/layout-sidebar.html |
+| 2 | Dashboard | ヘッダー + KPI スタットカード + メイン | 数値サマリ重視の管理画面 | previews/layout-dashboard.html |
+| 3 | Workspace | 2 カラム（左作業パネル + 右メイン） | フィルタ/操作と詳細を並置 | previews/layout-workspace.html |
+| 4 | Hero Cards | ヒーロー + 特徴カード + セクション | ポータルのトップ/ランディング | previews/layout-hero-cards.html |
+| 5 | Minimal | 中央 1 カラム（最大幅制限） | フォーム中心・単機能アプリ | previews/layout-minimal.html |
 
-プレビュー HTML をブラウザで開くと実際の配色・レイアウトを確認できます。
+プレビュー HTML をブラウザで開くと実際の骨格を確認できます。
 番号で選んでください（デフォルト: 1）
 ```
+
+> このレイアウト集は、外部公開 WebChat のライトモード・レイアウト
+> （copilot-studio スキルの [webchat-sdk-light-templates.md](../../copilot-studio/references/webchat-sdk-light-templates.md)）を
+> Code Apps（React + Tailwind + shadcn/ui）のアプリシェルに変換したもの。用途は同じ発想で選ぶ。
 
 ---
 
 ## 共通ルール
 
-### フォントは全テンプレート共通（システムフォント固定）
+### レイアウトは「アプリシェル」で表現する
 
-Code Apps は Google Fonts 禁止（外部通信・CSP の制約）。テンプレートで切り替えるのは **配色と `--radius` のみ**。フォントは変更しない:
+レイアウトは配色（CSS Variables）ではなく、**アプリシェル（`App.tsx` / `src/components/layout/*`）の構造**で決まる。
+どのレイアウトでも:
 
-```css
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-}
-```
+- ルーティングは `react-router` を使う（ページはレイアウト内の `<Outlet />` / メイン領域に描画）。
+- 色は [color-palettes.md](color-palettes.md) の CSS Variables（`--background` / `--card` / `--sidebar` 系など）を使い、レイアウト側では **色をハードコードしない**。
+- コンポーネントは shadcn/ui（`Card` / `Button` / `Sidebar` / `Table` など）を使う。
+- ダーク/ライト切替は `ThemeProvider` + `ModeToggle`。フォントはシステムフォント固定（Google Fonts 禁止）。
 
-### バッジ変数は全テンプレート共通
+### レスポンシブ（sticky 重なり対策）
 
-`--badge-beginner` / `--badge-intermediate` / `--badge-advanced` / `--badge-administrator` / `--badge-developer` は
-**ステータスの意味（色の記号性）を担う**ため、テンプレートを切り替えても変更しない。
-
-### 適用対象の変数一覧
-
-各テンプレートは以下の変数を上書きする:
-
-`--radius` / `--background` / `--foreground` / `--card` / `--card-foreground` / `--popover` / `--popover-foreground` /
-`--primary` / `--primary-foreground` / `--secondary` / `--secondary-foreground` / `--muted` / `--muted-foreground` /
-`--accent` / `--accent-foreground` / `--accent-hover` / `--destructive` / `--border` / `--input` / `--ring` /
-`--chart-1` 〜 `--chart-5` / `--sidebar` 系 8 変数 / `--header-bg` / `--menu-bg`
+2 カラム系（Workspace / Dashboard）で左パネルや右パネルを `sticky` にする場合、
+シングルカラムに落とすブレークポイントで **必ず `position: static` に戻す**（`sticky` が残ると縦スクロール時に重なる）。
+Tailwind では `lg:sticky lg:top-6`（＝小画面では sticky を付けない）で表現する。
 
 ---
 
 ## テンプレート定義
 
-### 1. Ocean Blue（デフォルト）
+### 1. Sidebar（標準・デフォルト）
 
-**印象**: 爽やか・標準・業務アプリ全般
-**--radius**: `0.625rem`
-**視覚プレビュー**: [previews/ocean-blue.html](previews/ocean-blue.html)
+**印象/用途**: 業務アプリ全般。ナビ項目が多い CRUD 中心のアプリ。**既存 samples の標準レイアウト**。
+**骨格**:
 
-#### Light Mode `:root`
-
-```css
---background: #f0f7ff;
---foreground: #0c2d5e;
---card: #ffffff;
---card-foreground: #0c2d5e;
---popover: #ffffff;
---popover-foreground: #0c2d5e;
---primary: #3b82f6;
---primary-foreground: #ffffff;
---secondary: #dbeafe;
---secondary-foreground: #1e3a8a;
---muted: #e0f2fe;
---muted-foreground: #475569;
---accent: #60a5fa;
---accent-foreground: #ffffff;
---accent-hover: #bfdbfe;
---destructive: #ef4444;
---border: #bfdbfe;
---input: #bfdbfe;
---ring: #3b82f6;
---chart-1: #3b82f6;
---chart-2: #60a5fa;
---chart-3: #93c5fd;
---chart-4: #bfdbfe;
---chart-5: #dbeafe;
---sidebar: #f8fafc;
---sidebar-foreground: #0c2d5e;
---sidebar-primary: #3b82f6;
---sidebar-primary-foreground: #ffffff;
---sidebar-accent: #dbeafe;
---sidebar-accent-foreground: #1e3a8a;
---sidebar-border: #bfdbfe;
---sidebar-ring: #3b82f6;
---header-bg: #ffffff;
---menu-bg: #f0f7ff;
+```
+┌────────────┬──────────────────────────────┐
+│            │  ヘッダー（タイトル / ModeToggle）│
+│  固定       ├──────────────────────────────┤
+│  左ナビ     │                              │
+│  (Sidebar) │  メイン（<Outlet /> ページ）     │
+│            │                              │
+└────────────┴──────────────────────────────┘
 ```
 
-#### Dark Mode `.dark`
+**使用コンポーネント**: shadcn `Sidebar` / `SidebarProvider` / `SidebarTrigger`、`Card`、`Table`。
+**アプリシェル骨格**:
 
-```css
---background: #0a1929;
---foreground: #e3f2fd;
---card: #1e293b;
---card-foreground: #e3f2fd;
---popover: #1e293b;
---popover-foreground: #e3f2fd;
---primary: #60a5fa;
---primary-foreground: #0a1929;
---secondary: #1e3a8a;
---secondary-foreground: #dbeafe;
---muted: #1e3a8a;
---muted-foreground: #94a3b8;
---accent: #60a5fa;
---accent-foreground: #0a1929;
---accent-hover: #1e3a8a;
---destructive: #ef4444;
---border: #1e3a8a;
---input: #1e3a8a;
---ring: #60a5fa;
---chart-1: #60a5fa;
---chart-2: #93c5fd;
---chart-3: #bfdbfe;
---chart-4: #dbeafe;
---chart-5: #eff6ff;
---sidebar: #0f1f33;
---sidebar-foreground: #e3f2fd;
---sidebar-primary: #60a5fa;
---sidebar-primary-foreground: #0a1929;
---sidebar-accent: #1e3a8a;
---sidebar-accent-foreground: #dbeafe;
---sidebar-border: #1e3a8a;
---sidebar-ring: #60a5fa;
---header-bg: #0a1929;
---menu-bg: #1e293b;
+```tsx
+<SidebarProvider>
+  <AppSidebar />               {/* 固定左ナビ（ロゴ + メニュー） */}
+  <SidebarInset>
+    <header className="flex h-14 items-center gap-2 border-b px-4">
+      <SidebarTrigger />
+      <h1 className="text-sm font-semibold">{title}</h1>
+      <div className="ml-auto"><ModeToggle /></div>
+    </header>
+    <main className="flex-1 p-6"><Outlet /></main>
+  </SidebarInset>
+</SidebarProvider>
 ```
 
 ---
 
-### 2. Indigo / Violet
+### 2. Dashboard
 
-**印象**: モダン・先進的・クリエイティブ
-**--radius**: `0.75rem`
-**視覚プレビュー**: [previews/indigo-violet.html](previews/indigo-violet.html)
+**印象/用途**: 数値サマリ重視の管理画面。トップに KPI、その下に一覧やグラフ。
+**骨格**:
 
-#### Light Mode `:root`
-
-```css
---background: #f8fafc;
---foreground: #0f172a;
---card: #ffffff;
---card-foreground: #0f172a;
---popover: #ffffff;
---popover-foreground: #0f172a;
---primary: #6366f1;
---primary-foreground: #ffffff;
---secondary: #eef2ff;
---secondary-foreground: #312e81;
---muted: #f1f5f9;
---muted-foreground: #64748b;
---accent: #8b5cf6;
---accent-foreground: #ffffff;
---accent-hover: #e0e7ff;
---destructive: #ef4444;
---border: #e2e8f0;
---input: #e2e8f0;
---ring: #6366f1;
---chart-1: #6366f1;
---chart-2: #8b5cf6;
---chart-3: #a78bfa;
---chart-4: #c4b5fd;
---chart-5: #ddd6fe;
---sidebar: #f8fafc;
---sidebar-foreground: #0f172a;
---sidebar-primary: #6366f1;
---sidebar-primary-foreground: #ffffff;
---sidebar-accent: #e0e7ff;
---sidebar-accent-foreground: #312e81;
---sidebar-border: #e2e8f0;
---sidebar-ring: #6366f1;
---header-bg: #ffffff;
---menu-bg: #f8fafc;
+```
+┌──────────────────────────────────────────┐
+│  ヘッダー（タイトル / ModeToggle）            │
+├──────────────────────────────────────────┤
+│ [KPI] [KPI] [KPI] [KPI]   ← スタットカード列  │
+├────────────────────────┬─────────────────┤
+│  メイン（一覧 / グラフ）    │  サブ（内訳 / 直近）│
+└────────────────────────┴─────────────────┘
 ```
 
-#### Dark Mode `.dark`
+**使用コンポーネント**: `Card`（KPI）、`Table`、chart（recharts + `--chart-1〜5`）。
+**アプリシェル骨格**:
 
-```css
---background: #030712;
---foreground: #f1f5f9;
---card: #111827;
---card-foreground: #f1f5f9;
---popover: #111827;
---popover-foreground: #f1f5f9;
---primary: #818cf8;
---primary-foreground: #030712;
---secondary: #1e293b;
---secondary-foreground: #e2e8f0;
---muted: #1e293b;
---muted-foreground: #94a3b8;
---accent: #a78bfa;
---accent-foreground: #030712;
---accent-hover: #312e81;
---destructive: #f87171;
---border: #1e293b;
---input: #1e293b;
---ring: #818cf8;
---chart-1: #818cf8;
---chart-2: #a78bfa;
---chart-3: #c4b5fd;
---chart-4: #ddd6fe;
---chart-5: #ede9fe;
---sidebar: #0a0f1e;
---sidebar-foreground: #f1f5f9;
---sidebar-primary: #818cf8;
---sidebar-primary-foreground: #030712;
---sidebar-accent: #312e81;
---sidebar-accent-foreground: #e0e7ff;
---sidebar-border: #1e293b;
---sidebar-ring: #818cf8;
---header-bg: #030712;
---menu-bg: #111827;
+```tsx
+<div className="min-h-svh bg-background">
+  <header className="flex h-14 items-center border-b px-6">
+    <h1 className="font-semibold">{title}</h1>
+    <div className="ml-auto"><ModeToggle /></div>
+  </header>
+  <main className="mx-auto max-w-7xl space-y-6 p-6">
+    <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {kpis.map(k => <StatCard key={k.id} {...k} />)}
+    </section>
+    <div className="grid gap-6 lg:grid-cols-3">
+      <div className="lg:col-span-2"><Outlet /></div>
+      <aside className="space-y-4">{/* 内訳・直近 */}</aside>
+    </div>
+  </main>
+</div>
 ```
 
 ---
 
-### 3. Emerald / Teal
+### 3. Workspace
 
-**印象**: ナチュラル・安心感・ヘルスケア
-**--radius**: `0.75rem`
-**視覚プレビュー**: [previews/emerald-teal.html](previews/emerald-teal.html)
+**印象/用途**: 左に作業パネル（フィルタ・アクション・カテゴリ）、右にメイン。操作と結果を並置する業務ポータル。
+**骨格**:
 
-#### Light Mode `:root`
-
-```css
---background: #f0fdf4;
---foreground: #052e16;
---card: #ffffff;
---card-foreground: #052e16;
---popover: #ffffff;
---popover-foreground: #052e16;
---primary: #059669;
---primary-foreground: #ffffff;
---secondary: #d1fae5;
---secondary-foreground: #064e3b;
---muted: #ecfdf5;
---muted-foreground: #4b5563;
---accent: #14b8a6;
---accent-foreground: #ffffff;
---accent-hover: #a7f3d0;
---destructive: #ef4444;
---border: #d1fae5;
---input: #d1fae5;
---ring: #059669;
---chart-1: #059669;
---chart-2: #10b981;
---chart-3: #34d399;
---chart-4: #6ee7b7;
---chart-5: #a7f3d0;
---sidebar: #ecfdf5;
---sidebar-foreground: #052e16;
---sidebar-primary: #059669;
---sidebar-primary-foreground: #ffffff;
---sidebar-accent: #d1fae5;
---sidebar-accent-foreground: #064e3b;
---sidebar-border: #d1fae5;
---sidebar-ring: #059669;
---header-bg: #ffffff;
---menu-bg: #f0fdf4;
+```
+┌──────────────────────────────────────────┐
+│  ヘッダー                                    │
+├──────────────┬───────────────────────────┤
+│  左パネル      │                           │
+│ (フィルタ/操作)  │  メイン（<Outlet />）        │
+│  lg:sticky    │                           │
+└──────────────┴───────────────────────────┘
 ```
 
-#### Dark Mode `.dark`
+**使用コンポーネント**: `Card`（左パネル）、`Button` / `Input` / `Select`（操作）、右は `Table` / 詳細。
+**アプリシェル骨格**:
 
-```css
---background: #022c22;
---foreground: #d1fae5;
---card: #064e3b;
---card-foreground: #d1fae5;
---popover: #064e3b;
---popover-foreground: #d1fae5;
---primary: #34d399;
---primary-foreground: #022c22;
---secondary: #065f46;
---secondary-foreground: #d1fae5;
---muted: #065f46;
---muted-foreground: #9ca3af;
---accent: #2dd4bf;
---accent-foreground: #022c22;
---accent-hover: #065f46;
---destructive: #f87171;
---border: #065f46;
---input: #065f46;
---ring: #34d399;
---chart-1: #34d399;
---chart-2: #6ee7b7;
---chart-3: #a7f3d0;
---chart-4: #d1fae5;
---chart-5: #ecfdf5;
---sidebar: #04231c;
---sidebar-foreground: #d1fae5;
---sidebar-primary: #34d399;
---sidebar-primary-foreground: #022c22;
---sidebar-accent: #065f46;
---sidebar-accent-foreground: #d1fae5;
---sidebar-border: #065f46;
---sidebar-ring: #34d399;
---header-bg: #022c22;
---menu-bg: #064e3b;
+```tsx
+<div className="min-h-svh bg-background">
+  <header className="flex h-14 items-center border-b px-6">…</header>
+  <div className="mx-auto grid max-w-7xl gap-6 p-6 lg:grid-cols-[320px_1fr]">
+    <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+      {/* フィルタ・カテゴリ・アクション */}
+    </aside>
+    <main><Outlet /></main>
+  </div>
+</div>
+```
+
+> `lg:sticky lg:top-6` は **大画面のみ** sticky。小画面ではシングルカラムに落ちて重ならない。
+
+---
+
+### 4. Hero Cards
+
+**印象/用途**: ポータルのトップ/ランディング。ヒーロー見出し + 機能への入口カード + セクション。
+**骨格**:
+
+```
+┌──────────────────────────────────────────┐
+│            ヒーロー（見出し + CTA）           │
+├────────────┬────────────┬────────────────┤
+│  特徴カード   │  特徴カード   │  特徴カード       │
+├────────────┴────────────┴────────────────┤
+│            セクション（一覧 / 説明）          │
+└──────────────────────────────────────────┘
+```
+
+**使用コンポーネント**: `Card`（特徴カード、`Link` でページ遷移）、`Button`（CTA）。
+**アプリシェル骨格**:
+
+```tsx
+<div className="min-h-svh bg-background">
+  <header className="flex h-14 items-center border-b px-6">…</header>
+  <main className="mx-auto max-w-6xl space-y-12 p-6">
+    <section className="space-y-4 py-10 text-center">
+      <h1 className="text-3xl font-bold">{title}</h1>
+      <p className="text-muted-foreground">{subtitle}</p>
+      <Button asChild><Link to="/start">はじめる</Link></Button>
+    </section>
+    <section className="grid gap-6 md:grid-cols-3">
+      {features.map(f => (
+        <Card key={f.id} className="transition hover:-translate-y-1">…</Card>
+      ))}
+    </section>
+    <section><Outlet /></section>
+  </main>
+</div>
 ```
 
 ---
 
-### 4. Amber / Orange
+### 5. Minimal
 
-**印象**: エネルギッシュ・製造・建設
-**--radius**: `0.5rem`
-**視覚プレビュー**: [previews/amber-orange.html](previews/amber-orange.html)
+**印象/用途**: フォーム中心・単機能アプリ。中央 1 カラムで最大幅を絞り、余白で読みやすく。
+**骨格**:
 
-#### Light Mode `:root`
-
-```css
---background: #fffbeb;
---foreground: #431407;
---card: #ffffff;
---card-foreground: #431407;
---popover: #ffffff;
---popover-foreground: #431407;
---primary: #ea580c;
---primary-foreground: #ffffff;
---secondary: #ffedd5;
---secondary-foreground: #7c2d12;
---muted: #fef3c7;
---muted-foreground: #78716c;
---accent: #f59e0b;
---accent-foreground: #ffffff;
---accent-hover: #fed7aa;
---destructive: #dc2626;
---border: #fde68a;
---input: #fde68a;
---ring: #ea580c;
---chart-1: #ea580c;
---chart-2: #f97316;
---chart-3: #fb923c;
---chart-4: #fdba74;
---chart-5: #fed7aa;
---sidebar: #fff7ed;
---sidebar-foreground: #431407;
---sidebar-primary: #ea580c;
---sidebar-primary-foreground: #ffffff;
---sidebar-accent: #ffedd5;
---sidebar-accent-foreground: #7c2d12;
---sidebar-border: #fde68a;
---sidebar-ring: #ea580c;
---header-bg: #ffffff;
---menu-bg: #fffbeb;
+```
+┌──────────────────────────────────────────┐
+│  ヘッダー（中央寄せ / ModeToggle）            │
+├──────────────────────────────────────────┤
+│              ┌──────────────┐              │
+│              │  中央コンテンツ   │  ← max-w   │
+│              │  (<Outlet />)  │              │
+│              └──────────────┘              │
+└──────────────────────────────────────────┘
 ```
 
-#### Dark Mode `.dark`
+**使用コンポーネント**: `Card`、`Form`（react-hook-form + zod）、`Input` / `Button`。
+**アプリシェル骨格**:
 
-```css
---background: #0c0a09;
---foreground: #fef3c7;
---card: #1c1917;
---card-foreground: #fef3c7;
---popover: #1c1917;
---popover-foreground: #fef3c7;
---primary: #fb923c;
---primary-foreground: #0c0a09;
---secondary: #292524;
---secondary-foreground: #fed7aa;
---muted: #292524;
---muted-foreground: #a8a29e;
---accent: #fbbf24;
---accent-foreground: #0c0a09;
---accent-hover: #7c2d12;
---destructive: #f87171;
---border: #292524;
---input: #292524;
---ring: #fb923c;
---chart-1: #fb923c;
---chart-2: #fdba74;
---chart-3: #fed7aa;
---chart-4: #fef3c7;
---chart-5: #fffbeb;
---sidebar: #171310;
---sidebar-foreground: #fef3c7;
---sidebar-primary: #fb923c;
---sidebar-primary-foreground: #0c0a09;
---sidebar-accent: #7c2d12;
---sidebar-accent-foreground: #fed7aa;
---sidebar-border: #292524;
---sidebar-ring: #fb923c;
---header-bg: #0c0a09;
---menu-bg: #1c1917;
+```tsx
+<div className="min-h-svh bg-background">
+  <header className="flex h-14 items-center justify-center border-b px-6">
+    <h1 className="font-semibold">{title}</h1>
+    <div className="absolute right-6"><ModeToggle /></div>
+  </header>
+  <main className="mx-auto max-w-xl p-6"><Outlet /></main>
+</div>
 ```
 
 ---
 
-### 5. Rose / Pink
+## 実装フロー
 
-**印象**: 親しみやすい・カジュアル・サービス業
-**--radius**: `1rem`
-**視覚プレビュー**: [previews/rose-pink.html](previews/rose-pink.html)
+1. 上表でレイアウトを提示 → ユーザーが 1 つ選択。
+2. [color-palettes.md](color-palettes.md) でカラーパレットを提示 → ユーザーが 1 つ選択。
+3. [design-system.md](design-system.md) で画面一覧・コンポーネント選定 → 承認。
+4. 承認後、選択レイアウトのアプリシェルを `App.tsx` / `src/components/layout/*` に実装し、
+   選択パレットの CSS Variables を `styles/index.pcss` に適用して実装する。
 
-> primary がローズ系のため、destructive は赤の彩度・明度を変えた `#b91c1c`（light）/ `#f87171`（dark）で区別する。
-
-#### Light Mode `:root`
-
-```css
---background: #fff1f2;
---foreground: #4c0519;
---card: #ffffff;
---card-foreground: #4c0519;
---popover: #ffffff;
---popover-foreground: #4c0519;
---primary: #e11d48;
---primary-foreground: #ffffff;
---secondary: #ffe4e6;
---secondary-foreground: #881337;
---muted: #fce7f3;
---muted-foreground: #6b7280;
---accent: #ec4899;
---accent-foreground: #ffffff;
---accent-hover: #fecdd3;
---destructive: #b91c1c;
---border: #fecdd3;
---input: #fecdd3;
---ring: #e11d48;
---chart-1: #e11d48;
---chart-2: #f43f5e;
---chart-3: #fb7185;
---chart-4: #fda4af;
---chart-5: #fecdd3;
---sidebar: #fff1f2;
---sidebar-foreground: #4c0519;
---sidebar-primary: #e11d48;
---sidebar-primary-foreground: #ffffff;
---sidebar-accent: #ffe4e6;
---sidebar-accent-foreground: #881337;
---sidebar-border: #fecdd3;
---sidebar-ring: #e11d48;
---header-bg: #ffffff;
---menu-bg: #fff1f2;
-```
-
-#### Dark Mode `.dark`
-
-```css
---background: #1a0a12;
---foreground: #ffe4e6;
---card: #2a141e;
---card-foreground: #ffe4e6;
---popover: #2a141e;
---popover-foreground: #ffe4e6;
---primary: #fb7185;
---primary-foreground: #1a0a12;
---secondary: #4c0519;
---secondary-foreground: #fecdd3;
---muted: #3f1322;
---muted-foreground: #b89aa5;
---accent: #f472b6;
---accent-foreground: #1a0a12;
---accent-hover: #4c0519;
---destructive: #f87171;
---border: #3f1322;
---input: #3f1322;
---ring: #fb7185;
---chart-1: #fb7185;
---chart-2: #fda4af;
---chart-3: #fecdd3;
---chart-4: #ffe4e6;
---chart-5: #fff1f2;
---sidebar: #200d16;
---sidebar-foreground: #ffe4e6;
---sidebar-primary: #fb7185;
---sidebar-primary-foreground: #1a0a12;
---sidebar-accent: #4c0519;
---sidebar-accent-foreground: #fecdd3;
---sidebar-border: #3f1322;
---sidebar-ring: #fb7185;
---header-bg: #1a0a12;
---menu-bg: #2a141e;
-```
-
----
-
-### 6. Slate Mono
-
-**印象**: ミニマル・堅実・エンタープライズ
-**--radius**: `0.375rem`
-**視覚プレビュー**: [previews/slate-mono.html](previews/slate-mono.html)
-
-> 彩色をほぼ持たないモノトーン。チャートはスレートのグラデーションになるため、
-> 系列数が多いダッシュボードでは系列の区別がつきにくい。チャート中心のアプリでは 1〜5 を推奨。
-
-#### Light Mode `:root`
-
-```css
---background: #f8fafc;
---foreground: #0f172a;
---card: #ffffff;
---card-foreground: #0f172a;
---popover: #ffffff;
---popover-foreground: #0f172a;
---primary: #334155;
---primary-foreground: #ffffff;
---secondary: #f1f5f9;
---secondary-foreground: #334155;
---muted: #f1f5f9;
---muted-foreground: #64748b;
---accent: #475569;
---accent-foreground: #ffffff;
---accent-hover: #e2e8f0;
---destructive: #dc2626;
---border: #e2e8f0;
---input: #e2e8f0;
---ring: #334155;
---chart-1: #334155;
---chart-2: #475569;
---chart-3: #64748b;
---chart-4: #94a3b8;
---chart-5: #cbd5e1;
---sidebar: #f1f5f9;
---sidebar-foreground: #0f172a;
---sidebar-primary: #334155;
---sidebar-primary-foreground: #ffffff;
---sidebar-accent: #e2e8f0;
---sidebar-accent-foreground: #334155;
---sidebar-border: #e2e8f0;
---sidebar-ring: #334155;
---header-bg: #ffffff;
---menu-bg: #f8fafc;
-```
-
-#### Dark Mode `.dark`
-
-```css
---background: #020617;
---foreground: #e2e8f0;
---card: #0f172a;
---card-foreground: #e2e8f0;
---popover: #0f172a;
---popover-foreground: #e2e8f0;
---primary: #94a3b8;
---primary-foreground: #020617;
---secondary: #1e293b;
---secondary-foreground: #e2e8f0;
---muted: #1e293b;
---muted-foreground: #94a3b8;
---accent: #cbd5e1;
---accent-foreground: #020617;
---accent-hover: #1e293b;
---destructive: #f87171;
---border: #1e293b;
---input: #1e293b;
---ring: #94a3b8;
---chart-1: #94a3b8;
---chart-2: #cbd5e1;
---chart-3: #e2e8f0;
---chart-4: #f1f5f9;
---chart-5: #f8fafc;
---sidebar: #0b1120;
---sidebar-foreground: #e2e8f0;
---sidebar-primary: #94a3b8;
---sidebar-primary-foreground: #020617;
---sidebar-accent: #1e293b;
---sidebar-accent-foreground: #e2e8f0;
---sidebar-border: #1e293b;
---sidebar-ring: #94a3b8;
---header-bg: #020617;
---menu-bg: #0f172a;
-```
-
----
-
-## 適用チェックリスト
-
-テンプレート適用後、以下を確認する:
-
-- [ ] `:root` / `.dark` の両方に全変数を適用した（片方だけ適用すると切替時に旧テーマが残る）
-- [ ] `--radius` をテンプレート指定値に変更した
-- [ ] バッジ変数（`--badge-*`）は変更していない
-- [ ] フォント設定（`font-family`）は変更していない
-- [ ] ライト/ダーク両モードで主要画面の文字コントラストを目視確認した
+> **既存 samples を出発点にする場合**: samples は Sidebar レイアウト。他レイアウトにするときはアプリシェルのみ差し替え、
+> ページ（`src/pages/*`）とデータ層はそのまま流用できる。新規テーマの scaffold は **@GeekPowerCode** に依頼する。

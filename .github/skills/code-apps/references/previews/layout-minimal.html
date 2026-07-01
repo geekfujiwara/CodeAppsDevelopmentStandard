@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minimal レイアウト プレビュー — Code Apps</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  font-family:system-ui,Avenir,Helvetica,Arial,sans-serif;
+  --radius:.625rem;--background:#f0f7ff;--foreground:#0c2d5e;--card:#fff;
+  --primary:#3b82f6;--primary-foreground:#fff;--secondary:#dbeafe;
+  --muted:#e0f2fe;--muted-foreground:#475569;--border:#bfdbfe;--header-bg:#fff;
+}
+body{background:var(--background);color:var(--foreground);min-height:100vh;font-size:13px;line-height:1.5}
+.hdr{background:var(--header-bg);border-bottom:1px solid var(--border);height:52px;display:flex;align-items:center;justify-content:center;position:relative}
+.hdr-title{font-weight:600;font-size:14px}
+.mode{position:absolute;right:24px;width:30px;height:30px;border:1px solid var(--border);border-radius:var(--radius);display:grid;place-items:center;background:var(--card)}
+.wrap{max-width:520px;margin:0 auto;padding:32px 24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px}
+.card h2{font-size:16px;margin-bottom:4px}
+.card .sub{color:var(--muted-foreground);margin-bottom:18px}
+.lbl{font-size:12px;color:var(--muted-foreground);margin:12px 0 6px}
+.field{height:36px;border:1px solid var(--border);border-radius:var(--radius);background:var(--background)}
+.area{height:80px;border:1px solid var(--border);border-radius:var(--radius);background:var(--background)}
+.btn{height:38px;border-radius:var(--radius);background:var(--primary);color:var(--primary-foreground);display:grid;place-items:center;font-weight:600;margin-top:20px}
+.tag{position:fixed;bottom:10px;right:12px;font-size:11px;color:var(--muted-foreground)}
+</style>
+</head>
+<body>
+<div class="hdr"><div class="hdr-title">Minimal レイアウト</div><div class="mode">◐</div></div>
+<div class="wrap">
+  <div class="card">
+    <h2>お問い合わせ登録</h2>
+    <div class="sub">必要事項を入力して送信してください</div>
+    <div class="lbl">件名</div><div class="field"></div>
+    <div class="lbl">カテゴリ</div><div class="field"></div>
+    <div class="lbl">内容</div><div class="area"></div>
+    <div class="btn">送信</div>
+  </div>
+</div>
+<div class="tag">中央 1 カラム（最大幅制限）</div>
+</body>
+</html>

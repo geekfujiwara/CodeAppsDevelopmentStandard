@@ -57,26 +57,26 @@ Code Apps の画面を設計・実装する。
 | カラム定義 | テーブルのカラム構成・render 関数 |
 | Lookup 名前解決 | `_xxx_value` + `useMemo` Map パターンでどの Lookup を解決するか |
 | ナビゲーション | サイドバー項目・ページ遷移 |
-| デザインテンプレート | [デザインテンプレート集](design-templates.md) から選択した配色 |
+| デザインテンプレート（レイアウト） | [デザインテンプレート集](design-templates.md) から選択した画面の骨格 |
+| カラーパレット | [カラーパレット集](color-palettes.md) から選択した配色 |
 | テーマ | ダーク/ライトモード対応 |
 
 ```
 フロー: code-apps（design-system）で設計 → ユーザー承認 → code-apps で実装
 ```
 
-## デザインテンプレート選択
+## デザインテンプレート（レイアウト）＋カラーパレット選択
 
-新しい Code Apps の設計時は、まず **[デザインテンプレート集](design-templates.md)** を読み込み、ユーザーにテンプレートを提案すること。
+新しい Code Apps の設計時は、まず **[デザインテンプレート集（レイアウト）](design-templates.md)** で画面の骨格を提案し、続いて **[カラーパレット集](color-palettes.md)** で配色を提案すること。
 
 **ワークフロー**:
-1. `design-templates.md` を読み込む
-2. テンプレート一覧表をユーザーに提示
-3. ユーザーが番号で選択
-4. 選択テンプレートの CSS Variables を `styles/index.pcss` の `:root` / `.dark` に適用
-5. デフォルト未指定の場合は **1. Ocean Blue** を使用
+1. `design-templates.md` を読み込み、レイアウト一覧表を提示 → ユーザーが番号で選択（デフォルト: **1. Sidebar**）
+2. `color-palettes.md` を読み込み、カラーパレット一覧表を提示 → ユーザーが番号で選択（デフォルト: **1. Ocean Blue**）
+3. 選択パレットの CSS Variables を `styles/index.pcss` の `:root` / `.dark` に適用
+4. 選択レイアウトのアプリシェルで実装
 
-> テンプレートはビルド時に確定する（ランタイム切替は行わない）。
-> 切り替えるのは配色と `--radius` のみ。フォントはシステムフォント固定（下記「標準フォント方針」参照）、
+> レイアウトも配色もビルド時に確定する（ランタイム切替は行わない）。
+> 配色で切り替えるのは色と `--radius` のみ。フォントはシステムフォント固定（下記「標準フォント方針」参照）、
 > バッジ変数・`@theme inline` ブロックは変更しない。
 
 ## 大前提: 一つのソリューション内に開発
@@ -90,7 +90,7 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 |---------|------|
 | スタイリング | Tailwind CSS v4 + CSS カスタムプロパティ |
 | UIプリミティブ | shadcn/ui（Radix UI ベース） |
-| アイコン | lucide-react |
+| アイコン | lucide-react（shadcn 内部の標準）/ 任意で @fluentui/react-icons（Fluent UI v2、[fluent-icons.md](fluent-icons.md)） |
 | チャート | Recharts |
 | ドラッグ＆ドロップ | dnd-kit v6 |
 | ダイアグラム | Mermaid |

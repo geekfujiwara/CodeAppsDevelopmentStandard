@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sidebar レイアウト プレビュー — Code Apps</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  font-family:system-ui,Avenir,Helvetica,Arial,sans-serif;
+  --radius:.625rem;--background:#f0f7ff;--foreground:#0c2d5e;--card:#fff;
+  --primary:#3b82f6;--primary-foreground:#fff;--secondary:#dbeafe;
+  --muted:#e0f2fe;--muted-foreground:#475569;--border:#bfdbfe;
+  --sidebar:#f8fafc;--sidebar-accent:#dbeafe;--header-bg:#fff;
+}
+body{background:var(--background);color:var(--foreground);height:100vh;display:flex;flex-direction:column;font-size:13px;line-height:1.5}
+.hdr{background:var(--header-bg);border-bottom:1px solid var(--border);height:52px;display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0}
+.logo{background:var(--primary);color:var(--primary-foreground);width:30px;height:30px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-weight:700}
+.hdr-title{font-weight:600;font-size:14px}
+.mode{margin-left:auto;width:30px;height:30px;border:1px solid var(--border);border-radius:var(--radius);display:grid;place-items:center;background:var(--card)}
+.layout{display:flex;flex:1;overflow:hidden}
+.side{width:190px;background:var(--sidebar);border-right:1px solid var(--border);padding:12px 8px;display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+.nav{padding:8px 12px;border-radius:var(--radius);color:var(--muted-foreground)}
+.nav.active{background:var(--sidebar-accent);color:var(--foreground);font-weight:600}
+.main{flex:1;padding:20px;overflow:auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.row{height:12px;background:var(--muted);border-radius:6px;margin:8px 0}
+.row.s{width:40%}.row.m{width:70%}
+.tbl{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.tr{display:flex;gap:16px;padding:12px 16px;border-bottom:1px solid var(--border)}
+.tr:last-child{border-bottom:0}.tr>div{flex:1;height:10px;background:var(--muted);border-radius:5px}
+.tag{position:fixed;bottom:10px;right:12px;font-size:11px;color:var(--muted-foreground)}
+</style>
+</head>
+<body>
+<div class="hdr"><div class="logo">A</div><div class="hdr-title">Sidebar レイアウト（標準）</div><div class="mode">◐</div></div>
+<div class="layout">
+  <nav class="side">
+    <div class="nav active">ダッシュボード</div>
+    <div class="nav">顧客</div>
+    <div class="nav">商談</div>
+    <div class="nav">パイプライン</div>
+    <div class="nav">活動履歴</div>
+    <div class="nav">設定</div>
+  </nav>
+  <main class="main">
+    <div class="card"><div class="row m"></div><div class="row s"></div></div>
+    <div class="tbl"><div class="tr"><div></div><div></div><div></div></div><div class="tr"><div></div><div></div><div></div></div><div class="tr"><div></div><div></div><div></div></div><div class="tr"><div></div><div></div><div></div></div></div>
+  </main>
+</div>
+<div class="tag">固定左ナビ + フル高さコンテンツ</div>
+</body>
+</html>
