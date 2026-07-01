@@ -10,6 +10,8 @@ triggers:
   - "Copilot Studio vs Power Automate"
   - "Code Apps vs Canvas Apps"
   - "AI Builder"
+  - "Cowork プラグイン"
+  - "データ入力の接点"
   - "統合パターン"
   - "設計判断"
   - "どれを使う"
@@ -59,6 +61,7 @@ triggers:
 | **Power Pages**       | 外部ユーザー向けポータル・公開サイト、認証/匿名アクセス、Dataverse 連携、テーブル権限による公開制御 | 複雑なサーバーサイド処理、SSR/ISR、内部業務向けの複雑なリッチ UI |
 | **AI Builder**        | 定型 AI タスク（分類・抽出・要約）、再利用可能な AI プロンプト、エージェントのツール化 | リアルタイム対話、複雑な推論チェーン（★ §6 参照: AI プロンプト優先） |
 | **Dataverse**         | リレーショナルデータ、行レベルセキュリティ、監査、ビジネスルール                             | 大量ログデータ、非構造化データ、全文検索                       |
+| **Copilot Cowork プラグイン** | 自然言語での業務データ登録・照会（Dataverse MCP 経由）、M365 Copilot 上での入力、SKILL.md による業務知識の付与 | リッチな一覧/編集 UI、複雑なビジュアル、外部/匿名公開 |
 
 ---
 
@@ -167,6 +170,15 @@ AskUserQuestion で次のように尋ねる:
 ---
 
 ## 5. UI コンポーネント選定
+
+> ★ **入力の既定は Copilot Cowork プラグインを優先提案する（Dataverse + Code Apps 構成では特に）**。
+> Dataverse にデータを貯める構成では、利用者は今後**アプリ画面を見ながら入力するのではなく、Copilot Cowork のプラグインから自然言語で登録**するようになる。
+> そのため初回のアーキテクチャ提案では、**データ入力の主接点として Cowork プラグイン**（`SKILL.md` + Dataverse MCP コネクタ）を**第一候補**に含める。
+> Code Apps は「一覧・ダッシュボード・複雑な編集・可視化」を担う**閲覧/操作の接点**として併設する（入力専用の画面作り込みに時間をかけない）。
+>
+> - **提案の型**: **Dataverse（基盤）＋ Code Apps（閲覧・分析・複雑操作）＋ Copilot Cowork プラグイン（自然言語での登録・照会）** を既定セットとして提示する。
+> - **内部ユーザー向け**の入力は Cowork プラグインを優先。**外部ユーザー向け**は Cowork ではなく Copilot Studio 埋め込み / Power Pages を使う（§3・§5 参照）。
+> - 構築手順は [`cowork` スキル](../cowork/SKILL.md) を参照。
 
 ```
 Q: 対象ユーザーは？
@@ -292,6 +304,7 @@ Q: その AI 処理は再利用するか？
 設計を始める前に、以下を順番に確認する:
 
 - [ ] **外部ユーザー向け UI か？** → YES なら Power Pages を含む構成
+- [ ] **Dataverse にデータを貯める構成か？** → YES なら入力接点として **Copilot Cowork プラグイン**（自然言語登録）を第一候補に含める（Code Apps は閲覧・分析・複雑操作を担当）
 - [ ] **自然言語対話が必要か？** → YES なら Copilot Studio を含む構成
 - [ ] **イベント駆動の自動処理が必要か？** → YES なら Power Automate を含む構成
 - [ ] **データ操作 UI が必要か？** → YES で外部ユーザー向けなら Power Pages、内部ユーザー向けなら Code Apps / Canvas Apps / Model-Driven Apps を含む構成
