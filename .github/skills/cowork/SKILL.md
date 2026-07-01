@@ -219,8 +219,9 @@ python .github/skills/cowork/scripts/register_mcp_client.py --app-id <CLIENT_ID>
 > `browser_type` で `.env` の値をそのまま入力し、チャットには出力しない。
 >
 > **VS Code Simple Browser のズーム設定**: 操作前に
-> `page.evaluate(() => document.body.style.zoom = '0.8')` でページを 80% に縮小し、
+> `page.evaluate(() => document.body.style.zoom = '0.5')` でページを 50% に縮小し、
 > ポータルの全 UI 要素が視認可能な状態にしてから操作を開始する。
+> それでも必要な要素が見えないときはさらに縮小する。
 
 [dev.teams.microsoft.com/tools](https://dev.teams.microsoft.com/tools) → Tools →
 **OAuth client registration** → New（**SSO client registration ではない**）。
@@ -272,8 +273,8 @@ ZIP 検証: ルートに `manifest.json` / `dataverse-mcp-tools.json`、`skills/
 >
 > **VS Code Simple Browser のズーム設定**: 既定の `Match Window` だと管理センターの UI 要素が
 > 画面外にはみ出し、**More actions ボタンが不可視になる**ことがある。
-> **操作前に `page.evaluate(() => document.body.style.zoom = '0.8')` でページを 80% に縮小**し、
-> 全 UI 要素が視認可能な状態にする。それでも不足なら `0.67`（67%）まで下げる。
+> **操作前に `page.evaluate(() => document.body.style.zoom = '0.5')` でページを 50% に縮小**し、
+> 全 UI 要素が視認可能な状態にする。それでも必要な要素が見えないときはさらに縮小する。
 >
 > `Add agent` の **More actions（…）はページ中段の Registry ツールバー** にあり、
 > **画面が狭いと折り畳まれて見えない**。検証エラーが出た場合は

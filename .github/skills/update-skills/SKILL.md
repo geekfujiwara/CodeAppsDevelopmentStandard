@@ -127,7 +127,8 @@ python .github/skills/update-skills/scripts/validate_skill.py --all
    その場合も画面パスとセレクタの目印を明記する。
    **VS Code Simple Browser のズーム**: 既定の `Match Window` だと管理ポータル等の
    UI 要素が画面外にはみ出す。スキル本文に **操作前に
-   `page.evaluate(() => document.body.style.zoom = '0.8')` でページを 80% に縮小する**指示を含める。
+   `page.evaluate(() => document.body.style.zoom = '0.5')` でページを 50% に縮小する**指示を含める。
+   それでも必要な要素が見えないときはさらに縮小する。
 3. **CLI 化**: 繰り返す操作は `scripts/` に追加し、本文からはスクリプト呼び出しで参照する。
 
 ### Step 5: PR 戦略を決める（更新 / 新規 + マージ順）
