@@ -61,3 +61,12 @@
 - 主オプション: `--skill <name>`（必須）/ `--extra <path>`（README・agents 等の集約ファイルを同時反映、複数可）/
   `--branch`（既定 `skill/<name>`）/ `--dry-run`（push・PR をスキップして検証のみ）。
 - 既存の同名ブランチ/PR があれば自動で更新（新規 PR を作らない）。
+
+## 13. `manage_skill_pr.py` が既存のオープン PR を検出できず「新規 PR で OK」と誤判定する
+- 原因: 日本語タイトル・本文を含む PR で `gh pr list --json ...` の出力を読む際、Windows の既定コンソール
+  コードページ（cp932）で `subprocess.run` がデコードしようとして `UnicodeDecodeError` になり、
+  該当 PR がリストから抜け落ちる（バックグラウンドスレッドの例外のためスクリプト自体は落ちず、
+  「オープン PR: 0 件」のように**サイレントに誤った結果**を返す）。
+- 対処: `gh()` 呼び出しに `encoding="utf-8", errors="replace"` を明示する（本スキルの `manage_skill_pr.py` は
+  対応済み）。念のため、スクリプトの判定結果が「関連 PR なし」でも、対象スキルに触れていそうな PR がないか
+  `gh pr list --repo <owner/repo> --state open` で目視確認してから新規 PR を作成する。
