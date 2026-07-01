@@ -68,7 +68,7 @@ Code Apps サンプル実装。Power Automate AI フロー連携と Copilot Stud
 | `src/config.ts` の `NAV_SECTIONS` | ページ構成を変更（コードで直接編集） |
 | `VITE_FEATURE_COPILOT=true`（.env） | Copilot Analytics ページを有効化 |
 | `VITE_FEATURE_AI_FLOW=true`（.env） | AI フロー連携を有効化 |
-| `styles/index.pcss` | カラーテーマを変更（design-templates.md 参照） |
+| `styles/index.pcss` | カラーテーマを変更（color-palettes.md 参照）。レイアウトの骨格は design-templates.md 参照 |
 
 ### プレフィックス変更時の作業
 

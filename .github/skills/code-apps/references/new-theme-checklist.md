@@ -50,7 +50,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 ```
 0. テンプレート scaffold        ← vite.config.ts / plugins/ / styles/ / src/ 一式（@GeekPowerCode が scaffold）
 1. .env 設定（.env.example をコピーして新テーマの値を入れる）
-2. デザインテンプレート選択（design-templates.md → apply_design_template.py）
+2. デザインテンプレート選択（レイアウト: design-templates.md → カラー: color-palettes.md → apply_design_template.py）
 3. pac code init                  ← power.config.json / .power/ を生成（手で作らない）
 4. pac code add-data-source ...   ← src/generated/ が生成される
 5. 設計フェーズ（design-system.md）→ ユーザー承認 → 実装
@@ -63,4 +63,4 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 | `.power/` / `src/generated/` / `power.config.json` | 削除 → 手順 3〜4 で SDK に再生成させる |
 | 前テーマの業務画面（`src/pages/*.tsx`） | 削除し、@GeekPowerCode に新規テーマとして scaffold し直すよう依頼 |
 | 前テーマのテーブル参照（dataSourcesInfo / services / types） | 削除。**コメントアウトで残さない**（ビルドエラー・接続エラーの温床） |
-| 前テーマの配色 | `apply_design_template.py 1 --project .` で Ocean Blue に戻すか、新テーマのテンプレートを適用 |
+| 前テーマの配色 | `apply_design_template.py 1 --project .` で Ocean Blue に戻すか、新テーマのカラーパレット（color-palettes.md）を適用 |
