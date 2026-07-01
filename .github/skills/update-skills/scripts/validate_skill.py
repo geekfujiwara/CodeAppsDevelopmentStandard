@@ -68,6 +68,7 @@ ALLOWLIST = {
     "00000001-0000-0000-0001-00000000009b",  # Dataverse Default Solution（全環境固定）
     "953b9fac-1e5e-e611-80d6-00155ded156f",  # システムデフォルト WebResource（標準アイコン・全環境固定）
     "4273edbd-ac1d-40d3-9fb2-095c621b552d",  # 標準フォームコントロール CLASSID（全環境固定）
+    "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",  # Azure 組み込みロール Storage Blob Data Owner（全 Azure 固定）
 }
 
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")

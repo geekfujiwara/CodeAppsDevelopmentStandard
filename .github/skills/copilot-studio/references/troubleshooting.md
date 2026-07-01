@@ -342,3 +342,54 @@ Q: どのように起動しますか？
 ✅ Flow API (service.flow.microsoft.com) で workflowEntityId を照合して Flow API ID を取得
 ✅ フロー有効化後でないと Flow API に表示されない場合がある
 ```
+
+## 外部サイト（Azure Storage 静的 Web サイト）
+
+### `KeyBasedAuthenticationNotPermitted`（共有キー認証が禁止）
+
+```
+❌ アカウントキー / 接続文字列でアップロード
+   → 組織の Azure Policy が allowSharedKeyAccess=false を強制していると失敗
+   → PATCH で allowSharedKeyAccess=true にしてもポリシーが false に戻す（200 でも反映されない）
+✅ Entra（AAD）データプレーン認証に切り替える
+   → 自分に「Storage Blob Data Owner」ロールを割り当て（roleDef b7e6dc6d-f1e8-4753-8033-0f276bb0955b）
+   → BlobServiceClient(account_url, credential=<AADトークン>) でアップロード
+   → scripts/deploy_website.py（auth_helper AAD 方式）がこの手順を自動化
+```
+
+### `AuthorizationPermissionMismatch`（AAD でアップロード時）
+
+```
+❌ ロール割り当て直後にアップロード → RBAC 伝播前で 403
+✅ RBAC 反映を数十秒〜数分待ってからリトライ
+   → deploy_website.py は AuthorizationPermissionMismatch を検知して自動リトライ（最大 10 回 × 20 秒）
+```
+
+### 静的サイトが表示されない / 公開 BLOB アクセスが無効
+
+```
+✅ 静的 Web サイトエンドポイント（*.z*.web.core.windows.net）は
+   allowBlobPublicAccess=false でも匿名配信される（$web 専用の匿名アクセス）
+   → ポリシーで公開 BLOB を禁止していても静的サイトは公開できる
+```
+
+### DirectLine トークンエンドポイントに繋がらない
+
+```
+❌ ホストに ENV_ID をそのまま入れる（{ENV_ID}.environment.api...）
+✅ ENV_ID のハイフンを除いた 32 桁を「先頭30桁 . 末尾2桁」に分割してホストにする
+   例) aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+       → aaaaaaaabbbbccccddddeeeeeeeeee.ee.environment.api.powerplatform.com
+✅ 「認証なし」エージェント（authenticationmode=2）でも
+   /powervirtualagents/botsbyschema/{SCHEMA}/directline/token は HTTP 200 でトークンを返す
+```
+
+### `az login` が使えない / az CLI が未認証
+
+```
+✅ standard スキルの auth_helper.get_token("https://management.azure.com/.default") で
+   ARM トークンを取得すれば az CLI 無しで ARM REST を呼べる
+✅ データプレーンは get_token("https://storage.azure.com/.default") を
+   TokenCredential ラッパー（HelperCredential）で SDK に渡す
+```
+

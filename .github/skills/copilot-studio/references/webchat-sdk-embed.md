@@ -54,6 +54,24 @@ https://{ENV_ID}.environment.api.powerplatform.com/powervirtualagents/botsbysche
 /powervirtualagents/botsbyschema/{SCHEMA}/directline/token
 ```
 
+> ✅ **検証済み**: 「認証なし」エージェントでもこのトークンエンドポイントは HTTP 200 で
+> DirectLine トークン（JWT）を返す。サインイン不要で匿名利用できる。
+
+### ホスト名は ENV_ID から導出する（ハイフン除去 + 分割）
+
+トークンエンドポイントのホストは環境 ID（`ENV_ID`）そのものではなく、
+**ハイフンを除いた 32 桁 16 進数を「先頭 30 桁 . 末尾 2 桁」に分割**した形式:
+
+```
+ENV_ID = aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+  → ハイフン除去: aaaaaaaabbbbccccddddeeeeeeeeeeee （32 桁）
+  → 分割:         aaaaaaaabbbbccccddddeeeeeeeeee . ee
+ホスト = aaaaaaaabbbbccccddddeeeeeeeeee.ee.environment.api.powerplatform.com
+```
+
+> 接続文字列をコピーできる場合はそのまま使えばよいが、ENV_ID から組み立てる場合は
+> この分割規則に従うこと（`{ENV_ID}.environment...` のようにそのまま入れると解決しない）。
+
 ## アーキテクチャ
 
 ```
@@ -559,7 +577,33 @@ scripts/
 </html>
 ```
 
-## deploy_website.py テンプレート
+## デプロイ（推奨: auth_helper で az login 不要）
+
+デプロイは [scripts/deploy_website.py](../scripts/deploy_website.py) を使う。
+standard スキルの `auth_helper` で ARM トークンを取得するため **`az login` / az CLI 不要**。
+ARM でリソースグループ・ストレージアカウントを冪等作成し、データプレーンは
+**Entra（AAD）認証**でアップロードする。
+
+```powershell
+python .github/skills/copilot-studio/scripts/deploy_website.py
+```
+
+> ⚠️ **組織の Azure Policy に注意**: 共有キー認証（`allowSharedKeyAccess`）や公開 BLOB アクセス
+> （`allowBlobPublicAccess`）がポリシーで無効化されている環境では、アカウントキー方式は
+> `KeyBasedAuthenticationNotPermitted` で失敗する。上記スクリプトは **AAD データプレーン認証**
+> （自分に Storage Blob Data Owner を割り当て → RBAC 反映待ちリトライ）で回避する。
+> 静的 Web サイトエンドポイント（`*.z*.web.core.windows.net`）は `allowBlobPublicAccess=false`
+> でも匿名配信される（詳細は [troubleshooting.md](troubleshooting.md)）。
+
+### 多言語（i18n）対応
+
+外部サイトを多言語化する場合は、UI ラベル・カテゴリ・プロンプトを言語別の辞書オブジェクトに
+持ち、`localStorage` で選択言語を永続化する。プロンプトは**選択言語の文面**で送信し、
+エージェント側の Instructions も対象言語（例: 日本語/英語/中国語）で応答するよう記述しておく。
+
+## deploy_website.py テンプレート（アカウントキー方式・ポリシー未制限環境のみ）
+
+> ポリシーで共有キーが禁止されている場合は上記 `scripts/deploy_website.py`（AAD 方式）を使う。
 
 ```python
 """Azure Storage 静的 Web サイトを有効化し、index.html をデプロイする"""
@@ -600,12 +644,16 @@ print(f"Deployed: https://{ACCOUNT_NAME}.z11.web.core.windows.net/")
 ## .env 追加項目
 
 ```env
-# Azure Storage（静的 Web サイトホスティング）
-AZURE_STORAGE_ACCOUNT=mystorageaccount
-AZURE_STORAGE_KEY=xxxxx
+# Azure Storage（静的 Web サイトホスティング / auth_helper AAD 方式）
+AZURE_SUBSCRIPTION_ID={subscription-id}   # 省略時は最初の有効サブスクリプションを使用
+AZURE_RESOURCE_GROUP=rg-agent-website
+AZURE_LOCATION=japaneast
+AZURE_STORAGE_ACCOUNT={mystorageaccount}  # 3-24 文字・小文字英数字・グローバル一意
+# アカウントキー方式を使う場合のみ（ポリシー未制限環境）
+AZURE_STORAGE_KEY={account-key}
 
-# WebChat SDK
-WEBCHAT_TOKEN_ENDPOINT=https://{ENV_ID}.environment.api.powerplatform.com/powervirtualagents/botsbyschema/{BOT_SCHEMA}/directline/token?api-version=2022-03-01-preview
+# WebChat SDK（ホストは ENV_ID のハイフン除去 32 桁を「先頭30.末尾2」に分割）
+WEBCHAT_TOKEN_ENDPOINT=https://{env30}.{env2}.environment.api.powerplatform.com/powervirtualagents/botsbyschema/{BOT_SCHEMA}/directline/token?api-version=2022-03-01-preview
 ```
 
 ## 実装手順サマリー
