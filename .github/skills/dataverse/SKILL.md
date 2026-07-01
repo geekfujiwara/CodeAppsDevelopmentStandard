@@ -199,14 +199,14 @@ existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PR
 
 | ルール | 理由 |
 |--------|------|
-| **`CreateOneToMany` アクションで Lookup 作成** | `RelationshipDefinitions` POST は既存 Lookup との衝突時にエラーメッセージが不安定。`CreateOneToMany` の方が信頼性が高い |
+| **`RelationshipDefinitions` への POST で Lookup 作成** | 1:N リレーション（Lookup）は `RelationshipDefinitions` エンティティセットへ `OneToManyRelationshipMetadata` を POST する。**`CreateOneToMany` バインドアクションは環境／Web API バージョンによって `404 Not Found` になる**ため使わない |
 | **Lookup 作成前に属性存在チェック必須** | `api_get("EntityDefinitions(LogicalName='{from}')/Attributes(LogicalName='{col}')")` で存在確認。存在すればスキップ。`retry_metadata` の "already exists" 検出だけに頼らない |
 | **LOOKUPS 形式: `from_table`, `column_logical`, `display`, `to_table`** | シンプルな 4 キー構造。`SchemaName` は `{from_table}_{column_logical}` で自動生成 |
 | **`@odata.bind` にはナビゲーションプロパティ名（NavProp名）を使う** | 列の論理名ではない。大文字/小文字が区別される |
 | **NavProp 名は `ManyToOneRelationships` で動的取得** | `ReferencingEntityNavigationPropertyName` を確認する |
 | **NavProp 名を推測しない** | `get_navprop(from_logical, to_logical)` ヘルパーで取得 |
 | **Lookup は `NavProp@odata.bind` で設定** | `/{EntitySetName}({id})` の形式 |
-| **Lookup リレーション作成はべき等設計** | 属性存在チェック → 存在すればスキップ → 未存在なら `CreateOneToMany` → `retry_metadata` で二重保護 |
+| **Lookup リレーション作成はべき等設計** | 属性存在チェック → 存在すればスキップ → 未存在なら `RelationshipDefinitions` へ POST → `retry_metadata` で二重保護 |
 
 ### ローカライズ
 
