@@ -1355,3 +1355,88 @@ type DataSourcesInfo = Parameters<typeof getClient>[0];
 ```
 
 → 関連: [データソースパターン](data-source-patterns.md)
+
+---
+
+## 27. サンプルの `dataverse-service.ts` を流用すると `getRecords is not a function`（検証済 2026-07-01 / SDK 1.2.5）
+
+### 症状
+
+`samples/geek-*` の `src/services/dataverse-service.ts` をコピーして使うと、
+ビルドは通っても実行時に以下で落ちる（またはビルド時に型エラー）:
+
+```
+TypeError: client(...).getRecords is not a function
+```
+
+```
+error TS2305: Module '"@microsoft/power-apps"' has no exported member 'getClient'.
+```
+
+### 原因
+
+一部サンプルのデータ層は **旧 SDK（ルートエクスポート + 簡易メソッド）前提**で書かれており、
+現行 `@microsoft/power-apps`（1.2.x）には存在しない:
+
+```typescript
+// ❌ サンプルの旧パターン（現行 SDK では動かない）
+import { getClient } from "@microsoft/power-apps"          // ルート import は無い
+function client() { return getClient(dataSourcesInfo) }
+client().getRecords(`${P}_products`)                        // getRecords は廃止
+client().createRecord(...)  // createRecord / updateRecord / deleteRecord も廃止
+```
+
+現行 `DataClient` のメソッド名と戻り値（`IOperationResult<T>` = `{ success, data, error }`）:
+
+| 旧（サンプル・廃止） | 現行 SDK 1.2.x |
+|---|---|
+| `getRecords(name)` | `retrieveMultipleRecordsAsync<T>(name, options?)` → `result.data` |
+| `getRecord(name, id)` | `retrieveRecordAsync<T>(name, id, options?)` |
+| `createRecord(name, body)` | `createRecordAsync<TIn, TOut>(name, body)` |
+| `updateRecord(name, id, body)` | `updateRecordAsync<TIn, TOut>(name, id, body)` |
+| `deleteRecord(name, id)` | `deleteRecordAsync(name, id)` |
+
+### 対処
+
+サンプルの `dataverse-service.ts` / `lib/dataSourcesInfo.ts` は**流用しない**。
+[ビルドリファレンス Step 6](build-reference.md) の `DataverseService` パターン
+（`@microsoft/power-apps/data` のサブパス import + `retrieveMultipleRecordsAsync` +
+`if (!result.success) throw result.error` + `return result.data`）で新規に書く。
+
+---
+
+## 28. データソース名に単数の論理名を渡すと 404 / 空データになる（検証済 2026-07-01）
+
+### 症状
+
+`pac code add-data-source -t {prefix}_factory` で追加したのに、
+`retrieveMultipleRecordsAsync("{prefix}_factory", ...)` が 404 相当で 0 件（またはエラー）を返す。
+
+### 原因
+
+`pac code add-data-source` は **単数の論理名**（`-t {prefix}_factory`）で追加するが、
+生成される `.power/schemas/appschemas/dataSourcesInfo.ts` の**キーは EntitySetName（複数形）**になる。
+
+```jsonc
+// add-data-source -t geek_factory / geek_capacity / systemuser で生成される
+export const dataSourcesInfo = {
+  "geek_factories":  { "primaryKey": "geek_factoryid",  ... },  // ← 複数形キー
+  "geek_capacities": { "primaryKey": "geek_capacityid", ... },
+  "systemusers":     { ... },
+}
+```
+
+`retrieveMultipleRecordsAsync` 等に渡す `dataSourceName` は、この**複数形キー**でなければならない。
+
+### 対処
+
+```typescript
+// ❌ 単数の論理名（404 / 空データ）
+const DATA_SOURCE = "geek_factory";
+
+// ✅ 生成された複数形キー（EntitySetName）
+const DATA_SOURCE = "geek_factories";
+```
+
+追加後は必ず `.power/schemas/appschemas/dataSourcesInfo.ts` を開き、実際のキー名を確認してから
+`DATA_SOURCE` 定数に転記する。不規則な複数形（`capacity → capacities`）に注意。
