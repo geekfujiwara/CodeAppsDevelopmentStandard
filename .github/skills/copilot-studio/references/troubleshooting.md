@@ -393,3 +393,56 @@ Q: どのように起動しますか？
    TokenCredential ラッパー（HelperCredential）で SDK に渡す
 ```
 
+## 手動認証（SSO）関連
+
+> 手順は [webchat-sdk-manual-auth.md](webchat-sdk-manual-auth.md) を参照。
+
+### アプリ登録 PATCH が `400 Permission Id ... cannot be found`
+
+```
+❌ oauth2PermissionScopes と preAuthorizedApplications を 1 回の PATCH にまとめた
+   → 事前承認が参照するスコープ ID がまだ存在せず 400
+✅ 2 段階 PATCH にする:
+   1) identifierUris + oauth2PermissionScopes を先に PATCH（スコープ ID を確定）
+   2) 別 PATCH で preAuthorizedApplications を追加
+   （setup_webchat_auth.py は実装済み）
+```
+
+### `msal is not defined` でサインインできない
+
+```
+❌ alcdn.msauth.net/browser/2.38.4 が CORS/404 で読み込めない
+✅ jsDelivr を使う:
+   https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.4/lib/msal-browser.min.js
+```
+
+### サインイン後に「検証コード」を求められる（SSO 失敗）
+
+```
+❌ OAuth カードの silent トークン交換が成立していない
+✅ 以下を確認:
+   - Copilot Studio 認証が「Microsoft Entra ID V2 with federated credentials」
+   - Token exchange URL = api://{authApp}/access_as_user（認証用アプリの公開スコープ）
+   - FIC の issuer/value が保存時に表示された値と一致（add_fic.py で登録）
+   - キャンバスアプリが認証用アプリの access_as_user を事前承認 & 管理者同意済み
+   - 設定変更後にエージェントを「公開」した
+```
+
+### サインインしても応答が返らない / 利用できない
+
+```
+❌ 「ユーザーをサインインさせる必要がある」ON = 共有された利用者のみ利用可
+✅ 対象ユーザー/グループにエージェントを共有する
+❌ 自動トリガー（メール等）は認証ユーザー文脈が無く手動認証では応答しない
+✅ 自動トリガー用途は認証なし版を併用するか設計を分ける
+```
+
+### 自動化ブラウザでサインイン検証ができない
+
+```
+❌ Playwright 等の自動化ブラウザは loginPopup がブロックされる（popup_window_error）
+   かつ localStorage が実ブラウザと別コンテキストで MSAL キャッシュを共有しない
+✅ SSO のエンドツーエンド検証はユーザー本人の実ブラウザで行う
+   （認証情報の代理入力はしない）
+```
+

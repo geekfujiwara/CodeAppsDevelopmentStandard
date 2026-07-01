@@ -54,6 +54,9 @@ ALLOWLIST = {
     "00000007-0000-0000-c000-000000000000",  # Dynamics CRM first-party app
     "00000003-0000-0000-c000-000000000000",  # Microsoft Graph
     "00000002-0000-0000-c000-000000000000",  # Azure AD Graph
+    "37f7f235-527c-4136-accd-4a02d197296e",  # Microsoft Graph openid 委任スコープ ID（固定）
+    "14dad69e-099b-42c9-810b-d002981feec1",  # Microsoft Graph profile 委任スコープ ID（固定）
+    "78ce3f0f-a1ce-49c2-8cde-64b5c0896db4",  # Dynamics user_impersonation 委任スコープ ID（固定）
     "a4c5bee6-25ff-4bb5-b926-b7eb8062ae7a",  # Dynamics CRM mcp.tools 委任スコープ ID（固定）
     "ab3be6b7-f5df-413d-ac2d-abf1e3fd9c0b",  # Enterprise Token Store アプリ ID（固定）
     "6ab48b67-cd74-4ad4-81af-5932984589be",  # Cowork/Token Store 関連の well-known ID（固定）
