@@ -211,12 +211,17 @@ python .github/skills/cowork/scripts/register_mcp_client.py --app-id <CLIENT_ID>
 
 ### Step 5: Teams 開発者ポータルで OAuth client 登録 → registrationId 取得（ブラウザ）
 
-> **ブラウザ操作は AI 自動化を優先**: このポータル手順は **Playwright MCP**（`browser_navigate` /
-> `browser_snapshot` / `browser_type` / `browser_click`）で自動化することを第一候補とする。
+> **ブラウザ操作は AI 自動化を必ず実行する**（手動案内にフォールバックしない）:
+> このポータル手順は **Playwright MCP**（`browser_navigate` /
+> `browser_snapshot` / `browser_type` / `browser_click`）で自動化する。
 > AI がフォーム入力〜Save〜registrationId の読み取りまで行い、値を `.env` の
 > `COWORK_OAUTH_REGISTRATION_ID` に書き込む。**クライアントシークレットだけは機密**のため、
-> `browser_type` で `.env` の値をそのまま入力し、チャットには出力しない。Playwright MCP が
-> 使えない環境でのみ、下表を人手で入力するフォールバックに切り替える。
+> `browser_type` で `.env` の値をそのまま入力し、チャットには出力しない。
+>
+> **VS Code Simple Browser のズーム設定**: 操作前に
+> `page.evaluate(() => document.body.style.zoom = '0.5')` でページを 50% に縮小し、
+> ポータルの全 UI 要素が視認可能な状態にしてから操作を開始する。
+> それでも必要な要素が見えないときはさらに縮小する。
 
 [dev.teams.microsoft.com/tools](https://dev.teams.microsoft.com/tools) → Tools →
 **OAuth client registration** → New（**SSO client registration ではない**）。
@@ -257,13 +262,23 @@ ZIP 検証: ルートに `manifest.json` / `dataverse-mcp-tools.json`、`skills/
 > からアップロードする（UI 変更済み）。Integrated apps 画面は「Agents > All agents へ移動」の案内のみで
 > カスタムアプリのアップロード導線は**廃止**された。
 
-> **ブラウザ操作は AI 自動化を優先**: このアップロード〜Publish も **Playwright MCP** で自動化する
-> ことを第一候補とする（`browser_navigate` で `#/agents/all` へ→ファイル選択→ウィザードを
-> `browser_click` で進める）。`Add agent` の **More actions（…）はページ中段の Registry ツールバー**
-> にあり、**画面が狭いと折り畳まれて見えない**ため viewport を広げる（例: 1600×900）。
-> ファイル選択は `<input type=file>` に `setInputFiles` で直接投入すると確実。検証エラーが出た場合は
+> **ブラウザ操作は AI 自動化を必ず実行する**（手動案内にフォールバックしない）:
+> このアップロード〜Publish は **Playwright MCP** で自動化する。
+> 手順: `browser_navigate` で `https://admin.cloud.microsoft/#/agents/all` へ →
+> SSO 完了待ち（`page.waitForURL('**/admin.cloud.microsoft/**')` — 最大 30 秒）→
+> Registry ツールバーの **More actions（…）** → **Add agent** → `<input type=file>` に
+> `setInputFiles` で zip を投入 → 検証待ち → **Publish to users**（All users + Install None を
+> **radio の `.evaluate(el => el.click())` で選択** — `click()` は overlay に遮られるため）→
+> Apply template → Accept permissions → Review & finish → Publish → Close。
+>
+> **VS Code Simple Browser のズーム設定**: 既定の `Match Window` だと管理センターの UI 要素が
+> 画面外にはみ出し、**More actions ボタンが不可視になる**ことがある。
+> **操作前に `page.evaluate(() => document.body.style.zoom = '0.5')` でページを 50% に縮小**し、
+> 全 UI 要素が視認可能な状態にする。それでも必要な要素が見えないときはさらに縮小する。
+>
+> `Add agent` の **More actions（…）はページ中段の Registry ツールバー** にあり、
+> **画面が狭いと折り畳まれて見えない**。検証エラーが出た場合は
 > `browser_snapshot` で内容を読み取り troubleshooting と突き合わせて修正→再アップロードする。
-> Playwright MCP が使えない環境でのみ下記を人手で操作する。
 
 1. [Microsoft 365 管理センター](https://admin.cloud.microsoft/) → 左ナビ **エージェント（Agents）** (`#/agents/all`)
 2. **Registry** タブ → グリッド中段ツールバーの **Export の右隣「…」(More actions)** → **Add agent** → **Upload agent** ウィザード起動

@@ -202,7 +202,14 @@ pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_{table_basename}
 python scripts/toggle_table_lang.py jp   # 日本語に復元
 ```
 
-> **日本語 DisplayName で `Failed to sanitize string` エラーが出る場合**、および `npx power-apps add-data-source` をフォールバックで使う場合（`patch-nameutils.cjs` 適用）の判断フロー・詳細手順は [日本語サニタイズリファレンス](references/japanese-sanitize.md) を参照。
+> [!CAUTION]
+> **`npx power-apps add-data-source` は絶対に使わない**。`npx` 経由で実行すると対話プロンプト
+> （「このパッケージを install してよいか？」等）が発生し、**AI エージェント実行時にターミナルが
+> 無限にハングする**（入力待ちのまま停止し、タイムアウトするまで復帰しない）。
+> 必ず **`pac code add-data-source`**（PAC CLI サブコマンド）を使う。
+> `pac code add-data-source -a dataverse -t {table}` が正しいコマンド。
+
+> **日本語 DisplayName で `Failed to sanitize string` エラーが出る場合**の判断フロー・詳細手順は [日本語サニタイズリファレンス](references/japanese-sanitize.md) を参照。
 
 ## 4. 改善デプロイ
 
