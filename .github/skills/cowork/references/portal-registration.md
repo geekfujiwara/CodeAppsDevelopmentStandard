@@ -23,3 +23,8 @@ Save すると **OAuth client registration ID** が発行される。これを `
 
 > **referenceId の値**: OAuth 方式では発行された **registration ID をそのまま** `referenceId` に使う
 > （SSO 方式のような `Base64("<tenantId>##<regId>")` 変換は不要）。
+
+> **シークレット入力の注意**: Client secret 欄は**平文表示**で、Playwright の
+> スナップショット/スクショに写り得る。`.env` からの投入は PowerShell `Set-Clipboard` +
+> ブラウザ `Ctrl+V` で行い（値をチャットに出さない）、疎通確認後は**ローテーション**する。
+> 手順は [troubleshooting.md #17](troubleshooting.md) を参照。
