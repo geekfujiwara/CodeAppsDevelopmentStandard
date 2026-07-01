@@ -51,6 +51,7 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 | [外部公開 Web 埋め込み](references/external-web-embed.md) | 認証なしエージェントを外部 Web サイトに iframe で公開するパターン（簡易版） |
 | [外部公開 WebChat SDK](references/webchat-sdk-embed.md) | WebChat SDK で外部公開する推奨パターン（UIカスタマイズ・メッセージ送信対応） |
 | [**外部公開デザインテンプレート**](references/webchat-sdk-design-template.md) | **標準 UI デザイン**：左パネル（カテゴリ別カード＋プロンプトチップス）＋ 右 WebChat パネル（グラデーション枠・AI タイピング Tips） |
+| [**ライトモード・テンプレート集**](references/webchat-sdk-light-templates.md) | **ライトモード 5 レイアウト**（workspace / minimal / hero-cards / dashboard / sidebar）＋ 全テンプレート標準の**「新しい会話（初期化）」ボタン**（React 再マウント対策 `freshWebchatEl()`） |
 | [**外部公開 手動認証（SSO）**](references/webchat-sdk-manual-auth.md) | Entra ID サインイン必須＋**ユーザー権限で Dataverse アクセス（RLS/OBO）**。2 アプリ登録・FIC（シークレットレス）・OAuth カードの silent トークン交換 |
 | [外部トリガー](references/trigger.md) | メール受信・Teams メッセージ・スケジュール等のトリガー追加 |
 | [トリガーパターン](references/trigger-patterns.md) | トリガーの設定パターン集 |
