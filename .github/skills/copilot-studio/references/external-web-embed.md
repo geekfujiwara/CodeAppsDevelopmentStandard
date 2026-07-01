@@ -263,10 +263,12 @@ az rest --method put \
 ```
 ❌ /copilotstudio/dataverse-backed/authenticated/.../conversations API を使う
    → 認証付き API で外部匿名ユーザーはアクセスできない（404）
-❌ Bot Framework WebChat + DirectLine トークンエンドポイント
-   → 「認証なし」では DirectLine トークンエンドポイントは提供されない
+✅ Bot Framework WebChat SDK + DirectLine トークンエンドポイント
+   → 「認証なし」エージェントでも /powervirtualagents/botsbyschema/{SCHEMA}/directline/token は
+     HTTP 200 でトークンを返す（検証済み）。UI 完全カスタマイズ・多言語対応が可能。
+   → 詳細は webchat-sdk-embed.md（推奨パターン）を参照
 ✅ Copilot Studio 埋め込みコード（iframe）を使用する
-   → 認証なしエージェント専用、追加認証不要、最もシンプル
+   → 認証なしエージェント専用、最もシンプル（カスタマイズ不要な場合）
 ```
 
 ## 適用条件
