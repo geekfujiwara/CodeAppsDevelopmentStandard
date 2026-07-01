@@ -172,3 +172,24 @@ App registration の作成には特権が要る。
 - どうしても付与できない環境では **Azure CLI 版 `setup_entra_oauth.ps1`** にフォールバックする
   （`az login` したユーザーの権限で作成）。
 
+## 17. Playwright でシークレットを画面入力する（チャット非露出）
+
+**課題**: Teams ポータルの Client secret など、`.env` の秘匿値をブラウザに入力したいが、
+`type`/`click` の引数やチャットに**値を出したくない**。また Playwright のコード実行サンドボックスは
+**`require`/`import` が使えず `fs` でファイルを読めない**（`ReferenceError: require is not defined` /
+`A dynamic import callback was not specified`）。
+
+**対処**: PowerShell でクリップボードへ入れ、ブラウザ側は **Ctrl+V で貼り付け**る（値はチャットに出ない）。
+
+```powershell
+# .env から値を取り出しクリップボードへ（値は表示しない）
+$s = ((Get-Content .env | Select-String -Pattern '^COWORK_OAUTH_CLIENT_SECRET=').Line -replace '^COWORK_OAUTH_CLIENT_SECRET=',''); Set-Clipboard -Value $s
+```
+
+→ 対象フィールドをフォーカスして `Control+v` を送る。
+
+> ⚠️ **Teams ポータルの Client secret 欄は平文表示**のため、貼付後のアクセシビリティ
+> スナップショット/スクリーンショットに値が写り得る。貼付後は不要な `browser_snapshot` を避け、
+> 疎通確認が済んだら**シークレットをローテーション**する（Entra で再生成 → `.env` 更新 →
+> ポータルの OAuth 登録のシークレットのみ差し替え。registrationId は不変なので**再ビルド不要**）。
+

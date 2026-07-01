@@ -253,18 +253,23 @@ ZIP 検証: ルートに `manifest.json` / `dataverse-mcp-tools.json`、`skills/
 
 ### Step 8: アップロード（M365 管理センター → エージェント画面）
 
-> ⚠️ Cowork プラグインは**「統合アプリ」ではなく、新しい「エージェント」画面**からアップロードする（UI 変更済み）。
+> ⚠️ Cowork プラグインは**「統合アプリ（Integrated apps）」ではなく、新しい「エージェント」画面**
+> からアップロードする（UI 変更済み）。Integrated apps 画面は「Agents > All agents へ移動」の案内のみで
+> カスタムアプリのアップロード導線は**廃止**された。
 
 > **ブラウザ操作は AI 自動化を優先**: このアップロード〜Publish も **Playwright MCP** で自動化する
 > ことを第一候補とする（`browser_navigate` で `#/agents/all` へ→ファイル選択→ウィザードを
-> `browser_click` で進める）。検証エラーが出た場合は `browser_snapshot` で内容を読み取り
-> troubleshooting と突き合わせて修正→再アップロードする。Playwright MCP が使えない環境でのみ
-> 下記を人手で操作する。
+> `browser_click` で進める）。`Add agent` の **More actions（…）はページ中段の Registry ツールバー**
+> にあり、**画面が狭いと折り畳まれて見えない**ため viewport を広げる（例: 1600×900）。
+> ファイル選択は `<input type=file>` に `setInputFiles` で直接投入すると確実。検証エラーが出た場合は
+> `browser_snapshot` で内容を読み取り troubleshooting と突き合わせて修正→再アップロードする。
+> Playwright MCP が使えない環境でのみ下記を人手で操作する。
 
 1. [Microsoft 365 管理センター](https://admin.cloud.microsoft/) → 左ナビ **エージェント（Agents）** (`#/agents/all`)
-2. **Registry** タブ → ツールバー右の **More actions（…、Export の隣）** → **Add agent** → **Upload agent** ウィザード起動
+2. **Registry** タブ → グリッド中段ツールバーの **Export の右隣「…」(More actions)** → **Add agent** → **Upload agent** ウィザード起動
 3. **Upload**: `<name>.zip` を選択→manifest 検証が走る（エラーが出たら troubleshooting 参照）
-4. **Publish to users**: 公開対象（All users / 特定ユーザー）と Install（None 推奨）を選択
+4. **Publish to users**: 公開対象（All users / **Specific users/groups**）を選択。特定ユーザーは検索ボックスで
+   ユーザー/グループを追加する。**Install（None 推奨）は明示選択しないと Next が有効化されない**
 5. **Apply template**（Default で Next）→ **Accept permissions**（権限不要なら「No required permissions」）→ **Review & finish** → **Publish**
 6. 「You uploaded <name>」表示で完了 → **Close**。詳細パネルの Status が **Available** になる
 7. **Cowork → Sources & Skills** にスキル＋Dataverse MCP コネクタが表示されることを確認
@@ -310,7 +315,7 @@ ZIP 検証: ルートに `manifest.json` / `dataverse-mcp-tools.json`、`skills/
 - [ ] ZIP ルートに manifest.json / dataverse-mcp-tools.json、skills/<name>/SKILL.md
 - [ ] 管理センターの**エージェント画面**からアップロード→Publish→Status=Available
 - [ ] Cowork に表示 → 初回同意 → データ取得成功
-- [ ] 更新時: version をインクリメント（id 据え置き）→ More actions → Update in store → Publish
+- [ ] 更新時: version をインクリメント（id 据え置き）→ More actions（… / Export の隣）→ Add agent → Upload agent → Publish
 
 ## 参考リンク
 
