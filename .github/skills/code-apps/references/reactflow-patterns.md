@@ -162,20 +162,10 @@ export function KanbanBoard({ columns, items, onMove, onCardClick }: {
 に設定する**（`NodeResizeControl` によるドラッグ拡縮を有効にする場合、内部で Node の寸法を直接書き換える
 ため、`data` 内に固定 px 幅を持たせると表示とズレる）。
 
-`categoryColor()`（[色相ハッシュユーティリティ](component-catalog.md)相当）のパレットは、黒・グレーのような
-低彩度色を含めず、彩度・明度を揃えた識別しやすい色のみで構成する。進捗フィルは半透明の重ね塗りにせず
-**単色でくっきり**塗り、ラベルは半透明チップに乗せて背景色に関わらず可読性を確保する。
-
-```tsx
-// src/lib/category-color.ts
-export const PALETTE = ["#e60012", "#2563eb", "#f59e0b", "#16a34a", "#8b5cf6", "#0ea5e9", "#db2777", "#ea580c"]
-
-export function categoryColor(category: string): string {
-  let hash = 0
-  for (let i = 0; i < category.length; i++) hash = (hash * 31 + category.charCodeAt(i)) >>> 0
-  return PALETTE[hash % PALETTE.length]
-}
-```
+バーの色は共通の `categoryColor()`（[カラーパレット集の共通カテゴリ配色](color-palettes.md)）を使う。
+パレットは黒・グレーのような低彩度色を含めず、彩度・明度を揃えた識別しやすい色のみで構成する。進捗フィルは
+半透明の重ね塗りにせず **単色でくっきり**塗り、ラベルは半透明チップに乗せて背景色に関わらず可読性を確保する
+（`src/lib/category-color.ts` の定義は [カラーパレット集の「カテゴリ配色パレットは全パレット共通」](color-palettes.md) を参照。ここでは再掲しない）。
 
 ```tsx
 // src/components/gantt/gantt-bar-node.tsx
@@ -374,18 +364,17 @@ const edges = relations.map((r) => ({
 </ReactFlow>
 ```
 
-## カテゴリ色は 1 箇所に集約する（Recharts と共用）
+## カテゴリ色は共通パレットに集約する（Recharts と共用）
 
-`categoryColor()`／`PALETTE` は「パターン 1」で定義した `src/lib/category-color.ts` の**1 箇所のみ**に置き、
-ページごとに `PIE_COLORS` のような色配列を複製しない。複製すると、後で低彩度色（黒・グレー）を除去する
-修正をしても複製先に反映されず、画面によって視認性の悪い配色が残る（実際に Recharts の `Pie`/`Bar` の
-`Cell` 色配列が `category-color.ts` と別に定義され、黒・グレーが再混入した事例がある）。
+`categoryColor()`／`PALETTE` は **1 箇所のみ**（`src/lib/category-color.ts`）に置き、ページごとに
+`PIE_COLORS` のような色配列を複製しない。複製すると、後で低彩度色（黒・グレー）を除去する修正をしても
+複製先に反映されず、画面によって視認性の悪い配色が残る（実際に Recharts の `Pie`/`Bar` の `Cell` 色配列が
+`category-color.ts` と別に定義され、黒・グレーが再混入した事例がある）。
 
-- **件数・比率の内訳など、系列数が固定で少数（5 以下）** → `color-palettes.md` のテーマ変数
-  `var(--chart-1)`〜`var(--chart-5)` を使う（ライト/ダークやカラーパレット切替に自動追従する）。
-- **商品カテゴリ・工場名など、値の種類が可変・自由入力** → `categoryColor()` のハッシュ結果を使う
-  （`PALETTE` は黒・グレーを含めない。`export const PALETTE` にして `Cell fill={PALETTE[i % PALETTE.length]}`
-  のように Recharts からもインポートして再利用する）。
+この共通カテゴリ配色（`--cat-1`〜`--cat-8` / `PALETTE`）と、単一系列用の `--chart-1`〜`--chart-5` との
+**使い分けの正典は [カラーパレット集の「カテゴリ配色パレットは全パレット共通」](color-palettes.md)** に置く。
+ガント・カンバン・関係図はすべてこの共通パレットの `categoryColor()` を使い、Recharts で系列を色分けする
+場合も同じ `PALETTE` を import して `Cell fill={PALETTE[i % PALETTE.length]}` で再利用する。
 
 ## 操作性の標準設定
 
