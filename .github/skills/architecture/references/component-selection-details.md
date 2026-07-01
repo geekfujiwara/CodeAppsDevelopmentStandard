@@ -23,7 +23,7 @@
 | 決まった手順を100%確実に実行したい | → **Power Automate**（確定的フロー）     |
 | 大量データの一括処理（1000件+）    | → **Power Automate**（ループ + バッチ）  |
 | LLM を使わない単純な条件分岐       | → **Power Automate**（コスト効率が良い） |
-| UI でのデータ入力・編集            | → **Code Apps / Canvas Apps**            |
+| UI でのデータ入力・編集            | → **Code Apps**                          |
 | 認証・承認ワークフロー             | → **Power Automate**（承認コネクタ）     |
 
 ### Copilot Studio v1 / v2 の判断軸（詳細）
@@ -120,9 +120,9 @@
 
 ## 3. UI: Code Apps vs Canvas Apps vs Model-Driven Apps（機能比較）
 
-> **方針**: 新規開発では常に **Code Apps** を提案する。Model-Driven Apps は既存改善のみ。
+> **方針**: 内部ユーザー向けの新規開発では常に **Code Apps** を提案する。**Canvas Apps は常に対象外**（参考情報として残す）。Model-Driven Apps は標準 D365 開発または既存改善の場合のみ。
 
-| 判断ポイント                                         | Code Apps              | Canvas Apps          | Model-Driven Apps（既存改善のみ） |
+| 判断ポイント                                         | Code Apps              | Canvas Apps（常に対象外・参考） | Model-Driven Apps（標準開発/既存改善のみ） |
 | ---------------------------------------------------- | ---------------------- | -------------------- | --------------------------------- |
 | カスタム UI コンポーネント                           | ✅ 自由（React + OSS） | ❌ 制約あり          | ❌ 標準 UI のみ                   |
 | ダーク/ライトモード                                  | ✅ Tailwind で容易     | △ 手動実装           | ✅ システム設定に従う             |

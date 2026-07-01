@@ -125,7 +125,7 @@ flowchart TB
             direction TB
             CH["Teams / Web チャネル"]
             COPILOT["Copilot Studio"]
-            UI["Code Apps / Canvas / Model-Driven / Power Pages"]
+            UI["Code Apps / Model-Driven / Power Pages / Azure"]
         end
 
         subgraph COL2["カラム2: 自動化・AI"]
@@ -164,9 +164,9 @@ flowchart TB
 | -------------- | -------------------- | ------- |
 | Dataverse      | {テーブル構成の概要} | ✅ 必須 |
 | Code Apps      | {画面の概要}         | ✅ / ❌ |
-| Canvas Apps    | {軽量 UI の概要}     | ✅ / ❌ |
 | Model-Driven   | {アプリの概要}       | ✅ / ❌ |
-| Power Pages    | {外部公開 UI の概要} | ✅ / ❌ |
+| Power Pages    | {外部公開 UI の概要（ユーザー宣言時のみ）} | ✅ / ❌ |
+| Azure          | {外部公開 Web/API の概要（既定）} | ✅ / ❌ |
 | Power Automate | {フローの概要}       | ✅ / ❌ |
 | Copilot Studio | {エージェントの概要} | ✅ / ❌ |
 | AI Builder     | {プロンプトの概要}   | ✅ / ❌ |
@@ -202,7 +202,7 @@ flowchart TB
 | 確定的な処理に Copilot Studio を使う                             | 条件分岐が固定なら Power Automate。LLM のハルシネーションリスクを避ける    |
 | Power Automate で自然言語処理を頑張る                            | Copilot Studio に任せる。フローの条件分岐で自然言語を扱うのは脆い          |
 | AI Builder で対話機能を作ろうとする                              | Copilot Studio を使う。AI Builder は単発の入力→出力処理向き                |
-| Canvas Apps で複雑な UI を作る                                   | Code Apps に切り替える。ドラッグ&ドロップのカンバンは Canvas Apps では困難 |
+| Canvas Apps を候補に入れる                                       | 常に対象外。Code Apps に切り替える（パフォーマンス/カスタマイズ性/エンタープライズ運用で不利） |
 | 標準 CRUD だけなのに Code Apps でフルスクラッチ                  | Model-Driven Apps なら自動生成で最速。カスタム UI 不要なら MDA を検討      |
 | 全要件に Copilot Studio を使う                                   | 対話が不要な部分は Power Automate / Code Apps で。適材適所                 |
 | Power Automate フロー内に AI Builder アクションを API でデプロイ | API では `InvalidOpenApiFlow` エラー。AI Builder ステップは UI で手動追加  |

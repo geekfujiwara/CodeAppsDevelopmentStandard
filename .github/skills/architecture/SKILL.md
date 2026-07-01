@@ -56,7 +56,7 @@ triggers:
 | **Copilot Studio**    | 自然言語対話、ナレッジ検索、LLM による推論・要約、ツール呼び出しの自律的オーケストレーション | 確定的なフロー制御、大量データの一括処理、トランザクション保証 |
 | **Power Automate**    | イベント駆動の自動化、確定的なワークフロー、コネクタ経由の外部連携、条件分岐・ループ         | 自然言語対話、あいまいな入力の解釈、自律的判断                 |
 | **Code Apps**         | リッチ UI、複雑なデータ操作画面、カスタムビジュアル、オフライン対応                          | ノーコードでの素早いプロトタイプ、モバイルネイティブ           |
-| **Canvas Apps**       | 素早いプロトタイプ、モバイル対応、ノーコード/ローコード UI                                   | 複雑な UI カスタマイズ、外部 JS ライブラリ利用                 |
+| **Canvas Apps**       | （常に対象外 — パフォーマンス・カスタマイズ性・エンタープライズ運用の観点で不採用）           | —                                                                |
 | **Model-Driven Apps** | Dataverse 標準 UI、フォーム/ビュー/ダッシュボードの自動生成、ビジネスルール統合              | カスタムビジュアル、外部 JS ライブラリ、ノーコード開発者       |
 | **Power Pages**       | 外部ユーザー向けポータル・公開サイト、認証/匿名アクセス、Dataverse 連携、テーブル権限による公開制御 | 複雑なサーバーサイド処理、SSR/ISR、内部業務向けの複雑なリッチ UI |
 | **AI Builder**        | 定型 AI タスク（分類・抽出・要約）、再利用可能な AI プロンプト、エージェントのツール化 | リアルタイム対話、複雑な推論チェーン（★ §6 参照: AI プロンプト優先） |
@@ -78,7 +78,7 @@ triggers:
     ├─ イベント/条件に基づく自動処理？ ──→ YES ──→ 【Power Automate】（§4 へ）
     │                                     NO
     │                                     ↓
-    ├─ データの閲覧・編集 UI が必要？ ──→ YES ──→ 【Code Apps / Power Pages / Canvas Apps / Model-Driven Apps】（§5 へ）
+    ├─ データの閲覧・編集 UI が必要？ ──→ YES ──→ 【Code Apps / Power Pages or Azure / Model-Driven Apps】（§5 へ、Canvas Apps は常に対象外）
     │                                    NO
     │                                    ↓
     ├─ 再利用可能な AI 処理が必要？ ──→ YES ──→ 【AI Builder】（§6 へ）
@@ -184,83 +184,63 @@ AskUserQuestion で次のように尋ねる:
 Q: 対象ユーザーは？
 
 ├─ 外部ユーザー（顧客・パートナー・匿名アクセス含む）
-│   └─ → Power Pages（Dataverse 連携 + テーブル権限で公開制御）
+│   └─ → 既定は Azure（Power Platform 外の Web/API）。ユーザーが Power Pages を明示的に希望した場合のみ Power Pages
 │
 └─ 内部ユーザー
-    └─ Q: 既存の Model-Driven App を改善する案件か？
+    └─ Q: 標準の D365 開発をしたい、または既存 Model-Driven App の改修か？
 
-        ├─ YES（既存 Model-Driven App の改善） → Model-Driven Apps（§5 補足参照）
+        ├─ YES → Model-Driven Apps
         │
-        └─ NO（新規開発）
-            └─ Q: UI の複雑さは？
-
-                ├─ シンプル（一覧 + フォーム程度）
-                │   └─ Q: 開発チームの技術スタック？
-                │       ├─ ローコード寄り → Canvas Apps
-                │       └─ コードファースト寄り → Code Apps
-                │
-                ├─ 中程度（ダッシュボード + 複数画面 + フィルタ）
-                │   └─ → Code Apps（shadcn/ui のコンポーネントが活きる）
-                │
-                └─ 複雑（カンバン + ガントチャート + インライン編集 + カスタムビジュアル）
-                    └─ → Code Apps 一択
+        └─ NO（新規の独自 UI）→ Code Apps（UI の複雑さに関わらず一択。Canvas Apps は常に対象外）
 ```
 
-### Power Pages を選ぶ条件
+### 外部ユーザー向け UI: 既定は Azure、Power Pages はユーザー宣言時のみ
 
-**Power Pages は対象ユーザーが外部（顧客・パートナー・匿名含む）の場合に選択する**:
+**外部ユーザー向け（顧客・パートナー・匿名アクセス含む）の UI は既定で Azure（Power Platform 外の Web/API 実装）を提案する**。
+Power Pages を提案するのは **ユーザーが明示的に「Power Pages で作りたい」と宣言した場合のみ**とする:
 
 ```
-Power Pages を選ぶ条件（すべて該当する場合のみ）:
-  ① 対象ユーザーが外部（顧客・パートナー・一般公開含む）
+Power Pages を選ぶ条件（ユーザー宣言 + 以下が該当）:
+  ① ユーザーが Power Pages の利用を明示的に希望している
   ② Dataverse のデータを外部公開したい、またはテーブル権限で公開範囲を制御したい
   ③ 認証（Azure AD B2C 等）または匿名アクセスが必要
 
-上記に該当しない（内部ユーザー向け）→ Code Apps / Canvas Apps
+ユーザーが宣言しない場合（内部ユーザー向けを含む）→ Azure / Code Apps
 ```
 
 > 詳細な開発・デプロイ手順は [power-pages/SKILL.md](../power-pages/SKILL.md) を参照。
 > ⚠️ プロビジョニングに **10〜20 分**かかるため、Phase 6 では完了を待ってから開発を続ける。
 
-### 内部ユーザー向け: Code Apps vs Canvas Apps（参考: Model-Driven Apps）
+### 内部ユーザー向け: Code Apps を既定とする（参考: Model-Driven Apps）
 
-> **方針**: 新規開発では常に **Code Apps** を提案する。Model-Driven Apps は既存改善のみ。
+> **方針**: 内部ユーザー向けの新規画面は常に **Code Apps** を提案する。**Canvas Apps は常に対象外**
+> （パフォーマンス・カスタマイズ性・エンタープライズ運用の観点で不利なため）。Model-Driven Apps は標準 D365 開発または既存改善の場合のみ。
 
-要点: カスタム UI・カンバン/ガント・インライン編集・ダークモードは **Code Apps** が優位。モバイル最適・市民開発者保守は Canvas、標準ビュー/フォーム自動生成・ビジネスルール/セキュリティロール統合は MDA が優位。
+要点: カスタム UI・カンバン/ガント・インライン編集・ダークモードは **Code Apps** が優位。標準ビュー/フォーム自動生成・ビジネスルール/セキュリティロール統合、または標準 D365 開発をしたい場合は MDA が優位。
 
-> Code Apps / Canvas / MDA の機能比較マトリクス（11 項目）は
+> Code Apps / Canvas / MDA の機能比較マトリクス（11 項目、Canvas は参考情報）は
 > [コンポーネント選定 詳細](references/component-selection-details.md#3-ui-code-apps-vs-canvas-apps-vs-model-driven-apps機能比較) を参照。
 
-### このプロジェクトの標準: Code Apps
+### このプロジェクトの標準: Code Apps（Canvas Apps は常に対象外）
 
 本プロジェクトでは **Code Apps（TypeScript + React + Tailwind + shadcn/ui）** を標準とする。
-Canvas Apps を選択するのは、**以下の条件をすべて満たす場合に限る**:
+**Canvas Apps は常に対象外**とする（パフォーマンス・カスタマイズ性・エンタープライズ運用の観点で不向きなため）。
+内部ユーザー向けの新規画面は、UI の複雑さに関わらず常に Code Apps を提案する。
+
+### Model-Driven Apps の方針: 標準 D365 開発 または 既存改善のみ
+
+**Model-Driven Apps を使うのは以下のいずれかに該当する場合に限る**（それ以外の新規開発は常に Code Apps）:
 
 ```
-Canvas Apps を選ぶ 3 条件（すべて該当する場合のみ）:
-  ① ユーザー数が十数人程度（〜20人）
-  ② 画面数が数画面（〜5画面）で機能がシンプル
-  ③ コア業務ではない（補助的・部門限定の業務）
+Model-Driven Apps を使う条件（いずれかに該当）:
+  ① 標準的な Dynamics 365 の開発をしたい（標準 UI・自動生成のフォーム/ビューをそのまま使いたい）
+  ② 既に本番稼働中の Model-Driven App があり、フォーム追加・ビュー変更・ビジネスルール追加等の改善要件である
 
-上記を 1 つでも満たさない場合 → Code Apps
+上記いずれにも該当しない（新規の独自 UI）→ 常に Code Apps
 ```
 
-### Model-Driven Apps の方針: 新規では提案しない / 既存改善のみ
-
-**新規開発では Model-Driven Apps を提案しない。常に Code Apps を提案する。**
-
-Model-Driven Apps を使うのは **既存の Model-Driven App を改善・拡張する案件に限る**:
-
-```
-Model-Driven Apps を使う条件（既存改善のみ）:
-  ① 既に本番稼働中の Model-Driven App が存在する
-  ② その既存アプリに対するフォーム追加・ビュー変更・ビジネスルール追加等の改善要件である
-
-新規でアプリを作る場合 → 常に Code Apps
-```
-
-> **理由**: Code Apps は保守性・拡張性・UI カスタマイズ性に優れ長期的に有利。MDA は自動生成が利点だが
-> カスタマイズ制約で後から移行コストが発生しやすい。Canvas は上記 3 条件が揃う場合のみ有利。**迷ったら Code Apps**。
+> **理由**: Code Apps は保守性・拡張性・UI カスタマイズ性に優れ長期的に有利。MDA は標準 D365 開発・自動生成が利点だが
+> カスタマイズ制約で後から移行コストが発生しやすい。Canvas Apps は常に対象外。**迷ったら Code Apps**。
 
 ---
 
@@ -303,11 +283,11 @@ Q: その AI 処理は再利用するか？
 
 設計を始める前に、以下を順番に確認する:
 
-- [ ] **外部ユーザー向け UI か？** → YES なら Power Pages を含む構成
+- [ ] **外部ユーザー向け UI か？** → YES なら既定で Azure、ユーザーが Power Pages を宣言した場合のみ Power Pages を含む構成
 - [ ] **Dataverse にデータを貯める構成か？** → YES なら入力接点として **Copilot Cowork プラグイン**（自然言語登録）を第一候補に含める（Code Apps は閲覧・分析・複雑操作を担当）
 - [ ] **自然言語対話が必要か？** → YES なら Copilot Studio を含む構成
 - [ ] **イベント駆動の自動処理が必要か？** → YES なら Power Automate を含む構成
-- [ ] **データ操作 UI が必要か？** → YES で外部ユーザー向けなら Power Pages、内部ユーザー向けなら Code Apps / Canvas Apps / Model-Driven Apps を含む構成
+- [ ] **データ操作 UI が必要か？** → YES で外部ユーザー向けなら既定 Azure（Power Pages 宣言時のみ Power Pages）、内部ユーザー向けなら Code Apps / Model-Driven Apps を含む構成（Canvas Apps は常に対象外）
 - [ ] **標準ビュー/フォームで十分か？** → YES なら Model-Driven Apps が最速。カスタム UI なら Code Apps
 - [ ] **再利用可能な AI 処理が必要か？** → YES なら AI Builder を含む構成
 - [ ] **確定的な処理か、LLM 判断が必要か？** → 確定的なら Power Automate、LLM なら Copilot Studio
