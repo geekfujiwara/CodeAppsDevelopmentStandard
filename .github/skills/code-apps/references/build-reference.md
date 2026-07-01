@@ -176,18 +176,24 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 
 ### Step 4: Dataverse データソース追加
 
+> **推奨（無駄な往復を避ける）**: テーブルは `dataverse` スキルの `setup_dataverse.py --skip-localize`
+> で**英語のまま**構築し、`add-data-source` を先に完了させてから最後にローカライズする。
+> 「日本語化 → 英語に一時戻す → 日本語に戻す」という3往復を避けられる（詳細は
+> `dataverse` スキル SKILL.md Step 4）。
+
 ```bash
 # テーブルごとに実行（PUBLISHER_PREFIX は .env から読み込み、ハードコード禁止）
-# 日本語表示名エラー回避: 一時的に英語に切替
-python scripts/toggle_table_lang.py en
-
-# pac code add-data-source で追加
+# 前提: テーブルはまだ英語 DisplayName のまま（setup_dataverse.py --skip-localize 済み）
 pac code add-data-source -a dataverse -t {PUBLISHER_PREFIX}_{table}
 # 全テーブルに対して繰り返す
 
-# 日本語に復元
-python scripts/toggle_table_lang.py jp
+# 全テーブル追加後、dataverse スキル側でローカライズを実行
+python setup_dataverse.py --localize-only
 ```
+
+> **既存テーブルが既に日本語ローカライズ済みの場合**（例: 後から新しいデータソースを追加する運用中の
+> プロジェクト等）は上記の順序が使えない。その場合のみ `toggle_table_lang.py` で一時的に英語へ
+> 切り替えるフォールバック手順を使う（[troubleshooting.md #10](troubleshooting.md)）。
 
 > **重要**: テーブル論理名に `geek_xxx` のような literal を書かない。
 > publisher prefix は環境ごとに異なるため、必ず `.env` の `PUBLISHER_PREFIX` を変数展開して使う。

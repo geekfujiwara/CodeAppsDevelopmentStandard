@@ -386,7 +386,24 @@ Failed to update database references: Failed to sanitize string 顧客一覧
 **`pac code add-data-source` は PAC CLI 内蔵の .NET ランタイム経由で別の `nameUtils.js` を実行する**。
 PAC CLI の `.stage` ディレクトリ配下には複数バージョンが存在し、パッチの到達が不確実。
 
-### 対処: テーブル表示名を一時的に英語に切り替え
+### 推奨（予防策）: そもそも add-data-source を先に、ローカライズは後で
+
+日本語化 → 英語に一時戻す → 日本語に戻す、という3往復は無駄なので、**構築時点ではローカライズせず
+英語のまま `add-data-source` を完了させ、その後にローカライズする**運用を標準とする
+（`dataverse` スキル `setup_dataverse.py` の `--skip-localize` / `--localize-only`）。
+
+```powershell
+python setup_dataverse.py --skip-localize   # テーブル構築のみ（英語のまま）
+pac code add-data-source -a dataverse -t {prefix}_tablename   # 全テーブルに対して実行
+python setup_dataverse.py --localize-only   # ローカライズ・デモデータ投入
+```
+
+詳細は build-reference.md Step 4、および `dataverse` スキル SKILL.md Step 4 を参照。
+
+### 対処（フォールバック）: 既にローカライズ済みのテーブルにあとから add-data-source する場合
+
+上記の順序が使えない場合（既存の運用中プロジェクトで新しいテーブルを追加する等、テーブルが
+既に日本語ローカライズ済みの場合）のみ、テーブル表示名を一時的に英語に切り替える。
 
 ```bash
 # 1. API で DisplayName/DisplayCollectionName を英語に変更
@@ -410,6 +427,9 @@ python toggle_table_lang.py jp
   （`patch-nameutils.cjs` で解決できる）
 - この問題が起きるのは `npx power-apps` がテナント不一致で使えず `pac code` を
   使わざるを得ない環境のみ
+- ただし `npx` が使える環境でも、上記の「予防策」（構築時はローカライズしない）にしておけば
+  この問題自体を回避でき、ローカライズ API の無駄な往復も無くなるため、新規プロジェクトでは
+  予防策を標準にする
 
 ---
 
