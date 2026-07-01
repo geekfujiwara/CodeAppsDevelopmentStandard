@@ -16,6 +16,12 @@ Dataverse テーブル構築テンプレート
   3. LOCALIZE_TABLES / LOCALIZE_COLUMNS / LOCALIZE_OPTIONS を記述
   4. create_demo_data() にデモデータ投入ロジックを記述
   5. python setup_dataverse.py で実行
+
+  Code Apps で pac code add-data-source を使う場合（2段階運用。日本語 DisplayName だと
+  add-data-source が 'Failed to sanitize string' で失敗することがあるため）:
+    a. python setup_dataverse.py --skip-localize   # テーブル構築のみ（英語のまま）
+    b. pac code add-data-source -a dataverse -t {prefix}_xxx を全テーブルに実行
+    c. python setup_dataverse.py --localize-only   # ローカライズ・デモデータ投入
 """
 import os
 import sys
@@ -575,6 +581,22 @@ def verify_tables():
 # ── メイン ────────────────────────────────────────────────────
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Dataverse テーブル構築")
+    parser.add_argument(
+        "--skip-localize", action="store_true",
+        help="ローカライズ（Step 5）とデモデータ投入以降をスキップし、テーブル構築（英語のまま）のみ行う。"
+             "Code Apps で pac code add-data-source を使う場合、日本語 DisplayName だと "
+             "'Failed to sanitize string' で失敗することがあるため、"
+             "add-data-source 完了後に --localize-only で改めてローカライズする2段階運用にする",
+    )
+    parser.add_argument(
+        "--localize-only", action="store_true",
+        help="ローカライズ（Step 5）・再公開・デモデータ投入・検証のみ実行する（Step 1〜4 はスキップ）。"
+             "--skip-localize でテーブル構築 → add-data-source 完了後にこれを実行する想定",
+    )
+    args = parser.parse_args()
+
     print("=" * 60)
     print("  Dataverse テーブル構築")
     print("=" * 60)
@@ -582,10 +604,17 @@ def main():
     print(f"  ソリューション: {SOLUTION_NAME}")
     print(f"  プレフィックス: {PREFIX}")
 
-    ensure_solution()            # Step 1: ソリューション
-    create_tables()              # Step 2: テーブル作成
-    create_lookups()             # Step 3: Lookup
-    publish_all()                # Step 4: 公開（テーブル反映）
+    if not args.localize_only:
+        ensure_solution()            # Step 1: ソリューション
+        create_tables()              # Step 2: テーブル作成
+        create_lookups()             # Step 3: Lookup
+        publish_all()                # Step 4: 公開（テーブル反映）
+
+    if args.skip_localize:
+        print("\n⏭  --skip-localize 指定: ローカライズ以降をスキップします")
+        print("次のステップ: pac code add-data-source 実行後、--localize-only で本スクリプトを再実行")
+        return
+
     localize_tables()            # Step 5: ローカライズ
     publish_all()                # 再公開（ローカライズ反映）
     create_demo_data()           # Step 6: デモデータ
