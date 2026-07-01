@@ -44,6 +44,8 @@ triggers:
   - "画像アップロード"
   - "画像表示"
   - "RecordImage"
+  - "ReactFlow"
+  - "可視化"
 ---
 
 # Code Apps 開発スキル
@@ -93,13 +95,12 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 ### 設計フェーズ（実装前に必須）
 
-**コードを書く前に、デザインテンプレート（レイアウト）とカラーパレット（配色）の選択、UI 設計を行い、ユーザーの承認を得ること。** 手順:
+**コードを書く前に、デザインテンプレートの選択と UI 設計を行い、ユーザーの承認を得ること。** 手順:
 
-1. [デザインテンプレート（レイアウト）](references/design-templates.md) の 5 種（Sidebar / Dashboard / Workspace / Hero Cards / Minimal）を一覧＋プレビューで提示し、**画面の骨格**を 1 つ選んでもらう。
-2. [カラーパレット集](references/color-palettes.md) の 6 種を一覧＋プレビューで提示し、**配色**を 1 つ選んでもらう（デプロイされるアプリは常に 1 レイアウト＋1 パレット。dark/light は `ThemeProvider` + `ModeToggle`）。
-3. [デザインシステム](references/design-system.md) を読み込み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計する。
-4. 設計（選択レイアウト＋選択パレット＋画面設計）を提示し、「この設計で進めてよいですか？」と承認を得る。
-5. 承認後、選択レイアウトのアプリシェルで実装し、選択パレットの CSS Variables を `styles/index.pcss` に適用する（変数一式・適用手順は [カラーパレット集](references/color-palettes.md)）。
+1. [デザインテンプレート集](references/design-templates.md) の 6 種を一覧＋プレビューで提示し、ユーザーに 1 つ選んでもらう（デプロイされるアプリは常に 1 テンプレート。dark/light は `ThemeProvider` + `ModeToggle`）。
+2. [デザインシステム](references/design-system.md) を読み込み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計する。
+3. 設計（選択テンプレート＋画面設計）を提示し、「この設計で進めてよいですか？」と承認を得る。
+4. 承認後、選択テンプレートの CSS Variables を `styles/index.pcss` に適用してから実装する（変数一式・適用手順は [デザインテンプレート集](references/design-templates.md)）。
 
 > **CRUD 画面は [CRUD UI 標準パターン](references/crud-ui-pattern.md) に必ず従う**: 一覧は行／カード全体をクリックして詳細を開く（目アイコン等の小さなクリック領域は使わない）、詳細の編集はモーダルではなくインライン編集モード、行内の削除・クイック操作は `e.stopPropagation()`、削除確認はブラウザの `confirm()` ではなくモーダル（`useConfirm()` / AlertDialog）。**指示がなくても、テーブルごとに「一覧・詳細（インライン編集）・作成・削除」を標準実装すること。**
 
@@ -310,11 +311,9 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 
 | リファレンス | 内容 |
 |---|---|
-| [デザインテンプレート集（レイアウト）](references/design-templates.md) | 設計時に選択する画面の骨格 5 種（Sidebar / Dashboard / Workspace / Hero Cards / Minimal、プレビュー HTML・アプリシェル骨格） |
-| [カラーパレット集](references/color-palettes.md) | 設計時に選択する配色 6 種（プレビュー HTML・CSS Variables 一式・light/dark 対応） |
+| [デザインテンプレート集](references/design-templates.md) | 設計時に選択する配色テンプレート 6 種（プレビュー HTML・CSS Variables 一式・light/dark 対応） |
 | [デザインシステム](references/design-system.md) | shadcn/ui + Tailwind CSS v4 のコンポーネント選定・画面設計パターン |
 | [コンポーネントカタログ](references/component-catalog.md) | 全コンポーネントの詳細仕様・使用例 |
-| [Fluent UI v2 アイコン](references/fluent-icons.md) | @fluentui/react-icons の導入・使用・CSP 安全性と、キーワードからアイコン名を検索する `find_fluent_icon.mjs` |
 | [ステージ矢羽パターン](references/stage-path-pattern.md) | OptionSet（ステージ／ステータス）を Salesforce 風の矢羽で可視化・クリックで変更 |
 | [構築リファレンス](references/build-reference.md) | ビルド・デプロイの詳細手順・vite.config.ts 必須設定・TypeScript エラー対処 |
 | [データソースパターン](references/data-source-patterns.md) | SDK 生成サービス・dataSourcesInfo・getClient(dataSourcesInfo)・TanStack React Query |
@@ -330,6 +329,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [日本地図パターン](references/japan-map-pattern.md) | SVG 都道府県地図の実装パターン |
 | [高度な実装パターン](references/advanced-patterns.md) | マルチ環境・オフライン・i18n・パフォーマンス最適化パターン |
 | [プレデプロイレビュー](references/pre-deploy-review.md) | 「デプロイして」「プッシュして」時の自動チェック手順 |
+| [ReactFlow 可視化パターン](references/reactflow-patterns.md) | 関係性・依存関係・フロー図・ガントチャートをノードベースで可視化する実装パターン（`@xyflow/react`）。**可視化リクエストでは第一候補として検討する** |
 | [新規テーマ開始チェックリスト](references/new-theme-checklist.md) | 前テーマの残骸がないクリーン開始の確認手順・scaffold 時に含めないファイル |
 | [トラブルシューティング](references/troubleshooting.md) | 頻出エラーと対処法（GUID フィルタ・`.toLowerCase()` 統一・テンプレート削除時の use-theme 巻き添え 等） |
 | [画像列の表示パターン](references/image-handling.md) | Dataverse Image 列の表示・アップロード（`downloadImageFromRecord` → base64 data URI・失敗パターン・`pac` vs `npx` 差異） |
