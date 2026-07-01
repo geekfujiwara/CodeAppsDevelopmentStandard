@@ -8,7 +8,8 @@ pac code add-data-source の日本語サニタイズ問題の回避用。
   python scripts/toggle_table_lang.py jp   # 日本語に復元
 
 前提:
-  - auth_helper.py がプロジェクトルートに存在すること
+  - auth_helper.py が参照可能なこと（標準は .github/skills/standard/scripts/auth_helper.py。
+    プロジェクトルート直下に置いている場合も自動でフォールバック解決する）
   - .env に PUBLISHER_PREFIX, DATAVERSE_URL が設定されていること
 
 カスタマイズ:
@@ -17,13 +18,22 @@ pac code add-data-source の日本語サニタイズ問題の回避用。
 """
 import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# auth_helper.py を解決: 標準（standard スキル）→ プロジェクトルートの順に探す
+_ROOT = Path(__file__).resolve().parent.parent
+for _cand in (
+    _ROOT / ".github" / "skills" / "standard" / "scripts",
+    _ROOT,
+):
+    if (_cand / "auth_helper.py").exists():
+        sys.path.insert(0, str(_cand))
+        break
 
 from dotenv import load_dotenv
 from auth_helper import api_get, api_request
 
-load_dotenv()
+load_dotenv(_ROOT / ".env")
 
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "").strip()
 if not PREFIX:

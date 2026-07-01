@@ -81,6 +81,11 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 > 章構成: §1 概要（本章・設計フェーズ）→ §2 初回デプロイ → §3 データソース接続 → §4 改善デプロイ → §5 リファレンス索引。
 
+> [!TIP]
+> **`pac code add-data-source`（⑦）は `pac code init`（④）直後に実行してよい**（push 不要 / 検証済 2026-07-01）。
+> 全テーブルを先に追加してから初回 `pac code push`（⑥）すれば「空スケルトンを push → data source 追加 → 再 push」の二度手間を避けられる。
+> 生成される `dataSourcesInfo` のキーは **EntitySetName（複数形）**（`-t {prefix}_factory` → キー `{prefix}_factories`）。詳細は [ビルドリファレンス Step 4/6](references/build-reference.md)。
+
 > [!NOTE]
 > 本スキル内のコード例は `{prefix}_tablename` 等のプレースホルダーで汎用化されています。
 > 実際のテーブル名・型名は、あなたのプロジェクトのエンティティに読み替えてください。

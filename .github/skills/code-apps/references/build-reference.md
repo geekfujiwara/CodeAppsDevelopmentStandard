@@ -192,6 +192,26 @@ python scripts/toggle_table_lang.py jp
 > **重要**: テーブル論理名に `geek_xxx` のような literal を書かない。
 > publisher prefix は環境ごとに異なるため、必ず `.env` の `PUBLISHER_PREFIX` を変数展開して使う。
 
+> **`add-data-source` は初回デプロイ前に実行してよい（push 不要）**（検証済 2026-07-01 / PAC 2.8.1）。
+> `pac code add-data-source` は `power.config.json` があれば動作し、**デプロイ済みアプリを必要としない**。
+> `pac code init` 直後に全テーブルを追加してから初回 `pac code push` すれば、
+> 「空スケルトンを push → data source 追加 → 再 push」の二度手間を避けられる。
+
+> **⚠ 生成されるデータソースのキー名は EntitySetName（複数形）である**（検証済 2026-07-01）。
+> `pac code add-data-source -t {prefix}_factory`（**単数**の論理名）を実行すると、
+> `.power/schemas/appschemas/dataSourcesInfo.ts` に生成されるキーは **`{prefix}_factories`（複数形）** になる。
+> `retrieveMultipleRecordsAsync(dataSourceName)` に渡す `dataSourceName` は
+> **必ずこの複数形キー**を使う（単数の論理名では 404 / 空データになる）。
+>
+> | `add-data-source -t`（単数・論理名） | 生成キー / `DATA_SOURCE`（複数形・EntitySetName） |
+> |---|---|
+> | `{prefix}_factory` | `{prefix}_factories` |
+> | `{prefix}_capacity` | `{prefix}_capacities` |
+> | `{prefix}_replenishmentrequest` | `{prefix}_replenishmentrequests` |
+> | `systemuser` | `systemusers` |
+>
+> 実際のキーは生成後の `.power/schemas/appschemas/dataSourcesInfo.ts` で必ず確認する。
+
 ### Step 5: 技術スタック導入
 
 ```bash
@@ -230,6 +250,18 @@ export const router = createHashRouter([
 ```
 
 ### Step 6: DataverseService パターンで CRUD 実装
+
+> **⚠ `samples/` 配下のサンプルアプリのデータ層はコピー禁止（SDK 旧 API）**（検証済 2026-07-01 / `@microsoft/power-apps` 1.2.5）。
+> 一部サンプルの `src/services/dataverse-service.ts` は
+> `import { getClient } from "@microsoft/power-apps"`（ルートインポート）と
+> `client().getRecords(...)` / `createRecord(...)` を使っているが、**現行 SDK には存在しない**:
+> - **ルートエクスポート（`"."`）は無い** → `@microsoft/power-apps/data` のサブパス必須。
+> - `getRecords` / `createRecord` / `updateRecord` / `deleteRecord` は**廃止**。
+>   現行の `DataClient` メソッドは
+>   `retrieveMultipleRecordsAsync` / `retrieveRecordAsync` / `createRecordAsync` /
+>   `updateRecordAsync` / `deleteRecordAsync` で、いずれも `IOperationResult<T>`（`{ success, data, error }`）を返す。
+>
+> データ層は**必ず下記の `DataverseService` パターン**で新規に書くこと（サンプルの `dataverse-service.ts` / `lib/dataSourcesInfo.ts` は流用しない）。
 
 #### `getClient(dataSourcesInfo)` — dataSourcesInfo は必須引数
 
@@ -292,7 +324,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DataverseService } from "@/lib/dataverse-service";
 import type { Product } from "@/types";
 
-const DATA_SOURCE = "inv_products";  // dataSourcesInfo のキー名
+const DATA_SOURCE = "inv_products";  // dataSourcesInfo のキー名 = EntitySetName（複数形）。add-data-source -t inv_product（単数）で生成される
 
 export function useProducts() {
   return useQuery<Product[]>({
