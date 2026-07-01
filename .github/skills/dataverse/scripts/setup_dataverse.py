@@ -389,15 +389,14 @@ def create_lookups():
             pass
 
         def _create(l=lk):
+            # Lookup（1:N リレーション）作成は RelationshipDefinitions への POST を使う。
+            # ※ CreateOneToMany バインドアクションは環境／Web API バージョンによって
+            #   404 Not Found になるため使わない。RelationshipDefinitions は安定して動作する。
             body = {
-                "@odata.type": "#Microsoft.Dynamics.CRM.CreateOneToManyRequest",
-                "OneToManyRelationship": {
-                    "@odata.type": "#Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
-                    "ReferencedEntity": l["to_table"],
-                    "ReferencingEntity": l["from_table"],
-                    "SchemaName": f"{l['from_table']}_{l['column_logical']}",
-                    "ReferencingAttribute": l["column_logical"],
-                },
+                "@odata.type": "#Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
+                "SchemaName": f"{l['from_table']}_{l['column_logical']}",
+                "ReferencedEntity": l["to_table"],
+                "ReferencingEntity": l["from_table"],
                 "Lookup": {
                     "@odata.type": "#Microsoft.Dynamics.CRM.LookupAttributeMetadata",
                     "SchemaName": l["column_logical"],
@@ -405,7 +404,7 @@ def create_lookups():
                     "RequiredLevel": {"Value": "None"},
                 },
             }
-            api_post("CreateOneToMany", body, solution=SOLUTION_NAME)
+            api_post("RelationshipDefinitions", body, solution=SOLUTION_NAME)
             print(f"  Lookup '{col_logical}' 作成完了")
 
         retry_metadata(_create, f"Lookup {col_logical}")
