@@ -1477,7 +1477,7 @@ flowchart TD
 
     P5["⚡ Phase 5 実装: Power Automate\n1. Flow API / PowerApps API 認証\n2. 環境 ID 解決・接続検索\n3. フロー定義 JSON 構築\n4. POST or PATCH でデプロイ"]
 
-    P6D["🎨 Phase 6 設計: Code Apps UI\n1. code-apps スキルの references/design-system.md で設計\n2. 画面構成・コンポーネント選定\n3. Lookup 名前解決パターン設計\n4. ★ ユーザーに UI 設計を提示し承認を得る"]
+    P6D["🎨 Phase 6 設計: Code Apps UI\n1. code-apps スキルの references/design-pattern.md で設計\n2. 画面構成・コンポーネント選定\n3. Lookup 名前解決パターン設計\n4. ★ ユーザーに UI 設計を提示し承認を得る"]
 
     P6["⚛️ Phase 6 実装: Code Apps\n1. npx power-apps init\n2. build & push（先にデプロイ！）\n3. npx power-apps add-data-source\n4. npx power-apps add-flow（Phase 5 のフローを参照）\n5. 承認済み設計に従い実装\n6. ビルド & 再デプロイ"]
 

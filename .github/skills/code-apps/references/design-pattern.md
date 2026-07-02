@@ -1,5 +1,5 @@
 ---
-name: design-system
+name: design-pattern
 description: "Code Apps のデザインシステムを利用して UI を構築する。shadcn/ui + Tailwind CSS v4 のコンポーネントライブラリによる画面設計・コンポーネント選定。"
 category: ui
 triggers:
@@ -61,7 +61,7 @@ Code Apps の画面を設計・実装する。
 | テーマ | ダーク/ライトモード対応 |
 
 ```
-フロー: code-apps（design-system）で設計 → ユーザー承認 → code-apps で実装
+フロー: code-apps（design-pattern）で設計 → ユーザー承認 → code-apps で実装
 ```
 
 ## デザインテンプレート選択
