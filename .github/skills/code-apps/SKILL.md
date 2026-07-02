@@ -92,7 +92,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 ```
 [設計]  ① デザインテンプレートを選ばせる（6種・プレビュー付き）
-        ② 画面設計（design-system）→ ユーザー承認
+        ② 画面設計（design-pattern）→ ユーザー承認
           │
 [§2 初回デプロイ]
         ③ テンプレート scaffold + npm install
@@ -128,7 +128,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 **コードを書く前に、デザインテンプレートの選択と UI 設計を行い、ユーザーの承認を得ること。** 手順:
 
 1. [デザインテンプレート集](references/design-templates.md) の 6 種を一覧＋プレビューで提示し、ユーザーに 1 つ選んでもらう（デプロイされるアプリは常に 1 テンプレート。dark/light は `ThemeProvider` + `ModeToggle`）。
-2. [デザインシステム](references/design-system.md) を読み込み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計する。
+2. [デザインシステム](references/design-pattern.md) を読み込み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計する。
 3. 設計（選択テンプレート＋画面設計）を提示し、「この設計で進めてよいですか？」と承認を得る。承認の証跡を残す場合は、[設計承認 Issue テンプレート](references/design-approval.yml) を対象プロジェクトの `.github/ISSUE_TEMPLATE/` にコピーして Issue を作成する。
 4. 承認後、選択テンプレートの CSS Variables を `styles/index.pcss` に適用してから実装する（変数一式・適用手順は [デザインテンプレート集](references/design-templates.md)）。
 
@@ -335,7 +335,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | リファレンス | 内容 |
 |---|---|
 | [デザインテンプレート集](references/design-templates.md) | 設計時に選択する配色テンプレート 6 種（プレビュー HTML・CSS Variables 一式・light/dark 対応） |
-| [デザインシステム](references/design-system.md) | shadcn/ui + Tailwind CSS v4 のコンポーネント選定・画面設計パターン |
+| [デザインシステム](references/design-pattern.md) | shadcn/ui + Tailwind CSS v4 のコンポーネント選定・画面設計パターン |
 | [コンポーネントカタログ](references/component-catalog.md) | 全コンポーネントの詳細仕様・使用例 |
 | [ステージ矢羽パターン](references/stage-path-pattern.md) | OptionSet（ステージ／ステータス）を Salesforce 風の矢羽で可視化・クリックで変更 |
 | [構築リファレンス](references/build-reference.md) | ビルド・デプロイの詳細手順・vite.config.ts 必須設定・TypeScript エラー対処 |

@@ -53,7 +53,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 2. デザインテンプレート選択（design-templates.md → apply_design_template.py）
 3. pac code init                  ← power.config.json / .power/ を生成（手で作らない）
 4. pac code add-data-source ...   ← src/generated/ が生成される
-5. 設計フェーズ（design-system.md）→ ユーザー承認 → 実装
+5. 設計フェーズ（design-pattern.md）→ ユーザー承認 → 実装
 ```
 
 ## 残骸を見つけたときの対処

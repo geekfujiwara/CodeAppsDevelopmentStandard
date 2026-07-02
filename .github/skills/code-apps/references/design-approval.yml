@@ -9,7 +9,7 @@ body:
         `code-apps` スキルの設計フェーズで提示した設計を記録し、承認の証跡を残すテンプレートです。
         このファイルは `.github/skills/code-apps/references/design-approval.yml` にあるテンプレートで、
         設計承認を Issue として記録する対象プロジェクトの `.github/ISSUE_TEMPLATE/` にコピーして使用します。
-        記入項目はデザインシステム（`.github/skills/code-apps/references/design-system.md`）の
+        記入項目はデザインシステム（`.github/skills/code-apps/references/design-pattern.md`）の
         「設計提示時に含める内容」と、デザインテンプレート集
         （`.github/skills/code-apps/references/design-templates.md`）の選定内容に対応します。
         **再承認**が必要になった場合（画面・パターン・スキーマの変更）は、この Issue に差分をコメントで提示し、
@@ -43,7 +43,7 @@ body:
     id: patterns
     attributes:
       label: 適用デザインパターン
-      description: デザインシステム（design-system.md）・コンポーネント選定ガイドから、対象・理由付きで列挙
+      description: デザインシステム（design-pattern.md）・コンポーネント選定ガイドから、対象・理由付きで列挙
       value: |
         | 対象 | パターン | 理由 |
         |---|---|---|
