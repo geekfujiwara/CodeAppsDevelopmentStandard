@@ -36,6 +36,7 @@ npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github && cp .github
   - [ライセンス要件](#ライセンス要件)
   - [Power Platform 環境](#power-platform-環境)
   - [前提条件をまだ準備していない場合](#前提条件をまだ準備していない場合)
+- [管理者権限（管理者ロール）要件](#管理者権限管理者ロール要件)
 - [チーム開発向けの手順](#チーム開発向けの手順)
 - [上流の開発標準更新を取り込む](#上流の開発標準更新を取り込む)
 - [環境チェック](#環境チェック)
@@ -135,6 +136,28 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 完了したら [クイックスタート](#クイックスタート) に戻ってください。
 
 </details>
+
+---
+
+## 管理者権限（管理者ロール）要件
+
+開発者本人の権限だけでは完結せず、**テナント/環境の管理者**（またはその権限を持つ人）による事前設定が必要な操作があります。特に Cowork プラグイン開発（[cowork スキル](.github/skills/cowork/SKILL.md)）は複数の管理コンソールをまたぐため、事前に必要ロールを確認し、管理者へ依頼してください。
+
+| # | 操作 | 実施場所 | 必要な最小ロール | 出典 |
+|---|---|---|---|---|
+| 1 | **Code Apps の環境有効化**（`設定 > 製品 > 機能` で「コード アプリを許可する」をオン） | Power Platform 管理センター（環境設定） | 環境の **Environment Admin**（テナント全体で行う場合は **Power Platform Administrator**） | [Power Platform 管理者ロールについて](https://learn.microsoft.com/ja-jp/power-platform/admin/about-administration-overview)、[環境の分離とランドスケープ](https://learn.microsoft.com/ja-jp/power-platform/admin/environments-separation-landscape) |
+| 2 | **Cowork を MCP クライアントとして許可**（`allowedmcpclients` テーブルで Microsoft Cowork を有効化） | Power Platform 管理センター／Dataverse（環境） | 対象環境の Dataverse **System Administrator** セキュリティロール | [Dataverse のセキュリティモデル](https://learn.microsoft.com/ja-jp/power-platform/admin/wp-security-cloud-flows)、`.github/skills/standard/references/dataverse-mcp-setup.md`（前提条件1「環境管理者の操作」） |
+| 3 | **Entra ID への App Registration 作成**（Cowork 用 OAuth クライアント） | Microsoft Entra 管理センター | **Application Administrator** または **Cloud Application Administrator**（テナント設定で一般ユーザー登録が許可されていれば不要な場合あり） | [Microsoft Entra ロールの権限リファレンス（Application Administrator）](https://learn.microsoft.com/ja-jp/entra/identity/role-based-access-control/permissions-reference#application-administrator) |
+| 4 | **API 権限（`Application.ReadWrite.All` 等）の管理者同意** | Microsoft Entra 管理センター（アプリ > API のアクセス許可） | **Global Administrator** または **Privileged Role Administrator**（Cloud Application Administrator は高権限パーミッションの同意不可） | [テナント全体の管理者同意を付与する](https://learn.microsoft.com/ja-jp/entra/identity/enterprise-apps/grant-admin-consent) — `.github/skills/cowork/references/troubleshooting.md` #16 でも同事象を確認 |
+| 5 | **Teams 開発者ポータルでの OAuth client registration**（`dev.teams.microsoft.com/tools`） | Teams 開発者ポータル | Entra の **「ユーザーはアプリケーションを登録できる」設定が有効**、無効化されている場合は **Application Administrator** 等の Entra 管理者ロール | [既定のユーザー権限（アプリの登録）](https://learn.microsoft.com/ja-jp/entra/fundamentals/users-default-permissions#restrict-member-users-default-permissions) |
+| 6 | **Teams でのカスタムアプリのサイドロード許可**（アップロードした Cowork プラグインを Teams 経由で直接インストールする「迂回」導線を使う場合） | Teams 管理センター（Teams アプリ > アクセス許可ポリシー） | **Teams Administrator**（または Global Administrator） | [Teams のアプリ許可ポリシーを管理する](https://learn.microsoft.com/ja-jp/microsoftteams/teams-app-permission-policies) |
+| 7 | **M365 管理センターでのプラグインアップロード・公開**（`admin.cloud.microsoft` の「エージェント」画面） | Microsoft 365 管理センター | **Global Administrator**（Cloud Application Administrator など一部ロールでは統合アプリ/エージェントのアップロードが制限される場合あり） | [Microsoft 365 の統合アプリの追加と管理](https://learn.microsoft.com/ja-jp/microsoft-365/admin/add-users/about-integrated-apps) |
+| 8 | **Frontier プログラムへのテナント参加**（Cowork 利用の前提） | Microsoft 365 管理センター | **Global Administrator** | [Frontier プログラムの概要](https://learn.microsoft.com/ja-jp/microsoft-365/copilot/frontier/frontier-program-overview) |
+
+> [!NOTE]
+> 上記のうち **#3・#4（Entra App Registration と管理者同意）は一度きり**（テナントで1回）、**#2（allowedmcpclients）は環境ごとに1回**の設定です。開発者自身がいずれのロールも持たない場合は、事前に管理者へ依頼し、[cowork スキルの Step 3〜4](.github/skills/cowork/SKILL.md) を実行できる状態にしてから着手してください。
+>
+> **ロール名は目安です。** 実際に付与すべき最小権限は組織のセキュリティ方針により異なる場合があるため、上記の出典（Microsoft Learn）を必ず確認し、テナント管理者と合意のうえで進めてください。
 
 ---
 
