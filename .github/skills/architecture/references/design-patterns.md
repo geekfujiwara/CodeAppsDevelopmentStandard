@@ -125,7 +125,7 @@ flowchart TB
             direction TB
             CH["Teams / Web チャネル"]
             COPILOT["Copilot Studio"]
-            UI["Code Apps / Canvas / Model-Driven / Power Pages"]
+            UI["Code Apps / Model-Driven / Power Pages / Azure"]
         end
 
         subgraph COL2["カラム2: 自動化・AI"]
@@ -164,9 +164,9 @@ flowchart TB
 | -------------- | -------------------- | ------- |
 | Dataverse      | {テーブル構成の概要} | ✅ 必須 |
 | Code Apps      | {画面の概要}         | ✅ / ❌ |
-| Canvas Apps    | {軽量 UI の概要}     | ✅ / ❌ |
 | Model-Driven   | {アプリの概要}       | ✅ / ❌ |
-| Power Pages    | {外部公開 UI の概要} | ✅ / ❌ |
+| Power Pages    | {外部公開 UI の概要（ユーザー宣言時のみ）} | ✅ / ❌ |
+| Azure          | {外部公開 Web/API の概要（既定）} | ✅ / ❌ |
 | Power Automate | {フローの概要}       | ✅ / ❌ |
 | Copilot Studio | {エージェントの概要} | ✅ / ❌ |
 | AI Builder     | {プロンプトの概要}   | ✅ / ❌ |
@@ -202,9 +202,44 @@ flowchart TB
 | 確定的な処理に Copilot Studio を使う                             | 条件分岐が固定なら Power Automate。LLM のハルシネーションリスクを避ける    |
 | Power Automate で自然言語処理を頑張る                            | Copilot Studio に任せる。フローの条件分岐で自然言語を扱うのは脆い          |
 | AI Builder で対話機能を作ろうとする                              | Copilot Studio を使う。AI Builder は単発の入力→出力処理向き                |
-| Canvas Apps で複雑な UI を作る                                   | Code Apps に切り替える。ドラッグ&ドロップのカンバンは Canvas Apps では困難 |
+| Canvas Apps を候補に入れる                                       | 常に対象外。Code Apps に切り替える（パフォーマンス/カスタマイズ性/エンタープライズ運用で不利） |
 | 標準 CRUD だけなのに Code Apps でフルスクラッチ                  | Model-Driven Apps なら自動生成で最速。カスタム UI 不要なら MDA を検討      |
 | 全要件に Copilot Studio を使う                                   | 対話が不要な部分は Power Automate / Code Apps で。適材適所                 |
 | Power Automate フロー内に AI Builder アクションを API でデプロイ | API では `InvalidOpenApiFlow` エラー。AI Builder ステップは UI で手動追加  |
+
+---
+
+## 4. 画面設計ブロックの組み合わせ（テンプレ化しない設計）
+
+Code Apps を採用したら、**テーブルの数だけ同じ「一覧＋フォーム」CRUD 画面を機械的に量産しない。**
+画面ごとに AskUserQuestion でデータの特性を確認し、該当するブロックを組み合わせて設計する。
+
+### AskUserQuestion で確認する項目（テーブル単位）
+
+| 確認項目 | 該当すると選ぶブロック |
+|---|---|
+| 順序を持つステータス／ステージがあるか？ | `KanbanBoard`（ドラッグでステータス変更） or `StagePath`（矢羽でクリック即変更） |
+| 期間（開始/終了）を持つレコードか？ | `GanttChart`（dnd-kit、ドラッグリサイズ中心）。自由配置・ズームが必要なら **ReactFlow** カスタムノード |
+| 他レコードとの関係性・依存・フローを見せたいか？ | **ReactFlow**（ノード＋エッジ） |
+| 地域・位置情報を持つか？ | 地図（`JapanMap` 等） |
+| 階層構造（親子）か？ | `TreeStructure` |
+| 集計・比率を見せたいだけか？ | `ChartDashboard`（Recharts: 棒・円・折れ線） |
+| 上記のいずれにも該当しないか？ | `ListTable` / `InlineEditTable`（この場合のみ従来通りの CRUD テーブル） |
+
+### ReactFlow を第一候補とする方針
+
+**可視化ニーズが少しでもあれば、ReactFlow（`@xyflow/react`）を必ず一度は候補として提示する。**
+単純な集計（件数・合計・比率）だけなら Recharts で十分だが、**関係性・時間軸への自由配置・ドラッグ/ズーム操作**
+を伴う場合は ReactFlow を優先する。1 画面につき最低 1 つは可視化ブロック（チャート／地図／ReactFlow のいずれか）
+を含めることを検討し、単なる一覧＋フォームのテンプレートで終わらせない。
+
+具体的な実装パターン（ガントチャートのカスタムノード・関係図・組織図・カテゴリ色のハッシュ関数）は
+[code-apps: ReactFlow 可視化パターン](../../code-apps/references/reactflow-patterns.md) を参照。
+
+### 画面を組み立てる手順
+
+1. テーブルごとに上表の AskUserQuestion を実施し、該当するブロックを列挙する
+2. 同一画面内で複数ブロックがある場合は Tabs やグリッドで組み合わせる（例: 「一覧／カンバン／ガント」を Tabs で切替）
+3. 組み上がったブロック構成を [設計アウトプットテンプレート](#2-設計アウトプットテンプレート) の「4. コンポーネント構成」に反映してユーザーへ提示し、承認を得る
 
 ---
