@@ -57,14 +57,12 @@ VS Code をインストールすると **GitHub Copilot 拡張機能は最初か
 
 ### ライセンス要件
 
-| 対象 | 必要なライセンス |
-|---|---|
-| GitHub Copilot（VS Code / Claude Code でのエージェント開発） | **GitHub Copilot Pro 以上**（Pro / Pro+ / Business / Enterprise） |
-| Code Apps（コードファースト開発） | **Power Apps Premium** または **Dynamics 365 Enterprise / Customer Engagement** |
-| Copilot Studio の利用 / Cowork プラグインの開発 | **Microsoft 365 Copilot** ライセンス |
-
-> [!IMPORTANT]
-> **Power Apps に「試用版（Trial）」はありません。** 無料で使えるのは **Power Apps 開発者プラン（Developer Plan）** で、これは Trial ではなく個人用の **開発者環境（Developer 環境）** が払い出される仕組みです。商用データや本番共有はできませんが、学習・プロトタイピング・本リポジトリでの開発には十分です。
+| 対象 | 必要なライセンス / 前提 | 出典 |
+|---|---|---|
+| GitHub Copilot（VS Code / Claude Code でのエージェント開発） | **GitHub Copilot Pro 以上**（Pro / Pro+ / Business / Enterprise） | [GitHub Copilot のプラン](https://github.com/features/copilot/plans) |
+| Code Apps（コードファースト開発） | **Power Apps Premium** または **Dynamics 365 Enterprise / Customer Engagement**。無料利用は **Power Apps 開発者プランの開発者環境**（学習・プロトタイピングのみ。本番利用不可） | [Power Apps Developer Plan](https://learn.microsoft.com/ja-jp/power-platform/developer/plan) |
+| Cowork プラグインの開発 | **Microsoft 365 Copilot** ライセンスに加えて、**Azure サブスクリプションの準備**、**Copilot Credits の有効化**、**テナントでの有効化（Frontier 参加を含む）** が必要 | [Build plugins for Cowork (Frontier)](https://learn.microsoft.com/en-us/microsoft-365/copilot/cowork/cowork-plugin-development)、[Copilot Credits の従量課金とコスト管理](https://learn.microsoft.com/en-us/microsoft-365/copilot/usage-based-billing-overview-copilot-credits)、[Frontier プログラムの概要](https://learn.microsoft.com/ja-jp/microsoft-365/copilot/frontier/frontier-program-overview) |
+| Copilot Studio の利用 | **Microsoft 365 Copilot** ライセンスに加えて、**Azure サブスクリプション**・**リソース グループ**の準備と、**Copilot Credits の環境割り当て** が必要 | [Copilot Studio の課金とライセンス](https://learn.microsoft.com/en-us/microsoft-copilot-studio/billing-licensing)、[Copilot Studio credits と容量の管理](https://learn.microsoft.com/en-us/power-platform/admin/manage-copilot-studio-messages-capacity) |
 
 ### Power Platform 環境
 
