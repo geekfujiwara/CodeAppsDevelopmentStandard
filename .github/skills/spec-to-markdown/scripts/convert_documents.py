@@ -341,7 +341,14 @@ def build_functional_requirements_doc(batch_started_at: str, results: list[Conve
 
 ## 4. UI 要件
 
+<!-- コンポーネント選定は architecture スキル（.github/skills/architecture/SKILL.md）の判断フローを優先する -->
+<!-- ここでは要件の列挙にとどめ、選定の確定は architecture スキルで行う（Cowork プラグイン第一候補・Canvas Apps は常に対象外・外部ユーザー向けは Azure 既定） -->
+
 ### Code Apps / Model-Driven Apps
+
+- 要確認
+
+### Copilot Cowork プラグイン（データ入力の接点）
 
 - 要確認
 
@@ -353,6 +360,8 @@ def build_functional_requirements_doc(batch_started_at: str, results: list[Conve
 
 ## 6. AI / 連携要件
 
+<!-- Copilot Studio の採用可否・v1/v2 の選択、AI Builder（AI プロンプト優先）は architecture スキルの判断フローに従う -->
+
 ### Copilot Studio / AI Builder
 
 - 要確認
@@ -363,12 +372,15 @@ def build_functional_requirements_doc(batch_started_at: str, results: list[Conve
 
 ## 7. 非機能要件
 
+<!-- 区分は test-requirements.md の非機能テストと一致させる -->
+
 | 区分 | 内容 | 指標 |
 | --- | --- | --- |
 | パフォーマンス | 要確認 | 要確認 |
 | セキュリティ | 要確認 | 要確認 |
 | 可用性 | 要確認 | 要確認 |
 | スケーラビリティ | 要確認 | 要確認 |
+| ユーザビリティ | 要確認 | 要確認 |
 
 ## 8. 備考
 
@@ -385,17 +397,22 @@ def build_design_requirements_doc(batch_started_at: str, results: list[Conversio
     date_prefix = batch_started_at[:10]
     return f"""# 設計要件
 
+<!-- 全体構成・コンポーネント選定・構築フェーズは architecture スキル（.github/skills/architecture/SKILL.md）を正とする -->
+<!-- 本ドキュメントには architecture スキルの判断フロー・設計アウトプットテンプレートで確定した結果を転記する -->
+
 ## 1. 変換対象ファイル
 
 {_file_table_header(batch_started_at, results)}
 
 ## 2. Power Platform 全体構成案
 
-<!-- アーキテクチャ図（mermaid / テキスト）や構成の説明を記載 -->
+<!-- architecture スキルの設計アウトプットテンプレート（references/design-patterns.md §2）に従い、Mermaid 構成図（複数カラム形式の subgraph）で記載する -->
 
 要確認
 
 ## 3. コンポーネント設計
+
+<!-- architecture スキルの「コンポーネント構成」表と整合させる（Cowork プラグイン第一候補・Canvas Apps は常に対象外） -->
 
 | コンポーネント | 種別 | 役割 | 依存 | 備考 |
 | --- | --- | --- | --- | --- |
@@ -415,13 +432,13 @@ def build_design_requirements_doc(batch_started_at: str, results: list[Conversio
 | --- | --- | --- | --- | --- |
 | 1 | 要確認 | 高/中/低 | 高/中/低 | 要確認 |
 
-## 6. Phase 0 確認事項
+## 6. Phase 1 確認事項
 
 - 要確認
 
 ## 7. 実装タスク分解
 
-<!-- 開発着手前に確認・合意する粒度で記載 -->
+<!-- 開発着手前に確認・合意する粒度で記載。フェーズ順序は architecture スキルの「構築フェーズ」（Phase 2〜7）に沿って分解する -->
 
 | # | タスク | 依存タスク | 優先度 | 見積 (h) | 担当 |
 | --- | --- | --- | --- | --- | --- |
@@ -462,20 +479,23 @@ def build_test_requirements_doc(batch_started_at: str, results: list[ConversionR
 
 ## 4. 受け入れ条件
 
-<!-- functional-requirements.md の機能一覧 #N に対応させて記載 -->
+<!-- 受け入れ条件の正（Source of Truth）は functional-requirements.md の機能一覧。条件本文をここへ転記せず、機能 # を参照して確認方法のみを定義する -->
 
-| # | 機能名 | 受け入れ条件 | 確認方法 |
+| # | 機能 #（functional 参照） | 機能名 | 確認方法 |
 | --- | --- | --- | --- |
 | 1 | 要確認 | 要確認 | 要確認 |
 
 ## 5. 非機能テスト
 
+<!-- 区分は functional-requirements.md の非機能要件と一致させる -->
+
 | 区分 | テスト内容 | 合格基準 |
 | --- | --- | --- |
 | パフォーマンス | 要確認 | 要確認 |
 | セキュリティ | 要確認 | 要確認 |
-| ユーザビリティ | 要確認 | 要確認 |
 | 可用性 | 要確認 | 要確認 |
+| スケーラビリティ | 要確認 | 要確認 |
+| ユーザビリティ | 要確認 | 要確認 |
 
 ## 6. 備考
 
