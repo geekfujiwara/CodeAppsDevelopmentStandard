@@ -89,6 +89,32 @@ export function useCreateRecord() {
 | 画面ローカルの UI 状態（フォーム入力・モーダル開閉・フィルター） | `useState` / `useReducer`（ページ内） |
 | アプリ横断の UI 状態（テーマ・ログインユーザー） | Context（`providers/`） |
 
+### ページネーション（大量レコードの逐次読み込み）
+
+逐次読み込みも React Query の **`useInfiniteQuery`** に寄せる。
+`useState` + `useCallback` で自前のページング状態（items / currentPage / hasMore / isLoading / error）を
+管理するフックは書かない（キャッシュ・再取得・エラー状態の管理が React Query と二重になるため）。
+
+```typescript
+// hooks/use-records-infinite.ts — ページ取得の実装（$top 制御等）は services/ 側に置く
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { getRecordsPage } from "@/services/dataverse-service";
+
+export function useRecordsInfinite(pageSize = 50) {
+  return useInfiniteQuery({
+    queryKey: ["records", "infinite"],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => getRecordsPage(pageParam, pageSize),
+    getNextPageParam: (lastPage, pages) =>
+      lastPage.length === pageSize ? pages.length : undefined,  // 満杯ページなら次ページあり
+  });
+}
+```
+
+> ページ側は `data.pages.flat()` で全件を描画し、`fetchNextPage()` / `hasNextPage` を
+> 「もっと見る」ボタンや IntersectionObserver に接続する。
+> 検索・フィルター条件は `queryKey` に含めて条件変更時にページングをリセットする。
+
 ## Container / Presentational 分離
 
 ページ（Container）がデータ取得と状態を持ち、表示部品（Presentational）は props だけで完結させる。
@@ -181,3 +207,5 @@ export async function getRecords(): Promise<RecordView[]> {
 
 ユーザーの**承認を得てから実装を開始**し、実装中にパターン構成の変更（レイヤー追加・状態管理方式の変更等）が
 必要になった場合は、差分を再提示して**再承認**を得る。
+承認の証跡を残す場合は Issue テンプレート [`design-approval.yml`](../../../ISSUE_TEMPLATE/design-approval.yml)
+（「Code Apps 設計承認」）に設計内容を記録し、再承認は同じ Issue に差分をコメントして行う。

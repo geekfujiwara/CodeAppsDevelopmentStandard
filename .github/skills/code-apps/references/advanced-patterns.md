@@ -341,63 +341,7 @@ export function debounce<T extends (...args: Parameters<T>) => void>(
 
 ## カスタムフックパターン
 
-### ページネーション対応フック
-
-```typescript
-// src/hooks/usePagination.ts
-import { useState, useCallback } from "react";
-
-interface PaginationState<T> {
-  items: T[];
-  currentPage: number;
-  hasMore: boolean;
-  isLoading: boolean;
-  error: Error | null;
-}
-
-export function usePagination<T>(pageSize: number = 50) {
-  const [state, setState] = useState<PaginationState<T>>({
-    items: [],
-    currentPage: 0,
-    hasMore: true,
-    isLoading: false,
-    error: null,
-  });
-
-  const loadPage = useCallback(
-    async (fetcher: (skip: number, top: number) => Promise<T[]>) => {
-      setState((prev) => ({ ...prev, isLoading: true, error: null }));
-      try {
-        const skip = state.currentPage * pageSize;
-        const newItems = await fetcher(skip, pageSize);
-        setState((prev) => ({
-          items: [...prev.items, ...newItems],
-          currentPage: prev.currentPage + 1,
-          hasMore: newItems.length === pageSize,
-          isLoading: false,
-          error: null,
-        }));
-      } catch (err) {
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-          error: err instanceof Error ? err : new Error(String(err)),
-        }));
-      }
-    },
-    [state.currentPage, pageSize]
-  );
-
-  const reset = useCallback(() => {
-    setState({
-      items: [],
-      currentPage: 0,
-      hasMore: true,
-      isLoading: false,
-      error: null,
-    });
-  }, []);
-
-  return { ...state, loadPage, reset };
-}
-```
+> **[デザインパターンカタログ](architecture-patterns.md) に統合しました。**
+> サーバー状態のフック集約（React Query）・ページネーション（`useInfiniteQuery`）はそちらを参照。
+> `useState` + `useCallback` による自前ページングフック（旧 `usePagination`）は、
+> React Query とキャッシュ・エラー状態の管理が二重になるため廃止。
