@@ -1460,3 +1460,37 @@ const DATA_SOURCE = "geek_factories";
 
 追加後は必ず `.power/schemas/appschemas/dataSourcesInfo.ts` を開き、実際のキー名を確認してから
 `DATA_SOURCE` 定数に転記する。不規則な複数形（`capacity → capacities`）に注意。
+
+## 29. dnd-kit カンバンで列移動後に「元の位置へ戻る」アニメーションが一瞬見える（検証済 2026-07-02）
+
+### 症状
+
+`KanbanBoard`（[reactflow-patterns.md パターン0](reactflow-patterns.md#パターン-0-汎用カンバンボードdnd-kit-モダン-ui)）
+でカードを別の列へドラッグ＆ドロップすると、ドロップ後に一瞬カードが元の列へ戻るような
+アニメーションが見えてから新しい列に現れる。
+
+### 原因
+
+`onMove` 内で React Query の `setQueryData`（またはサーバー確定後の `invalidateQueries`）を呼んでカードの列を
+更新している場合、その通知はマイクロタスクでバッチされ、`handleDragEnd` が同期的に処理を終えた**後**に
+描画へ反映される。一方 dnd-kit の `DragOverlay` は `onDragEnd` 直後（同一コミット）に「ドロップ先の最終位置」を、
+その ID を持つ実 DOM ノードの位置から計測する。この時点ではまだ実データが旧列のままのため、計測結果が旧列の
+座標になり、オーバーレイがそこへ「戻る」ように動いてから、実データの再描画で新しい列にカードが現れる。
+
+### 対処
+
+`KanbanBoard` 側に一時的な `pendingMoves`（列の上書き）を持たせ、`setActiveId(null)` と**同じ同期更新**の中で
+Tドロップ先の列を即座に反映する。呼び出し元（React Query 等）の実データが追いついたら自動でクリアする。
+
+```tsx
+const [pendingMoves, setPendingMoves] = useState<Record<string, number>>({})
+const effectiveItems = useMemo(
+  () => items.map((i) => (i.id in pendingMoves ? { ...i, columnValue: pendingMoves[i.id] } : i)),
+  [items, pendingMoves],
+)
+// handleDragEnd 内: setPendingMoves(...) と setActiveId(null) を同一関数内で同期的に呼ぶ
+```
+
+`dropAnimation={null}` で位置アニメーション自体を無効化する方法もあるが、同一列内の並び替えでも
+アニメーションが失われるため、上記の「即時反映」の方が体験を損なわない。詳細な実装は
+[reactflow-patterns.md](reactflow-patterns.md#パターン-0-汎用カンバンボードdnd-kit-モダン-ui) 参照。
