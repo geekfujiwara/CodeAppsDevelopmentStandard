@@ -29,7 +29,7 @@ skill-name/
 例: code-apps/
   SKILL.md                          # 開発・デプロイの本体（旧 code-apps-dev）
   references/
-    design-system.md                # UI 設計パターン（旧 code-apps-design）
+    design-pattern.md                # UI 設計パターン（旧 code-apps-design）
     csp.md                          # CSP 構成（旧 code-apps-csp）
     mail-pdf.md                     # PDF メール送信（旧 code-apps-mail）
     component-catalog.md            # コンポーネントカタログ

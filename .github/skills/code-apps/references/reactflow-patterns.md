@@ -495,3 +495,294 @@ useEffect(() => {
 - `panOnScroll` + `zoomOnScroll={false}`: 縦横スクロールと拡大縮小の誤操作を防ぐ（ガントチャートで横スクロール優先時）
 - 凡例（カテゴリ色チップ）は ReactFlow の外側に通常の React（`<div>` + `<Badge>`）で表示する
 - フィルター（工場・カテゴリ・検索）は既存 CRUD 画面と同じ `Select` / `Input` パターンに合わせる
+
+## パターン 4: 組織図 × 予算達成状況（OrgChart）
+
+Office 365 Users API（`Office365UsersModel`）で取得した組織ツリーと、Dataverse の売上実績・目標を
+カスタムノードに統合表示するパターン。各メンバーのカードに達成率プログレスバーを直接描画し、
+クリックで右サイドパネルに詳細を表示する。
+
+### いつ使うか
+
+- 上司→部下の階層と KPI（目標/実績/パイプライン）を 1 画面で俯瞰したい
+- 組織横断で達成率の高低を色分けして視覚的に把握したい
+
+### カスタムノード
+
+```tsx
+// src/components/org-chart-node.tsx
+import { Handle, Position, type NodeTypes } from "@xyflow/react"
+import { User, TrendingUp } from "lucide-react"
+import { formatCurrency } from "@/lib/utils"
+
+interface OrgNodeData {
+  displayName: string
+  jobTitle?: string
+  department?: string
+  targetAmount: number
+  actualAmount: number
+  pipelineAmount: number
+  rate: number
+  isMe?: boolean
+  [key: string]: unknown
+}
+
+function OrgChartNode({ data, selected }: { data: OrgNodeData; selected?: boolean }) {
+  const rateColor = data.rate >= 100 ? "#10b981" : data.rate >= 70 ? "#f59e0b" : "#ef4444"
+  const rateColorClass = data.rate >= 100 ? "text-green-600" : data.rate >= 70 ? "text-amber-600" : "text-red-600"
+
+  return (
+    <div className={`rounded-xl border-2 px-4 py-3 min-w-[180px] max-w-[220px] shadow-sm transition-all cursor-pointer bg-card
+      ${selected ? "ring-2 ring-primary ring-offset-2" : "hover:shadow-md"}
+      ${data.isMe ? "border-primary" : "border-muted-foreground/30"}`}>
+      <Handle type="target" position={Position.Top} className="!bg-transparent !border-0" />
+      <div className="flex items-center gap-2 mb-1">
+        <div className={`flex items-center justify-center h-7 w-7 rounded-full ${data.isMe ? "bg-primary/20" : "bg-muted"}`}>
+          <User className={`h-3.5 w-3.5 ${data.isMe ? "text-primary" : "text-muted-foreground"}`} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold truncate">{data.displayName}</p>
+          {data.jobTitle && <p className="text-[10px] text-muted-foreground truncate">{data.jobTitle}</p>}
+        </div>
+      </div>
+      {data.department && <p className="text-[10px] text-muted-foreground mb-2">{data.department}</p>}
+
+      {data.targetAmount > 0 ? (
+        <>
+          <div className="flex items-center justify-between text-[10px] mb-0.5">
+            <span className="text-muted-foreground">目標</span>
+            <span className="font-medium">{formatCurrency(data.targetAmount)}</span>
+          </div>
+          <div className="flex items-center justify-between text-[10px] mb-1">
+            <span className="text-muted-foreground">実績</span>
+            <span className="font-semibold text-green-600">{formatCurrency(data.actualAmount)}</span>
+          </div>
+          <div className="w-full bg-muted rounded-full h-1.5 mb-1">
+            <div className="h-1.5 rounded-full transition-all"
+              style={{ width: `${Math.min(data.rate, 100)}%`, backgroundColor: rateColor }} />
+          </div>
+          <div className="flex items-center justify-center">
+            <span className={`text-xs font-bold ${rateColorClass}`}>
+              <TrendingUp className="inline h-3 w-3 mr-0.5" />{data.rate}%
+            </span>
+          </div>
+        </>
+      ) : (
+        <p className="text-[10px] text-muted-foreground text-center py-1">目標未設定</p>
+      )}
+      <Handle type="source" position={Position.Bottom} className="!bg-transparent !border-0" />
+    </div>
+  )
+}
+
+export const orgNodeTypes: NodeTypes = { orgCard: OrgChartNode }
+```
+
+### ツリーレイアウト（手動段組み）
+
+Office 365 Users の `manager.id` を使って親子関係を構築し、再帰的にサブツリー幅を計算して配置する。
+自動レイアウトライブラリ不要（サブツリー幅ベースの手動計算で十分）。
+
+```tsx
+const nodeW = 200, nodeH = 160, xGap = 30, yGap = 80
+
+// サブツリー幅を再帰計算
+function getSubtreeWidth(memberId: string): number {
+  const children = childrenMap.get(memberId) ?? []
+  if (children.length === 0) return nodeW
+  return children.map(c => getSubtreeWidth(c.id)).reduce((sum, w) => sum + w, 0) + (children.length - 1) * xGap
+}
+
+// 再帰配置
+function layoutNode(member: OrgMember, x: number, y: number) {
+  resultNodes.push({
+    id: member.id, type: "orgCard",
+    position: { x, y },
+    data: { displayName: member.displayName, jobTitle: member.jobTitle, ...budget } as OrgNodeData,
+  })
+  const children = childrenMap.get(member.id) ?? []
+  const totalWidth = getSubtreeWidth(member.id)
+  let childX = x + nodeW / 2 - totalWidth / 2
+  for (const child of children) {
+    const childWidth = getSubtreeWidth(child.id)
+    resultEdges.push({ id: `e-${member.id}-${child.id}`, source: member.id, target: child.id, style: { stroke: "#94a3b8", strokeWidth: 1.5 } })
+    layoutNode(child, childX + childWidth / 2 - nodeW / 2, y + nodeH + yGap)
+    childX += childWidth + xGap
+  }
+}
+```
+
+### O365 userId → systemuserid マッピング
+
+組織図ノードに予算実績を紐付けるには、O365 Users の `mail` と `systemuser` テーブルの `internalemailaddress`
+をメールアドレスで突合する（大文字小文字を正規化して比較）。
+
+```tsx
+const o365ToSystemUser = useMemo(() => {
+  const map = new Map<string, string>()
+  for (const member of orgMembers) {
+    if (!member.mail) continue
+    const su = systemUsers.find(u => u.internalemailaddress?.toLowerCase() === member.mail!.toLowerCase())
+    if (su) map.set(member.id, su.systemuserid)
+  }
+  return map
+}, [orgMembers, systemUsers])
+```
+
+### 詳細パネル
+
+ノードクリックで右から 340px のサイドパネルをスライド表示。`absolute right-0 top-0 bottom-0` + `z-50` で
+ReactFlow のキャンバス上に重ねる。年間目標・受注実績・達成率・見込み達成率・パイプラインを
+`grid grid-cols-2` のカードで表示する。
+
+### ReactFlow 設定
+
+```tsx
+<ReactFlow
+  nodes={nodes} edges={edges}
+  onNodeClick={onNodeClick}
+  nodeTypes={orgNodeTypes}
+  fitView fitViewOptions={{ padding: 0.2 }}
+  proOptions={{ hideAttribution: true }}
+  nodesDraggable={false} nodesConnectable={false}
+  elementsSelectable panOnDrag zoomOnScroll
+/>
+```
+
+### KPI サマリー行
+
+ReactFlow の上に組織全体の KPI カード（目標合計・実績合計・達成率・パイプライン）を
+`grid grid-cols-2 sm:grid-cols-4 gap-3` で配置する。達成率の色は 100% 以上=緑、70% 以上=黄、それ以下=赤。
+
+---
+
+## パターン 5: セールスパイプライン（リード → 商談フロー可視化）
+
+リードのステータス遷移（新規→連絡済→認定済→変換済 / 不認定）と、商談のステージ遷移（見込み→提案→交渉→受注/失注）を
+**2 段の水平フロー + 分岐**として 1 画面に可視化するパターン。各ノードに件数・金額・CVR を表示し、
+クリックで該当レコード一覧をサイドパネルに表示する。
+
+### いつ使うか
+
+- 営業パイプライン全体（リード育成〜受注）を俯瞰したい
+- どのステージにボトルネックがあるか可視化したい
+- フィルタ（リードソース・キャンペーン・会計期間）で切り口を変えたい
+
+### カスタムノード群
+
+```tsx
+// パイプラインノード（件数・金額・CVR を表示）
+interface PipelineNodeData {
+  label: string; count: number; amount: number
+  color: string; category: string; conversionRate?: string
+  [key: string]: unknown
+}
+
+function PipelineNode({ data, selected }: { data: PipelineNodeData; selected?: boolean }) {
+  return (
+    <div className={`rounded-xl border-2 px-4 py-3 min-w-[140px] text-center shadow-sm transition-all cursor-pointer
+      ${selected ? "ring-2 ring-primary ring-offset-2" : "hover:shadow-md"}`}
+      style={{ borderColor: data.color, background: `color-mix(in srgb, ${data.color} 6%, var(--color-card))` }}>
+      <Handle type="target" position={Position.Left} className="!bg-transparent !border-0" />
+      <Handle type="target" position={Position.Top} id="top" className="!bg-transparent !border-0" />
+      <p className="text-[10px] font-medium text-muted-foreground">{data.category}</p>
+      <p className="text-sm font-bold" style={{ color: data.color }}>{data.label}</p>
+      <p className="text-2xl font-bold mt-0.5">{data.count}<span className="text-xs font-normal ml-1">件</span></p>
+      <p className="text-xs text-muted-foreground">{formatCurrency(data.amount)}</p>
+      {data.conversionRate && <p className="text-[10px] font-medium mt-0.5" style={{ color: data.color }}>{data.conversionRate}</p>}
+      <Handle type="source" position={Position.Right} className="!bg-transparent !border-0" />
+      <Handle type="source" position={Position.Bottom} id="bottom" className="!bg-transparent !border-0" />
+    </div>
+  )
+}
+
+// 補助ノード: 水平区切り線・垂直区切り線・ゾーンラベル
+function DividerNode() {
+  return <div className="w-[1500px] border-t border-dashed border-muted-foreground/30" />
+}
+function VerticalDividerNode({ data }: { data: { height: number } }) {
+  return <div className="border-l border-dashed border-muted-foreground/30" style={{ height: data.height }} />
+}
+function ZoneLabelNode({ data }: { data: { label: string; colorClass: string } }) {
+  return (
+    <div className={`flex items-center justify-center px-3 py-1.5 rounded-md text-center ${data.colorClass}`}>
+      <span className="text-[11px] font-bold leading-tight whitespace-pre-line">{data.label}</span>
+    </div>
+  )
+}
+
+const nodeTypes: NodeTypes = {
+  pipeline: PipelineNode, divider: DividerNode,
+  verticalDivider: VerticalDividerNode, zoneLabel: ZoneLabelNode,
+}
+```
+
+### レイアウト設計（2 段 + 分岐）
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ リード  │ [新規] → [連絡済] → [認定済] → [変換済(CVR)]              │
+│ 育成    │                        ↓                                  │
+│ 選別    │                    [不認定]                                │
+├─────────┼──── 水平区切り線 ─────────────────────────────────────────┤
+│ 商談    │              [見込み] → [提案] → [交渉] → [受注]          │
+│ 管理    │                                     ↘  → [失注]          │
+└─────────────────────────────────────────────────────────────────────┘
+  左ラベル列 ←→ ノード配置領域（垂直区切り線で分離）
+```
+
+**レイアウト数値（ノード重なり防止）**:
+
+```tsx
+const nodeH = 110, xSpacing = 200
+const labelColW = 130              // 左ラベル列幅
+const nodeStartX = labelColW + 20  // ノード描画開始 X
+const row1Y = 20                   // リード行 Y
+const disqualifiedY = row1Y + nodeH + 20  // 不認定ノード Y
+const dividerY = disqualifiedY + nodeH + 30 // 水平区切り線 Y
+const row2Y = dividerY + 80       // 商談行 Y
+```
+
+### エッジ定義（アニメーション + 分岐）
+
+```tsx
+const edges: Edge[] = [
+  // リード主フロー（水平・animated）
+  { id: "e-l-new-cont", source: "lead-new", target: "lead-contacted", animated: true, style: { stroke: "#94a3b8" } },
+  // 不認定分岐（縦・赤破線）sourceHandle="bottom" → targetHandle="top"
+  { id: "e-l-qual-disq", source: "lead-qualified", sourceHandle: "bottom",
+    target: "lead-disqualified", targetHandle: "top",
+    animated: true, style: { stroke: "#ef4444", strokeDasharray: "5 5" } },
+  // 変換→見込み（リード→商談の遷移、太線・強調色）
+  { id: "e-conv-prospect", source: "lead-converted", sourceHandle: "bottom",
+    target: "opp-prospect", targetHandle: "top",
+    animated: true, style: { stroke: "#6366f1", strokeWidth: 2 } },
+  // 受注/失注分岐（交渉から 2 方向）
+  { id: "e-nego-won", source: "opp-negotiation", target: "opp-won",
+    animated: true, style: { stroke: "#10b981", strokeWidth: 2 } },
+  { id: "e-nego-lost", source: "opp-negotiation", target: "opp-lost",
+    animated: true, style: { stroke: "#ef4444", strokeDasharray: "5 5" } },
+]
+```
+
+### クリック → サイドパネル
+
+ノード ID（`lead-{status}` / `opp-{stage}`）からステータス値をパースし、該当レコードをフィルタしてサイドパネルに表示。
+パネル内の各レコードカードをクリックすると詳細画面（`/leads/{id}` / `/opportunities/{id}`）へ遷移する。
+
+### フィルタ連携
+
+パイプライン上部に `Select` コンポーネントでフィルタを配置:
+- **リードソース**: `geek_source`（OptionSet）でリードをフィルタ → 変換済リードに紐付く商談のみ表示
+- **キャンペーン**: `_geek_campaignid_value` でリード/商談を絞り込み
+- **会計期間**: `geek_crmfiscalperiods` の start/end で日付範囲フィルタ
+
+フィルタが「リード側」に適用される場合、商談側は「フィルタ条件に合致するリードから変換された商談」のみ表示する
+（`leads.filter(l => l.geek_status === Converted).map(l => l._geek_convertedopportunityid_value)` で ID セットを作り、
+商談をフィルタ）。
+
+### Tabs でパイプライン/組織図を切り替え
+
+ダッシュボードページ内で `Tabs` + `TabsList` + `TabsTrigger` + `TabsContent` を使い、
+「パイプライン」タブと「組織図」タブを切り替える構成が有効。両方とも ReactFlow ベースだが、
+別のカスタムノードセット（`nodeTypes`）を使う。
