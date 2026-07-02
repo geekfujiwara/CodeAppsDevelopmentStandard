@@ -45,7 +45,7 @@ def gh(args: list[str]) -> str:
     exe = shutil.which("gh")
     if not exe:
         sys.exit("GitHub CLI(gh) が見つかりません。インストールと 'gh auth login' を確認してください。")
-    res = subprocess.run([exe, *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    res = subprocess.run([exe, *args], capture_output=True, text=True)
     if res.returncode != 0:
         sys.exit(f"gh 失敗: {' '.join(args)}\n{res.stderr.strip()}")
     return res.stdout

@@ -1,6 +1,6 @@
 ---
 name: update-skills
-description: "スキル（SKILL.md）を新規作成・更新し、リモートへ PR を作成・更新する。SKILL.md は正常系、references に参考情報・異常系、scripts に汎用化したスクリプトを置き、パラメータは .env.example へ外出しする（実値は .env）。会社・個別情報を秘匿化し、番号整合・自動化（Learn/Playwright MCP）・既存オープン PR との整合（更新優先・マージ順提示）までレビューする。"
+description: "スキル（SKILL.md）を新規作成または更新し、リモートリポジトリへ PR を作成・更新する。SKILL.md は正常系、references に参考情報と異常系、scripts に利用スクリプトを置き、すべて汎用化してパラメータを .env.example に外出しする（実値は .env）。会社・個別プロジェクト情報を排除して秘匿化し、Step 番号は整数で統一。最後に番号整合・自動化観点（Learn は MCP で検証、ブラウザ操作は Playwright MCP）をレビューし、既存のオープン PR があればそれを更新してコンフリクトを避け、無関係なら新規 PR を作成しつつマージ順を提示する。"
 category: architecture
 triggers:
   - "スキル作成"
@@ -16,12 +16,19 @@ triggers:
   - "スキル公開"
   - "スキルカタログ更新"
   - "update-skills"
+  - "サンプル仕上げ"
+  - "サンプルをパッケージ"
+  - "package sample"
+  - "サンプル化"
+  - "公開用に仕上げ"
+  - "サンプル公開"
 ---
 
 # スキル作成・更新 & PR 作成スキル
 
 スキル（`SKILL.md` + `references/` + `scripts/`）を**新規作成または更新**し、
 **リモートリポジトリへ PR を作成・更新**するまでを一貫して行う。
+サンプル（`code-apps/samples/`）の追加・更新時は [sample-packaging.md](references/sample-packaging.md) のチェックも実施する。
 
 このスキル自身が「良いスキルの形」のテンプレートになっている。守るべき原則は以下の 5 つ。
 
@@ -43,8 +50,7 @@ triggers:
 
 | スクリプト | 用途 |
 |---|---|
-| [scripts/validate_skill.py](scripts/validate_skill.py) | 構成検証: フォルダ名＝`name` 一致 / Step 番号が整数連番 / `references`・`scripts` の有無 / 役割分離（異常系の直書き）/ 集約ファイル登録・`.env.example` カバレッジ・内部リンク実在・frontmatter lint・本文トークン上限 / 秘匿情報スキャン（Step 3・7） |
-| [scripts/section_tokens.py](scripts/section_tokens.py) | SKILL.md を `##` セクション単位でトークン概算し、上限超過時に **どのセクションを `references/` へ逃がすか**（progressive disclosure）を提示（Step 1） |
+| [scripts/validate_skill.py](scripts/validate_skill.py) | 構成検証: フォルダ名＝`name` 一致 / Step 番号が整数連番 / `references`・`scripts` の有無 / 秘匿情報スキャン（Step 3・7） |
 | [scripts/manage_skill_pr.py](scripts/manage_skill_pr.py) | リモートのオープン PR を走査し、対象スキルに触れる PR を検出して「更新 or 新規」とマージ順を提示（Step 5） |
 | [scripts/publish_skill.py](scripts/publish_skill.py) | 公開を一括自動化: PR 先リポジトリを一時 clone → ブランチ → スキル＋集約ファイルをコピー → 検証 → commit → push → PR 作成/更新（Step 6）。`--dry-run` 対応 |
 
@@ -52,7 +58,7 @@ triggers:
 
 ```
 <skill-name>/                 # kebab-case。frontmatter name と完全一致
-├── SKILL.md                  # 正常系のワークフロー（Anthropic 上限 5,000 語≈6,500 トークン。日本語は密なので文字数=ほぼトークン数で見る）
+├── SKILL.md                  # 正常系のワークフロー（本文 ~1,500–2,000 語以内）
 ├── references/               # 参考情報・異常系（オンデマンド読込）
 │   ├── troubleshooting.md    # 異常系・既知の不具合
 │   ├── .env.example          # スクリプトが使うパラメータの定義（実値は書かない）
@@ -77,17 +83,9 @@ triggers:
 3. **`scripts/`（利用スクリプト）**: 手順内で使ったスクリプトを置く。手作業を残さずスクリプト化する。
 4. **集約ファイルの同時更新（新規スキル時は必須）**: スキルを新規追加したら、カタログ `../README.md` の
    一覧表と、参照する `../../agents/*.agent.md` のスキル表にも**1 行追加**する（追加漏れの定番）。
-
-#### Progressive disclosure（本文を上限内に収める分割）
-
-`SKILL.md` 本文は **Anthropic 上限 5,000 語 ≈ 6,500 トークン**を超えてはならない（文脈消費はトークン基準。
-日本語は密なので**文字数≒トークン数**で見る）。超えたら以下の方針で `references/` へ逃がす:
-
-- **SKILL.md に残す**: 正常系の手順の骨子・判断フロー・各トピックの**要点 1〜数行＋ references へのポインタ**。
-- **`references/` へ移す**: 詳細な表・コード全文・異常系（`troubleshooting.md`）・長い背景説明・
-  **同時に使わない**個別トピック（相互排他なら分けるほどトークン節約になる）。
-- どのセクションが重いかは [`section_tokens.py`](scripts/section_tokens.py) で測り、**大きい順に**逃がす。
-- 分割後は `validate_skill.py` の本文トークン WARN が消えるまで繰り返す。
+5. **サンプル追加時**: `code-apps/samples/` にサンプルを追加・更新する場合は、
+   [references/sample-packaging.md](references/sample-packaging.md) のフェーズ 1〜5 を実施する
+   （セキュリティスキャン → 再利用性チェック → .env.example 生成 → README 生成 → 仕上げ）。
 
 > frontmatter は `name`（フォルダ名と一致）/ `description` / `category` / `triggers` を必須とする
 > （[README の YAML 規約](../README.md) 準拠）。`description` にトリガー語は詰め込みすぎない。
@@ -100,7 +98,7 @@ triggers:
 3. 会社名・個別プロジェクト名・固有のテーブル/プレフィックスを一般名に置換する
    （例: 実プレフィックス → `${PUBLISHER_PREFIX}`、実組織 → `https://<org>.crm.dynamics.com`）。
 
-> 詳細な置換パターンは [package-sample スキル](../package-sample/SKILL.md) のセキュリティスキャン節も参照。
+> 詳細な置換パターンは [サンプルパッケージングガイド](references/sample-packaging.md) のセキュリティスキャン節も参照。
 
 ### Step 3: 構成・秘匿情報を検証する
 
@@ -125,10 +123,6 @@ python .github/skills/update-skills/scripts/validate_skill.py --all
 2. **ブラウザ操作の自動化**: ポータル操作が必要な手順は **Playwright MCP**（`browser_navigate` /
    `browser_click` / `browser_snapshot` 等）で自動化できる形に書く。手動 UI 操作は最終手段とし、
    その場合も画面パスとセレクタの目印を明記する。
-   **VS Code Simple Browser のズーム**: 既定の `Match Window` だと管理ポータル等の
-   UI 要素が画面外にはみ出す。スキル本文に **操作前に
-   `page.evaluate(() => document.body.style.zoom = '0.5')` でページを 50% に縮小する**指示を含める。
-   それでも必要な要素が見えないときはさらに縮小する。
 3. **CLI 化**: 繰り返す操作は `scripts/` に追加し、本文からはスクリプト呼び出しで参照する。
 
 ### Step 5: PR 戦略を決める（更新 / 新規 + マージ順）
@@ -185,14 +179,12 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 ## 検証チェックリスト
 
 - [ ] フォルダ名 ＝ frontmatter `name`（kebab-case）／`category`・`triggers` あり
-- [ ] `SKILL.md` は正常系のみ。異常系（よくあるエラー/トラブル/デバッグ等）は `references/troubleshooting.md`、参考は `references/`（`validate_skill.py` の役割分離 WARN が出ないこと）
+- [ ] `SKILL.md` は正常系のみ。異常系は `references/troubleshooting.md`、参考は `references/`
 - [ ] 利用スクリプトは `scripts/` に集約。手作業を極力残していない
-- [ ] 新規スキルは README カタログ＋参照する `agents/*.agent.md` のスキル表にも 1 行追加した（登録漏れ WARN が出ないこと）
-- [ ] パラメータは `references/.env.example` に定義、実値は `.env`（`.gitignore` 済み）（カバレッジ WARN が出ないこと）
-- [ ] SKILL.md/references の Markdown リンクが実在する（リンク切れ WARN が出ないこと）
-- [ ] `description` は要点に絞り `triggers` を詰め込みすぎない／本文が肥大していない（frontmatter lint WARN が出ないこと）
+- [ ] 新規スキルは README カタログ＋参照する `agents/*.agent.md` のスキル表にも 1 行追加した
+- [ ] パラメータは `references/.env.example` に定義、実値は `.env`（`.gitignore` 済み）
 - [ ] 会社名・個別 PJ 名・実 GUID/URL/メール/シークレットが無い（`validate_skill.py` が ✅）
-- [ ] 手順の番号は**整数で連番**（`Step N` / `## N.` / `フェーズ N` いずれも飛び・重複なし）
+- [ ] 手順の番号は**整数の Step で連番**（飛び・重複なし）
 - [ ] 公式仕様は **Learn MCP** で検証、ブラウザ操作は **Playwright MCP** で自動化
 - [ ] 既存オープン PR を確認（`manage_skill_pr.py`）→ 関連あれば**更新**、無関係なら**新規＋マージ順提示**
 - [ ] push 前に秘匿情報スキャン済み
@@ -200,6 +192,6 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 ## 参考リンク
 
 - [スキルカタログ README](../README.md)
-- [package-sample（汎用化・秘匿化の詳細）](../package-sample/SKILL.md)
+- [サンプルパッケージングガイド（セキュリティ・再利用性・README生成）](references/sample-packaging.md)
 - [PR 戦略（更新/新規・マージ順）](references/pr-strategy.md)
 - [異常系・トラブルシュート](references/troubleshooting.md)

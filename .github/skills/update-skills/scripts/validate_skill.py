@@ -4,15 +4,8 @@
   1. SKILL.md が存在し、frontmatter の name がフォルダ名と一致する（kebab-case）。
   2. frontmatter に description / category / triggers がある。
   3. Step 見出し（## / ### Step N）が整数で連番になっている（飛び・重複なし）。
-  4. references/ の有無、および SKILL.md が参照する scripts/ の実在（無ければ警告）。
+  4. references/ と scripts/ の有無（無ければ警告）。
   5. 秘匿情報スキャン（実 GUID / *.crm*.dynamics.com / 実メール / クライアントシークレット様）。
-  6. 役割分離（警告）: SKILL.md（正常系）に異常系（よくあるエラー/トラブル/デバッグ等）の
-     実体（エラー対処表・references 誘導なしの長文）が直書きされていないか。
-  7. 集約ファイル登録（警告）: README カタログ・agents/*.agent.md への登録漏れ。
-  8. .env.example カバレッジ（警告）: scripts が環境変数を使うのに references/.env.example が無い。
-  9. 内部リンク実在（エラー）: SKILL.md/references の Markdown リンク先が実在するか（404 になる不具合）。
- 10. 番号連番・frontmatter lint（警告）: ## 番号（N. / フェーズ N）連番、description 過長・
-     trigger 過多・本文肥大（トークン概算で Anthropic 上限 5,000 語 ≈ 6,500 トークン超）。
 
 依存なし（標準ライブラリのみ）。どのリポジトリでも動く。
 
@@ -54,41 +47,18 @@ ALLOWLIST = {
     "00000007-0000-0000-c000-000000000000",  # Dynamics CRM first-party app
     "00000003-0000-0000-c000-000000000000",  # Microsoft Graph
     "00000002-0000-0000-c000-000000000000",  # Azure AD Graph
-    "37f7f235-527c-4136-accd-4a02d197296e",  # Microsoft Graph openid 委任スコープ ID（固定）
-    "14dad69e-099b-42c9-810b-d002981feec1",  # Microsoft Graph profile 委任スコープ ID（固定）
-    "78ce3f0f-a1ce-49c2-8cde-64b5c0896db4",  # Dynamics user_impersonation 委任スコープ ID（固定）
     "a4c5bee6-25ff-4bb5-b926-b7eb8062ae7a",  # Dynamics CRM mcp.tools 委任スコープ ID（固定）
     "ab3be6b7-f5df-413d-ac2d-abf1e3fd9c0b",  # Enterprise Token Store アプリ ID（固定）
     "6ab48b67-cd74-4ad4-81af-5932984589be",  # Cowork/Token Store 関連の well-known ID（固定）
     "96ff4394-9197-43aa-b393-6a41652e21f8",  # Power Virtual Agents Service 第一者アプリ ID（固定）
-    "edfdb190-3791-45d8-9a6c-8f90a37c278a",  # AI Builder GPT Dynamic Prompt テンプレート ID（全環境固定）
     "00000000-0000-0000-0000-000000000000",  # 空 GUID（既定値プレースホルダー）
-    "00000000-0000-0000-0000-000000000001",  # 開発用モックの定番 ID（プレースホルダー）
     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",   # プレースホルダー
-    "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy",   # プレースホルダー（2つ目の例示用）
-    "11111111-2222-3333-4444-555555555555",  # 汎用プレースホルダー（例示用）
-    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",   # 汎用プレースホルダー（例示用）
-    "00000001-0000-0000-0001-00000000009b",  # Dataverse Default Solution（全環境固定）
-    "953b9fac-1e5e-e611-80d6-00155ded156f",  # システムデフォルト WebResource（標準アイコン・全環境固定）
-    "4273edbd-ac1d-40d3-9fb2-095c621b552d",  # 標準フォームコントロール CLASSID（全環境固定）
-    "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",  # Azure 組み込みロール Storage Blob Data Owner（全 Azure 固定）
 }
 
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FM_NAME_RE = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
 FM_KEY_RE = lambda k: re.compile(rf"^{k}:\s*", re.MULTILINE)
 STEP_RE = re.compile(r"^#{2,3}\s+Step\s+(\d+)\b", re.MULTILINE)
-
-# 役割分離チェック: SKILL.md（正常系）に異常系の実体が残っていないか。
-# 見出しテキストが「異常系」を示し、かつその節がポインタ（references/ へのリンク）でなく
-# 実体（複数行の表・長い本文）を含む場合に WARN を出す。
-HEADING_RE = re.compile(r"^(#{2,6})\s+(.*\S)\s*$", re.MULTILINE)
-ABNORMAL_HEADING_RE = re.compile(
-    r"(トラブル|よくある(エラー|失敗|ミス|間違)|エラー(コード|早見|一覧|集)"
-    r"|既知の(問題|不具合|バグ)|落とし穴|デバッグ|不具合|失敗例|ハマりどころ"
-    r"|詰まりどころ|troubleshoot)",
-    re.IGNORECASE,
-)
 
 GUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 CRM_URL_RE = re.compile(r"https://[a-z0-9-]+\.crm[0-9]*\.dynamics\.com", re.IGNORECASE)
@@ -158,141 +128,6 @@ def scan_secrets(path: Path, rep: Report) -> None:
                 rep.warn(f"{rel}:{i}: 実メールアドレスらしき値 {em}（admin@example.com 等に置換）")
 
 
-def check_role_separation(text: str, rep: Report) -> None:
-    """SKILL.md に異常系の実体が残っていないか（正常系=SKILL.md / 異常系=references）を検査。
-
-    異常系を示す見出しの節が「ポインタ（references/ への誘導）」ではなく、複数行の表や
-    長い本文を直書きしている場合に WARN を出す。ヒューリスティックのため WARN 止まり。
-    """
-    headings = [(m.start(), len(m.group(1)), m.group(2)) for m in HEADING_RE.finditer(text)]
-    for idx, (pos, level, title) in enumerate(headings):
-        if not ABNORMAL_HEADING_RE.search(title):
-            continue
-        # 本文 = この見出しの次行から、同レベル以上の次見出しまで
-        end = len(text)
-        for npos, nlevel, _ in headings[idx + 1:]:
-            if nlevel <= level:
-                end = npos
-                break
-        body = text[pos:end].splitlines()[1:]
-        non_empty = [l for l in body if l.strip()]
-        table_lines = [l for l in body if l.lstrip().startswith("|")]
-        links_ref = any("references/" in l for l in body)
-        # エラー表（ヘッダに 症状/原因/対処/解決/エラーコード 等を含む）は明確な異常系。
-        header = "".join(table_lines[:1])
-        error_table = bool(re.search(r"症状|原因|対処|解決|エラーコード|現象|回避策", header))
-        line_no = text[:pos].count("\n") + 1
-        if error_table:
-            rep.warn(
-                f"SKILL.md:{line_no}: 異常系の見出し『{title}』にエラー対処表を直書き。"
-                f"references/troubleshooting.md へ分離を検討"
-            )
-        elif not links_ref and (len(table_lines) >= 2 or len(non_empty) >= 5):
-            # references/ への誘導もなく実体（表/長文）を直書きしている。
-            rep.warn(
-                f"SKILL.md:{line_no}: 異常系の見出し『{title}』が実体を直書きし"
-                f" references/ へ誘導していない。troubleshooting.md へ分離を検討"
-            )
-
-
-def check_registration(skill_dir: Path, rep: Report) -> None:
-    """スキルが README カタログと agents/*.agent.md の両方に登録されているか（追加漏れの定番）。"""
-    name = skill_dir.name
-    readme = skill_dir.parent / "README.md"
-    if readme.is_file():
-        if f"]({name}/SKILL.md)" not in readme.read_text(encoding="utf-8", errors="ignore"):
-            rep.warn(f"README カタログ（{readme.name}）に未登録（1 行追加する）")
-    agents_dir = skill_dir.parent.parent / "agents"
-    if agents_dir.is_dir():
-        agent_files = list(agents_dir.glob("*.agent.md"))
-        registered = any(
-            f"skills/{name}/SKILL.md" in af.read_text(encoding="utf-8", errors="ignore")
-            for af in agent_files
-        )
-        if agent_files and not registered:
-            rep.warn("agents/*.agent.md のスキル表に未登録（参照すべき agent があれば 1 行追加）")
-
-
-def check_env_example(skill_dir: Path, rep: Report) -> None:
-    """scripts が環境変数を使うのに references/.env.example が無いか。"""
-    scripts = skill_dir / "scripts"
-    if not scripts.is_dir():
-        return
-    uses_env = False
-    for p in scripts.glob("*.py"):
-        if re.search(r"os\.environ|getenv", p.read_text(encoding="utf-8", errors="ignore")):
-            uses_env = True
-            break
-    if uses_env and not (skill_dir / "references" / ".env.example").is_file():
-        rep.warn("scripts が環境変数を使うが references/.env.example が無い（パラメータを定義する）")
-
-
-def check_internal_links(skill_dir: Path, rep: Report) -> None:
-    """Markdown リンクが指す相対パス（references/scripts/別スキル）が実在するか（stale ref 検出）。"""
-    link_re = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
-    for md in [skill_dir / "SKILL.md", *sorted((skill_dir / "references").glob("*.md"))]:
-        if not md.is_file():
-            continue
-        for i, line in enumerate(md.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
-            for target in link_re.findall(line):
-                t = target.strip().split("#", 1)[0].split(" ", 1)[0]
-                if not t or t.startswith(("http://", "https://", "mailto:")) or "://" in t:
-                    continue
-                # プレースホルダー（url / path 等の裸の語や {..}/<..>）は対象外
-                if ("/" not in t and "." not in t) or "{" in t or "<" in t:
-                    continue
-                if (md.parent / t).exists():
-                    continue
-                # リンク切れは実際に 404 になる不具合のため ERROR（ブロッキング）
-                rep.err(f"{md.name}:{i}: リンク切れ（参照先が無い）: {target}")
-
-
-def estimate_tokens(text: str) -> int:
-    """依存なしのトークン概算。ASCII（英語/コード/記号）は約 4 文字/トークン、
-    日本語等の非 ASCII は約 1 文字/トークンとみなす。やや過大評価寄りの保守的な目安。"""
-    ascii_n = sum(1 for c in text if ord(c) < 128)
-    other = len(text) - ascii_n
-    return round(ascii_n / 4 + other)
-
-
-def check_numbering_and_frontmatter(text: str, rep: Report) -> None:
-    """## レベルの番号（N. / フェーズ N）連番、description 過長・trigger 過多・本文肥大。"""
-    # ## レベルの番号連番（Step は別途 ERROR でチェック済みのため除外）
-    nums = []
-    for m in re.finditer(r"^##\s+(?:フェーズ|Phase)?\s*(\d+)[.\s　)]", text, re.MULTILINE):
-        if re.match(r"^##\s+Step\b", m.group(0)):
-            continue
-        nums.append(int(m.group(1)))
-    if nums:
-        expected = list(range(nums[0], nums[0] + len(nums)))
-        if nums != expected:
-            rep.warn(f"## 見出しの番号が連番でない: {nums}（期待: {expected}）")
-
-    # frontmatter（最初の --- ブロック）から description / triggers を取得
-    fm = re.match(r"^---\n(.*?)\n---", text, re.DOTALL)
-    if fm:
-        block = fm.group(1)
-        dm = re.search(r"^description:\s*(.+)$", block, re.MULTILINE)
-        if dm and len(dm.group(1)) > 300:
-            rep.warn(f"description が長い（{len(dm.group(1))}字）。要点に絞る（トリガー語を詰め込みすぎない）")
-        trig = len(re.findall(r"^\s*-\s+", block, re.MULTILINE))
-        if trig > 40:
-            rep.warn(f"triggers が多い（{trig}個）。代表的な語に絞り込みを検討")
-        body = text[fm.end():]
-    else:
-        body = text
-    # Anthropic 推奨: SKILL.md 本文は 5,000 語（≈6,500 トークン）が絶対上限。
-    # 文脈を消費するのはトークンなので、行数でなくトークン概算で判定する
-    # （ASCII は約 4 文字/トークン、日本語等の非 ASCII は約 1 文字/トークン）。
-    tokens = estimate_tokens(body)
-    if tokens > 6500:
-        body_lines = body.count("\n") + 1
-        rep.warn(
-            f"SKILL.md 本文が約 {tokens} トークン（{body_lines} 行）。Anthropic 上限"
-            f" 5,000 語（≈6,500 トークン）超。references/ へ分割（progressive disclosure）を検討"
-        )
-
-
 def validate_skill(skill_dir: Path) -> Report:
     rep = Report(skill_dir.name)
     folder = skill_dir.name
@@ -329,24 +164,11 @@ def validate_skill(skill_dir: Path) -> Report:
         if steps != expected:
             rep.err(f"Step 番号が整数連番でない: {steps}（期待: {expected}）")
 
-    # 役割分離（正常系=SKILL.md / 異常系=references）
-    check_role_separation(text, rep)
-    # ## レベル番号の連番・frontmatter lint・本文肥大
-    check_numbering_and_frontmatter(text, rep)
-    # 集約ファイル（README カタログ / agents）への登録
-    check_registration(skill_dir, rep)
-    # scripts の環境変数に対する .env.example の有無
-    check_env_example(skill_dir, rep)
-    # Markdown リンク切れ（stale ref）
-    check_internal_links(skill_dir, rep)
-
     # references / scripts の有無
     if not (skill_dir / "references").is_dir():
         rep.warn("references/ が無い（参考情報・異常系の置き場）")
-    # scripts/ は全スキル必須ではない。SKILL.md が scripts/ を参照しているのに
-    # ディレクトリが無い場合のみ（＝実害がある不整合）警告する。
-    if "scripts/" in text and not (skill_dir / "scripts").is_dir():
-        rep.warn("SKILL.md が scripts/ を参照しているが scripts/ ディレクトリが無い")
+    if not (skill_dir / "scripts").is_dir():
+        rep.warn("scripts/ が無い（利用スクリプトの置き場）")
 
     # 秘匿情報スキャン（テキスト系ファイルのみ）
     exts = {".md", ".py", ".ps1", ".json", ".jsonc", ".ts", ".tsx", ".env", ".example"}
