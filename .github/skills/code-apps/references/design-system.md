@@ -280,6 +280,9 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 | スケジュール表示 | `GanttChart`（タイムスケール切替 + ドラッグリサイズ） |
 | 自由配置・ズーム可能なガントチャート | `ReactFlow` カスタムノード（時間軸配置 + 進捗フィル）— [ReactFlow パターン](reactflow-patterns.md) |
 | 関係性・依存関係・フロー図・組織図を可視化 | `ReactFlow`（ノード + エッジ）— [ReactFlow パターン](reactflow-patterns.md) |
+| 組織図 × 予算達成状況 | `ReactFlow` OrgChart（Office 365 Users + 売上目標/実績）— [ReactFlow パターン §4](reactflow-patterns.md#パターン-4-組織図--予算達成状況orgchart) |
+| セールスパイプライン可視化 | `ReactFlow` Pipeline（リード→商談フロー + 件数・金額・CVR）— [ReactFlow パターン §5](reactflow-patterns.md#パターン-5-セールスパイプラインリード--商談フロー可視化) |
+| ステージ矢羽（シェブロン） | `StagePath`（Salesforce 風の矢羽表示 + クリックでステージ変更）— [矢羽パターン](stage-path-pattern.md) |
 | 優先度管理 | `TaskPriorityList`（ドラッグソート + フィルタ） |
 | 階層データ | `TreeStructure`（ツリー + Mermaid エクスポート） |
 | レコード作成/編集 | `FormModal` + `FormSection` + `FormColumns` |
