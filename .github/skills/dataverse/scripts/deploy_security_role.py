@@ -28,6 +28,13 @@ import os
 import sys
 import time
 
+# 進捗ログをリアルタイム表示するため stdout/stderr を行バッファに切り替え。
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+except AttributeError:
+    pass
+
 _this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _this_dir)
 sys.path.insert(0, os.path.join(_this_dir, "..", "..", "standard", "scripts"))

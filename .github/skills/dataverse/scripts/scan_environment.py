@@ -16,6 +16,13 @@ import argparse
 import os
 import sys
 
+# 進捗ログをリアルタイム表示するため stdout/stderr を行バッファに切り替え。
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+except AttributeError:
+    pass
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "standard", "scripts"))
 from auth_helper import api_get  # noqa: E402
 
