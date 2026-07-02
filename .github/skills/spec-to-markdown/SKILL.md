@@ -100,8 +100,8 @@ staging の変換完了後、以下の手順で docs を更新する。
 3. 全 staging ファイルを横断し、各 docs の `要確認` を実際の要件に書き換える：
    - `business-requirements.md` → ステークホルダー・ユーザーストーリー・業務フロー
    - `functional-requirements.md` → 機能一覧(MoSCoW)・データモデル・非機能要件
-   - `design-requirements.md` → 全体構成・コンポーネント・リスク・実装タスク分解
-   - `test-requirements.md` → テストシナリオ・受け入れ条件（functional の機能一覧 # と対応）
+   - `design-requirements.md` → 全体構成・コンポーネント・リスク・実装タスク分解（★全体構成・コンポーネント選定は [architecture スキル](../architecture/SKILL.md) の判断を正として転記する）
+   - `test-requirements.md` → テストシナリオ・受け入れ条件（functional の機能一覧 # と対応。条件本文の正は functional 側）
 4. `index.md` の処理状況テーブルも合わせて更新する
 5. 推測で埋めず、情報不足は `要確認` として残す
 
@@ -143,29 +143,33 @@ staging の変換完了後、以下の手順で docs を更新する。
 - 要件変更履歴（変更理由を必ず併記）
 
 ### functional-requirements.md
-- 機能一覧（MoSCoW 優先度・受け入れ条件の表）
+- 機能一覧（MoSCoW 優先度・受け入れ条件の表 — **受け入れ条件の正はここ**）
 - Dataverse テーブル候補（テーブル名・主な列・リレーション）
-- Code Apps / Model-Driven Apps の UI 要件
+- UI 要件（Code Apps / Model-Driven Apps / Cowork プラグイン — 選定の確定は [architecture スキル](../architecture/SKILL.md) を優先）
 - Power Automate の自動化要件
-- Copilot Studio / AI Builder の利用余地
+- Copilot Studio / AI Builder の利用余地（採用可否・v1/v2 判断は architecture スキルに従う）
 - 外部連携
-- 非機能要件（パフォーマンス・セキュリティ・可用性・スケーラビリティ）
+- 非機能要件（パフォーマンス・セキュリティ・可用性・スケーラビリティ・ユーザビリティ — test-requirements の非機能テストと区分を一致させる）
 - 要件変更履歴（変更理由を必ず併記）
 
 ### design-requirements.md
-- Power Platform 全体構成案
-- コンポーネント設計（種別・役割・依存の表）
+
+> ★ 全体構成・コンポーネント選定・構築フェーズは [architecture スキル](../architecture/SKILL.md) を正とする。
+> 本ドキュメントには architecture スキルの判断フロー・[設計アウトプットテンプレート](../architecture/references/design-patterns.md#2-設計アウトプットテンプレート)で確定した結果を転記する。
+
+- Power Platform 全体構成案（architecture スキルのテンプレート準拠、Mermaid 構成図）
+- コンポーネント設計（種別・役割・依存の表 — architecture スキルの「コンポーネント構成」表と整合させる）
 - セキュリティ / 権限 / 監査（区分・内容・対応方針の表）
 - 設計上のリスク（リスク・影響度・発生確率・対応方針の表）
-- Phase 1 で確認が必要な論点
-- 実装タスク分解（タスク・依存・優先度・見積の表）
+- Phase 1 確認事項
+- 実装タスク分解（タスク・依存・優先度・見積の表 — フェーズ順序は architecture スキルの「構築フェーズ」に沿う）
 - 要件変更履歴（変更理由を必ず併記）
 
 ### test-requirements.md
 - テスト戦略（テスト方針・環境・自動化範囲）
 - テストシナリオ（シナリオ名・前提条件・操作手順・期待結果・優先度の表）
-- 受け入れ条件（functional-requirements の機能 # と対応させた表）
-- 非機能テスト（区分・テスト内容・合格基準の表）
+- 受け入れ条件（functional-requirements の機能 # を参照し確認方法を定義 — **条件本文の正は functional 側、二重管理しない**）
+- 非機能テスト（区分・テスト内容・合格基準の表 — 区分は functional の非機能要件と一致させる）
 - 要件変更履歴（変更理由を必ず併記）
 
 ## 実行例
@@ -178,3 +182,4 @@ python convert_documents.py
 ## 参照
 
 - [変換ガイド](references/conversion-guide.md)
+- [architecture スキル](../architecture/SKILL.md) — 全体構成・コンポーネント選定の正（design-requirements / UI・AI 連携要件はこちらを優先して参照）

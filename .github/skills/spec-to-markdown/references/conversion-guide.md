@@ -115,26 +115,30 @@ python convert_documents.py \
 - 要件変更履歴（理由を併記）
 
 ### functional-requirements.md
-- 機能一覧（MoSCoW 優先度・受け入れ条件の表）
+- 機能一覧（MoSCoW 優先度・受け入れ条件の表 — 受け入れ条件の正はここ）
 - Dataverse テーブル候補（表）
-- UI 要件 / 自動化要件 / AI 連携要件
-- 非機能要件（パフォーマンス・セキュリティ・可用性・スケーラビリティの表）
+- UI 要件 / 自動化要件 / AI 連携要件（コンポーネント選定は `.github/skills/architecture/SKILL.md` の判断フローを優先。Cowork プラグイン第一候補・Canvas Apps は常に対象外・外部ユーザー向けは Azure 既定）
+- 非機能要件（パフォーマンス・セキュリティ・可用性・スケーラビリティ・ユーザビリティの表 — test の非機能テストと区分を一致させる）
 - 要件変更履歴（理由を併記）
 
 ### design-requirements.md
-- Power Platform 全体構成案
-- コンポーネント設計（表）
+
+> ★ 全体構成・コンポーネント選定・構築フェーズは `.github/skills/architecture/SKILL.md` を正とし、
+> architecture スキルの判断フロー・設計アウトプットテンプレート（`references/design-patterns.md` §2）で確定した結果を転記する。
+
+- Power Platform 全体構成案（architecture スキルのテンプレート準拠、Mermaid 構成図）
+- コンポーネント設計（表 — architecture スキルの「コンポーネント構成」表と整合させる）
 - セキュリティ / 権限 / 監査（表）
 - 設計上のリスク（影響度・発生確率・対応方針の表）
 - Phase 1 確認事項
-- 実装タスク分解（タスク・依存・優先度・見積の表）
+- 実装タスク分解（タスク・依存・優先度・見積の表 — フェーズ順序は architecture スキルの「構築フェーズ」に沿う）
 - 要件変更履歴（理由を併記）
 
 ### test-requirements.md
 - テスト戦略
 - テストシナリオ（前提条件・操作手順・期待結果・優先度の表）
-- 受け入れ条件（functional の機能 # と対応させた表）
-- 非機能テスト（合格基準の表）
+- 受け入れ条件（functional の機能 # を参照し確認方法を定義 — 条件本文の正は functional 側、二重管理しない）
+- 非機能テスト（合格基準の表 — 区分は functional の非機能要件と一致させる）
 - 要件変更履歴（理由を併記）
 
 ## 7. conversion-checklist の運用
@@ -159,7 +163,7 @@ staging が全件完了したら、以下の流れで開発に入る。
 
 1. **要件合意**: `business-requirements.md` の未確定事項を PO / BA と確認し、`要確認` を解消する
 2. **優先度合意**: `functional-requirements.md` の MoSCoW 優先度を PO と合意する
-3. **設計確定**: `design-requirements.md` の実装タスク分解を確定させる
+3. **設計確定**: `.github/skills/architecture/SKILL.md` の判断フローで全体構成・コンポーネント選定を確定し、結果を `design-requirements.md` に転記して実装タスク分解を確定させる
 4. **テスト設計**: `test-requirements.md` の受け入れ条件を `functional-requirements.md` の機能 # と紐付ける
 5. **開発着手**: `design-requirements.md` の実装タスク表を元にタスクを割り当てる
 6. **変更管理**: 仕様変更時は各 docs の「要件変更履歴」に変更内容と理由を記録する
