@@ -42,7 +42,7 @@ triggers:
 | [運用と落とし穴](references/operations-and-pitfalls.md) | ビルド・デプロイ・サイト再起動・よくあるエラーと解決策 |
 | [トラブルシューティング](references/troubleshooting.md) | エラーコード早見表・デバッグ用 Site Settings・既知の無害な警告 |
 | [レガシー参照用チェックリスト](references/legacy-checklist.md) | 旧構成の参照用チェックリスト |
-| [デザインシステム](references/design-system.md) | UI コンポーネント・テーマ・レイアウトの指針 |
+| [デザインシステム](references/design-pattern.md) | UI コンポーネント・テーマ・レイアウトの指針 |
 | [デザインテンプレート集](references/design-templates.md) | 5 種類の配色テンプレート定義。設計時に提案→選択→適用 |
 
 > **Dataverse 接続と認証の実装方法はこのファイルで概要を説明し、完全なサンプルコードは上記 References にまとめている。**

@@ -15,7 +15,7 @@
 2. エージェントがこのファイルを読み込み、レイアウト一覧＋プレビューを提示
 3. ユーザーが視覚プレビューを確認して 1 つ選択
 4. 続いて color-palettes.md でカラーパレットを選択
-5. design-system.md の設計フェーズ（画面一覧・コンポーネント選定）と合わせてユーザー承認を得る
+5. design-pattern.md の設計フェーズ（画面一覧・コンポーネント選定）と合わせてユーザー承認を得る
 6. 承認後、選択レイアウトのアプリシェルで実装（配色は選択パレットの CSS Variables を適用）
 ```
 
@@ -244,7 +244,7 @@ Tailwind では `lg:sticky lg:top-6`（＝小画面では sticky を付けない
 
 1. 上表でレイアウトを提示 → ユーザーが 1 つ選択。
 2. [color-palettes.md](color-palettes.md) でカラーパレットを提示 → ユーザーが 1 つ選択。
-3. [design-system.md](design-system.md) で画面一覧・コンポーネント選定 → 承認。
+3. [design-pattern.md](design-pattern.md) で画面一覧・コンポーネント選定 → 承認。
 4. 承認後、選択レイアウトのアプリシェルを `App.tsx` / `src/components/layout/*` に実装し、
    選択パレットの CSS Variables を `styles/index.pcss` に適用して実装する。
 
