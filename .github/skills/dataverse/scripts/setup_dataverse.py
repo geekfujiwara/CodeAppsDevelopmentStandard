@@ -31,6 +31,15 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+# 進捗ログをリアルタイム表示するため stdout/stderr を行バッファに切り替え。
+# （bash ツール経由で呼ばれた際にブロックバッファリングされ、テーブル作成中に
+#  何も表示されず「止まって見える」問題を防ぐ）
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+except AttributeError:
+    pass
+
 load_dotenv()
 
 # ── auth_helper.py インポート ────────────────────────────────

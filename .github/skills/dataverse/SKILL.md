@@ -112,9 +112,9 @@ for p in pubs.get("value", []):
 
 ```powershell
 # 標準テーブル（account/contact/product/systemuser 等）＋全カスタムテーブルを走査し、再利用レポートを出力
-python .github/skills/dataverse/scripts/scan_environment.py --out spec/dataverse-scan.md
+python -u .github/skills/dataverse/scripts/scan_environment.py --out spec/dataverse-scan.md
 # 特定テーブルの列詳細も見たいとき
-python .github/skills/dataverse/scripts/scan_environment.py --tables account,contact,product
+python -u .github/skills/dataverse/scripts/scan_environment.py --tables account,contact,product
 ```
 
 **レポートをもとにユーザーに提示し、再利用 vs 新規を合意する:**
@@ -155,19 +155,24 @@ existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PR
 
 同梱の [setup_dataverse.py](scripts/setup_dataverse.py) をプロジェクト用にカスタマイズして実行する。
 
+> **必ず `python -u`（unbuffered）で実行する**: テーブル作成・Lookup 作成・ローカライズは
+> 数分〜十数分かかるため、標準の出力バッファリング下では「止まって見える」ことがある。
+> `-u` を付けて Step ごとの進捗（`=== Step 2: テーブル作成 ===` など）を確実にリアルタイム
+> 表示させる。スクリプト側でも `sys.stdout.reconfigure(line_buffering=True)` を有効化済み。
+
 > **Code Apps を使う場合はローカライズを2段階に分ける**: `pac code add-data-source` は日本語
 > DisplayName だと `Failed to sanitize string` で失敗することがある。ローカライズ→英語に一時
 > 戻す→再ローカライズという無駄な往復を避けるため、**構築時点ではローカライズせず英語のまま
 > `add-data-source` を先に済ませ、その後にローカライズする**。
 >
 > ```powershell
-> python setup_dataverse.py --skip-localize   # テーブル構築のみ（英語のまま）
+> python -u setup_dataverse.py --skip-localize   # テーブル構築のみ（英語のまま）
 > # ここで code-apps 側の add-data-source を全テーブルに実行（build-reference.md Step 4）
-> python setup_dataverse.py --localize-only   # ローカライズ・デモデータ投入
+> python -u setup_dataverse.py --localize-only   # ローカライズ・デモデータ投入
 > ```
 >
 > Code Apps を使わない（Generative Page / モデル駆動型アプリのみ等）場合は、従来どおり
-> フラグなしで一括実行して問題ない。
+> フラグなしで一括実行して問題ない（`python -u` は常に付ける）。
 
 ## 必須要件
 
