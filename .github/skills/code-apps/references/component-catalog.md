@@ -213,7 +213,6 @@ import { FormModal, FormSection, FormColumns } from "@/components/form-modal"
 | コンポーネント | インポート | 用途 |
 |--------------|-----------|------|
 | `ChartDashboard` | `@/components/chart-dashboard` | 集計ダッシュボード（棒・折れ線・円グラフ） |
-| `ReactFlow` | `@xyflow/react` | 関係性・依存関係・フロー図・組織図・ガントチャート等のノードベース可視化。**可視化リクエストでは第一候補**。詳細は [ReactFlow パターン](reactflow-patterns.md) |
 | `CodeBlock` | `@/components/code-block` | シンタックスハイライト付きコードブロック |
 | `LoadingSkeletonGrid` | `@/components/loading-skeleton` | ローディングスケルトン |
 

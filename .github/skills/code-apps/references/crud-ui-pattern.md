@@ -597,7 +597,6 @@ export default function ItemDetailPage() {
 | Lookup | `<p className="mt-1">{lookupMap.get(value)}</p>` | `<Select value={form.field} onValueChange={...}>` |
 | 複数行テキスト | `<p className="mt-1 whitespace-pre-wrap">{value}</p>` | `<Textarea value={form.field} onChange={...} />` |
 | ステータス/ステージ | `StagePath` コンポーネント（[ステージ矢羽パターン](stage-path-pattern.md)） | 同左（クリックで即更新） |
-| Image 列 | `RecordImage` コンポーネント（[画像列の表示パターン](image-handling.md)） | `<input type="file">` + `uploadFileToRecord` |
 
 > **Lookup フィールドの書き込み**: Dataverse の Lookup は `@odata.bind` 形式で送信する。
 > ```tsx

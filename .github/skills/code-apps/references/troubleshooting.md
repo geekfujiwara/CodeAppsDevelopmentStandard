@@ -386,24 +386,7 @@ Failed to update database references: Failed to sanitize string 顧客一覧
 **`pac code add-data-source` は PAC CLI 内蔵の .NET ランタイム経由で別の `nameUtils.js` を実行する**。
 PAC CLI の `.stage` ディレクトリ配下には複数バージョンが存在し、パッチの到達が不確実。
 
-### 推奨（予防策）: そもそも add-data-source を先に、ローカライズは後で
-
-日本語化 → 英語に一時戻す → 日本語に戻す、という3往復は無駄なので、**構築時点ではローカライズせず
-英語のまま `add-data-source` を完了させ、その後にローカライズする**運用を標準とする
-（`dataverse` スキル `setup_dataverse.py` の `--skip-localize` / `--localize-only`）。
-
-```powershell
-python setup_dataverse.py --skip-localize   # テーブル構築のみ（英語のまま）
-pac code add-data-source -a dataverse -t {prefix}_tablename   # 全テーブルに対して実行
-python setup_dataverse.py --localize-only   # ローカライズ・デモデータ投入
-```
-
-詳細は build-reference.md Step 4、および `dataverse` スキル SKILL.md Step 4 を参照。
-
-### 対処（フォールバック）: 既にローカライズ済みのテーブルにあとから add-data-source する場合
-
-上記の順序が使えない場合（既存の運用中プロジェクトで新しいテーブルを追加する等、テーブルが
-既に日本語ローカライズ済みの場合）のみ、テーブル表示名を一時的に英語に切り替える。
+### 対処: テーブル表示名を一時的に英語に切り替え
 
 ```bash
 # 1. API で DisplayName/DisplayCollectionName を英語に変更
@@ -427,9 +410,6 @@ python toggle_table_lang.py jp
   （`patch-nameutils.cjs` で解決できる）
 - この問題が起きるのは `npx power-apps` がテナント不一致で使えず `pac code` を
   使わざるを得ない環境のみ
-- ただし `npx` が使える環境でも、上記の「予防策」（構築時はローカライズしない）にしておけば
-  この問題自体を回避でき、ローカライズ API の無駄な往復も無くなるため、新規プロジェクトでは
-  予防策を標準にする
 
 ---
 
@@ -1375,122 +1355,3 @@ type DataSourcesInfo = Parameters<typeof getClient>[0];
 ```
 
 → 関連: [データソースパターン](data-source-patterns.md)
-
----
-
-## 27. サンプルの `dataverse-service.ts` を流用すると `getRecords is not a function`（検証済 2026-07-01 / SDK 1.2.5）
-
-### 症状
-
-`samples/geek-*` の `src/services/dataverse-service.ts` をコピーして使うと、
-ビルドは通っても実行時に以下で落ちる（またはビルド時に型エラー）:
-
-```
-TypeError: client(...).getRecords is not a function
-```
-
-```
-error TS2305: Module '"@microsoft/power-apps"' has no exported member 'getClient'.
-```
-
-### 原因
-
-一部サンプルのデータ層は **旧 SDK（ルートエクスポート + 簡易メソッド）前提**で書かれており、
-現行 `@microsoft/power-apps`（1.2.x）には存在しない:
-
-```typescript
-// ❌ サンプルの旧パターン（現行 SDK では動かない）
-import { getClient } from "@microsoft/power-apps"          // ルート import は無い
-function client() { return getClient(dataSourcesInfo) }
-client().getRecords(`${P}_products`)                        // getRecords は廃止
-client().createRecord(...)  // createRecord / updateRecord / deleteRecord も廃止
-```
-
-現行 `DataClient` のメソッド名と戻り値（`IOperationResult<T>` = `{ success, data, error }`）:
-
-| 旧（サンプル・廃止） | 現行 SDK 1.2.x |
-|---|---|
-| `getRecords(name)` | `retrieveMultipleRecordsAsync<T>(name, options?)` → `result.data` |
-| `getRecord(name, id)` | `retrieveRecordAsync<T>(name, id, options?)` |
-| `createRecord(name, body)` | `createRecordAsync<TIn, TOut>(name, body)` |
-| `updateRecord(name, id, body)` | `updateRecordAsync<TIn, TOut>(name, id, body)` |
-| `deleteRecord(name, id)` | `deleteRecordAsync(name, id)` |
-
-### 対処
-
-サンプルの `dataverse-service.ts` / `lib/dataSourcesInfo.ts` は**流用しない**。
-[ビルドリファレンス Step 6](build-reference.md) の `DataverseService` パターン
-（`@microsoft/power-apps/data` のサブパス import + `retrieveMultipleRecordsAsync` +
-`if (!result.success) throw result.error` + `return result.data`）で新規に書く。
-
----
-
-## 28. データソース名に単数の論理名を渡すと 404 / 空データになる（検証済 2026-07-01）
-
-### 症状
-
-`pac code add-data-source -t {prefix}_factory` で追加したのに、
-`retrieveMultipleRecordsAsync("{prefix}_factory", ...)` が 404 相当で 0 件（またはエラー）を返す。
-
-### 原因
-
-`pac code add-data-source` は **単数の論理名**（`-t {prefix}_factory`）で追加するが、
-生成される `.power/schemas/appschemas/dataSourcesInfo.ts` の**キーは EntitySetName（複数形）**になる。
-
-```jsonc
-// add-data-source -t geek_factory / geek_capacity / systemuser で生成される
-export const dataSourcesInfo = {
-  "geek_factories":  { "primaryKey": "geek_factoryid",  ... },  // ← 複数形キー
-  "geek_capacities": { "primaryKey": "geek_capacityid", ... },
-  "systemusers":     { ... },
-}
-```
-
-`retrieveMultipleRecordsAsync` 等に渡す `dataSourceName` は、この**複数形キー**でなければならない。
-
-### 対処
-
-```typescript
-// ❌ 単数の論理名（404 / 空データ）
-const DATA_SOURCE = "geek_factory";
-
-// ✅ 生成された複数形キー（EntitySetName）
-const DATA_SOURCE = "geek_factories";
-```
-
-追加後は必ず `.power/schemas/appschemas/dataSourcesInfo.ts` を開き、実際のキー名を確認してから
-`DATA_SOURCE` 定数に転記する。不規則な複数形（`capacity → capacities`）に注意。
-
-## 29. dnd-kit カンバンで列移動後に「元の位置へ戻る」アニメーションが一瞬見える（検証済 2026-07-02）
-
-### 症状
-
-`KanbanBoard`（[reactflow-patterns.md パターン0](reactflow-patterns.md#パターン-0-汎用カンバンボードdnd-kit-モダン-ui)）
-でカードを別の列へドラッグ＆ドロップすると、ドロップ後に一瞬カードが元の列へ戻るような
-アニメーションが見えてから新しい列に現れる。
-
-### 原因
-
-`onMove` 内で React Query の `setQueryData`（またはサーバー確定後の `invalidateQueries`）を呼んでカードの列を
-更新している場合、その通知はマイクロタスクでバッチされ、`handleDragEnd` が同期的に処理を終えた**後**に
-描画へ反映される。一方 dnd-kit の `DragOverlay` は `onDragEnd` 直後（同一コミット）に「ドロップ先の最終位置」を、
-その ID を持つ実 DOM ノードの位置から計測する。この時点ではまだ実データが旧列のままのため、計測結果が旧列の
-座標になり、オーバーレイがそこへ「戻る」ように動いてから、実データの再描画で新しい列にカードが現れる。
-
-### 対処
-
-`KanbanBoard` 側に一時的な `pendingMoves`（列の上書き）を持たせ、`setActiveId(null)` と**同じ同期更新**の中で
-Tドロップ先の列を即座に反映する。呼び出し元（React Query 等）の実データが追いついたら自動でクリアする。
-
-```tsx
-const [pendingMoves, setPendingMoves] = useState<Record<string, number>>({})
-const effectiveItems = useMemo(
-  () => items.map((i) => (i.id in pendingMoves ? { ...i, columnValue: pendingMoves[i.id] } : i)),
-  [items, pendingMoves],
-)
-// handleDragEnd 内: setPendingMoves(...) と setActiveId(null) を同一関数内で同期的に呼ぶ
-```
-
-`dropAnimation={null}` で位置アニメーション自体を無効化する方法もあるが、同一列内の並び替えでも
-アニメーションが失われるため、上記の「即時反映」の方が体験を損なわない。詳細な実装は
-[reactflow-patterns.md](reactflow-patterns.md#パターン-0-汎用カンバンボードdnd-kit-モダン-ui) 参照。
