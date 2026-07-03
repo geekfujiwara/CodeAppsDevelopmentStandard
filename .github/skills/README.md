@@ -53,6 +53,18 @@ skill-name/
 |---|---|---|
 | Geek Sales | `code-apps/samples/geek-sales/` | 営業支援（顧客・商談・パイプライン・テリトリー・Copilot 分析） |
 | Geek Expense | `code-apps/samples/geek-expense/` | 経費精算（経費申請・承認・分析・Power Automate/Copilot 連携） |
+| Geek HR | `code-apps/samples/geek-hr/` | 人事管理（社員台帳・組織図・採用・評価） |
+| Geek Helpdesk | `code-apps/samples/geek-helpdesk/` | ヘルプデスク（チケット・ナレッジベース・レポート） |
+| Geek Inventory | `code-apps/samples/geek-inventory/` | 在庫管理（商品マスタ・入出庫・発注・レポート） |
+| Geek Asset | `code-apps/samples/geek-asset/` | 資産管理（台帳・貸出・廃棄申請・棚卸） |
+| Geek Contract | `code-apps/samples/geek-contract/` | 契約台帳（契約管理・期限アラート・取引先） |
+| Geek PM | `code-apps/samples/geek-pm/` | プロジェクト管理（プロジェクト・タスク・メンバー・レポート） |
+| Geek Maintenance | `code-apps/samples/geek-maintenance/` | 設備保全（設備マスタ・作業指示・点検スケジュール） |
+| Geek Procurement | `code-apps/samples/geek-procurement/` | 購買依頼（申請・承認・発注追跡・仕入先） |
+| Geek Approval | `code-apps/samples/geek-approval/` | 稟議申請（2 段階承認ワークフロー・承認ステージ矢羽・承認箱・承認履歴） |
+| Geek Quote | `code-apps/samples/geek-quote/` | 見積・請求（明細行の金額自動計算・見積書プレビュー・受注→請求作成） |
+| Geek Safety | `code-apps/samples/geek-safety/` | 安全衛生（ヒヤリハット報告・是正措置追跡・重大度/拠点別集計） |
+| Geek Training | `code-apps/samples/geek-training/` | 研修管理（研修カタログ・受講申込・修了率/満足度集計） |
 | Power Pages ポータル | `power-pages/samples/portal/` | Power Pages サイト実体（web-templates / page-templates） |
 | Corporate LP テンプレート | `power-pages/templates/corporate-lp/` | コーポレート LP（雛形として利用可） |
 
