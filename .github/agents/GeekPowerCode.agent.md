@@ -50,7 +50,7 @@ Power Platform コードファースト開発エキスパート。
 | Power Pages | .github/skills/power-pages/SKILL.md |
 | モデル駆動型アプリ | .github/skills/model-driven-app/SKILL.md |
 | アーキテクチャ判断 | .github/skills/architecture/SKILL.md |
-| 仕様→Markdown 変換 | .github/skills/spec-to-markdown/SKILL.md |
+| 要件理解・仕様書変換 | .github/skills/spec-builder/SKILL.md |
 | Cowork / MCP クライアント登録 | .github/skills/cowork/SKILL.md |
 | サンプル公開パッケージング | .github/skills/package-sample/SKILL.md |
 | スキル作成・更新 | .github/skills/update-skills/SKILL.md |
