@@ -1,4 +1,4 @@
-# spec-to-markdown Windows セットアップ & 実行スクリプト
+# spec-builder Windows セットアップ & 実行スクリプト
 # 使い方: powershell -ExecutionPolicy Bypass -File run_windows.ps1 [引数...]
 # 既定: work/input -> work/staging + work/docs
 

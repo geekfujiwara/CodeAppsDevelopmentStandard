@@ -5,7 +5,7 @@ package-lock.json
 # Copilot memories (session/user notes)
 memories/
 
-# spec-to-markdown default workspace
+# spec-builder default workspace
 work/input/*
 !work/input/.gitkeep
 work/staging/

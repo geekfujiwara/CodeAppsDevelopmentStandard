@@ -1,11 +1,12 @@
 ---
-name: spec-to-markdown
-description: "office ドキュメントを anthropics/skills で markdown 化し、画像は agent-ocr で処理して /spec/output/staging と /spec/output/docs に整理する。"
+name: spec-builder
+description: "office ドキュメント・画像などの一次情報から、anthropics/skills（markdown 化）と agent-ocr（画像OCR）を使って /spec/output/docs に統合された要件定義書一式（仕様書）を作成する。"
 category: ai
 argument-hint: "[省略可: /path/to/specs — 省略時は spec/input/ を使用]"
 user-invocable: true
 triggers:
   - "anthropics/skills"
+  - "仕様書作成"
   - "仕様書変換"
   - "仕様書を markdown にしたい"
   - "PDF を markdown"
@@ -16,7 +17,7 @@ triggers:
   - "画像をOCR"
 ---
 
-# 仕様書→要件 markdown 変換スキル
+# 仕様書作成スキル（一次情報 → 要件定義書）
 
 office ドキュメント（PDF / PowerPoint / Excel / Word など）は **anthropics/skills** で読み取り、  
 画像ファイル（PNG/JPG 等）は **agent-ocr** で OCR する。
@@ -175,7 +176,7 @@ staging の変換完了後、以下の手順で docs を更新する。
 ## 実行例
 
 ```bash
-cd .github/skills/spec-to-markdown/scripts
+cd .github/skills/spec-builder/scripts
 python convert_documents.py
 ```
 

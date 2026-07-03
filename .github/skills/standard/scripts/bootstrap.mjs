@@ -20,8 +20,8 @@ const UNIX_VENV_PYTHON = ["bin", "python"];
 /** Bootstrap 対象の Python skill 環境一覧 */
 const PYTHON_ENVS = [
   {
-    name: "spec-to-markdown",
-    scriptsDir: path.join(repoRoot, ".github", "skills", "spec-to-markdown", "scripts"),
+    name: "spec-builder",
+    scriptsDir: path.join(repoRoot, ".github", "skills", "spec-builder", "scripts"),
   },
   {
     name: "standard (auth_helper 等)",

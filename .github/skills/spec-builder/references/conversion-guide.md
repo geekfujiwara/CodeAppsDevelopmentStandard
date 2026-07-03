@@ -34,7 +34,7 @@ npm run setup
 ### macOS / Linux
 
 ```bash
-cd .github/skills/spec-to-markdown/scripts
+cd .github/skills/spec-builder/scripts
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -44,7 +44,7 @@ python convert_documents.py
 ### Windows (PowerShell)
 
 ```powershell
-cd .github\skills\spec-to-markdown\scripts
+cd .github\skills\spec-builder\scripts
 powershell -ExecutionPolicy Bypass -File run_windows.ps1
 ```
 
