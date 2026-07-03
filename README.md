@@ -72,7 +72,7 @@ VS Code をインストールすると **GitHub Copilot 拡張機能は最初か
 | Power Platform ライセンスガイド（日本語） | [aka.ms/PPLicJP](https://aka.ms/PPLicJP) |
 | Microsoft Copilot Studio ライセンスガイド（英語） | [aka.ms/MCSLic](https://aka.ms/MCSLic) |
 | Microsoft Copilot Studio ライセンスガイド（日本語） | [aka.ms/MCSLicJP](https://aka.ms/MCSLicJP) |
-| Copilot Credits ライセンスガイド | [aka.ms/CopilotCredirsLicensingGuide](https://aka.ms/CopilotCredirsLicensingGuide) |
+| Copilot Credits ライセンスガイド | [aka.ms/CopilotCreditsLicensingGuide](https://aka.ms/CopilotCreditsLicensingGuide) |
 
 ### Power Platform 環境
 
