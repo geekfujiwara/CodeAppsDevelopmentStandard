@@ -1,4 +1,4 @@
-"""spec-to-markdown の入力を /spec 配下に output/staging・output/docs として出力する。"""
+"""spec-builder の入力を /spec 配下に output/staging・output/docs として出力する。"""
 
 from __future__ import annotations
 
