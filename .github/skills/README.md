@@ -53,6 +53,8 @@ skill-name/
 |---|---|---|
 | Geek Sales | `code-apps/samples/geek-sales/` | 営業支援（顧客・商談・パイプライン・テリトリー・Copilot 分析） |
 | Geek Expense | `code-apps/samples/geek-expense/` | 経費精算（経費申請・承認・分析・Power Automate/Copilot 連携） |
+| Geek Kaizen | `code-apps/samples/geek-kaizen/` | 改善提案（カンバン D&D・ウィザードフォーム・いいね投票） |
+| Geek Event | `code-apps/samples/geek-event/` | イベント管理（月間カレンダー・参加登録・出席率・参加者 CSV 出力） |
 | Geek HR | `code-apps/samples/geek-hr/` | 人事管理（社員台帳・組織図・採用・評価） |
 | Geek Helpdesk | `code-apps/samples/geek-helpdesk/` | ヘルプデスク（チケット・ナレッジベース・レポート） |
 | Geek Inventory | `code-apps/samples/geek-inventory/` | 在庫管理（商品マスタ・入出庫・発注・レポート） |
