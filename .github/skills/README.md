@@ -53,6 +53,8 @@ skill-name/
 |---|---|---|
 | Geek Sales | `code-apps/samples/geek-sales/` | 営業支援（顧客・商談・パイプライン・テリトリー・Copilot 分析） |
 | Geek Expense | `code-apps/samples/geek-expense/` | 経費精算（経費申請・承認・分析・Power Automate/Copilot 連携） |
+| Geek Kaizen | `code-apps/samples/geek-kaizen/` | 改善提案（カンバン D&D・ウィザードフォーム・いいね投票） |
+| Geek Event | `code-apps/samples/geek-event/` | イベント管理（月間カレンダー・参加登録・出席率・参加者 CSV 出力） |
 | Power Pages ポータル | `power-pages/samples/portal/` | Power Pages サイト実体（web-templates / page-templates） |
 | Corporate LP テンプレート | `power-pages/templates/corporate-lp/` | コーポレート LP（雛形として利用可） |
 
