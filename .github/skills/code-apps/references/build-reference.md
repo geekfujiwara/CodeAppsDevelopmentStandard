@@ -176,47 +176,21 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 
 ### Step 4: Dataverse データソース追加
 
-> **推奨（無駄な往復を避ける）**: テーブルは `dataverse` スキルの `setup_dataverse.py --skip-localize`
-> で**英語のまま**構築し、`add-data-source` を先に完了させてから最後にローカライズする。
-> 「日本語化 → 英語に一時戻す → 日本語に戻す」という3往復を避けられる（詳細は
-> `dataverse` スキル SKILL.md Step 4）。
-
 ```bash
 # テーブルごとに実行（PUBLISHER_PREFIX は .env から読み込み、ハードコード禁止）
-# 前提: テーブルはまだ英語 DisplayName のまま（setup_dataverse.py --skip-localize 済み）
+# 日本語表示名エラー回避: 一時的に英語に切替
+python scripts/toggle_table_lang.py en
+
+# pac code add-data-source で追加
 pac code add-data-source -a dataverse -t {PUBLISHER_PREFIX}_{table}
 # 全テーブルに対して繰り返す
 
-# 全テーブル追加後、dataverse スキル側でローカライズを実行
-python setup_dataverse.py --localize-only
+# 日本語に復元
+python scripts/toggle_table_lang.py jp
 ```
-
-> **既存テーブルが既に日本語ローカライズ済みの場合**（例: 後から新しいデータソースを追加する運用中の
-> プロジェクト等）は上記の順序が使えない。その場合のみ `toggle_table_lang.py` で一時的に英語へ
-> 切り替えるフォールバック手順を使う（[troubleshooting.md #10](troubleshooting.md)）。
 
 > **重要**: テーブル論理名に `geek_xxx` のような literal を書かない。
 > publisher prefix は環境ごとに異なるため、必ず `.env` の `PUBLISHER_PREFIX` を変数展開して使う。
-
-> **`add-data-source` は初回デプロイ前に実行してよい（push 不要）**（検証済 2026-07-01 / PAC 2.8.1）。
-> `pac code add-data-source` は `power.config.json` があれば動作し、**デプロイ済みアプリを必要としない**。
-> `pac code init` 直後に全テーブルを追加してから初回 `pac code push` すれば、
-> 「空スケルトンを push → data source 追加 → 再 push」の二度手間を避けられる。
-
-> **⚠ 生成されるデータソースのキー名は EntitySetName（複数形）である**（検証済 2026-07-01）。
-> `pac code add-data-source -t {prefix}_factory`（**単数**の論理名）を実行すると、
-> `.power/schemas/appschemas/dataSourcesInfo.ts` に生成されるキーは **`{prefix}_factories`（複数形）** になる。
-> `retrieveMultipleRecordsAsync(dataSourceName)` に渡す `dataSourceName` は
-> **必ずこの複数形キー**を使う（単数の論理名では 404 / 空データになる）。
->
-> | `add-data-source -t`（単数・論理名） | 生成キー / `DATA_SOURCE`（複数形・EntitySetName） |
-> |---|---|
-> | `{prefix}_factory` | `{prefix}_factories` |
-> | `{prefix}_capacity` | `{prefix}_capacities` |
-> | `{prefix}_replenishmentrequest` | `{prefix}_replenishmentrequests` |
-> | `systemuser` | `systemusers` |
->
-> 実際のキーは生成後の `.power/schemas/appschemas/dataSourcesInfo.ts` で必ず確認する。
 
 ### Step 5: 技術スタック導入
 
@@ -256,18 +230,6 @@ export const router = createHashRouter([
 ```
 
 ### Step 6: DataverseService パターンで CRUD 実装
-
-> **⚠ `samples/` 配下のサンプルアプリのデータ層はコピー禁止（SDK 旧 API）**（検証済 2026-07-01 / `@microsoft/power-apps` 1.2.5）。
-> 一部サンプルの `src/services/dataverse-service.ts` は
-> `import { getClient } from "@microsoft/power-apps"`（ルートインポート）と
-> `client().getRecords(...)` / `createRecord(...)` を使っているが、**現行 SDK には存在しない**:
-> - **ルートエクスポート（`"."`）は無い** → `@microsoft/power-apps/data` のサブパス必須。
-> - `getRecords` / `createRecord` / `updateRecord` / `deleteRecord` は**廃止**。
->   現行の `DataClient` メソッドは
->   `retrieveMultipleRecordsAsync` / `retrieveRecordAsync` / `createRecordAsync` /
->   `updateRecordAsync` / `deleteRecordAsync` で、いずれも `IOperationResult<T>`（`{ success, data, error }`）を返す。
->
-> データ層は**必ず下記の `DataverseService` パターン**で新規に書くこと（サンプルの `dataverse-service.ts` / `lib/dataSourcesInfo.ts` は流用しない）。
 
 #### `getClient(dataSourcesInfo)` — dataSourcesInfo は必須引数
 
@@ -330,7 +292,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DataverseService } from "@/lib/dataverse-service";
 import type { Product } from "@/types";
 
-const DATA_SOURCE = "inv_products";  // dataSourcesInfo のキー名 = EntitySetName（複数形）。add-data-source -t inv_product（単数）で生成される
+const DATA_SOURCE = "inv_products";  // dataSourcesInfo のキー名
 
 export function useProducts() {
   return useQuery<Product[]>({

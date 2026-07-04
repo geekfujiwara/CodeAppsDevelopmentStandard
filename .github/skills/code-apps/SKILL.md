@@ -4,14 +4,19 @@ description: "Power Apps Code Apps（コードファースト）の初期化・D
 category: ui
 triggers:
   - "Code Apps"
-  - "Code Apps デプロイ"
-  - "Code Apps デザイン"
-  - "デザインパターン"
+  - "power-apps init"
+  - "power-apps push"
+  - "add-data-source"
+  - "DataverseService"
   - "Tailwind"
   - "shadcn"
   - "React"
   - "TypeScript"
+  - "Vite"
+  - "Code Apps デプロイ"
+  - "nameUtils パッチ"
   - "日本語サニタイズ"
+  - "Code Apps デザイン"
   - "UI 設計"
   - "コンポーネント選定"
   - "画面レイアウト"
@@ -21,32 +26,53 @@ triggers:
   - "ガントチャート"
   - "ダッシュボード"
   - "フォーム"
+  - "デザイン例"
+  - "iframe"
+  - "embed"
+  - "埋め込み"
   - "CSP"
   - "Content Security Policy"
-  - "埋め込み"
+  - "frame-src"
+  - "connect-src"
   - "メール送信"
+  - "PDF添付"
   - "PDF生成"
+  - "htmlToPdfBase64"
+  - "ContentBytes"
+  - "base64"
+  - "html2canvas"
+  - "jsPDF"
   - "日本地図"
   - "地図"
+  - "マップ"
+  - "JapanMap"
+  - "add-flow"
+  - "list-flows"
+  - "フロー呼び出し"
   - "フロー連携"
   - "AI Builder"
   - "詳細画面"
+  - "詳細ページ"
+  - "detail page"
+  - "RecordListPanel"
+  - "レコード一覧パネル"
   - "インライン編集"
+  - "executeAsync"
+  - "dataSourcesInfo"
   - "Copilot Studio コネクタ"
+  - "Copilot Studio 直接"
+  - "ExecuteCopilotAsyncV2"
+  - "shared_microsoftcopilotstudio"
   - "エージェント呼び出し"
+  - "会話継続"
+  - "conversationId"
   - "デプロイして"
+  - "プッシュして"
   - "ディープリンク"
+  - "deep link"
+  - "queryParams"
+  - "パラメータ渡し"
   - "URL パラメータ"
-  - "画像"
-  - "Image 列"
-  - "EntityImage"
-  - "downloadImageFromRecord"
-  - "uploadFileToRecord"
-  - "画像アップロード"
-  - "画像表示"
-  - "RecordImage"
-  - "ReactFlow"
-  - "可視化"
 ---
 
 # Code Apps 開発スキル
@@ -66,7 +92,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 ```
 [設計]  ① デザインテンプレートを選ばせる（6種・プレビュー付き）
-        ② 画面設計＋パターン選定（design-system / architecture-patterns）→ 承認ゲート
+        ② 画面設計（design-pattern）→ ユーザー承認
           │
 [§2 初回デプロイ]
         ③ テンプレート scaffold + npm install
@@ -82,32 +108,33 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
         ⑨ src/ 実装 → npm run build → pac code push（反復）
 ```
 
-> 章構成: §1 概要（本章・設計フェーズ）→ §2 初回デプロイ → §3 データソース接続 → §4 改善デプロイ → §5 リファレンス索引。
+### この後の章構成
 
-> [!TIP]
-> **`pac code add-data-source`（⑦）は `pac code init`（④）直後に実行してよい**（push 不要 / 検証済 2026-07-01）。
-> 全テーブルを先に追加してから初回 `pac code push`（⑥）すれば「空スケルトンを push → data source 追加 → 再 push」の二度手間を避けられる。
-> 生成される `dataSourcesInfo` のキーは **EntitySetName（複数形）**（`-t {prefix}_factory` → キー `{prefix}_factories`）。詳細は [ビルドリファレンス Step 4/6](references/build-reference.md)。
+| 章 | 内容 |
+|---|---|
+| §1 概要（本章） | 標準ワークフロー全体像・大前提・設計フェーズ（デザインテンプレート選択） |
+| [§2 初回デプロイ](#2-初回デプロイ) | 環境前提・scaffold・init・初回 build & push |
+| [§3 データソース接続](#3-データソース接続) | add-data-source・dataSourcesInfo・Lookup 名前解決 |
+| [§4 改善デプロイ](#4-改善デプロイ) | 開発時の必須ルール・再デプロイ・プレデプロイレビュー |
+| [§5 リファレンス](#5-リファレンス) | 全リファレンス索引・技術スタック・.env |
 
 > [!NOTE]
 > 本スキル内のコード例は `{prefix}_tablename` 等のプレースホルダーで汎用化されています。
 > 実際のテーブル名・型名は、あなたのプロジェクトのエンティティに読み替えてください。
 > パターン（Lookup 名前解決、SDK ラッパー、useMemo マップ等）はそのまま適用できます。
 
-### 設計フェーズ（実装前に必須・承認ゲート）
+### 設計フェーズ（実装前に必須）
 
-**コードを書く前に、デザインテンプレートの選択・UI 設計・デザインパターンの選定を行い、ユーザーの承認を得ること。承認前に `src/` の実装を開始しない。** 手順:
+**コードを書く前に、デザインテンプレートの選択と UI 設計を行い、ユーザーの承認を得ること。** 手順:
 
 1. [デザインテンプレート集](references/design-templates.md) の 6 種を一覧＋プレビューで提示し、ユーザーに 1 つ選んでもらう（デプロイされるアプリは常に 1 テンプレート。dark/light は `ThemeProvider` + `ModeToggle`）。
 2. [デザインシステム](references/design-pattern.md) を読み込み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計する。
-3. [デザインパターンカタログ](references/architecture-patterns.md) の選定マトリクスから、適用するアーキテクチャパターンをテーブル/画面ごとに選定する。
-4. 設計（テンプレート＋画面設計＋適用パターン一覧。提示項目は [デザインシステム](references/design-pattern.md) の表に従う）を提示し、承認を得る。
-5. 承認後、選択テンプレートの CSS Variables を `styles/index.pcss` に適用してから実装する（変数一式・適用手順は [デザインテンプレート集](references/design-templates.md)）。
+3. 設計（選択テンプレート＋画面設計）を提示し、「この設計で進めてよいですか？」と承認を得る。承認の証跡を残す場合は、[設計承認 Issue テンプレート](references/design-approval.yml) を対象プロジェクトの `.github/ISSUE_TEMPLATE/` にコピーして Issue を作成する。
+4. 承認後、選択テンプレートの CSS Variables を `styles/index.pcss` に適用してから実装する（変数一式・適用手順は [デザインテンプレート集](references/design-templates.md)）。
 
-> **承認ゲート**: 承認された設計が実装・§4 改善デプロイの唯一の基準。
-> 設計から逸脱する変更（画面・パターン・スキーマ）が必要になったら、差分を再提示して**再承認を得てから**続行する。
+> **CRUD 画面は [CRUD UI 標準パターン](references/crud-ui-pattern.md) に必ず従う**: 一覧は行／カード全体をクリックして詳細を開く（目アイコン等の小さなクリック領域は使わない）、詳細の編集はモーダルではなくインライン編集モード、行内の削除・クイック操作は `e.stopPropagation()`、削除確認はブラウザの `confirm()` ではなくモーダル（`useConfirm()` / AlertDialog）。**指示がなくても、テーブルごとに「一覧・詳細（インライン編集）・作成・削除」を標準実装すること。**
 
-> **CRUD 画面は [CRUD UI 標準パターン](references/crud-ui-pattern.md) に必ず従う**（行/カードクリックで詳細、詳細はインライン編集、削除確認は `confirm()` ではなく `useConfirm()` モーダル）。**指示がなくても、テーブルごとに「一覧・詳細（インライン編集）・作成・削除」を標準実装すること。**
+> **設計で提示する内容**: 選択テンプレート、画面一覧（ページ名・ルート）、各画面のコンポーネント構成、カラム定義、Lookup 名前解決方法（`_xxx_value` + `useMemo` Map）、ナビゲーション構造。
 
 > **大前提（ソリューション運用）**: Dataverse テーブル・Code Apps・Power Automate・Copilot Studio は同一ソリューション内に開発し、`.env` の `SOLUTION_NAME` / `PUBLISHER_PREFIX` を全フェーズで統一する。詳細は [`standard` スキル](../standard/SKILL.md)。
 
@@ -206,14 +233,7 @@ pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_{table_basename}
 python scripts/toggle_table_lang.py jp   # 日本語に復元
 ```
 
-> [!CAUTION]
-> **`npx power-apps add-data-source` は絶対に使わない**。`npx` 経由で実行すると対話プロンプト
-> （「このパッケージを install してよいか？」等）が発生し、**AI エージェント実行時にターミナルが
-> 無限にハングする**（入力待ちのまま停止し、タイムアウトするまで復帰しない）。
-> 必ず **`pac code add-data-source`**（PAC CLI サブコマンド）を使う。
-> `pac code add-data-source -a dataverse -t {table}` が正しいコマンド。
-
-> **日本語 DisplayName で `Failed to sanitize string` エラーが出る場合**の判断フロー・詳細手順は [日本語サニタイズリファレンス](references/japanese-sanitize.md) を参照。
+> **日本語 DisplayName で `Failed to sanitize string` エラーが出る場合**、および `npx power-apps add-data-source` をフォールバックで使う場合（`patch-nameutils.cjs` 適用）の判断フロー・詳細手順は [日本語サニタイズリファレンス](references/japanese-sanitize.md) を参照。
 
 ## 4. 改善デプロイ
 
@@ -316,7 +336,6 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 |---|---|
 | [デザインテンプレート集](references/design-templates.md) | 設計時に選択する配色テンプレート 6 種（プレビュー HTML・CSS Variables 一式・light/dark 対応） |
 | [デザインシステム](references/design-pattern.md) | shadcn/ui + Tailwind CSS v4 のコンポーネント選定・画面設計パターン |
-| [デザインパターンカタログ](references/architecture-patterns.md) | 設計時に選定するアーキテクチャパターン（レイヤード構成・サービスレイヤー・楽観的更新・エラーハンドリング標準）の選定マトリクス |
 | [コンポーネントカタログ](references/component-catalog.md) | 全コンポーネントの詳細仕様・使用例 |
 | [ステージ矢羽パターン](references/stage-path-pattern.md) | OptionSet（ステージ／ステータス）を Salesforce 風の矢羽で可視化・クリックで変更 |
 | [月間カレンダーパターン](references/calendar-pattern.md) | 日付を持つレコードを月間グリッドで俯瞰（date-fns のみ・依存追加なし・イベントチップ・今日ハイライト） |
@@ -336,9 +355,6 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [日本地図パターン](references/japan-map-pattern.md) | SVG 都道府県地図の実装パターン |
 | [高度な実装パターン](references/advanced-patterns.md) | マルチ環境・オフライン・i18n・パフォーマンス最適化パターン |
 | [プレデプロイレビュー](references/pre-deploy-review.md) | 「デプロイして」「プッシュして」時の自動チェック手順 |
-| [ReactFlow 可視化パターン](references/reactflow-patterns.md) | 関係性・依存関係・フロー図・ガントチャートをノードベースで可視化する実装パターン（`@xyflow/react`）。**可視化リクエストでは第一候補として検討する** |
 | [新規テーマ開始チェックリスト](references/new-theme-checklist.md) | 前テーマの残骸がないクリーン開始の確認手順・scaffold 時に含めないファイル |
 | [トラブルシューティング](references/troubleshooting.md) | 頻出エラーと対処法（GUID フィルタ・`.toLowerCase()` 統一・テンプレート削除時の use-theme 巻き添え 等） |
-| [画像列の表示パターン](references/image-handling.md) | Dataverse Image 列の表示・アップロード（`downloadImageFromRecord` → base64 data URI・失敗パターン・`pac` vs `npx` 差異） |
 | [サンプル作成ガイド](references/sample-authoring-guide.md) | 公開リポジトリ向けサンプルのセキュリティ要件・環境変数ルール・feature flag 命名規則 |
-| [.env サンプル](references/.env.example) | `scripts/` が参照する環境変数のプレースホルダー定義（実値はルートの `.env`） |
