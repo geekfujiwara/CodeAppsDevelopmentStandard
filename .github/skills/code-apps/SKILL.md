@@ -341,6 +341,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [月間カレンダーパターン](references/calendar-pattern.md) | 日付を持つレコードを月間グリッドで俯瞰（date-fns のみ・依存追加なし・イベントチップ・今日ハイライト） |
 | [ウィザードフォームパターン](references/wizard-form-pattern.md) | 入力項目の多いフォームを複数ステップに分割（ステップインジケーター・ステップ別バリデーション・確認画面） |
 | [CSV エクスポートパターン](references/csv-export-pattern.md) | フィルター適用後の一覧を UTF-8 BOM 付き CSV でダウンロード（Excel 日本語対応・OptionSet ラベル変換） |
+| [パレート図パターン](references/pareto-chart-pattern.md) | 不良分析・ABC 分析などの分類別集計を降順棒 + 累積構成比折れ線 + 80% 基準線で可視化（重点対策対象の強調色） |
 | [構築リファレンス](references/build-reference.md) | ビルド・デプロイの詳細手順・vite.config.ts 必須設定・TypeScript エラー対処 |
 | [データソースパターン](references/data-source-patterns.md) | SDK 生成サービス・dataSourcesInfo・getClient(dataSourcesInfo)・TanStack React Query |
 | [Lookup 名前解決](references/lookup-resolution.md) | クライアントサイド名前解決・OData FormattedValue パターン・所有者（Owner）列の表示 |

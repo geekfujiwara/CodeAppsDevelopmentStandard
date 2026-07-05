@@ -67,6 +67,7 @@ skill-name/
 | Geek Quote | `code-apps/samples/geek-quote/` | 見積・請求（明細行の金額自動計算・見積書プレビュー・受注→請求作成） |
 | Geek Safety | `code-apps/samples/geek-safety/` | 安全衛生（ヒヤリハット報告・是正措置追跡・重大度/拠点別集計） |
 | Geek Training | `code-apps/samples/geek-training/` | 研修管理（研修カタログ・受講申込・修了率/満足度集計） |
+| Geek Quality | `code-apps/samples/geek-quality/` | 製造業・品質検査（生産ライン検査・歩留まり自動計算・不良分類パレート図） |
 | Power Pages ポータル | `power-pages/samples/portal/` | Power Pages サイト実体（web-templates / page-templates） |
 | Corporate LP テンプレート | `power-pages/templates/corporate-lp/` | コーポレート LP（雛形として利用可） |
 
