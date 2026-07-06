@@ -68,6 +68,7 @@ skill-name/
 | Geek Training | `code-apps/samples/geek-training/` | 研修管理（研修カタログ・受講申込・修了率/満足度集計） |
 | Geek Quality | `code-apps/samples/geek-quality/` | 製造業・品質検査（生産ライン検査・歩留まり自動計算・不良分類パレート図） |
 | Geek Store | `code-apps/samples/geek-store/` | 小売業・店舗運営（臨店チェック・チェックリスト採点・店舗別スコア集計） |
+| Geek Punchlist | `code-apps/samples/geek-punchlist/` | 建設業・竣工検査（指摘事項・是正ワンクリック送り・場所×分類マトリクス） |
 | Power Pages ポータル | `power-pages/samples/portal/` | Power Pages サイト実体（web-templates / page-templates） |
 | Corporate LP テンプレート | `power-pages/templates/corporate-lp/` | コーポレート LP（雛形として利用可） |
 
