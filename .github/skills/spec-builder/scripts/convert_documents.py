@@ -157,6 +157,39 @@ def discover_files(input_path: Path, staging_dir: Path, docs_dir: Path) -> list[
     return files
 
 
+WORKSPACE_SCAN_EXCLUDE_DIR_NAMES = {
+    ".git",
+    ".github",
+    ".cache",
+    "node_modules",
+    "dist",
+    "build",
+    ".venv",
+    "venv",
+    "__pycache__",
+}
+
+
+def scan_workspace_for_candidates(
+    workspace_root: Path, input_path: Path, staging_dir: Path, docs_dir: Path
+) -> list[Path]:
+    """spec/input/ 以外も含め、ワークスペース全体から変換対象になりうるファイルを探す。"""
+
+    input_resolved = input_path.resolve()
+    exclude_paths = {input_resolved, staging_dir.resolve(), docs_dir.resolve()}
+
+    candidates: list[Path] = []
+    for path in sorted(workspace_root.rglob("*")):
+        if not path.is_file() or path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            continue
+        if any(part in WORKSPACE_SCAN_EXCLUDE_DIR_NAMES for part in path.parts):
+            continue
+        if any(excluded == path or excluded in path.parents for excluded in exclude_paths):
+            continue
+        candidates.append(path)
+    return candidates
+
+
 
 def sha256_of(path: Path) -> str:
     digest = hashlib.sha256()
@@ -569,8 +602,21 @@ def main() -> int:
 
     files = discover_files(input_path, output_staging, docs_dir)
     if not files:
+        candidates = scan_workspace_for_candidates(
+            REPOSITORY_ROOT, input_path, output_staging, docs_dir
+        )
+        if candidates:
+            candidate_list = "\n".join(
+                f"  - {path.relative_to(REPOSITORY_ROOT)}" for path in candidates
+            )
+            raise SystemExit(
+                f"`{input_path}` に変換対象ファイルが見つかりません。"
+                " ワークスペース全体をスキャンしたところ、以下の変換候補ファイルが見つかりました。"
+                f" `{DEFAULT_INPUT_DIR}` に移動するか `--input` で対象を指定してください。\n"
+                f"{candidate_list}"
+            )
         raise SystemExit(
-            "変換対象ファイルが見つかりません。"
+            "変換対象ファイルが見つかりません（ワークスペース全体をスキャンしましたが候補もありませんでした）。"
             f" 対応拡張子: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
         )
 

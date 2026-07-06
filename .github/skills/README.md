@@ -1,7 +1,6 @@
 # AI ファースト開発標準 Skills カタログ
 
 AI ファースト開発標準（Power Platform / Azure）で使用するスキル群。
-Anthropic「The Complete Guide to Building Skills for Claude」の Planning and Design チャプターに基づき構成。
 
 ## スキル構成規約
 
