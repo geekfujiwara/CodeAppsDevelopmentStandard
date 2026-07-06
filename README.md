@@ -106,17 +106,20 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 
 要件:
 1. PowerShell 7 を最優先で導入し、以後の作業は PowerShell 7 で確認する。
-2. Git / Node.js LTS / Python 3.12 を導入する。
-3. Power Platform は PP CLI のみ導入する（VS Code 拡張は入れない）。
-4. PATH 未反映の可能性を考慮し、実体パス確認と PATH 反映を行う。
-5. `gh auth status` で GitHub CLI のログイン状態を確認する（未ログインなら `gh auth login` を案内）。
-6. リポジトリの fork / clone / `npm install` は実行しない。次のステップとしてクイックスタートへ案内する。
+2. VS Code の既定ターミナルプロファイルを PowerShell 7 に設定する（`terminal.integrated.defaultProfile.windows` を `PowerShell` = pwsh 7 にする）。クイックスタートのコマンドは `&&` を使用しており、`&&` は PowerShell 7 以降でのみ動作するため。
+3. Git / Node.js LTS / Python 3.12 を導入する。
+4. Power Platform は PP CLI のみ導入する（VS Code 拡張は入れない）。
+5. PATH 未反映の可能性を考慮し、実体パス確認と PATH 反映を行う。特に Node.js インストール直後は `npx` が既存ターミナルで認識されないことがあるため、新しいターミナル（新しい PS7 セッション）を開いて再確認する。
+6. `gh auth status` で GitHub CLI のログイン状態を確認する（未ログインなら `gh auth login` を案内）。
+7. リポジトリの fork / clone / `npm install` は実行しない。次のステップとしてクイックスタートへ案内する。
 
 検証コマンド:
 - $PSVersionTable.PSVersion
 - git --version
 - node --version
 - npm --version
+- npx --version
+- Write-Output A && Write-Output B  （`&&` が PS7 で動作することを確認。エラーになる場合は PowerShell 5.1 のままなので既定ターミナルプロファイルの設定を見直す）
 - python --version
 - py --version
 - pac help  （ヘッダの Version を確認）
@@ -128,10 +131,11 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 - 長いワンライナーは避け、一時的な `.ps1` ファイルに処理を書いて PS7 で実行する。
 - PS7 への初回切り替えは `pwsh` が未解決でも進められるよう、`C:\Users\<user>\AppData\Local\Microsoft\WindowsApps\pwsh.exe` の実体パス実行を優先する。
 - VS Code CLI など PATH 未反映の可能性があるコマンドは実体パス呼び出しを優先する。
-- 最終検証は「PS7 セッション」と「作業開始時の既存セッション」の両方で確認する。
+- 最終検証は「新規に開いた PS7 セッション」と「作業開始時の既存セッション」の両方で確認する。特に `npx --version` と `&&` の検証は、Node.js 導入後に新しく開いたターミナルで行う。
 - 実行結果は「導入済み」「要再起動」「PATH 反映待ち」を分けて報告する。
 - 最後のユーザー向けコメントには以下を含める:
   - 「環境準備 OK（ツール導入と動作確認まで完了）」の明示
+  - クイックスタートのコマンドは新しい VS Code ウィンドウ／ターミナル（既定プロファイルが PowerShell 7 のもの）で実行するよう案内すること
   - 次のアクションとして README の「クイックスタート」を実行してローカルに clone することを案内
   - クイックスタートはリモートに fork せず、本リポジトリをローカルに直接 clone する方針である旨を補足
   - クイックスタート完了後は、VS Code の Copilot チャット（`Ctrl+Alt+I`）を開き、入力欄に `@GeekPowerCode` と入力してカスタムエージェントを選択し、作りたいテーマを伝えて開発開始すること
@@ -140,6 +144,9 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 
 > [!TIP]
 > `pac --version` は無効なため、バージョン確認は `pac help` のヘッダ表示を利用します。
+
+> [!TIP]
+> クイックスタートのコマンドで `npx` や `&&` が実行できないというエラーが出る場合は、(1) PowerShell 5.1 のターミナルを使っている、(2) Node.js インストール前に開いたターミナルをそのまま使っている、のいずれかが原因です。VS Code を再起動するか新しいターミナル（既定プロファイル: PowerShell 7）を開いてから再実行してください。
 
 完了したら [クイックスタート](#クイックスタート) に戻ってください。
 
