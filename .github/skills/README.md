@@ -70,6 +70,7 @@ skill-name/
 | Geek Store | `code-apps/samples/geek-store/` | 小売業・店舗運営（臨店チェック・チェックリスト採点・店舗別スコア集計） |
 | Geek Punchlist | `code-apps/samples/geek-punchlist/` | 建設業・竣工検査（指摘事項・是正ワンクリック送り・場所×分類マトリクス） |
 | Geek Delivery | `code-apps/samples/geek-delivery/` | 物流・配送管理（配送便・車両・配達トラッキング・縦タイムライン） |
+| Geek HACCP | `code-apps/samples/geek-haccp/` | 飲食・HACCP 温度/衛生点検（管理基準の上下限判定・しきい値ゲージ・適合率/逸脱ヒートマップ） |
 | Power Pages ポータル | `power-pages/samples/portal/` | Power Pages サイト実体（web-templates / page-templates） |
 | Corporate LP テンプレート | `power-pages/templates/corporate-lp/` | コーポレート LP（雛形として利用可） |
 
