@@ -66,6 +66,7 @@ Cowork から Dataverse を直接操作できるようにする。
 | [scripts/setup_entra_oauth_graph.py](scripts/setup_entra_oauth_graph.py) | **（推奨）** Entra OAuth クライアントアプリを Microsoft Graph API 経由で作成。auth_helper.py のキャッシュ済み認証を利用するため追加のデバイスコード認証が不要（Step 3） |
 | [scripts/setup_entra_oauth.ps1](scripts/setup_entra_oauth.ps1) | （代替）az CLI 経由で同等の処理。az login のデバイスコード認証が必要（Step 3） |
 | [scripts/register_mcp_client.py](scripts/register_mcp_client.py) | Client ID を Dataverse 許可 MCP クライアント（`allowedmcpclients`）に登録・有効化・確認（Step 4） |
+| [scripts/build_agent_package.ps1](scripts/build_agent_package.ps1) | `.env` の `COWORK_OAUTH_REGISTRATION_ID`（引用符付きでも可）を manifest.json のプレースホルダーに注入し、必須ファイルを検証して .zip を生成（Step 7） |
 
 ## ワークフロー（正常系）
 
@@ -237,7 +238,9 @@ python .github/skills/cowork/scripts/register_mcp_client.py --app-id <CLIENT_ID>
 | Authorization endpoint | `https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/authorize` |
 | Token endpoint | `https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/token` |
 | Refresh endpoint | `https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/token` |
-| Scope | `https://<org>.crm.dynamics.com/.default offline_access`（`.default` で静的権限＝`mcp.tools`、`offline_access` でリフレッシュトークン） |
+| Scope | `https://<org>.crm.dynamics.com/.default,offline_access`（**カンマ区切り**。UI のヘルプ文言が
+  「separated by a comma」のため半角スペース区切りでは受け付けない環境がある。`.default` で静的権限＝
+  `mcp.tools`、`offline_access` でリフレッシュトークン） |
 | Enable PKCE | 有効（推奨） |
 | Restrict usage by org | `My organization only`（単一テナント）／`Any Microsoft 365 Organization`（複数テナント配布時） |
 | Restrict usage by app | `Any Teams app`（**ストア検証が通るまではこちら**。公開・疎通確認後に Existing Teams app へ切替可） |
@@ -274,7 +277,7 @@ Save すると **OAuth client registration ID** が発行される。これを `
           "mcpToolDescription": { "file": "dataverse-mcp-tools.json" },
           "authorization": {
             "type": "OAuthPluginVault",
-            "referenceId": "<Step 5 の OAuth registration ID（.env の COWORK_OAUTH_REGISTRATION_ID）>"
+            "referenceId": "__COWORK_OAUTH_REGISTRATION_ID__"
           }
         }
       }
@@ -283,6 +286,9 @@ Save すると **OAuth client registration ID** が発行される。これを `
 }
 ```
 
+- **`referenceId` はプレースホルダー `__COWORK_OAUTH_REGISTRATION_ID__` のまま source に残す**（Step 5 の
+  実 registration ID を直接コミットしない）。実値は `.env` の `COWORK_OAUTH_REGISTRATION_ID` に置き、
+  Step 7 のビルドスクリプトが zip 生成時に注入する。
 - `id` は `python -c "import uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, '<安定URL>'))"` で決定的に生成。
 - **`mcpToolDescription` は必須**（公式 docs の例は省略しているが、M365 管理センターのアップロード検証が必須化）。
   値は **オブジェクト `{ "file": "<相対パス>" }`**（文字列不可）。参照先ファイルは **JSON 形式の tools 定義**でなければ
@@ -303,18 +309,37 @@ Save すると **OAuth client registration ID** が発行される。これを `
     ]
   }
   ```
-- アイコンは `generate_icon_png.py`（standard/scripts）の `draw_agent_icon(192...)` / `draw_agent_icon(32, transparent_bg=True, outline_only=True)` で生成可。
+- **アイコンはドメイン文脈を読んでから設計する**（→ [standard/references/icon-creation.md](../standard/references/icon-creation.md)
+  の「アイコン画像提案フロー」）。`generate_icon_png.py` の汎用スパークルをそのまま登録しない。
+  この manifest の `name`/`description`（プラグインの業務目的）と `accentColor` からモチーフ・配色を決め、
+  プラグイン専用の `draw_<theme>_icon()` を実装してから `color.png`（192×192）/ `outline.png`（32×32,
+  白い透明背景）を生成する。
 
 ### Step 7: パッケージ（.zip）をビルド
 
 **manifest.json をルートに**置いて圧縮する（フォルダごと圧縮しない）。ツール説明 JSON も含める。
+**`.env` から `COWORK_OAUTH_REGISTRATION_ID` を読み `__COWORK_OAUTH_REGISTRATION_ID__` に注入**してから zip 化する
+（手作業で referenceId を manifest に直接埋めない＝取り違え・コミット事故を防ぐ）。
+
+**再利用スクリプト（推奨）**: [scripts/build_agent_package.ps1](scripts/build_agent_package.ps1)。
+`.env` の値が `'...'`／`"..."` で囲まれていても**引用符を自動で取り除いて**から注入する
+（引用符付きのまま注入すると `referenceId` が壊れ、Cowork 初回同意時にコネクタ認証が失敗する）。
 
 ```powershell
-Compress-Archive -Path manifest.json, color.png, outline.png, dataverse-mcp-tools.json, skills `
+pwsh .github/skills/cowork/scripts/build_agent_package.ps1 -PluginRoot <plugin-root> -OutputName <name>
+```
+
+手動で行う場合の同等コマンド（quote-stripping を忘れないこと）:
+
+```powershell
+$regId = (Get-Content .env | Select-String '^COWORK_OAUTH_REGISTRATION_ID=').ToString().Split('=',2)[1].Trim("'", '"')
+(Get-Content manifest.json -Raw) -replace '__COWORK_OAUTH_REGISTRATION_ID__', $regId | Set-Content manifest.built.json
+Compress-Archive -Path manifest.built.json, color.png, outline.png, dataverse-mcp-tools.json, skills `
   -DestinationPath dist/<name>.zip -Force
 ```
 
-ZIP 検証: ルートに `manifest.json` / `dataverse-mcp-tools.json`、`skills/<skill-name>/SKILL.md` が含まれること。
+ZIP 検証: ルートに `manifest.json`（build 後、プレースホルダーが実 ID に置換済み）/ `dataverse-mcp-tools.json`、
+`skills/<skill-name>/SKILL.md` が含まれること。
 
 ### Step 8: アップロード（M365 管理センター → エージェント画面）
 
