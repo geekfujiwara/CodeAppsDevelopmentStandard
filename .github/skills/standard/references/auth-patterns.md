@@ -1,5 +1,13 @@
 # Power Platform 認証パターンリファレンス
 
+## 前提: スクリプトは常に非対話で完走する
+
+新規に作成・実行するスクリプトは、**初回のデバイスコード認証がキャッシュ済みであること**を前提に、以降は認証の対話待ちが一切発生せず最後まで自動実行できるように書く。
+
+- 認証は必ず `auth_helper.py` 経由（`requests` 直呼び出し・MSAL 直接呼び出しは禁止）
+- スクリプト内でユーザーに認証情報の入力を求めるプロンプトを出さない
+- 実行時に対話待ちが発生した場合は、スクリプトの認証部分を疑い `auth_helper.py` の呼び出し方法を見直す（新しい認証フローを自作しない）
+
 ```python
 from auth_helper import get_token, get_session, api_get, api_post, api_patch, api_delete, retry_metadata
 
