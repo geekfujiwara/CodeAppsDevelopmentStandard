@@ -50,6 +50,7 @@ spec/                          ← スキル専用ディレクトリ
 - 既定 docs 出力: `spec/output/docs/`
 - 既定 checklist: `spec/.cache/conversion-checklist.json`
 - `--input` / `--staging` / `--docs`（互換: `--output`）/ `--checklist` を指定した場合はそのパスを優先する
+- `spec/input/` に変換対象が見つからない場合、`scripts/convert_documents.py` はワークスペース・フォルダ全体をスキャンし、変換候補になりうるファイルがないか確認する。候補が見つかった場合は一覧を提示するので、`spec/input/` へ移動するか `--input` で対象パスを指定する
 
 ## 処理フロー
 
@@ -77,6 +78,7 @@ spec/                          ← スキル専用ディレクトリ
 ## 基本フロー
 
 1. `scripts/convert_documents.py` で input 配下を走査する
+   - `spec/input/` に変換対象がなければ、ワークスペース・フォルダ全体をスキャンして変換候補ファイルの有無を確認し、見つかった場合は一覧を提示する
 2. 各ファイルの staging ファイルを `spec/output/staging/` に作成する
    - ファイル名は `元のファイル名.元の拡張子.MD`（例: `要件定義.docx.MD`）
 3. 画像ファイルは `spec/.cache/pending_ocr.json` に記録し、agent-ocr で後続処理する
