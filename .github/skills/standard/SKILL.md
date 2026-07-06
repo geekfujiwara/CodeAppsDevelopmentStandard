@@ -48,6 +48,7 @@ triggers:
 | [認証リファレンス](references/auth-patterns.md) | auth_helper.py の詳細実装・認証パターン |
 | [.env サンプル](references/.env.example) | 全フェーズ共通の `.env` テンプレート（各テーマで `.env` にコピーして値を設定） |
 | [Dataverse MCP 登録](references/dataverse-mcp-setup.md) | VS Code / Copilot から Dataverse を直接操作する MCP サーバー登録手順（upsert_skill 等） |
+| [Playwright MCP テンプレート](references/mcp.json) | 標準の Playwright MCP（`npx @playwright/mcp@latest`）を `.vscode/mcp.json` へ配置するテンプレート。ポータルのフォーム入力等ブラウザ操作の自動化に使用 |
 
 ### 共有ユーティリティ（複数スキルから参照される横断リファレンス）
 
