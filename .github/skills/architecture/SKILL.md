@@ -59,7 +59,7 @@ triggers:
 | **Canvas Apps**       | （常に対象外 — パフォーマンス・カスタマイズ性・エンタープライズ運用の観点で不採用）           | —                                                                |
 | **Model-Driven Apps** | Dataverse 標準 UI、フォーム/ビュー/ダッシュボードの自動生成、ビジネスルール統合              | カスタムビジュアル、外部 JS ライブラリ、ノーコード開発者       |
 | **Power Pages**       | 外部ユーザー向けポータル・公開サイト、認証/匿名アクセス、Dataverse 連携、テーブル権限による公開制御 | 複雑なサーバーサイド処理、SSR/ISR、内部業務向けの複雑なリッチ UI |
-| **AI Builder**        | 定型 AI タスク（分類・抽出・要約）、再利用可能な AI プロンプト、エージェントのツール化 | リアルタイム対話、複雑な推論チェーン（★ §6 参照: AI プロンプト優先） |
+| **AI Builder**        | **Power Automate フロー内**に組み込む定型 AI 処理（通知・リマインド等、イベント駆動でチャット UI を使わない場合のみ） | チャット UI での対話・社内汎用業務全般（★ §6 参照: 原則 Cowork、AI Builder は限定的採用） |
 | **Dataverse**         | リレーショナルデータ、行レベルセキュリティ、監査、ビジネスルール                             | 大量ログデータ、非構造化データ、全文検索                       |
 | **Copilot Cowork プラグイン** | 自然言語での業務データ登録・照会（Dataverse MCP 経由）、M365 Copilot 上での入力、SKILL.md による業務知識の付与 | リッチな一覧/編集 UI、複雑なビジュアル、外部/匿名公開 |
 
@@ -81,11 +81,15 @@ triggers:
     ├─ データの閲覧・編集 UI が必要？ ──→ YES ──→ 【Code Apps / Power Pages or Azure / Model-Driven Apps】（§5 へ、Canvas Apps は常に対象外）
     │                                    NO
     │                                    ↓
-    ├─ 再利用可能な AI 処理が必要？ ──→ YES ──→ 【AI Builder】（§6 へ）
+    ├─ Power Automate フロー内にイベント駆動（非チャット UI）で AI 処理を組み込みたい？
+    │     （例: 通知・リマインドの文面生成、条件判定への AI 組み込み） ──→ YES ──→ 【AI Builder】（§6 へ）
     │                                   NO
     │                                   ↓
     └─ データモデル/ストレージが必要？ ──→ YES ──→ 【Dataverse のみ】
 ```
+
+> **社内汎用業務は原則 Cowork（Dataverse + Code Apps）で実現する**。AI Builder は「通知・リマインド等で
+> Power Automate フロー内に AI 処理を組み込みたい」イベント駆動・非チャット UI のケースに限定して採用する（§6 参照）。
 
 ### 2.1.1 「対話型が必要」の分岐: まず Cowork プラグインを検討する（★重要）
 
@@ -282,18 +286,46 @@ Model-Driven Apps を使う条件（いずれかに該当）:
 
 ## 6. AI Builder を使う判断ポイント
 
-### 基本方針: AI プロンプト（カスタムプロンプト）を常に優先する
+### 基本方針: AI Builder は基本的に利用しない。社内汎用業務は Cowork で実現する
 
-**AI プロンプト（カスタムプロンプト）を常に優先**する。プロンプトテキストだけで実現でき、トレーニングデータ不要・即時更新で導入/保守コストが圧倒的に低い。請求書処理・ドキュメント抽出も、まず AI プロンプト + document 入力で検討し、OCR 精度が必須等プレビルトでしか実現できない場合のみプレビルトを使う。
+**社内の汎用業務は、ほぼ Cowork（Dataverse + Code Apps）で実現できる**。
+利用者がチャットで話しかけて Dataverse に登録・照会し、Code Apps で結果を見る構成（§2.1.1・§5 参照）を第一候補とし、
+AI Builder を安易に採用しない。
+
+**AI Builder を使うのは次の限定的なケースのみ**:
+
+> **通知・リマインド等で Power Automate の中に AI 処理を組み込みたいとき**に AI Builder を使う。
+> どうしてもチャット UI ではなく、**イベント駆動でフロー内に AI 処理を組み込む必要がある**場合に限り、
+> Power Automate フロー内で AI Builder（AI プロンプト）を呼び出すパターンを採用する。
+> それ以外（対話型・社内汎用業務全般）は **Cowork** を使う。
+
+```
+AI 処理が必要
+    │
+    ├─ チャットで話しかけて実行する（有人・能動的） ──→ 【Cowork プラグイン】（§2.1.1 へ）
+    │
+    ├─ イベント駆動で無人実行し、自律的な判断・応答が必要 ──→ 【Copilot Studio + Power Automate】（§3・§4 へ）
+    │
+    └─ イベント駆動（非チャット UI）で、Power Automate フロー内に
+       定型 AI 処理（通知文生成・分類・抽出等）を組み込みたいだけ
+          ──→ 【Power Automate + AI Builder】（本節）
+```
+
+### AI プロンプト（カスタムプロンプト）を常に優先する
+
+AI Builder を採用すると決まった場合、実装方式は **AI プロンプト（カスタムプロンプト）を常に優先**する。プロンプトテキストだけで実現でき、トレーニングデータ不要・即時更新で導入/保守コストが圧倒的に低い。請求書処理・ドキュメント抽出も、まず AI プロンプト + document 入力で検討し、OCR 精度が必須等プレビルトでしか実現できない場合のみプレビルトを使う。
 
 > プレビルト/カスタムモデルとの詳しい比較は [コンポーネント選定 詳細](references/component-selection-details.md#5-ai-builder-ai-プロンプト優先の方針) を参照。
 
-**使う**: 定型 AI 処理の再利用・エージェントのツール化・入力→出力が明確なタスク・Power Automate のアクション・ドキュメント抽出。
-**使わない**（→ 代替）: 対話形式／リアルタイム応答／1 回限りの分析 → **Copilot Studio**。
+**使う**: 通知・リマインド等、**Power Automate フロー内**にイベント駆動（非チャット UI）で組み込む定型 AI 処理（文面生成・分類・抽出等）。
+**使わない**（→ 代替）: 社内汎用業務全般・チャットで話しかけて登録/照会する業務 → **Cowork プラグイン**、対話形式／リアルタイム応答／1 回限りの分析 → **Copilot Studio**。
 
 > 使う場面/使わない場面の詳細表は [コンポーネント選定 詳細](references/component-selection-details.md#4-ai-builder-使う場面--使わない場面) を参照。
 
 ### Copilot Studio の Instructions vs AI Builder プロンプトの判断
+
+> 前提: この判断は「Copilot Studio エージェント or Power Automate フロー内で AI 処理を使う」と決まった後の実装方式の選択。
+> 社内汎用業務のチャット対話そのものは、まず §2.1.1 に従い **Cowork** を検討する。
 
 ```
 Q: その AI 処理は再利用するか？
@@ -325,9 +357,9 @@ Q: その AI 処理は再利用するか？
 - [ ] **イベント駆動の自動処理が必要か？** → YES なら Power Automate を含む構成
 - [ ] **データ操作 UI が必要か？** → YES で外部ユーザー向けなら既定 Azure（Power Pages 宣言時のみ Power Pages）、内部ユーザー向けなら Code Apps / Model-Driven Apps を含む構成（Canvas Apps は常に対象外）
 - [ ] **標準ビュー/フォームで十分か？** → YES なら Model-Driven Apps が最速。カスタム UI なら Code Apps
-- [ ] **再利用可能な AI 処理が必要か？** → YES なら AI Builder を含む構成
+- [ ] **通知・リマインド等で Power Automate フロー内に、チャット UI を使わずイベント駆動で AI 処理を組み込みたいか？** → YES なら AI Builder を含む構成。それ以外の社内汎用業務は原則 Cowork
 - [ ] **確定的な処理か、LLM 判断が必要か？** → 確定的なら Power Automate、LLM なら Copilot Studio
 - [ ] **応答文の生成が必要か？** → YES なら Copilot Studio
 - [ ] **外部トリガー（メール/スケジュール）でエージェントを起動するか？** → YES なら Power Automate + Copilot Studio
-- [ ] **複数エージェント/フローから共用する AI 処理があるか？** → YES なら AI Builder で共通化
+- [ ] **複数エージェント/フローから共用する AI 処理があるか？** → YES かつ Power Automate フロー内での利用なら AI Builder で共通化（社内汎用業務は Cowork を優先）
 - [ ] **画面設計はブロックの組み合わせで決めたか？** → 同じ CRUD をテーブル数だけ量産しない。可視化ニーズがあれば **ReactFlow を第一候補**に（[設計リファレンス §4](references/design-patterns.md#4-画面設計ブロックの組み合わせテンプレ化しない設計)）
