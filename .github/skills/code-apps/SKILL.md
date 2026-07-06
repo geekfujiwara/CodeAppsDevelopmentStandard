@@ -344,6 +344,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [パレート図パターン](references/pareto-chart-pattern.md) | 不良分析・ABC 分析などの分類別集計を降順棒 + 累積構成比折れ線 + 80% 基準線で可視化（重点対策対象の強調色） |
 | [チェックリスト採点パターン](references/checklist-scoring-pattern.md) | 点検・監査系業務の判定トグル・スコア自動計算（対象外を分母から除外）・テンプレート一括生成・親レコードへのスコア同期 |
 | [クロス集計マトリクスパターン](references/cross-tab-pattern.md) | 2 軸の組み合わせ件数をヒート色付きピボット表で俯瞰（行列自動生成・合計行/列・追加依存なし） |
+| [縦タイムライン/ステッパーパターン](references/timeline-stepper-pattern.md) | 順序を持つ項目の進行状態を縦に可視化（done/current/problem/pending・行ごとに操作ボタン差込可・追加依存なし） |
 | [構築リファレンス](references/build-reference.md) | ビルド・デプロイの詳細手順・vite.config.ts 必須設定・TypeScript エラー対処 |
 | [データソースパターン](references/data-source-patterns.md) | SDK 生成サービス・dataSourcesInfo・getClient(dataSourcesInfo)・TanStack React Query |
 | [Lookup 名前解決](references/lookup-resolution.md) | クライアントサイド名前解決・OData FormattedValue パターン・所有者（Owner）列の表示 |
