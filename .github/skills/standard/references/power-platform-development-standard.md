@@ -324,7 +324,7 @@ envs = flow_api_call("GET", "/providers/Microsoft.ProcessSimple/environments")
 python .github/skills/standard/scripts/auth_helper.py
 ```
 
-> **ルール**: 認証レコード（`.auth_record.json`）は `.gitignore` に含まれ、リポジトリにコミットされない。何度もデバイスコード認証を求めるスクリプトは禁止。必ず `auth_helper` 経由で認証し、キャッシュを再利用すること。
+> **ルール**: 認証レコード（`~/.power-platform-cli/auth_record.json`）はリポジトリ外（ホームディレクトリ）に保存され、コミット対象にならない。何度もデバイスコード認証を求めるスクリプトは禁止。必ず `auth_helper` 経由で認証し、マシン全体で共有されるキャッシュを再利用すること。
 
 ### 2.4 Dataverse MCP サーバー設定
 

@@ -12,7 +12,7 @@
 1. **PAC プロファイルから環境を取得** — `pac auth list` のプロファイルを `pac org who` で解決し、環境候補（URL / 環境 ID）を一覧化する。
 2. **どの環境にするか AskUserQuestion** — エージェントが一覧をユーザーに提示し、利用環境を選ばせる。
 3. **デバイスコード認証** — 選択環境で `.env` を構成し、`auth_helper.py` のデバイスコード認証をトリガーする。エージェントは表示されたコードと URL をユーザーに伝え、ブラウザでサインインしてもらう。
-4. **auth_helper に認証を保存** — 認証成功時に `AuthenticationRecord`（`.auth_record.json`）と MSAL 永続キャッシュへ保存され、以降の Python スクリプトはデバイスコード入力なしで認証される。
+4. **auth_helper に認証を保存** — 認証成功時に `AuthenticationRecord`（`~/.power-platform-cli/auth_record.json`、ホームディレクトリ配下でマシン全体共有）と MSAL 永続キャッシュへ保存され、以降は**このマシン上のどのプロジェクトでも** Python スクリプトはデバイスコード入力なしで認証される。
 
 ```powershell
 # 1〜2: 環境候補を一覧表示（この出力を AskUserQuestion で提示する）
