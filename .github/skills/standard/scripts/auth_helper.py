@@ -21,21 +21,25 @@ PAC CLI 認証の仕組み:
   - JWT の exp クレームから有効期限を取得してインメモリキャッシュで管理
   - pac CLI が見つからない・失敗した場合は DeviceCode フローへ自動フォールバック
 
-DeviceCode 認証の仕組み（2 層キャッシュ）:
-  1. AuthenticationRecord (.auth_record.json)
+DeviceCode 認証の仕組み（2 層キャッシュ・マシン全体で共有）:
+  1. AuthenticationRecord (~/.power-platform-cli/auth_record.json)
      - アカウント情報（テナント・ユーザー等）を保存
+     - プロジェクトフォルダに依存しない固定パス（ホームディレクトリ配下）に保存するため、
+       同一マシン上の別プロジェクトからも再利用される
      - これだけではトークンは保存されない
   2. TokenCachePersistenceOptions (MSAL 永続トークンキャッシュ)
-     - リフレッシュトークン・アクセストークンをOS資格情報ストアに永続化
+     - リフレッシュトークン・アクセストークンをOS資格情報ストアに永続化（同一マシンで共有）
      - AuthenticationRecord と組み合わせることでサイレントリフレッシュが可能
 
 動作:
-  - 初回: DeviceCodeCredential でデバイスコード認証
-         → AuthenticationRecord をファイルに保存
+  - 初回（このマシンで最初の1回のみ）: DeviceCodeCredential でデバイスコード認証
+         → AuthenticationRecord をグローバルパスに保存
          → MSAL トークンキャッシュにリフレッシュトークンを永続化
-  - 2回目以降: AuthenticationRecord をロード
+  - 2回目以降（別プロジェクトでも）: AuthenticationRecord をロード
          → MSAL キャッシュからリフレッシュトークンを取得
          → サイレントリフレッシュ（デバイスコード不要）
+  - テナント/アカウントを切り替えたい場合のみ、~/.power-platform-cli/auth_record.json を
+    削除して再度デバイスコード認証を行う
 
 使い方:
   from auth_helper import get_token, get_session, retry_metadata
@@ -81,9 +85,29 @@ TENANT_ID: str = os.getenv("TENANT_ID", "")
 DATAVERSE_URL: str = os.getenv("DATAVERSE_URL", "").rstrip("/")
 PAC_AUTH_PROFILE: str = os.getenv("PAC_AUTH_PROFILE", "")
 
-# AuthenticationRecord の保存先（プロジェクトルートの .auth_record.json）
-_PROJECT_ROOT = Path(__file__).resolve().parent
-AUTH_RECORD_PATH: Path = _PROJECT_ROOT / ".auth_record.json"
+# AuthenticationRecord の保存先（マシン全体で共有・プロジェクトをまたいで再利用する）
+# ※ プロジェクトごとにディレクトリが変わると毎回デバイスコード認証が必要になるため、
+#   ホームディレクトリ配下の固定パスに保存する（PP_AUTH_RECORD_PATH で上書き可能）。
+_DEFAULT_AUTH_RECORD_PATH = Path.home() / ".power-platform-cli" / "auth_record.json"
+AUTH_RECORD_PATH: Path = Path(
+    os.environ.get("PP_AUTH_RECORD_PATH", str(_DEFAULT_AUTH_RECORD_PATH))
+).expanduser()
+
+# 旧バージョン（プロジェクトルート直下）との互換: グローバルキャッシュが無く、
+# 旧パスにレコードが残っている場合は自動移行する。
+_LEGACY_AUTH_RECORD_PATH = Path(__file__).resolve().parent / ".auth_record.json"
+if not AUTH_RECORD_PATH.exists() and _LEGACY_AUTH_RECORD_PATH.exists():
+    try:
+        AUTH_RECORD_PATH.parent.mkdir(parents=True, exist_ok=True)
+        AUTH_RECORD_PATH.write_text(
+            _LEGACY_AUTH_RECORD_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        print(
+            f"[auth_helper] 旧認証キャッシュをグローバルパスへ移行しました: {AUTH_RECORD_PATH}",
+            file=sys.stderr,
+        )
+    except OSError:
+        pass  # 移行失敗時は通常どおり新規デバイスコード認証にフォールバック
 
 # Dataverse Web API のデフォルトスコープ
 _DEFAULT_SCOPE = f"{DATAVERSE_URL}/.default" if DATAVERSE_URL else ""
@@ -166,10 +190,11 @@ def _ensure_credential() -> DeviceCodeCredential:
 
 
 def _save_auth_record(record: AuthenticationRecord) -> None:
-    """AuthenticationRecord をファイルに永続化する。"""
+    """AuthenticationRecord をグローバルパスに永続化する（他プロジェクトからも再利用される）。"""
+    AUTH_RECORD_PATH.parent.mkdir(parents=True, exist_ok=True)
     AUTH_RECORD_PATH.write_text(record.serialize(), encoding="utf-8")
     print(
-        f"[auth_helper] 認証レコードを保存しました: {AUTH_RECORD_PATH}",
+        f"[auth_helper] 認証レコードを保存しました（マシン全体で共有）: {AUTH_RECORD_PATH}",
         file=sys.stderr,
     )
 
