@@ -34,7 +34,7 @@ const IS_DEV =
     window.location.hostname === "127.0.0.1");
 
 const DEV_USER: AuthUser = {
-  contactId: "00000000-0000-0000-0000-000000000001",
+  contactId: "00000000-0000-0000-0000-000000000000",
   fullName: "開発 ユーザー",
   email: "dev@example.com",
   firstName: "開発",
