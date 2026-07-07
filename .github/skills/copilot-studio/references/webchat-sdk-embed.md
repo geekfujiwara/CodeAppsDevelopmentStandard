@@ -1,17 +1,19 @@
-# 外部公開 WebChat SDK 埋め込みパターン（推奨）
+# 外部公開 WebChat SDK 埋め込みパターン（標準）
 
 外部顧客向けにエージェントを Web サイトに公開する際の **標準パターン**。
 BotFramework WebChat SDK を使い、プログラム的なメッセージ送信・UI フルカスタマイズを実現する。
 
-> ⚠️ iframe 方式（`external-web-embed.md`）は簡易版。本パターンが推奨。
+> ✅ **外部公開は本パターン（WebChat UI）を標準とする。** iframe 方式（`external-web-embed.md`）は
+> UI カスタマイズができないレガシー扱いで、PoC・動作確認以外では使わない。
 >
-> � **サインイン必須 & ユーザー権限で Dataverse アクセス**したい場合は
+> 📐 **UI デザインは既存テンプレートを再利用する**（新規にデザインを起こさない）:
+> [webchat-sdk-design-template.md](webchat-sdk-design-template.md)（標準・ダーク UI）/
+> [webchat-sdk-light-templates.md](webchat-sdk-light-templates.md)（ライトモード・5 レイアウト）。
+> 左パネル（カテゴリ別カード＋プロンプトチップス）＋ 右パネル（WebChat）を標準レイアウトとして
+> 提案し、承認後に実装を進めること。
+>
+> 🔐 **サインイン必須 & ユーザー権限で Dataverse アクセス**したい場合は
 > [webchat-sdk-manual-auth.md](webchat-sdk-manual-auth.md)（手動認証 / SSO）を参照。
->
-> �📐 **UI デザイン標準**: [webchat-sdk-design-template.md](webchat-sdk-design-template.md) を参照。
-> 外部公開 Web サイトを新規構築する際は、デザインテンプレートのレイアウト
-> （左パネル: カテゴリ別カード＋プロンプトチップス / 右パネル: WebChat）を
-> 標準として提案し、承認後に実装を進めること。
 
 ## iframe 方式との違い
 

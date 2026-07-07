@@ -228,7 +228,9 @@ api_patch(f"botcomponents({topic_id})", {"data": new_data})
 > **挨拶メッセージ**: 設計時にエージェントの目的に合ったテキストを提案する。
 > 例: 「こんにちは！{エージェント名}です。お気軽にお申し付けください。」
 
-### Step 5: エージェント公開
+### Step 5: エージェント公開（構築の反映）
+
+`deploy_agent.py` の最後に実行。構築（トピック・Instructions・会話の開始）を反映する。
 
 ```python
 api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
@@ -241,38 +243,99 @@ api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 api_patch(f"botcomponents({comp_id})", {"description": description_text})
 ```
 
-### Step 7: Teams / Copilot チャネル公開設定
+---
+
+> **⚠️ Step 7 以降は「公開」処理を 3 スクリプトに分離する【必須】**
+>
+> 「セキュリティ設定 → 公開 → チャネル選択 → 公開」を 1 本のスクリプトに一体化しないこと。
+> 一体化すると認証モードを設定し忘れたまま公開され、UI 既定の **Microsoft 認証** で公開されてしまう
+> （Web 埋め込みができない）。以下の 3 スクリプトに分離する:
+>
+> | スクリプト | 役割 |
+> |---|---|
+> | `deploy_agent.py` | 構築（Step 1–6）＋ 構築の公開 |
+> | `set_agent_security.py` | **Step 7: セキュリティ（認証モード）設定 → 公開** |
+> | `set_agent_channels.py` | **Step 8: チャネル選択（Web/Teams/Copilot）→ 公開** |
+>
+> 実行順: `deploy_agent.py` → `set_agent_security.py` → `set_agent_channels.py`
+
+### Step 7: セキュリティ（ユーザー認証）設定 → 公開【`set_agent_security.py`】
+
+Copilot Studio の「設定 → セキュリティ → 認証」に相当。**認証変更は公開後に反映される**。
 
 ```python
-# applicationmanifestinformation.teams を PATCH して Teams マニフェストを設定
+# AGENT_AUTH_MODE=none | microsoft（.env で指定、未設定時は none）
+AUTH_MODE_VALUES = {"microsoft": 1, "none": 2}   # bots.authenticationmode の値
+
+value = AUTH_MODE_VALUES[mode]
+bot = api_get(f"bots({bot_id})?$select=name,authenticationmode")
+body = {"name": bot["name"], "authenticationmode": value}
+if mode == "microsoft":
+    body["authenticationtrigger"] = 0
+api_patch(f"bots({bot_id})", body)
+
+# ★ 認証変更は公開後に反映される
+api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
+```
+
+**`bots.authenticationmode` の値（実機 live 環境で確認済み）:**
+
+| UI の選択肢 | `authenticationmode` | 用途 |
+|---|---|---|
+| 認証なし（No authentication） | `2` | **Web 埋め込み（匿名アクセス）に必須** |
+| Microsoft で認証（Authenticate with Microsoft） | `1` | **UI 既定**。Teams + M365 チャネル |
+| 手動で認証（Authenticate manually） | （OAuth 設定が別途必要・本スクリプト対象外） | カスタム OAuth |
+
+```
+❌ 認証モードを設定しない → UI 既定の Microsoft 認証（=1）で公開され Web 埋め込み不可
+❌ authenticationmode を設定したが公開しない → 変更が反映されない
+✅ 認証なしの Web 埋め込みが必要なら AGENT_AUTH_MODE=none を明示 → PATCH → 公開
+✅ bots PATCH には name 必須（省略すると "Empty or null bot name" エラー）
+```
+
+### Step 8: チャネル選択（Web / Teams / Copilot）→ 公開【`set_agent_channels.py`】
+
+`AGENT_CHANNELS=web,teams,copilot`（カンマ区切り）で対象チャネルを選択する。
+
+```python
+# web     … Web / カスタムアプリ（DirectLine）。公開すれば既定で利用可能（追加設定不要）
+# teams   … Teams マニフェスト（applicationmanifestinformation.teams）+ msteams チャネル
+# copilot … copilotChat.isEnabled=True + Microsoft365Copilot チャネル
+
+# --- teams を選択した場合: Teams マニフェスト ---
 bot_data = api_get(f"bots({bot_id})?$select=applicationmanifestinformation,iconbase64")
 existing_ami = json.loads(bot_data.get("applicationmanifestinformation", "{}") or "{}")
 existing_teams = existing_ami.get("teams", {})
-
-# 設定値の更新（エージェントに合わせた内容を設計時に提案）
 existing_teams["shortDescription"] = "簡単な説明（最大80文字）"
 existing_teams["longDescription"] = "詳細な説明（最大3400文字）"
-existing_teams["accentColor"] = "#0078D4"  # 背景色
+existing_teams["accentColor"] = "#0078D4"
 existing_teams["developerName"] = "開発者名（最大32文字）"
-# アイコンは Bot の iconbase64 を colorIcon/outlineIcon に設定
-existing_teams["colorIcon"] = icon_b64
-existing_teams["outlineIcon"] = icon_b64
-
+existing_teams["colorIcon"] = icon_192_b64   # 192x192 PNG（生 Base64）
+existing_teams["outlineIcon"] = icon_32_b64  # 32x32 PNG（生 Base64）
 existing_ami["teams"] = existing_teams
 
-# M365 Copilot 可用性を有効化
+# --- copilot を選択した場合: M365 Copilot 可用性 ---
 existing_ami["copilotChat"] = {"isEnabled": True}
+api_patch(f"bots({bot_id})", {"name": bot_name, "applicationmanifestinformation": json.dumps(existing_ami)})
 
-api_patch(f"bots({bot_id})", {"applicationmanifestinformation": json.dumps(existing_ami)})
+# --- configuration.channels に選択したチャネルを追加 ---
+config = json.loads(bot_data2.get("configuration", "{}") or "{}")
+channels = config.get("channels", [])
+# teams → {"channelId": "msteams", ...}、copilot → {"channelId": "Microsoft365Copilot", ...}
+config["channels"] = channels
+api_patch(f"bots({bot_id})", {"configuration": json.dumps(config)})
+
+# 最終公開
+api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 ```
 
 ```
-アイコン画像の要件:
+アイコン画像の要件（Teams チャネル）:
 - PNG 形式必須（Teams チャネルが SVG を受け付けない）
 - 3 サイズ生成: 240x240（iconbase64）、192x192（colorIcon）、32x32（outlineIcon）
 - `data:` prefix なしの生 Base64 PNG で API 登録
 
-設定項目:
+Teams マニフェスト設定項目:
 | 項目 | 最大文字数 | デフォルト |
 |------|-----------|-----------|
 | 簡単な説明 | 80 | Microsoft Copilot Studio を使用して構築します。 |
@@ -285,20 +348,11 @@ api_patch(f"bots({bot_id})", {"applicationmanifestinformation": json.dumps(exist
 | M365 Copilot | - | copilotChat.isEnabled = true |
 ```
 
-### Step 8: チャネル公開実行
-
-```python
-# configuration.channels に msteams / Microsoft365Copilot を追加
-config = json.loads(bot_data.get("configuration", "{}") or "{}")
-channels = config.get("channels", [])
-# 未設定なら追加
-channels.append({"channelId": "msteams", ...})
-channels.append({"channelId": "Microsoft365Copilot", ...})
-config["channels"] = channels
-api_patch(f"bots({bot_id})", {"configuration": json.dumps(config)})
-
-# 最終公開
-api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
+```
+⚠️ Teams / Copilot チャネルは「Microsoft で認証」（authenticationmode=1）が前提。
+   認証なし（=2）のまま teams/copilot を選ぶと利用できないため、set_agent_channels.py は
+   authenticationmode=2 のとき警告を表示する。
+✅ Web 埋め込み（認証なし）なら AGENT_CHANNELS=web のみで OK（追加のチャネル定義は不要）
 ```
 
 ### Step 9: ナレッジ・ツール・トリガーの手動追加（ユーザーに依頼）

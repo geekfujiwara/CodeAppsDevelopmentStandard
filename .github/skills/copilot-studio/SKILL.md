@@ -48,11 +48,11 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 | リファレンス | 内容 |
 |---|---|
 | [構築リファレンス](references/build-reference.md) | 構築手順の詳細・Instructions テンプレート・スクリプトコード |
-| [外部公開 Web 埋め込み](references/external-web-embed.md) | 認証なしエージェントを外部 Web サイトに iframe で公開するパターン（簡易版） |
-| [外部公開 WebChat SDK](references/webchat-sdk-embed.md) | WebChat SDK で外部公開する推奨パターン（UIカスタマイズ・メッセージ送信対応） |
-| [**外部公開デザインテンプレート**](references/webchat-sdk-design-template.md) | **標準 UI デザイン**：左パネル（カテゴリ別カード＋プロンプトチップス）＋ 右 WebChat パネル（グラデーション枠・AI タイピング Tips） |
+| [**外部公開 WebChat SDK（標準）**](references/webchat-sdk-embed.md) | **外部公開の標準パターン**。BotFramework WebChat SDK で UI フルカスタマイズ・プログラム的メッセージ送信 |
+| [**外部公開デザインテンプレート（標準 UI）**](references/webchat-sdk-design-template.md) | **標準 UI デザイン**：左パネル（カテゴリ別カード＋プロンプトチップス）＋ 右 WebChat パネル（グラデーション枠・AI タイピング Tips） |
 | [**ライトモード・テンプレート集**](references/webchat-sdk-light-templates.md) | **ライトモード 5 レイアウト**（workspace / minimal / hero-cards / dashboard / sidebar）＋ 全テンプレート標準の**「新しい会話（初期化）」ボタン**（React 再マウント対策 `freshWebchatEl()`） |
-| [**外部公開 手動認証（SSO）**](references/webchat-sdk-manual-auth.md) | Entra ID サインイン必須＋**ユーザー権限で Dataverse アクセス（RLS/OBO）**。2 アプリ登録・FIC（シークレットレス）・OAuth カードの silent トークン交換 |
+| [外部公開 手動認証（SSO）](references/webchat-sdk-manual-auth.md) | Entra ID サインイン必須＋**ユーザー権限で Dataverse アクセス（RLS/OBO）**。2 アプリ登録・FIC（シークレットレス）・OAuth カードの silent トークン交換 |
+| [外部公開 iframe（レガシー・非推奨）](references/external-web-embed.md) | iframe で埋め込む簡易版。UI カスタマイズ不可のため**標準では使わない**。動作確認・PoC 用のみ |
 | [外部トリガー](references/trigger.md) | メール受信・Teams メッセージ・スケジュール等のトリガー追加 |
 | [トリガーパターン](references/trigger-patterns.md) | トリガーの設定パターン集 |
 | [トラブルシューティング](references/troubleshooting.md) | トリガー関連を中心とした異常系・トラブルシューティング |
@@ -63,14 +63,28 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 
 ## 外部公開 Web サイト開発フロー（必須）
 
-**エージェントを外部顧客向け Web サイトに公開する場合、[デザインテンプレート](references/webchat-sdk-design-template.md) を標準として提案する。**
+**外部公開は WebChat UI（BotFramework WebChat SDK）を標準とする。** iframe 埋め込みは
+UI カスタマイズができないためレガシー扱いとし、PoC・動作確認以外では使わない。
+
+**WebChat UI のデザインは既存のデザインテンプレートを再利用する**
+（新規にゼロからデザインを起こさない）:
+
+- 標準（ダーク UI）: [webchat-sdk-design-template.md](references/webchat-sdk-design-template.md)
+- ライトモード / 複数レイアウト: [webchat-sdk-light-templates.md](references/webchat-sdk-light-templates.md)
 
 フロー:
-1. デザインテンプレートのレイアウト構成 + カテゴリ/プロンプト案をユーザーに提示
-2. ユーザー承認
-3. `website/index.html` をテンプレートベースで実装
-4. カテゴリ・プロンプト・Tips・カラーを案件に合わせて調整
-5. `py scripts/deploy_website.py` で Azure Storage にデプロイ
+1. **前提**: エージェントを「認証なし」で公開しておく
+   （[set_agent_security.py](scripts/set_agent_security.py) を `AGENT_AUTH_MODE=none` で実行 → 公開）。
+   WebChat SDK は「認証なし」エージェントの DirectLine トークンで匿名接続する。
+2. 既存デザインテンプレートのレイアウト構成 + カテゴリ/プロンプト案をユーザーに提示
+3. ユーザー承認
+4. `website/index.html` を**既存テンプレートベース**で実装（WebChat SDK 埋め込み）
+5. カテゴリ・プロンプト・Tips・カラーを案件に合わせて調整
+6. `py scripts/deploy_website.py` で Azure Storage にデプロイ
+
+> ⚠️ 「認証なし」の設定は [構築リファレンスの Step 7-8](references/build-reference.md) の
+> 3 スクリプト分離フロー（構築 → セキュリティ → チャネル）に従うこと。認証モードを設定せず
+> 公開すると UI 既定の **Microsoft 認証** になり、WebChat SDK が匿名接続できない。
 
 ## 前提: 設計フェーズ完了後に構築に入る（必須）
 
@@ -270,9 +284,25 @@ if ai_idx >= 0:
 3. **Step 2**: カスタムトピック削除（システムトピック保護）
 4. **Step 3**: 生成オーケストレーション有効化
 5. **Step 4-4.5**: Instructions + 会話の開始設定
-6. **Step 5-6**: エージェント公開 + 説明設定
-7. **Step 7-8**: Teams / Copilot チャネル公開設定
-8. **Step 9**: ナレッジ・ツール・トリガーの手動追加案内
+6. **Step 5-6**: エージェント公開 + 説明設定（`deploy_agent.py` はここまで）
+7. **Step 7**: セキュリティ（認証モード）設定 → 公開（`set_agent_security.py`）
+8. **Step 8**: チャネル選択（Web/Teams/Copilot）→ 公開（`set_agent_channels.py`）
+9. **Step 9**: ナレッジ・ツール・トリガーの手動追加案内
+
+> **⚠️ 「公開」処理は 3 スクリプトに分離する（一体化禁止）**
+>
+> セキュリティ設定 → 公開 → チャネル選択 → 公開 を 1 本のスクリプトにまとめると、
+> 認証モードを設定し忘れて UI 既定の **Microsoft 認証** で公開され、Web 埋め込みができなくなる。
+> 必ず以下の順で実行する:
+>
+> | 順 | スクリプト | 役割 | 主な .env |
+> |---|---|---|---|
+> | 1 | `deploy_agent.py` | 構築（Step 1–6）＋公開 | — |
+> | 2 | `set_agent_security.py` | 認証モード設定→公開 | `AGENT_AUTH_MODE`（`none` / `microsoft`） |
+> | 3 | `set_agent_channels.py` | チャネル選択→公開 | `AGENT_CHANNELS`（`web,teams,copilot`） |
+>
+> `bots.authenticationmode`: `2`=認証なし（Web 埋め込み必須）／`1`=Microsoft で認証（UI 既定・Teams）。
+> 認証変更は**公開後に反映**される。
 
 Instructions テンプレート・既存エージェント改善パターンは [構築リファレンス](references/build-reference.md#instructions-テンプレート) を参照。
 
