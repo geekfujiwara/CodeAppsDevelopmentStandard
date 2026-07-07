@@ -5,10 +5,16 @@ Copilot Studio エージェント設定スクリプト — テーマ非依存テ
   「テーマ定義」セクション（{...} プレースホルダー）を、設計フェーズで決めた内容に書き換えてから実行してください。
 ★ API ヘルパー、トピック削除、生成オーケストレーション有効化、PvaPublish のパターンは共通テンプレートとして再利用できます。
 
-Phase 3: UI で作成済みの Bot に対して設定を適用
+Phase 3: UI で作成済みの Bot に対して構築設定を適用
   → カスタムトピック全削除 → 生成オーケストレーション有効化
-  → GPT Instructions 設定 → 公開
+  → GPT Instructions 設定 → 公開 → 説明の設定
   ★ ナレッジ・MCP Server はユーザーが UI で手動追加
+
+★ セキュリティ（認証モード）とチャネル公開は別スクリプトに分離しています。
+  デプロイは以下の順に実行してください:
+    1. python deploy_agent.py         … 構築（本スクリプト）
+    2. python set_agent_security.py   … セキュリティ設定（認証なし / Microsoft 認証）→ 公開
+    3. python set_agent_channels.py   … チャネル選択（Web / Teams / Copilot）→ 公開
 
 前提:
   - Copilot Studio UI でエージェントを事前に作成済み
@@ -625,134 +631,25 @@ def publish_bot(bot_id: str):
         print(f"  ⚠️ 公開でエラー（手動で公開してください）: {e}")
 
 
-# ── Step 7: Teams / Copilot チャネル公開設定 ──────────────
+# ── Step 7-8: チャネル公開設定 → set_agent_channels.py に分離 ──
 
 def set_channel_manifest(bot_id: str):
-    """applicationmanifestinformation の teams 設定を更新する。"""
-    print("\n=== Step 7: Teams / Copilot チャネル公開設定 ===")
-
-    # 既存の applicationmanifestinformation を取得
-    bot_data = api_get(f"bots({bot_id})?$select=applicationmanifestinformation,iconbase64")
-    existing_ami = json.loads(bot_data.get("applicationmanifestinformation", "{}") or "{}")
-    existing_teams = existing_ami.get("teams", {})
-    print(f"  既存 teams キー: {list(existing_teams.keys())}")
-
-    # teams 設定を更新（空文字列はスキップしてデフォルト維持）
-    if TEAMS_SHORT_DESCRIPTION:
-        existing_teams["shortDescription"] = TEAMS_SHORT_DESCRIPTION[:80]
-        print(f"  簡単な説明: {TEAMS_SHORT_DESCRIPTION[:50]}...")
-    if TEAMS_LONG_DESCRIPTION:
-        existing_teams["longDescription"] = TEAMS_LONG_DESCRIPTION[:3400]
-        print(f"  詳細な説明: {TEAMS_LONG_DESCRIPTION[:50]}...")
-    if TEAMS_ACCENT_COLOR:
-        existing_teams["accentColor"] = TEAMS_ACCENT_COLOR
-        print(f"  背景色: {TEAMS_ACCENT_COLOR}")
-    if TEAMS_DEVELOPER_NAME:
-        existing_teams["developerName"] = TEAMS_DEVELOPER_NAME[:32]
-        print(f"  開発者名: {TEAMS_DEVELOPER_NAME}")
-    if TEAMS_WEBSITE:
-        existing_teams["websiteLink"] = TEAMS_WEBSITE
-        print(f"  Web サイト: {TEAMS_WEBSITE}")
-    if TEAMS_PRIVACY_URL:
-        existing_teams["privacyLink"] = TEAMS_PRIVACY_URL
-        print(f"  プライバシー: {TEAMS_PRIVACY_URL}")
-    if TEAMS_TERMS_URL:
-        existing_teams["termsLink"] = TEAMS_TERMS_URL
-        print(f"  使用条件: {TEAMS_TERMS_URL}")
-
-    # アイコン: Teams 要件に合った PNG を colorIcon / outlineIcon に設定
-    # ★ colorIcon = 192x192 PNG, outlineIcon = 32x32 PNG（白い透明背景）
-    # ★ data: prefix なしの生 Base64 PNG（REF エージェントと同じ形式）
-    try:
-        from generate_icon_png import generate_icons
-        icons = generate_icons()
-        existing_teams["colorIcon"] = icons["color"]["base64"]
-        existing_teams["outlineIcon"] = icons["outline"]["base64"]
-        print(f"  colorIcon: {icons['color']['dimensions']}, {icons['color']['size_bytes']} bytes")
-        print(f"  outlineIcon: {icons['outline']['dimensions']}, {icons['outline']['size_bytes']} bytes")
-    except Exception as e:
-        print(f"  ⚠️ PNG アイコン生成エラー、iconbase64 をフォールバック使用: {e}")
-        icon_b64 = bot_data.get("iconbase64")
-        if icon_b64:
-            existing_teams["colorIcon"] = icon_b64
-            existing_teams["outlineIcon"] = icon_b64
-
-    existing_ami["teams"] = existing_teams
-
-    # Microsoft 365 Copilot で使用可能にする
-    copilot_chat = existing_ami.get("copilotChat", {})
-    copilot_chat["isEnabled"] = True
-    existing_ami["copilotChat"] = copilot_chat
-    print("  Microsoft 365 Copilot: 有効化")
-
-    # ★ bots PATCH には name 必須（省略すると "Empty or null bot name" エラー）
-    bot_name_data = api_get(f"bots({bot_id})?$select=name")
-    api_patch(f"bots({bot_id})", {
-        "name": bot_name_data["name"],
-        "applicationmanifestinformation": json.dumps(existing_ami),
-    })
-    print("  チャネル公開設定完了")
+    """[非推奨] チャネル公開設定は set_agent_channels.py に分離しました。
+    後方互換のため関数は残していますが、main() からは呼び出しません。"""
+    print("\n[deploy_agent] チャネル公開設定は set_agent_channels.py に分離されています。")
+    print("  → python set_agent_channels.py を実行してください。")
 
 
 def publish_to_channels(bot_id: str):
-    """エージェントを Teams / Copilot チャネルに公開する。"""
-    print("\n=== Step 8: チャネル公開実行 ===")
+    """[非推奨] set_agent_channels.py に分離しました。"""
+    print("\n[deploy_agent] チャネル公開実行は set_agent_channels.py に分離されています。")
 
-    # まず PvaPublish で最新版を公開
-    try:
-        api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
-        print("  エージェント再公開完了")
-    except Exception as e:
-        print(f"  ⚠️ 再公開エラー: {e}")
-
-    # Teams チャネルの有効化確認
-    bot_data = api_get(f"bots({bot_id})?$select=configuration")
-    config = json.loads(bot_data.get("configuration", "{}") or "{}")
-    channels = config.get("channels", [])
-    channel_ids = [ch.get("channelId") for ch in channels]
-    print(f"  既存チャネル: {channel_ids}")
-
-    # msteams が未設定なら追加
-    if "msteams" not in channel_ids:
-        channels.append({
-            "id": None,
-            "channelId": "msteams",
-            "channelSpecifier": None,
-            "displayName": None,
-        })
-        print("  msteams チャネルを追加")
-
-    # Microsoft365Copilot が未設定なら追加
-    if "Microsoft365Copilot" not in channel_ids:
-        channels.append({
-            "id": None,
-            "channelId": "Microsoft365Copilot",
-            "channelSpecifier": None,
-            "displayName": None,
-        })
-        print("  Microsoft365Copilot チャネルを追加")
-
-    config["channels"] = channels
-    api_patch(f"bots({bot_id})", {"configuration": json.dumps(config)})
-    print("  チャネル設定更新完了")
-
-    # 再度公開
-    try:
-        api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
-        print("  最終公開完了")
-    except Exception as e:
-        print(f"  ⚠️ 最終公開エラー: {e}")
-
-    print("\n  ★ Teams での利用:")
-    print("    Copilot Studio → チャネル → Teams を選択")
-    print("    「利用可能にする」をクリック")
-    print("    → Teams アプリとして組織内で利用可能になります")
 
 # ── メイン ────────────────────────────────────────────────
 
 def main():
     print("=" * 60)
-    print("  Copilot Studio エージェントデプロイ")
+    print("  Copilot Studio エージェント構築")
     print(f"  エージェント名: {BOT_NAME}")
     print("=" * 60)
 
@@ -765,25 +662,18 @@ def main():
     set_quick_replies(bot_id)
     publish_bot(bot_id)
     set_description(bot_id, comp_id)
-    set_channel_manifest(bot_id)
-    publish_to_channels(bot_id)
 
     print("\n" + "=" * 60)
-    print("  ✅ エージェントデプロイ完了!")
+    print("  ✅ エージェント構築完了!")
     print("=" * 60)
     print()
-    print("  ★ 次のステップ（手動操作が必要）:")
+    print("  ★ 次のステップ（スクリプトを順に実行）:")
+    print("    2. python set_agent_security.py   … セキュリティ設定（認証）→ 公開")
+    print("       - 認証なし（Web 埋め込み用）: AGENT_AUTH_MODE=none")
+    print("       - Microsoft 認証（Teams 用）: AGENT_AUTH_MODE=microsoft")
+    print("    3. python set_agent_channels.py   … チャネル選択（Web/Teams/Copilot）→ 公開")
     print()
-    print("  1. ナレッジの追加:")
-    print("     → https://copilotstudio.microsoft.com/ にアクセス")
-    print(f"     → 「{BOT_NAME}」を選択 → ナレッジ タブ")
-    print("     → Dataverse を選択 → テーマで使うテーブルを追加:")
-    print(f"       - {PREFIX}_{{table}}（主テーブル）")
-    print(f"       - {PREFIX}_{{related_table}}（関連テーブル）")
-    print()
-    print("  2. ツール（Dataverse MCP Server）の追加:")
-    print("     → ツール タブ → Dataverse MCP Server を追加")
-    print("     → レコードの作成・更新・削除アクションを有効化")
+    print("  その後（手動操作）: ナレッジ・ツール（MCP Server）を Copilot Studio UI で追加")
     print()
 
 

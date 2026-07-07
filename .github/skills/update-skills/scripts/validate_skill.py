@@ -51,8 +51,14 @@ ALLOWLIST = {
     "ab3be6b7-f5df-413d-ac2d-abf1e3fd9c0b",  # Enterprise Token Store アプリ ID（固定）
     "6ab48b67-cd74-4ad4-81af-5932984589be",  # Cowork/Token Store 関連の well-known ID（固定）
     "96ff4394-9197-43aa-b393-6a41652e21f8",  # Power Virtual Agents Service 第一者アプリ ID（固定）
+    "37f7f235-527c-4136-accd-4a02d197296e",  # Microsoft Graph openid 委任スコープ ID（固定）
+    "14dad69e-099b-42c9-810b-d002981feec1",  # Microsoft Graph profile 委任スコープ ID（固定）
+    "78ce3f0f-a1ce-49c2-8cde-64b5c0896db4",  # Dynamics CRM user_impersonation 委任スコープ ID（固定）
+    "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",  # Azure 組み込みロール Storage Blob Data Owner のロール定義 ID（固定）
     "00000000-0000-0000-0000-000000000000",  # 空 GUID（既定値プレースホルダー）
     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",   # プレースホルダー
+    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",   # ドキュメント用プレースホルダー（例示）
+    "11111111-2222-3333-4444-555555555555",   # ドキュメント用プレースホルダー（例示）
     "953b9fac-1e5e-e611-80d6-00155ded156f",  # モデル駆動型アプリの既定アイコン webresourceid（全テナント共通の固定値）
 }
 
