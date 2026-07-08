@@ -309,6 +309,11 @@ Save すると **OAuth client registration ID** が発行される。これを `
     ]
   }
   ```
+
+  > **ツール名は Dataverse MCP 側の変更に追従させる**（廃止された `describe_table`/`list_tables`/`fetch` や
+  > 旧 `search`（データ検索の意味）をそのまま書かない。現在の正しいツール名一覧は
+  > [standard/references/dataverse-mcp-setup.md](../standard/references/dataverse-mcp-setup.md#主な-mcpツール) を参照）。
+  > 古いツール名のまま公開すると、Cowork 側で該当ツールが認識されずスキルが動作しない（→ troubleshooting #15）。
 - **アイコンはドメイン文脈を読んでから設計する**（→ [standard/references/icon-creation.md](../standard/references/icon-creation.md)
   の「アイコン画像提案フロー」）。`generate_icon_png.py` の汎用スパークルをそのまま登録しない。
   この manifest の `name`/`description`（プラグインの業務目的）と `accentColor` からモチーフ・配色を決め、
