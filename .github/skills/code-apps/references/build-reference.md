@@ -23,7 +23,11 @@ cp -n .github/skills/standard/references/gitignore-template .gitignore
 # ① テンプレート scaffold（vite.config.ts / plugins/plugin-power-apps.ts / styles/ / src/ 一式）
 #    標準では @GeekPowerCode が scaffold する。手動で行う場合:
 #    npx degit github:microsoft/PowerAppsCodeApps/templates/vite .
-npm install
+
+# npm install はローカルゴールデンキャッシュから node_modules を複製して高速化する
+# （社内プロキシへの毎回のフル依存取得を回避。詳細: references/template-cache.md）
+pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
+# ↑ 使えない環境ではフォールバック: npm install --no-audit --no-fund
 
 # ② Power Apps 初期化 — power.config.json のみ生成（PAC CLI 認証でテナント不一致なし）
 pac code init -env {ENVIRONMENT_ID} -n "AppName"

@@ -186,7 +186,11 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 ```bash
 # Step 0: テンプレート scaffold（標準では @GeekPowerCode が scaffold）
 cp -n .github/skills/standard/references/gitignore-template .gitignore   # .gitignore がなければコピー
-npm install
+
+# ゴールデンキャッシュ（ローカル node_modules 複製）で npm install を高速化。
+# 社内プロキシへの毎回のフル依存取得を避ける仕組み → references/template-cache.md
+pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
+# ↑ 使えない環境（Windows以外・キャッシュ未整備等）では代わりに: npm install --no-audit --no-fund
 
 # Step 1: 初期化 — power.config.json を生成（PAC CLI 認証でテナント不一致なし）
 pac code init -env {ENVIRONMENT_ID} -n "AppName"
@@ -360,5 +364,6 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [高度な実装パターン](references/advanced-patterns.md) | マルチ環境・オフライン・i18n・パフォーマンス最適化パターン |
 | [プレデプロイレビュー](references/pre-deploy-review.md) | 「デプロイして」「プッシュして」時の自動チェック手順 |
 | [新規テーマ開始チェックリスト](references/new-theme-checklist.md) | 前テーマの残骸がないクリーン開始の確認手順・scaffold 時に含めないファイル |
+| [テンプレート依存関係キャッシュ](references/template-cache.md) | npm install 高速化のためのローカルゴールデンキャッシュ・GitHub Action による週次自動更新 |
 | [トラブルシューティング](references/troubleshooting.md) | 頻出エラーと対処法（GUID フィルタ・`.toLowerCase()` 統一・テンプレート削除時の use-theme 巻き添え 等） |
 | [サンプル作成ガイド](references/sample-authoring-guide.md) | 公開リポジトリ向けサンプルのセキュリティ要件・環境変数ルール・feature flag 命名規則 |

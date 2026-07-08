@@ -1,0 +1,66 @@
+name: Refresh Code Apps template cache
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # 毎週月曜 3:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  RELEASE_TAG: code-apps-template-cache-vite
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .github/skills/code-apps/references/template-snapshot
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install & verify dependency resolution
+        run: npm ci --no-audit --no-fund
+
+      - name: Archive node_modules for remote cache
+        run: tar -czf node_modules-vite.tar.gz node_modules
+
+      - name: Publish/update GitHub Release asset (remote golden cache)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          REPO="${{ github.repository }}"
+          if ! gh release view "$RELEASE_TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --repo "$REPO" \
+              --title "Code Apps template dependency cache (vite)" \
+              --notes "自動生成。node_modules の圧縮アーカイブ。手動編集禁止。依存バージョンの正本は template-snapshot/package.json を参照。"
+          fi
+          gh release upload "$RELEASE_TAG" \
+            node_modules-vite.tar.gz package.json package-lock.json \
+            --repo "$REPO" --clobber
+
+      - name: Create PR if pinned lockfile changed
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore(code-apps): refresh template dependency snapshot"
+          branch: chore/refresh-template-snapshot
+          title: "chore(code-apps): テンプレート依存関係スナップショットを更新"
+          body: |
+            週次ジョブが `template-snapshot/package.json` の依存関係を `npm ci` で検証し、
+            リモートのゴールデンキャッシュ（GitHub Release `${{ env.RELEASE_TAG }}` の
+            `node_modules-vite.tar.gz`）を更新しました。
+
+            - 検証内容: `npm ci --no-audit --no-fund` の成功（フルビルド検証は含まない）
+            - ローカルでの反映は不要（`scaffold_from_cache.ps1` が scaffold のたびにリリースアセットを取得）
+
+            詳細: [`template-cache.md`](../.github/skills/code-apps/references/template-cache.md)
+          add-paths: .github/skills/code-apps/references/template-snapshot/package-lock.json
+          delete-branch: true
+
