@@ -25,8 +25,9 @@ cp -n .github/skills/standard/references/gitignore-template .gitignore
 #    npx degit github:microsoft/PowerAppsCodeApps/templates/vite .
 npm install
 
-# ①.5 マネージド環境が有効化済みか確認（pac code init の前に必ず実行）
-python .github/skills/code-apps/scripts/check_managed_environment.py
+# ①.5 マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
+#     architecture 提案時に確認済みなら再実行不要）
+python .github/skills/code-apps/scripts/check_code_apps_environment.py
 
 # ② Power Apps 初期化 — power.config.json のみ生成（PAC CLI 認証でテナント不一致なし）
 pac code init -env {ENVIRONMENT_ID} -n "AppName"
