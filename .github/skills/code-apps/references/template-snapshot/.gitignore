@@ -1,0 +1,3 @@
+# このディレクトリの package-lock.json はテンプレート依存関係の正本のため、
+# リポジトリ全体の .gitignore（package-lock.json を無視）を打ち消して追跡する。
+!package-lock.json
