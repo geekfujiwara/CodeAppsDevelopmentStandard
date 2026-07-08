@@ -96,6 +96,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
           │
 [§2 初回デプロイ]
         ③ テンプレート scaffold + npm install
+        ③.5 マネージド環境の有効化確認（check_managed_environment.py）
         ④ pac code init（power.config.json 生成）
         ⑤ vite.config.ts 必須設定の確認 / .env 設定
         ⑥ npm run deploy（build + pac code push）→ Dataverse 接続確立
@@ -143,6 +144,13 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 ### 環境の前提条件（デプロイ前に必ず確認）
 
 ```
+0. マネージド環境が有効化済み（pac code init / pac code push の前に必ず確認）
+   → 未有効のまま実行するとデプロイに失敗する
+   → コマンドで確認（推奨）:
+     python .github/skills/code-apps/scripts/check_managed_environment.py
+   → 未有効の場合: Power Platform 管理センター > 環境 > 該当環境 > 設定 >
+     マネージド環境 > 「有効にする」を ON
+
 1. Power Platform 管理センターで「コード アプリを許可する」がオン
    → オフの場合: CodeAppOperationNotAllowedInEnvironment (403) エラー
 
@@ -187,6 +195,9 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 # Step 0: テンプレート scaffold（標準では @GeekPowerCode が scaffold）
 cp -n .github/skills/standard/references/gitignore-template .gitignore   # .gitignore がなければコピー
 npm install
+
+# Step 0.5: マネージド環境が有効化済みか確認（pac code init の前に必ず実行）
+python .github/skills/code-apps/scripts/check_managed_environment.py
 
 # Step 1: 初期化 — power.config.json を生成（PAC CLI 認証でテナント不一致なし）
 pac code init -env {ENVIRONMENT_ID} -n "AppName"
