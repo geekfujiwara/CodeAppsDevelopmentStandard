@@ -1,6 +1,6 @@
 ---
 name: copilot-studio-v2
-description: "Copilot Studio の「全く新しいアーキテクチャ」（cliagent テンプレート）エージェントを Dataverse Web API だけで完全自動構築する。UI 手動作成不要。Bot 作成・Instructions/モデル/メモリ設定・フラット Python スキル添付・アイコン登録・MCP サーバー追加（Dataverse / Work IQ）・公開までスクリプトで完結。"
+description: "Copilot Studio の「全く新しいアーキテクチャ」（cliagent テンプレート）エージェントを Dataverse Web API だけで完全自動構築する。UI 手動作成不要。Bot 作成・Instructions/モデル/メモリ設定・フラット Python スキル添付・アイコン登録・公開までスクリプトで完結。MCP サーバー（Dataverse / Work IQ 等）のツール追加は Copilot Studio UI での手動作業とする。"
 category: automation
 triggers:
   - "Copilot Studio v2"
@@ -21,7 +21,6 @@ triggers:
   - "Sonnet46"
   - "エージェント v2"
   - "エージェント アイコン"
-  - "MCP サーバー 追加"
   - "Dataverse MCP"
   - "Work IQ"
   - "PvaPublish"
@@ -77,24 +76,24 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 4. scripts/set_icon.py         … アイコン登録（240 / Teams color 192 / outline 32）
 5. scripts/set_app_details.py  … Edit details(説明文・開発元・リンク・Teams 設定・M365 有効化)
 6. scripts/attach_skill.py     … フラット Python スキルを添付（type=9 + type=14）
-7. scripts/add_mcp_server.py   … MCP サーバー追加（Dataverse / Work IQ 等・接続参照込み）
-8. scripts/publish_agent.py    … PvaPublish で公開
-9. scripts/verify_agent.py     … 構造検証（filedata 実体ダウンロード確認）
-10. pac copilot list           … Published / Active / Provisioned を確認
-11. UI で MCP サーバーを「確認(Confirm)」… ★MCP 含む場合の正常系（後述）
-12. Preview で動作テスト（ユーザー）
+7. scripts/publish_agent.py    … PvaPublish で公開
+8. scripts/verify_agent.py     … 構造検証（filedata 実体ダウンロード確認）
+9. pac copilot list            … Published / Active / Provisioned を確認
+10. UI で MCP サーバーを追加（Dataverse / Work IQ 等）… ★手動作業（後述）
+11. Preview で動作テスト（ユーザー）
 ```
 
-> **一括実行**: 上記 3〜8 は [scripts/deploy_agent.py](scripts/deploy_agent.py) で
-> ワンショット実行できる（`.env` の構成に従い作成→アイコン→Edit details→スキル→MCP→公開を連結）。
+> **一括実行**: 上記 3〜7 は [scripts/deploy_agent.py](scripts/deploy_agent.py) で
+> ワンショット実行できる（`.env` の構成に従い作成→アイコン→Edit details→スキル→公開を連結）。
+> MCP サーバーの追加は自動化対象外のため、この一括実行には含まれない。
 
-### MCP を含む場合の「確認(Confirm)」は正常系（重要）
+### MCP サーバーの追加は Copilot Studio UI での手動作業（重要）
 
-MCP サーバーを API で追加し公開しても、**初回は Copilot Studio UI で MCP サーバーの
-「確認(Confirm)」が一度必要**になることがある。これは Dataverse レコードを変更せず
-（Confirm 前後で差分なし）、セッション側で接続を再バインドする動作。**再公開だけでは
-エラーが消えないことがある**ため、自動デプロイの最後に「UI で一度 Confirm する」手順を
-**正常系として組み込む**。詳細は [MCP サーバーの追加](references/mcp-servers.md) を参照。
+MCP サーバー（Dataverse MCP / Work IQ 等）のツール追加は、**Copilot Studio UI から手動で行う**
+前提とする。以前は Dataverse Web API（botcomponent type=9 の McpTool）で自動追加する手順を
+提供していたが、接続参照の命名規約・公開後の「確認(Confirm)」操作など UI 側の状態に依存する
+挙動が多く、API 経由での自動化は事故りやすい。そのため本スキルでは MCP ツール追加を
+**スクリプト化しない**。詳細な手動手順は [MCP サーバーの追加](references/mcp-servers.md) を参照。
 
 ## 必須要件・落とし穴（実機検証済み）
 
@@ -154,21 +153,18 @@ MCP サーバーを API で追加し公開しても、**初回は Copilot Studio
 
 詳細は [スキルバンドル構造](references/skill-bundle-structure.md) を参照。
 
-### アイコン・MCP・公開（実機検証済み）
+### アイコン・公開（実機検証済み）
 
 ```
 ✅ アイコンは bots.iconbase64(240) ＋ teams.colorIcon(192)/outlineIcon(32) の 3 か所へ登録
    ⚠ bots を PATCH する際は name 列を必ず同送（無いと 0x80040265 エラー）
-✅ MCP は botcomponent type=9 / data の kind:McpTool（connector/operationId/接続参照）
-   ⚠ 接続参照の論理名はコネクタ名を「フル」で：{botschema}.cr.{connector}.{接続GUID}
-     切詰めると公開時に「1 missing connection reference」で失敗する
-   ⚠ 対象コネクタの Connected な接続が環境に必要（接続自体は API 作成不可）
 ✅ 公開は PvaPublish。状態確認は pac copilot list（publishedon は None のことがある）
-⚠ MCP 含む場合は公開後に UI で MCP サーバーの「確認(Confirm)」が一度必要（正常系）
 ```
 
-詳細は [MCP サーバーの追加](references/mcp-servers.md) と
-[アイコン登録と公開](references/icon-and-publish.md) を参照。
+MCP サーバーの追加は API 自動化の対象外（UI での手動作業）。手順は
+[MCP サーバーの追加](references/mcp-servers.md) を参照。
+
+詳細は [アイコン登録と公開](references/icon-and-publish.md) を参照。
 
 ### よくあるエラー
 
@@ -182,9 +178,8 @@ MCP サーバーを API で追加し公開しても、**初回は Copilot Studio
 | [scripts/set_icon.py](scripts/set_icon.py) | アイコン登録（iconbase64 / Teams color / outline） |
 | [scripts/set_app_details.py](scripts/set_app_details.py) | Edit details 設定（PVA ゲートウェイ）。アイコン・説明文・開発元・リンク・MPN・store表示・Teams scopes・通話・SSO・M365 有効化。未設定はデフォルト補完 |
 | [scripts/attach_skill.py](scripts/attach_skill.py) | フラット Python スキルを添付（type=9 + type=14） |
-| [scripts/add_mcp_server.py](scripts/add_mcp_server.py) | MCP サーバー追加（接続参照 + McpTool。Dataverse / Work IQ） |
 | [scripts/publish_agent.py](scripts/publish_agent.py) | PvaPublish で公開（リトライ付き） |
-| [scripts/deploy_agent.py](scripts/deploy_agent.py) | 一括: 作成→アイコン→Edit details→スキル→MCP→公開 を連結 |
+| [scripts/deploy_agent.py](scripts/deploy_agent.py) | 一括: 作成→アイコン→Edit details→スキル→公開 を連結（MCP は含まない・UI で手動追加） |
 | [scripts/verify_agent.py](scripts/verify_agent.py) | 構造検証（filedata 実体ダウンロード確認） |
 | [scripts/analyze_agent.py](scripts/analyze_agent.py) | 既存エージェントの構成・コンポーネントをダンプ |
 
@@ -197,7 +192,7 @@ MCP サーバーを API で追加し公開しても、**初回は Copilot Studio
 | [新アーキテクチャ構造](references/new-architecture.md) | cliagent の BotConfiguration / botcomponents 全体像と v1 との対比 |
 | [フラット Python スキルの書き方](references/flat-python-skill.md) | JS 不使用・Base64 画像・フラット構成の実装テンプレート |
 | [スキルバンドル構造](references/skill-bundle-structure.md) | type=9/14・親バインド・filedata アップロードの詳細 |
-| [MCP サーバーの追加](references/mcp-servers.md) | 接続参照規約・operationId・公開後の Confirm（正常系） |
+| [MCP サーバーの追加](references/mcp-servers.md) | Copilot Studio UI での MCP サーバー追加手順（手動作業） |
 | [アイコン登録と公開](references/icon-and-publish.md) | iconbase64/Teams アイコン・PvaPublish・name 同送の注意 |
 | [Edit details(チャネル メタデータ)](references/app-details.md) | Publish の Edit details を保存する PVA ゲートウェイ API・ペイロード対応・アイコン要件・ドラフト→公開 |
 
@@ -219,6 +214,4 @@ AGENT_MODEL_SERIES=Sonnet46
 ICON_TEXT=A
 ICON_BG_COLOR=#2563EB
 ICON_ACCENT_COLOR=#22C55E
-# deploy_agent.py の MCP 一括追加（"connector|表示名" をカンマ区切り）
-MCP_CONNECTORS=shared_commondataserviceforapps|Microsoft Dataverse MCP サーバー
 ```
