@@ -1,6 +1,6 @@
 ---
 name: update-skills
-description: "スキル（SKILL.md）を新規作成または更新し、リモートリポジトリへ PR を作成・更新する。SKILL.md は正常系、references に参考情報と異常系、scripts に利用スクリプトを置き、すべて汎用化してパラメータを .env.example に外出しする（実値は .env）。会社・個別プロジェクト情報を排除して秘匿化し、Step 番号は整数で統一。最後に番号整合・自動化観点（Learn は MCP で検証、ブラウザ操作は Playwright MCP）をレビューし、既存のオープン PR があればそれを更新してコンフリクトを避け、無関係なら新規 PR を作成しつつマージ順を提示する。"
+description: "スキル（SKILL.md）を新規作成または更新し、リモートリポジトリへ PR を作成・更新する。SKILL.md は正常系、references に参考情報と異常系、scripts に利用スクリプトを置き、すべて汎用化してパラメータを .env.example に外出しする（実値は .env）。会社・個別プロジェクト情報を排除して秘匿化し、Step 番号は整数で統一。最後に番号整合・自動化観点（Learn は MCP で検証、ブラウザ操作は VS Code 統合ブラウザ）をレビューし、既存のオープン PR があればそれを更新してコンフリクトを避け、無関係なら新規 PR を作成しつつマージ順を提示する。"
 category: architecture
 triggers:
   - "スキル作成"
@@ -38,7 +38,7 @@ triggers:
 | 汎用化 | テナント・組織・テーマに依存しない。パラメータは `references/.env.example` に定義し、**実値は `.env`** から読む |
 | 秘匿化 | 会社名・個別プロジェクト名・実 GUID・URL・メール・シークレットを排除（→ Step 3 のスキャン） |
 | シンプル | 本文は短く。冗長な説明は `references/` に逃がす。手順の番号は**整数の Step** で統一 |
-| 自動化優先 | 公式仕様は **Microsoft Learn MCP** で検証、ブラウザ操作は **Playwright MCP** で自動化（→ Step 4） |
+| 自動化優先 | 公式仕様は **Microsoft Learn MCP** で検証、ブラウザ操作は **VS Code 統合ブラウザ**で自動化（→ Step 4） |
 
 > 前提ツール: Git、GitHub CLI（`gh`、認証済み）、Python 3。
 > 異常系・詰まりどころは [references/troubleshooting.md](references/troubleshooting.md)、
@@ -120,8 +120,10 @@ python .github/skills/update-skills/scripts/validate_skill.py --all
 
 1. **公式仕様の検証**: API 名・スコープ・エンドポイント等は **Microsoft Learn MCP**（`microsoft_docs_search` /
    `microsoft_docs_fetch`）で裏取りし、推測を残さない。Learn MCP が無い場合のみ Web 取得にフォールバック。
-2. **ブラウザ操作の自動化**: ポータル操作が必要な手順は **Playwright MCP**（`browser_navigate` /
-   `browser_click` / `browser_snapshot` 等）で自動化できる形に書く。手動 UI 操作は最終手段とし、
+2. **ブラウザ操作の自動化**: ポータル操作が必要な手順は **VS Code 統合ブラウザツール**（`open_browser_page` /
+   `click_element` / `read_page` / `type_in_page` / `handle_dialog` 等）で自動化できる形に書く。
+   Playwright MCP・Playwright 単体ブラウザのインストール・起動は行わない
+   （→ [ブラウザ自動化方針](../standard/references/browser-automation.md)）。手動 UI 操作は最終手段とし、
    その場合も画面パスとセレクタの目印を明記する。
 3. **CLI 化**: 繰り返す操作は `scripts/` に追加し、本文からはスクリプト呼び出しで参照する。
 
@@ -185,7 +187,7 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 - [ ] パラメータは `references/.env.example` に定義、実値は `.env`（`.gitignore` 済み）
 - [ ] 会社名・個別 PJ 名・実 GUID/URL/メール/シークレットが無い（`validate_skill.py` が ✅）
 - [ ] 手順の番号は**整数の Step で連番**（飛び・重複なし）
-- [ ] 公式仕様は **Learn MCP** で検証、ブラウザ操作は **Playwright MCP** で自動化
+- [ ] 公式仕様は **Learn MCP** で検証、ブラウザ操作は **VS Code 統合ブラウザ**で自動化
 - [ ] 既存オープン PR を確認（`manage_skill_pr.py`）→ 関連あれば**更新**、無関係なら**新規＋マージ順提示**
 - [ ] push 前に秘匿情報スキャン済み
 
