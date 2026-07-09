@@ -32,8 +32,8 @@
 
 ## 7. Learn MCP が使えない環境 / ブラウザ操作は Playwright MCP を使わない
 - Learn MCP 不在: `microsoft_docs_search` が無ければ Web 取得にフォールバックしつつ、出典 URL を残す。
-- ブラウザ操作は常に **VS Code 統合ブラウザツール**（`open_browser_page` / `click_element` /
-  `read_page` / `type_in_page` / `handle_dialog`）を使う。Playwright MCP・Playwright 単体ブラウザは
+- ブラウザ操作は常に **VS Code 統合 Playwright ブラウザ**（`playwright-browser_navigate` / `playwright-browser_click` /
+  `playwright-browser_snapshot` / `playwright-browser_type` / `playwright-browser_handle_dialog`）を使う。Playwright MCP サーバー・Playwright 単体ブラウザは
   インストール・起動しない（→ [ブラウザ自動化方針](../../standard/references/browser-automation.md)）。
   統合ブラウザツールが提供されていない環境のみ、ブラウザ手順を手動手順として書き、
   画面パス・ボタン名・入力値を具体的に明記して後で自動化に置換できる粒度で残す。

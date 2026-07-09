@@ -185,9 +185,9 @@ OAuth client registration の Scope 入力欄は UI のヘルプ文言が
 
 M365 管理センターの Upload agent ウィザードの「Choose file」ボタンをクリックしても、
 ブラウザ操作ツールの `click` だけではファイルを選択できない（OS ダイアログは DOM 外）。
-**VS Code 統合ブラウザツールの `handle_dialog`**（`selectFiles` にローカル `.zip` の絶対パスを渡す）を使う。
+**VS Code 統合 Playwright ブラウザの `playwright-browser_handle_dialog`**（`paths` にローカル `.zip` の絶対パスを渡す）を使う。
 ボタンクリック後に file chooser ダイアログが発生するので、それを待ってから
-`handle_dialog` でパスを渡す実装にする（Playwright を別途インストールする必要はない）。
+`playwright-browser_handle_dialog` でパスを渡す実装にする（Playwright MCP サーバーを別途インストールする必要はない）。
 
 ## 18. Fluent UI の ChoiceGroup（ラジオボタン）を直接クリックするとタイムアウトする
 

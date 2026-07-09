@@ -48,7 +48,7 @@ triggers:
 | [認証リファレンス](references/auth-patterns.md) | auth_helper.py の詳細実装・認証パターン |
 | [.env サンプル](references/.env.example) | 全フェーズ共通の `.env` テンプレート（各テーマで `.env` にコピーして値を設定） |
 | [Dataverse MCP 登録](references/dataverse-mcp-setup.md) | VS Code / Copilot から Dataverse を直接操作する MCP サーバー登録手順（upsert_skill 等） |
-| [ブラウザ自動化方針](references/browser-automation.md) | ポータル操作は **VS Code 統合ブラウザツール**を使う（`open_browser_page` / `click_element` / `type_in_page` / `handle_dialog` 等）。Playwright MCP・Playwright 単体ブラウザのインストール・起動は禁止 |
+| [ブラウザ自動化方針](references/browser-automation.md) | ポータル操作は **VS Code 統合 Playwright ブラウザ**（`playwright-browser_navigate` / `playwright-browser_click` / `playwright-browser_type` / `playwright-browser_handle_dialog` 等）を使う。Playwright MCP サーバー・Playwright 単体ブラウザのインストール・起動は禁止 |
 
 ### 共有ユーティリティ（複数スキルから参照される横断リファレンス）
 
