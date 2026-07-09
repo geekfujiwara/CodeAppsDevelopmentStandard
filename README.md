@@ -97,7 +97,7 @@ Code Apps は環境ごとに初期状態で無効です。有効化手順:
 ### 前提条件をまだ準備していない場合
 
 <details>
-<summary><strong>VS Code / Git / Node.js / pac CLI が未導入の方はここを開いて環境準備プロンプトを実行してください（所要 5 分）</strong></summary>
+<summary><strong>環境準備プロンプト</strong></summary>
 
 | ステップ | 操作 |
 |---|---|
