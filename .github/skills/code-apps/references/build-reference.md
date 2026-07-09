@@ -29,6 +29,10 @@ cp -n .github/skills/standard/references/gitignore-template .gitignore
 pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
 # ↑ 使えない環境ではフォールバック: npm install --no-audit --no-fund
 
+# ①.5 マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
+#     architecture 提案時に確認済みなら再実行不要）
+python .github/skills/code-apps/scripts/check_code_apps_environment.py
+
 # ② Power Apps 初期化 — power.config.json のみ生成（PAC CLI 認証でテナント不一致なし）
 pac code init -env {ENVIRONMENT_ID} -n "AppName"
 # ↑ vite.config.ts や plugins/ は生成しない（①のテンプレート由来）
