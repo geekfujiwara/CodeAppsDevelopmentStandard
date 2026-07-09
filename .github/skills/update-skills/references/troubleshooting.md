@@ -30,10 +30,13 @@
 - 対処: [pr-strategy.md](pr-strategy.md) のケース 3 に従い、先行 PR をマージ後にリベース。
   そもそも集約ファイルの編集は最小行に留める。
 
-## 7. Learn MCP / Playwright MCP が使えない環境
+## 7. Learn MCP が使えない環境 / ブラウザ操作は Playwright MCP を使わない
 - Learn MCP 不在: `microsoft_docs_search` が無ければ Web 取得にフォールバックしつつ、出典 URL を残す。
-- Playwright MCP 不在: ブラウザ手順は手動手順として書くが、画面パス・ボタン名・入力値を具体的に明記し、
-  後で自動化に置換できる粒度で残す。
+- ブラウザ操作は常に **VS Code 統合 Playwright ブラウザ**（`playwright-browser_navigate` / `playwright-browser_click` /
+  `playwright-browser_snapshot` / `playwright-browser_type` / `playwright-browser_handle_dialog`）を使う。Playwright MCP サーバー・Playwright 単体ブラウザは
+  インストール・起動しない（→ [ブラウザ自動化方針](../../standard/references/browser-automation.md)）。
+  統合ブラウザツールが提供されていない環境のみ、ブラウザ手順を手動手順として書き、
+  画面パス・ボタン名・入力値を具体的に明記して後で自動化に置換できる粒度で残す。
 
 ## 8. push 直前スキャンでシークレットが見つかった
 - 即中止。コミット済みなら `git restore --staged` / 履歴に入っていれば該当コミットを作り直す。

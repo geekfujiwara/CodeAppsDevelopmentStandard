@@ -33,13 +33,11 @@ python .github/skills/standard/scripts/setup_environment.py --auth-only
 ```powershell
 npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github --force
 cp .github/skills/standard/references/gitignore-template .gitignore
-# Playwright MCP を最初から使えるように mcp.json を .vscode/ へコピー
-New-Item -ItemType Directory -Force -Path .vscode | Out-Null
-cp .github/skills/standard/references/mcp.json .vscode/mcp.json
 ```
 
-> `.vscode/mcp.json` により、VS Code が標準の **Playwright MCP**（`npx @playwright/mcp@latest`）を認識する。
-> 初回は「MCP: List Servers」→ `playwright` を Start（npx が取得）。ポータルフォーム入力などのブラウザ操作はこの MCP で自動化する。
+> ブラウザ操作（ポータルのフォーム入力等）は **VS Code 統合ブラウザツール**を使う。
+> Playwright MCP のインストール・`.vscode/mcp.json` への登録は行わない
+> （→ [ブラウザ自動化方針](browser-automation.md)）。
 
 ## Step 2: PAC 認証プロファイルの確認
 
