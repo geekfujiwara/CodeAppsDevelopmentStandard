@@ -1,6 +1,6 @@
 ---
 name: design-pattern
-description: "Code Apps のデザインシステムを利用して UI を構築する。shadcn/ui + Tailwind CSS v4 のコンポーネントライブラリによる画面設計・コンポーネント選定。"
+description: "Code Apps のデザインシステムを利用して UI を構築する。Tailwind CSS v4 のコンポーネントライブラリによる画面設計・コンポーネント選定。"
 category: ui
 triggers:
   - "Code Apps デザイン"
@@ -38,7 +38,7 @@ triggers:
 
 # Code Apps デザインシステムスキル
 
-Code Apps 標準のコンポーネントライブラリ（shadcn/ui + Tailwind CSS）を使い、
+Code Apps 標準のコンポーネントライブラリ（Tailwind CSS）を使い、
 Code Apps の画面を設計・実装する。
 
 > **前提**: アプリの初期化・Dataverse 接続・デプロイは `code-apps` スキル（[SKILL.md](../SKILL.md)）を参照。
@@ -89,7 +89,7 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 | レイヤー | 技術 |
 |---------|------|
 | スタイリング | Tailwind CSS v4 + CSS カスタムプロパティ |
-| UIプリミティブ | shadcn/ui（Radix UI ベース） |
+| UIプリミティブ | カスタム UI プリミティブ（Base UI ベース） |
 | アイコン | lucide-react |
 | チャート | Recharts |
 | ドラッグ＆ドロップ | dnd-kit v6 |

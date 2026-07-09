@@ -203,22 +203,11 @@ python scripts/toggle_table_lang.py jp
 > **重要**: テーブル論理名に `geek_xxx` のような literal を書かない。
 > publisher prefix は環境ごとに異なるため、必ず `.env` の `PUBLISHER_PREFIX` を変数展開して使う。
 
-### Step 5: 技術スタック導入
+### Step 5: 技術スタック（テンプレート scaffold で導入済み）
 
-```bash
-# Tailwind CSS
-npm install -D tailwindcss @tailwindcss/vite
-
-# shadcn/ui
-npx shadcn@latest init
-npx shadcn@latest add button card dialog table tabs badge input select textarea
-
-# TanStack React Query
-npm install @tanstack/react-query
-
-# React Router
-npm install react-router
-```
+Tailwind CSS / TanStack React Query / React Router / UI プリミティブ（`@/components/ui/`）は
+Step 1 の `npm install`（`template-snapshot/package.json` 由来）ですでに導入済みのため、
+個別にインストールし直す必要はない。shadcn CLI（`npx shadcn@latest ...`）は使用しない。
 
 > **重要**: ルーター生成は必ず `createHashRouter` を使用すること。
 > `createBrowserRouter` は Power Apps iframe 内で初期ロード時に 404 になる。

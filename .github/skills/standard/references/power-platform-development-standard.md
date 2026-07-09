@@ -656,7 +656,7 @@ export const statusColors: Record<RecordStatus, string> = {
 | レイヤー          | 技術                                   |
 | ----------------- | -------------------------------------- |
 | UI フレームワーク | React 18 + TypeScript                  |
-| スタイリング      | Tailwind CSS + shadcn/ui               |
+| スタイリング      | Tailwind CSS                           |
 | データフェッチ    | TanStack React Query                   |
 | ルーティング      | React Router                           |
 | ビルドツール      | Vite                                   |

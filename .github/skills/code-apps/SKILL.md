@@ -1,6 +1,6 @@
 ---
 name: code-apps
-description: "Power Apps Code Apps（コードファースト）の初期化・Dataverse 接続・UI 設計・開発・デプロイ。TypeScript + React + Tailwind CSS + shadcn/ui で開発する。CSP 構成・メール送信パターンも含む。"
+description: "Power Apps Code Apps（コードファースト）の初期化・Dataverse 接続・UI 設計・開発・デプロイ。TypeScript + React + Tailwind CSS で開発する。CSP 構成・メール送信パターンも含む。"
 category: ui
 triggers:
   - "Code Apps"
@@ -77,7 +77,7 @@ triggers:
 
 # Code Apps 開発スキル
 
-Power Apps Code Apps（コードファースト）を **TypeScript + React + Tailwind CSS + shadcn/ui** で開発する。
+Power Apps Code Apps（コードファースト）を **TypeScript + React + Tailwind CSS** で開発する。
 UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の全領域をカバーする統合スキル。
 
 > [!NOTE]
@@ -359,7 +359,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | リファレンス | 内容 |
 |---|---|
 | [デザインテンプレート集](references/design-templates.md) | 設計時に選択する配色テンプレート 6 種（プレビュー HTML・CSS Variables 一式・light/dark 対応） |
-| [デザインシステム](references/design-pattern.md) | shadcn/ui + Tailwind CSS v4 のコンポーネント選定・画面設計パターン |
+| [デザインシステム](references/design-pattern.md) | Tailwind CSS v4 のコンポーネント選定・画面設計パターン |
 | [コンポーネントカタログ](references/component-catalog.md) | 全コンポーネントの詳細仕様・使用例 |
 | [ステージ矢羽パターン](references/stage-path-pattern.md) | OptionSet（ステージ／ステータス）を Salesforce 風の矢羽で可視化・クリックで変更 |
 | [月間カレンダーパターン](references/calendar-pattern.md) | 日付を持つレコードを月間グリッドで俯瞰（date-fns のみ・依存追加なし・イベントチップ・今日ハイライト） |
