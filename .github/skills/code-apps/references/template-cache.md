@@ -28,7 +28,11 @@
 ```
 
 - **`template-snapshot/`**（このリポジトリにコミット）: 依存関係のバージョンを固定した `package.json` + `package-lock.json`。
-  中身は `@GeekPowerCode` が標準 scaffold で使う依存関係一式（Vite / React / Tailwind v4 / shadcn/ui / TanStack Query / dnd-kit / recharts 等）。
+  中身は `@GeekPowerCode` が標準 scaffold で使う依存関係一式（Vite / React / Tailwind v4 / TanStack Query / dnd-kit / recharts 等）。
+  **`shadcn`（CLI）は含めない** — 実際の scaffold では `npx shadcn@latest ...` を都度実行するため常駐インストールが不要で、
+  含めると `ts-morph` / `@modelcontextprotocol/sdk` 等の重い依存関係チェーンが付随してパッケージ数が約1.7倍に膨らむ
+  （検証: 含めた場合 577、除いた場合 338 パッケージ）。生成された Code Apps 実プロジェクトの `package.json`
+  （`.github/skills/code-apps/samples/*/package.json`）にも `shadcn` は含まれない。
 - **GitHub Release**（`code-apps-template-cache-vite` タグ）: `template-snapshot` を `npm ci` した実体（`node_modules`）を
   tar.gz 化してアップロードしたもの。**これが「リモートのゴールデンフォルダ」**であり、ローカルマシンには同等のものを持たない。
 - **`scaffold_from_cache.ps1`**: 新規プロジェクト scaffold のたびに Release アセットをダウンロード → 展開 → `npm ci` で
