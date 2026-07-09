@@ -656,7 +656,7 @@ export const statusColors: Record<RecordStatus, string> = {
 | レイヤー          | 技術                                   |
 | ----------------- | -------------------------------------- |
 | UI フレームワーク | React 18 + TypeScript                  |
-| スタイリング      | Tailwind CSS                           |
+| スタイリング      | Tailwind CSS + shadcn/ui               |
 | データフェッチ    | TanStack React Query                   |
 | ルーティング      | React Router                           |
 | ビルドツール      | Vite                                   |
@@ -1461,92 +1461,35 @@ publish_to_channels(bot_id)
 
 ## 8. 開発フロー全体図
 
-**設計（Phase 1）が承認されたら、Dataverse の構築と同時に Code Apps・Copilot Studio の開発も並行して着手する。**
-以降は 3 つの独立トラックに分かれ、VS Code ではそれぞれをサブエージェントに割り当てて並行実行する（→ [§8.1](#81-vs-code-サブエージェントによる並行実行)）。
-
 ```mermaid
 flowchart TD
     P0["🔧 Phase 0: 事前準備\n1. make.powerapps.com > ⚙️ > セッション詳細 > 詳細コピー\n2. コピー内容をチャットに貼り付け（ENV_ID・URL・Prefix確認）\n3. デバイスコードログイン（auth_helper.py）\n4. 既存ソリューション・パブリッシャー確認"]
 
     P1["🎨 Phase 1: 設計（ユーザー確認必須）\n0. コンサルタントとして要件ヒアリング（AskUserQuestion）\n   不明な場合は参考資料・ドキュメントの提供を依頼\n1. アーキテクチャ設計（コンポーネント選定）\n2. デザインテンプレート提案（Code Apps の場合）＋近いサンプルを紹介\n3. テーブル設計（スキーマ名・列・型・Choice値）\n4. リレーションシップ設計\n5. デモデータ計画\n6. ★ ユーザーに設計を提示し承認を得る"]
 
-    subgraph TA["🗄️ Track A: Dataverse サブエージェント（データ基盤オーナー）"]
-      direction TB
-      P2["🗄️ Phase 2: Dataverse 構築\n1. ソリューション作成\n2. テーブル作成（マスタ → 主 → 従属）\n3. Lookup リレーションシップ作成（リトライ付き）\n4. 日本語ローカライズ（PUT + MetadataId）\n5. 全テーブルにデモデータ投入\n6. テーブル・リレーションシップ検証"]
-      P3["🔒 Phase 3: Security Role\n1. セキュリティロール設計・ユーザー承認\n2. セキュリティロール作成・権限設定"]
-      P4["🤖 Phase 4: AI Builder（必要な場合）\n1. AI プロンプト設計・ユーザー承認\n2. AI プロンプト作成・デプロイ\n※ Power Automate フローが呼ぶため先に作成"]
-      P5D["📋 Phase 5 設計: Power Automate\n1. フロー名・トリガー・アクション設計\n2. 接続・通知先・メール本文設計\n3. ★ ユーザーに設計を提示し承認を得る\n※ Code Apps から呼ぶフローはここで先に作成"]
-      P5["⚡ Phase 5 実装: Power Automate\n1. Flow API / PowerApps API 認証\n2. 環境 ID 解決・接続検索\n3. フロー定義 JSON 構築\n4. POST or PATCH でデプロイ"]
-      P2 --> P3 --> P4 --> P5D --> P5
-    end
+    P2["🗄️ Phase 2: Dataverse 構築\n1. ソリューション作成\n2. テーブル作成（マスタ → 主 → 従属）\n3. Lookup リレーションシップ作成（リトライ付き）\n4. 日本語ローカライズ（PUT + MetadataId）\n5. 全テーブルにデモデータ投入\n6. テーブル・リレーションシップ検証"]
 
-    subgraph TB["⚛️ Track B: Code Apps サブエージェント"]
-      direction TB
-      P6D["🎨 Phase 6 設計: Code Apps UI\n1. code-apps スキルの references/design-pattern.md で設計\n2. 画面構成・コンポーネント選定\n3. Lookup 名前解決パターン設計\n4. ★ ユーザーに UI 設計を提示し承認を得る"]
-      PNPM["📦 scaffold + npm install\nネットワーク待ちのみ。テーブル不要のため即着手"]
-      P6I["⚛️ 先行実装（テーブル不要）\n1. npx power-apps init\n2. 初回 build & push（先にデプロイ！）"]
-      P6["⚛️ Phase 6 実装: Code Apps\n3. npx power-apps add-data-source（★同期①後）\n4. npx power-apps add-flow（★同期②後・Phase 5 参照）\n5. 承認済み設計に従い実装\n6. ビルド & 再デプロイ"]
-      P6D --> PNPM --> P6I --> P6
-    end
+    P3["🔒 Phase 3: Security Role\n1. セキュリティロール設計・ユーザー承認\n2. セキュリティロール作成・権限設定"]
 
-    subgraph TC["🤖 Track C: Copilot Studio サブエージェント"]
-      direction TB
-      P7D["📋 Phase 7 設計: Copilot Studio\n1. エージェント名・Instructions 設計\n2. 会話スターター・ナレッジ・ツール設計\n3. ★ ユーザーに設計を提示し承認を得る"]
-      P7B["🤖 先行実装（テーブル不要）\n1. UI で Bot 作成\n2. カスタムトピック全削除\n3. 生成オーケストレーション有効化\n4. 指示（Instructions）設定"]
-      P7["🤖 Phase 7 実装: Copilot Studio\n5. ★ ナレッジ追加（UI で手動・★同期後）\n6. ★ MCP Server / ツール追加（UI で手動・★同期後）\n7. エージェント公開"]
-      P7D --> P7B --> P7
-    end
+    P4["🤖 Phase 4: AI Builder（必要な場合）\n1. AI プロンプト設計・ユーザー承認\n2. AI プロンプト作成・デプロイ\n※ Power Automate フローが呼ぶため先に作成"]
 
-    P0 --> P1
-    P1 -->|設計承認| P2
-    P1 -.設計承認と同時に起動.-> P6D
-    P1 -.設計承認と同時に起動.-> P7D
-    P2 -.★同期①: テーブル作成完了.-> P6
-    P5 -.★同期②: フロー作成完了.-> P6
-    P2 -.★同期: テーブル.-> P7
-    P5 -.★同期: フロー.-> P7
+    P5D["📋 Phase 5 設計: Power Automate\n1. フロー名・トリガー・アクション設計\n2. 接続・通知先・メール本文設計\n3. ★ ユーザーに設計を提示し承認を得る\n※ Code Apps から呼ぶフローはここで先に作成"]
+
+    P5["⚡ Phase 5 実装: Power Automate\n1. Flow API / PowerApps API 認証\n2. 環境 ID 解決・接続検索\n3. フロー定義 JSON 構築\n4. POST or PATCH でデプロイ"]
+
+    P6D["🎨 Phase 6 設計: Code Apps UI\n1. code-apps スキルの references/design-pattern.md で設計\n2. 画面構成・コンポーネント選定\n3. Lookup 名前解決パターン設計\n4. ★ ユーザーに UI 設計を提示し承認を得る"]
+
+    P6["⚛️ Phase 6 実装: Code Apps\n1. npx power-apps init\n2. build & push（先にデプロイ！）\n3. npx power-apps add-data-source\n4. npx power-apps add-flow（Phase 5 のフローを参照）\n5. 承認済み設計に従い実装\n6. ビルド & 再デプロイ"]
+
+    P7D["📋 Phase 7 設計: Copilot Studio\n1. エージェント名・Instructions 設計\n2. 会話スターター・ナレッジ・ツール設計\n3. ★ ユーザーに設計を提示し承認を得る"]
+
+    P7["🤖 Phase 7 実装: Copilot Studio\n1. UI で Bot 作成\n2. カスタムトピック全削除\n3. 生成オーケストレーション有効化\n4. 指示（Instructions）設定\n5. ★ ナレッジ追加（UI で手動）\n6. ★ MCP Server 追加（UI で手動）\n7. エージェント公開"]
+
+    P0 --> P1 --> P2 --> P3 --> P4
+    P4 --> P5D --> P5
+    P5 --> P6D --> P6
+    P5 --> P7D --> P7
 ```
-
-> **並行実行の基本方針**: Phase 1 の設計承認で全体構成（Dataverse スキーマ・Code Apps UI・Copilot Studio）が決まったら、
-> Dataverse 構築（Track A）を待たずに Code Apps（Track B）・Copilot Studio（Track C）の開発を**同時に着手**する。
-> 各トラックの「テーブル不要」の工程（Code Apps の scaffold / npm install / `pac code init` / 初回 build & push、
-> Copilot Studio の Bot 作成 / 生成オーケストレーション / Instructions）は Dataverse 構築と完全に並行で進められる。
->
-> **同期点（Track A の完了を待つ工程）**:
-> - **★同期①（テーブル作成完了）** — Code Apps の `pac code add-data-source` と Copilot Studio のナレッジ／MCP は
->   Track A の Phase 2（テーブル作成）完了後に実行する。
-> - **★同期②（フロー作成完了）** — Code Apps の `pac code add-flow` と Copilot Studio のフロー系ツールは
->   Track A の Phase 5（Power Automate 実装）完了後に実行する。
->
-> **オーナーシップ（競合回避）**: Dataverse スキーマの書き込みは **Track A が単独で所有**し、Track B/C はテーブルを**参照するのみ**。
-> 3 トラックは同一ソリューション・同一 `.env`・同一認証（`auth_helper.py` の 2 層キャッシュ）を共有する。
-> Code Apps の `pac code push` と Copilot Studio の Bot 作成（UI）は Dataverse API と競合しないため安全に並行実行できる。
-
-### 8.1 VS Code サブエージェントによる並行実行
-
-VS Code の Copilot（@GeekPowerCode）では、Phase 1 承認後にオーケストレーターが上記 3 トラックを
-**サブエージェント（Task ツール）として並行起動**する。各サブエージェントは 1 トラック（＝担当スキル）を所有する。
-
-| サブエージェント | 担当スキル | 起動タイミング | 同期点 |
-|---|---|---|---|
-| **Track A: Dataverse** | `dataverse` → `power-automate`（＋必要時 `ai-builder`） | Phase 1 承認直後 | なし（データ基盤オーナー） |
-| **Track B: Code Apps** | `code-apps` | Phase 1 承認直後 | ★同期①（`add-data-source`）／★同期②（`add-flow`） |
-| **Track C: Copilot Studio** | `copilot-studio` | Phase 1 承認直後 | ★同期①（ナレッジ／MCP）／★同期②（フロー系ツール） |
-
-オーケストレーターの役割:
-
-1. **並行起動**: Phase 1 承認後、Track A/B/C を 1 メッセージで同時にサブエージェント起動する（独立作業のため並列化）。
-2. **同期の調停**: Track A が Phase 2（テーブル）／Phase 5（フロー）を完了した時点を検知し、
-   ★同期①／★同期②を待っている Track B/C を次工程へ進める。
-3. **競合防止**: Dataverse スキーマの変更は Track A のみが行う。Track B/C にはスキーマ書き込みを依頼しない。
-4. **集約**: 各サブエージェントの完了報告を集約し、最終デプロイ（Code Apps 再デプロイ・エージェント公開）まで確認する。
-
-> **サブエージェントが使えない環境（逐次実行へフォールバック）**: 並行起動できない場合は、
-> 「テーブル不要」の先行工程（Code Apps の scaffold/init/初回 push、Copilot Studio の Bot/Instructions）だけを
-> Phase 2 と並行でバックグラウンド実行し、`add-data-source`／ナレッジ以降は Track A の完了後に逐次進める。
-> 最低限、Code Apps 採用時の `npm install` は Phase 1 承認直後にバックグラウンドで即着手する
-> （ネットワーク待ちが主で他 Phase の API 呼び出しと競合しない）。詳細な Step は
-> [`code-apps` スキル](../../code-apps/SKILL.md) の Step 0 を参照。
 
 ### Phase 0: 事前準備の詳細
 
