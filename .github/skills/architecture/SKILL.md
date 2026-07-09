@@ -281,6 +281,21 @@ Power Pages を選ぶ条件（ユーザー宣言 + 以下が該当）:
 >   有効化を待ってから設計・実装を続ける。
 > - 詳細は [`code-apps` スキル §2 環境の前提条件](../code-apps/SKILL.md#2-初回デプロイ) を参照。
 
+> **★ Code Apps + Dataverse 並行開発パターン（正常フロー）**
+>
+> Code Apps が確定し、`dataverse` スキルでスキーマがユーザー承認されたら、**`code-apps` スキルを
+> サブエージェントとして起動し、Dataverse 構築と並行して Code Apps 開発を進める**。
+>
+> ```
+> [dataverse スキル — メインエージェント]       [code-apps スキル — サブエージェント（並行）]
+> Step 4: --skip-localize で構築開始       →   scaffold → pac code init → npm run deploy
+>                                              → pac code add-data-source（全テーブル）
+> Step 4: --localize-only でローカライズ完了   （独立して実装フェーズへ継続）
+> ```
+>
+> Dataverse 側は `--skip-localize` 完了後に `--localize-only` へ進み、
+> Code Apps 側の `add-data-source` 完了を待たずに独立して動作する。
+
 ### Model-Driven Apps の方針: 標準 D365 開発 または 既存改善のみ
 
 **Model-Driven Apps を使うのは以下のいずれかに該当する場合に限る**（それ以外の新規開発は常に Code Apps）:

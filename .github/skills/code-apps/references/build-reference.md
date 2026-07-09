@@ -24,6 +24,12 @@ cp -n .github/skills/standard/references/gitignore-template .gitignore
 #    標準では @GeekPowerCode が scaffold する。手動で行う場合:
 #    npx degit github:microsoft/PowerAppsCodeApps/templates/vite .
 
+<<<<<<< HEAD
+# npm install はローカルゴールデンキャッシュから node_modules を複製して高速化する
+# （社内プロキシへの毎回のフル依存取得を回避。詳細: references/template-cache.md）
+pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
+# ↑ 使えない環境ではフォールバック: npm install --no-audit --no-fund
+=======
 # Code Apps 採用が決まった時点で、Dataverse 構築（Phase 2）と並行して着手する
 # （npm install はネットワーク待ちのみで Dataverse 構築をブロックしないため待たない）
 # VS Code では本トラックを Code Apps サブエージェントとして並行起動。add-data-source は
@@ -37,6 +43,7 @@ python .github/skills/code-apps/scripts/check_code_apps_environment.py
 # ①.5 マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
 #     architecture 提案時に確認済みなら再実行不要）
 python .github/skills/code-apps/scripts/check_code_apps_environment.py
+>>>>>>> origin/main
 
 # ② Power Apps 初期化 — power.config.json のみ生成（PAC CLI 認証でテナント不一致なし）
 pac code init -env {ENVIRONMENT_ID} -n "AppName"
@@ -205,11 +212,22 @@ python scripts/toggle_table_lang.py jp
 > **重要**: テーブル論理名に `geek_xxx` のような literal を書かない。
 > publisher prefix は環境ごとに異なるため、必ず `.env` の `PUBLISHER_PREFIX` を変数展開して使う。
 
-### Step 5: 技術スタック（テンプレート scaffold で導入済み）
+### Step 5: 技術スタック導入
 
-Tailwind CSS / TanStack React Query / React Router / UI プリミティブ（`@/components/ui/`）は
-Step 1 の `npm install`（`template-snapshot/package.json` 由来）ですでに導入済みのため、
-個別にインストールし直す必要はない。shadcn CLI（`npx shadcn@latest ...`）は使用しない。
+```bash
+# Tailwind CSS
+npm install -D tailwindcss @tailwindcss/vite
+
+# shadcn/ui
+npx shadcn@latest init
+npx shadcn@latest add button card dialog table tabs badge input select textarea
+
+# TanStack React Query
+npm install @tanstack/react-query
+
+# React Router
+npm install react-router
+```
 
 > **重要**: ルーター生成は必ず `createHashRouter` を使用すること。
 > `createBrowserRouter` は Power Apps iframe 内で初期ロード時に 404 になる。

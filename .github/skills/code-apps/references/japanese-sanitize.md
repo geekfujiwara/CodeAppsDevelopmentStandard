@@ -9,6 +9,11 @@
 | `npx power-apps add-data-source` | `nameUtils.js` が ASCII のみ許容 | `patch-nameutils.cjs` で CJK 許容パッチ |
 | `pac code add-data-source` | PAC CLI .NET 内蔵ランタイム（パッチ不可） | `toggle_table_lang.py` で英語切替 |
 
+> **正常系は常に `pac code add-data-source` + `toggle_table_lang.py`**。`npx power-apps add-data-source` は
+> PAC CLI と独立した認証トークンキャッシュを持ち、正しいテナントに `pac auth create` 済みでも別テナント扱いで
+> `403` エラーになる事故がある（[トラブルシューティング #12](troubleshooting.md#12-npx-power-apps-add-data-source-がテナント不一致で-403-エラー)）。
+> 下記「フォールバック」の npx パッチは、`pac code add-data-source` 自体が使えない例外的な状況でのみ検討する。
+
 ## 推奨手順（pac code add-data-source 使用時）
 
 ```bash

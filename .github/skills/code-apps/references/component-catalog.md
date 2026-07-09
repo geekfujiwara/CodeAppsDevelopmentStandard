@@ -216,7 +216,7 @@ import { FormModal, FormSection, FormColumns } from "@/components/form-modal"
 | `CodeBlock` | `@/components/code-block` | シンタックスハイライト付きコードブロック |
 | `LoadingSkeletonGrid` | `@/components/loading-skeleton` | ローディングスケルトン |
 
-### UI プリミティブ（24 種）
+### shadcn/ui プリミティブ（24 種）
 
 すべて `@/components/ui/` からインポート:
 

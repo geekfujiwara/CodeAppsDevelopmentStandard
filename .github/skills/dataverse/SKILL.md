@@ -151,6 +151,18 @@ existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PR
 | ローカライズ計画 | テーブル名・列名・Choice オプションの日本語名 |
 | デモデータ計画 | 全テーブルに対して（従属テーブル含む） |
 
+> **Code Apps 案件: スキーマ承認後すぐに Code Apps サブエージェントを起動する（並行実行）**
+>
+> `architecture` スキルで Code Apps が確定している場合、ユーザーがスキーマを承認したタイミングで
+> **`code-apps` スキルをサブエージェントとして起動し**、Dataverse 構築（Step 4）と並行して
+> Code Apps 開発（scaffold → deploy → add-data-source）を進める。
+>
+> - **このエージェント（dataverse）**: Step 4 を `--skip-localize` で実行（テーブル構築のみ）
+> - **サブエージェント（code-apps）**: scaffold → `pac code init` → `npm run deploy` → `pac code add-data-source`（全テーブル）
+> - **このエージェント（dataverse）**: Code Apps 側の `add-data-source` 完了を待たずに `--localize-only` を実行して完了
+>
+> Dataverse 構築が先に終わっても Code Apps サブエージェントは独立して継続する。
+
 ### Step 4: 構築スクリプト実行
 
 同梱の [setup_dataverse.py](scripts/setup_dataverse.py) をプロジェクト用にカスタマイズして実行する。
@@ -160,6 +172,13 @@ existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PR
 > `-u` を付けて Step ごとの進捗（`=== Step 2: テーブル作成 ===` など）を確実にリアルタイム
 > 表示させる。スクリプト側でも `sys.stdout.reconfigure(line_buffering=True)` を有効化済み。
 
+> **テーブルが複数ある場合は並行作成**: `setup_dataverse.py` の Step 2 では、`TABLES` に
+> 2 つ以上のテーブルが定義されている場合、`ThreadPoolExecutor`（最大 5 並行）で**全テーブル
+> を並行作成**する。各テーブルの「本体作成 → sleep 10s → カスタム列追加」は 1 スレッドで
+> 完結するため、テーブル間の競合は発生しない。
+> **Lookup（Step 3）は全テーブルと列が揃ってから**作成するので、このスクリプトでの呼び出し順は
+> 変わらない（`create_tables()` が全スレッドの完了を待ってから return する）。
+
 > **Code Apps を使う場合はローカライズを2段階に分ける**: `pac code add-data-source` は日本語
 > DisplayName だと `Failed to sanitize string` で失敗することがある。ローカライズ→英語に一時
 > 戻す→再ローカライズという無駄な往復を避けるため、**構築時点ではローカライズせず英語のまま
@@ -167,7 +186,7 @@ existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PR
 >
 > ```powershell
 > python -u setup_dataverse.py --skip-localize   # テーブル構築のみ（英語のまま）
-> # ここで code-apps 側の add-data-source を全テーブルに実行（build-reference.md Step 4）
+> # ここで code-apps サブエージェント側の add-data-source を全テーブルに実行（build-reference.md Step 4）
 > python -u setup_dataverse.py --localize-only   # ローカライズ・デモデータ投入
 > ```
 >

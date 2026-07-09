@@ -7,12 +7,16 @@
 3. **`systemuser` も `pac code add-data-source -t systemuser` で追加できる**（検証済 2026-06-15）。
    追加できれば `src/lib/dataSourcesInfo.ts` は生成ファイルを re-export するだけでよく、手動定義は不要
 4. **`src/lib/dataSourcesInfo.ts`** への手動追記は、SDK の add-data-source で追加**できなかった**システムテーブルやコネクタに限る（最後の手段）
+5. **`npx power-apps add-data-source` は Dataverse テーブル追加には使わない**（正常系は常に `pac code add-data-source`）。
+   `npx power-apps` は PAC CLI と**独立した認証トークンキャッシュ**を持ち、別テナントを向いたまま 403 エラーになる事故が起きる
+   （詳細: [トラブルシューティング #12](troubleshooting.md#12-npx-power-apps-add-data-source-がテナント不一致で-403-エラー)）。
+   日本語 DisplayName で `pac code add-data-source` が失敗する場合も、npx へ切り替えず `toggle_table_lang.py` で英語化してから再実行する。
 
 ## SDK 生成コードの構成
 
-### `pac code add-data-source` / `npx power-apps add-data-source` 共通（検証済 2026-06-15）
+### `pac code add-data-source`（正常系。`npx power-apps add-data-source` は使わない）
 
-どちらのコマンドも以下のフル構成を生成する:
+以下のフル構成を生成する:
 
 ```
 src/generated/
