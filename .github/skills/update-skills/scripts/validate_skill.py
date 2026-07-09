@@ -56,10 +56,14 @@ ALLOWLIST = {
     "78ce3f0f-a1ce-49c2-8cde-64b5c0896db4",  # Dynamics CRM user_impersonation 委任スコープ ID（固定）
     "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",  # Azure 組み込みロール Storage Blob Data Owner のロール定義 ID（固定）
     "00000000-0000-0000-0000-000000000000",  # 空 GUID（既定値プレースホルダー）
+    "00000000-0000-0000-0000-000000000001",  # 開発用モックの定番 ID（プレースホルダー）
     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",   # プレースホルダー
     "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",   # ドキュメント用プレースホルダー（例示）
     "11111111-2222-3333-4444-555555555555",   # ドキュメント用プレースホルダー（例示）
     "953b9fac-1e5e-e611-80d6-00155ded156f",  # モデル駆動型アプリの既定アイコン webresourceid（全テナント共通の固定値）
+    "edfdb190-3791-45d8-9a6c-8f90a37c278a",  # AI Builder GPT Dynamic Prompt テンプレート ID（全環境固定）
+    "00000001-0000-0000-0001-00000000009b",  # Dataverse Default Solution（全環境固定）
+    "4273edbd-ac1d-40d3-9fb2-095c621b552d",  # 標準フォームコントロール CLASSID（全環境固定）
 }
 
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
