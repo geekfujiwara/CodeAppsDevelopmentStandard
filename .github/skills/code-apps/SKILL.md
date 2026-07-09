@@ -92,6 +92,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 ```
 [設計]  ① デザインテンプレートを選ばせる（6種・プレビュー付き）
+        ①.5 環境の前提条件確認（check_code_apps_environment.py、architecture 提案時に未実施なら実行）
         ② 画面設計（design-pattern）→ ユーザー承認
           │
 [§2 初回デプロイ]
@@ -142,15 +143,25 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 ### 環境の前提条件（デプロイ前に必ず確認）
 
-```
-1. Power Platform 管理センターで「コード アプリを許可する」がオン
-   → オフの場合: CodeAppOperationNotAllowedInEnvironment (403) エラー
+> マネージド環境・Code Apps 許可の 2 点は、本来 **architecture スキルが Code Apps を提案した時点**
+> （[アーキテクチャスキル §5](../architecture/SKILL.md#5-ui-コンポーネント選定)）で
+> `check_code_apps_environment.py` により確認済みのはず。未確認のまま本フェーズに来た場合は、
+> デプロイ前に必ず以下を実行する。
 
-2. PAC CLI 認証プロファイルが対象環境用に作成済み
+```
+0. マネージド環境の有効化 / 環境での Code Apps 許可（pac code init / pac code push の前に必ず確認）
+   → 未有効のまま実行するとデプロイに失敗する（Code Apps 未許可時は 403 CodeAppOperationNotAllowedInEnvironment）
+   → コマンドで確認（推奨）:
+     python .github/skills/code-apps/scripts/check_code_apps_environment.py
+   → 未有効の場合:
+     - マネージド環境: Power Platform 管理センター > 環境 > 該当環境 > 設定 > マネージド環境 > 「有効にする」を ON
+     - Code Apps 許可: Power Platform 管理センター > 環境 > 該当環境 > 設定 > 製品 > 機能 > 「コード アプリを許可する」→ オン
+
+1. PAC CLI 認証プロファイルが対象環境用に作成済み
    pac auth create --name {profile-name} --environment {ENVIRONMENT_ID}
    pac auth list  # * が付いているのがアクティブ
 
-3. power.config.json は pac code init で生成する
+2. power.config.json は pac code init で生成する
    → テンプレートから手動コピーしない
    → 別環境の appId が残っていると: AppLeaseMissing (409) エラー
    → 新規環境では必ず pac code init で新規生成
@@ -192,6 +203,10 @@ cp -n .github/skills/standard/references/gitignore-template .gitignore   # .giti
 # クイックスタート（README）で template-snapshot/package.json 由来の node_modules が
 # すでに先読みインストール済みの場合、依存関係の大半が一致しているため以降の npm install は高速化される。
 npm install --no-audit --no-fund
+
+# Step 0.5: マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
+#           architecture 提案時に確認済みなら再実行不要）
+python .github/skills/code-apps/scripts/check_code_apps_environment.py
 
 # Step 1: 初期化 — power.config.json を生成（PAC CLI 認証でテナント不一致なし）
 pac code init -env {ENVIRONMENT_ID} -n "AppName"
