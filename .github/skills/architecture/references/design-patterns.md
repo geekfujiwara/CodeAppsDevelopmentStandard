@@ -179,15 +179,26 @@ flowchart TB
 - {なぜこのコンポーネントを選んだか}
 - {なぜ代替案を選ばなかったか}
 
-### 6. 構築フェーズ
+### 6. 構築フェーズ（設計承認後は並行トラックで実行）
 
-1. Phase 2: Dataverse — {テーブル数}テーブル（Code Apps を含む構成では npm install を並行着手）
-2. Phase 3: Security Role — （必要な場合）
-3. Phase 4: AI Builder — {プロンプト数}プロンプト（Power Automate から呼ぶ場合のみ）
-4. Phase 5: Power Automate — {フロー数}フロー（※ 不要なら省略）
-5. Phase 6: Code Apps — {画面数}画面（※ 不要なら省略。npm install は Phase 2 開始と同時にバックグラウンドで着手済み）
-   5'. Phase 6: Model-Driven Apps — テーブルから自動生成（※ Code Apps と排他）
-6. Phase 7: Copilot Studio — {エージェント数}エージェント（※ 不要なら省略）
+Phase 1（設計）承認後は、Dataverse 構築と同時に Code Apps・Copilot Studio の開発も着手する。
+VS Code では 3 トラックをサブエージェントに割り当てて並行実行する。
+
+- **Track A: Dataverse（データ基盤オーナー）**
+  1. Phase 2: Dataverse — {テーブル数}テーブル
+  2. Phase 3: Security Role — （必要な場合）
+  3. Phase 4: AI Builder — {プロンプト数}プロンプト（Power Automate から呼ぶ場合のみ）
+  4. Phase 5: Power Automate — {フロー数}フロー（※ 不要なら省略）
+- **Track B: Code Apps**（設計承認と同時に着手・※ 不要なら省略）
+  - 先行（テーブル不要）: scaffold + npm install → `pac code init` → 初回 build & push
+  - 同期後: `add-data-source`（★同期①: Phase 2 完了後）→ `add-flow`（★同期②: Phase 5 完了後）→ UI 実装 → 再デプロイ
+  - 5'. Model-Driven Apps を採用する場合はテーブルから自動生成（※ Code Apps と排他）
+- **Track C: Copilot Studio**（設計承認と同時に着手・※ 不要なら省略）
+  - 先行（テーブル不要）: Bot 作成 → 生成オーケストレーション有効化 → Instructions 設定
+  - 同期後: ナレッジ／MCP／ツール追加（★同期①/②: Phase 2・Phase 5 完了後）→ エージェント公開
+
+同期点とサブエージェントのオーケストレーション詳細は
+[開発フロー全体図（standard §8）](../../standard/references/power-platform-development-standard.md#8-開発フロー全体図) を参照。
 
 この設計で進めてよいですか？
 ```
