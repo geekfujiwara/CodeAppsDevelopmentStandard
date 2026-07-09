@@ -26,6 +26,8 @@ cp -n .github/skills/standard/references/gitignore-template .gitignore
 
 # Code Apps 採用が決まった時点で、Dataverse 構築（Phase 2）と並行して着手する
 # （npm install はネットワーク待ちのみで Dataverse 構築をブロックしないため待たない）
+# VS Code では本トラックを Code Apps サブエージェントとして並行起動。add-data-source は
+# Dataverse Phase 2 完了後（★同期①）、add-flow は Power Automate Phase 5 完了後（★同期②）に実行する。
 npm install --no-audit --no-fund
 
 # ①.5 マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。

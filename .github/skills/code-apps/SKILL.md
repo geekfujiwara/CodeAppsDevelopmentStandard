@@ -96,7 +96,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
         ② 画面設計（design-pattern）→ ユーザー承認
           │
 [§2 初回デプロイ]
-        ③ テンプレート scaffold + npm install（Dataverse 構築 Phase 2 と並行して即着手）
+        ③ テンプレート scaffold + npm install（Dataverse 構築 Phase 2 と並行して即着手／VS Code では Code Apps サブエージェントとして起動）
         ④ pac code init（power.config.json 生成）
         ⑤ vite.config.ts 必須設定の確認 / .env 設定
         ⑥ npm run deploy（build + pac code push）→ Dataverse 接続確立
@@ -198,6 +198,11 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 # Step 0: テンプレート scaffold（標準では @GeekPowerCode が scaffold）
 # Code Apps 採用が決まった時点（設計承認後）で、Dataverse 構築（Phase 2）と並行して着手する
 # （npm install はネットワーク待ちのみで Dataverse 構築をブロックしないため、待たずに並行実行する）。
+# VS Code では本トラック全体を「Code Apps サブエージェント」として並行起動できる。
+# 先行工程（scaffold / init / 初回 build & push）はテーブル不要。以下は Dataverse 構築の完了を待つ同期点:
+#   ★同期①: pac code add-data-source は Dataverse Phase 2（テーブル作成）完了後に実行
+#   ★同期②: pac code add-flow は Power Automate Phase 5（フロー実装）完了後に実行
+# 詳細は standard §8「開発フロー全体図」を参照。
 cp -n .github/skills/standard/references/gitignore-template .gitignore   # .gitignore がなければコピー
 
 # クイックスタート（README）で template-snapshot/package.json 由来の node_modules が

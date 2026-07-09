@@ -277,6 +277,15 @@ if ai_idx >= 0:
 
 詳細な構築手順・スクリプトコードは [構築リファレンス](references/build-reference.md) を参照。
 
+> **設計承認と同時に並行着手（VS Code サブエージェント）**: Phase 1 の設計承認後、Dataverse 構築を待たずに
+> 本トラック（Copilot Studio）を**並行して開始**できる。VS Code では Copilot Studio サブエージェントとして起動する。
+> **先行工程（テーブル不要）** = Bot 作成 → 生成オーケストレーション有効化 → Instructions 設定（Step 0–4）は
+> Dataverse 構築と完全に並行で進められる。以下は Dataverse／Power Automate の完了を待つ**同期点**:
+> - **★同期①（テーブル作成完了後）** — Dataverse をソースにするナレッジ／MCP の追加（Step 9）。
+> - **★同期②（フロー作成完了後）** — Power Automate フローをツール化する連携。
+>
+> 全体のトラック分割・オーケストレーションは [standard §8「開発フロー全体図」](../standard/references/power-platform-development-standard.md#8-開発フロー全体図) を参照。
+
 高レベルの手順:
 
 1. **Step 0**: Copilot Studio UI で Bot 作成（ユーザー手動）
