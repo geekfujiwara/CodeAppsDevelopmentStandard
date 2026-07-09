@@ -23,7 +23,7 @@ cp .github/skills/code-apps/references/template-snapshot/package-lock.json .
 npm install
 ```
 
-上記実行後、GitHub Copilot / Claude Code のチャットで **`@GeekPowerCode`** を呼び出し、作りたいテーマを伝えるだけです。プロジェクト一式（Vite + React + Tailwind CSS + shadcn/ui）の scaffold からデザイン選定・Dataverse 接続・デプロイまでをエージェントがガイドします。
+`npm install` の完了（ネットワーク待ち）を待つ必要はありません。GitHub Copilot / Claude Code などのエージェントに上記をそのままプロンプトとして渡す場合は、`npm install` は完了を待たずに実行し（非同期・バックグラウンド実行）、続けて **`@GeekPowerCode`** の呼び出しに進んでください。人が手元で実行する場合も、`npm install` が終わるのを待たず、別タブ等で GitHub Copilot / Claude Code のチャットから **`@GeekPowerCode`** を呼び出し、作りたいテーマを伝えて構いません。プロジェクト一式（Vite + React + Tailwind CSS + shadcn/ui）の scaffold からデザイン選定・Dataverse 接続・デプロイまでをエージェントがガイドします（デザインテンプレート選定などの序盤の対話は `node_modules` を必要としないため、`npm install` はその間に並行して完了します）。
 
 > [!NOTE]
 > `.gitignore` がないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になります。必ずコピーしてください。
@@ -203,11 +203,11 @@ cp .github/skills/code-apps/references/template-snapshot/package.json .
 cp .github/skills/code-apps/references/template-snapshot/package-lock.json .
 npm install
 
-# 4. @GeekPowerCode にプロジェクト scaffold を依頼
+# 4. npm install の完了を待たず、@GeekPowerCode にプロジェクト scaffold を依頼
 ```
 
 > [!TIP]
-> GitHub Copilot, Claude Code などに上記 bash をプロンプトとして入れることで対話型で進めることもできます。
+> GitHub Copilot, Claude Code などに上記 bash をプロンプトとして入れることで対話型で進めることもできます。その場合、`npm install` は完了を待たずに実行し（非同期・バックグラウンド実行）、続けて手順 4（`@GeekPowerCode` の呼び出し）に進んでください。デザインテンプレート選定などの序盤の対話は `node_modules` を必要としないため、`npm install` はその間に並行して完了します。
 >
 > Azure DevOps / 社内 Git / ローカル NAS など GitHub 以外のリモートを使う場合も、同じ手順で `git remote add origin <url>` を実行すれば、GitHub には何も公開せずに済みます。
 
