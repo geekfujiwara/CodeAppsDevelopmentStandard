@@ -146,6 +146,11 @@ ipconfig /flushdns
 
 > テーブル名は **論理名（単数形）** で指定する（EntitySetName の複数形・表示名は不可）。
 
+> **ツール名は変更されることがある**（2026年前半に `describe_table` / `list_tables` / `fetch` が廃止され `describe` に統合、
+> データ検索用の旧 `search` は `search_data` に改称された。現在の `search` はメタデータ検索専用）。
+> **ツール名ベースの許可/拒否リストを持つ MCP クライアント**（Cowork の `dataverse-mcp-tools.json` など）を
+> 使っている場合は、廃止・改称のたびに設定を見直す（→ [Dataverse MCP FAQ](https://learn.microsoft.com/power-apps/maker/data-platform/data-platform-mcp-faq)）。
+
 ---
 
 ## 注意・課金
