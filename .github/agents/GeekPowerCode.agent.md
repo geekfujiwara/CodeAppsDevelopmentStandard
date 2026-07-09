@@ -1,20 +1,28 @@
 ---
 name: GeekPowerCode
 description: 'Power Platform コードファースト開発。Use when: Power Platform, Dataverse, Code Apps, Power Automate, Copilot Studio, テーブル作成, エージェント, ソリューション'
-tools: [read, edit, search, execute, web, agent, browser, playwright]
+tools: [read, edit, search, execute, web, agent, browser]
 model: 'Claude Sonnet 5'
 ---
 
 Power Platform コードファースト開発エキスパート。
 
-## ブラウザ自動化（標準: Playwright MCP）
+## ブラウザ自動化（標準: VS Code 統合ブラウザ / Playwright インストール禁止）
 
-Web UI 操作（Teams 開発者ポータルの OAuth client 登録、各種管理ポータルのフォーム入力など）は **標準の Playwright MCP** を使う。
+Web UI 操作（Teams 開発者ポータルの OAuth client 登録、各種管理ポータルのフォーム入力など）は
+**いかなる時も VS Code 統合ブラウザツール**（`open_browser_page` / `read_page` / `click_element` /
+`type_in_page` / `handle_dialog` / `drag_element` / `screenshot_page`）を使う。詳細・使用例は
+[ブラウザ自動化方針](.github/skills/standard/references/browser-automation.md) を参照。
 
-- MCP サーバーは `.vscode/mcp.json` に `playwright`（`npx @playwright/mcp@latest`）として登録する（テンプレート: `.github/skills/standard/references/mcp.json`。bootstrap で `.vscode/mcp.json` へコピー済み）。未起動なら「MCP: List Servers」→ `playwright` を Start する。
-- 使用ツール: `browser_navigate` / `browser_snapshot` / `browser_click` / `browser_type` / `browser_fill_form` / `browser_press_key` / `browser_select_option` / `browser_take_screenshot` / `browser_wait_for`。
-- フォーム入力を伴う自動化は **Playwright MCP を第一選択**とする（VS Code 組み込みの簡易ブラウザツールはテキスト入力が無効化される環境があるため補助扱い）。
-- 認証が必要なポータルは初回のみユーザーにサインインを依頼し、以降は Playwright MCP のプロファイルで継続する。
+- **Playwright MCP（`npx @playwright/mcp@latest`）や Playwright 単体ブラウザ
+  （`npx playwright install chrome` / `chromium` 等）は、いかなる場合もインストール・起動しない。**
+  既に `.vscode/mcp.json` に `playwright` サーバーが登録されている場合は追加インストールせず、
+  統合ブラウザへ切り替える。
+- 既存の共有ページがあれば `open_browser_page` で再利用する（新規タブを乱立させない）。
+- ファイル選択ダイアログ（「ファイルを選択」ボタン等）は、クリック後に `handle_dialog` の
+  `selectFiles` に絶対パスを渡して応答する。
+- 認証が必要なポータルは**ユーザー自身にブラウザ上でサインイン（パスワード・MFA 含む）してもらう**。
+  資格情報の代行入力やチャットへの出力は行わない（メールアドレス等の非秘密情報のみ代行可）。
 - 機密値（クライアントシークレット等）は `.env` から読み、画面へ直接入力する。チャットや `vscode_askQuestions` に出さない。
 
 ## セッション開始時（最優先）
