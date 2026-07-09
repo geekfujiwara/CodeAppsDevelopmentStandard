@@ -27,6 +27,7 @@ import os
 import sys
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -325,64 +326,90 @@ def build_column_body(col: dict) -> dict:
     return base
 
 
+def _create_single_table(tbl: dict) -> None:
+    """1 テーブル（本体 + 列）を作成する。ThreadPoolExecutor から呼ばれる。"""
+    logical = tbl["logical"]
+
+    def _create(t=tbl):
+        body = {
+            "@odata.type": "#Microsoft.Dynamics.CRM.EntityMetadata",
+            "SchemaName": t["logical"],
+            "DisplayName": label_jp(t["display"]),
+            "DisplayCollectionName": label_jp(t["plural"]),
+            "Description": label_jp(t["description"]),
+            "OwnershipType": "UserOwned",
+            "IsActivity": False,
+            "HasActivities": False,
+            "HasNotes": False,
+            "HasFeedback": False,
+            "PrimaryNameAttribute": f"{PREFIX}_name",
+            "Attributes": [
+                {
+                    "@odata.type": "#Microsoft.Dynamics.CRM.StringAttributeMetadata",
+                    "SchemaName": f"{PREFIX}_name",
+                    "DisplayName": label_jp("Name"),
+                    "IsPrimaryName": True,
+                    "RequiredLevel": {"Value": "ApplicationRequired"},
+                    "FormatName": {"Value": "Text"},
+                    "MaxLength": 200,
+                }
+            ],
+        }
+        api_post("EntityDefinitions", body, solution=SOLUTION_NAME)
+        print(f"  テーブル '{logical}' 作成完了")
+
+    retry_metadata(_create, f"テーブル {logical}")
+    time.sleep(10)  # メタデータ反映待ち
+
+    # カスタム列追加（既存テーブルでも欠落カラムを補完）
+    for col in tbl.get("columns", []):
+        col_logical = col["logical"]
+
+        # 既存カラムチェック
+        try:
+            api_get(f"EntityDefinitions(LogicalName='{logical}')/Attributes(LogicalName='{col_logical}')?$select=LogicalName")
+            continue  # 既存 → スキップ
+        except Exception:
+            pass
+
+        def _add_col(c=col, ln=logical):
+            api_post(
+                f"EntityDefinitions(LogicalName='{ln}')/Attributes",
+                build_column_body(c),
+                solution=SOLUTION_NAME,
+            )
+            print(f"    列 '{c['logical']}' 追加完了")
+
+        retry_metadata(_add_col, f"列 {col_logical}")
+        time.sleep(5)
+
+
 def create_tables():
+    """全テーブルを並行作成し、すべての完了を待ってから返る。
+    Lookup は必ず全テーブル+列が完成してから create_lookups() で作成する。"""
     print("\n=== Step 2: テーブル作成 ===")
 
-    for tbl in TABLES:
-        logical = tbl["logical"]
+    if len(TABLES) <= 1:
+        # テーブルが 1 つ以下なら並行化不要
+        for tbl in TABLES:
+            _create_single_table(tbl)
+        return
 
-        def _create(t=tbl):
-            body = {
-                "@odata.type": "#Microsoft.Dynamics.CRM.EntityMetadata",
-                "SchemaName": t["logical"],
-                "DisplayName": label_jp(t["display"]),
-                "DisplayCollectionName": label_jp(t["plural"]),
-                "Description": label_jp(t["description"]),
-                "OwnershipType": "UserOwned",
-                "IsActivity": False,
-                "HasActivities": False,
-                "HasNotes": False,
-                "HasFeedback": False,
-                "PrimaryNameAttribute": f"{PREFIX}_name",
-                "Attributes": [
-                    {
-                        "@odata.type": "#Microsoft.Dynamics.CRM.StringAttributeMetadata",
-                        "SchemaName": f"{PREFIX}_name",
-                        "DisplayName": label_jp("Name"),
-                        "IsPrimaryName": True,
-                        "RequiredLevel": {"Value": "ApplicationRequired"},
-                        "FormatName": {"Value": "Text"},
-                        "MaxLength": 200,
-                    }
-                ],
-            }
-            api_post("EntityDefinitions", body, solution=SOLUTION_NAME)
-            print(f"  テーブル '{logical}' 作成完了")
-
-        retry_metadata(_create, f"テーブル {logical}")
-        time.sleep(10)  # メタデータ反映待ち
-
-        # カスタム列追加（既存テーブルでも欠落カラムを補完）
-        for col in tbl.get("columns", []):
-            col_logical = col["logical"]
-
-            # 既存カラムチェック
+    print(f"  {len(TABLES)} テーブルを並行作成します…")
+    errors: list[str] = []
+    with ThreadPoolExecutor(max_workers=min(len(TABLES), 5)) as executor:
+        futures = {executor.submit(_create_single_table, tbl): tbl["logical"] for tbl in TABLES}
+        for future in as_completed(futures):
+            logical = futures[future]
             try:
-                api_get(f"EntityDefinitions(LogicalName='{logical}')/Attributes(LogicalName='{col_logical}')?$select=LogicalName")
-                continue  # 既存 → スキップ
-            except Exception:
-                pass
+                future.result()
+            except Exception as exc:
+                msg = f"テーブル '{logical}' の作成でエラー: {exc}"
+                print(f"  ❌ {msg}")
+                errors.append(msg)
 
-            def _add_col(c=col, ln=logical):
-                api_post(
-                    f"EntityDefinitions(LogicalName='{ln}')/Attributes",
-                    build_column_body(c),
-                    solution=SOLUTION_NAME,
-                )
-                print(f"    列 '{c['logical']}' 追加完了")
-
-            retry_metadata(_add_col, f"列 {col_logical}")
-            time.sleep(5)
+    if errors:
+        raise RuntimeError("テーブル並行作成中にエラーが発生しました:\n" + "\n".join(errors))
 
 
 # ── Step 3: Lookup リレーション ──────────────────────────────
