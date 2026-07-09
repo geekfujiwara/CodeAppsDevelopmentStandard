@@ -18,18 +18,12 @@ VS Code + GitHub Copilot が使える状態（[前提条件](#前提条件をま
 ```bash
 npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
 cp .github/skills/standard/references/gitignore-template .gitignore
-cp .github/skills/code-apps/references/template-snapshot/package.json .
-cp .github/skills/code-apps/references/template-snapshot/package-lock.json .
-npm install
 ```
 
-`npm install` の完了（ネットワーク待ち）を待つ必要はありません。GitHub Copilot / Claude Code などのエージェントに上記をそのままプロンプトとして渡す場合は、`npm install` は完了を待たずに実行し（非同期・バックグラウンド実行）、続けて **`@GeekPowerCode`** の呼び出しに進んでください。人が手元で実行する場合も、`npm install` が終わるのを待たず、別タブ等で GitHub Copilot / Claude Code のチャットから **`@GeekPowerCode`** を呼び出し、作りたいテーマを伝えて構いません。
+続けて GitHub Copilot / Claude Code のチャットから **`@GeekPowerCode`** を呼び出し、作りたいテーマを伝えてください。`architecture` スキルがヒアリングを経て Code Apps を選定した場合にのみ、`code-apps` スキルが `.github/skills/code-apps/references/template-snapshot/` の `package.json` / `package-lock.json` をコピーして `npm install` を実行します（Code Apps 以外のソリューションでは `node_modules` は生成されません）。
 
 > [!NOTE]
 > `.gitignore` がないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になります。必ずコピーしてください。
-
-> [!TIP]
-> `npm install` の対象は `.github/skills/code-apps/references/template-snapshot/` の `package.json` / `package-lock.json`（Code Apps 標準の **Vite + React + Tailwind CSS** 構成の依存関係一式）です。ほとんどのケースで Code Apps を作成するため、この段階で先読みインストールしておくことで、後続の `@GeekPowerCode` によるテンプレート scaffold 時の `npm install` を高速化します（依存関係が一致していれば瞬時に完了）。Code Apps 以外を作る場合は、コピーした `package.json` / `package-lock.json` / `node_modules/` を削除してから進めてください。
 
 チーム開発でリモートリポジトリを最初から使いたい場合は [チーム開発向けの手順](#チーム開発向けの手順) を、既存仕様書がある場合は `/spec-build` の運用へ進んでください。
 

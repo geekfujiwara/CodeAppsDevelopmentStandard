@@ -263,7 +263,7 @@ Power Pages を選ぶ条件（ユーザー宣言 + 以下が該当）:
 
 ### このプロジェクトの標準: Code Apps（Canvas Apps は常に対象外）
 
-本プロジェクトでは **Code Apps（TypeScript + React + Tailwind + shadcn/ui）** を標準とする。
+本プロジェクトでは **Code Apps（TypeScript + React + Tailwind CSS）** を標準とする。
 **Canvas Apps は常に対象外**とする（パフォーマンス・カスタマイズ性・エンタープライズ運用の観点で不向きなため）。
 内部ユーザー向けの新規画面は、UI の複雑さに関わらず常に Code Apps を提案する。
 
