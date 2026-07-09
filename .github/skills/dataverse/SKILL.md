@@ -151,6 +151,18 @@ existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PR
 | ローカライズ計画 | テーブル名・列名・Choice オプションの日本語名 |
 | デモデータ計画 | 全テーブルに対して（従属テーブル含む） |
 
+> **Code Apps 案件: スキーマ承認後すぐに Code Apps サブエージェントを起動する（並行実行）**
+>
+> `architecture` スキルで Code Apps が確定している場合、ユーザーがスキーマを承認したタイミングで
+> **`code-apps` スキルをサブエージェントとして起動し**、Dataverse 構築（Step 4）と並行して
+> Code Apps 開発（scaffold → deploy → add-data-source）を進める。
+>
+> - **このエージェント（dataverse）**: Step 4 を `--skip-localize` で実行（テーブル構築のみ）
+> - **サブエージェント（code-apps）**: scaffold → `pac code init` → `npm run deploy` → `pac code add-data-source`（全テーブル）
+> - **このエージェント（dataverse）**: Code Apps 側の `add-data-source` 完了を待たずに `--localize-only` を実行して完了
+>
+> Dataverse 構築が先に終わっても Code Apps サブエージェントは独立して継続する。
+
 ### Step 4: 構築スクリプト実行
 
 同梱の [setup_dataverse.py](scripts/setup_dataverse.py) をプロジェクト用にカスタマイズして実行する。
@@ -167,7 +179,7 @@ existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PR
 >
 > ```powershell
 > python -u setup_dataverse.py --skip-localize   # テーブル構築のみ（英語のまま）
-> # ここで code-apps 側の add-data-source を全テーブルに実行（build-reference.md Step 4）
+> # ここで code-apps サブエージェント側の add-data-source を全テーブルに実行（build-reference.md Step 4）
 > python -u setup_dataverse.py --localize-only   # ローカライズ・デモデータ投入
 > ```
 >
