@@ -187,6 +187,8 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 # Step 0: テンプレート scaffold（標準では @GeekPowerCode が scaffold）
 cp -n .github/skills/standard/references/gitignore-template .gitignore   # .gitignore がなければコピー
 
+# クイックスタート（README）で template-snapshot/package.json 由来の node_modules が
+# すでに先読みインストール済みの場合、依存関係の大半が一致しているため以降の npm install は高速化される。
 # ゴールデンキャッシュ（ローカル node_modules 複製）で npm install を高速化。
 # 社内プロキシへの毎回のフル依存取得を避ける仕組み → references/template-cache.md
 pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .

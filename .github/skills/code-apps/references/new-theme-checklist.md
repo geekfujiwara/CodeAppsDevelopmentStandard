@@ -12,8 +12,12 @@
 
 ```bash
 mkdir <your-theme-name> && cd <your-theme-name>
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github && \
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
 cp .github/skills/standard/references/gitignore-template .gitignore
+# Code Apps 標準の依存関係を先読みインストール（ほとんどのケースで Code Apps を作成するため）
+cp .github/skills/code-apps/references/template-snapshot/package.json .
+cp .github/skills/code-apps/references/template-snapshot/package-lock.json .
+npm install
 # 取得後、@GeekPowerCode に「新規テーマ: [テーマ名]を作成してください」と依頼
 ```
 
