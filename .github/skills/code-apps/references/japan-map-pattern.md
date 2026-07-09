@@ -1,6 +1,6 @@
 # 日本地図パターン（Code Apps 向け）
 
-Code Apps（React + TypeScript + Tailwind CSS）で日本地図を表示し、都道府県別のデータ可視化を行うデザインパターン。
+Code Apps（React + TypeScript + Tailwind CSS + shadcn/ui）で日本地図を表示し、都道府県別のデータ可視化を行うデザインパターン。
 SVG アセットはこのスキルに同梱（`.github/skills/code-apps/references/maps/`）。
 **地図を使うテーマでは、これらをテーマの `public/maps/` にコピーしてから利用する**（JapanMap は実行時に `/maps/*.svg` を fetch するため）。
 

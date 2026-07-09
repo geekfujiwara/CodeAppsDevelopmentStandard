@@ -20,8 +20,14 @@ Code Apps では `Xrm` オブジェクトや `fetch()` が使えない（CSP 制
 
 ### 前提: systemuser をデータソースに追加
 
-systemuser はシステムテーブルのため `pac code add-data-source` では追加できない。
-`src/lib/dataSourcesInfo.ts` に手動追記する（カスタムテーブルとは異なりシステムテーブルは手動追記が許可される）。
+```bash
+pac code add-data-source -a dataverse -t systemuser
+```
+
+`pac code add-data-source -t systemuser` で追加できる（検証済 2026-06-15、[データソースパターン](data-source-patterns.md)参照）。追加後は `src/lib/dataSourcesInfo.ts` を生成ファイルの re-export に統一する。
+
+> `npx power-apps add-data-source` は使わない（PAC CLI と独立した認証トークンキャッシュのため、別テナント扱いで 403 になる事故がある。詳細は[トラブルシューティング #12](troubleshooting.md#12-npx-power-apps-add-data-source-がテナント不一致で-403-エラー)）。
+> 万一 `pac code add-data-source` が systemuser を追加できない環境に当たった場合のみ、次のように `src/lib/dataSourcesInfo.ts` へ手動追記する（最後の手段）:
 
 ```typescript
 systemusers: {

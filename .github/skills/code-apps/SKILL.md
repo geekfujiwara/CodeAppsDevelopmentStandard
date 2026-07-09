@@ -1,6 +1,6 @@
 ---
 name: code-apps
-description: "Power Apps Code Apps（コードファースト）の初期化・Dataverse 接続・UI 設計・開発・デプロイ。TypeScript + React + Tailwind CSS で開発する。CSP 構成・メール送信パターンも含む。"
+description: "Power Apps Code Apps（コードファースト）の初期化・Dataverse 接続・UI 設計・開発・デプロイ。TypeScript + React + Tailwind CSS + shadcn/ui で開発する。CSP 構成・メール送信パターンも含む。"
 category: ui
 triggers:
   - "Code Apps"
@@ -77,7 +77,7 @@ triggers:
 
 # Code Apps 開発スキル
 
-Power Apps Code Apps（コードファースト）を **TypeScript + React + Tailwind CSS** で開発する。
+Power Apps Code Apps（コードファースト）を **TypeScript + React + Tailwind CSS + shadcn/ui** で開発する。
 UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の全領域をカバーする統合スキル。
 
 > [!NOTE]
@@ -92,11 +92,10 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 ```
 [設計]  ① デザインテンプレートを選ばせる（6種・プレビュー付き）
-        ①.5 環境の前提条件確認（check_code_apps_environment.py、architecture 提案時に未実施なら実行）
         ② 画面設計（design-pattern）→ ユーザー承認
           │
 [§2 初回デプロイ]
-        ③ テンプレート scaffold + npm install（Dataverse 構築 Phase 2 と並行して即着手）
+        ③ テンプレート scaffold + npm install
         ④ pac code init（power.config.json 生成）
         ⑤ vite.config.ts 必須設定の確認 / .env 設定
         ⑥ npm run deploy（build + pac code push）→ Dataverse 接続確立
@@ -143,25 +142,15 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 ### 環境の前提条件（デプロイ前に必ず確認）
 
-> マネージド環境・Code Apps 許可の 2 点は、本来 **architecture スキルが Code Apps を提案した時点**
-> （[アーキテクチャスキル §5](../architecture/SKILL.md#5-ui-コンポーネント選定)）で
-> `check_code_apps_environment.py` により確認済みのはず。未確認のまま本フェーズに来た場合は、
-> デプロイ前に必ず以下を実行する。
-
 ```
-0. マネージド環境の有効化 / 環境での Code Apps 許可（pac code init / pac code push の前に必ず確認）
-   → 未有効のまま実行するとデプロイに失敗する（Code Apps 未許可時は 403 CodeAppOperationNotAllowedInEnvironment）
-   → コマンドで確認（推奨）:
-     python .github/skills/code-apps/scripts/check_code_apps_environment.py
-   → 未有効の場合:
-     - マネージド環境: Power Platform 管理センター > 環境 > 該当環境 > 設定 > マネージド環境 > 「有効にする」を ON
-     - Code Apps 許可: Power Platform 管理センター > 環境 > 該当環境 > 設定 > 製品 > 機能 > 「コード アプリを許可する」→ オン
+1. Power Platform 管理センターで「コード アプリを許可する」がオン
+   → オフの場合: CodeAppOperationNotAllowedInEnvironment (403) エラー
 
-1. PAC CLI 認証プロファイルが対象環境用に作成済み
+2. PAC CLI 認証プロファイルが対象環境用に作成済み
    pac auth create --name {profile-name} --environment {ENVIRONMENT_ID}
    pac auth list  # * が付いているのがアクティブ
 
-2. power.config.json は pac code init で生成する
+3. power.config.json は pac code init で生成する
    → テンプレートから手動コピーしない
    → 別環境の appId が残っていると: AppLeaseMissing (409) エラー
    → 新規環境では必ず pac code init で新規生成
@@ -196,21 +185,12 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 ```bash
 # Step 0: テンプレート scaffold（標準では @GeekPowerCode が scaffold）
-# Code Apps 採用が決まった時点（設計承認後）で、Dataverse 構築（Phase 2）と並行して着手する
-# （npm install はネットワーク待ちのみで Dataverse 構築をブロックしないため、待たずに並行実行する）。
 cp -n .github/skills/standard/references/gitignore-template .gitignore   # .gitignore がなければコピー
 
-# クイックスタート（README）で template-snapshot/package.json 由来の node_modules が
-# すでに先読みインストール済みの場合、依存関係の大半が一致しているため以降の npm install は高速化される。
-npm install --no-audit --no-fund
-
-# Step 0.5: マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
-#           architecture 提案時に確認済みなら再実行不要）
-python .github/skills/code-apps/scripts/check_code_apps_environment.py
-
-# Step 0.5: マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
-#           architecture 提案時に確認済みなら再実行不要）
-python .github/skills/code-apps/scripts/check_code_apps_environment.py
+# ゴールデンキャッシュ（ローカル node_modules 複製）で npm install を高速化。
+# 社内プロキシへの毎回のフル依存取得を避ける仕組み → references/template-cache.md
+pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
+# ↑ 使えない環境（Windows以外・キャッシュ未整備等）では代わりに: npm install --no-audit --no-fund
 
 # Step 1: 初期化 — power.config.json を生成（PAC CLI 認証でテナント不一致なし）
 pac code init -env {ENVIRONMENT_ID} -n "AppName"
@@ -248,6 +228,8 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 ## 3. データソース接続
 
 ### 正常系: pac code add-data-source
+
+Dataverse テーブルの追加は **常に `pac code add-data-source` を使う**（`npx power-apps add-data-source` は使わない）。`npx power-apps` は PAC CLI と独立した認証トークンキャッシュを持つため、正しいテナントで `pac auth create` 済みでも別テナント扱いとなり `403` エラーになる事故がある（[トラブルシューティング #12](references/troubleshooting.md#12-npx-power-apps-add-data-source-がテナント不一致で-403-エラー)）。`systemuser` 等のシステムテーブルも同じコマンドで追加できる。
 
 テーブルごとに `pac code add-data-source -a dataverse -t {table}` を実行すると、`.power/schemas/appschemas/dataSourcesInfo.ts` が自動更新される（`systemuser`・`bot` 等のシステムテーブルも同じ）。`src/lib/dataSourcesInfo.ts` はこの生成ファイルを **re-export するだけ**（手書き追記はコネクタ等 add-data-source で追加できないものに限る）。
 
@@ -359,7 +341,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | リファレンス | 内容 |
 |---|---|
 | [デザインテンプレート集](references/design-templates.md) | 設計時に選択する配色テンプレート 6 種（プレビュー HTML・CSS Variables 一式・light/dark 対応） |
-| [デザインシステム](references/design-pattern.md) | Tailwind CSS v4 のコンポーネント選定・画面設計パターン |
+| [デザインシステム](references/design-pattern.md) | shadcn/ui + Tailwind CSS v4 のコンポーネント選定・画面設計パターン |
 | [コンポーネントカタログ](references/component-catalog.md) | 全コンポーネントの詳細仕様・使用例 |
 | [ステージ矢羽パターン](references/stage-path-pattern.md) | OptionSet（ステージ／ステータス）を Salesforce 風の矢羽で可視化・クリックで変更 |
 | [月間カレンダーパターン](references/calendar-pattern.md) | 日付を持つレコードを月間グリッドで俯瞰（date-fns のみ・依存追加なし・イベントチップ・今日ハイライト） |
@@ -384,5 +366,6 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [高度な実装パターン](references/advanced-patterns.md) | マルチ環境・オフライン・i18n・パフォーマンス最適化パターン |
 | [プレデプロイレビュー](references/pre-deploy-review.md) | 「デプロイして」「プッシュして」時の自動チェック手順 |
 | [新規テーマ開始チェックリスト](references/new-theme-checklist.md) | 前テーマの残骸がないクリーン開始の確認手順・scaffold 時に含めないファイル |
+| [テンプレート依存関係キャッシュ](references/template-cache.md) | npm install 高速化のためのローカルゴールデンキャッシュ・GitHub Action による週次自動更新 |
 | [トラブルシューティング](references/troubleshooting.md) | 頻出エラーと対処法（GUID フィルタ・`.toLowerCase()` 統一・テンプレート削除時の use-theme 巻き添え 等） |
 | [サンプル作成ガイド](references/sample-authoring-guide.md) | 公開リポジトリ向けサンプルのセキュリティ要件・環境変数ルール・feature flag 命名規則 |
