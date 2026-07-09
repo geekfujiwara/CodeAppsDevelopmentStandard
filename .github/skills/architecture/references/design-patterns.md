@@ -181,11 +181,11 @@ flowchart TB
 
 ### 6. 構築フェーズ
 
-1. Phase 2: Dataverse — {テーブル数}テーブル
+1. Phase 2: Dataverse — {テーブル数}テーブル（Code Apps を含む構成では npm install を並行着手）
 2. Phase 3: Security Role — （必要な場合）
 3. Phase 4: AI Builder — {プロンプト数}プロンプト（Power Automate から呼ぶ場合のみ）
 4. Phase 5: Power Automate — {フロー数}フロー（※ 不要なら省略）
-5. Phase 6: Code Apps — {画面数}画面（※ 不要なら省略）
+5. Phase 6: Code Apps — {画面数}画面（※ 不要なら省略。npm install は Phase 2 開始と同時にバックグラウンドで着手済み）
    5'. Phase 6: Model-Driven Apps — テーブルから自動生成（※ Code Apps と排他）
 6. Phase 7: Copilot Studio — {エージェント数}エージェント（※ 不要なら省略）
 

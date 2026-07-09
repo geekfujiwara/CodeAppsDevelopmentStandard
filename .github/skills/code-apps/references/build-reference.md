@@ -24,10 +24,13 @@ cp -n .github/skills/standard/references/gitignore-template .gitignore
 #    標準では @GeekPowerCode が scaffold する。手動で行う場合:
 #    npx degit github:microsoft/PowerAppsCodeApps/templates/vite .
 
-# npm install はローカルゴールデンキャッシュから node_modules を複製して高速化する
-# （社内プロキシへの毎回のフル依存取得を回避。詳細: references/template-cache.md）
-pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
-# ↑ 使えない環境ではフォールバック: npm install --no-audit --no-fund
+# Code Apps 採用が決まった時点で、Dataverse 構築（Phase 2）と並行して着手する
+# （npm install はネットワーク待ちのみで Dataverse 構築をブロックしないため待たない）
+npm install --no-audit --no-fund
+
+# ①.5 マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
+#     architecture 提案時に確認済みなら再実行不要）
+python .github/skills/code-apps/scripts/check_code_apps_environment.py
 
 # ①.5 マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
 #     architecture 提案時に確認済みなら再実行不要）

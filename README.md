@@ -13,16 +13,23 @@ Power Apps Code Apps, モデル駆動型アプリ, Generative page, Dataverse, P
 
 ## クイックスタート
 
-VS Code + GitHub Copilot が使える状態（[前提条件](#前提条件をまだ準備していない場合)を参照）であれば、次の 1 コマンドと 1 依頼だけで開発を始められます。
+VS Code + GitHub Copilot が使える状態（[前提条件](#前提条件をまだ準備していない場合)を参照）であれば、次のコマンドと 1 依頼だけで開発を始められます。
 
 ```bash
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github && cp .github/skills/standard/references/gitignore-template .gitignore
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
+cp .github/skills/standard/references/gitignore-template .gitignore
+cp .github/skills/code-apps/references/template-snapshot/package.json .
+cp .github/skills/code-apps/references/template-snapshot/package-lock.json .
+npm install
 ```
 
 上記実行後、GitHub Copilot / Claude Code のチャットで **`@GeekPowerCode`** を呼び出し、作りたいテーマを伝えるだけです。プロジェクト一式（Vite + React + Tailwind CSS + shadcn/ui）の scaffold からデザイン選定・Dataverse 接続・デプロイまでをエージェントがガイドします。
 
 > [!NOTE]
 > `.gitignore` がないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になります。必ずコピーしてください。
+
+> [!TIP]
+> `npm install` の対象は `.github/skills/code-apps/references/template-snapshot/` の `package.json` / `package-lock.json`（Code Apps 標準の Vite + React + Tailwind CSS + shadcn/ui 構成の依存関係一式）です。ほとんどのケースで Code Apps を作成するため、この段階で先読みインストールしておくことで、後続の `@GeekPowerCode` によるテンプレート scaffold 時の `npm install` を高速化します（依存関係が一致していれば瞬時に完了）。Code Apps 以外を作る場合は、コピーした `package.json` / `package-lock.json` / `node_modules/` を削除してから進めてください。
 
 チーム開発でリモートリポジトリを最初から使いたい場合は [チーム開発向けの手順](#チーム開発向けの手順) を、既存仕様書がある場合は `/spec-builder` を利用してください。
 
@@ -108,10 +115,11 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 1. PowerShell 7 を最優先で導入し、以後の作業は PowerShell 7 で確認する。
 2. VS Code の既定ターミナルプロファイルを PowerShell 7 に設定する（`terminal.integrated.defaultProfile.windows` を `PowerShell` = pwsh 7 にする）。クイックスタートのコマンドは `&&` を使用しており、`&&` は PowerShell 7 以降でのみ動作するため。
 3. Git / Node.js LTS / Python 3.12 を導入する。
-4. Power Platform は PP CLI のみ導入する（VS Code 拡張は入れない）。
-5. PATH 未反映の可能性を考慮し、実体パス確認と PATH 反映を行う。特に Node.js インストール直後は `npx` が既存ターミナルで認識されないことがあるため、新しいターミナル（新しい PS7 セッション）を開いて再確認する。
-6. `gh auth status` で GitHub CLI のログイン状態を確認する（未ログインなら `gh auth login` を案内）。
-7. リポジトリの fork / clone / `npm install` は実行しない。次のステップとしてクイックスタートへ案内する。
+4. `npm install -g degit` で degit をグローバル導入する。クイックスタートの `npx degit` が初回ダウンロード待ちなしで即座に実行できるようにするため。
+5. Power Platform は PP CLI のみ導入する（VS Code 拡張は入れない）。
+6. PATH 未反映の可能性を考慮し、実体パス確認と PATH 反映を行う。特に Node.js インストール直後は `npx` が既存ターミナルで認識されないことがあるため、新しいターミナル（新しい PS7 セッション）を開いて再確認する。
+7. `gh auth status` で GitHub CLI のログイン状態を確認する（未ログインなら `gh auth login` を案内）。
+8. リポジトリの fork / clone / `npm install` は実行しない。次のステップとしてクイックスタートへ案内する。
 
 検証コマンド:
 - $PSVersionTable.PSVersion
@@ -119,6 +127,7 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 - node --version
 - npm --version
 - npx --version
+- degit --version  （degit がグローバル導入済みで即座に実行できることを確認）
 - Write-Output A && Write-Output B  （`&&` が PS7 で動作することを確認。エラーになる場合は PowerShell 5.1 のままなので既定ターミナルプロファイルの設定を見直す）
 - python --version
 - py --version
@@ -186,10 +195,15 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 gh repo create <your-account>/<your-theme-repo> --private --clone && cd <your-theme-repo>
 
 # 2. エージェント・スキルと .gitignore を取得
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github && \
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
 cp .github/skills/standard/references/gitignore-template .gitignore
 
-# 3. @GeekPowerCode にプロジェクト scaffold を依頼
+# 3. Code Apps 標準の依存関係を先読みインストール（ほとんどのケースで Code Apps を作成するため）
+cp .github/skills/code-apps/references/template-snapshot/package.json .
+cp .github/skills/code-apps/references/template-snapshot/package-lock.json .
+npm install
+
+# 4. @GeekPowerCode にプロジェクト scaffold を依頼
 ```
 
 > [!TIP]

@@ -1469,6 +1469,8 @@ flowchart TD
 
     P2["🗄️ Phase 2: Dataverse 構築\n1. ソリューション作成\n2. テーブル作成（マスタ → 主 → 従属）\n3. Lookup リレーションシップ作成（リトライ付き）\n4. 日本語ローカライズ（PUT + MetadataId）\n5. 全テーブルにデモデータ投入\n6. テーブル・リレーションシップ検証"]
 
+    PNPM["📦 npm install（Code Apps 採用時のみ）\nDataverse 構築（Phase 2〜5）と並行してバックグラウンドで即着手\n※ ネットワーク待ちのみで他 Phase をブロックしない"]
+
     P3["🔒 Phase 3: Security Role\n1. セキュリティロール設計・ユーザー承認\n2. セキュリティロール作成・権限設定"]
 
     P4["🤖 Phase 4: AI Builder（必要な場合）\n1. AI プロンプト設計・ユーザー承認\n2. AI プロンプト作成・デプロイ\n※ Power Automate フローが呼ぶため先に作成"]
@@ -1486,10 +1488,19 @@ flowchart TD
     P7["🤖 Phase 7 実装: Copilot Studio\n1. UI で Bot 作成\n2. カスタムトピック全削除\n3. 生成オーケストレーション有効化\n4. 指示（Instructions）設定\n5. ★ ナレッジ追加（UI で手動）\n6. ★ MCP Server 追加（UI で手動）\n7. エージェント公開"]
 
     P0 --> P1 --> P2 --> P3 --> P4
+    P1 -.Code Apps 採用決定.-> PNPM
+    PNPM -.node_modules 準備完了.-> P6D
     P4 --> P5D --> P5
     P5 --> P6D --> P6
     P5 --> P7D --> P7
 ```
+
+> **Code Apps 採用時の `npm install` 並行実行**: Phase 1 の設計承認で Code Apps を含む構成が決まったら、
+> `npm install`（scaffold の依存関係インストール）を Phase 2〜5（Dataverse・Security Role・AI Builder・Power Automate）と
+> 並行してバックグラウンドで即座に開始する。Dataverse 構築の完了を待つ必要はない
+> （`npm install` はネットワーク待ちが主で、他 Phase の API 呼び出しと競合しない）。
+> Phase 6 設計（P6D）に入る時点で `node_modules` が揃っていれば、以降は `pac code init` → build & push だけで進められる。
+> 詳細な Step は [`code-apps` スキル](../../code-apps/SKILL.md) の Step 0 を参照。
 
 ### Phase 0: 事前準備の詳細
 

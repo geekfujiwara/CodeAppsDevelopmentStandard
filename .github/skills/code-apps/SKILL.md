@@ -96,7 +96,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
         ② 画面設計（design-pattern）→ ユーザー承認
           │
 [§2 初回デプロイ]
-        ③ テンプレート scaffold + npm install
+        ③ テンプレート scaffold + npm install（Dataverse 構築 Phase 2 と並行して即着手）
         ④ pac code init（power.config.json 生成）
         ⑤ vite.config.ts 必須設定の確認 / .env 設定
         ⑥ npm run deploy（build + pac code push）→ Dataverse 接続確立
@@ -196,12 +196,17 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 ```bash
 # Step 0: テンプレート scaffold（標準では @GeekPowerCode が scaffold）
+# Code Apps 採用が決まった時点（設計承認後）で、Dataverse 構築（Phase 2）と並行して着手する
+# （npm install はネットワーク待ちのみで Dataverse 構築をブロックしないため、待たずに並行実行する）。
 cp -n .github/skills/standard/references/gitignore-template .gitignore   # .gitignore がなければコピー
 
-# ゴールデンキャッシュ（ローカル node_modules 複製）で npm install を高速化。
-# 社内プロキシへの毎回のフル依存取得を避ける仕組み → references/template-cache.md
-pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
-# ↑ 使えない環境（Windows以外・キャッシュ未整備等）では代わりに: npm install --no-audit --no-fund
+# クイックスタート（README）で template-snapshot/package.json 由来の node_modules が
+# すでに先読みインストール済みの場合、依存関係の大半が一致しているため以降の npm install は高速化される。
+npm install --no-audit --no-fund
+
+# Step 0.5: マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
+#           architecture 提案時に確認済みなら再実行不要）
+python .github/skills/code-apps/scripts/check_code_apps_environment.py
 
 # Step 0.5: マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
 #           architecture 提案時に確認済みなら再実行不要）
@@ -379,6 +384,5 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [高度な実装パターン](references/advanced-patterns.md) | マルチ環境・オフライン・i18n・パフォーマンス最適化パターン |
 | [プレデプロイレビュー](references/pre-deploy-review.md) | 「デプロイして」「プッシュして」時の自動チェック手順 |
 | [新規テーマ開始チェックリスト](references/new-theme-checklist.md) | 前テーマの残骸がないクリーン開始の確認手順・scaffold 時に含めないファイル |
-| [テンプレート依存関係キャッシュ](references/template-cache.md) | npm install 高速化のためのローカルゴールデンキャッシュ・GitHub Action による週次自動更新 |
 | [トラブルシューティング](references/troubleshooting.md) | 頻出エラーと対処法（GUID フィルタ・`.toLowerCase()` 統一・テンプレート削除時の use-theme 巻き添え 等） |
 | [サンプル作成ガイド](references/sample-authoring-guide.md) | 公開リポジトリ向けサンプルのセキュリティ要件・環境変数ルール・feature flag 命名規則 |
