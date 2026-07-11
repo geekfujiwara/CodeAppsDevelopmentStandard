@@ -58,6 +58,7 @@ triggers:
 |---|---|
 | [アイコン作成](references/icon-creation.md) | dataverse / copilot-studio / model-driven-app / generative-page |
 | [HTML メールテンプレート](references/html-email-template.md)・[テンプレートコンポーネント](references/template-components.md) | power-automate / copilot-studio |
+| [デザイン言語（トークン/配色/UXパターン選定）](references/design-language.md) | code-apps / power-pages / azure |
 
 ## 大前提: 一つのソリューション内に開発
 
