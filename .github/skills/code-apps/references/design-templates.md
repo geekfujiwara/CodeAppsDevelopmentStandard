@@ -2,6 +2,8 @@
 
 > **用途**: Code Apps の設計フェーズでユーザーにデザインテンプレートを提案し、選択されたテンプレートの CSS 変数一式を `styles/index.pcss`（または任意の CSS ファイル）の `:root` / `.dark` に適用する。
 > **ランタイム切替ではない**: デプロイされるアプリは常に 1 テンプレート。設計時に選択する（ダーク/ライト切替は `ThemeProvider` + `ModeToggle` で行う）。
+>
+> **トークン体系・配色切替の共通規約・UX パターン選定**は [standard: デザイン言語](../../standard/references/design-language.md) を単一ソースとして参照する（本ファイルは Code Apps 実装の配色テンプレート集）。
 
 ---
 
