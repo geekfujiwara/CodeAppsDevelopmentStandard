@@ -346,6 +346,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [クロス集計マトリクスパターン](references/cross-tab-pattern.md) | 2 軸の組み合わせ件数をヒート色付きピボット表で俯瞰（行列自動生成・合計行/列・追加依存なし） |
 | [縦タイムライン/ステッパーパターン](references/timeline-stepper-pattern.md) | 順序を持つ項目の進行状態を縦に可視化（done/current/problem/pending・行ごとに操作ボタン差込可・追加依存なし） |
 | [しきい値ゲージパターン](references/threshold-gauge-pattern.md) | 測定値を管理基準（上下限）と照合し合否を判定・横バーゲージで可視化（純粋関数に判定集約・片側規格/負値対応・追加依存なし） |
+| [ルームグリッド/ステータスボードパターン](references/room-grid-pattern.md) | 配置された対象を状況で色分けしたセル格子で俯瞰・クリックで状況更新（色体系の一元管理・凡例/ダーク対応・操作連動で子レコード自動生成・追加依存なし） |
 | [構築リファレンス](references/build-reference.md) | ビルド・デプロイの詳細手順・vite.config.ts 必須設定・TypeScript エラー対処 |
 | [データソースパターン](references/data-source-patterns.md) | SDK 生成サービス・dataSourcesInfo・getClient(dataSourcesInfo)・TanStack React Query |
 | [Lookup 名前解決](references/lookup-resolution.md) | クライアントサイド名前解決・OData FormattedValue パターン・所有者（Owner）列の表示 |

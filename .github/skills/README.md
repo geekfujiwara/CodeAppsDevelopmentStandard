@@ -71,6 +71,7 @@ skill-name/
 | Geek Punchlist | `code-apps/samples/geek-punchlist/` | 建設業・竣工検査（指摘事項・是正ワンクリック送り・場所×分類マトリクス） |
 | Geek Delivery | `code-apps/samples/geek-delivery/` | 物流・配送管理（配送便・車両・配達トラッキング・縦タイムライン） |
 | Geek HACCP | `code-apps/samples/geek-haccp/` | 飲食・HACCP 温度/衛生点検（管理基準の上下限判定・しきい値ゲージ・適合率/逸脱ヒートマップ） |
+| Geek Hotel | `code-apps/samples/geek-hotel/` | ホテル・客室清掃/整備管理（階別ステータスボード・状況更新で清掃記録を自動生成・担当者別実績） |
 | Power Pages ポータル | `power-pages/samples/portal/` | Power Pages サイト実体（web-templates / page-templates） |
 | Corporate LP テンプレート | `power-pages/templates/corporate-lp/` | コーポレート LP（雛形として利用可） |
 
