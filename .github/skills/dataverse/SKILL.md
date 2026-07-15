@@ -133,7 +133,10 @@ python -u .github/skills/dataverse/scripts/scan_environment.py --tables account,
 existing_sol = api_get(f"solutions?$filter=uniquename eq '{SOLUTION_NAME}'&$select=solutionid,friendlyname")
 
 # テーブルスキーマ名の重複チェック
-existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PREFIX}_')&$select=SchemaName,DisplayName")
+# ⚠️ 環境によっては EntityDefinitions への $filter=startswith(...) が 501 Not Implemented になる。
+#    $select のみで全件取得し、プレフィックス一致は Python 側でフィルタする（詳細は Dataverse 統合ガイド参照）。
+all_tables = api_get("EntityDefinitions?$select=LogicalName,SchemaName,DisplayName")
+existing_tables = [t for t in all_tables["value"] if t["LogicalName"].startswith(f"{PREFIX}_")]
 ```
 
 衝突がある場合はユーザーに報告し、名前を変更してから設計を確定する。
@@ -172,10 +175,18 @@ existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PR
 > `-u` を付けて Step ごとの進捗（`=== Step 2: テーブル作成 ===` など）を確実にリアルタイム
 > 表示させる。スクリプト側でも `sys.stdout.reconfigure(line_buffering=True)` を有効化済み。
 
-> **テーブルが複数ある場合は並行作成**: `setup_dataverse.py` の Step 2 では、`TABLES` に
-> 2 つ以上のテーブルが定義されている場合、`ThreadPoolExecutor`（最大 5 並行）で**全テーブル
-> を並行作成**する。各テーブルの「本体作成 → sleep 10s → カスタム列追加」は 1 スレッドで
-> 完結するため、テーブル間の競合は発生しない。
+> **テーブルが複数ある場合は並行作成（環境の混雑度に応じて並行数を調整）**: `setup_dataverse.py` の
+> Step 2 では、`TABLES` に 2 つ以上のテーブルが定義されている場合、`ThreadPoolExecutor`
+> （デフォルト最大 3 並行）で**全テーブルを並行作成**する。
+>
+> ⚠️ **Dataverse のメタデータロックはテナント全体で共有される**ため、既存カスタムテーブルが
+> 大量にある（100 件超）環境や、同一環境で他セッションが並行してメタデータ操作をしている環境では
+> 並行数が高いほど競合が増える。実測では 10 テーブルを 5 並行で作成したところ 7 テーブルが
+> `max retries (5) exceeded` で失敗し、並行数を 2 に落として再実行したところ全て成功した。
+> 失敗が多発する場合は `create_tables()` の `ThreadPoolExecutor(max_workers=...)` を 2 まで
+> 下げて再実行する。**スクリプトはべき等**（成功済みテーブル・列は `already exists, skipping`
+> で自動スキップ）なので、同じコマンドを再実行するだけで失敗分だけがリトライされ、安全に復旧する。
+>
 > **Lookup（Step 3）は全テーブルと列が揃ってから**作成するので、このスクリプトでの呼び出し順は
 > 変わらない（`create_tables()` が全スレッドの完了を待ってから return する）。
 
@@ -231,6 +242,7 @@ existing_tables = api_get(f"EntityDefinitions?$filter=startswith(SchemaName,'{PR
 | **EntitySetName は API で取得** | 複数形の推測は誤る場合がある（例: `equipmentcategorys` vs `em_equipmentcategories`） |
 | **ソリューション表示名を `.env` に自動保存** | `_save_env_value("SOLUTION_DISPLAY_NAME", name)` で永続化。他スクリプトから参照可能 |
 | **メタデータロックで最大リトライ超過時は再実行** | `retry_metadata()` の max retries (5) を超えた列は、スクリプト再実行時に「既存。スキップ」で回復 |
+| **失敗が多発する環境では並行数を下げる** | 既存カスタムテーブルが多い環境では `max_workers` を 5→2〜3 に下げると失敗率が大幅に下がる（実測） |
 | **429 レート制限は時間を置いて再実行** | `PublishAllXml`・`EntityDefinitions` PUT で 429 が頻発。べき等設計でスクリプト再実行で回復 |
 
 ### Lookup と NavProp

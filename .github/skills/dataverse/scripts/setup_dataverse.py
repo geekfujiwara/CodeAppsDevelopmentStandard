@@ -397,7 +397,12 @@ def create_tables():
 
     print(f"  {len(TABLES)} テーブルを並行作成します…")
     errors: list[str] = []
-    with ThreadPoolExecutor(max_workers=min(len(TABLES), 5)) as executor:
+    # 並行数はデフォルト 3。既存カスタムテーブルが多い（100件超）環境や他セッションが
+    # 同時にメタデータ操作をしている環境では、並行数が高いほど 0x80040237（メタデータ
+    # ロック競合）の retry_metadata 上限（5回）を超えて失敗しやすい（実測: 5並行で
+    # 10テーブル中7テーブルが失敗、2並行で全成功）。失敗が多発する場合は 2 まで下げる。
+    # スクリプトはべき等なので、失敗した分だけを対象に何度でも安全に再実行できる。
+    with ThreadPoolExecutor(max_workers=min(len(TABLES), 3)) as executor:
         futures = {executor.submit(_create_single_table, tbl): tbl["logical"] for tbl in TABLES}
         for future in as_completed(futures):
             logical = futures[future]

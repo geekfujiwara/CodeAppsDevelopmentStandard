@@ -47,6 +47,16 @@ flow_api_call("GET", f"/providers/Microsoft.ProcessSimple/environments/{env_id}/
 python -c "import sys; sys.path.insert(0, '.github/skills/standard/scripts'); from auth_helper import get_token; print(get_token()[:20] + '...')"
 ```
 
+#### PowerShell で `python -c "..."` に OData クエリを渡すと壊れる
+
+`$select` / `$filter` などの `$` を含む Python コードを `python -c "..."` として
+PowerShell の二重引用符内に書くと、ネストした Python 文字列の中であっても PowerShell が
+`$select` / `$filter` を**変数展開**しようとして空文字列に置き換えてしまう
+（`EntityDefinitions?=uniquename,...` のように `$` 以降が消えた URL になる）。
+
+**対策**: `$` を含む OData クエリを扱うコードは `-c` のワンライナーにせず、一時的な
+`.py` ファイルに書いて `python <file>.py` で実行する。実行後は忘れずに削除する。
+
 #### MSAL Python 3.14 互換性問題
 
 Python 3.14 では MSAL 内部トークンキャッシュ (`msal/token_cache.py`) が壊れる問題がある。
