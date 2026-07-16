@@ -369,3 +369,36 @@ pac auth create --environment {environment-id}
 - `$select` に対象フィールドが含まれているか確認
 - Lookup フィールドの場合は `$expand` を使用
 - フィールドのスキーマ名（論理名）が正しいか確認
+
+### EntityDefinitions の `$filter=startswith(...)` が 501 になる
+
+```
+501 Server Error: Not Implemented for url: .../EntityDefinitions?$filter=startswith(SchemaName,'geek_')...
+```
+
+環境によっては `EntityDefinitions` に対する `startswith` フィルタが未実装（`LogicalName` /
+`SchemaName` どちらでも発生）。`$select` のみで全件取得し、プレフィックス一致は Python 側で
+フィルタする。
+
+```python
+all_tables = api_get("EntityDefinitions?$select=LogicalName,SchemaName")
+matches = [t for t in all_tables["value"] if t["LogicalName"].startswith(f"{PREFIX}_")]
+```
+
+### 並行テーブル作成の失敗率が高い（メタデータロック競合）
+
+既存カスタムテーブルが多い（100件超）環境、または同一環境で他セッション/他ユーザーが並行して
+メタデータ操作をしている環境では、`ThreadPoolExecutor` の並行数が高いほど `0x80040237`
+（メタデータロック競合）が `retry_metadata` の再試行上限（5回、10s〜50s の累進バックオフ）を
+超えて失敗するテーブルが増える。実測では 10 テーブルを 5 並行で作成したところ 7 テーブルが
+`max retries (5) exceeded` で失敗し、並行数を 2 に落として再実行したところ全テーブルが成功した。
+
+対処:
+
+- `setup_dataverse.py` の `create_tables()` にある `ThreadPoolExecutor(max_workers=...)` を
+  2〜3 に下げる（テンプレートのデフォルトは 3）。
+- スクリプトはべき等（既存テーブル・列は `already exists, skipping` でスキップ）なので、
+  失敗が出ても**同じコマンドで再実行するだけで復旧する**。失敗したテーブル・列だけが
+  再作成対象になる。
+- それでも失敗が続く場合は、さらに並行数を下げる（1 = 完全逐次実行）か、`TABLES` を
+  分割して複数回に分けて実行する。
