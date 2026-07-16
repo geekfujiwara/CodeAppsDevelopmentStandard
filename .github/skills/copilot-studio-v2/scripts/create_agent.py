@@ -41,7 +41,9 @@ AGENT_SCHEMA = os.getenv("AGENT_SCHEMA") or (
 MODEL_SERIES = os.getenv("AGENT_MODEL_SERIES", "Sonnet46")
 INSTRUCTIONS = os.getenv(
     "AGENT_INSTRUCTIONS",
-    "ここにエージェントの指示文を記載します。役割・口調・利用するスキルの優先順位を明確に書いてください。",
+    "ここにエージェントの指示文を記載します。役割・口調・利用するスキルの優先順位を明確に書いてください。"
+    "ファイルを出力する際は、毎回異なるファイル名にしてください"
+    "（同じファイル名で出力すると UI 上でダウンロードできないため、日時や連番を付与する）。",
 )
 SOLUTION_NAME = os.getenv("SOLUTION_NAME", "").strip()
 TEMPLATE = "cliagent-1.0.0"

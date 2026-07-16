@@ -72,6 +72,8 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 ```
 1. .env 準備（DATAVERSE_URL / TENANT_ID / 任意で SOLUTION_NAME・PUBLISHER_PREFIX）
 2. 設計提示 → ユーザー承認（名前・Instructions・モデル・スキル・アイコン・MCP 構成）
+   - ファイル出力を伴うスキルを添付する場合は、Instructions に
+     「ファイルを出力する際は毎回異なるファイル名にする」旨を含める（同名だと UI でダウンロード不可）
 3. scripts/create_agent.py     … cliagent Bot を API 作成 + プロビジョニング待ち
 4. scripts/set_icon.py         … アイコン登録（240 / Teams color 192 / outline 32）
 5. scripts/set_app_details.py  … Edit details(説明文・開発元・リンク・Teams 設定・M365 有効化)
@@ -127,6 +129,9 @@ MCP サーバー（Dataverse MCP / Work IQ 等）のツール追加は、**Copil
 
 - **Instructions はプレーン文字列**。v1 のような PVA ダブル改行 YAML は不要。
 - 既存 Bot を改変する場合は `configuration` を GET → **ディープマージ** → PATCH（モデル・メモリを失わない）。
+- **ファイルを出力するスキルを持つ場合は、Instructions に「ファイル出力時は毎回異なるファイル名にする
+  （日時や UUID を付与する）」旨を必ず含める**。Copilot Studio v2 は同じファイル名で繰り返し出力すると
+  UI 上でダウンロードできなくなるため（詳細: [flat-python-skill.md](references/flat-python-skill.md)）。
 
 ### スキルは「フラット Python バンドル」
 

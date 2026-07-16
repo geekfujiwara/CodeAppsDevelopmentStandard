@@ -15,3 +15,4 @@
 | 公開後も MCP がエラー | UI の「確認(Confirm)」未実施 | UI で MCP サーバーを **Confirm**（再公開だけでは消えないことがある） |
 | **UI の Confirm を押しても接続できない** | 接続参照バインドが古い状態で残っている（新 UI で頻発） | UI で対象 MCP サーバーを削除→再追加 → 再公開 → UI で再 Confirm（references/mcp-servers.md） |
 | 日本語出力で `UnicodeEncodeError`（cp932） | Windows コンソール既定 | `sys.stdout.reconfigure(encoding="utf-8")` |
+| 生成したファイルが UI 上でダウンロードできない | **同じファイル名**で複数回出力すると UI がダウンロードリンクを解決できない | Instructions（システムプロンプト）に「ファイルを出力する際は毎回異なるファイル名にする（例: 日時やUUIDを付与）」を明記する（[SKILL.md](../SKILL.md) の Instructions 設計を参照） |
