@@ -20,26 +20,37 @@ PAC CLI 認証の仕組み:
   - get_token() 呼び出し時に pac auth select → pac auth token を実行
   - JWT の exp クレームから有効期限を取得してインメモリキャッシュで管理
   - pac CLI が見つからない・失敗した場合は DeviceCode フローへ自動フォールバック
+  - ★ 注意: pac CLI のディストリビューション/バージョンによっては `pac auth token`
+    サブコマンド自体が存在しない（例: npm 版 power-platform-cli 2.9.3 系）。
+    その場合は毎回サイレントに DeviceCode フローへフォールバックする
+    （エラーにはならないが高速化の恩恵は受けられない）。
 
-DeviceCode 認証の仕組み（2 層キャッシュ・マシン全体で共有）:
-  1. AuthenticationRecord (~/.power-platform-cli/auth_record.json)
+DeviceCode 認証の仕組み（2 層キャッシュ・マシン全体・テナント別に共有）:
+  1. AuthenticationRecord (~/.power-platform-cli/auth_record_{TENANT_ID}.json)
      - アカウント情報（テナント・ユーザー等）を保存
      - プロジェクトフォルダに依存しない固定パス（ホームディレクトリ配下）に保存するため、
        同一マシン上の別プロジェクトからも再利用される
+     - ★ テナントごとにファイルを分離している（重要）:
+       複数テナントを行き来する開発（例: 検証用テナントと本番顧客テナント）では、
+       単一の共有ファイルだと後から認証したテナントで上書きされ、
+       別テナントに戻った際に「キャッシュがあるのにデバイスコード認証を要求される」
+       問題が発生する。TENANT_ID をファイル名に含めることでこれを防いでいる。
      - これだけではトークンは保存されない
   2. TokenCachePersistenceOptions (MSAL 永続トークンキャッシュ)
      - リフレッシュトークン・アクセストークンをOS資格情報ストアに永続化（同一マシンで共有）
      - AuthenticationRecord と組み合わせることでサイレントリフレッシュが可能
 
 動作:
-  - 初回（このマシンで最初の1回のみ）: DeviceCodeCredential でデバイスコード認証
-         → AuthenticationRecord をグローバルパスに保存
+  - 初回（このマシン・このテナントで最初の1回のみ）: DeviceCodeCredential でデバイスコード認証
+         → AuthenticationRecord をテナント別パスに保存
          → MSAL トークンキャッシュにリフレッシュトークンを永続化
-  - 2回目以降（別プロジェクトでも）: AuthenticationRecord をロード
+  - 2回目以降（別プロジェクトでも、同じテナントなら）: AuthenticationRecord をロード
          → MSAL キャッシュからリフレッシュトークンを取得
          → サイレントリフレッシュ（デバイスコード不要）
-  - テナント/アカウントを切り替えたい場合のみ、~/.power-platform-cli/auth_record.json を
-    削除して再度デバイスコード認証を行う
+  - 別テナントに切り替えた場合は、そのテナント用のファイルが無ければ最初の1回だけ
+    デバイスコード認証が走る（以後はそのテナント用ファイルにキャッシュされる）
+  - 強制的に再認証したい場合のみ、該当テナントの
+    ~/.power-platform-cli/auth_record_{TENANT_ID}.json を削除する
 
 使い方:
   from auth_helper import get_token, get_session, retry_metadata
@@ -88,13 +99,40 @@ PAC_AUTH_PROFILE: str = os.getenv("PAC_AUTH_PROFILE", "")
 # AuthenticationRecord の保存先（マシン全体で共有・プロジェクトをまたいで再利用する）
 # ※ プロジェクトごとにディレクトリが変わると毎回デバイスコード認証が必要になるため、
 #   ホームディレクトリ配下の固定パスに保存する（PP_AUTH_RECORD_PATH で上書き可能）。
-_DEFAULT_AUTH_RECORD_PATH = Path.home() / ".power-platform-cli" / "auth_record.json"
+#
+# ★ テナント別にファイルを分ける（重要）:
+#   複数テナント（例: 会社Aの環境・自分の検証環境）を同一マシンで行き来する場合、
+#   単一の共有ファイルだと後から認証したテナントのレコードで上書きされてしまい、
+#   別テナントに戻った際に「キャッシュがあるのにデバイスコード認証を要求される」
+#   問題が発生する。TENANT_ID ごとにファイルを分離してこれを防ぐ。
+_AUTH_RECORD_DIR = Path.home() / ".power-platform-cli"
+_tenant_key = TENANT_ID or "default"
+_DEFAULT_AUTH_RECORD_PATH = _AUTH_RECORD_DIR / f"auth_record_{_tenant_key}.json"
 AUTH_RECORD_PATH: Path = Path(
     os.environ.get("PP_AUTH_RECORD_PATH", str(_DEFAULT_AUTH_RECORD_PATH))
 ).expanduser()
 
-# 旧バージョン（プロジェクトルート直下）との互換: グローバルキャッシュが無く、
-# 旧パスにレコードが残っている場合は自動移行する。
+# 旧バージョン（テナント分離前の単一共有ファイル）との互換: テナント別ファイルが
+# まだ無く、旧共有パスに「同じテナントの」レコードが残っている場合のみ移行する。
+# （テナントが異なるレコードを誤って引き継ぐと今回と同じ問題を再発するため、
+#   中身の tenantId を確認してから移行する。）
+_LEGACY_SHARED_AUTH_RECORD_PATH = _AUTH_RECORD_DIR / "auth_record.json"
+if not AUTH_RECORD_PATH.exists() and _LEGACY_SHARED_AUTH_RECORD_PATH.exists():
+    try:
+        _legacy_data = json.loads(_LEGACY_SHARED_AUTH_RECORD_PATH.read_text(encoding="utf-8"))
+        if not TENANT_ID or _legacy_data.get("tenantId") == TENANT_ID:
+            AUTH_RECORD_PATH.parent.mkdir(parents=True, exist_ok=True)
+            AUTH_RECORD_PATH.write_text(
+                _LEGACY_SHARED_AUTH_RECORD_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+            )
+            print(
+                f"[auth_helper] 旧共有認証キャッシュをテナント別パスへ移行しました: {AUTH_RECORD_PATH}",
+                file=sys.stderr,
+            )
+    except (ValueError, OSError, json.JSONDecodeError):
+        pass  # 移行失敗時は通常どおり新規デバイスコード認証にフォールバック
+
+# さらに旧バージョン（プロジェクトルート直下）との互換: 上記でも見つからない場合。
 _LEGACY_AUTH_RECORD_PATH = Path(__file__).resolve().parent / ".auth_record.json"
 if not AUTH_RECORD_PATH.exists() and _LEGACY_AUTH_RECORD_PATH.exists():
     try:
@@ -162,10 +200,21 @@ def _build_credential() -> DeviceCodeCredential:
         try:
             serialized = AUTH_RECORD_PATH.read_text(encoding="utf-8")
             auth_record = AuthenticationRecord.deserialize(serialized)
-            print(
-                f"[auth_helper] 認証キャッシュをロードしました: {AUTH_RECORD_PATH}",
-                file=sys.stderr,
-            )
+            # ★ 防御チェック: ファイル名はテナント別だが、万一 TENANT_ID と
+            #   レコードの tenant_id が食い違っていたら破棄して再認証させる
+            #   （誤ったテナントでサイレント認証してしまうのを防ぐ）。
+            if TENANT_ID and auth_record.tenant_id != TENANT_ID:
+                print(
+                    f"[auth_helper] 認証キャッシュのテナントが不一致のため破棄します "
+                    f"(cache={auth_record.tenant_id}, .env={TENANT_ID})",
+                    file=sys.stderr,
+                )
+                auth_record = None
+            else:
+                print(
+                    f"[auth_helper] 認証キャッシュをロードしました: {AUTH_RECORD_PATH}",
+                    file=sys.stderr,
+                )
         except (ValueError, OSError, json.JSONDecodeError) as exc:
             print(
                 f"[auth_helper] 認証キャッシュの読み込みに失敗（初回認証に切り替え）: {exc}",
