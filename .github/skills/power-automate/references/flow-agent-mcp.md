@@ -215,6 +215,38 @@ az account set --subscription <対象テナントの SubscriptionId>
 python .github/skills/power-automate/scripts/add_flow_to_solution.py <flow-id>
 ```
 
+### フロー本体はソリューションに入るが、接続参照（Connection Reference）は入らない（★ 重要）
+
+**症状**: 上記スクリプトでフロー（`workflow`/`componenttype 29`）をソリューションに追加しても、
+そのフローが使う `connectionreference` レコードはソリューションのコンポーネント一覧に
+**含まれない**（`solutioncomponents` を `objectid` で検索しても 0 件）。ソリューションを
+エクスポート・別環境へインポートすると接続参照が欠落し、インポート先で接続の再設定が
+必要になる。
+
+**原因**: `AddSolutionComponent` はデフォルトでは依存コンポーネントを自動追加しない
+（`AddRequiredComponents: false`）。またフロー本体を追加しても接続参照は「必須コンポーネント」
+としては扱われず、明示的に別途 `AddSolutionComponent` を呼ぶ必要がある。さらに接続参照の
+`componenttype`（`ObjectTypeCode`）は環境依存の値になるため、`10037` のような固定値を
+決め打ちすると `Cannot add datalakeworkspace with id (...) because it does not exist`
+のような紛らわしいエラーになる（正しい値は `EntityDefinitions(LogicalName='connectionreference')`
+の `ObjectTypeCode` から動的に解決する）。
+
+**対策**: [scripts/add_flow_to_solution.py](../scripts/add_flow_to_solution.py) は
+フローの `clientdata`（`properties.connectionReferences[].connection.connectionReferenceLogicalName`）
+から使用中の接続参照ロジカル名を抽出し、`componenttype` をメタデータから動的解決した上で
+自動的にソリューションへ追加するように修正済み。手動で確認する場合は以下で検証する。
+
+```text
+1. GET workflows(<flow-id>)?$select=clientdata で clientdata を取得
+2. JSON パースし properties.connectionReferences の各エントリの
+   connection.connectionReferenceLogicalName を集める
+3. GET connectionreferences?$filter=connectionreferencelogicalname eq '<name>' で
+   connectionreferenceid を取得
+4. GET solutioncomponents?$filter=objectid eq <connectionreferenceid> and
+   _solutionid_value eq <solutionid> で登録済みか確認（0 件なら未登録）
+5. 未登録なら AddSolutionComponent で追加（ComponentType は手順4のメタデータ解決値）
+```
+
 ### ソリューション追加後に `CannotStartUnpublishedSolutionFlow` で有効化できない（★ 重要）
 
 **症状**: `add_flow_to_solution.py` でフローをソリューションに追加した直後に `publish_flow`
