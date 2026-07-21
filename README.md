@@ -29,9 +29,41 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 
 ---
 
+## Claude Code でのクイックスタート
+
+GitHub Copilot だけでなく **Claude Code** からも同じ開発標準をそのまま利用できます。手順は次の 3 ステップです。
+
+**1. 開発標準（スキル）を取得する**
+
+プロジェクトのルートで以下を実行し、`.github/`（エージェント・スキル）と `.gitignore` を配置します。
+
+```bash
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
+cp .github/skills/standard/references/gitignore-template .gitignore
+```
+
+**2. Claude Code をプロジェクトルートで起動する**
+
+`.github/agents/` と `.github/skills/` を配置したフォルダーで Claude Code を起動します。Claude Code はカスタムエージェント定義（`.claude/agents/`）とスキル群（`.github/skills/`）を参照して開発タスクを進めます。
+
+**3. `@GeekPowerCode` に依頼する**
+
+チャットから **`@GeekPowerCode`** を呼び出し、作りたいテーマを伝えてください。エージェントが `.github/skills/standard/SKILL.md` を読み込み、要件に応じて必要なスキルを選択します。`architecture` スキルがヒアリングを経て Code Apps を選定した場合にのみ、`code-apps` スキルが `package.json` / `package-lock.json` をコピーして `npm install` を実行します（Code Apps 以外のソリューションでは `node_modules` は生成されません）。
+
+- 依頼例: `@GeekPowerCode 在庫管理をもっと効率的に行いたい。`
+- 既存仕様書がある場合の入力例: `spec-builder を実行して`
+
+> [!NOTE]
+> 推奨モデルは **Claude Sonnet 5** です（`.github/agents/GeekPowerCode.agent.md` の既定モデル）。`.gitignore` を配置しないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になるため、必ずコピーしてください。
+
+前提条件・ライセンス要件は GitHub Copilot と共通です（[前提条件](#前提条件) を参照）。
+
+---
+
 ## 目次
 
 - [クイックスタート](#クイックスタート)
+- [Claude Code でのクイックスタート](#claude-code-でのクイックスタート)
 - [前提条件](#前提条件)
   - [VS Code + GitHub Copilot](#vs-code--github-copilot)
   - [ライセンス要件](#ライセンス要件)
