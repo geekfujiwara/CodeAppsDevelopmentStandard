@@ -1,11 +1,14 @@
 ---
 name: power-automate
-description: "Power Automate クラウドフローを Dataverse Web API（workflow テーブル）でソリューション対応で作成・デプロイする。接続参照パターンで API 有効化を100%成功させる。"
+description: "Power Automate クラウドフローを Flow agent MCP SERVER（FlowAgent）で開発することを優先する。MCP が使えない場合は Dataverse Web API（workflow テーブル）でソリューション対応で作成・デプロイする。接続参照パターンで API 有効化を100%成功させる。"
 category: automation
 triggers:
   - "Power Automate"
   - "フロー作成"
   - "クラウドフロー"
+  - "FlowAgent"
+  - "Flow agent MCP"
+  - "MCP SERVER"
   - "接続参照"
   - "Connection Reference"
   - "workflow"
@@ -18,7 +21,81 @@ triggers:
 
 # Power Automate クラウドフロー構築スキル
 
-Dataverse Web API（workflow テーブル）で **ソリューション対応のクラウドフロー** を作成・デプロイし、**API で確実に有効化する**。
+クラウドフロー開発は **Flow agent MCP SERVER（FlowAgent）を第一選択**とする。
+MCP が利用できない環境では Dataverse Web API（workflow テーブル）経由のフォールバックを使う。
+
+## 推奨: Flow agent MCP SERVER を使う（第一選択）
+
+[microsoft/power-platform-skills — power-automate プラグイン](https://github.com/microsoft/power-platform-skills/tree/main/plugins/power-automate) が提供する **FlowAgent MCP SERVER** を使うと、Claude Code / GitHub Copilot CLI からフローを自然言語で構築・編集・デバッグできる。
+
+### なぜ MCP を優先するか
+
+| 比較項目 | Flow agent MCP（推奨） | Dataverse Web API（フォールバック） |
+|---|---|---|
+| フロー作成 | 自然言語で指示するだけ | Python スクリプトを手書き |
+| 編集 | アクション単位のサージカル編集 | 定義 JSON を全置換 |
+| デバッグ | 失敗ランを自律診断 | ログを手動確認 |
+| 接続解決 | 自動検索・自動紐づけ | PowerApps API + 手動確認 |
+| セットアップ | `az login` のみ | Python 環境 + 複数スコープのトークン |
+
+### 1. プラグインのインストール
+
+Claude Code または GitHub Copilot CLI セッション内で実行する（Node.js 18+ が必要）。
+
+```
+/plugin marketplace add microsoft/power-platform-skills
+/plugin install power-automate@power-platform-skills
+```
+
+インストールが完了するとプロジェクトルートに `.mcp.json` が作成され、`server/mcp.mjs`（自己完結型 ESM バンドル）が MCP サーバーとして起動される。
+
+> `.mcp.json` はプロジェクト固有設定のため `.gitignore` に追加することを推奨。
+
+### 2. 認証
+
+```bash
+az login
+```
+
+Azure CLI 認証が済んでいれば MCP サーバーが自動で接続情報を解決する。
+
+### 3. フローを開発する
+
+インストール後は以下のスキルを自然言語で呼び出す。
+
+| スキル | 用途 |
+|---|---|
+| `setup` | 初回前提チェック |
+| `build-flow` | 説明文からフローを自律生成 |
+| `create-flow` | ガイド付き対話形式でフロー作成 |
+| `debug-flow` | 失敗ランのインタラクティブデバッグ |
+| `diagnose-flow` | 失敗ランの自律深掘り診断 |
+| `manage-flows` | 公開・テスト・バッチ・一覧管理 |
+| `browse-flows` | 環境・フローのインタラクティブ閲覧 |
+
+使用例:
+```
+「承認フローを作って。Dataverse の申請テーブルにレコードが作られたら承認者にメール送信」
+→ build-flow スキルが自動でフローを生成・デプロイ・有効化する
+```
+
+### 4. ソリューションへの追加
+
+MCP で作成したフローをソリューションに追加するには `manage-flows` スキルを使うか、
+既存の Python スクリプト（[scripts/add_flow_to_solution.py](scripts/add_flow_to_solution.py)）で補完する。
+
+```bash
+python .github/skills/power-automate/scripts/add_flow_to_solution.py --workflow-id <id>
+```
+
+詳細なセットアップ・トラブルシュートは [references/flow-agent-mcp.md](references/flow-agent-mcp.md) を参照。
+
+---
+
+## API アプローチ（Flow agent MCP が使えない場合）
+
+以下は MCP サーバーが利用できない環境向けの **フォールバック手順**。
+Python スクリプトで Dataverse Web API を直接操作する。
 
 ## 核心原則: 接続参照（Connection Reference）が有効化成功の鍵
 
