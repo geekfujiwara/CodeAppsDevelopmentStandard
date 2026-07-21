@@ -84,6 +84,24 @@ def remote_branch_exists(repo: str, branch: str) -> bool:
     return res.returncode == 0
 
 
+def open_pr_for_branch(repo: str, branch: str) -> str | None:
+    """branch に紐づくオープン PR の URL を返す（無ければ None）。
+
+    ブランチの物理的な存在有無だけで「更新 or 新規」を判断すると、
+    マージ/クローズ済みで放置された同名ブランチ（後続の他 PR で main が進んでいる）を
+    誤って再利用し、意図しない大量の差分（他 PR で main に取り込み済みの変更が
+    「変更あり」として再表示される等）を含む PR になってしまう。
+    そのため「更新」とみなすのは**オープン PR が実在する場合のみ**とする。
+    """
+    res = gh(["pr", "list", "--repo", repo, "--head", branch, "--state", "open",
+              "--json", "url"], check=False)
+    if res.returncode != 0 or not res.stdout.strip():
+        return None
+    import json as _json
+    prs = _json.loads(res.stdout)
+    return prs[0]["url"] if prs else None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="スキルを PR 先リポジトリへ公開する")
     ap.add_argument("--skill", required=True, help="公開するスキル名（フォルダ名）")
@@ -125,13 +143,25 @@ def main() -> int:
     gh(["repo", "clone", repo, str(clone), "--", "--depth", "1", "--branch", base])
 
     # 3) ブランチ作成 or 既存更新
-    exists = remote_branch_exists(repo, branch)
+    #    「更新」扱いにするのはオープン PR がある場合のみ（★ 重要）。
+    #    オープン PR が無いのに同名ブランチだけ残っている（マージ/クローズ済みで未削除）場合は
+    #    stale ブランチとみなし、ベース（main）から作り直す。
+    open_pr = open_pr_for_branch(repo, branch)
+    exists = open_pr is not None
     if exists:
-        print(f"[3/6] 既存ブランチを更新: {branch}")
-        run(["git", "fetch", "origin", branch], cwd=clone)
+        print(f"[3/6] 既存オープン PR のブランチを更新: {branch} ({open_pr})")
+        # ★ `git fetch origin <branch>` だけではリモート追跡参照しか作られず、
+        #   直後の `git checkout <branch>` が「ローカルブランチが存在しない」で失敗する。
+        #   明示的なリフスペックでローカルブランチを作成してから checkout する。
+        run(["git", "fetch", "origin", f"{branch}:{branch}"], cwd=clone)
         run(["git", "checkout", branch], cwd=clone)
     else:
-        print(f"[3/6] 新規ブランチ: {branch}")
+        if remote_branch_exists(repo, branch):
+            print(f"[3/6] 古い同名ブランチ（オープン PR なし）を検出 → {base} から作り直し: {branch}")
+            if not args.dry_run:
+                gh(["api", "-X", "DELETE", f"repos/{repo}/git/refs/heads/{branch}"], check=False)
+        else:
+            print(f"[3/6] 新規ブランチ: {branch}")
         run(["git", "checkout", "-b", branch], cwd=clone)
 
     # 4) スキル + 集約ファイルをコピー
@@ -175,7 +205,11 @@ def main() -> int:
 
     # 6) push + PR
     print(f"[6/6] push → PR ({repo})")
-    run(["git", "push", "-u", "origin", branch], cwd=clone)
+    push_res = run(["git", "push", "-u", "origin", branch], cwd=clone, check=False)
+    if push_res.returncode != 0:
+        # stale ブランチ削除が反映しきっていない等で non-fast-forward になった場合のみ強制上書きする
+        # （直前で「オープン PR なし」と確認済みのブランチなので安全）。
+        run(["git", "push", "-u", "-f", "origin", branch], cwd=clone)
     if exists:
         pr = gh(["pr", "view", branch, "--repo", repo, "--json", "url", "--jq", ".url"], check=False)
         print("既存 PR を更新しました:", pr.stdout.strip() or f"(branch {branch})")
