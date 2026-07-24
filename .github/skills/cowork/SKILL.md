@@ -33,6 +33,7 @@ triggers:
 Cowork から Dataverse を直接操作できるようにする。
 
 > 前提: 利用テナントが [Frontier プレビュー](https://adoption.microsoft.com/en-us/copilot/frontier-program/) に参加していること。
+> **会社環境で Cowork の利用が許可されている場合のみ**このスキルを使用してください。利用可否が不明な場合は管理者に確認してください。
 > 異常系・トラブルシュートは [references/troubleshooting.md](references/troubleshooting.md) を参照。
 
 ## パッケージ構成（Skills + remote connector）

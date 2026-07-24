@@ -64,7 +64,7 @@ triggers:
 | **AI Builder**        | **Power Automate フロー内**に組み込む定型 AI 処理（通知・リマインド等、イベント駆動でチャット UI を使わない場合のみ） | チャット UI での対話・社内汎用業務全般（★ §6 参照: 原則 Copilot Studio v2 + Dataverse MCP、AI Builder は限定的採用） |
 | **Dataverse**         | リレーショナルデータ、行レベルセキュリティ、監査、ビジネスルール                             | 大量ログデータ、非構造化データ、全文検索                       |
 | **Copilot Studio v2 スキル + Dataverse MCP** | 自然言語での業務データ登録・照会（Dataverse MCP 経由）、Teams / Copilot Studio 上での利用、SKILL.md による業務知識の付与。**環境制約が少なく作りやすい（★ 第一候補）** | リッチな一覧/編集 UI、複雑なビジュアル、外部/匿名公開 |
-| **Copilot Cowork プラグイン** | M365 Copilot 上での自然言語登録・照会（Dataverse MCP 経由）。M365 Copilot との統合が必須要件の場合に採用 | 環境制約が多い（Entra App 登録・Teams 開発者ポータル・M365 管理センター公開・Teams Admin / Global Admin 権限が必要）。環境が揃わない場合は Copilot Studio v2 + Dataverse MCP を優先 |
+| **Copilot Cowork プラグイン** | M365 Copilot 上での自然言語登録・照会（Dataverse MCP 経由）。M365 Copilot との統合が必須要件の場合に採用。**会社環境で Cowork の利用が許可されている場合のみ推奨** | 環境制約が多い（Entra App 登録・Teams 開発者ポータル・M365 管理センター公開・Teams Admin / Global Admin 権限が必要）。環境が揃わない場合は Copilot Studio v2 + Dataverse MCP を優先 |
 
 ---
 
@@ -107,7 +107,7 @@ triggers:
     ├─ ① ユーザーが能動的に AI へ話しかけて解決する
     │     （Dataverse への登録/照会 + Code Apps で閲覧。Teams / Copilot Studio 上で完結）
     │        ──→ ★【Copilot Studio v2 スキル + Dataverse MCP】を第一候補（→ copilot-studio-v2 スキル）
-    │                 M365 Copilot 上での利用が必須要件の場合のみ Cowork プラグインを追加検討
+    │                 M365 Copilot 上での利用が必須要件の場合かつ会社環境で Cowork の利用が許可されている場合のみ Cowork プラグインを追加検討
     │
     ├─ ② 自律的に起動して動く必要がある
     │     （メール受信・Teams 返信・スケジュール等のイベントで自動実行、無人で判断・応答）
@@ -122,7 +122,7 @@ triggers:
 > - **ユーザーがチャットで話しかけて実行するケース**（能動的・有人）は **Copilot Studio v2 スキル + Dataverse MCP**で実装する。
 >   環境制約が少なく作りやすいため、第一候補とする。
 >   Dataverse + Code Apps で組んだ業務データへのアクセスは、原則 Copilot Studio v2 スキル経由の自然言語操作を提案する。
->   M365 Copilot との統合が必須要件の場合のみ **Cowork プラグイン**を追加検討（Global Admin 等の権限が別途必要）。
+>   M365 Copilot との統合が必須要件の場合のみ **Cowork プラグイン**を追加検討（Global Admin 等の権限が別途必要。**会社環境で Cowork の利用が許可されている場合のみ推奨**）。
 > - **Copilot Studio でエージェントを作るのは次の 3 つのケース**:
 >   1. **チャットで話しかけて実行するケース**（v2 スキル + Dataverse MCP）— 第一候補（①）
 >   2. **自律的なケース** — イベント/トリガーで無人起動し、自分で判断・応答・データ更新する（②）
@@ -142,7 +142,7 @@ triggers:
 > ① **自律的なケース**（イベント/トリガーで無人起動）、② **アプリに組み込むケース**（Code Apps / Web 埋め込み）。
 
 **使う**: 自律起動（イベント/トリガー）での無人実行・アプリ埋め込み/Web 公開・複数ツールの自律オーケストレーション・ナレッジ検索・要約/分析/レポート生成。
-**使わない**（→ 代替）: ユーザーが能動的にチャットで登録/照会するだけ → **Copilot Studio v2 スキル + Dataverse MCP**（Cowork は M365 Copilot 必須時のみ）／確定手順の 100% 実行・大量一括処理・LLM 不要の条件分岐 → **Power Automate**／UI 入力編集 → **Code Apps**／承認ワークフロー → **Power Automate**。
+**使わない**（→ 代替）: ユーザーが能動的にチャットで登録/照会するだけ → **Copilot Studio v2 スキル + Dataverse MCP**（Cowork は M365 Copilot 必須時かつ会社環境で利用が許可されている場合のみ）／確定手順の 100% 実行・大量一括処理・LLM 不要の条件分岐 → **Power Automate**／UI 入力編集 → **Code Apps**／承認ワークフロー → **Power Automate**。
 
 > 使う場面/使わない場面の詳細表は [コンポーネント選定 詳細](references/component-selection-details.md#1-copilot-studio-使う場面--使わない場面) を参照。
 
@@ -224,7 +224,7 @@ AskUserQuestion で次のように尋ねる:
 > Code Apps は「一覧・ダッシュボード・複雑な編集・可視化」を担う**閲覧/操作の接点**として併設する（入力専用の画面作り込みに時間をかけない）。
 >
 > - **提案の型**: **Dataverse（基盤）＋ Code Apps（閲覧・分析・複雑操作）＋ Copilot Studio v2 スキル + Dataverse MCP（自然言語での登録・照会）** を既定セットとして提示する。
-> - **内部ユーザー向け**の入力は Copilot Studio v2 スキル + Dataverse MCP を優先。M365 Copilot との統合が必須要件の場合のみ **Cowork プラグイン**を追加検討（Global Admin 等の権限が別途必要）。**外部ユーザー向け**は Copilot Studio v1 埋め込み / Power Pages を使う（§3・§5 参照）。
+> - **内部ユーザー向け**の入力は Copilot Studio v2 スキル + Dataverse MCP を優先。M365 Copilot との統合が必須要件の場合のみ **Cowork プラグイン**を追加検討（Global Admin 等の権限が別途必要。**会社環境で Cowork の利用が許可されている場合のみ推奨**）。**外部ユーザー向け**は Copilot Studio v1 埋め込み / Power Pages を使う（§3・§5 参照）。
 > - 構築手順は [`copilot-studio-v2` スキル](../copilot-studio-v2/SKILL.md) を参照。
 
 ```
@@ -333,7 +333,7 @@ AI Builder を安易に採用しない。
 > **通知・リマインド等で Power Automate の中に AI 処理を組み込みたいとき**に AI Builder を使う。
 > どうしてもチャット UI ではなく、**イベント駆動でフロー内に AI 処理を組み込む必要がある**場合に限り、
 > Power Automate フロー内で AI Builder（AI プロンプト）を呼び出すパターンを採用する。
-> それ以外（対話型・社内汎用業務全般）は **Cowork** を使う。
+> それ以外（対話型・社内汎用業務全般）は **Copilot Studio v2 スキル + Dataverse MCP** を使う（M365 Copilot 統合が必須かつ会社環境で Cowork の利用が許可されている場合のみ **Cowork プラグイン**を追加検討）。
 
 ```
 AI 処理が必要
@@ -354,7 +354,7 @@ AI Builder を採用すると決まった場合、実装方式は **AI プロン
 > プレビルト/カスタムモデルとの詳しい比較は [コンポーネント選定 詳細](references/component-selection-details.md#5-ai-builder-ai-プロンプト優先の方針) を参照。
 
 **使う**: 通知・リマインド等、**Power Automate フロー内**にイベント駆動（非チャット UI）で組み込む定型 AI 処理（文面生成・分類・抽出等）。
-**使わない**（→ 代替）: 社内汎用業務全般・チャットで話しかけて登録/照会する業務 → **Copilot Studio v2 スキル + Dataverse MCP**（Cowork は M365 Copilot 必須時のみ）、対話形式／リアルタイム応答／1 回限りの分析 → **Copilot Studio**。
+**使わない**（→ 代替）: 社内汎用業務全般・チャットで話しかけて登録/照会する業務 → **Copilot Studio v2 スキル + Dataverse MCP**（Cowork は M365 Copilot 必須時かつ会社環境で利用が許可されている場合のみ）、対話形式／リアルタイム応答／1 回限りの分析 → **Copilot Studio**。
 
 > 使う場面/使わない場面の詳細表は [コンポーネント選定 詳細](references/component-selection-details.md#4-ai-builder-使う場面--使わない場面) を参照。
 
@@ -389,7 +389,7 @@ Q: その AI 処理は再利用するか？
 
 - [ ] **外部ユーザー向け UI か？** → YES なら既定で Azure、ユーザーが Power Pages を宣言した場合のみ Power Pages を含む構成
 - [ ] **Dataverse にデータを貯める構成か？** → YES なら入力接点として **Copilot Studio v2 スキル + Dataverse MCP**（自然言語登録）を第一候補に含める（Code Apps は閲覧・分析・複雑操作を担当）
-- [ ] **自然言語対話が必要か？** → YES ならまず §2.1.1 で分岐。**ユーザーが能動的にチャットで話しかけて実行**するなら **Copilot Studio v2 スキル + Dataverse MCP**を第一候補（M365 Copilot 統合が必須の場合のみ Cowork も検討）。Copilot Studio v1 は **①自律起動 / ②アプリ組込** の 2 ケースに限る
+- [ ] **自然言語対話が必要か？** → YES ならまず §2.1.1 で分岐。**ユーザーが能動的にチャットで話しかけて実行**するなら **Copilot Studio v2 スキル + Dataverse MCP**を第一候補（M365 Copilot 統合が必須かつ会社環境で Cowork の利用が許可されている場合のみ Cowork も検討）。Copilot Studio v1 は **①自律起動 / ②アプリ組込** の 2 ケースに限る
 - [ ] **イベント駆動の自動処理が必要か？** → YES なら Power Automate を含む構成
 - [ ] **データ操作 UI が必要か？** → YES で外部ユーザー向けなら既定 Azure（Power Pages 宣言時のみ Power Pages）、内部ユーザー向けなら Code Apps / Model-Driven Apps を含む構成（Canvas Apps は常に対象外）
 - [ ] **標準ビュー/フォームで十分か？** → YES なら Model-Driven Apps が最速。カスタム UI なら Code Apps
