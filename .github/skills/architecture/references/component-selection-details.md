@@ -139,7 +139,7 @@
 
 ## 4. AI Builder: 使う場面 / 使わない場面
 
-> **前提方針**: AI Builder は基本的に利用しない。社内の汎用業務は原則 [Cowork](../../cowork/SKILL.md)（Dataverse + Code Apps）で実現する。
+> **前提方針**: AI Builder は基本的に利用しない。社内の汎用業務は原則 [Copilot Studio v2 スキル + Dataverse MCP](../../copilot-studio-v2/SKILL.md)（Dataverse + Code Apps）で実現する。
 > AI Builder を使うのは、**通知・リマインド等で Power Automate フロー内にイベント駆動（非チャット UI）で AI 処理を組み込みたいとき**に限る。
 
 ### 使う場面（✅）
@@ -155,8 +155,8 @@
 
 | 判断ポイント                       | 代替手段                                            |
 | ---------------------------------- | --------------------------------------------------- |
-| 社内汎用業務全般（チャットで話しかけて登録/照会） | → **Cowork プラグイン**                             |
-| 対話形式で AI を使いたい           | → **Copilot Studio**（Instructions で制御）または **Cowork** |
+| 社内汎用業務全般（チャットで話しかけて登録/照会） | → **Copilot Studio v2 スキル + Dataverse MCP**（Cowork は M365 Copilot 必須時のみ） |
+| 対話形式で AI を使いたい           | → **Copilot Studio**（Instructions で制御）または **Copilot Studio v2 + Dataverse MCP** |
 | リアルタイムの対話応答に AI が必要 | → **Copilot Studio**（基盤モデルが直接応答）        |
 | 1回限りの分析                      | → **Copilot Studio** に直接指示（プロンプト化不要） |
 

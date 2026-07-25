@@ -191,4 +191,5 @@ Track C（設計承認と同時に着手）:
      ※ ナレッジ/MCP/ツールは Track A のテーブル/フロー完了後（★同期①/②）
 ── 全トラック完了後 ──
   8. cowork             → Cowork プラグイン化（Agent Skills + Dataverse MCP）・公開・更新
+                           ※ 会社環境で Cowork の利用が許可されている場合のみ推奨
 ```
