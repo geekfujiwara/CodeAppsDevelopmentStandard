@@ -72,6 +72,11 @@ Code Site は `pac pages upload-code-site` でのみ作成可能。
 14. **Anti-Forgery Token は PATCH/PUT/DELETE に必須** — `/_layout/tokenhtml` から取得
 15. **再起動は `PAGES_WEBSITE_ID`（PP API の websites.id）で行う** — `siteName` の部分一致照合は登録名にスペースがあると失敗する。`.env` に ID を保存して明示的に restart する
 16. **フォントはコード側で一元管理する** — `index.html` の Google Fonts ロード + `:root` の `font-family` + Tailwind `@theme inline` の `--font-sans` の 3 箇所を揃えてビルド→再起動
+17. **EDM 2.0 では `pac pages upload-code-site` が壊れている（v2.9.3 時点で未修正）** — YAML に空 GUID (`00000000-0000-0000-0000-000000000000`) を出力し、レガシーテーブル（`adx_webfile`, `annotation`）への POST が `Expected non-empty Guid` エラーになる。コマンドは「succeeded」と表示されるが web file は作成されない。原因は pac CLI が EDM 2.0 のテーブル構造（`powerpagecomponents` 単一テーブル方式）に未対応であること。**Dataverse Web API で直接デプロイする**（`portal/scripts/deploy_site.py`）
+18. **Web ファイルは Home ページ直下に配置する** — 手動作成したサブページ（例: `/assets/`）配下に web file を作成しても、CMS ルーティングが 404 を返す。`parentpageid` を **Home ページ root のID** に設定すれば `/app-xxx.js` でアクセス可能になる
+19. **Vite 出力ファイル名は `index-*` パターンを避ける** — App Service のプリコンパイルツールが `/assets/index-*.js` パスに 86 バイトのマーカーファイルを配置しており、同名の web file より優先配信される。Vite 設定で `entryFileNames: "app-[hash].js"` にリネームして回避する
+20. **Web ファイル (type=3) に `powerpagesitelanguageid` を設定しない** — ページ (type=2) には言語バインドが必要だが、ファイルには設定すると配信されない。`_powerpagesitelanguageid_value: null` が正しい状態
+21. **`relink_table_permissions.py` は `PAGES_WEBSITE_ID` を使ってサイトを特定する** — 環境に複数サイトがある場合、`$top=1&$orderby=createdon desc` では意図しないサイトが選択される。`.env` の `PAGES_WEBSITE_ID`（Dataverse `powerpagesiteid`）を設定し確実に対象サイトを指定する
 
 ---
 
@@ -157,3 +162,7 @@ adx_website_id = r.json()["value"][0]["adx_websiteid"]
 | `Object reference not set` + `ToOrganizationService` | ポータル App User の CRM 接続失敗 | Application User がロール付きで存在するか確認 |
 | 初回アクセスが 60 秒タイムアウト | コールドスタート | 正常。2〜3 分後に再試行 |
 | サイトが修復不能（500 が解消しない）| 環境が壊れた | 新サブドメインで新規作成（上記リカバリ手順）|
+| JS/CSS が 404（86バイトマーカー）| プリコンパイルマーカーとファイル名衝突 | Vite の `entryFileNames` を `app-[hash].js` に変更（教訓 24）|
+| pac pages upload-code-site が空 GUID を出力 | EDM 2.0 環境で pac CLI 未対応 | `portal/scripts/deploy_site.py` で直接デプロイ（教訓 22）|
+| `/assets/*.js` が CMS 404 | サブページ配下の web file ルーティング不備 | Home ページ root 直下に配置（教訓 23）|
+| Web file が存在するが 404 | `powerpagesitelanguageid` が設定されている | null に更新（教訓 25）|

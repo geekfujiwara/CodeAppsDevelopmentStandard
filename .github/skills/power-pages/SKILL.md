@@ -108,6 +108,11 @@ triggers:
 9. **powerpagecomponent type=18 には `powerpagesitelanguageid` が必須** — 未設定だと 404 になる
 10. **報告者・作成者は Contact Lookup で追跡する** — Power Pages では `createdby` はアプリケーションユーザーになるため使えない。ログインユーザーの Contact 情報を自動取得し入力不要にする（教訓 19）
 11. **デザイン系の変更は必ず `npm run dev`（localhost）で見た目を確認してから本番デプロイする** — 本番デプロイ → ブラウザ確認 → 再デプロイのループは 1 サイクルあたり数十秒〜数分かかり非効率。レイアウト・配色・レスポンシブ崩れは localhost で先に潰し、本番デプロイは最終確認のみに留める（教訓 20）。ただし Power Pages 本体のテーマ CSS（Bootstrap 既定の見出し色など）はローカルには存在せず本番でのみ衝突しうるため、色指定は見出し要素に明示的な `color` を必ず設定し、デプロイ後の最終確認も省略しない（詳細は [トラブルシューティング](references/troubleshooting.md)）
+12. **SPA ブートストラップはルートの `Home.webpage.copy.html` に配置する** — `pac pages upload-code-site` は SPA の HTML を `content-pages/{lang}/Home.webpage.copy.html` に配置するが、ランタイムが実際に描画するのは**ルートレベルの `Home.webpage.copy.html`** である。ルートが空のレイアウト div のままだと `/` で SPA が表示されない。また `/index.html`（静的 web ファイル）では `window.Microsoft.Dynamic365.Portal.User` が注入されないため、認証状態を取得できない。**SPA は必ず `/`（Home ページ）経由でアクセスさせる**（教訓 21、詳細は [トラブルシューティング](references/troubleshooting.md)）
+13. **EDM 2.0 環境では `pac pages upload-code-site` が動作しない（v2.9.3 時点で未修正）** — 生成される YAML に `00000000-0000-0000-0000-000000000000` の空 GUID が入り、存在しないレガシーテーブル（`adx_webpage`, `adx_webfile`, `annotation`）への POST が `Expected non-empty Guid` エラーで全失敗する。コマンド自体は「succeeded」と表示されるが web file は作成されない。**Dataverse Web API 経由で `powerpagecomponents` (type=3) を直接作成・ファイルアップロードする**（`portal/scripts/deploy_site.py`）。詳細は教訓 22
+14. **Web ファイルは既存ページ（Home）直下に配置する** — 手動作成したサブページ（例: `/assets/`）の下に web file を配置すると CMS が 404 を返す。**Home ページ root の直下に `parentpageid` を設定**すれば `/app-xxx.js` で正しくルーティングされる（教訓 23）
+15. **Vite 出力のファイル名は `index-*` を避ける** — App Service 上にプリコンパイルマーカーファイルが `/assets/index-*.js` パスに存在し、86 バイトの「marker file」が優先配信される。**`app-[hash].js` のように非衝突な命名**にする（教訓 24）
+16. **Web ファイル (type=3) の `powerpagesitelanguageid` は null 必須** — 言語バインドすると配信されない。ページ (type=2) は言語が必要だが、ファイルには設定しない（教訓 25）
 
 ## ワークフロー
 
@@ -127,6 +132,12 @@ triggers:
 2回目以降（手動の場合）:
   npm run build → pac pages upload-code-site
   → py .github/skills/power-pages/scripts/relink_table_permissions.py  ← ★必須（省くと 403）
+
+EDM 2.0 環境（pac pages が壊れている場合、教訓 22）:
+  cd portal && npm run deploy
+  （Build → Dataverse API で web file 作成/更新 → filecontent アップロード
+   → Home ページ copy 更新 → サイト再起動 を 1 コマンドで実行）
+  → py .github/skills/power-pages/scripts/relink_table_permissions.py  ← ★ロール再付与
 ```
 
 > ⚠️ **`npm run build && pac pages upload-code-site` だけで終わらせると、既存テーブル権限の
@@ -134,6 +145,10 @@ triggers:
 > 毎回実行するか、`deploy_site.py` で一括実行すること。両スクリプトともハードコードなし・
 > すべて `.env` 管理（`DATAVERSE_URL` / `ENV_ID` / `PAGES_WEBSITE_ID` / `PP_SUBDOMAIN` /
 > `RELINK_WEBROLE_NAMES` / `PORTAL_DIR`）。
+
+> ⚠️ **EDM 2.0 環境の判定方法**: `pac pages upload-code-site` 実行後に `.powerpages-site/web-files/` 配下の
+> YAML を確認し、`id: 00000000-0000-0000-0000-000000000000` が含まれていたら EDM 2.0 バグに該当。
+> その場合は `portal/scripts/deploy_site.py` を使用する（教訓 22）。
 
 ### アクティベーション詳細
 

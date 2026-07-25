@@ -59,6 +59,21 @@ def get_headers(scope: str = None):
 
 
 def get_site_id(headers: dict) -> str:
+    # PAGES_WEBSITE_ID が設定されていれば最優先で使う
+    if PAGES_WEBSITE_ID:
+        # powerpagesiteid として検証
+        r = requests.get(
+            f"{API}/powerpagesites({PAGES_WEBSITE_ID})?$select=powerpagesiteid,name",
+            headers=headers,
+        )
+        if r.status_code == 200:
+            site = r.json()
+            print(f"  site: {site['name']} ({site['powerpagesiteid']}) [from PAGES_WEBSITE_ID]")
+            return site["powerpagesiteid"]
+        # powerpagesites にない場合 powerpagecomponents から _powerpagesiteid_value として使う
+        print(f"  site: {PAGES_WEBSITE_ID} [PAGES_WEBSITE_ID direct, powerpagesites not found]")
+        return PAGES_WEBSITE_ID
+
     r = requests.get(
         f"{API}/powerpagesites?$top=1&$orderby=createdon desc&$select=powerpagesiteid,name",
         headers=headers,
