@@ -1,0 +1,75 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/vDevPreview/MicrosoftTeams.schema.json",
+  "manifestVersion": "devPreview",
+  "version": "${TEAMS_APP_VERSION}",
+  "id": "${INSTANCE_IDENTITY_CLIENT_ID}",
+  "developer": {
+    "name": "${DEVELOPER_NAME}",
+    "websiteUrl": "${DEVELOPER_WEBSITE_URL}",
+    "privacyUrl": "${DEVELOPER_PRIVACY_URL}",
+    "termsOfUseUrl": "${DEVELOPER_TERMS_URL}"
+  },
+  "name": {
+    "short": "${AGENT_DISPLAY_NAME}",
+    "full": "${AGENT_FULL_NAME}"
+  },
+  "description": {
+    "short": "${AGENT_DESCRIPTION_SHORT}",
+    "full": "${AGENT_DESCRIPTION_FULL}"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#2F6FEB",
+  "validDomains": [],
+  "webApplicationInfo": {
+    "id": "${INSTANCE_IDENTITY_CLIENT_ID}",
+    "resource": "${TEAMS_APP_RESOURCE_URI}"
+  },
+  "bots": [
+    {
+      "botId": "${INSTANCE_IDENTITY_CLIENT_ID}",
+      "scopes": [
+        "personal",
+        "team",
+        "groupChat",
+        "copilot"
+      ],
+      "supportsFiles": true,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": [
+            "personal"
+          ],
+          "commands": [
+            {
+              "title": "はじめる",
+              "description": "自分専用のエージェントセッションを開始する"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "copilotAgents": {
+    "customEngineAgents": [
+      {
+        "id": "${INSTANCE_IDENTITY_CLIENT_ID}",
+        "type": "bot",
+        "functionsAs": "agenticUserOnly",
+        "agenticUserTemplateId": "${AGENT_NAME}-agentic-user",
+        "disclaimer": {
+          "text": "This agent uses AI. Please verify important information."
+        }
+      }
+    ]
+  },
+  "agenticUserTemplates": [
+    {
+      "id": "${AGENT_NAME}-agentic-user",
+      "file": "agenticUser.json"
+    }
+  ]
+}
