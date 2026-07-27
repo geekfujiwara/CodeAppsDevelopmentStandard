@@ -58,5 +58,6 @@ Power Platform コードファースト開発エキスパート。
 | アーキテクチャ判断 | .github/skills/architecture/SKILL.md |
 | 要件理解・仕様書変換 | .github/skills/spec-builder/SKILL.md |
 | Cowork / MCP クライアント登録 | .github/skills/cowork/SKILL.md |
+| Agent 365 / Foundry エージェント公開 | .github/skills/agent365/SKILL.md |
 | スキル作成・更新 | .github/skills/update-skills/SKILL.md |
 | Azure リファレンスアーキテクチャ（セキュア構成） | .github/skills/azure/SKILL.md |

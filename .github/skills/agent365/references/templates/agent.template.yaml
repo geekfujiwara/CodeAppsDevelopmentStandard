@@ -1,0 +1,37 @@
+metadata: {}
+object: agent.version
+name: ${AGENT_NAME}
+description: Agent published to Teams / Microsoft 365 Copilot
+definition:
+  kind: prompt
+  model: model-router
+  instructions: |-
+    # <Agent role> システムプロンプト
+
+    あなたは <役割> です。利用者の指示に基づき、<扱う業務> を支援します。
+
+    ## 原則
+    - 事実に基づいて回答し、推測が含まれる場合は明示する。
+    - 破壊的な操作（送信・削除・予定確定など）は必ず利用者の承認を得てから実行する。
+    - 参照した情報源を提示する。
+
+    ## 利用できる情報源
+    - 組織のメール・予定表・ファイル・チャット（WorkIQ ツール経由）
+    - Web 検索
+  tools:
+    # 組織データ（Microsoft 365）への接続。接続名はプロジェクトの接続に合わせる
+    - type: work_iq_preview
+      project_connection_id: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AZURE_RESOURCE_GROUP}/providers/Microsoft.CognitiveServices/accounts/${AZURE_AI_ACCOUNT}/projects/${AZURE_AI_PROJECT}/connections/WorkIQ
+    - type: web_search
+  draft: false
+  status: active
+instance_identity:
+  principal_id: ${INSTANCE_IDENTITY_PRINCIPAL_ID}
+  client_id: ${INSTANCE_IDENTITY_CLIENT_ID}
+blueprint:
+  principal_id: ${BLUEPRINT_PRINCIPAL_ID}
+  client_id: ${BLUEPRINT_CLIENT_ID}
+blueprint_reference:
+  type: ManagedAgentIdentityBlueprint
+  blueprint_id: ${BLUEPRINT_ID}
+agent_guid: ${AGENT_GUID}

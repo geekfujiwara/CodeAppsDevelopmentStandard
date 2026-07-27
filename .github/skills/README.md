@@ -112,7 +112,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 
 ---
 
-## スキル一覧（16 スキル）
+## スキル一覧（17 スキル）
 
 ### architecture — アーキテクチャ・基盤
 
@@ -146,6 +146,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 | [copilot-studio-v2](copilot-studio-v2/SKILL.md) | Copilot Studio の新アーキテクチャ（cliagent）エージェントを Dataverse API だけで UI 操作なし完全自動構築する。フラット Python スキル添付まで対応。MCP サーバー等のツール追加は Copilot Studio UI での手動作業。 |
 | [power-automate](power-automate/SKILL.md) | Power Automate クラウドフローをソリューション対応で作成・デプロイする。 |
 | [cowork](cowork/SKILL.md) | 目的特化型の Copilot Cowork プラグイン（Agent Skills + Dataverse MCP）を開発し、Entra ID SSO を構成して M365 管理センターのエージェント画面から公開・更新する。 |
+| [agent365](agent365/SKILL.md) | Microsoft Foundry のエージェントを SDK/REST ベースで作成・バージョン管理し、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に公開する。 |
 
 ### ai — AI / プロンプト
 
@@ -192,4 +193,6 @@ Track C（設計承認と同時に着手）:
 ── 全トラック完了後 ──
   8. cowork             → Cowork プラグイン化（Agent Skills + Dataverse MCP）・公開・更新
                            ※ 会社環境で Cowork の利用が許可されている場合のみ推奨
+  9. agent365           → Foundry エージェントを Agent 365 経由で Teams / M365 Copilot に公開
+                           ※ Foundry プロジェクトと Agent 365 ライセンスがある場合
 ```
