@@ -499,3 +499,79 @@ def _clean(v):
 Excel/CSV から読み込んだ値を Dataverse Web API に渡す全てのループで、必ずこのような
 クレンジング関数を経由させること（数値列を `row["Xxx"]` で直接 `body` に入れない）。
 
+---
+
+## 16. `Decimal` 型の上限（1000億）を超える金額を `Money` 型に変更したら、今度は `Money` のデフォルト上限（10億）で 400 エラーになる
+
+### 症状
+
+`Decimal` 型の列が `0x80044330`（値域外）エラーになったため `Money`（Currency）型に変更したところ、
+今度は次のようなエラーになる:
+```
+A validation error occurred for geek_shipment.geek_amountjpy. The value 26036836560 of type
+Microsoft.Xrm.Sdk.Money is outside the valid range(0 to 1000000000).
+```
+
+### 原因
+
+Dataverse の `MoneyAttributeMetadata` は `MinValue`/`MaxValue` を明示しないと
+**デフォルトで 0～10億（1,000,000,000）** に制限される。`Decimal`（デフォルト上限1000億）より
+むしろ狭いデフォルト値のため、単純に型だけ `Money` に変えても解決しない。
+
+### 対処
+
+列作成 JSON ボディに `MinValue`/`MaxValue` を明示的に指定する（`Money` の実際のプラットフォーム
+上限は約 ±922,337,203,685,477 と `Decimal` よりはるかに広い）。
+
+```python
+elif col["type"] == "Money":
+    base["@odata.type"] = "#Microsoft.Dynamics.CRM.MoneyAttributeMetadata"
+    base["Precision"] = col.get("precision", 2)
+    base["MinValue"] = col.get("minValue", 0)
+    base["MaxValue"] = col.get("maxValue", 1_000_000_000_000)  # 明示しないと10億に制限される
+```
+
+型を `Decimal` → `Money` に変更する場合、既存の列は削除して作り直す必要がある
+（メタデータ更新で型変更は不可）。列削除時は当該列を含む既存レコードの値が失われるため、
+影響を受けるレコードも合わせて削除するか、削除前に値を退避しておくこと。
+
+---
+
+## 17. デモデータ投入ループ（Step 6 等）に既存チェックを入れず「べき等でない」まま運用すると、途中失敗からの再実行で重複行が生まれる
+
+### 症状
+
+大量行を `api_post()` で連続投入するループ（テーブル/Lookup 作成とは別に、デモデータ本体を
+投入するループ）が途中の行でエラー停止した後、原因を直して再実行すると、既に投入済みだった
+先頭側の行が再度 `api_post()` され、Dataverse 上に重複レコードが作られてしまう。
+
+### 原因
+
+テーブル/Lookup 作成側（Step 2/3）は「既存なら DisplayName 等で存在チェックしてスキップ」する
+べき等設計になっていたが、行データ投入側（Step 6）は「毎回 for ループで無条件に `api_post()`」
+という設計のままだった。途中で失敗して再実行する運用が前提の Excel 一括投入スクリプトでは、
+データ本体のループも必ずべき等化しておく必要がある。
+
+### 対処
+
+投入対象のコード列（自然キー、例: `geek_code`）で **投入前に一括で既存 code→id を取得**し、
+ループ内で「既に存在すればその id を使い回してスキップ、無ければ新規作成」するパターンに変更する。
+
+```python
+def _prefetch_codes(entity_set: str, id_attr: str, code_attr: str = f"{PREFIX}_code") -> dict:
+    """既存レコードの code→id マッピングを一括取得する。"""
+    resp = api_get(f"{entity_set}?$select={id_attr},{code_attr}&$top=5000")
+    return {rec[code_attr]: rec[id_attr] for rec in resp.get("value", []) if rec.get(code_attr)}
+
+existing = _prefetch_codes(entity_set, f"{PREFIX}_xxxid")
+for _, row in df.iterrows():
+    code = row["XxxID"]
+    if code in existing:
+        ids[code] = existing[code]
+        continue
+    ids[code] = api_post(entity_set, body)
+```
+
+この対処により、Excel 一括投入スクリプト全体（テーブル/Lookup 作成 ～ デモデータ本体）が
+一貫して「何度失敗して再実行しても安全」なべき等スクリプトになる。
+
