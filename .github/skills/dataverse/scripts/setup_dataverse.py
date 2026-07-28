@@ -907,7 +907,12 @@ def _find_repo_root() -> Path:
 
 
 def _clean(v):
-    """NaN/None を None に、日付は ISO 文字列に変換"""
+    """NaN/None を None に、日付は ISO 文字列に変換。
+
+    numpy スカラー型（int64/float64/bool_ 等）は requests の json= がそのまま
+    シリアライズできず TypeError になるため、.item() でネイティブ Python 型に変換する。
+    """
+    import numpy as np
     import pandas as pd
     if v is None:
         return None
@@ -918,11 +923,32 @@ def _clean(v):
         pass
     if hasattr(v, "strftime"):
         return v.strftime("%Y-%m-%d")
+    if isinstance(v, np.generic):
+        return v.item()
     return v
 
 
 def _to_bool(v) -> bool:
     return str(v).strip().lower() in ("1", "1.0", "yes", "true", "y")
+
+
+def _post_debug(entity_set: str, body: dict, label: str):
+    """api_post をラップし、400 系エラー時はレスポンスボディを含めて再送出する。
+
+    デモデータ投入は大量行を api_post で連続投入するため、詳細メッセージ無しで
+    クラッシュすると原因究明ができない（項目 12 と同じパターン）。
+    """
+    try:
+        return api_post(entity_set, body)
+    except Exception as exc:
+        detail_text = ""
+        resp = getattr(exc, "response", None)
+        if resp is not None:
+            try:
+                detail_text = f"\n  detail: {resp.text}"
+            except Exception:
+                pass
+        raise RuntimeError(f"Failed to create {label} row: {exc}{detail_text}\n  body: {body}") from exc
 
 
 def create_demo_data():
@@ -1156,7 +1182,7 @@ def create_demo_data():
         rt_id = route_ids.get(row.get("RouteID"))
         if np_ct_route and rt_id:
             body[f"{np_ct_route}@odata.bind"] = f"/{route_set}({rt_id})"
-        contract_ids[row["ContractID"]] = api_post(contract_set, body)
+        contract_ids[row["ContractID"]] = _post_debug(contract_set, body, "contract")
     print(f"  contract: {len(contract_ids)} rows")
 
     # ── shipment ──
@@ -1207,7 +1233,7 @@ def create_demo_data():
         org_id = org_ids.get(row.get("OrgID"))
         if np_sh_org and org_id:
             body[f"{np_sh_org}@odata.bind"] = f"/{organization_set}({org_id})"
-        api_post(shipment_set, body)
+        _post_debug(shipment_set, body, "shipment")
         shipment_count += 1
         if shipment_count % 100 == 0:
             print(f"    shipment progress: {shipment_count}/{len(shipment_df)}")
@@ -1235,7 +1261,7 @@ def create_demo_data():
         org_id = org_ids.get(row.get("OrgID"))
         if np_iv_org and org_id:
             body[f"{np_iv_org}@odata.bind"] = f"/{organization_set}({org_id})"
-        api_post(investment_set, body)
+        _post_debug(investment_set, body, "investment")
         inv_count += 1
     print(f"  investment: {inv_count} rows")
 
@@ -1257,7 +1283,7 @@ def create_demo_data():
         org_id = org_ids.get(row.get("OrgID"))
         if np_cl_org and org_id:
             body[f"{np_cl_org}@odata.bind"] = f"/{organization_set}({org_id})"
-        api_post(creditline_set, body)
+        _post_debug(creditline_set, body, "creditline")
         cl_count += 1
     print(f"  creditline: {cl_count} rows")
 
@@ -1277,7 +1303,7 @@ def create_demo_data():
         sev = SEVERITY.get(str(row.get("Severity")).strip())
         if sev:
             body[f"{PREFIX}_severity"] = sev
-        event_ids[row["EventID"]] = api_post(event_set, body)
+        event_ids[row["EventID"]] = _post_debug(event_set, body, "event")
     print(f"  event: {len(event_ids)} rows")
 
     # ── eventimpact ──
@@ -1300,7 +1326,7 @@ def create_demo_data():
         ev_id = event_ids.get(row.get("EventID"))
         if np_im_event and ev_id:
             body[f"{np_im_event}@odata.bind"] = f"/{event_set}({ev_id})"
-        api_post(eventimpact_set, body)
+        _post_debug(eventimpact_set, body, "eventimpact")
         im_count += 1
     print(f"  eventimpact: {im_count} rows")
 

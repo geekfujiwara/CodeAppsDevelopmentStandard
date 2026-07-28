@@ -450,3 +450,52 @@ raise RuntimeError(msg)  # None を返して黙って成功扱いにしない
 この修正により、ロック競合等でリトライを使い切った列/Lookupは確実にエラーとして検出され、
 再実行（べき等）で確実に補完対象になる。
 
+---
+
+## 15. `pandas` の数値列を `api_post` に渡すと `TypeError: Object of type int64 is not JSON serializable` で 400 系エラーになる
+
+### 症状
+
+デモデータ投入ループ（`pd.read_excel()` → `iterrows()` → `api_post()`）で、ある行から
+突然 `400 Bad Request` や `TypeError: Object of type int64 is not JSON serializable` が
+発生する。同じパターンの他のループ（例: 直前まで問題なく完走していた別テーブルの投入）では
+発生しないことがあり、原因がわかりにくい。
+
+### 原因
+
+`pandas` の数値列（int/float）を `row.get("Xxx")` で取り出すと、値は Python 標準の
+`int`/`float` ではなく `numpy.int64`/`numpy.float64` になる。`requests` の `session.post(url, json=body)`
+は内部で標準の `json` モジュールを使ってシリアライズするため、`numpy.int64`/`numpy.float64` が
+`body` 内に残っていると `TypeError: Object of type int64 is not JSON serializable` で失敗する。
+
+このエラーは `numpy`/`pandas` のバージョンや `iterrows()` の内部実装（行を Series 化する際の
+dtype 昇格）によって発生タイミングが変わることがあり、「同じコードパターンの別ループでは
+たまたま発生しない」ように見えることがある — が、`numpy` スカラー型が `body` に混入している
+限り、いつ発生してもおかしくない潜在バグである。
+
+### 対処
+
+数値/日付のクレンジングを行う共通ヘルパー（`_clean()` 等）で、`numpy` スカラー型を
+`.item()` でネイティブ Python 型に変換してから返す。
+
+```python
+def _clean(v):
+    import numpy as np
+    import pandas as pd
+    if v is None:
+        return None
+    try:
+        if pd.isna(v):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if hasattr(v, "strftime"):
+        return v.strftime("%Y-%m-%d")
+    if isinstance(v, np.generic):
+        return v.item()  # numpy.int64/float64/bool_ → int/float/bool
+    return v
+```
+
+Excel/CSV から読み込んだ値を Dataverse Web API に渡す全てのループで、必ずこのような
+クレンジング関数を経由させること（数値列を `row["Xxx"]` で直接 `body` に入れない）。
+
