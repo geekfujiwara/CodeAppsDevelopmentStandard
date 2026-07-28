@@ -32,13 +32,27 @@ api_post("accounts", {"name": "Test"}, solution="SolutionName")
 api_patch("accounts(id)", {"name": "Updated"})
 api_delete("accounts(id)")
 
-# メタデータ操作のリトライ（0x80040237, 0x80044363 対応）
+# メタデータ操作のリトライ（0x80040237, 0x80044363 対応 + ネットワーク切断/429スロットリング対応）
 retry_metadata(lambda: api_post("EntityDefinitions", body), "テーブル作成")
 
 # Flow API ヘルパー
 from auth_helper import flow_api_call
 flow_api_call("GET", f"/providers/Microsoft.ProcessSimple/environments/{env_id}/flows")
 ```
+
+#### `retry_metadata()` がリトライ／スキップする条件（★ 2026-07 拡張）
+
+| 条件 | 対処 |
+|---|---|
+| `already exists` / `0x80040237` / `0x80044363` | スキップ（べき等） |
+| `another ... running`（メタデータロック競合） | 累進的に待機してリトライ |
+| `requests.exceptions.ConnectionError` / `Timeout`（一時的なネットワーク切断） | 累進的に待機してリトライ |
+| HTTP `429` / `503`（スロットリング） | `Retry-After` ヘッダーを尊重して待機・リトライ |
+
+`ThreadPoolExecutor` で多数テーブル・多数列を並行構築するような長時間バッチでは、
+上記のネットワーク断／スロットリングが避けられない。これらを想定外エラーとして
+即座に再送出すると、1 回の一時的な通信エラーでビルド全体がクラッシュするため、
+`retry_metadata()` 側で吸収する（詳細は [dataverse スキルの troubleshooting](../../dataverse/references/troubleshooting.md#8-threadpoolexecutor-並行構築中の一時的なネットワーク切断スロットリングでビルド全体が停止する) を参照）。
 
 #### 認証テスト
 

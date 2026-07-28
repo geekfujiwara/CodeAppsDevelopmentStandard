@@ -705,6 +705,37 @@ def retry_metadata(
                 time.sleep(wait)
                 continue
 
+            # --- 一時的なネットワーク切断 → リトライ ---
+            if isinstance(
+                exc, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)
+            ) or "remote end closed connection" in detail_lower:
+                wait = 10 * (attempt + 1)
+                print(
+                    f"  {description}: network error, retrying in {wait}s "
+                    f"(attempt {attempt + 1}/{max_attempts})..."
+                )
+                time.sleep(wait)
+                continue
+
+            # --- スロットリング（429 / 503）→ Retry-After を尊重してリトライ ---
+            status_code = None
+            if isinstance(exc, requests.HTTPError) and exc.response is not None:
+                status_code = exc.response.status_code
+            if status_code in (429, 503) or "429 client error" in detail_lower:
+                retry_after = None
+                if isinstance(exc, requests.HTTPError) and exc.response is not None:
+                    retry_after = exc.response.headers.get("Retry-After")
+                try:
+                    wait = int(retry_after) if retry_after else 15 * (attempt + 1)
+                except ValueError:
+                    wait = 15 * (attempt + 1)
+                print(
+                    f"  {description}: throttled ({status_code}), waiting {wait}s "
+                    f"(attempt {attempt + 1}/{max_attempts})..."
+                )
+                time.sleep(wait)
+                continue
+
             # --- 想定外のエラー → 再送出 ---
             raise
 

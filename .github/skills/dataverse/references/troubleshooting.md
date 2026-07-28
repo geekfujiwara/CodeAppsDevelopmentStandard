@@ -216,3 +216,163 @@ customer 型は**ターゲット型ごとの別名 NavProp** を使う。
 ```
 
 正確な別名は `ManyToOneRelationships` の `ReferencingEntityNavigationPropertyName` で確認する。
+
+---
+
+## 8. `ThreadPoolExecutor` 並行構築中の一時的なネットワーク切断／スロットリングでビルド全体が停止する
+
+### 症状
+
+14 テーブル×多数列を `ThreadPoolExecutor` で並行構築する長時間バッチの途中で、
+`requests.exceptions.ConnectionError`（`RemoteDisconnected`）や `429 Too Many Requests` が
+1 回発生しただけでスクリプト全体が異常終了する。`retry_metadata()` は
+「既に存在（スキップ）」「メタデータロック競合（"another"+"running"）」しかリトライ対象にしておらず、
+一時的なネットワーク断・スロットリングは想定外エラーとして即座に再送出されていた。
+
+### 原因
+
+`retry_metadata()`（`auth_helper.py`）の例外分岐が固定 4 パターンのみで、
+Dataverse API 呼び出し数が多い一括構築では避けられない下記のエラー種別に対応していなかった:
+
+- `requests.exceptions.ConnectionError` / `Timeout`（"Connection aborted", "Remote end closed connection" 等）
+- HTTP `429`（スロットリング）/ `503`（一時的な過負荷）
+
+### 対処（`auth_helper.py` の `retry_metadata()` に恒久対応済み）
+
+`already exists` / ロック競合の既存分岐に加え、以下 2 分岐を追加する。
+
+```python
+# --- 一時的なネットワーク切断 → リトライ ---
+if isinstance(
+    exc, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)
+) or "remote end closed connection" in detail_lower:
+    wait = 10 * (attempt + 1)
+    time.sleep(wait)
+    continue
+
+# --- スロットリング（429 / 503）→ Retry-After を尊重してリトライ ---
+status_code = exc.response.status_code if isinstance(exc, requests.HTTPError) and exc.response is not None else None
+if status_code in (429, 503) or "429 client error" in detail_lower:
+    retry_after = exc.response.headers.get("Retry-After") if isinstance(exc, requests.HTTPError) and exc.response is not None else None
+    wait = int(retry_after) if retry_after else 15 * (attempt + 1)
+    time.sleep(wait)
+    continue
+```
+
+これにより、長時間の一括メタデータ構築でも一時的な通信エラー／スロットリングで
+スクリプト全体がクラッシュせず、自動的にリトライして完走できる。
+
+---
+
+## 9. Decimal 型列の `maxValue` が Dataverse の上限を超えて `0x80040203`（Min/max out of range）
+
+### 症状
+
+金額系の Decimal 列（例: 1 兆円を上限にしたい `金額(円)` 列）を作成すると
+`400 Bad Request` + `{"error":{"code":"0x80040203","message":"Min/max values are out of range"}}` になる。
+
+### 原因
+
+Dataverse の Decimal 属性がサポートする値の範囲は **-100,000,000,000 〜 100,000,000,000（1000億）** まで。
+`maxValue: 1000000000000`（1 兆）のように 1000 億を超える値を指定すると作成に失敗する。
+
+### 対処
+
+金額系 Decimal 列の `maxValue` は 1000 億（`100000000000`）以内に収める。
+それ以上の桁が必要な場合は「百万円単位」等の縮小した単位で保持する（本プロジェクトの
+`出資簿価(百万円)` 列がこのパターン）。
+
+---
+
+## 10. 標準テーブル（`systemuser` 等）への Lookup 追加で `SchemaName` がプレフィックス不正エラーになる
+
+### 症状
+
+`systemuser` のような標準テーブルにカスタム Lookup 列を追加する際、
+`RelationshipDefinitions` への POST が `400 Bad Request` +
+`{"error":{"code":"0x80044366","message":"...must start with a valid customization prefix..."}}` になる。
+
+### 原因
+
+Lookup（1:N リレーション）の `SchemaName` を `f"{from_table}_{column_logical}"` のように機械的に組み立てると、
+`from_table` が `systemuser` のような標準テーブルの場合はプレフィックスの付いていない文字列
+（例: `systemuser_geek_organizationid`）になり、Dataverse のカスタマイズプレフィックス検証に失敗する。
+
+### 対処
+
+`SchemaName` を組み立てる際、`from_table` がカスタマイズプレフィックスで始まっていなければ明示的に付与する。
+
+```python
+from_schema = l["from_table"] if l["from_table"].startswith(PREFIX) else f"{PREFIX}_{l['from_table']}"
+body["SchemaName"] = f"{from_schema}_{l['column_logical']}"
+```
+
+---
+
+## 11. stdout をファイルにリダイレクトすると絵文字 `print()` が `UnicodeEncodeError` でクラッシュする（Windows）
+
+### 症状
+
+スクリプトの標準出力を PowerShell の `*>` でログファイルにリダイレクトして実行すると、
+エラーハンドラの `print(f"❌ {msg}")` 等が
+`UnicodeEncodeError: 'cp932' codec can't encode character '\u274c'` で失敗し、
+**本来の原因より先にこの二次エラーで異常終了する**（原因の隠蔽）。
+
+### 原因
+
+Windows で stdout が非 tty（ファイルリダイレクト）になると、Python はコンソールの UTF-8 ではなく
+**システムロケール（cp932 = Shift-JIS）** をデフォルトエンコーディングとして使う。
+絵文字（`❌` 等）は cp932 で表現できない文字のため出力時に例外になる。
+
+### 対処
+
+スクリプト冒頭で stdout/stderr を明示的に UTF-8 に固定する（`errors="replace"` で万一の非対応文字も潰す）。
+
+```python
+try:
+    sys.stdout.reconfigure(line_buffering=True, encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(line_buffering=True, encoding="utf-8", errors="replace")
+except AttributeError:
+    pass
+```
+
+ログファイルを `Get-Content` で確認する際も、既定のロケールではなく `-Encoding UTF8` を付ける
+（`Get-Content log.txt -Encoding UTF8`）と文字化けを避けられる。
+
+---
+
+## 12. エラーメッセージにレスポンスボディを含めないと 400 系エラーの原因究明ができない
+
+### 症状
+
+`str(exc)` だけを使ったエラーメッセージは `400 Client Error: Bad Request for url: ...` としか表示されず、
+実際の失敗理由（属性名重複・値域超過・プレフィックス不正等）が分からない。
+特に `ThreadPoolExecutor` での並行実行時や、`retry_metadata` を呼び出す側がループを
+`try/except` で囲わずに丸ごと失敗させている箇所（Lookup 作成ループ等）では、
+最初の 1 件のエラーで残り全件の処理が止まり、かつ原因も分からないまま終了する。
+
+### 対処
+
+- 例外を捕捉する箇所では `requests.HTTPError` の `exc.response.text`（レスポンスボディ）を
+  必ずログに含める。
+- ループ処理は 1 件ずつ `try/except` で捕捉してエラーを蓄積し、**最後まで処理を続行**してから
+  まとめて `RuntimeError` を送出する（`create_tables()` の並行実行と同じパターンを、
+  逐次処理の `create_lookups()` にも適用する）。
+
+```python
+except Exception as exc:
+    detail_text = ""
+    resp = getattr(exc, "response", None)
+    if resp is not None:
+        try:
+            detail_text = f"\n  詳細: {resp.text}"
+        except Exception:
+            pass
+    msg = f"... の作成でエラー: {exc}{detail_text}"
+    print(f"  ❌ {msg}")
+    errors.append(msg)
+```
+
+このパターンにより、1 回のスクリプト実行で「どのテーブル／列／Lookup が失敗したか」と
+「なぜ失敗したか」が同時に分かり、修正→再実行（べき等）のサイクルを最短で回せる。
+
