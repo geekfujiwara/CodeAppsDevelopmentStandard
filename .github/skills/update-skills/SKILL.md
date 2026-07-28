@@ -30,7 +30,7 @@ triggers:
 **リモートリポジトリへ PR を作成・更新**するまでを一貫して行う。
 サンプル（`code-apps/samples/`）の追加・更新時は [sample-packaging.md](references/sample-packaging.md) のチェックも実施する。
 
-このスキル自身が「良いスキルの形」のテンプレートになっている。守るべき原則は以下の 5 つ。
+このスキル自身が「良いスキルの形」のテンプレートになっている。守るべき原則は以下の 6 つ。
 
 | 原則 | 内容 |
 |---|---|
@@ -39,6 +39,7 @@ triggers:
 | 秘匿化 | 会社名・個別プロジェクト名・実 GUID・URL・メール・シークレットを排除（→ Step 3 のスキャン） |
 | シンプル | 本文は短く。冗長な説明は `references/` に逃がす。手順の番号は**整数の Step** で統一 |
 | 自動化優先 | 公式仕様は **Microsoft Learn MCP** で検証、ブラウザ操作は **VS Code 統合ブラウザ**で自動化（→ Step 4） |
+| 再発防止 | 作業中にバグ・落とし穴を見つけて直したら `references/troubleshooting.md` への記録だけで終わらせず、**同じ入力パターンで二度と起きないよう `scripts/` 本体に恒久的な事前チェック（アサーション/事前検証）を追加**し、正常系（成功する実行）でも毎回そのチェックが動く状態にする（→ Step 1 の 6） |
 
 > 前提ツール: Git、GitHub CLI（`gh`、認証済み）、Python 3。
 > 異常系・詰まりどころは [references/troubleshooting.md](references/troubleshooting.md)、
@@ -86,6 +87,12 @@ triggers:
 5. **サンプル追加時**: `code-apps/samples/` にサンプルを追加・更新する場合は、
    [references/sample-packaging.md](references/sample-packaging.md) のフェーズ 1〜5 を実施する
    （セキュリティスキャン → 再利用性チェック → .env.example 生成 → README 生成 → 仕上げ）。
+6. **恒久対策（再発防止）を `scripts/` に反映する**: 作業中に発生したバグ・詰まりどころを修正したら、
+   `references/troubleshooting.md` に症状・原因・対処を記録するだけで終わらせない。可能な限り
+   **同じクラスの問題を検出する事前チェック（型/値域の静的検証、アサーション等）を `scripts/` 本体に追加**し、
+   その後に成功する実行（正常系）でも**毎回そのチェックが動作する**ようにする
+   （例: 値域超過を実行前に検出する検証関数、シリアライズ不能な型が紛れ込んでいないかを送信直前に
+   検証するアサーション）。troubleshooting.md 側には「恒久対策済み（関数名・場所）」を一言添える。
 
 > frontmatter は `name`（フォルダ名と一致）/ `description` / `category` / `triggers` を必須とする
 > （[README の YAML 規約](../README.md) 準拠）。`description` にトリガー語は詰め込みすぎない。
@@ -190,6 +197,7 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 - [ ] 公式仕様は **Learn MCP** で検証、ブラウザ操作は **VS Code 統合ブラウザ**で自動化
 - [ ] 既存オープン PR を確認（`manage_skill_pr.py`）→ 関連あれば**更新**、無関係なら**新規＋マージ順提示**
 - [ ] push 前に秘匿情報スキャン済み
+- [ ] 今回修正したバグに対応する**恒久的な事前チェックが `scripts/` に追加**され、正常系の実行でも動作する
 
 ## 参考リンク
 
