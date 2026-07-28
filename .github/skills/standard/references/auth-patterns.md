@@ -44,15 +44,21 @@ flow_api_call("GET", f"/providers/Microsoft.ProcessSimple/environments/{env_id}/
 
 | 条件 | 対処 |
 |---|---|
-| `already exists` / `0x80040237` / `0x80044363` | スキップ（べき等） |
+| `already exists` / `0x80040237` / `0x80044363` | スキップ（べき等・`None` を返す） |
 | `another ... running`（メタデータロック競合） | 累進的に待機してリトライ |
 | `requests.exceptions.ConnectionError` / `Timeout`（一時的なネットワーク切断） | 累進的に待機してリトライ |
 | HTTP `429` / `503`（スロットリング） | `Retry-After` ヘッダーを尊重して待機・リトライ |
+| 上記いずれかを `max_attempts`（既定 5）回リトライしても解消しない | **`RuntimeError` を送出**（`None` を返して黙って成功扱いにしない） |
 
 `ThreadPoolExecutor` で多数テーブル・多数列を並行構築するような長時間バッチでは、
 上記のネットワーク断／スロットリングが避けられない。これらを想定外エラーとして
 即座に再送出すると、1 回の一時的な通信エラーでビルド全体がクラッシュするため、
 `retry_metadata()` 側で吸収する（詳細は [dataverse スキルの troubleshooting](../../dataverse/references/troubleshooting.md#8-threadpoolexecutor-並行構築中の一時的なネットワーク切断スロットリングでビルド全体が停止する) を参照）。
+
+一方、**リトライ上限に達した場合は「既に存在するのでスキップ」とは区別して例外を送出する**
+（`None` を返さない）。呼び出し元がこれを検知できないと、実際には作成されなかった
+列/Lookup が「成功扱い」のまま後続の Step（公開等）に進んでしまう
+（詳細は [troubleshooting.md #14](../../dataverse/references/troubleshooting.md#14-ロック競合でリトライ上限に達しても-retry_metadata-が例外を投げず-lookup-が未作成のまま後続処理が成功扱いで進んでしまう) を参照）。
 
 #### 認証テスト
 

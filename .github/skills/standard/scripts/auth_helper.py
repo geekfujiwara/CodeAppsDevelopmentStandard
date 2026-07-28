@@ -739,8 +739,13 @@ def retry_metadata(
             # --- 想定外のエラー → 再送出 ---
             raise
 
-    print(f"  {description}: max retries ({max_attempts}) exceeded")
-    return None
+    # リトライ上限に達した場合、「既に存在するのでスキップ」とは明確に区別し、
+    # 呼び出し元の try/except が確実に検知できるよう例外を送出する（None を返して
+    # サイレントに成功扱いにしてしまうと、実際には作成されていない列/Lookup が
+    # 後続処理でも見過ごされたまま Step 4 の公開まで進んでしまう）。
+    msg = f"{description}: max retries ({max_attempts}) exceeded"
+    print(f"  {msg}")
+    raise RuntimeError(msg)
 
 
 # ---------- CLI エントリーポイント ----------

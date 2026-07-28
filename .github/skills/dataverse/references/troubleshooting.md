@@ -413,3 +413,40 @@ python -u setup_dataverse.py *> setup_dataverse.log
 なお、この文字化けは表示上の問題であり、Dataverse API 呼び出しやテーブル／列の作成結果
 そのものには影響しない（あくまでログの可読性の問題）。
 
+---
+
+## 14. ロック競合でリトライ上限に達しても `retry_metadata()` が例外を投げず、列/Lookup が未作成のまま後続処理が「成功扱い」で進んでしまう
+
+### 症状
+
+ログに `xxx: max retries (5) exceeded` と出力されるものの、呼び出し元の `try/except` で
+検知されず、`errors` リストにも追加されないまま Step 4（`PublishAllXml`）まで進んでしまう。
+実際にはその列/Lookup は作成されていないのに、スクリプトはエラーなく完走したように見える。
+
+### 原因
+
+`retry_metadata()` は「`already exists`（既に存在するので意図的にスキップ）」と
+「ロック競合/ネットワークエラー/スロットリングでリトライ上限に達した（本来はエラー）」の
+どちらの場合も同じ `return None` を実行していた。呼び出し元は戻り値を見ておらず、
+例外が飛んでこない限り「成功した」とみなすため、後者のケースが握りつぶされていた。
+
+複数プロセスの同時実行（本項目の直前に発見した「別プロセスが同じ環境に対して並行実行
+されていた」ケース等）でロック競合が慢性化すると、この握りつぶしが頻発しやすい。
+
+### 対処
+
+`retry_metadata()` のリトライ上限到達時は、`already exists` スキップとは明確に区別し、
+`RuntimeError` を送出する（`None` を返さない）。呼び出し元は既存の `try/except` で
+このエラーを捕捉し、`errors` リストに蓄積 → ループ完走後にまとめて `RuntimeError` を送出する
+（項目 6・12 のパターンと合流する）。
+
+```python
+# retry_metadata() の末尾
+msg = f"{description}: max retries ({max_attempts}) exceeded"
+print(f"  {msg}")
+raise RuntimeError(msg)  # None を返して黙って成功扱いにしない
+```
+
+この修正により、ロック競合等でリトライを使い切った列/Lookupは確実にエラーとして検出され、
+再実行（べき等）で確実に補完対象になる。
+
