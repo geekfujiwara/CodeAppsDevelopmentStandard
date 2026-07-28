@@ -613,6 +613,53 @@ def build_column_body(col: dict) -> dict:
     return base
 
 
+# Dataverse のメタデータ属性が許容する値域（API 呼び出し前に静的検証するため定義）。
+# 実測: Decimal は 1000億（100,000,000,000）を超えると 0x80040203（Min/max out of range）。
+DATAVERSE_LIMITS = {
+    "Decimal": {"min": -100_000_000_000, "max": 100_000_000_000},
+    "Integer": {"min": -2_147_483_648, "max": 2_147_483_647},
+    "String": {"maxLength": 4000},
+    "Memo": {"maxLength": 1_048_576},
+}
+
+
+def validate_tables() -> None:
+    """TABLES 定義を Dataverse のメタデータ制約に照らして事前検証する。
+
+    API 呼び出しより前（Step 1 の前）に実行することで、値域超過等の定義ミスを
+    ThreadPoolExecutor による並行構築の途中で 400 エラーとして検出する事態を防ぎ、
+    ビルド開始前に一括で分かりやすいエラーとして提示する。
+    """
+    errors: list[str] = []
+    for tbl in TABLES:
+        for col in tbl.get("columns", []):
+            limit = DATAVERSE_LIMITS.get(col["type"])
+            if not limit:
+                continue
+            label = f"{tbl['logical']}.{col['logical']}"
+            if "min" in limit and "max" in limit:
+                min_v = col.get("minValue", 0)
+                max_v = col.get("maxValue", limit["max"])
+                if max_v > limit["max"] or min_v < limit["min"]:
+                    errors.append(
+                        f"{label}: {col['type']} の範囲は {limit['min']}〜{limit['max']} 以内にしてください"
+                        f"（指定値: {min_v}〜{max_v}）"
+                    )
+            if "maxLength" in limit:
+                max_len = col.get("maxLength", limit["maxLength"])
+                if max_len > limit["maxLength"]:
+                    errors.append(
+                        f"{label}: {col['type']} の maxLength は {limit['maxLength']} 以内にしてください"
+                        f"（指定値: {max_len}）"
+                    )
+
+    if errors:
+        raise ValueError(
+            "TABLES 定義に Dataverse の制約を超える値があります（API 呼び出し前に検出）:\n"
+            + "\n".join(f"  - {e}" for e in errors)
+        )
+
+
 def _create_single_table(tbl: dict) -> None:
     """1 テーブル（本体 + 列）を作成する。ThreadPoolExecutor から呼ばれる。"""
     logical = tbl["logical"]
@@ -1340,6 +1387,8 @@ def main():
     print(f"  環境: {DATAVERSE_URL}")
     print(f"  ソリューション: {SOLUTION_NAME}")
     print(f"  プレフィックス: {PREFIX}")
+
+    validate_tables()             # Step 0: TABLES 定義の事前検証（API 呼び出し前）
 
     if not args.localize_only:
         ensure_solution()            # Step 1: ソリューション

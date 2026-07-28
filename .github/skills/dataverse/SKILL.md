@@ -175,6 +175,11 @@ existing_tables = [t for t in all_tables["value"] if t["LogicalName"].startswith
 > `-u` を付けて Step ごとの進捗（`=== Step 2: テーブル作成 ===` など）を確実にリアルタイム
 > 表示させる。スクリプト側でも `sys.stdout.reconfigure(line_buffering=True)` を有効化済み。
 
+> **`TABLES` 定義は API 呼び出し前に自動で事前検証される**（`validate_tables()`, Step 0）:
+> Decimal/Integer の値域や String/Memo の `maxLength` が Dataverse の上限を超えていないかを
+> ローカルで静的チェックし、超過があれば構築を開始する前に分かりやすいエラーで停止する
+> （並行構築の途中で 400 エラーになり一部だけ作成された状態で止まる事故を防ぐ）。
+
 > **テーブルが複数ある場合は並行作成（環境の混雑度に応じて並行数を調整）**: `setup_dataverse.py` の
 > Step 2 では、`TABLES` に 2 つ以上のテーブルが定義されている場合、`ThreadPoolExecutor`
 > （デフォルト最大 3 並行）で**全テーブルを並行作成**する。
