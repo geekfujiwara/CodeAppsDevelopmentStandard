@@ -1,0 +1,48 @@
+name: 外部ユーザーの PR を自動クローズ
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+jobs:
+  close-external-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: コラボレーター確認・非コラボレーターの PR をクローズ
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          # リポジトリオーナー自身は許可
+          if [ "$PR_AUTHOR" = "$REPO_OWNER" ]; then
+            echo "✅ オーナーによる PR のためスキップ: $PR_AUTHOR"
+            exit 0
+          fi
+
+          # コラボレーター権限を確認
+          STATUS=$(gh api repos/$REPO/collaborators/$PR_AUTHOR \
+            --silent -i 2>&1 | head -1 | awk '{print $2}')
+
+          if [ "$STATUS" = "204" ]; then
+            echo "✅ コラボレーターによる PR のためスキップ: $PR_AUTHOR"
+            exit 0
+          fi
+
+          echo "❌ 外部ユーザーによる PR のためクローズ: $PR_AUTHOR"
+
+          # コメントを投稿してクローズ
+          gh pr comment $PR_NUMBER --repo $REPO --body \
+            "ありがとうございます。このリポジトリはコードの PR は受け付けておりません。
+            
+ご意見・ご要望・バグ報告は [Issues](../../issues/new/choose) からお寄せください。
+
+Thank you for your contribution. This repository does not accept pull requests from external contributors.
+Please use [Issues](../../issues/new/choose) for bug reports, suggestions, or feedback."
+
+          gh pr close $PR_NUMBER --repo $REPO
