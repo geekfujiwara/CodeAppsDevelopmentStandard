@@ -175,6 +175,18 @@ existing_tables = [t for t in all_tables["value"] if t["LogicalName"].startswith
 > `-u` を付けて Step ごとの進捗（`=== Step 2: テーブル作成 ===` など）を確実にリアルタイム
 > 表示させる。スクリプト側でも `sys.stdout.reconfigure(line_buffering=True)` を有効化済み。
 
+> **Windows PowerShell でログをファイルにリダイレクトする場合は先に `chcp 65001` を実行する**:
+> `*>`/`>` でリダイレクトすると、PowerShell（特に 5.1）が子プロセスの出力を一度コンソールの
+> コードページ（既定で cp932 等）でデコードしてからファイルに書き出すため、スクリプト側が
+> UTF-8 で出力していても日本語部分が文字化けする（`-Encoding UTF8` を付けて読み直しても直らない、
+> リダイレクト時点で既に破損しているため）。実行前に `chcp 65001` でコンソールのコードページを
+> UTF-8 に切り替えることで防げる。
+>
+> ```powershell
+> chcp 65001
+> python -u setup_dataverse.py *> setup_dataverse.log
+> ```
+
 > **`TABLES` 定義は API 呼び出し前に自動で事前検証される**（`validate_tables()`, Step 0）:
 > Decimal/Integer の値域や String/Memo の `maxLength` が Dataverse の上限を超えていないかを
 > ローカルで静的チェックし、超過があれば構築を開始する前に分かりやすいエラーで停止する
