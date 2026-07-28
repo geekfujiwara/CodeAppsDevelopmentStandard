@@ -1355,3 +1355,103 @@ type DataSourcesInfo = Parameters<typeof getClient>[0];
 ```
 
 → 関連: [データソースパターン](data-source-patterns.md)
+
+## 27. Dataverse 既定接続（`--api-id dataverse`）が DLP ポリシーで「レガシー / 非ビジネス」に分類され、他コネクタと併用不可になる（検証済 2026-07-28）
+
+### 症状
+
+Code Apps に Copilot Studio コネクタ（`shared_microsoftcopilotstudio`）等の「ビジネス」分類コネクタを追加した途端、
+アプリ実行時に以下のエラーが出るようになる（それまで `--api-id dataverse` の既定接続だけで動いていたアプリで発生）:
+
+```
+It looks like this app isn't compliant with the latest data loss prevention policies.
+```
+
+### 原因
+
+`npx power-apps add-data-source --api-id dataverse --resource-name {table}` で追加する Code Apps 独自の
+既定 Dataverse 接続（`power.config.json` の `databaseReferences.default.cds`、コネクタ参照を持たない）は、
+テナントの DLP（データ損失防止）ポリシーで **「レガシー」コネクタとして「非ビジネス」グループに分類される場合がある**。
+
+一方、Copilot Studio・SharePoint 等の通常のコネクタは多くのテナントで「ビジネス」グループに分類されている。
+DLP ポリシーは**異なるグループのコネクタを1つのアプリ内で併用することを禁止する**ため、
+「レガシー Dataverse（非ビジネス）＋ Copilot Studio（ビジネス）」の組み合わせで非準拠エラーになる。
+
+この分類はテナントの DLP ポリシー設定に依存するため、必ず発生するわけではない。
+Power Platform 管理センター → ポリシー → データポリシー → 対象ポリシーの編集画面で、
+コネクタ一覧から「Common Data Service (current environment)」（レガシー）と
+「Microsoft Dataverse」（モダン）がそれぞれどのグループに入っているかを確認できる。
+
+### 対処: モダンな Dataverse コネクタ（`shared_commondataserviceforapps`）に切り替える
+
+`--api-id dataverse` の既定接続を使わず、最初から通常のコネクタとして Dataverse を追加する。
+この場合 `power.config.json` には `connectionReferences` にエントリが作られ（`databaseReferences` は空になる）、
+DLP 上は他の「ビジネス」コネクタと同じ扱いになる。
+
+```powershell
+# 既存の環境に Dataverse (current environment) の接続が無い場合は先に作成
+# make.powerapps.com → データ → 接続 → 新しい接続 → "Microsoft Dataverse (current environment)"
+
+npx power-apps add-data-source --api-id shared_commondataserviceforapps `
+  --connection-id {connection-id} `
+  --resource-name commondataserviceforapps `
+  --org-url {DATAVERSE_URL} --non-interactive
+```
+
+このコネクタは非 tabular 扱いのため `--dataset` は不要で、1回の追加で全テーブルをカバーする
+`MicrosoftDataverseService`（`ListRecords` / `CreateRecord` / `GetItem` / `UpdateRecord` / `DeleteRecord` 等、
+すべて `entityName` を実行時の文字列パラメータとして渡す設計）が生成される。既存の
+`--api-id dataverse` 接続がある場合は `npx power-apps delete-data-source --api-id dataverse --data-source-name {table} --force` で削除する
+（★ このコマンドは環境によってプロセスが `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` で異常終了し、
+`power.config.json` の `databaseReferences` が更新されないことがある。その場合は `power.config.json` から
+`databaseReferences` の該当エントリを、`.power/schemas/appschemas/dataSourcesInfo.ts` から対応する
+テーブルエントリ（`"dataSourceType": "Dataverse"` のもの）を、`.power/schemas/dataverse/*.Schema.json` の
+該当ファイルを、それぞれ手動で削除する）。
+
+### ⚠️ 必須: `organization` パラメータを省略すると `Invalid organization URL 'null'` エラー
+
+`ListRecords` / `CreateRecord` / `GetItem` / `UpdateRecord` / `DeleteRecord`（`WithOrganization` が付かない版）を
+そのまま呼ぶと、接続先の org を解決できず次のエラーになる:
+
+```json
+{"Message":"Invalid organization URL 'null' provided.","OperationId":"ListRecords", ...}
+```
+
+**`*WithOrganization` 系メソッド**（`ListRecordsWithOrganization` / `CreateRecordWithOrganization` /
+`GetItemWithOrganization` / `UpdateRecordWithOrganization` / `DeleteRecordWithOrganization`）を使い、
+`organization` パラメータに対象環境の Dataverse URL（`{DATAVERSE_URL}`、例: `https://{org}.crm.dynamics.com`）を
+明示的に渡すこと。
+
+```typescript
+// src/lib/dataverse-client.ts の例（getClient(dataSourcesInfo) の代わりに使う）
+import { MicrosoftDataverseService } from "@/generated/services/MicrosoftDataverseService";
+
+const ORGANIZATION_URL = "{DATAVERSE_URL}"; // 例: https://{org}.crm.dynamics.com
+
+const result = await MicrosoftDataverseService.ListRecordsWithOrganization(
+  ORGANIZATION_URL,
+  tableName, // エンティティセット名（複数形）
+  undefined, // prefer
+  "application/json", // accept
+  undefined,
+  undefined,
+  options?.select?.join(","),
+  options?.filter,
+  options?.orderBy?.join(","),
+);
+// result.data は Record<string, unknown> 型（実体は { value: [...] } の OData 形式）
+const rows = (result.data as { value?: Record<string, unknown>[] })?.value ?? [];
+```
+
+書き込み（`CreateRecordWithOrganization` / `UpdateRecordWithOrganization`）は `prefer` / `accept` が必須引数。
+`prefer: "return=representation"` を指定すると作成・更新後のレコードが `result.data` に返る。
+Lookup 列の `@odata.bind` 書き込み規約（→ 17番）はこのコネクタ経由でも同様に有効。
+
+### 教訓
+
+- 新規に Code Apps を構築する際は、**最初から `shared_commondataserviceforapps` を使う**
+  （`--api-id dataverse` の既定接続は使わない）。DLP ポリシーの分類は後から変わる可能性があり、
+  一度ネイティブ接続で作った後にコネクタ系の機能（Copilot Studio・SharePoint 連携等）を追加すると
+  非準拠エラーで手戻りが発生する。
+- DLP ポリシーのコネクタグループ割り当てはテナント管理者の設定次第であり、コード側からは分類を判別できない。
+  非準拠エラーが出た場合は、まず Power Platform 管理センターでポリシーのコネクタグループを確認する。
