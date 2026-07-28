@@ -81,7 +81,7 @@ Teams / Microsoft 365 Copilot に公開するまでを一貫して行う。
 2. インスタンス化する場合のみ Agent 365 ブループリント（Step 5）と `agenticUserTemplates` が必要になる。
    → 詳細は [references/architecture.md](references/architecture.md)。
 3. エージェント名（kebab-case、Teams 表示名とは別）を決める。
-   **商標・著作権に触れる名称やキャラクターを流用しない**（後から改称すると識別子の総入れ替えになる）。
+   エージェント名を3件 AskUserQuestion にて提案する。ここでのエージェント名は独自性のあるものとし、**商標・著作権に触れる名称やキャラクターを使用してはならない**。
 
 ### Step 1: リポジトリを scaffold する
 
