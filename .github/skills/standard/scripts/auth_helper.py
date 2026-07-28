@@ -612,13 +612,13 @@ def find_connection(env_id: str, connector_name: str, display_name: str = "") ->
             )
         except requests.exceptions.Timeout:
             wait = 15 * (attempt + 1)
-            print(f"  ⚠ {label}: タイムアウト → {wait}s 待機してリトライ...")
+            print(f"  ⚠ {label}: timeout → waiting {wait}s and retrying...")
             time.sleep(wait)
             continue
         except requests.HTTPError as e:
             if e.response is not None and e.response.status_code == 504:
                 wait = 15 * (attempt + 1)
-                print(f"  ⚠ {label}: 504 → {wait}s 待機してリトライ...")
+                print(f"  ⚠ {label}: 504 → waiting {wait}s and retrying...")
                 time.sleep(wait)
                 continue
             raise
@@ -629,8 +629,8 @@ def find_connection(env_id: str, connector_name: str, display_name: str = "") ->
                 return conn["name"]
         break
 
-    print(f"  ❌ {label} ({connector_name}): Connected な接続が見つかりません")
-    print(f"     → https://make.powerautomate.com/connections で作成してください")
+    print(f"  ❌ {label} ({connector_name}): no Connected connection found")
+    print(f"     → create one at https://make.powerautomate.com/connections")
     _sys.exit(1)
 
 
@@ -751,12 +751,12 @@ def retry_metadata(
 # ---------- CLI エントリーポイント ----------
 
 if __name__ == "__main__":
-    print("=== Power Platform 認証テスト ===")
+    print("=== Power Platform authentication test ===")
     if not DATAVERSE_URL:
-        print("DATAVERSE_URL が .env に設定されていません。", file=sys.stderr)
+        print("DATAVERSE_URL is not set in .env.", file=sys.stderr)
         sys.exit(1)
 
     record = authenticate()
-    print(f"認証成功: {record.username}")
-    print(f"テナント: {record.tenant_id}")
-    print(f"認証レコード保存先: {AUTH_RECORD_PATH}")
+    print(f"Authenticated: {record.username}")
+    print(f"Tenant: {record.tenant_id}")
+    print(f"Auth record saved to: {AUTH_RECORD_PATH}")

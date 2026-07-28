@@ -529,23 +529,23 @@ def get_navprop(from_logical: str, to_logical: str, referencing_attribute: str |
 
 def ensure_solution():
     global SOLUTION_DISPLAY_NAME
-    print("\n=== Step 1: ソリューション確認 ===")
+    print("\n=== Step 1: Solution check ===")
     existing = api_get(f"solutions?$filter=uniquename eq '{SOLUTION_NAME}'&$select=solutionid,friendlyname")
     if existing.get("value"):
         display_name = existing["value"][0].get("friendlyname", SOLUTION_DISPLAY_NAME)
-        print(f"  ソリューション '{SOLUTION_NAME}' は既存（表示名: {display_name}）。スキップ。")
+        print(f"  Solution '{SOLUTION_NAME}' already exists (display name: {display_name}). Skipping.")
         SOLUTION_DISPLAY_NAME = display_name
         _save_env_value("SOLUTION_DISPLAY_NAME", display_name)
         return
 
-    print(f"  ソリューション '{SOLUTION_NAME}' を作成します…")
+    print(f"  Creating solution '{SOLUTION_NAME}'...")
     # ⚠️ この環境には prefix='geek' の Publisher が uniquename='geek' と
     #    uniquename='geek_fujiwara' の2つ存在するため、uniquename を明示して一意に解決する。
     pubs = api_get(f"publishers?$filter=customizationprefix eq '{PREFIX}' and uniquename eq 'geek'&$select=publisherid")
     if not pubs.get("value"):
         pubs = api_get(f"publishers?$filter=customizationprefix eq '{PREFIX}'&$select=publisherid")
     if not pubs.get("value"):
-        raise RuntimeError(f"パブリッシャー prefix='{PREFIX}' が見つかりません。Power Apps で作成してください。")
+        raise RuntimeError(f"Publisher with prefix='{PREFIX}' not found. Please create it in Power Apps.")
     pub_id = pubs["value"][0]["publisherid"]
 
     api_post("solutions", {
@@ -556,7 +556,7 @@ def ensure_solution():
     })
 
     _save_env_value("SOLUTION_DISPLAY_NAME", SOLUTION_DISPLAY_NAME)
-    print(f"  ソリューション作成完了（表示名: {SOLUTION_DISPLAY_NAME}）")
+    print(f"  Solution created (display name: {SOLUTION_DISPLAY_NAME})")
 
 
 # ── Step 2: テーブル作成 ─────────────────────────────────────
@@ -642,20 +642,20 @@ def validate_tables() -> None:
                 max_v = col.get("maxValue", limit["max"])
                 if max_v > limit["max"] or min_v < limit["min"]:
                     errors.append(
-                        f"{label}: {col['type']} の範囲は {limit['min']}〜{limit['max']} 以内にしてください"
-                        f"（指定値: {min_v}〜{max_v}）"
+                        f"{label}: {col['type']} must be within range {limit['min']}..{limit['max']}"
+                        f" (given: {min_v}..{max_v})"
                     )
             if "maxLength" in limit:
                 max_len = col.get("maxLength", limit["maxLength"])
                 if max_len > limit["maxLength"]:
                     errors.append(
-                        f"{label}: {col['type']} の maxLength は {limit['maxLength']} 以内にしてください"
-                        f"（指定値: {max_len}）"
+                        f"{label}: {col['type']} maxLength must be <= {limit['maxLength']}"
+                        f" (given: {max_len})"
                     )
 
     if errors:
         raise ValueError(
-            "TABLES 定義に Dataverse の制約を超える値があります（API 呼び出し前に検出）:\n"
+            "TABLES definition has values exceeding Dataverse limits (detected before any API call):\n"
             + "\n".join(f"  - {e}" for e in errors)
         )
 
@@ -690,9 +690,9 @@ def _create_single_table(tbl: dict) -> None:
             ],
         }
         api_post("EntityDefinitions", body, solution=SOLUTION_NAME)
-        print(f"  テーブル '{logical}' 作成完了")
+        print(f"  Table '{logical}' created")
 
-    retry_metadata(_create, f"テーブル {logical}")
+    retry_metadata(_create, f"Table {logical}")
     time.sleep(10)  # メタデータ反映待ち
 
     # カスタム列追加（既存テーブルでも欠落カラムを補完）
@@ -712,16 +712,16 @@ def _create_single_table(tbl: dict) -> None:
                 build_column_body(c),
                 solution=SOLUTION_NAME,
             )
-            print(f"    列 '{c['logical']}' 追加完了")
+            print(f"    Column '{c['logical']}' added")
 
-        retry_metadata(_add_col, f"列 {col_logical}")
+        retry_metadata(_add_col, f"Column {col_logical}")
         time.sleep(5)
 
 
 def create_tables():
     """全テーブルを並行作成し、すべての完了を待ってから返る。
     Lookup は必ず全テーブル+列が完成してから create_lookups() で作成する。"""
-    print("\n=== Step 2: テーブル作成 ===")
+    print("\n=== Step 2: Table creation ===")
 
     if len(TABLES) <= 1:
         # テーブルが 1 つ以下なら並行化不要
@@ -729,7 +729,7 @@ def create_tables():
             _create_single_table(tbl)
         return
 
-    print(f"  {len(TABLES)} テーブルを並行作成します…")
+    print(f"  Creating {len(TABLES)} tables in parallel...")
     errors: list[str] = []
     # 並行数はデフォルト 3。既存カスタムテーブルが多い（100件超）環境や他セッションが
     # 同時にメタデータ操作をしている環境では、並行数が高いほど 0x80040237（メタデータ
@@ -750,18 +750,18 @@ def create_tables():
                         detail_text = f"\n  詳細: {resp.text}"
                     except Exception:
                         pass
-                msg = f"テーブル '{logical}' の作成でエラー: {exc}{detail_text}"
+                msg = f"Error creating table '{logical}': {exc}{detail_text}"
                 print(f"  ❌ {msg}")
                 errors.append(msg)
 
     if errors:
-        raise RuntimeError("テーブル並行作成中にエラーが発生しました:\n" + "\n".join(errors))
+        raise RuntimeError("Errors occurred during parallel table creation:\n" + "\n".join(errors))
 
 
 # ── Step 3: Lookup リレーション ──────────────────────────────
 
 def create_lookups():
-    print("\n=== Step 3: Lookup リレーションシップ作成 ===")
+    print("\n=== Step 3: Lookup relationship creation ===")
 
     errors: list[str] = []
     for lk in LOOKUPS:
@@ -772,7 +772,7 @@ def create_lookups():
         # 既存 Lookup 属性チェック（べき等: 存在すればスキップ）
         try:
             api_get(f"EntityDefinitions(LogicalName='{from_table}')/Attributes(LogicalName='{col_logical}')?$select=LogicalName")
-            print(f"  Lookup '{col_logical}' は既存。スキップ。")
+            print(f"  Lookup '{col_logical}' already exists. Skipping.")
             continue
         except Exception:
             pass
@@ -798,7 +798,7 @@ def create_lookups():
                 },
             }
             api_post("RelationshipDefinitions", body, solution=SOLUTION_NAME)
-            print(f"  Lookup '{col_logical}' 作成完了")
+            print(f"  Lookup '{col_logical}' created")
 
         try:
             retry_metadata(_create, f"Lookup {col_logical}")
@@ -810,13 +810,13 @@ def create_lookups():
                     detail_text = f"\n  詳細: {resp.text}"
                 except Exception:
                     pass
-            msg = f"Lookup '{from_table}.{col_logical}' の作成でエラー: {exc}{detail_text}"
+            msg = f"Error creating Lookup '{from_table}.{col_logical}': {exc}{detail_text}"
             print(f"  ❌ {msg}")
             errors.append(msg)
         time.sleep(5)
 
     if errors:
-        raise RuntimeError("Lookup 作成中にエラーが発生しました:\n" + "\n".join(errors))
+        raise RuntimeError("Errors occurred during Lookup creation:\n" + "\n".join(errors))
 
 
 
@@ -824,15 +824,15 @@ def create_lookups():
 
 def publish_all():
     """PublishAllXml でカスタマイズを公開"""
-    print("\n  カスタマイズ公開中…")
+    print("\n  Publishing customizations...")
     api_post("PublishAllXml", {})
-    print("  公開完了")
+    print("  Publish complete")
 
 
 # ── Step 5: 日本語ローカライズ ────────────────────────────────
 
 def localize_tables():
-    print("\n=== Step 5: 日本語ローカライズ ===")
+    print("\n=== Step 5: Japanese localization ===")
 
     # テーブル表示名
     for logical, disp, plural in LOCALIZE_TABLES:
@@ -848,7 +848,7 @@ def localize_tables():
         }
         # PUT + MergeLabels で更新（api_request は MergeLabels ヘッダーを自動付与）
         api_request(f"EntityDefinitions({mid})", body, method="PUT")
-        print(f"  テーブル '{logical}' → '{disp}'")
+        print(f"  Table '{logical}' -> '{disp}'")
 
     # 列表示名
     for table, col, disp in LOCALIZE_COLUMNS:
@@ -880,7 +880,7 @@ def localize_tables():
             body,
             method="PUT",
         )
-        print(f"  列 '{table}.{col}' → '{disp}'")
+        print(f"  Column '{table}.{col}' -> '{disp}'")
 
     # Choice オプション ローカライズ
     for table, col, options in LOCALIZE_OPTIONS:
@@ -893,7 +893,7 @@ def localize_tables():
                 "MergeLabels": True,
             }
             api_post("UpdateOptionValue", body)
-            print(f"    Option {col}={value} → '{label_text}'")
+            print(f"    Option {col}={value} -> '{label_text}'")
 
 
 # ── Step 6: デモデータ投入 ────────────────────────────────────
@@ -929,11 +929,11 @@ def create_demo_data():
     """
     Excel（spec/input/Demo Excel.xlsx）の全行を読み込み、Dataverse にデモデータを投入する。
     """
-    print("\n=== Step 6: デモデータ投入 ===")
+    print("\n=== Step 6: Demo data import ===")
     import pandas as pd
 
     excel_path = _find_repo_root() / "spec" / "input" / "Demo Excel.xlsx"
-    print(f"  Excel読込中: {excel_path}")
+    print(f"  Reading Excel: {excel_path}")
     sheets = pd.read_excel(excel_path, sheet_name=None, engine="openpyxl")
 
     # ── EntitySetName 解決 ──
@@ -995,7 +995,7 @@ def create_demo_data():
         code = row["DivisionID"]
         rid = api_post(division_set, {f"{PREFIX}_name": row["DivisionName"], f"{PREFIX}_code": code})
         div_ids[code] = rid
-    print(f"  division: {len(div_ids)} 件")
+    print(f"  division: {len(div_ids)} rows")
 
     # ── organization ──
     org_ids: dict = {}
@@ -1005,7 +1005,7 @@ def create_demo_data():
         if np_org_div and div_id:
             body[f"{np_org_div}@odata.bind"] = f"/{division_set}({div_id})"
         org_ids[row["OrgID"]] = api_post(organization_set, body)
-    print(f"  organization: {len(org_ids)} 件")
+    print(f"  organization: {len(org_ids)} rows")
 
     # ── group ──
     group_df = sheets["M_Group"]
@@ -1020,7 +1020,7 @@ def create_demo_data():
         if rating:
             body[f"{PREFIX}_creditrating"] = rating
         group_ids[row["GroupID"]] = api_post(group_set, body)
-    print(f"  group: {len(group_ids)} 件")
+    print(f"  group: {len(group_ids)} rows")
 
     # ── counterparty ──
     cp_df = sheets["M_Counterparty"]
@@ -1038,7 +1038,7 @@ def create_demo_data():
         if np_cp_group and group_id:
             body[f"{np_cp_group}@odata.bind"] = f"/{group_set}({group_id})"
         cp_ids[row["CounterpartyID"]] = api_post(counterparty_set, body)
-    print(f"  counterparty: {len(cp_ids)} 件")
+    print(f"  counterparty: {len(cp_ids)} rows")
 
     # ── commodity（M_Product） ──
     prod_df = sheets["M_Product"]
@@ -1053,7 +1053,7 @@ def create_demo_data():
         if np_com_div and div_id:
             body[f"{np_com_div}@odata.bind"] = f"/{division_set}({div_id})"
         commodity_ids[row["ProductID"]] = api_post(commodity_set, body)
-    print(f"  commodity: {len(commodity_ids)} 件")
+    print(f"  commodity: {len(commodity_ids)} rows")
 
     # ── site ──
     site_df = sheets["M_Site"]
@@ -1065,7 +1065,7 @@ def create_demo_data():
             f"{PREFIX}_capacityindex": _clean(row.get("CapacityIndex")),
         }
         site_ids[row["SiteID"]] = api_post(site_set, body)
-    print(f"  site: {len(site_ids)} 件")
+    print(f"  site: {len(site_ids)} rows")
 
     # ── route ──
     route_df = sheets["M_Route"]
@@ -1080,7 +1080,7 @@ def create_demo_data():
             f"{PREFIX}_maincargo": _clean(row.get("MainCargo")),
         }
         route_ids[row["RouteID"]] = api_post(route_set, body)
-    print(f"  route: {len(route_ids)} 件")
+    print(f"  route: {len(route_ids)} rows")
 
     # ── altroute ──
     alt_df = sheets["M_AltRoute"]
@@ -1098,7 +1098,7 @@ def create_demo_data():
             body[f"{np_alt_route}@odata.bind"] = f"/{route_set}({route_id})"
         api_post(altroute_set, body)
         alt_count += 1
-    print(f"  altroute: {alt_count} 件")
+    print(f"  altroute: {alt_count} rows")
 
     # ── systemuser（M_Person。架空担当者を標準 systemuser テーブルに直接作成） ──
     person_df = sheets["M_Person"]
@@ -1118,7 +1118,7 @@ def create_demo_data():
         if np_user_org and org_id:
             body[f"{np_user_org}@odata.bind"] = f"/{organization_set}({org_id})"
         person_ids[row["PersonID"]] = api_post("systemusers", body)
-    print(f"  systemuser（担当者）: {len(person_ids)} 件")
+    print(f"  systemuser (owner): {len(person_ids)} rows")
 
     # ── contract ──
     contract_df = sheets["T_Contract"]
@@ -1157,7 +1157,7 @@ def create_demo_data():
         if np_ct_route and rt_id:
             body[f"{np_ct_route}@odata.bind"] = f"/{route_set}({rt_id})"
         contract_ids[row["ContractID"]] = api_post(contract_set, body)
-    print(f"  contract: {len(contract_ids)} 件")
+    print(f"  contract: {len(contract_ids)} rows")
 
     # ── shipment ──
     shipment_df = sheets["T_Shipment"]
@@ -1210,8 +1210,8 @@ def create_demo_data():
         api_post(shipment_set, body)
         shipment_count += 1
         if shipment_count % 100 == 0:
-            print(f"    shipment進捗: {shipment_count}/{len(shipment_df)}")
-    print(f"  shipment: {shipment_count} 件")
+            print(f"    shipment progress: {shipment_count}/{len(shipment_df)}")
+    print(f"  shipment: {shipment_count} rows")
 
     # ── investment ──
     inv_df = sheets["T_Investment"]
@@ -1237,7 +1237,7 @@ def create_demo_data():
             body[f"{np_iv_org}@odata.bind"] = f"/{organization_set}({org_id})"
         api_post(investment_set, body)
         inv_count += 1
-    print(f"  investment: {inv_count} 件")
+    print(f"  investment: {inv_count} rows")
 
     # ── creditline ──
     cl_df = sheets["T_CreditLine"]
@@ -1259,7 +1259,7 @@ def create_demo_data():
             body[f"{np_cl_org}@odata.bind"] = f"/{organization_set}({org_id})"
         api_post(creditline_set, body)
         cl_count += 1
-    print(f"  creditline: {cl_count} 件")
+    print(f"  creditline: {cl_count} rows")
 
     # ── event ──
     event_df = sheets["T_Event"]
@@ -1278,7 +1278,7 @@ def create_demo_data():
         if sev:
             body[f"{PREFIX}_severity"] = sev
         event_ids[row["EventID"]] = api_post(event_set, body)
-    print(f"  event: {len(event_ids)} 件")
+    print(f"  event: {len(event_ids)} rows")
 
     # ── eventimpact ──
     im_df = sheets["T_EventImpact"]
@@ -1302,20 +1302,20 @@ def create_demo_data():
             body[f"{np_im_event}@odata.bind"] = f"/{event_set}({ev_id})"
         api_post(eventimpact_set, body)
         im_count += 1
-    print(f"  eventimpact: {im_count} 件")
+    print(f"  eventimpact: {im_count} rows")
 
-    print("  ✅ デモデータ投入完了")
+    print("  ✅ Demo data import complete")
 
 
 # ── Step 7: ソリューション含有検証 ──────────────────────────
 
 def ensure_solution_membership():
     """全テーブルがソリューションに含まれているか確認し、不足分を追加"""
-    print("\n=== Step 7: ソリューション含有検証 ===")
+    print("\n=== Step 7: Solution membership verification ===")
 
     sols = api_get(f"solutions?$filter=uniquename eq '{SOLUTION_NAME}'&$select=solutionid")
     if not sols.get("value"):
-        print(f"  ❌ ソリューション '{SOLUTION_NAME}' が見つかりません")
+        print(f"  ❌ Solution '{SOLUTION_NAME}' not found")
         return
     sol_id = sols["value"][0]["solutionid"]
 
@@ -1330,9 +1330,9 @@ def ensure_solution_membership():
             meta = api_get(f"EntityDefinitions(LogicalName='{logical}')?$select=MetadataId")
             meta_id = meta["MetadataId"]
             if meta_id in existing_ids:
-                print(f"  ✅ {logical}: ソリューション内に存在")
+                print(f"  ✅ {logical}: already in solution")
             else:
-                print(f"  ➕ {logical}: ソリューションに追加中…")
+                print(f"  ➕ {logical}: adding to solution...")
                 api_post("AddSolutionComponent", {
                     "ComponentId": meta_id,
                     "ComponentType": 1,
@@ -1340,7 +1340,7 @@ def ensure_solution_membership():
                     "AddRequiredComponents": False,
                     "DoNotIncludeSubcomponents": False,
                 })
-                print(f"  ✅ {logical}: 追加完了")
+                print(f"  ✅ {logical}: added")
         except Exception as e:
             print(f"  ❌ {logical}: {e}")
 
@@ -1349,7 +1349,7 @@ def ensure_solution_membership():
 
 def verify_tables():
     """全テーブルの EntitySetName を API で取得してクエリ検証"""
-    print("\n=== Step 8: テーブル検証 ===")
+    print("\n=== Step 8: Table verification ===")
 
     for tbl in TABLES:
         logical = tbl["logical"]
@@ -1366,7 +1366,7 @@ def verify_tables():
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Dataverse テーブル構築")
+    parser = argparse.ArgumentParser(description="Dataverse table build")
     parser.add_argument(
         "--skip-localize", action="store_true",
         help="ローカライズ（Step 5）とデモデータ投入以降をスキップし、テーブル構築（英語のまま）のみ行う。"
@@ -1382,11 +1382,11 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("  Dataverse テーブル構築")
+    print("  Dataverse table build")
     print("=" * 60)
-    print(f"  環境: {DATAVERSE_URL}")
-    print(f"  ソリューション: {SOLUTION_NAME}")
-    print(f"  プレフィックス: {PREFIX}")
+    print(f"  Environment: {DATAVERSE_URL}")
+    print(f"  Solution: {SOLUTION_NAME}")
+    print(f"  Prefix: {PREFIX}")
 
     validate_tables()             # Step 0: TABLES 定義の事前検証（API 呼び出し前）
 
@@ -1397,8 +1397,8 @@ def main():
         publish_all()                # Step 4: 公開（テーブル反映）
 
     if args.skip_localize:
-        print("\n⏭  --skip-localize 指定: ローカライズ以降をスキップします")
-        print("次のステップ: pac code add-data-source 実行後、--localize-only で本スクリプトを再実行")
+        print("\n⏭  --skip-localize specified: skipping localization and later steps")
+        print("Next: run pac code add-data-source, then re-run this script with --localize-only")
         return
 
     localize_tables()            # Step 5: ローカライズ
@@ -1407,14 +1407,14 @@ def main():
     ensure_solution_membership() # Step 7: ソリューション検証
     verify_tables()              # Step 8: テーブル検証
 
-    print("\n✅ Dataverse セットアップ完了!")
-    print("次のステップ: アプリ作成 / npx power-apps add-data-source / pac model genpage generate-types")
+    print("\n✅ Dataverse setup complete!")
+    print("Next: create app / npx power-apps add-data-source / pac model genpage generate-types")
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"\n❌ エラー: {e}")
+        print(f"\n❌ Error: {e}")
         traceback.print_exc()
         sys.exit(1)
