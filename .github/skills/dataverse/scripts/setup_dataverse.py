@@ -250,14 +250,14 @@ TABLES = [
             },
             {"logical": f"{PREFIX}_viahormuz", "type": "Boolean", "display": "ホルムズ海峡経由",
              "true_label": "Yes", "false_label": "No"},
-            {"logical": f"{PREFIX}_amountjpy", "type": "Decimal", "display": "金額(円)",
-             "precision": 2, "minValue": 0, "maxValue": 100000000000},
+            {"logical": f"{PREFIX}_amountjpy", "type": "Money", "display": "金額(円)",
+             "precision": 2, "minValue": 0, "maxValue": 1000000000000},
             {
                 "logical": f"{PREFIX}_isaffected", "type": "Picklist", "display": "影響区分",
                 "options": [(100000000, "影響あり"), (100000001, "影響なし"), (100000002, "対象外")],
             },
-            {"logical": f"{PREFIX}_affectedamtjpy", "type": "Decimal", "display": "影響金額(円)",
-             "precision": 2, "minValue": 0, "maxValue": 100000000000},
+            {"logical": f"{PREFIX}_affectedamtjpy", "type": "Money", "display": "影響金額(円)",
+             "precision": 2, "minValue": 0, "maxValue": 1000000000000},
             {"logical": f"{PREFIX}_altextradays", "type": "Integer", "display": "代替追加日数",
              "minValue": -100, "maxValue": 100},
             {"logical": f"{PREFIX}_altcostpct", "type": "Decimal", "display": "代替追加コスト率(%)",
@@ -602,6 +602,8 @@ def build_column_body(col: dict) -> dict:
     elif col["type"] == "Money":
         base["@odata.type"] = "#Microsoft.Dynamics.CRM.MoneyAttributeMetadata"
         base["Precision"] = col.get("precision", 2)
+        base["MinValue"] = col.get("minValue", 0)
+        base["MaxValue"] = col.get("maxValue", 1_000_000_000_000)
     elif col["type"] == "Boolean":
         base["@odata.type"] = "#Microsoft.Dynamics.CRM.BooleanAttributeMetadata"
         base["OptionSet"] = {
@@ -617,6 +619,7 @@ def build_column_body(col: dict) -> dict:
 # 実測: Decimal は 1000億（100,000,000,000）を超えると 0x80040203（Min/max out of range）。
 DATAVERSE_LIMITS = {
     "Decimal": {"min": -100_000_000_000, "max": 100_000_000_000},
+    "Money": {"min": -922_337_203_685_477, "max": 922_337_203_685_477},
     "Integer": {"min": -2_147_483_648, "max": 2_147_483_647},
     "String": {"maxLength": 4000},
     "Memo": {"maxLength": 1_048_576},
@@ -932,6 +935,23 @@ def _to_bool(v) -> bool:
     return str(v).strip().lower() in ("1", "1.0", "yes", "true", "y")
 
 
+def _prefetch_codes(entity_set: str, id_attr: str, code_attr: str = "") -> dict:
+    """既存レコードの code→id マッピングを取得する（Step 6 のべき等化用）。
+
+    Step 6 は行ごとの存在チェックを行わず api_post するだけだったため、再実行すると
+    既存レコードが重複投入されていた。実行前に一括で code→id を取得しておき、
+    ループ側で「既に存在すればスキップ」を判定できるようにする。
+    """
+    code_field = code_attr or f"{PREFIX}_code"
+    resp = api_get(f"{entity_set}?$select={id_attr},{code_field}&$top=5000")
+    existing: dict = {}
+    for rec in resp.get("value", []):
+        code = rec.get(code_field)
+        if code:
+            existing[code] = rec[id_attr]
+    return existing
+
+
 def _post_debug(entity_set: str, body: dict, label: str):
     """api_post をラップし、400 系エラー時はレスポンスボディを含めて再送出する。
 
@@ -1016,44 +1036,70 @@ def create_demo_data():
 
     # ── division（M_Organization から正規化） ──
     org_df = sheets["M_Organization"]
+    existing_division = _prefetch_codes(division_set, f"{PREFIX}_divisionid")
     div_ids: dict = {}
+    div_created = 0
     for _, row in org_df[["DivisionID", "DivisionName"]].drop_duplicates().iterrows():
         code = row["DivisionID"]
+        if code in existing_division:
+            div_ids[code] = existing_division[code]
+            continue
         rid = api_post(division_set, {f"{PREFIX}_name": row["DivisionName"], f"{PREFIX}_code": code})
         div_ids[code] = rid
-    print(f"  division: {len(div_ids)} rows")
+        div_created += 1
+    print(f"  division: {len(div_ids)} rows ({div_created} created, {len(div_ids) - div_created} already existed)")
 
     # ── organization ──
+    existing_organization = _prefetch_codes(organization_set, f"{PREFIX}_organizationid")
     org_ids: dict = {}
+    org_created = 0
     for _, row in org_df.iterrows():
-        body = {f"{PREFIX}_name": row["OrgName"], f"{PREFIX}_code": row["OrgID"]}
+        code = row["OrgID"]
+        if code in existing_organization:
+            org_ids[code] = existing_organization[code]
+            continue
+        body = {f"{PREFIX}_name": row["OrgName"], f"{PREFIX}_code": code}
         div_id = div_ids.get(row["DivisionID"])
         if np_org_div and div_id:
             body[f"{np_org_div}@odata.bind"] = f"/{division_set}({div_id})"
-        org_ids[row["OrgID"]] = api_post(organization_set, body)
-    print(f"  organization: {len(org_ids)} rows")
+        org_ids[code] = api_post(organization_set, body)
+        org_created += 1
+    print(f"  organization: {len(org_ids)} rows ({org_created} created, {len(org_ids) - org_created} already existed)")
 
     # ── group ──
     group_df = sheets["M_Group"]
+    existing_group = _prefetch_codes(group_set, f"{PREFIX}_groupid")
     group_ids: dict = {}
+    group_created = 0
     for _, row in group_df.iterrows():
+        code = row["GroupID"]
+        if code in existing_group:
+            group_ids[code] = existing_group[code]
+            continue
         body = {
-            f"{PREFIX}_name": row["GroupName"], f"{PREFIX}_code": row["GroupID"],
+            f"{PREFIX}_name": row["GroupName"], f"{PREFIX}_code": code,
             f"{PREFIX}_country": _clean(row.get("Country")), f"{PREFIX}_sector": _clean(row.get("Sector")),
             f"{PREFIX}_grouplimitjpym": _clean(row.get("GroupLimitJPYm")),
         }
         rating = CREDIT_RATING.get(str(row.get("CreditRating")).strip())
         if rating:
             body[f"{PREFIX}_creditrating"] = rating
-        group_ids[row["GroupID"]] = api_post(group_set, body)
-    print(f"  group: {len(group_ids)} rows")
+        group_ids[code] = api_post(group_set, body)
+        group_created += 1
+    print(f"  group: {len(group_ids)} rows ({group_created} created, {len(group_ids) - group_created} already existed)")
 
     # ── counterparty ──
     cp_df = sheets["M_Counterparty"]
+    existing_counterparty = _prefetch_codes(counterparty_set, f"{PREFIX}_counterpartyid")
     cp_ids: dict = {}
+    cp_created = 0
     for _, row in cp_df.iterrows():
+        code = row["CounterpartyID"]
+        if code in existing_counterparty:
+            cp_ids[code] = existing_counterparty[code]
+            continue
         body = {
-            f"{PREFIX}_name": row["CounterpartyName"], f"{PREFIX}_code": row["CounterpartyID"],
+            f"{PREFIX}_name": row["CounterpartyName"], f"{PREFIX}_code": code,
             f"{PREFIX}_country": _clean(row.get("Country")),
             f"{PREFIX}_isinvestee": _to_bool(row.get("IsInvestee")),
         }
@@ -1063,57 +1109,85 @@ def create_demo_data():
         group_id = group_ids.get(row.get("GroupID"))
         if np_cp_group and group_id:
             body[f"{np_cp_group}@odata.bind"] = f"/{group_set}({group_id})"
-        cp_ids[row["CounterpartyID"]] = api_post(counterparty_set, body)
-    print(f"  counterparty: {len(cp_ids)} rows")
+        cp_ids[code] = api_post(counterparty_set, body)
+        cp_created += 1
+    print(f"  counterparty: {len(cp_ids)} rows ({cp_created} created, {len(cp_ids) - cp_created} already existed)")
 
     # ── commodity（M_Product） ──
     prod_df = sheets["M_Product"]
+    existing_commodity = _prefetch_codes(commodity_set, f"{PREFIX}_commodityid")
     commodity_ids: dict = {}
+    commodity_created = 0
     for _, row in prod_df.iterrows():
+        code = row["ProductID"]
+        if code in existing_commodity:
+            commodity_ids[code] = existing_commodity[code]
+            continue
         body = {
-            f"{PREFIX}_name": row["ProductName"], f"{PREFIX}_code": row["ProductID"],
+            f"{PREFIX}_name": row["ProductName"], f"{PREFIX}_code": code,
             f"{PREFIX}_category": _clean(row.get("Category")), f"{PREFIX}_uom": _clean(row.get("UOM")),
             f"{PREFIX}_unitpricejpy": _clean(row.get("UnitPriceJPY")),
         }
         div_id = div_ids.get(row.get("DivisionID"))
         if np_com_div and div_id:
             body[f"{np_com_div}@odata.bind"] = f"/{division_set}({div_id})"
-        commodity_ids[row["ProductID"]] = api_post(commodity_set, body)
-    print(f"  commodity: {len(commodity_ids)} rows")
+        commodity_ids[code] = api_post(commodity_set, body)
+        commodity_created += 1
+    print(f"  commodity: {len(commodity_ids)} rows ({commodity_created} created, {len(commodity_ids) - commodity_created} already existed)")
 
     # ── site ──
     site_df = sheets["M_Site"]
+    existing_site = _prefetch_codes(site_set, f"{PREFIX}_siteid")
     site_ids: dict = {}
+    site_created = 0
     for _, row in site_df.iterrows():
+        code = row["SiteID"]
+        if code in existing_site:
+            site_ids[code] = existing_site[code]
+            continue
         body = {
-            f"{PREFIX}_name": row["SiteName"], f"{PREFIX}_code": row["SiteID"],
+            f"{PREFIX}_name": row["SiteName"], f"{PREFIX}_code": code,
             f"{PREFIX}_sitetype": _clean(row.get("SiteType")), f"{PREFIX}_country": _clean(row.get("Country")),
             f"{PREFIX}_capacityindex": _clean(row.get("CapacityIndex")),
         }
-        site_ids[row["SiteID"]] = api_post(site_set, body)
-    print(f"  site: {len(site_ids)} rows")
+        site_ids[code] = api_post(site_set, body)
+        site_created += 1
+    print(f"  site: {len(site_ids)} rows ({site_created} created, {len(site_ids) - site_created} already existed)")
 
     # ── route ──
     route_df = sheets["M_Route"]
+    existing_route = _prefetch_codes(route_set, f"{PREFIX}_routeid")
     route_ids: dict = {}
+    route_created = 0
     for _, row in route_df.iterrows():
+        code = row["RouteID"]
+        if code in existing_route:
+            route_ids[code] = existing_route[code]
+            continue
         body = {
-            f"{PREFIX}_name": row["RouteName"], f"{PREFIX}_code": row["RouteID"],
+            f"{PREFIX}_name": row["RouteName"], f"{PREFIX}_code": code,
             f"{PREFIX}_chokepoint": _clean(row.get("Chokepoint")),
             f"{PREFIX}_viahormuz": _to_bool(row.get("ViaHormuz")),
             f"{PREFIX}_distancenm": _clean(row.get("DistanceNM")),
             f"{PREFIX}_transitdays": _clean(row.get("TransitDays")),
             f"{PREFIX}_maincargo": _clean(row.get("MainCargo")),
         }
-        route_ids[row["RouteID"]] = api_post(route_set, body)
-    print(f"  route: {len(route_ids)} rows")
+        route_ids[code] = api_post(route_set, body)
+        route_created += 1
+    print(f"  route: {len(route_ids)} rows ({route_created} created, {len(route_ids) - route_created} already existed)")
 
     # ── altroute ──
     alt_df = sheets["M_AltRoute"]
+    existing_altroute = _prefetch_codes(altroute_set, f"{PREFIX}_altrouteid")
     alt_count = 0
+    alt_created = 0
     for _, row in alt_df.iterrows():
+        code = row["AltRouteID"]
+        alt_count += 1
+        if code in existing_altroute:
+            continue
         body = {
-            f"{PREFIX}_name": row["AltRouteName"], f"{PREFIX}_code": row["AltRouteID"],
+            f"{PREFIX}_name": row["AltRouteName"], f"{PREFIX}_code": code,
             f"{PREFIX}_alttransitdays": _clean(row.get("AltTransitDays")),
             f"{PREFIX}_extradays": _clean(row.get("ExtraDays")),
             f"{PREFIX}_extracostpct": _clean(row.get("ExtraCostPct")),
@@ -1123,17 +1197,22 @@ def create_demo_data():
         if np_alt_route and route_id:
             body[f"{np_alt_route}@odata.bind"] = f"/{route_set}({route_id})"
         api_post(altroute_set, body)
-        alt_count += 1
-    print(f"  altroute: {alt_count} rows")
+        alt_created += 1
+    print(f"  altroute: {alt_count} rows ({alt_created} created, {alt_count - alt_created} already existed)")
 
     # ── systemuser（M_Person。架空担当者を標準 systemuser テーブルに直接作成） ──
     person_df = sheets["M_Person"]
+    existing_person = _prefetch_codes("systemusers", "systemuserid", "domainname")
     person_ids: dict = {}
+    person_created = 0
     for _, row in person_df.iterrows():
+        email = _clean(row.get("Email"))
+        if email and email in existing_person:
+            person_ids[row["PersonID"]] = existing_person[email]
+            continue
         full = str(row["PersonName"]).strip()
         parts = full.split()
         lastname, firstname = (parts[0], " ".join(parts[1:])) if len(parts) > 1 else (full, full)
-        email = _clean(row.get("Email"))
         body = {
             "firstname": firstname, "lastname": lastname,
             "jobtitle": _clean(row.get("Title")),
@@ -1144,14 +1223,21 @@ def create_demo_data():
         if np_user_org and org_id:
             body[f"{np_user_org}@odata.bind"] = f"/{organization_set}({org_id})"
         person_ids[row["PersonID"]] = api_post("systemusers", body)
-    print(f"  systemuser (owner): {len(person_ids)} rows")
+        person_created += 1
+    print(f"  systemuser (owner): {len(person_ids)} rows ({person_created} created, {len(person_ids) - person_created} already existed)")
 
     # ── contract ──
     contract_df = sheets["T_Contract"]
+    existing_contract = _prefetch_codes(contract_set, f"{PREFIX}_contractid")
     contract_ids: dict = {}
+    contract_created = 0
     for _, row in contract_df.iterrows():
+        code = row["ContractID"]
+        if code in existing_contract:
+            contract_ids[code] = existing_contract[code]
+            continue
         body = {
-            f"{PREFIX}_name": row["ContractID"], f"{PREFIX}_code": row["ContractID"],
+            f"{PREFIX}_name": code, f"{PREFIX}_code": code,
             f"{PREFIX}_qtyperyear": _clean(row.get("QtyPerYear")),
             f"{PREFIX}_unitpricejpy": _clean(row.get("UnitPriceJPY")),
             f"{PREFIX}_startdate": _clean(row.get("StartDate")),
@@ -1182,15 +1268,22 @@ def create_demo_data():
         rt_id = route_ids.get(row.get("RouteID"))
         if np_ct_route and rt_id:
             body[f"{np_ct_route}@odata.bind"] = f"/{route_set}({rt_id})"
-        contract_ids[row["ContractID"]] = _post_debug(contract_set, body, "contract")
-    print(f"  contract: {len(contract_ids)} rows")
+        contract_ids[code] = _post_debug(contract_set, body, "contract")
+        contract_created += 1
+    print(f"  contract: {len(contract_ids)} rows ({contract_created} created, {len(contract_ids) - contract_created} already existed)")
 
     # ── shipment ──
     shipment_df = sheets["T_Shipment"]
+    existing_shipment = _prefetch_codes(shipment_set, f"{PREFIX}_shipmentid")
     shipment_count = 0
+    shipment_created = 0
     for _, row in shipment_df.iterrows():
+        code = row["ShipmentID"]
+        shipment_count += 1
+        if code in existing_shipment:
+            continue
         body = {
-            f"{PREFIX}_name": row["ShipmentID"], f"{PREFIX}_code": row["ShipmentID"],
+            f"{PREFIX}_name": code, f"{PREFIX}_code": code,
             f"{PREFIX}_vesselname": _clean(row.get("VesselName")),
             f"{PREFIX}_etd": _clean(row.get("ETD")), f"{PREFIX}_eta": _clean(row.get("ETA")),
             f"{PREFIX}_qty": _clean(row.get("Qty")), f"{PREFIX}_unitpricejpy": _clean(row.get("UnitPriceJPY")),
@@ -1234,17 +1327,23 @@ def create_demo_data():
         if np_sh_org and org_id:
             body[f"{np_sh_org}@odata.bind"] = f"/{organization_set}({org_id})"
         _post_debug(shipment_set, body, "shipment")
-        shipment_count += 1
+        shipment_created += 1
         if shipment_count % 100 == 0:
             print(f"    shipment progress: {shipment_count}/{len(shipment_df)}")
-    print(f"  shipment: {shipment_count} rows")
+    print(f"  shipment: {shipment_count} rows ({shipment_created} created, {shipment_count - shipment_created} already existed)")
 
     # ── investment ──
     inv_df = sheets["T_Investment"]
+    existing_investment = _prefetch_codes(investment_set, f"{PREFIX}_investmentid")
     inv_count = 0
+    inv_created = 0
     for _, row in inv_df.iterrows():
+        code = row["InvestmentID"]
+        inv_count += 1
+        if code in existing_investment:
+            continue
         body = {
-            f"{PREFIX}_name": row["InvesteeName"], f"{PREFIX}_code": row["InvestmentID"],
+            f"{PREFIX}_name": row["InvesteeName"], f"{PREFIX}_code": code,
             f"{PREFIX}_equitypct": _clean(row.get("EquityPct")),
             f"{PREFIX}_bookvaluejpym": _clean(row.get("BookValueJPYm")),
             f"{PREFIX}_annualprofitjpym": _clean(row.get("AnnualProfitJPYm")),
@@ -1262,15 +1361,21 @@ def create_demo_data():
         if np_iv_org and org_id:
             body[f"{np_iv_org}@odata.bind"] = f"/{organization_set}({org_id})"
         _post_debug(investment_set, body, "investment")
-        inv_count += 1
-    print(f"  investment: {inv_count} rows")
+        inv_created += 1
+    print(f"  investment: {inv_count} rows ({inv_created} created, {inv_count - inv_created} already existed)")
 
     # ── creditline ──
     cl_df = sheets["T_CreditLine"]
+    existing_creditline = _prefetch_codes(creditline_set, f"{PREFIX}_creditlineid")
     cl_count = 0
+    cl_created = 0
     for _, row in cl_df.iterrows():
+        code = row["CreditLineID"]
+        cl_count += 1
+        if code in existing_creditline:
+            continue
         body = {
-            f"{PREFIX}_name": row["CreditLineID"], f"{PREFIX}_code": row["CreditLineID"],
+            f"{PREFIX}_name": code, f"{PREFIX}_code": code,
             f"{PREFIX}_limitjpym": _clean(row.get("LimitJPYm")), f"{PREFIX}_usedjpym": _clean(row.get("UsedJPYm")),
             f"{PREFIX}_expirydate": _clean(row.get("ExpiryDate")),
         }
@@ -1284,15 +1389,21 @@ def create_demo_data():
         if np_cl_org and org_id:
             body[f"{np_cl_org}@odata.bind"] = f"/{organization_set}({org_id})"
         _post_debug(creditline_set, body, "creditline")
-        cl_count += 1
-    print(f"  creditline: {cl_count} rows")
+        cl_created += 1
+    print(f"  creditline: {cl_count} rows ({cl_created} created, {cl_count - cl_created} already existed)")
 
     # ── event ──
     event_df = sheets["T_Event"]
+    existing_event = _prefetch_codes(event_set, f"{PREFIX}_eventid")
     event_ids: dict = {}
+    event_created = 0
     for _, row in event_df.iterrows():
+        code = row["EventID"]
+        if code in existing_event:
+            event_ids[code] = existing_event[code]
+            continue
         body = {
-            f"{PREFIX}_name": row["EventName"], f"{PREFIX}_code": row["EventID"],
+            f"{PREFIX}_name": row["EventName"], f"{PREFIX}_code": code,
             f"{PREFIX}_startdate": _clean(row.get("StartDate")), f"{PREFIX}_enddate": _clean(row.get("EndDate")),
             f"{PREFIX}_affectedchokepoint": _clean(row.get("AffectedChokepoint")),
             f"{PREFIX}_description": _clean(row.get("Description")),
@@ -1303,15 +1414,22 @@ def create_demo_data():
         sev = SEVERITY.get(str(row.get("Severity")).strip())
         if sev:
             body[f"{PREFIX}_severity"] = sev
-        event_ids[row["EventID"]] = _post_debug(event_set, body, "event")
-    print(f"  event: {len(event_ids)} rows")
+        event_ids[code] = _post_debug(event_set, body, "event")
+        event_created += 1
+    print(f"  event: {len(event_ids)} rows ({event_created} created, {len(event_ids) - event_created} already existed)")
 
     # ── eventimpact ──
     im_df = sheets["T_EventImpact"]
+    existing_eventimpact = _prefetch_codes(eventimpact_set, f"{PREFIX}_eventimpactid")
     im_count = 0
+    im_created = 0
     for _, row in im_df.iterrows():
+        code = row["ImpactID"]
+        im_count += 1
+        if code in existing_eventimpact:
+            continue
         body = {
-            f"{PREFIX}_name": row["ImpactID"], f"{PREFIX}_code": row["ImpactID"],
+            f"{PREFIX}_name": code, f"{PREFIX}_code": code,
             f"{PREFIX}_targetid": _clean(row.get("TargetID")),
             f"{PREFIX}_delaydays": _clean(row.get("DelayDays")),
             f"{PREFIX}_costupliftpct": _clean(row.get("CostUpliftPct")),
@@ -1327,8 +1445,8 @@ def create_demo_data():
         if np_im_event and ev_id:
             body[f"{np_im_event}@odata.bind"] = f"/{event_set}({ev_id})"
         _post_debug(eventimpact_set, body, "eventimpact")
-        im_count += 1
-    print(f"  eventimpact: {im_count} rows")
+        im_created += 1
+    print(f"  eventimpact: {im_count} rows ({im_created} created, {im_count - im_created} already existed)")
 
     print("  ✅ Demo data import complete")
 
