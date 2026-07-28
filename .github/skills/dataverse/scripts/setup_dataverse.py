@@ -952,12 +952,31 @@ def _prefetch_codes(entity_set: str, id_attr: str, code_attr: str = "") -> dict:
     return existing
 
 
+def _assert_json_safe(body: dict, label: str) -> None:
+    """body に numpy スカラー型が残っていないかを api_post 直前に必ず検証する。
+
+    項目15 の教訓: pandas.iterrows() の値は numpy.int64/float64 等になり得るが、
+    requests の json= はこれをシリアライズできず TypeError で失敗する。_clean() で
+    変換しているはずだが、将来 _clean() を経由しない新フィールドが追加された場合の
+    回帰を防ぐため、成功する行も含め毎回（正常系でも）このチェックを通す。
+    """
+    import numpy as np
+    bad = [k for k, v in body.items() if isinstance(v, np.generic)]
+    if bad:
+        raise TypeError(
+            f"{label}: body に numpy スカラー型が残っています（キー: {bad}）。"
+            " _clean() でネイティブ型に変換してから渡してください（項目15参照）。"
+        )
+
+
 def _post_debug(entity_set: str, body: dict, label: str):
-    """api_post をラップし、400 系エラー時はレスポンスボディを含めて再送出する。
+    """api_post をラップし、numpy型混入チェック＋400 系エラー時のレスポンスボディ詳細化を行う。
 
     デモデータ投入は大量行を api_post で連続投入するため、詳細メッセージ無しで
-    クラッシュすると原因究明ができない（項目 12 と同じパターン）。
+    クラッシュすると原因究明ができない（項目 12 と同じパターン）。Step 6 の全エンティティ
+    投入はこの関数を経由させ、成功する行でも _assert_json_safe を必ず通す。
     """
+    _assert_json_safe(body, label)
     try:
         return api_post(entity_set, body)
     except Exception as exc:
@@ -971,6 +990,78 @@ def _post_debug(entity_set: str, body: dict, label: str):
         raise RuntimeError(f"Failed to create {label} row: {exc}{detail_text}\n  body: {body}") from exc
 
 
+# Excel列 → (テーブル論理名, 列論理名) のマッピング。Step 6 の投入ループを開始する前に、
+# 実データの min/max を TABLES 定義の Decimal/Money 上限と突き合わせて事前検証する。
+_DEMO_DATA_RANGE_CHECKS = [
+    # (シート名, Excel列名, テーブル論理名, 列論理名)
+    ("M_Group", "GroupLimitJPYm", f"{PREFIX}_group", f"{PREFIX}_grouplimitjpym"),
+    ("M_Product", "UnitPriceJPY", f"{PREFIX}_commodity", f"{PREFIX}_unitpricejpy"),
+    ("T_Contract", "QtyPerYear", f"{PREFIX}_contract", f"{PREFIX}_qtyperyear"),
+    ("T_Contract", "UnitPriceJPY", f"{PREFIX}_contract", f"{PREFIX}_unitpricejpy"),
+    ("T_Contract", "PenaltyPctPerDay", f"{PREFIX}_contract", f"{PREFIX}_penaltypctperday"),
+    ("T_Shipment", "Qty", f"{PREFIX}_shipment", f"{PREFIX}_qty"),
+    ("T_Shipment", "UnitPriceJPY", f"{PREFIX}_shipment", f"{PREFIX}_unitpricejpy"),
+    ("T_Shipment", "AmountJPY", f"{PREFIX}_shipment", f"{PREFIX}_amountjpy"),
+    ("T_Shipment", "AffectedAmtJPY", f"{PREFIX}_shipment", f"{PREFIX}_affectedamtjpy"),
+    ("T_Shipment", "AltCostPct", f"{PREFIX}_shipment", f"{PREFIX}_altcostpct"),
+    ("T_Shipment", "AltExtraCostJPY", f"{PREFIX}_shipment", f"{PREFIX}_altextracostjpy"),
+    ("T_Shipment", "PenaltyJPY", f"{PREFIX}_shipment", f"{PREFIX}_penaltyjpy"),
+    ("T_Investment", "EquityPct", f"{PREFIX}_investment", f"{PREFIX}_equitypct"),
+    ("T_Investment", "BookValueJPYm", f"{PREFIX}_investment", f"{PREFIX}_bookvaluejpym"),
+    ("T_Investment", "AnnualProfitJPYm", f"{PREFIX}_investment", f"{PREFIX}_annualprofitjpym"),
+    ("T_CreditLine", "LimitJPYm", f"{PREFIX}_creditline", f"{PREFIX}_limitjpym"),
+    ("T_CreditLine", "UsedJPYm", f"{PREFIX}_creditline", f"{PREFIX}_usedjpym"),
+    ("T_EventImpact", "CostUpliftPct", f"{PREFIX}_eventimpact", f"{PREFIX}_costupliftpct"),
+    ("T_EventImpact", "VolumeCutPct", f"{PREFIX}_eventimpact", f"{PREFIX}_volumecutpct"),
+]
+
+
+def _table_col_limit(table_logical: str, col_logical: str):
+    """TABLES 定義から指定テーブル・列の Decimal/Money 列の (min, max) を取得する（対象外なら None）。"""
+    for tbl in TABLES:
+        if tbl["logical"] != table_logical:
+            continue
+        for col in tbl.get("columns", []):
+            if col["logical"] == col_logical and col["type"] in ("Decimal", "Money"):
+                return col.get("minValue", 0), col.get("maxValue", DATAVERSE_LIMITS[col["type"]]["max"])
+    return None
+
+
+def validate_demo_data_ranges(sheets: dict) -> None:
+    """Excel実データの min/max を TABLES 定義の Decimal/Money 上限と突き合わせて検証する。
+
+    項目16/17 の教訓: スキーマ上限ぎりぎりの設定でも実データがそれを超過するケースがあり、
+    投入ループの途中で 400 エラーとして発覚すると原因究明・手戻り（Decimal→Money 変更や
+    既存行削除）が大きい。Step 6 の投入ループを開始する前に必ず一括検証し、超過していない
+    正常系でも毎回このチェックを実行することで、同じ問題の再発を防ぐ。
+    """
+    errors: list[str] = []
+    for sheet_name, excel_col, table_logical, col_logical in _DEMO_DATA_RANGE_CHECKS:
+        df = sheets.get(sheet_name)
+        if df is None or excel_col not in df.columns:
+            continue
+        limit = _table_col_limit(table_logical, col_logical)
+        if limit is None:
+            continue
+        min_v, max_v = limit
+        col_data = df[excel_col].dropna()
+        if col_data.empty:
+            continue
+        actual_min, actual_max = col_data.min(), col_data.max()
+        if actual_max > max_v or actual_min < min_v:
+            errors.append(
+                f"{table_logical}.{col_logical}（Excel: {sheet_name}.{excel_col}）: "
+                f"実データ {actual_min}..{actual_max} が定義上限 {min_v}..{max_v} を超えています"
+            )
+
+    if errors:
+        raise ValueError(
+            "デモデータの実測値が TABLES 定義の Decimal/Money 上限を超えています"
+            "（Step 6 投入前チェック。項目16/17参照。TABLES の type/maxValue を見直してください）:\n"
+            + "\n".join(f"  - {e}" for e in errors)
+        )
+
+
 def create_demo_data():
     """
     Excel（spec/input/Demo Excel.xlsx）の全行を読み込み、Dataverse にデモデータを投入する。
@@ -981,6 +1072,9 @@ def create_demo_data():
     excel_path = _find_repo_root() / "spec" / "input" / "Demo Excel.xlsx"
     print(f"  Reading Excel: {excel_path}")
     sheets = pd.read_excel(excel_path, sheet_name=None, engine="openpyxl")
+
+    # 投入ループ開始前に実データの min/max をスキーマ上限と突き合わせる（項目16/17。正常系でも毎回実行）
+    validate_demo_data_ranges(sheets)
 
     # ── EntitySetName 解決 ──
     division_set = get_entity_set_name(f"{PREFIX}_division")
@@ -1044,7 +1138,7 @@ def create_demo_data():
         if code in existing_division:
             div_ids[code] = existing_division[code]
             continue
-        rid = api_post(division_set, {f"{PREFIX}_name": row["DivisionName"], f"{PREFIX}_code": code})
+        rid = _post_debug(division_set, {f"{PREFIX}_name": row["DivisionName"], f"{PREFIX}_code": code}, "division")
         div_ids[code] = rid
         div_created += 1
     print(f"  division: {len(div_ids)} rows ({div_created} created, {len(div_ids) - div_created} already existed)")
@@ -1062,7 +1156,7 @@ def create_demo_data():
         div_id = div_ids.get(row["DivisionID"])
         if np_org_div and div_id:
             body[f"{np_org_div}@odata.bind"] = f"/{division_set}({div_id})"
-        org_ids[code] = api_post(organization_set, body)
+        org_ids[code] = _post_debug(organization_set, body, "organization")
         org_created += 1
     print(f"  organization: {len(org_ids)} rows ({org_created} created, {len(org_ids) - org_created} already existed)")
 
@@ -1084,7 +1178,7 @@ def create_demo_data():
         rating = CREDIT_RATING.get(str(row.get("CreditRating")).strip())
         if rating:
             body[f"{PREFIX}_creditrating"] = rating
-        group_ids[code] = api_post(group_set, body)
+        group_ids[code] = _post_debug(group_set, body, "group")
         group_created += 1
     print(f"  group: {len(group_ids)} rows ({group_created} created, {len(group_ids) - group_created} already existed)")
 
@@ -1109,7 +1203,7 @@ def create_demo_data():
         group_id = group_ids.get(row.get("GroupID"))
         if np_cp_group and group_id:
             body[f"{np_cp_group}@odata.bind"] = f"/{group_set}({group_id})"
-        cp_ids[code] = api_post(counterparty_set, body)
+        cp_ids[code] = _post_debug(counterparty_set, body, "counterparty")
         cp_created += 1
     print(f"  counterparty: {len(cp_ids)} rows ({cp_created} created, {len(cp_ids) - cp_created} already existed)")
 
@@ -1131,7 +1225,7 @@ def create_demo_data():
         div_id = div_ids.get(row.get("DivisionID"))
         if np_com_div and div_id:
             body[f"{np_com_div}@odata.bind"] = f"/{division_set}({div_id})"
-        commodity_ids[code] = api_post(commodity_set, body)
+        commodity_ids[code] = _post_debug(commodity_set, body, "commodity")
         commodity_created += 1
     print(f"  commodity: {len(commodity_ids)} rows ({commodity_created} created, {len(commodity_ids) - commodity_created} already existed)")
 
@@ -1150,7 +1244,7 @@ def create_demo_data():
             f"{PREFIX}_sitetype": _clean(row.get("SiteType")), f"{PREFIX}_country": _clean(row.get("Country")),
             f"{PREFIX}_capacityindex": _clean(row.get("CapacityIndex")),
         }
-        site_ids[code] = api_post(site_set, body)
+        site_ids[code] = _post_debug(site_set, body, "site")
         site_created += 1
     print(f"  site: {len(site_ids)} rows ({site_created} created, {len(site_ids) - site_created} already existed)")
 
@@ -1172,7 +1266,7 @@ def create_demo_data():
             f"{PREFIX}_transitdays": _clean(row.get("TransitDays")),
             f"{PREFIX}_maincargo": _clean(row.get("MainCargo")),
         }
-        route_ids[code] = api_post(route_set, body)
+        route_ids[code] = _post_debug(route_set, body, "route")
         route_created += 1
     print(f"  route: {len(route_ids)} rows ({route_created} created, {len(route_ids) - route_created} already existed)")
 
@@ -1196,7 +1290,7 @@ def create_demo_data():
         route_id = route_ids.get(row.get("RouteID"))
         if np_alt_route and route_id:
             body[f"{np_alt_route}@odata.bind"] = f"/{route_set}({route_id})"
-        api_post(altroute_set, body)
+        _post_debug(altroute_set, body, "altroute")
         alt_created += 1
     print(f"  altroute: {alt_count} rows ({alt_created} created, {alt_count - alt_created} already existed)")
 
@@ -1222,7 +1316,7 @@ def create_demo_data():
         org_id = org_ids.get(row.get("OrgID"))
         if np_user_org and org_id:
             body[f"{np_user_org}@odata.bind"] = f"/{organization_set}({org_id})"
-        person_ids[row["PersonID"]] = api_post("systemusers", body)
+        person_ids[row["PersonID"]] = _post_debug("systemusers", body, "systemuser")
         person_created += 1
     print(f"  systemuser (owner): {len(person_ids)} rows ({person_created} created, {len(person_ids) - person_created} already existed)")
 

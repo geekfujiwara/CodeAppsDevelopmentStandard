@@ -499,6 +499,13 @@ def _clean(v):
 Excel/CSV から読み込んだ値を Dataverse Web API に渡す全てのループで、必ずこのような
 クレンジング関数を経由させること（数値列を `row["Xxx"]` で直接 `body` に入れない）。
 
+### 恒久対策（スクリプトに実装済み）
+
+`_clean()` での変換に加え、`_post_debug()`（Step 6 の全エンティティ投入がこれを経由）内で
+`_assert_json_safe(body, label)` を呼び、投入直前に `numpy.generic` 型が `body` に残っていないかを
+**毎回**検証する。将来 `_clean()` を経由しない新しいフィールドが追加された場合でも、
+成功する実行（正常系）を含めて必ずこのチェックが働き、明確なエラーで検出できる。
+
 ---
 
 ## 16. `Decimal` 型の上限（1000億）を超える金額を `Money` 型に変更したら、今度は `Money` のデフォルト上限（10億）で 400 エラーになる
@@ -534,6 +541,14 @@ elif col["type"] == "Money":
 型を `Decimal` → `Money` に変更する場合、既存の列は削除して作り直す必要がある
 （メタデータ更新で型変更は不可）。列削除時は当該列を含む既存レコードの値が失われるため、
 影響を受けるレコードも合わせて削除するか、削除前に値を退避しておくこと。
+
+### 恒久対策（スクリプトに実装済み）
+
+`build_column_body()` の `Money` 分岐は `MinValue`/`MaxValue` を必ず明示するようにし、
+`DATAVERSE_LIMITS["Money"]` を追加して `validate_tables()`（Step 0・API 呼び出し前の静的検証）でも
+Money 列の上限を毎回チェックする。さらに `validate_demo_data_ranges()`（Step 6 開始直前）で
+Excel 実データの min/max を `TABLES` 定義の Decimal/Money 上限と突き合わせ、実データが
+スキーマ上限を超えていれば投入ループに入る前に明確なエラーで停止する（正常系でも毎回実行）。
 
 ---
 
@@ -574,4 +589,12 @@ for _, row in df.iterrows():
 
 この対処により、Excel 一括投入スクリプト全体（テーブル/Lookup 作成 ～ デモデータ本体）が
 一貫して「何度失敗して再実行しても安全」なべき等スクリプトになる。
+
+### 恒久対策（スクリプトに実装済み）
+
+Step 6 の全 15 エンティティ投入ループ（division/organization/group/counterparty/commodity/
+site/route/altroute/systemuser/contract/shipment/investment/creditline/event/eventimpact）が
+`_prefetch_codes()` による既存チェックを経由する構成になっており、正常系（何も失敗していない
+実行）で再実行しても常に「既存ならスキップ」を毎回評価する。API 呼び出しは全て `_post_debug()`
+経由に統一し、`_assert_json_safe()` によるチェックも合わせて毎回働く。
 
