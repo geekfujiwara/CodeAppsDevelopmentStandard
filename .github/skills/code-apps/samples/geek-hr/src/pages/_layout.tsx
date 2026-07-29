@@ -86,9 +86,9 @@ function LayoutContent({ showHeader = true }: LayoutProps) {
       <div className="flex flex-1">
         <Sidebar />
 
-        <div className={`flex-1 flex flex-col transition-all duration-300 relative z-0 ${isCollapsed ? 'md:ml-16' : 'md:ml-64'}`}>
-          <main className="flex-1 flex flex-col overflow-visible">
-            <div className="flex-1 p-6 max-w-full">
+        <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 relative z-0 ${isCollapsed ? 'md:ml-16' : 'md:ml-64'}`}>
+          <main className="flex-1 flex flex-col min-w-0 overflow-visible">
+            <div className="flex-1 min-w-0 p-6 max-w-full">
               <Outlet />
             </div>
           </main>

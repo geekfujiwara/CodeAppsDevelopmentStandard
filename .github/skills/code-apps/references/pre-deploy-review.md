@@ -249,6 +249,37 @@ Select-String -Path "src/pages/_layout.tsx" -Pattern 'ml-64|ml-16'
 <div className="flex-1 md:ml-64"><Outlet /></div>
 ```
 
+### 7. テーブル横スクロール格納チェック（列数が多い一覧のはみ出し防止）
+
+`_layout.tsx` のメインコンテンツ側フレックスチェーンに `min-w-0` が無いと、列数の多い `ListTable` が
+テーブル内で横スクロールせず**ページ全体**（ヘッダー・サイドバー含む）を押し広げる。詳細は
+[トラブルシューティング #27](troubleshooting.md#27-カラムの多い一覧がページ全体からはみ出すページ番号ボタン氾濫--横スクロール未格納検証済-2026-07-29)。
+
+**チェック方法:**
+
+```bash
+# メインコンテンツのフレックスチェーンに min-w-0 があることを確認
+Select-String -Path "src/pages/_layout.tsx" -Pattern 'min-w-0'
+```
+
+**違反パターン:**
+
+```tsx
+// ❌ min-w-0 が無い → 横長テーブルがページ全体を押し広げる
+<div className="flex-1 flex flex-col ...">
+  <main className="flex-1 flex flex-col overflow-visible">
+    <div className="flex-1 p-6 max-w-full"><Outlet /></div>
+  </main>
+</div>
+
+// ✅ min-w-0 をチェーン全体に通す
+<div className="flex-1 flex flex-col min-w-0 ...">
+  <main className="flex-1 flex flex-col min-w-0 overflow-visible">
+    <div className="flex-1 min-w-0 p-6 max-w-full"><Outlet /></div>
+  </main>
+</div>
+```
+
 ## 実行フロー
 
 ```
@@ -278,15 +309,19 @@ Select-String -Path "src/pages/_layout.tsx" -Pattern 'ml-64|ml-16'
   │     → Sidebar が fixed + 固定幅（w-64）であることを確認
   │     → メインコンテンツに md:ml-64 のオフセットがあることを確認
   │
-  ├─ ⑦ ナビ ↔ ルーター整合性チェック（自動: npm run predeploy）
+  ├─ ⑦ テーブル横スクロール格納チェック
+  │     → _layout.tsx のメインコンテンツ側フレックスチェーンに min-w-0 があることを確認
+  │     → 無ければ列数の多い ListTable がページ全体を押し広げる原因になる
+  │
+  ├─ ⑧ ナビ ↔ ルーター整合性チェック（自動: npm run predeploy）
   │     → config.ts に template: true が残っていないか → エラー
   │     → config.ts のナビにルーターが無いパスが無いか → エラー
   │     → ルーターにナビが無いパスが無いか → 警告
   │
-  ├─ ⑧ npm run build
+  ├─ ⑨ npm run build
   │     → TypeScript エラーがあれば修正
   │
-  └─ ⑨ npx power-apps push / pac code push
+  └─ ⑩ npx power-apps push / pac code push
         → デプロイ完了
 ```
 
