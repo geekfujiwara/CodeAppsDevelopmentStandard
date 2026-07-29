@@ -24,26 +24,15 @@ cp -n .github/skills/standard/references/gitignore-template .gitignore
 #    標準では @GeekPowerCode が scaffold する。手動で行う場合:
 #    npx degit github:microsoft/PowerAppsCodeApps/templates/vite .
 
-<<<<<<< HEAD
-# npm install はローカルゴールデンキャッシュから node_modules を複製して高速化する
-# （社内プロキシへの毎回のフル依存取得を回避。詳細: references/template-cache.md）
-pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
-# ↑ 使えない環境ではフォールバック: npm install --no-audit --no-fund
-=======
 # Code Apps 採用が決まった時点で、Dataverse 構築（Phase 2）と並行して着手する
 # （npm install はネットワーク待ちのみで Dataverse 構築をブロックしないため待たない）
 # VS Code では本トラックを Code Apps サブエージェントとして並行起動。add-data-source は
-# Dataverse Phase 2 完了後（★同期①）、add-flow は Power Automate Phase 5 完了後（★同期②）に実行する。
+# connectionId / orgUrl が揃った時点で 1 回だけ実行し、add-flow は Power Automate Phase 5 完了後（★同期②）に実行する。
 npm install --no-audit --no-fund
 
 # ①.5 マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
 #     architecture 提案時に確認済みなら再実行不要）
 python .github/skills/code-apps/scripts/check_code_apps_environment.py
-
-# ①.5 マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
-#     architecture 提案時に確認済みなら再実行不要）
-python .github/skills/code-apps/scripts/check_code_apps_environment.py
->>>>>>> origin/main
 
 # ② Power Apps 初期化 — power.config.json のみ生成（PAC CLI 認証でテナント不一致なし）
 pac code init -env {ENVIRONMENT_ID} -n "AppName"
@@ -194,23 +183,23 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 > **注意**: `npx power-apps push` はテナント解決の不具合で 403/404 になることがある。
 > `pac code push` を標準とする。`npm run deploy` が `pac code push` を内包する場合はそちらを使用。
 
-### Step 4: Dataverse データソース追加
+### Step 4: Dataverse コネクタ追加（1 回で全テーブルをカバー）
 
 ```bash
-# テーブルごとに実行（PUBLISHER_PREFIX は .env から読み込み、ハードコード禁止）
-# 日本語表示名エラー回避: 一時的に英語に切替
-python scripts/toggle_table_lang.py en
+# Dataverse 接続を確認
+npx power-apps list-connections
 
-# pac code add-data-source で追加
-pac code add-data-source -a dataverse -t {PUBLISHER_PREFIX}_{table}
-# 全テーブルに対して繰り返す
-
-# 日本語に復元
-python scripts/toggle_table_lang.py jp
+# Microsoft Dataverse connector（shared_commondataserviceforapps）を 1 回だけ追加
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  --connection-id {DATAVERSE_CONNECTION_ID} \
+  --resource-name commondataserviceforapps \
+  --org-url {DATAVERSE_URL} \
+  --non-interactive
 ```
 
-> **重要**: テーブル論理名に `geek_xxx` のような literal を書かない。
-> publisher prefix は環境ごとに異なるため、必ず `.env` の `PUBLISHER_PREFIX` を変数展開して使う。
+> **重要**: 生成される `MicrosoftDataverseService` は **1 つだけ**で、`entityName` を実行時パラメータとして渡して全テーブルを扱う。
+> テーブルごとに `add-data-source` を繰り返さない。`organization` に使う Dataverse URL は `.env` の `DATAVERSE_URL`
+> などへ保持し、アプリ側では `getContext().app.dataverseOrgUrl` を優先して解決する。
 
 ### Step 5: 技術スタック導入
 
@@ -249,59 +238,112 @@ export const router = createHashRouter([
 ]);
 ```
 
-### Step 6: DataverseService パターンで CRUD 実装
+### Step 6: MicrosoftDataverseService ラッパーで CRUD 実装
 
-#### `getClient(dataSourcesInfo)` — dataSourcesInfo は必須引数
+`shared_commondataserviceforapps` を追加すると、`src/generated/services/MicrosoftDataverseService.ts` が生成される。
+このサービスは **単一・非型付け** で、各操作に `entityName` と `organization` を渡す設計である。
 
-`getClient()` は **`dataSourcesInfo` を必ず渡す**。引数なしで呼ぶと SDK がデータソース情報を持たないため、
-Power Apps ランタイム上で Dataverse に一切接続できない（エラーも出ずに空データになる）。
-
-`dataSourcesInfo` は Step 4 の `pac code add-data-source` 実行時に `.power/schemas/appschemas/dataSourcesInfo.ts` に自動生成される。
+`organization` を省略した通常メソッドは `Invalid organization URL 'null' provided` で失敗しやすいため、
+**常に `*WithOrganization` 系メソッドを薄いラッパーで包む**。
 
 ```typescript
 // src/lib/dataverse-service.ts
-import { getClient } from "@microsoft/power-apps/data";
-import type { IOperationOptions } from "@microsoft/power-apps/data";
-import { dataSourcesInfo } from "../../.power/schemas/appschemas/dataSourcesInfo";
-// ※ フロー連携・Copilot Studio 連携時は統合 dataSourcesInfo を使用:
-//   import { dataSourcesInfo } from "@/lib/dataSourcesInfo";
-//   → 詳細: references/data-source-patterns.md「統合 dataSourcesInfo」
+import { getContext } from "@microsoft/power-apps/app";
+import { MicrosoftDataverseService } from "@/generated/services/MicrosoftDataverseService";
 
-const client = getClient(dataSourcesInfo);
+const PREFER = "return=representation";
+const READ_PREFER = 'odata.include-annotations="*"';
+const ACCEPT = "application/json";
+
+type DataverseRow = Record<string, unknown>;
+
+let cachedOrgUrl: string | undefined;
+
+async function getOrgUrl(): Promise<string> {
+  if (cachedOrgUrl) return cachedOrgUrl;
+  const ctx = await getContext();
+  const orgUrl = ctx.app.dataverseOrgUrl;
+  if (!orgUrl) throw new Error("Dataverse org URL を取得できません。");
+  cachedOrgUrl = orgUrl;
+  return orgUrl;
+}
+
+function unwrap<T>(result: { success?: boolean; data?: T; error?: { message?: string } }): T {
+  if (result.success === false) {
+    throw new Error(result.error?.message ?? "Unknown Dataverse connector error");
+  }
+  return result.data as T;
+}
 
 export const DataverseService = {
-  async GetItems<T>(dataSourceName: string, options?: IOperationOptions): Promise<T[]> {
-    const result = await client.retrieveMultipleRecordsAsync<T>(dataSourceName, options);
-    if (!result.success) throw result.error;
-    return result.data ?? [];
+  async ListRecords(entityName: string, select?: string[], filter?: string) {
+    const org = await getOrgUrl();
+    const result = await MicrosoftDataverseService.ListRecordsWithOrganization(
+      org,
+      entityName,
+      READ_PREFER,
+      ACCEPT,
+      undefined,
+      undefined,
+      select?.join(","),
+      filter,
+    );
+    return unwrap<{ value?: DataverseRow[] }>(result).value ?? [];
   },
-  async CreateItem<T>(dataSourceName: string, body: Record<string, unknown>): Promise<T> {
-    const result = await client.createRecordAsync<Record<string, unknown>, T>(dataSourceName, body);
-    if (!result.success) throw result.error;
-    return result.data;
+  async GetItem(entityName: string, recordId: string, select?: string[]) {
+    const org = await getOrgUrl();
+    const result = await MicrosoftDataverseService.GetItemWithOrganization(
+      READ_PREFER,
+      ACCEPT,
+      org,
+      entityName,
+      recordId,
+      undefined,
+      undefined,
+      select?.join(","),
+    );
+    return unwrap<DataverseRow>(result);
   },
-  async UpdateItem<T>(dataSourceName: string, id: string, body: Record<string, unknown>): Promise<T> {
-    const result = await client.updateRecordAsync<Record<string, unknown>, T>(dataSourceName, id, body);
-    if (!result.success) throw result.error;
-    return result.data;
+  async CreateRecord(entityName: string, body: DataverseRow) {
+    const org = await getOrgUrl();
+    const result = await MicrosoftDataverseService.CreateRecordWithOrganization(
+      PREFER,
+      ACCEPT,
+      org,
+      entityName,
+      body,
+    );
+    return unwrap<void>(result);
   },
-  async DeleteItem(dataSourceName: string, id: string): Promise<void> {
-    const result = await client.deleteRecordAsync(dataSourceName, id);
-    if (!result.success) throw result.error;
+  async UpdateRecord(entityName: string, recordId: string, body: DataverseRow) {
+    const org = await getOrgUrl();
+    const result = await MicrosoftDataverseService.UpdateRecordWithOrganization(
+      PREFER,
+      ACCEPT,
+      org,
+      entityName,
+      recordId,
+      body,
+    );
+    return unwrap<DataverseRow>(result);
+  },
+  async DeleteRecord(entityName: string, recordId: string) {
+    const org = await getOrgUrl();
+    const result = await MicrosoftDataverseService.DeleteRecordWithOrganization(org, entityName, recordId);
+    return unwrap<void>(result);
   },
 };
 ```
 
 ```
-❌ getClient() — 引数なし
-   → SDK がデータソース情報を持たず Dataverse に接続できない（空データ / 無反応）
+❌ MicrosoftDataverseService.ListRecords(...) のように organization を省略
+   → Invalid organization URL 'null' provided
 
-❌ client.get("inv_products?$select=...") — 生の HTTP メソッド
-   → getClient(dataSourcesInfo) が返す DataClient には get/post/patch メソッドは存在しない
-   → SDK 公式の retrieveMultipleRecordsAsync / createRecordAsync 等を使用すること
+❌ テーブルごとに別 Service を生成する前提で設計
+   → shared_commondataserviceforapps の利点（1 回の接続で全テーブル対応）を失う
 
-✅ getClient(dataSourcesInfo) + retrieveMultipleRecordsAsync
-   → CSP 安全（postMessage ベース）で正しく Dataverse に接続される
+✅ MicrosoftDataverseService.*WithOrganization + 薄いラッパー
+   → org URL を 1 箇所で解決し、Lookup / React Query / エラーハンドリングを共通化できる
 ```
 
 #### Hook での使用パターン（TanStack React Query）
@@ -310,18 +352,20 @@ export const DataverseService = {
 // src/hooks/use-products.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DataverseService } from "@/lib/dataverse-service";
-import type { Product } from "@/types";
+import type { ProductRow } from "@/types";
 
-const DATA_SOURCE = "inv_products";  // dataSourcesInfo のキー名
+const ENTITY_SET = "{table-entity-set-name}";
 
 export function useProducts() {
-  return useQuery<Product[]>({
+  return useQuery<ProductRow[]>({
     queryKey: ["products"],
     queryFn: () =>
-      DataverseService.GetItems<Product>(DATA_SOURCE, {
-        select: ["inv_productid", "inv_name", "inv_productcode", "inv_category"],
-        orderBy: ["inv_productcode asc"],
-      }),
+      DataverseService.ListRecords(ENTITY_SET, [
+        "{prefix}_productid",
+        "{prefix}_name",
+        "{prefix}_productcode",
+        "{prefix}_category",
+      ]),
   });
 }
 
@@ -329,14 +373,14 @@ export function useCreateProduct() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      DataverseService.CreateItem(DATA_SOURCE, body),
+      DataverseService.CreateRecord(ENTITY_SET, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
   });
 }
 ```
 
-> **IOperationOptions**: `{ select?, filter?, orderBy?, top?, skip?, maxPageSize? }`
-> OData クエリ文字列ではなく、オブジェクト形式で指定する。
+> **Lookup 書き込み規約**: Lookup 列は旧方式と同じく `parentcustomerid_account@odata.bind` のような
+> `@odata.bind` をボディへ含める。
 
 #### vite-env.d.ts — SDK の手動型宣言は不要
 
@@ -353,12 +397,11 @@ declare module "*.css" {
 ```
 
 ```
-❌ vite-env.d.ts に declare module "@microsoft/power-apps/data" { ... } を追記
-   → SDK の正式型定義を上書きし、getClient() が引数なしで呼べてしまう
-   → 実行時に Dataverse に接続できない
+❌ vite-env.d.ts に generated service や SDK の型を手書きで再宣言
+   → SDK / 生成コードの正式型定義と競合する
 
 ✅ SDK パッケージの型定義をそのまま使用
-   → getClient(dataSourcesInfo) が必須引数として型チェックされる
+   → MicrosoftDataverseService / getContext() の型がそのまま使える
 ```
 
 ### Step 7: 型定義

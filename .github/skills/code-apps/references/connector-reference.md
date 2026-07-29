@@ -158,46 +158,79 @@ await SharePointService.PostItem("{site-url}", "{list-id}", {
 
 ## Dataverse
 
-**API 名**: `dataverse`
+**API 名**: `shared_commondataserviceforapps`
 
 ### セットアップ
 
 ```bash
-# 推奨: npx 経由（SDK v1.0.x 対応）
-npx power-apps add-data-source --api-id dataverse \
-  --resource-name {table-logical-name} \
+# 推奨: Microsoft Dataverse connector を 1 回だけ追加（全テーブル共通）
+npx power-apps list-connections
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  --connection-id {connection-id} \
+  --resource-name commondataserviceforapps \
   --org-url {DATAVERSE_URL} --non-interactive
-
-# レガシー: pac cli 経由（SDK v0.3.x のみ動作）
-pac code add-data-source -a dataverse -t {table-logical-name}
 ```
 
-> **⚠️ 日本語環境での注意**: テーブルの DisplayName が日本語の場合、`Failed to sanitize string` エラーが発生する。`node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js` の `sanitizeName()` 関数内の正規表現を Unicode 対応にパッチすること。詳細は [開発標準 §1.2](../../standard/references/power-platform-development-standard.md) を参照。
+> **ポイント**
+> - 1 回の追加で `MicrosoftDataverseService` / `MicrosoftDataverseModel` が生成され、`entityName` を実行時パラメータとして全テーブルを扱える。
+> - `ListRecordsWithOrganization` / `CreateRecordWithOrganization` など **`*WithOrganization` 系**を使い、`organization` に対象環境の Dataverse URL を必ず渡す。
+> - `organization` を省略すると `Invalid organization URL 'null' provided` で失敗する。
+> - Lookup 列の `@odata.bind` 書き込み規約はネイティブ Dataverse 接続と同様に使える。
 
 ### 使用例
 
 ```typescript
-import { DataverseService } from "../services/DataverseService";
+import { getContext } from "@microsoft/power-apps/app";
+import { MicrosoftDataverseService } from "../generated/services/MicrosoftDataverseService";
 
-// テーブルからレコード取得
-const accounts = await DataverseService.GetItems(
+const ctx = await getContext();
+const organization = ctx.app.dataverseOrgUrl;
+
+// テーブルからレコード取得（entityName を毎回渡す）
+const accounts = await MicrosoftDataverseService.ListRecordsWithOrganization(
+  organization,
   "accounts",
-  "$select=name,revenue&$filter=revenue gt 1000000&$top=50",
+  'odata.include-annotations="*"',
+  "application/json",
+  undefined,
+  undefined,
+  "name,revenue",
+  "revenue gt 1000000",
+  "createdon desc",
+  undefined,
+  undefined,
+  50,
 );
 
 // レコード作成
-await DataverseService.PostItem("accounts", {
-  name: "新規取引先",
-  revenue: 5000000,
-});
+await MicrosoftDataverseService.CreateRecordWithOrganization(
+  "return=representation",
+  "application/json",
+  organization,
+  "accounts",
+  {
+    name: "新規取引先",
+    revenue: 5000000,
+    "primarycontactid@odata.bind": "/contacts({contact-id})",
+  },
+);
 
 // レコード更新
-await DataverseService.PatchItem("accounts", "{record-id}", {
-  revenue: 7500000,
-});
+await MicrosoftDataverseService.UpdateRecordWithOrganization(
+  "return=representation",
+  "application/json",
+  organization,
+  "accounts",
+  "{record-id}",
+  { revenue: 7500000 },
+);
 
 // レコード削除
-await DataverseService.DeleteItem("accounts", "{record-id}");
+await MicrosoftDataverseService.DeleteRecordWithOrganization(
+  organization,
+  "accounts",
+  "{record-id}",
+);
 ```
 
 ---
