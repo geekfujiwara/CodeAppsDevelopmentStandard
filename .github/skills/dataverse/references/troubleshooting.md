@@ -383,33 +383,42 @@ except Exception as exc:
 
 ---
 
-## 13. Windows PowerShell でログをファイルにリダイレクトすると日本語が文字化けする（`-Encoding UTF8` で読んでも直らない）
+## 13. Windows PowerShell でログをファイルにリダイレクト/`Tee-Object`すると日本語が文字化けする（`chcp 65001` だけでは直らない）
 
 ### 症状
 
-`python -u setup_dataverse.py *> setup_dataverse.log` のように `*>`/`>` でファイルへ
-リダイレクトすると、ログ中の日本語（テーブル名の日本語表示名や進捗メッセージ）が
-`繝・・繝悶Ν` のような文字化けになる。スクリプト側は `sys.stdout.reconfigure(encoding="utf-8", ...)`
-で UTF-8 出力しているにもかかわらず発生し、`Get-Content -Encoding UTF8` で読み直しても直らない。
+`python -u setup_dataverse.py *> setup_dataverse.log` や
+`python -u setup_dataverse.py 2>&1 | Tee-Object -FilePath log.txt` のように出力を
+リダイレクト/`Tee-Object`すると、ログ中の日本語（テーブル名の日本語表示名や進捗メッセージ、
+`auth_helper` のログ等）が `繝・・繝悶Ν` のような文字化けになる。スクリプト側は
+`sys.stdout.reconfigure(encoding="utf-8", ...)` で UTF-8 出力しているにもかかわらず発生し、
+実行前に `chcp 65001` を実行していても直らないことがある（`Get-Content -Encoding UTF8` で
+読み直しても直らない）。
 
 ### 原因
 
-Windows PowerShell（特に 5.1）の `*>`/`>` リダイレクトは、子プロセスの標準出力ストリームを
-**一度コンソールの既定コードページ（多くの日本語環境で cp932）でデコードしてから**
-ファイルへ書き出す。子プロセスが UTF-8 バイト列を出力していても、この中間デコードの時点で
-文字化けが発生し、ファイル自体に不可逆な破損が書き込まれる。そのため読み直し時に
-`-Encoding UTF8` を指定しても元には戻らない。
+`chcp 65001` は Windows の**コンソールの既定コードページ**を切り替えるだけで、
+PowerShell（特に pwsh 7.x を含む）が子プロセスの出力を解釈する際に使う
+**`[Console]::OutputEncoding`（.NET プロパティ）には自動反映されない**。
+そのため `chcp 65001` 実行後でも `[Console]::OutputEncoding` が cp932（Shift-JIS）の
+ままになっていることがあり、この場合 Python が UTF-8 で出力したバイト列を PowerShell が
+cp932 として誤ってデコードして文字化けする。実際に確認された値の例:
+```powershell
+> [Console]::OutputEncoding
+EncodingName : Japanese (Shift-JIS)   # chcp 65001 実行後でもこのままのことがある
+```
 
 ### 対処
 
-スクリプト実行前に `chcp 65001` でコンソールのコードページを UTF-8 に切り替える。
+`chcp 65001` に加えて、**`[Console]::OutputEncoding` を明示的に UTF-8 へ設定**してから
+Python を実行する。これが恒久対策で、`chcp` 単体より確実に直る。
 
 ```powershell
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 chcp 65001
-python -u setup_dataverse.py *> setup_dataverse.log
+python -u setup_dataverse.py 2>&1 | Tee-Object -FilePath setup_dataverse.log
 ```
 
-これによりリダイレクト経路の中間デコードも UTF-8 になり、文字化けを防げる。
 なお、この文字化けは表示上の問題であり、Dataverse API 呼び出しやテーブル／列の作成結果
 そのものには影響しない（あくまでログの可読性の問題）。
 

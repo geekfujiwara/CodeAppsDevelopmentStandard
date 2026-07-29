@@ -67,6 +67,28 @@ flow_api_call("GET", f"/providers/Microsoft.ProcessSimple/environments/{env_id}/
 python -c "import sys; sys.path.insert(0, '.github/skills/standard/scripts'); from auth_helper import get_token; print(get_token()[:20] + '...')"
 ```
 
+#### Windows PowerShell で `auth_helper.py` 等のログ（日本語）が文字化けする（`chcp 65001` だけでは直らない）
+
+`auth_helper.py` の `[auth_helper] 認証キャッシュをロードしました...` のような日本語ログを
+PowerShell（pwsh 7.x を含む）でリダイレクト/`Tee-Object`しながら実行すると、
+`chcp 65001` を実行済みでも `隱崎ｨｼ...` のように文字化けすることがある。
+
+原因は `chcp 65001` が Windows の**コンソールコードページ**を切り替えるだけで、
+PowerShell が子プロセス（`python.exe`）の出力を解釈する **`[Console]::OutputEncoding`
+（.NET プロパティ）には自動反映されない**ため。`chcp` 実行後でも
+`[Console]::OutputEncoding` が cp932（Shift-JIS）のまま残っていることがある。
+
+**対策**: `auth_helper.py` を使うスクリプトを実行する前に、`chcp 65001` に加えて
+`[Console]::OutputEncoding` を明示的に UTF-8 へ設定する（全スキル共通）。
+
+```powershell
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+chcp 65001
+python -u <script>.py 2>&1 | Tee-Object -FilePath <log>.log
+```
+
+詳細は [dataverse スキルの troubleshooting #13](../../dataverse/references/troubleshooting.md#13-windows-powershell-でログをファイルにリダイレクトtee-objectすると日本語が文字化けするchcp-65001-だけでは直らない) を参照。
+
 #### PowerShell で `python -c "..."` に OData クエリを渡すと壊れる
 
 `$select` / `$filter` などの `$` を含む Python コードを `python -c "..."` として

@@ -175,16 +175,18 @@ existing_tables = [t for t in all_tables["value"] if t["LogicalName"].startswith
 > `-u` を付けて Step ごとの進捗（`=== Step 2: テーブル作成 ===` など）を確実にリアルタイム
 > 表示させる。スクリプト側でも `sys.stdout.reconfigure(line_buffering=True)` を有効化済み。
 
-> **Windows PowerShell でログをファイルにリダイレクトする場合は先に `chcp 65001` を実行する**:
-> `*>`/`>` でリダイレクトすると、PowerShell（特に 5.1）が子プロセスの出力を一度コンソールの
-> コードページ（既定で cp932 等）でデコードしてからファイルに書き出すため、スクリプト側が
-> UTF-8 で出力していても日本語部分が文字化けする（`-Encoding UTF8` を付けて読み直しても直らない、
-> リダイレクト時点で既に破損しているため）。実行前に `chcp 65001` でコンソールのコードページを
-> UTF-8 に切り替えることで防げる。
+> **Windows PowerShell でログをファイルにリダイレクト/`Tee-Object`する場合は、`chcp 65001` に加えて
+> `[Console]::OutputEncoding` も明示的に UTF-8 へ設定する**: `chcp 65001` は Windows の
+> コンソールコードページを切り替えるだけで、PowerShell（pwsh 7.x を含む）が子プロセスの出力を
+> 解釈する `[Console]::OutputEncoding`（.NET プロパティ）には自動反映されないことがある。
+> `chcp` だけだと `[Console]::OutputEncoding` が cp932 のまま残り、スクリプト側が UTF-8 で
+> 出力していても日本語部分が文字化けする（`-Encoding UTF8` を付けて読み直しても直らない、
+> リダイレクト時点で既に破損しているため）。両方を実行前に設定することで確実に防げる。
 >
 > ```powershell
+> [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 > chcp 65001
-> python -u setup_dataverse.py *> setup_dataverse.log
+> python -u setup_dataverse.py 2>&1 | Tee-Object -FilePath setup_dataverse.log
 > ```
 
 > **`TABLES` 定義は API 呼び出し前に自動で事前検証される**（`validate_tables()`, Step 0）:
