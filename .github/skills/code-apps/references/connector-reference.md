@@ -163,13 +163,45 @@ await SharePointService.PostItem("{site-url}", "{list-id}", {
 ### セットアップ
 
 ```bash
-# 推奨: Microsoft Dataverse connector を 1 回だけ追加（全テーブル共通）
+# 標準: 接続参照（Connection Reference）にバインドして 1 回だけ追加（全テーブル共通・ソリューション同梱可）
+# 接続参照は事前に scripts/setup_connection_reference.py で用意しておく
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  -cr {CONNECTION_REFERENCE_LOGICAL_NAME} \
+  -s {SOLUTION_ID} \
+  --resource-name commondataserviceforapps \
+  --org-url {DATAVERSE_URL} --non-interactive
+
+# PoC 等でソリューション不要な場合のみ: 接続 ID 直バインド
 npx power-apps list-connections
 npx power-apps add-data-source --api-id shared_commondataserviceforapps \
   --connection-id {connection-id} \
   --resource-name commondataserviceforapps \
   --org-url {DATAVERSE_URL} --non-interactive
 ```
+
+| バインド方式 | `power.config.json` | ソリューション同梱 | 用途 |
+|---|---|---|---|
+| `-cr {logical-name} -s {SOLUTION_ID}` | `xrmConnectionReferenceLogicalName` | ✅ | **標準**（ALM・環境間移送） |
+| `--connection-id {id}` | `authenticationType: "Oauth"` | ✗ | PoC・使い捨て |
+
+> **接続参照にしても「1 回で全テーブル」は不変**（検証済み）
+> `--resource-name commondataserviceforapps` は**コネクタ単位**の指定でテーブル名ではない。
+> 接続参照バインドでも生成物は `MicrosoftDataverseService.ts` / `MicrosoftDataverseModel.ts` の 2 ファイルのみ、
+> 生成メソッドも同一で、テーブルは実行時の `entityName` で指定する。**アプリ側コードの変更は不要**。
+> 詳細・確認コマンドは [ソリューション ALM リファレンス](solution-alm.md)。
+
+> **接続参照は CLI では作成できない**
+> `-cr` に未存在の論理名を渡すと `Failed to resolve connection ID for reference '...'` で失敗する（自動作成されない）。
+> `pac connection create` / `npx power-apps create-connection` はいずれも**接続**を作るコマンドで接続参照ではない。
+> Dataverse Web API（`POST /connectionreferences`）で作成する
+> [scripts/setup_connection_reference.py](../scripts/setup_connection_reference.py) を標準とする。
+
+> **バインドを差し替えるとき**: `add-data-source` は既存データソースを上書きせず `_1` 等の別名で増える。
+> 先に削除してから再追加する（フラグ名は `-n/--data-source-name`。`--data-source` は無効）。
+> ```bash
+> npx power-apps delete-data-source --api-id shared_commondataserviceforapps \
+>   --data-source-name commondataserviceforapps --force
+> ```
 
 > **Microsoft Learn との比較**
 > - Learn の Dataverse 接続ガイドは `pac code add-data-source -a dataverse -t <table-logical-name>` を基本手順としている
@@ -178,6 +210,8 @@ npx power-apps add-data-source --api-id shared_commondataserviceforapps \
 > - つまり **Learn 標準 = テーブル単位の型付き追加**、**本節 = 単一コネクタで全テーブル共通 CRUD** という違いがある
 > - Microsoft Learn には両者の明確な性能差は記載されていない。通常は接続方式よりも
 >   Dataverse クエリの絞り込み、ページング、不要な API 呼び出しの削減の方が効く
+> - なお `-a dataverse -t {table}` 方式は `databaseReferences` 側に載るため**接続参照にできない**。
+>   ALM 適性の面でも connector-first の方が有利
 >
 > **ポイント**
 > - 1 回の追加で `MicrosoftDataverseService` / `MicrosoftDataverseModel` が生成され、`entityName` を実行時パラメータとして全テーブルを扱える。

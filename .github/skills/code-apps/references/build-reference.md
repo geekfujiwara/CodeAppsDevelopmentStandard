@@ -34,9 +34,16 @@ npm install --no-audit --no-fund
 #     architecture 提案時に確認済みなら再実行不要）
 python .github/skills/code-apps/scripts/check_code_apps_environment.py
 
+# ①.6 ソリューションと接続参照を用意（pac code init より前に実行）
+#     接続 ID 直バインドはソリューションに入らないため、接続参照を先に作る。
+#     既存 CR 流用ファース → 無ければ Dataverse Web API で新規作成（ポータル操作不要）
+python .github/skills/code-apps/scripts/setup_connection_reference.py
+#     → 出力される {CONNECTION_REFERENCE_LOGICAL_NAME} / {SOLUTION_ID} を Step 4 で使う
+
 # ② Power Apps 初期化 — power.config.json のみ生成（PAC CLI 認証でテナント不一致なし）
 pac code init -env {ENVIRONMENT_ID} -n "AppName"
 # ↑ vite.config.ts や plugins/ は生成しない（①のテンプレート由来）
+# ↑ pac code init にソリューション指定オプションは無い。ソリューション所属は Step 3 の初回 push で決まる
 ```
 
 ### Step 2: vite.config.ts 必須設定の確認（検証済 2026-06-15）
@@ -172,7 +179,7 @@ export default defineConfig({
 })
 ```
 
-### Step 3: 初回ビルド＆デプロイ
+### Step 3: 初回ビルド＆デプロイ（`-s` 必須）
 
 ```bash
 # PAC CLI を使用（テナント不一致なし）
@@ -180,22 +187,37 @@ npm run build
 pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 ```
 
+> **`-s` は初回 push でしか効かない（検証済 2026-06-15）**
+> アプリの `almMode` が `Solution` になるのは **`appId` 未割当の初回 push のみ**。
+> `almMode: Environment` で作られたアプリは、後から `-s` を付けてもソリューションに入らない（ポータル手作業が必要になる）。
+> 詳細: [ソリューション ALM](solution-alm.md)
+
 > **注意**: `npx power-apps push` はテナント解決の不具合で 403/404 になることがある。
 > `pac code push` を標準とする。`npm run deploy` が `pac code push` を内包する場合はそちらを使用。
 
 ### Step 4: Dataverse コネクタ追加（1 回で全テーブルをカバー）
 
 ```bash
-# Dataverse 接続を確認
-npx power-apps list-connections
+# 標準: Step 1 で用意した接続参照にバインドする（ソリューション同梱可）
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  -cr {CONNECTION_REFERENCE_LOGICAL_NAME} \
+  -s {SOLUTION_ID} \
+  --resource-name commondataserviceforapps \
+  --org-url {DATAVERSE_URL} \
+  --non-interactive
 
-# Microsoft Dataverse connector（shared_commondataserviceforapps）を 1 回だけ追加
+# PoC 等でソリューション不要な場合のみ: 接続 ID 直バインド
+npx power-apps list-connections
 npx power-apps add-data-source --api-id shared_commondataserviceforapps \
   --connection-id {DATAVERSE_CONNECTION_ID} \
   --resource-name commondataserviceforapps \
   --org-url {DATAVERSE_URL} \
   --non-interactive
 ```
+
+> **接続参照にしても生成物は変わらない**: `--resource-name commondataserviceforapps` はコネクタ単位の指定で、
+> 生成されるのは `MicrosoftDataverseService.ts` / `MicrosoftDataverseModel.ts` の 2 ファイルのみ（テーブル数に非依存）。
+> `power.config.json` に `xrmConnectionReferenceLogicalName` が 1 行追加されるだけで、**アプリ側コードの変更は不要**。
 
 > **Microsoft Learn との比較**: Learn の「How to: Connect your code app to Dataverse」は
 > `pac code add-data-source -a dataverse -t <table-logical-name>` を Dataverse 接続の基本形として案内している。
