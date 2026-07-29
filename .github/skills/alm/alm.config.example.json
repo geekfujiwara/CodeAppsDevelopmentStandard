@@ -1,0 +1,30 @@
+{
+  "_comment": "ALM のレイアウト定義。リポジトリ直下に alm.config.json として置く。省略した項目は既定値が使われる。",
+
+  "forbidden_tracked": [".env", "a365.generated.config.json", "auth-token.json"],
+
+  "templates": ["agents/**/*.template.yaml", "teams/*.template.json"],
+
+  "rendered": ["agents/**/agent.yaml"],
+
+  "artifacts": ["teams/*.zip"],
+
+  "scripts": ["scripts/*.py"],
+
+  "non_secret_vars": ["AGENT_NAME", "BLUEPRINT_ID"],
+
+  "allowed_actions": [
+    "actions/checkout",
+    "actions/setup-python",
+    "actions/setup-node",
+    "actions/upload-artifact",
+    "actions/download-artifact",
+    "azure/login"
+  ],
+
+  "contents_write_jobs": ["release"],
+
+  "env_example": ".env.example",
+
+  "max_line": 120
+}

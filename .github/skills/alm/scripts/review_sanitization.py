@@ -3,17 +3,18 @@
 
 This is the automated reviewer that backs the review process. It inspects
 Git-tracked files and fails (exit 1) if secret-hiding or generalization rules
-are violated, so the review can only Pass when the repo is clean.
+are violated, so the review can only Pass when the repository is clean.
+
+The rules are product agnostic; the paths they apply to come from
+``alm.config.json`` (see ``alm_config.py``), so the same gate protects a Foundry
+agent repository, a Code Apps repository or any other code-first asset.
 
 Rules enforced:
-  1. `.env` and Agent 365 generated config must not be tracked.
-  2. Rendered manifests `agents/**/agent.yaml` and built Teams packages
-     `teams/*.zip` must not be tracked.
-  3. Agent templates, Teams templates and `.env.example` must not contain real
-     GUIDs or `/subscriptions/<guid>/...` ARM paths (all-zero placeholder GUIDs
-     are allowed).
-  4. `agents/**/agent.template.yaml` and `teams/*.template.json` must be
-     generalized: they must use `${VAR}` placeholders.
+  1. Secret-bearing files (``.env`` and friends) must not be tracked.
+  2. Rendered manifests and build artifacts must not be tracked.
+  3. Templates and ``.env.example`` must not contain real GUIDs or
+     ``/subscriptions/<guid>/...`` ARM paths (all-zero placeholders are allowed).
+  4. Templates must be generalized: they must use ``${VAR}`` placeholders.
 
 The script never hardcodes real secret values; it matches by pattern only.
 
@@ -22,19 +23,17 @@ Usage:
 """
 from __future__ import annotations
 
+import fnmatch
 import re
 import subprocess
 import sys
 from pathlib import Path
 
+from alm_config import load_config
+
 GUID = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 ZERO_GUID = re.compile(r"^0+(-0+)*$")
 SUBSCRIPTION_PATH = re.compile(r"/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/", re.IGNORECASE)
-TEAMS_TEMPLATE = re.compile(r"teams/.+\.template\.json")
-AGENT_MANIFEST = re.compile(r"agents/.+/agent\.yaml")
-AGENT_TEMPLATE = re.compile(r"agents/.+/agent\.template\.yaml")
-AGENT_ANY_YAML = re.compile(r"agents/.+/agent(\.template)?\.yaml")
-FORBIDDEN_TRACKED = {".env", "a365.config.json", "a365.generated.config.json", "auth-token.json"}
 
 
 def tracked_files() -> list[str]:
@@ -42,30 +41,41 @@ def tracked_files() -> list[str]:
     return [line.strip() for line in out.splitlines() if line.strip()]
 
 
+def matches(path: str, patterns: list[str]) -> bool:
+    """True when the path matches any glob pattern (``**/`` may be omitted)."""
+    for pattern in patterns:
+        if fnmatch.fnmatch(path, pattern):
+            return True
+        if pattern.startswith("**/") and fnmatch.fnmatch(path, pattern[3:]):
+            return True
+    return False
+
+
 def is_real_guid(value: str) -> bool:
     return not ZERO_GUID.match(value)
 
 
 def main() -> int:
+    cfg = load_config()
     failures: list[str] = []
     files = tracked_files()
 
     # Rule 1: secret-bearing files must not be tracked.
-    for name in sorted(FORBIDDEN_TRACKED):
+    for name in sorted(cfg.forbidden_tracked):
         if name in files:
             failures.append(f"{name} is tracked; it must be git-ignored.")
 
-    # Rule 2: rendered manifests / built packages must not be tracked.
+    # Rule 2: rendered output / build artifacts must not be tracked.
     for f in files:
-        if AGENT_MANIFEST.fullmatch(f):
-            failures.append(f"Rendered manifest is tracked: {f} (must be git-ignored).")
-        if re.fullmatch(r"teams/.+\.zip", f):
-            failures.append(f"Built Teams package is tracked: {f} (must be git-ignored).")
+        if matches(f, cfg.rendered):
+            failures.append(f"Rendered output is tracked: {f} (must be git-ignored).")
+        if matches(f, cfg.artifacts):
+            failures.append(f"Build artifact is tracked: {f} (must be git-ignored).")
 
     # Rule 3: scan sensitive text files for real identifiers.
     scan_targets = [
         f for f in files
-        if f.endswith(".env.example") or AGENT_ANY_YAML.fullmatch(f) or TEAMS_TEMPLATE.fullmatch(f)
+        if f.endswith(cfg.env_example) or matches(f, cfg.templates) or matches(f, cfg.rendered)
     ]
     for f in scan_targets:
         text = Path(f).read_text(encoding="utf-8", errors="replace")
@@ -84,7 +94,7 @@ def main() -> int:
 
     # Rule 4: templates must be generalized.
     for f in files:
-        if AGENT_TEMPLATE.fullmatch(f) or TEAMS_TEMPLATE.fullmatch(f):
+        if matches(f, cfg.templates):
             text = Path(f).read_text(encoding="utf-8", errors="replace")
             if "${" not in text:
                 failures.append(f"{f}: no ${{VAR}} placeholders found; template is not generalized.")

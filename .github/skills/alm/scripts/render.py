@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""Render an agent template into a concrete manifest by substituting ``${VAR}``.
+"""Render a template into a concrete manifest by substituting ``${VAR}``.
 
 Placeholders use ``${VAR}`` syntax and are resolved from environment variables
 (and, for convenience, from a ``.env`` file). Fails fast if any variable is
 missing so that secrets are never left as literal placeholders in a manifest
 that is about to be deployed.
 
+The inverse of ``sanitize.py``: the template is what gets committed, the render
+result is local-only (git-ignored) input for the deploy step.
+
 Usage:
     python scripts/render.py --agent my-agent
     python scripts/render.py --template agents/my-agent/agent.template.yaml \
         --output agents/my-agent/agent.yaml
+    python scripts/render.py --template power.config.template.json --output power.config.json
 """
 from __future__ import annotations
 

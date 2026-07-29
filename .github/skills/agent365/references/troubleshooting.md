@@ -1,5 +1,8 @@
 # agent365 — 異常系・トラブルシュート
 
+> 秘匿化・汎用化・CI/CD・レビューゲートの問題は **`alm` スキル**を参照
+> → [ALM — 異常系・トラブルシュート](../../alm/references/troubleshooting.md)
+
 ## 1. Teams アップロードで「Must upload a newer version of the title than what is already present.」
 
 - 原因: manifest の `version` が既にアップロード済みのバージョンと同じ。
@@ -48,23 +51,22 @@ src.save("assets/agent-icon.png")
   CI は `azure/login@v2` の OIDC（`AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID`）。
   対象アプリ登録に Foundry プロジェクトへのロール（Azure AI Developer 等）が必要。
 
-## 7. `sanitize.py` がテンプレートを壊す（散文中の語まで `${VAR}` になる）
+## 7. `sanitize.py` がテンプレートを壊す / `review_sanitization.py` が Fail する
 
-- 原因: `AGENT_NAME` のような短い公開識別子が置換対象に入っている。
-- 対処: `NON_SECRET_VARS` に追加する（または `--non-secret <NAME>` を渡す）。
-  置換は**長い値から順に**実行される（部分文字列による取り違え防止）。
+→ **`alm` スキル**の [異常系・トラブルシュート](../../alm/references/troubleshooting.md) を参照。
+エージェント固有の注意点としては、`AGENT_NAME` / `BLUEPRINT_ID` を
+`alm.config.json` の `non_secret_vars` に入れておくこと（散文中の名称まで置換される）。
 
-## 8. `review_sanitization.py` が Fail する
+## 8. `review_sanitization.py` が Teams / エージェントの生成物を検出する
 
 | メッセージ | 対処 |
 |---|---|
-| `.env is tracked` | `git rm --cached .env` し `.gitignore` に追加 |
-| `Rendered manifest is tracked` | `git rm --cached agents/**/agent.yaml` |
-| `Built Teams package is tracked` | `git rm --cached teams/*.zip` |
-| `contains a real GUID` | 該当箇所を `${VAR}` へ置換し `.env.example` にプレースホルダーを追加 |
-| `no ${VAR} placeholders found` | テンプレートが汎用化されていない。`sanitize.py` を実行する |
+| `Rendered output is tracked` | `git rm --cached agents/**/agent.yaml` |
+| `Build artifact is tracked` | `git rm --cached teams/*.zip` |
+| `a365.generated.config.json is tracked` | `git rm --cached` し `.gitignore` に追加 |
 
-すべてゼロ GUID（`00000000-...`）はプレースホルダーとして許可される。
+その他のメッセージは **`alm` スキル**の
+[異常系・トラブルシュート](../../alm/references/troubleshooting.md) を参照。
 
 ## 9. `a365` コマンドが固まる / ダイアログが出ない
 
@@ -74,6 +76,7 @@ Edge プロファイル）を参照。初回失敗時は同じコマンドを再
 ## 10. Windows PowerShell 5.1 で `&&` が使えない
 
 - 対処: `;` で区切るか `; if ($?) { ... }` を使う。PowerShell 7（`pwsh`）なら `&&` が使える。
+  その他のシェル・CI 固有の問題は [`alm`](../../alm/references/troubleshooting.md) を参照。
 
 ## 11. エージェント名を後から変えたくなった
 

@@ -15,6 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from alm_config import load_config
+
 # Public identifiers and human-readable metadata that legitimately appear in
 # tracked files. Keep in sync with sanitize.py.
 NON_SECRET_VARS = {
@@ -81,7 +83,9 @@ def main() -> int:
                         help="Additional variable to treat as public; repeatable.")
     args = parser.parse_args()
 
-    values = load_env_values(Path(args.env), NON_SECRET_VARS | BACKEND_CONFIG_VARS | set(args.non_secret))
+    non_secret = (NON_SECRET_VARS | BACKEND_CONFIG_VARS | set(args.non_secret)
+                  | set(load_config().non_secret_vars))
+    values = load_env_values(Path(args.env), non_secret)
     if not values:
         return 0
 

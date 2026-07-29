@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Generalize + hide secrets in an agent manifest, then sync them to a secret store.
+"""Generalize + hide secrets in a manifest, then sync them to a secret store.
 
-1. Read a source manifest that still contains real values
-   (default: ``agents/<agent>/agent.yaml`` — kept local, git-ignored).
+1. Read a source manifest that still contains real values (kept local and
+   git-ignored; ``agents/<agent>/agent.yaml`` by default, any file via
+   ``--source``).
 2. For every NAME=VALUE pair in ``.env`` (excluding public identifiers), replace
    occurrences of VALUE in the manifest text with the ``${NAME}`` placeholder.
 3. Optionally push each VALUE to the CI secret store selected by ``--secret-backend``
@@ -12,10 +13,12 @@
 4. Write the generalized result to the template and optionally ``git add`` it.
 
 Intended to run from the pre-commit hook so that only the generalized,
-secret-free template is ever committed.
+secret-free template is ever committed. Extra public identifiers can be declared
+in ``alm.config.json`` (``non_secret_vars``) or with ``--non-secret``.
 
 Usage:
     python scripts/sanitize.py --env .env --set-secrets --stage
+    python scripts/sanitize.py --source power.config.json --template power.config.template.json
     python scripts/sanitize.py --env .env --set-secrets --secret-backend azure-devops
 """
 from __future__ import annotations
@@ -26,6 +29,8 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+from alm_config import load_config
 
 # Public identifiers and human-readable metadata. Substituting them would
 # corrupt prose that legitimately mentions the agent, so they stay literal.
@@ -135,7 +140,10 @@ def resolve_backend(backend: str, env_path: Path, repo: str | None) -> tuple[str
     never push half of the secrets and leave the rest behind.
     """
     if backend not in SECRET_BACKENDS:
-        raise SystemExit(f"sanitize: unknown --secret-backend '{backend}' (expected one of {', '.join(SECRET_BACKENDS)}).")
+        raise SystemExit(
+            f"sanitize: unknown --secret-backend '{backend}' "
+            f"(expected one of {', '.join(SECRET_BACKENDS)})."
+        )
 
     if backend == "github":
         return backend, {"repo": repo or ""}
@@ -186,7 +194,8 @@ def main() -> int:
     parser.add_argument("--stage", action="store_true", help="git add the generated template")
     args = parser.parse_args()
 
-    non_secret = NON_SECRET_VARS | BACKEND_CONFIG_VARS | set(args.non_secret)
+    non_secret = (NON_SECRET_VARS | BACKEND_CONFIG_VARS | set(args.non_secret)
+                  | set(load_config().non_secret_vars))
     env_path = Path(args.env)
 
     backend = args.secret_backend or env_value(env_path, "SECRET_BACKEND") or "github"

@@ -234,6 +234,14 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 | `pac code add-data-source -a dataverse -t {table}` | PAC CLI プロファイル | なし | ✅ 標準 |
 | `npm run deploy` | PAC CLI プロファイル | なし | ✅ 推奨（predeploy チェック付き） |
 
+### CI/CD・秘匿化（チーム開発で継続的にデプロイする場合）
+
+`.env` の秘匿化・`${VAR}` テンプレートの汎用化・pre-commit ゲート・レビューゲート・
+承認付きデプロイ・リリース記録は **`alm` スキル** が担当する。
+`npm run deploy` を `alm` のデプロイジョブに差し込むだけで、同じ ALM 基盤に載せられる。
+
+→ 詳細: [`alm`](../alm/SKILL.md) スキル
+
 ## 3. データソース接続
 
 ### 正常系: pac code add-data-source

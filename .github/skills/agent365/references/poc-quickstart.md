@@ -94,7 +94,7 @@ PoC の成果物はそのまま流用できる。追加するのは**次の 2 St
 | 追加する Step | やること |
 |---|---|
 | Step 6 | `a365 setup blueprint` で Agent 365 ブループリントを作成し、`A365_AGENT_BLUEPRINT_ID` を `.env` へ。<br>`teams/agenticUser.template.json` を追加して再ビルド（`TEAMS_APP_VERSION` を上げる） |
-| Step 10 | private リポジトリへ移し、`.githooks/pre-commit` と CI 定義を配置。<br>`SECRET_BACKEND` を `github` / `azure-devops` / `keyvault` に変更して `sanitize.py --set-secrets` を実行 |
+| Step 10 | private リポジトリへ移し、**`alm` スキル**の手順で `.githooks/pre-commit`・`alm.config.json`・CI 定義を配置する。<br>`SECRET_BACKEND` を `github` / `azure-devops` / `keyvault` に変更して `sanitize.py --set-secrets` を実行 → [`alm`](../../alm/SKILL.md) |
 
 > 昇格時は共有エージェント → インスタンス化エージェントへ公開形態が変わるため、
 > Teams 側で**アプリを入れ直す**必要がある（manifest の `manifestVersion` が GA → devPreview に変わる）。
