@@ -17,6 +17,23 @@
 - `scripts/gate_rules.py` / `scripts/review_report.py`（リポジトリ内のファイルのみを見る）
 - `scripts/render.py`（環境変数だけを見る）
 
+## 0. Code Apps 向けモジュール選択（Power Platform 単体 / Azure 連携）
+
+Code Apps を `alm` に載せるときは、次の **モジュール（運用パターン）** から選ぶ。
+どれを選んでも、秘匿化・汎用化・レビューゲートは共通で `alm` が提供する。
+
+| モジュール | 想定パターン | デプロイ実処理 | 主なシークレット保管先 | 向いているケース |
+|---|---|---|---|---|
+| `pp-only` | Power Platform 単体（Azure リソース追加なし） | `npm run deploy`（PAC CLI） | GitHub Secrets / Azure DevOps 変数グループ | 最短で Code Apps ALM を開始したい |
+| `pp-azure-gha` | Power Platform + Azure（GitHub Actions） | `npm run deploy` + `azure/login@v2`（OIDC） | GitHub Secrets + Key Vault（任意） | GitHub 中心で Azure 連携も必要 |
+| `pp-azure-ado` | Power Platform + Azure（Azure DevOps） | `npm run deploy` + `AzureCLI@2`（WIF） | 変数グループ（Key Vault 連携可） | Azure DevOps の承認・監査を使いたい |
+
+比較観点（Web 調査での採用指針）:
+
+- シンプル運用重視なら Power Platform 単体パターン（`pp-only`）から開始し、後で Azure 連携を足す。
+- 開発フローを GitHub に寄せるなら `pp-azure-gha`、Azure ガバナンスを強く使うなら `pp-azure-ado`。
+- いずれも秘匿値の平文保管を避け、OIDC / WIF を優先する。
+
 ---
 
 ## 1. GitHub（private リポジトリ）

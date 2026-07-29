@@ -240,6 +240,36 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 承認付きデプロイ・リリース記録は **`alm` スキル** が担当する。
 `npm run deploy` を `alm` のデプロイジョブに差し込むだけで、同じ ALM 基盤に載せられる。
 
+#### Code Apps での `alm` 実行可否チェック（最小検証）
+
+```bash
+# 1) ALM スクリプトと設定雛形を取り込む
+cp .github/skills/alm/scripts/*.py scripts/
+cp .github/skills/alm/alm.config.example.json alm.config.json
+
+# 2) Code Apps 用にパス定義を最小調整（例）
+#    templates: ["power.config.template.json"]
+#    rendered : ["power.config.json"]
+#    artifacts: ["dist/**"]
+#    non_secret_vars: ["APP_NAME"]
+
+# 3) 決定論ゲートを実行
+python scripts/review_sanitization.py
+python scripts/gate_rules.py --gate quality --out .gate/quality.json
+python scripts/gate_rules.py --gate generalization --out .gate/generalization.json
+python scripts/review_report.py --verdict-dir .gate --out .gate/review-report.md
+```
+
+#### 運用モジュール（選択式）
+
+| モジュール | 構成 | 使うとき |
+|---|---|---|
+| `pp-only` | Power Platform 単体（PAC CLI + `npm run deploy`） | まず Code Apps 単体で ALM を確立したい |
+| `pp-azure-gha` | GitHub Actions + Azure（OIDC） | GitHub 中心で Azure 連携も必要 |
+| `pp-azure-ado` | Azure DevOps + Azure（WIF） | Azure DevOps の承認・監査を使いたい |
+
+モジュール別の詳細は [`alm/references/ci-providers.md`](../alm/references/ci-providers.md) を参照。
+
 → 詳細: [`alm`](../alm/SKILL.md) スキル
 
 ## 3. データソース接続
