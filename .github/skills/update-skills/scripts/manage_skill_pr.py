@@ -45,7 +45,13 @@ def gh(args: list[str]) -> str:
     exe = shutil.which("gh")
     if not exe:
         sys.exit("GitHub CLI(gh) が見つかりません。インストールと 'gh auth login' を確認してください。")
-    res = subprocess.run([exe, *args], capture_output=True, text=True)
+    # Windows では text=True 時に既定で locale.getpreferredencoding()（日本語環境だと cp932）が使われ、
+    # PR タイトル等に含まれる UTF-8 専用文字（絵文字等）で UnicodeDecodeError が発生し、
+    # gh の出力が壊れたまま処理が続行してしまう（例: オープン PR が実際は存在するのに 0 件と誤検出）。
+    # encoding を明示して確実に UTF-8 でデコードする。
+    res = subprocess.run(
+        [exe, *args], capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
     if res.returncode != 0:
         sys.exit(f"gh 失敗: {' '.join(args)}\n{res.stderr.strip()}")
     return res.stdout

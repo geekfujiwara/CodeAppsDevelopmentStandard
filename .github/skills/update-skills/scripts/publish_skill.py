@@ -54,7 +54,8 @@ def load_env(start: Path) -> None:
 
 
 def run(args: list[str], cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
-    res = subprocess.run(args, cwd=cwd, capture_output=True, text=True, encoding="utf-8")
+    # Windows の cp932 既定エンコードでの UnicodeDecodeError を避けるため utf-8 を明示（manage_skill_pr.py と同様）。
+    res = subprocess.run(args, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if check and res.returncode != 0:
         sys.exit(f"コマンド失敗: {' '.join(args)}\n{res.stderr.strip() or res.stdout.strip()}")
     return res
