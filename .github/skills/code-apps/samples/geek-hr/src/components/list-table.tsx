@@ -13,7 +13,7 @@ import { Combobox } from "@/components/ui/combobox"
 import type { ComboboxOption } from "@/components/ui/combobox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FormModal } from "@/components/form-modal"
-import { Search, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, ArrowUpDown, ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export type TableColumn<T> = {
@@ -134,6 +134,34 @@ export function ListTable<T extends Record<string, unknown>>({
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
+  }
+
+  // ページ番号ボタンの表示数を制限（先頭・末尾・現在ページ周辺のみ表示し、間は省略記号）
+  const getPageNumbers = (current: number, total: number): (number | "ellipsis")[] => {
+    const delta = 1
+    const range: number[] = []
+    const withDots: (number | "ellipsis")[] = []
+    let last: number | undefined
+
+    for (let i = 1; i <= total; i++) {
+      if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
+        range.push(i)
+      }
+    }
+
+    for (const i of range) {
+      if (last !== undefined) {
+        if (i - last === 2) {
+          withDots.push(last + 1)
+        } else if (i - last > 2) {
+          withDots.push("ellipsis")
+        }
+      }
+      withDots.push(i)
+      last = i
+    }
+
+    return withDots
   }
 
   const handleRowClick = (item: T) => {
@@ -291,17 +319,26 @@ export function ListTable<T extends Record<string, unknown>>({
                 前へ
               </Button>
               <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <Button
-                    key={page}
-                    variant={currentPage === page ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handlePageChange(page)}
-                    className="w-8 h-8 p-0"
-                  >
-                    {page}
-                  </Button>
-                ))}
+                {getPageNumbers(currentPage, totalPages).map((page, idx) =>
+                  page === "ellipsis" ? (
+                    <span
+                      key={`ellipsis-${idx}`}
+                      className="w-8 h-8 flex items-center justify-center text-muted-foreground"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </span>
+                  ) : (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(page)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {page}
+                    </Button>
+                  )
+                )}
               </div>
               <Button
                 variant="outline"
