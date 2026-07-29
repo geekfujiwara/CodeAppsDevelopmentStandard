@@ -171,6 +171,12 @@ npx power-apps add-data-source --api-id shared_commondataserviceforapps \
   --org-url {DATAVERSE_URL} --non-interactive
 ```
 
+> **Microsoft Learn との比較**
+> - Learn の Dataverse 接続ガイドは `pac code add-data-source -a dataverse -t <table-logical-name>` を基本手順としている
+> - この節は **connector-first** に寄せて、`shared_commondataserviceforapps` から
+>   `MicrosoftDataverseService` / `MicrosoftDataverseModel` を生成する場合の使い方を説明している
+> - つまり **Learn 標準 = テーブル単位の型付き追加**、**本節 = 単一コネクタで全テーブル共通 CRUD** という違いがある
+>
 > **ポイント**
 > - 1 回の追加で `MicrosoftDataverseService` / `MicrosoftDataverseModel` が生成され、`entityName` を実行時パラメータとして全テーブルを扱える。
 > - `ListRecordsWithOrganization` / `CreateRecordWithOrganization` など **`*WithOrganization` 系**を使い、`organization` に対象環境の Dataverse URL を必ず渡す。

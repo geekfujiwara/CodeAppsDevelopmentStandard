@@ -238,6 +238,16 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 | `pac code add-data-source -a dataverse -t {table}` | PAC CLI プロファイル | テーブルごとに再生成が必要 | △ 旧方式（強い型付けが必要な場合のみ） |
 | `npm run deploy` | PAC CLI プロファイル | なし | ✅ 推奨（predeploy チェック付き） |
 
+> [!NOTE]
+> **Microsoft Learn との比較**: Learn の現行ガイド「How to: Connect your code app to Dataverse」（2026-04-07 更新）と
+> 「Troubleshoot adding a data source」（2026-02-02 更新）は、どちらも
+> `pac code add-data-source -a dataverse -t <table-logical-name>` を Dataverse 追加の基本手順として説明している。
+> このスキルの `shared_commondataserviceforapps` 手順は **このリポジトリで採用する connector-first パターン**であり、
+> Learn の基本手順をそのまま置き換えたものではない。判断基準は次のとおり:
+>
+> - **Learn / PAC 標準**: テーブルごとの型付き Service / Model を生成したい
+> - **本スキル標準**: 1 回の接続で `MicrosoftDataverseService` を生成し、`entityName` で複数テーブルを横断したい
+
 ## 3. データソース接続
 
 ### 正常系: Microsoft Dataverse connector（`shared_commondataserviceforapps`）

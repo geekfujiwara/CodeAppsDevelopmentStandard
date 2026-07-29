@@ -197,6 +197,11 @@ npx power-apps add-data-source --api-id shared_commondataserviceforapps \
   --non-interactive
 ```
 
+> **Microsoft Learn との比較**: Learn の「How to: Connect your code app to Dataverse」は
+> `pac code add-data-source -a dataverse -t <table-logical-name>` を Dataverse 接続の基本形として案内している。
+> 本リファレンスでは、それとは別に **1 つの `MicrosoftDataverseService` を全テーブルで共有したい場合**の
+> connector-first パターンとして `shared_commondataserviceforapps` を扱う。
+>
 > **重要**: 生成される `MicrosoftDataverseService` は **1 つだけ**で、`entityName` を実行時パラメータとして渡して全テーブルを扱う。
 > テーブルごとに `add-data-source` を繰り返さない。`organization` に使う Dataverse URL は `.env` の `DATAVERSE_URL`
 > などへ保持し、アプリ側では `getContext().app.dataverseOrgUrl` を優先して解決する。
