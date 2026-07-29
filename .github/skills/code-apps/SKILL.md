@@ -247,6 +247,9 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 >
 > - **Learn / PAC 標準**: テーブルごとの型付き Service / Model を生成したい
 > - **本スキル標準**: 1 回の接続で `MicrosoftDataverseService` を生成し、`entityName` で複数テーブルを横断したい
+> - **性能面**: Microsoft Learn に両者の明確なベンチマーク差は記載されていない。通常は Dataverse 側のクエリ形状
+>   （`$select` / `$filter` / `$top`）、ページング、ネットワーク待ちの影響が支配的で、接続方式そのものの差は主因になりにくい
+> - **実務上の判断**: 性能よりも、型安全性・再生成コスト・複数テーブル横断のしやすさで選ぶ
 
 ## 3. データソース接続
 

@@ -176,6 +176,8 @@ npx power-apps add-data-source --api-id shared_commondataserviceforapps \
 > - この節は **connector-first** に寄せて、`shared_commondataserviceforapps` から
 >   `MicrosoftDataverseService` / `MicrosoftDataverseModel` を生成する場合の使い方を説明している
 > - つまり **Learn 標準 = テーブル単位の型付き追加**、**本節 = 単一コネクタで全テーブル共通 CRUD** という違いがある
+> - Microsoft Learn には両者の明確な性能差は記載されていない。通常は接続方式よりも
+>   Dataverse クエリの絞り込み、ページング、不要な API 呼び出しの削減の方が効く
 >
 > **ポイント**
 > - 1 回の追加で `MicrosoftDataverseService` / `MicrosoftDataverseModel` が生成され、`entityName` を実行時パラメータとして全テーブルを扱える。
