@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。"
+description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。Agent 365 / Foundry エージェントを採用する場合はライト実装（PoC）と本格実装（private リポジトリ + CI/CD + Agent Evals）を AskUserQuestion で選ばせ、Git ホスティング（GitHub / Azure DevOps Repos / その他）も確定してから実装へ進む。"
 category: architecture
 triggers:
   - "アーキテクチャ設計"
@@ -18,6 +18,10 @@ triggers:
   - "設計判断"
   - "どれを使う"
   - "使い分け"
+  - "Agent 365"
+  - "Foundry エージェント"
+  - "ライト実装か本格実装か"
+  - "PoC か本番か"
 ---
 
 # Power Platform 共通アーキテクチャデザインスキル
@@ -65,6 +69,7 @@ triggers:
 | **Dataverse**         | リレーショナルデータ、行レベルセキュリティ、監査、ビジネスルール                             | 大量ログデータ、非構造化データ、全文検索                       |
 | **Copilot Studio v2 スキル + Dataverse MCP** | 自然言語での業務データ登録・照会（Dataverse MCP 経由）、Teams / Copilot Studio 上での利用、SKILL.md による業務知識の付与。**環境制約が少なく作りやすい（★ 第一候補）** | リッチな一覧/編集 UI、複雑なビジュアル、外部/匿名公開 |
 | **Copilot Cowork プラグイン** | M365 Copilot 上での自然言語登録・照会（Dataverse MCP 経由）。M365 Copilot との統合が必須要件の場合に採用。**会社環境で Cowork の利用が許可されている場合のみ推奨** | 環境制約が多い（Entra App 登録・Teams 開発者ポータル・M365 管理センター公開・Teams Admin / Global Admin 権限が必要）。環境が揃わない場合は Copilot Studio v2 + Dataverse MCP を優先 |
+| **Agent 365 / Foundry エージェント** | Foundry 上のカスタムエンジンエージェントをコードファーストでバージョン管理し、Teams / M365 Copilot へ公開。インストールごとの専用 Entra Agent ID（★ §7: 採用時はライト/本格を必ず確認） | ノーコードでの素早い構築、Code Apps / Web への埋め込み、Dataverse 標準 UI |
 
 ---
 
@@ -113,9 +118,13 @@ triggers:
     │     （メール受信・Teams 返信・スケジュール等のイベントで自動実行、無人で判断・応答）
     │        ──→ 【Copilot Studio（Workflow / トリガー）+ Power Automate】（§3・§4 へ）
     │
-    └─ ③ アプリ（Code Apps / Web サイト）に組み込んで呼び出す
-          （画面内チャット・埋め込み・WebChat SDK での外部公開）
-             ──→ 【Copilot Studio v1】（§3 へ）
+    ├─ ③ アプリ（Code Apps / Web サイト）に組み込んで呼び出す
+    │     （画面内チャット・埋め込み・WebChat SDK での外部公開）
+    │        ──→ 【Copilot Studio v1】（§3 へ）
+    │
+    └─ ④ Foundry のカスタムエンジンエージェントとして Teams / M365 Copilot に公開する
+          （独自モデル・独自ツール・コードファーストのバージョン管理が要る）
+             ──→ 【Agent 365 / Foundry エージェント】（§7 へ）
 ```
 
 > **使い分けの原則**:
@@ -378,12 +387,66 @@ Q: その AI 処理は再利用するか？
 
 ---
 
+## 7. Agent 365 / Foundry エージェントを使う判断ポイント（★ 実装レベルを必ず確認）
 
-## 7. 統合パターン・テンプレート
+**使う**: Foundry 上のカスタムエンジンエージェント（独自モデル・独自ツール）を Teams / M365 Copilot に公開したい／
+エージェント定義をコードとしてバージョン管理・レビューしたい／インストールごとに専用の Entra Agent ID を持たせたい。
+**使わない**（→ 代替）: Dataverse への自然言語登録・照会が主目的 → **Copilot Studio v2 スキル + Dataverse MCP**（§2.1.1）／
+Code Apps や Web サイトに埋め込む → **Copilot Studio v1**（§3）。
+
+### ★ ライト実装 / 本格実装を AskUserQuestion で選ぶ（`agent365` スキルに入る前に必ず実行）
+
+`agent365` スキルは **本格実装（private リポジトリ + CI/CD + Agent Evals）を既定**としているが、
+検証目的の PoC にはその一式が重すぎる。**着手前に実装レベルを確認し、選んだ結果を `agent365` スキルへ引き渡す**。
+
+AskUserQuestion で次のように尋ねる:
+
+> Foundry エージェントの作り方を選べます。どちらにしますか？
+> - **ライト実装（PoC・検証用）**: 共有エージェントとして最短で Teams に公開する。ローカルの `.env` だけで動かし、
+>   CI/CD・秘匿化ゲート・インスタンス化は作らない。**あとから本格実装へ昇格できる**（作り直し不要）。
+> - **本格実装（本番運用）**: private リポジトリでエージェント定義をバージョン管理し、
+>   秘匿化ゲート・**Agent Evals** による品質ゲート・承認付き自動デプロイまでを CI/CD で構築する。
+>   インストールごとに専用の Entra Agent ID を持つインスタンス化エージェントとして公開する。
+
+| 観点 | ライト実装（PoC） | 本格実装（本番運用） |
+|---|---|---|
+| 公開形態 | 共有エージェント（全員が同じ 1 体） | インスタンス化（Agent 365 ブループリント + `agenticUserTemplates`） |
+| リポジトリ | 任意（ローカルのみでも可） | **private リポジトリ必須** |
+| 秘匿値 | ローカル `.env` のみ | `.env` + CI のシークレットストア |
+| 品質担保 | 手動での動作確認 | 秘匿化ゲート + Agent Evals + 承認ゲート |
+| 実施 Step | `agent365` スキルの Step 6・10 を省略 | 全 Step |
+
+> **迷ったらライト実装から始める**。エージェント定義・Teams パッケージ・スクリプトはそのまま流用でき、
+> Step 6（Agent 365 ブループリント）と Step 10（CI/CD）を追加するだけで本格実装へ移行できる。
+
+### 本格実装を選んだ場合: Git ホスティングも AskUserQuestion で確認する
+
+**GitHub 前提にしない**。エージェント定義（`instructions`）は業務知識そのものなので private リポジトリを前提とし、
+利用中の Git ホスティングに合わせて CI とシークレット保管先を決める。
+
+> どの Git リポジトリで管理しますか？（いずれも private リポジトリ前提です）
+> - **GitHub（private）**
+> - **Azure DevOps Repos（private）**
+> - **その他の Git**（GitLab / Bitbucket / 自己ホスト）
+
+| Git ホスティング | CI | シークレット保管先 | `agent365` の `SECRET_BACKEND` |
+|---|---|---|---|
+| GitHub（private） | GitHub Actions | GitHub Actions Secrets | `github` |
+| Azure DevOps Repos（private） | Azure Pipelines | 変数グループ（Key Vault 連携可） | `azure-devops` |
+| その他 Git | 各 CI | Azure Key Vault | `keyvault` |
+| （ライト実装） | なし | ローカル `.env` のみ | `none` |
+
+> 選択結果は `agent365` スキルの Step 0 でそのまま使う（同じ質問を繰り返さない）。
+> 構築手順は [`agent365` スキル](../agent365/SKILL.md)、CI 定義の雛形は
+> [agent365/references/ci-providers.md](../agent365/references/ci-providers.md) を参照。
+
+---
+
+## 8. 統合パターン・テンプレート
 
 統合アーキテクチャパターン集・設計アウトプットテンプレート・よくある判断ミスは [設計リファレンス](references/design-patterns.md) を参照。
 
-## 8. 判断チェックリスト（設計開始時に確認）
+## 9. 判断チェックリスト（設計開始時に確認）
 
 設計を始める前に、以下を順番に確認する:
 
@@ -398,4 +461,6 @@ Q: その AI 処理は再利用するか？
 - [ ] **応答文の生成が必要か？** → YES なら Copilot Studio
 - [ ] **外部トリガー（メール/スケジュール）でエージェントを起動するか？** → YES なら Power Automate + Copilot Studio
 - [ ] **複数エージェント/フローから共用する AI 処理があるか？** → YES かつ Power Automate フロー内での利用なら AI Builder で共通化（社内汎用業務は Copilot Studio v2 + Dataverse MCP を優先）
+- [ ] **Foundry のカスタムエンジンエージェントを Teams / M365 Copilot に公開するか？** → YES なら §7 で **ライト実装（PoC）/ 本格実装** を AskUserQuestion で確定してから `agent365` スキルへ渡す
+- [ ] **本格実装を選んだか？** → YES なら **Git ホスティング（GitHub / Azure DevOps Repos / その他 Git）** も確認し、private リポジトリ前提で `SECRET_BACKEND` を決める
 - [ ] **画面設計はブロックの組み合わせで決めたか？** → 同じ CRUD をテーブル数だけ量産しない。可視化ニーズがあれば **ReactFlow を第一候補**に（[設計リファレンス §4](references/design-patterns.md#4-画面設計ブロックの組み合わせテンプレ化しない設計)）
