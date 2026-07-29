@@ -32,7 +32,7 @@ api_post("accounts", {"name": "Test"}, solution="SolutionName")
 api_patch("accounts(id)", {"name": "Updated"})
 api_delete("accounts(id)")
 
-# メタデータ操作のリトライ（0x80040237, 0x80044363 対応）
+# メタデータ操作のリトライ（0x80040237, 0x80044363 対応 + ネットワーク切断/429スロットリング対応）
 retry_metadata(lambda: api_post("EntityDefinitions", body), "テーブル作成")
 
 # Flow API ヘルパー
@@ -40,12 +40,54 @@ from auth_helper import flow_api_call
 flow_api_call("GET", f"/providers/Microsoft.ProcessSimple/environments/{env_id}/flows")
 ```
 
+#### `retry_metadata()` がリトライ／スキップする条件（★ 2026-07 拡張）
+
+| 条件 | 対処 |
+|---|---|
+| `already exists` / `0x80040237` / `0x80044363` | スキップ（べき等・`None` を返す） |
+| `another ... running`（メタデータロック競合） | 累進的に待機してリトライ |
+| `requests.exceptions.ConnectionError` / `Timeout`（一時的なネットワーク切断） | 累進的に待機してリトライ |
+| HTTP `429` / `503`（スロットリング） | `Retry-After` ヘッダーを尊重して待機・リトライ |
+| 上記いずれかを `max_attempts`（既定 5）回リトライしても解消しない | **`RuntimeError` を送出**（`None` を返して黙って成功扱いにしない） |
+
+`ThreadPoolExecutor` で多数テーブル・多数列を並行構築するような長時間バッチでは、
+上記のネットワーク断／スロットリングが避けられない。これらを想定外エラーとして
+即座に再送出すると、1 回の一時的な通信エラーでビルド全体がクラッシュするため、
+`retry_metadata()` 側で吸収する（詳細は [dataverse スキルの troubleshooting](../../dataverse/references/troubleshooting.md#8-threadpoolexecutor-並行構築中の一時的なネットワーク切断スロットリングでビルド全体が停止する) を参照）。
+
+一方、**リトライ上限に達した場合は「既に存在するのでスキップ」とは区別して例外を送出する**
+（`None` を返さない）。呼び出し元がこれを検知できないと、実際には作成されなかった
+列/Lookup が「成功扱い」のまま後続の Step（公開等）に進んでしまう
+（詳細は [troubleshooting.md #14](../../dataverse/references/troubleshooting.md#14-ロック競合でリトライ上限に達しても-retry_metadata-が例外を投げず-lookup-が未作成のまま後続処理が成功扱いで進んでしまう) を参照）。
+
 #### 認証テスト
 
 ```bash
 # 初回のみデバイスコード認証が走る。以降はサイレント。
 python -c "import sys; sys.path.insert(0, '.github/skills/standard/scripts'); from auth_helper import get_token; print(get_token()[:20] + '...')"
 ```
+
+#### Windows PowerShell で `auth_helper.py` 等のログ（日本語）が文字化けする（`chcp 65001` だけでは直らない）
+
+`auth_helper.py` の `[auth_helper] 認証キャッシュをロードしました...` のような日本語ログを
+PowerShell（pwsh 7.x を含む）でリダイレクト/`Tee-Object`しながら実行すると、
+`chcp 65001` を実行済みでも `隱崎ｨｼ...` のように文字化けすることがある。
+
+原因は `chcp 65001` が Windows の**コンソールコードページ**を切り替えるだけで、
+PowerShell が子プロセス（`python.exe`）の出力を解釈する **`[Console]::OutputEncoding`
+（.NET プロパティ）には自動反映されない**ため。`chcp` 実行後でも
+`[Console]::OutputEncoding` が cp932（Shift-JIS）のまま残っていることがある。
+
+**対策**: `auth_helper.py` を使うスクリプトを実行する前に、`chcp 65001` に加えて
+`[Console]::OutputEncoding` を明示的に UTF-8 へ設定する（全スキル共通）。
+
+```powershell
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+chcp 65001
+python -u <script>.py 2>&1 | Tee-Object -FilePath <log>.log
+```
+
+詳細は [dataverse スキルの troubleshooting #13](../../dataverse/references/troubleshooting.md#13-windows-powershell-でログをファイルにリダイレクトtee-objectすると日本語が文字化けするchcp-65001-だけでは直らない) を参照。
 
 #### PowerShell で `python -c "..."` に OData クエリを渡すと壊れる
 
