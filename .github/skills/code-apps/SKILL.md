@@ -238,6 +238,11 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 | `pac code add-data-source -a dataverse -t {table}` | PAC CLI プロファイル | テーブルごとに再生成が必要 | △ 旧方式（強い型付けが必要な場合のみ） |
 | `npm run deploy` | PAC CLI プロファイル | なし | ✅ 推奨（predeploy チェック付き） |
 
+| 比較対象 | 参考 |
+|---|---|
+| `shared_commondataserviceforapps` を 1 回追加して `MicrosoftDataverseService` を共有する方式 | [connector-reference.md](references/connector-reference.md), [build-reference.md](references/build-reference.md) |
+| `pac code add-data-source -a dataverse -t <table-logical-name>` をテーブル単位で追加する方式 | [Microsoft Learn: How to: Connect your code app to Dataverse](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/connect-to-data), [Microsoft Learn: Troubleshoot adding a data source](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/troubleshoot-add-datasource) |
+
 > [!NOTE]
 > **Microsoft Learn との比較**: Learn の現行ガイド「How to: Connect your code app to Dataverse」（2026-04-07 更新）と
 > 「Troubleshoot adding a data source」（2026-02-02 更新）は、どちらも
