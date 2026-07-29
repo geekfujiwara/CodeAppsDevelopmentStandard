@@ -32,6 +32,19 @@ NON_SECRET_VARS = {
     "TEAMS_APP_RESOURCE_URI",
 }
 
+# Routing/configuration variables: they select the Git hosting and secret store
+# and legitimately appear in committed CI definitions. Keep in sync with sanitize.py.
+BACKEND_CONFIG_VARS = {
+    "IMPLEMENTATION_MODE",
+    "GIT_PROVIDER",
+    "SECRET_BACKEND",
+    "AZDO_ORG_URL",
+    "AZDO_PROJECT",
+    "AZDO_VARIABLE_GROUP_ID",
+    "AZDO_SERVICE_CONNECTION",
+    "AZURE_KEYVAULT_NAME",
+}
+
 # Obvious placeholder values shipped in .env.example.
 PLACEHOLDER_HINTS = ("0000-0000", "your-", "example.com", "<")
 
@@ -68,7 +81,7 @@ def main() -> int:
                         help="Additional variable to treat as public; repeatable.")
     args = parser.parse_args()
 
-    values = load_env_values(Path(args.env), NON_SECRET_VARS | set(args.non_secret))
+    values = load_env_values(Path(args.env), NON_SECRET_VARS | BACKEND_CONFIG_VARS | set(args.non_secret))
     if not values:
         return 0
 
