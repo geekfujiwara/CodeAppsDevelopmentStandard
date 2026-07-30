@@ -47,6 +47,19 @@ SECRET_PATTERNS = [
 SECRET_SCAN_SUFFIXES = {".ts", ".tsx", ".json", ".md", ".html", ".env", ".example"}
 SECRET_SCAN_EXCLUDE_DIRS = {"node_modules", "dist", ".power", "generated"}
 
+# @microsoft/power-apps v1.2 でルートエクスポートと旧 DataClient API が廃止されたため、
+# 使っているとビルドが通らない
+SDK_PATTERNS = [
+    (
+        re.compile(r"""from ['"]@microsoft/power-apps['"]"""),
+        "SDK のルート import（サブパス /app /data を使う）",
+    ),
+    (
+        re.compile(r"\.(getRecords|createRecord|updateRecord|deleteRecord)\s*\("),
+        "廃止された DataClient API（*Async 系または生成 MicrosoftDataverseService を使う）",
+    ),
+]
+
 
 def check(sample: Path) -> list[str]:
     errors: list[str] = []
@@ -81,7 +94,24 @@ def check(sample: Path) -> list[str]:
                 errors.append(f"{html.name} が参照する静的アセットがありません: public{m.group(1)}")
 
     errors.extend(scan_secrets(sample))
+    errors.extend(scan_sdk_usage(sample))
     return errors
+
+
+def scan_sdk_usage(sample: Path) -> list[str]:
+    found: list[str] = []
+    for path in sample.rglob("*"):
+        if not path.is_file() or path.suffix not in {".ts", ".tsx"}:
+            continue
+        rel = path.relative_to(sample)
+        if SECRET_SCAN_EXCLUDE_DIRS & set(rel.parts):
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for pattern, label in SDK_PATTERNS:
+            m = pattern.search(text)
+            if m:
+                found.append(f"{label}: {rel} → {m.group(0)}")
+    return found
 
 
 def scan_secrets(sample: Path) -> list[str]:

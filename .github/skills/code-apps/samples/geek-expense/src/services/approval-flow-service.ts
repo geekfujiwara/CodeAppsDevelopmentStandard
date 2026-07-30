@@ -1,4 +1,4 @@
-import { getClient } from "@microsoft/power-apps"
+import { getClient } from "@microsoft/power-apps/data"
 import { dataSourcesInfo } from "@/lib/dataSourcesInfo"
 
 function client() {
