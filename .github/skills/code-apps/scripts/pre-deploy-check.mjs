@@ -4,17 +4,21 @@
  * pac code push / npx power-apps push の前に実行し、
  * テーマ固有のカスタマイズが行われていることを確認する。
  *
- * Usage: node .github/skills/code-apps/scripts/pre-deploy-check.mjs
- * npm script: "predeploy": "node .github/skills/code-apps/scripts/pre-deploy-check.mjs"
+ * このファイルはプロジェクト直下の scripts/ にコピーして使う。
+ * Usage: node scripts/pre-deploy-check.mjs
+ * npm script: "predeploy": "node scripts/pre-deploy-check.mjs"
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
-const root = path.resolve(path.dirname(__filename), "../../../..");
+// scripts/ の一つ上がプロジェクトルート
+const root = path.resolve(path.dirname(__filename), "..");
 
 const errors = [];
+// config.ts は "/dashboard"、router.tsx の子ルートは "dashboard" と書くため先頭スラッシュを揃える
+const norm = (p) => p.replace(/^\//, "");
 
 // 1. .env が存在するか
 const envPath = path.join(root, ".env");
@@ -68,11 +72,11 @@ if (fs.existsSync(configTs) && fs.existsSync(routerPath)) {
   }
 
   // 4b. config.ts からナビパスを抽出: path: "xxx"
-  const navPaths = [...configContent.matchAll(/path:\s*["']([^"']+)["']/g)].map(m => m[1]);
+  const navPaths = [...configContent.matchAll(/path:\s*["']([^"']+)["']/g)].map(m => norm(m[1]));
 
   // router.tsx からルートパスを抽出: path: "xxx"（コメント行を除外）
   const routerLines = routerContent.split("\n").filter(l => !l.trim().startsWith("//"));
-  const routePaths = [...routerLines.join("\n").matchAll(/path:\s*["']([^"']+)["']/g)].map(m => m[1]);
+  const routePaths = [...routerLines.join("\n").matchAll(/path:\s*["']([^"']+)["']/g)].map(m => norm(m[1]));
 
   // ナビにあるがルーターに無いパス → 孤立メニュー
   const orphanedNav = navPaths.filter(p => !routePaths.includes(p));
@@ -84,7 +88,7 @@ if (fs.existsSync(configTs) && fs.existsSync(routerPath)) {
   }
 
   // ルーターにあるがナビに無いパス → 隠しページ（warning のみ）
-  const hiddenRoutes = routePaths.filter(p => !navPaths.includes(p) && p !== "*" && p !== "/");
+  const hiddenRoutes = routePaths.filter(p => !navPaths.includes(p) && p !== "*" && p !== "");
   if (hiddenRoutes.length > 0) {
     console.warn(`⚠ ルーター (router.tsx) にナビから到達できないページがあります: ${hiddenRoutes.join(", ")}`);
     console.warn(`  → 意図的な隠しページでなければ config.ts にナビを追加してください。`);
