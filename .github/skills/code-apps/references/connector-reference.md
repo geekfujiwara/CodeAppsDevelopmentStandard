@@ -158,46 +158,121 @@ await SharePointService.PostItem("{site-url}", "{list-id}", {
 
 ## Dataverse
 
-**API 名**: `dataverse`
+**API 名**: `shared_commondataserviceforapps`
 
 ### セットアップ
 
 ```bash
-# 推奨: npx 経由（SDK v1.0.x 対応）
-npx power-apps add-data-source --api-id dataverse \
-  --resource-name {table-logical-name} \
+# 標準: 接続参照（Connection Reference）にバインドして 1 回だけ追加（全テーブル共通・ソリューション同梱可）
+# 接続参照は事前に scripts/setup_connection_reference.py で用意しておく
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  -cr {CONNECTION_REFERENCE_LOGICAL_NAME} \
+  -s {SOLUTION_ID} \
+  --resource-name commondataserviceforapps \
   --org-url {DATAVERSE_URL} --non-interactive
 
-# レガシー: pac cli 経由（SDK v0.3.x のみ動作）
-pac code add-data-source -a dataverse -t {table-logical-name}
+# PoC 等でソリューション不要な場合のみ: 接続 ID 直バインド
+npx power-apps list-connections
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  --connection-id {connection-id} \
+  --resource-name commondataserviceforapps \
+  --org-url {DATAVERSE_URL} --non-interactive
 ```
 
-> **⚠️ 日本語環境での注意**: テーブルの DisplayName が日本語の場合、`Failed to sanitize string` エラーが発生する。`node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js` の `sanitizeName()` 関数内の正規表現を Unicode 対応にパッチすること。詳細は [開発標準 §1.2](../../standard/references/power-platform-development-standard.md) を参照。
+| バインド方式 | `power.config.json` | ソリューション同梱 | 用途 |
+|---|---|---|---|
+| `-cr {logical-name} -s {SOLUTION_ID}` | `xrmConnectionReferenceLogicalName` | ✅ | **標準**（ALM・環境間移送） |
+| `--connection-id {id}` | `authenticationType: "Oauth"` | ✗ | PoC・使い捨て |
+
+> **接続参照にしても「1 回で全テーブル」は不変**（検証済み）
+> `--resource-name commondataserviceforapps` は**コネクタ単位**の指定でテーブル名ではない。
+> 接続参照バインドでも生成物は `MicrosoftDataverseService.ts` / `MicrosoftDataverseModel.ts` の 2 ファイルのみ、
+> 生成メソッドも同一で、テーブルは実行時の `entityName` で指定する。**アプリ側コードの変更は不要**。
+> 詳細・確認コマンドは [ソリューション ALM リファレンス](solution-alm.md)。
+
+> **接続参照は CLI では作成できない**
+> `-cr` に未存在の論理名を渡すと `Failed to resolve connection ID for reference '...'` で失敗する（自動作成されない）。
+> `pac connection create` / `npx power-apps create-connection` はいずれも**接続**を作るコマンドで接続参照ではない。
+> Dataverse Web API（`POST /connectionreferences`）で作成する
+> [scripts/setup_connection_reference.py](../scripts/setup_connection_reference.py) を標準とする。
+
+> **バインドを差し替えるとき**: `add-data-source` は既存データソースを上書きせず `_1` 等の別名で増える。
+> 先に削除してから再追加する（フラグ名は `-n/--data-source-name`。`--data-source` は無効）。
+> ```bash
+> npx power-apps delete-data-source --api-id shared_commondataserviceforapps \
+>   --data-source-name commondataserviceforapps --force
+> ```
+
+> **Microsoft Learn との比較**
+> - Learn の Dataverse 接続ガイドは `pac code add-data-source -a dataverse -t <table-logical-name>` を基本手順としている
+> - この節は **connector-first** に寄せて、`shared_commondataserviceforapps` から
+>   `MicrosoftDataverseService` / `MicrosoftDataverseModel` を生成する場合の使い方を説明している
+> - つまり **Learn 標準 = テーブル単位の型付き追加**、**本節 = 単一コネクタで全テーブル共通 CRUD** という違いがある
+> - Microsoft Learn には両者の明確な性能差は記載されていない。通常は接続方式よりも
+>   Dataverse クエリの絞り込み、ページング、不要な API 呼び出しの削減の方が効く
+> - なお `-a dataverse -t {table}` 方式は `databaseReferences` 側に載るため**接続参照にできない**。
+>   ALM 適性の面でも connector-first の方が有利
+>
+> **ポイント**
+> - 1 回の追加で `MicrosoftDataverseService` / `MicrosoftDataverseModel` が生成され、`entityName` を実行時パラメータとして全テーブルを扱える。
+> - `ListRecordsWithOrganization` / `CreateRecordWithOrganization` など **`*WithOrganization` 系**を使い、`organization` に対象環境の Dataverse URL を必ず渡す。
+> - `organization` を省略すると `Invalid organization URL 'null' provided` で失敗する。
+> - Lookup 列の `@odata.bind` 書き込み規約はネイティブ Dataverse 接続と同様に使える。
 
 ### 使用例
 
 ```typescript
-import { DataverseService } from "../services/DataverseService";
+import { getContext } from "@microsoft/power-apps/app";
+import { MicrosoftDataverseService } from "../generated/services/MicrosoftDataverseService";
 
-// テーブルからレコード取得
-const accounts = await DataverseService.GetItems(
+const ctx = await getContext();
+const organization = ctx.app.dataverseOrgUrl;
+
+// テーブルからレコード取得（entityName を毎回渡す）
+const accounts = await MicrosoftDataverseService.ListRecordsWithOrganization(
+  organization,
   "accounts",
-  "$select=name,revenue&$filter=revenue gt 1000000&$top=50",
+  'odata.include-annotations="*"',
+  "application/json",
+  undefined,
+  undefined,
+  "name,revenue",
+  "revenue gt 1000000",
+  "createdon desc",
+  undefined,
+  undefined,
+  50,
 );
 
 // レコード作成
-await DataverseService.PostItem("accounts", {
-  name: "新規取引先",
-  revenue: 5000000,
-});
+await MicrosoftDataverseService.CreateRecordWithOrganization(
+  "return=representation",
+  "application/json",
+  organization,
+  "accounts",
+  {
+    name: "新規取引先",
+    revenue: 5000000,
+    "primarycontactid@odata.bind": "/contacts({contact-id})",
+  },
+);
 
 // レコード更新
-await DataverseService.PatchItem("accounts", "{record-id}", {
-  revenue: 7500000,
-});
+await MicrosoftDataverseService.UpdateRecordWithOrganization(
+  "return=representation",
+  "application/json",
+  organization,
+  "accounts",
+  "{record-id}",
+  { revenue: 7500000 },
+);
 
 // レコード削除
-await DataverseService.DeleteItem("accounts", "{record-id}");
+await MicrosoftDataverseService.DeleteRecordWithOrganization(
+  organization,
+  "accounts",
+  "{record-id}",
+);
 ```
 
 ---
