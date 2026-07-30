@@ -200,6 +200,8 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 #   ★同期②: pac code add-flow は Power Automate Phase 5（フロー実装）完了後に実行
 # 詳細は standard §8「開発フロー全体図」を参照。
 cp -n .github/skills/standard/references/gitignore-template .gitignore   # .gitignore がなければコピー
+# scaffold の取得元は templates/generic-base のみ（samples/geek-* は業務ページ実装の参照専用）
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills/code-apps/templates/generic-base .
 npm install --no-audit --no-fund
 
 # Step 1: ソリューションと接続参照を用意（init より前に必須）
@@ -229,7 +231,12 @@ npx power-apps add-data-source --api-id shared_commondataserviceforapps \
   --org-url {DATAVERSE_URL} \
   --non-interactive
 
-# Step 7: src/ を実装（MicrosoftDataverseService を薄くラップ）→ 再ビルド＆デプロイ（反復）
+# Step 7: src/ を実装（MicrosoftDataverseService を薄くラップ）
+#   業務ロジックに入る前に 1 回 predeploy を通し、config.ts と router.tsx の不整合を早期検知する
+npm run predeploy
+#   → 以降はページを追加するたびに実行する（ナビとルートの不一致はデプロイ後にしか見えない）
+
+# 再ビルド＆デプロイ（反復）
 npm run build
 pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 ```
@@ -362,6 +369,11 @@ SDK 生成サービスは Lookup 名フィールド（`createdbyname` 等）を�
 → 詳細: **[ステージ矢羽パターン](references/stage-path-pattern.md)**
 
 ### scaffold 時に含めないファイル
+
+scaffold の取得元は **[templates/generic-base](templates/generic-base/)** のみとする。
+`samples/geek-*` は**業務ページ実装の参照専用**で、scaffold 元にはしない
+（業務固有のページ・型・サービス、および `samples/geek-sales` の `CommandPalette` / `QuickActivityFab` のような
+テーマ固有コンポーネントが混入するため）。
 
 外部 API 呼び出しを含むデモページ（`design-examples.tsx` / `use-learn-catalog.ts` / `learn-client.ts` 等）は CSP 違反になるため、業務テーマに不要なものは最初から生成しない。標準コンポーネント（`form-modal.tsx` / `list-table.tsx` / `inline-edit-table.tsx` / `sidebar*.tsx` / `ui/` 等）は残す。
 

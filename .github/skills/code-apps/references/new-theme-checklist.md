@@ -14,6 +14,8 @@
 mkdir <your-theme-name> && cd <your-theme-name>
 npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github && \
 cp .github/skills/standard/references/gitignore-template .gitignore
+# scaffold の取得元は generic-base のみ（samples/geek-* は業務ページ実装の参照専用）
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills/code-apps/templates/generic-base .
 # 取得後、@GeekPowerCode に「新規テーマ: [テーマ名]を作成してください」と依頼
 ```
 

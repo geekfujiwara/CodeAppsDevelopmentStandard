@@ -21,8 +21,10 @@
 cp -n .github/skills/standard/references/gitignore-template .gitignore
 
 # ① テンプレート scaffold（vite.config.ts / plugins/plugin-power-apps.ts / styles/ / src/ 一式）
-#    標準では @GeekPowerCode が scaffold する。手動で行う場合:
-#    npx degit github:microsoft/PowerAppsCodeApps/templates/vite .
+#    取得元は templates/generic-base のみ。samples/geek-* は業務ページ実装の参照専用で scaffold 元にしない。
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills/code-apps/templates/generic-base .
+#    ↑ Microsoft 公式の素の Vite テンプレート（npx degit github:microsoft/PowerAppsCodeApps/templates/vite .）は
+#      共通コンポーネント・styles/ ・pre-deploy-check.mjs を含まないため、標準では使わない。
 
 # Code Apps 採用が決まった時点で、Dataverse 構築（Phase 2）と並行して着手する
 # （npm install はネットワーク待ちのみで Dataverse 構築をブロックしないため待たない）。
