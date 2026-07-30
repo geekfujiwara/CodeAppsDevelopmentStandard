@@ -1356,9 +1356,99 @@ type DataSourcesInfo = Parameters<typeof getClient>[0];
 
 → 関連: [データソースパターン](data-source-patterns.md)
 
+## 27. カラムの多い一覧がページ全体からはみ出す（ページ番号ボタン氾濫 + 横スクロール未格納）（検証済 2026-07-29）
+
+### 症状
+
+`ListTable` を使う一覧画面（列数が多い・件数が多い）で、次の 2 つの見た目崩れが同時に起きる。
+
+1. 総ページ数ぶんの番号ボタン（`1 2 3 ... 30` 等）が全部並び、ページネーション行がカード幅からはみ出す。
+2. カラム数が多くテーブルの内容幅が画面幅を超えると、テーブル内で横スクロールする代わりに**ページ全体**が横に伸びてしまう（ヘッダー・サイドバーごと横スクロールが発生する、またはレイアウトが崩れる）。
+
+### 原因
+
+1. `list-table.tsx` のページネーションが `Array.from({ length: totalPages }, ...)` で **全ページ番号を無条件描画**していたため、ページ数が増えるとボタン列がそのまま伸び続けていた。
+2. `src/pages/_layout.tsx` のメインコンテンツ側（サイドバーと横並びの `flex` アイテム）に `min-w-0` が付いていなかった。Flex アイテムは既定で `min-width: auto` となり、中の `<table>`（`white-space: nowrap` で内容ぶん伸びる）を最小限まで縮められない。その結果、`Table` コンポーネント自身が持つ `overflow-x-auto`（`src/components/ui/table.tsx`）が効かず、はみ出しが祖先のフレックスコンテナ（＝ページ全体）まで伝播してしまう。
+
+### 対処（恒久対策・`list-table.tsx` と `_layout.tsx` 双方に適用）
+
+**1. ページ番号ボタンを先頭/末尾/現在ページ±1＋省略記号に限定する**（`list-table.tsx`）:
+
+```tsx
+// handlePageChange の直後に追加
+const getPageNumbers = (current: number, total: number): (number | "ellipsis")[] => {
+  const delta = 1
+  const range: number[] = []
+  const withDots: (number | "ellipsis")[] = []
+  let last: number | undefined
+
+  for (let i = 1; i <= total; i++) {
+    if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
+      range.push(i)
+    }
+  }
+  for (const i of range) {
+    if (last !== undefined) {
+      if (i - last === 2) withDots.push(last + 1)
+      else if (i - last > 2) withDots.push("ellipsis")
+    }
+    withDots.push(i)
+    last = i
+  }
+  return withDots
+}
+```
+
+```tsx
+// ページ番号ボタンの描画（Array.from(...) を置き換える）
+<div className="flex items-center gap-1">
+  {getPageNumbers(currentPage, totalPages).map((page, idx) =>
+    page === "ellipsis" ? (
+      <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-muted-foreground">
+        <MoreHorizontal className="h-4 w-4" />
+      </span>
+    ) : (
+      <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm"
+        onClick={() => handlePageChange(page)} className="w-8 h-8 p-0">
+        {page}
+      </Button>
+    )
+  )}
+</div>
+```
+
+`lucide-react` の import に `MoreHorizontal` を追加すること。
+
+**2. `_layout.tsx` のメインコンテンツ側フレックスチェーンに `min-w-0` を通す**:
+
+```tsx
+// ❌ min-w-0 が無いと、中の横長テーブルがページ全体を押し広げる
+<div className={`flex-1 flex flex-col transition-all duration-300 relative z-0 ${isCollapsed ? 'md:ml-16' : 'md:ml-64'}`}>
+  <main className="flex-1 flex flex-col overflow-visible">
+    <div className="flex-1 p-6 max-w-full">
+      <Outlet />
+    </div>
+  </main>
+</div>
+
+// ✅ min-w-0 を通すことで Table 自身の overflow-x-auto が効き、テーブル内だけで横スクロールする
+<div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 relative z-0 ${isCollapsed ? 'md:ml-16' : 'md:ml-64'}`}>
+  <main className="flex-1 flex flex-col min-w-0 overflow-visible">
+    <div className="flex-1 min-w-0 p-6 max-w-full">
+      <Outlet />
+    </div>
+  </main>
+</div>
+```
+
+`TableHead` / `TableCell` は既定で `whitespace-nowrap` のため、`min-w-0` さえ通せば列は折り返さず、テーブルの外枠（`rounded-md border` を包む `Table` コンポーネントの `overflow-x-auto`）だけがスクロールコンテナになる。ヘッダー・サイドバーの幅は変わらない。
+
+> **恒久対策済み**: `components/list-table.tsx` の `getPageNumbers`（ページ番号限定表示）と `pages/_layout.tsx` の `min-w-0` チェーンとして全 20 サンプルに適用済み（`scripts/_patch_table_overflow.py` で一括適用、適用後にスクリプト自体は削除）。新規スキャフォールド時もこの2点を含めること。
+
+→ 関連: [コンポーネントカタログ](component-catalog.md#listtable-の列定義)、[プレデプロイレビュー](pre-deploy-review.md)
 ---
 
-## 27. `pac code push -s` を後から付けてもソリューションに入らない（検証済 2026-06-15）
+## 28. `pac code push -s` を後から付けてもソリューションに入らない（検証済 2026-06-15）
 
 ### 症状
 
@@ -1388,7 +1478,7 @@ Power Apps API 上のアプリの `almMode` が `Environment` になっている
 
 ---
 
-## 28. 接続参照のソリューション コンポーネント種別は 10132（検証済 2026-06-15）
+## 29. 接続参照のソリューション コンポーネント種別は 10132（検証済 2026-06-15）
 
 ### 症状
 
@@ -1429,7 +1519,7 @@ pac solution add-solution-component -sn {SOLUTION_NAME} -c {CONNECTION_REFERENCE
 
 ---
 
-## 29. `npx power-apps` と `pac` は認証キャッシュが別（検証済 2026-06-15）
+## 30. `npx power-apps` と `pac` は認証キャッシュが別（検証済 2026-06-15）
 
 ### 症状
 
@@ -1457,7 +1547,7 @@ npx power-apps list-connections   # 環境が見えることを確認
 
 ---
 
-## 30. CLI オプションの落とし穴（検証済 2026-06-15）
+## 31. CLI オプションの落とし穴（検証済 2026-06-15）
 
 | 症状 | 原因 | 対処 |
 |---|---|---|

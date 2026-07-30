@@ -36,8 +36,8 @@ from dotenv import load_dotenv
 # （bash ツール経由で呼ばれた際にブロックバッファリングされ、テーブル作成中に
 #  何も表示されず「止まって見える」問題を防ぐ）
 try:
-    sys.stdout.reconfigure(line_buffering=True)
-    sys.stderr.reconfigure(line_buffering=True)
+    sys.stdout.reconfigure(line_buffering=True, encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(line_buffering=True, encoding="utf-8", errors="replace")
 except AttributeError:
     pass
 
@@ -57,6 +57,7 @@ load_dotenv()
 #   get_token(scope=)                → アクセストークン文字列
 #   DATAVERSE_URL                    → .env から読み込んだ URL
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "standard", "scripts"))
 from auth_helper import (
     api_get,
     api_post,
@@ -97,96 +98,373 @@ SOLUTION_DISPLAY_NAME = os.environ.get("SOLUTION_DISPLAY_NAME", SOLUTION_NAME)
 # ════════════════════════════════════════════════════════════════
 
 TABLES = [
-    # --- マスタテーブル（先に作成） ---
+    # ── マスタテーブル ──────────────────────────────
     {
-        "logical": f"{PREFIX}_samplemaster",    # 論理名（英語小文字のみ）
-        "display": "Sample Master",              # 英語表示名（作成時）
-        "plural": "Sample Masters",              # 英語複数形
-        "description": "サンプルマスタテーブル",
+        "logical": f"{PREFIX}_division", "display": "事業本部", "plural": "事業本部",
+        "name_display": "事業本部名", "description": "事業本部マスタ（M_Organization から正規化）",
         "columns": [
-            # Memo 列（複数行テキスト）
-            # {"logical": f"{PREFIX}_description", "type": "Memo", "display": "Description", "maxLength": 2000},
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "本部コード", "maxLength": 20},
         ],
     },
-    # --- 主テーブル ---
     {
-        "logical": f"{PREFIX}_samplemain",
-        "display": "Sample Main",
-        "plural": "Sample Mains",
-        "description": "サンプルメインテーブル",
+        "logical": f"{PREFIX}_organization", "display": "組織", "plural": "組織",
+        "name_display": "組織名", "description": "組織（部）マスタ（M_Organization）",
         "columns": [
-            # String 列
-            # {"logical": f"{PREFIX}_code", "type": "String", "display": "Code", "maxLength": 100},
-
-            # Integer 列
-            # {"logical": f"{PREFIX}_quantity", "type": "Integer", "display": "Quantity"},
-
-            # DateTime 列（DateAndTime or DateOnly）
-            # {"logical": f"{PREFIX}_duedate", "type": "DateTime", "display": "Due Date", "format": "DateOnly"},
-
-            # Memo 列
-            # {"logical": f"{PREFIX}_description", "type": "Memo", "display": "Description", "maxLength": 4000},
-
-            # Picklist 列（Choice — 値は 100000000 始まり）
-            # {
-            #     "logical": f"{PREFIX}_status", "type": "Picklist", "display": "Status",
-            #     "options": [
-            #         (100000000, "New"),
-            #         (100000001, "In Progress"),
-            #         (100000002, "Completed"),
-            #     ],
-            # },
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "組織コード", "maxLength": 20},
         ],
     },
-    # --- 従属テーブル ---
-    # {
-    #     "logical": f"{PREFIX}_samplechild",
-    #     "display": "Sample Child",
-    #     "plural": "Sample Children",
-    #     "description": "サンプル従属テーブル",
-    #     "columns": [
-    #         {"logical": f"{PREFIX}_content", "type": "Memo", "display": "Content", "maxLength": 4000},
-    #     ],
-    # },
+    {
+        "logical": f"{PREFIX}_group", "display": "企業グループ", "plural": "企業グループ",
+        "name_display": "グループ名", "description": "企業グループマスタ（M_Group）",
+        "columns": [
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "グループコード", "maxLength": 20},
+            {"logical": f"{PREFIX}_country", "type": "String", "display": "国", "maxLength": 100},
+            {"logical": f"{PREFIX}_sector", "type": "String", "display": "業種", "maxLength": 100},
+            {
+                "logical": f"{PREFIX}_creditrating", "type": "Picklist", "display": "信用格付",
+                "options": [
+                    (100000000, "AAA"), (100000001, "AA+"), (100000002, "AA"), (100000003, "AA-"),
+                    (100000004, "A+"), (100000005, "A"), (100000006, "A-"),
+                    (100000007, "BBB+"), (100000008, "BBB"), (100000009, "BBB-"),
+                    (100000010, "BB+"), (100000011, "BB"), (100000012, "BB-"),
+                    (100000013, "B+"), (100000014, "B"), (100000015, "B-"), (100000016, "CCC"),
+                ],
+            },
+            {"logical": f"{PREFIX}_grouplimitjpym", "type": "Decimal", "display": "グループ与信枠(百万円)",
+             "precision": 0, "minValue": 0, "maxValue": 1000000},
+        ],
+    },
+    {
+        "logical": f"{PREFIX}_counterparty", "display": "取引先", "plural": "取引先",
+        "name_display": "取引先名", "description": "取引先マスタ（M_Counterparty）",
+        "columns": [
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "取引先コード", "maxLength": 20},
+            {"logical": f"{PREFIX}_country", "type": "String", "display": "国", "maxLength": 100},
+            {
+                "logical": f"{PREFIX}_role", "type": "Picklist", "display": "役割",
+                "options": [(100000000, "仕入先"), (100000001, "顧客"), (100000002, "顧客兼仕入先")],
+            },
+            {"logical": f"{PREFIX}_isinvestee", "type": "Boolean", "display": "出資先フラグ",
+             "true_label": "Yes", "false_label": "No"},
+        ],
+    },
+    {
+        "logical": f"{PREFIX}_commodity", "display": "商品", "plural": "商品",
+        "name_display": "商品名", "description": "商品マスタ（M_Product。既存 geek_product との衝突回避のため commodity に改名）",
+        "columns": [
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "商品コード", "maxLength": 20},
+            {"logical": f"{PREFIX}_category", "type": "String", "display": "カテゴリ", "maxLength": 100},
+            {"logical": f"{PREFIX}_uom", "type": "String", "display": "数量単位", "maxLength": 20},
+            {"logical": f"{PREFIX}_unitpricejpy", "type": "Decimal", "display": "単価(円)",
+             "precision": 2, "minValue": 0, "maxValue": 10000000000},
+        ],
+    },
+    {
+        "logical": f"{PREFIX}_site", "display": "拠点", "plural": "拠点",
+        "name_display": "拠点名", "description": "拠点マスタ（M_Site）",
+        "columns": [
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "拠点コード", "maxLength": 20},
+            {"logical": f"{PREFIX}_sitetype", "type": "String", "display": "拠点種別", "maxLength": 100},
+            {"logical": f"{PREFIX}_country", "type": "String", "display": "国", "maxLength": 100},
+            {"logical": f"{PREFIX}_capacityindex", "type": "Integer", "display": "処理能力指数",
+             "minValue": 0, "maxValue": 200},
+        ],
+    },
+    {
+        "logical": f"{PREFIX}_route", "display": "航路", "plural": "航路",
+        "name_display": "航路名", "description": "航路マスタ（M_Route）",
+        "columns": [
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "航路コード", "maxLength": 20},
+            {"logical": f"{PREFIX}_chokepoint", "type": "String", "display": "チョークポイント", "maxLength": 100},
+            {"logical": f"{PREFIX}_viahormuz", "type": "Boolean", "display": "ホルムズ海峡経由",
+             "true_label": "Yes", "false_label": "No"},
+            {"logical": f"{PREFIX}_distancenm", "type": "Integer", "display": "距離(海里)",
+             "minValue": 0, "maxValue": 50000},
+            {"logical": f"{PREFIX}_transitdays", "type": "Integer", "display": "航行日数",
+             "minValue": 0, "maxValue": 100},
+            {"logical": f"{PREFIX}_maincargo", "type": "String", "display": "主要貨物", "maxLength": 100},
+        ],
+    },
+    {
+        "logical": f"{PREFIX}_altroute", "display": "代替航路", "plural": "代替航路",
+        "name_display": "代替航路名", "description": "代替航路マスタ（M_AltRoute）",
+        "columns": [
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "代替航路コード", "maxLength": 20},
+            {"logical": f"{PREFIX}_alttransitdays", "type": "Integer", "display": "代替航行日数",
+             "minValue": 0, "maxValue": 100},
+            {"logical": f"{PREFIX}_extradays", "type": "Integer", "display": "追加日数",
+             "minValue": -100, "maxValue": 100},
+            {"logical": f"{PREFIX}_extracostpct", "type": "Decimal", "display": "追加コスト率(%)",
+             "precision": 2, "minValue": -100, "maxValue": 200},
+            {"logical": f"{PREFIX}_note", "type": "Memo", "display": "備考", "maxLength": 2000},
+        ],
+    },
+
+    # ── トランザクションテーブル ──────────────────────
+    {
+        "logical": f"{PREFIX}_contract", "display": "契約", "plural": "契約",
+        "name_display": "契約ID", "description": "契約トランザクション（T_Contract）",
+        "columns": [
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "契約ID", "maxLength": 20},
+            {
+                "logical": f"{PREFIX}_contracttype", "type": "Picklist", "display": "契約種別",
+                "options": [(100000000, "スポット"), (100000001, "フレーム契約"), (100000002, "長期契約")],
+            },
+            {"logical": f"{PREFIX}_qtyperyear", "type": "Decimal", "display": "年間数量",
+             "precision": 2, "minValue": 0, "maxValue": 10000000},
+            {"logical": f"{PREFIX}_unitpricejpy", "type": "Decimal", "display": "単価(円)",
+             "precision": 2, "minValue": 0, "maxValue": 10000000000},
+            {
+                "logical": f"{PREFIX}_incoterms", "type": "Picklist", "display": "インコタームズ",
+                "options": [
+                    (100000000, "EXW"), (100000001, "FCA"), (100000002, "FOB"), (100000003, "CFR"),
+                    (100000004, "CIF"), (100000005, "CPT"), (100000006, "CIP"), (100000007, "DAP"),
+                    (100000008, "DPU"), (100000009, "DDP"), (100000010, "DES"),
+                ],
+            },
+            {"logical": f"{PREFIX}_startdate", "type": "DateTime", "display": "契約開始日", "format": "DateOnly"},
+            {"logical": f"{PREFIX}_enddate", "type": "DateTime", "display": "契約終了日", "format": "DateOnly"},
+            {"logical": f"{PREFIX}_penaltypctperday", "type": "Decimal", "display": "日次ペナルティ率(%)",
+             "precision": 4, "minValue": 0, "maxValue": 10},
+        ],
+    },
+    {
+        "logical": f"{PREFIX}_shipment", "display": "出荷", "plural": "出荷",
+        "name_display": "出荷ID", "description": "出荷トランザクション（T_Shipment）",
+        "columns": [
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "出荷ID", "maxLength": 20},
+            {"logical": f"{PREFIX}_vesselname", "type": "String", "display": "船名", "maxLength": 100},
+            {"logical": f"{PREFIX}_etd", "type": "DateTime", "display": "出港日(ETD)", "format": "DateOnly"},
+            {"logical": f"{PREFIX}_eta", "type": "DateTime", "display": "入港日(ETA)", "format": "DateOnly"},
+            {"logical": f"{PREFIX}_qty", "type": "Decimal", "display": "数量",
+             "precision": 2, "minValue": 0, "maxValue": 1000000},
+            {"logical": f"{PREFIX}_unitpricejpy", "type": "Decimal", "display": "単価(円)",
+             "precision": 2, "minValue": 0, "maxValue": 10000000000},
+            {
+                "logical": f"{PREFIX}_status", "type": "Picklist", "display": "ステータス",
+                "options": [
+                    (100000000, "計画"), (100000001, "出港済"), (100000002, "航行中"),
+                    (100000003, "入港済"), (100000004, "荷揚完了"), (100000005, "滞船"),
+                    (100000006, "遅延"), (100000007, "キャンセル"),
+                ],
+            },
+            {"logical": f"{PREFIX}_viahormuz", "type": "Boolean", "display": "ホルムズ海峡経由",
+             "true_label": "Yes", "false_label": "No"},
+            {"logical": f"{PREFIX}_amountjpy", "type": "Money", "display": "金額(円)",
+             "precision": 2, "minValue": 0, "maxValue": 1000000000000},
+            {
+                "logical": f"{PREFIX}_isaffected", "type": "Picklist", "display": "影響区分",
+                "options": [(100000000, "影響あり"), (100000001, "影響なし"), (100000002, "対象外")],
+            },
+            {"logical": f"{PREFIX}_affectedamtjpy", "type": "Money", "display": "影響金額(円)",
+             "precision": 2, "minValue": 0, "maxValue": 1000000000000},
+            {"logical": f"{PREFIX}_altextradays", "type": "Integer", "display": "代替追加日数",
+             "minValue": -100, "maxValue": 100},
+            {"logical": f"{PREFIX}_altcostpct", "type": "Decimal", "display": "代替追加コスト率(%)",
+             "precision": 2, "minValue": -100, "maxValue": 200},
+            {"logical": f"{PREFIX}_altextracostjpy", "type": "Decimal", "display": "代替追加コスト(円)",
+             "precision": 2, "minValue": 0, "maxValue": 100000000000},
+            {"logical": f"{PREFIX}_penaltyjpy", "type": "Decimal", "display": "ペナルティ(円)",
+             "precision": 2, "minValue": 0, "maxValue": 100000000000},
+            {"logical": f"{PREFIX}_buyerisinvestee", "type": "Boolean", "display": "買主は出資先",
+             "true_label": "Yes", "false_label": "No"},
+        ],
+    },
+    {
+        "logical": f"{PREFIX}_investment", "display": "出資案件", "plural": "出資案件",
+        "name_display": "出資先名", "description": "出資案件トランザクション（T_Investment）",
+        "columns": [
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "出資案件ID", "maxLength": 20},
+            {"logical": f"{PREFIX}_equitypct", "type": "Decimal", "display": "出資比率(%)",
+             "precision": 2, "minValue": 0, "maxValue": 100},
+            {"logical": f"{PREFIX}_bookvaluejpym", "type": "Decimal", "display": "出資簿価(百万円)",
+             "precision": 2, "minValue": -1000000, "maxValue": 1000000},
+            {
+                "logical": f"{PREFIX}_equitymethod", "type": "Picklist", "display": "持分区分",
+                "options": [(100000000, "連結"), (100000001, "持分法")],
+            },
+            {"logical": f"{PREFIX}_annualprofitjpym", "type": "Decimal", "display": "年間利益(百万円)",
+             "precision": 2, "minValue": -1000000, "maxValue": 1000000},
+        ],
+    },
+    {
+        "logical": f"{PREFIX}_creditline", "display": "与信枠", "plural": "与信枠",
+        "name_display": "与信枠ID", "description": "与信枠トランザクション（T_CreditLine）",
+        "columns": [
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "与信枠ID", "maxLength": 20},
+            {"logical": f"{PREFIX}_limitjpym", "type": "Decimal", "display": "与信枠(百万円)",
+             "precision": 2, "minValue": 0, "maxValue": 1000000},
+            {"logical": f"{PREFIX}_usedjpym", "type": "Decimal", "display": "使用額(百万円)",
+             "precision": 2, "minValue": 0, "maxValue": 1000000},
+            {"logical": f"{PREFIX}_expirydate", "type": "DateTime", "display": "期限日", "format": "DateOnly"},
+            {
+                "logical": f"{PREFIX}_guaranteetype", "type": "Picklist", "display": "保証形態",
+                "options": [
+                    (100000000, "親会社保証"), (100000001, "信用状(LC)"), (100000002, "銀行保証"),
+                    (100000003, "前受金"), (100000004, "無担保"),
+                ],
+            },
+        ],
+    },
+    {
+        "logical": f"{PREFIX}_event", "display": "リスクイベント", "plural": "リスクイベント",
+        "name_display": "イベント名", "description": "リスクイベントトランザクション（T_Event）",
+        "columns": [
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "イベントID", "maxLength": 20},
+            {
+                "logical": f"{PREFIX}_eventtype", "type": "Picklist", "display": "イベント種別",
+                "options": [
+                    (100000000, "地政学"), (100000001, "気象"), (100000002, "災害"), (100000003, "規制"),
+                    (100000004, "労働"), (100000005, "物流"), (100000006, "設備"),
+                ],
+            },
+            {"logical": f"{PREFIX}_startdate", "type": "DateTime", "display": "開始日", "format": "DateOnly"},
+            {"logical": f"{PREFIX}_enddate", "type": "DateTime", "display": "終了日", "format": "DateOnly"},
+            {
+                "logical": f"{PREFIX}_severity", "type": "Picklist", "display": "重大度",
+                "options": [(100000000, "高"), (100000001, "中"), (100000002, "低")],
+            },
+            {"logical": f"{PREFIX}_affectedchokepoint", "type": "String", "display": "影響地域/チョークポイント", "maxLength": 100},
+            {"logical": f"{PREFIX}_description", "type": "Memo", "display": "説明", "maxLength": 4000},
+        ],
+    },
+    {
+        "logical": f"{PREFIX}_eventimpact", "display": "イベント影響定義", "plural": "イベント影響定義",
+        "name_display": "影響定義ID", "description": "イベント影響定義トランザクション（T_EventImpact）",
+        "columns": [
+            {"logical": f"{PREFIX}_code", "type": "String", "display": "影響定義ID", "maxLength": 20},
+            {
+                "logical": f"{PREFIX}_targettype", "type": "Picklist", "display": "対象種別",
+                "options": [(100000000, "Route"), (100000001, "Commodity")],
+            },
+            {"logical": f"{PREFIX}_targetid", "type": "String", "display": "対象ID", "maxLength": 20},
+            {
+                "logical": f"{PREFIX}_impactkind", "type": "Picklist", "display": "影響種別",
+                "options": [
+                    (100000000, "通航不可"), (100000001, "迂回"), (100000002, "通航制限"),
+                    (100000003, "遅延"), (100000004, "調達停止"),
+                ],
+            },
+            {"logical": f"{PREFIX}_delaydays", "type": "Integer", "display": "遅延日数",
+             "minValue": -100, "maxValue": 100},
+            {"logical": f"{PREFIX}_costupliftpct", "type": "Decimal", "display": "コスト上昇率(%)",
+             "precision": 2, "minValue": -100, "maxValue": 200},
+            {"logical": f"{PREFIX}_volumecutpct", "type": "Decimal", "display": "数量減少率(%)",
+             "precision": 2, "minValue": -100, "maxValue": 200},
+        ],
+    },
 ]
 
 LOOKUPS = [
-    # 通常の Lookup:
-    # {"from_table": f"{PREFIX}_samplemain", "column_logical": f"{PREFIX}_samplemasterid",
-    #  "display": "Sample Master", "to_table": f"{PREFIX}_samplemaster"},
+    # マスタ間
+    {"from_table": f"{PREFIX}_organization", "column_logical": f"{PREFIX}_divisionid",
+     "display": "事業本部", "to_table": f"{PREFIX}_division"},
+    {"from_table": f"{PREFIX}_counterparty", "column_logical": f"{PREFIX}_groupid",
+     "display": "企業グループ", "to_table": f"{PREFIX}_group"},
+    {"from_table": f"{PREFIX}_commodity", "column_logical": f"{PREFIX}_divisionid",
+     "display": "事業本部", "to_table": f"{PREFIX}_division"},
+    {"from_table": f"{PREFIX}_altroute", "column_logical": f"{PREFIX}_routeid",
+     "display": "航路", "to_table": f"{PREFIX}_route"},
 
-    # SystemUser への Lookup（担当者等）:
-    # {"from_table": f"{PREFIX}_samplemain", "column_logical": f"{PREFIX}_assigneeid",
-    #  "display": "Assigned To", "to_table": "systemuser"},
+    # systemuser 拡張（担当者の所属部）
+    {"from_table": "systemuser", "column_logical": f"{PREFIX}_organizationid",
+     "display": "所属組織", "to_table": f"{PREFIX}_organization"},
+
+    # contract
+    {"from_table": f"{PREFIX}_contract", "column_logical": f"{PREFIX}_buyercounterpartyid",
+     "display": "買主", "to_table": f"{PREFIX}_counterparty"},
+    {"from_table": f"{PREFIX}_contract", "column_logical": f"{PREFIX}_sellercounterpartyid",
+     "display": "売主", "to_table": f"{PREFIX}_counterparty"},
+    {"from_table": f"{PREFIX}_contract", "column_logical": f"{PREFIX}_commodityid",
+     "display": "対象商品", "to_table": f"{PREFIX}_commodity"},
+    {"from_table": f"{PREFIX}_contract", "column_logical": f"{PREFIX}_organizationid",
+     "display": "所管組織", "to_table": f"{PREFIX}_organization"},
+    {"from_table": f"{PREFIX}_contract", "column_logical": f"{PREFIX}_ownerid",
+     "display": "契約担当者", "to_table": "systemuser"},
+    {"from_table": f"{PREFIX}_contract", "column_logical": f"{PREFIX}_routeid",
+     "display": "想定航路", "to_table": f"{PREFIX}_route"},
+
+    # shipment
+    {"from_table": f"{PREFIX}_shipment", "column_logical": f"{PREFIX}_contractid",
+     "display": "契約", "to_table": f"{PREFIX}_contract"},
+    {"from_table": f"{PREFIX}_shipment", "column_logical": f"{PREFIX}_commodityid",
+     "display": "商品", "to_table": f"{PREFIX}_commodity"},
+    {"from_table": f"{PREFIX}_shipment", "column_logical": f"{PREFIX}_routeid",
+     "display": "航路", "to_table": f"{PREFIX}_route"},
+    {"from_table": f"{PREFIX}_shipment", "column_logical": f"{PREFIX}_originsiteid",
+     "display": "積地", "to_table": f"{PREFIX}_site"},
+    {"from_table": f"{PREFIX}_shipment", "column_logical": f"{PREFIX}_destsiteid",
+     "display": "揚地", "to_table": f"{PREFIX}_site"},
+    {"from_table": f"{PREFIX}_shipment", "column_logical": f"{PREFIX}_buyercounterpartyid",
+     "display": "買主", "to_table": f"{PREFIX}_counterparty"},
+    {"from_table": f"{PREFIX}_shipment", "column_logical": f"{PREFIX}_buyergroupid",
+     "display": "買主グループ", "to_table": f"{PREFIX}_group"},
+    {"from_table": f"{PREFIX}_shipment", "column_logical": f"{PREFIX}_organizationid",
+     "display": "所管組織", "to_table": f"{PREFIX}_organization"},
+
+    # investment
+    {"from_table": f"{PREFIX}_investment", "column_logical": f"{PREFIX}_linkedcounterpartyid",
+     "display": "同一実体取引先", "to_table": f"{PREFIX}_counterparty"},
+    {"from_table": f"{PREFIX}_investment", "column_logical": f"{PREFIX}_groupid",
+     "display": "企業グループ", "to_table": f"{PREFIX}_group"},
+    {"from_table": f"{PREFIX}_investment", "column_logical": f"{PREFIX}_organizationid",
+     "display": "出資元組織", "to_table": f"{PREFIX}_organization"},
+
+    # creditline
+    {"from_table": f"{PREFIX}_creditline", "column_logical": f"{PREFIX}_groupid",
+     "display": "企業グループ", "to_table": f"{PREFIX}_group"},
+    {"from_table": f"{PREFIX}_creditline", "column_logical": f"{PREFIX}_organizationid",
+     "display": "組織", "to_table": f"{PREFIX}_organization"},
+
+    # eventimpact
+    {"from_table": f"{PREFIX}_eventimpact", "column_logical": f"{PREFIX}_eventid",
+     "display": "イベント", "to_table": f"{PREFIX}_event"},
 ]
 
 # ── ローカライズ定義 ─────────────────────────────────────
+# 表示名は TABLES/LOOKUPS 定義時に直接日本語で作成するため、
+# Code Apps 向けの2段階ローカライズ運用（英語作成→後で日本語化）は本プロジェクトでは不要
+# （Copilot Studio v2 単独利用のため pac code add-data-source を使わない）。
 
-# テーブル表示名の日本語化
-LOCALIZE_TABLES = [
-    # (論理名, 日本語表示名, 日本語複数形)
-    # (f"{PREFIX}_samplemaster", "サンプルマスタ", "サンプルマスタ"),
-    # (f"{PREFIX}_samplemain", "サンプルメイン", "サンプルメイン一覧"),
-]
+LOCALIZE_TABLES = []
+LOCALIZE_COLUMNS = []
+LOCALIZE_OPTIONS = []
 
-# 列表示名の日本語化
-LOCALIZE_COLUMNS = [
-    # (テーブル論理名, 列論理名, 日本語表示名)
-    # (f"{PREFIX}_samplemaster", f"{PREFIX}_name", "名前"),
-    # (f"{PREFIX}_samplemain", f"{PREFIX}_name", "名前"),
-    # (f"{PREFIX}_samplemain", f"{PREFIX}_status", "ステータス"),
-    # (f"{PREFIX}_samplemain", f"{PREFIX}_samplemasterid", "マスタ"),  # Lookup 列も忘れずに
-]
-
-# Choice オプションの日本語化
-LOCALIZE_OPTIONS = [
-    # (テーブル論理名, 列論理名, [(値, 日本語ラベル), ...])
-    # (f"{PREFIX}_samplemain", f"{PREFIX}_status", [
-    #     (100000000, "新規"),
-    #     (100000001, "進行中"),
-    #     (100000002, "完了"),
-    # ]),
-]
+# ── デモデータ用 Choice 値マッピング（TABLES の options と対応） ──────
+CREDIT_RATING = {
+    "AAA": 100000000, "AA+": 100000001, "AA": 100000002, "AA-": 100000003,
+    "A+": 100000004, "A": 100000005, "A-": 100000006,
+    "BBB+": 100000007, "BBB": 100000008, "BBB-": 100000009,
+    "BB+": 100000010, "BB": 100000011, "BB-": 100000012,
+    "B+": 100000013, "B": 100000014, "B-": 100000015, "CCC": 100000016,
+}
+ROLE = {"仕入先": 100000000, "顧客": 100000001, "顧客兼仕入先": 100000002}
+CONTRACT_TYPE = {"スポット": 100000000, "フレーム契約": 100000001, "長期契約": 100000002}
+INCOTERMS = {
+    "EXW": 100000000, "FCA": 100000001, "FOB": 100000002, "CFR": 100000003,
+    "CIF": 100000004, "CPT": 100000005, "CIP": 100000006, "DAP": 100000007,
+    "DPU": 100000008, "DDP": 100000009, "DES": 100000010,
+}
+SHIPMENT_STATUS = {
+    "計画": 100000000, "出港済": 100000001, "航行中": 100000002, "入港済": 100000003,
+    "荷揚完了": 100000004, "滞船": 100000005, "遅延": 100000006, "キャンセル": 100000007,
+}
+IS_AFFECTED = {"影響あり": 100000000, "影響なし": 100000001, "対象外": 100000002}
+EQUITY_METHOD = {"連結": 100000000, "持分法": 100000001}
+GUARANTEE_TYPE = {
+    "親会社保証": 100000000, "信用状(LC)": 100000001, "銀行保証": 100000002,
+    "前受金": 100000003, "無担保": 100000004,
+}
+EVENT_TYPE = {
+    "地政学": 100000000, "気象": 100000001, "災害": 100000002, "規制": 100000003,
+    "労働": 100000004, "物流": 100000005, "設備": 100000006,
+}
+SEVERITY = {"高": 100000000, "中": 100000001, "低": 100000002}
+TARGET_TYPE = {"Route": 100000000, "Commodity": 100000001}
+IMPACT_KIND = {
+    "通航不可": 100000000, "迂回": 100000001, "通航制限": 100000002,
+    "遅延": 100000003, "調達停止": 100000004,
+}
 
 # ════════════════════════════════════════════════════════════════
 # ▲▲▲ プロジェクト固有: ここまで ▲▲▲
@@ -230,11 +508,16 @@ def get_entity_set_name(logical_name: str) -> str:
     return meta["EntitySetName"]
 
 
-def get_navprop(from_logical: str, to_logical: str) -> str | None:
-    """Lookup の NavProp 名を API から取得"""
+def get_navprop(from_logical: str, to_logical: str, referencing_attribute: str | None = None) -> str | None:
+    """Lookup の NavProp 名を API から取得。
+    同じ参照先テーブルへの Lookup が複数存在する場合（例: contract の買主/売主が
+    どちらも counterparty を参照）は referencing_attribute（列論理名）で一意に絞り込む。"""
+    filter_str = f"ReferencedEntity eq '{to_logical}'"
+    if referencing_attribute:
+        filter_str += f" and ReferencingAttribute eq '{referencing_attribute}'"
     rels = api_get(
         f"EntityDefinitions(LogicalName='{from_logical}')/ManyToOneRelationships"
-        f"?$filter=ReferencedEntity eq '{to_logical}'"
+        f"?$filter={filter_str}"
         f"&$select=ReferencingEntityNavigationPropertyName"
     )
     if rels.get("value"):
@@ -246,19 +529,23 @@ def get_navprop(from_logical: str, to_logical: str) -> str | None:
 
 def ensure_solution():
     global SOLUTION_DISPLAY_NAME
-    print("\n=== Step 1: ソリューション確認 ===")
+    print("\n=== Step 1: Solution check ===")
     existing = api_get(f"solutions?$filter=uniquename eq '{SOLUTION_NAME}'&$select=solutionid,friendlyname")
     if existing.get("value"):
         display_name = existing["value"][0].get("friendlyname", SOLUTION_DISPLAY_NAME)
-        print(f"  ソリューション '{SOLUTION_NAME}' は既存（表示名: {display_name}）。スキップ。")
+        print(f"  Solution '{SOLUTION_NAME}' already exists (display name: {display_name}). Skipping.")
         SOLUTION_DISPLAY_NAME = display_name
         _save_env_value("SOLUTION_DISPLAY_NAME", display_name)
         return
 
-    print(f"  ソリューション '{SOLUTION_NAME}' を作成します…")
-    pubs = api_get(f"publishers?$filter=customizationprefix eq '{PREFIX}'&$select=publisherid")
+    print(f"  Creating solution '{SOLUTION_NAME}'...")
+    # ⚠️ この環境には prefix='geek' の Publisher が uniquename='geek' と
+    #    uniquename='geek_fujiwara' の2つ存在するため、uniquename を明示して一意に解決する。
+    pubs = api_get(f"publishers?$filter=customizationprefix eq '{PREFIX}' and uniquename eq 'geek'&$select=publisherid")
     if not pubs.get("value"):
-        raise RuntimeError(f"パブリッシャー prefix='{PREFIX}' が見つかりません。Power Apps で作成してください。")
+        pubs = api_get(f"publishers?$filter=customizationprefix eq '{PREFIX}'&$select=publisherid")
+    if not pubs.get("value"):
+        raise RuntimeError(f"Publisher with prefix='{PREFIX}' not found. Please create it in Power Apps.")
     pub_id = pubs["value"][0]["publisherid"]
 
     api_post("solutions", {
@@ -269,7 +556,7 @@ def ensure_solution():
     })
 
     _save_env_value("SOLUTION_DISPLAY_NAME", SOLUTION_DISPLAY_NAME)
-    print(f"  ソリューション作成完了（表示名: {SOLUTION_DISPLAY_NAME}）")
+    print(f"  Solution created (display name: {SOLUTION_DISPLAY_NAME})")
 
 
 # ── Step 2: テーブル作成 ─────────────────────────────────────
@@ -315,6 +602,8 @@ def build_column_body(col: dict) -> dict:
     elif col["type"] == "Money":
         base["@odata.type"] = "#Microsoft.Dynamics.CRM.MoneyAttributeMetadata"
         base["Precision"] = col.get("precision", 2)
+        base["MinValue"] = col.get("minValue", 0)
+        base["MaxValue"] = col.get("maxValue", 1_000_000_000_000)
     elif col["type"] == "Boolean":
         base["@odata.type"] = "#Microsoft.Dynamics.CRM.BooleanAttributeMetadata"
         base["OptionSet"] = {
@@ -324,6 +613,54 @@ def build_column_body(col: dict) -> dict:
         }
 
     return base
+
+
+# Dataverse のメタデータ属性が許容する値域（API 呼び出し前に静的検証するため定義）。
+# 実測: Decimal は 1000億（100,000,000,000）を超えると 0x80040203（Min/max out of range）。
+DATAVERSE_LIMITS = {
+    "Decimal": {"min": -100_000_000_000, "max": 100_000_000_000},
+    "Money": {"min": -922_337_203_685_477, "max": 922_337_203_685_477},
+    "Integer": {"min": -2_147_483_648, "max": 2_147_483_647},
+    "String": {"maxLength": 4000},
+    "Memo": {"maxLength": 1_048_576},
+}
+
+
+def validate_tables() -> None:
+    """TABLES 定義を Dataverse のメタデータ制約に照らして事前検証する。
+
+    API 呼び出しより前（Step 1 の前）に実行することで、値域超過等の定義ミスを
+    ThreadPoolExecutor による並行構築の途中で 400 エラーとして検出する事態を防ぎ、
+    ビルド開始前に一括で分かりやすいエラーとして提示する。
+    """
+    errors: list[str] = []
+    for tbl in TABLES:
+        for col in tbl.get("columns", []):
+            limit = DATAVERSE_LIMITS.get(col["type"])
+            if not limit:
+                continue
+            label = f"{tbl['logical']}.{col['logical']}"
+            if "min" in limit and "max" in limit:
+                min_v = col.get("minValue", 0)
+                max_v = col.get("maxValue", limit["max"])
+                if max_v > limit["max"] or min_v < limit["min"]:
+                    errors.append(
+                        f"{label}: {col['type']} must be within range {limit['min']}..{limit['max']}"
+                        f" (given: {min_v}..{max_v})"
+                    )
+            if "maxLength" in limit:
+                max_len = col.get("maxLength", limit["maxLength"])
+                if max_len > limit["maxLength"]:
+                    errors.append(
+                        f"{label}: {col['type']} maxLength must be <= {limit['maxLength']}"
+                        f" (given: {max_len})"
+                    )
+
+    if errors:
+        raise ValueError(
+            "TABLES definition has values exceeding Dataverse limits (detected before any API call):\n"
+            + "\n".join(f"  - {e}" for e in errors)
+        )
 
 
 def _create_single_table(tbl: dict) -> None:
@@ -347,7 +684,7 @@ def _create_single_table(tbl: dict) -> None:
                 {
                     "@odata.type": "#Microsoft.Dynamics.CRM.StringAttributeMetadata",
                     "SchemaName": f"{PREFIX}_name",
-                    "DisplayName": label_jp("Name"),
+                    "DisplayName": label_jp(t.get("name_display", "Name")),
                     "IsPrimaryName": True,
                     "RequiredLevel": {"Value": "ApplicationRequired"},
                     "FormatName": {"Value": "Text"},
@@ -356,9 +693,9 @@ def _create_single_table(tbl: dict) -> None:
             ],
         }
         api_post("EntityDefinitions", body, solution=SOLUTION_NAME)
-        print(f"  テーブル '{logical}' 作成完了")
+        print(f"  Table '{logical}' created")
 
-    retry_metadata(_create, f"テーブル {logical}")
+    retry_metadata(_create, f"Table {logical}")
     time.sleep(10)  # メタデータ反映待ち
 
     # カスタム列追加（既存テーブルでも欠落カラムを補完）
@@ -378,16 +715,16 @@ def _create_single_table(tbl: dict) -> None:
                 build_column_body(c),
                 solution=SOLUTION_NAME,
             )
-            print(f"    列 '{c['logical']}' 追加完了")
+            print(f"    Column '{c['logical']}' added")
 
-        retry_metadata(_add_col, f"列 {col_logical}")
+        retry_metadata(_add_col, f"Column {col_logical}")
         time.sleep(5)
 
 
 def create_tables():
     """全テーブルを並行作成し、すべての完了を待ってから返る。
     Lookup は必ず全テーブル+列が完成してから create_lookups() で作成する。"""
-    print("\n=== Step 2: テーブル作成 ===")
+    print("\n=== Step 2: Table creation ===")
 
     if len(TABLES) <= 1:
         # テーブルが 1 つ以下なら並行化不要
@@ -395,33 +732,41 @@ def create_tables():
             _create_single_table(tbl)
         return
 
-    print(f"  {len(TABLES)} テーブルを並行作成します…")
+    print(f"  Creating {len(TABLES)} tables in parallel...")
     errors: list[str] = []
     # 並行数はデフォルト 3。既存カスタムテーブルが多い（100件超）環境や他セッションが
     # 同時にメタデータ操作をしている環境では、並行数が高いほど 0x80040237（メタデータ
     # ロック競合）の retry_metadata 上限（5回）を超えて失敗しやすい（実測: 5並行で
     # 10テーブル中7テーブルが失敗、2並行で全成功）。失敗が多発する場合は 2 まで下げる。
     # スクリプトはべき等なので、失敗した分だけを対象に何度でも安全に再実行できる。
-    with ThreadPoolExecutor(max_workers=min(len(TABLES), 3)) as executor:
+    with ThreadPoolExecutor(max_workers=min(len(TABLES), 2)) as executor:
         futures = {executor.submit(_create_single_table, tbl): tbl["logical"] for tbl in TABLES}
         for future in as_completed(futures):
             logical = futures[future]
             try:
                 future.result()
             except Exception as exc:
-                msg = f"テーブル '{logical}' の作成でエラー: {exc}"
+                detail_text = ""
+                resp = getattr(exc, "response", None)
+                if resp is not None:
+                    try:
+                        detail_text = f"\n  詳細: {resp.text}"
+                    except Exception:
+                        pass
+                msg = f"Error creating table '{logical}': {exc}{detail_text}"
                 print(f"  ❌ {msg}")
                 errors.append(msg)
 
     if errors:
-        raise RuntimeError("テーブル並行作成中にエラーが発生しました:\n" + "\n".join(errors))
+        raise RuntimeError("Errors occurred during parallel table creation:\n" + "\n".join(errors))
 
 
 # ── Step 3: Lookup リレーション ──────────────────────────────
 
 def create_lookups():
-    print("\n=== Step 3: Lookup リレーションシップ作成 ===")
+    print("\n=== Step 3: Lookup relationship creation ===")
 
+    errors: list[str] = []
     for lk in LOOKUPS:
         col_logical = lk["column_logical"]
         from_table = lk["from_table"]
@@ -430,7 +775,7 @@ def create_lookups():
         # 既存 Lookup 属性チェック（べき等: 存在すればスキップ）
         try:
             api_get(f"EntityDefinitions(LogicalName='{from_table}')/Attributes(LogicalName='{col_logical}')?$select=LogicalName")
-            print(f"  Lookup '{col_logical}' は既存。スキップ。")
+            print(f"  Lookup '{col_logical}' already exists. Skipping.")
             continue
         except Exception:
             pass
@@ -439,9 +784,13 @@ def create_lookups():
             # Lookup（1:N リレーション）作成は RelationshipDefinitions への POST を使う。
             # ※ CreateOneToMany バインドアクションは環境／Web API バージョンによって
             #   404 Not Found になるため使わない。RelationshipDefinitions は安定して動作する。
+            # SchemaName はカスタマイズプレフィックスで始まる必要がある。from_table が
+            # systemuser 等の標準テーブルの場合は from_table 自体にプレフィックスが
+            # 付いていないため、明示的に付与する。
+            from_schema = l["from_table"] if l["from_table"].startswith(PREFIX) else f"{PREFIX}_{l['from_table']}"
             body = {
                 "@odata.type": "#Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
-                "SchemaName": f"{l['from_table']}_{l['column_logical']}",
+                "SchemaName": f"{from_schema}_{l['column_logical']}",
                 "ReferencedEntity": l["to_table"],
                 "ReferencingEntity": l["from_table"],
                 "Lookup": {
@@ -452,25 +801,41 @@ def create_lookups():
                 },
             }
             api_post("RelationshipDefinitions", body, solution=SOLUTION_NAME)
-            print(f"  Lookup '{col_logical}' 作成完了")
+            print(f"  Lookup '{col_logical}' created")
 
-        retry_metadata(_create, f"Lookup {col_logical}")
+        try:
+            retry_metadata(_create, f"Lookup {col_logical}")
+        except Exception as exc:
+            detail_text = ""
+            resp = getattr(exc, "response", None)
+            if resp is not None:
+                try:
+                    detail_text = f"\n  詳細: {resp.text}"
+                except Exception:
+                    pass
+            msg = f"Error creating Lookup '{from_table}.{col_logical}': {exc}{detail_text}"
+            print(f"  ❌ {msg}")
+            errors.append(msg)
         time.sleep(5)
+
+    if errors:
+        raise RuntimeError("Errors occurred during Lookup creation:\n" + "\n".join(errors))
+
 
 
 # ── Step 4: カスタマイズ公開 ──────────────────────────────────
 
 def publish_all():
     """PublishAllXml でカスタマイズを公開"""
-    print("\n  カスタマイズ公開中…")
+    print("\n  Publishing customizations...")
     api_post("PublishAllXml", {})
-    print("  公開完了")
+    print("  Publish complete")
 
 
 # ── Step 5: 日本語ローカライズ ────────────────────────────────
 
 def localize_tables():
-    print("\n=== Step 5: 日本語ローカライズ ===")
+    print("\n=== Step 5: Japanese localization ===")
 
     # テーブル表示名
     for logical, disp, plural in LOCALIZE_TABLES:
@@ -486,7 +851,7 @@ def localize_tables():
         }
         # PUT + MergeLabels で更新（api_request は MergeLabels ヘッダーを自動付与）
         api_request(f"EntityDefinitions({mid})", body, method="PUT")
-        print(f"  テーブル '{logical}' → '{disp}'")
+        print(f"  Table '{logical}' -> '{disp}'")
 
     # 列表示名
     for table, col, disp in LOCALIZE_COLUMNS:
@@ -518,7 +883,7 @@ def localize_tables():
             body,
             method="PUT",
         )
-        print(f"  列 '{table}.{col}' → '{disp}'")
+        print(f"  Column '{table}.{col}' -> '{disp}'")
 
     # Choice オプション ローカライズ
     for table, col, options in LOCALIZE_OPTIONS:
@@ -531,48 +896,664 @@ def localize_tables():
                 "MergeLabels": True,
             }
             api_post("UpdateOptionValue", body)
-            print(f"    Option {col}={value} → '{label_text}'")
+            print(f"    Option {col}={value} -> '{label_text}'")
 
 
 # ── Step 6: デモデータ投入 ────────────────────────────────────
 
+def _find_repo_root() -> Path:
+    script_dir = Path(__file__).resolve().parent
+    return next(
+        (p for p in [script_dir, *script_dir.parents] if (p / ".env.example").exists() or (p / ".git").exists()),
+        script_dir,
+    )
+
+
+def _clean(v):
+    """NaN/None を None に、日付は ISO 文字列に変換。
+
+    numpy スカラー型（int64/float64/bool_ 等）は requests の json= がそのまま
+    シリアライズできず TypeError になるため、.item() でネイティブ Python 型に変換する。
+    """
+    import numpy as np
+    import pandas as pd
+    if v is None:
+        return None
+    try:
+        if pd.isna(v):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if hasattr(v, "strftime"):
+        return v.strftime("%Y-%m-%d")
+    if isinstance(v, np.generic):
+        return v.item()
+    return v
+
+
+def _to_bool(v) -> bool:
+    return str(v).strip().lower() in ("1", "1.0", "yes", "true", "y")
+
+
+def _prefetch_codes(entity_set: str, id_attr: str, code_attr: str = "") -> dict:
+    """既存レコードの code→id マッピングを取得する（Step 6 のべき等化用）。
+
+    Step 6 は行ごとの存在チェックを行わず api_post するだけだったため、再実行すると
+    既存レコードが重複投入されていた。実行前に一括で code→id を取得しておき、
+    ループ側で「既に存在すればスキップ」を判定できるようにする。
+    """
+    code_field = code_attr or f"{PREFIX}_code"
+    resp = api_get(f"{entity_set}?$select={id_attr},{code_field}&$top=5000")
+    existing: dict = {}
+    for rec in resp.get("value", []):
+        code = rec.get(code_field)
+        if code:
+            existing[code] = rec[id_attr]
+    return existing
+
+
+def _assert_json_safe(body: dict, label: str) -> None:
+    """body に numpy スカラー型が残っていないかを api_post 直前に必ず検証する。
+
+    項目15 の教訓: pandas.iterrows() の値は numpy.int64/float64 等になり得るが、
+    requests の json= はこれをシリアライズできず TypeError で失敗する。_clean() で
+    変換しているはずだが、将来 _clean() を経由しない新フィールドが追加された場合の
+    回帰を防ぐため、成功する行も含め毎回（正常系でも）このチェックを通す。
+    """
+    import numpy as np
+    bad = [k for k, v in body.items() if isinstance(v, np.generic)]
+    if bad:
+        raise TypeError(
+            f"{label}: body に numpy スカラー型が残っています（キー: {bad}）。"
+            " _clean() でネイティブ型に変換してから渡してください（項目15参照）。"
+        )
+
+
+def _post_debug(entity_set: str, body: dict, label: str):
+    """api_post をラップし、numpy型混入チェック＋400 系エラー時のレスポンスボディ詳細化を行う。
+
+    デモデータ投入は大量行を api_post で連続投入するため、詳細メッセージ無しで
+    クラッシュすると原因究明ができない（項目 12 と同じパターン）。Step 6 の全エンティティ
+    投入はこの関数を経由させ、成功する行でも _assert_json_safe を必ず通す。
+    """
+    _assert_json_safe(body, label)
+    try:
+        return api_post(entity_set, body)
+    except Exception as exc:
+        detail_text = ""
+        resp = getattr(exc, "response", None)
+        if resp is not None:
+            try:
+                detail_text = f"\n  detail: {resp.text}"
+            except Exception:
+                pass
+        raise RuntimeError(f"Failed to create {label} row: {exc}{detail_text}\n  body: {body}") from exc
+
+
+# Excel列 → (テーブル論理名, 列論理名) のマッピング。Step 6 の投入ループを開始する前に、
+# 実データの min/max を TABLES 定義の Decimal/Money 上限と突き合わせて事前検証する。
+_DEMO_DATA_RANGE_CHECKS = [
+    # (シート名, Excel列名, テーブル論理名, 列論理名)
+    ("M_Group", "GroupLimitJPYm", f"{PREFIX}_group", f"{PREFIX}_grouplimitjpym"),
+    ("M_Product", "UnitPriceJPY", f"{PREFIX}_commodity", f"{PREFIX}_unitpricejpy"),
+    ("T_Contract", "QtyPerYear", f"{PREFIX}_contract", f"{PREFIX}_qtyperyear"),
+    ("T_Contract", "UnitPriceJPY", f"{PREFIX}_contract", f"{PREFIX}_unitpricejpy"),
+    ("T_Contract", "PenaltyPctPerDay", f"{PREFIX}_contract", f"{PREFIX}_penaltypctperday"),
+    ("T_Shipment", "Qty", f"{PREFIX}_shipment", f"{PREFIX}_qty"),
+    ("T_Shipment", "UnitPriceJPY", f"{PREFIX}_shipment", f"{PREFIX}_unitpricejpy"),
+    ("T_Shipment", "AmountJPY", f"{PREFIX}_shipment", f"{PREFIX}_amountjpy"),
+    ("T_Shipment", "AffectedAmtJPY", f"{PREFIX}_shipment", f"{PREFIX}_affectedamtjpy"),
+    ("T_Shipment", "AltCostPct", f"{PREFIX}_shipment", f"{PREFIX}_altcostpct"),
+    ("T_Shipment", "AltExtraCostJPY", f"{PREFIX}_shipment", f"{PREFIX}_altextracostjpy"),
+    ("T_Shipment", "PenaltyJPY", f"{PREFIX}_shipment", f"{PREFIX}_penaltyjpy"),
+    ("T_Investment", "EquityPct", f"{PREFIX}_investment", f"{PREFIX}_equitypct"),
+    ("T_Investment", "BookValueJPYm", f"{PREFIX}_investment", f"{PREFIX}_bookvaluejpym"),
+    ("T_Investment", "AnnualProfitJPYm", f"{PREFIX}_investment", f"{PREFIX}_annualprofitjpym"),
+    ("T_CreditLine", "LimitJPYm", f"{PREFIX}_creditline", f"{PREFIX}_limitjpym"),
+    ("T_CreditLine", "UsedJPYm", f"{PREFIX}_creditline", f"{PREFIX}_usedjpym"),
+    ("T_EventImpact", "CostUpliftPct", f"{PREFIX}_eventimpact", f"{PREFIX}_costupliftpct"),
+    ("T_EventImpact", "VolumeCutPct", f"{PREFIX}_eventimpact", f"{PREFIX}_volumecutpct"),
+]
+
+
+def _table_col_limit(table_logical: str, col_logical: str):
+    """TABLES 定義から指定テーブル・列の Decimal/Money 列の (min, max) を取得する（対象外なら None）。"""
+    for tbl in TABLES:
+        if tbl["logical"] != table_logical:
+            continue
+        for col in tbl.get("columns", []):
+            if col["logical"] == col_logical and col["type"] in ("Decimal", "Money"):
+                return col.get("minValue", 0), col.get("maxValue", DATAVERSE_LIMITS[col["type"]]["max"])
+    return None
+
+
+def validate_demo_data_ranges(sheets: dict) -> None:
+    """Excel実データの min/max を TABLES 定義の Decimal/Money 上限と突き合わせて検証する。
+
+    項目16/17 の教訓: スキーマ上限ぎりぎりの設定でも実データがそれを超過するケースがあり、
+    投入ループの途中で 400 エラーとして発覚すると原因究明・手戻り（Decimal→Money 変更や
+    既存行削除）が大きい。Step 6 の投入ループを開始する前に必ず一括検証し、超過していない
+    正常系でも毎回このチェックを実行することで、同じ問題の再発を防ぐ。
+    """
+    errors: list[str] = []
+    for sheet_name, excel_col, table_logical, col_logical in _DEMO_DATA_RANGE_CHECKS:
+        df = sheets.get(sheet_name)
+        if df is None or excel_col not in df.columns:
+            continue
+        limit = _table_col_limit(table_logical, col_logical)
+        if limit is None:
+            continue
+        min_v, max_v = limit
+        col_data = df[excel_col].dropna()
+        if col_data.empty:
+            continue
+        actual_min, actual_max = col_data.min(), col_data.max()
+        if actual_max > max_v or actual_min < min_v:
+            errors.append(
+                f"{table_logical}.{col_logical}（Excel: {sheet_name}.{excel_col}）: "
+                f"実データ {actual_min}..{actual_max} が定義上限 {min_v}..{max_v} を超えています"
+            )
+
+    if errors:
+        raise ValueError(
+            "デモデータの実測値が TABLES 定義の Decimal/Money 上限を超えています"
+            "（Step 6 投入前チェック。項目16/17参照。TABLES の type/maxValue を見直してください）:\n"
+            + "\n".join(f"  - {e}" for e in errors)
+        )
+
+
 def create_demo_data():
     """
-    プロジェクト固有のデモデータ投入ロジック。
-    以下のヘルパーを使用:
-      - get_entity_set_name(logical_name) → EntitySetName（推測しない）
-      - get_navprop(from_logical, to_logical) → NavProp名
-      - api_post(entity_set, body) → 作成レコードの ID(str) or None
+    Excel（spec/input/Demo Excel.xlsx）の全行を読み込み、Dataverse にデモデータを投入する。
     """
-    print("\n=== Step 6: デモデータ投入 ===")
-    print("  ℹ テンプレート — プロジェクト固有のデモデータをここに実装")
+    print("\n=== Step 6: Demo data import ===")
+    import pandas as pd
 
-    # 例:
-    # master_set = get_entity_set_name(f"{PREFIX}_samplemaster")
-    # main_set = get_entity_set_name(f"{PREFIX}_samplemain")
-    # navprop = get_navprop(f"{PREFIX}_samplemain", f"{PREFIX}_samplemaster")
-    #
-    # # マスタデータ作成
-    # master_id = api_post(master_set, {f"{PREFIX}_name": "マスタA"})
-    # print(f"  マスタ: マスタA (id={master_id})")
-    #
-    # # Lookup 付きメインデータ作成（NavProp@odata.bind パターン）
-    # body = {f"{PREFIX}_name": "メイン1"}
-    # if navprop and master_id:
-    #     body[f"{navprop}@odata.bind"] = f"/{master_set}({master_id})"
-    # main_id = api_post(main_set, body)
-    # print(f"  メイン: メイン1 (id={main_id})")
+    excel_path = _find_repo_root() / "spec" / "input" / "Demo Excel.xlsx"
+    print(f"  Reading Excel: {excel_path}")
+    sheets = pd.read_excel(excel_path, sheet_name=None, engine="openpyxl")
+
+    # 投入ループ開始前に実データの min/max をスキーマ上限と突き合わせる（項目16/17。正常系でも毎回実行）
+    validate_demo_data_ranges(sheets)
+
+    # ── EntitySetName 解決 ──
+    division_set = get_entity_set_name(f"{PREFIX}_division")
+    organization_set = get_entity_set_name(f"{PREFIX}_organization")
+    group_set = get_entity_set_name(f"{PREFIX}_group")
+    counterparty_set = get_entity_set_name(f"{PREFIX}_counterparty")
+    commodity_set = get_entity_set_name(f"{PREFIX}_commodity")
+    site_set = get_entity_set_name(f"{PREFIX}_site")
+    route_set = get_entity_set_name(f"{PREFIX}_route")
+    altroute_set = get_entity_set_name(f"{PREFIX}_altroute")
+    contract_set = get_entity_set_name(f"{PREFIX}_contract")
+    shipment_set = get_entity_set_name(f"{PREFIX}_shipment")
+    investment_set = get_entity_set_name(f"{PREFIX}_investment")
+    creditline_set = get_entity_set_name(f"{PREFIX}_creditline")
+    event_set = get_entity_set_name(f"{PREFIX}_event")
+    eventimpact_set = get_entity_set_name(f"{PREFIX}_eventimpact")
+
+    # ── NavProp 解決（from, to, 列論理名で一意化） ──
+    np_org_div = get_navprop(f"{PREFIX}_organization", f"{PREFIX}_division", f"{PREFIX}_divisionid")
+    np_cp_group = get_navprop(f"{PREFIX}_counterparty", f"{PREFIX}_group", f"{PREFIX}_groupid")
+    np_com_div = get_navprop(f"{PREFIX}_commodity", f"{PREFIX}_division", f"{PREFIX}_divisionid")
+    np_alt_route = get_navprop(f"{PREFIX}_altroute", f"{PREFIX}_route", f"{PREFIX}_routeid")
+    np_user_org = get_navprop("systemuser", f"{PREFIX}_organization", f"{PREFIX}_organizationid")
+
+    np_ct_buyer = get_navprop(f"{PREFIX}_contract", f"{PREFIX}_counterparty", f"{PREFIX}_buyercounterpartyid")
+    np_ct_seller = get_navprop(f"{PREFIX}_contract", f"{PREFIX}_counterparty", f"{PREFIX}_sellercounterpartyid")
+    np_ct_commodity = get_navprop(f"{PREFIX}_contract", f"{PREFIX}_commodity", f"{PREFIX}_commodityid")
+    np_ct_org = get_navprop(f"{PREFIX}_contract", f"{PREFIX}_organization", f"{PREFIX}_organizationid")
+    np_ct_owner = get_navprop(f"{PREFIX}_contract", "systemuser", f"{PREFIX}_ownerid")
+    np_ct_route = get_navprop(f"{PREFIX}_contract", f"{PREFIX}_route", f"{PREFIX}_routeid")
+
+    np_sh_contract = get_navprop(f"{PREFIX}_shipment", f"{PREFIX}_contract", f"{PREFIX}_contractid")
+    np_sh_commodity = get_navprop(f"{PREFIX}_shipment", f"{PREFIX}_commodity", f"{PREFIX}_commodityid")
+    np_sh_route = get_navprop(f"{PREFIX}_shipment", f"{PREFIX}_route", f"{PREFIX}_routeid")
+    np_sh_origin = get_navprop(f"{PREFIX}_shipment", f"{PREFIX}_site", f"{PREFIX}_originsiteid")
+    np_sh_dest = get_navprop(f"{PREFIX}_shipment", f"{PREFIX}_site", f"{PREFIX}_destsiteid")
+    np_sh_buyer = get_navprop(f"{PREFIX}_shipment", f"{PREFIX}_counterparty", f"{PREFIX}_buyercounterpartyid")
+    np_sh_buyergroup = get_navprop(f"{PREFIX}_shipment", f"{PREFIX}_group", f"{PREFIX}_buyergroupid")
+    np_sh_org = get_navprop(f"{PREFIX}_shipment", f"{PREFIX}_organization", f"{PREFIX}_organizationid")
+
+    np_iv_linked = get_navprop(f"{PREFIX}_investment", f"{PREFIX}_counterparty", f"{PREFIX}_linkedcounterpartyid")
+    np_iv_group = get_navprop(f"{PREFIX}_investment", f"{PREFIX}_group", f"{PREFIX}_groupid")
+    np_iv_org = get_navprop(f"{PREFIX}_investment", f"{PREFIX}_organization", f"{PREFIX}_organizationid")
+
+    np_cl_group = get_navprop(f"{PREFIX}_creditline", f"{PREFIX}_group", f"{PREFIX}_groupid")
+    np_cl_org = get_navprop(f"{PREFIX}_creditline", f"{PREFIX}_organization", f"{PREFIX}_organizationid")
+
+    np_im_event = get_navprop(f"{PREFIX}_eventimpact", f"{PREFIX}_event", f"{PREFIX}_eventid")
+
+    # ルートビジネスユニット（systemuser 作成に必須）
+    bu = api_get("businessunits?$filter=_parentbusinessunitid_value eq null&$select=businessunitid")
+    bu_id = bu["value"][0]["businessunitid"]
+
+    # ── division（M_Organization から正規化） ──
+    org_df = sheets["M_Organization"]
+    existing_division = _prefetch_codes(division_set, f"{PREFIX}_divisionid")
+    div_ids: dict = {}
+    div_created = 0
+    for _, row in org_df[["DivisionID", "DivisionName"]].drop_duplicates().iterrows():
+        code = row["DivisionID"]
+        if code in existing_division:
+            div_ids[code] = existing_division[code]
+            continue
+        rid = _post_debug(division_set, {f"{PREFIX}_name": row["DivisionName"], f"{PREFIX}_code": code}, "division")
+        div_ids[code] = rid
+        div_created += 1
+    print(f"  division: {len(div_ids)} rows ({div_created} created, {len(div_ids) - div_created} already existed)")
+
+    # ── organization ──
+    existing_organization = _prefetch_codes(organization_set, f"{PREFIX}_organizationid")
+    org_ids: dict = {}
+    org_created = 0
+    for _, row in org_df.iterrows():
+        code = row["OrgID"]
+        if code in existing_organization:
+            org_ids[code] = existing_organization[code]
+            continue
+        body = {f"{PREFIX}_name": row["OrgName"], f"{PREFIX}_code": code}
+        div_id = div_ids.get(row["DivisionID"])
+        if np_org_div and div_id:
+            body[f"{np_org_div}@odata.bind"] = f"/{division_set}({div_id})"
+        org_ids[code] = _post_debug(organization_set, body, "organization")
+        org_created += 1
+    print(f"  organization: {len(org_ids)} rows ({org_created} created, {len(org_ids) - org_created} already existed)")
+
+    # ── group ──
+    group_df = sheets["M_Group"]
+    existing_group = _prefetch_codes(group_set, f"{PREFIX}_groupid")
+    group_ids: dict = {}
+    group_created = 0
+    for _, row in group_df.iterrows():
+        code = row["GroupID"]
+        if code in existing_group:
+            group_ids[code] = existing_group[code]
+            continue
+        body = {
+            f"{PREFIX}_name": row["GroupName"], f"{PREFIX}_code": code,
+            f"{PREFIX}_country": _clean(row.get("Country")), f"{PREFIX}_sector": _clean(row.get("Sector")),
+            f"{PREFIX}_grouplimitjpym": _clean(row.get("GroupLimitJPYm")),
+        }
+        rating = CREDIT_RATING.get(str(row.get("CreditRating")).strip())
+        if rating:
+            body[f"{PREFIX}_creditrating"] = rating
+        group_ids[code] = _post_debug(group_set, body, "group")
+        group_created += 1
+    print(f"  group: {len(group_ids)} rows ({group_created} created, {len(group_ids) - group_created} already existed)")
+
+    # ── counterparty ──
+    cp_df = sheets["M_Counterparty"]
+    existing_counterparty = _prefetch_codes(counterparty_set, f"{PREFIX}_counterpartyid")
+    cp_ids: dict = {}
+    cp_created = 0
+    for _, row in cp_df.iterrows():
+        code = row["CounterpartyID"]
+        if code in existing_counterparty:
+            cp_ids[code] = existing_counterparty[code]
+            continue
+        body = {
+            f"{PREFIX}_name": row["CounterpartyName"], f"{PREFIX}_code": code,
+            f"{PREFIX}_country": _clean(row.get("Country")),
+            f"{PREFIX}_isinvestee": _to_bool(row.get("IsInvestee")),
+        }
+        role = ROLE.get(str(row.get("Role")).strip())
+        if role:
+            body[f"{PREFIX}_role"] = role
+        group_id = group_ids.get(row.get("GroupID"))
+        if np_cp_group and group_id:
+            body[f"{np_cp_group}@odata.bind"] = f"/{group_set}({group_id})"
+        cp_ids[code] = _post_debug(counterparty_set, body, "counterparty")
+        cp_created += 1
+    print(f"  counterparty: {len(cp_ids)} rows ({cp_created} created, {len(cp_ids) - cp_created} already existed)")
+
+    # ── commodity（M_Product） ──
+    prod_df = sheets["M_Product"]
+    existing_commodity = _prefetch_codes(commodity_set, f"{PREFIX}_commodityid")
+    commodity_ids: dict = {}
+    commodity_created = 0
+    for _, row in prod_df.iterrows():
+        code = row["ProductID"]
+        if code in existing_commodity:
+            commodity_ids[code] = existing_commodity[code]
+            continue
+        body = {
+            f"{PREFIX}_name": row["ProductName"], f"{PREFIX}_code": code,
+            f"{PREFIX}_category": _clean(row.get("Category")), f"{PREFIX}_uom": _clean(row.get("UOM")),
+            f"{PREFIX}_unitpricejpy": _clean(row.get("UnitPriceJPY")),
+        }
+        div_id = div_ids.get(row.get("DivisionID"))
+        if np_com_div and div_id:
+            body[f"{np_com_div}@odata.bind"] = f"/{division_set}({div_id})"
+        commodity_ids[code] = _post_debug(commodity_set, body, "commodity")
+        commodity_created += 1
+    print(f"  commodity: {len(commodity_ids)} rows ({commodity_created} created, {len(commodity_ids) - commodity_created} already existed)")
+
+    # ── site ──
+    site_df = sheets["M_Site"]
+    existing_site = _prefetch_codes(site_set, f"{PREFIX}_siteid")
+    site_ids: dict = {}
+    site_created = 0
+    for _, row in site_df.iterrows():
+        code = row["SiteID"]
+        if code in existing_site:
+            site_ids[code] = existing_site[code]
+            continue
+        body = {
+            f"{PREFIX}_name": row["SiteName"], f"{PREFIX}_code": code,
+            f"{PREFIX}_sitetype": _clean(row.get("SiteType")), f"{PREFIX}_country": _clean(row.get("Country")),
+            f"{PREFIX}_capacityindex": _clean(row.get("CapacityIndex")),
+        }
+        site_ids[code] = _post_debug(site_set, body, "site")
+        site_created += 1
+    print(f"  site: {len(site_ids)} rows ({site_created} created, {len(site_ids) - site_created} already existed)")
+
+    # ── route ──
+    route_df = sheets["M_Route"]
+    existing_route = _prefetch_codes(route_set, f"{PREFIX}_routeid")
+    route_ids: dict = {}
+    route_created = 0
+    for _, row in route_df.iterrows():
+        code = row["RouteID"]
+        if code in existing_route:
+            route_ids[code] = existing_route[code]
+            continue
+        body = {
+            f"{PREFIX}_name": row["RouteName"], f"{PREFIX}_code": code,
+            f"{PREFIX}_chokepoint": _clean(row.get("Chokepoint")),
+            f"{PREFIX}_viahormuz": _to_bool(row.get("ViaHormuz")),
+            f"{PREFIX}_distancenm": _clean(row.get("DistanceNM")),
+            f"{PREFIX}_transitdays": _clean(row.get("TransitDays")),
+            f"{PREFIX}_maincargo": _clean(row.get("MainCargo")),
+        }
+        route_ids[code] = _post_debug(route_set, body, "route")
+        route_created += 1
+    print(f"  route: {len(route_ids)} rows ({route_created} created, {len(route_ids) - route_created} already existed)")
+
+    # ── altroute ──
+    alt_df = sheets["M_AltRoute"]
+    existing_altroute = _prefetch_codes(altroute_set, f"{PREFIX}_altrouteid")
+    alt_count = 0
+    alt_created = 0
+    for _, row in alt_df.iterrows():
+        code = row["AltRouteID"]
+        alt_count += 1
+        if code in existing_altroute:
+            continue
+        body = {
+            f"{PREFIX}_name": row["AltRouteName"], f"{PREFIX}_code": code,
+            f"{PREFIX}_alttransitdays": _clean(row.get("AltTransitDays")),
+            f"{PREFIX}_extradays": _clean(row.get("ExtraDays")),
+            f"{PREFIX}_extracostpct": _clean(row.get("ExtraCostPct")),
+            f"{PREFIX}_note": _clean(row.get("Note")),
+        }
+        route_id = route_ids.get(row.get("RouteID"))
+        if np_alt_route and route_id:
+            body[f"{np_alt_route}@odata.bind"] = f"/{route_set}({route_id})"
+        _post_debug(altroute_set, body, "altroute")
+        alt_created += 1
+    print(f"  altroute: {alt_count} rows ({alt_created} created, {alt_count - alt_created} already existed)")
+
+    # ── systemuser（M_Person。架空担当者を標準 systemuser テーブルに直接作成） ──
+    person_df = sheets["M_Person"]
+    existing_person = _prefetch_codes("systemusers", "systemuserid", "domainname")
+    person_ids: dict = {}
+    person_created = 0
+    for _, row in person_df.iterrows():
+        email = _clean(row.get("Email"))
+        if email and email in existing_person:
+            person_ids[row["PersonID"]] = existing_person[email]
+            continue
+        full = str(row["PersonName"]).strip()
+        parts = full.split()
+        lastname, firstname = (parts[0], " ".join(parts[1:])) if len(parts) > 1 else (full, full)
+        body = {
+            "firstname": firstname, "lastname": lastname,
+            "jobtitle": _clean(row.get("Title")),
+            "internalemailaddress": email, "domainname": email,
+            "businessunitid@odata.bind": f"/businessunits({bu_id})",
+        }
+        org_id = org_ids.get(row.get("OrgID"))
+        if np_user_org and org_id:
+            body[f"{np_user_org}@odata.bind"] = f"/{organization_set}({org_id})"
+        person_ids[row["PersonID"]] = _post_debug("systemusers", body, "systemuser")
+        person_created += 1
+    print(f"  systemuser (owner): {len(person_ids)} rows ({person_created} created, {len(person_ids) - person_created} already existed)")
+
+    # ── contract ──
+    contract_df = sheets["T_Contract"]
+    existing_contract = _prefetch_codes(contract_set, f"{PREFIX}_contractid")
+    contract_ids: dict = {}
+    contract_created = 0
+    for _, row in contract_df.iterrows():
+        code = row["ContractID"]
+        if code in existing_contract:
+            contract_ids[code] = existing_contract[code]
+            continue
+        body = {
+            f"{PREFIX}_name": code, f"{PREFIX}_code": code,
+            f"{PREFIX}_qtyperyear": _clean(row.get("QtyPerYear")),
+            f"{PREFIX}_unitpricejpy": _clean(row.get("UnitPriceJPY")),
+            f"{PREFIX}_startdate": _clean(row.get("StartDate")),
+            f"{PREFIX}_enddate": _clean(row.get("EndDate")),
+            f"{PREFIX}_penaltypctperday": _clean(row.get("PenaltyPctPerDay")),
+        }
+        ctype = CONTRACT_TYPE.get(str(row.get("ContractType")).strip())
+        if ctype:
+            body[f"{PREFIX}_contracttype"] = ctype
+        inco = INCOTERMS.get(str(row.get("Incoterms")).strip())
+        if inco:
+            body[f"{PREFIX}_incoterms"] = inco
+        buyer_id = cp_ids.get(row.get("BuyerCPID"))
+        if np_ct_buyer and buyer_id:
+            body[f"{np_ct_buyer}@odata.bind"] = f"/{counterparty_set}({buyer_id})"
+        seller_id = cp_ids.get(row.get("SellerCPID"))
+        if np_ct_seller and seller_id:
+            body[f"{np_ct_seller}@odata.bind"] = f"/{counterparty_set}({seller_id})"
+        prod_id = commodity_ids.get(row.get("ProductID"))
+        if np_ct_commodity and prod_id:
+            body[f"{np_ct_commodity}@odata.bind"] = f"/{commodity_set}({prod_id})"
+        org_id = org_ids.get(row.get("OrgID"))
+        if np_ct_org and org_id:
+            body[f"{np_ct_org}@odata.bind"] = f"/{organization_set}({org_id})"
+        owner_id = person_ids.get(row.get("PersonID"))
+        if np_ct_owner and owner_id:
+            body[f"{np_ct_owner}@odata.bind"] = f"/systemusers({owner_id})"
+        rt_id = route_ids.get(row.get("RouteID"))
+        if np_ct_route and rt_id:
+            body[f"{np_ct_route}@odata.bind"] = f"/{route_set}({rt_id})"
+        contract_ids[code] = _post_debug(contract_set, body, "contract")
+        contract_created += 1
+    print(f"  contract: {len(contract_ids)} rows ({contract_created} created, {len(contract_ids) - contract_created} already existed)")
+
+    # ── shipment ──
+    shipment_df = sheets["T_Shipment"]
+    existing_shipment = _prefetch_codes(shipment_set, f"{PREFIX}_shipmentid")
+    shipment_count = 0
+    shipment_created = 0
+    for _, row in shipment_df.iterrows():
+        code = row["ShipmentID"]
+        shipment_count += 1
+        if code in existing_shipment:
+            continue
+        body = {
+            f"{PREFIX}_name": code, f"{PREFIX}_code": code,
+            f"{PREFIX}_vesselname": _clean(row.get("VesselName")),
+            f"{PREFIX}_etd": _clean(row.get("ETD")), f"{PREFIX}_eta": _clean(row.get("ETA")),
+            f"{PREFIX}_qty": _clean(row.get("Qty")), f"{PREFIX}_unitpricejpy": _clean(row.get("UnitPriceJPY")),
+            f"{PREFIX}_viahormuz": _to_bool(row.get("ViaHormuz")),
+            f"{PREFIX}_amountjpy": _clean(row.get("AmountJPY")),
+            f"{PREFIX}_affectedamtjpy": _clean(row.get("AffectedAmtJPY")),
+            f"{PREFIX}_altextradays": _clean(row.get("AltExtraDays")),
+            f"{PREFIX}_altcostpct": _clean(row.get("AltCostPct")),
+            f"{PREFIX}_altextracostjpy": _clean(row.get("AltExtraCostJPY")),
+            f"{PREFIX}_penaltyjpy": _clean(row.get("PenaltyJPY")),
+            f"{PREFIX}_buyerisinvestee": _to_bool(row.get("BuyerIsInvestee")),
+        }
+        status = SHIPMENT_STATUS.get(str(row.get("Status")).strip())
+        if status:
+            body[f"{PREFIX}_status"] = status
+        affected = IS_AFFECTED.get(str(row.get("IsAffected")).strip())
+        if affected:
+            body[f"{PREFIX}_isaffected"] = affected
+        ct_id = contract_ids.get(row.get("ContractID"))
+        if np_sh_contract and ct_id:
+            body[f"{np_sh_contract}@odata.bind"] = f"/{contract_set}({ct_id})"
+        prod_id = commodity_ids.get(row.get("ProductID"))
+        if np_sh_commodity and prod_id:
+            body[f"{np_sh_commodity}@odata.bind"] = f"/{commodity_set}({prod_id})"
+        rt_id = route_ids.get(row.get("RouteID"))
+        if np_sh_route and rt_id:
+            body[f"{np_sh_route}@odata.bind"] = f"/{route_set}({rt_id})"
+        orig_id = site_ids.get(row.get("OriginSiteID"))
+        if np_sh_origin and orig_id:
+            body[f"{np_sh_origin}@odata.bind"] = f"/{site_set}({orig_id})"
+        dest_id = site_ids.get(row.get("DestSiteID"))
+        if np_sh_dest and dest_id:
+            body[f"{np_sh_dest}@odata.bind"] = f"/{site_set}({dest_id})"
+        buyer_id = cp_ids.get(row.get("BuyerCPID"))
+        if np_sh_buyer and buyer_id:
+            body[f"{np_sh_buyer}@odata.bind"] = f"/{counterparty_set}({buyer_id})"
+        buyergroup_id = group_ids.get(row.get("BuyerGroupID"))
+        if np_sh_buyergroup and buyergroup_id:
+            body[f"{np_sh_buyergroup}@odata.bind"] = f"/{group_set}({buyergroup_id})"
+        org_id = org_ids.get(row.get("OrgID"))
+        if np_sh_org and org_id:
+            body[f"{np_sh_org}@odata.bind"] = f"/{organization_set}({org_id})"
+        _post_debug(shipment_set, body, "shipment")
+        shipment_created += 1
+        if shipment_count % 100 == 0:
+            print(f"    shipment progress: {shipment_count}/{len(shipment_df)}")
+    print(f"  shipment: {shipment_count} rows ({shipment_created} created, {shipment_count - shipment_created} already existed)")
+
+    # ── investment ──
+    inv_df = sheets["T_Investment"]
+    existing_investment = _prefetch_codes(investment_set, f"{PREFIX}_investmentid")
+    inv_count = 0
+    inv_created = 0
+    for _, row in inv_df.iterrows():
+        code = row["InvestmentID"]
+        inv_count += 1
+        if code in existing_investment:
+            continue
+        body = {
+            f"{PREFIX}_name": row["InvesteeName"], f"{PREFIX}_code": code,
+            f"{PREFIX}_equitypct": _clean(row.get("EquityPct")),
+            f"{PREFIX}_bookvaluejpym": _clean(row.get("BookValueJPYm")),
+            f"{PREFIX}_annualprofitjpym": _clean(row.get("AnnualProfitJPYm")),
+        }
+        method = EQUITY_METHOD.get(str(row.get("EquityMethod")).strip())
+        if method:
+            body[f"{PREFIX}_equitymethod"] = method
+        linked_id = cp_ids.get(row.get("LinkedCounterpartyID"))
+        if np_iv_linked and linked_id:
+            body[f"{np_iv_linked}@odata.bind"] = f"/{counterparty_set}({linked_id})"
+        group_id = group_ids.get(row.get("GroupID"))
+        if np_iv_group and group_id:
+            body[f"{np_iv_group}@odata.bind"] = f"/{group_set}({group_id})"
+        org_id = org_ids.get(row.get("OrgID"))
+        if np_iv_org and org_id:
+            body[f"{np_iv_org}@odata.bind"] = f"/{organization_set}({org_id})"
+        _post_debug(investment_set, body, "investment")
+        inv_created += 1
+    print(f"  investment: {inv_count} rows ({inv_created} created, {inv_count - inv_created} already existed)")
+
+    # ── creditline ──
+    cl_df = sheets["T_CreditLine"]
+    existing_creditline = _prefetch_codes(creditline_set, f"{PREFIX}_creditlineid")
+    cl_count = 0
+    cl_created = 0
+    for _, row in cl_df.iterrows():
+        code = row["CreditLineID"]
+        cl_count += 1
+        if code in existing_creditline:
+            continue
+        body = {
+            f"{PREFIX}_name": code, f"{PREFIX}_code": code,
+            f"{PREFIX}_limitjpym": _clean(row.get("LimitJPYm")), f"{PREFIX}_usedjpym": _clean(row.get("UsedJPYm")),
+            f"{PREFIX}_expirydate": _clean(row.get("ExpiryDate")),
+        }
+        gtype = GUARANTEE_TYPE.get(str(row.get("GuaranteeType")).strip())
+        if gtype:
+            body[f"{PREFIX}_guaranteetype"] = gtype
+        group_id = group_ids.get(row.get("GroupID"))
+        if np_cl_group and group_id:
+            body[f"{np_cl_group}@odata.bind"] = f"/{group_set}({group_id})"
+        org_id = org_ids.get(row.get("OrgID"))
+        if np_cl_org and org_id:
+            body[f"{np_cl_org}@odata.bind"] = f"/{organization_set}({org_id})"
+        _post_debug(creditline_set, body, "creditline")
+        cl_created += 1
+    print(f"  creditline: {cl_count} rows ({cl_created} created, {cl_count - cl_created} already existed)")
+
+    # ── event ──
+    event_df = sheets["T_Event"]
+    existing_event = _prefetch_codes(event_set, f"{PREFIX}_eventid")
+    event_ids: dict = {}
+    event_created = 0
+    for _, row in event_df.iterrows():
+        code = row["EventID"]
+        if code in existing_event:
+            event_ids[code] = existing_event[code]
+            continue
+        body = {
+            f"{PREFIX}_name": row["EventName"], f"{PREFIX}_code": code,
+            f"{PREFIX}_startdate": _clean(row.get("StartDate")), f"{PREFIX}_enddate": _clean(row.get("EndDate")),
+            f"{PREFIX}_affectedchokepoint": _clean(row.get("AffectedChokepoint")),
+            f"{PREFIX}_description": _clean(row.get("Description")),
+        }
+        etype = EVENT_TYPE.get(str(row.get("EventType")).strip())
+        if etype:
+            body[f"{PREFIX}_eventtype"] = etype
+        sev = SEVERITY.get(str(row.get("Severity")).strip())
+        if sev:
+            body[f"{PREFIX}_severity"] = sev
+        event_ids[code] = _post_debug(event_set, body, "event")
+        event_created += 1
+    print(f"  event: {len(event_ids)} rows ({event_created} created, {len(event_ids) - event_created} already existed)")
+
+    # ── eventimpact ──
+    im_df = sheets["T_EventImpact"]
+    existing_eventimpact = _prefetch_codes(eventimpact_set, f"{PREFIX}_eventimpactid")
+    im_count = 0
+    im_created = 0
+    for _, row in im_df.iterrows():
+        code = row["ImpactID"]
+        im_count += 1
+        if code in existing_eventimpact:
+            continue
+        body = {
+            f"{PREFIX}_name": code, f"{PREFIX}_code": code,
+            f"{PREFIX}_targetid": _clean(row.get("TargetID")),
+            f"{PREFIX}_delaydays": _clean(row.get("DelayDays")),
+            f"{PREFIX}_costupliftpct": _clean(row.get("CostUpliftPct")),
+            f"{PREFIX}_volumecutpct": _clean(row.get("VolumeCutPct")),
+        }
+        ttype = TARGET_TYPE.get(str(row.get("TargetType")).strip())
+        if ttype:
+            body[f"{PREFIX}_targettype"] = ttype
+        ikind = IMPACT_KIND.get(str(row.get("ImpactKind")).strip())
+        if ikind:
+            body[f"{PREFIX}_impactkind"] = ikind
+        ev_id = event_ids.get(row.get("EventID"))
+        if np_im_event and ev_id:
+            body[f"{np_im_event}@odata.bind"] = f"/{event_set}({ev_id})"
+        _post_debug(eventimpact_set, body, "eventimpact")
+        im_created += 1
+    print(f"  eventimpact: {im_count} rows ({im_created} created, {im_count - im_created} already existed)")
+
+    print("  ✅ Demo data import complete")
 
 
 # ── Step 7: ソリューション含有検証 ──────────────────────────
 
 def ensure_solution_membership():
     """全テーブルがソリューションに含まれているか確認し、不足分を追加"""
-    print("\n=== Step 7: ソリューション含有検証 ===")
+    print("\n=== Step 7: Solution membership verification ===")
 
     sols = api_get(f"solutions?$filter=uniquename eq '{SOLUTION_NAME}'&$select=solutionid")
     if not sols.get("value"):
-        print(f"  ❌ ソリューション '{SOLUTION_NAME}' が見つかりません")
+        print(f"  ❌ Solution '{SOLUTION_NAME}' not found")
         return
     sol_id = sols["value"][0]["solutionid"]
 
@@ -587,9 +1568,9 @@ def ensure_solution_membership():
             meta = api_get(f"EntityDefinitions(LogicalName='{logical}')?$select=MetadataId")
             meta_id = meta["MetadataId"]
             if meta_id in existing_ids:
-                print(f"  ✅ {logical}: ソリューション内に存在")
+                print(f"  ✅ {logical}: already in solution")
             else:
-                print(f"  ➕ {logical}: ソリューションに追加中…")
+                print(f"  ➕ {logical}: adding to solution...")
                 api_post("AddSolutionComponent", {
                     "ComponentId": meta_id,
                     "ComponentType": 1,
@@ -597,7 +1578,7 @@ def ensure_solution_membership():
                     "AddRequiredComponents": False,
                     "DoNotIncludeSubcomponents": False,
                 })
-                print(f"  ✅ {logical}: 追加完了")
+                print(f"  ✅ {logical}: added")
         except Exception as e:
             print(f"  ❌ {logical}: {e}")
 
@@ -606,7 +1587,7 @@ def ensure_solution_membership():
 
 def verify_tables():
     """全テーブルの EntitySetName を API で取得してクエリ検証"""
-    print("\n=== Step 8: テーブル検証 ===")
+    print("\n=== Step 8: Table verification ===")
 
     for tbl in TABLES:
         logical = tbl["logical"]
@@ -623,7 +1604,7 @@ def verify_tables():
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Dataverse テーブル構築")
+    parser = argparse.ArgumentParser(description="Dataverse table build")
     parser.add_argument(
         "--skip-localize", action="store_true",
         help="ローカライズ（Step 5）とデモデータ投入以降をスキップし、テーブル構築（英語のまま）のみ行う。"
@@ -639,11 +1620,13 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("  Dataverse テーブル構築")
+    print("  Dataverse table build")
     print("=" * 60)
-    print(f"  環境: {DATAVERSE_URL}")
-    print(f"  ソリューション: {SOLUTION_NAME}")
-    print(f"  プレフィックス: {PREFIX}")
+    print(f"  Environment: {DATAVERSE_URL}")
+    print(f"  Solution: {SOLUTION_NAME}")
+    print(f"  Prefix: {PREFIX}")
+
+    validate_tables()             # Step 0: TABLES 定義の事前検証（API 呼び出し前）
 
     if not args.localize_only:
         ensure_solution()            # Step 1: ソリューション
@@ -652,8 +1635,8 @@ def main():
         publish_all()                # Step 4: 公開（テーブル反映）
 
     if args.skip_localize:
-        print("\n⏭  --skip-localize 指定: ローカライズ以降をスキップします")
-        print("次のステップ: pac code add-data-source 実行後、--localize-only で本スクリプトを再実行")
+        print("\n⏭  --skip-localize specified: skipping localization and later steps")
+        print("Next: run pac code add-data-source, then re-run this script with --localize-only")
         return
 
     localize_tables()            # Step 5: ローカライズ
@@ -662,14 +1645,14 @@ def main():
     ensure_solution_membership() # Step 7: ソリューション検証
     verify_tables()              # Step 8: テーブル検証
 
-    print("\n✅ Dataverse セットアップ完了!")
-    print("次のステップ: アプリ作成 / npx power-apps add-data-source / pac model genpage generate-types")
+    print("\n✅ Dataverse setup complete!")
+    print("Next: create app / npx power-apps add-data-source / pac model genpage generate-types")
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"\n❌ エラー: {e}")
+        print(f"\n❌ Error: {e}")
         traceback.print_exc()
         sys.exit(1)

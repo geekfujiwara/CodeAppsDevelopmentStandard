@@ -612,13 +612,13 @@ def find_connection(env_id: str, connector_name: str, display_name: str = "") ->
             )
         except requests.exceptions.Timeout:
             wait = 15 * (attempt + 1)
-            print(f"  ⚠ {label}: タイムアウト → {wait}s 待機してリトライ...")
+            print(f"  ⚠ {label}: timeout → waiting {wait}s and retrying...")
             time.sleep(wait)
             continue
         except requests.HTTPError as e:
             if e.response is not None and e.response.status_code == 504:
                 wait = 15 * (attempt + 1)
-                print(f"  ⚠ {label}: 504 → {wait}s 待機してリトライ...")
+                print(f"  ⚠ {label}: 504 → waiting {wait}s and retrying...")
                 time.sleep(wait)
                 continue
             raise
@@ -629,8 +629,8 @@ def find_connection(env_id: str, connector_name: str, display_name: str = "") ->
                 return conn["name"]
         break
 
-    print(f"  ❌ {label} ({connector_name}): Connected な接続が見つかりません")
-    print(f"     → https://make.powerautomate.com/connections で作成してください")
+    print(f"  ❌ {label} ({connector_name}): no Connected connection found")
+    print(f"     → create one at https://make.powerautomate.com/connections")
     _sys.exit(1)
 
 
@@ -705,22 +705,58 @@ def retry_metadata(
                 time.sleep(wait)
                 continue
 
+            # --- 一時的なネットワーク切断 → リトライ ---
+            if isinstance(
+                exc, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)
+            ) or "remote end closed connection" in detail_lower:
+                wait = 10 * (attempt + 1)
+                print(
+                    f"  {description}: network error, retrying in {wait}s "
+                    f"(attempt {attempt + 1}/{max_attempts})..."
+                )
+                time.sleep(wait)
+                continue
+
+            # --- スロットリング（429 / 503）→ Retry-After を尊重してリトライ ---
+            status_code = None
+            if isinstance(exc, requests.HTTPError) and exc.response is not None:
+                status_code = exc.response.status_code
+            if status_code in (429, 503) or "429 client error" in detail_lower:
+                retry_after = None
+                if isinstance(exc, requests.HTTPError) and exc.response is not None:
+                    retry_after = exc.response.headers.get("Retry-After")
+                try:
+                    wait = int(retry_after) if retry_after else 15 * (attempt + 1)
+                except ValueError:
+                    wait = 15 * (attempt + 1)
+                print(
+                    f"  {description}: throttled ({status_code}), waiting {wait}s "
+                    f"(attempt {attempt + 1}/{max_attempts})..."
+                )
+                time.sleep(wait)
+                continue
+
             # --- 想定外のエラー → 再送出 ---
             raise
 
-    print(f"  {description}: max retries ({max_attempts}) exceeded")
-    return None
+    # リトライ上限に達した場合、「既に存在するのでスキップ」とは明確に区別し、
+    # 呼び出し元の try/except が確実に検知できるよう例外を送出する（None を返して
+    # サイレントに成功扱いにしてしまうと、実際には作成されていない列/Lookup が
+    # 後続処理でも見過ごされたまま Step 4 の公開まで進んでしまう）。
+    msg = f"{description}: max retries ({max_attempts}) exceeded"
+    print(f"  {msg}")
+    raise RuntimeError(msg)
 
 
 # ---------- CLI エントリーポイント ----------
 
 if __name__ == "__main__":
-    print("=== Power Platform 認証テスト ===")
+    print("=== Power Platform authentication test ===")
     if not DATAVERSE_URL:
-        print("DATAVERSE_URL が .env に設定されていません。", file=sys.stderr)
+        print("DATAVERSE_URL is not set in .env.", file=sys.stderr)
         sys.exit(1)
 
     record = authenticate()
-    print(f"認証成功: {record.username}")
-    print(f"テナント: {record.tenant_id}")
-    print(f"認証レコード保存先: {AUTH_RECORD_PATH}")
+    print(f"Authenticated: {record.username}")
+    print(f"Tenant: {record.tenant_id}")
+    print(f"Auth record saved to: {AUTH_RECORD_PATH}")

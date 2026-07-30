@@ -1,6 +1,15 @@
 # リポジトリ scaffold
 
-Step 1 で配置するファイル一式。テーマ固有の値はすべて `.env` から解決する。
+Step 2 で配置するファイル一式。テーマ固有の値はすべて `.env` から解決する。
+
+| ファイル | ライト実装（PoC） | 本格実装 |
+|---|---|---|
+| `requirements.txt` / `.gitignore` | 必須 | 必須 |
+| `.githooks/pre-commit` | 不要 | 必須 |
+| CI 定義（GitHub Actions / Azure Pipelines / その他） | 不要 | 必須（→ [ci-providers.md](ci-providers.md)） |
+| `.github/copilot-instructions.md`（レビュー観点） | 任意 | 推奨 |
+
+ライト実装の手順は [poc-quickstart.md](poc-quickstart.md) を参照。
 
 ## requirements.txt
 
@@ -46,20 +55,23 @@ Thumbs.db
 
 ## .githooks/pre-commit
 
-`git config core.hooksPath .githooks` で有効化する。
+本格実装のみ。`git config core.hooksPath .githooks` で有効化する。
+Git ホスティングには依存せず、送信先は `.env` の `SECRET_BACKEND` で切り替わる。
 
 ```sh
 #!/bin/sh
 set -e
 
-# 1. 実値入り manifest を汎用化し、GitHub Secrets へ同期してテンプレートをステージ
+# 1. 実値入り manifest を汎用化し、SECRET_BACKEND のストアへ同期してテンプレートをステージ
 python scripts/sanitize.py --env .env --set-secrets --stage
 
 # 2. ステージ済み差分に実値が残っていないか検査（残っていればコミット中止）
 python scripts/check_secrets.py --env .env
 ```
 
-## .github/workflows/review.yml
+## .github/workflows/review.yml（GitHub の場合）
+
+> Azure DevOps Repos / その他 Git ホスティングの定義は [ci-providers.md](ci-providers.md) を参照。
 
 ```yaml
 name: review
@@ -86,7 +98,7 @@ jobs:
 
 このジョブを**必須ステータスチェック**に設定して merge をブロックする。
 
-## .github/workflows/deploy.yml
+## .github/workflows/deploy.yml（GitHub の場合）
 
 ```yaml
 name: deploy

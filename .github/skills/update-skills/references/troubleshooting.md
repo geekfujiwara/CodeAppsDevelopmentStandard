@@ -64,3 +64,22 @@
 - 主オプション: `--skill <name>`（必須）/ `--extra <path>`（README・agents 等の集約ファイルを同時反映、複数可）/
   `--branch`（既定 `skill/<name>`）/ `--dry-run`（push・PR をスキップして検証のみ）。
 - 既存の同名ブランチ/PR があれば自動で更新（新規 PR を作らない）。
+
+## 13. `manage_skill_pr.py` が既存のオープン PR を「0 件」と誤検出する（`UnicodeDecodeError` がスレッド内で出る）
+### 症状
+`gh pr list` の PR タイトルに絵文字等の UTF-8 専用文字が含まれると、`subprocess.run(..., text=True)` の
+バックグラウンド読み取りスレッドで `UnicodeDecodeError: 'cp932' codec can't decode byte ...` が発生する。
+このエラーはスレッド内で表示されるだけでプロセス自体は終了コード 0 で正常終了するため、
+**気づかずに「オープン PR: 0 件 → 新規 PR で OK」という誤った判定結果を信じてしまう**（実際には
+関連するオープン PR が存在し、新規 PR を作るとコンフリクトの原因になる）。
+
+### 原因
+Windows の日本語環境では `subprocess.run(text=True)` が既定で `locale.getpreferredencoding()`（cp932）を
+使ってデコードしようとするため、UTF-8 専用の文字（絵文字等）を含む `gh` の出力でデコードに失敗する。
+
+### 恒久対策（スクリプトに実装済み）
+`manage_skill_pr.py` / `publish_skill.py` の `gh`/git 呼び出しラッパーはいずれも
+`subprocess.run(..., encoding="utf-8", errors="replace")` を明示し、cp932 起因のデコード失敗を防ぐ。
+これにより正常系（オープン PR が実際に 0 件の場合も含む）でも毎回正しくデコードされる状態になっている。
+新しく `gh`/`git` を呼び出すヘルパーを追加する場合も、必ず `encoding="utf-8"` を明示すること
+（`text=True` だけでは Windows の日本語環境で cp932 にフォールバックされ、同じ問題が再発する）。

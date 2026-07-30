@@ -25,10 +25,14 @@ cp -n .github/skills/standard/references/gitignore-template .gitignore
 #    npx degit github:microsoft/PowerAppsCodeApps/templates/vite .
 
 # Code Apps 採用が決まった時点で、Dataverse 構築（Phase 2）と並行して着手する
-# （npm install はネットワーク待ちのみで Dataverse 構築をブロックしないため待たない）
+# （npm install はネットワーク待ちのみで Dataverse 構築をブロックしないため待たない）。
 # VS Code では本トラックを Code Apps サブエージェントとして並行起動。add-data-source は
 # connectionId / orgUrl が揃った時点で 1 回だけ実行し、add-flow は Power Automate Phase 5 完了後（★同期②）に実行する。
-npm install --no-audit --no-fund
+#
+# npm install はローカルゴールデンキャッシュから node_modules を複製して高速化できる
+# （社内プロキシへの毎回のフル依存取得を回避。詳細: references/template-cache.md）。
+pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
+# ↑ 使えない環境ではフォールバック: npm install --no-audit --no-fund
 
 # ①.5 マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
 #     architecture 提案時に確認済みなら再実行不要）
