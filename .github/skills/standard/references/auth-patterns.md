@@ -7,6 +7,7 @@
 認証キャッシュ（`AuthenticationRecord`）は **`~/.power-platform-cli/auth_record_{TENANT_ID}.json`（ホームディレクトリ配下、テナント別ファイル）にマシン全体で共有保存**される。そのため、このマシンで一度でもそのテナントでデバイスコード認証を完了していれば、別プロジェクト・別リポジトリのスクリプトからでもデバイスコード認証は不要になる。
 
 - 認証は必ず `auth_helper.py` 経由（`requests` 直呼び出し・MSAL 直接呼び出しは禁止）
+- `api_get` / `api_post` などは `requests.Response` ではなく解析済みの値（`dict` / `str` / `None`）を返すため、戻り値に `.json()` を呼ばない
 - スクリプト内でユーザーに認証情報の入力を求めるプロンプトを出さない
 - 実行時に対話待ちが発生した場合は、スクリプトの認証部分を疑い `auth_helper.py` の呼び出し方法を見直す（新しい認証フローを自作しない）
 - テナント・アカウントを切り替えたい場合は `.env` の `TENANT_ID` を変更するだけでよい（テナントごとにキャッシュファイルが分離されているため、他テナントのキャッシュを壊さない）
@@ -26,11 +27,11 @@ token = get_token(scope="https://service.powerapps.com/.default")
 # Bearer ヘッダー付き Session
 session = get_session()
 
-# Dataverse CRUD ヘルパー
-api_get("accounts?$top=1")
-api_post("accounts", {"name": "Test"}, solution="SolutionName")
-api_patch("accounts(id)", {"name": "Updated"})
-api_delete("accounts(id)")
+# Dataverse CRUD ヘルパー（requests.Response ではなく解析済みの値を返す）
+rows = api_get("accounts?$top=1")                                   # -> dict（.json() は不要）
+account_id = api_post("accounts", {"name": "Test"}, solution="SolutionName")  # -> str | None（作成された ID）
+api_patch("accounts(id)", {"name": "Updated"})                      # -> None
+api_delete("accounts(id)")                                          # -> None
 
 # メタデータ操作のリトライ（0x80040237, 0x80044363 対応 + ネットワーク切断/429スロットリング対応）
 retry_metadata(lambda: api_post("EntityDefinitions", body), "テーブル作成")
