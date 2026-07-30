@@ -234,6 +234,31 @@ npx power-apps add-data-source --api-id shared_commondataserviceforapps \
 > テーブルごとに `add-data-source` を繰り返さない。`organization` に使う Dataverse URL は `.env` の `DATAVERSE_URL`
 > などへ保持し、アプリ側では `getContext().app.dataverseOrgUrl` を優先して解決する。
 
+### Step 4.5: 既存テーブルのメタデータ確定（既存テーブルに接続する場合は必須）
+
+Step 4 の生成物（`MicrosoftDataverseModel.ts`）はコネクタ共通のスキーマで、**業務テーブルの列は含まれない**。
+既存テーブルに接続する場合、以下を実装前に確定させないと Step 6 の CRUD で手戻りする。
+
+| 確定させる情報 | 用途 |
+|---|---|
+| `EntitySetName` | `retrieveMultipleRecords` の `entityName` に渡す値（論理名ではない） |
+| `PrimaryIdAttribute` | 更新・削除の対象 ID |
+| `PrimaryNameAttribute` | 一覧の既定表示列 |
+| 列の論理名と型 | `$select` / フォームの入力コントロール |
+| 参照列の Targets | `$expand` の可否と関連先 |
+| Picklist の値とラベル | ステータス表示・フィルタ（**値は 100000000 起点で、ラベルは API から取得しないと分からない**） |
+
+```bash
+# 論理名を渡すと上記を一括出力する（認証は auth_helper、非対話で完走）
+python .github/skills/code-apps/scripts/inspect_table_metadata.py {prefix}_store {prefix}_salesplan --custom-only
+
+# 型定義生成などに使う場合は JSON で出力
+python .github/skills/code-apps/scripts/inspect_table_metadata.py {prefix}_salesplan --json > table-metadata.json
+```
+
+> Picklist の選択肢を UI 側にハードコードする場合も、**必ずこの出力の値を転記する**。
+> 推測値（0/1/2 など）で実装すると、書き込みは成功するのに一覧で該当レコードが消える形の不具合になる。
+
 ### Step 5: 技術スタック導入
 
 ```bash
