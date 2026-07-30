@@ -136,6 +136,21 @@ import type { IContext } from "@microsoft/power-apps/app";
 | `@microsoft/power-apps/data/metadata/dataverse` | `EntityMetadata`, `GetEntityMetadataOptions` 型 |
 | `@microsoft/power-apps/telemetry` | テレメトリ API |
 
+`DataClient` のメソッドは全て `*Async` で、戻り値は `IOperationResult<T>`。
+`getRecords` / `createRecord` / `updateRecord` / `deleteRecord` は存在しない。
+
+| 用途 | メソッド |
+|---|---|
+| 一覧取得 | `retrieveMultipleRecordsAsync` |
+| 1 件取得 | `retrieveRecordAsync` |
+| 作成 / 更新 / 削除 | `createRecordAsync` / `updateRecordAsync` / `deleteRecordAsync` |
+| フロー・カスタム API 実行 | `executeAsync` |
+| ファイル / 画像列 | `uploadFileToRecord` / `downloadFileFromRecord` / `downloadImageFromRecord` |
+
+> Dataverse の CRUD は `getClient` ではなく **[Step 6](#step-6-microsoftdataverseservice-ラッパーで-crud-実装) の
+> 生成 `MicrosoftDataverseService` ラッパー**を使う。`getClient` はフロー実行（`executeAsync`）や
+> ファイル列など、生成サービスで賄えない操作に限定する。
+
 #### ④ 完全な vite.config.ts テンプレート
 
 ```typescript

@@ -1,19 +1,21 @@
-import { getClient } from "@microsoft/power-apps"
-import dataSourcesInfo from "@/lib/dataSourcesInfo"
+import { getContext } from "@microsoft/power-apps/app"
+import { DataverseService } from "@/lib/dataverse-client"
 import { PUBLISHER_PREFIX as P } from "@/config"
 
-function client() { return getClient(dataSourcesInfo) }
 
-export async function getSuggestions() { return client().getRecords(`${P}_suggestions`) }
-export async function createSuggestion(data: Record<string, unknown>) { return client().createRecord(`${P}_suggestions`, data) }
-export async function updateSuggestion(id: string, data: Record<string, unknown>) { return client().updateRecord(`${P}_suggestions`, id, data) }
-export async function deleteSuggestion(id: string) { return client().deleteRecord(`${P}_suggestions`, id) }
+export async function getSuggestions() { return DataverseService.ListRecords(`${P}_suggestions`) }
+export async function createSuggestion(data: Record<string, unknown>) { return DataverseService.CreateRecord(`${P}_suggestions`, data) }
+export async function updateSuggestion(id: string, data: Record<string, unknown>) { return DataverseService.UpdateRecord(`${P}_suggestions`, id, data) }
+export async function deleteSuggestion(id: string) { return DataverseService.DeleteRecord(`${P}_suggestions`, id) }
 
 export async function getCurrentUserId() {
-  const records = await client().getRecords("systemusers", {
-    filter: "Microsoft.Dynamics.CRM.CurrentUserSettings()",
-    select: ["systemuserid"],
-    top: 1,
-  })
+  const ctx = await getContext()
+  const entraId = ctx.user?.objectId
+  if (!entraId) return undefined
+  const records = await DataverseService.ListRecords(
+    "systemusers",
+    ["systemuserid"],
+    `azureactivedirectoryobjectid eq ${entraId}`,
+  )
   return records[0]?.systemuserid as string | undefined
 }
