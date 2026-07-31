@@ -22,6 +22,10 @@ triggers:
   - "Foundry エージェント"
   - "ライト実装か本格実装か"
   - "PoC か本番か"
+  - "AI 社員"
+  - "AI チーム"
+  - "エージェントテンプレート"
+  - "名前付きの複数エージェント"
 ---
 
 # Power Platform 共通アーキテクチャデザインスキル
@@ -396,6 +400,12 @@ Q: その AI 処理は再利用するか？
 **使わない**（→ 代替）: Dataverse への自然言語登録・照会が主目的 → **Copilot Studio v2 スキル + Dataverse MCP**（§2.1.1）／
 Code Apps や Web サイトに埋め込む → **Copilot Studio v1**（§3）。
 
+> ★ **パターン認識**: 「ハンター（リード開拓）・テック（技術提案）・ミーナ（進捗管理）のように、
+> 名前と役割を持つ複数の AI エージェントが 1 チームとして協働する（AI 社員・AI チーム）」という要件は、
+> **`agent365` スキル（エージェントテンプレート）を第一候補**として提案する。各エージェントを個別の
+> Foundry エージェント（Teams 公開）として構築し、まず**ライト実装（PoC）**で構築してから
+> 必要に応じて本格実装へ拡張する。共有データが必要な場合は Dataverse テーブルを介した非同期連携を検討する。
+
 ### ★ ライト実装 / 本格実装を AskUserQuestion で選ぶ（`agent365` スキルに入る前に必ず実行）
 
 `agent365` スキルは **本格実装（private リポジトリ + CI/CD + Agent Evals）を既定**としているが、
@@ -458,6 +468,7 @@ AskUserQuestion で次のように尋ねる:
 - [ ] **イベント駆動の自動処理が必要か？** → YES なら Power Automate を含む構成
 - [ ] **データ操作 UI が必要か？** → YES で外部ユーザー向けなら既定 Azure（Power Pages 宣言時のみ Power Pages）、内部ユーザー向けなら Code Apps / Model-Driven Apps を含む構成（Canvas Apps は常に対象外）
 - [ ] **標準ビュー/フォームで十分か？** → YES なら Model-Driven Apps が最速。カスタム UI なら Code Apps
+- [ ] **名前付きの複数 AI エージェント（AI 社員 / AI チーム）を作りたいか？** → YES なら **`agent365` スキル（エージェントテンプレート）を第一候補**にし、実装レベル（ライト/本格）を確認してから着手する
 - [ ] **通知・リマインド等で Power Automate フロー内に、チャット UI を使わずイベント駆動で AI 処理を組み込みたいか？** → YES なら AI Builder を含む構成。それ以外の社内汎用業務は原則 Copilot Studio v2 + Dataverse MCP
 - [ ] **確定的な処理か、LLM 判断が必要か？** → 確定的なら Power Automate、LLM なら Copilot Studio
 - [ ] **応答文の生成が必要か？** → YES なら Copilot Studio

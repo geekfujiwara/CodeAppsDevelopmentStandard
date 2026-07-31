@@ -59,6 +59,14 @@ src/lib/incident-types.ts
 # Python
 __pycache__/
 
+# agent365 (PoC scaffold under agents/sales-copilot-nova — generated/secret artifacts)
+agents/**/agent.yaml
+teams/*.zip
+a365.generated.config.json
+*token-cache*
+a365-*.log
+
+
 # Generated images (preview/test)
 *_preview.png
 *_icon.png

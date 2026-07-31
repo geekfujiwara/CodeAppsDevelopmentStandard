@@ -63,7 +63,7 @@ flowchart LR
     D --> E["Teams アプリ manifest<br/>botId = msaAppId"]
     F["Agent 365 ブループリント<br/>agentBlueprintId"] --> G["agenticUser.json"]
     G --> E
-    E --> H["管理センターへアップロード"]
+    E --> H["Graph API で公開<br/>POST /appCatalogs/teamsApps"]
     H --> I["Teams / M365 Copilot"]
 ```
 
@@ -79,8 +79,9 @@ Bot のエンドポイントは Foundry のエージェント エンドポイン
   エージェント エンドポイントの既定「**常に最新を使用**」により Teams / M365 Copilot へ自動配信される。
   ポータルでの有効化操作は不要。
 - 一方 **Teams アプリ manifest の内容（名前・説明・アイコン・スコープ）を変えた場合は
-  ZIP を再アップロードする必要がある**。この際 `version` を必ず上げる。
-- 挙動・プロンプトだけの変更なら Foundry へのデプロイのみでよく、再アップロードは不要。
+  `python scripts/build_teams_package.py` で ZIP を再ビルドし、`python scripts/publish_teams_app.py` で
+  再登録する必要がある**。この際 `version` を必ず上げる。
+- 挙動・プロンプトだけの変更なら Foundry へのデプロイのみでよく、再登録は不要。
 
 ## 6. なぜポータル自動操作をしないか
 
