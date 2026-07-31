@@ -152,7 +152,18 @@ _DEFAULT_SCOPE = f"{DATAVERSE_URL}/.default" if DATAVERSE_URL else ""
 
 # ---------- 内部キャッシュ ----------
 
-_credential: DeviceCodeCredential | None = None
+# client_id （None = 既定の Azure CLI 互換クライアント）ごとに credential を分離する。
+# 既定のクライアントは Graph の固定パーミッションセットしか持たないため、
+# それに無いスコープ（例: AppCatalog.ReadWrite.All）が必要な場合のみ、
+# 呼び出し側で別の well-known パブリッククライアント ID を指定できるようにする。
+_credentials: dict[str, DeviceCodeCredential] = {}
+
+
+def _auth_record_path_for(client_id: str | None) -> Path:
+    """client_id 別の AuthenticationRecord パスを返す（既定 client_id は従来どおりのパス）。"""
+    if not client_id:
+        return AUTH_RECORD_PATH
+    return AUTH_RECORD_PATH.with_name(f"{AUTH_RECORD_PATH.stem}_{client_id}{AUTH_RECORD_PATH.suffix}")
 
 
 def _device_code_callback(verification_uri: str, user_code: str, expires_on: object) -> None:
@@ -168,7 +179,7 @@ def _device_code_callback(verification_uri: str, user_code: str, expires_on: obj
     )
 
 
-def _build_credential() -> DeviceCodeCredential:
+def _build_credential(client_id: str | None = None) -> DeviceCodeCredential:
     """DeviceCodeCredential を構築する（2 層キャッシュ付き）。
 
     1. TokenCachePersistenceOptions — MSAL 永続トークンキャッシュ
@@ -178,6 +189,11 @@ def _build_credential() -> DeviceCodeCredential:
     2. AuthenticationRecord — アカウント情報キャッシュ
        テナント・ユーザー情報を保存し、MSAL キャッシュから正しい
        トークンエントリを検索するキーとして機能する。
+
+    client_id を省略すると azure-identity 既定の Azure CLI 互換クライアントを使う
+    （従来どおりの挙動・従来どおりのキャッシュファイル）。別の well-known パブリック
+    クライアント（例: Microsoft Graph PowerShell）が必要なスコープを要求する場合のみ
+    client_id を明示的に渡す（キャッシュファイルも client_id 別に分離される）。
     """
     # OS 永続トークンキャッシュが壊れることがあるため、
     # 環境変数 PP_NO_PERSISTENT_CACHE=1 で無効化可能
@@ -185,6 +201,7 @@ def _build_credential() -> DeviceCodeCredential:
 
     kwargs: dict = {
         "tenant_id": TENANT_ID or None,
+        "client_id": client_id or None,
         "prompt_callback": _device_code_callback,
     }
 
@@ -195,10 +212,11 @@ def _build_credential() -> DeviceCodeCredential:
         )
         kwargs["cache_persistence_options"] = cache_options
 
+    auth_record_path = _auth_record_path_for(client_id)
     auth_record: AuthenticationRecord | None = None
-    if AUTH_RECORD_PATH.exists():
+    if auth_record_path.exists():
         try:
-            serialized = AUTH_RECORD_PATH.read_text(encoding="utf-8")
+            serialized = auth_record_path.read_text(encoding="utf-8")
             auth_record = AuthenticationRecord.deserialize(serialized)
             # ★ 防御チェック: ファイル名はテナント別だが、万一 TENANT_ID と
             #   レコードの tenant_id が食い違っていたら破棄して再認証させる
@@ -212,7 +230,7 @@ def _build_credential() -> DeviceCodeCredential:
                 auth_record = None
             else:
                 print(
-                    f"[auth_helper] 認証キャッシュをロードしました: {AUTH_RECORD_PATH}",
+                    f"[auth_helper] 認証キャッシュをロードしました: {auth_record_path}",
                     file=sys.stderr,
                 )
         except (ValueError, OSError, json.JSONDecodeError) as exc:
@@ -230,20 +248,21 @@ def _build_credential() -> DeviceCodeCredential:
     return DeviceCodeCredential(**kwargs)
 
 
-def _ensure_credential() -> DeviceCodeCredential:
-    """モジュールレベルのシングルトン credential を返す。"""
-    global _credential  # noqa: PLW0603
-    if _credential is None:
-        _credential = _build_credential()
-    return _credential
+def _ensure_credential(client_id: str | None = None) -> DeviceCodeCredential:
+    """client_id ごとのシングルトン credential を返す（既定は従来どおり単一の共有 credential）。"""
+    key = client_id or ""
+    if key not in _credentials:
+        _credentials[key] = _build_credential(client_id)
+    return _credentials[key]
 
 
-def _save_auth_record(record: AuthenticationRecord) -> None:
-    """AuthenticationRecord をグローバルパスに永続化する（他プロジェクトからも再利用される）。"""
-    AUTH_RECORD_PATH.parent.mkdir(parents=True, exist_ok=True)
-    AUTH_RECORD_PATH.write_text(record.serialize(), encoding="utf-8")
+def _save_auth_record(record: AuthenticationRecord, client_id: str | None = None) -> None:
+    """AuthenticationRecord を永続化する（他プロジェクトからも再利用される）。"""
+    path = _auth_record_path_for(client_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(record.serialize(), encoding="utf-8")
     print(
-        f"[auth_helper] 認証レコードを保存しました（マシン全体で共有）: {AUTH_RECORD_PATH}",
+        f"[auth_helper] 認証レコードを保存しました（マシン全体で共有）: {path}",
         file=sys.stderr,
     )
 
@@ -341,10 +360,10 @@ def _pac_get_token(scope: str) -> str | None:
 # Python 3.14 で MSAL 内部トークンキャッシュが壊れる問題の回避策:
 # 自前でスコープ別のインメモリキャッシュを管理する。
 # credential.get_token() は同じスコープで 1 回だけ呼び、結果をキャッシュする。
-_inmemory_tokens: dict[str, tuple[str, float]] = {}  # scope -> (token_str, expires_on)
+_inmemory_tokens: dict[tuple[str, str], tuple[str, float]] = {}  # (scope, client_id) -> (token_str, expires_on)
 
 
-def get_token(scope: str | None = None) -> str:
+def get_token(scope: str | None = None, client_id: str | None = None) -> str:
     """
     指定スコープのアクセストークン文字列を返す。
 
@@ -353,6 +372,10 @@ def get_token(scope: str | None = None) -> str:
 
     Args:
         scope: OAuth2 スコープ。省略時は ``{DATAVERSE_URL}/.default``。
+        client_id: 既定（Azure CLI 互換クライアント）以外のクライアント ID を使いたい場合のみ指定する。
+            例: Azure CLI の Graph 項目にないスコープ（`AppCatalog.ReadWrite.All` 等）が必要な場合は
+            Microsoft Graph PowerShell の well-known ID `14d82eec-204b-4c2f-b7e8-296a70dab67e` を指定する。
+            キャッシュ（AuthenticationRecord ・ credential）は client_id ごとに分離される。
 
     Returns:
         Bearer トークン文字列。
@@ -364,27 +387,30 @@ def get_token(scope: str | None = None) -> str:
             "スコープが未指定です。DATAVERSE_URL を .env に設定するか scope 引数を渡してください。"
         )
 
+    cache_key = (scope, client_id or "")
+
     # インメモリキャッシュから返す（有効期限 60 秒前まで）
-    if scope in _inmemory_tokens:
-        token_str, expires_on = _inmemory_tokens[scope]
+    if cache_key in _inmemory_tokens:
+        token_str, expires_on = _inmemory_tokens[cache_key]
         if time.time() < expires_on - 60:
             return token_str
 
-    # PAC CLI プロファイルが設定されている場合は先に試みる
-    if PAC_AUTH_PROFILE:
+    # PAC CLI プロファイルが設定されている場合は先に試みる（既定 client_id の場合のみ）
+    if PAC_AUTH_PROFILE and not client_id:
         pac_token = _pac_get_token(scope)
         if pac_token:
             expires_on = _decode_jwt_exp(pac_token) or (time.time() + 3000)
-            _inmemory_tokens[scope] = (pac_token, expires_on)
+            _inmemory_tokens[cache_key] = (pac_token, expires_on)
             return pac_token
 
-    credential = _ensure_credential()
+    credential = _ensure_credential(client_id)
+    auth_record_path = _auth_record_path_for(client_id)
 
     # キャッシュが存在しない場合は明示的に authenticate() を呼んで
     # AuthenticationRecord を永続化してからトークンを取得する
-    if not AUTH_RECORD_PATH.exists():
+    if not auth_record_path.exists():
         record = credential.authenticate(scopes=[scope])
-        _save_auth_record(record)
+        _save_auth_record(record, client_id)
 
     try:
         token = credential.get_token(scope)
@@ -395,20 +421,20 @@ def get_token(scope: str | None = None) -> str:
             f"[auth_helper] MSAL キャッシュ破損を検出 — 再構築中: {type(exc).__name__}",
             file=sys.stderr,
         )
-        global _credential  # noqa: PLW0603
-        _credential = None
         kwargs_nocache: dict = {
             "tenant_id": TENANT_ID or None,
+            "client_id": client_id or None,
             "prompt_callback": _device_code_callback,
         }
         kwargs_nocache = {k: v for k, v in kwargs_nocache.items() if v is not None}
         # 認証レコードは使わない（内部キャッシュが壊れる原因になる）
-        _credential = DeviceCodeCredential(**kwargs_nocache)
-        record = _credential.authenticate(scopes=[scope])
-        _save_auth_record(record)
-        token = _credential.get_token(scope)
+        credential = DeviceCodeCredential(**kwargs_nocache)
+        _credentials[client_id or ""] = credential
+        record = credential.authenticate(scopes=[scope])
+        _save_auth_record(record, client_id)
+        token = credential.get_token(scope)
 
-    _inmemory_tokens[scope] = (token.token, token.expires_on)
+    _inmemory_tokens[cache_key] = (token.token, token.expires_on)
     return token.token
 
 

@@ -20,6 +20,14 @@ Required Entra permission (delegated, tenant-consented once):
 Publishing without --requires-review requires the signed-in user to hold a Teams
 admin role; otherwise pass --requires-review to submit for admin approval instead.
 
+LIMITATION (confirmed, not fixable from this script): Microsoft Graph's
+POST /appCatalogs/teamsApps rejects devPreview / agenticUserTemplates ("Agent
+template") packages outright with 400 BadRequest: "Agentic apps are not
+supported for uploading from Teams/Teams Admin Center. Please use M365 Admin
+Center." This script detects that case up front and exits with guidance instead
+of attempting (and always failing) the Graph call. It only works for GA/shared
+-agent (non-devPreview) packages built without --require-template.
+
 Reference: https://learn.microsoft.com/graph/api/teamsapp-publish
 
 Usage:
@@ -50,8 +58,16 @@ if _STANDARD_SCRIPTS is None:
     sys.exit("auth_helper が見つかりません（.github/skills/standard/scripts）。リポジトリ内で実行してください。")
 sys.path.insert(0, str(_STANDARD_SCRIPTS))
 
-GRAPH_SCOPE = "https://graph.microsoft.com/.default"
+GRAPH_SCOPE = "https://graph.microsoft.com/AppCatalog.ReadWrite.All"
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+
+# The repo-wide auth_helper default credential (no client_id) reuses Azure CLI's
+# well-known public client, whose Graph delegated-permission set is fixed by
+# Microsoft and does NOT include AppCatalog.ReadWrite.All. Request this token
+# under Microsoft Graph PowerShell's well-known public client instead, which has
+# a much broader pre-configured Graph permission set (requires a one-time tenant
+# admin consent for AppCatalog.ReadWrite.All on first use).
+GRAPH_CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e"
 
 
 def load_env(path: Path) -> None:
@@ -66,9 +82,12 @@ def load_env(path: Path) -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
-def read_manifest_id(package: Path) -> str:
+def read_manifest(package: Path) -> dict:
     with zipfile.ZipFile(package) as zf:
-        manifest = json.loads(zf.read("manifest.json"))
+        return json.loads(zf.read("manifest.json"))
+
+
+def read_manifest_id(manifest: dict, package: Path) -> str:
     app_id = manifest.get("id")
     if not app_id:
         raise SystemExit(f"{package}: manifest.json に 'id' がありません。")
@@ -109,10 +128,23 @@ def main() -> int:
             f"Teams app package not found: {package}\nRun scripts/build_teams_package.py first."
         )
 
-    external_id = read_manifest_id(package)
+    manifest = read_manifest(package)
+    if manifest.get("manifestVersion") == "devPreview":
+        raise SystemExit(
+            "このパッケージは devPreview スキーマ（Agent template / agenticUserTemplates 付き）です。\n"
+            "Microsoft Graph の POST /appCatalogs/teamsApps は agentic アプリのアップロードを"
+            "サポートしておらず、次のエラーで必ず拒否されます:\n"
+            '  400 BadRequest: "Agentic apps are not supported for uploading from Teams/Teams '
+            'Admin Center. Please use M365 Admin Center."\n'
+            "この Graph API では公開できません。M365 管理センター"
+            "（https://admin.cloud.microsoft/?#/agents/all または Integrated apps）から"
+            f"手動でこの ZIP をアップロードしてください: {package}\n"
+            "（詳細: references/troubleshooting.md の該当項目を参照）"
+        )
+    external_id = read_manifest_id(manifest, package)
     body = package.read_bytes()
 
-    token = get_token(scope=GRAPH_SCOPE)
+    token = get_token(scope=GRAPH_SCOPE, client_id=GRAPH_CLIENT_ID)
     session = requests.Session()
     session.headers.update({"Authorization": f"Bearer {token}"})
 

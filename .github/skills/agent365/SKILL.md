@@ -94,7 +94,7 @@ Step 6 で同じ質問を繰り返さない。(a)/(b) の時点では Azure Bot 
 | [scripts/create_instance.py](scripts/create_instance.py) | manifest / definition / blueprint の 3 モードでエージェントを作成 | 5 |
 | [scripts/deploy.py](scripts/deploy.py) | レンダリング済み manifest から新しいバージョンを `create_version` | 5, 10 |
 | [scripts/build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + agenticUser を ZIP 化 | 8 |
-| [scripts/publish_teams_app.py](scripts/publish_teams_app.py) | Microsoft Graph（`appCatalogs/teamsApps`）でビルド済み ZIP を組織アプリカタログへ登録・更新（手動アップロード不要） | 9 |
+| [scripts/publish_teams_app.py](scripts/publish_teams_app.py) | Microsoft Graph（`appCatalogs/teamsApps`）でビルド済み ZIP を組織アプリカタログへ登録・更新。**devPreview（Agent template）manifest は Graph 側で拒否されるため M365 管理センターへの手動アップロードが必要**（[references/troubleshooting.md](references/troubleshooting.md) #16） | 9 |
 
 ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `review_sanitization.py` /
 `gate_rules.py` / `review_report.py`）は **`alm` スキル**が提供する
@@ -321,7 +321,23 @@ python scripts/build_teams_package.py --require-template
   公開する場合のみこちらを使う）。
 - **再アップロードのたびに `.env` の `TEAMS_APP_VERSION` を上げる**（同一バージョンはアップロード時に拒否される）。
 
-### Step 10: Graph API で公開する（API/SDK のみ・手動アップロード不要）
+### Step 10: 公開する
+
+> **重要**: Step 6 で **(b)/(c)** を選び `--require-template` 付きでビルドした場合
+> （`manifestVersion: devPreview` / `agenticUserTemplates` 付き = "Agent template"）、
+> Microsoft Graph の `POST /appCatalogs/teamsApps` は agentic マニフェストのアップロードを
+> **サーバー側で明示的に拒否する**（`400 BadRequest: "Agentic apps are not supported for
+> uploading from Teams/Teams Admin Center. Please use M365 Admin Center."`）。
+> これは認証やスクリプトの実装では回避できないハード制約（2026-07 時点で確認済み。
+> [references/troubleshooting.md](references/troubleshooting.md) #16 参照）。
+> **この場合は下記のスクリプト実行を飛ばし、M365 管理センター
+> （`https://admin.cloud.microsoft/?#/agents/all` の "Upload"）から手動で ZIP をアップロードする。**
+> `scripts/publish_teams_app.py` は `manifest.json` の `manifestVersion` が `devPreview` の場合、
+> Graph 呼び出しを試みる前にこの旨を案内して終了する。
+
+Step 6 で **(a)（テンプレート公開のみ）を選んでいた場合はこの Step 全体を実施しない**。
+`--require-template` 無しでビルドした GA/共有エージェント manifest（非 devPreview）のみ、
+以下の Graph API 経由のスクリプト公開が使える。
 
 ```powershell
 python scripts/publish_teams_app.py
@@ -330,15 +346,19 @@ python scripts/publish_teams_app.py --requires-review
 ```
 
 1. Microsoft Graph の `POST /appCatalogs/teamsApps`（新規）または
-   `POST /appCatalogs/teamsApps/{id}/appDefinitions`（既存アプリの新バージョン）を呼び、
-   Teams / Microsoft 365 管理センターへの手動アップロードを不要にする。
-   認証は `auth_helper.py` の `get_token(scope="https://graph.microsoft.com/.default")`
-   （DeviceCodeCredential + 永続キャッシュ）を再利用する。
+   `POST /appCatalogs/teamsApps/{id}/appDefinitions`（既存アプリの新バージョン）を呼ぶ。
+   認証は `auth_helper.py` の
+   `get_token(scope="https://graph.microsoft.com/AppCatalog.ReadWrite.All", client_id="14d82eec-204b-4c2f-b7e8-296a70dab67e")`
+   （Microsoft Graph PowerShell の well-known パブリッククライアント + DeviceCodeCredential +
+   永続キャッシュ）を再利用する。既定の Azure CLI パブリッククライアントは
+   `AppCatalog.ReadWrite.All` を原理的に取得できないため、この client_id への切り替えが必須
+   （[references/troubleshooting.md](references/troubleshooting.md) #11 参照）。
 2. これらの Graph API は **Delegated 権限のみ対応**（Application 権限は不可）。
-   テナントで `AppCatalog.ReadWrite.All` の同意が必要。`--requires-review` 無しで
-   即時公開するには実行ユーザーが Teams 管理者ロールを持つ必要がある
+   テナントで `AppCatalog.ReadWrite.All` の同意が必要（初回サインイン時に同意画面が表示される）。
+   `--requires-review` 無しで即時公開するには実行ユーザーが Teams 管理者ロールを持つ必要がある
    （無い場合は `--requires-review` で申請する）。
-3. Step 6 で (b) を選んだ場合、Agent 365 の管理画面（`admin.cloud.microsoft/?#/agents/all`）に
+3. （devPreview / Agent template を M365 管理センターで手動アップロードした場合を含め）
+   Step 6 で (b) を選んだ場合、Agent 365 の管理画面（`admin.cloud.microsoft/?#/agents/all`）に
    "Agent template" として表示され、そこから Instance を作成できることを確認する
    （Step 8 を行っていないため、Teams 上でのチャット応答はまだ確認できない）。
    (c) を選んだ場合は、Teams でエージェントを開き、利用者ごとのセッション（インスタンス）が
