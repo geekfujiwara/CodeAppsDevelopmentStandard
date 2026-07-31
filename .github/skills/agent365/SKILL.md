@@ -68,6 +68,7 @@ Teams / Microsoft 365 Copilot に公開するまでを一貫して行う。
 | [scripts/create_instance.py](scripts/create_instance.py) | manifest / definition / blueprint の 3 モードでエージェントを作成 | 5 |
 | [scripts/deploy.py](scripts/deploy.py) | レンダリング済み manifest から新しいバージョンを `create_version` | 5, 10 |
 | [scripts/build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + agenticUser を ZIP 化 | 8 |
+| [scripts/publish_teams_app.py](scripts/publish_teams_app.py) | Microsoft Graph（`appCatalogs/teamsApps`）でビルド済み ZIP を組織アプリカタログへ登録・更新（手動アップロード不要） | 9 |
 
 ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `review_sanitization.py` /
 `gate_rules.py` / `review_report.py`）は **`alm` スキル**が提供する
@@ -141,7 +142,7 @@ Copy-Item .github/skills/agent365/references/templates/manifest.template.json te
 Copy-Item .github/skills/agent365/references/templates/agenticUser.template.json teams/
 Copy-Item .github/skills/agent365/references/.env.example .env.example
 git config core.hooksPath .githooks   # 本格実装のみ
-pip install -r requirements.txt   # azure-ai-projects / azure-identity / PyYAML / Pillow
+pip install -r requirements.txt   # azure-ai-projects / azure-identity / PyYAML / Pillow / requests
 ```
 
 `.gitignore` には最低限 `.env` / `agents/**/agent.yaml` / `teams/*.zip` / `a365.generated.config.json`
@@ -237,11 +238,23 @@ python scripts/build_teams_package.py
   未設定なら GA スキーマ（1.22）の**共有エージェント**パッケージに自動ダウングレードして警告を出す。
 - **再アップロードのたびに `.env` の `TEAMS_APP_VERSION` を上げる**（同一バージョンはアップロード時に拒否される）。
 
-### Step 9: アップロードして公開する
+### Step 9: Graph API で公開する（API/SDK のみ・手動アップロード不要）
 
-1. Microsoft 365 管理センター（Agent 365 の Agents 画面）または Teams 管理センター >
-   アプリを管理 > アップロード で、生成された ZIP を登録する。
-2. 組織向けのアクセス許可・公開範囲を設定する。
+```powershell
+python scripts/publish_teams_app.py
+# 管理者レビューを経て公開する場合（Teams 管理者ロールが無いユーザーはこちら）
+python scripts/publish_teams_app.py --requires-review
+```
+
+1. Microsoft Graph の `POST /appCatalogs/teamsApps`（新規）または
+   `POST /appCatalogs/teamsApps/{id}/appDefinitions`（既存アプリの新バージョン）を呼び、
+   Teams / Microsoft 365 管理センターへの手動アップロードを不要にする。
+   認証は `auth_helper.py` の `get_token(scope="https://graph.microsoft.com/.default")`
+   （DeviceCodeCredential + 永続キャッシュ）を再利用する。
+2. これらの Graph API は **Delegated 権限のみ対応**（Application 権限は不可）。
+   テナントで `AppCatalog.ReadWrite.All` の同意が必要。`--requires-review` 無しで
+   即時公開するには実行ユーザーが Teams 管理者ロールを持つ必要がある
+   （無い場合は `--requires-review` で申請する）。
 3. Teams でエージェントを開き、利用者ごとのセッション（インスタンス）が開始されることを確認する。
 
 > **ライト実装はここで完了**。以降の Step 10 は本格実装のみ実施する。

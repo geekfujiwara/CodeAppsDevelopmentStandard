@@ -78,7 +78,28 @@ Edge プロファイル）を参照。初回失敗時は同じコマンドを再
 - 対処: `;` で区切るか `; if ($?) { ... }` を使う。PowerShell 7（`pwsh`）なら `&&` が使える。
   その他のシェル・CI 固有の問題は [`alm`](../../alm/references/troubleshooting.md) を参照。
 
-## 11. エージェント名を後から変えたくなった
+## 11. `publish_teams_app.py` が 403 / `Authorization_RequestDenied` で失敗する
+
+- 原因: Graph の `AppCatalog.ReadWrite.All`（Delegated）がテナントで同意されていない、
+  またはこの API は Application 権限に対応しないため `DefaultAzureCredential` 系の
+  アプリオンリー認証では原理的に成功しない。
+- 対処: `auth_helper.py` の `DeviceCodeCredential` フローでサインインし直し、表示された同意画面で
+  管理者同意を求める（テナント管理者に依頼が必要な場合がある）。
+
+## 12. `publish_teams_app.py` が 403 で「Teams 管理者ロールが必要」
+
+- 原因: `--requires-review` 無しでの即時公開は Teams 管理者ロールを持つユーザーのみ実行できる。
+- 対処: `python scripts/publish_teams_app.py --requires-review` で管理者レビューに提出し、
+  Teams 管理センターで承認してもらう。
+
+## 13. `publish_teams_app.py` が同じアプリを重複登録してしまう
+
+- 原因: manifest の `id`（externalId）が前回実行時と変わっている、またはビルドし直した ZIP の
+  `manifest.json` が古いキャッシュのまま。
+- 対処: `.env` の manifest 系プレースホルダーを変更していないか確認し、
+  `python scripts/build_teams_package.py` を実行してから `publish_teams_app.py` を実行する。
+
+## 14. エージェント名を後から変えたくなった
 
 識別子が広範囲に波及する（`.env` の変数名・フォルダ名 `agents/<name>/`・
 `agenticUserTemplates[].id`・ZIP 名・Bot リソース名・Foundry のエージェント名）。

@@ -63,7 +63,8 @@ az bot msteams create --resource-group $env:AZURE_RESOURCE_GROUP --name $env:AZU
 # Step 8: Teams パッケージ（共有エージェント）
 python scripts/build_teams_package.py
 
-# Step 9: 生成された ZIP をアップロードして公開
+# Step 9: Graph API で公開（管理センターへの手動アップロード不要）
+python scripts/publish_teams_app.py
 ```
 
 ## PoC でも省略しないこと
