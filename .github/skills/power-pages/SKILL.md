@@ -111,7 +111,10 @@ triggers:
 9. **powerpagecomponent type=18 には `powerpagesitelanguageid` が必須** — 未設定だと 404 になる
 10. **報告者・作成者は Contact Lookup で追跡する** — Power Pages では `createdby` はアプリケーションユーザーになるため使えない。ログインユーザーの Contact 情報を自動取得し入力不要にする（教訓 19）
 11. **デザイン系の変更は必ず `npm run dev`（localhost）で見た目を確認してから本番デプロイする** — 本番デプロイ → ブラウザ確認 → 再デプロイのループは 1 サイクルあたり数十秒〜数分かかり非効率。レイアウト・配色・レスポンシブ崩れは localhost で先に潰し、本番デプロイは最終確認のみに留める（教訓 20）。ただし Power Pages 本体のテーマ CSS（Bootstrap 既定の見出し色など）はローカルには存在せず本番でのみ衝突しうるため、色指定は見出し要素に明示的な `color` を必ず設定し、デプロイ後の最終確認も省略しない（詳細は [トラブルシューティング](references/troubleshooting.md)）
-12. **取引先企業（`account`）配下のレコードは Account スコープ（`756150002`）で権限を切る** — 全件公開になるグローバルアクセスで逃げない。`account` 権限（read + **appendto**）と子テーブル権限（`accountrelationship` + create）をセットで作り、POST 時に account Lookup を `@odata.bind` する。`read` は通るのに `create` だけ 403 になる典型パターンの原因（教訓 21）
+12. **取引先企業（`account`）配下の「業務テーブル」は Account スコープ（`756150002`）で権限を切る** — 全件公開になるグローバルアクセスで逃げない。子テーブル権限（`accountrelationship` + create）を作り、POST 時に account Lookup を `@odata.bind` する。`read` は通るのに `create` だけ 403 になる典型パターンの原因（教訓 21）
+13. **`account` テーブル自身に Account スコープを設定してはいけない** — Web API が 500（`9004010A`）を返し、会社名の参照も子レコードの bind も一切できなくなる。正解は **Contact スコープ（`756150001`）＋ `contact_customer_accounts`**。これで「自分の `parentcustomerid` が指す 1 件」だけが返る（実機検証済み）
+14. **Lookup バインドには参照する側・される側「両方」の 追加（Append）と 追加先（AppendTo）が要る** — 片側だけでは 403。`You don't have permission to associate or disassociate table X to Y` が出たら、まず不足している側の権限を疑う（実機で 4 通りの真理値表を検証済み）
+15. **account Lookup を省いた POST は 403 ではなく 201 で通ってしまう** — できるのは誰にも見えない孤立レコード。テーブル権限では防げないため、クライアント側で account 未取得なら作成 UI を出さない＋サーバー側（フロー等）で `null` を検知する二段構えにする（実機検証済み）
 
 ## ワークフロー
 
@@ -495,16 +498,22 @@ python ../.github/skills/power-pages/scripts/setup_access_scope.py --scope accou
 
 | # | テーブル | scope | リレーション | read | write | create | delete | append | appendto |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | `account` | Account（`756150002`） | なし（`null`） | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| 1 | `account` | **Contact（`756150001`）** | `contact_customer_accounts` | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
 | 2 | 業務テーブル | Account（`756150002`） | `accountrelationship` | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
-| 3 | `contact` | Self（`756150004`） | なし | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ |
+| 3 | `contact` | Self（`756150004`） | なし | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
 
+- **#1 に Account スコープを使わない**。`account` テーブル自身を Account スコープにすると
+  Web API が 500（`9004010A`）を返し、参照も bind もできなくなる（実機検証済み）。
+  Contact スコープ + `contact_customer_accounts`（account 1:N contact = `parentcustomerid`）にすれば
+  自社 1 件だけが返る。`verify()` は旧構成が残っていたら NG を出す。
 - **#1 の `write`/`delete` は必ず `false`**。スクリプトは送信直前に検証し、`true` なら中止する。
-- **`appendto=true` は編集権限ではない**。子レコード作成時に `account` を `@odata.bind` するために必須で、
-  無いと 403 / `90040106` になる。
+- **`append`/`appendto` は編集権限ではない**。Lookup バインドには
+  **参照する側とされる側の両方**で `append` と `appendto` が必要で、片側だけだと 403 になる。
 - Web ロールは既定で **Authenticated Users**。専用ロールにする場合は `ACCESS_SCOPE_WEBROLE_NAME` を設定する
   （存在しなければ作成されるが、**contact への割り当ては別途必要**）。
 - **グローバルアクセス（`756150000`）で代用しない**。全社の取引先企業が全ユーザーに見えてしまう。
+- **account Lookup を省いた POST は 201 で通る**（403 にならない）。できるのは誰にも見えない
+  孤立レコードなので、クライアント側で account 未取得なら作成 UI を出さないこと。
 
 ### 4-E: 取引先企業をプロファイル画面に読み取り専用で表示する
 
@@ -534,9 +543,16 @@ const accountId = me._parentcustomerid_value; // null = 未紐づけ
    python ../.github/skills/power-pages/scripts/setup_account_link_request.py
    ```
 
-3. 依頼メール送信フローを作成する（[power-automate](../power-automate/SKILL.md) スキル）。
+3. 依頼メール送信フローをデプロイする。
+
+   ```bash
+   python ../.github/skills/power-pages/scripts/deploy_flow_account_link_request.py
+   ```
+
+   接続参照の作成 → フロー作成 → 有効化 → Webhook 登録（`/start`）までを自動で行う。
+   事前に Dataverse と Office 365 Outlook の接続を make.powerautomate.com で作っておく（API では作れない）。
    トリガーは **Dataverse「行が追加されたとき」**、アクションは **Office 365 Outlook「メールの送信」**。
-   宛先は `.env` の `ACCOUNT_LINK_ADMIN_RECIPIENT` を接続参照経由で渡す。
+   宛先は `.env` の `ACCOUNT_LINK_ADMIN_RECIPIENT`。
 4. プロファイル画面のボタンから依頼レコードを POST する（テンプレート実装済み）。
 
 > **HTTP トリガーのフローを直接呼ばない**。匿名で叩ける URL は踏み台になる。
@@ -561,7 +577,8 @@ python ../.github/skills/power-pages/scripts/setup_access_scope.py --scope accou
 ```
 
 - [ ] 4-A の AskUserQuestion を実施し、`.env` の `ACCESS_SCOPE` に記録した
-- [ ] `account` 権限は read のみ（`write`/`delete` が `false`）で `appendto=true`
+- [ ] `account` 権限は **Contact スコープ + `contact_customer_accounts`** で read のみ（`write`/`delete` が `false`）
+- [ ] `account` / 業務テーブル / `contact` のすべてに `append` と `appendto` がある
 - [ ] 業務テーブル権限に `accountrelationship`（スキーマ名）と `create=true` がある
 - [ ] すべての type=18 に Web ロールが **content JSON と N:N association の両方**で紐付いている
 - [ ] `Webapi/{table}/enabled|fields` がアクセスする全テーブルにある

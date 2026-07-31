@@ -8,7 +8,7 @@
  */
 import { useState } from "react";
 
-import { useAccountAccess } from "./use-account-access";
+import { useAccountAccess } from "@/hooks/use-account-access";
 
 interface AccountProfileSectionProps {
   contactId: string | null;

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://www.schemastore.org/powerpages.config.json",
+  "siteName": "REPLACE_WITH_PAGES_SITE_NAME",
+  "compiledPath": ".",
+  "defaultLandingPage": "index.html"
+}

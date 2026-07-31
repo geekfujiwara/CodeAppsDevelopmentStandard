@@ -51,29 +51,52 @@ sequenceDiagram
 python .github/skills/power-pages/scripts/setup_account_link_request.py
 ```
 
-| テーブル | スコープ | 読み取り | 書き込み | 作成 | 削除 | 追加 |
-|---|---|---|---|---|---|---|
-| `{prefix}_accountlinkrequest` | Contact（`756150001`） | ✅ | ❌ | ✅ | ❌ | ✅ |
+| テーブル | スコープ | 読み取り | 書き込み | 作成 | 削除 | 追加 | 追加先 |
+|---|---|---|---|---|---|---|---|
+| `{prefix}_accountlinkrequest` | Contact（`756150001`） | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ |
+| `contact` | Self（`756150004`） | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
 
 書き込み・削除を付けない理由は、依頼者が申告内容やステータスを後から改ざんできないようにするため。
 スクリプトの `assert_no_write_delete()` が誤設定を実行前に止める。
 
+> **★ 追加（Append）と 追加先（AppendTo）は両テーブルに必要**。
+> `{prefix}_contactid@odata.bind` 付き POST は、contact 側・依頼テーブル側のどちらかが欠けると
+> 403 になる（実機で 4 通りの組み合わせを検証済み）。詳細は
+> [access-scope-design.md](access-scope-design.md) の真理値表を参照。
+
 ## 4. Power Automate フロー
 
-作成手順は power-automate スキルに従う。定義の骨子は次のとおり。
+```powershell
+python .github/skills/power-pages/scripts/deploy_flow_account_link_request.py
+```
+
+接続参照の作成からフローの作成・有効化・Webhook 登録までをこのスクリプトが行う（べき等）。
+事前に Dataverse と Office 365 Outlook の接続を
+[make.powerautomate.com/connections](https://make.powerautomate.com/connections) で作っておくこと（API では作れない）。
 
 | 要素 | 設定 |
 |---|---|
-| トリガー | Dataverse「行が追加、変更、または削除されたとき」（変更の種類: 追加） |
+| トリガー | Dataverse「行が追加、変更、または削除されたとき」（変更の種類: 追加）|
 | テーブル | `{prefix}_accountlinkrequest` |
 | スコープ | 組織 |
-| アクション 1 | Dataverse「行を関連付ける」不要。「ID で行を取得する」で `contact` の氏名・メールを取得 |
-| アクション 2 | Office 365 Outlook「メールの送信 (V2)」 |
-| 宛先 | `.env` の `ACCOUNT_LINK_ADMIN_RECIPIENT`（配布リスト推奨） |
+| アクション 1 | Dataverse「ID で行を取得する」で `contact` の氏名・メールを取得 |
+| アクション 2 | Office 365 Outlook「メールの送信 (V2)」|
+| 宛先 | `.env` の `ACCOUNT_LINK_ADMIN_RECIPIENT`（配布リスト推奨）|
 | 件名 | `[Power Pages] 取引先企業の紐づけ依頼: {氏名}` |
-| 本文 | 依頼者名・メール・申告会社名・依頼レコードへのリンク |
+| 本文 | 依頼者名・メール・申告会社名・依頼日時と、自己申告である旨の警告 |
 
 接続は接続参照（connection reference）で構成し、環境間で使い回せるようにする。
+
+### ★ API デプロイで踏む落とし穴（実機検証済み）
+
+| 項目 | 正しい値 | 間違えたときの症状 |
+|---|---|---|
+| `connectionReferences` のキー | コネクタ名（`shared_commondataserviceforapps`）| 接続参照の論理名をキーにすると有効化時に 400<br>`Name {prefix}_connref_... did not match validation regex ^[a-zA-Z0-9\-\.]{1,96}$` |
+| 接続参照の渡し方 | `runtimeSource: "embedded"` + `connection.connectionReferenceLogicalName` | 接続 ID 直埋めだと `AzureResourceManagerRequestFailed` |
+| `host.connectionName` | コネクタ名 | 同上 |
+| `subscriptionRequest/entityname` | テーブルの**論理名**（`{prefix}_accountlinkrequest`）| エンティティセット名（複数形）だと<br>`InvalidOpenApiFlow` / `GetMetadataForGetEntityCUDTrigger` が `EntityNotFound` |
+| `GetItem` の `entityName` | **エンティティセット名**（`contacts`）| 論理名だと実行時に見つからない |
+| 有効化後の `/start` | Flow API に POST する | `statecode=1` だけだと webhook が登録されず発火しない |
 
 ### HTTP トリガーのフローにしない理由
 

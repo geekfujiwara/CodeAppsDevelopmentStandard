@@ -83,7 +83,7 @@ def main() -> None:
     print(f"=== 紐づけ依頼テーブル権限構成: {table} ===\n")
     print("[1/4] サイト・ロールを解決...")
     site_id = resolve_site_id()
-    adx_website_id = resolve_adx_website_id()
+    adx_website_id = resolve_adx_website_id(site_id)
     lang_id = resolve_site_language_id(site_id)
     role_id = resolve_webrole_id(site_id, lang_id, adx_website_id)
     print()
@@ -103,7 +103,7 @@ def main() -> None:
     content = build_content(
         adx_website_id, table, name, assert_scope_value(SCOPE_CONTACT),
         "contactrelationship", relationship, role_id,
-        read=True, write=False, create=True, delete=False, append=True, appendto=False,
+        read=True, write=False, create=True, delete=False, append=True, appendto=True,
     )
     assert_no_write_delete(content)
     upsert_permission(site_id, lang_id, name, content, role_id)

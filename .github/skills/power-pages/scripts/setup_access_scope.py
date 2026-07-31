@@ -56,7 +56,7 @@ for _p in _SCRIPT_DIR.parents:
         load_dotenv(_p / ".env")
         break
 
-from auth_helper import api_get, api_patch, api_post, get_session  # noqa: E402
+from auth_helper import api_delete, api_get, api_patch, api_post, get_session  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
@@ -83,7 +83,11 @@ TYPE_TABLE_PERMISSION = 18
 ENV_ID = os.environ.get("ENV_ID", "")
 PP_SUBDOMAIN = os.environ.get("PP_SUBDOMAIN", "")
 PAGES_WEBSITE_ID = os.environ.get("PAGES_WEBSITE_ID", "")
+PAGES_SITE_NAME = os.environ.get("PAGES_SITE_NAME", "").strip()
 WEBROLE_NAME = os.environ.get("ACCESS_SCOPE_WEBROLE_NAME", "").strip() or "Authenticated Users"
+# contact.parentcustomerid（account 1:N contact）のリレーションスキーマ名。
+# account テーブル自身の権限をこのリレーションで Contact スコープにする。
+ACCOUNT_SELF_RELATIONSHIP = "contact_customer_accounts"
 ACCOUNT_FIELDS = os.environ.get("ACCOUNT_WEBAPI_FIELDS", "*")
 CHILD_FIELDS = os.environ.get("ACCESS_SCOPE_CHILD_WEBAPI_FIELDS", "*")
 ALLOW_DELETE = os.environ.get("ACCESS_SCOPE_ALLOW_DELETE", "false").lower() == "true"
@@ -161,21 +165,52 @@ def verify_relationship(parent_logical: str, schema_name: str, child_logical: st
 
 
 def resolve_site_id() -> str:
+    """対象サイトを解決する。
+
+    PAGES_SITE_NAME が設定されていればその名前で特定する。環境に複数サイトがあるとき、
+    「最新作成のサイト」を暗黙に選ぶと**別サイトに権限を書き込む事故**になるため。
+    """
     sites = api_get(
-        "powerpagesites?$top=1&$orderby=createdon desc&$select=powerpagesiteid,name"
+        "powerpagesites?$orderby=createdon desc&$select=powerpagesiteid,name&$top=100"
     ).get("value", [])
     if not sites:
         sys.exit("ERROR: powerpagesites にレコードが見つかりません")
+    if PAGES_SITE_NAME:
+        match = next((s for s in sites if (s.get("name") or "").lower() == PAGES_SITE_NAME.lower()), None)
+        if not match:
+            sys.exit(
+                f"ERROR: PAGES_SITE_NAME='{PAGES_SITE_NAME}' に一致するサイトがありません"
+                f"（候補: {', '.join(s['name'] for s in sites[:20])}）"
+            )
+        print(f"  site: {match['name']} ({match['powerpagesiteid']})")
+        return match["powerpagesiteid"]
+    if len(sites) > 1:
+        print("  WARNING: 環境に複数サイトがあります。PAGES_SITE_NAME を .env に設定して対象を固定してください")
     print(f"  site: {sites[0]['name']} ({sites[0]['powerpagesiteid']})")
     return sites[0]["powerpagesiteid"]
 
 
-def resolve_adx_website_id() -> str:
-    sites = api_get(
-        "adx_websites?$top=1&$orderby=createdon desc&$select=adx_websiteid,adx_name"
-    ).get("value", [])
+def resolve_adx_website_id(site_id: str) -> str:
+    """content JSON の websiteid を解決する。
+
+    EDM 2.0 のみの環境には `adx_websites` テーブル自体が存在せず 404 になる。
+    その場合は powerpagesiteid が websiteid として使われる（既定コンポーネントの content で確認済み）。
+    """
+    try:
+        sites = api_get(
+            "adx_websites?$orderby=createdon desc&$select=adx_websiteid,adx_name&$top=100"
+        ).get("value", [])
+    except Exception:
+        print("  note: adx_websites なし（EDM 2.0）→ websiteid には powerpagesiteid を使用")
+        return site_id
     if not sites:
-        sys.exit("ERROR: adx_websites にレコードが見つかりません")
+        print("  note: adx_websites が空 → websiteid には powerpagesiteid を使用")
+        return site_id
+    if PAGES_SITE_NAME:
+        match = next((s for s in sites if (s.get("adx_name") or "").lower() == PAGES_SITE_NAME.lower()), None)
+        if match:
+            return match["adx_websiteid"]
+        print(f"  WARNING: adx_websites に '{PAGES_SITE_NAME}' が見つかりません。最新のレコードを使用します")
     return sites[0]["adx_websiteid"]
 
 
@@ -200,6 +235,19 @@ def find_component(site_id: str, ctype: int, exact_name: str) -> dict | None:
         if (c.get("name") or "") == exact_name:
             return c
     return None
+
+
+def drop_legacy_permission(site_id: str, name: str) -> None:
+    """旧バージョンが作った壊れた権限を削除する。
+
+    account テーブルに Account スコープ（リレーション無し）の権限が残っていると、
+    新しい権限を作っても Web API が 500 (9004010A) を返し続ける。
+    """
+    existing = find_component(site_id, TYPE_TABLE_PERMISSION, name)
+    if not existing:
+        return
+    api_delete(f"powerpagecomponents({existing['powerpagecomponentid']})")
+    print(f"  DELETED (legacy): {name}")
 
 
 def create_component(site_id: str, lang_id: str, ctype: int, name: str, content: dict) -> str:
@@ -368,6 +416,11 @@ def verify(site_id: str, role_id: str, logicals: list[str]) -> int:
             print(f"  {logical}: scope={SCOPE_NAMES.get(scope, scope)} "
                   f"read={content.get('read')} write={content.get('write')} "
                   f"create={content.get('create')} appendto={content.get('appendto')}")
+            if logical == "account" and scope == SCOPE_ACCOUNT:
+                print("    NG: account に Account スコープは使えません"
+                      f"（Web API が 500 を返す）→ Contact スコープ + "
+                      f"{ACCOUNT_SELF_RELATIONSHIP} にしてください")
+                missing += 1
             expanded = api_get(
                 f"powerpagecomponents({comp['powerpagecomponentid']})"
                 f"?$select=powerpagecomponentid"
@@ -432,7 +485,7 @@ def main() -> None:
     print(f"=== アクセススコープ構成: {args.scope} ===\n")
     print("[1/5] サイト・ロールを解決...")
     site_id = resolve_site_id()
-    adx_website_id = resolve_adx_website_id()
+    adx_website_id = resolve_adx_website_id(site_id)
     lang_id = resolve_site_language_id(site_id)
     role_id = resolve_webrole_id(site_id, lang_id, adx_website_id)
     print()
@@ -446,6 +499,9 @@ def main() -> None:
         pairs = parse_table_pairs(os.environ.get("SELF_CHILD_TABLES", ""), "SELF_CHILD_TABLES")
 
     logicals = [parent_logical, *[p[0] for p in pairs]]
+    if args.scope == "account":
+        # Account スコープでも /profile はサインインユーザーの contact を読む
+        logicals.append("contact")
 
     if args.verify_only:
         print("[検証] 権限・association・Webapi 設定を確認...")
@@ -455,19 +511,39 @@ def main() -> None:
 
     print(f"[2/5] {parent_logical} 権限を作成/更新...")
     if args.scope == "account":
-        # 取引先企業は「参照のみ」。appendto は子レコードの Lookup バインドに必要
-        name = "Account - Account scope (read only)"
+        # 取引先企業は「参照のみ」。append/appendto は子レコードの Lookup バインドに必要
+        # （実機検証: バインド相手の両方に append と appendto が無いと 403 になる）
+        #
+        # 重要: account テーブル自身の権限は **Contact スコープ + contact_customer_accounts**
+        # にする。Account スコープ（リレーション無し）にすると Web API が 500 (9004010A) を返し、
+        # account の参照も子レコードの Lookup バインドもすべて失敗する（実機検証済み）。
+        # Contact スコープ + contact_customer_accounts なら、サインインユーザーの
+        # parentcustomerid が指す 1 件だけが見える（他社の account は返らないことを確認済み）。
+        name = "Account - Own account (read only)"
+        drop_legacy_permission(site_id, "Account - Account scope (read only)")
         content = build_content(
-            adx_website_id, "account", name, SCOPE_ACCOUNT, None, None, role_id,
-            read=True, write=False, create=False, delete=False, append=False, appendto=True,
+            adx_website_id, "account", name, SCOPE_CONTACT,
+            "contactrelationship", ACCOUNT_SELF_RELATIONSHIP, role_id,
+            read=True, write=False, create=False, delete=False, append=True, appendto=True,
         )
         upsert_permission(site_id, lang_id, name, content, role_id)
         enable_webapi(site_id, lang_id, adx_website_id, "account", ACCOUNT_FIELDS)
+
+        # サインインユーザー自身の contact を読むための Self 権限も必須
+        # （これが無いと parentcustomerid を読めず、所属企業を解決できない）
+        contact_name = "Contact - Self"
+        contact_content = build_content(
+            adx_website_id, "contact", contact_name, SCOPE_SELF, None, None, role_id,
+            read=True, write=True, create=False, delete=False, append=True, appendto=True,
+        )
+        upsert_permission(site_id, lang_id, contact_name, contact_content, role_id)
+        enable_webapi(site_id, lang_id, adx_website_id, "contact",
+                      os.environ.get("CONTACT_WEBAPI_FIELDS", "").strip() or "*")
     else:
         name = "Contact - Self"
         content = build_content(
             adx_website_id, "contact", name, SCOPE_SELF, None, None, role_id,
-            read=True, write=True, create=False, delete=False, append=False, appendto=True,
+            read=True, write=True, create=False, delete=False, append=True, appendto=True,
         )
         upsert_permission(site_id, lang_id, name, content, role_id)
         enable_webapi(site_id, lang_id, adx_website_id, "contact", "*")

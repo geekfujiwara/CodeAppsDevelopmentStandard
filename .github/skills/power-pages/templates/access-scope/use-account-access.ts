@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 
-import { bindLookup, powerPagesFetch } from "@/shared/powerPagesApi";
+import { bindLookup, powerPagesFetch } from "@/lib/dataverse";
 
 /** Dataverse のパブリッシャープレフィックス（環境に合わせて置き換える） */
 const PREFIX = import.meta.env.VITE_PUBLISHER_PREFIX ?? "geek";
