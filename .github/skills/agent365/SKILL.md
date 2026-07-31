@@ -42,6 +42,24 @@ Teams / Microsoft 365 Copilot に公開するまでを一貫して行う。
 > [Agent 365 CLI 運用](references/a365-cli.md) /
 > [異常系・トラブルシュート](references/troubleshooting.md)
 
+## 事前確認（会話の最初に一括で確認する・正常系）
+
+本スキルの利用が確定したら、実装に着手する前に**1 回の AskUserQuestion で次の 4 点をまとめて
+確認する**。これが正常系の標準フロー。Step 0 / Step 1 / Step 6 で同じ内容を後から個別に
+聞き直さない（ここで得た回答をそのまま使い回す。未回答の項目だけ該当 Step で改めて聞く）。
+
+| # | 質問 | 選択肢 / 記入例 |
+|---|---|---|
+| 1 | 検証・実装のゴールはどこまでか | (a) ローカルで scaffold して構成を確認するだけ（Azure 操作なし）<br>(b) Foundry 上に実際にエージェントを作成するところまで（Step 0〜5）<br>(c) Agent 365 の管理画面に "Agent template" として表示させ、そこから Instance を作成できる状態にする（Step 0〜5, 7, 9, 10。Azure Bot Service は作らない＝ Teams チャットはまだ動かない）<br>(d) Teams / M365 Copilot で実際にチャットできる状態まで実配信する（Step 0〜10 すべて。Azure Bot Service の課金を伴う） |
+| 2 | テスト用の Azure サブスクリプション・Foundry プロジェクトは既にあるか。`az login` は可能か | ある場合はそのまま Step 3 へ進む。無い場合は先に用意してもらう（サブスクリプション・Foundry account/project・(d) を選ぶ場合は Agent 365 ライセンス割り当ても必要） |
+| 3 | 「〇〇を行ってくれる同僚エージェント」の具体的な業務内容は？ | 自由記述。曖昧なら業務内容の候補例を提示して選んでもらう |
+| 4 | エージェント名（kebab-case、商標・著作権に触れない独自名）の希望は？ | 希望が無ければここで 3 案提案し選んでもらう（Step 1.3 と同じ制約） |
+
+質問 1 の回答は Step 6（公開範囲の確認）の判断を兼ねるため、(b)〜(d) を選んだ場合でも
+Step 6 で同じ質問を繰り返さない。(a)/(b) の時点では Azure Bot Service の課金やテナント
+全体への公開は発生しない。(c)/(d) は Azure リソース作成・テナントのアプリカタログへの
+公開を伴うため、質問 1 の選択自体が Step 6 の承認を兼ねる。
+
 ## 実装ルートの選択（ライト / 本格）
 
 `architecture` スキルの AskUserQuestion で選択済みならその結果に従う。未選択なら Step 0 で確認する。
@@ -110,7 +128,7 @@ ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `
 ### Step 0: 実装レベルとリポジトリ形態を決める
 
 1. **ライト実装（PoC）か本格実装か**を AskUserQuestion で確認する
-   （`architecture` スキルで選択済みならその結果を使い、重複して聞かない）。
+   （**事前確認**または `architecture` スキルで選択済みならその結果を使い、重複して聞かない）。
 2. 本格実装なら **Git ホスティング**を確認し、CI とシークレット保管先を決める。
    エージェント定義は業務知識を含むため、**private リポジトリを前提**とする。
 
@@ -133,7 +151,7 @@ ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `
 2. インスタンス化する場合のみ Agent 365 ブループリント（Step 7）と `agenticUserTemplates` が必要になる。
    → 詳細は [references/architecture.md](references/architecture.md)。
 3. エージェント名（kebab-case、Teams 表示名とは別）を決める。
-   エージェント名を3件 AskUserQuestion にて提案する。ここでのエージェント名は独自性のあるものとし、**商標・著作権に触れる名称やキャラクターを使用してはならない**。
+   **事前確認の質問 4 で回答済みならその名前を使う**。未回答ならエージェント名を3件 AskUserQuestion にて提案する。ここでのエージェント名は独自性のあるものとし、**商標・著作権に触れる名称やキャラクターを使用してはならない**。
 
 ### Step 2: リポジトリを scaffold する
 
@@ -217,27 +235,38 @@ python scripts/deploy.py --agent <agent-name>
 | `blueprint` | `agents.create_version(blueprint_reference=...)` | ブループリント共有（`lifecycle=Manual` 必須） |
 
 作成後、`INSTANCE_IDENTITY_PRINCIPAL_ID` / `INSTANCE_IDENTITY_CLIENT_ID` / `AGENT_GUID` を `.env` へ反映する。
+`agent_guid` は `client.agents.get(agent_name=...)` の応答（`versions.latest.agent_guid`）から取得できる。
+**`--mode blueprint` の場合、検証環境によっては応答に `instance_identity` が含まれないことがある**
+（[references/troubleshooting.md](references/troubleshooting.md) の該当項目を参照）。その場合は
+ブループリント共有の設計上、`INSTANCE_IDENTITY_PRINCIPAL_ID` / `INSTANCE_IDENTITY_CLIENT_ID` に
+`BLUEPRINT_PRINCIPAL_ID` / `BLUEPRINT_CLIENT_ID` と同じ値を設定してよい。
 
-### Step 6: 公開範囲を確認する（テンプレート公開のみ / デジタル従業員として実配信）
+### Step 6: 公開範囲を確認する（テンプレート公開のみ / Agent template 登録 / デジタル従業員として実配信）
 
 Step 5 までで Foundry 上にエージェントは実際に動作する状態になるが、**Teams / Microsoft 365
 管理センター（`https://admin.cloud.microsoft/?#/agents/all`）にはまだ表示されない**。
-そこに「デジタル従業員」として一覧表示され、実際に Teams から使える状態にするには
-Step 8〜10（Azure Bot Service → Teams パッケージ → Graph API 公開）が必要になる。
-この先は **Azure Bot Service の課金**と**テナント全体への公開**を伴うため、
-**不明瞭な場合は必ず AskUserQuestion で利用者に確認してから Step 7 以降に進む。**
+「Agent 365 の管理画面に "Agent template" として表示させ、そこから Instance を作成できる
+状態にする」ことと「実際に Teams でチャットできる状態にする」ことは**別のマイルストーン**。
+前者は Step 7（Agent 365 ブループリント）→ Step 9（`--require-template`）→ Step 10（Graph 公開）
+だけで達成でき、**Azure Bot Service（Step 8、課金あり）は不要**（Bot Service はエージェントの
+インスタンスが実際に Teams 上のメッセージへ応答するための経路であり、管理画面へのカタログ登録
+そのものには関与しない）。Step 7 以降は**テナントのアプリカタログへの公開**を伴うため、
+**事前確認の質問 1 で回答済みでなければ、必ず AskUserQuestion で確認してから Step 7 以降に進む。**
 
-> AskUserQuestion で提示する質問（複数の名前付きエージェントの場合は**エージェントごとに個別に確認する**）:
+> 事前確認の質問 1 で回答済みならここで聞き直さない。複数の名前付きエージェントの場合は
+> **エージェントごとに個別に確認する**。
 
 | 質問 | 選択肢 |
 |---|---|
-| Step 5 で作成したエージェントテンプレートを、実際に「デジタル従業員」として Teams / M365 管理センターにデプロイしますか？ | **(a) いいえ、テンプレート公開のみでよい**（ここで作業を終える。Step 8〜11 は実施しない）<br>**(b) はい、実配信する**（Step 7〜10 を続けて実施する） |
+| Step 5 で作成したエージェントテンプレートを、この先どこまで公開しますか？ | **(a) いいえ、テンプレート公開のみでよい**（ここで作業を終える。Step 7〜11 は実施しない）<br>**(b) Agent 365 の管理画面に "Agent template" として表示させ、Instance を作成できる状態にしたい**（Step 7 → 9（`--require-template`）→ 10 を実施。Step 8 は実施しない＝ Teams チャットはまだ動かない）<br>**(c) はい、Teams / M365 Copilot で実際にチャットできる状態まで実配信する**（Step 7 → 8 → 9 → 10 をすべて実施） |
 
 - **(a) を選んだ場合**: ここで作業を止める。`agents/<agent-name>/agent.template.yaml` がコミットされ、
   Foundry 上にエージェントバージョンが稼働している状態が最終成果物。
-  `admin.cloud.microsoft/?#/agents/all` に表示されないのは想定どおりの挙動（Step 10 の
-  Teams 公開を経て初めて表示される）。
-- **(b) を選んだ場合**: Step 1 の判断（共有 / インスタンス化）に従って
+  `admin.cloud.microsoft/?#/agents/all` に表示されないのは想定どおりの挙動。
+- **(b) を選んだ場合**: Step 7 → Step 9（`--require-template` を付与）→ Step 10 の順で進める。
+  Step 8（Azure Bot Service）は行わない。実際に Teams で使い始めたくなった時点で
+  Step 8 を追加すればよい（作り直し不要。[references/troubleshooting.md](references/troubleshooting.md) 参照）。
+- **(c) を選んだ場合**: Step 1 の判断（共有 / インスタンス化）に従って
   Step 7（インスタンス化する場合のみ）→ Step 8 → Step 9 → Step 10 と進める。
 
 ### Step 7: Agent 365 のエージェント ID ブループリントを作成する
@@ -256,7 +285,7 @@ a365 setup blueprint -n <agent-name> --no-endpoint
 - 初回はディレクトリ伝播の遅延で失敗することがあるが、**同じコマンドを再実行すれば冪等に修復される**。
 - Windows での認証（WAM）まわりのハマりどころは [references/a365-cli.md](references/a365-cli.md)。
 
-### Step 8: Azure Bot Service と Teams チャネルを作成する
+### Step 8: Azure Bot Service と Teams チャネルを作成する（Step 6 で (c) を選んだ場合のみ）
 
 Bot の `msaAppId` には**エージェントのインスタンス ID の client id** を使う。
 
@@ -309,7 +338,11 @@ python scripts/publish_teams_app.py --requires-review
    テナントで `AppCatalog.ReadWrite.All` の同意が必要。`--requires-review` 無しで
    即時公開するには実行ユーザーが Teams 管理者ロールを持つ必要がある
    （無い場合は `--requires-review` で申請する）。
-3. Teams でエージェントを開き、利用者ごとのセッション（インスタンス）が開始されることを確認する。
+3. Step 6 で (b) を選んだ場合、Agent 365 の管理画面（`admin.cloud.microsoft/?#/agents/all`）に
+   "Agent template" として表示され、そこから Instance を作成できることを確認する
+   （Step 8 を行っていないため、Teams 上でのチャット応答はまだ確認できない）。
+   (c) を選んだ場合は、Teams でエージェントを開き、利用者ごとのセッション（インスタンス）が
+   開始されることを確認する。
 
 > **ライト実装はここで完了**。以降の Step 11 は本格実装のみ実施する。
 > ライト実装のまま運用する場合も、`.env` をコミットしていないことを Step 12 で必ず確認する。
@@ -372,8 +405,9 @@ git status --short                          # .env / agent.yaml / *.zip が未�
 
 ### 共通（ライト実装も必須）
 
+- [ ] 事前確認で 4 点（ゴール・Azure/Foundry 環境・業務内容・エージェント名）を一括で確認した（Step 0 / Step 1 / Step 6 で重複して聞いていない）
 - [ ] Step 0 で**ライト実装 / 本格実装**を確定し、`.env` の `IMPLEMENTATION_MODE` に反映した
-- [ ] Step 6 で**テンプレート公開のみ / デジタル従業員として実配信**を AskUserQuestion で確定した
+- [ ] Step 6 で**テンプレート公開のみ / Agent template 登録 / デジタル従業員として実配信**のいずれかを AskUserQuestion で確定した
       （不明瞭なまま Step 7 以降へ進んでいない）
 - [ ] `.env` / `agents/**/agent.yaml` / `teams/*.zip` / `a365.generated.config.json` が追跡されていない
 - [ ] `agent.template.yaml` / `*.template.json` に実 GUID・ARM パス・接続文字列が無い（`${VAR}` 化済み）

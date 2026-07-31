@@ -106,3 +106,21 @@ Edge プロファイル）を参照。初回失敗時は同じコマンドを再
 **Step 0 の時点で商標・著作権に配慮した名前を確定させる**。
 既存の Foundry エージェントは削除せず残しても害はないが、Teams 側は同じアプリ ID の
 バージョン更新として扱うため `TEAMS_APP_VERSION` の引き上げを忘れない。
+
+## 15. `create_instance.py --mode blueprint` の後、`instance_identity` が取得できない
+
+- 現象: `--mode blueprint` でエージェントを作成しても、`create_instance.py` は
+  principal id / client id を標準出力に表示しない。さらに
+  `client.agents.get(agent_name=...)` / `get_version(...)` の応答にも
+  `instance_identity` フィールド（SDK モデル `AgentDetails.instance_identity` /
+  `AgentVersionDetails.instance_identity`）が含まれないテナント・API バージョンがある
+  （`blueprint` フィールドも同様に空で返ることがある）。
+- 対処: ブループリント共有方式（`lifecycle=Manual` のブループリントを複数エージェントで
+  共有する設計）では、エージェントは常にブループリントの Entra アプリをそのまま使う。
+  そのため `.env` の `INSTANCE_IDENTITY_PRINCIPAL_ID` / `INSTANCE_IDENTITY_CLIENT_ID` には
+  **`BLUEPRINT_PRINCIPAL_ID` / `BLUEPRINT_CLIENT_ID` と同じ値**を設定してよい
+  （`agent_guid` は `agents.get()` の `versions.latest.agent_guid` から取得できる）。
+- 既知の改善余地: `create_instance.py` が生成直後のレスポンスから
+  principal id / client id / agent_guid を表示するように改善すれば、
+  このワークアラウンドを判定条件つきで自動化できる（本 PR のフォローアップ候補）。
+
