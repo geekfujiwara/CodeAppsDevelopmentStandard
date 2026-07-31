@@ -116,6 +116,23 @@ Foundry の Hosted agent（Teams / M365 Copilot に公開する形態）は、
 参照する。日本語ファイル名（例: `ハンター.png`）で受け取った場合は、
 上記のパス・命名規則にリネームしてから配置する。
 
+## 8. 「エージェントテンプレートとしての公開」で止める判断
+
+ユーザーが「まずはテンプレートとして公開できていれば OK」と言った場合、
+**Step 7（Azure Bot Service）・Step 9（Graph API での Teams 組織カタログ公開）は実施しない**。
+以下がそろっていれば「テンプレートとしての公開」は完了している。
+
+- 各エージェントが `agents/<name>/agent.template.yaml` として ${VAR} 入りでコミットされている
+  （= 誰でも `.env` を用意すれば同じ定義を再現できる）。
+- 共有ブループリント（Step 4）を使って Foundry 上に実際にエージェントバージョンが
+  作成済み（`create_instance.py` の実行結果、`agent_guid` が払い出されている）。
+- Teams manifest / agenticUser テンプレート・アイコンはコミット済みだが、
+  `teams/*.zip` のビルドや Graph 公開はまだ行っていない。
+
+Azure Bot Service（課金）・Teams 組織カタログ公開（テナント全体への公開）は
+**利用者が実際に Teams で使い始めたいタイミングで改めて Step 7〜9 を実施すればよい**
+（本ドキュメントの手順を再利用するだけで追加設計は不要）。
+
 ## 7. このパターンを設計する過程で分かった教訓
 
 - **Graph の Teams アプリ公開 API は Delegated 権限のみ**（`AppCatalog.ReadWrite.All`）。
@@ -133,3 +150,13 @@ Foundry の Hosted agent（Teams / M365 Copilot に公開する形態）は、
 - **Foundry の Hosted agent はマルチエージェント機能の対象外**（§5）。
   複数エージェントの「チーム」を謳う要望を受けたときは、実際にプログラム的な自動連携が
   必要なのか、人間仲介で十分なのかを最初に確認しておくと手戻りが少ない。
+- **ARM のサブスクリプション横断リスト API（`Microsoft.CognitiveServices/accounts` 等）は
+  1 ページ目が空でも `nextLink` に本体が入っていることがある**。`value` だけ見て
+  「0 件」と判定すると誤検知するため、`nextLink` が無くなるまで必ずページングする
+  （`scripts/discover_foundry_context.py` の `list_all()` を参照）。
+- **「エージェントテンプレートとしての公開」と「Teams への実配信」は別のマイルストーン**。
+  Step 0〜5（ブループリント作成 + Foundry へのエージェントデプロイ + テンプレート一式の
+  コミット）だけでも「テンプレートとして公開した」と言える状態になる。Step 7（Azure Bot
+  Service、課金あり）・Step 9（Graph API での組織カタログ公開、テナント全員に見える状態に
+  なる）は影響範囲が大きいので、**どこまで進めるかを都度ユーザーに確認してから着手する**
+  （詳細は §8）。
