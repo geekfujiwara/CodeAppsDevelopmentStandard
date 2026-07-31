@@ -38,6 +38,7 @@ Teams / Microsoft 365 Copilot に公開するまでを一貫して行う。
 > 本格実装の CI/CD ・秘匿化は **`alm` スキル** に従う → [`alm`](../alm/SKILL.md)。
 > 参考: [アーキテクチャ（2 種類のブループリント）](references/architecture.md) /
 > [ライト実装（PoC）クイックスタート](references/poc-quickstart.md) /
+> [複数の名前付きエージェント（チーム）を構築する標準パターン](references/team-pattern.md) /
 > [Agent 365 CLI 運用](references/a365-cli.md) /
 > [異常系・トラブルシュート](references/troubleshooting.md)
 
@@ -57,6 +58,11 @@ Teams / Microsoft 365 Copilot に公開するまでを一貫して行う。
 > ライト実装は **Step 6（Agent 365 ブループリント）と Step 10（CI/CD）を省略**する最短ルート。
 > 検証が済んだら**その 2 Step を後から追加するだけ**で本格実装へ昇格できる（作り直し不要）。
 > 省略ルートの要約は [references/poc-quickstart.md](references/poc-quickstart.md)。
+
+> **複数の名前付きエージェント（例: 役割の異なる 3 体が 1 チームとして協働する「AI 社員」構成）**を
+> 作りたい場合は、上記 Step 0〜11 をエージェントごとに横展開する。フォルダ構成・`.env` の分離・
+> ブループリント共有・エージェント間連携の制約は
+> [references/team-pattern.md](references/team-pattern.md) を参照。
 
 ## スキル同梱スクリプト（再利用）
 
