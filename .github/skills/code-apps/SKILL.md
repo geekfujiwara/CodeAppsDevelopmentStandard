@@ -419,6 +419,28 @@ scaffold の取得元は **[templates/generic-base](templates/generic-base/)** �
 
 → 含める／含めないファイルの完全な一覧は **[新規テーマ開始チェックリスト](references/new-theme-checklist.md)**。
 
+### SDK に触れる面を 1 ファイルに閉じる
+
+`@microsoft/power-apps` は 2〜4 週ごとに更新され、マイナーバージョンでも破壊的変更が入る。
+影響範囲を押さえるため、**SDK を import してよいのは `src/lib` / `src/services` / `src/providers` の 3 階層だけ**とし、
+ページ・コンポーネントからは直接呼ばない（`validate_sample.py` が検出する）。
+
+Dataverse CRUD ラッパーは **[templates/dataverse-client.ts](templates/dataverse-client.ts) を正**とし、手書きせずコピーして使う。
+
+```bash
+cp .github/skills/code-apps/templates/dataverse-client.ts src/lib/
+```
+
+SDK の破壊的変更への追従は、この 1 ファイルを直して `python scripts/sync_dataverse_client.py` で配布する。
+
+> [!NOTE]
+> `templates/generic-base` にはこのファイルを同梱していない。
+> `@/generated/services/MicrosoftDataverseService` に依存しており、`add-data-source` 前の状態では `tsc -b` が通らないため。
+> Step 6 で接続を追加した後にコピーする。
+>
+> `samples/geek-asset` / `geek-hr` / `geek-expense` / `geek-sales` / `geek-fieldservice` は、このラッパーではなく
+> `getClient()` の `*Async` 系・テーブル別生成サービスを使う別パターンの参照実装。上記 3 階層の制約は同じく適用される。
+
 ### 構築手順の詳細
 
 詳細な構築手順（初期化・Dataverse 接続・ビルド・デプロイ）は [構築リファレンス](references/build-reference.md) を参照。
@@ -495,7 +517,8 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
 | [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` のデプロイ前検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |
 | [inspect_table_metadata.py](scripts/inspect_table_metadata.py) | 既存テーブルの EntitySetName / 主キー / 列 / 参照先 / 選択肢を調査（既存テーブル接続時は実装前に必須） |
-| [validate_sample.py](scripts/validate_sample.py) | `samples/` 配下が欠落なくビルドできる状態か検証（必須ファイル・import 先の実在・秘匿情報） |
+| [validate_sample.py](scripts/validate_sample.py) | `samples/` 配下が欠落なくビルドできる状態か検証（必須ファイル・import 先の実在・秘匿情報・SDK の使い方） |
+| [sync_dataverse_client.py](scripts/sync_dataverse_client.py) | [templates/dataverse-client.ts](templates/dataverse-client.ts) を `samples/` 配下の全コピーへ反映（SDK の破壊的変更への追従はこの 1 ファイルを直して配布） |
 | [scaffold_from_cache.ps1](scripts/scaffold_from_cache.ps1) | キャッシュからのテンプレート scaffold |
 | [toggle_table_lang.py](scripts/toggle_table_lang.py) | 旧方式の `pac code add-data-source` 向けにテーブル表示名を一時的に英語化 |
 
