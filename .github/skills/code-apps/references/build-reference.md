@@ -39,10 +39,12 @@ pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
 # ①.5 マネージド環境 / Code Apps 許可が有効化済みか確認（pac code init の前に必ず実行。
 #     architecture 提案時に確認済みなら再実行不要）
 python .github/skills/code-apps/scripts/check_code_apps_environment.py
+#     ❌ が出たら出力される管理センター URL で有効化してから先へ進む。
+#     ⚠️ （Power Platform 管理者ロールがなく API で判定できない）は管理センターで目視確認する。
 
 # ①.6 ソリューションと接続参照を用意（pac code init より前に実行）
 #     接続 ID 直バインドはソリューションに入らないため、接続参照を先に作る。
-#     既存 CR 流用ファース → 無ければ Dataverse Web API で新規作成（ポータル操作不要）
+#     既存 CR 流用ファースト → 無ければ Dataverse Web API で新規作成（ポータル操作不要）
 python .github/skills/code-apps/scripts/setup_connection_reference.py
 #     → 出力される {CONNECTION_REFERENCE_LOGICAL_NAME} / {SOLUTION_ID} を Step 4 で使う
 
