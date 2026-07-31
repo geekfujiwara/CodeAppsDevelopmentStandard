@@ -9,9 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "node scripts/pre-deploy-check.mjs",
-    "deploy": "npm run build && pac code push",
-    "check:env": "node scripts/bootstrap.mjs --check",
-    "setup": "node scripts/bootstrap.mjs --setup"
+    "deploy": "npm run build && pac code push"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

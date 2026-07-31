@@ -70,13 +70,14 @@ def check(sample: Path) -> list[str]:
 
     pkg_path = sample / "package.json"
     if pkg_path.is_file():
-        scripts = json.loads(pkg_path.read_text(encoding="utf-8")).get("scripts", {})
-        predeploy = scripts.get("predeploy", "")
-        if predeploy and not (sample / "scripts/pre-deploy-check.mjs").exists():
-            errors.append(
-                "package.json が predeploy を宣言しているのに scripts/pre-deploy-check.mjs がありません"
-                "（npm run predeploy が MODULE_NOT_FOUND で失敗します）"
-            )
+        pkg = json.loads(pkg_path.read_text(encoding="utf-8"))
+        for name, body in pkg.get("scripts", {}).items():
+            for m in re.finditer(r"\bnode\s+([\w./-]+\.(?:mjs|cjs|js))", body):
+                if not (sample / m.group(1)).exists():
+                    errors.append(
+                        f"package.json の scripts.{name} が実在しないファイルを実行しています: {m.group(1)}"
+                        "（npm run 実行時に MODULE_NOT_FOUND になります）"
+                    )
 
     index_css = sample / "src/index.css"
     if index_css.is_file():
