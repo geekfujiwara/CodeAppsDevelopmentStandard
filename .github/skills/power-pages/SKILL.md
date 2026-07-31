@@ -134,7 +134,17 @@ triggers:
 2回目以降（手動の場合）:
   npm run build → pac pages upload-code-site
   → py .github/skills/power-pages/scripts/relink_table_permissions.py  ← ★必須（省くと 403）
+
+Account アクセスを採用する場合（初回デプロイ後に 1 回だけ・実機検証済みの順序）:
+  py .github/skills/power-pages/scripts/setup_access_scope.py --scope account
+  → py .github/skills/power-pages/scripts/setup_account_link_request.py
+  → py .github/skills/power-pages/scripts/deploy_flow_account_link_request.py
+  → 管理者用 Code App をデプロイ（code-apps/templates/account-link-admin）
+  → py .github/skills/power-pages/scripts/setup_access_scope.py --scope account --verify-only
 ```
+
+> ⚠️ **`PAGES_SITE_NAME` を `.env` に必ず設定する**。未設定だと最終更新のサイトが暗黙で選ばれ、
+> 別サイトに権限を書き込む事故が起きる。
 
 > ⚠️ **`npm run build && pac pages upload-code-site` だけで終わらせると、既存テーブル権限の
 > Web ロール紐付けが消えて全件 403 になる**（教訓 15）。`relink_table_permissions.py` を
@@ -195,6 +205,13 @@ DATAVERSE_URL=https://{org}.crm.dynamics.com/
 ENV_ID=                               # Power Platform 環境 ID
 PAGES_SITE_NAME=                      # サイト名 (powerpages.config.json の siteName と一致)
 PAGES_SUBDOMAIN=                      # サブドメイン (例: myportal → myportal.powerappsportals.com)
+
+# Account アクセススコープを使う場合（Step 4）
+ACCESS_SCOPE=account                          # self | account
+ACCOUNT_CHILD_TABLES=                         # 論理名:リレーションスキーマ名 のカンマ区切り
+ACCOUNT_LINK_REQUEST_TABLE=                   # 紐づけ依頼テーブルの論理名
+ACCOUNT_LINK_REQUEST_RELATIONSHIP=            # contact との 1:N スキーマ名
+ACCOUNT_LINK_ADMIN_RECIPIENT=                 # 依頼通知メールの宛先（配布リスト推奨）
 ```
 
 ## プロジェクト構造（公式準拠 / upstream 推奨）
