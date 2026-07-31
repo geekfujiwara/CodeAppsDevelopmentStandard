@@ -5,10 +5,11 @@ import { dataSourcesInfo as generated } from ".power/schemas/appschemas/dataSour
 // System tables not added via pac code add-data-source
 const systemTables = {
   systemusers: {
-    logicalName: "systemuser",
-    collectionName: "systemusers",
-    primaryIdAttribute: "systemuserid",
-    primaryNameAttribute: "fullname",
+    tableId: "systemuser",
+    version: "",
+    primaryKey: "systemuserid",
+    dataSourceType: "Dataverse",
+    apis: {},
   },
 }
 

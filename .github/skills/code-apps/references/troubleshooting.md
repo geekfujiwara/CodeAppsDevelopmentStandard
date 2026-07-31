@@ -1446,3 +1446,114 @@ const getPageNumbers = (current: number, total: number): (number | "ellipsis")[]
 > **恒久対策済み**: `components/list-table.tsx` の `getPageNumbers`（ページ番号限定表示）と `pages/_layout.tsx` の `min-w-0` チェーンとして全 20 サンプルに適用済み（`scripts/_patch_table_overflow.py` で一括適用、適用後にスクリプト自体は削除）。新規スキャフォールド時もこの2点を含めること。
 
 → 関連: [コンポーネントカタログ](component-catalog.md#listtable-の列定義)、[プレデプロイレビュー](pre-deploy-review.md)
+---
+
+## 28. `pac code push -s` を後から付けてもソリューションに入らない（検証済 2026-06-15）
+
+### 症状
+
+`pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}` は成功する（`App pushed successfully`）のに、
+Power Apps ポータルのソリューションにアプリが出てこない。Dataverse を直接見ても存在しない。
+
+```
+pac env fetch --xml "<fetch><entity name='canvasapp'>...</entity></fetch>"
+→ canvasapps({APP_ID}) Does Not Exist
+```
+
+### 原因
+
+Power Apps API 上のアプリの `almMode` が `Environment` になっている。
+`almMode` が `Solution` に切り替わるのは **`power.config.json` の `appId` が未割当の初回 push のみ**。
+既に `Environment` で作られたアプリは、後から `-s` を付けても無視される。
+`pac code init` にソリューション指定オプションは無い（`-env / -n / -d / -b / -f / -a / -l / -c`）。
+
+### 対処
+
+- **予防（正常系）**: ソリューションを先に用意し、**最初の `pac code push` から必ず `-s {SOLUTION_NAME}` を付ける**。
+- **復旧**: Power Apps ポータル → 対象ソリューション → **既存の追加 → アプリ → コード アプリ** で手動追加する
+  （[Learn: ALM for code apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/alm)）。
+  CLI での復旧手段は 2026-06 時点で存在しない。
+
+→ 関連: [ソリューション ALM](solution-alm.md)
+
+---
+
+## 29. 接続参照のソリューション コンポーネント種別は 10132（検証済 2026-06-15）
+
+### 症状
+
+Dataverse Web API で接続参照をソリューションへ追加しようとすると失敗する。
+
+```
+AddSolutionComponent (ComponentType: 10029)
+→ Cannot add CustomAPIResponseProperty ... does not exist
+```
+
+`pac` でも失敗する。
+
+```
+pac solution add-solution-component -ct 10029
+→ The provided Component Type Id (10029) is not known
+```
+
+### 原因
+
+- 接続参照（`connectionreference`）の `componenttype` は **`10132`**。`10029` は `CustomAPIResponseProperty`。
+- `pac solution add-solution-component` は**数値を受け付けない**。`--componentType` には**型名**を渡す。
+
+### 対処
+
+```powershell
+# Web API（数値）
+# ComponentType: 10132, SolutionUniqueName: {SOLUTION_NAME}
+python .github/skills/code-apps/scripts/setup_connection_reference.py
+
+# pac（型名）
+pac solution add-solution-component -sn {SOLUTION_NAME} -c {CONNECTION_REFERENCE_ID} -ct connectionreference
+```
+
+> `RemoveSolutionComponent` は `ComponentId` パラメータを受け付けない（`is not a valid parameter`）。
+> 誤って追加した接続参照の除去はポータル（ソリューション → 対象行 → 削除 → このソリューションから削除）で行う。
+
+→ 関連: [ソリューション ALM](solution-alm.md)
+
+---
+
+## 30. `npx power-apps` と `pac` は認証キャッシュが別（検証済 2026-06-15）
+
+### 症状
+
+`pac auth list` では正しい環境にサインイン済みなのに、npm CLI 側だけ失敗する。
+
+```
+npx power-apps list-connections
+→ ServiceToServiceEnvironmentNotFound / 403
+```
+
+### 原因
+
+`@microsoft/power-apps` の npm CLI は **PAC CLI とは独立した認証キャッシュ**を持つ。
+別テナントのアカウントが残っていると、環境 ID が解決できずテナント不一致エラーになる。
+
+### 対処
+
+```powershell
+npx power-apps login --account {UPN}
+npx power-apps list-connections   # 環境が見えることを確認
+```
+
+> `npx power-apps list-connection-references` は応答が返らずハングすることがある。
+> 接続参照の確認は `pac code list-connection-references -env {DATAVERSE_URL} -s {SOLUTION_ID}` を使う。
+
+---
+
+## 31. CLI オプションの落とし穴（検証済 2026-06-15）
+
+| 症状 | 原因 | 対処 |
+|---|---|---|
+| `npx power-apps delete-data-source --data-source x` → `unknown option` | フラグ名が違う | `-n` / `--data-source-name`（`--force` で確認スキップ） |
+| `pac solution list --json \| ConvertFrom-Json` が日本語名で失敗 | PowerShell の既定コンソールが cp932 | `[Console]::OutputEncoding = [Text.Encoding]::UTF8` を先に実行 |
+| `pac env fetch --xml "... top='50' ..."` が拒否される | ページング属性と `top` は併用不可 | `count='50'` を使う |
+| `pac code init` / `add-data-source` が `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` を出す | libuv のシャットダウン時ノイズ | 無害。終了コード 0 なら無視してよい |
+| `-cr {未存在の論理名}` → `Failed to resolve connection ID for reference` | 接続参照は自動作成されない | 先に [setup_connection_reference.py](../scripts/setup_connection_reference.py) を実行 |
+

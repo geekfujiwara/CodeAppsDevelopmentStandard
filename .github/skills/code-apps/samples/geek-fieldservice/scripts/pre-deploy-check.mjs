@@ -1,7 +1,11 @@
 /**
  * pre-deploy-check.mjs — テンプレートそのままのデプロイを防止する
  *
- * Code App ルート（src/app）を基準に検証する。
+ * pac code push / npx power-apps push の前に実行し、
+ * テーマ固有のカスタマイズが行われていることを確認する。
+ *
+ * このファイルはプロジェクト直下の scripts/ にコピーして使う。
+ * Usage: node scripts/pre-deploy-check.mjs
  * npm script: "predeploy": "node scripts/pre-deploy-check.mjs"
  */
 import fs from "node:fs";
@@ -9,10 +13,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
-// scripts/ の一つ上が Code App ルート（src/app）
+// scripts/ の一つ上がプロジェクトルート
 const root = path.resolve(path.dirname(__filename), "..");
 
 const errors = [];
+// config.ts は "/dashboard"、router.tsx の子ルートは "dashboard" と書くため先頭スラッシュを揃える
 const norm = (p) => p.replace(/^\//, "");
 
 // 1. .env が存在するか
@@ -21,6 +26,8 @@ if (!fs.existsSync(envPath)) {
   errors.push(".env ファイルが存在しません。.env.example をコピーして設定してください。");
 } else {
   const envContent = fs.readFileSync(envPath, "utf-8");
+
+  // 必須項目のチェック
   const required = ["DATAVERSE_URL", "TENANT_ID", "ENV_ID", "SOLUTION_NAME", "PUBLISHER_PREFIX"];
   for (const key of required) {
     const match = envContent.match(new RegExp(`^${key}=(.+)$`, "m"));
@@ -41,6 +48,7 @@ const configTs = path.join(root, "src", "config.ts");
 if (fs.existsSync(configTs)) {
   const content = fs.readFileSync(configTs, "utf-8");
   if (content.includes('"Code Apps"') && !content.includes("VITE_CODEAPPS_APP_NAME")) {
+    // env で上書きされるので OK — ただし .env にも設定されていなければ警告
     const envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf-8") : "";
     if (!envContent.includes("VITE_CODEAPPS_APP_NAME=") || envContent.match(/VITE_CODEAPPS_APP_NAME=\{/)) {
       errors.push("アプリ名がデフォルト (Code Apps) のままです。.env の VITE_CODEAPPS_APP_NAME を設定してください。");
@@ -63,11 +71,14 @@ if (fs.existsSync(configTs) && fs.existsSync(routerPath)) {
     );
   }
 
-  // 4b. パスを抽出（先頭スラッシュを正規化して比較）
+  // 4b. config.ts からナビパスを抽出: path: "xxx"
   const navPaths = [...configContent.matchAll(/path:\s*["']([^"']+)["']/g)].map(m => norm(m[1]));
+
+  // router.tsx からルートパスを抽出: path: "xxx"（コメント行を除外）
   const routerLines = routerContent.split("\n").filter(l => !l.trim().startsWith("//"));
   const routePaths = [...routerLines.join("\n").matchAll(/path:\s*["']([^"']+)["']/g)].map(m => norm(m[1]));
 
+  // ナビにあるがルーターに無いパス → 孤立メニュー
   const orphanedNav = navPaths.filter(p => !routePaths.includes(p));
   if (orphanedNav.length > 0) {
     errors.push(
@@ -76,6 +87,7 @@ if (fs.existsSync(configTs) && fs.existsSync(routerPath)) {
     );
   }
 
+  // ルーターにあるがナビに無いパス → 隠しページ（warning のみ）
   const hiddenRoutes = routePaths.filter(p => !navPaths.includes(p) && p !== "*" && p !== "");
   if (hiddenRoutes.length > 0) {
     console.warn(`⚠ ルーター (router.tsx) にナビから到達できないページがあります: ${hiddenRoutes.join(", ")}`);

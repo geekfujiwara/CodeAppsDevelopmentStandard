@@ -102,16 +102,17 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
           │
 [§2 初回デプロイ]
         ③ テンプレート scaffold + npm install（Dataverse 構築 Phase 2 と並行して即着手／VS Code では Code Apps サブエージェントとして起動）
-        ④ pac code init（power.config.json 生成）
-        ⑤ vite.config.ts 必須設定の確認 / .env 設定
-        ⑥ npm run deploy（build + pac code push）→ Dataverse 接続確立
+        ④ ソリューション + 接続参照を用意（setup_connection_reference.py）★init より前
+        ⑤ pac code init（power.config.json 生成）
+        ⑥ vite.config.ts 必須設定の確認 / .env 設定
+        ⑦ npm run deploy（build + pac code push -s）★初回 push でソリューション所属が確定
           │
 [§3 データソース接続]
-        ⑦ pac code add-data-source（toggle_table_lang.py で日本語回避）
-        ⑧ dataSourcesInfo は re-export / getClient(dataSourcesInfo)
+        ⑧ npx power-apps add-data-source --api-id shared_commondataserviceforapps -cr ... -s ...（1 回だけ）
+        ⑨ MicrosoftDataverseService + *WithOrganization ラッパーを実装
           │
 [§4 改善デプロイ]
-        ⑨ src/ 実装 → npm run build → pac code push（反復）
+        ⑩ src/ 実装 → npm run build → pac code push（反復）
 ```
 
 ### この後の章構成
@@ -119,8 +120,8 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 | 章 | 内容 |
 |---|---|
 | §1 概要（本章） | 標準ワークフロー全体像・大前提・設計フェーズ（デザインテンプレート選択） |
-| [§2 初回デプロイ](#2-初回デプロイ) | 環境前提・scaffold・init・初回 build & push |
-| [§3 データソース接続](#3-データソース接続) | add-data-source・dataSourcesInfo・Lookup 名前解決 |
+| [§2 初回デプロイ](#2-初回デプロイ) | 環境前提・scaffold・ソリューション/接続参照の準備・init・初回 build & push |
+| [§3 データソース接続](#3-データソース接続) | add-data-source（接続参照バインド）・MicrosoftDataverseService・Lookup 名前解決 |
 | [§4 改善デプロイ](#4-改善デプロイ) | 開発時の必須ルール・再デプロイ・プレデプロイレビュー |
 | [§5 リファレンス](#5-リファレンス) | 全リファレンス索引・技術スタック・.env |
 
@@ -168,7 +169,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 |---|---|
 | ① テンプレート scaffold | `vite.config.ts` / `plugins/` / `styles/` / `src/` / `tsconfig*` / `package.json` 一式 |
 | ② `pac code init` | `power.config.json`（＋ `.power/`）。`vite.config.ts` や `plugins/` は生成**しない** |
-| ③ `pac code add-data-source` | `.power/schemas/appschemas/dataSourcesInfo.ts` / `src/generated/` |
+| ③ `npx power-apps add-data-source --api-id shared_commondataserviceforapps` | `.power/schemas/appschemas/dataSourcesInfo.ts` / `src/generated/services/MicrosoftDataverseService.ts` / `src/generated/models/MicrosoftDataverseModel.ts` |
 
 > どのファイルを誰が生成し、何をカスタマイズしてよいかの一覧は [ビルドリファレンス](references/build-reference.md)。SDK 管理ファイル（`power.config.json` / `dataSourcesInfo.ts` / `src/generated/`）は手動編集禁止。
 
@@ -194,44 +195,69 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 # Code Apps 採用が決まった時点（設計承認後）で、Dataverse 構築（Phase 2）と並行して着手する
 # （npm install はネットワーク待ちのみで Dataverse 構築をブロックしないため、待たずに並行実行する）。
 # VS Code では本トラック全体を「Code Apps サブエージェント」として並行起動できる。
-# 先行工程（scaffold / init / 初回 build & push）はテーブル不要。以下は Dataverse 構築の完了を待つ同期点:
-#   ★同期①: pac code add-data-source は Dataverse Phase 2（テーブル作成）完了後に実行
+# 先行工程（scaffold / init / 初回 build & push）はテーブル不要。以下は Dataverse 接続情報の準備を待つ同期点:
+#   ★同期①: shared_commondataserviceforapps の connectionId / orgUrl が揃ったら add-data-source を 1 回実行
 #   ★同期②: pac code add-flow は Power Automate Phase 5（フロー実装）完了後に実行
 # 詳細は standard §8「開発フロー全体図」を参照。
 cp -n .github/skills/standard/references/gitignore-template .gitignore   # .gitignore がなければコピー
+# scaffold の取得元は templates/generic-base のみ（samples/geek-* は業務ページ実装の参照専用）
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills/code-apps/templates/generic-base .
 npm install --no-audit --no-fund
 
-# Step 1: 初期化 — power.config.json を生成（PAC CLI 認証でテナント不一致なし）
+# Step 1: ソリューションと接続参照を用意（init より前に必須）
+# 接続 ID 直バインドはソリューションに入らないため、接続参照（Connection Reference）を先に作る。
+# 既存 CR 流用ファースト → 無ければ Dataverse Web API で新規作成（ポータル操作不要）。
+python .github/skills/code-apps/scripts/setup_connection_reference.py
+#   → 出力される {CONNECTION_REFERENCE_LOGICAL_NAME} と {SOLUTION_ID} を控える
+#   → 詳細は references/solution-alm.md
+
+# Step 2: 初期化 — power.config.json を生成（PAC CLI 認証でテナント不一致なし）
 pac code init -env {ENVIRONMENT_ID} -n "AppName"
 
-# Step 2: vite.config.ts 必須設定を確認（base: "./" / external に @microsoft/power-apps を含めない）
+# Step 3: vite.config.ts 必須設定を確認（base: "./" / external に @microsoft/power-apps を含めない）
 #         → references/build-reference.md Step 2
 
-# Step 3: .env.example を .env にコピーしてテーマ固有の値を設定
+# Step 4: .env.example を .env にコピーしてテーマ固有の値を設定
 
-# Step 4: 初回ビルド＆デプロイ → Dataverse 接続が確立
+# Step 5: 初回ビルド＆デプロイ — ★必ず -s を付ける（almMode が Solution になるのは初回 push だけ）
 npm run build
 pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 
-# Step 5: データソース追加（日本語表示名は toggle_table_lang.py で英語に切替）
-python scripts/toggle_table_lang.py en
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_{table_basename}  # 全テーブルに繰り返す
-python scripts/toggle_table_lang.py jp
+# Step 6: Dataverse コネクタを 1 回追加（全テーブル共通・接続参照バインド）
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  -cr {CONNECTION_REFERENCE_LOGICAL_NAME} \
+  -s {SOLUTION_ID} \
+  --resource-name commondataserviceforapps \
+  --org-url {DATAVERSE_URL} \
+  --non-interactive
 
-# Step 6: src/ を実装 → 再ビルド＆デプロイ（反復）
+# Step 7: src/ を実装（MicrosoftDataverseService を薄くラップ）
+#   業務ロジックに入る前に 1 回 predeploy を通し、config.ts と router.tsx の不整合を早期検知する
+npm run predeploy
+#   → 以降はページを追加するたびに実行する（ナビとルートの不一致はデプロイ後にしか見えない）
+
+# 再ビルド＆デプロイ（反復）
 npm run build
 pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 ```
 
-> **インポート／getClient の必須パターン**: `@microsoft/power-apps/data` 等のサブパスからインポートし、`getClient(dataSourcesInfo)` のように `dataSourcesInfo` を必ず渡す。よくある失敗（`base` 未設定で 404・`external` 指定でモジュール解決エラー・`getClient()` 引数なし・`vite-env.d.ts` の手動型宣言等）は [トラブルシューティング](references/troubleshooting.md) と [ビルドリファレンス](references/build-reference.md) にまとめている。
+> **Step 5 の `-s` は後戻りできない**: `pac code push -s` がアプリを `almMode: Solution` にするのは
+> **`appId` 未割当の初回 push のみ**。`almMode: Environment` で作ってしまったアプリは、後から `-s` を付けて
+> push してもソリューションに入らず、Power Apps ポータルの「既存の追加 → アプリ → コード アプリ」でしか
+> 復旧できない。詳細は [ソリューション ALM リファレンス](references/solution-alm.md)。
+
+> **インポート／ラッパーの必須パターン**: 生成された `MicrosoftDataverseService` を薄いラッパーで包み、`ListRecordsWithOrganization` / `CreateRecordWithOrganization` / `GetItemWithOrganization` / `UpdateRecordWithOrganization` / `DeleteRecordWithOrganization` に **Dataverse URL（organization）を必ず渡す**。`organization` を省略すると `Invalid organization URL 'null' provided` で失敗する。詳細は [ビルドリファレンス](references/build-reference.md) を参照。
 
 ### デプロイコマンドの選択
 
 | コマンド | 認証基盤 | テナント問題 | 推奨度 |
 |---|---|---|---|
+| `python scripts/setup_connection_reference.py` | auth_helper（PAC プロファイル再利用） | なし | ✅ 標準（init の前に実行） |
 | `pac code init -env {ID} -n "Name"` | PAC CLI プロファイル | なし | ✅ 標準 |
-| `pac code push -env {ID} -s {SOL}` | PAC CLI プロファイル | なし | ✅ 標準 |
-| `pac code add-data-source -a dataverse -t {table}` | PAC CLI プロファイル | なし | ✅ 標準 |
+| `pac code push -env {ID} -s {SOL}` | PAC CLI プロファイル | なし | ✅ 標準（**初回から `-s` 必須**） |
+| `npx power-apps add-data-source --api-id shared_commondataserviceforapps -cr {CR} -s {SOLUTION_ID} --resource-name commondataserviceforapps --org-url {url}` | Power Apps npm CLI + 接続参照 | `npx power-apps login` が別キャッシュ | ✅ 標準（ALM 対応） |
+| `npx power-apps add-data-source ... --connection-id {id}` | Power Apps npm CLI + 接続 | 同上 | △ ソリューションに入らない（PoC のみ） |
+| `pac code add-data-source -a dataverse -t {table}` | PAC CLI プロファイル | テーブルごとに再生成が必要 | △ 旧方式（強い型付けが必要な場合のみ） |
 | `npm run deploy` | PAC CLI プロファイル | なし | ✅ 推奨（predeploy チェック付き） |
 
 ### CI/CD・秘匿化（チーム開発で継続的にデプロイする場合）
@@ -272,28 +298,67 @@ python scripts/review_report.py --verdict-dir .gate --out .gate/review-report.md
 
 → 詳細: [`alm`](../alm/SKILL.md) スキル
 
+### 接続方式の比較
+
+| 比較対象 | 参考 |
+|---|---|
+| `shared_commondataserviceforapps` を 1 回追加して `MicrosoftDataverseService` を共有する方式 | [connector-reference.md](references/connector-reference.md), [build-reference.md](references/build-reference.md) |
+| `pac code add-data-source -a dataverse -t <table-logical-name>` をテーブル単位で追加する方式 | [Microsoft Learn: How to: Connect your code app to Dataverse](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/connect-to-data), [Microsoft Learn: Troubleshoot adding a data source](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/troubleshoot-add-datasource) |
+
+> [!NOTE]
+> **Microsoft Learn との比較**: Learn の現行ガイド「How to: Connect your code app to Dataverse」（2026-04-07 更新）と
+> 「Troubleshoot adding a data source」（2026-02-02 更新）は、どちらも
+> `pac code add-data-source -a dataverse -t <table-logical-name>` を Dataverse 追加の基本手順として説明している。
+> このスキルの `shared_commondataserviceforapps` 手順は **このリポジトリで採用する connector-first パターン**であり、
+> Learn の基本手順をそのまま置き換えたものではない。判断基準は次のとおり:
+>
+> - **Learn / PAC 標準**: テーブルごとの型付き Service / Model を生成したい
+> - **本スキル標準**: 1 回の接続で `MicrosoftDataverseService` を生成し、`entityName` で複数テーブルを横断したい
+> - **性能面**: Microsoft Learn に両者の明確なベンチマーク差は記載されていない。通常は Dataverse 側のクエリ形状
+>   （`$select` / `$filter` / `$top`）、ページング、ネットワーク待ちの影響が支配的で、接続方式そのものの差は主因になりにくい
+> - **実務上の判断**: 性能よりも、型安全性・再生成コスト・複数テーブル横断のしやすさで選ぶ
+
 ## 3. データソース接続
 
-### 正常系: pac code add-data-source
+### 正常系: Microsoft Dataverse connector（`shared_commondataserviceforapps`）
 
-Dataverse テーブルの追加は **常に `pac code add-data-source` を使う**（`npx power-apps add-data-source` は使わない）。`npx power-apps` は PAC CLI と独立した認証トークンキャッシュを持つため、正しいテナントで `pac auth create` 済みでも別テナント扱いとなり `403` エラーになる事故がある（[トラブルシューティング #12](references/troubleshooting.md#12-npx-power-apps-add-data-source-がテナント不一致で-403-エラー)）。`systemuser` 等のシステムテーブルも同じコマンドで追加できる。
+Dataverse 接続は **`shared_commondataserviceforapps` を 1 回だけ追加する方式を標準**とする。これにより、テーブルごとに `add-data-source` を繰り返さなくても、生成された `MicrosoftDataverseService` から `entityName` を実行時に渡して全テーブルへ CRUD できる。
 
-テーブルごとに `pac code add-data-source -a dataverse -t {table}` を実行すると、`.power/schemas/appschemas/dataSourcesInfo.ts` が自動更新される（`systemuser`・`bot` 等のシステムテーブルも同じ）。`src/lib/dataSourcesInfo.ts` はこの生成ファイルを **re-export するだけ**（手書き追記はコネクタ等 add-data-source で追加できないものに限る）。
+`npx power-apps add-data-source --api-id shared_commondataserviceforapps` を 1 回実行すると、`.power/schemas/appschemas/dataSourcesInfo.ts` に加え `src/generated/services/MicrosoftDataverseService.ts` と `src/generated/models/MicrosoftDataverseModel.ts` が生成される。アプリ側ではこの生成サービスを薄いラッパーで包み、`organization` に対象環境の Dataverse URL を明示的に渡す。
+
+バインド先は **接続 ID ではなく接続参照（`-cr`）を標準**とする。接続はソリューション コンポーネントになれないが、接続参照はなれるため、環境間移送ができる。
 
 ```bash
-python scripts/toggle_table_lang.py en   # 日本語表示名エラーを回避（英語に切替）
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_{table_basename}
-python scripts/toggle_table_lang.py jp   # 日本語に復元
+# Step 1 で作成済みの接続参照にバインドする
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  -cr {CONNECTION_REFERENCE_LOGICAL_NAME} \
+  -s {SOLUTION_ID} \
+  --resource-name commondataserviceforapps \
+  --org-url {DATAVERSE_URL} \
+  --non-interactive
 ```
 
-> **日本語 DisplayName で `Failed to sanitize string` エラーが出る場合**、および `npx power-apps add-data-source` をフォールバックで使う場合（`patch-nameutils.cjs` 適用）の判断フロー・詳細手順は [日本語サニタイズリファレンス](references/japanese-sanitize.md) を参照。
+接続参照にしても **「1 回の追加で全テーブルをカバーする」設計は変わらない**（`--resource-name` はコネクタ単位。生成ファイル 2 つ・生成メソッド同一・アプリコード変更不要）。`power.config.json` には `xrmConnectionReferenceLogicalName` が 1 行追加されるだけである。検証結果と確認コマンドは [ソリューション ALM リファレンス](references/solution-alm.md)。
+
+> **接続参照は CLI では作れない**: `-cr` に未存在の論理名を渡すと
+> `Failed to resolve connection ID for reference '...'` で失敗する（自動作成されない）。
+> ポータル手作業を避けるため、Step 1 の
+> [setup_connection_reference.py](scripts/setup_connection_reference.py)（Dataverse Web API）を標準とする。
+
+> **PoC やソリューション不要の場合のみ**、`-cr {CR} -s {SOLUTION_ID}` を
+> `--connection-id {DATAVERSE_CONNECTION_ID}`（`npx power-apps list-connections` で取得）に置き換えてもよい。
+> ただしそのデータソースはソリューションに入らず、環境間移送できない。
+
+Lookup 列の書き込みは従来どおり `parentcustomerid_account@odata.bind` のような `@odata.bind` 形式を使う。`organization` を省略した通常メソッドは `Invalid organization URL 'null' provided` で失敗しやすいため、`*WithOrganization` 系メソッドを使う。
+
+> **旧方式の扱い**: `pac code add-data-source -a dataverse -t {table}` によるテーブル別の強い型付け生成は、既存プロジェクト互換やテーブル単位の Service が必須な場合のみに限定する。日本語 DisplayName 対策など旧方式の補足は [日本語サニタイズリファレンス](references/japanese-sanitize.md) を参照。
 
 ## 4. 改善デプロイ
 
 ### CSP（Content Security Policy）違反の回避
 
 Power Apps ランタイムはデフォルトで `connect-src 'none'`。外部 API への `fetch` はブロックされる。
-Dataverse SDK（`getClient(dataSourcesInfo)`）経由のデータアクセスのみ CSP 安全。
+Code Apps が生成する Dataverse SDK / `MicrosoftDataverseService` のような **Power Apps ランタイム経由の API** のみ CSP 安全。
 
 → 詳細: **[CSP 構成](references/csp.md)**
 
@@ -318,7 +383,7 @@ SDK の `getContext().app.queryParams` で親ウィンドウの URL パラメー
 
 ### SDK 生成サービスとデータソースパターン
 
-フロー連携時は統合 `dataSourcesInfo` が必須（`getClient(dataSourcesInfo)` はシングルトンのため、最初の呼び出しで全データソースを含める必要がある）。
+フロー連携時は統合 `dataSourcesInfo` が必須（Dataverse connector・フロー・Copilot Studio を同居させる場合、最初に解決されるデータソース定義へ必要なエントリをそろえておく）。
 
 → 詳細: **[データソースパターン](references/data-source-patterns.md)**
 
@@ -345,6 +410,11 @@ SDK 生成サービスは Lookup 名フィールド（`createdbyname` 等）を�
 
 ### scaffold 時に含めないファイル
 
+scaffold の取得元は **[templates/generic-base](templates/generic-base/)** のみとする。
+`samples/geek-*` は**業務ページ実装の参照専用**で、scaffold 元にはしない
+（業務固有のページ・型・サービス、および `samples/geek-sales` の `CommandPalette` / `QuickActivityFab` のような
+テーマ固有コンポーネントが混入するため）。
+
 外部 API 呼び出しを含むデモページ（`design-examples.tsx` / `use-learn-catalog.ts` / `learn-client.ts` 等）は CSP 違反になるため、業務テーマに不要なものは最初から生成しない。標準コンポーネント（`form-modal.tsx` / `list-table.tsx` / `inline-edit-table.tsx` / `sidebar*.tsx` / `ui/` 等）は残す。
 
 → 含める／含めないファイルの完全な一覧は **[新規テーマ開始チェックリスト](references/new-theme-checklist.md)**。
@@ -355,7 +425,7 @@ SDK 生成サービスは Lookup 名フィールド（`createdbyname` 等）を�
 
 ### TanStack React Query パターン
 
-自前 `DataverseService` を React Query で包むパターン（`useRecords` / `useCreateRecord` 等）は [データソースパターン](references/data-source-patterns.md) を参照。
+自前 `MicrosoftDataverseService` ラッパーを React Query で包むパターン（`useRecords` / `useCreateRecord` 等）は [構築リファレンス](references/build-reference.md#step-6-microsoftdataverseservice-ラッパーで-crud-実装) を参照。
 
 ### プレデプロイレビュー（「デプロイして」「プッシュして」時の必須チェック）
 
@@ -399,9 +469,10 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [クロス集計マトリクスパターン](references/cross-tab-pattern.md) | 2 軸の組み合わせ件数をヒート色付きピボット表で俯瞰（行列自動生成・合計行/列・追加依存なし） |
 | [縦タイムライン/ステッパーパターン](references/timeline-stepper-pattern.md) | 順序を持つ項目の進行状態を縦に可視化（done/current/problem/pending・行ごとに操作ボタン差込可・追加依存なし） |
 | [構築リファレンス](references/build-reference.md) | ビルド・デプロイの詳細手順・vite.config.ts 必須設定・TypeScript エラー対処 |
-| [データソースパターン](references/data-source-patterns.md) | SDK 生成サービス・dataSourcesInfo・getClient(dataSourcesInfo)・TanStack React Query |
+| [ソリューション ALM](references/solution-alm.md) | 接続参照バインド・`almMode` と初回 push・コンポーネント種別・共有時の権限モデル |
+| [データソースパターン](references/data-source-patterns.md) | 生成サービス・dataSourcesInfo・TanStack React Query（旧/native パターン含む） |
 | [Lookup 名前解決](references/lookup-resolution.md) | クライアントサイド名前解決・OData FormattedValue パターン・所有者（Owner）列の表示 |
-| [日本語サニタイズ](references/japanese-sanitize.md) | 日本語 DisplayName エラーの回避（toggle_table_lang.py / patch-nameutils.cjs） |
+| [日本語サニタイズ](references/japanese-sanitize.md) | 旧ネイティブ add-data-source 方式の日本語 DisplayName 回避 |
 | [CSP 構成](references/csp.md) | iframe 埋め込み・外部 API 接続時の CSP 設定・CSP 安全な SDK メソッド一覧 |
 | [ユーザー識別](references/user-identity.md) | ログインユーザーの systemuserid 取得パターン（CSP 安全） |
 | [ディープリンク](references/deep-link.md) | MDA / Power Automate から特定ページへパラメータ付き遷移 |
@@ -415,3 +486,19 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [新規テーマ開始チェックリスト](references/new-theme-checklist.md) | 前テーマの残骸がないクリーン開始の確認手順・scaffold 時に含めないファイル |
 | [トラブルシューティング](references/troubleshooting.md) | 頻出エラーと対処法（GUID フィルタ・`.toLowerCase()` 統一・テンプレート削除時の use-theme 巻き添え 等） |
 | [サンプル作成ガイド](references/sample-authoring-guide.md) | 公開リポジトリ向けサンプルのセキュリティ要件・環境変数ルール・feature flag 命名規則 |
+
+### スクリプト
+
+| スクリプト | 用途 |
+|---|---|
+| [check_code_apps_environment.py](scripts/check_code_apps_environment.py) | マネージド環境 / Code Apps 許可の前提条件を確認（`pac code init` の前に実行） |
+| [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
+| [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` のデプロイ前検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |
+| [inspect_table_metadata.py](scripts/inspect_table_metadata.py) | 既存テーブルの EntitySetName / 主キー / 列 / 参照先 / 選択肢を調査（既存テーブル接続時は実装前に必須） |
+| [validate_sample.py](scripts/validate_sample.py) | `samples/` 配下が欠落なくビルドできる状態か検証（必須ファイル・import 先の実在・秘匿情報） |
+| [scaffold_from_cache.ps1](scripts/scaffold_from_cache.ps1) | キャッシュからのテンプレート scaffold |
+| [toggle_table_lang.py](scripts/toggle_table_lang.py) | 旧方式の `pac code add-data-source` 向けにテーブル表示名を一時的に英語化 |
+
+### 環境変数
+
+スクリプトが参照するキーは [references/.env.example](references/.env.example) を参照（実値はリポジトリルートの `.env` に置く）。

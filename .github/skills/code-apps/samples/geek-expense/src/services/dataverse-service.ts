@@ -1,4 +1,4 @@
-import { getClient } from "@microsoft/power-apps"
+import { getClient } from "@microsoft/power-apps/data"
 import { dataSourcesInfo } from "@/lib/dataSourcesInfo"
 import { PUBLISHER_PREFIX } from "@/config"
 import type { Expense } from "@/types/dataverse"

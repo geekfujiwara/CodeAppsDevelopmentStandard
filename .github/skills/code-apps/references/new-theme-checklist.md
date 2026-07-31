@@ -14,6 +14,8 @@
 mkdir <your-theme-name> && cd <your-theme-name>
 npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github && \
 cp .github/skills/standard/references/gitignore-template .gitignore
+# scaffold の取得元は generic-base のみ（samples/geek-* は業務ページ実装の参照専用）
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills/code-apps/templates/generic-base .
 # 取得後、@GeekPowerCode に「新規テーマ: [テーマ名]を作成してください」と依頼
 ```
 
@@ -50,7 +52,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 ```
 0. テンプレート scaffold        ← vite.config.ts / plugins/ / styles/ / src/ 一式（@GeekPowerCode が scaffold）
 1. .env 設定（.env.example をコピーして新テーマの値を入れる）
-2. デザインテンプレート選択（design-templates.md → apply_design_template.py）
+2. デザインテンプレート選択（design-templates.md の CSS 変数を styles/index.pcss に適用）
 3. pac code init                  ← power.config.json / .power/ を生成（手で作らない）
 4. pac code add-data-source ...   ← src/generated/ が生成される
 5. 設計フェーズ（design-pattern.md）→ ユーザー承認 → 実装
@@ -63,4 +65,4 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 | `.power/` / `src/generated/` / `power.config.json` | 削除 → 手順 3〜4 で SDK に再生成させる |
 | 前テーマの業務画面（`src/pages/*.tsx`） | 削除し、@GeekPowerCode に新規テーマとして scaffold し直すよう依頼 |
 | 前テーマのテーブル参照（dataSourcesInfo / services / types） | 削除。**コメントアウトで残さない**（ビルドエラー・接続エラーの温床） |
-| 前テーマの配色 | `apply_design_template.py 1 --project .` で Ocean Blue に戻すか、新テーマのテンプレートを適用 |
+| 前テーマの配色 | [design-templates.md](design-templates.md) の Ocean Blue または新テーマの CSS 変数を `styles/index.pcss` の `:root` / `.dark` に上書き適用 |
