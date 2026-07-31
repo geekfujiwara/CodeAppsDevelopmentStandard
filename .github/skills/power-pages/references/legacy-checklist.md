@@ -34,6 +34,8 @@
 - [ ] テーブル権限に `append=true, appendto=true` が設定されている
 - [ ] Contact 権限は scope=756150004 (Self) を使用（教訓 3）
 - [ ] **`/profile`（contact Self）を使う場合、`setup_contact_self.py` で contact 権限 + `Webapi/contact/enabled|fields` を設定し、`fields` にクライアントの SELECT 全列（`fullname` 含む）を網羅した（教訓 16）**
+- [ ] **取引先企業（account）リレーションを使う場合、`account` 権限（scope=756150002 + `appendto=true`）と子テーブル権限（scope=756150002 + `accountrelationship` + `create=true`）を両方作成し、POST 時に account Lookup を `@odata.bind` している（教訓 21）**
+- [ ] **Account スコープを使う場合、ログインユーザーの `contact.parentcustomerid` に account が設定されている（未設定だと read は 0 件・create は 403）（教訓 21）**
 
 ### デプロイ
 - [ ] `powerpages.config.json` が存在する

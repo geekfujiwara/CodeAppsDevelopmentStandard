@@ -33,7 +33,8 @@ requests.post(f"{DV}/api/data/v9.2/adx_sitesettings", headers=h, json=body)
 | 401 | 90040107 | Anti-forgery token required | CSRF トークン未送信 | `/_layout/tokenhtml` から取得してヘッダー付与 |
 | 403 | 90040120 | EntityPermissionReadIsMissing | type=18 の N:N association が空（content 配列だけでは不十分） | `$ref` POST で association を作成（教訓 2・14） |
 | 403 | 90040101 | AttributePermissionIsMissing | `Webapi/{table}/fields` 許可リスト外の列を要求（$select なし＝`*` 要求も含む） | fields にクライアントの SELECT 全列を列挙（迷えば `*`）（教訓 16） |
-| 403 | 90040106 | AppendTo permission missing | 参照先テーブルに appendto=false | EDM content で `"appendto": true` に更新 |
+| 403 | 90040106 | AppendTo permission missing | 参照先テーブルに appendto=false | EDM content で `"appendto": true` に更新（account リレーション時は `account` 権限に付与・教訓 21） |
+| 403 | — | Account スコープで read は通るが create が 403 | POST 本文に account Lookup が無い／`contact.parentcustomerid` 未設定／権限が create=false | POST で `@odata.bind`、contact に取引先企業を紐付け、create=true を付与（教訓 21） |
 | 404 | 9004010D | CDS entity resolution failed | `@odata.bind` のターゲットテーブルが違う | `ManyToOneRelationships` で正しい参照先を確認 |
 | 404 | 9004010C | Resource not found for segment | `Webapi/{table}/enabled` 未設定 or `powerpagesitelanguageid` null | enabled=true + languageid 設定（教訓 8） |
 | 400 | 9004010A | Invalid column name | `$select` に存在しないカラム名 | `EntityDefinitions` でカラム名確認 |
@@ -64,6 +65,66 @@ const color = await page.locator('h1').first().evaluate(el => getComputedStyle(e
 ```
 
 > この問題は localhost では再現しないため、デザイン変更を `npm run dev` で確認した後も、**見出し色は本番デプロイ後に必ず目視確認**する（[SKILL.md](../SKILL.md) の核心原則 11 参照）。
+
+---
+
+
+## アクセススコープ（Self / Account）の異常系
+
+まず [SKILL.md](../SKILL.md) Step 4 の `--verify-only` を実行して、欠落を機械的に洗い出す。
+
+```powershell
+python ../.github/skills/power-pages/scripts/setup_access_scope.py --scope account --verify-only
+```
+
+### 症状別の切り分け
+
+| # | 症状 | 主な原因 | 対処 |
+|---|---|---|---|
+| 1 | read はできるが create が 403 | 業務テーブル権限の `create` が false | `--scope account` を再実行する |
+| 2 | create が 403 / `90040106` | `account` 権限が無い、または `appendto` が false | `account` 権限（read + appendto）を作成する |
+| 3 | create が 403（エラーコードなし） | POST 本文に account への `@odata.bind` が無い | `bindLookup()` で Lookup をバインドする |
+| 4 | read が 0 件・create も 403 | `contact.parentcustomerid` が未設定 | 管理者が紐づける（[紐づけ依頼フロー](account-link-request-flow.md)） |
+| 5 | 403 / `90040120` | 権限と Web ロールの N:N association が無い | スクリプト再実行（手動作成した権限も対象） |
+| 6 | 404 | `Webapi/{table}/enabled` が未設定 | スクリプトが作成する |
+| 7 | 一部ユーザーだけ 403 | 専用 Web ロールが contact に割り当てられていない | 対象 contact にロールを割り当てる |
+| 8 | デプロイ後に急に 403 | `upload-code-site` で association が切れた（教訓 15） | `relink_table_permissions.py` を実行する |
+
+### 「他社のデータが見える」場合（最優先で対応）
+
+| 原因 | 確認方法 |
+|---|---|
+| scope が Global（`756150000`）になっている | `--verify-only` の出力に `scope=Global` が無いか |
+| `accountrelationship` が未設定（null） | 同上。Account スコープでリレーションが空だと絞り込みが効かない |
+| `contact.parentcustomerid` が誤った account を指す | 管理画面／モデル駆動型アプリで確認 |
+| Web ロールを匿名ユーザーロールに割り当てた | ロールの `anonymoususersrole` が false か |
+
+原因を直したうえでサイトを再起動し、影響範囲（誰がいつ何を見られたか）を Dataverse の監査ログで確認する。
+
+### リレーションのスキーマ名が分からない
+
+```powershell
+python ../.github/skills/power-pages/scripts/setup_access_scope.py --list-relationships
+```
+
+表示名（例:「取引先企業」）や Lookup 列の論理名を指定しているケースがほとんど。
+`verify_relationship()` は不一致を検出すると候補を出力する。
+
+### `parentcustomerid` が SSO サインイン時に空になる
+
+Entra 外部 ID などでサインインして自動生成された contact には、既定で `parentcustomerid` が
+設定されない（仕様）。管理者による紐づけを前提とした運用で埋める。
+メールドメインだけで会社を推測して自動紐づけするのは危険（フリーメール・共有ドメイン・子会社の取り違え）。
+
+### スクリプトが途中で止まる
+
+| メッセージ | 意味 |
+|---|---|
+| `不正な scope 値です` | content に想定外の scope を渡した |
+| `account 権限に write=true が指定されています` | 取引先企業の読み取り専用要件に違反している |
+| `リレーション '...' が account に存在しません` | スキーマ名の指定ミス。出力された候補から選ぶ |
+| `powerpagesitelanguages が見つかりません` | サイトの言語設定が未構成（教訓 8） |
+| `auth_helper.py が見つかりません` | standard スキルの scripts が同じリポジトリにあるか確認 |
 
 ---
 

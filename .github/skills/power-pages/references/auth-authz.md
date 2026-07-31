@@ -101,6 +101,9 @@
 | contactrelationship | `"contact_customer_contacts"` | `null`（不要） |
 | webroles | Administrators のみ | **Authenticated Users** |
 
+> Self スコープは **contact 自身のレコード専用**。取引先企業（`account`）や
+> account 配下の業務テーブルには効かないため、別途 Account スコープ権限が要る（教訓 21）。
+
 ---
 
 ### 教訓 4: Lookup バインド（@odata.bind）は正確なターゲットエンティティが必須
@@ -484,8 +487,8 @@ create_table_permission(
 | 756150000 | Global | null | 全レコード |
 | 756150004 | Self | null | 自分のレコードのみ（★推奨） |
 | 756150001 | Contact | 必要（非推奨） | 親 Contact 配下 |
-| 756150002 | Account | 必要 | 自分の Account 配下 |
-| 756150003 | Parent | 必要 | 親権限に紐づくレコード |
+| 756150002 | Account | null（`accountrelationship` を使う。account テーブル自身は null） | 自分の Account 配下（教訓 21） |
+| 756150003 | Parent | null（`parentrelationship` を使う） | 親権限に紐づくレコード |
 
 ### 教訓 19: Power Pages では `createdby` はアプリケーションユーザーになる → 報告者は Contact Lookup で追跡する
 
@@ -550,6 +553,141 @@ Lookup 列作成・ローカライズ・Contact AppendTo 付与・Web API 確認
 
 ---
 
+### 教訓 21: 取引先企業（account）のリレーションを使うなら「account 権限（Account スコープ + AppendTo）＋ 子テーブル Account スコープ ＋ POST での Lookup バインド」の3点セット
+
+> **教訓 3（contact は Self スコープ）の続き。** contact を Self にしたサイトで、
+> ログインユーザーの所属企業（`account` / 取引先企業）配下のレコードも扱いたい場合の設定。
+> **`read` は通るのに `create` だけ 403** になるのが典型的な症状。
+
+```
+❌ NG: contact を Self にしたので account も Self にする
+       → Self（756150004）は「自分自身の contact レコード」専用スコープ。
+         account テーブルには効かず 403
+
+❌ NG: 業務テーブルだけ Account スコープにして、account テーブル自身の権限を作らない
+       → 一覧（read）は通るが、POST で account への Lookup をバインドできず
+         403 / 90040106 (AppendTo permission missing)
+
+❌ NG: Account スコープで create=true にしたのに POST 本文に account Lookup を入れない
+       → 「どの account 配下のレコードか」が決まらず作成が拒否される（403）
+
+❌ NG: とりあえず全部グローバルアクセス（756150000）にして回避する
+       → 他社の取引先企業・案件が全ユーザーに見える重大な情報漏洩。禁止
+
+✅ OK: 下表の3権限をセットで作成し、POST 時に account Lookup を必ずバインドする
+```
+
+**依頼テンプレート（この表をそのまま管理者／Design Studio 担当に渡す）**
+
+| # | テーブル | アクセス種類（scope） | リレーション | 付与する権限 | 目的 |
+|---|---|---|---|---|---|
+| 1 | `account`（取引先企業） | **Account**（`756150002`） | **なし**（`accountrelationship: null`） | 読み取り ／ **追加先(AppendTo)** | ログインユーザーの所属企業レコードの参照 ＋ 子レコードの Lookup バインド先 |
+| 2 | 業務テーブル（例 `geek_project`） | **Account**（`756150002`） | account との 1:N リレーションの**スキーマ名**（例 `account_geek_projects`） | 読み取り ／ 書き込み ／ **作成** ／ 追加(Append) ／ 追加先(AppendTo) | 自社配下レコードの CRUD |
+| 3 | `contact`（取引先担当者） | **Self**（`756150004`） | なし | 読み取り ／ 書き込み ／ 追加先(AppendTo) | 教訓 3・19 の設定を**そのまま維持** |
+
+- Web ロールは 3 件とも **Authenticated Users**（＝ content JSON ＋ N:N association の両方。教訓 2・14）。
+- **グローバルアクセスは使わない**。Account スコープで「自社配下だけ」に閉じるのが正解。
+  Global が妥当なのは全社共通マスタなど、意図的に全件公開してよいテーブルだけ。
+
+**前提条件（欠けていると Account スコープは常に 0 件 ＝ read は空・create は 403）**
+
+- ログインユーザーの `contact.parentcustomerid`（取引先企業）に account がセットされていること
+  - 確認: `GET /_api/contacts({contactId})?$select=_parentcustomerid_value`
+  - Entra ID SSO の初回サインインで作られた contact は **parentcustomerid が空**になりがち。
+    招待フロー／Power Automate／管理者手動のいずれかで必ず紐付ける。
+- 業務テーブル → `account` の Lookup 列（1:N リレーション）が存在すること
+
+**content JSON（EDM 2.0 / powerpagecomponent type=18）**
+
+```json
+// #1 account 自身（Lookup バインド先。appendto が要）
+{
+  "entitylogicalname": "account",
+  "entityname": "Account - Account scope",
+  "scope": 756150002,
+  "read": true, "write": false, "create": false, "delete": false,
+  "append": false, "appendto": true,
+  "accountrelationship": null,
+  "contactrelationship": null,
+  "websiteid": "<adx_website_id>",
+  "adx_entitypermission_webrole": ["<authenticated-role-id>"]
+}
+```
+
+```json
+// #2 業務テーブル（自社配下の CRUD）
+{
+  "entitylogicalname": "geek_project",
+  "entityname": "Project - Account scope",
+  "scope": 756150002,
+  "read": true, "write": true, "create": true, "delete": false,
+  "append": true, "appendto": true,
+  "accountrelationship": "account_geek_projects",
+  "contactrelationship": null,
+  "websiteid": "<adx_website_id>",
+  "adx_entitypermission_webrole": ["<authenticated-role-id>"]
+}
+```
+
+> `accountrelationship` には Dataverse の**リレーションのスキーマ名**を入れる（表示名でも Lookup 列名でもない）。
+> 確認:
+> `GET /api/data/v9.2/EntityDefinitions(LogicalName='account')/OneToManyRelationships?$select=SchemaName,ReferencingEntity,ReferencingAttribute`
+
+> **代替案（Parent 権限）**: #2 を独立した権限にせず、#1 の**子アクセス許可**
+> （`scope: 756150003` Parent ＋ `parentrelationship`）としてぶら下げてもよい。
+> ロールは親から継承されるため管理が楽だが、Design Studio 上で親を無効化すると子も効かなくなる。
+> 単独テーブルなら Account スコープ（#2）、階層が深いなら Parent 権限が扱いやすい。
+
+**クライアント側（`create` 403 の直接原因になりやすい）**
+
+```typescript
+// 1) ログインユーザーの所属 account を取得（contact Self 権限が前提）
+const me = await powerPagesFetch<{ _parentcustomerid_value: string | null }>(
+  `/_api/contacts(${user.contactId})?$select=_parentcustomerid_value`
+);
+const accountId = me._parentcustomerid_value;
+if (!accountId) throw new Error("contact に取引先企業が紐付いていません");
+
+// 2) POST 時に必ず account Lookup をバインドする
+//    （Account スコープでは、この紐付けが無いレコードは作成できない）
+const body: Record<string, unknown> = { geek_name: "新規案件" };
+bindLookup(body, "geek_accountid", "accounts", accountId);
+await powerPagesFetch("/_api/geek_projects", { method: "POST", body: JSON.stringify(body) });
+```
+
+**Webapi サイト設定（教訓 8・16）**
+
+| 設定 | 値 | 備考 |
+|---|---|---|
+| `Webapi/account/enabled` | `true` | 無いと 404 (9004010C) |
+| `Webapi/account/fields` | `*`（または `accountid,name,...`） | 許可リスト外の列を SELECT すると 403 (90040101) |
+| `Webapi/contact/fields` | `parentcustomerid` を**含める** | `_parentcustomerid_value` を SELECT するため。迷えば `*` |
+| `Webapi/{業務テーブル}/enabled` / `/fields` | `true` / `*` | 教訓 8 |
+
+**切り分け手順（read は通るのに create が 403）**
+
+| # | 確認内容 | 方法 | NG のときの症状・対処 |
+|---|---|---|---|
+| 1 | OData エラーコードを見る | `Webapi/error/innererror = true` にして `innererror` を確認 | コードが分かれば以下を絞り込める |
+| 2 | 業務テーブル権限に `create: true` があるか | type=18 の content を GET | `false` なら作成不可（read だけ通る典型パターン） |
+| 3 | `account` 権限に `appendto: true` があるか | 同上 | 403 / **90040106** → Lookup バインド不可 |
+| 4 | POST 本文に account Lookup が入っているか | ネットワークタブ | 未指定なら Account スコープで作成不可 |
+| 5 | `contact.parentcustomerid` がセットされているか | `/_api/contacts({id})?$select=_parentcustomerid_value` | null なら Account スコープは常に 0 件 |
+| 6 | N:N association（Web ロール紐付け）があるか | `$expand=powerpagecomponent_powerpagecomponent` | 403 / **90040120**（教訓 2・14） |
+| 7 | デプロイ後に relink したか | `relink_table_permissions.py` | `upload-code-site` 後は毎回必要（教訓 15） |
+
+**セットアップスクリプト:**
+```bash
+python .github/skills/power-pages/scripts/setup_access_scope.py --scope account
+```
+`.env` の `ACCOUNT_CHILD_TABLES`（`論理名:リレーションスキーマ名` をカンマ区切り）に基づき、
+account の Account スコープ権限（read + appendto）と各子テーブルの Account スコープ CRUD 権限を、
+content JSON ＋ N:N association ＋ `Webapi/*` サイト設定まで冪等に作成し、サイトを再起動する。
+正常系の手順は [SKILL.md](../SKILL.md) Step 4、設計根拠は
+[アクセススコープ設計](access-scope-design.md) を参照。
+
+---
+
 ### エラーコード→教訓マッピング
 
 | HTTP | OData Code | メッセージ | 原因 | 教訓 |
@@ -557,7 +695,8 @@ Lookup 列作成・ローカライズ・Contact AppendTo 付与・Web API 確認
 | 401 | 90040107 | Anti-forgery token required | CSRF トークン未送信 | 教訓 1 |
 | 403 | 90040120 | EntityPermissionReadIsMissing | type=18 の N:N association が空（content 配列だけでは不十分。$ref POST 未実行 / YAML デプロイで未紐付け） | 教訓 2・14 |
 | 403 | 90040101 | AttributePermissionIsMissing | `Webapi/{table}/fields` 許可リスト外の列を要求（$select なし＝`*` 要求も含む） | 教訓 16 |
-| 403 | 90040106 | AppendTo permission missing | 参照先テーブルに appendto=false | 教訓 4 |
+| 403 | 90040106 | AppendTo permission missing | 参照先テーブルに appendto=false（account リレーション利用時は `account` 権限の appendto） | 教訓 4・21 |
+| 403 | — | Account スコープで read は通るが create が 403 | POST 本文に account Lookup が無い／`contact.parentcustomerid` 未設定／権限が create=false | 教訓 21 |
 | 404 | 9004010D | CDS entity resolution failed | @odata.bind のターゲットテーブルが違う | 教訓 4 |
 | 404 | 9004010C | Resource not found for segment | `Webapi/{table}/enabled` 未設定 or languageid null | 教訓 8 |
 | 302 | — | Redirect to /profile | ProfileRedirectEnabled=true | 教訓 5 |
@@ -823,8 +962,8 @@ PATCH /api/data/v9.2/powerpagecomponents({perm_id})
 | 756150000 | Global | null | 全レコード |
 | 756150004 | Self | null | 自分のレコードのみ（★推奨） |
 | 756150001 | Contact | 必要（非推奨） | 親 Contact 配下 |
-| 756150002 | Account | 必要 | 自分の Account 配下 |
-| 756150003 | Parent | 必要 | 親権限に紐づくレコード |
+| 756150002 | Account | null（`accountrelationship` を使う。account テーブル自身は null） | 自分の Account 配下（教訓 21） |
+| 756150003 | Parent | null（`parentrelationship` を使う） | 親権限に紐づくレコード |
 
 ### setup_contact_webapi.py（正しい実装）
 
