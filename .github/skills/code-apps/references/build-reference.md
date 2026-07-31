@@ -323,94 +323,25 @@ export const router = createHashRouter([
 `organization` を省略した通常メソッドは `Invalid organization URL 'null' provided` で失敗しやすいため、
 **常に `*WithOrganization` 系メソッドを薄いラッパーで包む**。
 
-```typescript
-// src/lib/dataverse-service.ts
-import { getContext } from "@microsoft/power-apps/app";
-import { MicrosoftDataverseService } from "@/generated/services/MicrosoftDataverseService";
+このラッパーは [`templates/dataverse-client.ts`](../templates/dataverse-client.ts) を正とする。
+手書きせずコピーして使う（SDK の破壊的変更時は、この 1 ファイルを直せば全アプリに反映できる）。
 
-const PREFER = "return=representation";
-const READ_PREFER = 'odata.include-annotations="*"';
-const ACCEPT = "application/json";
-
-type DataverseRow = Record<string, unknown>;
-
-let cachedOrgUrl: string | undefined;
-
-async function getOrgUrl(): Promise<string> {
-  if (cachedOrgUrl) return cachedOrgUrl;
-  const ctx = await getContext();
-  const orgUrl = ctx.app.dataverseOrgUrl;
-  if (!orgUrl) throw new Error("Dataverse org URL を取得できません。");
-  cachedOrgUrl = orgUrl;
-  return orgUrl;
-}
-
-function unwrap<T>(result: { success?: boolean; data?: T; error?: { message?: string } }): T {
-  if (result.success === false) {
-    throw new Error(result.error?.message ?? "Unknown Dataverse connector error");
-  }
-  return result.data as T;
-}
-
-export const DataverseService = {
-  async ListRecords(entityName: string, select?: string[], filter?: string) {
-    const org = await getOrgUrl();
-    const result = await MicrosoftDataverseService.ListRecordsWithOrganization(
-      org,
-      entityName,
-      READ_PREFER,
-      ACCEPT,
-      undefined,
-      undefined,
-      select?.join(","),
-      filter,
-    );
-    return unwrap<{ value?: DataverseRow[] }>(result).value ?? [];
-  },
-  async GetItem(entityName: string, recordId: string, select?: string[]) {
-    const org = await getOrgUrl();
-    const result = await MicrosoftDataverseService.GetItemWithOrganization(
-      READ_PREFER,
-      ACCEPT,
-      org,
-      entityName,
-      recordId,
-      undefined,
-      undefined,
-      select?.join(","),
-    );
-    return unwrap<DataverseRow>(result);
-  },
-  async CreateRecord(entityName: string, body: DataverseRow) {
-    const org = await getOrgUrl();
-    const result = await MicrosoftDataverseService.CreateRecordWithOrganization(
-      PREFER,
-      ACCEPT,
-      org,
-      entityName,
-      body,
-    );
-    return unwrap<void>(result);
-  },
-  async UpdateRecord(entityName: string, recordId: string, body: DataverseRow) {
-    const org = await getOrgUrl();
-    const result = await MicrosoftDataverseService.UpdateRecordWithOrganization(
-      PREFER,
-      ACCEPT,
-      org,
-      entityName,
-      recordId,
-      body,
-    );
-    return unwrap<DataverseRow>(result);
-  },
-  async DeleteRecord(entityName: string, recordId: string) {
-    const org = await getOrgUrl();
-    const result = await MicrosoftDataverseService.DeleteRecordWithOrganization(org, entityName, recordId);
-    return unwrap<void>(result);
-  },
-};
+```bash
+cp .github/skills/code-apps/templates/dataverse-client.ts src/lib/
 ```
+
+公開している API は次のとおり。いずれも `organization` を内部で解決するため、呼び出し側は `entityName` だけを渡す。
+
+| メソッド | 用途 |
+|---|---|
+| `DataverseService.ListRecords(entityName, select?, filter?)` | 一覧取得（`value` を展開して返す） |
+| `DataverseService.GetItem(entityName, recordId, select?)` | 単一取得 |
+| `DataverseService.CreateRecord(entityName, body)` | 作成 |
+| `DataverseService.UpdateRecord(entityName, recordId, body)` | 更新 |
+| `DataverseService.DeleteRecord(entityName, recordId)` | 削除 |
+
+内部では `getContext()` から得た `ctx.app.dataverseOrgUrl` をキャッシュし、
+`success === false` のレスポンスを `Error` に変換している。
 
 ```
 ❌ MicrosoftDataverseService.ListRecords(...) のように organization を省略
