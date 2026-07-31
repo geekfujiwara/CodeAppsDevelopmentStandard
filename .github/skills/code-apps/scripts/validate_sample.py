@@ -60,6 +60,14 @@ SDK_PATTERNS = [
     ),
 ]
 
+# SDK の破壊的変更の影響範囲を押さえるため、SDK に直接触れてよいのは
+# サービス層と初期化 provider だけに限定する（UI 層への漏出を検出する）
+SDK_SURFACE_DIRS = ("src/lib", "src/services", "src/providers")
+
+# CRUD ラッパーは templates/dataverse-client.ts を正とし、各サンプルはそのコピーにする
+CANONICAL_CLIENT = Path(__file__).resolve().parent.parent / "templates" / "dataverse-client.ts"
+CLIENT_REL = "src/lib/dataverse-client.ts"
+
 
 def check(sample: Path) -> list[str]:
     errors: list[str] = []
@@ -96,7 +104,20 @@ def check(sample: Path) -> list[str]:
 
     errors.extend(scan_secrets(sample))
     errors.extend(scan_sdk_usage(sample))
+    errors.extend(check_dataverse_client(sample))
     return errors
+
+
+def check_dataverse_client(sample: Path) -> list[str]:
+    target = sample / CLIENT_REL
+    if not target.is_file() or not CANONICAL_CLIENT.is_file():
+        return []
+    if target.read_bytes() == CANONICAL_CLIENT.read_bytes():
+        return []
+    return [
+        f"{CLIENT_REL} が templates/dataverse-client.ts と一致しません"
+        "（python sync_dataverse_client.py で反映してください）"
+    ]
 
 
 def scan_sdk_usage(sample: Path) -> list[str]:
@@ -112,6 +133,12 @@ def scan_sdk_usage(sample: Path) -> list[str]:
             m = pattern.search(text)
             if m:
                 found.append(f"{label}: {rel} → {m.group(0)}")
+        posix = rel.as_posix()
+        if "@microsoft/power-apps" in text and not posix.startswith(SDK_SURFACE_DIRS):
+            found.append(
+                f"SDK を UI 層から直接 import しています: {rel}"
+                f"（{' / '.join(SDK_SURFACE_DIRS)} のいずれかに隠してください）"
+            )
     return found
 
 
