@@ -1,7 +1,8 @@
 # CI / Git ホスティング別の構成
 
-本格実装（本番運用）で使う。**エージェント定義とスクリプトは Git ホスティングに依存しない**ため、
+本格実装（本番運用）で使う。**資産の定義とスクリプトは Git ホスティングに依存しない**ため、
 差し替えるのは「CI 定義」と「シークレット保管先」の 2 つだけ。
+デプロイの実処理（`deploy.py` / `npm run deploy` など）は各プロダクトスキルが定義する。
 
 | Git ホスティング | CI 定義の置き場 | シークレット保管先 | `SECRET_BACKEND` | 追加ツール |
 |---|---|---|---|---|
@@ -13,18 +14,38 @@
 
 - `.githooks/pre-commit`（`sanitize.py` → `check_secrets.py`）
 - `scripts/review_sanitization.py`（Git の追跡状態とテンプレートのみを見る）
-- `scripts/render.py` / `scripts/deploy.py`（環境変数だけを見る）
+- `scripts/gate_rules.py` / `scripts/review_report.py`（リポジトリ内のファイルのみを見る）
+- `scripts/render.py`（環境変数だけを見る）
+
+## 0. Code Apps 向けモジュール選択（Power Platform 単体 / Azure 連携）
+
+Code Apps を `alm` に載せるときは、次の **モジュール（運用パターン）** から選ぶ。
+どれを選んでも、秘匿化・汎用化・レビューゲートは共通で `alm` が提供する。
+
+| モジュール | 想定パターン | デプロイ実処理 | 主なシークレット保管先 | 向いているケース |
+|---|---|---|---|---|
+| `pp-only` | Power Platform 単体（Azure リソース追加なし） | `npm run deploy`（PAC CLI） | GitHub Secrets / Azure DevOps 変数グループ | 最短で Code Apps ALM を開始したい |
+| `pp-azure-gha` | Power Platform + Azure（GitHub Actions） | `npm run deploy` + `azure/login@v2`（OIDC） | GitHub Secrets + Key Vault（任意） | GitHub 中心で Azure 連携も必要 |
+| `pp-azure-ado` | Power Platform + Azure（Azure DevOps） | `npm run deploy` + `AzureCLI@2`（WIF） | 変数グループ（Key Vault 連携可） | Azure DevOps の承認・監査を使いたい |
+
+比較観点（Web 調査での採用指針）:
+
+- シンプル運用重視なら Power Platform 単体パターン（`pp-only`）から開始し、後で Azure 連携を足す。
+- 開発フローを GitHub に寄せるなら `pp-azure-gha`、Azure ガバナンスを強く使うなら `pp-azure-ado`。
+- いずれも秘匿値の平文保管を避け、OIDC / WIF を優先する。
 
 ---
 
 ## 1. GitHub（private リポジトリ）
 
-`.github/workflows/review.yml` と `.github/workflows/deploy.yml` は
-[repo-scaffold.md](repo-scaffold.md) の内容をそのまま使う。設定のポイントは 3 点。
+`.github/workflows/review.yml` は [repo-scaffold.md](repo-scaffold.md)、
+ゲート連鎖付きの `deploy.yml` は [review-gates.md](review-gates.md) の内容をそのまま使う。
+設定のポイントは 3 点。
 
 1. `review.yml` の `sanitization-review` ジョブを**必須ステータスチェック**にする
    （Settings > Branches > Branch protection rules）。
-2. `deploy.yml` に `environment: production` を付け、Environment に**必須レビュアー**を設定する。
+2. `deploy.yml` に `environment: production` を付ける。
+   有人運用なら Environment に**必須レビュアー**を設定し、自律運用なら設定しない。
 3. Azure へのログインは OIDC（`azure/login@v2` + フェデレーション資格情報）を使い、
    クライアントシークレットを保管しない。
 
@@ -46,14 +67,14 @@ az devops configure --defaults organization=$env:AZDO_ORG_URL project=$env:AZDO_
 az devops login   # または AZURE_DEVOPS_EXT_PAT 環境変数に PAT を設定
 
 # シークレット同期先の変数グループを 1 度だけ作る（--authorize true でパイプラインから参照可能に）
-az pipelines variable-group create --name agent365 --variables PLACEHOLDER=init --authorize true
+az pipelines variable-group create --name alm-secrets --variables PLACEHOLDER=init --authorize true
 ```
 
 出力された変数グループ ID を `.env` の `AZDO_VARIABLE_GROUP_ID` に設定する。
 
 - **サービス接続**: Azure Resource Manager のサービス接続を
   **ワークロード ID フェデレーション**で作成する（シークレット不要）。名前を `AZDO_SERVICE_CONNECTION` に設定する。
-  そのサービスプリンシパルに Foundry プロジェクトへのロール（Azure AI Developer / Cognitive Services User 等）を付与する。
+  そのサービスプリンシパルにデプロイ先リソースへのロールを付与する（必要なロールはプロダクトスキルを参照）。
 - **必須チェック**: リポジトリ > ブランチ > 既定ブランチ > ブランチ ポリシー >
   **ビルド検証**に review パイプラインを追加する（GitHub の必須ステータスチェックに相当）。
 - **承認ゲート**: Pipelines > Environments > `production` > 承認とチェック に承認者を追加する。
@@ -66,15 +87,15 @@ trigger:
     include: [ main ]
   paths:
     include:
-      - agents/*
-      - scripts/*
-      - requirements.txt
+        - agents/*
+        - scripts/*
+        - requirements.txt
 pr:
   branches:
     include: [ main ]
 
 variables:
-  - group: agent365          # 変数グループ（秘匿値。Key Vault 連携も可）
+  - group: alm-secrets      # 変数グループ（秘匿値。Key Vault 連携も可）
 
 pool:
   vmImage: ubuntu-latest
@@ -92,12 +113,12 @@ stages:
             displayName: Sanitization / generalization gate
           - script: |
               pip install -r requirements.txt
-              python scripts/run_agent_evals.py --report evals-report.json
-            displayName: Agent Evals
-            condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+              python scripts/gate_rules.py --gate quality --out .gate/quality.json
+            displayName: Quality gate
+            condition: succeeded()
 
   - stage: deploy
-    displayName: Deploy new agent version
+    displayName: Deploy a new version
     dependsOn: review
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     jobs:
@@ -113,19 +134,21 @@ stages:
                     versionSpec: '3.12'
                 - script: pip install -r requirements.txt
                   displayName: Install dependencies
-                - script: python scripts/render.py --agent "$(AGENT_NAME)"
-                  displayName: Render agent manifest
+                - script: python scripts/render.py --template <template> --output <output>
+                  displayName: Render the manifest
                 - task: AzureCLI@2
-                  displayName: Create new agent version
+                  displayName: Deploy
                   inputs:
                     azureSubscription: $(AZDO_SERVICE_CONNECTION)   # ワークロード ID フェデレーション
                     scriptType: bash
                     scriptLocation: inlineScript
-                    inlineScript: python scripts/deploy.py --agent "$(AGENT_NAME)"
+                    # ↓ ここだけプロダクト固有。各プロダクトスキルの手順に差し替える。
+                    inlineScript: python scripts/deploy.py
 ```
 
-> `run_agent_evals.py` は Agent Evals をテーマ側で実装するときのエントリポイント名。
-> 品質ゲートを使わない場合はこのステップを削除する（秘匿化ゲートは削除しない）。
+> レビューステージには自律レビューゲート連鎖を並べてもよい
+> （[review-gates.md](review-gates.md) のルールを `gate_rules.py` で順に実行する）。
+> 秘匿化ゲートはどの構成でも削除しない。
 
 ### 2.3 シークレット同期
 

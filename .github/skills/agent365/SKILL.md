@@ -1,6 +1,6 @@
 ---
 name: agent365
-description: "Microsoft Foundry のエージェントを SDK/REST ベースで作成・バージョン管理し、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に公開する。ライト実装（PoC）と本格実装（CI/CD + Agent Evals）の 2 ルートを選択でき、本格実装は GitHub / Azure DevOps Repos / その他 Git の private リポジトリに対応する。秘匿値は .env と CI のシークレットストアに隔離し、テンプレートの汎用化を CI で機械検証する。"
+description: "Microsoft Foundry のエージェントを SDK/REST ベースで作成・バージョン管理し、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に公開する。エージェントテンプレートの開発（定義・ブループリント・公開）を担当し、秘匿化・CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。ライト実装（PoC）と本格実装の 2 ルートを選択できる。"
 category: automation
 triggers:
   - "Agent 365"
@@ -30,18 +30,15 @@ Teams / Microsoft 365 Copilot に公開するまでを一貫して行う。
 | SDK / REST のみ | すべて `azure-ai-projects` SDK と Agent 365 CLI（`a365`）で完結。ポータルのブラウザ自動操作は行わない |
 | ルート選択 | **ライト実装（PoC）**と**本格実装（本番運用）**を最初に選ぶ。PoC に CI/CD 一式を強制しない |
 | テンプレート駆動 | コミットするのは `${VAR}` 入りテンプレートだけ。実値は `.env` / CI のシークレットストアのみ |
-| Git ホスティング非依存 | 本格実装は GitHub / Azure DevOps Repos / その他 Git の **private リポジトリ**に対応（`GIT_PROVIDER` / `SECRET_BACKEND` で切り替え） |
-| 機械検証 | 秘匿化・汎用化は `review_sanitization.py` が CI で Pass/Fail 判定。人手のレビューに依存しない |
+| ALM は委譲 | 秘匿化・汎用化・pre-commit・CI/CD・レビューゲート・リリース記録は **`alm` スキル**が担当する |
 | インスタンス化 | インストールごとに専用の Entra Agent ID を持たせるには Agent 365 ブループリント + `agenticUserTemplates` が必須 |
 | 自動配信 | Foundry の「常に最新を使用」により、新バージョンは Teams / M365 Copilot へ自動配信される |
 
 > 前提ツール: Python 3.10+、Azure CLI（`az`、ログイン済み）、Agent 365 CLI（`a365`）、Git。
-> 本格実装では Git ホスティングに応じて GitHub CLI（`gh`）または Azure CLI の `azure-devops` 拡張を追加で使う。
+> 本格実装の CI/CD ・秘匿化は **`alm` スキル** に従う → [`alm`](../alm/SKILL.md)。
 > 参考: [アーキテクチャ（2 種類のブループリント）](references/architecture.md) /
 > [ライト実装（PoC）クイックスタート](references/poc-quickstart.md) /
-> [CI / Git ホスティング別の構成](references/ci-providers.md) /
 > [Agent 365 CLI 運用](references/a365-cli.md) /
-> [リポジトリ scaffold](references/repo-scaffold.md) /
 > [異常系・トラブルシュート](references/troubleshooting.md)
 
 ## 実装ルートの選択（ライト / 本格）
@@ -67,14 +64,14 @@ Teams / Microsoft 365 Copilot に公開するまでを一貫して行う。
 
 | スクリプト | 用途 | Step |
 |---|---|---|
-| [scripts/render.py](scripts/render.py) | テンプレートの `${VAR}` を環境変数で解決して実ファイルを生成 | 5 |
 | [scripts/create_blueprint.py](scripts/create_blueprint.py) | Foundry のマネージド ID ブループリントを作成／一覧／表示（REST 直呼び） | 4 |
 | [scripts/create_instance.py](scripts/create_instance.py) | manifest / definition / blueprint の 3 モードでエージェントを作成 | 5 |
 | [scripts/deploy.py](scripts/deploy.py) | レンダリング済み manifest から新しいバージョンを `create_version` | 5, 10 |
 | [scripts/build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + agenticUser を ZIP 化 | 8 |
-| [scripts/sanitize.py](scripts/sanitize.py) | 実値入り manifest を `${VAR}` 化し CI のシークレットストア（GitHub / Azure DevOps / Key Vault）へ同期 | 10 |
-| [scripts/check_secrets.py](scripts/check_secrets.py) | ステージ済み差分への実値混入を検査（pre-commit、Git ホスティング非依存） | 10 |
-| [scripts/review_sanitization.py](scripts/review_sanitization.py) | 秘匿化・汎用化の決定論レビューゲート（CI 必須チェック、Git ホスティング非依存） | 10, 11 |
+
+ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `review_sanitization.py` /
+`gate_rules.py` / `review_report.py`）は **`alm` スキル**が提供する
+→ [`alm/scripts`](../alm/SKILL.md#スキル同梱スクリプト)。
 
 ## 標準フォルダ構成（生成されるテーマ側）
 
@@ -116,7 +113,8 @@ Teams / Microsoft 365 Copilot に公開するまでを一貫して行う。
 | ライト実装 | なし | ローカル `.env` のみ | （任意） | `none` |
 
 3. 決めた値を `.env` の `IMPLEMENTATION_MODE` / `GIT_PROVIDER` / `SECRET_BACKEND` に設定する。
-   → CI 定義の雛形と認証の差異は [references/ci-providers.md](references/ci-providers.md)。
+   → CI 定義の雛形と認証の差異は **`alm` スキル**の
+   [CI / Git ホスティング別の構成](../alm/references/ci-providers.md)。
 
 ### Step 1: 公開形態を決める
 
@@ -130,11 +128,14 @@ Teams / Microsoft 365 Copilot に公開するまでを一貫して行う。
 
 ### Step 2: リポジトリを scaffold する
 
-[references/repo-scaffold.md](references/repo-scaffold.md) の内容をそのまま配置する。
+リポジトリの雛形（`.gitignore` / hook / CI 定義）は **`alm` スキル**が定義する
+→ [リポジトリ scaffold](../alm/references/repo-scaffold.md)。
 
 ```powershell
-# 本スキルの scripts/ とテンプレートをテーマリポジトリへコピー
+# エージェント固有のスクリプトとテンプレート
 Copy-Item .github/skills/agent365/scripts -Destination scripts -Recurse
+# ALM 共通スクリプト（render / sanitize / check_secrets / レビューゲート）
+Copy-Item .github/skills/alm/scripts/*.py -Destination scripts
 Copy-Item .github/skills/agent365/references/templates/agent.template.yaml agents/<agent-name>/
 Copy-Item .github/skills/agent365/references/templates/manifest.template.json teams/
 Copy-Item .github/skills/agent365/references/templates/agenticUser.template.json teams/
@@ -144,9 +145,9 @@ pip install -r requirements.txt   # azure-ai-projects / azure-identity / PyYAML 
 ```
 
 `.gitignore` には最低限 `.env` / `agents/**/agent.yaml` / `teams/*.zip` / `a365.generated.config.json`
-/ `*token-cache*` を追加する（[references/repo-scaffold.md](references/repo-scaffold.md) に完全版）。
-本格実装では Step 0 で選んだ Git ホスティングの CI 定義も配置する
-（[references/ci-providers.md](references/ci-providers.md)）。**ライト実装では `.githooks/` と CI 定義を作らない**。
+/ `*token-cache*` を追加する（[完全版](../alm/references/repo-scaffold.md)）。
+本格実装では Step 0 で選んだ Git ホスティングの CI 定義と `alm.config.json` も配置する
+（[`alm`](../alm/SKILL.md)）。**ライト実装では `.githooks/` と CI 定義を作らない**。
 
 ### Step 3: Foundry プロジェクトと `.env` を用意する
 
@@ -248,38 +249,46 @@ python scripts/build_teams_package.py
 
 ### Step 10: CI/CD と秘匿化ゲートを有効化する（本格実装のみ）
 
-Git ホスティングに依存しない共通部分と、ホスティング別の定義を分けて考える。
+この Step は **`alm` スキル** が担当する → [`alm`](../alm/SKILL.md)。
+エージェント側から渡す情報は次の 3 点だけ。
 
-1. **pre-commit（共通）**: `sanitize.py`（実値 → `${VAR}` 化 + シークレット同期 + ステージ）→
-   `check_secrets.py`（ステージ差分の漏洩検査）を実行する。どちらも Git ホスティングに依存しない。
-2. **秘匿化ゲート（共通）**: PR と既定ブランチで `review_sanitization.py` を実行し、**必須チェック**にする
-   （GitHub: 必須ステータスチェック / Azure DevOps: ブランチポリシーのビルド検証）。
-3. **品質ゲート（共通）**: Agent Evals を実行し、合格した場合のみデプロイに進む。
-4. **デプロイ（ホスティング別）**: 既定ブランチへのマージで `render.py` → Azure へ OIDC / ワークロード ID ログイン
-   → `deploy.py`。承認ゲート（GitHub: `environment` / Azure DevOps: Environment の承認）を付ける。
-5. **シークレット同期**: `SECRET_BACKEND` に応じて `sanitize.py --set-secrets` の送信先が切り替わる。
+1. **`alm.config.json`**（[例](../alm/alm.config.example.json)）でエージェントのレイアウトを宣言する。
 
-```powershell
-# GitHub Actions Secrets へ同期
-python scripts/sanitize.py --env .env --set-secrets --secret-backend github --stage
-# Azure DevOps の変数グループへ同期
-python scripts/sanitize.py --env .env --set-secrets --secret-backend azure-devops --stage
-# Azure Key Vault へ同期（その他 Git ホスティング）
-python scripts/sanitize.py --env .env --set-secrets --secret-backend keyvault --stage
-```
+   | キー | 値 |
+   |---|---|
+   | `templates` | `agents/**/*.template.yaml`, `teams/*.template.json` |
+   | `rendered` | `agents/**/agent.yaml` |
+   | `artifacts` | `teams/*.zip` |
+   | `forbidden_tracked` | `.env`, `a365.generated.config.json`, `auth-token.json` |
+   | `non_secret_vars` | `AGENT_NAME`, `BLUEPRINT_ID` などの公開識別子 |
 
-CI 定義の雛形と認証・必須チェック設定の差異は [references/ci-providers.md](references/ci-providers.md) を参照する。
+2. **デプロイ手順**: パイプラインの deploy ジョブを次の 2 ステップに差し替える。
+
+   ```yaml
+   - name: Render agent.yaml from the template and secrets
+     run: python scripts/render.py --template agents/<name>/agent.template.yaml \
+       --output agents/<name>/agent.yaml
+   - name: Deploy a new agent version to Foundry
+     id: deploy
+     run: python scripts/deploy.py --manifest agents/<name>/agent.yaml
+   ```
+
+3. **Azure ロール**: OIDC のアプリ登録に Foundry プロジェクトへのロール
+   （Azure AI Developer / Cognitive Services User 等）を付与する。
+
+`deploy.py` は作成したバージョンを `GITHUB_OUTPUT` へ出力するので、
+`alm` の release ジョブが `agent-v<version>` タグでリリースを作成・更新できる。
 
 ```mermaid
 flowchart TD
     A[ローカル編集] --> B[git commit]
-    B -->|pre-commit| C[汎用化 + シークレット同期 + 漏洩検査]
+    B -->|pre-commit: alm| C[汎用化 + シークレット同期 + 漏洩検査]
     C --> D[PR]
-    D --> E[sanitization-review]
-    E --> F[Agent Evals]
-    F -->|Pass| G[既定ブランチへマージ]
-    G --> H[CI: 承認後に create_version]
-    H --> I[常に最新を使用 → Teams / M365 Copilot へ自動配信]
+    D --> E[レビューゲート: alm]
+    E -->|GO| F[既定ブランチへマージ]
+    F --> G[render.py → deploy.py（create_version）]
+    G --> H[常に最新を使用 → Teams / M365 Copilot へ自動配信]
+    G --> I[GitHub Release に記録: alm]
 ```
 
 ### Step 11: 検証する
@@ -311,16 +320,14 @@ git status --short                          # .env / agent.yaml / *.zip が未�
 - [ ] private リポジトリで運用している（GitHub / Azure DevOps Repos / その他 Git）
 - [ ] `GIT_PROVIDER` / `SECRET_BACKEND` が Step 0 の選択と一致している
 - [ ] インスタンス化する場合、manifest に `agenticUserTemplates` と `functionsAs: agenticUserOnly` がある
-- [ ] `review_sanitization.py` が Pass、必須チェックに登録されている
-- [ ] Agent Evals が CI に組み込まれ、合格時のみデプロイされる
-- [ ] デプロイに承認ゲートがある
+- [ ] `alm.config.json` にエージェントのレイアウト（templates / rendered / artifacts）を宣言した
+- [ ] **`alm` スキル**の検証チェックリストを満たしている → [`alm`](../alm/SKILL.md#検証チェックリスト)
 
 ## 参考リンク
 
+- [ALM（秘匿化・汎用化・CI/CD）共通スキル](../alm/SKILL.md)
 - [ライト実装（PoC）クイックスタート](references/poc-quickstart.md)
-- [CI / Git ホスティング別の構成（GitHub / Azure DevOps / その他）](references/ci-providers.md)
 - [アーキテクチャ（2 種類のブループリント・スキーマ選択）](references/architecture.md)
 - [Agent 365 CLI 運用（Windows / WAM / 権限）](references/a365-cli.md)
-- [リポジトリ scaffold（.gitignore / hook / CI）](references/repo-scaffold.md)
 - [異常系・トラブルシュート](references/troubleshooting.md)
 - [環境変数サンプル](references/.env.example)
