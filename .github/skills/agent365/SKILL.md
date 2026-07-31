@@ -70,6 +70,7 @@ Teams / Microsoft 365 Copilot に公開するまでを一貫して行う。
 
 | スクリプト | 用途 | Step |
 |---|---|---|
+| [scripts/discover_foundry_context.py](scripts/discover_foundry_context.py) | ARM REST（`auth_helper.py` のトークン）で Azure サブスクリプション・Foundry アカウント・プロジェクトを自動検出し `.env` に書き込む（ポータル手入力不要） | 3 |
 | [scripts/create_blueprint.py](scripts/create_blueprint.py) | Foundry のマネージド ID ブループリントを作成／一覧／表示（REST 直呼び） | 4 |
 | [scripts/create_instance.py](scripts/create_instance.py) | manifest / definition / blueprint の 3 モードでエージェントを作成 | 5 |
 | [scripts/deploy.py](scripts/deploy.py) | レンダリング済み manifest から新しいバージョンを `create_version` | 5, 10 |
@@ -158,15 +159,28 @@ pip install -r requirements.txt   # azure-ai-projects / azure-identity / PyYAML 
 
 ### Step 3: Foundry プロジェクトと `.env` を用意する
 
-1. Foundry プロジェクトのエンドポイント（`https://<account>.services.ai.azure.com/api/projects/<project>`）を
-   プロジェクト概要から取得する。
-2. `.env.example` を `.env` にコピーし、実値を設定する。**`.env` は絶対にコミットしない**。
-3. `az login` 済みであることを確認する（`DefaultAzureCredential` が使用する）。
-
 ```powershell
 Copy-Item .env.example .env
-az account set --subscription $env:AZURE_SUBSCRIPTION_ID
+python scripts/discover_foundry_context.py --write .env
 ```
+
+1. `scripts/discover_foundry_context.py` が ARM REST（`auth_helper.py` の
+   `get_token(scope="https://management.azure.com/.default")`）で Azure サブスクリプション・
+   Foundry アカウント（Cognitive Services、`kind=AIServices`）・プロジェクトを自動検出し、
+   `AZURE_SUBSCRIPTION_ID` / `AZURE_TENANT_ID` / `AZURE_RESOURCE_GROUP` / `AZURE_AI_ACCOUNT` /
+   `AZURE_AI_PROJECT` / `FOUNDRY_PROJECT_ENDPOINT` を `.env` に書き込む。
+   ポータルでの手入力は不要。
+2. 候補が複数ある場合（サブスクリプション・Foundry アカウント・プロジェクトが複数見つかる場合）は、
+   候補一覧を表示して停止する。`--subscription-id` / `--account` / `--project` で絞り込む。
+3. `az login` 済みであることを確認する。`discover_foundry_context.py` は `auth_helper.py` の
+   `DeviceCodeCredential`（`az login` とは別の認証フロー・初回のみデバイスコードサインインが必要）を
+   使うが、Step 4 以降の `create_blueprint.py` / `create_instance.py` / `deploy.py` は
+   `DefaultAzureCredential`（`az login` 済みの資格情報を利用）で Foundry を呼ぶため、
+   結局どちらも必要になる。
+
+> **`.env` は絶対にコミットしない**。
+> 複数の名前付きエージェント（チーム）を作る場合の `.env` 分離・共有値のコピー方は
+> [references/team-pattern.md](references/team-pattern.md) を参照。
 
 ### Step 4: Foundry のマネージド ID ブループリントを作成する
 
