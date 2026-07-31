@@ -110,6 +110,16 @@ def main() -> int:
     parser.add_argument("--icon", default="assets/agent-icon.png")
     parser.add_argument("--output", help="Output ZIP (default: teams/<agent>-teams-app.zip).")
     parser.add_argument("--env", default=".env")
+    parser.add_argument(
+        "--require-template",
+        action="store_true",
+        help=(
+            f"Fail instead of silently downgrading when {A365_BLUEPRINT_VAR} is "
+            "missing. Use this whenever the goal is an Agent template (M365 admin "
+            "center 'Agent template' badge), so a non-template shared-agent package "
+            "can never be built or published by mistake."
+        ),
+    )
     args = parser.parse_args()
 
     load_env(Path(args.env))
@@ -134,6 +144,13 @@ def main() -> int:
     # only when the package carries the agentic user template referenced here.
     extra_files: dict[str, bytes] = {}
     if not os.environ.get(A365_BLUEPRINT_VAR):
+        if args.require_template:
+            raise SystemExit(
+                f"{A365_BLUEPRINT_VAR} is not set, so this package would install as a "
+                "SHARED agent, not an Agent template. Run 'a365 setup blueprint' first "
+                f"(Step 7), set {A365_BLUEPRINT_VAR} in .env, then re-run with "
+                "--require-template."
+            )
         print(
             f"WARNING: {A365_BLUEPRINT_VAR} is not set - building a SHARED agent "
             "package. Installing it does not create a per-install agent instance.\n"

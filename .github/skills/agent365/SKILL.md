@@ -270,15 +270,26 @@ az bot msteams create --resource-group $env:AZURE_RESOURCE_GROUP --name $env:AZU
 
 ### Step 9: Teams アプリパッケージをビルドする
 
+M365 管理センター（`admin.cloud.microsoft/?#/agents/all`）に **"Agent template"** バッジ付きで
+表示させたい場合は、**Step 7（Agent 365 ブループリント）を必ずこの Step より前に完了させる**。
+`A365_AGENT_BLUEPRINT_ID` が未設定のままここを実行すると、`agenticUserTemplates` の無い
+**共有エージェント（"Agent template" ではない、ただの "Agent"）**パッケージが作られ、
+それを Step 10 で公開すると**先に非テンプレートの Agent として登録されてしまう**
+（後から Step 7 を行って再公開しても、"Agent" → "Agent template" への移行は避けたい手戻りになる）。
+これを防ぐため、Agent template を目指す場合は **`--require-template` を付けて実行する**
+（`A365_AGENT_BLUEPRINT_ID` が無ければビルドを止めてエラーにする）。
+
 ```powershell
-python scripts/build_teams_package.py
+python scripts/build_teams_package.py --require-template
 ```
 
 - `assets/agent-icon.png` から `color.png`（192x192）と `outline.png`（32x32・白シルエット）を自動生成する。
   元画像は**アルファチャンネル付きの正方形 PNG**にする（背景が不透明だと outline が塗り潰しになる）。
 - `A365_AGENT_BLUEPRINT_ID` が設定されていれば `agenticUser.json` を同梱し、
-  `manifestVersion: devPreview` のインスタンス化パッケージを生成する。
-  未設定なら GA スキーマ（1.22）の**共有エージェント**パッケージに自動ダウングレードして警告を出す。
+  `manifestVersion: devPreview` のインスタンス化（= Agent template）パッケージを生成する。
+  `--require-template` 無しで未設定のまま実行すると、GA スキーマ（1.22）の**共有エージェント**
+  パッケージに自動ダウングレードして警告を出す（ライト実装で意図的に共有エージェントとして
+  公開する場合のみこちらを使う）。
 - **再アップロードのたびに `.env` の `TEAMS_APP_VERSION` を上げる**（同一バージョンはアップロード時に拒否される）。
 
 ### Step 10: Graph API で公開する（API/SDK のみ・手動アップロード不要）
