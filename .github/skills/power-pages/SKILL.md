@@ -44,6 +44,9 @@ triggers:
 | [レガシー参照用チェックリスト](references/legacy-checklist.md) | 旧構成の参照用チェックリスト |
 | [デザインシステム](references/design-pattern.md) | UI コンポーネント・テーマ・レイアウトの指針 |
 | [デザインテンプレート集](references/design-templates.md) | 5 種類の配色テンプレート定義。設計時に提案→選択→適用 |
+| [アクセススコープ設計（Self / Account）](references/access-scope-design.md) | Self / Account の比較・scope 値・権限マトリクス・管理者への依頼テンプレート・セキュリティ根拠 |
+| [紐づけ依頼メールフロー](references/account-link-request-flow.md) | 未紐づけユーザーから管理者への依頼テーブル設計・Power Automate フロー定義 |
+| [管理者用紐づけ画面](references/account-link-admin-app.md) | contact ↔ account を管理者が割り当てる Code Apps 画面の仕様（実装は [code-apps/templates/account-link-admin](../code-apps/templates/account-link-admin/)） |
 
 > **Dataverse 接続と認証の実装方法はこのファイルで概要を説明し、完全なサンプルコードは上記 References にまとめている。**
 
@@ -108,6 +111,10 @@ triggers:
 9. **powerpagecomponent type=18 には `powerpagesitelanguageid` が必須** — 未設定だと 404 になる
 10. **報告者・作成者は Contact Lookup で追跡する** — Power Pages では `createdby` はアプリケーションユーザーになるため使えない。ログインユーザーの Contact 情報を自動取得し入力不要にする（教訓 19）
 11. **デザイン系の変更は必ず `npm run dev`（localhost）で見た目を確認してから本番デプロイする** — 本番デプロイ → ブラウザ確認 → 再デプロイのループは 1 サイクルあたり数十秒〜数分かかり非効率。レイアウト・配色・レスポンシブ崩れは localhost で先に潰し、本番デプロイは最終確認のみに留める（教訓 20）。ただし Power Pages 本体のテーマ CSS（Bootstrap 既定の見出し色など）はローカルには存在せず本番でのみ衝突しうるため、色指定は見出し要素に明示的な `color` を必ず設定し、デプロイ後の最終確認も省略しない（詳細は [トラブルシューティング](references/troubleshooting.md)）
+12. **取引先企業（`account`）配下の「業務テーブル」は Account スコープ（`756150002`）で権限を切る** — 全件公開になるグローバルアクセスで逃げない。子テーブル権限（`accountrelationship` + create）を作り、POST 時に account Lookup を `@odata.bind` する。`read` は通るのに `create` だけ 403 になる典型パターンの原因（教訓 21）
+13. **`account` テーブル自身に Account スコープを設定してはいけない** — Web API が 500（`9004010A`）を返し、会社名の参照も子レコードの bind も一切できなくなる。正解は **Contact スコープ（`756150001`）＋ `contact_customer_accounts`**。これで「自分の `parentcustomerid` が指す 1 件」だけが返る（実機検証済み）
+14. **Lookup バインドには参照する側・される側「両方」の 追加（Append）と 追加先（AppendTo）が要る** — 片側だけでは 403。`You don't have permission to associate or disassociate table X to Y` が出たら、まず不足している側の権限を疑う（実機で 4 通りの真理値表を検証済み）
+15. **account Lookup を省いた POST は 403 ではなく 201 で通ってしまう** — できるのは誰にも見えない孤立レコード。テーブル権限では防げないため、クライアント側で account 未取得なら作成 UI を出さない＋サーバー側（フロー等）で `null` を検知する二段構えにする（実機検証済み）
 
 ## ワークフロー
 
@@ -127,7 +134,17 @@ triggers:
 2回目以降（手動の場合）:
   npm run build → pac pages upload-code-site
   → py .github/skills/power-pages/scripts/relink_table_permissions.py  ← ★必須（省くと 403）
+
+Account アクセスを採用する場合（初回デプロイ後に 1 回だけ・実機検証済みの順序）:
+  py .github/skills/power-pages/scripts/setup_access_scope.py --scope account
+  → py .github/skills/power-pages/scripts/setup_account_link_request.py
+  → py .github/skills/power-pages/scripts/deploy_flow_account_link_request.py
+  → 管理者用 Code App をデプロイ（code-apps/templates/account-link-admin）
+  → py .github/skills/power-pages/scripts/setup_access_scope.py --scope account --verify-only
 ```
+
+> ⚠️ **`PAGES_SITE_NAME` を `.env` に必ず設定する**。未設定だと最終更新のサイトが暗黙で選ばれ、
+> 別サイトに権限を書き込む事故が起きる。
 
 > ⚠️ **`npm run build && pac pages upload-code-site` だけで終わらせると、既存テーブル権限の
 > Web ロール紐付けが消えて全件 403 になる**（教訓 15）。`relink_table_permissions.py` を
@@ -188,6 +205,13 @@ DATAVERSE_URL=https://{org}.crm.dynamics.com/
 ENV_ID=                               # Power Platform 環境 ID
 PAGES_SITE_NAME=                      # サイト名 (powerpages.config.json の siteName と一致)
 PAGES_SUBDOMAIN=                      # サブドメイン (例: myportal → myportal.powerappsportals.com)
+
+# Account アクセススコープを使う場合（Step 4）
+ACCESS_SCOPE=account                          # self | account
+ACCOUNT_CHILD_TABLES=                         # 論理名:リレーションスキーマ名 のカンマ区切り
+ACCOUNT_LINK_REQUEST_TABLE=                   # 紐づけ依頼テーブルの論理名
+ACCOUNT_LINK_REQUEST_RELATIONSHIP=            # contact との 1:N スキーマ名
+ACCOUNT_LINK_ADMIN_RECIPIENT=                 # 依頼通知メールの宛先（配布リスト推奨）
 ```
 
 ## プロジェクト構造（公式準拠 / upstream 推奨）
@@ -278,6 +302,21 @@ Vite のデフォルト出力（`index-{hash}.js`）はカバーされるが、�
   "bundleFilePatterns": ["app.*.js", "app.*.css", "style.*.css"]
 }
 ```
+
+---
+
+## テンプレートとサンプルの使い分け
+
+| フォルダ | 種別 | 内容 | 使いどころ |
+|---|---|---|---|
+| [templates/corporate-lp/](templates/corporate-lp/) | **プロジェクト雛形** | React + TypeScript + Vite + shadcn/ui。認証導線・`/profile`・Dataverse クライアント込み | **新規開発の既定の出発点**。コピーして中身を差し替える |
+| [templates/minimal-code-site/](templates/minimal-code-site/) | **プロジェクト雛形** | ビルド不要の素の HTML/CSS/JS 1 セット | `upload-code-site` → アクティブ化 → 再起動の**配線だけを疎通確認**したいとき |
+| [templates/access-scope/](templates/access-scope/) | **部分テンプレート（コード片）** | 取引先企業の読み取り専用表示と紐づけ依頼ボタン | 既存アプリに機能として**追加**する（雛形ではない） |
+| [samples/portal/](samples/portal/) | **参照用サンプル** | 動作済みサイトの実体（`.powerpages-site` の web-templates / page-templates を含む） | 実装の答え合わせ・生成物の構造確認。**コピー元にはしない** |
+
+> `templates/` = コピーして使うもの、`samples/` = 読んで参考にするもの。
+> プロジェクト雛形はフォルダごとコピーし、部分テンプレートは該当ファイルだけを既存の
+> `src/hooks/` や `src/components/` に配置する。
 
 ---
 
@@ -415,6 +454,157 @@ py ../.github/skills/power-pages/scripts/relink_table_permissions.py
 > ```bash
 > py ../.github/skills/power-pages/scripts/setup_contact_self.py
 > ```
+
+> 取引先企業（`account`）配下のレコードを扱う場合や、参照可能範囲を Self / Account から
+> 選ぶ場合は **Step 4** を実行する（教訓 21）。
+
+---
+
+## Step 4: アクセススコープを決めてテーブル権限を構成する（Self / Account）
+
+サインインユーザーが**誰のデータを見られるか**を確定し、そのスコープで権限・UI・運用を揃える。
+背景と根拠は [アクセススコープ設計](references/access-scope-design.md)。
+
+### 4-A: AskUserQuestion でスコープを確定する（実装前に必須）
+
+**テーブル権限を作る前に必ず質問する。** ここを飛ばすと権限・UI・運用を同時にやり直すことになる。
+
+| # | 質問 | 選択肢 |
+|---|---|---|
+| 1 | サインインユーザーの参照可能範囲は? | **Self アクセス**（本人のレコードだけ）/ **Account アクセス**（所属する取引先企業配下） |
+| 2 | （Account のときのみ）管理者が contact ↔ 取引先企業を紐づける **Code Apps 管理画面**をどう用意しますか? | **テンプレートから作成する（既定）** / **作成しない（モデル駆動型アプリで運用）** |
+
+- **Self アクセス** — 本人の `contact` と本人が作成したレコードのみ。BtoC・個人利用向け。
+- **Account アクセス** — `contact` に紐づく **取引先企業（`account`）配下**を同僚と共有。BtoB ポータル向け。
+
+回答を `.env` の `ACCESS_SCOPE`（`self` / `account`）と `ADMIN_LINK_APP`（`true` / `false`）に記録し、
+以降の分岐に使う。迷っている場合の既定は **Self**（後から Account を足せるが、逆は利用者影響が大きい）。
+
+> **Account を選んだら紐づけ手段は必須**。`contact.parentcustomerid` が空のままではどのデータも見えないため、
+> 質問 2 は「作る／作らない」ではなく「Code Apps 管理画面か、モデル駆動型アプリ運用か」の選択である。
+> 既定は [templates/account-link-admin](../code-apps/templates/account-link-admin/) からの作成（`ADMIN_LINK_APP=true`）。
+
+### 4-B: リレーションスキーマ名を控える
+
+権限に指定するのは**リレーションのスキーマ名**であり、表示名でも Lookup 列名でもない。
+
+```bash
+cd portal
+python ../.github/skills/power-pages/scripts/setup_access_scope.py --list-relationships
+```
+
+### 4-C: Self アクセスを構成する
+
+```bash
+python ../.github/skills/power-pages/scripts/setup_access_scope.py --scope self
+```
+
+- `contact`: `scope=756150004`（Self）read/write、`appendto=true`
+- 業務テーブル: `scope=756150001`（Contact）＋ `contactrelationship`、read/write/create
+- 各テーブルに `Webapi/{table}/enabled=true` と `Webapi/{table}/fields`
+
+### 4-D: Account アクセスを構成する
+
+サインイン時に作られた `contact` に関連付いている `account` を
+**参照できるが編集・削除はできない**権限セットにする。
+
+```bash
+# .env の ACCOUNT_CHILD_TABLES（論理名:リレーションスキーマ名 のカンマ区切り）を使う
+python ../.github/skills/power-pages/scripts/setup_access_scope.py --scope account
+```
+
+| # | テーブル | scope | リレーション | read | write | create | delete | append | appendto |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | `account` | **Contact（`756150001`）** | `contact_customer_accounts` | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| 2 | 業務テーブル | Account（`756150002`） | `accountrelationship` | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| 3 | `contact` | Self（`756150004`） | なし | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
+
+- **#1 に Account スコープを使わない**。`account` テーブル自身を Account スコープにすると
+  Web API が 500（`9004010A`）を返し、参照も bind もできなくなる（実機検証済み）。
+  Contact スコープ + `contact_customer_accounts`（account 1:N contact = `parentcustomerid`）にすれば
+  自社 1 件だけが返る。`verify()` は旧構成が残っていたら NG を出す。
+- **#1 の `write`/`delete` は必ず `false`**。スクリプトは送信直前に検証し、`true` なら中止する。
+- **`append`/`appendto` は編集権限ではない**。Lookup バインドには
+  **参照する側とされる側の両方**で `append` と `appendto` が必要で、片側だけだと 403 になる。
+- Web ロールは既定で **Authenticated Users**。専用ロールにする場合は `ACCESS_SCOPE_WEBROLE_NAME` を設定する
+  （存在しなければ作成されるが、**contact への割り当ては別途必要**）。
+- **グローバルアクセス（`756150000`）で代用しない**。全社の取引先企業が全ユーザーに見えてしまう。
+- **account Lookup を省いた POST は 201 で通る**（403 にならない）。できるのは誰にも見えない
+  孤立レコードなので、クライアント側で account 未取得なら作成 UI を出さないこと。
+
+### 4-E: 取引先企業をプロファイル画面に読み取り専用で表示する
+
+`/profile` に会社情報を**表示専用**で出す（入力欄にしない）。
+
+```typescript
+const me = await powerPagesFetch<{ _parentcustomerid_value: string | null }>(
+  `/_api/contacts(${user.contactId})?$select=_parentcustomerid_value`
+);
+const accountId = me._parentcustomerid_value; // null = 未紐づけ
+```
+
+実装は [templates/access-scope/](templates/access-scope/) の `use-account-access.ts` /
+`AccountProfileSection.tsx` を `src/hooks/`・`src/components/` に配置する。
+
+> **なぜユーザーに選ばせないのか**: 取引先企業を自由に選べると、他社を選ぶだけで
+> 他社データにアクセスできてしまう（権限昇格）。**紐づけはアプリ管理者だけが行う**。
+> `Webapi/contact/fields` に `parentcustomerid` を含めない運用にすると PATCH 自体が拒否され二重に安全。
+
+### 4-F: 未紐づけユーザー向けの「管理者に紐づけを依頼」を構成する
+
+1. 依頼テーブル `{prefix}_accountlinkrequest` を作成する（[dataverse](../dataverse/SKILL.md) スキル、
+   列定義は [紐づけ依頼メールフロー](references/account-link-request-flow.md)）。
+2. 依頼テーブルの権限と Web API を作成する（**作成と自分の依頼の参照だけ**を許可）。
+
+   ```bash
+   python ../.github/skills/power-pages/scripts/setup_account_link_request.py
+   ```
+
+3. 依頼メール送信フローをデプロイする。
+
+   ```bash
+   python ../.github/skills/power-pages/scripts/deploy_flow_account_link_request.py
+   ```
+
+   接続参照の作成 → フロー作成 → 有効化 → Webhook 登録（`/start`）までを自動で行う。
+   事前に Dataverse と Office 365 Outlook の接続を make.powerautomate.com で作っておく（API では作れない）。
+   トリガーは **Dataverse「行が追加されたとき」**、アクションは **Office 365 Outlook「メールの送信」**。
+   宛先は `.env` の `ACCOUNT_LINK_ADMIN_RECIPIENT`。
+4. プロファイル画面のボタンから依頼レコードを POST する（テンプレート実装済み）。
+
+> **HTTP トリガーのフローを直接呼ばない**。匿名で叩ける URL は踏み台になる。
+> 認証済みセッションで Dataverse にレコードを作り、サーバー側のフローで送信する。
+
+### 4-G: 管理者用 Code Apps 画面を構築する（Account アクセスでは必須）
+
+アドオンテンプレート **[code-apps/templates/account-link-admin](../code-apps/templates/account-link-admin/)** を使う。
+[code-apps](../code-apps/SKILL.md) スキルで `generic-base` から scaffold し、テンプレートの `src/` を重ねて
+ルート（`/account-link`）とナビ項目を追加するだけで動く。データソースは
+`shared_commondataserviceforapps` を 1 回追加すれば `contacts` / `accounts` /
+`{prefix}_accountlinkrequests` をすべて扱える。
+
+画面仕様・更新処理・監査の考え方は [管理者用紐づけ画面](references/account-link-admin-app.md) に従う。
+「作成しない」を選んだ場合は、モデル駆動型アプリの取引先担当者フォームで
+取引先企業を設定する運用手順を README に記載する（紐づけ手段そのものは省略できない）。
+
+### 4-H: 検証する
+
+```bash
+python ../.github/skills/power-pages/scripts/setup_access_scope.py --scope account --verify-only
+```
+
+- [ ] 4-A の AskUserQuestion を実施し、`.env` の `ACCESS_SCOPE` に記録した
+- [ ] `account` 権限は **Contact スコープ + `contact_customer_accounts`** で read のみ（`write`/`delete` が `false`）
+- [ ] `account` / 業務テーブル / `contact` のすべてに `append` と `appendto` がある
+- [ ] 業務テーブル権限に `accountrelationship`（スキーマ名）と `create=true` がある
+- [ ] すべての type=18 に Web ロールが **content JSON と N:N association の両方**で紐付いている
+- [ ] `Webapi/{table}/enabled|fields` がアクセスする全テーブルにある
+- [ ] プロファイル画面で取引先企業が**読み取り専用**で表示される
+- [ ] 未紐づけユーザーに依頼ボタンが出て、押すとメールが届く
+- [ ] `upload-code-site` の後に `relink_table_permissions.py` を実行した（省くと全件 403）
+
+> 再起動の反映には 60〜90 秒かかる。確認は InPrivate ウィンドウで行う。
+> 異常系は [トラブルシューティング](references/troubleshooting.md) を参照。
 
 ---
 

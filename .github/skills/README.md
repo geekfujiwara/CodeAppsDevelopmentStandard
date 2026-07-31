@@ -71,7 +71,8 @@ skill-name/
 | Geek Punchlist | `code-apps/samples/geek-punchlist/` | 建設業・竣工検査（指摘事項・是正ワンクリック送り・場所×分類マトリクス） |
 | Geek Delivery | `code-apps/samples/geek-delivery/` | 物流・配送管理（配送便・車両・配達トラッキング・縦タイムライン） |
 | Power Pages ポータル | `power-pages/samples/portal/` | Power Pages サイト実体（web-templates / page-templates） |
-| Corporate LP テンプレート | `power-pages/templates/corporate-lp/` | コーポレート LP（雛形として利用可） |
+| Power Pages テンプレート | `power-pages/templates/` | `corporate-lp`（React 雛形）/ `minimal-code-site`（素の HTML 雛形）/ `access-scope`（部分テンプレート） |
+| Code Apps テンプレート | `code-apps/templates/` | `generic-base`（scaffold 元）/ `account-link-admin`（contact ↔ 取引先企業 紐づけ管理画面のアドオン） |
 
 **サンプルに含まれない SDK 生成物**（手で作らず各テーマで生成させる）:
 
@@ -135,7 +136,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 | スキル | 説明 |
 |--------|------|
 | [code-apps](code-apps/SKILL.md) | Code Apps を TypeScript/React ベースで開発し、UI 設計からデプロイまで対応する。 |
-| [power-pages](power-pages/SKILL.md) | Power Pages コードサイトを pac pages CLI で開発・ビルド・デプロイする。 |
+| [power-pages](power-pages/SKILL.md) | Power Pages コードサイトを pac pages CLI で開発・ビルド・デプロイし、参照可能範囲（Self / Account）に応じたテーブル権限まで構成する。 |
 | [generative-page](generative-page/SKILL.md) | Generative Pages（genux）を開発・デバッグし、モデル駆動型アプリへデプロイする。 |
 | [model-driven-app](model-driven-app/SKILL.md) | モデル駆動型アプリを作成・構成し、公開まで実行する。 |
 
@@ -184,7 +185,7 @@ Track A（データ基盤オーナー）:
   7. ai-builder         → AI プロンプト追加（Power Automate から呼ぶ場合）
 Track B（設計承認と同時に着手）:
   4. code-apps          → Code Apps UI 設計・開発・デプロイ
-     OR power-pages     → Power Pages コードサイト開発・デプロイ
+     OR power-pages     → Power Pages コードサイト開発・デプロイ（Step 4 で参照可能範囲を確定）
      OR generative-page → Generative Pages 開発
      OR model-driven-app → モデル駆動型アプリ構築
      ※ add-data-source は Track A のテーブル作成完了後（★同期①）、add-flow はフロー作成完了後（★同期②）

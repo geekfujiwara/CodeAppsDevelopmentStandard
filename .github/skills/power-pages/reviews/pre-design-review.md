@@ -47,6 +47,8 @@
 | 4.4 | Contact 権限は scope=756150004 (Self) を使用 | 教訓3: contactrelationship 不要 |
 | 4.5 | Lookup 参照先テーブルに `appendto=true` を設定する計画がある | 教訓4: 403 90040106 |
 | 4.6 | `powerpagesitelanguageid` を設定する計画がある | 核心: null → 404 9004010C |
+| 4.7 | 取引先企業（`account`）配下のデータは Account スコープ（756150002）で設計している（グローバルアクセスで代用していない） | 教訓 21: 他社データの漏洩防止 |
+| 4.8 | Account スコープを使う場合、`account` 権限（read + appendto）・子テーブル権限（`accountrelationship` + create）・`contact.parentcustomerid` の紐付けが揃う計画になっている | 教訓 21: read は通るが create が 403 |
 
 ### 5. デプロイ構成
 

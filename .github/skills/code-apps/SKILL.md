@@ -419,6 +419,15 @@ scaffold の取得元は **[templates/generic-base](templates/generic-base/)** �
 
 → 含める／含めないファイルの完全な一覧は **[新規テーマ開始チェックリスト](references/new-theme-checklist.md)**。
 
+### アドオンテンプレート（generic-base に重ねる差分）
+
+`templates/` には scaffold 元の `generic-base` に加えて、**特定業務の画面だけを差分ファイルとして重ねるアドオン**を置く。
+scaffold 元は `generic-base` のまま変えず、`src/` を上書きコピーしてから README の手順どおりルートとナビを追加する。
+
+| アドオン | 用途 | 使う場面 |
+|---|---|---|
+| [templates/account-link-admin](templates/account-link-admin/) | `contact` に `account`（取引先企業）を割り当てる管理画面 | Power Pages で **Account アクセス**を選んだとき（[power-pages スキル](../power-pages/SKILL.md) Step 4-G）。必須 |
+
 ### SDK に触れる面を 1 ファイルに閉じる
 
 `@microsoft/power-apps` は 2〜4 週ごとに更新され、マイナーバージョンでも破壊的変更が入る。
