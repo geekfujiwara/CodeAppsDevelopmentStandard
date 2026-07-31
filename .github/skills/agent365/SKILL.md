@@ -53,14 +53,15 @@ Teams / Microsoft 365 Copilot に公開するまでを一貫して行う。
 | リポジトリ | 任意（ローカルのみでも可） | **private リポジトリ必須**（GitHub / Azure DevOps Repos / その他 Git） |
 | 秘匿値 | ローカル `.env` のみ（`SECRET_BACKEND=none`） | `.env` + CI のシークレットストア（`SECRET_BACKEND`） |
 | デプロイ | ローカルから `deploy.py` を手動実行 | CI/CD（秘匿化ゲート + Agent Evals + 承認ゲート） |
-| 実施する Step | 0 → 1 → 2 → 3 → 4 → 5 → 7 → 8 → 9 | Step 0 〜 11 のすべて |
+| 実施する Step | 0 → 1 → 2 → 3 → 4 → 5 → 6 →（(b) を選んだ場合のみ 8 → 9 → 10） | Step 0 〜 12 のすべて（Step 6 では必ず (b) を選ぶ） |
 
-> ライト実装は **Step 6（Agent 365 ブループリント）と Step 10（CI/CD）を省略**する最短ルート。
+> ライト実装は **Step 7（Agent 365 ブループリント）と Step 11（CI/CD）を省略**する最短ルート。
 > 検証が済んだら**その 2 Step を後から追加するだけ**で本格実装へ昇格できる（作り直し不要）。
 > 省略ルートの要約は [references/poc-quickstart.md](references/poc-quickstart.md)。
+> **Step 6（公開範囲の確認）はライト実装・本格実装のどちらでも必ず実施する。**
 
 > **複数の名前付きエージェント（例: 役割の異なる 3 体が 1 チームとして協働する「AI 社員」構成）**を
-> 作りたい場合は、上記 Step 0〜11 をエージェントごとに横展開する。フォルダ構成・`.env` の分離・
+> 作りたい場合は、上記 Step 0〜12 をエージェントごとに横展開する。フォルダ構成・`.env` の分離・
 > ブループリント共有・エージェント間連携の制約は
 > [references/team-pattern.md](references/team-pattern.md) を参照。
 
@@ -128,8 +129,8 @@ ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `
 
 1. **共有エージェント**（全ユーザーが同じ 1 体を使う）か、
    **インスタンス化エージェント**（インストールごとに専用の Entra Agent ID を持つ）かを確認する。
-   **ライト実装では常に共有エージェント**とし、Step 6 を省略する。
-2. インスタンス化する場合のみ Agent 365 ブループリント（Step 6）と `agenticUserTemplates` が必要になる。
+   **ライト実装では常に共有エージェント**とし、Step 7 を省略する。
+2. インスタンス化する場合のみ Agent 365 ブループリント（Step 7）と `agenticUserTemplates` が必要になる。
    → 詳細は [references/architecture.md](references/architecture.md)。
 3. エージェント名（kebab-case、Teams 表示名とは別）を決める。
    エージェント名を3件 AskUserQuestion にて提案する。ここでのエージェント名は独自性のあるものとし、**商標・著作権に触れる名称やキャラクターを使用してはならない**。
@@ -217,7 +218,29 @@ python scripts/deploy.py --agent <agent-name>
 
 作成後、`INSTANCE_IDENTITY_PRINCIPAL_ID` / `INSTANCE_IDENTITY_CLIENT_ID` / `AGENT_GUID` を `.env` へ反映する。
 
-### Step 6: Agent 365 のエージェント ID ブループリントを作成する
+### Step 6: 公開範囲を確認する（テンプレート公開のみ / デジタル従業員として実配信）
+
+Step 5 までで Foundry 上にエージェントは実際に動作する状態になるが、**Teams / Microsoft 365
+管理センター（`https://admin.cloud.microsoft/?#/agents/all`）にはまだ表示されない**。
+そこに「デジタル従業員」として一覧表示され、実際に Teams から使える状態にするには
+Step 8〜10（Azure Bot Service → Teams パッケージ → Graph API 公開）が必要になる。
+この先は **Azure Bot Service の課金**と**テナント全体への公開**を伴うため、
+**不明瞭な場合は必ず AskUserQuestion で利用者に確認してから Step 7 以降に進む。**
+
+> AskUserQuestion で提示する質問（複数の名前付きエージェントの場合は**エージェントごとに個別に確認する**）:
+
+| 質問 | 選択肢 |
+|---|---|
+| Step 5 で作成したエージェントテンプレートを、実際に「デジタル従業員」として Teams / M365 管理センターにデプロイしますか？ | **(a) いいえ、テンプレート公開のみでよい**（ここで作業を終える。Step 8〜11 は実施しない）<br>**(b) はい、実配信する**（Step 7〜10 を続けて実施する） |
+
+- **(a) を選んだ場合**: ここで作業を止める。`agents/<agent-name>/agent.template.yaml` がコミットされ、
+  Foundry 上にエージェントバージョンが稼働している状態が最終成果物。
+  `admin.cloud.microsoft/?#/agents/all` に表示されないのは想定どおりの挙動（Step 10 の
+  Teams 公開を経て初めて表示される）。
+- **(b) を選んだ場合**: Step 1 の判断（共有 / インスタンス化）に従って
+  Step 7（インスタンス化する場合のみ）→ Step 8 → Step 9 → Step 10 と進める。
+
+### Step 7: Agent 365 のエージェント ID ブループリントを作成する
 
 インストールごとの専用 Entra Agent ID が必要な場合のみ実施する（Step 1 の判断）。
 **ライト実装ではこの Step を飛ばす**（共有エージェントとして公開する）。
@@ -233,7 +256,7 @@ a365 setup blueprint -n <agent-name> --no-endpoint
 - 初回はディレクトリ伝播の遅延で失敗することがあるが、**同じコマンドを再実行すれば冪等に修復される**。
 - Windows での認証（WAM）まわりのハマりどころは [references/a365-cli.md](references/a365-cli.md)。
 
-### Step 7: Azure Bot Service と Teams チャネルを作成する
+### Step 8: Azure Bot Service と Teams チャネルを作成する
 
 Bot の `msaAppId` には**エージェントのインスタンス ID の client id** を使う。
 
@@ -245,7 +268,7 @@ az bot create --resource-group $env:AZURE_RESOURCE_GROUP --name $env:AZURE_BOT_N
 az bot msteams create --resource-group $env:AZURE_RESOURCE_GROUP --name $env:AZURE_BOT_NAME
 ```
 
-### Step 8: Teams アプリパッケージをビルドする
+### Step 9: Teams アプリパッケージをビルドする
 
 ```powershell
 python scripts/build_teams_package.py
@@ -258,7 +281,7 @@ python scripts/build_teams_package.py
   未設定なら GA スキーマ（1.22）の**共有エージェント**パッケージに自動ダウングレードして警告を出す。
 - **再アップロードのたびに `.env` の `TEAMS_APP_VERSION` を上げる**（同一バージョンはアップロード時に拒否される）。
 
-### Step 9: Graph API で公開する（API/SDK のみ・手動アップロード不要）
+### Step 10: Graph API で公開する（API/SDK のみ・手動アップロード不要）
 
 ```powershell
 python scripts/publish_teams_app.py
@@ -277,10 +300,10 @@ python scripts/publish_teams_app.py --requires-review
    （無い場合は `--requires-review` で申請する）。
 3. Teams でエージェントを開き、利用者ごとのセッション（インスタンス）が開始されることを確認する。
 
-> **ライト実装はここで完了**。以降の Step 10 は本格実装のみ実施する。
-> ライト実装のまま運用する場合も、`.env` をコミットしていないことを Step 11 で必ず確認する。
+> **ライト実装はここで完了**。以降の Step 11 は本格実装のみ実施する。
+> ライト実装のまま運用する場合も、`.env` をコミットしていないことを Step 12 で必ず確認する。
 
-### Step 10: CI/CD と秘匿化ゲートを有効化する（本格実装のみ）
+### Step 11: CI/CD と秘匿化ゲートを有効化する（本格実装のみ）
 
 この Step は **`alm` スキル** が担当する → [`alm`](../alm/SKILL.md)。
 エージェント側から渡す情報は次の 3 点だけ。
@@ -324,7 +347,7 @@ flowchart TD
     G --> I[GitHub Release に記録: alm]
 ```
 
-### Step 11: 検証する
+### Step 12: 検証する
 
 ```powershell
 python scripts/review_sanitization.py       # Pass であること
@@ -339,6 +362,8 @@ git status --short                          # .env / agent.yaml / *.zip が未�
 ### 共通（ライト実装も必須）
 
 - [ ] Step 0 で**ライト実装 / 本格実装**を確定し、`.env` の `IMPLEMENTATION_MODE` に反映した
+- [ ] Step 6 で**テンプレート公開のみ / デジタル従業員として実配信**を AskUserQuestion で確定した
+      （不明瞭なまま Step 7 以降へ進んでいない）
 - [ ] `.env` / `agents/**/agent.yaml` / `teams/*.zip` / `a365.generated.config.json` が追跡されていない
 - [ ] `agent.template.yaml` / `*.template.json` に実 GUID・ARM パス・接続文字列が無い（`${VAR}` 化済み）
 - [ ] `.env.example` にすべての変数がプレースホルダー付きで定義されている
