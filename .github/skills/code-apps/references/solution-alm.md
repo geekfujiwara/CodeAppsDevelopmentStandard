@@ -59,6 +59,30 @@ Power Apps API でアプリのメタデータを見ると `almMode` プロパテ
 > [Learn: ALM for code apps](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/alm)
 > の「Add to a solution in Power Apps UI」（ソリューション → 既存の追加 → アプリ → コード アプリ）。
 
+### npm CLI (`npx power-apps push`) の場合は GUID を渡す
+
+`pac code push -s` はソリューション**名**だが、npm CLI の `npx power-apps push -s` は
+**ソリューション ID（GUID）**を要求する。同じ `-s` でも受け付ける値が違うので注意。
+
+```bash
+npx power-apps push --solution-id {SOLUTION_ID}
+```
+
+| CLI バージョン | `-s` に名前を渡した場合 |
+|---|---|
+| `@microsoft/power-apps-cli` 0.12.3 以前 | 内部で `friendlyname` / `uniquename` を検索し GUID に解決（動いていた） |
+| `@microsoft/power-apps-cli` 0.13.0 以降 | `Invalid --solution-id value: expected a GUID, got '<値>'.` で即失敗（**破壊的変更**） |
+
+`-s` を**省略**したときの 0.13.0 の自動解決（初回 push のみ適用。二回目以降は既存の所属を変えない）:
+
+1. 環境の優先ソリューション（未設定なら Common Data Service Default Solution）
+2. それも無ければ全コンポーネントの Default solution
+3. Dataverse が無効な環境ならソリューション無しで push
+
+意図しない Default ソリューションへの混入を避けるため、**初回 push では `--solution-id` を明示する**。
+なお `--solution-id ""`（空文字）は
+`Invalid --solution-id value: expected a GUID, got an empty value.` でエラーになる。
+
 ---
 
 ## 接続参照の用意（既存流用ファースト）

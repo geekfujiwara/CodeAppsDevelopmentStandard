@@ -133,10 +133,14 @@ import type { IContext } from "@microsoft/power-apps/app";
 
 | サブパス | エクスポート |
 |---|---|
-| `@microsoft/power-apps/data` | `getClient`, `DataClient` 型, `IOperationResult` 型 |
-| `@microsoft/power-apps/app` | `getContext`, `IContext` 型 |
-| `@microsoft/power-apps/data/metadata/dataverse` | `EntityMetadata`, `GetEntityMetadataOptions` 型 |
-| `@microsoft/power-apps/telemetry` | テレメトリ API |
+| `@microsoft/power-apps/data` | `getClient`, `DataClient` 型, `IOperationOptions` / `IOperationResult` 型, `serializeMultiSelectPicklistFields`, `deserializeMultiSelectPicklistFields` |
+| `@microsoft/power-apps/app` | `getContext`, `setConfig`, `IContext` / `IConfig` 型 |
+| `@microsoft/power-apps/data/executors` | `createMockDataExecutor`, `MockDataStore` / `IDataOperationExecutor` 型 |
+| `@microsoft/power-apps/data/metadata/dataverse` | `EntityMetadata`, `GetEntityMetadataOptions` 型, `get*Name` 系関数 |
+| `@microsoft/power-apps/telemetry` | `initializeLogger`, `ILogger` / `Metric` 型 |
+| `@microsoft/power-apps/internal/data` | `setDataOperationExecutor`（※ `/data` には無い） |
+
+> **`getContext()` は `Promise<IContext>` を返す非同期関数**（SDK 1.2.7 で確認）。`await` を忘れないこと。
 
 `DataClient` のメソッドは全て `*Async` で、戻り値は `IOperationResult<T>`。
 `getRecords` / `createRecord` / `updateRecord` / `deleteRecord` は存在しない。
@@ -217,6 +221,19 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 
 > **注意**: `npx power-apps push` はテナント解決の不具合で 403/404 になることがある。
 > `pac code push` を標準とする。`npm run deploy` が `pac code push` を内包する場合はそちらを使用。
+
+> **二つの CLI で `-s` の値が違う（npm CLI 0.13.0 で検証済み）**
+>
+> | コマンド | フラグ | 渡す値 |
+> |---|---|---|
+> | `pac code push` | `-s, --solutionName` | ソリューション**名** |
+> | `npx power-apps push` | `-s, --solution-id` | ソリューション **ID（GUID）** |
+>
+> npm CLI は 0.13.0 で GUID 検証が入り、名前を渡すと
+> `Invalid --solution-id value: expected a GUID, got '<値>'.` で即失敗する
+> （0.12.3 までは名前を GUID に解決してくれていた——**破壊的変更**）。
+> `-s` を省略した場合の npm CLI の振る舞いは
+> [ソリューション ALM](solution-alm.md) を参照。
 
 ### Step 4: Dataverse コネクタ追加（1 回で全テーブルをカバー）
 

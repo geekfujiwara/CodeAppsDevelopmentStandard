@@ -145,7 +145,7 @@ function checkPac() {
   }
   log(
     "⚠️",
-    "PAC CLI 未検出 — 必要に応じて `npm install -g @microsoft/power-apps-cli` → `pac auth create --environment {ENVIRONMENT_ID}`",
+    "PAC CLI 未検出 — VS Code 拡張機能『Power Platform Tools』または `dotnet tool install --global Microsoft.PowerApps.CLI.Tool` で導入し、`pac auth create --environment {ENVIRONMENT_ID}`（npm では配布されていません）",
   );
 }
 

@@ -138,7 +138,11 @@ def main() -> int:
         print(f"  ✅ pac CLI: {info}")
     else:
         print("  ❌ pac CLI: 未検出")
-        errors.append("pac CLI をインストール: npm install -g @microsoft/power-apps-cli")
+        errors.append(
+            "pac CLI をインストール: VS Code 拡張機能『Power Platform Tools』 "
+            "または dotnet tool install --global Microsoft.PowerApps.CLI.Tool "
+            "（npm では配布されていません）"
+        )
 
     # 必須: node
     ok, info = check_node()
