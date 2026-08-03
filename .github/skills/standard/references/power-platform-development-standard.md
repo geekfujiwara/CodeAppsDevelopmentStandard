@@ -199,7 +199,22 @@ PUBLISHER_PREFIX=geek
 | Node.js (LTS)                 | Code Apps ビルド    | v18.x / v20.x                                |
 | Python 3.10+                  | 自動化スクリプト    | Dataverse SDK 利用                           |
 | pip                           | Python 依存導入     | `python -m ensurepip --upgrade`              |
-| PAC CLI                       | Power Platform CLI  | `npm install -g @microsoft/power-apps-cli`   |
+| PAC CLI                       | Power Platform CLI  | Power Platform Tools 拡張機能 / .NET tool    |
+
+#### 2.1.1 2 つの CLI を混同しない
+
+名前が似ているが**別物**であり、インストール方法も配布元も異なる。
+
+| 項目           | PAC CLI                                                                                                                             | Code Apps CLI                                     |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| コマンド       | `pac`                                                                                                                                 | `power-apps`（`npx power-apps`）                  |
+| 配布           | VS Code 拡張機能 / .NET tool / Windows MSI                                                                                            | npm パッケージ `@microsoft/power-apps-cli`        |
+| インストール   | 拡張機能「Power Platform Tools」<br>`dotnet tool install --global Microsoft.PowerApps.CLI.Tool`<br>MSI: <https://aka.ms/PowerAppsCLI> | `npm install`（プロジェクトの devDependencies）   |
+| 主な用途       | 認証プロファイル、ソリューション ALM、Power Pages、環境操作                                                                            | Code Apps の init / push / データソース接続       |
+| インストール単位 | マシン全体（グローバル）                                                                                                            | プロジェクトローカル                              |
+
+> **PAC CLI は npm では配布されていない。** `npm install -g @microsoft/power-apps-cli` を実行しても
+> インストールされるのは `power-apps` コマンドのみで、`pac` は入らない。
 
 ### 2.2 .env ファイル設定
 

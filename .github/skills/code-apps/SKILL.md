@@ -246,6 +246,10 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 > push してもソリューションに入らず、Power Apps ポータルの「既存の追加 → アプリ → コード アプリ」でしか
 > 復旧できない。詳細は [ソリューション ALM リファレンス](references/solution-alm.md)。
 
+> **`-s` に渡す値は CLI で違う**: `pac code push -s` はソリューション**名**だが、
+> `npx power-apps push -s` は **GUID** を要求する（CLI 0.13.0 で GUID 検証が入り、名前はエラーになった）。
+> 詳細は [ソリューション ALM](references/solution-alm.md#npm-cli-npx-power-apps-push-の場合は-guid-を渡す)。
+
 > **インポート／ラッパーの必須パターン**: 生成された `MicrosoftDataverseService` を薄いラッパーで包み、`ListRecordsWithOrganization` / `CreateRecordWithOrganization` / `GetItemWithOrganization` / `UpdateRecordWithOrganization` / `DeleteRecordWithOrganization` に **Dataverse URL（organization）を必ず渡す**。`organization` を省略すると `Invalid organization URL 'null' provided` で失敗する。詳細は [ビルドリファレンス](references/build-reference.md) を参照。
 
 ### デプロイコマンドの選択
@@ -500,6 +504,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [クロス集計マトリクスパターン](references/cross-tab-pattern.md) | 2 軸の組み合わせ件数をヒート色付きピボット表で俯瞰（行列自動生成・合計行/列・追加依存なし） |
 | [縦タイムライン/ステッパーパターン](references/timeline-stepper-pattern.md) | 順序を持つ項目の進行状態を縦に可視化（done/current/problem/pending・行ごとに操作ボタン差込可・追加依存なし） |
 | [構築リファレンス](references/build-reference.md) | ビルド・デプロイの詳細手順・vite.config.ts 必須設定・TypeScript エラー対処 |
+| [npm CLI リファレンス](references/cli-reference.md) | `npx power-apps` 全コマンド（0.13.0 検証済み）・`push -s` の GUID 要件・`refresh-data-source` / `add-dataverse-api` / `auth-switch` |
 | [ソリューション ALM](references/solution-alm.md) | 接続参照バインド・`almMode` と初回 push・コンポーネント種別・共有時の権限モデル |
 | [データソースパターン](references/data-source-patterns.md) | 生成サービス・dataSourcesInfo・TanStack React Query（旧/native パターン含む） |
 | [Lookup 名前解決](references/lookup-resolution.md) | クライアントサイド名前解決・OData FormattedValue パターン・所有者（Owner）列の表示 |

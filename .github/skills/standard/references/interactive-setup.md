@@ -3,7 +3,8 @@
 プロジェクト新規開始時に **PAC CLI** と **Dataverse API** を使って `.env` を対話的に構成する。
 手動でセッション詳細を開く必要がなく、エージェントがユーザーに選択肢を提示して進める。
 
-> 前提: PAC CLI がインストール済み（`npm install -g @microsoft/power-apps-cli` or Power Platform Tools 拡張機能）。
+> 前提: PAC CLI がインストール済み（VS Code 拡張機能『Power Platform Tools』 or `dotnet tool install --global Microsoft.PowerApps.CLI.Tool`）。
+> PAC CLI は npm では配布されていない。`@microsoft/power-apps-cli` は別物（Code Apps 用の `power-apps` コマンド）なので混同しないこと。
 
 ## 標準フロー（PAC プロファイル → 環境選択 → デバイスコード認証）
 

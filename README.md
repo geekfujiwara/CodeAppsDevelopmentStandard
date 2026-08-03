@@ -272,7 +272,7 @@ Python と pip が利用可能な場合は、`spec-builder` 用 `.venv` の作�
 
 - Python 未検出: Python 3.10+ を導入して `python --version` または `py -3 --version` を通す
 - pip 未検出: `python -m ensurepip --upgrade`（または `py -3 -m ensurepip --upgrade`）
-- `pac` 未検出: `npm install -g @microsoft/power-apps-cli` 後、`pac auth create --environment {ENVIRONMENT_ID}`
+- `pac` 未検出: VS Code 拡張機能『Power Platform Tools』または `dotnet tool install --global Microsoft.PowerApps.CLI.Tool` で導入後、`pac auth create --environment {ENVIRONMENT_ID}`（**PAC CLI は npm では配布されていない**）
 - `npx power-apps` 未検出: `npm install` を再実行し `@microsoft/power-apps` 依存を確認
 
 </details>
