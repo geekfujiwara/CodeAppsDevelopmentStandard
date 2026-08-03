@@ -95,6 +95,64 @@ if (fs.existsSync(configTs) && fs.existsSync(routerPath)) {
   }
 }
 
+// 5. モック実行基盤が開発限定の動的 import になっているか
+const srcPath = path.join(root, "src");
+if (fs.existsSync(srcPath)) {
+  const pending = [srcPath];
+
+  while (pending.length > 0) {
+    const currentPath = pending.pop();
+    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(entryPath);
+        continue;
+      }
+      if (!entry.isFile() || !/\.[cm]?[jt]sx?$/.test(entry.name)) continue;
+
+      const content = fs.readFileSync(entryPath, "utf-8");
+      if (!content.includes("createMockDataExecutor") && !content.includes("setDataOperationExecutor")) continue;
+
+      const hasDevelopmentGuards = content.includes("import.meta.env.DEV") && content.includes("VITE_USE_MOCK");
+      const hasDynamicImports = /import\(\s*["']@microsoft\/power-apps\/data\/executors["']\s*\)/.test(content)
+        && /import\(\s*["']@microsoft\/power-apps\/internal\/data["']\s*\)/.test(content);
+      if (!hasDevelopmentGuards || !hasDynamicImports) {
+        errors.push(
+          `${path.relative(root, entryPath)} のモックデータ実行基盤が開発限定の動的 import になっていません。\n` +
+          `     → import.meta.env.DEV && VITE_USE_MOCK === "1" で制限し、SDK の 2 モジュールを動的 import してください。`
+        );
+      }
+    }
+  }
+}
+
+// 6. 本番成果物にモック実行基盤が混入していないか
+const distPath = path.join(root, "dist");
+if (fs.existsSync(distPath)) {
+  const mockMarkers = ["createMockDataExecutor", "setDataOperationExecutor", "@microsoft/power-apps/data/executors"];
+  const pending = [distPath];
+
+  while (pending.length > 0) {
+    const currentPath = pending.pop();
+    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(entryPath);
+        continue;
+      }
+      if (!entry.isFile() || entry.name.endsWith(".map")) continue;
+
+      const content = fs.readFileSync(entryPath, "utf-8");
+      if (mockMarkers.some(marker => content.includes(marker))) {
+        errors.push(
+          `本番成果物 ${path.relative(root, entryPath)} にモックデータ実行基盤が含まれています。\n` +
+          `     → import.meta.env.DEV && VITE_USE_MOCK === "1" の動的 import に限定してください。`
+        );
+      }
+    }
+  }
+}
+
 // 結果出力
 if (errors.length > 0) {
   console.error("\n❌ デプロイ前チェック失敗:\n");

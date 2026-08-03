@@ -394,6 +394,14 @@ SDK の `getContext().app.queryParams` で親ウィンドウの URL パラメー
 
 → 詳細: **[データソースパターン](references/data-source-patterns.md)**
 
+### 環境接続前のモックデータ開発
+
+取得系画面は `createMockDataExecutor` でローカル確認できる。モックは `import.meta.env.DEV` と
+`VITE_USE_MOCK=1` の両方で制限し、動的 import して本番成果物から除去する。
+SDK 1.2.7 の標準 executor は作成・更新・削除をサポートしないため、書き込み成功のテストには使わない。
+
+→ 詳細: **[モックデータ開発パターン](references/mock-data-pattern.md)**
+
 ### Lookup 名はクライアントサイド名前解決が必須
 
 SDK 生成サービスは Lookup 名フィールド（`createdbyname` 等）を返さない。
@@ -510,6 +518,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [npm CLI リファレンス](references/cli-reference.md) | `npx power-apps` 全コマンド（0.13.0 検証済み）・`push -s` の GUID 要件・`refresh-data-source` / `add-dataverse-api` / `auth-switch` |
 | [ソリューション ALM](references/solution-alm.md) | 接続参照バインド・`almMode` と初回 push・コンポーネント種別・共有時の権限モデル |
 | [データソースパターン](references/data-source-patterns.md) | 生成サービス・dataSourcesInfo・TanStack React Query（旧/native パターン含む） |
+| [モックデータ開発パターン](references/mock-data-pattern.md) | 開発限定の `createMockDataExecutor` 導入・本番バンドル混入防止・SDK 1.2.7 の取得専用制約 |
 | [Lookup 名前解決](references/lookup-resolution.md) | クライアントサイド名前解決・OData FormattedValue パターン・所有者（Owner）列の表示 |
 | [日本語サニタイズ](references/japanese-sanitize.md) | 旧ネイティブ add-data-source 方式の日本語 DisplayName 回避 |
 | [CSP 構成](references/csp.md) | iframe 埋め込み・外部 API 接続時の CSP 設定・CSP 安全な SDK メソッド一覧 |
@@ -532,7 +541,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 |---|---|
 | [check_code_apps_environment.py](scripts/check_code_apps_environment.py) | マネージド環境 / Code Apps 許可の前提条件を確認（`power-apps init` の前に実行） |
 | [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
-| [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` のデプロイ前検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |
+| [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` / モック実行基盤の本番混入を検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |
 | [inspect_table_metadata.py](scripts/inspect_table_metadata.py) | 既存テーブルの EntitySetName / 主キー / 列 / 参照先 / 選択肢を調査（既存テーブル接続時は実装前に必須） |
 | [validate_sample.py](scripts/validate_sample.py) | `samples/` 配下が欠落なくビルドできる状態か検証（必須ファイル・import 先の実在・秘匿情報・SDK の使い方） |
 | [sync_dataverse_client.py](scripts/sync_dataverse_client.py) | [templates/dataverse-client.ts](templates/dataverse-client.ts) を `samples/` 配下の全コピーへ反映（SDK の破壊的変更への追従はこの 1 ファイルを直して配布） |
