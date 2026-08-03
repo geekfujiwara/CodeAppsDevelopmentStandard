@@ -439,6 +439,10 @@ Q: どのように起動しますか？
 
 ### 自動化ブラウザでサインイン検証ができない
 
+実ブラウザで検証を始める前に
+[ブラウザ自動化方針](../../standard/references/browser-automation.md)に従って
+`AskUserQuestion` で Edge プロファイルを確認し、回答前はブラウザを開かない。
+
 ```
 ❌ Playwright 等の自動化ブラウザは loginPopup がブロックされる（popup_window_error）
    かつ localStorage が実ブラウザと別コンテキストで MSAL キャッシュを共有しない

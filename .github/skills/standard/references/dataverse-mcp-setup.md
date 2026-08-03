@@ -61,7 +61,9 @@ python .github/skills/standard/scripts/check_mcp_client.py all
 - `{org}` は `make.powerapps.com` → 設定（歯車）→ セッションの詳細 → インスタンス URL で確認できる。
 - 一般提供エンドポイントは `/api/mcp`、プレビュー機能（最新ツール）は `/api/mcp_preview`。
 
-作成後、`mcp.json` を開くと `servers` の上に表示される **Start** CodeLens をクリックして起動 → 初回はブラウザ認証（環境の管理ユーザーでサインイン）。
+作成後、`mcp.json` を開くと `servers` の上に表示される **Start** CodeLens をクリックして起動する。
+初回はブラウザ認証になるため、Start の前に [ブラウザ自動化方針](browser-automation.md)に従って
+`AskUserQuestion` で Edge プロファイルを確認し、回答前は起動しない。環境の管理ユーザーでサインインする。
 
 ### 方法2: コマンドパレットから追加
 

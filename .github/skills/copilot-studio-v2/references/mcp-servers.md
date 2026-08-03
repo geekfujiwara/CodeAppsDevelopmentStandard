@@ -15,6 +15,10 @@ McpTool + 接続参照）で自動追加する手順を提供していたが、�
 
 ## 手順（UI）
 
+開始前に [ブラウザ自動化方針](../../standard/references/browser-automation.md)に従い、
+`AskUserQuestion` で使用する Edge プロファイルを確認する。回答前は Copilot Studio を開かず、
+接続作成・再公開・再確認まで同じプロファイルを使用する。
+
 1. Copilot Studio でエージェントを開く。
 2. **ツール**（または「MCP サーバー」）メニューから **追加** を選択する。
 3. 追加する MCP サーバー（例: Microsoft Dataverse MCP サーバー、Work IQ OneDrive）を選択する。

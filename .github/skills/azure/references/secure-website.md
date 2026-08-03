@@ -203,7 +203,8 @@ return {
 2. フロント経由: `/api/*` が linked backend に委譲され `401`。
 3. 認証後のデータ取得: `200`（**Private Endpoint 経由の Blob 読取成功**）。
 4. コンテンツ配信: Range 要求に `206 Partial Content` + 正しい `Content-Range`。
-5. E2E: ログイン→コンテンツ表示を **VS Code 統合ブラウザ**で自動テスト化。
+5. E2E: [ブラウザ自動化方針](../../standard/references/browser-automation.md)に従い、
+  Edge プロファイル確認後にログイン→コンテンツ表示を **VS Code 統合ブラウザ**で自動テスト化。
 
 ---
 
