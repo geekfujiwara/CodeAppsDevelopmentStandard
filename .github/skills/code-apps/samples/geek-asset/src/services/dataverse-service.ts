@@ -64,12 +64,16 @@ function client() {
 // System
 // ══════════════════════════════════════════════════════════════
 export async function getCurrentUserId(): Promise<string> {
-  const result = await client().retrieveMultipleRecordsAsync(
+  const result = await client().retrieveMultipleRecordsAsync<Record<string, unknown>>(
     "systemusers",
-    `?$filter=azureactivedirectoryobjectid eq (Microsoft.Dynamics.CRM.CurrentUserObjectId())&$select=systemuserid&$top=1`
+    {
+      select: ["systemuserid"],
+      filter: "azureactivedirectoryobjectid eq (Microsoft.Dynamics.CRM.CurrentUserObjectId())",
+      top: 1,
+    }
   )
-  if (!result.success || !result.value?.length) throw new Error("ユーザーIDの取得に失敗しました")
-  return result.value[0].systemuserid as string
+  if (!result.success || !result.data?.length) throw new Error("ユーザーIDの取得に失敗しました")
+  return result.data[0].systemuserid as string
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -81,23 +85,26 @@ export async function getAssets(): Promise<Asset[]> {
     ASSET_ID(), f.asset_name, f.asset_number, f.category, f.status,
     f.location, f.department, f.purchase_date, "createdon",
   ].join(",")
-  const result = await client().retrieveMultipleRecordsAsync(ASSET_TABLE(), `?$select=${select}&$orderby=createdon desc`)
+  const result = await client().retrieveMultipleRecordsAsync<Asset>(ASSET_TABLE(), {
+    select: select.split(","),
+    orderBy: ["createdon desc"],
+  })
   if (!result.success) throw new Error("資産データの取得に失敗しました")
-  return (result.value ?? []) as Asset[]
+  return result.data ?? []
 }
 
 export async function getAssetById(id: string): Promise<Asset> {
   const f = assetFields()
   const select = Object.values(f).concat([ASSET_ID(), "createdon"]).join(",")
-  const result = await client().retrieveRecordAsync(ASSET_TABLE(), id, `?$select=${select}`)
+  const result = await client().retrieveRecordAsync<Asset>(ASSET_TABLE(), id, { select: select.split(",") })
   if (!result.success) throw new Error("資産データの取得に失敗しました")
-  return result.value as Asset
+  return result.data
 }
 
 export async function createAsset(data: Partial<Record<string, unknown>>): Promise<string> {
-  const result = await client().createRecordAsync(ASSET_TABLE(), data)
+  const result = await client().createRecordAsync<Partial<Record<string, unknown>>, { id: string }>(ASSET_TABLE(), data)
   if (!result.success) throw new Error("資産の作成に失敗しました")
-  return result.value?.id as string
+  return result.data.id
 }
 
 export async function updateAsset(id: string, data: Partial<Record<string, unknown>>): Promise<void> {
@@ -119,15 +126,18 @@ export async function getLoans(): Promise<Loan[]> {
     LOAN_ID(), f.asset_name, f.borrower_name, f.loan_date,
     f.return_due_date, f.return_date, f.status, "createdon",
   ].join(",")
-  const result = await client().retrieveMultipleRecordsAsync(LOAN_TABLE(), `?$select=${select}&$orderby=createdon desc`)
+  const result = await client().retrieveMultipleRecordsAsync<Loan>(LOAN_TABLE(), {
+    select: select.split(","),
+    orderBy: ["createdon desc"],
+  })
   if (!result.success) throw new Error("貸出データの取得に失敗しました")
-  return (result.value ?? []) as Loan[]
+  return result.data ?? []
 }
 
 export async function createLoan(data: Partial<Record<string, unknown>>): Promise<string> {
-  const result = await client().createRecordAsync(LOAN_TABLE(), data)
+  const result = await client().createRecordAsync<Partial<Record<string, unknown>>, { id: string }>(LOAN_TABLE(), data)
   if (!result.success) throw new Error("貸出の作成に失敗しました")
-  return result.value?.id as string
+  return result.data.id
 }
 
 export async function updateLoan(id: string, data: Partial<Record<string, unknown>>): Promise<void> {
@@ -157,15 +167,18 @@ export async function getDisposals(): Promise<Disposal[]> {
   const select = [
     DISPOSAL_ID(), f.asset_name, f.disposal_date, f.reason, f.status, "createdon",
   ].join(",")
-  const result = await client().retrieveMultipleRecordsAsync(DISPOSAL_TABLE(), `?$select=${select}&$orderby=createdon desc`)
+  const result = await client().retrieveMultipleRecordsAsync<Disposal>(DISPOSAL_TABLE(), {
+    select: select.split(","),
+    orderBy: ["createdon desc"],
+  })
   if (!result.success) throw new Error("廃棄データの取得に失敗しました")
-  return (result.value ?? []) as Disposal[]
+  return result.data ?? []
 }
 
 export async function createDisposal(data: Partial<Record<string, unknown>>): Promise<string> {
-  const result = await client().createRecordAsync(DISPOSAL_TABLE(), data)
+  const result = await client().createRecordAsync<Partial<Record<string, unknown>>, { id: string }>(DISPOSAL_TABLE(), data)
   if (!result.success) throw new Error("廃棄申請の作成に失敗しました")
-  return result.value?.id as string
+  return result.data.id
 }
 
 export async function updateDisposal(id: string, data: Partial<Record<string, unknown>>): Promise<void> {
@@ -196,15 +209,18 @@ export async function getInventoryChecks(): Promise<InventoryCheck[]> {
   const select = [
     INVENTORY_ID(), f.asset_name, f.check_date, f.result, f.checker, "createdon",
   ].join(",")
-  const result = await client().retrieveMultipleRecordsAsync(INVENTORY_TABLE(), `?$select=${select}&$orderby=createdon desc`)
+  const result = await client().retrieveMultipleRecordsAsync<InventoryCheck>(INVENTORY_TABLE(), {
+    select: select.split(","),
+    orderBy: ["createdon desc"],
+  })
   if (!result.success) throw new Error("棚卸データの取得に失敗しました")
-  return (result.value ?? []) as InventoryCheck[]
+  return result.data ?? []
 }
 
 export async function createInventoryCheck(data: Partial<Record<string, unknown>>): Promise<string> {
-  const result = await client().createRecordAsync(INVENTORY_TABLE(), data)
+  const result = await client().createRecordAsync<Partial<Record<string, unknown>>, { id: string }>(INVENTORY_TABLE(), data)
   if (!result.success) throw new Error("棚卸の作成に失敗しました")
-  return result.value?.id as string
+  return result.data.id
 }
 
 export async function updateInventoryCheck(id: string, data: Partial<Record<string, unknown>>): Promise<void> {

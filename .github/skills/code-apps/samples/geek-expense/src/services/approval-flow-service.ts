@@ -6,7 +6,7 @@ function client() {
 }
 
 // Trigger approval notification flow
-// Requires: pac code add-data-source -a logicflows -t {FLOW_WORKFLOW_ID}
+// Requires: npx power-apps add-flow --flow-id {FLOW_WORKFLOW_ID}
 // env var: FLOW_WORKFLOW_ID (CONNREF_OUTLOOK for the Outlook connection reference)
 export async function triggerApprovalNotification(params: {
   expenseId: string
@@ -14,11 +14,17 @@ export async function triggerApprovalNotification(params: {
   amount: number
   submittedBy: string
 }): Promise<{ success: boolean; message: string }> {
-  const result = await client().executeAsync("NotifyApproval", {
-    expense_id:    params.expenseId,
-    expense_title: params.expenseTitle,
-    amount:        String(params.amount),
-    submitted_by:  params.submittedBy,
+  const result = await client().executeAsync({
+    connectorOperation: {
+      tableName: "NotifyApproval",
+      operationName: "Run",
+      parameters: {
+        expense_id:    params.expenseId,
+        expense_title: params.expenseTitle,
+        amount:        String(params.amount),
+        submitted_by:  params.submittedBy,
+      },
+    },
   })
   if (!result.success) return { success: false, message: "承認通知フローの実行に失敗しました" }
   return { success: true, message: "承認依頼を送信しました" }

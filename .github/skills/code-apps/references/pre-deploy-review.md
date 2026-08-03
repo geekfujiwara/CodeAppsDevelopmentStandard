@@ -30,10 +30,16 @@ Select-String -Path "src/generated/appschemas/dataSourcesInfo.ts" \
 **未登録テーブルが見つかった場合の対処:**
 
 ```bash
-# pac code add-data-source で追加する（手動追記禁止）
+# npm CLI で Dataverse コネクタを接続参照に追加する（手動追記禁止）
 # 日本語表示名エラーが出る場合は toggle_table_lang.py を使う
 python scripts/toggle_table_lang.py en
-pac code add-data-source -a dataverse -t {table_logical_name}
+npx power-apps auth-switch --account {UPN}
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
+  --solution-id {SOLUTION_ID} \
+  --resource-name commondataserviceforapps \
+  --org-url {DATAVERSE_URL} \
+  --non-interactive
 python scripts/toggle_table_lang.py jp
 ```
 
@@ -321,7 +327,7 @@ Select-String -Path "src/pages/_layout.tsx" -Pattern 'min-w-0'
   ├─ ⑨ npm run build
   │     → TypeScript エラーがあれば修正
   │
-  └─ ⑩ npx power-apps push / pac code push
+  └─ ⑩ npx power-apps push
         → デプロイ完了
 ```
 

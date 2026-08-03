@@ -42,10 +42,17 @@
 cp ../../../standard/references/.env.example .env
 python scripts/setup_dataverse.py
 python scripts/toggle_table_lang.py en
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_approval_request
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_approval_step
+npm install --no-audit --no-fund
+npx power-apps auth-status
+npx power-apps auth-switch --account {UPN}
+npx power-apps init --environment-id ${ENV_ID} --display-name "稟議申請ポータル"
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  --connection-ref ${CONNECTION_REFERENCE_LOGICAL_NAME} \
+  --solution-id ${SOLUTION_ID} \
+  --resource-name commondataserviceforapps \
+  --org-url ${DATAVERSE_URL} \
+  --non-interactive
 python scripts/toggle_table_lang.py jp
-pac code init -env ${ENV_ID} -n "稟議申請ポータル"
 npm install && npm run dev
 ```
 

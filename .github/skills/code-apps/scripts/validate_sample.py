@@ -58,6 +58,26 @@ SDK_PATTERNS = [
         re.compile(r"\.(getRecords|createRecord|updateRecord|deleteRecord)\s*\("),
         "廃止された DataClient API（*Async 系または生成 MicrosoftDataverseService を使う）",
     ),
+    (
+        re.compile(r"\bresult\.value\b"),
+        "旧 IOperationResult.value（SDK 1.2.7 では result.data を使う）",
+    ),
+    (
+        re.compile(r"\.retrieveMultipleRecordsAsync\s*\([^,]+,\s*`?\?\$"),
+        "文字列形式の retrieveMultipleRecordsAsync options（IOperationOptions オブジェクトを使う）",
+    ),
+    (
+        re.compile(r"\.retrieveRecordAsync\s*\([^,]+,\s*[^,]+,\s*`?\?\$"),
+        "文字列形式の retrieveRecordAsync options（IOperationOptions オブジェクトを使う）",
+    ),
+    (
+        re.compile(r"\.executeAsync\s*\(\s*[\"']"),
+        "旧 executeAsync(name, params) 形式（IDataOperation オブジェクトを使う）",
+    ),
+    (
+        re.compile(r'''from\s+["']\.power/'''),
+        "無効な .power import（呼び出し元からの相対パスを使う）",
+    ),
 ]
 
 # SDK の破壊的変更の影響範囲を押さえるため、SDK に直接触れてよいのは
@@ -79,6 +99,12 @@ def check(sample: Path) -> list[str]:
     pkg_path = sample / "package.json"
     if pkg_path.is_file():
         pkg = json.loads(pkg_path.read_text(encoding="utf-8"))
+        deploy = pkg.get("scripts", {}).get("deploy")
+        if deploy != "npm run build && npx power-apps push":
+            errors.append(
+                "package.json の scripts.deploy は "
+                "'npm run build && npx power-apps push' に統一してください"
+            )
         for name, body in pkg.get("scripts", {}).items():
             for m in re.finditer(r"\bnode\s+([\w./-]+\.(?:mjs|cjs|js))", body):
                 if not (sample / m.group(1)).exists():
@@ -86,6 +112,25 @@ def check(sample: Path) -> list[str]:
                         f"package.json の scripts.{name} が実在しないファイルを実行しています: {m.group(1)}"
                         "（npm run 実行時に MODULE_NOT_FOUND になります）"
                     )
+
+    readme_path = sample / "README.md"
+    if readme_path.is_file():
+        readme = readme_path.read_text(encoding="utf-8")
+        legacy = re.search(r"\bpac code (?:init|push|add-data-source)\b", readme)
+        if legacy:
+            errors.append(f"README.md に廃止予定の標準コマンドが残っています: {legacy.group(0)}")
+        setup_commands = [
+            r"^npm install --no-audit --no-fund\s*$",
+            r"^npx power-apps auth-status\s*$",
+            r"^npx power-apps init --environment-id",
+            r"^npx power-apps add-data-source",
+        ]
+        matches = [re.search(command, readme, re.MULTILINE) for command in setup_commands]
+        positions = [match.start() if match else -1 for match in matches]
+        if any(position < 0 for position in positions) or positions != sorted(positions):
+            errors.append(
+                "README.md のセットアップは npm install → auth-status → init → add-data-source の順にしてください"
+            )
 
     index_css = sample / "src/index.css"
     if index_css.is_file():

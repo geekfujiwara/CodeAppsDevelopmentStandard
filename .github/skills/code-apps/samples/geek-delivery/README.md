@@ -45,11 +45,17 @@
 cp ../../../standard/references/.env.example .env
 python scripts/setup_dataverse.py
 python scripts/toggle_table_lang.py en
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_vehicle
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_delivery_route
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_stop
+npm install --no-audit --no-fund
+npx power-apps auth-status
+npx power-apps auth-switch --account {UPN}
+npx power-apps init --environment-id ${ENV_ID} --display-name "配送管理ポータル"
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  --connection-ref ${CONNECTION_REFERENCE_LOGICAL_NAME} \
+  --solution-id ${SOLUTION_ID} \
+  --resource-name commondataserviceforapps \
+  --org-url ${DATAVERSE_URL} \
+  --non-interactive
 python scripts/toggle_table_lang.py jp
-pac code init -env ${ENV_ID} -n "配送管理ポータル"
 npm install && npm run dev
 ```
 

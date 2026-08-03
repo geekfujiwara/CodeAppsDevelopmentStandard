@@ -159,7 +159,7 @@ export default function Expenses() {
         toast.success("経費を作成しました")
       }
       setModalOpen(false)
-    } catch (err) {
+    } catch {
       toast.error(editingId ? "更新に失敗しました" : "作成に失敗しました")
     } finally {
       setIsSaving(false)

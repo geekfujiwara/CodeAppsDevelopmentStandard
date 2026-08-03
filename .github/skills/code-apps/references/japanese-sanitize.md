@@ -9,19 +9,23 @@
 | `npx power-apps add-data-source` | `nameUtils.js` が ASCII のみ許容 | `patch-nameutils.cjs` で CJK 許容パッチ |
 | `pac code add-data-source` | PAC CLI .NET 内蔵ランタイム（パッチ不可） | `toggle_table_lang.py` で英語切替 |
 
-> **正常系は常に `pac code add-data-source` + `toggle_table_lang.py`**。`npx power-apps add-data-source` は
-> PAC CLI と独立した認証トークンキャッシュを持ち、正しいテナントに `pac auth create` 済みでも別テナント扱いで
-> `403` エラーになる事故がある（[トラブルシューティング #12](troubleshooting.md#12-npx-power-apps-add-data-source-がテナント不一致で-403-エラー)）。
-> 下記「フォールバック」の npx パッチは、`pac code add-data-source` 自体が使えない例外的な状況でのみ検討する。
+> **正常系は `npx power-apps add-data-source`**。実行前に `auth-status` / `auth-switch` で対象テナントを明示する。
+> CJK パッチをプロジェクトに同梱していない場合は、CLI に依存しない `toggle_table_lang.py` で一時的に英語表示名へ
+> 切り替えてから実行する。`pac code add-data-source` は npm CLI で解消できない場合のみの移行時代替とする。
 
-## 推奨手順（pac code add-data-source 使用時）
+## 推奨手順（npm CLI 使用時）
 
 ```bash
 # 1. テーブル表示名を英語に切替
 python scripts/toggle_table_lang.py en
 
-# 2. データソース追加
-pac code add-data-source -a dataverse -t {table_logical_name}
+# 2. Dataverse データソースを接続参照で追加（全テーブル共通で 1 回）
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+    --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
+    --solution-id {SOLUTION_ID} \
+    --resource-name commondataserviceforapps \
+    --org-url {DATAVERSE_URL} \
+    --non-interactive
 
 # 3. テーブル表示名を日本語に復元
 python scripts/toggle_table_lang.py jp

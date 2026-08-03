@@ -18,16 +18,21 @@ Code Apps では `Xrm` オブジェクトや `fetch()` が使えない（CSP 制
    → retrieveMultipleRecordsAsync は postMessage ベースのため CSP 安全
 ```
 
-### 前提: systemuser をデータソースに追加
+### 前提: Dataverse コネクタをデータソースに追加
 
 ```bash
-pac code add-data-source -a dataverse -t systemuser
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
+  --solution-id {SOLUTION_ID} \
+  --resource-name commondataserviceforapps \
+  --org-url {DATAVERSE_URL} \
+  --non-interactive
 ```
 
-`pac code add-data-source -t systemuser` で追加できる（検証済 2026-06-15、[データソースパターン](data-source-patterns.md)参照）。追加後は `src/lib/dataSourcesInfo.ts` を生成ファイルの re-export に統一する。
+追加後は生成された `MicrosoftDataverseService` で `systemuser` を取得し、`src/lib/dataSourcesInfo.ts` を生成ファイルの re-export に統一する。
 
-> `npx power-apps add-data-source` は使わない（PAC CLI と独立した認証トークンキャッシュのため、別テナント扱いで 403 になる事故がある。詳細は[トラブルシューティング #12](troubleshooting.md#12-npx-power-apps-add-data-source-がテナント不一致で-403-エラー)）。
-> 万一 `pac code add-data-source` が systemuser を追加できない環境に当たった場合のみ、次のように `src/lib/dataSourcesInfo.ts` へ手動追記する（最後の手段）:
+> 実行前に `auth-status` / `auth-switch` で対象テナントを確認する。SDK が systemuser を解決できない場合のみ、
+> 次のように `src/lib/dataSourcesInfo.ts` へ手動追記する（最後の手段）:
 
 ```typescript
 systemusers: {

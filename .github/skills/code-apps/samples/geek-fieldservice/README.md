@@ -90,11 +90,18 @@
 # 3. Dataverse テーブルの作成
 python scripts/setup_dataverse.py
 
-# 4. データソースの追加（テーブルごとに実行）
+# 4. npm CLI の認証確認・初期化・データソース追加
 python scripts/toggle_table_lang.py en
-npx power-apps add-data-source -a dataverse -t {prefix}_customer
-npx power-apps add-data-source -a dataverse -t {prefix}_equipment
-# ... 全テーブルを追加
+npm install --no-audit --no-fund
+npx power-apps auth-status
+npx power-apps auth-switch --account {UPN}
+npx power-apps init --environment-id ${ENV_ID} --display-name "フィールドサービス管理"
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+	--connection-ref ${CONNECTION_REFERENCE_LOGICAL_NAME} \
+	--solution-id ${SOLUTION_ID} \
+	--resource-name commondataserviceforapps \
+	--org-url ${DATAVERSE_URL} \
+	--non-interactive
 python scripts/toggle_table_lang.py jp
 
 # 5. 動作確認
