@@ -100,10 +100,10 @@ def check(sample: Path) -> list[str]:
     if pkg_path.is_file():
         pkg = json.loads(pkg_path.read_text(encoding="utf-8"))
         deploy = pkg.get("scripts", {}).get("deploy")
-        if deploy != "npm run build && npx power-apps push":
+        if deploy != "npm run build && npm run predeploy && npx power-apps push":
             errors.append(
                 "package.json の scripts.deploy は "
-                "'npm run build && npx power-apps push' に統一してください"
+                "'npm run build && npm run predeploy && npx power-apps push' に統一してください"
             )
         for name, body in pkg.get("scripts", {}).items():
             for m in re.finditer(r"\bnode\s+([\w./-]+\.(?:mjs|cjs|js))", body):
