@@ -227,6 +227,10 @@ python .github/skills/cowork/scripts/register_mcp_client.py --app-id <CLIENT_ID>
 
 ### Step 5: Teams 開発者ポータルで OAuth client 登録 → registrationId 取得（ブラウザ）
 
+実行前に [ブラウザ自動化方針](../standard/references/browser-automation.md)に従い、
+`AskUserQuestion` で使用する Edge プロファイルを確認する。回答前はポータルを開かず、
+Step 8 のアップロードでも同じプロファイルを使用する。
+
 [dev.teams.microsoft.com/tools](https://dev.teams.microsoft.com/tools) → Tools →
 **OAuth client registration** → New（**SSO client registration ではない**）。
 

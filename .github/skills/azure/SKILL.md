@@ -84,7 +84,9 @@ Azure 上で Web サイト/フロントを作る際、UI は**新規に定義せ
 1. 未認証で保護エンドポイントが `401` を返す（配信・認証保護の確認）。
 2. 認証後にデータ取得が `200`（**Private Endpoint 経由の読取成功**）。
 3. コンテンツは Range 要求に `206` + `Content-Range` を返す。
-4. ブラウザ E2E は **VS Code 統合ブラウザ**で自動化する（Playwright 単体・MCP は使わない）。
+4. [ブラウザ自動化方針](../standard/references/browser-automation.md)に従い、起動前に
+  `AskUserQuestion` で Edge プロファイルを確認してから、ブラウザ E2E を
+  **VS Code 統合ブラウザ**で自動化する（Playwright 単体・MCP は使わない）。
 
 ### Step 7: クリーンアップとセキュリティ
 1. 旧「公開切替」自動化（Automation runbook / スケジュール / CI）は不要かつ無効のため削除する。

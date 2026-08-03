@@ -214,6 +214,10 @@ npx power-apps remove-flow --flow-id {FLOW_ID}
 
 ## 接続
 
+以下のコマンドがブラウザを開く場合は、実行前に
+[ブラウザ自動化方針](../../standard/references/browser-automation.md)に従い、
+`AskUserQuestion` で使用する Edge プロファイルを確認する。回答前は実行しない。
+
 ```bash
 npx power-apps create-connection --api-id {API_ID} --display-name "Prod SQL"
 ```

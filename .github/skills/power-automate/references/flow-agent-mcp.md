@@ -71,6 +71,10 @@ az account set --subscription {subscription-id}
 az login --tenant {tenant-id}
 ```
 
+`az login` が必要になった場合は、実行前に
+[ブラウザ自動化方針](../../standard/references/browser-automation.md)に従い、
+`AskUserQuestion` で使用する Edge プロファイルを確認する。回答前は実行しない。
+
 > `az login`（Azure CLI 自身の `~/.azure` キャッシュ）は MCP サーバー（Node.js）が使う。
 > `auth_helper`（`~/.power-platform-cli/` の MSAL キャッシュ）は Python スクリプトが使う。
 > **両者は完全に別の資格情報ストア**で、一方の認証が他方に引き継がれることはない。

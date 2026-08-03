@@ -37,6 +37,10 @@
   インストール・起動しない（→ [ブラウザ自動化方針](../../standard/references/browser-automation.md)）。
   統合ブラウザツールが提供されていない環境のみ、ブラウザ手順を手動手順として書き、
   画面パス・ボタン名・入力値を具体的に明記して後で自動化に置換できる粒度で残す。
+- ブラウザを開く前に `AskUserQuestion` で Microsoft Edge プロファイルを確認し、回答前は
+  起動・遷移・認証を開始しない。同一タスクでは選択したプロファイルを継続利用する。
+- `validate_skill.py` はブラウザ起動を示す Markdown に `AskUserQuestion` または
+  `browser-automation.md` の参照が無い場合にエラー終了する。
 
 ## 8. push 直前スキャンでシークレットが見つかった
 - 即中止。コミット済みなら `git restore --staged` / 履歴に入っていれば該当コミットを作り直す。

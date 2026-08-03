@@ -22,6 +22,9 @@ dotnet tool update --global Microsoft.PowerApps.CLI.Tool
 
 **対処**:
 
+`pac auth create` の前に [ブラウザ自動化方針](../../standard/references/browser-automation.md)に従い、
+`AskUserQuestion` で使用する Edge プロファイルを確認する。回答前は実行しない。
+
 ```powershell
 # 認証プロファイル確認
 pac auth list

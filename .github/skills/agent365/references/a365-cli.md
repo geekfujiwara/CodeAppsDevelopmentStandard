@@ -52,7 +52,9 @@ Start-Process powershell -ArgumentList '-NoExit','-EncodedCommand',$b64
 CLI はブラウザを `ProcessStartInfo` + `UseShellExecute=true`（= OS 既定ハンドラー）で開く。
 **プロファイルを指定するオプションも環境変数も無い。**
 Edge は外部リンクを「最後にアクティブだったプロファイルのウィンドウ」に流すため、
-`a365` 実行の**直前に**対象アカウントのプロファイルでウィンドウを開いておく。
+`a365` 実行前に [ブラウザ自動化方針](../../standard/references/browser-automation.md)に従って
+`AskUserQuestion` でプロファイルを確認し、回答後に対象アカウントのプロファイルでウィンドウを
+開いておく。回答前は `a365` を実行しない。
 
 ```powershell
 Start-Process msedge.exe -ArgumentList '--profile-directory="Profile N"','https://portal.azure.com'

@@ -129,6 +129,8 @@ python .github/skills/update-skills/scripts/validate_skill.py --all
    `microsoft_docs_fetch`）で裏取りし、推測を残さない。Learn MCP が無い場合のみ Web 取得にフォールバック。
 2. **ブラウザ操作の自動化**: ポータル操作が必要な手順は **VS Code 統合 Playwright ブラウザ**（`playwright-browser_navigate` /
    `playwright-browser_click` / `playwright-browser_snapshot` / `playwright-browser_type` / `playwright-browser_handle_dialog` 等）で自動化できる形に書く。
+   最初のブラウザ起動より前に `AskUserQuestion` で使用する Microsoft Edge プロファイルを確認し、
+   回答前は操作を開始せず、同一タスクでは選択したプロファイルを継続利用する手順を必ず含める。
    Playwright MCP サーバー・Playwright 単体ブラウザのインストール・起動は行わない
    （→ [ブラウザ自動化方針](../standard/references/browser-automation.md)）。手動 UI 操作は最終手段とし、
    その場合も画面パスとセレクタの目印を明記する。
@@ -195,6 +197,7 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 - [ ] 会社名・個別 PJ 名・実 GUID/URL/メール/シークレットが無い（`validate_skill.py` が ✅）
 - [ ] 手順の番号は**整数の Step で連番**（飛び・重複なし）
 - [ ] 公式仕様は **Learn MCP** で検証、ブラウザ操作は **VS Code 統合ブラウザ**で自動化
+- [ ] ブラウザ起動前に `AskUserQuestion` で Edge プロファイルを確認し、回答前は操作しない
 - [ ] 既存オープン PR を確認（`manage_skill_pr.py`）→ 関連あれば**更新**、無関係なら**新規＋マージ順提示**
 - [ ] push 前に秘匿情報スキャン済み
 - [ ] 今回修正したバグに対応する**恒久的な事前チェックが `scripts/` に追加**され、正常系の実行でも動作する

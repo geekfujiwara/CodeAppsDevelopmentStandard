@@ -234,7 +234,8 @@ SharePoint Embedded ストレージ自体は既存のテナント DLP ポリシ�
    `403 accessDenied`（権限不足の定型メッセージではない場合の拒否）が返れば DLP ブロックが実際に有効。
 2. [Microsoft Purview ポータル](https://purview.microsoft.com/datalossprevention/policies) →
    左ナビ「データ損失防止」→「ポリシー」を開く（**VS Code 統合ブラウザツール**で操作。サインインは
-   ユーザー自身に行ってもらう）。
+   ユーザー自身に行ってもらう）。起動前に
+   [ブラウザ自動化方針](../../standard/references/browser-automation.md)を適用する。
 3. 一覧から該当ポリシー（既定なら `General Data Protection Regulation (GDPR)`）を開く。
    「ルール」→「場所」→「モード」を確認する。「場所」に **SharePoint サイト（すべて）** が含まれていれば
    Cowork の SharePoint Embedded コンテナも対象になる。

@@ -6,6 +6,7 @@
   3. Step 見出し（## / ### Step N）が整数で連番になっている（飛び・重複なし）。
   4. references/ と scripts/ の有無（無ければ警告）。
   5. 秘匿情報スキャン（実 GUID / *.crm*.dynamics.com / 実メール / クライアントシークレット様）。
+    6. ブラウザ起動手順に Edge プロファイル確認ルールへの参照があること。
 
 依存なし（標準ライブラリのみ）。どのリポジトリでも動く。
 
@@ -83,6 +84,12 @@ EMAIL_ALLOW = ("example.com", "example.org", "contoso.com", "noreply.github.com"
 NON_EMAIL_RE = re.compile(r"@(odata|microsoft|xmlns)\.", re.IGNORECASE)
 # プレースホルダー的な組織名（<org> / {org} / yourorg）は許容
 CRM_PLACEHOLDER = re.compile(r"https://(<org>|\{org\}|yourorg|\{[^}]+\})\.crm", re.IGNORECASE)
+BROWSER_WORKFLOW_RE = re.compile(
+    r"open_browser_page|VS Code 統合(?: Playwright)?ブラウザ|ブラウザ(?:を|で|が)(?:開|起動|サインイン)|"
+    r"対話式ブラウザ認証|InteractiveBrowserCredential",
+    re.IGNORECASE,
+)
+BROWSER_POLICY_RE = re.compile(r"AskUserQuestion|browser-automation\.md", re.IGNORECASE)
 
 
 def load_env(start: Path) -> None:
@@ -141,6 +148,20 @@ def scan_secrets(path: Path, rep: Report) -> None:
                 rep.warn(f"{rel}:{i}: 実メールアドレスらしき値 {em}（admin@example.com 等に置換）")
 
 
+def scan_browser_policy(path: Path, rep: Report) -> None:
+    """ブラウザ手順が共通の Edge プロファイル確認ルールを参照するか検証する。"""
+    if path.suffix != ".md":
+        return
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return
+    if BROWSER_WORKFLOW_RE.search(text) and not BROWSER_POLICY_RE.search(text):
+        rep.err(
+            f"{path.name}: ブラウザ起動手順に AskUserQuestion または browser-automation.md の参照がない"
+        )
+
+
 def validate_skill(skill_dir: Path) -> Report:
     rep = Report(skill_dir.name)
     folder = skill_dir.name
@@ -188,6 +209,7 @@ def validate_skill(skill_dir: Path) -> Report:
     for p in skill_dir.rglob("*"):
         if p.is_file() and (p.suffix in exts or p.name == ".env.example"):
             scan_secrets(p, rep)
+            scan_browser_policy(p, rep)
 
     return rep
 
