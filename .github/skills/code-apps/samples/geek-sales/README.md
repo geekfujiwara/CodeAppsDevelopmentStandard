@@ -38,7 +38,7 @@ Code Apps サンプル実装。Power Automate AI フロー連携と Copilot Stud
 
 `{prefix}` は `PUBLISHER_PREFIX` の値（例: `PUBLISHER_PREFIX=myco` → `myco_customer`）
 
-### カスタムテーブル（`pac code add-data-source` で追加）
+### カスタムテーブル（`npx power-apps add-data-source` で追加）
 
 | テーブル論理名 | 用途 |
 |---|---|
@@ -101,25 +101,27 @@ python scripts/setup_dataverse.py
 ```bash
 python scripts/toggle_table_lang.py en
 
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_customer
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_opportunity
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_activity
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_territory
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_newsinsight
+npm install --no-audit --no-fund
+npx power-apps auth-status
+npx power-apps auth-switch --account {UPN}
+npx power-apps init --environment-id ${ENV_ID} --display-name "営業支援ポータル"
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  --connection-ref ${CONNECTION_REFERENCE_LOGICAL_NAME} \
+  --solution-id ${SOLUTION_ID} \
+  --resource-name commondataserviceforapps \
+  --org-url ${DATAVERSE_URL} \
+  --non-interactive
 
 # Copilot Analytics 利用時のみ
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_conversationsummary
 
 python scripts/toggle_table_lang.py jp
 ```
 
-### 4. アプリ初期化・開発・デプロイ
+### 4. 開発・デプロイ
 
 ```bash
-pac code init -env ${ENV_ID} -n "営業支援ポータル"
-npm install
 npm run dev      # ローカル開発
-npm run deploy   # ビルド + pac code push
+npm run deploy -- --solution-id ${SOLUTION_ID}   # 初回: ビルド + power-apps push
 ```
 
 ---
@@ -137,9 +139,9 @@ npm run deploy   # ビルド + pac code push
 
 | ファイル | 理由 |
 |---|---|
-| `.power/` | `pac code init` が生成する。手で作成しない |
-| `src/generated/` | `pac code add-data-source` が生成する |
-| `power.config.json` | `pac code init` が環境ごとに生成する |
+| `.power/` | `npx power-apps init` が生成する。手で作成しない |
+| `src/generated/` | `npx power-apps add-data-source` が生成する |
+| `power.config.json` | `npx power-apps init` が環境ごとに生成する |
 | `.env` | 環境固有。`.env.example` を参照 |
 | `node_modules/` | `npm install` で復元 |
 

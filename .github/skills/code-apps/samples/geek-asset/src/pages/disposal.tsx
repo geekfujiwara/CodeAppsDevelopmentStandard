@@ -27,7 +27,6 @@ import {
   DISPOSAL_STATUS_LABEL,
   DISPOSAL_STATUS_COLOR,
   type DisposalStatus,
-  type Disposal,
 } from "@/types/dataverse"
 import { Plus, Trash2, Search, CheckCircle, PackageCheck } from "lucide-react"
 import { toast } from "sonner"

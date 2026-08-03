@@ -103,16 +103,16 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 [§2 初回デプロイ]
         ③ テンプレート scaffold + npm install（Dataverse 構築 Phase 2 と並行して即着手／VS Code では Code Apps サブエージェントとして起動）
         ④ ソリューション + 接続参照を用意（setup_connection_reference.py）★init より前
-        ⑤ pac code init（power.config.json 生成）
+        ⑤ npx power-apps init（power.config.json 生成）
         ⑥ vite.config.ts 必須設定の確認 / .env 設定
-        ⑦ npm run deploy（build + pac code push -s）★初回 push でソリューション所属が確定
+        ⑦ npm run deploy -- --solution-id {GUID}（build + power-apps push）★初回 push でソリューション所属が確定
           │
 [§3 データソース接続]
         ⑧ npx power-apps add-data-source --api-id shared_commondataserviceforapps -cr ... -s ...（1 回だけ）
         ⑨ MicrosoftDataverseService + *WithOrganization ラッパーを実装
           │
 [§4 改善デプロイ]
-        ⑩ src/ 実装 → npm run build → pac code push（反復）
+        ⑩ src/ 実装 → npm run deploy（power-apps push を反復）
 ```
 
 ### この後の章構成
@@ -153,14 +153,14 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 1. Power Platform 管理センターで「コード アプリを許可する」がオン
    → オフの場合: CodeAppOperationNotAllowedInEnvironment (403) エラー
 
-2. PAC CLI 認証プロファイルが対象環境用に作成済み
-   pac auth create --name {profile-name} --environment {ENVIRONMENT_ID}
-   pac auth list  # * が付いているのがアクティブ
+2. npm CLI のアクティブアカウントが対象テナント用
+  npx power-apps auth-status
+  npx power-apps auth-switch --account user@contoso.com
 
-3. power.config.json は pac code init で生成する
+3. power.config.json は npx power-apps init で生成する
    → テンプレートから手動コピーしない
    → 別環境の appId が残っていると: AppLeaseMissing (409) エラー
-   → 新規環境では必ず pac code init で新規生成
+  → 新規環境では必ず npx power-apps init で新規生成
 ```
 
 ### プロジェクトの 3 つの生成段階（生成物は手動作成・コピー禁止）
@@ -168,7 +168,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 | 生成元 | 主な生成物 |
 |---|---|
 | ① テンプレート scaffold | `vite.config.ts` / `plugins/` / `styles/` / `src/` / `tsconfig*` / `package.json` 一式 |
-| ② `pac code init` | `power.config.json`（＋ `.power/`）。`vite.config.ts` や `plugins/` は生成**しない** |
+| ② `npx power-apps init` | `power.config.json`（＋ `.power/`）。`vite.config.ts` や `plugins/` は生成**しない** |
 | ③ `npx power-apps add-data-source --api-id shared_commondataserviceforapps` | `.power/schemas/appschemas/dataSourcesInfo.ts` / `src/generated/services/MicrosoftDataverseService.ts` / `src/generated/models/MicrosoftDataverseModel.ts` |
 
 > どのファイルを誰が生成し、何をカスタマイズしてよいかの一覧は [ビルドリファレンス](references/build-reference.md)。SDK 管理ファイル（`power.config.json` / `dataSourcesInfo.ts` / `src/generated/`）は手動編集禁止。
@@ -197,7 +197,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 # VS Code では本トラック全体を「Code Apps サブエージェント」として並行起動できる。
 # 先行工程（scaffold / init / 初回 build & push）はテーブル不要。以下は Dataverse 接続情報の準備を待つ同期点:
 #   ★同期①: shared_commondataserviceforapps の connectionId / orgUrl が揃ったら add-data-source を 1 回実行
-#   ★同期②: pac code add-flow は Power Automate Phase 5（フロー実装）完了後に実行
+#   ★同期②: power-apps add-flow は Power Automate Phase 5（フロー実装）完了後に実行
 # 詳細は standard §8「開発フロー全体図」を参照。
 cp -n .github/skills/standard/references/gitignore-template .gitignore   # .gitignore がなければコピー
 # scaffold の取得元は templates/generic-base のみ（samples/geek-* は業務ページ実装の参照専用）
@@ -211,8 +211,10 @@ python .github/skills/code-apps/scripts/setup_connection_reference.py
 #   → 出力される {CONNECTION_REFERENCE_LOGICAL_NAME} と {SOLUTION_ID} を控える
 #   → 詳細は references/solution-alm.md
 
-# Step 2: 初期化 — power.config.json を生成（PAC CLI 認証でテナント不一致なし）
-pac code init -env {ENVIRONMENT_ID} -n "AppName"
+# Step 2: npm CLI の認証先を確認して初期化
+npx power-apps auth-status
+npx power-apps auth-switch --account user@contoso.com
+npx power-apps init --environment-id {ENVIRONMENT_ID} --display-name "AppName"
 
 # Step 3: vite.config.ts 必須設定を確認（base: "./" / external に @microsoft/power-apps を含めない）
 #         → references/build-reference.md Step 2
@@ -221,7 +223,7 @@ pac code init -env {ENVIRONMENT_ID} -n "AppName"
 
 # Step 5: 初回ビルド＆デプロイ — ★必ず -s を付ける（almMode が Solution になるのは初回 push だけ）
 npm run build
-pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
+npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID}
 
 # Step 6: Dataverse コネクタを 1 回追加（全テーブル共通・接続参照バインド）
 npx power-apps add-data-source --api-id shared_commondataserviceforapps \
@@ -238,10 +240,10 @@ npm run predeploy
 
 # 再ビルド＆デプロイ（反復）
 npm run build
-pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
+npx power-apps push --environment-id {ENVIRONMENT_ID}
 ```
 
-> **Step 5 の `-s` は後戻りできない**: `pac code push -s` がアプリを `almMode: Solution` にするのは
+> **Step 5 の `--solution-id` は後戻りできない**: 初回の `power-apps push --solution-id` がアプリを `almMode: Solution` にするのは
 > **`appId` 未割当の初回 push のみ**。`almMode: Environment` で作ってしまったアプリは、後から `-s` を付けて
 > push してもソリューションに入らず、Power Apps ポータルの「既存の追加 → アプリ → コード アプリ」でしか
 > 復旧できない。詳細は [ソリューション ALM リファレンス](references/solution-alm.md)。
@@ -257,12 +259,13 @@ pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
 | コマンド | 認証基盤 | テナント問題 | 推奨度 |
 |---|---|---|---|
 | `python scripts/setup_connection_reference.py` | auth_helper（PAC プロファイル再利用） | なし | ✅ 標準（init の前に実行） |
-| `pac code init -env {ID} -n "Name"` | PAC CLI プロファイル | なし | ✅ 標準 |
-| `pac code push -env {ID} -s {SOL}` | PAC CLI プロファイル | なし | ✅ 標準（**初回から `-s` 必須**） |
+| `npx power-apps auth-status` / `auth-switch --account {UPN}` | Power Apps npm CLI | アクティブアカウントを明示 | ✅ テナント切り替え時に必須 |
+| `npx power-apps init --environment-id {ID} --display-name "Name"` | Power Apps npm CLI | 上記で確認 | ✅ 標準 |
+| `npx power-apps push --environment-id {ID} --solution-id {GUID}` | Power Apps npm CLI | 上記で確認 | ✅ 標準（**初回から GUID 必須**） |
 | `npx power-apps add-data-source --api-id shared_commondataserviceforapps -cr {CR} -s {SOLUTION_ID} --resource-name commondataserviceforapps --org-url {url}` | Power Apps npm CLI + 接続参照 | `npx power-apps login` が別キャッシュ | ✅ 標準（ALM 対応） |
 | `npx power-apps add-data-source ... --connection-id {id}` | Power Apps npm CLI + 接続 | 同上 | △ ソリューションに入らない（PoC のみ） |
-| `pac code add-data-source -a dataverse -t {table}` | PAC CLI プロファイル | テーブルごとに再生成が必要 | △ 旧方式（強い型付けが必要な場合のみ） |
-| `npm run deploy` | PAC CLI プロファイル | なし | ✅ 推奨（predeploy チェック付き） |
+| `pac code *` | PAC CLI プロファイル | npm CLI と別キャッシュ | △ npm CLI で解決できない場合のみの移行時代替 |
+| `npm run deploy -- --solution-id {GUID}` | Power Apps npm CLI | auth-switch で切り替え | ✅ 初回デプロイに推奨（predeploy チェック付き） |
 
 ### CI/CD・秘匿化（チーム開発で継続的にデプロイする場合）
 
@@ -527,7 +530,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 
 | スクリプト | 用途 |
 |---|---|
-| [check_code_apps_environment.py](scripts/check_code_apps_environment.py) | マネージド環境 / Code Apps 許可の前提条件を確認（`pac code init` の前に実行） |
+| [check_code_apps_environment.py](scripts/check_code_apps_environment.py) | マネージド環境 / Code Apps 許可の前提条件を確認（`power-apps init` の前に実行） |
 | [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
 | [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` のデプロイ前検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |
 | [inspect_table_metadata.py](scripts/inspect_table_metadata.py) | 既存テーブルの EntitySetName / 主キー / 列 / 参照先 / 選択肢を調査（既存テーブル接続時は実装前に必須） |

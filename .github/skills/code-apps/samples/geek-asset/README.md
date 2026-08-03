@@ -17,7 +17,7 @@ IT機器・備品の台帳管理・貸出管理・廃棄申請・棚卸を一元
 
 `{prefix}` は `PUBLISHER_PREFIX` の値（例: `PUBLISHER_PREFIX=myco` → `myco_asset`）
 
-### カスタムテーブル（`pac code add-data-source` で追加）
+### カスタムテーブル（`npx power-apps add-data-source` で追加）
 
 | テーブル論理名 | 用途 |
 |---|---|
@@ -70,21 +70,25 @@ python scripts/setup_dataverse.py
 ```bash
 python scripts/toggle_table_lang.py en
 
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_asset
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_loan
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_disposal
-pac code add-data-source -a dataverse -t ${PUBLISHER_PREFIX}_inventory_check
+npm install --no-audit --no-fund
+npx power-apps auth-status
+npx power-apps auth-switch --account {UPN}
+npx power-apps init --environment-id ${ENV_ID} --display-name "資産管理ポータル"
+npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+  --connection-ref ${CONNECTION_REFERENCE_LOGICAL_NAME} \
+  --solution-id ${SOLUTION_ID} \
+  --resource-name commondataserviceforapps \
+  --org-url ${DATAVERSE_URL} \
+  --non-interactive
 
 python scripts/toggle_table_lang.py jp
 ```
 
-### 4. アプリ初期化・開発・デプロイ
+### 4. 開発・デプロイ
 
 ```bash
-pac code init -env ${ENV_ID} -n "資産管理ポータル"
-npm install
 npm run dev      # ローカル開発
-npm run deploy   # ビルド + pac code push
+npm run deploy -- --solution-id ${SOLUTION_ID}   # 初回: ビルド + power-apps push
 ```
 
 ## 機能フラグ詳細
@@ -98,9 +102,9 @@ npm run deploy   # ビルド + pac code push
 
 | ファイル | 理由 |
 |---|---|
-| `.power/` | `pac code init` が生成する |
-| `src/generated/` | `pac code add-data-source` が生成する |
-| `power.config.json` | `pac code init` が環境ごとに生成する |
+| `.power/` | `npx power-apps init` が生成する |
+| `src/generated/` | `npx power-apps add-data-source` が生成する |
+| `power.config.json` | `npx power-apps init` が環境ごとに生成する |
 | `.env` | 環境固有。`.env.example` を参照 |
 | `node_modules/` | `npm install` で復元 |
 

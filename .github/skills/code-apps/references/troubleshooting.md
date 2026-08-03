@@ -456,9 +456,38 @@ Error: Request failed with status code 403
 
 ### 対処
 
-1. `npx power-apps logout` → 再実行しても解消しない場合がある
-2. **推奨ワークアラウンド**: `pac code add-data-source` を使用する（認証は PAC CLI プロファイルを使うため正しいテナントに向く）
-3. `pac code` で日本語サニタイズ問題が発生した場合は `toggle_table_lang.py` ワークアラウンドを適用
+```bash
+# キャッシュ済みアカウントとアクティブアカウントを確認
+npx power-apps auth-status
+
+# 対象テナントのアカウントへ明示的に切り替える
+npx power-apps auth-switch --account user@contoso.com
+
+# 破壊的操作の前に、対象環境を読み取れることを確認
+npx power-apps list-connections --environment-id {ENVIRONMENT_ID} --json
+```
+
+`logout` は全アカウントのキャッシュを削除するため、テナント切り替えには使わない。
+切り替え後も解消しない場合に限り、移行時の代替手段として `pac code add-data-source` を使用する。
+その場合、日本語サニタイズ問題には `toggle_table_lang.py` を適用する。
+
+### CLI 0.13.0 での検証結果（2026-07-31）
+
+- `auth-status` はキャッシュ済みアカウントとアクティブ状態を表示する。
+- `auth-switch --account {UPN}` は他の npm CLI コマンドが使うアカウントを変更する。
+- 非対話モードでは `--account` が必須。省略時の対話選択に依存しない。
+- 実テナントでの最終確認は、切り替え後の `list-connections` が対象環境を返すことを確認してから `push` / `add-data-source` を実行する。
+
+### 複数テナント切り替えの実測（2026-08-03）
+
+CLI 0.13.0 のキャッシュに異なる2テナントのアカウントがある状態で、次を確認した。
+
+1. `auth-status --json` は両アカウントを返し、片方だけを `isActive: true` と表示した。
+2. 非アクティブ側を `auth-switch --account {UPN} --non-interactive --json` で指定すると、直後の `auth-status` で active が切り替わった。
+3. 元の UPN を同じコマンドで指定すると active が復元された。
+
+この検証では対象環境 ID が保存されていなかったため、環境を変更する `push` / `add-data-source` は実行していない。
+実案件では上記の読み取り確認を挟み、対象環境とアカウントの組み合わせを確認してから実行する。
 
 ### 教訓
 
@@ -574,31 +603,48 @@ const myRecords = allRecords.filter(
 
 ### 原因
 
-`npx power-apps push` は npm パッケージの認証を使用し、テナント不一致が発生する場合がある（#10 と同根）。
+npm CLI のアクティブアカウントが対象環境と異なる。
 
 ### 対処
 
-**初回デプロイは `pac code init` → `pac code push` の順で実行する**:
+**`auth-status` → `auth-switch` → `power-apps init` → `power-apps push` の順で実行する**:
 
 ```bash
-# ✅ Step 1: power.config.json を生成（PAC CLI 認証プロファイルを使用）
-pac code init -env {ENVIRONMENT_ID} -n "AppName"
+# ✅ Step 1: npm CLI の実行アカウントを対象テナントへ切り替える
+npx power-apps auth-status
+npx power-apps auth-switch --account user@contoso.com
 
-# ✅ Step 2: ビルド＆デプロイ（テナント問題なし）
+# ✅ Step 2: power.config.json を生成
+npx power-apps init --environment-id {ENVIRONMENT_ID} --display-name "AppName"
+
+# ✅ Step 3: ビルド＆初回デプロイ（solution-id は GUID）
 npm run build
-pac code push -env {ENVIRONMENT_ID} -s {SOLUTION_NAME}
+npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID}
 
-# ⚠ power.config.json が未生成だと pac code push は失敗する
+# ⚠ power.config.json が未生成だと push は失敗する
 #   エラー: "power.config.json is required to push an app"
 ```
 
 ### 備考
 
-- `pac code init` は PAC CLI 認証プロファイルを使用するためテナント不一致の問題が発生しない
-- `npx power-apps init` は npm パッケージ独自の MSAL 認証を使用し `Environment not found` が出ることがある
-- `pac code push` は `npm run build` の成果物（`dist/`）を Power Platform にアップロードする
-- `-env` でターゲット環境、`-s` でソリューションを指定
-- 初回デプロイ後に `power.config.json` に `appId` が追記され、2回目以降は `-env` `-s` は省略可能
+- npm CLI は独自の MSAL 認証を使用するため、PAC CLI のプロファイルではなく `auth-status` で確認する
+- `power-apps push` は `npm run build` の成果物（`dist/`）を Power Platform にアップロードする
+- `--environment-id` でターゲット環境、`--solution-id` でソリューション GUID を指定する
+- 初回デプロイ後に `power.config.json` に `appId` が追記され、2回目以降は `--solution-id` を省略可能
+- npm CLI で解消できない場合のみ `pac code init` / `push` を移行時の代替手段として使う
+
+### npm CLI 0.13.0 実デプロイ検証（2026-08-03）
+
+`samples/geek-expense` の一時コピーを Managed Environment と既存の unmanaged solution に対して検証した。
+
+1. `npm install` → `auth-status` → `init` で `power.config.json` を生成
+2. 接続参照を指定した `add-data-source` で Dataverse 生成コードを取得
+3. `npm run deploy -- --solution-id {GUID}` で predeploy、TypeScript/Vite build、初回 push が成功
+4. `power.config.json` に `appId` が保存され、`list-codeapps` で同じアプリを確認
+5. 続けて引数なしの `npm run deploy` を実行し、同じ app ID への反復 push が成功
+
+実ビルドで見つかった SDK 1.2.7 の型変更（structured operation options、`IOperationResult.data`、
+`executeAsync` の operation object）と Recharts 3 の optional value はサンプルへ反映済み。
 
 ---
 
@@ -1519,7 +1565,7 @@ pac solution add-solution-component -sn {SOLUTION_NAME} -c {CONNECTION_REFERENCE
 
 ---
 
-## 30. `npx power-apps` と `pac` は認証キャッシュが別（検証済 2026-06-15）
+## 30. `npx power-apps` と `pac` は認証キャッシュが別（更新 2026-07-31）
 
 ### 症状
 
@@ -1538,9 +1584,12 @@ npx power-apps list-connections
 ### 対処
 
 ```powershell
-npx power-apps login --account {UPN}
-npx power-apps list-connections   # 環境が見えることを確認
+npx power-apps auth-status
+npx power-apps auth-switch --account {UPN}
+npx power-apps list-connections --environment-id {ENVIRONMENT_ID} --json
 ```
+
+対象アカウントが一覧にない場合のみ `login --account {UPN}` で追加する。`logout` は全キャッシュ削除なので切り替えには使わない。
 
 > `npx power-apps list-connection-references` は応答が返らずハングすることがある。
 > 接続参照の確認は `pac code list-connection-references -env {DATAVERSE_URL} -s {SOLUTION_ID}` を使う。
@@ -1555,5 +1604,7 @@ npx power-apps list-connections   # 環境が見えることを確認
 | `pac solution list --json \| ConvertFrom-Json` が日本語名で失敗 | PowerShell の既定コンソールが cp932 | `[Console]::OutputEncoding = [Text.Encoding]::UTF8` を先に実行 |
 | `pac env fetch --xml "... top='50' ..."` が拒否される | ページング属性と `top` は併用不可 | `count='50'` を使う |
 | `pac code init` / `add-data-source` が `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` を出す | libuv のシャットダウン時ノイズ | 無害。終了コード 0 なら無視してよい |
+| `power-apps init` が `power.config.json` 生成後に同じ assertion を出して終了コード 1 | CLI 0.13.0 の Windows 終了処理 | `power.config.json` の内容を確認し、後続の `add-data-source` が成功すれば初期化済みとして継続する |
+| `add-data-source` / `list-codeapps --environment-id ...` が `unknown option` | CLI 0.13.0 は help と実装が不一致 | `init` 後のプロジェクトで `--environment-id` を外し、`power.config.json` の環境を使う |
 | `-cr {未存在の論理名}` → `Failed to resolve connection ID for reference` | 接続参照は自動作成されない | 先に [setup_connection_reference.py](../scripts/setup_connection_reference.py) を実行 |
 

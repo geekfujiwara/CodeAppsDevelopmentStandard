@@ -22,34 +22,41 @@ function client() {
 }
 
 export async function getCurrentUserId(): Promise<string> {
-  const result = await client().retrieveMultipleRecordsAsync(
+  const result = await client().retrieveMultipleRecordsAsync<Record<string, unknown>>(
     "systemusers",
-    `?$filter=azureactivedirectoryobjectid eq (Microsoft.Dynamics.CRM.CurrentUserObjectId())&$select=systemuserid&$top=1`
+    {
+      select: ["systemuserid"],
+      filter: "azureactivedirectoryobjectid eq (Microsoft.Dynamics.CRM.CurrentUserObjectId())",
+      top: 1,
+    }
   )
-  if (!result.success || !result.value?.length) throw new Error("ユーザーIDの取得に失敗しました")
-  return result.value[0].systemuserid as string
+  if (!result.success || !result.data?.length) throw new Error("ユーザーIDの取得に失敗しました")
+  return result.data[0].systemuserid as string
 }
 
 export async function getExpenses(): Promise<Expense[]> {
   const f = fields()
   const select = [ID_FIELD(), f.title, f.amount, f.category, f.expensedate, f.status, f.department, "createdon", "_createdby_value"].join(",")
-  const result = await client().retrieveMultipleRecordsAsync(TABLE(), `?$select=${select}&$orderby=createdon desc`)
+  const result = await client().retrieveMultipleRecordsAsync<Expense>(TABLE(), {
+    select: select.split(","),
+    orderBy: ["createdon desc"],
+  })
   if (!result.success) throw new Error("経費データの取得に失敗しました")
-  return (result.value ?? []) as Expense[]
+  return result.data ?? []
 }
 
 export async function getExpenseById(id: string): Promise<Expense> {
   const f = fields()
   const select = Object.values(f).concat([ID_FIELD(), "createdon", "_createdby_value"]).join(",")
-  const result = await client().retrieveRecordAsync(TABLE(), id, `?$select=${select}`)
+  const result = await client().retrieveRecordAsync<Expense>(TABLE(), id, { select: select.split(",") })
   if (!result.success) throw new Error("経費データの取得に失敗しました")
-  return result.value as Expense
+  return result.data
 }
 
 export async function createExpense(data: Partial<Record<string, unknown>>): Promise<string> {
-  const result = await client().createRecordAsync(TABLE(), data)
+  const result = await client().createRecordAsync<Partial<Record<string, unknown>>, { id: string }>(TABLE(), data)
   if (!result.success) throw new Error("経費の作成に失敗しました")
-  return result.value?.id as string
+  return result.data.id
 }
 
 export async function updateExpense(id: string, data: Partial<Record<string, unknown>>): Promise<void> {

@@ -81,6 +81,11 @@ Node.js **22 以上**が必要（`engines: { "node": ">=22" }`）。
 
 > `--cloud` は日本国内の通常テナントでは指定不要。GCC / DoD / 21Vianet 環境でのみ使用する。
 
+> [!WARNING]
+> CLI 0.13.0 の help は `--environment-id` を全コマンドに表示するが、`add-data-source` / `list-codeapps` は
+> 実行時に `unknown option '--environment-id'` として拒否する（2026-08-03 実測）。これらは先に `init` で
+> `power.config.json` を生成し、そこに保存された `environmentId` を使用する。
+
 ## アプリライフサイクル
 
 ### `init`
@@ -281,5 +286,5 @@ npx power-apps telemetry --disable
 | `pac code list-connection-references` | `power-apps list-connection-references` | |
 | （なし） | `refresh-data-source` / `find-dataverse-api` / `add-dataverse-api` / `add-flow` / `remove-flow` / `list-flows` / `list-connections` / `list-connectors` / `list-environment-variables` / `create-connection` / `auth-*` | npm CLI のみ |
 
-> 現時点の本スキルの標準は `pac code push`（テナント解決の安定性のため）。
-> npm CLI 主体への全面移行は別途検証のうえ切り替える。
+> 本スキルの標準は npm CLI。実行前に `auth-status` / `auth-switch` で対象テナントの
+> アカウントを明示する。`pac code` は npm CLI で解消できない場合のみ移行時の代替手段として使う。

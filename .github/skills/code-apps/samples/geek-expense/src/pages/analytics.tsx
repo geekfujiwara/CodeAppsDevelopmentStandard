@@ -5,7 +5,6 @@ import { useExpenses } from "@/hooks/use-dataverse"
 import { PUBLISHER_PREFIX } from "@/config"
 import {
   EXPENSE_CATEGORY_LABEL,
-  type ExpenseCategory,
 } from "@/types/dataverse"
 import {
   PieChart,
@@ -134,7 +133,7 @@ export default function Analytics() {
                     paddingAngle={3}
                     dataKey="value"
                     label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
+                      `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
                     }
                     labelLine={false}
                   >
@@ -145,7 +144,7 @@ export default function Analytics() {
                       />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
+                  <Tooltip formatter={(value) => `¥${Number(value ?? 0).toLocaleString()}`} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -164,7 +163,7 @@ export default function Analytics() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `¥${(v / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
+                <Tooltip formatter={(value) => `¥${Number(value ?? 0).toLocaleString()}`} />
                 <Bar dataKey="金額" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

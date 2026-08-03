@@ -1,7 +1,7 @@
 /**
  * pre-deploy-check.mjs — テンプレートそのままのデプロイを防止する
  *
- * pac code push / npx power-apps push の前に実行し、
+ * npx power-apps push の前に実行し、
  * テーマ固有のカスタマイズが行われていることを確認する。
  *
  * このファイルはプロジェクト直下の scripts/ にコピーして使う。
@@ -40,7 +40,7 @@ if (!fs.existsSync(envPath)) {
 // 2. power.config.json が存在するか
 const configPath = path.join(root, "power.config.json");
 if (!fs.existsSync(configPath)) {
-  errors.push("power.config.json が存在しません。pac code init を先に実行してください。");
+  errors.push("power.config.json が存在しません。npx power-apps init を先に実行してください。");
 }
 
 // 3. config.ts のアプリ名がデフォルトのままでないか

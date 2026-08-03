@@ -21,12 +21,16 @@ function client() {
 // ── System ────────────────────────────────────────────────────
 
 export async function getCurrentUserId(): Promise<string> {
-  const result = await client().retrieveMultipleRecordsAsync(
+  const result = await client().retrieveMultipleRecordsAsync<Record<string, unknown>>(
     "systemusers",
-    `?$filter=azureactivedirectoryobjectid eq (Microsoft.Dynamics.CRM.CurrentUserObjectId())&$select=systemuserid&$top=1`
+    {
+      select: ["systemuserid"],
+      filter: "azureactivedirectoryobjectid eq (Microsoft.Dynamics.CRM.CurrentUserObjectId())",
+      top: 1,
+    }
   )
-  if (!result.success || !result.value?.length) throw new Error("ユーザーIDの取得に失敗しました")
-  return result.value[0].systemuserid as string
+  if (!result.success || !result.data?.length) throw new Error("ユーザーIDの取得に失敗しました")
+  return result.data[0].systemuserid as string
 }
 
 // ── Employee ──────────────────────────────────────────────────
@@ -53,16 +57,16 @@ export async function getEmployees(): Promise<Employee[]> {
   ].join(",")
   const result = await client().retrieveMultipleRecordsAsync(
     EMPLOYEE_TABLE(),
-    `?$select=${select}&$orderby=createdon desc`
+    { select: select.split(","), orderBy: ["createdon desc"] }
   )
   if (!result.success) throw new Error("社員データの取得に失敗しました")
-  return (result.value ?? []) as Employee[]
+  return (result.data ?? []) as Employee[]
 }
 
 export async function createEmployee(data: Partial<Record<string, unknown>>): Promise<string> {
-  const result = await client().createRecordAsync(EMPLOYEE_TABLE(), data)
+  const result = await client().createRecordAsync<Partial<Record<string, unknown>>, { id: string }>(EMPLOYEE_TABLE(), data)
   if (!result.success) throw new Error("社員の作成に失敗しました")
-  return result.value?.id as string
+  return result.data.id
 }
 
 export async function updateEmployee(id: string, data: Partial<Record<string, unknown>>): Promise<void> {
@@ -97,16 +101,16 @@ export async function getRecruitments(): Promise<Recruitment[]> {
   ].join(",")
   const result = await client().retrieveMultipleRecordsAsync(
     RECRUITMENT_TABLE(),
-    `?$select=${select}&$orderby=createdon desc`
+    { select: select.split(","), orderBy: ["createdon desc"] }
   )
   if (!result.success) throw new Error("採用ポジションデータの取得に失敗しました")
-  return (result.value ?? []) as Recruitment[]
+  return (result.data ?? []) as Recruitment[]
 }
 
 export async function createRecruitment(data: Partial<Record<string, unknown>>): Promise<string> {
-  const result = await client().createRecordAsync(RECRUITMENT_TABLE(), data)
+  const result = await client().createRecordAsync<Partial<Record<string, unknown>>, { id: string }>(RECRUITMENT_TABLE(), data)
   if (!result.success) throw new Error("採用ポジションの作成に失敗しました")
-  return result.value?.id as string
+  return result.data.id
 }
 
 export async function updateRecruitment(id: string, data: Partial<Record<string, unknown>>): Promise<void> {
@@ -140,18 +144,19 @@ export async function getCandidates(recruitmentId?: string): Promise<Candidate[]
     `_${P}_recruitment_id_value`,
     "createdon",
   ].join(",")
-  const filter = recruitmentId
-    ? `?$select=${select}&$filter=_${P}_recruitment_id_value eq '${recruitmentId}'&$orderby=createdon desc`
-    : `?$select=${select}&$orderby=createdon desc`
-  const result = await client().retrieveMultipleRecordsAsync(CANDIDATE_TABLE(), filter)
+  const result = await client().retrieveMultipleRecordsAsync<Candidate>(CANDIDATE_TABLE(), {
+    select: select.split(","),
+    filter: recruitmentId ? `_${P}_recruitment_id_value eq '${recruitmentId}'` : undefined,
+    orderBy: ["createdon desc"],
+  })
   if (!result.success) throw new Error("候補者データの取得に失敗しました")
-  return (result.value ?? []) as Candidate[]
+  return result.data ?? []
 }
 
 export async function createCandidate(data: Partial<Record<string, unknown>>): Promise<string> {
-  const result = await client().createRecordAsync(CANDIDATE_TABLE(), data)
+  const result = await client().createRecordAsync<Partial<Record<string, unknown>>, { id: string }>(CANDIDATE_TABLE(), data)
   if (!result.success) throw new Error("候補者の作成に失敗しました")
-  return result.value?.id as string
+  return result.data.id
 }
 
 export async function updateCandidate(id: string, data: Partial<Record<string, unknown>>): Promise<void> {
@@ -186,16 +191,16 @@ export async function getEvaluations(): Promise<Evaluation[]> {
   ].join(",")
   const result = await client().retrieveMultipleRecordsAsync(
     EVALUATION_TABLE(),
-    `?$select=${select}&$orderby=createdon desc`
+    { select: select.split(","), orderBy: ["createdon desc"] }
   )
   if (!result.success) throw new Error("評価データの取得に失敗しました")
-  return (result.value ?? []) as Evaluation[]
+  return (result.data ?? []) as Evaluation[]
 }
 
 export async function createEvaluation(data: Partial<Record<string, unknown>>): Promise<string> {
-  const result = await client().createRecordAsync(EVALUATION_TABLE(), data)
+  const result = await client().createRecordAsync<Partial<Record<string, unknown>>, { id: string }>(EVALUATION_TABLE(), data)
   if (!result.success) throw new Error("評価の作成に失敗しました")
-  return result.value?.id as string
+  return result.data.id
 }
 
 export async function updateEvaluation(id: string, data: Partial<Record<string, unknown>>): Promise<void> {
