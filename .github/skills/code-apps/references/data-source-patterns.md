@@ -171,6 +171,67 @@ export interface Customer { geek_customerid: string; }
 export interface Customer { [key: string]: unknown; geek_customerid: string; }
 ```
 
+## ページングと総件数（`count: true`、5000 件上限）
+
+`@microsoft/power-apps@1.2.7` で `IOperationResult.count` の仕様が明確化された。
+`retrieveMultipleRecordsAsync` の `options` に `count: true` を渡すと、
+**`top` / `skip` に依存しないサーバー側の総件数**（Dataverse では `@odata.count` アノテーション）を
+1 リクエストで取得できる。
+
+```typescript
+// hooks/useRecordsPage.ts
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+
+export function useRecordsPage(page: number, pageSize = 20) {
+  return useQuery({
+    queryKey: ["records", "page", page, pageSize],
+    queryFn: async () => {
+      const result = await client.retrieveMultipleRecordsAsync<Record>("{prefix}_records", {
+        top: pageSize,
+        skip: (page - 1) * pageSize,
+        // 総件数は初回のみ取得すれば十分（下記「総件数は初回のみ取得」参照）。
+        // ページ移動のたびに再取得しない場合は page === 1 のときだけ count: true を渡す。
+        count: page === 1,
+      });
+      if (!result.success) throw result.error;
+      return { rows: result.data ?? [], count: result.count };
+    },
+    placeholderData: keepPreviousData, // ページ切替時に前ページの内容を表示したまま次を取得
+  });
+}
+```
+
+### 5000 件上限の扱い
+
+- Dataverse の `@odata.count` は **5000 件で頭打ち**になる。結果セットが 5000 件を超える場合、
+  `result.count` は実際の総件数ではなく `5000` を返す。
+- UI 上のページャ・件数表示は、`count === 5000` のときに「5000 件」ではなく
+  **「5000+ 件」「5000 件以上」のように上限到達を明示**する。実件数として断定表示しない。
+
+```tsx
+// 総件数表示コンポーネント側
+<span>{count >= 5000 ? "5,000+ 件" : `${count.toLocaleString()} 件`}</span>
+```
+
+### 5000 件超が見込まれる画面は `skipToken` 方式へ切り替える
+
+総件数ページャ（ページ番号ボタン + 総ページ数）は `count` が正確な範囲（5000 件以下が見込まれる）でのみ使う。
+以下のいずれかに該当する画面は、総件数に依存しない **`skipToken` による「次へ」方式**（カーソルページング／無限スクロール）に切り替える。
+
+- 対象テーブルのレコード数が恒常的に 5000 件を超える、または将来的に超える見込みがある
+- 検索・フィルタ条件を絞らずに全件を対象にする一覧画面
+- 総ページ数の表示が必須要件ではない（「次へ」「前へ」のみで十分な）画面
+
+`skipToken` はレスポンスの `nextLink`（またはページング情報）から取得し、次リクエストの `skip` の代わりに使う。
+ページ番号ボタンは表示せず、「次へ」ボタンの有効/無効のみで制御する。
+
+### 総件数は初回のみ取得してキャッシュする
+
+`count: true` は毎回 `@odata.count` 集計コストが乗るため、**ページ移動のたびに再取得しない**。
+初回ロード時（`page === 1` または検索条件変更時）のみ `count: true` を送り、以降のページ取得は
+`count: false`（省略）にして、取得済みの総件数を state / React Query キャッシュに保持する。
+`keepPreviousData`（TanStack Query）を併用し、ページ切替時の画面ちらつきも防ぐ。
+
 ## 基本設計方針
 
 - **新規作成・編集・削除はすべてモーダル**（別ページ遷移しない）

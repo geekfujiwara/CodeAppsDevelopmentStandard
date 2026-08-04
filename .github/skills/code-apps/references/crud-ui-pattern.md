@@ -117,6 +117,11 @@ const handleDelete = async (item) => {
 
 ## テーブル一覧（行クリック）
 
+> **件数が多い一覧はサーバーサイドページング前提にする**: 全件取得してクライアント側でページングする方式は
+> データ量が増えると破綻する。`retrieveMultipleRecordsAsync` の `{ top, skip, count: true }` を使ったサーバーサイド
+> ページングと、5000 件上限の扱い・`skipToken` への切り替え基準は
+> [データソースパターン「ページングと総件数」](data-source-patterns.md#ページングと総件数count-true5000-件上限)を参照。
+
 ```tsx
 import { useNavigate } from "react-router-dom"
 import { Trash2 } from "lucide-react"   // Eye はインポートしない
