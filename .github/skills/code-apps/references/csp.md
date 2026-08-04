@@ -98,6 +98,9 @@ const embedUrl = `https://maps.google.com/maps?q=${lat},${lon}&z=16&output=embed
 |---|---|
 | `connect-src` | 呼び出し先のドメイン（例: `https://api.example.com`） |
 
+> Application Insights / Log Analytics へのテレメトリ転送も `connect-src` の追加が必要。
+> メトリクス収集・PII サニタイズの詳細は [テレメトリ / 可観測性パターン](telemetry-pattern.md) を参照。
+
 ### 3. 外部動画/メディア埋め込み（YouTube 等）
 
 **症状**: `Refused to frame 'https://www.youtube.com/'`

@@ -139,7 +139,7 @@ import type { IContext } from "@microsoft/power-apps/app";
 | `@microsoft/power-apps/app` | `getContext`, `setConfig`, `IContext` / `IConfig` 型 |
 | `@microsoft/power-apps/data/executors` | `createMockDataExecutor`, `MockDataStore` / `IDataOperationExecutor` 型 |
 | `@microsoft/power-apps/data/metadata/dataverse` | `EntityMetadata`, `GetEntityMetadataOptions` 型, `get*Name` 系関数 |
-| `@microsoft/power-apps/telemetry` | `initializeLogger`, `ILogger` / `Metric` 型 |
+| `@microsoft/power-apps/telemetry` | `initializeLogger`, `ILogger` / `Metric` 型（実装ガイド: [テレメトリ / 可観測性パターン](telemetry-pattern.md)） |
 | `@microsoft/power-apps/internal/data` | `setDataOperationExecutor`（※ `/data` には無い） |
 
 > **`getContext()` は `Promise<IContext>` を返す非同期関数**（SDK 1.2.7 で確認）。`await` を忘れないこと。
