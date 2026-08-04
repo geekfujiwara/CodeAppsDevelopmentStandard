@@ -5,8 +5,9 @@ Grants Microsoft Graph ``Presence.ReadWrite.All`` to the App Service UAMI,
 resolves the target agentic user, and optionally writes the non-secret runtime
 settings used by ``PresenceWorker`` to an Azure Web App.
 
-Requires an administrator allowed to create app role assignments. Uses the
-Azure CLI login; run ``az login`` first.
+Requires an administrator allowed to create app role assignments. Do not create
+an agent365-specific login cache; use the standard auth_helper cache for
+delegated tokens and an existing Azure CLI context only for Azure CLI operations.
 
 Usage:
     python scripts/configure_agent_presence.py --managed-identity-client-id <guid> --agent-user-id <guid>

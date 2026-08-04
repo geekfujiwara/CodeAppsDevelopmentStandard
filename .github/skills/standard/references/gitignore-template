@@ -39,6 +39,9 @@ Thumbs.db
 
 # Authentication cache (auth_helper.py)
 .auth_record.json
+.a365-auth.json
+auth-token.json
+*token-cache*
 
 # Power Platform
 .power/

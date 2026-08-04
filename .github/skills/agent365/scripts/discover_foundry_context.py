@@ -116,6 +116,7 @@ def main() -> int:
     args = parser.parse_args()
 
     load_env(Path(args.env))
+    os.environ.setdefault("TENANT_ID", os.environ.get("AZURE_TENANT_ID", ""))
     from auth_helper import get_token  # noqa: E402  (import after sys.path/env setup)
 
     token = get_token(scope=ARM_SCOPE)

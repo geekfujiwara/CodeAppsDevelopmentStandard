@@ -63,6 +63,8 @@ __pycache__/
 agents/**/agent.yaml
 teams/*.zip
 a365.generated.config.json
+.a365-auth.json
+auth-token.json
 *token-cache*
 a365-*.log
 
