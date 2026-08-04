@@ -70,7 +70,7 @@ src.save("assets/agent-icon.png")
 
 ## 9. `a365` コマンドが固まる / ダイアログが出ない
 
-→ [a365-cli.md](a365-cli.md) の 3〜5 節（パイプ禁止・`-EncodedCommand` での可視ウィンドウ起動・
+→ [a365-cli.md](a365-cli.md) の 4〜6 節（パイプ禁止・`-EncodedCommand` での可視ウィンドウ起動・
 Edge プロファイル）を参照。初回失敗時は同じコマンドを再実行すると冪等に修復されることが多い。
 ただし通常の認証は standard の `auth_helper.py` キャッシュを使うため、`a365` で新しい認証キャッシュを作る運用にはしない。
 

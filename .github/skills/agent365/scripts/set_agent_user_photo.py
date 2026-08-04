@@ -13,8 +13,9 @@ the ordinary ``PUT /users/{id}/photo/$value`` endpoint applies. Graph accepts
 JPEG here, so a PNG icon is converted and downscaled to 648x648 first.
 
 Requires Microsoft Graph ``ProfilePhoto.ReadWrite.All`` or ``User.ReadWrite.All``
-(User Administrator or Global Administrator). Uses the Azure CLI login, so run
-``az login`` first.
+(User Administrator or Global Administrator). Do not create an agent365-specific
+login cache; use the standard auth_helper cache for delegated tokens and an
+existing Azure CLI context only for Azure CLI operations.
 
 Usage:
     python scripts/set_agent_user_photo.py --upn agent-user@contoso.onmicrosoft.com

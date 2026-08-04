@@ -23,7 +23,9 @@ or from ``az ad sp list --display-name "<instance name>"``.
 
 Requires Microsoft Graph ``DelegatedPermissionGrant.ReadWrite.All`` (or an
 administrator role such as Privileged Role Administrator / Global
-Administrator). Uses the Azure CLI login, so run ``az login`` first.
+Administrator). Do not create an agent365-specific login cache; use the
+standard auth_helper cache for delegated tokens and an existing Azure CLI
+context only for Azure CLI operations.
 
 Usage:
     python scripts/grant_agent_instance_consent.py --instance-id <guid>
