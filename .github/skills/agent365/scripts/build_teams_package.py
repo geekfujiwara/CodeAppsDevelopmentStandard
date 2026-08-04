@@ -36,6 +36,13 @@ COLOR_SIZE = 192
 OUTLINE_SIZE = 32
 PLACEHOLDER = re.compile(r"\$\{([A-Z0-9_]+)\}")
 
+DEFAULT_ICON = "assets/agent-icon.png"
+# Max per-channel difference still counted as the icon's flat background colour.
+BACKGROUND_TOLERANCE = 16
+# Personas bundled with the skill, usable as-is when the project has no artwork yet.
+SAMPLE_ICON_DIR = Path(__file__).resolve().parent.parent / "assets" / "icons"
+SAMPLE_ICONS = {"mina": "mina.png", "tech": "tech.png", "hunter": "hunter.png"}
+
 # Per-install agent instances (each with their own Entra Agent ID) require an
 # Agent 365 blueprint. Without it the package can only be published as a single
 # shared agent, which needs the GA schema because the agentic-user properties
@@ -77,20 +84,75 @@ def render(template: str) -> str:
 
 
 def make_color_icon(icon_path: Path, size: int = COLOR_SIZE) -> bytes:
-    img = Image.open(icon_path).convert("RGBA").resize((size, size), Image.LANCZOS)
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    load_icon(icon_path, size).save(buf, format="PNG")
     return buf.getvalue()
 
 
 def make_outline_icon(icon_path: Path, size: int = OUTLINE_SIZE) -> bytes:
     """White silhouette on a transparent background, as Teams requires."""
-    img = Image.open(icon_path).convert("RGBA").resize((size, size), Image.LANCZOS)
+    img = load_icon(icon_path, size)
     white = Image.new("RGBA", (size, size), (255, 255, 255, 255))
     white.putalpha(img.getchannel("A"))
     buf = io.BytesIO()
     white.save(buf, format="PNG")
     return buf.getvalue()
+
+
+def load_icon(icon_path: Path, size: int) -> Image.Image:
+    img = Image.open(icon_path).convert("RGBA").resize((size, size), Image.LANCZOS)
+    return drop_flat_background(img)
+
+
+def drop_flat_background(img: Image.Image) -> Image.Image:
+    """Give a fully opaque icon an alpha channel by flood-filling its uniform outer border.
+
+    Without this, an exported PNG that has no transparency turns the Teams outline icon
+    into a solid white square.
+    """
+    if img.getchannel("A").getextrema()[0] != 255:
+        return img
+
+    width, height = img.size
+    pixels = img.load()
+    corners = [pixels[0, 0], pixels[width - 1, 0], pixels[0, height - 1], pixels[width - 1, height - 1]]
+    base = corners[0]
+    if any(max(abs(a - b) for a, b in zip(c[:3], base[:3])) > BACKGROUND_TOLERANCE for c in corners):
+        return img
+
+    stack = [(x, y) for x in range(width) for y in (0, height - 1)]
+    stack += [(x, y) for y in range(height) for x in (0, width - 1)]
+    seen = set(stack)
+    while stack:
+        x, y = stack.pop()
+        pixel = pixels[x, y]
+        if max(abs(a - b) for a, b in zip(pixel[:3], base[:3])) > BACKGROUND_TOLERANCE:
+            continue
+        pixels[x, y] = (pixel[0], pixel[1], pixel[2], 0)
+        for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+            if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in seen:
+                seen.add((nx, ny))
+                stack.append((nx, ny))
+
+    return img
+
+
+def resolve_icon(cli_icon: str | None) -> Path:
+    """--icon > AGENT_ICON > assets/agent-icon.png > bundled sample persona."""
+    for candidate in (cli_icon, os.environ.get("AGENT_ICON"), DEFAULT_ICON):
+        if not candidate:
+            continue
+        sample = SAMPLE_ICONS.get(candidate.lower())
+        path = SAMPLE_ICON_DIR / sample if sample else Path(candidate)
+        if path.is_file():
+            return path
+        if candidate in (cli_icon, os.environ.get("AGENT_ICON")):
+            raise SystemExit(f"Icon not found: {candidate}")
+
+    raise SystemExit(
+        f"No icon found. Put a square transparent PNG at {DEFAULT_ICON}, or set AGENT_ICON "
+        f"to a path or one of the bundled samples: {', '.join(sorted(SAMPLE_ICONS))}."
+    )
 
 
 def downgrade_to_shared_agent(manifest: dict) -> None:
@@ -107,7 +169,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--template", default="teams/manifest.template.json")
     parser.add_argument("--agentic-user-template", default="teams/agenticUser.template.json")
-    parser.add_argument("--icon", default="assets/agent-icon.png")
+    parser.add_argument(
+        "--icon",
+        help=(
+            "Icon path, or a bundled sample name ("
+            + ", ".join(sorted(SAMPLE_ICONS))
+            + f"). Default: AGENT_ICON, else {DEFAULT_ICON}."
+        ),
+    )
     parser.add_argument("--output", help="Output ZIP (default: teams/<agent>-teams-app.zip).")
     parser.add_argument("--env", default=".env")
     parser.add_argument(
@@ -125,14 +194,12 @@ def main() -> int:
     load_env(Path(args.env))
 
     template_path = Path(args.template)
-    icon = Path(args.icon)
+    icon = resolve_icon(args.icon)
     agent = os.environ.get("AGENT_NAME", "agent")
     output = Path(args.output or f"teams/{agent}-teams-app.zip")
 
     if not template_path.is_file():
         raise SystemExit(f"Manifest template not found: {template_path}")
-    if not icon.is_file():
-        raise SystemExit(f"Icon not found: {icon}")
 
     manifest_text = render(template_path.read_text(encoding="utf-8"))
     manifest = json.loads(manifest_text)
@@ -148,7 +215,7 @@ def main() -> int:
             raise SystemExit(
                 f"{A365_BLUEPRINT_VAR} is not set, so this package would install as a "
                 "SHARED agent, not an Agent template. Run 'a365 setup blueprint' first "
-                f"(Step 7), set {A365_BLUEPRINT_VAR} in .env, then re-run with "
+                f"(Step 6), set {A365_BLUEPRINT_VAR} in .env, then re-run with "
                 "--require-template."
             )
         print(

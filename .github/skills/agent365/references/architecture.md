@@ -73,6 +73,37 @@ Bot のエンドポイントは Foundry のエージェント エンドポイン
 {FOUNDRY_PROJECT_ENDPOINT}/agents/{AGENT_NAME}/endpoint/protocols/activityprotocol?api-version=2025-11-15-preview
 ```
 
+### 4-2. agentUser（同僚アイデンティティ）チャットを動かす経路（自己ホスト）
+
+**上図の Foundry ホスト経路では agentUser チャットは動かない。**
+Agent 365 が送るトークンは `aud` = ブループリント appId / `azp` =
+`5a807f24-c9de-44ee-a3a7-329e88a00ffc` で、Foundry の `activityprotocol` エンドポイントは
+これを 401 `Error parsing client JWT` で拒否する（受理 audience を変更する手段が無い）。
+
+Microsoft Learn 記載の自己ホスト構成に切り替えると解消する。
+
+```mermaid
+flowchart LR
+    F["Agent 365 ブループリント"] -->|messaging endpoint| S["App Service<br/>Agents SDK アプリ<br/>/api/messages"]
+    F --> G["agenticUser.json"]
+    G --> E["Teams manifest<br/>manifestVersion: devPreview"]
+    E -->|M365 管理センターで手動アップロード| T["Agent template"]
+    T --> N["Instance 作成<br/>= agentUser SP"]
+    N -->|Teams チャット| S
+    S -->|返信: FMI トークン交換| N
+    B["Azure Bot (UAMI)"] --- S
+```
+
+| 要素 | 要件 |
+|---|---|
+| App Service の `TokenValidation:Audiences` | **ブループリント appId** と Bot の appId の両方 |
+| `Connections:*:Settings:AuthType` | **confidential client 必須**（`ClientSecret` 等）。マネージド ID 不可 |
+| 同 `ClientId` | **ブループリント appId** |
+| 同 `Scopes` | `["5a807f24-c9de-44ee-a3a7-329e88a00ffc/.default"]` |
+| インスタンス SP | Messaging Bot API への `AgentData.ReadWrite` 同意が**インスタンスごとに**必要 |
+
+詳細は [troubleshooting.md](troubleshooting.md) #17〜#19、手順は [self-hosted-agent.md](self-hosted-agent.md)（SKILL.md Step 7）。
+
 ## 5. バージョニングと配信
 
 - `deploy.py`（= `agents.create_version`）で作った新バージョンは、

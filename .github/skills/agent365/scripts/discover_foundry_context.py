@@ -17,7 +17,7 @@ for a disambiguating argument instead of guessing.
 
 Usage:
     python scripts/discover_foundry_context.py
-    python scripts/discover_foundry_context.py --account geekfndrypj-resource --project my-project
+    python scripts/discover_foundry_context.py --account my-foundry-resource --project my-project
     python scripts/discover_foundry_context.py --write agents/hunter/.env --write agents/tech/.env --write agents/meena/.env
 """
 from __future__ import annotations

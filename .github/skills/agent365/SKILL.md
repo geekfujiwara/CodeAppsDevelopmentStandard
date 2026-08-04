@@ -1,6 +1,6 @@
 ---
 name: agent365
-description: "Microsoft Foundry のエージェントを SDK/REST ベースで作成・バージョン管理し、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に公開する。エージェントテンプレートの開発（定義・ブループリント・公開）を担当し、秘匿化・CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。ライト実装（PoC）と本格実装の 2 ルートを選択できる。"
+description: "Microsoft Foundry のエージェントを SDK/REST ベースで作成・バージョン管理し、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に公開する。自分のメールアドレスと予定表を持ち、自分の権限で働く『デジタルな同僚』を、役割カタログと機能ブロックの組み合わせで設計・実装する。秘書としての予定調整、受信トレイ監視によるメール応対、Dataverse の権限準拠検索、温かい人格、Teams プレゼンスを標準化する。CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。"
 category: automation
 triggers:
   - "Agent 365"
@@ -17,440 +17,564 @@ triggers:
   - "ライト実装"
   - "本格実装"
   - "Azure DevOps Repos でエージェント"
+  - "デジタルな同僚"
+  - "AI の部下"
+  - "エージェント専用のメールアドレス"
+  - "エージェントに予定表を持たせたい"
+  - "エージェントにメールを捌かせたい"
+  - "予定調整を任せたい"
+  - "自分の権限とは別に動くエージェント"
 ---
 
 # Foundry エージェント × Agent 365 公開スキル
 
 Microsoft Foundry 上のエージェントを**コードファースト**（SDK / REST のみ、ポータル自動操作なし）で
 定義・デプロイし、**Agent 365 のエージェント ID ブループリント**と Teams アプリパッケージを通じて
-Teams / Microsoft 365 Copilot に公開するまでを一貫して行う。
+Teams / Microsoft 365 Copilot の**同僚エージェント（agentUser）**として実際に会話できる状態にする。
+
+本 SKILL.md には**正常系フロー・汎用化・秘匿化**だけを置く。
+分岐・代替方式・異常系・背景説明はすべて `references/`、再現可能な手順は `scripts/` にある。
 
 | 原則 | 内容 |
 |---|---|
-| SDK / REST のみ | すべて `azure-ai-projects` SDK と Agent 365 CLI（`a365`）で完結。ポータルのブラウザ自動操作は行わない |
-| ルート選択 | **ライト実装（PoC）**と**本格実装（本番運用）**を最初に選ぶ。PoC に CI/CD 一式を強制しない |
-| テンプレート駆動 | コミットするのは `${VAR}` 入りテンプレートだけ。実値は `.env` / CI のシークレットストアのみ |
-| ALM は委譲 | 秘匿化・汎用化・pre-commit・CI/CD・レビューゲート・リリース記録は **`alm` スキル**が担当する |
+| SDK / REST のみ | `azure-ai-projects` SDK、Azure CLI、Agent 365 CLI（`a365`）で完結。ポータルのブラウザ自動操作は行わない |
+| 実装は自己ホスト | agentUser チャットが動くのは **Agents SDK アプリを App Service で自己ホストする構成のみ**。Foundry ホストは 401 で動かない |
+| テンプレート駆動 | コミットするのは `${VAR}` 入りテンプレートだけ。実値は `.env` / シークレットストアのみ |
 | インスタンス化 | インストールごとに専用の Entra Agent ID を持たせるには Agent 365 ブループリント + `agenticUserTemplates` が必須 |
-| 自動配信 | Foundry の「常に最新を使用」により、新バージョンは Teams / M365 Copilot へ自動配信される |
+| 同意はインスタンス単位 | インスタンスを作り直すたびに SP への管理者同意が要る（Step 14） |
+| ALM は委譲 | pre-commit・CI/CD・レビューゲート・リリース記録は **`alm` スキル**が担当する |
 
-> 前提ツール: Python 3.10+、Azure CLI（`az`、ログイン済み）、Agent 365 CLI（`a365`）、Git。
-> 本格実装の CI/CD ・秘匿化は **`alm` スキル** に従う → [`alm`](../alm/SKILL.md)。
-> 参考: [アーキテクチャ（2 種類のブループリント）](references/architecture.md) /
-> [ライト実装（PoC）クイックスタート](references/poc-quickstart.md) /
-> [複数の名前付きエージェント（チーム）を構築する標準パターン](references/team-pattern.md) /
-> [Agent 365 CLI 運用](references/a365-cli.md) /
-> [異常系・トラブルシュート](references/troubleshooting.md)
+> 前提ツール: Python 3.10+、Azure CLI（`az`、ログイン済み）、Agent 365 CLI（`a365`）、.NET 8 SDK、Git。
 
-## 事前確認（会話の最初に一括で確認する・正常系）
+| 参照 | 内容 |
+|---|---|
+| [references/digital-colleague-design.md](references/digital-colleague-design.md) | **何を作るかを決める層**（役割カタログ / 機能ブロックの組み合わせ / 制約の事前共有 / 段階導入）。**Step 0 で読む** |
+| [references/self-hosted-agent.md](references/self-hosted-agent.md) | **自己ホストの完全手順**（Azure Bot / App Service / `appsettings.json` / 同意 / ログの読み方） |
+| [references/agent-brain.md](references/agent-brain.md) | **エージェントの中身の作り込み**（Azure OpenAI 接続 / 会話履歴 / プロンプト外部化 / **Dataverse MCP 接続** / **Work IQ 接続** / 再デプロイ / ロールバック） |
+| [references/assistant-agent-pattern.md](references/assistant-agent-pattern.md) | **秘書・同僚エージェントの標準品質**（承認後の実行 / Dataverse の権限準拠検索 / 温かい人格 / Teams プレゼンス） |
+| [references/architecture.md](references/architecture.md) | 2 種類のブループリントの違い、agentUser チャットの経路 |
+| [references/troubleshooting.md](references/troubleshooting.md) | 異常系（401 / AADSTS82001 / AADSTS65001 / カタログ公開の 409・403 など） |
+| [references/foundry-hosted-bot.md](references/foundry-hosted-bot.md) | Foundry ホスト方式（直接 bot チャットのみ。agentUser では動かない） |
+| [references/poc-quickstart.md](references/poc-quickstart.md) | ライト実装（共有エージェント）の省略ルート |
+| [references/team-pattern.md](references/team-pattern.md) | 複数の名前付きエージェント（チーム）構成 |
+| [references/a365-cli.md](references/a365-cli.md) | `a365` CLI の運用・Windows 認証のハマりどころ |
+| [references/.env.example](references/.env.example) | 環境変数の一覧と取得元 |
+| [assets/icons/](assets/icons/) | ペルソナ別のサンプル アイコン（`mina` / `tech` / `hunter`）。`AGENT_ICON` に名前で指定できる |
+| [`alm`](../alm/SKILL.md) | 秘匿化ゲート・CI/CD・リリース記録 |
 
-本スキルの利用が確定したら、実装に着手する前に**1 回の AskUserQuestion で次の 4 点をまとめて
-確認する**。これが正常系の標準フロー。Step 0 / Step 1 / Step 6 で同じ内容を後から個別に
-聞き直さない（ここで得た回答をそのまま使い回す。未回答の項目だけ該当 Step で改めて聞く）。
+## 事前確認（会話の最初に 1 回だけ）
+
+本スキルの利用が確定したら、**1 回の AskUserQuestion で次の 4 点をまとめて確認する**。
+以降の Step で同じ内容を聞き直さない。
 
 | # | 質問 | 選択肢 / 記入例 |
 |---|---|---|
-| 1 | 検証・実装のゴールはどこまでか | (a) ローカルで scaffold して構成を確認するだけ（Azure 操作なし）<br>(b) Foundry 上に実際にエージェントを作成するところまで（Step 0〜5）<br>(c) Agent 365 の管理画面に "Agent template" として表示させ、そこから Instance を作成できる状態にする（Step 0〜5, 7, 9, 10。Azure Bot Service は作らない＝ Teams チャットはまだ動かない）<br>(d) Teams / M365 Copilot で実際にチャットできる状態まで実配信する（Step 0〜10 すべて。Azure Bot Service の課金を伴う） |
-| 2 | テスト用の Azure サブスクリプション・Foundry プロジェクトは既にあるか。`az login` は可能か | ある場合はそのまま Step 3 へ進む。無い場合は先に用意してもらう（サブスクリプション・Foundry account/project・(d) を選ぶ場合は Agent 365 ライセンス割り当ても必要） |
-| 3 | 「〇〇を行ってくれる同僚エージェント」の具体的な業務内容は？ | 自由記述。曖昧なら業務内容の候補例を提示して選んでもらう |
-| 4 | エージェント名（kebab-case、商標・著作権に触れない独自名）の希望は？ | 希望が無ければここで 3 案提案し選んでもらう（Step 1.3 と同じ制約） |
+| 1 | ゴールはどこまでか | (a) ローカル scaffold のみ（Azure 操作なし）<br>(b) Foundry 上にエージェントを作成するまで（Step 1〜5）<br>(c) M365 管理センターに "Agent template" として登録するまで（Step 1〜6, 10, 11。Teams チャットはまだ動かない）<br>**(d) Teams で実際に会話できる状態まで（Step 0〜15・Azure 課金あり）** |
+| 2 | Azure サブスクリプションと Foundry プロジェクトはあるか。`az login` は可能か | (d) を選ぶ場合は Agent 365 ライセンスの割り当ても必要 |
+| 3 | 「〇〇を行ってくれる同僚エージェント」の具体的な業務内容は？ | **[references/digital-colleague-design.md](references/digital-colleague-design.md) §2 の役割カタログ（R1〜R6）を選択肢として提示する**（複数可・自由記述可）。選んだ役割から必要な機能ブロックが決まる |
+| 4 | エージェント名（kebab-case、独自名）と Teams での表示名の希望は？ | 希望が無ければ 3 案提案する。アイコンは同梱サンプル（`mina` / `tech` / `hunter`）から選ぶか、独自画像を用意する。**商標・著作権に触れる名称やキャラクターは使わない** |
 
-質問 1 の回答は Step 6（公開範囲の確認）の判断を兼ねるため、(b)〜(d) を選んだ場合でも
-Step 6 で同じ質問を繰り返さない。(a)/(b) の時点では Azure Bot Service の課金やテナント
-全体への公開は発生しない。(c)/(d) は Azure リソース作成・テナントのアプリカタログへの
-公開を伴うため、質問 1 の選択自体が Step 6 の承認を兼ねる。
+質問 1 の回答が**テナントのアプリカタログへの公開の承認を兼ねる**。(a)/(b) では Azure Bot Service の
+課金もカタログ公開も発生しない。
 
-## 実装ルートの選択（ライト / 本格）
+質問 3 で役割を決めたら、**この場で制約も先に伝える**
+（[references/digital-colleague-design.md](references/digital-colleague-design.md) §5）。
+とくに「メールは push されないのでポーリングになる（数分の遅れが出る）」「エージェントはメールを
+既読にできない」「他人の予定表は直接読めない」の 3 点は、後から言うと要件が崩れる。
 
-`architecture` スキルの AskUserQuestion で選択済みならその結果に従う。未選択なら Step 0 で確認する。
+> ライト実装（共有エージェント・CI/CD なし）にする場合は Step 6（Agent 365 ブループリント）と
+> Step 14（インスタンス SP への同意）を省略する
+> → [references/poc-quickstart.md](references/poc-quickstart.md)。
 
-| 観点 | ライト実装（PoC） | 本格実装（本番運用） |
-|---|---|---|
-| 目的 | まず Teams で動かして価値を検証する | 継続的に運用・改善する |
-| 公開形態 | 共有エージェント（`agenticUserTemplates` なし） | インスタンス化（Agent 365 ブループリント + `agenticUserTemplates`） |
-| リポジトリ | 任意（ローカルのみでも可） | **private リポジトリ必須**（GitHub / Azure DevOps Repos / その他 Git） |
-| 秘匿値 | ローカル `.env` のみ（`SECRET_BACKEND=none`） | `.env` + CI のシークレットストア（`SECRET_BACKEND`） |
-| デプロイ | ローカルから `deploy.py` を手動実行 | CI/CD（秘匿化ゲート + Agent Evals + 承認ゲート） |
-| 実施する Step | 0 → 1 → 2 → 3 → 4 → 5 → 6 →（(b) を選んだ場合のみ 8 → 9 → 10） | Step 0 〜 12 のすべて（Step 6 では必ず (b) を選ぶ） |
+## スキル同梱スクリプト
 
-> ライト実装は **Step 7（Agent 365 ブループリント）と Step 11（CI/CD）を省略**する最短ルート。
-> 検証が済んだら**その 2 Step を後から追加するだけ**で本格実装へ昇格できる（作り直し不要）。
-> 省略ルートの要約は [references/poc-quickstart.md](references/poc-quickstart.md)。
-> **Step 6（公開範囲の確認）はライト実装・本格実装のどちらでも必ず実施する。**
-
-> **複数の名前付きエージェント（例: 役割の異なる 3 体が 1 チームとして協働する「AI 社員」構成）**を
-> 作りたい場合は、上記 Step 0〜12 をエージェントごとに横展開する。フォルダ構成・`.env` の分離・
-> ブループリント共有・エージェント間連携の制約は
-> [references/team-pattern.md](references/team-pattern.md) を参照。
-
-## スキル同梱スクリプト（再利用）
-
-すべて汎用化済み。値は引数または `.env`（[references/.env.example](references/.env.example)）から取得する。
+値は引数または `.env`（[references/.env.example](references/.env.example)）から取得する。
 
 | スクリプト | 用途 | Step |
 |---|---|---|
-| [scripts/discover_foundry_context.py](scripts/discover_foundry_context.py) | ARM REST（`auth_helper.py` のトークン）で Azure サブスクリプション・Foundry アカウント・プロジェクトを自動検出し `.env` に書き込む（ポータル手入力不要） | 3 |
-| [scripts/create_blueprint.py](scripts/create_blueprint.py) | Foundry のマネージド ID ブループリントを作成／一覧／表示（REST 直呼び） | 4 |
+| [scripts/discover_foundry_context.py](scripts/discover_foundry_context.py) | Azure サブスクリプション・Foundry アカウント／プロジェクトを自動検出し `.env` に書き込む | 3 |
+| [scripts/create_blueprint.py](scripts/create_blueprint.py) | Foundry のマネージド ID ブループリントを作成／一覧／表示 | 4 |
 | [scripts/create_instance.py](scripts/create_instance.py) | manifest / definition / blueprint の 3 モードでエージェントを作成 | 5 |
-| [scripts/deploy.py](scripts/deploy.py) | レンダリング済み manifest から新しいバージョンを `create_version` | 5, 10 |
-| [scripts/build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + agenticUser を ZIP 化 | 8 |
-| [scripts/publish_teams_app.py](scripts/publish_teams_app.py) | Microsoft Graph（`appCatalogs/teamsApps`）でビルド済み ZIP を組織アプリカタログへ登録・更新。**devPreview（Agent template）manifest は Graph 側で拒否されるため M365 管理センターへの手動アップロードが必要**（[references/troubleshooting.md](references/troubleshooting.md) #16） | 9 |
+| [scripts/deploy.py](scripts/deploy.py) | レンダリング済み manifest から新しいバージョンを `create_version` | 5, 11 |
+| [scripts/provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し、`.env` にエンドポイントを書き戻す | 7 |
+| [scripts/grant_agent_instance_consent.py](scripts/grant_agent_instance_consent.py) | エージェント インスタンス SP に Messaging Bot API の管理者同意を付与（`--check` で確認のみ） | 10 |
+| [scripts/build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + `agenticUser.json` を ZIP 化 | 8 |
+| [scripts/publish_teams_app.py](scripts/publish_teams_app.py) | Graph で ZIP を組織カタログへ登録（**devPreview は Graph 側で拒否されるため管理センター手動アップロード**） | 9 |
+| [scripts/set_agent_user_photo.py](scripts/set_agent_user_photo.py) | インスタンスのエージェンティック ユーザーにプロフィール写真を設定（`--check` で確認のみ） | 9-2 |
+| [scripts/configure_agent_presence.py](scripts/configure_agent_presence.py) | UAMI に Graph プレゼンス権限を冪等付与し、agentUser と設定値を確認（`--check` で確認のみ） | 9-3 |
 
 ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `review_sanitization.py` /
-`gate_rules.py` / `review_report.py`）は **`alm` スキル**が提供する
-→ [`alm/scripts`](../alm/SKILL.md#スキル同梱スクリプト)。
+`gate_rules.py` / `review_report.py`）は **`alm` スキル**が提供する。
 
-## 標準フォルダ構成（生成されるテーマ側）
+## 標準フォルダ構成
 
 ```
 <repo-root>/
-├── .env                          # 実値（.gitignore 済み）
-├── .env.example                  # プレースホルダーのみ（コミット対象）
-├── .githooks/pre-commit          # 汎用化 → Secrets 同期 → 漏洩検査（本格実装）
-├── <CI 定義>                     # 本格実装のみ。Git ホスティングに応じて選択（Step 0）
-│   ├── .github/workflows/        #   GitHub  : review.yml / deploy.yml
-│   └── .azuredevops/             #   Azure DevOps: azure-pipelines.yml / templates/
+├── .env                            # 実値（.gitignore 済み）
+├── .env.example                    # プレースホルダーのみ（コミット対象）
+├── .githooks/pre-commit            # 本格実装のみ（alm スキル）
 ├── agents/<agent-name>/
-│   ├── agent.template.yaml       # コミット対象（${VAR} 入り）
-│   └── agent.yaml                # レンダリング結果（.gitignore 済み）
+│   ├── agent.template.yaml         # コミット対象（${VAR} 入り）
+│   └── agent.yaml                  # レンダリング結果（.gitignore 済み）
+├── src/<agent-name>-agent/         # Agents SDK アプリ（自己ホスト）
+│   ├── Program.cs / <Agent>.cs
+│   ├── AgentBrain.cs                # LLM + MCP ツール ループ（全入口で共用）
+│   ├── AgenticIdentity.cs           # ターン外で自分としてトークンを取る
+│   ├── MailboxWorker.cs             # 受信トレイを監視してメールに返信（任意）
+│   ├── PresenceWorker.cs            # 常時稼働を Teams プレゼンスへ反映
+│   └── appsettings.json            # シークレットは書かない
 ├── teams/
-│   ├── manifest.template.json    # コミット対象
-│   ├── agenticUser.template.json # コミット対象（インスタンス化時）
-│   └── <agent-name>-teams-app.zip# ビルド結果（.gitignore 済み）
-├── assets/agent-icon.png         # アイコン元画像（正方形・背景透過）
-└── scripts/                      # 本スキルの scripts/ をコピー
+│   ├── manifest.template.json      # コミット対象
+│   ├── agenticUser.template.json   # コミット対象
+│   └── <agent-name>-teams-app.zip  # ビルド結果（.gitignore 済み）
+├── assets/agent-icon.png           # 正方形・背景透過（無ければ AGENT_ICON で同梱サンプルを指定）
+└── scripts/                        # 本スキルの scripts/ をコピー
 ```
 
-> ライト実装では `.githooks/` と CI 定義を作らない（`.env` を `.gitignore` するだけでよい）。
+## 正常系フロー
 
-## ワークフロー（正常系）
+実機で Teams 応答まで到達した手順そのもの。上から順に実行する。
 
-### Step 0: 実装レベルとリポジトリ形態を決める
+### Step 0: 役割と機能ブロックを確定する
 
-1. **ライト実装（PoC）か本格実装か**を AskUserQuestion で確認する
-   （**事前確認**または `architecture` スキルで選択済みならその結果を使い、重複して聞かない）。
-2. 本格実装なら **Git ホスティング**を確認し、CI とシークレット保管先を決める。
-   エージェント定義は業務知識を含むため、**private リポジトリを前提**とする。
+**何を作るかを決めずに Step 1 へ進まない。**
+[references/digital-colleague-design.md](references/digital-colleague-design.md) に従って次の 3 つを確定する。
 
-| Git ホスティング | CI | シークレット保管先 | `GIT_PROVIDER` | `SECRET_BACKEND` |
-|---|---|---|---|---|
-| GitHub（private） | GitHub Actions | GitHub Actions Secrets | `github` | `github` |
-| Azure DevOps Repos（private） | Azure Pipelines | 変数グループ（Key Vault 連携可） | `azure-devops` | `azure-devops` |
-| その他 Git（GitLab / Bitbucket / 自己ホスト） | 各 CI | Azure Key Vault | `other` | `keyvault` |
-| ライト実装 | なし | ローカル `.env` のみ | （任意） | `none` |
+1. **役割**（§2 の R1〜R6）— 予定調整の秘書 / 一次受付 / ウォッチャー / まとめ役 / 起票係 / チーム
+2. **機能ブロック**（§3・§4 の対応表）— B1〜B8 のうちどれを入れるか。全部入れない
+3. **段階**（§7）— L1 話せる → L2 自分の予定を持つ → L3 メールで働く → L4 業務データ → L5 自分から動く
 
-3. 決めた値を `.env` の `IMPLEMENTATION_MODE` / `GIT_PROVIDER` / `SECRET_BACKEND` に設定する。
-   → CI 定義の雛形と認証の差異は **`alm` スキル**の
-   [CI / Git ホスティング別の構成](../alm/references/ci-providers.md)。
+決まったブロックが、以降の Step の実施範囲を決める。
 
-### Step 1: 公開形態を決める
+| ブロック | 対応する Step |
+|---|---|
+| B1 Teams 会話 / B3 頭脳 / B8 人格 | Step 7・8 |
+| B4 Microsoft 365 接続 / B5 Dataverse 接続 | [references/agent-brain.md](references/agent-brain.md) §6・§7 |
+| B2 自分の ID / B6 受信トレイ監視 | Step 9 |
+| B7 Teams プレゼンス | Step 13 |
 
-1. **共有エージェント**（全ユーザーが同じ 1 体を使う）か、
-   **インスタンス化エージェント**（インストールごとに専用の Entra Agent ID を持つ）かを確認する。
-   **ライト実装では常に共有エージェント**とし、Step 7 を省略する。
-2. インスタンス化する場合のみ Agent 365 ブループリント（Step 7）と `agenticUserTemplates` が必要になる。
-   → 詳細は [references/architecture.md](references/architecture.md)。
-3. エージェント名（kebab-case、Teams 表示名とは別）を決める。
-   **事前確認の質問 4 で回答済みならその名前を使う**。未回答ならエージェント名を3件 AskUserQuestion にて提案する。ここでのエージェント名は独自性のあるものとし、**商標・著作権に触れる名称やキャラクターを使用してはならない**。
+### Step 1: 名前・表示名・アイコンを決める
+
+エージェントの**顔（表示名とアイコン）は Teams パッケージに焼き込まれる**ので、
+Step 10 のビルド前に必ず確定させる。後から直すには再アップロードが必要（[表示名・アイコンを後から変える](#表示名アイコンを後から変える)）。
+アイコンはここで決めたものを Step 12 でプロフィール写真にも流用する。
+
+1. 事前確認の回答から、エージェント名（kebab-case、リソース名の元）と業務内容を確定する。
+2. `.env` に表示名を設定する。**ユーザーが Teams で目にする名前であり、`AGENT_NAME` とは別物**。
+   人格を持たせるなら「役割 + 名前」形式が見つけやすい（例: `秘書 ミーナ`）。
+
+   ```dotenv
+   AGENT_NAME=mina-secretary          # kebab-case。フォルダ・リソース名
+   AGENT_DISPLAY_NAME=秘書 ミーナ         # 30 文字以内。Teams の表示名
+   AGENT_FULL_NAME=秘書 ミーナ - 予定とメールを掃く同僚エージェント   # 100 文字以内
+   AGENT_ICON=mina                    # パス、または同梱サンプル名
+   ```
+
+3. アイコンを決める。`AGENT_ICON` は次の順で解決される——
+   `--icon` 引数 › `AGENT_ICON` › `assets/agent-icon.png`。
+   ペルソナに合うものが無ければ、**スキル同梱のサンプルをそのまま名前で指定できる**。
+
+   | サンプル名 | ファイル | ペルソナ |
+   |---|---|---|
+   | `mina` | [assets/icons/mina.png](assets/icons/mina.png) | 秘書・アシスタント系（予定調整やメール対応） |
+   | `tech` | [assets/icons/tech.png](assets/icons/tech.png) | 技術・開発サポート系 |
+   | `hunter` | [assets/icons/hunter.png](assets/icons/hunter.png) | 営業・案件探索系 |
+
+   独自アイコンを使う場合は `assets/agent-icon.png` に置く。
+   **アルファチャンネル付きの正方形 PNG**（512x512 推奨）にする。背景を透過にしないと
+   Step 10 の outline アイコンが塗り潰しになる。汎用の色付き円やイニシャルだけの仮アイコンは使わない。
+   **商標・著作権に触れる意匠やキャラクターは使わない。**
 
 ### Step 2: リポジトリを scaffold する
 
-リポジトリの雛形（`.gitignore` / hook / CI 定義）は **`alm` スキル**が定義する
-→ [リポジトリ scaffold](../alm/references/repo-scaffold.md)。
-
 ```powershell
-# エージェント固有のスクリプトとテンプレート
 Copy-Item .github/skills/agent365/scripts -Destination scripts -Recurse
-# ALM 共通スクリプト（render / sanitize / check_secrets / レビューゲート）
 Copy-Item .github/skills/alm/scripts/*.py -Destination scripts
 Copy-Item .github/skills/agent365/references/templates/agent.template.yaml agents/<agent-name>/
 Copy-Item .github/skills/agent365/references/templates/manifest.template.json teams/
 Copy-Item .github/skills/agent365/references/templates/agenticUser.template.json teams/
 Copy-Item .github/skills/agent365/references/.env.example .env.example
-git config core.hooksPath .githooks   # 本格実装のみ
+# 独自アイコンを使わないなら同梱サンプルを既定の位置に置く（AGENT_ICON=mina でも同等）
+New-Item -ItemType Directory assets -Force | Out-Null
+Copy-Item .github/skills/agent365/assets/icons/mina.png assets/agent-icon.png
 pip install -r requirements.txt   # azure-ai-projects / azure-identity / PyYAML / Pillow / requests
 ```
 
-`.gitignore` には最低限 `.env` / `agents/**/agent.yaml` / `teams/*.zip` / `a365.generated.config.json`
-/ `*token-cache*` を追加する（[完全版](../alm/references/repo-scaffold.md)）。
-本格実装では Step 0 で選んだ Git ホスティングの CI 定義と `alm.config.json` も配置する
-（[`alm`](../alm/SKILL.md)）。**ライト実装では `.githooks/` と CI 定義を作らない**。
+`.gitignore` は[秘匿化](#秘匿化)の一覧を満たすこと。本格実装のリポジトリ雛形・hook・CI 定義は
+**`alm` スキル**（[リポジトリ scaffold](../alm/references/repo-scaffold.md)）に従う。
 
 ### Step 3: Foundry プロジェクトと `.env` を用意する
 
 ```powershell
 Copy-Item .env.example .env
+az login
 python scripts/discover_foundry_context.py --write .env
 ```
 
-1. `scripts/discover_foundry_context.py` が ARM REST（`auth_helper.py` の
-   `get_token(scope="https://management.azure.com/.default")`）で Azure サブスクリプション・
-   Foundry アカウント（Cognitive Services、`kind=AIServices`）・プロジェクトを自動検出し、
-   `AZURE_SUBSCRIPTION_ID` / `AZURE_TENANT_ID` / `AZURE_RESOURCE_GROUP` / `AZURE_AI_ACCOUNT` /
-   `AZURE_AI_PROJECT` / `FOUNDRY_PROJECT_ENDPOINT` を `.env` に書き込む。
-   ポータルでの手入力は不要。
-2. 候補が複数ある場合（サブスクリプション・Foundry アカウント・プロジェクトが複数見つかる場合）は、
-   候補一覧を表示して停止する。`--subscription-id` / `--account` / `--project` で絞り込む。
-3. `az login` 済みであることを確認する。`discover_foundry_context.py` は `auth_helper.py` の
-   `DeviceCodeCredential`（`az login` とは別の認証フロー・初回のみデバイスコードサインインが必要）を
-   使うが、Step 4 以降の `create_blueprint.py` / `create_instance.py` / `deploy.py` は
-   `DefaultAzureCredential`（`az login` 済みの資格情報を利用）で Foundry を呼ぶため、
-   結局どちらも必要になる。
-
-> **`.env` は絶対にコミットしない**。
-> 複数の名前付きエージェント（チーム）を作る場合の `.env` 分離・共有値のコピー方は
-> [references/team-pattern.md](references/team-pattern.md) を参照。
+`AZURE_SUBSCRIPTION_ID` / `AZURE_TENANT_ID` / `AZURE_RESOURCE_GROUP` / `AZURE_AI_ACCOUNT` /
+`AZURE_AI_PROJECT` / `FOUNDRY_PROJECT_ENDPOINT` が書き込まれる。候補が複数ある場合は一覧を
+表示して停止するので `--subscription-id` / `--account` / `--project` で絞り込む。
 
 ### Step 4: Foundry のマネージド ID ブループリントを作成する
 
-エージェントのマネージド ID の設計図。**`lifecycle=Manual` で作れば複数エージェントから共有できる**
-（エージェントが暗黙に作る `Auto` は所有者専用で共有不可）。
-
 ```powershell
-python scripts/create_blueprint.py --name <blueprint-name>          # lifecycle=Manual
-python scripts/create_blueprint.py --list
+python scripts/create_blueprint.py --name <blueprint-name>   # lifecycle=Manual
 python scripts/create_blueprint.py --name <blueprint-name> --show
 ```
 
-出力された `blueprintId` / `principalId` / `clientId` を `.env` の
+`lifecycle=Manual` で作れば複数エージェントから共有できる（暗黙に作られる `Auto` は所有者専用）。
+出力の `blueprintId` / `principalId` / `clientId` を `.env` の
 `BLUEPRINT_ID` / `BLUEPRINT_PRINCIPAL_ID` / `BLUEPRINT_CLIENT_ID` に設定する。
 
 ### Step 5: エージェントを定義してデプロイする
 
 1. `agents/<agent-name>/agent.template.yaml` の `definition`（`model` / `instructions` / `tools`）を編集する。
-   ARM リソース参照は必ず `${AZURE_SUBSCRIPTION_ID}` 等のプレースホルダーで書く。
 2. レンダリングしてデプロイする。
 
 ```powershell
 python scripts/render.py --agent <agent-name>
 python scripts/create_instance.py --name <agent-name> --mode blueprint --blueprint-id <blueprint-name>
-# 2 回目以降のバージョン更新
-python scripts/deploy.py --agent <agent-name>
+python scripts/deploy.py --agent <agent-name>    # 2 回目以降のバージョン更新
 ```
 
-| モード | SDK API | 用途 |
-|---|---|---|
-| `manifest` | `agents.create_version_from_manifest` | 公開済みテンプレート ID + パラメーター値で作成 |
-| `definition` | `agents.create_version` | テンプレート定義を複製して独立エージェント化 |
-| `blueprint` | `agents.create_version(blueprint_reference=...)` | ブループリント共有（`lifecycle=Manual` 必須） |
+`INSTANCE_IDENTITY_PRINCIPAL_ID` / `INSTANCE_IDENTITY_CLIENT_ID` / `AGENT_GUID` を `.env` へ反映する
+（`agent_guid` は `client.agents.get(...)` の `versions.latest.agent_guid`）。
+モードの違いと `instance_identity` が返らない場合の扱いは
+[references/troubleshooting.md](references/troubleshooting.md)。
 
-作成後、`INSTANCE_IDENTITY_PRINCIPAL_ID` / `INSTANCE_IDENTITY_CLIENT_ID` / `AGENT_GUID` を `.env` へ反映する。
-`agent_guid` は `client.agents.get(agent_name=...)` の応答（`versions.latest.agent_guid`）から取得できる。
-**`--mode blueprint` の場合、検証環境によっては応答に `instance_identity` が含まれないことがある**
-（[references/troubleshooting.md](references/troubleshooting.md) の該当項目を参照）。その場合は
-ブループリント共有の設計上、`INSTANCE_IDENTITY_PRINCIPAL_ID` / `INSTANCE_IDENTITY_CLIENT_ID` に
-`BLUEPRINT_PRINCIPAL_ID` / `BLUEPRINT_CLIENT_ID` と同じ値を設定してよい。
+### Step 6: Agent 365 のエージェント ID ブループリントを作成する
 
-### Step 6: 公開範囲を確認する（テンプレート公開のみ / Agent template 登録 / デジタル従業員として実配信）
-
-Step 5 までで Foundry 上にエージェントは実際に動作する状態になるが、**Teams / Microsoft 365
-管理センター（`https://admin.cloud.microsoft/?#/agents/all`）にはまだ表示されない**。
-「Agent 365 の管理画面に "Agent template" として表示させ、そこから Instance を作成できる
-状態にする」ことと「実際に Teams でチャットできる状態にする」ことは**別のマイルストーン**。
-前者は Step 7（Agent 365 ブループリント）→ Step 9（`--require-template`）→ Step 10（Graph 公開）
-だけで達成でき、**Azure Bot Service（Step 8、課金あり）は不要**（Bot Service はエージェントの
-インスタンスが実際に Teams 上のメッセージへ応答するための経路であり、管理画面へのカタログ登録
-そのものには関与しない）。Step 7 以降は**テナントのアプリカタログへの公開**を伴うため、
-**事前確認の質問 1 で回答済みでなければ、必ず AskUserQuestion で確認してから Step 7 以降に進む。**
-
-> 事前確認の質問 1 で回答済みならここで聞き直さない。複数の名前付きエージェントの場合は
-> **エージェントごとに個別に確認する**。
-
-| 質問 | 選択肢 |
-|---|---|
-| Step 5 で作成したエージェントテンプレートを、この先どこまで公開しますか？ | **(a) いいえ、テンプレート公開のみでよい**（ここで作業を終える。Step 7〜11 は実施しない）<br>**(b) Agent 365 の管理画面に "Agent template" として表示させ、Instance を作成できる状態にしたい**（Step 7 → 9（`--require-template`）→ 10 を実施。Step 8 は実施しない＝ Teams チャットはまだ動かない）<br>**(c) はい、Teams / M365 Copilot で実際にチャットできる状態まで実配信する**（Step 7 → 8 → 9 → 10 をすべて実施） |
-
-- **(a) を選んだ場合**: ここで作業を止める。`agents/<agent-name>/agent.template.yaml` がコミットされ、
-  Foundry 上にエージェントバージョンが稼働している状態が最終成果物。
-  `admin.cloud.microsoft/?#/agents/all` に表示されないのは想定どおりの挙動。
-- **(b) を選んだ場合**: Step 7 → Step 9（`--require-template` を付与）→ Step 10 の順で進める。
-  Step 8（Azure Bot Service）は行わない。実際に Teams で使い始めたくなった時点で
-  Step 8 を追加すればよい（作り直し不要。[references/troubleshooting.md](references/troubleshooting.md) 参照）。
-- **(c) を選んだ場合**: Step 1 の判断（共有 / インスタンス化）に従って
-  Step 7（インスタンス化する場合のみ）→ Step 8 → Step 9 → Step 10 と進める。
-
-### Step 7: Agent 365 のエージェント ID ブループリントを作成する
-
-インストールごとの専用 Entra Agent ID が必要な場合のみ実施する（Step 1 の判断）。
-**ライト実装ではこの Step を飛ばす**（共有エージェントとして公開する）。
-**Foundry のブループリントとは別物**なので混同しない。
+**Foundry のブループリントとは別物**（[references/architecture.md](references/architecture.md)）。
 
 ```powershell
 a365 setup blueprint -n <agent-name> --no-endpoint
 ```
 
 - 生成された `a365.generated.config.json` の `agentBlueprintId` を `.env` の
-  `A365_AGENT_BLUEPRINT_ID` に設定する（このファイル自体は `.gitignore` 済み）。
-- 実行のたびに**クライアントシークレットが平文で標準出力される**。ログに残さない。
-- 初回はディレクトリ伝播の遅延で失敗することがあるが、**同じコマンドを再実行すれば冪等に修復される**。
-- Windows での認証（WAM）まわりのハマりどころは [references/a365-cli.md](references/a365-cli.md)。
+  `A365_AGENT_BLUEPRINT_ID` に設定する。
+- **クライアントシークレットが平文で標準出力される。ログに残さない**（[秘匿化](#秘匿化)）。
+- 初回はディレクトリ伝播の遅延で失敗することがあるが、**同じコマンドを再実行すれば冪等に修復**される。
+- エンドポイント登録は Step 7 で行う（この時点ではまだ URL が存在しない）。
 
-### Step 8: Azure Bot Service と Teams チャネルを作成する（Step 6 で (c) を選んだ場合のみ）
+### Step 7: 自己ホストのメッセージング エンドポイントを用意する
 
-Bot の `msaAppId` には**エージェントのインスタンス ID の client id** を使う。
+**agentUser チャットが動く唯一の構成。** 詳細と `appsettings.json` の全文は
+[references/self-hosted-agent.md](references/self-hosted-agent.md)。
 
 ```powershell
-az bot create --resource-group $env:AZURE_RESOURCE_GROUP --name $env:AZURE_BOT_NAME `
-  --app-type SingleTenant --appid $env:INSTANCE_IDENTITY_CLIENT_ID --tenant-id $env:AZURE_TENANT_ID `
-  --endpoint "$env:FOUNDRY_PROJECT_ENDPOINT/agents/$env:AGENT_NAME/endpoint/protocols/activityprotocol?api-version=2025-11-15-preview" `
-  --sku S1
-az bot msteams create --resource-group $env:AZURE_RESOURCE_GROUP --name $env:AZURE_BOT_NAME
+# 1. UAMI + Azure Bot(Teams チャネル) + App Service を作成し .env に書き戻す
+python scripts/provision_selfhost.py --write .env
+
+# 2. Agents SDK アプリ（Microsoft.Agents.Hosting.AspNetCore + .Authentication.Msal）を実装し、
+#    appsettings.json を agentic 対応にする（AuthType=ClientSecret、
+#    ClientId=A365_AGENT_BLUEPRINT_ID、Scopes=["5a807f24-c9de-44ee-a3a7-329e88a00ffc/.default"]、
+#    TokenValidation:Audiences にブループリント appId と Bot の msaAppId を列挙）
+
+# 3. ブループリント用シークレットを App Service のアプリ設定に注入（appsettings.json には書かない）
+$sec = az ad app credential reset --id $env:A365_AGENT_BLUEPRINT_ID --append `
+         --display-name "$env:AGENT_NAME-agent" --years 1 --query password -o tsv
+az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME `
+  --settings "Connections__ServiceConnection__Settings__ClientSecret=$sec"
+Remove-Variable sec
+
+# 4. デプロイ（発行前に publish フォルダを必ず削除する）
+Remove-Item .\publish -Recurse -Force -ErrorAction SilentlyContinue
+dotnet publish -c Release -o .\publish
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory("$PWD\publish", "$PWD\publish.zip")
+az webapp deploy -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME `
+  --src-path .\publish.zip --type zip --track-status false --timeout 600000
+az webapp restart -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME
+
+# 5. ブループリントにエンドポイントを登録（Step 6 と同じカレントディレクトリで実行）
+a365 setup blueprint -n <agent-name> --endpoint-only --messaging-endpoint $env:AGENT_MESSAGING_ENDPOINT
 ```
 
-### Step 9: Teams アプリパッケージをビルドする
+- `--messaging-endpoint` は **`--endpoint-only` との併用が必須**。
+- 2 つの `a365 setup blueprint` は `a365.generated.config.json` があるディレクトリで実行する
+  （別ディレクトリだと `Configuration file not found`）。
+- エンドポイントは**自前 App Service の `/api/messages`**。Foundry の `activityprotocol` URL は
+  401 になる（[references/foundry-hosted-bot.md](references/foundry-hosted-bot.md)）。
+- エージェント本体（LLM 接続・プロンプト・会話履歴）の作り込みと再デプロイの注意点は
+  [references/agent-brain.md](references/agent-brain.md)。
 
-M365 管理センター（`admin.cloud.microsoft/?#/agents/all`）に **"Agent template"** バッジ付きで
-表示させたい場合は、**Step 7（Agent 365 ブループリント）を必ずこの Step より前に完了させる**。
-`A365_AGENT_BLUEPRINT_ID` が未設定のままここを実行すると、`agenticUserTemplates` の無い
-**共有エージェント（"Agent template" ではない、ただの "Agent"）**パッケージが作られ、
-それを Step 10 で公開すると**先に非テンプレートの Agent として登録されてしまう**
-（後から Step 7 を行って再公開しても、"Agent" → "Agent template" への移行は避けたい手戻りになる）。
-これを防ぐため、Agent template を目指す場合は **`--require-template` を付けて実行する**
-（`A365_AGENT_BLUEPRINT_ID` が無ければビルドを止めてエラーにする）。
+### Step 8: 秘書・同僚としての初期品質を入れる
+
+エージェントを公開する前に、[秘書プロンプト雛形](references/templates/assistant-system-prompt.template.md)を
+`prompts/system.md` へコピーし、`<表示名>` / `<役割>` / `<人格>` を業務に合わせて置き換える。
+詳細な設計意図と実装チェックは
+[references/assistant-agent-pattern.md](references/assistant-agent-pattern.md) を参照する。
+
+最低限、最初のバージョンから次を満たすこと。
+
+- 候補提示後の「お願い」「OK」「それで進めて」は承認として扱い、**同じターンで書き込みツールを実行する**
+- ツールを呼ぶ前に「許可されていない」と推測で断らず、実際のエラーだけを失敗として扱う
+- Dataverse の HR・面談などを分類名だけで一律拒否せず、**まず検索して接続先が返した範囲を回答する**
+- 役割に合う温かい口調を明記し、冷たい選択肢の列挙だけで終わらせない
+- 実行結果が `content` ではなく `structuredContent` にある場合も成功としてモデルへ返す
+
+### Step 9: メールで働けるようにする（B2 + B6、役割に応じて）
+
+Step 0 で B6 を選んだ場合だけ実施する。**Agent 365 はエージェンティック ユーザー宛のメールを
+メッセージング エンドポイントへ配送しない**（push されるのは Teams だけ）。自分で見に行く。
+
+```powershell
+# 1. ターン外で自分のトークンを取る仕組みと、受信トレイ監視をコピー
+Copy-Item .github/skills/agent365/references/templates/AgenticIdentity.template.cs `
+  src/<agent-name>-agent/AgenticIdentity.cs
+Copy-Item .github/skills/agent365/references/templates/MailboxWorker.template.cs `
+  src/<agent-name>-agent/MailboxWorker.cs
+
+# 2. アプリ設定（__ が階層区切り。値は .env から渡し、コードに埋めない）
+az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
+  Agentic__TenantId=$env:AZURE_TENANT_ID `
+  Agentic__InstanceId=$env:A365_AGENT_INSTANCE_ID `
+  Agentic__UserId=$env:A365_AGENT_USER_ID `
+  Mailbox__Enabled=true Mailbox__PollSeconds=60
+
+# 3. 再デプロイ後、エージェント宛へテスト メールを送ってログを見る
+az webapp log tail -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME
+```
+
+`Program.cs` に登録する。
+
+```csharp
+builder.Services.AddSingleton<AgenticIdentityStore>();
+builder.Services.AddSingleton<AgenticTokenSource>();
+builder.Services.AddHostedService<MailboxWorker>();
+```
+
+ターン ハンドラーの先頭で `identities.Observe(turnContext.Activity);` を呼び、アプリ設定の
+3 値を実ターンで上書きする（両方やると堅い）。
+
+確認するログ:
+
+| ログ | 意味 |
+|---|---|
+| `Mailbox worker polling every 60s` | ワーカーが起動した |
+| `Handling N unread message(s)` | 未読を見つけて処理に入った |
+| `Mail sweep result: …` | 1 周分の処理結果（1 件 1 行） |
+| `Agentic identity unknown; skipping sweep` | 上の 3 値が未設定。アプリ設定を見直す |
+
+前提となる制約（**設計時に依頼者へ共有済みであること**）:
+
+- 応答はポーリング間隔ぶん遅れる（既定 60 秒、下限 30 秒）
+- **メールを既読にできない**。処理済み ID の保持と起動時刻フィルターで二重返信を防ぐ
+- Logic Apps / Power Automate で push 化する回避策は成立しない
+
+背景と実測値は [references/agent-brain.md](references/agent-brain.md) §7-5、
+設計上の扱いは [references/digital-colleague-design.md](references/digital-colleague-design.md) §5。
+
+### Step 10: Teams アプリパッケージをビルドする
 
 ```powershell
 python scripts/build_teams_package.py --require-template
 ```
 
-- `assets/agent-icon.png` から `color.png`（192x192）と `outline.png`（32x32・白シルエット）を自動生成する。
-  元画像は**アルファチャンネル付きの正方形 PNG**にする（背景が不透明だと outline が塗り潰しになる）。
-- `A365_AGENT_BLUEPRINT_ID` が設定されていれば `agenticUser.json` を同梱し、
-  `manifestVersion: devPreview` のインスタンス化（= Agent template）パッケージを生成する。
-  `--require-template` 無しで未設定のまま実行すると、GA スキーマ（1.22）の**共有エージェント**
-  パッケージに自動ダウングレードして警告を出す（ライト実装で意図的に共有エージェントとして
-  公開する場合のみこちらを使う）。
-- **再アップロードのたびに `.env` の `TEAMS_APP_VERSION` を上げる**（同一バージョンはアップロード時に拒否される）。
+- `--require-template` は `A365_AGENT_BLUEPRINT_ID` 未設定ならビルドを止める。
+  未設定のまま公開すると "Agent template" ではない共有エージェントとして先に登録されてしまい、
+  手戻りになる。
+- Step 1 で決めた `AGENT_ICON` から `color.png`（192x192）と `outline.png`（32x32・白シルエット）を
+  生成する。出力の `app name` と `color icon` 行で、**意図した表示名とアイコンが入ったかを必ず確認する**。
+- **再アップロードのたびに `.env` の `TEAMS_APP_VERSION` を上げる**（同一バージョンは拒否される）。
 
-### Step 10: 公開する
+### Step 11: M365 管理センターへ公開してインスタンスを作る
 
-> **重要**: Step 6 で **(b)/(c)** を選び `--require-template` 付きでビルドした場合
-> （`manifestVersion: devPreview` / `agenticUserTemplates` 付き = "Agent template"）、
-> Microsoft Graph の `POST /appCatalogs/teamsApps` は agentic マニフェストのアップロードを
-> **サーバー側で明示的に拒否する**（`400 BadRequest: "Agentic apps are not supported for
-> uploading from Teams/Teams Admin Center. Please use M365 Admin Center."`）。
-> これは認証やスクリプトの実装では回避できないハード制約（2026-07 時点で確認済み。
-> [references/troubleshooting.md](references/troubleshooting.md) #16 参照）。
-> **この場合は下記のスクリプト実行を飛ばし、M365 管理センター
-> （`https://admin.cloud.microsoft/?#/agents/all` の "Upload"）から手動で ZIP をアップロードする。**
-> `scripts/publish_teams_app.py` は `manifest.json` の `manifestVersion` が `devPreview` の場合、
-> Graph 呼び出しを試みる前にこの旨を案内して終了する。
+**devPreview（Agent template）manifest は Microsoft Graph の
+`POST /appCatalogs/teamsApps` が明示的に拒否する**（`Agentic apps are not supported for
+uploading from Teams/Teams Admin Center. Please use M365 Admin Center.`）。
+スクリプトでは回避できないハード制約（[references/troubleshooting.md](references/troubleshooting.md) #16）。
 
-Step 6 で **(a)（テンプレート公開のみ）を選んでいた場合はこの Step 全体を実施しない**。
-`--require-template` 無しでビルドした GA/共有エージェント manifest（非 devPreview）のみ、
-以下の Graph API 経由のスクリプト公開が使える。
+1. `https://admin.cloud.microsoft/?#/agents/all` の **Upload** から ZIP を手動アップロードする。
+2. 公開（Publish）→ **Activation** を行う。
+3. Agent template からインスタンスを作成し、表示名とインスタンス ID を控える。
 
-```powershell
-python scripts/publish_teams_app.py
-# 管理者レビューを経て公開する場合（Teams 管理者ロールが無いユーザーはこちら）
-python scripts/publish_teams_app.py --requires-review
-```
+GA スキーマ（非 devPreview）の共有エージェントのみ `python scripts/publish_teams_app.py`
+（管理者ロールが無い場合は `--requires-review`）で Graph 経由の公開ができる。
 
-1. Microsoft Graph の `POST /appCatalogs/teamsApps`（新規）または
-   `POST /appCatalogs/teamsApps/{id}/appDefinitions`（既存アプリの新バージョン）を呼ぶ。
-   認証は `auth_helper.py` の
-   `get_token(scope="https://graph.microsoft.com/AppCatalog.ReadWrite.All", client_id="14d82eec-204b-4c2f-b7e8-296a70dab67e")`
-   （Microsoft Graph PowerShell の well-known パブリッククライアント + DeviceCodeCredential +
-   永続キャッシュ）を再利用する。既定の Azure CLI パブリッククライアントは
-   `AppCatalog.ReadWrite.All` を原理的に取得できないため、この client_id への切り替えが必須
-   （[references/troubleshooting.md](references/troubleshooting.md) #11 参照）。
-2. これらの Graph API は **Delegated 権限のみ対応**（Application 権限は不可）。
-   テナントで `AppCatalog.ReadWrite.All` の同意が必要（初回サインイン時に同意画面が表示される）。
-   `--requires-review` 無しで即時公開するには実行ユーザーが Teams 管理者ロールを持つ必要がある
-   （無い場合は `--requires-review` で申請する）。
-3. （devPreview / Agent template を M365 管理センターで手動アップロードした場合を含め）
-   Step 6 で (b) を選んだ場合、Agent 365 の管理画面（`admin.cloud.microsoft/?#/agents/all`）に
-   "Agent template" として表示され、そこから Instance を作成できることを確認する
-   （Step 8 を行っていないため、Teams 上でのチャット応答はまだ確認できない）。
-   (c) を選んだ場合は、Teams でエージェントを開き、利用者ごとのセッション（インスタンス）が
-   開始されることを確認する。
+### Step 12: エージェンティック ユーザーの顔写真を設定する
 
-> **ライト実装はここで完了**。以降の Step 11 は本格実装のみ実施する。
-> ライト実装のまま運用する場合も、`.env` をコミットしていないことを Step 12 で必ず確認する。
+**パッケージのアイコンとプロフィール写真は別物**。インスタンスを作った直後に必ず行う。
 
-### Step 11: CI/CD と秘匿化ゲートを有効化する（本格実装のみ）
+| | 反映先 | 設定方法 |
+|---|---|---|
+| パッケージ アイコン（`color.png` / `outline.png`） | アプリ カタログ、チャットのヘッダー | Step 10 のビルドで焼き込み |
+| **プロフィール写真** | プロフィール カード、People ピッカー、**送信メールの差出人アバター** | この Step |
 
-この Step は **`alm` スキル** が担当する → [`alm`](../alm/SKILL.md)。
-エージェント側から渡す情報は次の 3 点だけ。
-
-1. **`alm.config.json`**（[例](../alm/alm.config.example.json)）でエージェントのレイアウトを宣言する。
-
-   | キー | 値 |
-   |---|---|
-   | `templates` | `agents/**/*.template.yaml`, `teams/*.template.json` |
-   | `rendered` | `agents/**/agent.yaml` |
-   | `artifacts` | `teams/*.zip` |
-   | `forbidden_tracked` | `.env`, `a365.generated.config.json`, `auth-token.json` |
-   | `non_secret_vars` | `AGENT_NAME`, `BLUEPRINT_ID` などの公開識別子 |
-
-2. **デプロイ手順**: パイプラインの deploy ジョブを次の 2 ステップに差し替える。
-
-   ```yaml
-   - name: Render agent.yaml from the template and secrets
-     run: python scripts/render.py --template agents/<name>/agent.template.yaml \
-       --output agents/<name>/agent.yaml
-   - name: Deploy a new agent version to Foundry
-     id: deploy
-     run: python scripts/deploy.py --manifest agents/<name>/agent.yaml
-   ```
-
-3. **Azure ロール**: OIDC のアプリ登録に Foundry プロジェクトへのロール
-   （Azure AI Developer / Cognitive Services User 等）を付与する。
-
-`deploy.py` は作成したバージョンを `GITHUB_OUTPUT` へ出力するので、
-`alm` の release ジョブが `agent-v<version>` タグでリリースを作成・更新できる。
-
-```mermaid
-flowchart TD
-    A[ローカル編集] --> B[git commit]
-    B -->|pre-commit: alm| C[汎用化 + シークレット同期 + 漏洩検査]
-    C --> D[PR]
-    D --> E[レビューゲート: alm]
-    E -->|GO| F[既定ブランチへマージ]
-    F --> G[render.py → deploy.py（create_version）]
-    G --> H[常に最新を使用 → Teams / M365 Copilot へ自動配信]
-    G --> I[GitHub Release に記録: alm]
-```
-
-### Step 12: 検証する
+インスタンスを作ると `#microsoft.graph.agentUser` 型のユーザーが 1 つ増える。普通のユーザーと
+同じく `PUT /users/{id}/photo/$value` が使えるが、**パッケージのアップロードでは設定されない**ので
+インスタンス単位で個別に押し込む。
 
 ```powershell
-python scripts/review_sanitization.py       # Pass であること
-python scripts/create_blueprint.py --list   # ブループリントの存在確認
-git status --short                          # .env / agent.yaml / *.zip が未追跡であること
+python scripts/set_agent_user_photo.py --upn <インスタンスの UPN>
+python scripts/set_agent_user_photo.py --upn <インスタンスの UPN> --check   # 確認のみ
 ```
 
-[検証チェックリスト](#検証チェックリスト) を上から確認する。
+UPN が分からなければ、エージェンティック ユーザーだけを引くとよい。
+
+```powershell
+az rest --method GET --url "https://graph.microsoft.com/v1.0/users?`$filter=startswith(userPrincipalName,'<接頭辞>')&`$select=id,displayName,userPrincipalName"
+```
+
+- Graph は写真に **JPEG** を要求するので、スクリプトが PNG を 648x648 の JPEG に変換して送る。
+- 必要な権限は `ProfilePhoto.ReadWrite.All` または `User.ReadWrite.All`（ユーザー管理者以上）。
+- Teams / Outlook はアバターをキャッシュする。すぐ反映しなくても再送しない。
+
+### Step 13: Teams プレゼンスを常時稼働へ合わせる
+
+agentUser は `accountEnabled=true` でも Teams クライアントへサインインしないため、そのままでは
+プロフィールに Offline（×）が出る。App Service の稼働を反映するため、Graph のアプリ
+プレゼンス セッションを定期更新する。
+
+```powershell
+# 1. UAMI に Presence.ReadWrite.All を付与し、対象 agentUser を App Service 設定へ保存
+python scripts/configure_agent_presence.py `
+  --managed-identity-client-id $env:AZURE_BOT_MSA_APP_ID `
+  --agent-user-id $env:A365_AGENT_USER_ID `
+  --resource-group $env:AZURE_RESOURCE_GROUP `
+  --webapp $env:AGENT_WEBAPP_NAME
+
+# 2. 雛形をアプリへコピーし、references の Program.cs 登録例を反映
+Copy-Item .github/skills/agent365/references/templates/PresenceWorker.template.cs `
+  src/<agent-name>-agent/PresenceWorker.cs
+
+# 3. 再デプロイ後に権限と heartbeat を確認
+python scripts/configure_agent_presence.py --check
+az webapp log tail -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME
+```
+
+ログに `Teams presence refreshed for agentic user` が出れば Graph への更新は成功。
+heartbeat は起動直後と 2 時間ごと、セッション寿命は 4 時間とし、App Service 停止後に
+いつまでも Available と表示されないようにする。実装と権限境界は
+[references/assistant-agent-pattern.md](references/assistant-agent-pattern.md#teams-プレゼンス) を参照する。
+
+### Step 14: インスタンス SP に管理者同意を付与する
+
+**Teams で無応答になる最頻出の原因。インスタンスを作り直すたびに必要。**
+
+```powershell
+python scripts/grant_agent_instance_consent.py --instance-name "<インスタンス表示名>"
+az webapp restart -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME
+```
+
+ログに出る `AADSTS82001`（agentic アプリは app-only トークンを取得できない）は**無視してよい**。
+真因は `AADSTS65001` のほう（[references/troubleshooting.md](references/troubleshooting.md) #19）。
+
+**同意も Dataverse 登録も「インスタンス単位」で、テンプレート更新では引き継がれない。**
+既存インスタンスの表示名を変えたつもりで新しいインスタンスができていると、
+新 SP は `oauth2PermissionGrants` が空になり、Teams で完全に沈黙する。まずここを疑う。
+
+```powershell
+az rest --method GET --url "https://graph.microsoft.com/v1.0/servicePrincipals/<インスタンス SP objectId>/oauth2PermissionGrants" --query "value[].{r:resourceId,s:scope}" -o json
+```
+
+空配列が返ったら、上のスクリプトに加えて **MCP 依存先の同意も手で入れ直す**
+（Dataverse / Work IQ。[references/agent-brain.md](references/agent-brain.md) §6-2 (1) と §7-1）。
+Dataverse を使うなら、さらに §6-2 の **(2) systemuser 登録 / (3) 許可 MCP クライアント / (4) セキュリティ ロール**を
+新しいエージェンティック ユーザー・新しいインスタンス appId でやり直す。
+ロールは既存インスタンスの systemuser から `systemuserroles_association` を写すのが早い。
+
+### Step 15: 検証する
+
+```powershell
+az webapp log tail -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME
+```
+
+を流したまま Teams でエージェントにメッセージを送り、応答が返ることを確認する。
+ログの読み方は [references/self-hosted-agent.md](references/self-hosted-agent.md)。
+応答が返るようになったら、中身の作り込みは
+[references/agent-brain.md](references/agent-brain.md) に従って進める
+（**ID 面は凍結し、アプリ面だけを回す**）。
+実データを扱わせる場合は同ファイル §6（Dataverse MCP）へ。
+同意付与・systemuser 登録・許可 MCP クライアント・セキュリティ ロールの
+**4 つが揃って初めて通る**。どれが欠けても別の 403 になる。
+CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引き継ぐ（`alm.config.json` に
+`templates` / `rendered` / `artifacts` / `forbidden_tracked` / `non_secret_vars` を宣言する）。
+
+## 表示名・アイコンを後から変える
+
+表示名とアイコンは manifest の中身なので、**アプリ面（コード・プロンプト）の再デプロイでは変わらない**。
+変更は ID 面の操作になるため、必ずユーザーの承認を取ってから行う。
+
+1. `.env` の `AGENT_DISPLAY_NAME` / `AGENT_FULL_NAME` / `AGENT_ICON` を更新し、
+   **`TEAMS_APP_VERSION` を上げる**。`AGENT_NAME` と `INSTANCE_IDENTITY_CLIENT_ID` は変えない
+   （変えると別アプリ扱いになり、同意やインスタンスを作り直す羽目になる）。
+2. `python scripts/build_teams_package.py --require-template` でパッケージを作り直す。
+3. 管理センターの Agent template を**同じアプリの新しいバージョンとして**差し替え、再度 Publish / Activation する。
+4. 既存インスタンスの表示名はテンプレート更新だけでは追従しないことがある。
+   管理センターのインスタンス詳細で表示名を直すか、作り直す。
+   **作り直した場合は Step 14 の同意付与をやり直す**（同意はインスタンス単位）。
+   同じく **Step 12 のプロフィール写真もインスタンス単位**なので再度押し込む。
+5. Teams クライアントはアイコンをキャッシュする。反映しないときはアプリを再インストールする。
+
+## 汎用化
+
+コミットする成果物にテナント固有の値を残さない。
+
+| ルール | 内容 |
+|---|---|
+| テンプレートのみコミット | `agent.template.yaml` / `manifest.template.json` / `agenticUser.template.json` を編集し、レンダリング結果（`agent.yaml` / `manifest.json` / `*.zip`）はコミットしない |
+| 実値は `${VAR}` | GUID・ARM リソース ID・エンドポイント URL・テナント名・組織名は直書きせず `${AZURE_SUBSCRIPTION_ID}` 等にする |
+| 変数の定義元は 1 つ | すべての `${VAR}` を [references/.env.example](references/.env.example) にプレースホルダーとして追加し、取得元をコメントに書く |
+| スクリプトに定数を埋めない | 値は `argparse` 引数 → `.env` → 環境変数の順に解決する（`load_env` は `os.environ.setdefault` で実環境変数を優先） |
+| 例外は公開識別子のみ | `AGENT_NAME` / `BLUEPRINT_ID` / `TEAMS_APP_VERSION` などの非秘匿値は `alm.config.json` の `non_secret_vars` に列挙する |
+| 固定値は定数化 | Messaging Bot API の `5a807f24-c9de-44ee-a3a7-329e88a00ffc` のような**全テナント共通**の well-known GUID はスクリプト内の名前付き定数にする（`.env` に入れない） |
+| 名前は引数化 | リソース名は `<agent-name>` から機械的に導出する（`<name>` / `<name>-agent` / `<name>-plan`）。ハードコードしない |
+
+## 秘匿化
+
+| 対象 | 置き場所 | 禁止事項 |
+|---|---|---|
+| `.env`（実値） | ローカルのみ | コミット禁止。`.env.example` だけを共有する |
+| `a365.generated.config.json` | ローカルのみ | ブループリントのクライアントシークレットを含む。**コミット禁止・貼り付け禁止** |
+| 認証キャッシュ（`.a365-auth.json` / `auth-token.json` / `*token-cache*`） | ローカルのみ | リフレッシュトークンを含む。コミット禁止。検証完了後は削除する |
+| ブループリントのクライアントシークレット | App Service アプリ設定 `Connections__ServiceConnection__Settings__ClientSecret`、または CI のシークレットストア | `appsettings.json` / テンプレート / ログ / チャットへの出力禁止 |
+| CI の Azure 資格情報 | GitHub Actions Secrets / Azure Pipelines 変数グループ / Key Vault（`SECRET_BACKEND`） | リポジトリ内のファイル禁止 |
+
+`.gitignore` に最低限これらを入れる。
+
+```gitignore
+.env
+agents/**/agent.yaml
+teams/*.zip
+teams/manifest.json
+a365.generated.config.json
+.a365-auth.json
+auth-token.json
+*token-cache*
+publish/
+publish.zip
+```
+
+運用ルール:
+
+- `a365 setup blueprint` はシークレットを**標準出力に平文で出す**。出力をファイルへリダイレクトしない、
+  チャットに貼らない、`--debug` 系の詳細ログを残さない。
+- `az ad app credential reset` は必ず **`--append`** を付ける（既存資格情報が失効するため）。
+  取得値は変数で受けて即座にアプリ設定へ渡し、`Remove-Variable` で破棄する。
+- シークレットを含む値をエコーしない（`--query password -o tsv` の結果を `Write-Output` しない）。
+- 本格実装では **`alm` スキル**の pre-commit（汎用化 → Secrets 同期 → 漏洩検査）を有効化する。
 
 ## 検証チェックリスト
 
-### 共通（ライト実装も必須）
-
-- [ ] 事前確認で 4 点（ゴール・Azure/Foundry 環境・業務内容・エージェント名）を一括で確認した（Step 0 / Step 1 / Step 6 で重複して聞いていない）
-- [ ] Step 0 で**ライト実装 / 本格実装**を確定し、`.env` の `IMPLEMENTATION_MODE` に反映した
-- [ ] Step 6 で**テンプレート公開のみ / Agent template 登録 / デジタル従業員として実配信**のいずれかを AskUserQuestion で確定した
-      （不明瞭なまま Step 7 以降へ進んでいない）
-- [ ] `.env` / `agents/**/agent.yaml` / `teams/*.zip` / `a365.generated.config.json` が追跡されていない
-- [ ] `agent.template.yaml` / `*.template.json` に実 GUID・ARM パス・接続文字列が無い（`${VAR}` 化済み）
-- [ ] `.env.example` にすべての変数がプレースホルダー付きで定義されている
-- [ ] `AGENT_NAME` / `BLUEPRINT_ID` 等の公開識別子が `NON_SECRET_VARS` に入っている
-- [ ] Foundry ブループリントと Agent 365 ブループリントを取り違えていない
-- [ ] Teams 再アップロード前に `TEAMS_APP_VERSION` を上げた
-- [ ] アイコン元画像がアルファチャンネル付きの正方形 PNG
-- [ ] Teams / M365 Copilot での動作確認が済んでいる
-
-### 本格実装のみ
-
-- [ ] private リポジトリで運用している（GitHub / Azure DevOps Repos / その他 Git）
-- [ ] `GIT_PROVIDER` / `SECRET_BACKEND` が Step 0 の選択と一致している
-- [ ] インスタンス化する場合、manifest に `agenticUserTemplates` と `functionsAs: agenticUserOnly` がある
-- [ ] `alm.config.json` にエージェントのレイアウト（templates / rendered / artifacts）を宣言した
-- [ ] **`alm` スキル**の検証チェックリストを満たしている → [`alm`](../alm/SKILL.md#検証チェックリスト)
-
-## 参考リンク
-
-- [ALM（秘匿化・汎用化・CI/CD）共通スキル](../alm/SKILL.md)
-- [ライト実装（PoC）クイックスタート](references/poc-quickstart.md)
-- [アーキテクチャ（2 種類のブループリント・スキーマ選択）](references/architecture.md)
-- [Agent 365 CLI 運用（Windows / WAM / 権限）](references/a365-cli.md)
-- [異常系・トラブルシュート](references/troubleshooting.md)
-- [環境変数サンプル](references/.env.example)
+- [ ] Step 0 で役割・機能ブロック・段階を確定し、制約（メールは push されない / 既読にできない / 他人の予定表は直接読めない）を依頼者へ共有している
+- [ ] 事前確認の 4 点を 1 回で確認し、以降の Step で聞き直していない
+- [ ] `.env` / `agents/**/agent.yaml` / `teams/*.zip` / `a365.generated.config.json` / 認証キャッシュが未追跡
+- [ ] テンプレートに実 GUID・ARM パス・接続文字列・シークレットが無い（`${VAR}` 化済み）
+- [ ] `python scripts/create_blueprint.py --list` に Foundry ブループリントが存在する
+- [ ] `a365.generated.config.json` の `agentBlueprintId` が `.env` の `A365_AGENT_BLUEPRINT_ID` と一致する
+- [ ] Azure Bot のメッセージング エンドポイントが `https://<app>.azurewebsites.net/api/messages`
+- [ ] Azure Bot の Teams チャネルが `acceptedTerms=True`
+- [ ] `appsettings.json` の `AuthType` が confidential client（`ClientSecret` 等）で、`ClientId` がブループリント appId
+- [ ] `TokenValidation:Audiences` にブループリント appId と Bot の `msaAppId` が両方入っている
+- [ ] シークレットが App Service アプリ設定にのみ存在する（ファイルに無い）
+- [ ] `python scripts/grant_agent_instance_consent.py --check` が OK を返す
+- [ ] `python scripts/set_agent_user_photo.py --upn <upn> --check` が OK を返す
+- [ ] `python scripts/configure_agent_presence.py --check` が OK を返す
+- [ ] プロンプトが承認語の次ターンで書き込みツールを実行し、分類名だけで Dataverse 検索を拒否しない
+- [ ] App Service ログに `Teams presence refreshed for agentic user` が出る
+- [ ] App Service のルート URL が 200 を返す
+- [ ] Teams でエージェントにメッセージを送ると応答が返る
+- [ ] （B6 を入れた場合）エージェント宛のメールにポーリング間隔内で返信が届き、2 周目に再返信しない
+- [ ] （B6 を入れた場合）再デプロイ直後に過去の未読へ一斉返信しない
+- [ ] `python scripts/review_sanitization.py` が Pass（本格実装）
