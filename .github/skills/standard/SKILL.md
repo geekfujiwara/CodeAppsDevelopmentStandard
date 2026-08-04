@@ -108,7 +108,7 @@ BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Copilot Studio Bot ID（URL で�
 **同一マシン上では、どのプロジェクトでもデバイスコード認証は最初の1回だけ**で済む 2 層キャッシュ構成。
 
 ```
-層1: AuthenticationRecord (~/.power-platform-cli/auth_record.json)
+層1: AuthenticationRecord (~/.power-platform-cli/auth_record_{TENANT_ID}.json)
   - アカウント情報（テナント・ユーザー ID）を保存
   - ホームディレクトリ配下の固定パスに永続化（プロジェクトフォルダに依存しない）
   - そのため、別プロジェクトを新規に開いても再度デバイスコード認証を求められない
@@ -150,4 +150,3 @@ Phase 1（設計）の最初に必ず `architecture` を参照し、IT に詳し
 
 > **個別の構築ルール・トラブルシューティング**（Copilot Studio・Code Apps・Power Automate・Dataverse・Security Role・AI Builder・Model-Driven App 等）は **各専門スキルの SKILL.md / references** に記載している。standard には重複して持たない。
 > どのスキルに何があるかは [スキルカタログ README](https://github.com/geekfujiwara/CodeAppsDevelopmentStandard/blob/main/.github/skills/README.md) を参照。
-

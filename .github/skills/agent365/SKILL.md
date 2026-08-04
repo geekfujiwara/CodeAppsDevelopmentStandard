@@ -50,7 +50,7 @@ messaging endpoint に登録する。Foundry エージェントや `activityprot
 | 同意はインスタンス単位 | インスタンスを作り直すたびに SP への管理者同意が要る（Step 14） |
 | ALM は委譲 | pre-commit・CI/CD・レビューゲート・リリース記録は **`alm` スキル**が担当する |
 
-> 前提ツール: Python 3.10+、Azure CLI（`az`、ログイン済み）、Agent 365 CLI（`a365`）、.NET 8 SDK、Git。
+> 前提ツール: Python 3.10+、Azure CLI（`az`）、Agent 365 CLI（`a365`）、.NET 8 SDK、Git。認証は `standard/scripts/auth_helper.py` のキャッシュを共有し、agent365 用に個別ログインしない。
 
 | 参照 | 内容 |
 |---|---|
@@ -76,7 +76,7 @@ messaging endpoint に登録する。Foundry エージェントや `activityprot
 | # | 質問 | 選択肢 / 記入例 |
 |---|---|---|
 | 1 | ゴールはどこまでか | (a) ローカル scaffold のみ（Azure 操作なし）<br>(b) 自己ホスト App Service の endpoint を用意するまで（Step 1〜6）<br>(c) M365 管理センターに "Agent template" として登録するまで（Step 1〜4, 8, 10, 11。Teams チャットはまだ動かない）<br>**(d) Teams で実際に会話できる状態まで（Step 0〜15・Azure 課金あり）** |
-| 2 | Azure サブスクリプションはあるか。`az login` は可能か | (d) を選ぶ場合は Agent 365 ライセンスの割り当ても必要。Foundry プロジェクトは LLM / Foundry Agent 連携を使う場合だけ確認する |
+| 2 | Azure サブスクリプションはあるか。standard の `auth_helper.py` 認証キャッシュは利用可能か | (d) を選ぶ場合は Agent 365 ライセンスの割り当ても必要。Foundry プロジェクトは LLM / Foundry Agent 連携を使う場合だけ確認する |
 | 3 | 「〇〇を行ってくれる同僚エージェント」の具体的な業務内容は？ | **[references/digital-colleague-design.md](references/digital-colleague-design.md) §2 の役割カタログ（R1〜R6）を選択肢として提示する**（複数可・自由記述可）。選んだ役割から必要な機能ブロックが決まる |
 | 4 | エージェント名（kebab-case、独自名）と Teams での表示名の希望は？ | 希望が無ければ 3 案提案する。アイコンは同梱サンプル（`mina` / `tech` / `hunter`）から選ぶか、独自画像を用意する。**商標・著作権に触れる名称やキャラクターは使わない** |
 
@@ -213,11 +213,12 @@ pip install -r requirements.txt   # azure-ai-projects / azure-identity / PyYAML 
 
 ```powershell
 Copy-Item .env.example .env
-az login
 ```
 
 最低限 `AZURE_SUBSCRIPTION_ID` / `AZURE_TENANT_ID` / `AZURE_RESOURCE_GROUP` /
 `AGENT_NAME` / `AGENT_DISPLAY_NAME` / Teams manifest の公開メタデータを入れる。
+認証は `standard/scripts/auth_helper.py` が保存した AuthenticationRecord + MSAL 永続キャッシュを使う。
+agent365 用に `az login` / `a365` の個別ログインを増やさない。
 Foundry プロジェクトは **正常系の agentUser チャットには必須ではない**。
 LLM 接続や Foundry リソースを使う場合だけ、参考手順として次を実行する。
 
@@ -543,7 +544,7 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 |---|---|---|
 | `.env`（実値） | ローカルのみ | コミット禁止。`.env.example` だけを共有する |
 | `a365.generated.config.json` | ローカルのみ | ブループリントのクライアントシークレットを含む。**コミット禁止・貼り付け禁止** |
-| 認証キャッシュ（`.a365-auth.json` / `auth-token.json` / `*token-cache*`） | ローカルのみ | リフレッシュトークンを含む。コミット禁止。検証完了後は削除する |
+| 認証キャッシュ（`.a365-auth.json` / `auth-token.json` / `*token-cache*`） | ローカルのみ | standard の `auth_helper.py` で取得済みのキャッシュを利用する。agent365 用の個別ログインは不要。生成された場合もリフレッシュトークンを含むためコミット禁止 |
 | ブループリントのクライアントシークレット | App Service アプリ設定 `Connections__ServiceConnection__Settings__ClientSecret`、または CI のシークレットストア | `appsettings.json` / テンプレート / ログ / チャットへの出力禁止 |
 | CI の Azure 資格情報 | GitHub Actions Secrets / Azure Pipelines 変数グループ / Key Vault（`SECRET_BACKEND`） | リポジトリ内のファイル禁止 |
 

@@ -46,8 +46,8 @@ src.save("assets/agent-icon.png")
 
 ## 6. `FOUNDRY_PROJECT_ENDPOINT is not set` / 認証エラー
 
-- 原因: `.env` が読み込まれていない、または `DefaultAzureCredential` が資格情報を解決できない。
-- 対処: ローカルは `az login` + `az account set --subscription <id>`。
+- 原因: `.env` が読み込まれていない、または `standard/scripts/auth_helper.py` の認証キャッシュを解決できない。
+- 対処: ローカルは `.env` の `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` と standard の `auth_helper.py` キャッシュを確認する。agent365 用に個別 `az login` しない。
   CI は `azure/login@v2` の OIDC（`AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID`）。
   対象アプリ登録に Foundry プロジェクトへのロール（Azure AI Developer 等）が必要。
 
@@ -72,6 +72,7 @@ src.save("assets/agent-icon.png")
 
 → [a365-cli.md](a365-cli.md) の 3〜5 節（パイプ禁止・`-EncodedCommand` での可視ウィンドウ起動・
 Edge プロファイル）を参照。初回失敗時は同じコマンドを再実行すると冪等に修復されることが多い。
+ただし通常の認証は standard の `auth_helper.py` キャッシュを使うため、`a365` で新しい認証キャッシュを作る運用にはしない。
 
 ## 10. Windows PowerShell 5.1 で `&&` が使えない
 
@@ -93,7 +94,7 @@ Edge プロファイル）を参照。初回失敗時は同じコマンドを再
   （`.default` は「既に同意済みの許可だけ」を返すため、同意前に取得した `.default` トークンが
   MSAL のキャッシュに残っていると新しく同意した権限が反映されないまま古いトークンが
   返り続ける。明示スコープ要求なら未同意時に確実にインクリメンタル同意画面が出る）。
-- 初回実行時は新しいクライアント ID 用の別デバイスコードサインインが必要
+- 初回実行時は standard の `auth_helper.py` が管理するクライアント ID 別キャッシュを利用する
   （`auth_helper.py` はクライアント ID ごとに認証レコード・トークンキャッシュを分離している）。
   表示される同意画面で `AppCatalog.ReadWrite.All` を確認して同意する。
 - 検証方法: JWT の `scp` クレームをデコードして `AppCatalog.ReadWrite.All` が含まれるか確認する

@@ -44,9 +44,8 @@ Copy-Item .github/skills/agent365/references/templates/manifest.template.json te
 Copy-Item .github/skills/agent365/references/.env.example .env.example
 pip install -r requirements.txt
 
-# Step 3: .env を用意して az login
+# Step 3: .env を用意する（認証は standard の auth_helper キャッシュを利用）
 Copy-Item .env.example .env    # 実値を記入
-az login
 
 # Step 4: Foundry のマネージド ID ブループリント
 python scripts/create_blueprint.py --name $env:BLUEPRINT_ID
@@ -82,6 +81,8 @@ python scripts/publish_teams_app.py
 agents/**/agent.yaml
 teams/*.zip
 a365.generated.config.json
+.a365-auth.json
+auth-token.json
 *token-cache*
 ```
 
