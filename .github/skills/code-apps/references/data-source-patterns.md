@@ -112,6 +112,50 @@ export const DataverseService = {
 ✅ getClient(dataSourcesInfo) + retrieveMultipleRecordsAsync 等の SDK 公式メソッド
 ```
 
+## MultiSelectPicklist（複数選択列）
+
+Dataverse Web API の MultiSelectPicklist はカンマ区切り文字列（`"100,200,300"`）で送受信する一方、
+生成される TypeScript 型と UI state では `number[]` として扱う。`@microsoft/power-apps/data` の
+`serializeMultiSelectPicklistFields` / `deserializeMultiSelectPicklistFields` を使い、この変換を
+**service 層の入口・出口だけ**に固定する。ページ・フォームコンポーネントから直接変換しない。
+
+対象列はテーブルごとに一元管理する。列名は Dataverse の論理名を使い、`as const` を外さない。
+
+```typescript
+import {
+  deserializeMultiSelectPicklistFields,
+  serializeMultiSelectPicklistFields,
+} from "@microsoft/power-apps/data"
+
+const MULTISELECT_FIELDS = ["{prefix}_categories"] as const
+```
+
+`ListRecords` と `GetItem` の戻り値は、UI へ返す前に必ず deserialize する。deserialize はレコードを
+in-place で変換するため、取得結果をそのまま UI state に渡せる。
+
+```typescript
+const records = unwrap<{ value?: DataverseRow[] }>(result).value ?? []
+return records.map((record) =>
+  deserializeMultiSelectPicklistFields(record, MULTISELECT_FIELDS),
+)
+
+const record = unwrap<DataverseRow>(result)
+return deserializeMultiSelectPicklistFields(record, MULTISELECT_FIELDS)
+```
+
+`CreateRecord` と `UpdateRecord` では SDK 呼び出しの直前に serialize する。serialize は入力レコードを
+破壊せず、変換済みのシャローコピーを返すため、フォーム state を変更しない。
+
+```typescript
+const payload = serializeMultiSelectPicklistFields(body, MULTISELECT_FIELDS)
+await MicrosoftDataverseService.CreateRecordWithOrganization(
+  PREFER, ACCEPT, org, entityName, payload,
+)
+```
+
+> **空配列は列のクリア**: `[]` は serialize により `null` になる。Dataverse が拒否する空文字列
+> （`""`）を送ってはならない。取得時の空文字列は deserialize により `[]` になる。
+
 ## 統合 dataSourcesInfo（フロー・Copilot Studio 使用時は必須）
 
 `getClient(dataSourcesInfo)` はシングルトン。最初の呼び出しで渡した `dataSourcesInfo` にフロー/コネクタが含まれないと

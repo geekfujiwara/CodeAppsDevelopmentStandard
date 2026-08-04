@@ -1643,3 +1643,47 @@ npx power-apps list-connections --environment-id {ENVIRONMENT_ID} --json
 > 総件数キャッシュ方針を追加済み。新規の一覧実装時はこの節を必ず参照すること。
 
 → 関連: [データソースパターン](data-source-patterns.md#ページングと総件数count-true5000-件上限)、[コンポーネントカタログ](component-catalog.md#listtable-の列定義)
+
+---
+
+## 33. MultiSelectPicklist で 400 エラーになる／選択状態が復元されない
+
+### 症状
+
+- `createRecordAsync` / `updateRecordAsync` で MultiSelectPicklist を保存すると HTTP 400 になる。
+- すべての選択を解除して保存すると 400 になる。
+- 取得した値が文字列のままで、チェックボックスまたはマルチセレクト UI の選択状態が復元されない。
+
+### 原因
+
+Dataverse Web API は MultiSelectPicklist を `"100,200,300"` のようなカンマ区切り文字列で扱うが、
+生成 TypeScript 型と UI state は `number[]` で扱う。配列をそのまま書き込む、列クリア時に空文字列
+（`""`）を送る、または取得値を deserialize せず UI に渡すと、上記の問題になる。
+
+### 対処
+
+`@microsoft/power-apps/data` の SDK ヘルパーを service 層の境界で使う。対象の論理列名を
+`const MULTISELECT_FIELDS = [...] as const` としてテーブルごとに一元管理し、次を徹底する。
+
+1. `list` / `get` の戻り値を UI に返す直前に `deserializeMultiSelectPicklistFields` で変換する。
+2. `create` / `update` の SDK 呼び出し直前に `serializeMultiSelectPicklistFields` で変換する。
+3. 空配列（`[]`）は **`null` に serialize され、列をクリアする**。空文字列は送らない。
+
+`serializeMultiSelectPicklistFields` は入力を破壊せずシャローコピーを返す。対して
+`deserializeMultiSelectPicklistFields` は in-place で変換するため、取得したレコードに適用してから
+UI state に渡す。
+
+```typescript
+import {
+  deserializeMultiSelectPicklistFields,
+  serializeMultiSelectPicklistFields,
+} from "@microsoft/power-apps/data"
+
+const MULTISELECT_FIELDS = ["{prefix}_categories"] as const
+
+const recordForUi = deserializeMultiSelectPicklistFields(record, MULTISELECT_FIELDS)
+const payload = serializeMultiSelectPicklistFields(formState, MULTISELECT_FIELDS)
+```
+
+→ 関連: [データソースパターン](data-source-patterns.md#multiselectpicklist複数選択列)、
+[コンポーネントカタログ](component-catalog.md#multiselectpicklist-の選択-ui)

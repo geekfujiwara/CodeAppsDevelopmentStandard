@@ -215,6 +215,17 @@ import { FormModal, FormSection, FormColumns } from "@/components/form-modal"
 </FormModal>
 ```
 
+#### MultiSelectPicklist の選択 UI
+
+少数の選択肢（目安 2〜8 個）は、選択肢ごとにラベル付き `Checkbox` を並べる。すべての選択状態が
+常時見えるため、業務上の選択漏れを確認しやすい。選択肢が多い、または検索が必要な場合は、
+`Combobox` を複数選択できる実装にして、選択済みの項目を明示する。
+
+`Select` は単一選択用であり、MultiSelectPicklist には使わない。UI state は選択肢の数値を
+`number[]` で保持し、保存時・取得時の Dataverse 変換は
+[データソースパターンの MultiSelectPicklist 節](data-source-patterns.md#multiselectpicklist複数選択列)
+に従って service 層で行う。
+
 ### ビジュアライゼーション
 
 | コンポーネント | インポート | 用途 |
