@@ -1,6 +1,6 @@
 ---
 name: agent365
-description: "Agents SDK アプリを App Service で自己ホストし、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に agentUser として公開する。自分のメールアドレスと予定表を持ち、自分の権限で働く『デジタルな同僚』を、役割カタログと機能ブロックの組み合わせで設計・実装する。秘書としての予定調整、受信トレイ監視によるメール応対、Dataverse の権限準拠検索、温かい人格、Teams プレゼンスを標準化する。Foundry エージェントの直接公開は参考扱いとし、CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。"
+description: "Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に agentUser として公開する。自分のメールアドレスと予定表を持ち、自分の権限で働く『デジタルな同僚』を、役割カタログと機能ブロックの組み合わせで設計・実装する。秘書としての予定調整、受信トレイ監視によるメール応対、Dataverse の権限準拠検索、温かい人格、Teams プレゼンスを標準化する。Foundry エージェントの直接公開は参考扱いとし、CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。"
 category: automation
 triggers:
   - "Agent 365"
@@ -26,7 +26,7 @@ triggers:
   - "自分の権限とは別に動くエージェント"
 ---
 
-# Agents SDK 自己ホスト × Agent 365 公開スキル
+# Teams / Microsoft 365 Copilot の 同僚エージェントスキル
 
 **Agents SDK アプリを App Service で自己ホスト**し、**Agent 365 のエージェント ID ブループリント**と
 Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
