@@ -53,45 +53,46 @@
 - 任意: `communicationProtocol`（`"activityProtocol"`）
 - `additionalProperties: false`（余計なキーを足すと検証エラー）
 
-## 4. 公開経路の全体像
+## 4. 正常系の公開経路（自己ホスト）
 
 ```mermaid
 flowchart LR
-    A["Foundry ブループリント<br/>lifecycle=Manual"] --> B["Foundry エージェント<br/>create_version"]
-    B --> C["Azure Bot Service<br/>msaAppId = instance identity client id"]
-    C --> D["MSTeams チャネル"]
+    S["App Service<br/>Agents SDK アプリ<br/>/api/messages"] --> B["Azure Bot Service<br/>msaAppId = UAMI client id"]
+    B --> D["MSTeams チャネル"]
     D --> E["Teams アプリ manifest<br/>botId = msaAppId"]
     F["Agent 365 ブループリント<br/>agentBlueprintId"] --> G["agenticUser.json"]
+    F -->|messaging endpoint| S
     G --> E
-    E --> H["Graph API で公開<br/>POST /appCatalogs/teamsApps"]
-    H --> I["Teams / M365 Copilot"]
+    E --> H["M365 管理センターで手動アップロード<br/>Agent template"]
+    H --> I["agentUser インスタンス"]
+    I -->|Teams / M365 Copilot チャット| S
 ```
 
-Bot のエンドポイントは Foundry のエージェント エンドポイント。
+agentUser チャットで Agent 365 が呼び出す endpoint は、自前 App Service の `/api/messages`。
+Foundry エージェントのデプロイや Foundry `activityprotocol` URL は、この正常系には含めない。
 
 ```
-{FOUNDRY_PROJECT_ENDPOINT}/agents/{AGENT_NAME}/endpoint/protocols/activityprotocol?api-version=2025-11-15-preview
+https://<app>.azurewebsites.net/api/messages
 ```
 
-### 4-2. agentUser（同僚アイデンティティ）チャットを動かす経路（自己ホスト）
+### 4-2. Foundry ホスト経路は参考扱い
 
-**上図の Foundry ホスト経路では agentUser チャットは動かない。**
+Foundry の `activityprotocol` エンドポイントを Azure Bot の endpoint にする方式は、
+通常 bot への直接チャットだけが対象。agentUser チャットは動かない。
 Agent 365 が送るトークンは `aud` = ブループリント appId / `azp` =
 `5a807f24-c9de-44ee-a3a7-329e88a00ffc` で、Foundry の `activityprotocol` エンドポイントは
 これを 401 `Error parsing client JWT` で拒否する（受理 audience を変更する手段が無い）。
 
-Microsoft Learn 記載の自己ホスト構成に切り替えると解消する。
+Foundry エージェントを agentUser の頭脳として使いたい場合は、Agent 365 の activity を受ける
+自己ホスト App Service / 中間サービスを置き、そこで Foundry `activityprotocol` または Agents API へ
+リクエストを読替する。
 
 ```mermaid
 flowchart LR
-    F["Agent 365 ブループリント"] -->|messaging endpoint| S["App Service<br/>Agents SDK アプリ<br/>/api/messages"]
-    F --> G["agenticUser.json"]
-    G --> E["Teams manifest<br/>manifestVersion: devPreview"]
-    E -->|M365 管理センターで手動アップロード| T["Agent template"]
-    T --> N["Instance 作成<br/>= agentUser SP"]
-    N -->|Teams チャット| S
-    S -->|返信: FMI トークン交換| N
-    B["Azure Bot (UAMI)"] --- S
+    A["Agent 365 agentUser activity"] --> S["自己ホスト App Service<br/>/api/messages"]
+    S -->|読替| F["Foundry activityprotocol<br/>または Agents API"]
+    F -->|結果| S
+    S -->|agentUser として返信| A
 ```
 
 | 要素 | 要件 |
@@ -102,17 +103,17 @@ flowchart LR
 | 同 `Scopes` | `["5a807f24-c9de-44ee-a3a7-329e88a00ffc/.default"]` |
 | インスタンス SP | Messaging Bot API への `AgentData.ReadWrite` 同意が**インスタンスごとに**必要 |
 
-詳細は [troubleshooting.md](troubleshooting.md) #17〜#19、手順は [self-hosted-agent.md](self-hosted-agent.md)（SKILL.md Step 7）。
+詳細は [troubleshooting.md](troubleshooting.md) #17〜#19、手順は [self-hosted-agent.md](self-hosted-agent.md)（SKILL.md Step 6）。
 
 ## 5. バージョニングと配信
 
-- `deploy.py`（= `agents.create_version`）で作った新バージョンは、
-  エージェント エンドポイントの既定「**常に最新を使用**」により Teams / M365 Copilot へ自動配信される。
-  ポータルでの有効化操作は不要。
-- 一方 **Teams アプリ manifest の内容（名前・説明・アイコン・スコープ）を変えた場合は
-  `python scripts/build_teams_package.py` で ZIP を再ビルドし、`python scripts/publish_teams_app.py` で
-  再登録する必要がある**。この際 `version` を必ず上げる。
-- 挙動・プロンプトだけの変更なら Foundry へのデプロイのみでよく、再登録は不要。
+- 挙動・プロンプトだけの変更なら **Agents SDK アプリを App Service へ再デプロイ**すればよく、
+  Teams アプリの再登録は不要。
+- **Teams アプリ manifest の内容（名前・説明・アイコン・スコープ）を変えた場合は
+  `python scripts/build_teams_package.py` で ZIP を再ビルドし、M365 管理センターで
+  Agent template を更新する必要がある**。この際 `version` を必ず上げる。
+- Foundry エージェントを別途使う場合の `deploy.py` / `agents.create_version` は、参考構成または
+  中間サービスの背後で使う頭脳の更新であり、Agent 365 の messaging endpoint そのものではない。
 
 ## 6. なぜポータル自動操作をしないか
 

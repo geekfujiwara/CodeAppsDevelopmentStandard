@@ -1,6 +1,6 @@
 ---
 name: agent365
-description: "Microsoft Foundry のエージェントを SDK/REST ベースで作成・バージョン管理し、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に公開する。自分のメールアドレスと予定表を持ち、自分の権限で働く『デジタルな同僚』を、役割カタログと機能ブロックの組み合わせで設計・実装する。秘書としての予定調整、受信トレイ監視によるメール応対、Dataverse の権限準拠検索、温かい人格、Teams プレゼンスを標準化する。CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。"
+description: "Agents SDK アプリを App Service で自己ホストし、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に agentUser として公開する。自分のメールアドレスと予定表を持ち、自分の権限で働く『デジタルな同僚』を、役割カタログと機能ブロックの組み合わせで設計・実装する。秘書としての予定調整、受信トレイ監視によるメール応対、Dataverse の権限準拠検索、温かい人格、Teams プレゼンスを標準化する。Foundry エージェントの直接公開は参考扱いとし、CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。"
 category: automation
 triggers:
   - "Agent 365"
@@ -26,19 +26,25 @@ triggers:
   - "自分の権限とは別に動くエージェント"
 ---
 
-# Foundry エージェント × Agent 365 公開スキル
+# Agents SDK 自己ホスト × Agent 365 公開スキル
 
-Microsoft Foundry 上のエージェントを**コードファースト**（SDK / REST のみ、ポータル自動操作なし）で
-定義・デプロイし、**Agent 365 のエージェント ID ブループリント**と Teams アプリパッケージを通じて
-Teams / Microsoft 365 Copilot の**同僚エージェント（agentUser）**として実際に会話できる状態にする。
+**Agents SDK アプリを App Service で自己ホスト**し、**Agent 365 のエージェント ID ブループリント**と
+Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
+**同僚エージェント（agentUser）**として実際に会話できる状態にする。
+
+正常系では、Foundry 上のエージェントを Teams / Agent 365 用にデプロイするのではなく、
+自己ホストした Agents SDK アプリの `/api/messages` を Agent 365 ブループリントの
+messaging endpoint に登録する。Foundry エージェントや `activityprotocol` 直接接続は参考情報として
+`references/` に隔離する。
 
 本 SKILL.md には**正常系フロー・汎用化・秘匿化**だけを置く。
 分岐・代替方式・異常系・背景説明はすべて `references/`、再現可能な手順は `scripts/` にある。
 
 | 原則 | 内容 |
 |---|---|
-| SDK / REST のみ | `azure-ai-projects` SDK、Azure CLI、Agent 365 CLI（`a365`）で完結。ポータルのブラウザ自動操作は行わない |
-| 実装は自己ホスト | agentUser チャットが動くのは **Agents SDK アプリを App Service で自己ホストする構成のみ**。Foundry ホストは 401 で動かない |
+| SDK / REST のみ | Azure CLI、Agent 365 CLI（`a365`）、Agents SDK で完結。ポータルのブラウザ自動操作は行わない |
+| 正常系は自己ホスト | agentUser チャットが動くのは **Agents SDK アプリを App Service で自己ホストする構成のみ**。messaging endpoint は自前 App Service の `/api/messages` |
+| Foundry 直接公開は参考 | Foundry の `activityprotocol` を Agent 365 の agentUser endpoint にしても 401 で動かない。必要なら中間サービスで Agent 365 ↔ Foundry activity protocol を読替する |
 | テンプレート駆動 | コミットするのは `${VAR}` 入りテンプレートだけ。実値は `.env` / シークレットストアのみ |
 | インスタンス化 | インストールごとに専用の Entra Agent ID を持たせるには Agent 365 ブループリント + `agenticUserTemplates` が必須 |
 | 同意はインスタンス単位 | インスタンスを作り直すたびに SP への管理者同意が要る（Step 14） |
@@ -54,7 +60,7 @@ Teams / Microsoft 365 Copilot の**同僚エージェント（agentUser）**と�
 | [references/assistant-agent-pattern.md](references/assistant-agent-pattern.md) | **秘書・同僚エージェントの標準品質**（承認後の実行 / Dataverse の権限準拠検索 / 温かい人格 / Teams プレゼンス） |
 | [references/architecture.md](references/architecture.md) | 2 種類のブループリントの違い、agentUser チャットの経路 |
 | [references/troubleshooting.md](references/troubleshooting.md) | 異常系（401 / AADSTS82001 / AADSTS65001 / カタログ公開の 409・403 など） |
-| [references/foundry-hosted-bot.md](references/foundry-hosted-bot.md) | Foundry ホスト方式（直接 bot チャットのみ。agentUser では動かない） |
+| [references/foundry-hosted-bot.md](references/foundry-hosted-bot.md) | Foundry ホスト方式の現状（直接 bot チャットのみ。agentUser では動かない。必要なら中間サービスが必要） |
 | [references/poc-quickstart.md](references/poc-quickstart.md) | ライト実装（共有エージェント）の省略ルート |
 | [references/team-pattern.md](references/team-pattern.md) | 複数の名前付きエージェント（チーム）構成 |
 | [references/a365-cli.md](references/a365-cli.md) | `a365` CLI の運用・Windows 認証のハマりどころ |
@@ -69,20 +75,20 @@ Teams / Microsoft 365 Copilot の**同僚エージェント（agentUser）**と�
 
 | # | 質問 | 選択肢 / 記入例 |
 |---|---|---|
-| 1 | ゴールはどこまでか | (a) ローカル scaffold のみ（Azure 操作なし）<br>(b) Foundry 上にエージェントを作成するまで（Step 1〜5）<br>(c) M365 管理センターに "Agent template" として登録するまで（Step 1〜6, 10, 11。Teams チャットはまだ動かない）<br>**(d) Teams で実際に会話できる状態まで（Step 0〜15・Azure 課金あり）** |
-| 2 | Azure サブスクリプションと Foundry プロジェクトはあるか。`az login` は可能か | (d) を選ぶ場合は Agent 365 ライセンスの割り当ても必要 |
+| 1 | ゴールはどこまでか | (a) ローカル scaffold のみ（Azure 操作なし）<br>(b) 自己ホスト App Service の endpoint を用意するまで（Step 1〜6）<br>(c) M365 管理センターに "Agent template" として登録するまで（Step 1〜4, 8, 10, 11。Teams チャットはまだ動かない）<br>**(d) Teams で実際に会話できる状態まで（Step 0〜15・Azure 課金あり）** |
+| 2 | Azure サブスクリプションはあるか。`az login` は可能か | (d) を選ぶ場合は Agent 365 ライセンスの割り当ても必要。Foundry プロジェクトは LLM / Foundry Agent 連携を使う場合だけ確認する |
 | 3 | 「〇〇を行ってくれる同僚エージェント」の具体的な業務内容は？ | **[references/digital-colleague-design.md](references/digital-colleague-design.md) §2 の役割カタログ（R1〜R6）を選択肢として提示する**（複数可・自由記述可）。選んだ役割から必要な機能ブロックが決まる |
 | 4 | エージェント名（kebab-case、独自名）と Teams での表示名の希望は？ | 希望が無ければ 3 案提案する。アイコンは同梱サンプル（`mina` / `tech` / `hunter`）から選ぶか、独自画像を用意する。**商標・著作権に触れる名称やキャラクターは使わない** |
 
-質問 1 の回答が**テナントのアプリカタログへの公開の承認を兼ねる**。(a)/(b) では Azure Bot Service の
-課金もカタログ公開も発生しない。
+質問 1 の回答が**テナントのアプリカタログへの公開の承認を兼ねる**。(a) では Azure Bot Service の
+課金もカタログ公開も発生しない。(b) は Azure Bot / App Service の課金は発生するが、カタログ公開は行わない。
 
 質問 3 で役割を決めたら、**この場で制約も先に伝える**
 （[references/digital-colleague-design.md](references/digital-colleague-design.md) §5）。
 とくに「メールは push されないのでポーリングになる（数分の遅れが出る）」「エージェントはメールを
 既読にできない」「他人の予定表は直接読めない」の 3 点は、後から言うと要件が崩れる。
 
-> ライト実装（共有エージェント・CI/CD なし）にする場合は Step 6（Agent 365 ブループリント）と
+> ライト実装（共有エージェント・CI/CD なし）にする場合は Step 4（Agent 365 ブループリント）と
 > Step 14（インスタンス SP への同意）を省略する
 > → [references/poc-quickstart.md](references/poc-quickstart.md)。
 
@@ -92,16 +98,16 @@ Teams / Microsoft 365 Copilot の**同僚エージェント（agentUser）**と�
 
 | スクリプト | 用途 | Step |
 |---|---|---|
-| [scripts/discover_foundry_context.py](scripts/discover_foundry_context.py) | Azure サブスクリプション・Foundry アカウント／プロジェクトを自動検出し `.env` に書き込む | 3 |
-| [scripts/create_blueprint.py](scripts/create_blueprint.py) | Foundry のマネージド ID ブループリントを作成／一覧／表示 | 4 |
-| [scripts/create_instance.py](scripts/create_instance.py) | manifest / definition / blueprint の 3 モードでエージェントを作成 | 5 |
-| [scripts/deploy.py](scripts/deploy.py) | レンダリング済み manifest から新しいバージョンを `create_version` | 5, 11 |
-| [scripts/provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し、`.env` にエンドポイントを書き戻す | 7 |
-| [scripts/grant_agent_instance_consent.py](scripts/grant_agent_instance_consent.py) | エージェント インスタンス SP に Messaging Bot API の管理者同意を付与（`--check` で確認のみ） | 10 |
-| [scripts/build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + `agenticUser.json` を ZIP 化 | 8 |
-| [scripts/publish_teams_app.py](scripts/publish_teams_app.py) | Graph で ZIP を組織カタログへ登録（**devPreview は Graph 側で拒否されるため管理センター手動アップロード**） | 9 |
-| [scripts/set_agent_user_photo.py](scripts/set_agent_user_photo.py) | インスタンスのエージェンティック ユーザーにプロフィール写真を設定（`--check` で確認のみ） | 9-2 |
-| [scripts/configure_agent_presence.py](scripts/configure_agent_presence.py) | UAMI に Graph プレゼンス権限を冪等付与し、agentUser と設定値を確認（`--check` で確認のみ） | 9-3 |
+| [scripts/provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し、`.env` にエンドポイントを書き戻す | 6 |
+| [scripts/build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + `agenticUser.json` を ZIP 化 | 10 |
+| [scripts/publish_teams_app.py](scripts/publish_teams_app.py) | Graph で ZIP を組織カタログへ登録（**devPreview は Graph 側で拒否されるため管理センター手動アップロード**） | 11 |
+| [scripts/set_agent_user_photo.py](scripts/set_agent_user_photo.py) | インスタンスのエージェンティック ユーザーにプロフィール写真を設定（`--check` で確認のみ） | 12 |
+| [scripts/configure_agent_presence.py](scripts/configure_agent_presence.py) | UAMI に Graph プレゼンス権限を冪等付与し、agentUser と設定値を確認（`--check` で確認のみ） | 13 |
+| [scripts/grant_agent_instance_consent.py](scripts/grant_agent_instance_consent.py) | エージェント インスタンス SP に Messaging Bot API の管理者同意を付与（`--check` で確認のみ） | 14 |
+| [scripts/discover_foundry_context.py](scripts/discover_foundry_context.py) | Foundry 連携を使う場合だけ、Azure サブスクリプション・Foundry アカウント／プロジェクトを自動検出し `.env` に書き込む | references |
+| [scripts/create_blueprint.py](scripts/create_blueprint.py) | 参考: Foundry のマネージド ID ブループリントを作成／一覧／表示（agentUser チャット正常系では必須ではない） | references |
+| [scripts/create_instance.py](scripts/create_instance.py) | 参考: Foundry エージェントを作成（agentUser チャット正常系では使わない） | references |
+| [scripts/deploy.py](scripts/deploy.py) | 参考: Foundry エージェントのバージョンを `create_version`（agentUser チャット正常系では使わない） | references |
 
 ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `review_sanitization.py` /
 `gate_rules.py` / `review_report.py`）は **`alm` スキル**が提供する。
@@ -148,7 +154,7 @@ ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `
 
 | ブロック | 対応する Step |
 |---|---|
-| B1 Teams 会話 / B3 頭脳 / B8 人格 | Step 7・8 |
+| B1 Teams 会話 / B3 頭脳 / B8 人格 | Step 5・6・8 |
 | B4 Microsoft 365 接続 / B5 Dataverse 接続 | [references/agent-brain.md](references/agent-brain.md) §6・§7 |
 | B2 自分の ID / B6 受信トレイ監視 | Step 9 |
 | B7 Teams プレゼンス | Step 13 |
@@ -203,48 +209,30 @@ pip install -r requirements.txt   # azure-ai-projects / azure-identity / PyYAML 
 `.gitignore` は[秘匿化](#秘匿化)の一覧を満たすこと。本格実装のリポジトリ雛形・hook・CI 定義は
 **`alm` スキル**（[リポジトリ scaffold](../alm/references/repo-scaffold.md)）に従う。
 
-### Step 3: Foundry プロジェクトと `.env` を用意する
+### Step 3: Azure / Agent 365 用の `.env` を用意する
 
 ```powershell
 Copy-Item .env.example .env
 az login
+```
+
+最低限 `AZURE_SUBSCRIPTION_ID` / `AZURE_TENANT_ID` / `AZURE_RESOURCE_GROUP` /
+`AGENT_NAME` / `AGENT_DISPLAY_NAME` / Teams manifest の公開メタデータを入れる。
+Foundry プロジェクトは **正常系の agentUser チャットには必須ではない**。
+LLM 接続や Foundry リソースを使う場合だけ、参考手順として次を実行する。
+
+```powershell
 python scripts/discover_foundry_context.py --write .env
 ```
 
-`AZURE_SUBSCRIPTION_ID` / `AZURE_TENANT_ID` / `AZURE_RESOURCE_GROUP` / `AZURE_AI_ACCOUNT` /
-`AZURE_AI_PROJECT` / `FOUNDRY_PROJECT_ENDPOINT` が書き込まれる。候補が複数ある場合は一覧を
-表示して停止するので `--subscription-id` / `--account` / `--project` で絞り込む。
+`AZURE_AI_ACCOUNT` / `AZURE_AI_PROJECT` / `FOUNDRY_PROJECT_ENDPOINT` が必要になるのは
+[references/agent-brain.md](references/agent-brain.md) の Foundry / Azure OpenAI 接続や、
+[references/foundry-hosted-bot.md](references/foundry-hosted-bot.md) の参考構成を試す場合だけ。
 
-### Step 4: Foundry のマネージド ID ブループリントを作成する
-
-```powershell
-python scripts/create_blueprint.py --name <blueprint-name>   # lifecycle=Manual
-python scripts/create_blueprint.py --name <blueprint-name> --show
-```
-
-`lifecycle=Manual` で作れば複数エージェントから共有できる（暗黙に作られる `Auto` は所有者専用）。
-出力の `blueprintId` / `principalId` / `clientId` を `.env` の
-`BLUEPRINT_ID` / `BLUEPRINT_PRINCIPAL_ID` / `BLUEPRINT_CLIENT_ID` に設定する。
-
-### Step 5: エージェントを定義してデプロイする
-
-1. `agents/<agent-name>/agent.template.yaml` の `definition`（`model` / `instructions` / `tools`）を編集する。
-2. レンダリングしてデプロイする。
-
-```powershell
-python scripts/render.py --agent <agent-name>
-python scripts/create_instance.py --name <agent-name> --mode blueprint --blueprint-id <blueprint-name>
-python scripts/deploy.py --agent <agent-name>    # 2 回目以降のバージョン更新
-```
-
-`INSTANCE_IDENTITY_PRINCIPAL_ID` / `INSTANCE_IDENTITY_CLIENT_ID` / `AGENT_GUID` を `.env` へ反映する
-（`agent_guid` は `client.agents.get(...)` の `versions.latest.agent_guid`）。
-モードの違いと `instance_identity` が返らない場合の扱いは
-[references/troubleshooting.md](references/troubleshooting.md)。
-
-### Step 6: Agent 365 のエージェント ID ブループリントを作成する
+### Step 4: Agent 365 のエージェント ID ブループリントを作成する
 
 **Foundry のブループリントとは別物**（[references/architecture.md](references/architecture.md)）。
+ここで作るのは agentUser インスタンスを払い出すための Agent 365 側の設計図。
 
 ```powershell
 a365 setup blueprint -n <agent-name> --no-endpoint
@@ -254,30 +242,48 @@ a365 setup blueprint -n <agent-name> --no-endpoint
   `A365_AGENT_BLUEPRINT_ID` に設定する。
 - **クライアントシークレットが平文で標準出力される。ログに残さない**（[秘匿化](#秘匿化)）。
 - 初回はディレクトリ伝播の遅延で失敗することがあるが、**同じコマンドを再実行すれば冪等に修復**される。
-- エンドポイント登録は Step 7 で行う（この時点ではまだ URL が存在しない）。
+- エンドポイント登録は Step 6 で行う（この時点ではまだ URL が存在しない）。
 
-### Step 7: 自己ホストのメッセージング エンドポイントを用意する
+### Step 5: Agents SDK アプリを実装する
 
-**agentUser チャットが動く唯一の構成。** 詳細と `appsettings.json` の全文は
+**ここで作るアプリが agentUser チャットの実体。** Foundry エージェントを Teams 用に
+デプロイするのではない。
+
+```text
+src/<agent-name>-agent/
+├── <agent-name>.csproj   # Microsoft.Agents.Hosting.AspNetCore / Authentication.Msal
+├── Program.cs            # AddAgent / AddAgentAspNetAuthentication / MapAgentApplicationEndpoints
+├── <Agent>.cs            # AgentApplication 派生。Teams message を受けて応答する
+├── AgentBrain.cs         # LLM / MCP / 業務ツール呼び出し（必要に応じて）
+└── appsettings.json      # agentic 設定。シークレットは書かない
+```
+
+`appsettings.json` は [references/self-hosted-agent.md](references/self-hosted-agent.md) §3 に従う。
+重要な固定点:
+
+- `AuthType` は `ClientSecret` / certificate / federated credentials などの confidential client
+- `ClientId` は **A365_AGENT_BLUEPRINT_ID**（Bot の appId ではない）
+- `Scopes` は `5a807f24-c9de-44ee-a3a7-329e88a00ffc/.default`
+- `TokenValidation:Audiences` に **A365_AGENT_BLUEPRINT_ID** と **AZURE_BOT_MSA_APP_ID** を両方入れる
+- ブループリント用シークレットは App Service アプリ設定へ入れ、ファイルには書かない
+
+### Step 6: 自己ホストのメッセージング エンドポイントを用意する
+
+**agentUser チャットが動く唯一の構成。** 詳細な手順とログの読み方は
 [references/self-hosted-agent.md](references/self-hosted-agent.md)。
 
 ```powershell
 # 1. UAMI + Azure Bot(Teams チャネル) + App Service を作成し .env に書き戻す
 python scripts/provision_selfhost.py --write .env
 
-# 2. Agents SDK アプリ（Microsoft.Agents.Hosting.AspNetCore + .Authentication.Msal）を実装し、
-#    appsettings.json を agentic 対応にする（AuthType=ClientSecret、
-#    ClientId=A365_AGENT_BLUEPRINT_ID、Scopes=["5a807f24-c9de-44ee-a3a7-329e88a00ffc/.default"]、
-#    TokenValidation:Audiences にブループリント appId と Bot の msaAppId を列挙）
-
-# 3. ブループリント用シークレットを App Service のアプリ設定に注入（appsettings.json には書かない）
+# 2. ブループリント用シークレットを App Service のアプリ設定に注入（appsettings.json には書かない）
 $sec = az ad app credential reset --id $env:A365_AGENT_BLUEPRINT_ID --append `
          --display-name "$env:AGENT_NAME-agent" --years 1 --query password -o tsv
 az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME `
   --settings "Connections__ServiceConnection__Settings__ClientSecret=$sec"
 Remove-Variable sec
 
-# 4. デプロイ（発行前に publish フォルダを必ず削除する）
+# 3. Agents SDK アプリをデプロイ（発行前に publish フォルダを必ず削除する）
 Remove-Item .\publish -Recurse -Force -ErrorAction SilentlyContinue
 dotnet publish -c Release -o .\publish
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -286,7 +292,7 @@ az webapp deploy -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME `
   --src-path .\publish.zip --type zip --track-status false --timeout 600000
 az webapp restart -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME
 
-# 5. ブループリントにエンドポイントを登録（Step 6 と同じカレントディレクトリで実行）
+# 4. ブループリントにエンドポイントを登録（Step 4 と同じカレントディレクトリで実行）
 a365 setup blueprint -n <agent-name> --endpoint-only --messaging-endpoint $env:AGENT_MESSAGING_ENDPOINT
 ```
 
@@ -297,6 +303,16 @@ a365 setup blueprint -n <agent-name> --endpoint-only --messaging-endpoint $env:A
   401 になる（[references/foundry-hosted-bot.md](references/foundry-hosted-bot.md)）。
 - エージェント本体（LLM 接続・プロンプト・会話履歴）の作り込みと再デプロイの注意点は
   [references/agent-brain.md](references/agent-brain.md)。
+
+### Step 7: Foundry 直接公開を混ぜないことを確認する
+
+この正常系では、Foundry エージェントの `create_instance.py` / `deploy.py` を実行しなくても
+agentUser チャットは成立する。Foundry エージェントを Teams へ直接出す方式で現在できるのは
+「bot への直接チャット」までで、agentUser として会話させるには自前 App Service に加えて
+Agent 365 と Foundry `activityprotocol` を読替する中間サービスが必要になる。
+
+詳細は [references/foundry-hosted-bot.md](references/foundry-hosted-bot.md) と
+[references/architecture.md](references/architecture.md) に置き、SKILL.md の正常系には混ぜない。
 
 ### Step 8: 秘書・同僚としての初期品質を入れる
 
@@ -561,7 +577,7 @@ publish.zip
 - [ ] 事前確認の 4 点を 1 回で確認し、以降の Step で聞き直していない
 - [ ] `.env` / `agents/**/agent.yaml` / `teams/*.zip` / `a365.generated.config.json` / 認証キャッシュが未追跡
 - [ ] テンプレートに実 GUID・ARM パス・接続文字列・シークレットが無い（`${VAR}` 化済み）
-- [ ] `python scripts/create_blueprint.py --list` に Foundry ブループリントが存在する
+- [ ] Foundry エージェントを agentUser endpoint と誤認してデプロイしていない（使う場合は中間サービス背後の頭脳として扱う）
 - [ ] `a365.generated.config.json` の `agentBlueprintId` が `.env` の `A365_AGENT_BLUEPRINT_ID` と一致する
 - [ ] Azure Bot のメッセージング エンドポイントが `https://<app>.azurewebsites.net/api/messages`
 - [ ] Azure Bot の Teams チャネルが `acceptedTerms=True`

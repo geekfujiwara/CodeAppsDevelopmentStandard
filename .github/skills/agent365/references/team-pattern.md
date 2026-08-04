@@ -77,14 +77,14 @@ python scripts/create_blueprint.py --name team-blueprint          # 1 回だけ�
 python scripts/create_blueprint.py --name team-blueprint --show   # 出力値を 3 つの .env へ配る
 ```
 
-Agent 365 のエージェント ID ブループリント（Step 6、インスタンス化用）は
+Agent 365 のエージェント ID ブループリント（SKILL.md Step 4、インスタンス化用）は
 **エージェントごとに別個**に作成する（`a365 setup blueprint -n hunter` 等）。
 利用者ごとの Entra Agent ID を持たせる仕組みのため、チームで共有すると
 インスタンス識別が壊れる。
 
 ## 5. 既知の制約: エージェント間のプログラム的な連携はできない
 
-Foundry の Hosted agent（Teams / M365 Copilot に公開する形態）は、
+Foundry の Hosted agent（Teams / M365 Copilot へ通常 bot として直接公開する参考形態）は、
 本書執筆時点で以下のいずれの機能の対象にもなっていない。
 
 - **Connected Agents（classic）**: 廃止予定。旧 API（`2025-05-15-preview`）ベースで、
@@ -98,7 +98,7 @@ Foundry の Hosted agent（Teams / M365 Copilot に公開する形態）は、
 
 | 案 | 内容 | 工数 |
 |---|---|---|
-| **(A) 人間仲介**（既定・推奨） | 3 体を独立した Hosted agent として Teams に公開し、
+| **(A) 人間仲介**（既定・推奨） | 3 体を独立した自己ホスト Agents SDK アプリ / agentUser として Teams に公開し、
   利用者が Teams 上で @メンションしながら引き継ぐ。各エージェントの instructions にも
   「連携は利用者経由」である旨を明記する。 | 小 |
 | **(B) Copilot Studio オーケストレーター** | 1 体（例: ミーナ）を Copilot Studio の
@@ -119,22 +119,21 @@ Foundry の Hosted agent（Teams / M365 Copilot に公開する形態）は、
 ## 7. 「エージェントテンプレートとしての公開」で止める判断
 
 ユーザーが「まずはテンプレートとして公開できていれば OK」と言った場合、
-**Step 7（自己ホストの Azure Bot Service / App Service）・Step 11（組織カタログへの公開）は実施しない**。
+**Step 6（自己ホストの Azure Bot Service / App Service）・Step 11（組織カタログへの公開）は実施しない**。
 以下がそろっていれば「テンプレートとしての公開」は完了している。
 
 > **SKILL.md の事前確認（質問 1）** がまさにこの判断を AskUserQuestion で明示的に確認するゲートである。
 > 複数エージェント（チーム）の場合は、一部のエージェントのみ実配信し、他はテンプレートのままにする
 > 選択もあり得るため、**エージェントごとに個別に確認する**。
 
-- 各エージェントが `agents/<name>/agent.template.yaml` として ${VAR} 入りでコミットされている
-  （= 誰でも `.env` を用意すれば同じ定義を再現できる）。
-- 共有ブループリント（Step 4）を使って Foundry 上に実際にエージェントバージョンが
-  作成済み（`create_instance.py` の実行結果、`agent_guid` が払い出されている）。
+- 各エージェントの Agents SDK アプリ雛形とプロンプト / 設定テンプレートが ${VAR} 入りでコミットされている
+  （= 誰でも `.env` を用意すれば同じ自己ホストアプリを再現できる）。
+- Agent 365 ブループリント（SKILL.md Step 4）が作成済みで、`teams/agenticUser.template.json` から参照できる。
 - Teams manifest / agenticUser テンプレート・アイコンはコミット済みだが、
   `teams/*.zip` のビルドや Graph 公開はまだ行っていない。
 
 Azure Bot Service（課金）・Teams 組織カタログ公開（テナント全体への公開）は
-**利用者が実際に Teams で使い始めたいタイミングで改めて Step 7〜14 を実施すればよい**
+**利用者が実際に Teams で使い始めたいタイミングで改めて Step 6〜14 を実施すればよい**
 （本ドキュメントの手順を再利用するだけで追加設計は不要）。
 
 ## 8. このパターンを設計する過程で分かった教訓
@@ -159,8 +158,8 @@ Azure Bot Service（課金）・Teams 組織カタログ公開（テナント全
   「0 件」と判定すると誤検知するため、`nextLink` が無くなるまで必ずページングする
   （`scripts/discover_foundry_context.py` の `list_all()` を参照）。
 - **「エージェントテンプレートとしての公開」と「Teams への実配信」は別のマイルストーン**。
-  Step 1〜5（ブループリント作成 + Foundry へのエージェントデプロイ + テンプレート一式の
-  コミット）だけでも「テンプレートとして公開した」と言える状態になる。Step 7（自己ホストの Azure Bot
+  Step 1〜5（Agent 365 ブループリント作成 + 自己ホストアプリ雛形 + テンプレート一式の
+  コミット）だけでも「テンプレートとして公開した」と言える状態になる。Step 6（自己ホストの Azure Bot
   Service / App Service、課金あり）・Step 11（組織カタログ公開、テナント全員に見える状態に
   なる）は影響範囲が大きいので、**どこまで進めるかを都度ユーザーに確認してから着手する**
   （詳細は §8）。

@@ -165,7 +165,7 @@ Edge プロファイル）を参照。初回失敗時は同じコマンドを再
 
 > **2026-08-04 更新: 17-2 は解決済み。** 結論だけ先に書くと
 > **Foundry ホストの `activityprotocol` エンドポイントでは agentUser チャットは動かない**。
-> 自己ホスト（Agents SDK + Azure Bot + App Service）に切り替えれば動く（[self-hosted-agent.md](self-hosted-agent.md) / SKILL.md Step 7）。
+> 自己ホスト（Agents SDK + Azure Bot + App Service）に切り替えれば動く（[self-hosted-agent.md](self-hosted-agent.md) / SKILL.md Step 6）。
 > 続けて #18（agentic 送信認証）と #19（インスタンス SP への同意）も必要。
 
 現象を 2 種類に切り分けて考える。
@@ -208,7 +208,7 @@ Microsoft 365 Agents SDK のアプリを Azure App Service に置き、ブルー
 messaging endpoint をそこへ向ける。自己ホストなら `appsettings.json` の
 `TokenValidation:Audiences` に**ブループリント appId を追加**できるので 401 が解消する。
 
-手順は [self-hosted-agent.md](self-hosted-agent.md)（SKILL.md **Step 7**）。ただしこれだけでは応答しない。続けて **#18 と #19** が必要。
+手順は [self-hosted-agent.md](self-hosted-agent.md)（SKILL.md **Step 6**）。ただしこれだけでは応答しない。続けて **#18 と #19** が必要。
 
 #### 効果が無かった試行（記録）
 
@@ -218,7 +218,7 @@ messaging endpoint をそこへ向ける。自己ホストなら `appsettings.js
    `502 upstream_dependency_failed`。RBAC は原因ではない（呼び出し元はサブスクリプション Owner）。
 3. `a365 ... --endpoint-only` の `ERROR: Configuration file not found` は **CLI のバグではない**。
    `a365.generated.config.json` があるディレクトリと**同じ CWD** で実行すれば v1.1.214 でも成功する
-   （SKILL.md Step 7 の 2 段階のエンドポイント登録を参照）。
+   （SKILL.md Step 6 のエンドポイント登録を参照）。
 ---
 
 ## 18. 自己ホスト エージェントが `Only IConfidentialClientApplication or AuthType.IdentityProxyManager is supported for Agentic.` で応答できない
@@ -398,4 +398,3 @@ $scope = ((@($Scopes | ForEach-Object { "$Resource/$_" })) + 'offline_access') -
   managed identity client ID が一致するか確認する。付与後はトークン キャッシュ反映まで待って再起動する。
 - heartbeat 成功後も表示が変わらない → Teams / Org Explorer のキャッシュ反映を待つ。
   4 時間を超えて heartbeat が止まれば自動的に Offline へ戻るのが正常。
-

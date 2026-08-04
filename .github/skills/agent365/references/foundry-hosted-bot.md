@@ -1,4 +1,4 @@
-# Foundry ホスト方式（直接 bot チャットのみ・agentUser チャットは動かない）
+# Foundry ホスト方式（参考: 直接 bot チャットのみ・agentUser チャットは動かない）
 
 エージェントの実装を自分で書かず、Foundry の `activityprotocol` エンドポイントを
 Azure Bot のメッセージング エンドポイントにする方式。
@@ -7,6 +7,18 @@ Azure Bot のメッセージング エンドポイントにする方式。
 > Agent 365 のトークンが 401 で拒否される（[troubleshooting.md](troubleshooting.md) #17）。
 > 「アプリとしてインストールした bot への DM」だけが動く。
 > Teams で同僚として会話させたいなら [self-hosted-agent.md](self-hosted-agent.md) を使う。
+
+## 現在できること / できないこと
+
+| 目的 | 現状 |
+|---|---|
+| Teams に通常 bot として直接チャットさせる | 可能。下記の Bot Service + Foundry `activityprotocol` + `BotServiceRbac` PATCH が必要 |
+| Agent 365 の agentUser としてチャットさせる | 不可。Agent 365 の `aud` / `azp` を Foundry `activityprotocol` 側が受理できない |
+| Foundry エージェントを agentUser の頭脳として使う | 自己ホスト App Service を置き、Agent 365 activity を受けて Foundry `activityprotocol` / Agents API へ読替する中間サービスが必要 |
+
+つまり、SKILL.md の正常系でデプロイする対象は **Agents SDK アプリ（App Service）**であり、
+Foundry エージェントではない。Foundry エージェントを使う場合も、Agent 365 から見える
+messaging endpoint は中間サービスまたは自己ホスト App Service の `/api/messages` にする。
 
 ## 1. Azure Bot を作る
 
