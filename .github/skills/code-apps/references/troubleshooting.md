@@ -1608,3 +1608,38 @@ npx power-apps list-connections --environment-id {ENVIRONMENT_ID} --json
 | `add-data-source` / `list-codeapps --environment-id ...` が `unknown option` | CLI 0.13.0 は help と実装が不一致 | `init` 後のプロジェクトで `--environment-id` を外し、`power.config.json` の環境を使う |
 | `-cr {未存在の論理名}` → `Failed to resolve connection ID for reference` | 接続参照は自動作成されない | 先に [setup_connection_reference.py](../scripts/setup_connection_reference.py) を実行 |
 
+
+---
+
+## 32. `count: true` の件数が 5000 で止まる／ページャの総ページ数がずれる（検証済 2026-08-04）
+
+### 症状
+
+- `retrieveMultipleRecordsAsync` に `count: true` を渡して取得した `result.count` が、
+  実際のレコード数（5000 件超）に関わらず常に `5000` になる。
+- 上記の `count` を総ページ数計算（`Math.ceil(count / pageSize)`）にそのまま使うと、
+  実際にはまだ後続ページが存在するのに最終ページ扱いになり、途中でデータが見えなくなる。
+- ページ移動のたびに `count: true` を送っていると、一覧の初期表示・ページ切替が体感で遅くなる。
+
+### 原因
+
+1. Dataverse の `@odata.count` アノテーションはプラットフォーム側で 5000 件が上限。
+   結果セットが 5000 件を超えていても `count` は `5000` を返す（SDK の型定義コメントにも明記）。
+2. `count` を「正確な総件数」として `totalPages` 計算に使い続けると、5000 件超のテーブルで
+   実際のページ数と表示上のページ数が食い違う。
+3. `count: true` は `@odata.count` の集計コストが毎回乗るため、全ページ取得時に指定すると
+   不要なオーバーヘッドになる。
+
+### 対処（恒久対策: [データソースパターン「ページングと総件数」](data-source-patterns.md#ページングと総件数count-true5000-件上限)）
+
+1. `count === 5000` のときは実件数として表示せず「5000+ 件」「5000 件以上」と明示する。
+2. レコード数が 5000 件を超える可能性がある画面では、総件数ページャ（ページ番号 + 総ページ数）ではなく
+   `skipToken` による「次へ」方式に切り替える。総ページ数を前提にした UI を作らない。
+3. `count: true` は初回取得（`page === 1` または検索条件変更時）のみ送り、以降のページ取得では省略して
+   取得済みの総件数を再利用する（React Query の `keepPreviousData` と併用）。
+
+> **恒久対策済み**: `data-source-patterns.md` の「ページングと総件数」節に、
+> `count: true` の実装例・5000 件上限の UI 表現・`skipToken` への切り替え基準・
+> 総件数キャッシュ方針を追加済み。新規の一覧実装時はこの節を必ず参照すること。
+
+→ 関連: [データソースパターン](data-source-patterns.md#ページングと総件数count-true5000-件上限)、[コンポーネントカタログ](component-catalog.md#listtable-の列定義)
