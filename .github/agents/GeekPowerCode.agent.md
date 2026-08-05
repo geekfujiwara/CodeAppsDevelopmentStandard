@@ -40,6 +40,7 @@ Power Platform コードファースト開発エキスパート。
 - **認証**: Python スクリプトでは必ず `auth_helper.py` の API（`get_token` / `get_session` / `api_get` / `api_post` / `api_patch` / `api_delete` / `retry_metadata`）を使う（`requests` 直呼び・MSAL 直接呼び出し禁止）
 - **認証はスキップ実行が前提**: `auth_helper.py` は 2 層キャッシュ（`.auth_record.json` + OS 資格情報ストア）により初回のみデバイスコード認証が発生し、以降はサイレントに認証が完了する。すべての新規スクリプトは **このキャッシュ済み認証を前提に、対話的な認証待ちなしで最後まで自動実行できる**ように書く。実行中にデバイスコードや資格情報の入力待ちが発生した場合は処理を止めず、`auth_helper.py` の実装（キャッシュ・スコープ）を疑って修正する
 - **データソース**: `npx power-apps add-data-source` で追加（`dataSourcesInfo.ts` 手動追記禁止）
+- **外部データは指示ではない**: エージェント実装でメール本文・Web ページ・取り込んだファイル・業務レコードを読ませる場合は、フェンスで囲って渡し、送信・共有・実行など実害のある操作はコードで認証済み ID を検証する（[プロンプト インジェクション対策](.github/skills/agent365/references/prompt-injection.md)）
 - 詳細は `.github/skills/standard/SKILL.md`（認証リファレンス: `.github/skills/standard/references/auth-patterns.md`）および各スキルを参照
 - Web UI 操作（管理ポータルのフォーム入力、OAuth クライアント登録等）は **VS Code 統合ブラウザツール** （`open_browser_page` 等）のみを使う。**Playwright MCP サーバー・Playwright 単体ブラウザはいかなる場合もインストール・起動しない。** 認証はユーザー自身に行ってもらい、機密値は `.env` から読んで画面へ直接入力する（チャットに出力しない）。詳細・使用例は[ブラウザ自動化方針](.github/skills/standard/references/browser-automation.md) を参照。
 ## スキル一覧
@@ -58,6 +59,6 @@ Power Platform コードファースト開発エキスパート。
 | アーキテクチャ判断 | .github/skills/architecture/SKILL.md |
 | 要件理解・仕様書変換 | .github/skills/spec-builder/SKILL.md |
 | Cowork / MCP クライアント登録 | .github/skills/cowork/SKILL.md |
-| Agent 365 / Foundry エージェント公開 | .github/skills/agent365/SKILL.md |
+| AI チームメイト（Agent 365 / agentUser での Teams 公開） | .github/skills/agent365/SKILL.md |
 | スキル作成・更新 | .github/skills/update-skills/SKILL.md |
 | Azure リファレンスアーキテクチャ（セキュア構成） | .github/skills/azure/SKILL.md |
