@@ -2,7 +2,7 @@
 
 社内データだけでは答えられない依頼——製品仕様、ニュース、相手企業の動向、貼られた URL の中身——を
 扱えるようにする機能ブロック。役割の決め方は
-[digital-colleague-design.md](digital-colleague-design.md) §3 B10、導入手順は [SKILL.md](../SKILL.md) Step 9b。
+[digital-colleague-design.md](digital-colleague-design.md) §3 B10、導入手順は [SKILL.md](../SKILL.md) Step 8 → [feature-blocks.md](feature-blocks.md) §3。
 
 ## 1. ルートは 2 つ。既定は Grounding with Bing
 

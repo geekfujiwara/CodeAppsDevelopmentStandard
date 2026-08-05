@@ -4,7 +4,7 @@
 どちらも**プレーン テキストで送ると URL が死ぬ**。そして**チャネルごとの実行時コンテキストは、
 共有のシステム プロンプトを黙って上書きする**。
 この 2 つは別々の話に見えて、同じ「出力の質が経路によって落ちる」問題の表と裏。
-導入手順は [SKILL.md](../SKILL.md) Step 9 / Step 15。
+導入手順は [SKILL.md](../SKILL.md) Step 8 → [feature-blocks.md](feature-blocks.md) §1（B6）・§2（B9）。
 
 ## 1. モデルには Markdown を書かせ、HTML はコードで組む
 

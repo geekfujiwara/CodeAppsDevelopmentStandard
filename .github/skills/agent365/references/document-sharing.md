@@ -6,7 +6,7 @@
 そして**共有リンクは一度渡すと取り消せない**。
 だから可否は、モデルの記憶ではなく**記録**から決める。
 役割の決め方は [digital-colleague-design.md](digital-colleague-design.md) §3 B14、
-導入手順は [SKILL.md](../SKILL.md) Step 9f。
+導入手順は [SKILL.md](../SKILL.md) Step 8 → [feature-blocks.md](feature-blocks.md) §7。
 
 ## 1. 作った時点で 2 つ書き残す
 
