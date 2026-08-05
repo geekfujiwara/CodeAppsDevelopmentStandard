@@ -4,12 +4,17 @@
 
 .DESCRIPTION
   対象プラグインフォルダの manifest.json 内プレースホルダー __COWORK_OAUTH_REGISTRATION_ID__ を
-  .env の COWORK_OAUTH_REGISTRATION_ID に置換し、必須ファイルを検証してから .zip を生成する。
+  `Base64("<TENANT_ID>##<COWORK_OAUTH_REGISTRATION_ID>")` に置換し、必須ファイルを検証してから .zip を生成する。
   manifest.json 本体（source）はプレースホルダーのまま維持し、ビルド成果物にのみ実値を注入する
   （実 registration ID を source にコミットしないため）。
 
   .env の値は '...' / "..." で囲まれていても自動で引用符を取り除く（教訓: 引用符付きのまま
   注入すると referenceId が壊れ、Cowork 初回同意時にコネクタ認証が失敗する）。
+
+  教訓（troubleshooting.md #23）: referenceId は OAuth client registration でも
+  `Base64("<tenantId>##<registrationId>")` 形式が必要（SSO 専用ではない）。実機検証で確認済み。
+  そのため .env の COWORK_OAUTH_REGISTRATION_ID には Teams ポータルが発行した **生の** registration ID
+  をそのまま保存し、Base64 エンコードは本スクリプトが自動で行う。
 
 .PARAMETER PluginRoot
   プラグインのルートフォルダ（manifest.json・color.png・outline.png・skills/ を含む）。
@@ -47,16 +52,29 @@ if (-not $EnvPath -or -not (Test-Path $EnvPath)) {
     Write-Error ".env が見つかりません（-EnvPath で明示指定してください）。"
 }
 
-# --- .env から登録 ID を読む（引用符は自動で除去）---
+# --- .env から登録 ID / テナント ID を読む（引用符は自動で除去）---
 $regId = $null
+$tenantId = $null
 foreach ($line in Get-Content $EnvPath) {
     if ($line -match '^\s*COWORK_OAUTH_REGISTRATION_ID\s*=\s*(.+?)\s*$') {
         $regId = $Matches[1].Trim("'", '"')
     }
+    if ($line -match '^\s*TENANT_ID\s*=\s*(.+?)\s*$') {
+        $tenantId = $Matches[1].Trim("'", '"')
+    }
 }
 if ([string]::IsNullOrWhiteSpace($regId)) {
-    Write-Error "COWORK_OAUTH_REGISTRATION_ID が .env にありません。Teams 開発者ポータルで OAuth client registration を作成し、発行された ID を .env に設定してください。"
+    Write-Error "COWORK_OAUTH_REGISTRATION_ID が .env にありません。Teams 開発者ポータルで OAuth client registration を作成し、発行された ID（生の値。Base64 変換前）を .env に設定してください。"
 }
+if ([string]::IsNullOrWhiteSpace($tenantId)) {
+    Write-Error "TENANT_ID が .env にありません。referenceId の Base64(`"<tenantId>##<regId>`") エンコードに必要です。"
+}
+
+# --- referenceId を Base64("<tenantId>##<regId>") 形式にエンコード ---
+# 教訓（troubleshooting.md #23）: OAuthPluginVault の referenceId は SSO 方式と同じく
+# Base64("<tenantId>##<registrationId>") 形式が必要（「生の ID のまま」では認証に失敗する）。
+$rawReferenceId = "$tenantId##$regId"
+$encodedReferenceId = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($rawReferenceId))
 
 # --- manifest.json の referenceId を注入（一時ファイルに書き出し、元は placeholder のまま維持）---
 $manifestSrc = Join-Path $root "manifest.json"
@@ -65,7 +83,7 @@ $manifest = Get-Content $manifestSrc -Raw
 if ($manifest -notmatch "__COWORK_OAUTH_REGISTRATION_ID__") {
     Write-Warning "manifest.json にプレースホルダー __COWORK_OAUTH_REGISTRATION_ID__ が見つかりません。referenceId が既に実値埋め込みの可能性があります。"
 }
-$built = $manifest -replace "__COWORK_OAUTH_REGISTRATION_ID__", $regId
+$built = $manifest -replace "__COWORK_OAUTH_REGISTRATION_ID__", $encodedReferenceId
 $builtManifest = Join-Path $root "manifest.built.json"
 Set-Content -Path $builtManifest -Value $built -Encoding UTF8
 
@@ -100,5 +118,5 @@ Remove-Item $staging -Recurse -Force
 Remove-Item $builtManifest -Force
 
 Write-Host "[OK] パッケージ生成: $zip"
-Write-Host "     referenceId 注入済み (registrationId=$regId)"
+Write-Host "     referenceId 注入済み (registrationId=$regId, tenantId=$tenantId, Base64エンコード済み)"
 Write-Host "     次: M365 管理センター -> エージェント -> Add agent -> Upload agent"

@@ -141,7 +141,8 @@ Dataverse ではないため Dataverse 側が拒否し、認証が通らない�
 - Scope に `https://<org>.crm.dynamics.com/user_impersonation` を指定 → Enterprise Token Store が
   **Dataverse 宛トークンを直接取得**するので audience が一致して通る。
 - OAuth 方式では `Expose an API`・`preAuthorizedApplications`・`identifierUris` は不要。
-- referenceId は発行された **registration ID をそのまま**使う（`Base64("tenant##regId")` 変換は SSO 専用）。
+- referenceId は OAuth 方式でも `Base64("tenant##regId")` 変換が**必要**（→ #23。旧版のこの節では
+  「SSO 専用」と誤記していたが、実機検証で OAuth でも同形式が必須と判明した）。
 
 > 見分け方: コネクタの「！」にカーソルを合わせ、`AADSTS500011`（リソース未登録）や
 > `invalid audience` 系のメッセージが出ていれば audience 不一致 = SSO 方式が原因。
@@ -309,5 +310,42 @@ python .github/skills/cowork/scripts/diagnose_cowork_connector.py
 
 > 開発者自身がテナント管理者を兼ねる場合は、Step 3 の直後に `setup_entra_oauth_graph.py` が表示する
 > URL に自分でアクセスするだけで完了する（追加のポータル操作は不要）。
+
+## 23. OAuth 方式でも referenceId は `Base64("tenant##regId")` 変換が必要（旧記載は誤り）
+
+**旧版の本ドキュメントおよび SKILL.md Step 5 の記載**: 「OAuth 方式では発行された registration ID を
+そのまま `referenceId` に使う（`Base64("<tenantId>##<regId>")` 変換は SSO 専用）」。
+
+**この記載は誤り**。実際にテナント上で HR サンプルスキル（`hr-employee-directory`）を使い、
+`read_query`（検索・取得）と `create_record`（新規登録）の両方を Cowork から実行して検証したところ、
+**生の registration ID をそのまま `referenceId` に設定した場合はコネクタ認証が通らず**、
+`Base64("<tenantId>##<registrationId>")`（SSO 方式と同一のエンコード）に変換して初めて
+Dataverse MCP コネクタが正常に動作した（`describe` → `read_query` → `create_record` まで
+すべて成功、Dataverse 側にレコード作成まで確認済み）。
+
+**対処**: [scripts/build_agent_package.ps1](../scripts/build_agent_package.ps1) を改修し、
+`.env` の `TENANT_ID` と `COWORK_OAUTH_REGISTRATION_ID`（**生の値**）から
+`Base64("<tenantId>##<registrationId>")` を自動計算して manifest に注入するようにした
+（手動での Base64 変換は不要。`.env` には生の registration ID を保存するだけでよい）。
+既にビルド済みの zip がある場合は、`.env` の値を変更せずに `build_agent_package.ps1` を
+再実行すれば自動的に正しい形式に修正される。
+
+## 24. python-dotenv の `set_key()` は既定でクォート付き書き込みになる（troubleshooting #16 の根本原因）
+
+troubleshooting #16 では `.env` に `referenceId` がクォート付き（`'xxxx'`）で保存され
+manifest 注入が壊れる症状とその**下流での**対処（`.Trim("'", '"')`）を記載したが、
+**根本原因**は [scripts/setup_entra_oauth_graph.py](../scripts/setup_entra_oauth_graph.py) が
+`.env` 書き込みに使う `python-dotenv` の `set_key()` 関数の**既定値** `quote_mode="always"` に
+あった。この既定値だと、値が引用符を必要としない単純な文字列（GUID・シークレット等）でも
+常にクォートで囲んで書き込まれる。`dotenv` 経由で読む分には自動でクォートが除去されるため
+気づきにくいが、PowerShell の正規表現 `-match` のような**非 dotenv 経路**で `.env` を読む
+後続ツール（`build_agent_package.ps1` 等）ではクォート文字がそのまま値に混入する。
+
+**対処**: `setup_entra_oauth_graph.py` の `set_key()` 呼び出し（`COWORK_OAUTH_CLIENT_ID` /
+`COWORK_OAUTH_CLIENT_SECRET`）に明示的に `quote_mode="never"` を指定し、書き込み時点で
+クォートが付与されないようにした。#16 の `build_agent_package.ps1` 側の `.Trim("'", '"')` は
+防御的多層防御として残しているが、本来はこちらが根本対処であり、`.env` へ機微情報を書き込む
+他スクリプト（`standard` スキル配下含む）で `set_key()` を使う場合も同様に
+`quote_mode="never"` を指定することを推奨する。
 
 
