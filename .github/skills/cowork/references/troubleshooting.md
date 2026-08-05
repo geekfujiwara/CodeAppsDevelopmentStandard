@@ -138,6 +138,13 @@ Dataverse ではないため Dataverse 側が拒否し、認証が通らない�
 **対処**: **OAuth 2.0 認可コードフロー**に切り替える（→ SKILL.md Step 2〜3）。
 - Teams ポータルでは **SSO client registration ではなく「OAuth client registration」**を使う。
 - Entra アプリに**クライアントシークレット**を作成し `.env` に保存（Git 非コミット）。
+- Scope に `https://<org>.crm.dynamics.com/user_impersonation` を指定 → Enterprise Token Store が
+  **Dataverse 宛トークンを直接取得**するので audience が一致して通る。
+- OAuth 方式では `Expose an API`・`preAuthorizedApplications`・`identifierUris` は不要。
+- referenceId は発行された **registration ID をそのまま**使う（`Base64("tenant##regId")` 変換は SSO 専用）。
+
+> 見分け方: コネクタの「！」にカーソルを合わせ、`AADSTS500011`（リソース未登録）や
+> `invalid audience` 系のメッセージが出ていれば audience 不一致 = SSO 方式が原因。
 
 ## 15. ツール名変更で `dataverse-mcp-tools.json` が古くなる
 
@@ -155,15 +162,14 @@ Dataverse ではないため Dataverse 側が拒否し、認証が通らない�
 2. `dataverse-mcp-tools.json` を最新のツール名に更新する（廃止済みツール名は削除）。
 3. パッケージを再ビルド・再アップロードする（Step 7 と同じ手順）。
 4. MCP クライアントの許可/拒否リストをツール名で管理している場合は、そちらも合わせて更新する。
-- Scope に `https://<org>.crm.dynamics.com/user_impersonation` を指定 → Enterprise Token Store が
-  **Dataverse 宛トークンを直接取得**するので audience が一致して通る。
-- OAuth 方式では `Expose an API`・`preAuthorizedApplications`・`identifierUris` は不要。
-- referenceId は発行された **registration ID をそのまま**使う（`Base64("tenant##regId")` 変換は SSO 専用）。
 
-> 見分け方: コネクタの「！」にカーソルを合わせ、`AADSTS500011`（リソース未登録）や
-> `invalid audience` 系のメッセージが出ていれば audience 不一致 = SSO 方式が原因。
+> **書き忘れに注意**: `dataverse-mcp-tools.json` は列挙したツールしか Cowork 側に認識されない。
+> 読み取り専用ツール（`read_query`/`search_data`/`search`/`describe`）だけを載せたテンプレートのまま、
+> 書き込みが必要なスキル（`create_record`/`update_record`/`upsert_skill` 等）を追加した場合、
+> 読み取りは動くのに書き込みだけ「反応しない」という一見原因不明の部分故障になる。
+> スキルが実際に呼ぶツール名をすべて含めているか、Step 6 のテンプレートと突き合わせて確認する。
 
-## 15. .env の値を引用符付きで読み込むと referenceId が壊れる
+## 16. .env の値を引用符付きで読み込むと referenceId が壊れる
 
 `.env` に `COWORK_OAUTH_REGISTRATION_ID='xxxx'` のように引用符付きで保存していると、
 単純な正規表現置換（`$Matches[1]`）では**引用符を含んだ文字列**が manifest.json に注入される。
@@ -174,14 +180,14 @@ Cowork 初回同意時にコネクタ認証が失敗する（症状が出るの�
 （→ [scripts/build_agent_package.ps1](../scripts/build_agent_package.ps1) は対応済み）。
 ビルド後は zip を展開して `referenceId` の値にクォートが含まれていないか目視確認するとよい。
 
-## 16. Teams 開発者ポータルの Scope フィールドはカンマ区切り
+## 17. Teams 開発者ポータルの Scope フィールドはカンマ区切り
 
 OAuth client registration の Scope 入力欄は UI のヘルプ文言が
 「Enter each resource, separated by a comma.」＝**カンマ区切り**を要求する。
 `https://<org>.crm.dynamics.com/.default offline_access`（スペース区切り）ではなく
 `https://<org>.crm.dynamics.com/.default,offline_access`（カンマ区切り）で入力する。
 
-## 17. Choose file ボタンはブラウザ自動化では OS ネイティブのファイル選択ダイアログを開く
+## 18. Choose file ボタンはブラウザ自動化では OS ネイティブのファイル選択ダイアログを開く
 
 M365 管理センターの Upload agent ウィザードの「Choose file」ボタンをクリックしても、
 ブラウザ操作ツールの `click` だけではファイルを選択できない（OS ダイアログは DOM 外）。
@@ -189,21 +195,21 @@ M365 管理センターの Upload agent ウィザードの「Choose file」ボ�
 ボタンクリック後に file chooser ダイアログが発生するので、それを待ってから
 `playwright-browser_handle_dialog` でパスを渡す実装にする（Playwright MCP サーバーを別途インストールする必要はない）。
 
-## 18. Fluent UI の ChoiceGroup（ラジオボタン）を直接クリックするとタイムアウトする
+## 19. Fluent UI の ChoiceGroup（ラジオボタン）を直接クリックするとタイムアウトする
 
 管理センター/開発者ポータルの一部フォーム（Publish to users の Install セクション等）では、
 `<input type="radio">` を直接クリックすると、ラベルの `<label>` 要素が pointer-events を奪っていて
 `locator.click: Timeout exceeded` になることがある。
 `input[id=...]` ではなく **対応する `label[for=<id>]` をクリック**すると成功する。
 
-## 19. admin.cloud.microsoft への遷移で SSO 自動サインインが不安定
+## 20. admin.cloud.microsoft への遷移で SSO 自動サインインが不安定
 
 Teams 開発者ポータルから M365 管理センターへ遷移する際、自動 SSO サインインが
 「Trying to sign you in」でスピナーのまま止まることがある。数秒待っても進まない場合は
 アカウント選択画面が裏で待機していることが多いので、アカウントピッカーの表示を確認し、
 サインイン済みアカウントを明示的にクリックすると解消する。
 
-## 20. Cowork セッションワークスペースが DLP でブロックされる（EU National ID / TIN 等）
+## 21. Cowork セッションワークスペースが DLP でブロックされる（EU National ID / TIN 等）
 
 **症状**: Cowork セッション中に作成・共有されたファイル（SharePoint Embedded 上の
 `.../contentstorage/CSP_<containerTypeId>/Document Library/cowork/sessions/<sessionId>/workspace`）
@@ -264,5 +270,44 @@ SharePoint Embedded ストレージ自体は既存のテナント DLP ポリシ�
      ポリシー自体の設定とは無関係。ダイアログが不安定でクリックが安定しない場合は、
      ルール一覧の**状態トグルをオフにするだけ**の方が操作がシンプルで確実。
 3. **現状維持**: 検証用データで GDPR SIT が検出されるのは意図した動作であり、対処不要と判断する。
+
+## 22. テナント管理者の事前同意（admin consent）未実施 → Cowork 初回同意がサイレントに失敗する
+
+**症状**: manifest のアップロード・公開は成功し、Cowork の Sources & Skills にプラグインも
+表示される。だが実際にスキルを実行すると Dataverse MCP コネクタ経由の操作（`read_query` 等）が
+一切完了しない。コネクタの状態アイコンにはっきりしたエラーが出ないことが多く、「同意ダイアログが
+一瞬出て消える」「何も起きたように見えない」だけで再現手順も分かりにくい。トラブルシュート #14 の
+SSO/OAuth 方式の切り分け（audience 不一致）を確認しても異常が見つからない場合はこちらを疑う。
+
+**原因**: Step 3 で作成した Entra アプリの Dynamics CRM 委任スコープ `mcp.tools` は、既定では
+**ユーザーが個別に同意する（user consent）**扱いになる。テナントの同意設定が
+「ユーザーはアプリへの同意ができない」（Enterprise ガバナンスで一般的な設定）になっていると、
+Cowork 初回利用時に Enterprise Token Store が試みる同意フローがブロックされる。ブロックは
+バックエンドで起きるため、Cowork の UI 上はエラーメッセージなしで「コネクタが反応しない」ように
+しか見えない。**テナント管理者による事前の管理者同意（admin consent）**が必要。
+
+**診断方法**:
+
+```powershell
+# レイヤー1（アプリ登録）/ レイヤー2（admin consent）/ レイヤー3（allowedmcpclients）を一括診断
+python .github/skills/cowork/scripts/diagnose_cowork_connector.py
+```
+
+レイヤー2（テナント管理者の事前同意）が ❌/❓ の場合が本事象の典型パターン。
+
+**対処**:
+
+1. [scripts/setup_entra_oauth_graph.py](../scripts/setup_entra_oauth_graph.py) を実行すると
+   admin consent の状態を自動確認し、未完了なら次の形式の URL を表示する。
+   ```
+   https://login.microsoftonline.com/<TENANT_ID>/adminconsent?client_id=<COWORK_OAUTH_CLIENT_ID>
+   ```
+2. この URL に **Global Administrator（または Privileged Role Administrator）権限を持つテナント管理者**
+   がアクセスし、表示された権限（Dynamics CRM の `mcp.tools`）に同意する。
+3. 同意完了後、`diagnose_cowork_connector.py` を再実行し、レイヤー2 が ✅ になることを確認する。
+4. Cowork でスキルを再実行し、初回同意ダイアログが正常に完了することを確認する。
+
+> 開発者自身がテナント管理者を兼ねる場合は、Step 3 の直後に `setup_entra_oauth_graph.py` が表示する
+> URL に自分でアクセスするだけで完了する（追加のポータル操作は不要）。
 
 

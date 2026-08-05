@@ -2,7 +2,7 @@
 
 auth_helper.py のキャッシュ済み認証（Microsoft Graph スコープ）を使い、追加のサインインなしで
 共有 URL の driveItem 解決を試みる。実際にはこのテナントでは Graph API 経由での DLP ポリシー
-閲覧・アラート取得は機能しないことが多い（→ troubleshooting.md #20 参照）ため、本スクリプトは
+閲覧・アラート取得は機能しないことが多い（→ troubleshooting.md #21 参照）ため、本スクリプトは
 「本当にブロックされているか」の一次切り分けにのみ使い、ポリシーの特定・是正は
 Microsoft Purview ポータル（https://purview.microsoft.com/datalossprevention/policies）を
 VS Code 統合ブラウザツールで直接確認する。
@@ -74,7 +74,7 @@ def main() -> None:
             "\n→ 次のステップ: Microsoft Purview ポータル "
             "(https://purview.microsoft.com/datalossprevention/policies) を"
             "VS Code 統合ブラウザツールで開き、SharePoint サイトを対象に含むポリシーを確認する"
-            "（詳細は troubleshooting.md #20）。"
+            "（詳細は troubleshooting.md #21）。"
         )
     elif resp.status_code == 200:
         print("\n→ アクセス可能。DLP ブロックは発生していない（または既に解除済み）。")
