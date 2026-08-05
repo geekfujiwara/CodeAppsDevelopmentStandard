@@ -25,6 +25,10 @@
 B6 は `Mail.Send`、B9 は `Chat.Create` / `Chat.Read` / `ChatMessage.Send`、
 B14 は `Files.ReadWrite` が要る。ここでコードを入れただけでは動かない。
 
+> ★ **B2/B6・B9・B10・B12・B14 は、第三者が書いた文章をエージェントに読ませるブロック。**
+> 足すのと同じ PR で [prompt-injection.md](prompt-injection.md) のフェンスを入れ、
+> 新しいツール名を許可リストの判定に通す。後から入れると対象漏れに気づけない。
+
 ---
 
 ## 1. B2 + B6 — メールで働けるようにする
@@ -108,7 +112,8 @@ builder.Services.AddSingleton<TeamsChatTools>();
 - **アプリ権限（app-only）では代替できない。** app-only のチャット投稿は `Teamwork.Migrate.All`（保護 API）が
   必要で、しかもエージェント本人の発言にならない。プレゼンス更新が UAMI のアプリ権限なのとは別経路。
 - **`TeamsChat__FromMailbox` は既定 `false` のまま**にする。true にすると、受信したメール本文の
-  「〇〇さんにこう伝えて」がそのまま第三者への送信になり、プロンプト インジェクションの出口になる。
+  「〇〇さんにこう伝えて」がそのまま第三者への送信になり、プロンプト インジェクションの出口になる
+  （→ [prompt-injection.md](prompt-injection.md)）。
 - 1 対 1 チャットは同じ相手につき 1 本しか作れず、件名も付かない。**作っただけでは通知されない**ので、
   作成ツールと送信ツールは必ずセットで呼ばせる（プロンプト側で明示する）。
 

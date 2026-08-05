@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。Agent 365 / Foundry エージェントを採用する場合はライト実装（PoC）と本格実装（private リポジトリ + CI/CD + Agent Evals）を AskUserQuestion で選ばせ、Git ホスティング（GitHub / Azure DevOps Repos / その他）も確定してから実装へ進む。"
+description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。Agent 365 の AI チームメイトを採用する場合はライト実装（PoC）と本格実装（private リポジトリ + CI/CD + Agent Evals）を AskUserQuestion で選ばせ、Git ホスティング（GitHub / Azure DevOps Repos / その他）も確定してから実装へ進む。外部の文章を読むエージェントではプロンプト インジェクション対策を設計段階で工数に含める。"
 category: architecture
 triggers:
   - "アーキテクチャ設計"
@@ -81,7 +81,7 @@ triggers:
 | **Dataverse**         | リレーショナルデータ、行レベルセキュリティ、監査、ビジネスルール                             | 大量ログデータ、非構造化データ、全文検索                       |
 | **Copilot Studio v2 スキル + Dataverse MCP** | 自然言語での業務データ登録・照会（Dataverse MCP 経由）、Teams / Copilot Studio 上での利用、SKILL.md による業務知識の付与。**環境制約が少なく作りやすい（★ 第一候補）** | リッチな一覧/編集 UI、複雑なビジュアル、外部/匿名公開 |
 | **Copilot Cowork プラグイン** | M365 Copilot 上での自然言語登録・照会（Dataverse MCP 経由）。M365 Copilot との統合が必須要件の場合に採用。**会社環境で Cowork の利用が許可されている場合のみ推奨** | 環境制約が多い（Entra App 登録・Teams 開発者ポータル・M365 管理センター公開・Teams Admin / Global Admin 権限が必要）。環境が揃わない場合は Copilot Studio v2 + Dataverse MCP を優先 |
-| **Agent 365 / Foundry エージェント** | Foundry 上のカスタムエンジンエージェントをコードファーストでバージョン管理し、Teams / M365 Copilot へ公開。インストールごとの専用 Entra Agent ID。**エージェント自身のメールアドレス・予定表・権限を持つ「デジタルな同僚」**（★ §7: 採用時はライト/本格を必ず確認） | ノーコードでの素早い構築、Code Apps / Web への埋め込み、Dataverse 標準 UI |
+| **Agent 365 / AI チームメイト** | カスタムエンジンエージェントをコードファーストでバージョン管理し、Teams / M365 Copilot へ公開。インストールごとの専用 Entra Agent ID。**エージェント自身のメールアドレス・予定表・権限を持つ「デジタルな同僚」**（★ §7: 採用時はライト/本格を必ず確認） | ノーコードでの素早い構築、Code Apps / Web への埋め込み、Dataverse 標準 UI |
 
 ---
 
@@ -134,10 +134,10 @@ triggers:
     │     （画面内チャット・埋め込み・WebChat SDK での外部公開）
     │        ──→ 【Copilot Studio v1】（§3 へ）
     │
-    └─ ④ Foundry のカスタムエンジンエージェントとして Teams / M365 Copilot に公開する
+    └─ ④ カスタムエンジンエージェントとして Teams / M365 Copilot に公開する
           （独自モデル・独自ツール・コードファーストのバージョン管理が要る
            ★または、エージェント自身がメールアドレス・予定表・権限を持つ「人」として働く）
-             ──→ 【Agent 365 / Foundry エージェント】（§7 へ）
+             ──→ 【Agent 365 / AI チームメイト】（§7 へ）
 ```
 
 > **使い分けの原則**:
@@ -402,19 +402,23 @@ Q: その AI 処理は再利用するか？
 
 ---
 
-## 7. Agent 365 / Foundry エージェントを使う判断ポイント（★ 実装レベルを必ず確認）
+## 7. Agent 365 / AI チームメイトを使う判断ポイント（★ 実装レベルを必ず確認）
 
-**使う**: Foundry 上のカスタムエンジンエージェント（独自モデル・独自ツール）を Teams / M365 Copilot に公開したい／
+**使う**: 独自モデル・独自ツールのエージェントを Teams / M365 Copilot に公開したい／
 エージェント定義をコードとしてバージョン管理・レビューしたい／インストールごとに専用の Entra Agent ID を持たせたい／
 **エージェント自身のメールアドレス・予定表・権限を持つ「デジタルな同僚」が欲しい**。
 **使わない**（→ 代替）: Dataverse への自然言語登録・照会が主目的 → **Copilot Studio v2 スキル + Dataverse MCP**（§2.1.1）／
 Code Apps や Web サイトに埋め込む → **Copilot Studio v1**（§3）。
 
+> ★ **実装方式は Agents SDK の自己ホスト一択**。Foundry の `activityprotocol` を
+> agentUser エンドポイントにする方式はトークンが 401 で拒否され、
+> **Teams で話しかけても応答が返ってこない**（回避策なし）。設計段階で Foundry ホストを前提にしない。
+
 > ★ **パターン認識**: 「ハンター（リード開拓）・テック（技術提案）・ミーナ（進捗管理）のように、
 > 名前と役割を持つ複数の AI エージェントが 1 チームとして協働する（AI 社員・AI チーム）」という要件は、
-> **`agent365` スキル（エージェントテンプレート）を第一候補**として提案する。各エージェントを個別の
-> Foundry エージェント（Teams 公開）として構築し、まず**ライト実装（PoC）**で構築してから
-> 必要に応じて本格実装へ拡張する。共有データが必要な場合は Dataverse テーブルを介した非同期連携を検討する。
+> **`agent365` スキル（エージェントテンプレート）を第一候補**として提案する。各エージェントを
+> 個別の agentUser（Teams 公開）として構築し、共有データが必要な場合は
+> Dataverse テーブルを介した非同期連携を検討する。
 
 ### ★ パターン認識: 「デジタルな同僚が欲しい」は Agent 365 で提案する
 
@@ -446,8 +450,12 @@ Code Apps や Web サイトに埋め込む → **Copilot Studio v1**（§3）。
    どこまで作るかを合意する
 4. **社外の情報が業務に含まれていたら、その場で Web 検索（B10）も提案する**（下記）
 5. **繰り返しの仕事が見えたら、定期実行（B11）も提案する**（下記）
-6. そのうえで下の**ライト実装 / 本格実装**を選ぶ
-7. 選択結果をまとめて [`agent365` スキル](../agent365/SKILL.md) の Step 0 へ引き渡す
+6. **外部の文章を読むブロック（メール / Web 検索 / ファイル取り込み）を入れるなら、
+   プロンプト インジェクション対策を工数に含める**と伝える。agentUser は**依頼者ではなく自分の権限**で動くため、
+   メール本文に書かれた命令がそのまま実行されると実データに被害が及ぶ
+   （→ [agent365/references/prompt-injection.md](../agent365/references/prompt-injection.md)）
+7. そのうえで下の**ライト実装 / 本格実装**を選ぶ
+8. 選択結果をまとめて [`agent365` スキル](../agent365/SKILL.md) の Step 0 へ引き渡す
 
 ### ★ Web 検索は聞かれる前に提案する（既定は Grounding with Bing）
 
@@ -508,7 +516,7 @@ Code Apps や Web サイトに埋め込む → **Copilot Studio v1**（§3）。
 
 AskUserQuestion で次のように尋ねる:
 
-> Foundry エージェントの作り方を選べます。どちらにしますか？
+> エージェントの作り方を選べます。どちらにしますか？
 > - **ライト実装（PoC・検証用）**: 共有エージェントとして最短で Teams に公開する。ローカルの `.env` だけで動かし、
 >   CI/CD・秘匿化ゲート・インスタンス化は作らない。**あとから本格実装へ昇格できる**（作り直し不要）。
 > - **本格実装（本番運用）**: private リポジトリでエージェント定義をバージョン管理し、
@@ -573,6 +581,7 @@ AskUserQuestion で次のように尋ねる:
 - [ ] **応答文の生成が必要か？** → YES なら Copilot Studio
 - [ ] **外部トリガー（メール/スケジュール）でエージェントを起動するか？** → YES なら Power Automate + Copilot Studio
 - [ ] **複数エージェント/フローから共用する AI 処理があるか？** → YES かつ Power Automate フロー内での利用なら AI Builder で共通化（社内汎用業務は Copilot Studio v2 + Dataverse MCP を優先）
-- [ ] **Foundry のカスタムエンジンエージェントを Teams / M365 Copilot に公開するか？** → YES なら §7 で **ライト実装（PoC）/ 本格実装** を AskUserQuestion で確定してから `agent365` スキルへ渡す
+- [ ] **カスタムエンジンエージェントを Teams / M365 Copilot に公開するか？** → YES なら §7 で **ライト実装（PoC）/ 本格実装** を AskUserQuestion で確定してから `agent365` スキルへ渡す（実装方式は **Agents SDK の自己ホスト一択**。Foundry ホストを前提にしない）
+- [ ] **そのエージェントは外部の文章を読むか？**（メール本文 / Web ページ / 取り込んだファイル / 業務レコード） → YES なら**プロンプト インジェクション対策を設計段階で工数に含める**。agentUser は自分の権限で動くため、未対応だと実データに被害が及ぶ（[agent365/references/prompt-injection.md](../agent365/references/prompt-injection.md)）
 - [ ] **本格実装を選んだか？** → YES なら **Git ホスティング（GitHub / Azure DevOps Repos / その他 Git）** も確認し、private リポジトリ前提で `SECRET_BACKEND` を決める
 - [ ] **画面設計はブロックの組み合わせで決めたか？** → 同じ CRUD をテーブル数だけ量産しない。可視化ニーズがあれば **ReactFlow を第一候補**に（[設計リファレンス §4](references/design-patterns.md#4-画面設計ブロックの組み合わせテンプレ化しない設計)）

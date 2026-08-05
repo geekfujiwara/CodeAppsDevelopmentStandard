@@ -245,7 +245,7 @@ Code Apps を採用したら、**テーブルの数だけ同じ「一覧＋フ�
 を含めることを検討し、単なる一覧＋フォームのテンプレートで終わらせない。
 
 具体的な実装パターン（ガントチャートのカスタムノード・関係図・組織図・カテゴリ色のハッシュ関数）は
-[code-apps: ReactFlow 可視化パターン](../../code-apps/references/reactflow-patterns.md) を参照。
+[code-apps: ReactFlow 可視化パターン](../../code-apps/references/service-flow-pattern.md) を参照。
 
 ### 画面を組み立てる手順
 
