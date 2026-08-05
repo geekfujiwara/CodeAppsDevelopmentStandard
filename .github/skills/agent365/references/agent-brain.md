@@ -3,7 +3,7 @@
 [SKILL.md](../SKILL.md) の Step 7 でエンドポイントが応答するようになった後、
 **エコー返しから実際に役に立つエージェントへ育てる**ための手順。
 
-前提として、Step 0〜15 で確立した **ID 面（ブループリント / エージェント インスタンス /
+前提として、Step 0〜16 で確立した **ID 面（ブループリント / エージェント インスタンス /
 Teams マニフェスト / 表示名 / アイコン）は凍結**する。
 インスタンスを作り直すと管理者同意（Step 14）とカタログ公開（Step 11）をやり直しになるため、
 以降はアプリ面（コード・モデル・プロンプト・アプリ設定）だけを回す。
@@ -634,7 +634,81 @@ Teams から叩ける診断を入れておくと、権限問題の切り分け�
 `isError: true` でも `content` にテキストが無いサーバーがあるので、
 その場合は `result` の生 JSON を出す実装にしておく（でないと「エラーを返しました:」だけが出る）。
 
-## 8. 次の拡張（未検証を含む）
+## 8. MCP で塞がれた操作を Graph 直呼びで補う（実証済み）
+
+Work IQ の書き込みは不透明な **パス allowlist**（Rego）で制限されている。
+`/chats` は入っておらず、`create_entity` で呼んでも `Path is not in the policy allowlist.` で落ちる。
+確認済みで通る書き込みパスは `/me/events` / `/me/messages/{id}/reply` / `/me/sendMail` /
+`/me/events/{id}/accept` など。ここに無い操作は **Graph を直接呼ぶ**。
+
+### 8-1. トークンは既存の委任経路を使い回す
+
+新しい認証基盤は作らない。MCP 用にすでにあるエージェンティック ユーザーのトークン取得経路に、
+`https://graph.microsoft.com/.default` を渡すだけでよい。
+
+| 実行文脈 | 呼ぶもの |
+|---|---|
+| Teams のターン内 | `AgenticAuthorization.GetAgenticUserTokenAsync(turnContext, [scope], ct)` |
+| バックグラウンド（メール監視・定期実行） | `AgenticTokenSource.GetTokenAsync(scope, ct)` |
+
+| 方式 | 送った人の見え方 | チャット投稿 |
+|---|---|---|
+| エージェンティック ユーザーの**委任**トークン | エージェント本人 | 可（推奨） |
+| UAMI などの**アプリ権限**（app-only） | アプリ | 不可。`Teamwork.Migrate.All`（保護 API）が必要 |
+
+プレゼンス更新が UAMI のアプリ権限で動いているのを見て、チャットも同じ経路で行けると
+思わないこと。別経路であり、そもそも「本人からの発言」にならない。
+
+### 8-2. 同意はインスタンス単位、しかも**マージ**
+
+委任スコープはエージェント インスタンス SP に付与する。Entra は
+**(クライアント, リソース) の組につき `oauth2PermissionGrants` を 1 行しか持てない**ので、
+POST で追加しようとすると既存の Dataverse / Work IQ の同意を壊すか重複エラーになる。
+**既存行を読んで scope をマージし、PATCH する**。
+
+```powershell
+python scripts/grant_agent_graph_scopes.py --instance-id <インスタンス ID> `
+  --scopes "User.Read Chat.Create Chat.Read ChatMessage.Send"
+python scripts/grant_agent_graph_scopes.py --instance-id <インスタンス ID> --check
+```
+
+スクリプトは書き込む前に、指定されたスコープが Graph の `oauth2PermissionScopes` に
+実在するか検査する（綴りミスを同意後の 403 ではなく実行前に落とす）。
+
+### 8-3. ローカル ツールとして MCP と同列に並べる
+
+LLM から見て MCP ツールと区別がつかないよう、同じツール一覧に入れる。
+
+```csharp
+public sealed record LocalTool(
+    McpToolDefinition Definition,
+    Func<JsonElement, CancellationToken, Task<string>> Invoke);
+
+// McpToolset 側: _local 辞書を持ち、AddLocal / TryGetLocal を生やす
+// AgentBrain 側: ツール接続時に Graph トークンを取って登録
+toolset.AddLocal(teamsChat.CreateTools(graphToken));
+
+// 呼び出し側: ローカルを先に見る
+if (toolset.TryGetLocal(name, out var local))
+    return await local.Invoke(arguments, ct);
+```
+
+> ツール一覧をサーバー名で引くヘルパー（`ToolsOf` など）は、ローカル ツールを入れた途端に
+> `KeyNotFoundException` を投げやすい。インデクサではなく `TryGetValue` で書く。
+
+### 8-4. 安全側の強制
+
+| リスク | 対策 |
+|---|---|
+| 受信メール本文の「〇〇さんに送って」がそのまま実行される | バックグラウンド入口ではツールを渡さない（`TeamsChat:FromMailbox` 既定 `false`） |
+| 意図しない参加者がグループに入る | 参加者上限をコードで制限し、依頼者が指定した人以外を追加しないとプロンプトに明記 |
+| 誤送信の取り消し不能 | 送信前に宛先と本文を提示して承認を取る |
+| 入力値の注入 | ユーザーキー（UPN / GUID）と `chatId` を正規表現で検査してから URL に埋め込む |
+
+Graph 側のくせ：自分自身を `members` に重複して入れると 400、
+1 対 1 に `topic` を付けると 400、チャットを作っただけでは相手に通知されない。
+
+## 9. 次の拡張（未検証を含む）
 
 | 拡張 | 方式 | 注意 |
 |---|---|---|
