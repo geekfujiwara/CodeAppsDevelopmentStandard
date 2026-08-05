@@ -3,6 +3,7 @@ Copilot Studio v2 (cliagent) エージェントを API だけでフル自動デ�
 ================================================================================
 以下を順に実行する（各ステップは個別スクリプトとしても実行可能）:
   1) create_agent.py     … cliagent Bot を API 作成 + プロビジョニング待ち（agent_botid.txt を出力）
+                             初期メッセージ・推奨プロンプトもここで同時に設定される
   2) set_icon.py         … アイコン登録（240 / Teams color 192 / outline 32）
   3) set_app_details.py  … Edit details(説明文・開発元・リンク・Teams 設定・M365 有効化)を設定
   4) attach_skill.py     … フラット Python スキルを添付（type=9 + type=14）
@@ -15,6 +16,7 @@ Copilot Studio UI で手動追加する（references/mcp-servers.md）。
 
 .env パラメータ（詳細は references/.env.example）:
   AGENT_NAME / AGENT_SCHEMA / AGENT_MODEL_SERIES / AGENT_INSTRUCTIONS
+  AGENT_PROMPTS_FILE / AGENT_GREETING / AGENT_PROMPTS
   SKILL_DIR / SKILL_NAME / SKILL_DESCRIPTION
   ICON_TEXT / ICON_BG_COLOR / ICON_ACCENT_COLOR
   APP_SHORT_DESCRIPTION / APP_LONG_DESCRIPTION / APP_DISCLAIMER / APP_DEVELOPER_NAME
