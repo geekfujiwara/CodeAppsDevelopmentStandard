@@ -67,6 +67,7 @@ Cowork から Dataverse を直接操作できるようにする。
 | [scripts/setup_entra_oauth_graph.py](scripts/setup_entra_oauth_graph.py) | **（推奨）** Entra OAuth クライアントアプリを Microsoft Graph API 経由で作成。auth_helper.py のキャッシュ済み認証を利用するため追加のデバイスコード認証が不要（Step 3） |
 | [scripts/setup_entra_oauth.ps1](scripts/setup_entra_oauth.ps1) | （代替）az CLI 経由で同等の処理。az login のデバイスコード認証が必要（Step 3） |
 | [scripts/register_mcp_client.py](scripts/register_mcp_client.py) | Client ID を Dataverse 許可 MCP クライアント（`allowedmcpclients`）に登録・有効化・確認（Step 4） |
+| [scripts/diagnose_cowork_connector.py](scripts/diagnose_cowork_connector.py) | アプリ登録・admin consent・allowedmcpclients の3層をまとめて診断（Step 4→5 の間で実行推奨） |
 | [scripts/build_agent_package.ps1](scripts/build_agent_package.ps1) | `.env` の `COWORK_OAUTH_REGISTRATION_ID`（引用符付きでも可）を manifest.json のプレースホルダーに注入し、必須ファイルを検証して .zip を生成（Step 7） |
 
 ## ワークフロー（正常系）
@@ -201,6 +202,14 @@ $secret = az ad app credential reset --id $appId --display-name "cowork-oauth" `
 >   `.default` にすることで、このアプリに静的設定された `mcp.tools` が要求される。
 > - **シークレットは機密**。`.env` は `.gitignore` で除外する。スキルや manifest には絶対に書かない。
 
+> **テナント管理者の事前同意（admin consent）が必要な場合がある**: テナントがユーザーの自己同意
+> （user consent）を制限していると、`mcp.tools` への同意は Cowork 初回利用時にサイレントに失敗する
+> （エラー表示なしで「コネクタが反応しない」ように見える → troubleshooting #22）。
+> `setup_entra_oauth_graph.py` はアプリ登録後にサービスプリンシパルの作成と admin consent の状態を
+> 自動確認し、未完了なら `https://login.microsoftonline.com/<TENANT_ID>/adminconsent?client_id=<appId>`
+> の形式で URL を表示する。開発者自身がテナント管理者でなければ、この URL をテナント管理者に共有し、
+> 同意を得てから Step 4 以降に進む。
+
 ### Step 4: Entra Client ID を許可 MCP クライアントに登録（必須）
 
 OAuth 認可コードフローでは Dataverse に提示されるトークンの **appid がこのカスタムアプリ**になる。
@@ -224,6 +233,14 @@ python .github/skills/cowork/scripts/register_mcp_client.py --app-id <CLIENT_ID>
 > uniquename 未指定時は `<PUBLISHER_PREFIX>_<name のスラッグ>` で生成される。
 > GUI なら Power Platform 管理センター → 環境 → 設定 → 機能 →
 > Dataverse MCP の詳細設定（`etn=allowedmcpclient`）で +New。
+
+> **Step 5 に進む前に一括診断する（推奨）**: Teams 開発者ポータル登録や zip 再アップロードは
+> 手戻りのコストが高いブラウザ操作なので、その前に3層（アプリ登録・admin consent・
+> allowedmcpclients）が揃っているかを1コマンドで確認しておく。
+> ```powershell
+> python .github/skills/cowork/scripts/diagnose_cowork_connector.py
+> ```
+> いずれかのレイヤーが ❌/❓ の場合は、表示される対処コマンドを実行してから Step 5 に進む。
 
 ### Step 5: Teams 開発者ポータルで OAuth client 登録 → registrationId 取得（ブラウザ）
 
@@ -319,6 +336,10 @@ Save すると **OAuth client registration ID** が発行される。これを `
   > 旧 `search`（データ検索の意味）をそのまま書かない。現在の正しいツール名一覧は
   > [standard/references/dataverse-mcp-setup.md](../standard/references/dataverse-mcp-setup.md#主な-mcpツール) を参照）。
   > 古いツール名のまま公開すると、Cowork 側で該当ツールが認識されずスキルが動作しない（→ troubleshooting #15）。
+  > 上記の例は**読み取り専用の4ツールのみ**。スキルが `create_record`/`update_record`/`delete_record`/
+  > `upsert_skill` 等の**書き込み系ツールを呼ぶ場合は、そのツール名もここに追加する**こと。
+  > 追加を忘れると、読み取りは動くのに書き込み操作だけ「反応しない」原因不明の部分故障になる
+  > （→ troubleshooting #15 の補足）。
 - **アイコンはドメイン文脈を読んでから設計する**（→ [standard/references/icon-creation.md](../standard/references/icon-creation.md)
   の「アイコン画像提案フロー」）。`generate_icon_png.py` の汎用スパークルをそのまま登録しない。
   この manifest の `name`/`description`（プラグインの業務目的）と `accentColor` からモチーフ・配色を決め、
@@ -355,7 +376,7 @@ ZIP 検証: ルートに `manifest.json`（build 後、プレースホルダー�
 
 > ⚠️ Cowork プラグインは**「統合アプリ」ではなく、新しい「エージェント」画面**からアップロードする（UI 変更済み）。
 
-> **ブラウザ自動化で実施する場合の既知の落とし穴**（詳細は troubleshooting #17-19）。事前に把握してから進めると手戻りがない。
+> **ブラウザ自動化で実施する場合の既知の落とし穴**（詳細は troubleshooting #18-20）。事前に把握してから進めると手戻りがない。
 > ブラウザ操作は **VS Code 統合 Playwright ブラウザ**（`playwright-browser_navigate` / `playwright-browser_click` / `playwright-browser_handle_dialog` 等）を使う
 > （Playwright MCP サーバー・Playwright 単体ブラウザは使わない → [ブラウザ自動化方針](../standard/references/browser-automation.md)）。
 > 1. Teams 開発者ポータル → 管理センターへの遷移で **SSO 自動サインインが「Trying to sign you in」で止まる**ことがある。数秒進まなければアカウントピッカーを探してクリックする。
@@ -406,7 +427,9 @@ ZIP 検証: ルートに `manifest.json`（build 後、プレースホルダー�
 - [ ] 生成したスキル本文の最初の Step が「`describe` でスキーマ確認」になっている
 - [ ] フォルダ名 = SKILL.md `name`（kebab-case）
 - [ ] Entra: redirect URI×2 / Dynamics CRM **mcp.tools** / クライアントシークレット（.env）— `scripts/setup_entra_oauth.ps1`
+- [ ] Entra: **テナント管理者の事前同意（admin consent）**が付与済み（未同意だと Cowork 初回同意がサイレントに失敗 → troubleshooting #22）
 - [ ] Power Platform: Entra の **Client ID** を許可された MCP クライアントとして登録・有効化— `scripts/register_mcp_client.py`（`--check` で検証）
+- [ ] 上記3層を `scripts/diagnose_cowork_connector.py` で一括確認（すべて ✅）
 - [ ] Teams ポータル **OAuth client registration**（SSO ではない）: Base URL は `/api/mcp` なし、scope は `.default offline_access`、Restrict by app = Any Teams app → registrationId を manifest に反映
 - [ ] manifest に `mcpToolDescription: { file: "dataverse-mcp-tools.json" }`（JSONツール定義）
 - [ ] ZIP ルートに manifest.json / dataverse-mcp-tools.json、skills/<name>/SKILL.md
