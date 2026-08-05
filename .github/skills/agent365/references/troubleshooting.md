@@ -419,3 +419,87 @@ $scope = ((@($Scopes | ForEach-Object { "$Resource/$_" })) + 'offline_access') -
 - チャットは作られたのに相手に届かない → **作成だけでは通知されない。**メッセージ送信まで行わせる。
 - app-only トークンで投稿して 403 → アプリ権限でのチャット投稿は `Teamwork.Migrate.All`（保護 API）が必要で、
   しかもエージェント本人の発言にならない。委任トークンを使う。
+
+## 25. コード実行が 403 Forbidden で返る（B12）
+
+- ほぼ確実に、**セッション プールに対する Azure ContainerApps Session Executor ロールが
+  App Service の UAMI に付いていない**。プールの作成もアプリ設定も正常に見えるので気づきにくい。
+  作った本人は動作確認までにこの行程を踏まないため、**最初に依頼したユーザーが最初の被害者**になる。
+
+  ```bash
+  python scripts/provision_code_sandbox.py --check
+  ```
+
+  このコマンドは成功時にもロール付与を検証するので、プロビジョニング直後に必ず 1 回通す。
+- ロールは**プールのリソース ID をスコープ**に、UAMI の**オブジェクト ID**（クライアント ID ではない）へ割り当てる。
+- トークンのスコープが違うのも 403 になる。`https://dynamicsessions.io/.default` を使う。
+
+## 26. コード実行が 404 Not Found で返る（B12）
+
+- エンドポイントを手で組み立てている。ARM が返す `properties.poolManagementEndpoint` を**そのまま**使う。
+
+  ```bash
+  az rest --method GET --url "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.App/sessionPools/<pool>?api-version=2025-02-02-preview" --query properties.poolManagementEndpoint
+  ```
+
+  リージョン表記やホスト名は環境によって変わる。形が分かるからといって文字列連結で作らない。
+- `identifier` クエリ文字列が抜けている場合も 404 になる。全リクエストに付ける。
+
+## 27. サンドボックスの中で `pip install` が必ず失敗する（B12）
+
+- `sessionNetworkConfiguration.status` が **既定の `EgressDisabled`** のまま。
+  外向き通信が閉じているので、pip も外部 API も届かない。
+  モデルは原因が分からないまま同じインストールを繰り返し、ターンが延びる。
+- 有効化するとセッションから外部へ持ち出せるようになる。**取り込むファイルの機微度で決める**。
+  有効にするなら、生成コードに資格情報を渡さないことをシステム プロンプトに明記する。
+
+## 28. サンドボックスへのファイル アップロードが 400 で返る（B12）
+
+- multipart のフィールド名が `file` **以外**になっている。ここは固定。実ファイル名や `files` では通らない。
+- 大きすぎるファイルも失敗する。取り込み側で上限（40 MB 程度）を先に検査し、
+  利用者に分かる言葉で返す。
+
+## 29. 会話をまたぐとサンドボックスのファイルが消えている（B12）
+
+- セッション識別子が会話に紐づいていない。会話 ID のハッシュ先頭を `identifier` に使う。
+- または `cooldownPeriodInSeconds` を超えて放置された。**仕様であり、延ばしても本質的には解決しない。**
+  成果物は `deliver_file` で必ず外へ出す。「作った」で終わらせないことをツールの説明文に書く。
+
+## 30. python-pptx で `AttributeError: '_Paragraph' object has no attribute 'paragraph_format'`
+
+- `_Paragraph` に `paragraph_format` は存在しない。字下げは XML を直接触る。
+
+  ```python
+  pPr = paragraph._p.get_or_add_pPr()
+  pPr.set('marL', str(Emu(Inches(0.4))))
+  pPr.set('indent', str(-Emu(Inches(0.2))))
+  ```
+
+- 入れ子の箇条書きで `paragraph.level` を設定すると、レイアウト側の書式が優先されて崩れる。
+  レベルではなく字下げ幅で表現する。
+
+## 31. 数分かかるターンで「反応がない」と言われる（B13）
+
+- 入力中インジケーターは多くのチャネルで数十秒で消える。**タイマーで送り続ける**必要がある。
+- エージェント自身の `report_progress` だけに任せると、モデルが呼び忘れたターンが無言になる。
+  自動の状況通知と併用する（→ [progress-updates.md](progress-updates.md)）。
+- 逆に通知が多すぎて本文が流れる場合は、初回しきい値と間隔を延ばす。
+  同じラウンドでモデルが経過報告を呼んだときに自動通知を抑止しているかも確認する。
+
+## 32. 最終返信のあとも「入力中…」が残る（B13）
+
+- ハートビートを停止していない。**返信を送る前に**停止する。エラーで終わるターンでも、
+  エラー返信の前に停止させる。
+- 停止処理の待機で例外が飛んで本来の結果を覆い隠すことがある。待機は try/catch で囲み、警告ログに落とす。
+- ハートビートと最終返信が同じターン コンテキストへ同時に書き込むと不安定になる。送信は排他制御する。
+
+## 33. Kudu の VFS API が 401 を返す（デプロイ内容の確認時）
+
+- 基本認証が無効化されている環境では、**ARM のベアラー トークン**が要る。
+
+  ```powershell
+  $tok = az account get-access-token --resource https://management.core.windows.net/ -o tsv --query accessToken
+  Invoke-RestMethod -Uri 'https://<app>.scm.azurewebsites.net/api/vfs/site/wwwroot/<path>' `
+    -Headers @{ Authorization = "Bearer $tok" } -Method Get
+  ```
+

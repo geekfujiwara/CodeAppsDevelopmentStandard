@@ -708,7 +708,26 @@ if (toolset.TryGetLocal(name, out var local))
 Graph 側のくせ：自分自身を `members` に重複して入れると 400、
 1 対 1 に `topic` を付けると 400、チャットを作っただけでは相手に通知されない。
 
-## 9. 次の拡張（未検証を含む）
+## 9. ローカル ツールで足せる能力
+
+MCP サーバーを増やさなくても、`AgentBrain` のツールセットへ**ローカル ツール**として並べるだけで
+足せる能力がある。実装単位と参照先は次のとおり。
+
+| 能力 | 実装 | 参照 |
+|---|---|---|
+| Web 検索・URL 閲覧（B10） | `WebSearchTools.cs` | [web-grounding.md](web-grounding.md) |
+| 定期実行の登録・削除（B11） | `ScheduleTools.cs` | [scheduled-delivery.md](scheduled-delivery.md) |
+| コード実行・ファイル読解・資料生成（B12） | `CodeSandbox.cs` / `SandboxTools.cs` | [code-sandbox.md](code-sandbox.md) |
+| 経過連絡（B13） | `AgentProgress.cs` | [progress-updates.md](progress-updates.md) |
+
+B12 を入れると、**ツール ループの意味が変わる**。それまでのループは「どのツールを呼ぶか」の選択だったが、
+コード実行が入ると「書いて、動かして、エラーを読んで、直す」という**自己修正のループ**になる。
+そのためには実行結果（stdout / stderr）を整形せずそのまま返す必要がある。
+エラーを「失敗しました」に丸めると、モデルは直す手がかりを失ってループが 1 周で止まる。
+
+B12 と B13 は原則セットで入れる。コード実行が入ったターンは分単位になり、無言のまま待たせることになる。
+
+## 10. 次の拡張（未検証を含む）
 
 | 拡張 | 方式 | 注意 |
 |---|---|---|
