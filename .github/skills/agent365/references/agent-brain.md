@@ -708,7 +708,41 @@ if (toolset.TryGetLocal(name, out var local))
 Graph 側のくせ：自分自身を `members` に重複して入れると 400、
 1 対 1 に `topic` を付けると 400、チャットを作っただけでは相手に通知されない。
 
-## 9. 次の拡張（未検証を含む）
+## 9. ローカル ツールで足せる能力
+
+MCP サーバーを増やさなくても、`AgentBrain` のツールセットへ**ローカル ツール**として並べるだけで
+足せる能力がある。実装単位と参照先は次のとおり。
+
+| 能力 | 実装 | 参照 |
+|---|---|---|
+| Web 検索・URL 閲覧（B10） | `WebSearchTools.cs` | [web-grounding.md](web-grounding.md) |
+| 定期実行の登録・削除（B11） | `ScheduleTools.cs` | [scheduled-delivery.md](scheduled-delivery.md) |
+| コード実行・ファイル読解・資料生成（B12） | `CodeSandbox.cs` / `SandboxTools.cs` | [code-sandbox.md](code-sandbox.md) |
+| 経過連絡（B13） | `AgentProgress.cs` | [progress-updates.md](progress-updates.md) |
+| メールへの HTML 返信（B6） | `MailTools.cs` / `MessageHtml.cs` | [outbound-formatting.md](outbound-formatting.md) |
+| 成果物の共有と同意（B14） | `DocumentLedger.cs` / `DocumentShareTools.cs` | [document-sharing.md](document-sharing.md) |
+
+B12 を入れると、**ツール ループの意味が変わる**。それまでのループは「どのツールを呼ぶか」の選択だったが、
+コード実行が入ると「書いて、動かして、エラーを読んで、直す」という**自己修正のループ**になる。
+そのためには実行結果（stdout / stderr）を整形せずそのまま返す必要がある。
+エラーを「失敗しました」に丸めると、モデルは直す手がかりを失ってループが 1 周で止まる。
+
+B12 と B13 は原則セットで入れる。コード実行が入ったターンは分単位になり、無言のまま待たせることになる。
+
+**ローカル ツールは入口ごとに出し分ける。** 同じ `AgentBrain` でも、Teams の会話ターンと
+受信トレイのスイープでは見せてよいツールが違う。
+
+| ツール | Teams 会話 | 受信トレイ / 定期実行 | 理由 |
+|---|:--:|:--:|---|
+| `send_teams_chat_message`（B9） | ● | ✕ | メール本文の「〇〇さんに伝えて」がそのまま第三者への送信になる |
+| `reply_mail`（B6） | ✕ | ● | 話し相手ではない誰かへ返信してしまう |
+| `decide_share`（B14） | ● | ✕ | 話し相手の同一性を確かめられない経路では承認を受け付けられない |
+
+`decide_share` のように**誰が話しているかで結果が変わるツール**は、
+組み立て時に話し相手のアドレスを引数として渡す。
+**アドレスの解決をツール組み立てより後に置くと、常に `null` になって誰も承認できなくなる。**
+
+## 10. 次の拡張（未検証を含む）
 
 | 拡張 | 方式 | 注意 |
 |---|---|---|

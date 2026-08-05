@@ -15,6 +15,7 @@
 //                                         Func<JsonElement, CancellationToken, Task<string>> Invoke)
 //   McpToolDefinition  … (Name, Description, InputSchema)
 //   McpToolset         … AddLocal(IEnumerable<LocalTool>) / TryGetLocal(string, out LocalTool)
+//   MessageHtml        … references/templates/MessageHtml.template.cs（Markdown → HTML）
 //
 // Program.cs:
 //   builder.Services.AddSingleton<TeamsChatTools>();
@@ -92,13 +93,19 @@ public sealed partial class TeamsChatTools(IHttpClientFactory httpClientFactory,
         new LocalTool(
             new McpToolDefinition(
                 "send_teams_chat_message",
-                "既存の Teams チャットにメッセージを送信する。chatId は create_teams_chat か list_teams_chats で得たものを使う。",
+                "既存の Teams チャットにメッセージを送信する。chatId は create_teams_chat か list_teams_chats で得たものを使う。"
+                + "message は **Markdown で書く**。見出し・箇条書き・表・リンクは Teams の書式に変換して送られる。"
+                + "URL は裸のまま並べず `[見出し](https://...)` の形で書くと、リンクとして表示される。"
+                + "1 行に詰め込まず、空行で段落を分け、列挙は `- ` で箇条書きにする。",
                 Schema("""
                     {
                       "type": "object",
                       "properties": {
                         "chatId": { "type": "string", "description": "チャット ID（例: 19:....@thread.v2）。" },
-                        "message": { "type": "string", "description": "送信する本文。プレーン テキスト。" }
+                        "message": {
+                          "type": "string",
+                          "description": "送信する本文。Markdown（見出し ##、箇条書き - 、**強調**、[リンク](URL)、表）で書く。"
+                        }
                       },
                       "required": ["chatId", "message"]
                     }
@@ -229,7 +236,9 @@ public sealed partial class TeamsChatTools(IHttpClientFactory httpClientFactory,
         using HttpClient http = CreateClient(accessToken);
         using HttpResponseMessage response = await http.PostAsync(
             $"{GraphRoot}/chats/{chatId}/messages",
-            JsonContent(new { body = new { contentType = "text", content = message } }),
+            // text で送ると URL が死んだ文字列になり、箇条書きも表も潰れる。
+            // モデルには Markdown を書かせ、変換はコードで行う（MessageHtml.template.cs）。
+            JsonContent(new { body = new { contentType = "html", content = MessageHtml.FromMarkdown(message) } }),
             cancellationToken);
         string body = await response.Content.ReadAsStringAsync(cancellationToken);
 
