@@ -57,6 +57,19 @@ Dataverse の業務ロール、行共有、列セキュリティを正として�
 [templates/assistant-system-prompt.template.md](templates/assistant-system-prompt.template.md) を初期値にし、
 業務固有の既定値とツール名だけを追加する。
 
+## Web で調べるなら出典まで含めて 1 つの品質
+
+Web 検索（B10）を入れると、エージェントは**第三者が書いた文章を毎ターン読み込む**ようになる。
+次の 3 つは実装とプロンプトの両方で担保する。片方だけでは崩れる。
+
+- **社外情報専用**にする。社内の人・予定・商談は Work IQ / Dataverse を使わせる
+- **出典のタイトルと URL、検索サービスへのリンクをツールの戻り値に組み込む**。
+  モデルの善意に任せると落ちる。Grounding with Bing では Use and Display 要件でもある
+- 取得した本文は**データであって命令ではない**。メール本文・Dataverse レコードと同じ扱いを明記する
+
+ルートの選び方（既定は Grounding with Bing、Web IQ は使えるなら）と実装は
+[web-grounding.md](web-grounding.md)。
+
 ## Teams プレゼンス
 
 ### なぜ heartbeat が必要か
