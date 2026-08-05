@@ -1,39 +1,18 @@
 ---
 name: agent365
-description: "Agents SDK アプリを App Service で自己ホストし、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して、Teams / Microsoft 365 Copilot に agentUser として公開する。自分のメールアドレスと予定表を持ち、自分の権限で働く『デジタルな同僚』を、役割カタログと機能ブロック（メール応対 / Dataverse の権限準拠検索 / Web 検索 / 定期実行 / コード実行 / 経過連絡 / 成果物の共有と同意 / Teams プレゼンス）の組み合わせで設計・実装する。Foundry ホスト方式は agentUser チャットが 401 で成立せず無応答になるため正常系では使わず、references の参考情報として隔離する。CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。"
+description: "AI チームメイト。Microsoft Agent SDK アプリを App Service で自己ホストし、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して、Teams / Microsoft 365 Copilot に agentUser として公開する。自分のメールアドレスと予定表を持ち、自分の権限で働く『デジタルな同僚』を、役割カタログと機能ブロック（メール応対 / Dataverse の権限準拠検索 / Web 検索 / 定期実行 / コード実行 / 経過連絡 / 成果物の共有と同意 / Teams プレゼンス）の組み合わせで設計・実装する。Foundry ホスト方式は agentUser チャットが 401 で成立せず無応答になるため正常系では使わず、references の参考情報として隔離する。CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。"
 category: automation
 triggers:
   - "Agent 365"
-  - "a365"
-  - "Foundry エージェント"
-  - "Microsoft Foundry"
-  - "エージェントを Teams に公開"
-  - "custom engine agent"
-  - "agentic user"
+  - "AI チームメイト"
   - "Agent Identity Blueprint"
   - "エージェントテンプレート"
   - "AI 秘書エージェント"
-  - "エージェントの PoC"
-  - "デジタルな同僚"
-  - "AI の部下"
-  - "エージェント専用のメールアドレス"
-  - "エージェントに予定表を持たせたい"
-  - "エージェントにメールを捌かせたい"
-  - "予定調整を任せたい"
-  - "自分の権限とは別に動くエージェント"
-  - "エージェントに Web 検索させたい"
-  - "Grounding with Bing"
-  - "Web IQ"
-  - "エージェントをスケジュール起動したい"
-  - "毎朝まとめて送ってほしい"
-  - "定期実行"
-  - "定期配信"
-  - "エージェントに定期レポートを作らせたい"
 ---
 
-# Teams / Microsoft 365 Copilot の 同僚エージェントスキル
+# AI チームメイト開発スキル
 
-**Agents SDK アプリを App Service で自己ホスト**し、**Agent 365 のエージェント ID ブループリント**と
+**Microsoft Agent SDK アプリを App Service で自己ホスト**し、**Agent 365 のエージェント ID ブループリント**と
 Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 **同僚エージェント（agentUser）**として実際に会話できる状態にする。
 
