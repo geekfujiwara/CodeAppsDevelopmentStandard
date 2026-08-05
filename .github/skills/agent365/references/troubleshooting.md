@@ -399,3 +399,23 @@ $scope = ((@($Scopes | ForEach-Object { "$Resource/$_" })) + 'offline_access') -
   managed identity client ID が一致するか確認する。付与後はトークン キャッシュ反映まで待って再起動する。
 - heartbeat 成功後も表示が変わらない → Teams / Org Explorer のキャッシュ反映を待つ。
   4 時間を超えて heartbeat が止まれば自動的に Offline へ戻るのが正常。
+
+## 24. Teams のチャットを作れない / メッセージを送れない
+
+- Work IQ の `create_entity` で `/chats` を呼ぶと下記が返る。**仕様であり、リトライやパスの換えでは通らない。**
+
+  ```json
+  { "error": { "message": "Path is not in the policy allowlist." } }
+  ```
+
+  対処: Microsoft Graph を直接呼ぶ（[agent-brain.md](agent-brain.md) §8、[SKILL.md](../SKILL.md) Step 15）。
+- Graph が 403 `Authorization_RequestDenied` → インスタンス SP に委任スコープが無い。
+  `python scripts/grant_agent_graph_scopes.py --check` で確認する。同意は**インスタンス単位**なので、
+  インスタンスを作り直したら付け直す。
+- 同意を入れたのに Dataverse / Work IQ が死んだ → `oauth2PermissionGrants` を POST で上書きしている。
+  (クライアント, リソース) につき 1 行しか持てないので、**既存 scope にマージして PATCH** する。
+- 400 で members が重複 → モデルが自分自身を参加者に入れている。コード側で自分を除外してから先頭に付け直す。
+- 400 で topic が拒否 → 1 対 1（`oneOnOne`）に件名は付けられない。グループのときだけ送る。
+- チャットは作られたのに相手に届かない → **作成だけでは通知されない。**メッセージ送信まで行わせる。
+- app-only トークンで投稿して 403 → アプリ権限でのチャット投稿は `Teamwork.Migrate.All`（保護 API）が必要で、
+  しかもエージェント本人の発言にならない。委任トークンを使う。
