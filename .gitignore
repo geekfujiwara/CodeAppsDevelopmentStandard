@@ -33,9 +33,11 @@ dist/
 Thumbs.db
 
 # Environment
+# .env.before-xxx のような派生ファイルを取りこぼさないため接尾辞を含めて除外する
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!*.env.example
 
 # Authentication cache (auth_helper.py)
 .auth_record.json
@@ -62,7 +64,7 @@ __pycache__/
 # agent365 (PoC scaffold under agents/sales-copilot-nova — generated/secret artifacts)
 agents/**/agent.yaml
 teams/*.zip
-a365.generated.config.json
+a365.generated.config*.json
 .a365-auth.json
 auth-token.json
 *token-cache*
