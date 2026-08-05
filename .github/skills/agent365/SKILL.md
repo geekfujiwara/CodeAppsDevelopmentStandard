@@ -1,6 +1,6 @@
 ---
 name: agent365
-description: "Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に agentUser として公開する。自分のメールアドレスと予定表を持ち、自分の権限で働く『デジタルな同僚』を、役割カタログと機能ブロックの組み合わせで設計・実装する。秘書としての予定調整、受信トレイ監視によるメール応対、Dataverse の権限準拠検索、Grounding with Bing による Web 検索（Web IQ が使える場合は併用）、温かい人格、Teams プレゼンスを標準化する。Foundry エージェントの直接公開は参考扱いとし、CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。"
+description: "Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に agentUser として公開する。自分のメールアドレスと予定表を持ち、自分の権限で働く『デジタルな同僚』を、役割カタログと機能ブロックの組み合わせで設計・実装する。秘書としての予定調整、受信トレイ監視によるメール応対、Dataverse の権限準拠検索、Grounding with Bing による Web 検索（Web IQ が使える場合は併用）、頻度と配信先を会話で決める定期実行・定期配信、温かい人格、Teams プレゼンスを標準化する。Foundry エージェントの直接公開は参考扱いとし、CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。"
 category: automation
 triggers:
   - "Agent 365"
@@ -27,6 +27,11 @@ triggers:
   - "エージェントに Web 検索させたい"
   - "Grounding with Bing"
   - "Web IQ"
+  - "エージェントをスケジュール起動したい"
+  - "毎朝まとめて送ってほしい"
+  - "定期実行"
+  - "定期配信"
+  - "エージェントに定期レポートを作らせたい"
 ---
 
 # Teams / Microsoft 365 Copilot の 同僚エージェントスキル
@@ -62,6 +67,7 @@ messaging endpoint に登録する。Foundry エージェントや `activityprot
 | [references/agent-brain.md](references/agent-brain.md) | **エージェントの中身の作り込み**（Azure OpenAI 接続 / 会話履歴 / プロンプト外部化 / **Dataverse MCP 接続** / **Work IQ 接続** / 再デプロイ / ロールバック） |
 | [references/assistant-agent-pattern.md](references/assistant-agent-pattern.md) | **秘書・同僚エージェントの標準品質**（承認後の実行 / Dataverse の権限準拠検索 / 温かい人格 / Teams プレゼンス） |
 | [references/web-grounding.md](references/web-grounding.md) | **Web 検索を持たせる**（既定は Grounding with Bing = Responses API の `web_search`。Web IQ MCP は招待済みの場合の選択肢 / 出典表示 / インジェクション対策） |
+| [references/scheduled-delivery.md](references/scheduled-delivery.md) | **時刻起動で自分から動かせる**（頻度の提案のしかた / チャット・メールの配信経路 / 人がいない場の実行時コンテキスト / 永続化と取りこぼし） |
 | [references/architecture.md](references/architecture.md) | 2 種類のブループリントの違い、agentUser チャットの経路 |
 | [references/troubleshooting.md](references/troubleshooting.md) | 異常系（401 / AADSTS82001 / AADSTS65001 / カタログ公開の 409・403 など） |
 | [references/foundry-hosted-bot.md](references/foundry-hosted-bot.md) | Foundry ホスト方式の現状（直接 bot チャットのみ。agentUser では動かない。必要なら中間サービスが必要） |
@@ -96,7 +102,7 @@ messaging endpoint に登録する。Foundry エージェントや `activityprot
 
 依頼者は「Web 検索が欲しい」とは言わない。質問 3 の回答に**社外の情報が一つでも含まれていたら**
 （相手企業・業界動向・競合・製品仕様・ニュース・「最新の」「URL を読んで」）、
-**その場で B10 を提案して启否を取る**（判定表は
+**その場で B10 を提案して可否を取る**（判定表は
 [references/digital-colleague-design.md](references/digital-colleague-design.md) §4）。
 
 > 社外の情報も自分で調べられるようにしますか？
@@ -107,6 +113,22 @@ messaging endpoint に登録する。Foundry エージェントや `activityprot
 ここで同時に伝えること: Web の情報は正確性が保証されず、認証が要るページは読めない。
 回答には必ず出典 URL を添える。画像検索が**業務要件**の場合だけ、Web IQ の招待状況を確認する
 （→ [references/web-grounding.md](references/web-grounding.md)）。
+
+### 定期実行（B11）も聞かれる前に提案する
+
+質問 3 の回答に**繰り返しの仕事が見えたら**（「毎朝」「週次」「定期的に」「見ておいて」
+「止まっているものを探して」「サマリを送って」）、**B11 を提案する**（判定表は
+[references/digital-colleague-design.md](references/digital-colleague-design.md) §4）。
+
+**頻度を聞かない。仕事の内容から推定して 1 案を出し、可否だけ取る。**
+
+> 平日 8:00 に、前日からの動きをまとめて Teams チャットへお送りする形でいかがでしょう。
+> 頻度や時間、メールでの受け取りにも変更できます。
+
+確定させるのは**頻度・時刻・配信方法（チャット / メール）・宛先**の 4 点だけ。
+同時に制約を伝える: 粒度は日単位、実行に失敗しても同じ回は再送しない、
+アプリが長く停止するとその回は飛ぶ（→ [references/scheduled-delivery.md](references/scheduled-delivery.md)）。
+配信に Teams チャットを使うなら B9、メールを使うなら B4 が先に要る。
 
 > ライト実装（共有エージェント・CI/CD なし）にする場合は Step 4（Agent 365 ブループリント）と
 > Step 14（インスタンス SP への同意）を省略する
@@ -148,7 +170,12 @@ ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `
 │   ├── AgentBrain.cs                # LLM + MCP ツール ループ（全入口で共用）
 │   ├── AgenticIdentity.cs           # ターン外で自分としてトークンを取る
 │   ├── MailboxWorker.cs             # 受信トレイを監視してメールに返信（任意）
-│   ├── TeamsChatTools.cs            # 自分名義で Teams チャットを作成・送信（任意）│   ├── WebSearchTools.cs         # Grounding with Bing で Web を検索・閲覧（任意）│   ├── PresenceWorker.cs            # 常時稼働を Teams プレゼンスへ反映
+│   ├── TeamsChatTools.cs            # 自分名義で Teams チャットを作成・送信（任意）
+│   ├── WebSearchTools.cs            # Grounding with Bing で Web を検索・閲覧（任意）
+│   ├── ScheduleStore.cs             # 定期実行の永続化と次回時刻の算出（任意）
+│   ├── ScheduleTools.cs             # 定期実行を会話で登録・削除（任意）
+│   ├── ScheduleWorker.cs            # 時刻が来たら実行して配信（任意）
+│   ├── PresenceWorker.cs            # 常時稼働を Teams プレゼンスへ反映
 │   └── appsettings.json            # シークレットは書かない
 ├── teams/
 │   ├── manifest.template.json      # コミット対象
@@ -179,6 +206,7 @@ ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `
 | B4 Microsoft 365 接続 / B5 Dataverse 接続 | [references/agent-brain.md](references/agent-brain.md) §6・§7 |
 | B2 自分の ID / B6 受信トレイ監視 | Step 9 |
 | B10 Web 検索 | Step 9b |
+| B11 定期実行 | Step 9c |
 | B7 Teams プレゼンス | Step 13 |
 | B9 Teams チャット送信 | Step 15 |
 
@@ -436,6 +464,47 @@ builder.Services.AddSingleton<WebSearchTools>();
 > 接続を試みないので、招待が下りた日にアプリ設定を 1 つ足すだけで有効になる。
 
 実装・応答の読み方・切り分けは [references/web-grounding.md](references/web-grounding.md)。
+
+### Step 9c: 決まった時間に自分から動けるようにする（B11、役割に応じて）
+
+Step 0 で B11 を選んだ場合だけ実施する。**定期実行をコードではなくデータとして持つ**——
+頻度・時刻・配信先を会話で決めて保存するので、変更のたびに再デプロイしない。
+
+```powershell
+Copy-Item .github/skills/agent365/references/templates/ScheduleStore.template.cs  src/<agent-name>-agent/ScheduleStore.cs
+Copy-Item .github/skills/agent365/references/templates/ScheduleTools.template.cs  src/<agent-name>-agent/ScheduleTools.cs
+Copy-Item .github/skills/agent365/references/templates/ScheduleWorker.template.cs src/<agent-name>-agent/ScheduleWorker.cs
+
+az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
+  Schedule__Enabled=true Schedule__TickSeconds=60 Schedule__CatchUpMinutes=30
+```
+
+```csharp
+builder.Services.AddSingleton<ScheduleStore>();
+builder.Services.AddSingleton<ScheduleTools>();
+builder.Services.AddHostedService<ScheduleWorker>();
+```
+
+- 前提は **B2**（ターン外のトークン）。配信に Teams チャットを使うなら **B9**、メールなら **B4** を先に入れる。
+- 保存先は `%HOME%/data/schedules.json`。App Service の `%HOME%` は永続領域なので再デプロイで消えない。
+- **`ScheduleWorker` の実行時コンテキストに「画面の前に人はいない」と配信ツールの具体名を必ず書く。**
+  これが無いと「よろしいですか？」で終わり、何も届かない。
+- 期限が来たジョブは**取り出した瞬間に次回時刻へ進める**。失敗しても同じ回を再送しない（欠落を選ぶ）。
+- Step 8 のプロンプトに定期実行セクションを足す。外せないのは「**頻度は聞かずに 1 案を提示する**」
+  「確認は頻度・時刻・配信方法・宛先の 4 点だけ」「`instruction` は会話を読まなくても分かる文で書く」。
+
+確認するログ:
+
+| ログ | 意味 |
+|---|---|
+| `Schedule worker checking every 60s` | ワーカーが起動した |
+| `Running N scheduled job(s)` | 期限が来たジョブを取り出した |
+| `Scheduled job … delivered via … Next run …` | 1 件分の実行結果と次回時刻 |
+
+> **スケールアウトすると二重配信する**（インスタンスごとにファイルを持つため）。`numberOfWorkers=1` を
+> 維持するか、保存先を共有ストアへ移す。
+
+会話設計・配信経路・切り分けは [references/scheduled-delivery.md](references/scheduled-delivery.md)。
 
 ### Step 10: Teams アプリパッケージをビルドする
 
