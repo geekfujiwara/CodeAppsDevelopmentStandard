@@ -2,7 +2,9 @@
 """Discover Azure / Foundry connection values via ARM REST and write them into .env file(s).
 
 Replaces manually copying the subscription id / resource group / Foundry project endpoint
-from the Azure or Foundry portal (SKILL.md Step 3). Uses the same auth_helper.get_token()
+from the Azure or Foundry portal. Foundry is reference-only for this skill
+(see references/foundry-hosted-bot.md); the agentUser happy path does not need these values.
+Uses the same auth_helper.get_token()
 credential (DeviceCodeCredential + persistent cache) as every other script in this repo, so
 no separate `az login` / portal browsing is required.
 

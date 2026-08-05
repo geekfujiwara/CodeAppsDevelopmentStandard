@@ -3,7 +3,7 @@
 「この zip の中身を見て」「この Excel を集計して」「提案資料を作って」——
 **手順を先に決められない仕事**を任せられるようにする機能ブロック。
 役割の決め方は [digital-colleague-design.md](digital-colleague-design.md) §3 B12、
-導入手順は [SKILL.md](../SKILL.md) Step 9d。
+導入手順は [SKILL.md](../SKILL.md) Step 8 → [feature-blocks.md](feature-blocks.md) §5。
 
 ## 1. 価値はツールではなくループにある
 

@@ -1,12 +1,20 @@
-# Foundry ホスト方式（参考: 直接 bot チャットのみ・agentUser チャットは動かない）
+# Foundry ホスト方式（参考情報。実装には使わない）
+
+> **このスキルの実装フローでは Foundry ホスト方式を使わない。**
+> Foundry の `activityprotocol` を Agent 365 の agentUser エンドポイントに指定すると、
+> Agent 365 が送るトークンが **401 で拒否され、Teams で話しかけても応答が返ってこない**（無反応）。
+> 受理する audience を変更する手段が無く、回避策も存在しない
+> （[troubleshooting.md](troubleshooting.md) #17）。
+> デジタルな同僚を作るなら [SKILL.md](../SKILL.md) の自己ホスト フロー
+> （[self-hosted-agent.md](self-hosted-agent.md)）を使う。
+>
+> 本ファイルは「なぜ動かないのか」「どこまでならできるのか」を残すための**参考情報**であり、
+> ここの手順を正常系に混ぜない。同じ理由で `create_blueprint.py` / `create_instance.py` /
+> `deploy.py` / `discover_foundry_context.py` も正常系では使わない。
 
 エージェントの実装を自分で書かず、Foundry の `activityprotocol` エンドポイントを
 Azure Bot のメッセージング エンドポイントにする方式。
-
-> **この方式では agentUser（同僚アイデンティティ）チャットは動かない。**
-> Agent 365 のトークンが 401 で拒否される（[troubleshooting.md](troubleshooting.md) #17）。
-> 「アプリとしてインストールした bot への DM」だけが動く。
-> Teams で同僚として会話させたいなら [self-hosted-agent.md](self-hosted-agent.md) を使う。
+**「アプリとしてインストールした bot への DM」だけが動く。**
 
 ## 現在できること / できないこと
 

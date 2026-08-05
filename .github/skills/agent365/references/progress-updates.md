@@ -3,7 +3,7 @@
 ツールが増えるほど 1 ターンは長くなる。調べもの、資料作り、複数件の処理では数分かかることもあり、
 その間チャットが無言だと**壊れたと受け取られる**。
 役割の決め方は [digital-colleague-design.md](digital-colleague-design.md) §3 B13、
-導入手順は [SKILL.md](../SKILL.md) Step 9e。
+導入手順は [SKILL.md](../SKILL.md) Step 8 → [feature-blocks.md](feature-blocks.md) §6。
 
 ## 1. 3 層で埋める
 

@@ -1,4 +1,9 @@
-# ライト実装（PoC）クイックスタート
+# ライト実装（PoC）クイックスタート（参考）
+
+> **このルートは正常系ではない。** Foundry ホスト方式を使う共有エージェント（bot への直接チャット）
+> 専用で、**agentUser（同僚アイデンティティ）チャットは動かない**
+> （→ [foundry-hosted-bot.md](foundry-hosted-bot.md)）。デジタルな同僚を作るなら
+> [SKILL.md](../SKILL.md) の自己ホストフローを使う。
 
 「まず Teams で動かして価値を検証する」ための最短ルート。
 CI/CD・インスタンス化・シークレットストア連携を**あえて作らない**ことで、構成要素を最小に保つ。
@@ -11,7 +16,7 @@ CI/CD・インスタンス化・シークレットストア連携を**あえて�
 | リポジトリ | 任意（ローカルのみでも可。private/public いずれでもよい） |
 | シークレット | ローカル `.env` のみ（`SECRET_BACKEND=none`） |
 | デプロイ | ローカルから手動実行 |
-| 追加ツール | `a365` CLI は不要（Step 6 を省略するため） |
+| 追加ツール | `a365` CLI は不要（Agent 365 ブループリントを作らないため） |
 
 `.env` に最低限これだけを設定する。
 
@@ -29,11 +34,10 @@ FOUNDRY_PROJECT_ENDPOINT=https://<account>.services.ai.azure.com/api/projects/<p
 > `A365_AGENT_BLUEPRINT_ID` は**設定しない**。未設定なら `build_teams_package.py` が
 > 自動的に GA スキーマの共有エージェント用パッケージを生成する。
 
-## 手順（SKILL.md の Step 6 と Step 14 を省略）
+## 手順（Agent 365 ブループリントとインスタンス同意を省略）
 
-> このルートは共有エージェント（bot への直接チャット）専用。**agentUser（同僚アイデンティティ）
-> チャットは動かない**（[foundry-hosted-bot.md](foundry-hosted-bot.md)）。事前確認の質問 1 で
-> 「テンプレート公開のみ」を選んだ場合は Step 5 で止め、以下の Bot Service 作成（課金あり）を行わない。
+> 事前確認の質問 1 で「テンプレート公開のみ」を選んだ場合はエージェント作成までで止め、
+> 以下の Bot Service 作成（課金あり）を行わない。
 
 ```powershell
 # Step 2: 最小 scaffold（.githooks/ と CI 定義は作らない）
@@ -100,8 +104,8 @@ PoC の成果物はそのまま流用できる。追加するのは**次の 3 �
 
 | 追加するもの | やること |
 |---|---|
-| Step 6 | `a365 setup blueprint` で Agent 365 ブループリントを作成し、`A365_AGENT_BLUEPRINT_ID` を `.env` へ。<br>`teams/agenticUser.template.json` を追加して再ビルド（`TEAMS_APP_VERSION` を上げる） |
-| Step 7 | agentUser チャットを動かすなら自己ホストに切り替える → [self-hosted-agent.md](self-hosted-agent.md) |
+| ブループリント（SKILL.md Step 4） | `a365 setup blueprint` で Agent 365 ブループリントを作成し、`A365_AGENT_BLUEPRINT_ID` を `.env` へ。<br>`teams/agenticUser.template.json` を追加して再ビルド（`TEAMS_APP_VERSION` を上げる） |
+| 自己ホスト（SKILL.md Step 5〜6） | agentUser チャットを動かすには自己ホストへ切り替える（Foundry ホストのままでは動かない） → [self-hosted-agent.md](self-hosted-agent.md) |
 | CI/CD | private リポジトリへ移し、**`alm` スキル**の手順で `.githooks/pre-commit`・`alm.config.json`・CI 定義を配置する。<br>`SECRET_BACKEND` を `github` / `azure-devops` / `keyvault` に変更して `sanitize.py --set-secrets` を実行 → [`alm`](../../alm/SKILL.md) |
 
 > 昇格時は共有エージェント → インスタンス化エージェントへ公開形態が変わるため、

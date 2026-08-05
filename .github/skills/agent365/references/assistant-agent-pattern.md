@@ -3,7 +3,7 @@
 Agent 365 の agentUser を、単に質問へ答える bot ではなく、仕事を前へ進める同僚として作る標準パターン。
 どの役割を任せ、どの機能ブロックを入れるかは
 [digital-colleague-design.md](digital-colleague-design.md) で先に決める。ここはその**品質基準**。
-正常系の導入順は [SKILL.md](../SKILL.md) Step 8 / 13、症状別の対処は
+正常系の導入順は [SKILL.md](../SKILL.md) Step 7 / 12、症状別の対処は
 [troubleshooting.md](troubleshooting.md) #21〜23 を参照する。
 
 ## 責務の分離
@@ -154,7 +154,7 @@ Offline は解消しない。標準実装は `setPresence` を使う。
 ## Teams チャットでの代理連絡
 
 秘書に「〇〇さんに伝えておいて」と頒めるのは自然な依頼だが、**人に届く前に必ず一度人に見せる**。
-実装は [agent-brain.md](agent-brain.md) §8、手順は [SKILL.md](../SKILL.md) Step 15。
+実装は [agent-brain.md](agent-brain.md) §8、手順は [feature-blocks.md](feature-blocks.md) §2（SKILL.md Step 8）。
 
 1. 宛先を確定させる（名前だけならディレクトリ検索で UPN まで落とす）。
 2. 既存チャットを探す。同じ相手との 1 対 1 は 1 本しか作れないので、新規作成より先に探す。

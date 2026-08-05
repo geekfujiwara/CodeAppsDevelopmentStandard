@@ -159,7 +159,7 @@ Edge プロファイル）を参照。初回失敗時は同じコマンドを再
   終了する（本 PR で実装済み）。
 - 影響範囲: 事前確認の質問 1 で **(a)/(b)** を選んだ場合は公開自体を行わないため無関係。
   **(c)/(d)** を選び `--require-template` でビルドした場合は必ずこの制約に当たるため、
-  SKILL.md の Step 11 は「Graph 公開は GA/共有エージェント manifest 専用、
+  SKILL.md の Step 10 は「Graph 公開は GA/共有エージェント manifest 専用、
   Agent template は手動アップロード」と明記する。
 
 ## 17. Teams で bot に無反応（サインイン カードすら出ない）／ agentUser チャットが完全無反応
@@ -408,7 +408,7 @@ $scope = ((@($Scopes | ForEach-Object { "$Resource/$_" })) + 'offline_access') -
   { "error": { "message": "Path is not in the policy allowlist." } }
   ```
 
-  対処: Microsoft Graph を直接呼ぶ（[agent-brain.md](agent-brain.md) §8、[SKILL.md](../SKILL.md) Step 15）。
+  対処: Microsoft Graph を直接呼ぶ（[agent-brain.md](agent-brain.md) §8、[feature-blocks.md](feature-blocks.md) §2）。
 - Graph が 403 `Authorization_RequestDenied` → インスタンス SP に委任スコープが無い。
   `python scripts/grant_agent_graph_scopes.py --check` で確認する。同意は**インスタンス単位**なので、
   インスタンスを作り直したら付け直す。
