@@ -9,8 +9,10 @@ UI 手動作成は不要。template="cliagent-1.0.0" で POST /bots すると AP
   TENANT_ID            テナント ID（必須・auth_helper が使用）
   AGENT_NAME           エージェント名（既定: my-new-agent）
   AGENT_SCHEMA         スキーマ名 {prefix}_{slug}（既定: AGENT_NAME を正規化）
-  AGENT_MODEL_SERIES   モデルシリーズ（既定: Sonnet46）
+  AGENT_MODEL_SERIES   モデルシリーズ（既定: claude-opus-5。references/model-series.md 参照）
   AGENT_INSTRUCTIONS   指示文（既定: プレースホルダ）
+  AGENT_PROMPTS_FILE   初期メッセージ・推奨プロンプトの JSON（任意。set_prompts.py 参照）
+  AGENT_GREETING / AGENT_PROMPTS   同上（ファイルを使わない場合）
   SOLUTION_NAME        ソリューション名（任意。指定時 MSCRM.SolutionName ヘッダを付与）
 
 実行: python create_agent.py
@@ -30,7 +32,9 @@ sys.stderr.reconfigure(encoding="utf-8")
 # standard スキルの auth_helper を import
 _STD = Path(__file__).resolve().parents[2] / "standard" / "scripts"
 sys.path.insert(0, str(_STD))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from auth_helper import api_get, get_session, DATAVERSE_URL  # noqa: E402
+from set_prompts import load_desired  # noqa: E402
 
 API = f"{DATAVERSE_URL}/api/data/v9.2"
 
@@ -38,7 +42,9 @@ AGENT_NAME = os.getenv("AGENT_NAME", "my-new-agent")
 AGENT_SCHEMA = os.getenv("AGENT_SCHEMA") or (
     "geek_" + re.sub(r"[^a-z0-9]+", "", AGENT_NAME.lower())
 )
-MODEL_SERIES = os.getenv("AGENT_MODEL_SERIES", "Sonnet46")
+MODEL_SERIES = os.getenv("AGENT_MODEL_SERIES", "claude-opus-5")
+# 旧命名。POST は通るが UI で「モデルは廃止されました」になる
+DEPRECATED_SERIES = ("Sonnet46", "Sonnet5", "Opus5", "GPT4o")
 INSTRUCTIONS = os.getenv(
     "AGENT_INSTRUCTIONS",
     "ここにエージェントの指示文を記載します。役割・口調・利用するスキルの優先順位を明確に書いてください。"
@@ -51,25 +57,40 @@ TEMPLATE = "cliagent-1.0.0"
 
 def build_configuration() -> dict:
     """cliagent の BotConfiguration JSON を組み立てる。"""
+    agent_settings = {
+        "$kind": "AgentSettings",
+        "model": {"$kind": "ModelConfig", "series": MODEL_SERIES},
+        "instructions": {
+            "$kind": "Instructions",
+            "segments": [{"$kind": "StaticSegment", "value": INSTRUCTIONS}],
+        },
+        "enableMemory": True,
+    }
+    greeting, prompts = load_desired(None)
+    if greeting:
+        agent_settings["greetingText"] = greeting
+    if prompts:
+        agent_settings["conversationStarters"] = prompts
     return {
         "$kind": "BotConfiguration",
         "channels": [
             {"$kind": "ChannelDefinition", "id": "MsTeams", "channelId": "MsTeams"}
         ],
         "recognizer": {"$kind": "CLICopilotRecognizer"},
-        "agentSettings": {
-            "$kind": "AgentSettings",
-            "model": {"$kind": "ModelConfig", "series": MODEL_SERIES},
-            "instructions": {
-                "$kind": "Instructions",
-                "segments": [{"$kind": "StaticSegment", "value": INSTRUCTIONS}],
-            },
-            "enableMemory": True,
-        },
+        "agentSettings": agent_settings,
     }
 
 
 def main() -> None:
+    if MODEL_SERIES in DEPRECATED_SERIES:
+        print(
+            f"❌ AGENT_MODEL_SERIES='{MODEL_SERIES}' は旧命名です。UI で「モデルは廃止されました」となります。\n"
+            "   ベンダーのモデル ID 形式（例: claude-opus-5）を指定してください。"
+            "references/model-series.md 参照。",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     sess = get_session()
     headers = {"Prefer": "return=representation"}
     if SOLUTION_NAME:
@@ -94,6 +115,11 @@ def main() -> None:
     bot_id = r.json()["botid"]
     Path("agent_botid.txt").write_text(bot_id, encoding="utf-8")
     print(f"\n✅ Bot 作成: {bot_id} (agent_botid.txt に保存)")
+
+    saved = json.loads(r.json()["configuration"])["agentSettings"]
+    print(f"   モデル系列: {saved['model']['series']}（UI の Model 表示が「廃止されたモデル」でないか確認すること）")
+    print(f"   初期メッセージ: {saved.get('greetingText') or '(未設定)'}")
+    print(f"   推奨プロンプト: {len(saved.get('conversationStarters') or [])} 件")
 
     # プロビジョニング状態をポーリング
     for i in range(20):

@@ -28,10 +28,27 @@ McpTool + 接続参照）で自動追加する手順を提供していたが、�
      オーサリング/ランタイム **セッション側で接続を再バインドする**動作。
 6. 再公開する（`scripts/publish_agent.py` または UI の「公開」）。
 
-> 自動化メモ: 上記のブラウザ操作は VS Code 統合 Playwright ブラウザ（`playwright-browser_navigate` / `playwright-browser_click` /
-> `playwright-browser_snapshot`）で自動化できる（Playwright MCP サーバー・Playwright 単体ブラウザのインストール・起動は行わない
+> 自動化メモ: 上記のブラウザ操作は VS Code 統合ブラウザ（`open_browser_page` / `read_page` / `click_element` /
+> `type_in_page`）で自動化できる（Playwright MCP サーバー・Playwright 単体ブラウザのインストール・起動は行わない
 > → [ブラウザ自動化方針](../../standard/references/browser-automation.md)）。対象は「ツール > 追加」
 > メニューと対象サーバー詳細パネルの「確認 / Confirm」ボタン。API での代替（botcomponent 直接作成）は行わない。
+
+## 追加後に設定を更新してもツールは消えない
+
+手動追加した MCP ツールは `botcomponents` の **type=9**（`data` が `kind: McpTool`、
+`connectionReference` を保持）として保存される。Instructions・モデル・スキルの更新とは
+別レコードなので、次の 2 点を守れば消えない。
+
+- `bots.configuration` は**丸ごと上書きせず GET → deep-merge → PATCH**（`name` 列を同送）。
+- スキル入れ替え時の削除は `name eq '<SKILL_NAME>' and componenttype eq 9` で**同名スキル限定**。
+  `componenttype eq 9` だけで一括削除すると **MCP ツールも巻き添えで消える**。
+
+運用中エージェントの更新は [scripts/update_agent.py](../scripts/update_agent.py) を使う。
+更新の前後で MCP ツールの schemaname と接続参照をスナップショットして差分を表示し、
+消失を検知した場合は公開せずに異常終了する。
+
+実機検証: Instructions 更新 + スキル全ファイル再添付 + 再公開を行っても、
+Dataverse MCP の schemaname と `connectionReference` は同一のまま維持され、Confirm の再実行も不要だった。
 
 ## 「確認(Confirm)」を押しても接続できない場合
 

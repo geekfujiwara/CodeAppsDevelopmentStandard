@@ -18,13 +18,18 @@ triggers:
   - "BotConfiguration"
   - "agentSettings"
   - "enableMemory"
-  - "Sonnet46"
+  - "モデルは廃止されました"
+  - "claude-opus-5"
   - "エージェント v2"
   - "エージェント アイコン"
   - "Dataverse MCP"
   - "Work IQ"
   - "PvaPublish"
   - "エージェント 公開"
+  - "推奨プロンプト"
+  - "初期メッセージ"
+  - "greetingText"
+  - "conversationStarters"
 ---
 
 # Copilot Studio v2（新アーキテクチャ）エージェント構築スキル
@@ -39,7 +44,7 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 | **Bot 作成** | ❌ API 不可。Copilot Studio UI で手動作成必須 | ✅ **`POST /bots` で API 作成可能**。UI 不要・完全自動 |
 | 設定の保存先 | GPT コンポーネント（componenttype=15）+ PVA ダブル改行 YAML | `bots.configuration` の **BotConfiguration JSON にインライン** |
 | recognizer | （クラシック PVA） | `CLICopilotRecognizer` |
-| モデル指定 | GPT data の `aISettings.model.modelNameHint` | `agentSettings.model.series`（例 `Sonnet46`） |
+| モデル指定 | GPT data の `aISettings.model.modelNameHint` | `agentSettings.model.series`（例 `claude-opus-5`） |
 | Instructions | GPT data YAML（ダブル改行フォーマット注意） | `agentSettings.instructions.segments[].value`（プレーン文字列） |
 | メモリ | （個別設定） | `agentSettings.enableMemory: true` |
 | スキル | （ナレッジ/トピック） | **フラット Python スキルバンドル**（type=9 + type=14 子ファイル） |
@@ -74,20 +79,95 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 2. 設計提示 → ユーザー承認（名前・Instructions・モデル・スキル・アイコン・MCP 構成）
    - ファイル出力を伴うスキルを添付する場合は、Instructions に
      「ファイルを出力する際は毎回異なるファイル名にする」旨を含める（同名だと UI でダウンロード不可）
+   - 初期メッセージ（greeting）と推奨プロンプトを agent/prompts.json に用意し、AGENT_PROMPTS_FILE で指定する
 3. scripts/create_agent.py     … cliagent Bot を API 作成 + プロビジョニング待ち
+                                 （AGENT_PROMPTS_FILE があれば初期メッセージ・推奨プロンプトもここで設定）
 4. scripts/set_icon.py         … アイコン登録（240 / Teams color 192 / outline 32）
 5. scripts/set_app_details.py  … Edit details(説明文・開発元・リンク・Teams 設定・M365 有効化)
 6. scripts/attach_skill.py     … フラット Python スキルを添付（type=9 + type=14）
 7. scripts/publish_agent.py    … PvaPublish で公開
 8. scripts/verify_agent.py     … 構造検証（filedata 実体ダウンロード確認）
 9. pac copilot list            … Published / Active / Provisioned を確認
-10. UI で MCP サーバーを追加（Dataverse / Work IQ 等）… ★手動作業（後述）
-11. Preview で動作テスト（ユーザー）
+10. UI で Build ＞ Model の表示を確認 … 「廃止されたモデル」なら scripts/set_model.py で修正し再公開
+11. UI で MCP サーバーを追加（Dataverse / Work IQ 等）… ★手動作業（後述）
+12. Preview で動作テスト（ユーザー）
 ```
 
 > **一括実行**: 上記 3〜7 は [scripts/deploy_agent.py](scripts/deploy_agent.py) で
 > ワンショット実行できる（`.env` の構成に従い作成→アイコン→Edit details→スキル→公開を連結）。
 > MCP サーバーの追加は自動化対象外のため、この一括実行には含まれない。
+
+## 運用中エージェントの更新（★新規作成しない）
+
+`deploy_agent.py` は `create_agent.py` から始まるため、**実行するたびに新しい Bot が作られる**。
+すでに UI で MCP ツールを追加した運用中のエージェントを更新するときは
+[scripts/update_agent.py](scripts/update_agent.py) を使う。
+
+```
+1. set_instructions.py … Instructions を差し替え（configuration を GET → deep-merge → PATCH）
+2. set_model.py        … モデル系列を差し替え（AGENT_MODEL_SERIES 指定時のみ）
+3. set_prompts.py      … 初期メッセージ・推奨プロンプトを差し替え（指定時のみ）
+4. attach_skill.py     … 同名スキルだけを入れ替え
+5. publish_agent.py    … 再公開
+```
+
+```bash
+python update_agent.py                # 全ステップ
+python update_agent.py --no-publish   # 公開せず確認のみ
+python update_agent.py --skip-skill   # スキルは触らない
+```
+
+### 手動追加したツール（MCP）が消えない理由
+
+| 更新対象 | 保存先 | ツールへの影響 |
+|---|---|---|
+| Instructions / モデル / メモリ / 初期メッセージ / 推奨プロンプト | `bots.configuration`（JSON 文字列カラム） | **なし**（別レコード） |
+| フラット Python スキル | `botcomponents` type=9 + 子 type=14 | **なし**（`attach_skill.py` は `name eq '<SKILL_NAME>' and componenttype eq 9` で絞って削除する） |
+| MCP ツール | `botcomponents` type=9（`data` が `kind: McpTool`、接続参照を保持） | 上記のどれも触らない |
+
+守るべき点は 2 つ。
+
+- `configuration` は**丸ごと上書きせず GET → deep-merge → PATCH**（`name` 列を同送）。
+  `set_instructions.py` / `set_model.py` / `set_prompts.py` は送信直前に
+  [scripts/verify_config.py](scripts/verify_config.py) で他のキーが欠落していないか検証し、
+  消失を検知したら PATCH を中止する。
+- `attach_skill.py` の削除は**同名スキル限定**。`componenttype eq 9` だけで一括削除してはいけない
+  （MCP ツールも type=9 のため、全消しすると接続参照ごと消える）。
+
+`update_agent.py` は更新の前後で MCP ツールの schemaname と接続参照をスナップショットして差分を
+表示し、**消失を検知したら公開せずに異常終了する**。
+
+> 実機検証（MCP ツールを UI で追加済みのエージェント）:
+> Instructions 更新 + スキル全ファイル再添付 + 再公開を実行しても、MCP ツールの schemaname と
+> `connectionReference` は同一のまま維持された。
+
+## 初期メッセージと推奨プロンプト
+
+UI の「設定 ＞ Greeting & prompts」に相当する設定も `bots.configuration` に入る。
+
+```jsonc
+"agentSettings": {
+  "greetingText": "こんにちは。〇〇エージェントです。",          // 初期メッセージ
+  "conversationStarters": [                                      // 推奨プロンプト
+    { "$kind": "ConversationStarter", "title": "進捗を確認", "text": "今月の進捗は？" }
+  ]
+}
+```
+
+- 未設定だと Teams / M365 側で `Hello! I'm <名前>. How can I help you today?` という既定文が出る。
+- `AGENT_PROMPTS_FILE`（JSON）を `.env` に置けば、`create_agent.py` が**初回作成の時点で**
+  configuration に含めるため、後からの手当ては不要。
+- 運用中エージェントの差し替えは [scripts/set_prompts.py](scripts/set_prompts.py)
+  （`--show` / `--file` / `--clear`）。`update_agent.py` からも自動で呼ばれる。
+- 反映には**再公開**が必要。
+
+```jsonc
+// agent/prompts.json
+{
+  "greeting": "こんにちは。〇〇エージェントです。",
+  "prompts": [{ "title": "進捗を確認", "text": "今月の進捗は？" }]
+}
+```
 
 ### MCP サーバーの追加は Copilot Studio UI での手動作業（重要）
 
@@ -117,7 +197,7 @@ MCP サーバー（Dataverse MCP / Work IQ 等）のツール追加は、**Copil
   "recognizer": { "$kind": "CLICopilotRecognizer" },
   "agentSettings": {
     "$kind": "AgentSettings",
-    "model": { "$kind": "ModelConfig", "series": "Sonnet46" },
+    "model": { "$kind": "ModelConfig", "series": "claude-opus-5" },
     "instructions": {
       "$kind": "Instructions",
       "segments": [{ "$kind": "StaticSegment", "value": "<エージェントの指示文>" }]
@@ -179,12 +259,17 @@ MCP サーバーの追加は API 自動化の対象外（UI での手動作業�
 
 | スクリプト | 用途 |
 |---|---|
-| [scripts/create_agent.py](scripts/create_agent.py) | cliagent Bot を API 作成 + プロビジョニング待ち |
+| [scripts/create_agent.py](scripts/create_agent.py) | cliagent Bot を API 作成 + プロビジョニング待ち（廃止モデル名は作成前に弾く） |
+| [scripts/set_model.py](scripts/set_model.py) | モデル系列の確認（`--show`）と変更（GET → deep-merge → PATCH） |
+| [scripts/set_instructions.py](scripts/set_instructions.py) | Instructions の確認（`--show`）と差し替え（`--file` でファイル指定） |
+| [scripts/set_prompts.py](scripts/set_prompts.py) | 初期メッセージ（greetingText）と推奨プロンプト（conversationStarters）の確認・設定・削除 |
 | [scripts/set_icon.py](scripts/set_icon.py) | アイコン登録（iconbase64 / Teams color / outline） |
 | [scripts/set_app_details.py](scripts/set_app_details.py) | Edit details 設定（PVA ゲートウェイ）。アイコン・説明文・開発元・リンク・MPN・store表示・Teams scopes・通話・SSO・M365 有効化。未設定はデフォルト補完 |
 | [scripts/attach_skill.py](scripts/attach_skill.py) | フラット Python スキルを添付（type=9 + type=14） |
 | [scripts/publish_agent.py](scripts/publish_agent.py) | PvaPublish で公開（リトライ付き） |
-| [scripts/deploy_agent.py](scripts/deploy_agent.py) | 一括: 作成→アイコン→Edit details→スキル→公開 を連結（MCP は含まない・UI で手動追加） |
+| [scripts/deploy_agent.py](scripts/deploy_agent.py) | 一括: 作成（初期メッセージ・推奨プロンプト込み）→アイコン→Edit details→スキル→公開 を連結（MCP は含まない・UI で手動追加） |
+| [scripts/update_agent.py](scripts/update_agent.py) | 一括: **既存**エージェントを Instructions→モデル→推奨プロンプト→スキル→公開 で更新。MCP ツールの保全を前後差分で検証 |
+| [scripts/verify_config.py](scripts/verify_config.py) | `configuration` の PATCH 直前に、更新対象以外のキー（model / instructions / memory / greeting 等）が消えていないか検証する共通ガード |
 | [scripts/verify_agent.py](scripts/verify_agent.py) | 構造検証（filedata 実体ダウンロード確認） |
 | [scripts/analyze_agent.py](scripts/analyze_agent.py) | 既存エージェントの構成・コンポーネントをダンプ |
 
@@ -195,6 +280,7 @@ MCP サーバーの追加は API 自動化の対象外（UI での手動作業�
 | リファレンス | 内容 |
 |---|---|
 | [新アーキテクチャ構造](references/new-architecture.md) | cliagent の BotConfiguration / botcomponents 全体像と v1 との対比 |
+| [モデル系列の指定](references/model-series.md) | `agentSettings.model.series` の現行命名・廃止値・確認方法・後からの変更 |
 | [フラット Python スキルの書き方](references/flat-python-skill.md) | JS 不使用・Base64 画像・フラット構成の実装テンプレート |
 | [スキルバンドル構造](references/skill-bundle-structure.md) | type=9/14・親バインド・filedata アップロードの詳細 |
 | [MCP サーバーの追加](references/mcp-servers.md) | Copilot Studio UI での MCP サーバー追加手順（手動作業） |
@@ -214,7 +300,7 @@ PUBLISHER_PREFIX=geek
 # create_agent.py 用パラメータ
 AGENT_NAME=my-new-agent
 AGENT_SCHEMA=geek_mynewagent
-AGENT_MODEL_SERIES=Sonnet46
+AGENT_MODEL_SERIES=claude-opus-5
 # set_icon.py 用（任意）
 ICON_TEXT=A
 ICON_BG_COLOR=#2563EB
