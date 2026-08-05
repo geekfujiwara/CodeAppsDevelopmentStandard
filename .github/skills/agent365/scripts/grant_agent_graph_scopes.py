@@ -13,6 +13,17 @@ Application (app-only) permissions are not an alternative: app-only chat
 posting requires ``Teamwork.Migrate.All`` (a protected API) and the message
 would not appear as coming from the agent.
 
+Other capabilities need extra delegated scopes on the same grant:
+
+* ``Mail.Send`` -- replying to mail as HTML via ``POST /me/messages/{id}/reply``.
+  Work IQ's reply action only carries a plain-text comment, which kills links,
+  so the reply is sent through Graph instead. ``Mail.ReadWrite`` is not enough.
+* ``Files.ReadWrite`` -- listing and sharing files the agent produced (B14).
+
+Pass them together with the defaults, for example::
+
+    --scopes "User.Read Chat.Create Chat.Read ChatMessage.Send Mail.Send Files.ReadWrite"
+
 The grant is per *instance*, exactly like grant_agent_instance_consent.py, so
 it has to be repeated whenever the agent instance is recreated. An existing
 grant for the same (client, resource) pair is merged rather than replaced --

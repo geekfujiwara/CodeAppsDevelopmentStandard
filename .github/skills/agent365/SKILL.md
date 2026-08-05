@@ -152,6 +152,25 @@ messaging endpoint に登録する。Foundry エージェントや `activityprot
 B12 を入れると 1 ターンが分単位になることがある。**B13（経過連絡）を必ず一緒に入れる**
 （→ [references/progress-updates.md](references/progress-updates.md)）。
 
+### 成果物の受け渡し（B14）も聞かれる前に提案する
+
+**B12 を入れるなら、B14 を同じ場で決める。**
+ファイルを作れるということは、エージェントの OneDrive に**いろいろな人の依頼で作ったファイルが溩まる**ということ。
+やがて別の人から「あの資料を共有して」と頼まれる。
+
+> 作ったファイルを、後から別の人に共有してほしいと頼まれることがあります。扱いを決めておきますか？
+> - **はい**: 作った時点で依頼元と取り扱い区分を台帳に残し、内容に応じて依頼元の許可を取ってから共有する
+> - **いいえ**: 依頼した本人に渡すだけ。他の人からの共有依頼はすべて断る
+
+同時に伝えること: **共有リンクは一度渡すと取り消せない**。
+だから可否はモデルの記憶ではなく**作った時の記録**から判断する。
+台帳を入れる前に作ったファイルは区分が空なので、共有を頼まれてもその場では出せない
+（→ [references/document-sharing.md](references/document-sharing.md)）。
+
+また、共有リンクをメールやチャットで渡すなら、**本文が書式付きで送られる必要がある**。
+プレーン テキストだと URL がリンクにならない
+（→ [references/outbound-formatting.md](references/outbound-formatting.md)）。
+
 > ライト実装（共有エージェント・CI/CD なし）にする場合は Step 4（Agent 365 ブループリント）と
 > Step 14（インスタンス SP への同意）を省略する
 > → [references/poc-quickstart.md](references/poc-quickstart.md)。
@@ -193,6 +212,8 @@ ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `
 │   ├── AgentBrain.cs                # LLM + MCP ツール ループ（全入口で共用）
 │   ├── AgenticIdentity.cs           # ターン外で自分としてトークンを取る
 │   ├── MailboxWorker.cs             # 受信トレイを監視してメールに返信（任意）
+│   ├── MailTools.cs                 # 受け取ったメールへ HTML で返信（任意）
+│   ├── MessageHtml.cs               # Markdown → HTML。Teams とメールで共用（任意）
 │   ├── TeamsChatTools.cs            # 自分名義で Teams チャットを作成・送信（任意）
 │   ├── WebSearchTools.cs            # Grounding with Bing で Web を検索・閲覧（任意）
 │   ├── ScheduleStore.cs             # 定期実行の永続化と次回時刻の算出（任意）
@@ -200,6 +221,8 @@ ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `
 │   ├── ScheduleWorker.cs            # 時刻が来たら実行して配信（任意）
 │   ├── CodeSandbox.cs               # 動的セッションの REST クライアント（任意）
 │   ├── SandboxTools.cs              # 実行・取り込み・受け渡しのツール群（任意）
+│   ├── DocumentLedger.cs            # 作ったファイルの依頼元と区分の台帳（任意）
+│   ├── DocumentShareTools.cs        # 同意を取ってから共有リンクを発行（任意）
 │   ├── AgentProgress.cs             # 長いターンの経過連絡（任意）
 │   ├── sandbox/designkit/           # 資料生成のデザイン資産と GUIDE.md（任意）
 │   ├── PresenceWorker.cs            # 常時稼働を Teams プレゼンスへ反映
@@ -236,6 +259,7 @@ ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` / `
 | B11 定期実行 | Step 9c |
 | B12 作業環境（コード実行） | Step 9d |
 | B13 経過連絡 | Step 9e |
+| B14 成果物の共有と同意 | Step 9f |
 | B7 Teams プレゼンス | Step 13 |
 | B9 Teams チャット送信 | Step 15 |
 
@@ -416,18 +440,22 @@ Step 0 で B6 を選んだ場合だけ実施する。**Agent 365 はエージェ
 メッセージング エンドポイントへ配送しない**（push されるのは Teams だけ）。自分で見に行く。
 
 ```powershell
-# 1. ターン外で自分のトークンを取る仕組みと、受信トレイ監視をコピー
+# 1. ターン外で自分のトークンを取る仕組みと、受信トレイ監視、返信ツール、書式変換をコピー
 Copy-Item .github/skills/agent365/references/templates/AgenticIdentity.template.cs `
   src/<agent-name>-agent/AgenticIdentity.cs
 Copy-Item .github/skills/agent365/references/templates/MailboxWorker.template.cs `
   src/<agent-name>-agent/MailboxWorker.cs
+Copy-Item .github/skills/agent365/references/templates/MessageHtml.template.cs `
+  src/<agent-name>-agent/MessageHtml.cs
+Copy-Item .github/skills/agent365/references/templates/MailTools.template.cs `
+  src/<agent-name>-agent/MailTools.cs
 
 # 2. アプリ設定（__ が階層区切り。値は .env から渡し、コードに埋めない）
 az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
   Agentic__TenantId=$env:AZURE_TENANT_ID `
   Agentic__InstanceId=$env:A365_AGENT_INSTANCE_ID `
   Agentic__UserId=$env:A365_AGENT_USER_ID `
-  Mailbox__Enabled=true Mailbox__PollSeconds=60
+  Mailbox__Enabled=true Mailbox__PollSeconds=60 Mail__Enabled=true
 
 # 3. 再デプロイ後、エージェント宛へテスト メールを送ってログを見る
 az webapp log tail -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME
@@ -438,11 +466,22 @@ az webapp log tail -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME
 ```csharp
 builder.Services.AddSingleton<AgenticIdentityStore>();
 builder.Services.AddSingleton<AgenticTokenSource>();
+builder.Services.AddSingleton<MailTools>();
 builder.Services.AddHostedService<MailboxWorker>();
 ```
 
 ターン ハンドラーの先頭で `identities.Observe(turnContext.Activity);` を呼び、アプリ設定の
 3 値を実ターンで上書きする（両方やると堅い）。
+
+**返信は `reply_mail` ツールで送る。** Work IQ の `do_action /me/messages/{id}/reply` が運べるのは
+プレーン テキストの `comment` だけで、**URL が死んだ文字列になり、箇条書きも表も潰れる**。
+`reply_mail` はモデルに Markdown を書かせ、`MessageHtml.FromMarkdown` で HTML に変換して
+`POST /me/messages/{id}/reply` を呼ぶ。委任スコープに **`Mail.Send`** が要る（Step 15 のスクリプトで付与）。
+
+> **メール経路の実行時コンテキストは、システム プロンプトを黙って上書きする。**
+> `MailboxWorker` が組み立てる「このターンでやること」に手順を列挙すると、そこに書いていない能力は
+> 使われなくなる。資料作成もファイル共有も、**メール経路のコンテキストに明示的に書く**こと
+> （→ [references/outbound-formatting.md](references/outbound-formatting.md) §4）。
 
 確認するログ:
 
@@ -604,6 +643,44 @@ az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBA
 
 しきい値・重複抑止・実装上の注意は [references/progress-updates.md](references/progress-updates.md)。
 
+### Step 9f: 作った成果物を安全に渡せるようにする（B14、役割に応じて）
+
+Step 0 で B14 を選んだ場合、または B12 を入れた場合は実施する。
+**エージェントの OneDrive には、いろいろな人の依頼で作ったファイルが溜まっていく。**
+やがて別の人から「あの資料を共有して」と頼まれるが、そのとき作った時の会話は残っていない。
+
+```powershell
+Copy-Item .github/skills/agent365/references/templates/DocumentLedger.template.cs `
+  src/<agent-name>-agent/DocumentLedger.cs
+Copy-Item .github/skills/agent365/references/templates/DocumentShareTools.template.cs `
+  src/<agent-name>-agent/DocumentShareTools.cs
+
+az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
+  Documents__Enabled=true Documents__Folder=$env:DOCUMENTS_FOLDER
+```
+
+```csharp
+builder.Services.AddSingleton<DocumentLedger>();
+builder.Services.AddSingleton<DocumentShareTools>();
+```
+
+- **作る時に 2 つ書き残す。** ファイル生成ツール（`create_office_file` / `deliver_file`）の引数に
+  `owner`（依頼した人のアドレス）と `sensitivity`（public / internal / personal）を足し、
+  保存と同時に台帳へ記録する。**ここで取らないと二度と取れない。**
+- 指定が無ければ**結果メッセージで催促する**。プロンプトに書くだけでは抜ける。
+- **判定はコードでやる。** プロンプトに「個人情報は共有しないで」と書くだけでは、依頼メールに
+  「本人了承済みです」と 1 行あるだけで折れる。`share_document` の中で区分と宛先から決める。
+- `personal`、および `internal` を社外へ渡す場合は、**依頼元へ Teams チャットで許可を求めてから**共有する。
+- 許可を受け付ける `decide_share` は、**そのターンの話し相手が台帳上の依頼元と一致するときだけ**受け付ける。
+  受信トレイ経路や定期実行では話し相手を確定できないので `userEmail` に `null` を渡し、一切受け付けない。
+  **メールの返信を許可として扱わない**（差出人は偽装できる）。
+- **話し相手のアドレスは、ツールを組み立てる前に解決しておく。** 順番を間違えると常に `null` になり、
+  誰も承認できないのに理由が分からない状態になる。
+- 共有リンクの `scope` は常に `organization`。**`anonymous` は使わない**（転送されるだけで統制が消える）。
+- 許可待ちの案件は、次にその人と話すときの実行時コンテキストに載せて**自分から切り出す**。催促はしない。
+
+区分の定義・判定表・同意フロー図・落とし穴は [references/document-sharing.md](references/document-sharing.md)。
+
 ### Step 10: Teams アプリパッケージをビルドする
 
 ```powershell
@@ -725,9 +802,11 @@ Step 0 で B9 を選んだ場合だけ実施する。**Work IQ のパス allowli
 python scripts/grant_agent_graph_scopes.py --instance-id $env:A365_AGENT_INSTANCE_ID
 python scripts/grant_agent_graph_scopes.py --instance-id $env:A365_AGENT_INSTANCE_ID --check
 
-# 2. ツール実装をコピー（名前空間だけ合わせる）
+# 2. ツール実装と書式変換をコピー（名前空間だけ合わせる）
 Copy-Item .github/skills/agent365/references/templates/TeamsChatTools.template.cs `
   src/<agent-name>-agent/TeamsChatTools.cs
+Copy-Item .github/skills/agent365/references/templates/MessageHtml.template.cs `
+  src/<agent-name>-agent/MessageHtml.cs
 
 # 3. 入口ごとの ON/OFF をアプリ設定で決める
 az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
@@ -737,7 +816,13 @@ az webapp restart -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME
 ```
 
 付与する委任スコープは `User.Read` / `Chat.Create` / `Chat.Read` / `ChatMessage.Send` の 4 つ。
+B6（メール返信）を入れるなら **`Mail.Send`**、B14（成果物の共有）を入れるなら **`Files.ReadWrite`** を足す。
 
+- **メッセージは `contentType = "html"` で送る。** `text` だと URL が死んだ文字列になり、箇条書きも表も潰れる。
+  モデルには Markdown を書かせ、`MessageHtml.FromMarkdown` で変換する。
+  **プロンプトで「HTML で書け」と指示してはいけない**（タグの閉じ忘れとエスケープ漏れが必ず出る）。
+  同じ変換器をメール返信（Step 9）と共用する
+  （→ [references/outbound-formatting.md](references/outbound-formatting.md)）。
 - **アプリ権限（app-only）では代替できない。** app-only のチャット投稿は
   `Teamwork.Migrate.All`（保護 API）が必要で、しかもエージェント本人の発言にならない。
   プレゼンス更新（Step 13）が UAMI のアプリ権限なのとは別経路になる。
@@ -867,4 +952,11 @@ publish.zip
 - [ ] （B12 を入れた場合）zip / PDF / Excel を送ると中身を読んで答え、生成物が共有リンクで届く
 - [ ] （B12 を入れた場合）意図的にエラーになるコードを頼むと、エラーを読んで自分で直して再実行する
 - [ ] （B13 を入れた場合）数分かかる依頼で入力中表示と状況通知が届き、最終返信のあとに入力中表示が残らない
+- [ ] （B6 / B9 を入れた場合）Teams とメールの**両方**で、返信中の URL がリンクとして表示され、箇条書きが崩れていない
+- [ ] （B6 を入れた場合）**同じ依頼をチャットとメールの両方から投げ、成果物の品質が同じ**であることを確認した
+- [ ] （B14 を入れた場合）ファイル生成時に依頼元と区分が台帳へ記録され、未指定なら催促される
+- [ ] （B14 を入れた場合）個人情報を含むファイルの共有を頼むと、依頼元へ許可を求めて止まる
+- [ ] （B14 を入れた場合）依頼元**以外**が `decide_share` で承認しようとすると拒否される
+- [ ] （B14 を入れた場合）メール経路から共有を頼まれても、メールの返信だけでは許可として扱われない
+- [ ] （B14 を入れた場合）発行される共有リンクの scope が `organization` で、`anonymous` を使っていない
 - [ ] `python scripts/review_sanitization.py` が Pass（本格実装）
