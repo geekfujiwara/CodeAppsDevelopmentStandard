@@ -197,8 +197,10 @@ def main() -> int:
 
     # ---- Step 3: .env に書き込み ----
     print(f"== 3. .env に書き込み ({env_path}) ==")
-    set_key(str(env_path), "COWORK_OAUTH_CLIENT_ID", app_id)
-    set_key(str(env_path), "COWORK_OAUTH_CLIENT_SECRET", client_secret)
+    # quote_mode 既定値 "always" だと値がクォート付きで書かれ、dotenv を介さず素朴に
+    # 正規表現/split('=') で読む後続ツール（PowerShell 等）で referenceId 等が壊れる（→ troubleshooting #16, #24）。
+    set_key(str(env_path), "COWORK_OAUTH_CLIENT_ID", app_id, quote_mode="never")
+    set_key(str(env_path), "COWORK_OAUTH_CLIENT_SECRET", client_secret, quote_mode="never")
 
     # ---- Step 4: サービスプリンシパルを作成（admin consent 状態確認の前提） ----
     print("== 4. サービスプリンシパルを確認/作成 ==")

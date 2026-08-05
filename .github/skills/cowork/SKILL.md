@@ -267,11 +267,13 @@ Step 8 のアップロードでも同じプロファイルを使用する。
 | Restrict usage by org | `My organization only`（単一テナント）／`Any Microsoft 365 Organization`（複数テナント配布時） |
 | Restrict usage by app | `Any Teams app`（**ストア検証が通るまではこちら**。公開・疎通確認後に Existing Teams app へ切替可） |
 
-Save すると **OAuth client registration ID** が発行される。これを `.env` の
-`COWORK_OAUTH_REGISTRATION_ID` に保存する。
+Save すると **OAuth client registration ID** が発行される。これを **生の値のまま**（Base64 変換せず）
+`.env` の `COWORK_OAUTH_REGISTRATION_ID` に保存する。
 
-> **referenceId の値**: OAuth 方式では発行された **registration ID をそのまま** `referenceId` に使う
-> （SSO 方式のような `Base64("<tenantId>##<regId>")` 変換は不要）。
+> **referenceId の値**: OAuth 方式でも SSO 方式と同じく
+> `Base64("<tenantId>##<registrationId>")` 形式が必要（実機検証で確認済み。→ troubleshooting.md #23）。
+> `.env` には生の registration ID を保存し、Base64 エンコードは Step 7 の
+> `build_agent_package.ps1` が自動で行う（手動でエンコードして `.env` に入れない）。
 
 
 ### Step 6: manifest.json を作成
