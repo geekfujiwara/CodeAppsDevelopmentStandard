@@ -46,6 +46,20 @@ public sealed class ScheduleWorker(
         var interval = TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue("Schedule:TickSeconds", 60), 15, 900));
         logger.LogInformation("Schedule worker checking every {Seconds}s", interval.TotalSeconds);
 
+        // 登録内容と次回実行時刻を起動ログに残す。「届かない」の切り分けはここが起点になる。
+        foreach (ScheduledJob job in store.All())
+        {
+            logger.LogInformation(
+                "Schedule {Id} '{Title}' {Recurrence} → {Channel} {Recipient}; next run {Next}{State}",
+                job.Id,
+                job.Title,
+                job.Recurrence,
+                job.Channel,
+                job.Recipient,
+                ScheduleStore.ToLocalText(job.NextRunAt),
+                job.Enabled ? string.Empty : " (disabled)");
+        }
+
         using var timer = new PeriodicTimer(interval);
         do
         {
@@ -69,6 +83,7 @@ public sealed class ScheduleWorker(
     {
         if (tokens.Identity is null)
         {
+            logger.LogWarning("Agentic identity unknown; scheduled jobs cannot run. Check the Agentic:* settings.");
             return;
         }
 

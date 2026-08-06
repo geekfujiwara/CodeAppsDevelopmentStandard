@@ -230,6 +230,10 @@ src/<agent-name>-agent/
 **agentUser チャットが動く唯一の構成。** 手順とログの読み方は
 [references/self-hosted-agent.md](references/self-hosted-agent.md)。
 
+> ★ **App Service は B1 以上 + Always On**。Free / Shared には Always On が無く、
+> アプリがアンロードされて**すべての `BackgroundService`（B6・B11・B12）が止まる**。
+> `provision_selfhost.py` が F1/D1 を弾き、Always On を有効化する。
+
 ```powershell
 # 1. UAMI + Azure Bot(Teams チャネル) + App Service を作成し .env に書き戻す
 python scripts/provision_selfhost.py --write .env
@@ -291,7 +295,7 @@ Step 0 で選んだブロックだけを実装する。手順はすべて
 
 **インスタンス単位の同意・委任スコープ付与は Step 11**。ここではコードと設定だけを入れる。
 入口（チャット / メール / 定期実行）ごとに使える能力が変わらないよう、
-**実行時コンテキストにも能力を明示する**（→ [outbound-formatting.md](references/outbound-formatting.md) §4）。
+**実行時コンテキストにも能力を明示する**（→ [outbound-formatting.md](references/outbound-formatting.md) §5）。
 
 > **B2/B6・B9・B10・B12・B14 を足したら、同じ Step で
 > [prompt-injection.md](references/prompt-injection.md) の対策も入れる。**
@@ -451,13 +455,16 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 **アプリ面（Step 7・8・13）**
 
 - [ ] App Service のルート URL が 200 を返し、Teams でメッセージを送ると応答が返る
+- [ ] **`az webapp config show --query alwaysOn` が `true`**（B6・B11・B12 を入れるなら必須。false なら定期実行は一度も発火しない）
 - [ ] ログに `Teams presence refreshed for agentic user` が出る
 - [ ] プロンプトが承認語の次ターンで書き込みツールを実行し、分類名だけで Dataverse 検索を拒否しない
 - [ ] （B6）ポーリング間隔内で返信が届き、2 周目に再返信しない。再デプロイ直後に過去の未読へ一斉返信しない
 - [ ] （B6 / B9）Teams とメールの**両方**で URL がリンクとして表示され、箇条書きが崩れていない
+- [ ] （B6 / B9）**本文に生の URL が 1 つも見えていない**。リンクの文字がファイル名・記事タイトルになっている（「こちら」ではない）
 - [ ] （B6）**同じ依頼をチャットとメールの両方から投げ、成果物の品質が同じ**であることを確認した
 - [ ] （B9）承認後に**エージェント名義で**メッセージが届く。`TeamsChat__FromMailbox` が `false`
 - [ ] （B11）指定時刻に配信され、「よろしいですか？」で止まらない
+- [ ] （B11）起動ログに `Schedule <id> ... next run <日時> JST` が出ている（登録漏れと停止をここで切り分ける）
 - [ ] （B12）`provision_code_sandbox.py --check` が OK。zip / PDF / Excel の中身を読んで答え、意図的なエラーを自分で直して再実行する
 - [ ] （B13）数分かかる依頼で状況通知が届き、最終返信のあとに入力中表示が残らない
 

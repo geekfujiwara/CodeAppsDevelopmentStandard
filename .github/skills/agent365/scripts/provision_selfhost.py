@@ -32,6 +32,11 @@ from pathlib import Path
 BOT_API_VERSION = "2022-09-15"
 ARM = "https://management.azure.com"
 
+# Free and Shared plans unload the app after ~20 minutes without a request, which kills every
+# BackgroundService (mailbox polling, scheduled delivery, presence). Always On is not available
+# on those tiers, so the agent must not be provisioned onto them.
+TIERLESS_SKUS = {"F1", "FREE", "D1", "SHARED"}
+
 
 def load_env(path: Path) -> None:
     """Load KEY=VALUE pairs from a .env file without overriding real env vars."""
@@ -103,6 +108,12 @@ def main() -> int:
     if not (name and rg and sub):
         parser.error("--name, --resource-group and --subscription-id are required (or set them in .env).")
 
+    if args.sku.upper() in TIERLESS_SKUS:
+        parser.error(
+            f"--sku {args.sku} cannot run this agent: Free/Shared plans have no Always On, so the app is "
+            "unloaded when idle and no scheduled delivery or mailbox sweep ever fires. Use B1 or higher."
+        )
+
     app_name = f"{name}-agent"
     plan_name = f"{name}-plan"
     try:
@@ -117,6 +128,7 @@ def main() -> int:
                          "--runtime", args.runtime)
         host = webapp["defaultHostName"]
         endpoint = f"https://{host}/api/messages"
+        az("webapp", "config", "set", "-g", rg, "-n", app_name, "--always-on", "true", "-o", "none")
         az("webapp", "identity", "assign", "-g", rg, "-n", app_name,
            "--identities", uami_resource_id, "-o", "none")
 

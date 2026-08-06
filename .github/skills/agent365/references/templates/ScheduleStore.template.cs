@@ -12,7 +12,7 @@
 //
 // アプリ設定（__ が階層区切り）:
 //   Schedule__StorePath      = 省略可。未設定なら %HOME%/data/schedules.json
-//   Schedule__CatchUpMinutes = 30（停止中に過ぎた実行をどこまで遡って流すか）
+//   Schedule__CatchUpMinutes = 180（停止中に過ぎた実行をどこまで遡って流すか）
 //
 // ⚠ スケールアウトするとインスタンスごとにファイルを持つため二重配信になる。
 //   B11 を入れるアプリは numberOfWorkers=1 を維持するか、保存先を共有ストアへ移す。
@@ -113,9 +113,10 @@ public sealed class ScheduleStore
         _jobs = Load();
 
         // A restart must not replay everything that was due while the app was down, but a job that
-        // came due moments ago should still go out.
+        // came due while the app was asleep should still go out if it is still roughly on time.
+        // LastRunAt is what stops the same occurrence from being delivered twice.
         DateTimeOffset floor = DateTimeOffset.UtcNow - TimeSpan.FromMinutes(
-            Math.Clamp(configuration.GetValue("Schedule:CatchUpMinutes", 30), 0, 720));
+            Math.Clamp(configuration.GetValue("Schedule:CatchUpMinutes", 180), 0, 720));
         foreach (ScheduledJob job in _jobs)
         {
             job.NextRunAt = ComputeNextRun(job, floor);

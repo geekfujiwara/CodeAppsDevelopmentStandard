@@ -37,7 +37,17 @@ python scripts/provision_selfhost.py --write .env
 |---|---|---|
 | ユーザー割り当てマネージド ID | Azure Bot の ID | `msaAppType=UserAssignedMSI` |
 | Azure Bot + MsTeams チャネル | Teams チャネル登録 | `az bot create` は廃止 API 版のため `az rest --method PUT`（`api-version=2022-09-15`）を使う。`acceptedTerms=True` は **PUT でのみ**保持される |
-| App Service プラン + Web アプリ | Agents SDK アプリの実行環境 | Linux / `DOTNETCORE:8.0` |
+| App Service プラン + Web アプリ | Agents SDK アプリの実行環境 | Linux / `DOTNETCORE:8.0`。**B1 以上 + Always On**（スクリプトが自動で有効化する） |
+
+- **Free / Shared（F1・D1）は使えない。** Always On が無いため、リクエストが 20 分来ないと
+  アプリがアンロードされ、**`BackgroundService` が丸ごと止まる**。受信トレイ監視（B6）も
+  定期配信（B11）も在席同期（B12）も動かなくなる。`provision_selfhost.py` は F1/D1 を指定すると
+  エラーで止まる。既存環境を上げる場合:
+
+  ```powershell
+  az appservice plan update -g $env:AZURE_RESOURCE_GROUP -n <plan> --sku B1
+  az webapp config set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --always-on true
+  ```
 
 - リージョンによっては VM クォータが 0 で作成に失敗する（eastus2 / japaneast / eastus で遭遇）。
   `--location westus2` などで回避する。
