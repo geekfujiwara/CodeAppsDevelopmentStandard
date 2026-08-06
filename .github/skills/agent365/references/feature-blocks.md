@@ -67,7 +67,7 @@ builder.Services.AddHostedService<MailboxWorker>();
 > **メール経路の実行時コンテキストは、システム プロンプトを黙って上書きする。**
 > `MailboxWorker` が組み立てる「このターンでやること」に手順を列挙すると、そこに書いていない能力は
 > 使われなくなる。資料作成もファイル共有も、**メール経路のコンテキストに明示的に書く**こと
-> （→ [outbound-formatting.md](outbound-formatting.md) §4）。
+> （→ [outbound-formatting.md](outbound-formatting.md) §5）。
 
 | ログ | 意味 |
 |---|---|

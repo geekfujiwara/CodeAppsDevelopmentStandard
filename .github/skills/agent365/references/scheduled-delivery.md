@@ -7,11 +7,12 @@
 |---|---|
 | 1 | 何を解くブロックなのか |
 | 2 | 実装（3 ファイル + 配線） |
-| 3 | 登録の会話設計（頻度をこちらから提案する） |
-| 4 | 実行時コンテキスト（人がいない場での書き方） |
-| 5 | 配信経路（チャット / メール）の選び方 |
-| 6 | 永続化と再起動時の取りこぼし |
-| 7 | 切り分け |
+| 3 | ホスティングの前提（Always On） |
+| 4 | 登録の会話設計（頻度をこちらから提案する） |
+| 5 | 実行時コンテキスト（人がいない場での書き方） |
+| 6 | 配信経路（チャット / メール）の選び方 |
+| 7 | 永続化と再起動時の取りこぼし |
+| 8 | 切り分け |
 
 ---
 
@@ -72,14 +73,14 @@ if (configuration.GetValue("Schedule:Enabled", true))
 
 ```powershell
 az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
-  Schedule__Enabled=true Schedule__TickSeconds=60 Schedule__CatchUpMinutes=30
+  Schedule__Enabled=true Schedule__TickSeconds=60 Schedule__CatchUpMinutes=180
 ```
 
 | 設定 | 既定 | 意味 |
 |---|---|---|
 | `Schedule__Enabled` | `true` | ワーカーとツールの両方を止める |
 | `Schedule__TickSeconds` | `60` | 期限判定の間隔（15〜900 秒で丸める） |
-| `Schedule__CatchUpMinutes` | `30` | 停止中に過ぎた実行を、復帰後どこまで遡って流すか |
+| `Schedule__CatchUpMinutes` | `180` | 停止中に過ぎた実行を、復帰後どこまで遡って流すか |
 | `Schedule__StorePath` | `%HOME%/data/schedules.json` | 保存先。App Service では `%HOME%` が永続領域 |
 
 **B11 は `MailboxWorker` と同じ型**（`BackgroundService` ＋ `AgenticTokenSource` ＋ `AgentBrain`）
@@ -87,7 +88,37 @@ az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBA
 
 ---
 
-## 3. 登録の会話設計
+## 3. ホスティングの前提
+
+**この節を飛ばすと、コードが完壁でも一度も配信されない。**
+
+B11 は `BackgroundService`、つまり**アプリのプロセスが生きている間だけ動く**。
+App Service の Free / Shared（F1・D1）は **Always On 非対応**で、HTTP リクエストが
+約 20 分来ないとアプリがアンロードされる。
+
+| プラン | 8:00 の定期配信 |
+|---|---|
+| F1 / D1（Free / Shared） | **発火しない。** その時刻に誰かが話しかけていない限りプロセスが存在しない |
+| B1 以上 + Always On | 常駐するので 60 秒ごとの期限判定が回る |
+
+```powershell
+az webapp config show -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --query alwaysOn
+# false なら
+az appservice plan update -g $env:AZURE_RESOURCE_GROUP -n <plan> --sku B1
+az webapp config set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --always-on true
+```
+
+これは **B6（受信トレイ監視）と B12（在席同期）にもそのまま当てはまる**。
+ただし B6 は Teams のメッセージ受信が HTTP でアプリを起こすため、**時々動いてしまう**。
+「メール処理は動いているのに定期配信だけ届かない」は、この差で説明がつく。
+Always On が無いことに気づくのが遅れる典型例。
+
+> `scripts/provision_selfhost.py` は F1/D1 を指定するとエラーで止まり、
+> 作成時に Always On を自動で有効化する。既存環境は上のコマンドで確認する。
+
+---
+
+## 4. 登録の会話設計
 
 ### 頻度は聞かずに提案する
 
@@ -143,7 +174,7 @@ az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBA
 
 ---
 
-## 4. 実行時コンテキスト（人がいない）
+## 5. 実行時コンテキスト（人がいない）
 
 `ScheduleWorker` が組み立てるコンテキストで、外すと壊れる要素。
 
@@ -161,7 +192,7 @@ az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBA
 
 ---
 
-## 5. 配信経路
+## 6. 配信経路
 
 | 経路 | 向いている用途 | 実装 | 制約 |
 |---|---|---|---|
@@ -174,7 +205,7 @@ az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBA
 
 ---
 
-## 6. 永続化と取りこぼし
+## 7. 永続化と取りこぼし
 
 ### 保存先
 
@@ -192,7 +223,9 @@ App Service の `%HOME%` は永続領域なので、`%HOME%/data/schedules.json`
      → 最終実行より前になったら、最終実行から算出し直す
 ```
 
-- 停止が 30 分以内なら、過ぎた回は復帰後に配信される。
+- 停止が `CatchUpMinutes`（既定 180 分）以内なら、過ぎた回は復帰後に配信される。
+  `LastRunAt` との比較で同じ回の二重配信は防がれるので、この窓を広げても安全。
+  朝のダイジェストが午後に届くのを避けたいので、180 分を上限の目安にする。
 - それより長い停止では**その回は飛ぶ**。復旧後に `run_schedule_now` で補う。
 - 期限が来たジョブは**取り出した瞬間に次回時刻へ進める**。実行が失敗しても、
   次の 60 秒で同じ配信が再送されることはない（＝ 二重配信より欠落を選ぶ）。
@@ -201,12 +234,14 @@ App Service の `%HOME%` は永続領域なので、`%HOME%/data/schedules.json`
 
 ---
 
-## 7. 切り分け
+## 8. 切り分け
 
 | 症状 | 見るところ |
 |---|---|
-| 時間になっても何も届かない | ログの `Schedule worker checking every 60s`。無ければ `Schedule__Enabled` |
-| ワーカーは動くが実行されない | `tokens.Identity` が null。`Agentic__TenantId` / `InstanceId` / `UserId` を確認 |
+| 時間になっても何も届かない | **まず `az webapp config show --query alwaysOn`**。`false` なら §3。コードを疑う前にここ |
+| 同上（Always On は true） | 起動ログの `Schedule worker checking every 60s` と `Schedule <id> ... next run ...`。後者が無ければ**そもそも登録されていない**（`list_schedules` で確認） |
+| ワーカーは動くが実行されない | `Agentic identity unknown` の警告ログ。`Agentic__TenantId` / `InstanceId` / `UserId` を確認 |
+| メール処理は動くのに定期配信だけ届かない | Always On が無い典型症状。B6 は受信がアプリを起こすが、定期実行を起こすものは無い |
 | 実行はされたが届かない | ログの `Scheduled job … Result:` に理由が入る。多くは配信ツール未接続（B9 の同意漏れ） |
 | 再起動のたびに登録が消える | `Schedule__StorePath` が一時領域を指している。`%HOME%` 配下か確認 |
 | 同じ内容が 2 通届く | インスタンスが 2 つ以上動いている。`numberOfWorkers` を確認 |

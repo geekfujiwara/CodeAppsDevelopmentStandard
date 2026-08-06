@@ -34,6 +34,12 @@ public static partial class MessageHtml
 {
     private const int MaxLinkTextLength = 60;
 
+    private static readonly HashSet<string> DocumentExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".docx", ".doc", ".xlsx", ".xls", ".xlsm", ".csv", ".pptx", ".ppt", ".pdf",
+        ".txt", ".md", ".json", ".xml", ".zip", ".png", ".jpg", ".jpeg", ".gif", ".svg",
+    };
+
     public static string FromMarkdown(string? markdown)
     {
         string[] lines = (markdown ?? string.Empty)
@@ -220,7 +226,7 @@ public static partial class MessageHtml
         {
             string url = match.Value.TrimEnd('.', ',', ';', ':', ')', ']', '}', '。', '、', '）', '】');
             string tail = match.Value[url.Length..];
-            return Placeholder(links, Anchor(url, url)) + tail;
+            return Placeholder(links, Anchor(url, LinkLabel(url))) + tail;
         });
 
         result = Bold().Replace(result, "<b>$1</b>");
@@ -243,8 +249,82 @@ public static partial class MessageHtml
 
     private static string Anchor(string href, string label)
     {
-        string text = label.Length > MaxLinkTextLength ? label[..MaxLinkTextLength] + "…" : label;
-        return $"""<a href="{href}">{text}</a>""";
+        string text = label.Trim();
+        if (text.Length == 0 || text.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || text.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            text = LinkLabel(href);
+        }
+
+        return $"""<a href="{href}">{Shorten(text)}</a>""";
+    }
+
+    private static string Shorten(string text)
+    {
+        if (text.Length <= MaxLinkTextLength)
+        {
+            return text;
+        }
+
+        string cut = text[..MaxLinkTextLength];
+        int entity = cut.LastIndexOf('&');
+
+        // HTML エンティティの途中で切ると壊れた文字が出るので、その手前まで戻す。
+        return (entity >= 0 && !cut[entity..].Contains(';', StringComparison.Ordinal) ? cut[..entity] : cut) + "…";
+    }
+
+    /// <summary>
+    /// 生の URL を人が読める見出しに変える。ファイル名が読み取れればファイル名、
+    /// 取れなければサイト名を使う。URL 自体は本文に出さず、リンクの飛び先だけに残す。
+    /// </summary>
+    private static string LinkLabel(string encodedUrl)
+    {
+        string url = System.Net.WebUtility.HtmlDecode(encodedUrl);
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
+        {
+            return encodedUrl;
+        }
+
+        return System.Net.WebUtility.HtmlEncode(FileNameOf(uri) ?? SiteNameOf(uri));
+    }
+
+    private static string? FileNameOf(Uri uri)
+    {
+        // SharePoint / OneDrive の共有リンクは、パスではなくクエリにファイル名が入っていることがある。
+        foreach (string key in (string[])["file", "filename"])
+        {
+            string? value = QueryValue(uri, key);
+            if (value is { Length: > 0 } && DocumentExtensions.Contains(Path.GetExtension(value)))
+            {
+                return value;
+            }
+        }
+
+        string last = Uri.UnescapeDataString(uri.Segments.Length > 0 ? uri.Segments[^1] : string.Empty).Trim('/');
+        return last.Length > 0 && DocumentExtensions.Contains(Path.GetExtension(last)) ? last : null;
+    }
+
+    private static string SiteNameOf(Uri uri)
+    {
+        string host = uri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? uri.Host[4..] : uri.Host;
+        return host.EndsWith("sharepoint.com", StringComparison.OrdinalIgnoreCase)
+               || host.Equals("1drv.ms", StringComparison.OrdinalIgnoreCase)
+            ? "共有ファイル"
+            : host;
+    }
+
+    private static string? QueryValue(Uri uri, string key)
+    {
+        foreach (string pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            int separator = pair.IndexOf('=', StringComparison.Ordinal);
+            if (separator > 0 && pair[..separator].Equals(key, StringComparison.OrdinalIgnoreCase))
+            {
+                return Uri.UnescapeDataString(pair[(separator + 1)..]);
+            }
+        }
+
+        return null;
     }
 
     [GeneratedRegex(@"^(#{1,6})\s+(.*)$")]

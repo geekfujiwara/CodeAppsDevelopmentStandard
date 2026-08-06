@@ -529,7 +529,7 @@ $scope = ((@($Scopes | ForEach-Object { "$Resource/$_" })) + 'offline_access') -
 - 短期: メール経路のコンテキストに、**扱いうる仕事の分岐をすべて書く**。
   資料作成なら手順（ガイドを読む → コードで生成 → 受け渡し）をそのまま再掲する。
 - 原則: チャネル コンテキストには「今どこにいて、誰が待っているか」だけを書く。
-  判断基準はシステム プロンプトに一本化する（→ [outbound-formatting.md](outbound-formatting.md) §4）。
+  判断基準はシステム プロンプトに一本化する（→ [outbound-formatting.md](outbound-formatting.md) §5）。
 - **確認は必ず両方の入口から同じ依頼を投げて成果物を並べる。**
   片方だけで見ていると、この種の劣化は永久に見つからない。
 
@@ -555,3 +555,52 @@ $scope = ((@($Scopes | ForEach-Object { "$Resource/$_" })) + 'offline_access') -
 - `anonymous` に落として解決してはいけない。URL が転送されるだけで統制が消える。
 - `existingAccess` も解決にならない。何の権限も付かず、リンクだけ渡って相手が困る。
 - ゲスト招待など、テナント側の手当てを人間が行う。エージェントは「この宛先では開けない」と伝えるまでが仕事。
+
+## 39. 定期配信が一度も届かない（B11）
+
+**症状**: 「平日 8:00 にニュースを送って」で登録は成功し、`list_schedules` にも出る。
+しかし時間になっても Teams チャットに何も来ない。エラー ログも出ない。
+
+**原因**: App Service が **Free / Shared プラン（F1・D1）**で、**Always On が無い**。
+リクエストが約 20 分来ないとアプリがアンロードされ、`BackgroundService` ごと止まる。
+8:00 に誰も話しかけていなければ、期限判定そのものが走らない。
+
+紛らわしいのは、**受信トレイ監視（B6）は動いているように見える**こと。
+Teams のメッセージ受信が HTTP でアプリを起こすため、人が触っている時間帯だけ処理が進む。
+「メールは処理されているのに定期配信だけ来ない」はこの差。
+
+**対処**:
+
+```powershell
+az webapp config show -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --query alwaysOn
+az appservice plan update -g $env:AZURE_RESOURCE_GROUP -n <plan> --sku B1
+az webapp config set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --always-on true
+```
+
+Free プランでは Always On のトグル自体が存在しない。B1 以上へのスケールアップが前提。
+F1 には 1 日 60 CPU 分のクォータもあり、超えるとその日はアプリが停止する。
+
+**恒久対策済み**: `scripts/provision_selfhost.py` が F1/D1 を指定するとエラーで停止し、
+作成時に `--always-on true` を適用する。あわせて `ScheduleWorker` は起動時に登録済みジョブと
+次回実行時刻をログへ出し、`tokens.Identity` が null のときも**無言で return せず警告を出す**
+（以前は完全に無言だったため、止まっていることに気づけなかった）。
+
+## 40. Teams / メールに長い URL がそのまま表示される（B6 / B9）
+
+**症状**: リンクとしては機能しているが、本文に SharePoint の長い URL が生で並ぶ。
+または「こちら」としか書かれておらず、何のファイルか分からない。
+
+**原因は 2 つあり、両方直さないと再発する**。
+
+1. `MessageHtml` の裸 URL 変換が、**表示文字に URL をそのまま使っていた**。
+2. ツールの戻り値に「**この URL をそのまま相手に伝えること**」と書いてあった。
+   プロンプト側で「URL を裸で貼るな」と指示していても、直近のツール結果のほうが強い。
+
+**対処**（→ [outbound-formatting.md](outbound-formatting.md) §3）:
+
+- 変換器側で、パス末尾やクエリの `file=` から**ファイル名**を、取れなければ**ホスト名**を
+  表示文字にする。Markdown リンクの表示文字が URL そのものだった場合も同じ処理に通す。
+- ツールの戻り値では、書式を説明せず**そのまま貼れる `[<実ファイル名>](<URL>)` を組み立てて返す**。
+
+**恒久対策済み**: `templates/MessageHtml.template.cs` の `LinkLabel()` / `Shorten()`。
+表示文字の 60 文字打ち切りが HTML エンティティを割らないようにする処理も同時に入れた。
