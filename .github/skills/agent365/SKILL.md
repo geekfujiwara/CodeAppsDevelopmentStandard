@@ -40,11 +40,12 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 
 | 参照 | 用途 |
 |---|---|
-| [digital-colleague-design.md](references/digital-colleague-design.md) | **何を作るかを決める**（役割カタログ R1〜R6 / 機能ブロック B1〜B14 / 提案条件 / 制約 / 段階導入）。**Step 0 で読む** |
+| [digital-colleague-design.md](references/digital-colleague-design.md) | **何を作るかを決める**（役割カタログ R1〜R6 / 機能ブロック B1〜B15 / 提案条件 / 制約 / 段階導入）。**Step 0 で読む** |
 | [self-hosted-agent.md](references/self-hosted-agent.md) | 自己ホストの完全手順（Azure Bot / App Service / `appsettings.json` / ログの読み方） |
-| [feature-blocks.md](references/feature-blocks.md) | **機能ブロックの実装レシピ**（B2/B6/B9〜B14 のコピー・アプリ設定・DI 登録）。**Step 8 で読む** |
+| [feature-blocks.md](references/feature-blocks.md) | **機能ブロックの実装レシピ**（B2/B6/B9〜B15 のコピー・アプリ設定・DI 登録）。**Step 8 で読む** |
 | [agent-brain.md](references/agent-brain.md) | 中身の作り込み（Azure OpenAI / 会話履歴 / プロンプト外部化 / Dataverse MCP / Work IQ / 再デプロイ） |
 | [prompt-injection.md](references/prompt-injection.md) | **外部データを読むなら必須**。フェンス / 許可リスト / 検知 / 同意の強制の 4 層。**Step 8 で読む** |
+| [usage-accounting.md](references/usage-accounting.md) | **誰が・何に・いくら使ったか**の計測（B15）。Azure ポータルでは出せない内訳。**Step 8 で読む** |
 | [assistant-agent-pattern.md](references/assistant-agent-pattern.md) | 秘書・同僚としての標準品質（承認後の実行 / 権限準拠検索 / 人格 / プレゼンス） |
 | [architecture.md](references/architecture.md) | 2 種類のブループリントの違い / manifest スキーマ / 公開経路 / 表示名・アイコンの変更 |
 | [troubleshooting.md](references/troubleshooting.md) | 異常系（401 / AADSTS82001 / AADSTS65001 / カタログ公開の 409・403 など） |
@@ -137,7 +138,7 @@ B12 を入れるなら **B13 と B14** をその場で提案し、可否を取�
 |---|---|
 | B1 Teams 会話 / B3 頭脳 / B8 人格 | Step 5・6・7 |
 | B4 Microsoft 365 接続 / B5 Dataverse 接続 | [agent-brain.md](references/agent-brain.md) §6・§7 |
-| B2 自分の ID / B6 メール / B9 チャット / B10 Web / B11 定期 / B12 作業環境 / B13 経過 / B14 共有 | Step 8 |
+| B2 自分の ID / B6 メール / B9 チャット / B10 Web / B11 定期 / B12 作業環境 / B13 経過 / B14 共有 / B15 実績 | Step 8 |
 | B7 Teams プレゼンス | Step 12 |
 
 ### Step 1: 名前・表示名・アイコンを決める
@@ -292,6 +293,10 @@ Step 0 で選んだブロックだけを実装する。手順はすべて
 | B12 | Python を実行してファイルを読み書きする | §5 |
 | B13 | 長いターンの経過を伝える | §6 |
 | B14 | 成果物を台帳で管理し、同意を取ってから共有する | §7 |
+| B15 | 誰が・どの処理が・どのツールがいくら使ったかを答える | §8 |
+
+**B15 は役割によらず入れる。** Azure の課金はマネージド ID 1 つでしか集計されず、
+人別・処理別・ツール別の内訳は**後から復元できない**（→ [usage-accounting.md](references/usage-accounting.md)）。
 
 **インスタンス単位の同意・委任スコープ付与は Step 11**。ここではコードと設定だけを入れる。
 入口（チャット / メール / 定期実行）ごとに使える能力が変わらないよう、
@@ -471,6 +476,8 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 - [ ] （B11）起動ログに `Schedule <id> ... next run <日時> JST` が出ている（登録漏れと停止をここで切り分ける）
 - [ ] （B12）`provision_code_sandbox.py --check` が OK。zip / PDF / Excel の中身を読んで答え、意図的なエラーを自分で直して再実行する
 - [ ] （B13）数分かかる依頼で状況通知が届き、最終返信のあとに入力中表示が残らない
+- [ ] （B15）「今月の利用状況」「誰が一番使ってる？」「どのツールが多い？」で内訳が切り替わり、金額が出る
+- [ ] （B15）`Usage:Admins` に載っていない人が聞くと**本人の分だけ**に絞られる。空のまま放置していない
 
 **プロンプト インジェクション（外部データを読むブロックを入れた場合）**
 

@@ -1,4 +1,4 @@
-# 機能ブロックの実装レシピ（B2/B6/B9〜B14）
+# 機能ブロックの実装レシピ（B2/B6/B9〜B15）
 
 [SKILL.md](../SKILL.md) の **Step 8** で足す機能ブロックの実装手順。
 どのブロックも **「テンプレートをコピー → アプリ設定 → DI 登録 → 再デプロイ」** の 4 手で入る。
@@ -20,6 +20,7 @@
 | B12 作業環境 | `CodeSandbox.cs` / `SandboxTools.cs` | `Sandbox__*`（スクリプトが書き込む） | §5 |
 | B13 経過連絡 | `AgentProgress.cs` | `Agent__Progress__*` | §6 |
 | B14 成果物の共有 | `DocumentLedger.cs` / `DocumentShareTools.cs` | `Documents__*` | §7 |
+| B15 利用実績 | `UsageStore.cs` / `UsageTools.cs` | `Usage__*` | §8 |
 
 **インスタンス単位の同意・委任スコープ付与は Step 11 でまとめて行う。**
 B6 は `Mail.Send`、B9 は `Chat.Create` / `Chat.Read` / `ChatMessage.Send`、
@@ -300,3 +301,42 @@ builder.Services.AddSingleton<DocumentShareTools>();
 - 許可待ちの案件は、次にその人と話すときの実行時コンテキストに載せて**自分から切り出す**。催促はしない。
 
 区分の定義・判定表・同意フロー図・落とし穴は [document-sharing.md](document-sharing.md)。
+
+---
+
+## 8. B15 — 誰が何にいくら使っているかを答える
+
+**Azure ポータルでは「人別・処理別・ツール別」の内訳が原理的に出せない**——全リクエストが同じ
+マネージド ID から出るため。記録していなかった期間はさかのぼれないので、**B3 と同時に入れる**。
+
+```powershell
+Copy-Item .github/skills/agent365/references/templates/UsageStore.template.cs src/<agent-name>-agent/UsageStore.cs
+Copy-Item .github/skills/agent365/references/templates/UsageTools.template.cs src/<agent-name>-agent/UsageTools.cs
+
+az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
+  Usage__Enabled=true Usage__StorePath=/home/data/usage Usage__Currency=USD Usage__JpyRate=150 `
+  Usage__Admins__0=$env:USAGE_ADMIN_UPN
+```
+
+```csharp
+builder.Services.AddSingleton<UsageStore>();
+builder.Services.AddSingleton<UsageTools>();
+```
+
+- **記録の単位は 1 ターン。** ツール ループは 1 つの依頼で何往復もするので、モデル呼び出し単位だと
+  「この依頼はいくらだったか」に答えられない。ツール ループ全体を `try` / `finally` で囲み、
+  例外で抜けても記録する。
+- **記録の失敗で返信を壊さない。** 書き込みは `try` / `catch` で包み、失敗しても警告ログだけ出して続ける。
+- 入口ごとに `UsageContext` を 1 つ渡す（`chat` / `schedule` / `mailbox`）。これが処理別の内訳になる。
+- **単価はデプロイの SKU で変わる**（GlobalStandard / DataZone / Batch）。
+  `az cognitiveservices account deployment list` で実物を確認してから価格表を引く。設定は **1000 トークンあたり**。
+- **キャッシュ入力は概ね入力の 1/10。** 入力単価で二重に数えない。
+- **通貨は USD のまま持つ。** 円換算レートは毎月変わるので、`JpyRate` による固定換算の**併記**に留める。
+- **`Usage:Admins` を必ず決める。** 空だと全員が全員分の利用量を見られる（個人別の利用量は個人情報）。
+- レポートは**ツール 1 つ**で出す。新しい画面もエンドポイントも作らない。
+- プロンプトに「推測で答えず必ず `usage_report` を呼ぶ」「表だけでなく 1〜2 文の解釈を添える」
+  「**計測を入れた時点からの記録しかない**と正直に言う」を書く。
+
+> **スケールアウトすると集計が割れる**（インスタンスごとにファイルを持つため）。B11 と同じ制約。
+
+設計の背景・Azure ポータルとの対比・単価の調べ方・検証手順は [usage-accounting.md](usage-accounting.md)。

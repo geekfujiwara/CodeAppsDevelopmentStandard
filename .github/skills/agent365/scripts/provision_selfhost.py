@@ -133,6 +133,10 @@ def main() -> int:
         az("webapp", "log", "config", "-g", rg, "-n", app_name,
            "--application-logging", "filesystem", "--docker-container-logging", "filesystem",
            "--level", "information", "-o", "none")
+        # Per-person / per-tool cost cannot be reconstructed from Azure billing, and tokens are only
+        # in the responses, so recording has to be on from the first turn the app ever serves.
+        az("webapp", "config", "appsettings", "set", "-g", rg, "-n", app_name, "--settings",
+           "Usage__Enabled=true", "Usage__StorePath=/home/data/usage", "-o", "none")
         az("webapp", "identity", "assign", "-g", rg, "-n", app_name,
            "--identities", uami_resource_id, "-o", "none")
 
