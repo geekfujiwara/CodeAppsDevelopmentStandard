@@ -121,13 +121,15 @@ Exchange の共有設定、Work IQ のポリシーで縛る。
 | **B12** | 作業環境（コード実行） | `CodeSandbox.cs` / `SandboxTools.cs` | 隔離された環境で Python を書いて動かし、zip・PDF・Office・画像を読み、資料を作って渡す | B3 ＋ Container Apps セッション プール（取り込みに B4） |
 | **B13** | 経過連絡 | `AgentProgress.cs` | 時間のかかるターンで、入力中表示と状況を途中で届ける | B1 B3 |
 | **B14** | 成果物の共有と同意 | `DocumentLedger.cs` / `DocumentShareTools.cs` | 作ったファイルの依頼元と区分を覚えておき、別の人への共有は依頼元の許可を取ってから行う | B3 B12 ＋ Graph 委任同意（許可の受け付けに B9）|
+| **B15** | 利用実績とコスト | `UsageStore.cs` / `UsageTools.cs` | 誰が・どの処理が・どのツールがどれだけ使ったかを記録し、会話で内訳を返す | B3 |
 
 雛形は [templates/](templates/) にある。`AgenticIdentity.template.cs` / `MailboxWorker.template.cs` /
 `PresenceWorker.template.cs` / `TeamsChatTools.template.cs` / `WebSearchTools.template.cs` /
 `ScheduleStore.template.cs` / `ScheduleTools.template.cs` / `ScheduleWorker.template.cs` /
 `CodeSandbox.template.cs` / `SandboxTools.template.cs` / `AgentProgress.template.cs` /
 `MessageHtml.template.cs` / `MailTools.template.cs` / `DocumentLedger.template.cs` /
-`DocumentShareTools.template.cs` をコピーし、名前空間だけ合わせる。
+`DocumentShareTools.template.cs` / `UsageStore.template.cs` / `UsageTools.template.cs`
+をコピーし、名前空間だけ合わせる。
 
 > **B9 だけは Work IQ を通らない。** Work IQ のパス allowlist に `/chats` が無いため、
 > Microsoft Graph を直接呼ぶ。トークンは同じエージェンティック ユーザーの**委任**トークンなので、
@@ -153,6 +155,11 @@ Exchange の共有設定、Work IQ のポリシーで縛る。
 > **共有リンクは取り消せない**ので、可否はモデルの記憶ではなく台帳から、
 > しかもプロンプトではなくコードで判定する（→ [document-sharing.md](document-sharing.md)）。
 
+> **B15 は B3 と同時に入れる。後からは入れられない。** Azure の課金はマネージド ID 1 つでしか
+> 集計されないため、人別・処理別・ツール別の内訳は **Azure ポータルでは原理的に出ない**。
+> その場で書き残すしかなく、計測を入れる前の実績は永久に復元できない
+> （→ [usage-accounting.md](usage-accounting.md)）。
+
 ### ブロックの関係
 
 ```
@@ -171,6 +178,7 @@ Exchange の共有設定、Work IQ のポリシーで縛る。
         B12 作業環境（B3 のローカル ツール・実行は外部の隔離セッション）
         B13 経過連絡（B1 のターンに乗る・ワーカー経由では使わない）
         B14 成果物の共有（B12 の出口に付く・許可の受け付けは B1 のターンでしかできない）
+        B15 利用実績（B3 のツール ループ全体を 1 ターン単位で計測・全入口共通）
 ```
 
 **入口が増えても頭脳は 1 つ**にする。Teams とメールで判断が食い違うと、利用者は必ず気付く。
@@ -185,16 +193,19 @@ Exchange の共有設定、Work IQ のポリシーで縛る。
 
 ## 4. 役割 × ブロックの対応表
 
-| 役割 | B1 Teams | B2 ID | B3 頭脳 | B4 M365 | B5 Dataverse | B6 メール | B7 在席 | B8 人格 | B9 チャット | B10 Web | B11 定期 | B12 作業環境 | B13 経過 | B14 共有 |
-|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| R1 予定調整の秘書 | ● | ● | ● | ● | ○ | ● | ● | ● | ○ | ○ | ○ | ○ | ○ | ○ |
-| R2 一次受付 | ○ | ● | ● | ● | ● | ● | ○ | ● | ○ | ● | ○ | ○ | ○ | ○ |
-| R3 ウォッチャー | ● | ● | ● | ○ | ● | ○ | ● | ● | ● | ● | ● | ○ | ● | ○ |
-| R4 まとめ役 | ○ | ● | ● | ● | ● | ○ | ○ | ● | ○ | ○ | ● | ● | ● | ● |
-| R5 起票・下書き係 | ● | ● | ● | ○ | ● | ● | ● | ● | — | ○ | ○ | ● | ● | ● |
-| R6 チーム | 各体に依存 | ● | ● | — | ● | — | ● | ● | ○ | ● | ○ | ○ | ● | ○ |
+| 役割 | B1 Teams | B2 ID | B3 頭脳 | B4 M365 | B5 Dataverse | B6 メール | B7 在席 | B8 人格 | B9 チャット | B10 Web | B11 定期 | B12 作業環境 | B13 経過 | B14 共有 | B15 実績 |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| R1 予定調整の秘書 | ● | ● | ● | ● | ○ | ● | ● | ● | ○ | ○ | ○ | ○ | ○ | ○ | ● |
+| R2 一次受付 | ○ | ● | ● | ● | ● | ● | ○ | ● | ○ | ● | ○ | ○ | ○ | ○ | ● |
+| R3 ウォッチャー | ● | ● | ● | ○ | ● | ○ | ● | ● | ● | ● | ● | ○ | ● | ○ | ● |
+| R4 まとめ役 | ○ | ● | ● | ● | ● | ○ | ○ | ● | ○ | ○ | ● | ● | ● | ● | ● |
+| R5 起票・下書き係 | ● | ● | ● | ○ | ● | ● | ● | ● | — | ○ | ○ | ● | ● | ● | ● |
+| R6 チーム | 各体に依存 | ● | ● | — | ● | — | ● | ● | ○ | ● | ○ | ○ | ● | ○ | ● |
 
 ● 必須 ／ ○ 業務次第 ／ — 不要
+
+> **B15 だけは役割によらず必須。** 後から入れても過去の実績は取れないので、
+> 「必要になったら入れる」という選択肢が存在しない。
 
 ### B10 を自分から提案する条件
 
