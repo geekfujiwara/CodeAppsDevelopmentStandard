@@ -129,6 +129,10 @@ def main() -> int:
         host = webapp["defaultHostName"]
         endpoint = f"https://{host}/api/messages"
         az("webapp", "config", "set", "-g", rg, "-n", app_name, "--always-on", "true", "-o", "none")
+        # Off by default; without this `az webapp log tail` shows nothing when you finally need it.
+        az("webapp", "log", "config", "-g", rg, "-n", app_name,
+           "--application-logging", "filesystem", "--docker-container-logging", "filesystem",
+           "--level", "information", "-o", "none")
         az("webapp", "identity", "assign", "-g", rg, "-n", app_name,
            "--identities", uami_resource_id, "-o", "none")
 

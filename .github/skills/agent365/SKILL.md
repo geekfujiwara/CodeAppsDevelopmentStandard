@@ -391,6 +391,10 @@ az webapp log tail -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME
 を流したまま Teams でエージェントにメッセージを送り、応答が返ることを確認する。
 [検証チェックリスト](#検証チェックリスト)を上から確認する。
 
+> 何も流れてこないときはログ設定が無効になっている。起動時にしか出ないログを取るには
+> **`log tail` を先に繋いでから restart する**必要がある。手順は
+> [references/self-hosted-agent.md](references/self-hosted-agent.md) 手順 7。
+
 応答が返るようになったら、中身の作り込みは
 [references/agent-brain.md](references/agent-brain.md) に従って進める
 （**ID 面は凍結し、アプリ面だけを回す**）。実データを扱わせる場合は同ファイル §6（Dataverse MCP）へ。

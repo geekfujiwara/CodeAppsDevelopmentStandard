@@ -604,3 +604,32 @@ F1 には 1 日 60 CPU 分のクォータもあり、超えるとその日はア
 
 **恒久対策済み**: `templates/MessageHtml.template.cs` の `LinkLabel()` / `Shorten()`。
 表示文字の 60 文字打ち切りが HTML エンティティを割らないようにする処理も同時に入れた。
+
+## 41. `az webapp log tail` に何も出ない / 自分のログが見つからない
+
+**症状**: 不具合の切り分けにログを見ようとしたら、何も流れてこない。
+あるいは MSAL の出力ばかりで、`ILogger` に書いたはずの行が見当たらない。
+
+**原因は 3 つある**。
+
+1. **App Service のログ設定が既定で無効**。有効化しないとストリームは空のまま。
+
+   ```powershell
+   az webapp log config -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME `
+     --application-logging filesystem --docker-container-logging filesystem --level information
+   ```
+
+2. **MSAL と `HttpClient` の既定ログが多すぎる**。トークン取得 1 回で数十行出るため、
+   自作のログが端末のスクロール バックから押し出される。`appsettings.json` の
+   `Logging:LogLevel` で両方 `Warning` に落とす（→ [self-hosted-agent.md](self-hosted-agent.md) 手順 3）。
+
+3. **見たい行が起動時にしか出ない**のに、`restart` の後から `log tail` を繋いでいる。
+   `log tail` を先に繋いでから restart し、コンテナ起動（1〜2 分）を待ち切る。
+   `az` はファイルへリダイレクトすると出力をバッファするので、別プロセスで走らせる
+   （手順は [self-hosted-agent.md](self-hosted-agent.md) 手順 7）。
+
+`az webapp log download` はアーカイブ済みのファイルしか返さず、直近の起動は入らない。
+Kudu の VFS API で直接読む手も、SCM の基本認証が無効なテナントでは 401 になる（→ #33）。
+
+**恒久対策済み**: `scripts/provision_selfhost.py` が Web アプリ作成時にファイル システム ログを
+有効化する。必要になってから慌てて設定しても、**その時点より前のログは残っていない**。
