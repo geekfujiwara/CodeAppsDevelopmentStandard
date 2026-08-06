@@ -37,7 +37,7 @@ python scripts/provision_selfhost.py --write .env
 |---|---|---|
 | ユーザー割り当てマネージド ID | Azure Bot の ID | `msaAppType=UserAssignedMSI` |
 | Azure Bot + MsTeams チャネル | Teams チャネル登録 | `az bot create` は廃止 API 版のため `az rest --method PUT`（`api-version=2022-09-15`）を使う。`acceptedTerms=True` は **PUT でのみ**保持される |
-| App Service プラン + Web アプリ | Agents SDK アプリの実行環境 | Linux / `DOTNETCORE:8.0`。**B1 以上 + Always On**（スクリプトが自動で有効化する） |
+| App Service プラン + Web アプリ | Agents SDK アプリの実行環境 | Linux / `DOTNETCORE:8.0`。**B1 以上 + Always On**（スクリプトが自動で有効化する）。ファイル システム ログも同時に有効化される |
 
 - **Free / Shared（F1・D1）は使えない。** Always On が無いため、リクエストが 20 分来ないと
   アプリがアンロードされ、**`BackgroundService` が丸ごと止まる**。受信トレイ監視（B6）も
@@ -91,6 +91,13 @@ appsettings.json      下記の agentic 設定
     "Enabled": true,
     "Audiences": [ "${A365_AGENT_BLUEPRINT_ID}", "${AZURE_BOT_MSA_APP_ID}" ],
     "TenantId": "${AZURE_TENANT_ID}"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.Agents.Authentication.Msal": "Warning",
+      "System.Net.Http.HttpClient": "Warning"
+    }
   }
 }
 ```
@@ -101,6 +108,7 @@ appsettings.json      下記の agentic 設定
 | `ClientId` | **ブループリント appId** | Bot の `msaAppId` ではない |
 | `Scopes` | `5a807f24-c9de-44ee-a3a7-329e88a00ffc/.default` | Messaging Bot API Application（固定値） |
 | `TokenValidation:Audiences` | ブループリント appId ＋ Bot の `msaAppId` | 前者が Agent 365 の 401 を解消する要 |
+| `Logging:LogLevel` | MSAL と `HttpClient` を `Warning` に落とす | 既定のままだと**トークン取得 1 回あたり数十行**が出て、自作の `ILogger` 出力がスクロールで流れて読めない。手順 6 の切り分け中だけ `Information` に戻す |
 
 Bot の appId とブループリント appId を別コネクションに分けたい場合は
 `ConnectionSettings.AlternateBlueprintConnectionName` で 2 コネクション構成にできる
@@ -168,3 +176,29 @@ Teams に応答が返れば完了。ログの読み方:
 | `AADSTS82001 ... not permitted to request app-only tokens` | **無視してよい**（agentic アプリの仕様） |
 | `AADSTS65001 ... has not consented` | 手順 6 が未実施 |
 | `Only IConfidentialClientApplication ... is supported for Agentic.` | 手順 3 の `AuthType` が confidential client になっていない |
+
+#### 起動時のログを取る
+
+`BackgroundService` の登録内容など、**起動時に一度だけ出るログ**はこちらの手順でないと取れない。
+
+1. **ログが有効か確かめる**。既定では無効で、`az webapp log tail` に何も出ない。
+
+   ```powershell
+   az webapp log config -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME `
+     --application-logging filesystem --docker-container-logging filesystem --level information
+   ```
+
+2. **`log tail` を先に繋いでから restart する**。逆にすると起動ログは取り逃す。
+   `az` はファイルにリダイレクトすると出力をバッファするので、別プロセスで走らせる。
+
+   ```powershell
+   $p = Start-Process cmd.exe -ArgumentList '/c',"az webapp log tail -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME > tail.txt 2>&1" -WindowStyle Hidden -PassThru
+   Start-Sleep -Seconds 15
+   az webapp restart -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME
+   Start-Sleep -Seconds 150   # コンテナ起動は 1～2 分かかる
+   Stop-Process -Id $p.Id -Force
+   Select-String -Path tail.txt -Pattern 'Worker|Schedule|Mailbox'
+   ```
+
+`az webapp log download` は**アーカイブ済みのファイルしか返さない**（直近の起動は入らない）。
+Kudu の VFS API で直接読むのも、SCM の基本認証が無効なテナントでは 401 になる（→ [troubleshooting.md](troubleshooting.md) #33）。
