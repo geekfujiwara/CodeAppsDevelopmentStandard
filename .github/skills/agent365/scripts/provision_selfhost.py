@@ -19,6 +19,7 @@ with 401 (see references/self-hosted-agent.md).
 Usage:
     python scripts/provision_selfhost.py --write .env
     python scripts/provision_selfhost.py --location westus2 --sku B1
+    python scripts/provision_selfhost.py --check
 """
 from __future__ import annotations
 
@@ -78,6 +79,35 @@ def arm_put(resource_id: str, api_version: str, body: dict) -> dict:
         body_path.unlink(missing_ok=True)
 
 
+def assert_plan_tier(*selector: str) -> str:
+    """`plan create` is idempotent and silently keeps the tier an existing plan already has."""
+    plan = az_json("appservice", "plan", "show", *selector)
+    sku = (plan or {}).get("sku", {}).get("name", "?")
+    if sku.upper() in TIERLESS_SKUS:
+        raise RuntimeError(
+            f"plan {(plan or {}).get('name')} is {sku}: Free/Shared cannot hold Always On.\n"
+            f"    az appservice plan update --ids {(plan or {}).get('id')} --sku B1"
+        )
+    return sku
+
+
+def verify_hosting(rg: str, app_name: str) -> None:
+    """Read the plan tier and Always On back and refuse to report success without them.
+
+    A plan downgraded after provisioning is invisible until an agent stops answering, and the
+    first symptom is a dropped Teams message rather than an error, so this runs on every run.
+    """
+    site = az_json("webapp", "show", "-g", rg, "-n", app_name) or {}
+    sku = assert_plan_tier("--ids", site["serverFarmId"])
+    if not (site.get("siteConfig") or {}).get("alwaysOn"):
+        raise RuntimeError(
+            f"web app {app_name} has Always On off: the app is unloaded after ~20 idle minutes, "
+            "and the Teams message that wakes it is dropped (the channel does not retry).\n"
+            f"    az webapp config set -g {rg} -n {app_name} --always-on true"
+        )
+    print(f"      hosting check: {app_name} on {sku}, always on")
+
+
 def update_env(path: Path, values: dict[str, str]) -> None:
     lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
     remaining = dict(values)
@@ -99,6 +129,8 @@ def main() -> int:
     parser.add_argument("--runtime", default="DOTNETCORE:8.0", help="Linux runtime (default: DOTNETCORE:8.0).")
     parser.add_argument("--env", default=".env")
     parser.add_argument("--write", metavar="PATH", help="Write the resulting ids back to this .env file.")
+    parser.add_argument("--check", action="store_true",
+                        help="Only verify an existing deployment (plan tier and Always On); change nothing.")
     args = parser.parse_args()
 
     load_env(Path(args.env))
@@ -116,6 +148,16 @@ def main() -> int:
 
     app_name = f"{name}-agent"
     plan_name = f"{name}-plan"
+
+    if args.check:
+        try:
+            # The recorded name wins: an agent may have been provisioned under a different app name.
+            verify_hosting(rg, os.environ.get("AGENT_WEBAPP_NAME") or app_name)
+        except (RuntimeError, KeyError) as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        return 0
+
     try:
         print(f"[1/3] user-assigned managed identity: {name}")
         uami = az_json("identity", "create", "-g", rg, "-n", name, "-l", args.location)
@@ -124,6 +166,7 @@ def main() -> int:
         print(f"[2/3] app service: {app_name} ({args.location}, {args.sku})")
         az("appservice", "plan", "create", "-g", rg, "-n", plan_name,
            "-l", args.location, "--is-linux", "--sku", args.sku, "-o", "none")
+        assert_plan_tier("-g", rg, "-n", plan_name)
         webapp = az_json("webapp", "create", "-g", rg, "-p", plan_name, "-n", app_name,
                          "--runtime", args.runtime)
         host = webapp["defaultHostName"]
@@ -161,6 +204,7 @@ def main() -> int:
             "properties": {"channelName": "MsTeamsChannel",
                            "properties": {"isEnabled": True, "acceptedTerms": True}},
         })
+        verify_hosting(rg, app_name)
     except RuntimeError as exc:
         print(exc, file=sys.stderr)
         return 1

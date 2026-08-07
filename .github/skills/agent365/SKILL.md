@@ -40,12 +40,13 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 
 | 参照 | 用途 |
 |---|---|
-| [digital-colleague-design.md](references/digital-colleague-design.md) | **何を作るかを決める**（役割カタログ R1〜R6 / 機能ブロック B1〜B15 / 提案条件 / 制約 / 段階導入）。**Step 0 で読む** |
+| [digital-colleague-design.md](references/digital-colleague-design.md) | **何を作るかを決める**（役割カタログ R1〜R6 / 機能ブロック B1〜B16 / 提案条件 / 制約 / 段階導入）。**Step 0 で読む** |
 | [self-hosted-agent.md](references/self-hosted-agent.md) | 自己ホストの完全手順（Azure Bot / App Service / `appsettings.json` / ログの読み方） |
-| [feature-blocks.md](references/feature-blocks.md) | **機能ブロックの実装レシピ**（B2/B6/B9〜B15 のコピー・アプリ設定・DI 登録）。**Step 8 で読む** |
+| [feature-blocks.md](references/feature-blocks.md) | **機能ブロックの実装レシピ**（B2/B6/B9〜B16 のコピー・アプリ設定・DI 登録）。**Step 8 で読む** |
 | [agent-brain.md](references/agent-brain.md) | 中身の作り込み（Azure OpenAI / 会話履歴 / プロンプト外部化 / Dataverse MCP / Work IQ / 再デプロイ） |
 | [prompt-injection.md](references/prompt-injection.md) | **外部データを読むなら必須**。フェンス / 許可リスト / 検知 / 同意の強制の 4 層。**Step 8 で読む** |
 | [usage-accounting.md](references/usage-accounting.md) | **誰が・何に・いくら使ったか**の計測（B15）。Azure ポータルでは出せない内訳。**Step 8 で読む** |
+| [incoming-files.md](references/incoming-files.md) | **送られたファイルを受け取る**（B16）。取得経路と `supportsFiles`。**Step 8 で読む** |
 | [assistant-agent-pattern.md](references/assistant-agent-pattern.md) | 秘書・同僚としての標準品質（承認後の実行 / 権限準拠検索 / 人格 / プレゼンス） |
 | [architecture.md](references/architecture.md) | 2 種類のブループリントの違い / manifest スキーマ / 公開経路 / 表示名・アイコンの変更 |
 | [troubleshooting.md](references/troubleshooting.md) | 異常系（401 / AADSTS82001 / AADSTS65001 / カタログ公開の 409・403 など） |
@@ -72,7 +73,7 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 **質問 3 の回答から、依頼者が言っていない機能ブロックを自分から提案する。**
 依頼者は「Web 検索が欲しい」「定期実行を付けて」とは言わない。
 社外の情報が出てきたら **B10**、繰り返しの仕事が見えたら **B11**、ファイルが出てきたら **B12**、
-B12 を入れるなら **B13 と B14** をその場で提案し、可否を取る
+B12 を入れるなら **B13 と B14**、相手からファイルを渡されるなら **B16** をその場で提案し、可否を取る
 （提案条件と言い回しは [digital-colleague-design.md](references/digital-colleague-design.md) §4）。
 
 **制約もこの場で先に伝える**（同 §5）。とくに「メールは push されないのでポーリングになる」
@@ -85,7 +86,7 @@ B12 を入れるなら **B13 と B14** をその場で提案し、可否を取�
 
 | スクリプト | 用途 | Step |
 |---|---|---|
-| [provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し `.env` へ書き戻す | 6 |
+| [provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し `.env` へ書き戻す。`--check` でプラン・Always On のドリフト検出 | 6 |
 | [provision_code_sandbox.py](scripts/provision_code_sandbox.py) | コード実行サンドボックス（Container Apps 動的セッション プール）を冪等に作成しロールを付与 | 8 |
 | [build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + `agenticUser.json` を ZIP 化 | 9 |
 | [publish_teams_app.py](scripts/publish_teams_app.py) | Graph で ZIP を組織カタログへ登録（**devPreview は Graph 側で拒否される**） | 10 |
@@ -138,7 +139,7 @@ B12 を入れるなら **B13 と B14** をその場で提案し、可否を取�
 |---|---|
 | B1 Teams 会話 / B3 頭脳 / B8 人格 | Step 5・6・7 |
 | B4 Microsoft 365 接続 / B5 Dataverse 接続 | [agent-brain.md](references/agent-brain.md) §6・§7 |
-| B2 自分の ID / B6 メール / B9 チャット / B10 Web / B11 定期 / B12 作業環境 / B13 経過 / B14 共有 / B15 実績 | Step 8 |
+| B2 自分の ID / B6 メール / B9 チャット / B10 Web / B11 定期 / B12 作業環境 / B13 経過 / B14 共有 / B15 実績 / B16 添付 | Step 8 |
 | B7 Teams プレゼンス | Step 12 |
 
 ### Step 1: 名前・表示名・アイコンを決める
@@ -233,7 +234,9 @@ src/<agent-name>-agent/
 
 > ★ **App Service は B1 以上 + Always On**。Free / Shared には Always On が無く、
 > アプリがアンロードされて**すべての `BackgroundService`（B6・B11・B12）が止まる**。
-> `provision_selfhost.py` が F1/D1 を弾き、Always On を有効化する。
+> さらに**アンロード後の 1 通目はコールド スタート（55〜80 秒）に負けて捨てられる**
+> （チャネルは再送しない）。「久しぶりに話しかけると 1 回めだけ無視される」はこれ（→ troubleshooting #44）。
+> `provision_selfhost.py` が F1/D1 を弾き、Always On を有効化し、**成功時にも読み戻して検証**する。
 
 ```powershell
 # 1. UAMI + Azure Bot(Teams チャネル) + App Service を作成し .env に書き戻す
@@ -262,6 +265,8 @@ a365 setup blueprint -n <agent-name> --endpoint-only --messaging-endpoint $env:A
 - `--messaging-endpoint` は **`--endpoint-only` との併用が必須**。
 - 2 つの `a365 setup blueprint` は `a365.generated.config.json` があるディレクトリで実行する。
 - エンドポイントは**自前 App Service の `/api/messages`**。ここに Foundry の URL を入れない。
+- プランを後から下げるとこの前提が黙って崩れる。受け取り時と不具合調査の入口で
+  `python scripts/provision_selfhost.py --check` を通す。
 
 ### Step 7: 人格と初期品質を入れる
 
@@ -294,6 +299,7 @@ Step 0 で選んだブロックだけを実装する。手順はすべて
 | B13 | 長いターンの経過を伝える | §6 |
 | B14 | 成果物を台帳で管理し、同意を取ってから共有する | §7 |
 | B15 | 誰が・どの処理が・どのツールがいくら使ったかを答える | §8 |
+| B16 | Teams で送られたファイルを受け取って作業に使う | §9 |
 
 **B15 は役割によらず入れる。** Azure の課金はマネージド ID 1 つでしか集計されず、
 人別・処理別・ツール別の内訳は**後から復元できない**（→ [usage-accounting.md](references/usage-accounting.md)）。
@@ -302,7 +308,7 @@ Step 0 で選んだブロックだけを実装する。手順はすべて
 入口（チャット / メール / 定期実行）ごとに使える能力が変わらないよう、
 **実行時コンテキストにも能力を明示する**（→ [outbound-formatting.md](references/outbound-formatting.md) §5）。
 
-> **B2/B6・B9・B10・B12・B14 を足したら、同じ Step で
+> **B2/B6・B9・B10・B12・B14・B16 を足したら、同じ Step で
 > [prompt-injection.md](references/prompt-injection.md) の対策も入れる。**
 > これらは第三者が書いた文章をエージェントに読ませるブロックで、
 > 対策なしだと「メール本文に書いた命令がそのまま実行される」状態になる。
@@ -460,10 +466,12 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 - [ ] `appsettings.json` の `AuthType` が confidential client、`ClientId` がブループリント appId、`TokenValidation:Audiences` にブループリント appId と Bot の `msaAppId` が両方入っている
 - [ ] `grant_agent_instance_consent.py --check` と `grant_agent_graph_scopes.py --check` が OK を返す
 - [ ] `set_agent_user_photo.py --check` と `configure_agent_presence.py --check` が OK を返す
+- [ ] `python scripts/provision_selfhost.py --check` が OK を返す（プラン B1 以上 + Always On）
 
 **アプリ面（Step 7・8・13）**
 
 - [ ] App Service のルート URL が 200 を返し、Teams でメッセージを送ると応答が返る
+- [ ] **20 分以上あけてから話しかけて、1 通目で返事が来る**（Always On が効いている確認）
 - [ ] **`az webapp config show --query alwaysOn` が `true`**（B6・B11・B12 を入れるなら必須。false なら定期実行は一度も発火しない）
 - [ ] ログに `Teams presence refreshed for agentic user` が出る
 - [ ] プロンプトが承認語の次ターンで書き込みツールを実行し、分類名だけで Dataverse 検索を拒否しない
@@ -478,6 +486,10 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 - [ ] （B13）数分かかる依頼で状況通知が届き、最終返信のあとに入力中表示が残らない
 - [ ] （B15）「今月の利用状況」「誰が一番使ってる？」「どのツールが多い？」で内訳が切り替わり、金額が出る
 - [ ] （B15）`Usage:Admins` に載っていない人が聞くと**本人の分だけ**に絞られる。空のまま放置していない
+- [ ] （B15）`group_by=actor` に **`(不明)` の行が出ていない**。出たら入口が `Actor` を渡していない（後から埋められない）
+- [ ] （B16）Teams で画像を添付して聞くと中身を説明し、続けて `run_python` で `/mnt/data/<ファイル名>` を開ける
+- [ ] （B16）**本文なしでファイルだけ**送っても「テキストが読み取れませんでした」で止まらない
+- [ ] （B16）`build_teams_package.py` が通っている（`bots[].supportsFiles` が `true`）
 
 **プロンプト インジェクション（外部データを読むブロックを入れた場合）**
 

@@ -103,6 +103,14 @@ public sealed class UsageTools(UsageStore store, IConfiguration configuration)
 
         builder.AppendLine();
         builder.AppendLine("※ ここに出るのはモデルのトークン費用だけ。App Service（定額）とコード実行サンドボックスは別途かかる。");
+
+        // An unattributable record is a bug at the entry point, not a fact about the month.
+        if (records.Count(r => string.IsNullOrEmpty(r.Actor)) is > 0 and int unattributed)
+        {
+            builder.AppendLine($"※ 相手を特定できない記録が {unattributed} 件ある。"
+                + "入口が UsageContext に Actor を渡していない可能性が高い（後からは埋められない）。");
+        }
+
         if (records.All(r => store.CostOf(r) is null))
         {
             builder.AppendLine("※ 単価が未設定のため金額は出せない。appsettings の `Usage:Pricing:<モデル名>:Input` / `Output`（1000 トークンあたり）を設定する。");

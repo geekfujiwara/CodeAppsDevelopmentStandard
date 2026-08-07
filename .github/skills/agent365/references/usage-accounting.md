@@ -76,9 +76,22 @@ finally
 spentOn: new UsageContext("chat", userEmail)
 // 定期配信
 spentOn: new UsageContext("schedule", job.Recipient)
-// 受信トレイ監視
-spentOn: new UsageContext("mailbox", null)
+// 受信トレイ監視（差出人ごとにターンを分けてから渡す）
+spentOn: new UsageContext("mailbox", sender.Key)
 ```
+
+> **`Actor` に `null` を渡してよい入口は無い。** 相手が分からないのは実装の都合であって事実ではない。
+> 記録されなかった相手は `(不明)` として残り、**後から埋められない**（識別子そのものが残っていない）。
+> `null` を渡したくなったら、記録側ではなく**入口の側を直す**。
+
+`MailboxWorker` は 1 回のスイープで複数の未読をまとめて 1 ターンに渡す作りにしがちだが、
+**差出人が 2 人いると、そのターンはどちらの利用でもなくなる**。`UsageRecord.Actor` は 1 つしか持てない。
+差出人アドレスで `GroupBy` し、**1 差出人 = 1 ターン**にしてから `UsageContext` を渡す
+（未読は通常 0〜1 件なので、ターンが増えるのは稀。ついでにインジェクションの影響範囲も差出人ごとに閉じる）。
+
+**`Actor` の形式は入口をまたいで揃える。** `chat` / `schedule` は素のメール アドレスなので、
+メール経路も表示名付きの `"名前 <アドレス>"` ではなく `from.emailAddress.address` を使う。
+揃えないと、同じ人が `group_by=actor` で 2 行に割れる。
 
 ## 3. 単価は「デプロイの SKU」で決まる
 

@@ -155,6 +155,23 @@ def resolve_icon(cli_icon: str | None) -> Path:
     )
 
 
+def assert_supports_files(manifest: dict) -> None:
+    """Refuse a package that cannot receive files (B16).
+
+    With ``supportsFiles`` off, Teams never delivers attachment info to the bot. The agent then
+    answers "please send me the file" to a message that already had the file on it: no exception,
+    no failed request, just a conversation that never converges. Nobody finds that by reading logs,
+    so it is checked here on every build instead.
+    """
+    for bot in manifest.get("bots", []):
+        if not bot.get("supportsFiles"):
+            raise SystemExit(
+                "bots[].supportsFiles is not true, so Teams will not deliver attachments to this "
+                "agent and file uploads will be silently ignored. Set it to true in the manifest "
+                "template, or pass --allow-no-files if this agent is meant to reject files."
+            )
+
+
 def downgrade_to_shared_agent(manifest: dict) -> None:
     """Strip the Agent 365 instantiation nodes so the app installs as one shared agent."""
     manifest["$schema"] = SHARED_MANIFEST_SCHEMA
@@ -189,6 +206,14 @@ def main() -> int:
             "can never be built or published by mistake."
         ),
     )
+    parser.add_argument(
+        "--allow-no-files",
+        action="store_true",
+        help=(
+            "Skip the bots[].supportsFiles check. Only for agents that deliberately "
+            "reject file uploads; otherwise attachments are dropped without any error."
+        ),
+    )
     args = parser.parse_args()
 
     load_env(Path(args.env))
@@ -203,6 +228,9 @@ def main() -> int:
 
     manifest_text = render(template_path.read_text(encoding="utf-8"))
     manifest = json.loads(manifest_text)
+
+    if not args.allow_no_files:
+        assert_supports_files(manifest)
 
     color_name = manifest["icons"]["color"]
     outline_name = manifest["icons"]["outline"]

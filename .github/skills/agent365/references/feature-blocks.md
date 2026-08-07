@@ -1,4 +1,4 @@
-# 機能ブロックの実装レシピ（B2/B6/B9〜B15）
+# 機能ブロックの実装レシピ（B2/B6/B9〜B16）
 
 [SKILL.md](../SKILL.md) の **Step 8** で足す機能ブロックの実装手順。
 どのブロックも **「テンプレートをコピー → アプリ設定 → DI 登録 → 再デプロイ」** の 4 手で入る。
@@ -21,12 +21,13 @@
 | B13 経過連絡 | `AgentProgress.cs` | `Agent__Progress__*` | §6 |
 | B14 成果物の共有 | `DocumentLedger.cs` / `DocumentShareTools.cs` | `Documents__*` | §7 |
 | B15 利用実績 | `UsageStore.cs` / `UsageTools.cs` | `Usage__*` | §8 |
+| B16 添付の受け取り | `IncomingFiles.cs` | なし（マニフェストの `supportsFiles`） | §9 |
 
 **インスタンス単位の同意・委任スコープ付与は Step 11 でまとめて行う。**
 B6 は `Mail.Send`、B9 は `Chat.Create` / `Chat.Read` / `ChatMessage.Send`、
 B14 は `Files.ReadWrite` が要る。ここでコードを入れただけでは動かない。
 
-> ★ **B2/B6・B9・B10・B12・B14 は、第三者が書いた文章をエージェントに読ませるブロック。**
+> ★ **B2/B6・B9・B10・B12・B14・B16 は、第三者が書いた文章をエージェントに読ませるブロック。**
 > 足すのと同じ PR で [prompt-injection.md](prompt-injection.md) のフェンスを入れ、
 > 新しいツール名を許可リストの判定に通す。後から入れると対象漏れに気づけない。
 
@@ -74,8 +75,12 @@ builder.Services.AddHostedService<MailboxWorker>();
 |---|---|
 | `Mailbox worker polling every 60s` | ワーカーが起動した |
 | `Handling N unread message(s)` | 未読を見つけて処理に入った |
-| `Mail sweep result: …` | 1 周分の処理結果（1 件 1 行） |
+| `Mail sweep result for <差出人>: …` | 1 差出人分の処理結果 |
 | `Agentic identity unknown; skipping sweep` | `Agentic__*` が未設定。アプリ設定を見直す |
+
+> **1 スイープを 1 ターンにまとめない。差出人で `GroupBy` して 1 差出人 = 1 ターンにする。**
+> 差出人が 2 人いるターンは、B15 の記録で**どちらの利用でもなくなる**（`Actor` は 1 つしか持てない）。
+> 未読は通常 0〜1 件なのでターンが増えるのは稀で、インジェクションの影響範囲も差出人ごとに閉じる。
 
 前提となる制約（**設計時に依頼者へ共有済みであること**）:
 
@@ -328,6 +333,11 @@ builder.Services.AddSingleton<UsageTools>();
   例外で抜けても記録する。
 - **記録の失敗で返信を壊さない。** 書き込みは `try` / `catch` で包み、失敗しても警告ログだけ出して続ける。
 - 入口ごとに `UsageContext` を 1 つ渡す（`chat` / `schedule` / `mailbox`）。これが処理別の内訳になる。
+- **`Actor` に `null` を渡してよい入口は無い。** 相手を特定できない形になっていたら、
+  記録側で妥協せず**入口の側を直す**（メール経路は §1 のとおり差出人ごとにターンを分ける）。
+  記録されなかった相手は `(不明)` として残り、**後から埋められない**。
+- **`Actor` の形式を入口をまたいで揃える。** すべて素のメール アドレスにする。
+  表示名付きの `"名前 <アドレス>"` を混ぜると、同じ人が `group_by=actor` で 2 行に割れる。
 - **単価はデプロイの SKU で変わる**（GlobalStandard / DataZone / Batch）。
   `az cognitiveservices account deployment list` で実物を確認してから価格表を引く。設定は **1000 トークンあたり**。
 - **キャッシュ入力は概ね入力の 1/10。** 入力単価で二重に数えない。
@@ -340,3 +350,62 @@ builder.Services.AddSingleton<UsageTools>();
 > **スケールアウトすると集計が割れる**（インスタンスごとにファイルを持つため）。B11 と同じ制約。
 
 設計の背景・Azure ポータルとの対比・単価の調べ方・検証手順は [usage-accounting.md](usage-accounting.md)。
+
+---
+
+## 9. B16 — 送られたファイルを受け取る
+
+**Teams はファイルの中身を送らない**——送ってくるのは参照だけなので、取りに行かないアプリからは
+**ファイルが付いていたことすら見えない**。エラーにならず「ファイルを送ってください」と返し続ける。
+
+```powershell
+Copy-Item .github/skills/agent365/references/templates/IncomingFiles.template.cs src/<agent-name>-agent/IncomingFiles.cs
+```
+
+```csharp
+builder.Services.AddSingleton<IncomingFiles>();
+```
+
+ターン ハンドラーの先頭で集めて、履歴に積む前に本文へ足す。
+
+```csharp
+IReadOnlyList<IncomingFile> attached = await files.CollectAsync(turnContext, cancellationToken);
+
+var turn = new ChatTurn { Role = "user", Text = userText };
+if (attached.Count > 0)
+{
+    turn.Text += "\n\n" + await files.StageAsync(conversationId, attached, cancellationToken);
+    turn.Images = [.. attached.Where(file => file.IsImage)];
+}
+```
+
+`AgentBrain` 側は、画像を持つターンだけ内容パートで組み立てる。
+
+```csharp
+List<ChatMessageContentPart> parts = [ChatMessageContentPart.CreateTextPart(turn.Text)];
+parts.AddRange(turn.Images.Select(image =>
+    ChatMessageContentPart.CreateImagePart(BinaryData.FromBytes(image.Bytes), image.ContentType)));
+return new UserChatMessage(parts);
+```
+
+- **前提は B12。** 画像を「見せる」だけでは切り抜きも貼り込みもできない。`/mnt/data` に置くところまでが 1 組。
+- **マニフェストの `bots[].supportsFiles` が `true` であること。** `false` だと Teams が配信しないので、
+  コードを直しても届かない。`build_teams_package.py` がパッケージのたびに検証する。
+- **署名済み URL かどうかは URL から判別できない。** 先に認証なしで GET し、`401` / `403` のときだけ
+  ボットのトークンを付けて 1 回再試行する。最初からトークンを付けると逆に弾かれることがある。
+- **画像バイト列を会話履歴に保存しない**（`[JsonIgnore]`）。保存すると以降の全ターンで送り直しになる。
+  配置先のパスは本文に書いて履歴に残すので、次のターンからも参照できる。
+- **vision に渡すのは png / jpeg / gif / webp だけ。** 対応外を混ぜると**ターン全体が落ちる**。
+- **本文が空でファイルだけ**の発言を弾かない。「テキストが読み取れませんでした」で止まると、
+  添付だけ送る使い方が全部死ぬ。
+- 取り込んだ中身は**指示ではなくデータ**。B12 と同じフェンスに通す（→ [prompt-injection.md](prompt-injection.md)）。
+
+| ログ | 意味 |
+|---|---|
+| `Received <name> (<type>, <n> bytes)` | 添付を取得できた |
+| `Attachment <name> could not be read` | 1 件だけ失敗（ターンは継続する） |
+
+> **ファイル API は個人チャットだけ。** チャネル・グループ チャットでは届かない。
+> GCC High / DoD / 21Vianet ではファイルの送受信自体が未対応。
+
+経路ごとの取得方法・落とし穴・検証手順は [incoming-files.md](incoming-files.md)。
