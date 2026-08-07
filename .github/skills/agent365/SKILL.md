@@ -85,7 +85,7 @@ B12 を入れるなら **B13 と B14** をその場で提案し、可否を取�
 
 | スクリプト | 用途 | Step |
 |---|---|---|
-| [provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し `.env` へ書き戻す | 6 |
+| [provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し `.env` へ書き戻す。`--check` でプラン・Always On のドリフト検出 | 6 |
 | [provision_code_sandbox.py](scripts/provision_code_sandbox.py) | コード実行サンドボックス（Container Apps 動的セッション プール）を冪等に作成しロールを付与 | 8 |
 | [build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + `agenticUser.json` を ZIP 化 | 9 |
 | [publish_teams_app.py](scripts/publish_teams_app.py) | Graph で ZIP を組織カタログへ登録（**devPreview は Graph 側で拒否される**） | 10 |
@@ -233,7 +233,9 @@ src/<agent-name>-agent/
 
 > ★ **App Service は B1 以上 + Always On**。Free / Shared には Always On が無く、
 > アプリがアンロードされて**すべての `BackgroundService`（B6・B11・B12）が止まる**。
-> `provision_selfhost.py` が F1/D1 を弾き、Always On を有効化する。
+> さらに**アンロード後の 1 通目はコールド スタート（55〜80 秒）に負けて捨てられる**
+> （チャネルは再送しない）。「久しぶりに話しかけると 1 回めだけ無視される」はこれ（→ troubleshooting #44）。
+> `provision_selfhost.py` が F1/D1 を弾き、Always On を有効化し、**成功時にも読み戻して検証**する。
 
 ```powershell
 # 1. UAMI + Azure Bot(Teams チャネル) + App Service を作成し .env に書き戻す
@@ -262,6 +264,8 @@ a365 setup blueprint -n <agent-name> --endpoint-only --messaging-endpoint $env:A
 - `--messaging-endpoint` は **`--endpoint-only` との併用が必須**。
 - 2 つの `a365 setup blueprint` は `a365.generated.config.json` があるディレクトリで実行する。
 - エンドポイントは**自前 App Service の `/api/messages`**。ここに Foundry の URL を入れない。
+- プランを後から下げるとこの前提が黙って崩れる。受け取り時と不具合調査の入口で
+  `python scripts/provision_selfhost.py --check` を通す。
 
 ### Step 7: 人格と初期品質を入れる
 
@@ -460,10 +464,12 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 - [ ] `appsettings.json` の `AuthType` が confidential client、`ClientId` がブループリント appId、`TokenValidation:Audiences` にブループリント appId と Bot の `msaAppId` が両方入っている
 - [ ] `grant_agent_instance_consent.py --check` と `grant_agent_graph_scopes.py --check` が OK を返す
 - [ ] `set_agent_user_photo.py --check` と `configure_agent_presence.py --check` が OK を返す
+- [ ] `python scripts/provision_selfhost.py --check` が OK を返す（プラン B1 以上 + Always On）
 
 **アプリ面（Step 7・8・13）**
 
 - [ ] App Service のルート URL が 200 を返し、Teams でメッセージを送ると応答が返る
+- [ ] **20 分以上あけてから話しかけて、1 通目で返事が来る**（Always On が効いている確認）
 - [ ] **`az webapp config show --query alwaysOn` が `true`**（B6・B11・B12 を入れるなら必須。false なら定期実行は一度も発火しない）
 - [ ] ログに `Teams presence refreshed for agentic user` が出る
 - [ ] プロンプトが承認語の次ターンで書き込みツールを実行し、分類名だけで Dataverse 検索を拒否しない

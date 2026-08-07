@@ -676,3 +676,53 @@ Azure から見れば、朝の定期配信も誰かの雑談も同じ「Azure Op
 - **スケールアウトしている**。インスタンスごとに別ファイルへ書くため、
   1 台分しか集計されない。`numberOfWorkers=1` を維持するか共有ストアへ移す（→ #39 と同じ構造）。
 
+## 44. しばらく放置した後、Teams の 1 通目だけ無視される
+
+**症状**: 何日か使わずにいてから話しかけると 1 通目に反応が無い。もう一度同じことを送ると普通に返る。
+毎回ではなく「久しぶりに使うとき」だけ起きるので、モデルやプロンプトの不調に見える。
+
+**原因**: **App Service プランが Free / Shared で Always On が無効**。20 分リクエストが無いと
+アプリがアンロードされ、次の 1 通が**コールド スタートを待たされる**。
+そして **Bot Framework のチャネルは Activity を再送しない**ので、その 1 通は失われる。
+2 通目は温まった後なので通る——これが「1 回めだけ無視される」の正体。
+
+実測した内訳（Linux / `DOTNETCORE:8.0`）:
+
+| 区間 | 所要 |
+|---|---|
+| コンテナ起動 → oryx の起動スクリプト生成（証明書更新を含む） | 約 30 秒 |
+| `dotnet <App>.dll` → `Now listening on http://[::]:8080` | 約 25 秒 |
+| **合計（プラットフォームの warm-up プローブ成功まで）** | **約 55〜80 秒** |
+
+チャネル側のタイムアウトは十数秒なので、**コールド スタートに当たった時点で確実に負ける**。
+
+**切り分け**: アプリのログを追う前に**プランと Always On を見る**。ここが原因なら、
+アプリ側のログには「そもそも受信していない」以上の情報が出ない。
+
+```powershell
+az webapp show -g <rg> -n <app> --query "siteConfig.alwaysOn"
+az appservice plan show --ids $(az webapp show -g <rg> -n <app> --query serverFarmId -o tsv) --query "sku.name"
+```
+
+**対処**: プランを B1 以上に上げて Always On を有効化する。
+
+```powershell
+az appservice plan update -g <rg> -n <plan> --sku B1
+az webapp config set -g <rg> -n <app> --always-on true
+```
+
+**同時に直っていること**: アンロードは `BackgroundService` も道連れにする。
+Free のままだと定期配信（B11）・受信トレイ監視（B6）・在席同期（B12）は、
+たまたま誰かが直前に話しかけていた時だけ動く、という状態になっていた。
+
+**残る穴**: B1 でも**デプロイ・再起動の直後だけ**は約 1 分のコールド スタート窓が残る。
+Always On が消せるのは「放置による」アンロードだけなので、再デプロイ後は自分で 1 通投げて温める。
+
+**恒久対策済み**: `provision_selfhost.py` が作成時に F1/D1 を拒否するだけでなく、
+`verify_hosting()` で**成功時にもプランと Always On を読み戻して検証**する。
+後からプランを下げたドリフトは `--check` で検出できる。
+
+```powershell
+python scripts/provision_selfhost.py --check
+```
+

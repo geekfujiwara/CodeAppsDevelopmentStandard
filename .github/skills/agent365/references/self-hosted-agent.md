@@ -37,17 +37,33 @@ python scripts/provision_selfhost.py --write .env
 |---|---|---|
 | ユーザー割り当てマネージド ID | Azure Bot の ID | `msaAppType=UserAssignedMSI` |
 | Azure Bot + MsTeams チャネル | Teams チャネル登録 | `az bot create` は廃止 API 版のため `az rest --method PUT`（`api-version=2022-09-15`）を使う。`acceptedTerms=True` は **PUT でのみ**保持される |
-| App Service プラン + Web アプリ | Agents SDK アプリの実行環境 | Linux / `DOTNETCORE:8.0`。**B1 以上 + Always On**（スクリプトが自動で有効化する）。ファイル システム ログも同時に有効化される |
+| App Service プラン + Web アプリ | Agents SDK アプリの実行環境 | Linux / `DOTNETCORE:8.0`。**B1 以上 + Always On**（スクリプトが自動で有効化し、成功時に読み戻して検証する）。ファイル システム ログも同時に有効化される |
 
 - **Free / Shared（F1・D1）は使えない。** Always On が無いため、リクエストが 20 分来ないと
   アプリがアンロードされ、**`BackgroundService` が丸ごと止まる**。受信トレイ監視（B6）も
-  定期配信（B11）も在席同期（B12）も動かなくなる。`provision_selfhost.py` は F1/D1 を指定すると
-  エラーで止まる。既存環境を上げる場合:
+  定期配信（B11）も在席同期（B12）も動かなくなる。
+
+  さらに**利用者から最初に見える症状は「Teams で話しかけると 1 通目だけ無視される」**になる。
+  アンロード後の 1 通目はコールド スタート（実測で 55〜80 秒）を待たされるが、
+  **チャネルは Activity を再送しない**ので、その 1 通は捨てられる。2 通目は温まった後なので普通に返る。
+  アプリのバグにしか見えないため、**チャットの不調を疑う前にまずプランと Always On を見る**。
+
+  `provision_selfhost.py` は F1/D1 を指定するとエラーで止まり、成功時にも作成した
+  プランと Always On を読み戻して検証する。**後からプランを下げた場合**は次で検出する。
+
+  ```powershell
+  python scripts/provision_selfhost.py --check
+  ```
+
+  既存環境を上げる場合:
 
   ```powershell
   az appservice plan update -g $env:AZURE_RESOURCE_GROUP -n <plan> --sku B1
   az webapp config set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --always-on true
   ```
+
+- **B1 でもデプロイ・再起動の直後だけはコールド スタートの窓が残る**（約 1 分）。
+  再デプロイ後は自分で 1 通投げて温めてから使う。Always On が消すのは「放置による」アンロードだけ。
 
 - リージョンによっては VM クォータが 0 で作成に失敗する（eastus2 / japaneast / eastus で遭遇）。
   `--location westus2` などで回避する。
