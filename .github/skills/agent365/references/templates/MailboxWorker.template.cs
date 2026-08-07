@@ -110,16 +110,31 @@ public sealed class MailboxWorker(
             _handled.Clear();
         }
 
-        string inbox = string.Join("\n", fresh.Select(m =>
+        // One turn per sender: a batch shared by two people cannot be attributed to either of them.
+        foreach (IGrouping<string?, MailHeader> sender in fresh.GroupBy(m => m.FromAddress, StringComparer.OrdinalIgnoreCase))
+        {
+            await AnswerAsync(sender.Key, [.. sender], toolset, cancellationToken);
+        }
+    }
+
+    private async Task AnswerAsync(
+        string? senderAddress,
+        List<MailHeader> messages,
+        McpToolset toolset,
+        CancellationToken cancellationToken)
+    {
+        string inbox = string.Join("\n", messages.Select(m =>
             $"- id: {m.Id}\n  差出人: {m.From}\n  件名: {m.Subject}\n  受信: {m.Received}\n  冒頭: {m.Preview}"));
 
         List<ChatTurn> history =
         [
-            new ChatTurn { Role = "user", Text = $"未読メールが {fresh.Count} 件あります。\n\n{inbox}\n\n1 件ずつ処理してください。" },
+            new ChatTurn { Role = "user", Text = $"未読メールが {messages.Count} 件あります。\n\n{inbox}\n\n1 件ずつ処理してください。" },
         ];
 
+        // B15 を入れているなら spentOn: new UsageContext("mailbox", senderAddress) を渡す。
         string summary = await brain.CompleteAsync(history, BuildContext(toolset), toolset, cancellationToken);
-        logger.LogInformation("Mail sweep result: {Summary}", AgentBrain.Truncate(summary, 1500));
+        logger.LogInformation("Mail sweep result for {Sender}: {Summary}",
+            senderAddress ?? "(unknown sender)", AgentBrain.Truncate(summary, 1500));
     }
 
     // $$""" を使う。$""" の中では {{ がエスケープにならず CS9006 になる。
@@ -222,6 +237,7 @@ public sealed class MailboxWorker(
                         id.GetString()!,
                         subject.GetString() ?? "(件名なし)",
                         ReadSender(element),
+                        ReadSenderAddress(element),
                         Read(element, "receivedDateTime"),
                         Read(element, "bodyPreview")));
                     return;
@@ -241,8 +257,22 @@ public sealed class MailboxWorker(
             ? $"{Read(address, "name")} <{Read(address, "address")}>"
             : "(不明)";
 
+    /// <summary>The bare address, so mail usage lands under the same person as their Teams usage.</summary>
+    private static string? ReadSenderAddress(JsonElement message)
+    {
+        if (message.TryGetProperty("from", out JsonElement from)
+            && from.TryGetProperty("emailAddress", out JsonElement address))
+        {
+            string value = Read(address, "address");
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+
+        return null;
+    }
+
     private static string Read(JsonElement element, string name) =>
         element.TryGetProperty(name, out JsonElement value) ? value.ToString() : string.Empty;
 
-    private sealed record MailHeader(string Id, string Subject, string From, string Received, string Preview);
+    private sealed record MailHeader(
+        string Id, string Subject, string From, string? FromAddress, string Received, string Preview);
 }
