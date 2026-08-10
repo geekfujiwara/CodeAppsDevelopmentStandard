@@ -1046,3 +1046,70 @@ AppDependencies
 **ツール呼び出しにはスパンが出ない。** MCP サーバーへの呼び出しは素の HTTP 依存関係
 （`POST /mcp` / `POST /api/mcp`）として残るだけで、どのツールを呼んだかは分からない。
 必要なら自分で `ActivitySource` を立てる。
+
+---
+
+## 51. 会話の評価を自動化しようとすると、同じターンに何度も課金される（検証済 2026-08-10）
+
+### 前提
+
+`ToolCallAccuracy` / `TaskAdherence` は **LLM を審査員として呼ぶ** 評価器なので、
+実行するたびに判定対象の行数ぶんだけ課金される。
+`fetch → run_eval → push_results` をそのままスケジュール実行すると、
+初日の 1 ターンが 30 日後には 30 回判定されている。
+
+### 対処 1: 既評価の判定を Dataverse 側に持たせる
+
+ローカルのチェックポイント ファイルを正にすると、PC の入れ替えや
+作業フォルダーの削除で全件が再判定される。
+**保存先（Dataverse）を正**にして、実行のたびに主キー一覧を取り出し、
+評価器へ「これは飛ばす」と渡す。
+
+```powershell
+$existing = (Invoke-RestMethod -Uri "$OrgUrl/api/data/v9.2/geek_evalturns?`$select=geek_name" -Headers $headers).value
+Set-Content -Path $skipPath -Value ($existing.geek_name -join "`n") -Encoding utf8
+python run_eval.py --skip-ids $skipPath
+```
+
+対象が 0 件なら評価器を呼ばずに終了させる。
+`results.json` を **実行前に削除**しておき、
+生成されたかどうかで push の要否を判定すると分岐が 1 か所で済む。
+
+### 対処 2: 主キーをタイムスタンプそのものにしない
+
+行の識別子を `2026-08-10T03:32:42.2641766+00:00` のような ISO 8601 文字列にすると、
+PowerShell の `ConvertFrom-Json` が **勝手に `DateTime` へ変換**する。
+文字列化した結果はカルチャ依存（`08/10/2026 12:32:42` / `2026/08/10 12:32:42`）なので、
+書き込み時と読み出し時で表記が変わり、スキップ判定が永久に一致しない。
+
+日付に見えない接頭辞を付けて、ただの文字列に落とす。
+
+```python
+row["row_id"] = "turn-" + str(row.pop("timestamp", kept))
+```
+
+### 対処 3: 人手のラベルを上書きしない
+
+再実行時の `PATCH` には、評価器が算出した列だけを含める。
+人手評価（`geek_humanverdict` / `geek_humancomment`）を書かなければ、
+何度 push しても手作業の判定は残る。
+
+### 補足: 定期実行の登録
+
+`az` のトークン キャッシュはユーザー プロファイルにあるので、
+タスクは **対話ログオン ユーザー**として動かす（別プリンシパルでは認証できない）。
+
+タスク スケジューラは対話シェルの `PATH` を引き継がない。
+MSIX 版 PowerShell 7 を `Get-Command pwsh.exe` で解決すると
+`C:\Program Files\WindowsApps\...` が返るが、**そのパスは直接起動できない**。
+`LOCALAPPDATA` 側の実行エイリアスを指定する。
+
+```powershell
+$shell = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\pwsh.exe"
+```
+
+`Execute` に `pwsh.exe` とだけ書くと `LastTaskResult` が
+`2147942402`（`0x80070002` ファイルが見つからない）になる。
+
+Windows PowerShell 5.1 へフォールバックする場合、`Set-Content -Encoding utf8` は
+**BOM 付き**で書き出す。受け取る側の Python は `encoding="utf-8-sig"` で開く。
