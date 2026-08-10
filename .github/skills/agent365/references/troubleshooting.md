@@ -869,6 +869,40 @@ sessionPools は**検証の偽陽性**なので、一括移動に混ぜると他
 Web App とプラン、Cognitive Services、ボット登録は移動できる。
 **Web App は移動しても再起動しない**（`uptimeSeconds` が連続する）ので、会話中でも切れない。
 
+### 移動できても、ロール割り当ては付いてこない
+
+**移動そのものは成功するのに、数時間後にエージェントが動かなくなる。** これが一番痛い。
+
+```text
+HTTP 401 (PermissionDenied)
+Principal does not have access to API/Operation.
+```
+
+ロール割り当ては**割り当てたスコープに属する**。リソース自体のスコープに付けたものは移動先へ付いていくが、
+**移動元のリソース グループのスコープ**に付けたものは、そのリソース グループに残って効かなくなる。
+
+厄介なのは**すぐには落ちないこと**。Cognitive Services は認可の判定をしばらくキャッシュするので、
+移動直後は普通に動き続け、**次にプロセスが入れ替わったあたりで初めて 401 になる**。
+移動作業とは時間が離れているので、原因として結び付かない。
+
+移動の**前後**で必ず取って差分を見る。
+
+```powershell
+az role assignment list --assignee <エージェントのマネージド ID の principalId> --all `
+  --query "[].{role:roleDefinitionName,scope:scope}" -o table
+```
+
+消えていたら、**移動先のリソース スコープに**付け直す。RG スコープに付けると同じことが起きる。
+
+```powershell
+az role assignment create --assignee-object-id <principalId> --assignee-principal-type ServicePrincipal `
+  --role "Cognitive Services OpenAI User" `
+  --scope "/subscriptions/<sub>/resourceGroups/<移動先 rg>/providers/Microsoft.CognitiveServices/accounts/<account>"
+```
+
+**検出**: この壊れ方は `/health` にも外形監視にも出ない（Web は 200 を返し、モデル呼び出しだけが失敗する）。
+`gen_ai` スパンを出しておくと、`error.type` が付いた `chat <model>` の依存関係として一目で分かる（→ #50）。
+
 ## 49. 貼り付けたスクリーンショットだけ見てもらえない（B16）
 
 **症状**: ファイルとして添付した画像は読めるのに、**Ctrl+V で貼り付けた**スクリーンショットだけ
@@ -928,3 +962,73 @@ URL にも拡張子が無い。`image/*` は vision が受け取れる形式で�
 
 **受け入れ確認に入れる**: 「ファイルとして添付」と「Ctrl+V で貼り付け」は**別の経路**なので、
 片方だけ試しても意味がない。両方を確認手順に入れる。
+
+## 50. モデル呼び出しだけが失敗しても、どこにも出ない
+
+**症状**: `/health` は 200、可用性テストも緑、`AppRequests` の `POST /api/messages` も `202 ok=True`。
+なのにエージェントは「応答の生成に失敗しました」と返す。**成功したリクエストの中で失敗している**ので、
+失敗率のグラフにも出ず、アラートも鳴らない。
+
+**原因**: 既定では**モデル呼び出しにスパンが 1 本も出ない**。残るのは
+`POST /openai/deployments/.../chat/completions` という素の HTTP 依存関係だけで、
+どのモデルを何トークン使って何秒かかったかは分からない。
+
+**対処**: OpenTelemetry を有効にして `gen_ai` スパンを出す。追加コストはほぼゼロ。
+
+1. **パッケージを入れ替える。** 従来の Application Insights SDK と併用すると二重計上になる。
+
+   ```xml
+   <!-- <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.*" /> -->
+   <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.*" />
+   ```
+
+2. **実験的スイッチを入れる。** これが無いとスパンは 1 本も出ない。
+
+   ```csharp
+   AppContext.SetSwitch("OpenAI.Experimental.EnableOpenTelemetry", true);
+
+   builder.Services.AddOpenTelemetry()
+       .UseAzureMonitor()
+       .WithTracing(tracing => tracing.AddSource("OpenAI.*"));
+   ```
+
+   `ActivitySource` の名前は `OpenAI.ChatClient`。`AddSource` を忘れると、
+   スイッチを入れてもスパンは捨てられる。
+
+3. **Application Insights を Foundry プロジェクトに接続する。** ポータルのトレース ビューがここを読む。
+
+   ```powershell
+   az rest --method put --body "@conn.json" `
+     --uri "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>/projects/<project>/connections/<name>?api-version=2025-04-01-preview"
+   # properties: { category: "AppInsights", target: <App Insights のリソース ID>,
+   #               authType: "ApiKey", credentials: { key: <接続文字列> } }
+   ```
+
+4. `OTEL_SERVICE_NAME` をアプリ設定に入れる。入れないとトレース ビューの表示名が既定値になる。
+
+**これで見えるようになるもの**:
+
+```kusto
+AppDependencies
+| where Name startswith "chat "
+| extend model = tostring(parse_json(Properties)["gen_ai.request.model"]),
+         err   = tostring(parse_json(Properties)["error.type"])
+| project TimeGenerated, Name, model, err, DurationMs, Success
+```
+
+```text
+01:22:31 | chat gpt-5.4 | gpt-5.4 | 401 | 2136ms | False
+```
+
+**注意（バージョンで変わる）**: OpenAI .NET 2.1.0 が出すのは
+`gen_ai.request.model` / `gen_ai.response.model` / `gen_ai.usage.input_tokens` /
+`gen_ai.usage.output_tokens` / `gen_ai.response.finish_reasons` / 所要時間まで。
+**プロンプトと応答の本文は記録されない。**
+
+- 良い面: 会話の中身が Application Insights に入らないので、個人情報の持ち出しにならない
+- 制約: トレースだけでは `ToolCallAccuracy` / `TaskAdherence` は測れない。
+  評価をやるなら、会話メモリから評価用データセットを別に書き出す
+
+**ツール呼び出しにはスパンが出ない。** MCP サーバーへの呼び出しは素の HTTP 依存関係
+（`POST /mcp` / `POST /api/mcp`）として残るだけで、どのツールを呼んだかは分からない。
+必要なら自分で `ActivitySource` を立てる。
