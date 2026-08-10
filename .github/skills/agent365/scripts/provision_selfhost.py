@@ -86,7 +86,9 @@ def assert_plan_tier(*selector: str) -> str:
     if sku.upper() in TIERLESS_SKUS:
         raise RuntimeError(
             f"plan {(plan or {}).get('name')} is {sku}: Free/Shared cannot hold Always On.\n"
-            f"    az appservice plan update --ids {(plan or {}).get('id')} --sku B1"
+            f"    az appservice plan update --ids {(plan or {}).get('id')} --sku B1\n"
+            "    If it keeps coming back, a governance automation is resetting it:"
+            " see troubleshooting #47."
         )
     return sku
 
@@ -103,7 +105,9 @@ def verify_hosting(rg: str, app_name: str) -> None:
         raise RuntimeError(
             f"web app {app_name} has Always On off: the app is unloaded after ~20 idle minutes, "
             "and the Teams message that wakes it is dropped (the channel does not retry).\n"
-            f"    az webapp config set -g {rg} -n {app_name} --always-on true"
+            f"    az webapp config set -g {rg} -n {app_name} --always-on true\n"
+            "    If it keeps coming back, a governance automation is resetting it:"
+            " see troubleshooting #47."
         )
     print(f"      hosting check: {app_name} on {sku}, always on")
 

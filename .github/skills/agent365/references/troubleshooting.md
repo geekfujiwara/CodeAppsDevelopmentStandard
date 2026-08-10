@@ -783,3 +783,88 @@ Teams は**ファイルの中身を送らない**。送るのは取りに行く�
 
 **恒久対策済み**: `build_teams_package.py` の `assert_supports_files()` が、
 パッケージのたびに `bots[].supportsFiles` を検証して `false` なら中止する。
+
+## 47. Always On を有効にしても、翌朝には必ず無効に戻っている
+
+**症状**: #44 の手順でプランを上げて Always On を有効にしたのに、
+数日おきに「1 通目が無視される」が再発する。確認すると **Free に戻っている**。
+自分で下げた覚えはない。
+
+**原因**: サブスクリプションのコスト ガバナンス自動化が、定期的にプランを最小 SKU へ戻している。
+デモ用・社内配布のサブスクリプションでは珍しくない。**人ではないので誰にも心当たりがない。**
+
+**確認**:
+
+```powershell
+az monitor activity-log list -g <rg> --offset 7d --max-events 2000 --namespace Microsoft.Web `
+  -o json | ConvertFrom-Json |
+  Where-Object { $_.operationName.value -like '*serverfarms/write*' -and $_.status.value -eq 'Succeeded' } |
+  Select-Object @{n='JST';e={([datetime]$_.eventTimestamp).ToLocalTime()}}, caller | Sort-Object JST
+```
+
+`caller` が**メール アドレスではなく GUID** で、しかも毎日ほぼ同じ時刻に並んでいたら自動化。
+その GUID の 1 件を `ConvertTo-Json` で開き、`claims.tenantid` が**自分のテナントと違えば**
+サブスクリプションを配布している側の統制。`az consumption budget list` に予算が出ることも多い。
+
+**対処**: 上げ直しても翌朝に戻るので、**Always On に依存しない形へ寄せる**。
+統制そのものを止めるのは、例外申請という正規の手続きで行う。ロックなどで自動化の書き込みを
+ブロックするのは、組織のコスト統制の迂回にあたるので選ばない。
+
+### Always On を前提から外す
+
+1. **依存を持たない `/health` を生やす**（→ [templates/AgentHealth.template.cs](templates/AgentHealth.template.cs)）。
+   資格情報も MCP クライアントもモデルも温まる前に答えられる必要があるので、
+   認証も下流呼び出しも入れない。
+
+   ```csharp
+   app.MapGet("/health", (AgentHealth health) => Results.Json(health.Snapshot())).AllowAnonymous();
+   ```
+
+2. **可用性テストで叩き続ける。** Application Insights の標準テストは最短 5 分間隔で、
+   **地点数だけ並列に飛ぶ**。5 地点なら実質 1 分に 1 回になり、アイドル アンロード（約 20 分）に
+   届かない。監視とウォーム アップが 1 つのリソースで済む。
+
+   ```powershell
+   az rest --method put --body "@webtest.json" `
+     --uri "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Insights/webtests/<name>?api-version=2022-06-15"
+   ```
+
+   `tags` に `"hidden-link:<Application Insights のリソース ID>": "Resource"` を入れないと、
+   作成はできてもポータルの可用性ブレードに出てこない。
+
+3. **ワーカーの拍動を `/health` に出す。** `BackgroundService` が止まっても
+   例外も失敗リクエストも出ず、次の訪問者には正常に見える。
+   外形監視だけでは「Web は生きているが受信トレイ監視だけ死んでいる」を検出できない。
+
+   ```json
+   { "status": "ok", "uptimeSeconds": 8626,
+     "workers": { "mailbox": { "agoSeconds": 43 }, "schedule": { "agoSeconds": 45 } } }
+   ```
+
+**残る制約**: 最小 SKU には 1 日あたりの CPU 割り当てがあり、超えると翌 UTC 0 時まで 403 を返す。
+ping 自体は軽いが、モデル呼び出しの多い日は届きうる。`/health` に重い処理を足さないこと。
+
+## 48. リソース グループをまとめようとすると、一部だけ移動できない
+
+エージェント一式を専用の RG に集めるときに 2 か所で止まる。**先に検証だけ流す。**
+
+```powershell
+az rest --method post --body "@move.json" `
+  --uri "https://management.azure.com/subscriptions/<sub>/resourceGroups/<src>/validateMoveResources?api-version=2021-04-01"
+# 202 が返るので Location ヘッダーをポーリングする。204 なら通過、400 なら details に理由
+```
+
+| リソース | 挙動 | どうするか |
+|---|---|---|
+| `Microsoft.ManagedIdentity/userAssignedIdentities` | 検証で `ResourceMoveNotSupported` | **据え置く。** 作り直すと `clientId` が変わり、ボット登録の `msaAppId` と付与済みロールが全部外れる |
+| `Microsoft.App/sessionPools` | **検証は通るのに移動が 409 で失敗**する | 移動先で作り直す。セッションは使い捨てなので失うものはない |
+
+sessionPools は**検証の偽陽性**なので、一括移動に混ぜると他のリソースだけ移った中途半端な状態になる。
+最初から外しておく。作り直したら次の 3 つを忘れない。
+
+1. 実行者（エージェントのマネージド ID と自分）へ **Azure ContainerApps Session Executor** を再付与
+2. 設定のプール エンドポイント（**RG 名が URL に入っている**）を書き換えて再デプロイ
+3. 新しいプールで 1 行動かして確認してから、古いプールを消す
+
+Web App とプラン、Cognitive Services、ボット登録は移動できる。
+**Web App は移動しても再起動しない**（`uptimeSeconds` が連続する）ので、会話中でも切れない。
