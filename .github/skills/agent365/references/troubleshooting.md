@@ -868,3 +868,63 @@ sessionPools は**検証の偽陽性**なので、一括移動に混ぜると他
 
 Web App とプラン、Cognitive Services、ボット登録は移動できる。
 **Web App は移動しても再起動しない**（`uptimeSeconds` が連続する）ので、会話中でも切れない。
+
+## 49. 貼り付けたスクリーンショットだけ見てもらえない（B16）
+
+**症状**: ファイルとして添付した画像は読めるのに、**Ctrl+V で貼り付けた**スクリーンショットだけ
+「画像が見えません」と返る。同じ会話・同じ相手・同じ形式でも、貼り付けたときだけ落ちる。
+
+**原因**: 貼り付け画像の `contentUrl` が指す
+`.../v3/attachments/{id}/views/original` は、**Agent 365 のエージェントからは取得できない**。
+
+| 取り方 | 結果 |
+|---|---|
+| 認証なしで GET | `401` |
+| エージェントのトークンを付けて GET | **`500`** |
+| `IConnectorClient.Attachments.GetAttachmentAsync` | 同じ URL を叩くので **`500`** |
+
+従来のボットは `MicrosoftAppCredentials`（`https://api.botframework.com` 宛のアプリ トークン）で
+この API を叩く。Agent 365 のエージェントは**アプリ単体のトークンを取得できない**ので、その手は使えない。
+
+```text
+AADSTS82001: Agentic application '<blueprint appId>' is not permitted to
+request app-only tokens for resource '<resource>'
+```
+
+`client_credentials` で試すと、`https://api.botframework.com/.default` でも
+`5a807f24-.../.default` でも同じ `82001` が返る。**スコープの付け忘れではなく、この登録の性質**。
+
+**見分け方**: Application Insights の依存関係を見る。同じ `smba.trafficmanager.net` 宛でも、
+`/v3/conversations/...` は `200`／`202` なのに `/v3/attachments/...` だけ `500` になる。
+認証は通っていて、この API だけが応答していない。
+
+```kusto
+AppDependencies
+| where Data has "/v3/attachments/"
+| project TimeGenerated, ResultCode, Data
+```
+
+**対処**: 貼り付け画像は**どこにもアップロードされていない**。実体は Teams のメッセージそのものの中にあり、
+そのチャットの**参加者にだけ**配られる。エージェントは参加者なので、B9 のチャット読み取りと同じ経路で取れる。
+
+```text
+GET /chats/{chatId}/messages/{messageId}/hostedContents
+GET /chats/{chatId}/messages/{messageId}/hostedContents/{id}/$value
+```
+
+- `chatId` は `Activity.Conversation.Id`、`messageId` は `Activity.Id` をそのまま使う
+- トークンは `AgenticTokenSource`（エージェント自身のユーザー）から取る
+- 委任スコープは **`Chat.Read`**。`grant_agent_graph_scopes.py` の既定に含まれるので追加同意は要らない
+- 添付と `hostedContents` は同じ順で並ぶので、順に取り出して対応させる
+
+実装は [templates/IncomingFiles.template.cs](templates/IncomingFiles.template.cs) の
+`PastedImagesAsync`。`403` が返るならスコープ不足、`404` ならメッセージ ID の取り違え。
+
+**同時に直すこと**: 貼り付け画像には**名前が無く**、`contentType` は文字どおり `image/*` で、
+URL にも拡張子が無い。`image/*` は vision が受け取れる形式ではないので、そのまま渡すと
+**取得には成功しているのに 1 枚も見せられない**。ログには
+`Received file.bin (image/*, 254321 bytes)` と出るのに、エージェントは「画像が見えません」と答えるので、
+バイト列の先頭で形式を判定して名前を付け直す（同テンプレートの `Describe` / `Sniff`）。
+
+**受け入れ確認に入れる**: 「ファイルとして添付」と「Ctrl+V で貼り付け」は**別の経路**なので、
+片方だけ試しても意味がない。両方を確認手順に入れる。
