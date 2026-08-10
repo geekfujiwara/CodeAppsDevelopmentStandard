@@ -1775,3 +1775,63 @@ python <skill>/scripts/check_code_apps_environment.py --environment-id <env-guid
 
 `--environment-id` のように引数で渡せるものは引数を優先する。
 
+
+---
+
+## 36. Dataverse の JSON 列をそのまま描画して "Minified React error #31" で落ちる（検証済 2026-08-10）
+
+### 症状
+
+一覧は表示できるのに、行をクリックして詳細モーダルを開いた瞬間に画面が真っ白になる。
+
+```
+Minified React error #31; Objects are not valid as a React child
+(found: object with keys {path})
+```
+
+### 原因
+
+Memo 列に格納した JSON を `JSON.parse` した結果を、そのまま JSX に埋め込んでいる。
+生成元によって同じフィールドが文字列だったりオブジェクトだったりするため、
+サンプルデータでは動いても本番データで落ちる。
+（例: ツール呼び出しの `arguments` が `"{\"path\":\"...\"}"` のときと `{ path: "..." }` のときがある）
+
+### 対処
+
+描画の直前で必ず文字列へ正規化するヘルパーを通す。列の型を信用しない。
+
+```typescript
+export function formatToolArguments(value: unknown): string {
+  if (value === null || value === undefined) return ""
+  if (typeof value === "string") return value
+  try { return JSON.stringify(value) } catch { return String(value) }
+}
+```
+
+型定義側も `arguments?: unknown` にしておくと、生の値を JSX へ渡した時点で
+TypeScript が気付いてくれる。
+
+---
+
+## 37. `power-apps push` 後もブラウザが古いバンドルを表示する（検証済 2026-08-10）
+
+### 症状
+
+ビルドと push は成功しているのに、プレイヤーで開くと修正前の挙動のまま。
+画面上部に「このアプリの古いバージョンを使用しています。更新してください」の
+バナーが出ることがある。
+
+### 原因
+
+Power Apps プレイヤーが直前のバンドルをキャッシュしている。
+
+### 対処
+
+バナーの「更新」を押すか、プレイヤー URL を再読み込みする。
+Playwright で検証する場合は `page.reload()` ではなく `page.goto(playerUrl)` の方が確実。
+
+なお、プレイヤーはアプリを **入れ子の iframe**
+（`*.environment.api.powerplatformusercontent.com`）で描画するため、
+自動操作は `page.frameLocator(...)` 経由で行う。
+行クリックが "element is not stable" でタイムアウトするときは
+`.click({ force: true })`、同名ボタンが複数あるときは `{ exact: true }` を使う。
