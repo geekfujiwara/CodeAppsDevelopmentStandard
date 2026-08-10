@@ -29,10 +29,14 @@ Code Apps 用 npm CLI（`npx power-apps`）の全コマンド一覧。
 
 ## 導入と実行方法
 
-`@microsoft/power-apps`（SDK）の依存として自動的に入るため、**単体インストールは不要**。
+`@microsoft/power-apps`（SDK）の依存として `node_modules` には入るが、
+**npm は直接依存の bin しか `node_modules/.bin` にリンクしない**ため、
+`@microsoft/power-apps` だけを依存に持つ状態で `npx power-apps` を実行すると
+`npm error could not determine executable to run` になる（検証済 2026-08-10）。
+**devDependencies に明示的に入れる**こと。
 
 ```bash
-npm install            # @microsoft/power-apps 経由で CLI も入る
+npm install -D @microsoft/power-apps-cli
 npx power-apps --help
 ```
 
@@ -82,8 +86,9 @@ Node.js **22 以上**が必要（`engines: { "node": ">=22" }`）。
 > `--cloud` は日本国内の通常テナントでは指定不要。GCC / DoD / 21Vianet 環境でのみ使用する。
 
 > [!WARNING]
-> CLI 0.13.0 の help は `--environment-id` を全コマンドに表示するが、`add-data-source` / `list-codeapps` は
-> 実行時に `unknown option '--environment-id'` として拒否する（2026-08-03 実測）。これらは先に `init` で
+> CLI 0.13.0 の help は `--environment-id` を全コマンドに表示するが、`push` / `add-data-source` / `list-codeapps` は
+> 実行時に `unknown option '--environment-id'` として拒否する（push は 2026-08-10 実測、他は 2026-08-03 実測）。
+> これらは先に `init` で
 > `power.config.json` を生成し、そこに保存された `environmentId` を使用する。
 
 ## アプリライフサイクル

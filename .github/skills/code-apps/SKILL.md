@@ -222,8 +222,9 @@ npx power-apps init --environment-id {ENVIRONMENT_ID} --display-name "AppName"
 # Step 4: .env.example を .env にコピーしてテーマ固有の値を設定
 
 # Step 5: 初回ビルド＆デプロイ — ★必ず -s を付ける（almMode が Solution になるのは初回 push だけ）
+#         push に --environment-id はない（power.config.json の environmentId を見る）
 npm run build
-npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID}
+npx power-apps push --solution-id {SOLUTION_ID}
 
 # Step 6: Dataverse コネクタを 1 回追加（全テーブル共通・接続参照バインド）
 npx power-apps add-data-source --api-id shared_commondataserviceforapps \
@@ -240,7 +241,7 @@ npm run predeploy
 
 # 再ビルド＆デプロイ（反復）
 npm run build
-npx power-apps push --environment-id {ENVIRONMENT_ID}
+npx power-apps push
 ```
 
 > **Step 5 の `--solution-id` は後戻りできない**: 初回の `power-apps push --solution-id` がアプリを `almMode: Solution` にするのは
@@ -261,7 +262,7 @@ npx power-apps push --environment-id {ENVIRONMENT_ID}
 | `python scripts/setup_connection_reference.py` | auth_helper（PAC プロファイル再利用） | なし | ✅ 標準（init の前に実行） |
 | `npx power-apps auth-status` / `auth-switch --account {UPN}` | Power Apps npm CLI | アクティブアカウントを明示 | ✅ テナント切り替え時に必須 |
 | `npx power-apps init --environment-id {ID} --display-name "Name"` | Power Apps npm CLI | 上記で確認 | ✅ 標準 |
-| `npx power-apps push --environment-id {ID} --solution-id {GUID}` | Power Apps npm CLI | 上記で確認 | ✅ 標準（**初回から GUID 必須**） |
+| `npx power-apps push --solution-id {GUID}` | Power Apps npm CLI | 上記で確認 | ✅ 標準（**初回から GUID 必須**。`--environment-id` は **ない**） |
 | `npx power-apps add-data-source --api-id shared_commondataserviceforapps -cr {CR} -s {SOLUTION_ID} --resource-name commondataserviceforapps --org-url {url}` | Power Apps npm CLI + 接続参照 | `npx power-apps login` が別キャッシュ | ✅ 標準（ALM 対応） |
 | `npx power-apps add-data-source ... --connection-id {id}` | Power Apps npm CLI + 接続 | 同上 | △ ソリューションに入らない（PoC のみ） |
 | `pac code *` | PAC CLI プロファイル | npm CLI と別キャッシュ | △ npm CLI で解決できない場合のみの移行時代替 |

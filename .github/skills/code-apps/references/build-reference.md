@@ -212,8 +212,9 @@ export default defineConfig({
 
 ```bash
 # npm CLI 0.13.0 を使用。Step 1 で取得したソリューション GUID を渡す
+# push に --environment-id はない（power.config.json の environmentId を見る）
 npm run build
-npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID}
+npx power-apps push --solution-id {SOLUTION_ID}
 ```
 
 > **`-s` は初回 push でしか効かない（検証済 2026-06-15）**
@@ -466,7 +467,7 @@ export const statusColors: Record<RecordStatus, string> = {
 
 ```bash
 npm run build
-npx power-apps push --environment-id {ENVIRONMENT_ID}
+npx power-apps push
 ```
 
 ### Step 8.1: ビルド後検証 — Circular chunk 警告チェック（必須）
