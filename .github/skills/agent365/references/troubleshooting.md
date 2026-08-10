@@ -896,12 +896,26 @@ az role assignment list --assignee <エージェントのマネージド ID の 
 
 ```powershell
 az role assignment create --assignee-object-id <principalId> --assignee-principal-type ServicePrincipal `
-  --role "Cognitive Services OpenAI User" `
+  --role "Cognitive Services User" `
   --scope "/subscriptions/<sub>/resourceGroups/<移動先 rg>/providers/Microsoft.CognitiveServices/accounts/<account>"
 ```
 
+**`kind=AIServices`（Foundry プロジェクト付き）では `Cognitive Services OpenAI User` では足りない。**
+呼んでいる URL が `/openai/deployments/<deployment>/chat/completions` でも、
+このロールだけでは 401 のままになる。名前から OpenAI 用で足りそうに見えるのが罠で、
+**`Cognitive Services User` を付けて初めて通る**。付与直後の 1 回はまだ 401 が返ることがあるので、
+2 回目で判断する（データ プレーン側が認可を数分キャッシュするため）。
+
+`Azure AI User` を案内している記事もあるが、**テナントによってはこの役割定義が存在しない**。
+`az role definition list --query "[?contains(roleName,'Azure AI')].roleName"` で先に確認する。
+
 **検出**: この壊れ方は `/health` にも外形監視にも出ない（Web は 200 を返し、モデル呼び出しだけが失敗する）。
 `gen_ai` スパンを出しておくと、`error.type` が付いた `chat <model>` の依存関係として一目で分かる（→ #50）。
+
+**`checkAccess` API で切り分けようとしない。** 権限の有無を機械的に判定できそうに見えるが、
+**サブスクリプションの所有者に対してすら `NotAllowed` を返す**ことがある。
+これを根拠にすると、正しく付いているロールを「付いていない」と誤判定して迷走する。
+判断材料は実際の呼び出し結果（401 が 200 になるか）に絞る。
 
 ## 49. 貼り付けたスクリーンショットだけ見てもらえない（B16）
 
