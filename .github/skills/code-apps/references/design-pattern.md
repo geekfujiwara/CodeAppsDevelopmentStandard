@@ -213,6 +213,45 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 - `shrink-0` でアイコン等の固定幅要素が縮まないようにする
 - `flex-1 min-w-0` で可変幅テキスト領域を確保
 
+### `minmax(0,1fr)` を書いても子要素に `min-w-0` が要る
+
+`grid-cols-[minmax(0,2fr)_minmax(0,1fr)]` が効くのは**トラック**の伸長抑止まで。
+グリッドアイテム自身は `min-width: auto` のままなので、min-content がトラックより広いと
+アイテムがトラックを突き破り、ページ全体が横スクロールしてレスポンシブが崩れる。
+
+```tsx
+{/* NG: 長い本文やコード例を入れた途端に画面幅を超える */}
+<div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+  <Card>...</Card>
+  <div className="space-y-4">...</div>
+</div>
+
+{/* OK: アイテム側にも min-w-0 */}
+<div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+  <Card className="min-w-0">...</Card>
+  <div className="min-w-0 space-y-4">...</div>
+</div>
+```
+
+### 折り返しは `break-words` ではなく `[overflow-wrap:anywhere]`
+
+`break-words`（= `overflow-wrap: break-word`）は**描画時にだけ**折り返す。
+min-content 幅の計算では無視されるため、長い URL や識別子を含む本文は
+親の幅を押し広げ続ける。幅を詰めたいときは `anywhere` を使う。
+
+| クラス | 描画時に折り返す | min-content を縮める | 用途 |
+| --- | --- | --- | --- |
+| `break-words` | ○ | **×** | 幅が固定済みの場所 |
+| `[overflow-wrap:anywhere]` | ○ | ○ | 可変幅カラムに流し込む本文 |
+| `break-all` | ○ | ○ | JSON・ID など単語境界が無い文字列 |
+
+`<pre>` は `overflow-x-auto` を付けるとスクロールコンテナになり min-content が 0 になるため、
+表・コードブロックはこちらでも防げる。
+
+**長文を流し込む画面での確認手順**: 一番長い本文を持つレコードを開き、
+ブラウザ幅を 1280 → 768 → 375 と狭めて横スクロールバーが出ないことを見る。
+平均的なレコードだけで確認すると必ず見落とす。
+
 ## コンポーネント選定ガイド
 
 | やりたいこと | 推奨コンポーネント |
