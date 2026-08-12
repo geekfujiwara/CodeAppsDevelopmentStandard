@@ -141,6 +141,8 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 > **CRUD 画面は [CRUD UI 標準パターン](references/crud-ui-pattern.md) に必ず従う**: 一覧は行／カード全体をクリックして詳細を開く（目アイコン等の小さなクリック領域は使わない）、詳細の編集はモーダルではなくインライン編集モード、行内の削除・クイック操作は `e.stopPropagation()`、削除確認はブラウザの `confirm()` ではなくモーダル（`useConfirm()` / AlertDialog）。**指示がなくても、テーブルごとに「一覧・詳細（インライン編集）・作成・削除」を標準実装すること。**
 
+> **画面の骨格は [デザインシステム](references/design-pattern.md#ページの骨格新規画面はここから書き始める) からコピーして書き始める**: マルチカラムは `grid-cols-[minmax(0,1fr)_...]`（素の `1fr` は使わない）＋**直接の子すべてに `min-w-0`**、長文は `break-words` ではなく `[overflow-wrap:anywhere]`、コード・表・JSON は `overflow-x-auto` で閉じ込める。`min-w-0` は後付けすると必ず抜けるため最初から書く。`npm run predeploy` のチェック 7 が抜けを警告する。
+
 > **設計で提示する内容**: 選択テンプレート、画面一覧（ページ名・ルート）、各画面のコンポーネント構成、カラム定義、Lookup 名前解決方法（`_xxx_value` + `useMemo` Map）、ナビゲーション構造。
 
 > **大前提（ソリューション運用）**: Dataverse テーブル・Code Apps・Power Automate・Copilot Studio は同一ソリューション内に開発し、`.env` の `SOLUTION_NAME` / `PUBLISHER_PREFIX` を全フェーズで統一する。詳細は [`standard` スキル](../standard/SKILL.md)。

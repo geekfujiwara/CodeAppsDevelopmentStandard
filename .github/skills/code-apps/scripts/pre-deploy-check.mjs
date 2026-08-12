@@ -153,6 +153,62 @@ if (fs.existsSync(distPath)) {
   }
 }
 
+// 7. レイアウト崩れ（横スクロール）を招く書き方が無いか
+if (fs.existsSync(srcPath)) {
+  const layoutWarnings = [];
+  const pending = [srcPath];
+
+  while (pending.length > 0) {
+    const currentPath = pending.pop();
+    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(entryPath);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.endsWith(".tsx")) continue;
+
+      const content = fs.readFileSync(entryPath, "utf-8");
+      const rel = path.relative(root, entryPath);
+      const lines = content.split("\n");
+
+      lines.forEach((line, i) => {
+        const at = `${rel}:${i + 1}`;
+
+        // 7a. grid-cols に素の 1fr（min-content 以下に縮まないため長文で溢れる）
+        const cols = line.match(/grid-cols-\[[^\]]*\]/g) ?? [];
+        for (const col of cols) {
+          if (/(^|[[_])\d*fr/.test(col.replace(/minmax\([^)]*\)/g, ""))) {
+            layoutWarnings.push(`${at} ${col} に素の fr があります → minmax(0,1fr) にしてください。`);
+          }
+        }
+
+        // 7b. 明示トラックのグリッド直下の子要素に min-w-0 が無い（トラックを突き破って横スクロールになる）
+        if (cols.length > 0) {
+          const child = lines[i + 1] ?? "";
+          const isElement = /^\s*<[A-Za-z]/.test(child);
+          const hasSizing = /min-w-0|w-\d|w-\[/.test(child);
+          if (isElement && !hasSizing) {
+            layoutWarnings.push(`${at} のグリッド直下の子要素に min-w-0 がありません。`);
+          }
+        }
+
+        // 7c. ScrollArea と truncate の併用（Viewport が横に膨らみ省略が効かない）
+        if (line.includes("<ScrollArea") && /truncate|line-clamp/.test(content)) {
+          layoutWarnings.push(`${at} ScrollArea と truncate/line-clamp が同居しています → div + overflow-y-auto overflow-x-hidden に置き換えてください。`);
+        }
+      });
+    }
+  }
+
+  if (layoutWarnings.length > 0) {
+    console.warn(`⚠ レスポンシブが崩れる可能性のある箇所が ${layoutWarnings.length} 件あります:`);
+    for (const w of layoutWarnings.slice(0, 20)) console.warn(`  ${w}`);
+    if (layoutWarnings.length > 20) console.warn(`  ... 他 ${layoutWarnings.length - 20} 件`);
+    console.warn("  → references/design-pattern.md「レスポンシブファースト設計原則」を参照。");
+  }
+}
+
 // 結果出力
 if (errors.length > 0) {
   console.error("\n❌ デプロイ前チェック失敗:\n");

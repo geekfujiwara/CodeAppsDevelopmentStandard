@@ -135,6 +135,42 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 2. **テキスト省略（truncate）を前提にする**。テーブル名・作業指示書名等の長い文字列は `truncate` で `...` 省略。クリックで詳細表示
 3. **マルチカラムレイアウト**: モバイル=1カラムずつ表示（ステップ切替）、デスクトップ=`grid grid-cols-N`
 4. **カード内テキストは必ず幅制約する**。`min-w-0` + `overflow-hidden` + `truncate` のチェーンを Card → CardContent → flex → text 要素まで通す
+5. **横スクロールバーを 1 本も出さない**。`grid` / `flex` の**直接の子には必ず `min-w-0`** を付け、
+   長文は `[overflow-wrap:anywhere]`、幅の読めない塊（コード・表・JSON）は `overflow-x-auto` で閉じ込める
+
+### ページの骨格（新規画面はここから書き始める）
+
+崩れてから直すのではなく、最初からこの形で書く。`min-w-0` は後付けすると必ず抜ける。
+
+```tsx
+// 1 カラム（一覧・フォーム）
+<div className="space-y-6">
+  <PageHeader />
+  <Card className="min-w-0">...</Card>
+</div>
+
+// 2 カラム（詳細画面：本文 + サイドパネル）
+<div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+  <Card className="min-w-0">{/* 本文 */}</Card>
+  <div className="min-w-0 space-y-4">{/* サイドパネル */}</div>
+</div>
+
+// 一覧ペイン + 詳細（マスター詳細）
+<div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+  <div className="hidden lg:sticky lg:top-4 lg:block lg:self-start">
+    <ListPane />
+  </div>
+  <div className="min-w-0">{children}</div>
+</div>
+```
+
+**サイズ指定の使い分け**:
+
+| 書き方 | 意味 | 使う場面 |
+| --- | --- | --- |
+| `minmax(0,1fr)` | トラックが min-content 未満まで縮める | 可変幅カラム（ほぼ常にこれ） |
+| `280px` / `320px` | 固定幅 | ナビ・一覧ペイン・メタ情報パネル |
+| `1fr`（素） | min-content 以下に縮まない | **使わない**（長文で必ず溢れる） |
 
 ### ScrollArea 使用禁止（マルチカラム・truncate 併用時）
 

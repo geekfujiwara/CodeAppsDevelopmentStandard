@@ -235,14 +235,11 @@ flex 内なら `flex-1 min-h-0` を付け、親に `overflow-hidden` を指定�
 > 詳細画面の右カラムに改善提案の `<pre>` を追加したところ、`minmax(0,1fr)` を指定していたにもかかわらず
 > ページ幅に収まらなくなった。アイテム（`Card` と `div`）に `min-w-0` を足して解消。
 
-**チェック方法:**
+**チェック方法:** `scripts/pre-deploy-check.mjs` のチェック 7 が自動で警告する（`npm run predeploy`）。
 
-```bash
-# grid-cols-[...] を使っているファイルを列挙し、直後の子要素に min-w-0 があるか目視で確認する
-Get-ChildItem -Path "src" -Recurse -Include "*.tsx" -File |
-  Select-String -Pattern 'grid-cols-\[' |
-  ForEach-Object { "$($_.Path):$($_.LineNumber)  $($_.Line.Trim())" }
-```
+- 7a: `grid-cols-[...]` に素の `1fr` がある（`minmax(0,1fr)` にする）
+- 7b: 明示トラックのグリッド直下の子要素に `min-w-0` が無い
+- 7c: `ScrollArea` と `truncate` / `line-clamp` の併用
 
 **対処:** グリッド/フレックスの**直接の子**すべてに `min-w-0` を付ける。
 本文の折り返しは `break-words` ではなく `[overflow-wrap:anywhere]`（`break-words` は min-content を縮めない）。
