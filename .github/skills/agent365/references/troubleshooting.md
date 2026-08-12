@@ -1113,3 +1113,40 @@ $shell = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\pwsh.exe"
 
 Windows PowerShell 5.1 へフォールバックする場合、`Set-Content -Encoding utf8` は
 **BOM 付き**で書き出す。受け取る側の Python は `encoding="utf-8-sig"` で開く。
+
+## 52. 会議の招待メールに返信しようとして「メール ID が不正」で落ちる（B6・検証済 2026-08-12）
+
+**症状**: 受信トレイ監視のログに
+`ツールがエラーを返しました: 返信の送信に失敗しました（400）。... ErrorInvalidIdMalformed` が出る。
+エージェントの報告は「通知メールと判断し、返信を試しましたがメール ID が不正として失敗」。
+予定自体は Outlook が自動で予定表に入れているため、**人間から見ると「反応が変」だけで済んでしまう**。
+
+**原因は 2 つある。両方直さないと再発する。**
+
+1. **招待が普通のメールに見えている。** 招待・キャンセル・出欠回答は `eventMessage` として
+   受信トレイに並ぶ。`$select` に何も足さなければ本文も日時の羅列なので、モデルは
+   「通知メール」と判断する。ところが指示に「返信する」が強く書いてあるので、
+   判断と行動が食い違ったまま返信に進む。
+2. **モデルが id を取り違えている。** 本文取得（`/me/messages/{id}?$select=…,body`）の応答には
+   予定側の `id` も含まれる。モデルはそれを掴んで `reply` に渡す。
+   メールの id ではないので Graph は `ErrorInvalidIdMalformed` を返す。
+
+**対処**:
+
+- 受信一覧を組み立てるときに `@odata.type` / `meetingMessageType` を見て `種別:` を付ける。
+  Graph は `$select` を使っていても**派生型にはこの注釈を返す**ので、クエリは変えなくてよい。
+- `respond_invite(message_id, response, comment)` を足す。
+  `$expand=microsoft.graph.eventMessage/event` で**ツール側が予定 id を解決**し、
+  `POST /me/events/{eventId}/{accept|tentativelyAccept|decline}` を呼ぶ。
+  **モデルに id を選ばせないことが本質**で、プロンプトの注意書きだけでは再発する。
+- 実行時コンテキストに「招待は返信しない」「キャンセル通知と他人の出欠回答は何もしない」
+  「判断材料が無ければ tentative。放置しない」を書く。
+- `reply` が `ErrorInvalidIdMalformed` / `ErrorItemNotFound` を返したら、
+  ツールの戻り値で「それはメールの id ではない、招待なら `respond_invite`」と**訂正して返す**。
+  素の Graph エラーを返すと同じ id で再試行する。
+- 予定表への書き込みが Work IQ ポリシー側にしか無い構成では `POST /me/events/…` が 403 になる。
+  そのときは**解決済みの予定 id を添えて** `do_action` `/me/events/{id}/accept` へ誘導する。
+  ここで諦めると `reply_mail` に戻ってしまう。
+
+雛形は [templates/MailTools.template.cs](templates/MailTools.template.cs) と
+[templates/MailboxWorker.template.cs](templates/MailboxWorker.template.cs) に入っている。

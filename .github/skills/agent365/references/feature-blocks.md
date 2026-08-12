@@ -66,6 +66,22 @@ builder.Services.AddHostedService<MailboxWorker>();
 `reply_mail` はモデルに Markdown を書かせ、`MessageHtml.FromMarkdown` で HTML に変換して
 `POST /me/messages/{id}/reply` を呼ぶ。
 
+**会議の招待には返信しない。`respond_invite` で出欠を返す。**
+招待・キャンセル・出欠回答は `eventMessage` として**普通のメールと同じように受信トレイに並ぶ**ため、
+何もしないとモデルは「通知メール」と判断しながら返信を試みる。主催者には出欠として届かず、
+予定表も更新されない。
+
+- `MailboxWorker` の `Walk` で `@odata.type` / `meetingMessageType` を見て `種別:` を一覧に付ける
+  （Graph は `$select` を使っていても派生型にはこの注釈を返す）
+- `respond_invite(message_id, response, comment)` が
+  `$expand=microsoft.graph.eventMessage/event` で予定 id を解決し、
+  `POST /me/events/{eventId}/{accept|tentativelyAccept|decline}` を呼ぶ
+- キャンセル通知と他人の出欠回答は**何もしない**とコンテキストに書く。書かないと丁寧に返信してしまう
+
+> **モデルに id を選ばせない。** 本文を取得すると応答に予定の `id` も含まれるので、
+> モデルはそれをメールの id と取り違えて `reply` に渡し、`ErrorInvalidIdMalformed` で落ちる。
+> **id の解決はツール側で完結させる**のが唯一効く対策。プロンプトの注意書きだけでは再発する。
+
 > **メール経路の実行時コンテキストは、システム プロンプトを黙って上書きする。**
 > `MailboxWorker` が組み立てる「このターンでやること」に手順を列挙すると、そこに書いていない能力は
 > 使われなくなる。資料作成もファイル共有も、**メール経路のコンテキストに明示的に書く**こと

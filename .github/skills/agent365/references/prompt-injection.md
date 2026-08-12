@@ -57,7 +57,7 @@ public sealed partial class UntrustedContent
     private static readonly HashSet<string> TrustedTools = new(StringComparer.OrdinalIgnoreCase)
     {
         "report_progress", "list_documents", "classify_document", "share_document", "decide_share",
-        "reply_mail", "create_office_file", "deliver_file",
+        "reply_mail", "respond_invite", "create_office_file", "deliver_file",
         "list_schedules", "create_schedule", "delete_schedule",
         "list_skills", "read_skill", "save_skill",
         "create_teams_chat", "send_teams_chat_message",
