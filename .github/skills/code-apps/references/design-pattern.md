@@ -84,6 +84,52 @@ Code Apps の画面を設計・実装する。
 Dataverse テーブル・Code Apps・Power Automate フロー・Copilot Studio エージェントは **すべて同一のソリューション内** に含める。
 UI コンポーネントの実装先となる Code Apps も同一ソリューションに所属する。
 
+## 名前とナビは最初から汎用にする
+
+ソリューションとして配布する可能性が少しでもあるなら、**最初の 1 画面目から固有名詞を入れない**。
+後からの改名はファイル横断になり、必ずどこか 1 箇所が取り残される。
+
+| 場所 | 値 | 見える場所 |
+|---|---|---|
+| `.env` `VITE_CODEAPPS_APP_NAME` | アプリ表示名 | サイドバー・ヘッダー |
+| `.env` `VITE_CODEAPPS_DOCUMENT_TITLE` | ブラウザタブ | ブラウザタブ・履歴 |
+| `power.config.json` `appDisplayName` | Power Apps 上の名前 | メーカー ポータル・ソリューション |
+| `.env` `VITE_CODEAPPS_THEME_STORAGE_KEY` | localStorage キー | （不可視） |
+
+- **上 3 つは必ず同時に変える。** 片方だけ直すと、ポータルとアプリ内で名前が食い違う
+  （`predeploy` のチェック 8 が検出する）。
+- **UI 文言に固有名詞を直書きしない。** チャットの話者ラベルや空状態の文言に
+  製品名・エージェント名を埋め込むと、`.env` を変えても画面に旧名が残る。
+  役割名（「エージェント」「担当者」）で書く。
+- ソリューション名・パブリッシャー接頭辞は**変えない**。変えるとテーブルの論理名が全部ずれる。
+  表示名だけを汎用化すればよい。
+
+**ナビは 5 項目を超えたらグループ化する。** `NAV_SECTIONS` は最初からセクション配列なので、
+タイトルを分けるだけで済む。「概要（ダッシュボード・推移）」「業務」「マスタ」の 3 層が基本形。
+
+```ts
+// src/config.ts — 用途で分けておくと、機能追加時に入れ先が迷わない
+const overviewItems: NavItem[] = [
+  { key: "dashboard", label: "ダッシュボード", path: "/dashboard" },
+  { key: "trend", label: "推移", path: "/trend" },
+]
+const operationItems: NavItem[] = [
+  { key: "items", label: "一覧", path: "/items" },
+]
+const masterItems: NavItem[] = [
+  { key: "rules", label: "ルール", path: "/rules" },
+]
+
+export const NAV_SECTIONS: NavSection[] = [
+  { title: "概要", items: overviewItems },
+  { title: "業務", items: operationItems },
+  { title: "マスタ", items: masterItems },
+]
+```
+
+> マスタ系（ルール・区分・宛先）を業務画面と同じ列に並べると、使う人が毎回探す。
+> 進めるうちに必ず増えるので、**1 項目しか無くてもセクションを分けておく**。
+
 ## 技術スタック
 
 | レイヤー | 技術 |
@@ -135,6 +181,42 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 2. **テキスト省略（truncate）を前提にする**。テーブル名・作業指示書名等の長い文字列は `truncate` で `...` 省略。クリックで詳細表示
 3. **マルチカラムレイアウト**: モバイル=1カラムずつ表示（ステップ切替）、デスクトップ=`grid grid-cols-N`
 4. **カード内テキストは必ず幅制約する**。`min-w-0` + `overflow-hidden` + `truncate` のチェーンを Card → CardContent → flex → text 要素まで通す
+5. **横スクロールバーを 1 本も出さない**。`grid` / `flex` の**直接の子には必ず `min-w-0`** を付け、
+   長文は `[overflow-wrap:anywhere]`、幅の読めない塊（コード・表・JSON）は `overflow-x-auto` で閉じ込める
+
+### ページの骨格（新規画面はここから書き始める）
+
+崩れてから直すのではなく、最初からこの形で書く。`min-w-0` は後付けすると必ず抜ける。
+
+```tsx
+// 1 カラム（一覧・フォーム）
+<div className="space-y-6">
+  <PageHeader />
+  <Card className="min-w-0">...</Card>
+</div>
+
+// 2 カラム（詳細画面：本文 + サイドパネル）
+<div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+  <Card className="min-w-0">{/* 本文 */}</Card>
+  <div className="min-w-0 space-y-4">{/* サイドパネル */}</div>
+</div>
+
+// 一覧ペイン + 詳細（マスター詳細）
+<div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+  <div className="hidden lg:sticky lg:top-4 lg:block lg:self-start">
+    <ListPane />
+  </div>
+  <div className="min-w-0">{children}</div>
+</div>
+```
+
+**サイズ指定の使い分け**:
+
+| 書き方 | 意味 | 使う場面 |
+| --- | --- | --- |
+| `minmax(0,1fr)` | トラックが min-content 未満まで縮める | 可変幅カラム（ほぼ常にこれ） |
+| `280px` / `320px` | 固定幅 | ナビ・一覧ペイン・メタ情報パネル |
+| `1fr`（素） | min-content 以下に縮まない | **使わない**（長文で必ず溢れる） |
 
 ### ScrollArea 使用禁止（マルチカラム・truncate 併用時）
 
@@ -212,6 +294,45 @@ UI コンポーネントの実装先となる Code Apps も同一ソリューシ
 - `overflow-hidden` がテキスト要素の直近の祖先にある
 - `shrink-0` でアイコン等の固定幅要素が縮まないようにする
 - `flex-1 min-w-0` で可変幅テキスト領域を確保
+
+### `minmax(0,1fr)` を書いても子要素に `min-w-0` が要る
+
+`grid-cols-[minmax(0,2fr)_minmax(0,1fr)]` が効くのは**トラック**の伸長抑止まで。
+グリッドアイテム自身は `min-width: auto` のままなので、min-content がトラックより広いと
+アイテムがトラックを突き破り、ページ全体が横スクロールしてレスポンシブが崩れる。
+
+```tsx
+{/* NG: 長い本文やコード例を入れた途端に画面幅を超える */}
+<div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+  <Card>...</Card>
+  <div className="space-y-4">...</div>
+</div>
+
+{/* OK: アイテム側にも min-w-0 */}
+<div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+  <Card className="min-w-0">...</Card>
+  <div className="min-w-0 space-y-4">...</div>
+</div>
+```
+
+### 折り返しは `break-words` ではなく `[overflow-wrap:anywhere]`
+
+`break-words`（= `overflow-wrap: break-word`）は**描画時にだけ**折り返す。
+min-content 幅の計算では無視されるため、長い URL や識別子を含む本文は
+親の幅を押し広げ続ける。幅を詰めたいときは `anywhere` を使う。
+
+| クラス | 描画時に折り返す | min-content を縮める | 用途 |
+| --- | --- | --- | --- |
+| `break-words` | ○ | **×** | 幅が固定済みの場所 |
+| `[overflow-wrap:anywhere]` | ○ | ○ | 可変幅カラムに流し込む本文 |
+| `break-all` | ○ | ○ | JSON・ID など単語境界が無い文字列 |
+
+`<pre>` は `overflow-x-auto` を付けるとスクロールコンテナになり min-content が 0 になるため、
+表・コードブロックはこちらでも防げる。
+
+**長文を流し込む画面での確認手順**: 一番長い本文を持つレコードを開き、
+ブラウザ幅を 1280 → 768 → 375 と狭めて横スクロールバーが出ないことを見る。
+平均的なレコードだけで確認すると必ず見落とす。
 
 ## コンポーネント選定ガイド
 

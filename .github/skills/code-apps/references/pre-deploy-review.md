@@ -204,6 +204,48 @@ Get-ChildItem -Path "src" -Recurse -Include "*.ts","*.tsx" -File |
 - `key` prop でコンポーネントを再マウントする（ScrollArea がリセットされ先頭から表示）
 - ScrollArea の Viewport ref を取得して `viewport.scrollTop = viewport.scrollHeight` で制御する
 
+### 5c. ScrollArea + truncate 併用チェック
+
+`ScrollArea` の内部 Viewport は水平方向の膨張を許容するため、配下の `truncate` / `line-clamp` が効かない。
+サイドリスト・一覧ペイン・カードリストなど**幅が制約された領域でテキスト省略を使う場合は `ScrollArea` を使わない**。
+
+> **実際に発生した障害（2026-08-12）:**
+> 詳細画面の左に置いた一覧ペインを `ScrollArea` で組んだところ、相手名・本文が枠からはみ出して見切れた。
+> `div` + `overflow-y-auto overflow-x-hidden` に置き換えて解消。
+
+**チェック方法:**
+
+```bash
+# ScrollArea と truncate / line-clamp が同居しているファイルを検出
+Get-ChildItem -Path "src" -Recurse -Include "*.tsx" -File |
+  Where-Object { (Get-Content $_ -Raw) -match '<ScrollArea' -and (Get-Content $_ -Raw) -match 'truncate|line-clamp' } |
+  ForEach-Object { $_.FullName }
+```
+
+**対処:** `<ScrollArea className="...">` → `<div className="... overflow-y-auto overflow-x-hidden">`。
+flex 内なら `flex-1 min-h-0` を付け、親に `overflow-hidden` を指定する。
+詳細は [一覧ペイン（マスター詳細）パターン](master-detail-pane-pattern.md)。
+
+### 5d. グリッドアイテムの `min-w-0` 欠落チェック
+
+`grid-cols-[minmax(0,...)]` はトラックしか縛らない。アイテム側の `min-width: auto` が残っていると、
+長い本文やコード例を入れた瞬間にアイテムがトラックを突き破り、ページ全体が横スクロールする。
+
+> **実際に発生した障害（2026-08-12）:**
+> 詳細画面の右カラムに改善提案の `<pre>` を追加したところ、`minmax(0,1fr)` を指定していたにもかかわらず
+> ページ幅に収まらなくなった。アイテム（`Card` と `div`）に `min-w-0` を足して解消。
+
+**チェック方法:** `scripts/pre-deploy-check.mjs` のチェック 7 が自動で警告する（`npm run predeploy`）。
+
+- 7a: `grid-cols-[...]` に素の `1fr` がある（`minmax(0,1fr)` にする）
+- 7b: 明示トラックのグリッド直下の子要素に `min-w-0` が無い
+- 7c: `ScrollArea` と `truncate` / `line-clamp` の併用
+
+**対処:** グリッド/フレックスの**直接の子**すべてに `min-w-0` を付ける。
+本文の折り返しは `break-words` ではなく `[overflow-wrap:anywhere]`（`break-words` は min-content を縮めない）。
+確認は最長のレコードを開いた状態で 1280 → 768 → 375px と幅を狭めて行う。
+詳細は [デザインパターン](design-pattern.md)。
+
 ### 5a. React フック規則チェック
 
 React のフック規則違反（条件付きフック呼び出し）は本番でのみクラッシュすることがある（React error #310）。
