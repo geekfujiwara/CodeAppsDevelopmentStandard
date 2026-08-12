@@ -783,3 +783,370 @@ Teams は**ファイルの中身を送らない**。送るのは取りに行く�
 
 **恒久対策済み**: `build_teams_package.py` の `assert_supports_files()` が、
 パッケージのたびに `bots[].supportsFiles` を検証して `false` なら中止する。
+
+## 47. Always On を有効にしても、翌朝には必ず無効に戻っている
+
+**症状**: #44 の手順でプランを上げて Always On を有効にしたのに、
+数日おきに「1 通目が無視される」が再発する。確認すると **Free に戻っている**。
+自分で下げた覚えはない。
+
+**原因**: サブスクリプションのコスト ガバナンス自動化が、定期的にプランを最小 SKU へ戻している。
+デモ用・社内配布のサブスクリプションでは珍しくない。**人ではないので誰にも心当たりがない。**
+
+**確認**:
+
+```powershell
+az monitor activity-log list -g <rg> --offset 7d --max-events 2000 --namespace Microsoft.Web `
+  -o json | ConvertFrom-Json |
+  Where-Object { $_.operationName.value -like '*serverfarms/write*' -and $_.status.value -eq 'Succeeded' } |
+  Select-Object @{n='JST';e={([datetime]$_.eventTimestamp).ToLocalTime()}}, caller | Sort-Object JST
+```
+
+`caller` が**メール アドレスではなく GUID** で、しかも毎日ほぼ同じ時刻に並んでいたら自動化。
+その GUID の 1 件を `ConvertTo-Json` で開き、`claims.tenantid` が**自分のテナントと違えば**
+サブスクリプションを配布している側の統制。`az consumption budget list` に予算が出ることも多い。
+
+**対処**: 上げ直しても翌朝に戻るので、**Always On に依存しない形へ寄せる**。
+統制そのものを止めるのは、例外申請という正規の手続きで行う。ロックなどで自動化の書き込みを
+ブロックするのは、組織のコスト統制の迂回にあたるので選ばない。
+
+### Always On を前提から外す
+
+1. **依存を持たない `/health` を生やす**（→ [templates/AgentHealth.template.cs](templates/AgentHealth.template.cs)）。
+   資格情報も MCP クライアントもモデルも温まる前に答えられる必要があるので、
+   認証も下流呼び出しも入れない。
+
+   ```csharp
+   app.MapGet("/health", (AgentHealth health) => Results.Json(health.Snapshot())).AllowAnonymous();
+   ```
+
+2. **可用性テストで叩き続ける。** Application Insights の標準テストは最短 5 分間隔で、
+   **地点数だけ並列に飛ぶ**。5 地点なら実質 1 分に 1 回になり、アイドル アンロード（約 20 分）に
+   届かない。監視とウォーム アップが 1 つのリソースで済む。
+
+   ```powershell
+   az rest --method put --body "@webtest.json" `
+     --uri "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Insights/webtests/<name>?api-version=2022-06-15"
+   ```
+
+   `tags` に `"hidden-link:<Application Insights のリソース ID>": "Resource"` を入れないと、
+   作成はできてもポータルの可用性ブレードに出てこない。
+
+3. **ワーカーの拍動を `/health` に出す。** `BackgroundService` が止まっても
+   例外も失敗リクエストも出ず、次の訪問者には正常に見える。
+   外形監視だけでは「Web は生きているが受信トレイ監視だけ死んでいる」を検出できない。
+
+   ```json
+   { "status": "ok", "uptimeSeconds": 8626,
+     "workers": { "mailbox": { "agoSeconds": 43 }, "schedule": { "agoSeconds": 45 } } }
+   ```
+
+**残る制約**: 最小 SKU には 1 日あたりの CPU 割り当てがあり、超えると翌 UTC 0 時まで 403 を返す。
+ping 自体は軽いが、モデル呼び出しの多い日は届きうる。`/health` に重い処理を足さないこと。
+
+## 48. リソース グループをまとめようとすると、一部だけ移動できない
+
+エージェント一式を専用の RG に集めるときに 2 か所で止まる。**先に検証だけ流す。**
+
+```powershell
+az rest --method post --body "@move.json" `
+  --uri "https://management.azure.com/subscriptions/<sub>/resourceGroups/<src>/validateMoveResources?api-version=2021-04-01"
+# 202 が返るので Location ヘッダーをポーリングする。204 なら通過、400 なら details に理由
+```
+
+| リソース | 挙動 | どうするか |
+|---|---|---|
+| `Microsoft.ManagedIdentity/userAssignedIdentities` | 検証で `ResourceMoveNotSupported` | **据え置く。** 作り直すと `clientId` が変わり、ボット登録の `msaAppId` と付与済みロールが全部外れる |
+| `Microsoft.App/sessionPools` | **検証は通るのに移動が 409 で失敗**する | 移動先で作り直す。セッションは使い捨てなので失うものはない |
+
+sessionPools は**検証の偽陽性**なので、一括移動に混ぜると他のリソースだけ移った中途半端な状態になる。
+最初から外しておく。作り直したら次の 3 つを忘れない。
+
+1. 実行者（エージェントのマネージド ID と自分）へ **Azure ContainerApps Session Executor** を再付与
+2. 設定のプール エンドポイント（**RG 名が URL に入っている**）を書き換えて再デプロイ
+3. 新しいプールで 1 行動かして確認してから、古いプールを消す
+
+Web App とプラン、Cognitive Services、ボット登録は移動できる。
+**Web App は移動しても再起動しない**（`uptimeSeconds` が連続する）ので、会話中でも切れない。
+
+### 移動できても、ロール割り当ては付いてこない
+
+**移動そのものは成功するのに、数時間後にエージェントが動かなくなる。** これが一番痛い。
+
+```text
+HTTP 401 (PermissionDenied)
+Principal does not have access to API/Operation.
+```
+
+ロール割り当ては**割り当てたスコープに属する**。リソース自体のスコープに付けたものは移動先へ付いていくが、
+**移動元のリソース グループのスコープ**に付けたものは、そのリソース グループに残って効かなくなる。
+
+厄介なのは**すぐには落ちないこと**。Cognitive Services は認可の判定をしばらくキャッシュするので、
+移動直後は普通に動き続け、**次にプロセスが入れ替わったあたりで初めて 401 になる**。
+移動作業とは時間が離れているので、原因として結び付かない。
+
+移動の**前後**で必ず取って差分を見る。
+
+```powershell
+az role assignment list --assignee <エージェントのマネージド ID の principalId> --all `
+  --query "[].{role:roleDefinitionName,scope:scope}" -o table
+```
+
+消えていたら、**移動先のリソース スコープに**付け直す。RG スコープに付けると同じことが起きる。
+
+```powershell
+az role assignment create --assignee-object-id <principalId> --assignee-principal-type ServicePrincipal `
+  --role "Cognitive Services User" `
+  --scope "/subscriptions/<sub>/resourceGroups/<移動先 rg>/providers/Microsoft.CognitiveServices/accounts/<account>"
+```
+
+**`kind=AIServices`（Foundry プロジェクト付き）では `Cognitive Services OpenAI User` では足りない。**
+呼んでいる URL が `/openai/deployments/<deployment>/chat/completions` でも、
+このロールだけでは 401 のままになる。名前から OpenAI 用で足りそうに見えるのが罠で、
+**`Cognitive Services User` を付けて初めて通る**。付与直後の 1 回はまだ 401 が返ることがあるので、
+2 回目で判断する（データ プレーン側が認可を数分キャッシュするため）。
+
+`Azure AI User` を案内している記事もあるが、**テナントによってはこの役割定義が存在しない**。
+`az role definition list --query "[?contains(roleName,'Azure AI')].roleName"` で先に確認する。
+
+**検出**: この壊れ方は `/health` にも外形監視にも出ない（Web は 200 を返し、モデル呼び出しだけが失敗する）。
+`gen_ai` スパンを出しておくと、`error.type` が付いた `chat <model>` の依存関係として一目で分かる（→ #50）。
+
+**`checkAccess` API で切り分けようとしない。** 権限の有無を機械的に判定できそうに見えるが、
+**サブスクリプションの所有者に対してすら `NotAllowed` を返す**ことがある。
+これを根拠にすると、正しく付いているロールを「付いていない」と誤判定して迷走する。
+判断材料は実際の呼び出し結果（401 が 200 になるか）に絞る。
+
+## 49. 貼り付けたスクリーンショットだけ見てもらえない（B16）
+
+**症状**: ファイルとして添付した画像は読めるのに、**Ctrl+V で貼り付けた**スクリーンショットだけ
+「画像が見えません」と返る。同じ会話・同じ相手・同じ形式でも、貼り付けたときだけ落ちる。
+
+**原因**: 貼り付け画像の `contentUrl` が指す
+`.../v3/attachments/{id}/views/original` は、**Agent 365 のエージェントからは取得できない**。
+
+| 取り方 | 結果 |
+|---|---|
+| 認証なしで GET | `401` |
+| エージェントのトークンを付けて GET | **`500`** |
+| `IConnectorClient.Attachments.GetAttachmentAsync` | 同じ URL を叩くので **`500`** |
+
+従来のボットは `MicrosoftAppCredentials`（`https://api.botframework.com` 宛のアプリ トークン）で
+この API を叩く。Agent 365 のエージェントは**アプリ単体のトークンを取得できない**ので、その手は使えない。
+
+```text
+AADSTS82001: Agentic application '<blueprint appId>' is not permitted to
+request app-only tokens for resource '<resource>'
+```
+
+`client_credentials` で試すと、`https://api.botframework.com/.default` でも
+`5a807f24-.../.default` でも同じ `82001` が返る。**スコープの付け忘れではなく、この登録の性質**。
+
+**見分け方**: Application Insights の依存関係を見る。同じ `smba.trafficmanager.net` 宛でも、
+`/v3/conversations/...` は `200`／`202` なのに `/v3/attachments/...` だけ `500` になる。
+認証は通っていて、この API だけが応答していない。
+
+```kusto
+AppDependencies
+| where Data has "/v3/attachments/"
+| project TimeGenerated, ResultCode, Data
+```
+
+**対処**: 貼り付け画像は**どこにもアップロードされていない**。実体は Teams のメッセージそのものの中にあり、
+そのチャットの**参加者にだけ**配られる。エージェントは参加者なので、B9 のチャット読み取りと同じ経路で取れる。
+
+```text
+GET /chats/{chatId}/messages/{messageId}/hostedContents
+GET /chats/{chatId}/messages/{messageId}/hostedContents/{id}/$value
+```
+
+- `chatId` は `Activity.Conversation.Id`、`messageId` は `Activity.Id` をそのまま使う
+- トークンは `AgenticTokenSource`（エージェント自身のユーザー）から取る
+- 委任スコープは **`Chat.Read`**。`grant_agent_graph_scopes.py` の既定に含まれるので追加同意は要らない
+- 添付と `hostedContents` は同じ順で並ぶので、順に取り出して対応させる
+
+実装は [templates/IncomingFiles.template.cs](templates/IncomingFiles.template.cs) の
+`PastedImagesAsync`。`403` が返るならスコープ不足、`404` ならメッセージ ID の取り違え。
+
+**同時に直すこと**: 貼り付け画像には**名前が無く**、`contentType` は文字どおり `image/*` で、
+URL にも拡張子が無い。`image/*` は vision が受け取れる形式ではないので、そのまま渡すと
+**取得には成功しているのに 1 枚も見せられない**。ログには
+`Received file.bin (image/*, 254321 bytes)` と出るのに、エージェントは「画像が見えません」と答えるので、
+バイト列の先頭で形式を判定して名前を付け直す（同テンプレートの `Describe` / `Sniff`）。
+
+**受け入れ確認に入れる**: 「ファイルとして添付」と「Ctrl+V で貼り付け」は**別の経路**なので、
+片方だけ試しても意味がない。両方を確認手順に入れる。
+
+## 50. モデル呼び出しだけが失敗しても、どこにも出ない
+
+**症状**: `/health` は 200、可用性テストも緑、`AppRequests` の `POST /api/messages` も `202 ok=True`。
+なのにエージェントは「応答の生成に失敗しました」と返す。**成功したリクエストの中で失敗している**ので、
+失敗率のグラフにも出ず、アラートも鳴らない。
+
+**原因**: 既定では**モデル呼び出しにスパンが 1 本も出ない**。残るのは
+`POST /openai/deployments/.../chat/completions` という素の HTTP 依存関係だけで、
+どのモデルを何トークン使って何秒かかったかは分からない。
+
+**対処**: OpenTelemetry を有効にして `gen_ai` スパンを出す。追加コストはほぼゼロ。
+
+1. **パッケージを入れ替える。** 従来の Application Insights SDK と併用すると二重計上になる。
+
+   ```xml
+   <!-- <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.*" /> -->
+   <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.*" />
+   ```
+
+2. **実験的スイッチを入れる。** これが無いとスパンは 1 本も出ない。
+
+   ```csharp
+   AppContext.SetSwitch("OpenAI.Experimental.EnableOpenTelemetry", true);
+
+   builder.Services.AddOpenTelemetry()
+       .UseAzureMonitor()
+       .WithTracing(tracing => tracing.AddSource("OpenAI.*"));
+   ```
+
+   `ActivitySource` の名前は `OpenAI.ChatClient`。`AddSource` を忘れると、
+   スイッチを入れてもスパンは捨てられる。
+
+3. **Application Insights を Foundry プロジェクトに接続する。** ポータルのトレース ビューがここを読む。
+
+   ```powershell
+   az rest --method put --body "@conn.json" `
+     --uri "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>/projects/<project>/connections/<name>?api-version=2025-04-01-preview"
+   # properties: { category: "AppInsights", target: <App Insights のリソース ID>,
+   #               authType: "ApiKey", credentials: { key: <接続文字列> } }
+   ```
+
+4. `OTEL_SERVICE_NAME` をアプリ設定に入れる。入れないとトレース ビューの表示名が既定値になる。
+
+**これで見えるようになるもの**:
+
+```kusto
+AppDependencies
+| where Name startswith "chat "
+| extend model = tostring(parse_json(Properties)["gen_ai.request.model"]),
+         err   = tostring(parse_json(Properties)["error.type"])
+| project TimeGenerated, Name, model, err, DurationMs, Success
+```
+
+```text
+01:22:31 | chat gpt-5.4 | gpt-5.4 | 401 | 2136ms | False
+```
+
+**注意（バージョンで変わる）**: OpenAI .NET 2.1.0 が出すのは
+`gen_ai.request.model` / `gen_ai.response.model` / `gen_ai.usage.input_tokens` /
+`gen_ai.usage.output_tokens` / `gen_ai.response.finish_reasons` / 所要時間まで。
+**プロンプトと応答の本文は記録されない。**
+
+- 良い面: 会話の中身が Application Insights に入らないので、個人情報の持ち出しにならない
+- 制約: トレースだけでは `ToolCallAccuracy` / `TaskAdherence` は測れない。
+  評価をやるなら、会話メモリから評価用データセットを別に書き出す
+
+**ツール呼び出しにはスパンが出ない。** MCP サーバーへの呼び出しは素の HTTP 依存関係
+（`POST /mcp` / `POST /api/mcp`）として残るだけで、どのツールを呼んだかは分からない。
+必要なら自分で `ActivitySource` を立てる。
+
+---
+
+## 51. 会話の評価を自動化しようとすると、同じターンに何度も課金される（検証済 2026-08-10）
+
+### 前提
+
+`ToolCallAccuracy` / `TaskAdherence` は **LLM を審査員として呼ぶ** 評価器なので、
+実行するたびに判定対象の行数ぶんだけ課金される。
+`fetch → run_eval → push_results` をそのままスケジュール実行すると、
+初日の 1 ターンが 30 日後には 30 回判定されている。
+
+### 対処 1: 既評価の判定を Dataverse 側に持たせる
+
+ローカルのチェックポイント ファイルを正にすると、PC の入れ替えや
+作業フォルダーの削除で全件が再判定される。
+**保存先（Dataverse）を正**にして、実行のたびに主キー一覧を取り出し、
+評価器へ「これは飛ばす」と渡す。
+
+```powershell
+$existing = (Invoke-RestMethod -Uri "$OrgUrl/api/data/v9.2/geek_evalturns?`$select=geek_name" -Headers $headers).value
+Set-Content -Path $skipPath -Value ($existing.geek_name -join "`n") -Encoding utf8
+python run_eval.py --skip-ids $skipPath
+```
+
+対象が 0 件なら評価器を呼ばずに終了させる。
+`results.json` を **実行前に削除**しておき、
+生成されたかどうかで push の要否を判定すると分岐が 1 か所で済む。
+
+### 対処 2: 主キーをタイムスタンプそのものにしない
+
+行の識別子を `2026-08-10T03:32:42.2641766+00:00` のような ISO 8601 文字列にすると、
+PowerShell の `ConvertFrom-Json` が **勝手に `DateTime` へ変換**する。
+文字列化した結果はカルチャ依存（`08/10/2026 12:32:42` / `2026/08/10 12:32:42`）なので、
+書き込み時と読み出し時で表記が変わり、スキップ判定が永久に一致しない。
+
+日付に見えない接頭辞を付けて、ただの文字列に落とす。
+
+```python
+row["row_id"] = "turn-" + str(row.pop("timestamp", kept))
+```
+
+### 対処 3: 人手のラベルを上書きしない
+
+再実行時の `PATCH` には、評価器が算出した列だけを含める。
+人手評価（`geek_humanverdict` / `geek_humancomment`）を書かなければ、
+何度 push しても手作業の判定は残る。
+
+### 補足: 定期実行の登録
+
+`az` のトークン キャッシュはユーザー プロファイルにあるので、
+タスクは **対話ログオン ユーザー**として動かす（別プリンシパルでは認証できない）。
+
+タスク スケジューラは対話シェルの `PATH` を引き継がない。
+MSIX 版 PowerShell 7 を `Get-Command pwsh.exe` で解決すると
+`C:\Program Files\WindowsApps\...` が返るが、**そのパスは直接起動できない**。
+`LOCALAPPDATA` 側の実行エイリアスを指定する。
+
+```powershell
+$shell = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\pwsh.exe"
+```
+
+`Execute` に `pwsh.exe` とだけ書くと `LastTaskResult` が
+`2147942402`（`0x80070002` ファイルが見つからない）になる。
+
+Windows PowerShell 5.1 へフォールバックする場合、`Set-Content -Encoding utf8` は
+**BOM 付き**で書き出す。受け取る側の Python は `encoding="utf-8-sig"` で開く。
+
+## 52. 会議の招待メールに返信しようとして「メール ID が不正」で落ちる（B6・検証済 2026-08-12）
+
+**症状**: 受信トレイ監視のログに
+`ツールがエラーを返しました: 返信の送信に失敗しました（400）。... ErrorInvalidIdMalformed` が出る。
+エージェントの報告は「通知メールと判断し、返信を試しましたがメール ID が不正として失敗」。
+予定自体は Outlook が自動で予定表に入れているため、**人間から見ると「反応が変」だけで済んでしまう**。
+
+**原因は 2 つある。両方直さないと再発する。**
+
+1. **招待が普通のメールに見えている。** 招待・キャンセル・出欠回答は `eventMessage` として
+   受信トレイに並ぶ。`$select` に何も足さなければ本文も日時の羅列なので、モデルは
+   「通知メール」と判断する。ところが指示に「返信する」が強く書いてあるので、
+   判断と行動が食い違ったまま返信に進む。
+2. **モデルが id を取り違えている。** 本文取得（`/me/messages/{id}?$select=…,body`）の応答には
+   予定側の `id` も含まれる。モデルはそれを掴んで `reply` に渡す。
+   メールの id ではないので Graph は `ErrorInvalidIdMalformed` を返す。
+
+**対処**:
+
+- 受信一覧を組み立てるときに `@odata.type` / `meetingMessageType` を見て `種別:` を付ける。
+  Graph は `$select` を使っていても**派生型にはこの注釈を返す**ので、クエリは変えなくてよい。
+- `respond_invite(message_id, response, comment)` を足す。
+  `$expand=microsoft.graph.eventMessage/event` で**ツール側が予定 id を解決**し、
+  `POST /me/events/{eventId}/{accept|tentativelyAccept|decline}` を呼ぶ。
+  **モデルに id を選ばせないことが本質**で、プロンプトの注意書きだけでは再発する。
+- 実行時コンテキストに「招待は返信しない」「キャンセル通知と他人の出欠回答は何もしない」
+  「判断材料が無ければ tentative。放置しない」を書く。
+- `reply` が `ErrorInvalidIdMalformed` / `ErrorItemNotFound` を返したら、
+  ツールの戻り値で「それはメールの id ではない、招待なら `respond_invite`」と**訂正して返す**。
+  素の Graph エラーを返すと同じ id で再試行する。
+- 予定表への書き込みが Work IQ ポリシー側にしか無い構成では `POST /me/events/…` が 403 になる。
+  そのときは**解決済みの予定 id を添えて** `do_action` `/me/events/{id}/accept` へ誘導する。
+  ここで諦めると `reply_mail` に戻ってしまう。
+
+雛形は [templates/MailTools.template.cs](templates/MailTools.template.cs) と
+[templates/MailboxWorker.template.cs](templates/MailboxWorker.template.cs) に入っている。

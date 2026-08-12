@@ -124,7 +124,9 @@ public sealed class MailboxWorker(
         CancellationToken cancellationToken)
     {
         string inbox = string.Join("\n", messages.Select(m =>
-            $"- id: {m.Id}\n  差出人: {m.From}\n  件名: {m.Subject}\n  受信: {m.Received}\n  冒頭: {m.Preview}"));
+            $"- id: {m.Id}\n  差出人: {m.From}\n  件名: {m.Subject}\n  受信: {m.Received}"
+            + (m.MeetingKind is null ? string.Empty : $"\n  種別: {m.MeetingKind}")
+            + $"\n  冒頭: {m.Preview}"));
 
         List<ChatTurn> history =
         [
@@ -161,13 +163,26 @@ public sealed class MailboxWorker(
 
             1. `fetch` `/me/messages/{id}?$select=subject,from,toRecipients,body` で本文を読む。
             2. 何を求められているか判断する。
+               - **会議の招待**（一覧に `種別: 会議の招待` が付いているもの、または本文が
+                 日時・場所・出席者・出欠ボタンだけの予定表の通知）
+                 → **返信しない。主催者には出欠として届かない。**
+                 `fetch` `/me/calendarView?startDateTime=…&endDateTime=…&$select=subject,start,end`
+                 でその時間帯の自分の予定を確かめ、`respond_invite` で出欠を返す。
+                 `message_id` は一覧の id、`response` は accept / tentative / decline。
+                 予定が重なっているなら decline か tentative にし、`comment` に一言添える。
+                 判断材料が無ければ tentative にしておく。**放置しない。**
+               - **会議のキャンセル通知・他の人の出欠回答・予定表の通知** → 何もしない。
+                 出欠も返信も不要。報告にだけ 1 行書く。
                - **日程調整の依頼** → 参加者の空きは `ask` で調べ、候補を最大 3 つ出す。
                  日時・目的・所要時間が十分に決まっているなら `create_entity` `/me/events` で
                  会議を作り、その旨を返信する。足りない情報があるなら、**候補を添えたうえで**
                  その 1 点だけを返信で尋ねる。
                - **質問・依頼** → 分かる範囲で答える。調べられることはツールで調べてから答える。
                - **通知・広告・自動配信メールなど返信が不要なもの** → 何もしない。既読にもしない。
-            3. 返信は `do_action` `/me/messages/{id}/reply`、本文は `{"comment":"…"}`。
+            3. 返信の id には**一覧で渡された id だけ**を使う。本文を取得した応答に含まれる
+               別の id（予定の id など）を渡すと必ず失敗する。
+               **返信不要と判断したメールに返信ツールを呼ばない。判断と行動を一致させる。**
+               本文は `do_action` `/me/messages/{id}/reply`、`{"comment":"…"}`。
                日本語の丁寧なビジネス メール。宛名 → 用件 → 候補や結論 → 結び、で 200 字程度。
                HTML タグは書かず、改行は `<br>` を使う。
             4. **メールを既読にはできない**（テナント ポリシーで `/me/messages` の PATCH が塞がれている）。
@@ -239,7 +254,8 @@ public sealed class MailboxWorker(
                         ReadSender(element),
                         ReadSenderAddress(element),
                         Read(element, "receivedDateTime"),
-                        Read(element, "bodyPreview")));
+                        Read(element, "bodyPreview"),
+                        ReadMeetingKind(element)));
                     return;
                 }
 
@@ -273,6 +289,37 @@ public sealed class MailboxWorker(
     private static string Read(JsonElement element, string name) =>
         element.TryGetProperty(name, out JsonElement value) ? value.ToString() : string.Empty;
 
+    /// <summary>
+    /// Invitations arrive as ordinary inbox items, so without this the model treats them as mail and
+    /// tries to reply. Graph annotates the derived type on these items even when $select is used.
+    /// </summary>
+    private static string? ReadMeetingKind(JsonElement message)
+    {
+        string kind = Read(message, "meetingMessageType");
+        string type = Read(message, "@odata.type");
+
+        if (kind.Contains("Cancel", StringComparison.OrdinalIgnoreCase))
+        {
+            return "会議のキャンセル（返信不要）";
+        }
+
+        if (kind.Contains("Accepted", StringComparison.OrdinalIgnoreCase)
+            || kind.Contains("Declined", StringComparison.OrdinalIgnoreCase)
+            || type.Contains("eventMessageResponse", StringComparison.OrdinalIgnoreCase))
+        {
+            return "出欠の回答（返信不要）";
+        }
+
+        if (kind.Contains("Request", StringComparison.OrdinalIgnoreCase)
+            || type.Contains("eventMessageRequest", StringComparison.OrdinalIgnoreCase))
+        {
+            return "会議の招待（respond_invite で出欠を返す）";
+        }
+
+        return type.Contains("eventMessage", StringComparison.OrdinalIgnoreCase) ? "予定表の通知" : null;
+    }
+
     private sealed record MailHeader(
-        string Id, string Subject, string From, string? FromAddress, string Received, string Preview);
+        string Id, string Subject, string From, string? FromAddress, string Received, string Preview,
+        string? MeetingKind);
 }

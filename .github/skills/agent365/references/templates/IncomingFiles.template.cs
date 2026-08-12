@@ -14,6 +14,11 @@
 //   - モデルに見せる（vision）    … 何が写っているかを理解させる
 //   - 作業環境に置く（B12）        … 切り抜き・リサイズ・資料への貼り込みをさせる
 //
+// 取得経路は添付の種類で分かれる。同じ HTTP GET では取れない。
+//   - ファイル添付   … content.downloadUrl を認証なしで GET（Teams が署名済み）
+//   - 貼り付け画像   … Graph の hostedContents から、エージェント自身のユーザーとして取る
+//                      チャネルの添付 API は Agent365 のエージェントには応答しない（→ troubleshooting §49）
+//
 // Program.cs:
 //   builder.Services.AddSingleton<IncomingFiles>();
 //
@@ -23,6 +28,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Agents.Authentication;
 using Microsoft.Agents.Builder;
 using Microsoft.Agents.Core.Models;
@@ -46,9 +52,11 @@ public sealed class IncomingFiles(
     IHttpClientFactory httpClientFactory,
     CodeSandbox sandbox,
     IConnections connections,
+    AgenticTokenSource tokens,
     ILogger<IncomingFiles> logger)
 {
     private const string TeamsFileInfo = "application/vnd.microsoft.teams.file.download.info";
+    private const string GraphScope = "https://graph.microsoft.com/.default";
     private const int MaxFiles = 5;
     private const int MaxBytes = 20 * 1024 * 1024;
 
@@ -70,10 +78,19 @@ public sealed class IncomingFiles(
         [".docx"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     };
 
+    private static readonly Dictionary<string, string> Extensions = ContentTypes
+        .GroupBy(pair => pair.Value, StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(group => group.Key, group => group.First().Key, StringComparer.OrdinalIgnoreCase);
+
+    private static readonly Regex AttachmentPath =
+        new(@"/v3/attachments/[^/]+/views/", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     public async Task<IReadOnlyList<IncomingFile>> CollectAsync(
         ITurnContext turnContext, CancellationToken cancellationToken)
     {
         var files = new List<IncomingFile>();
+        Queue<byte[]>? pasted = null;
+
         foreach (Attachment attachment in turnContext.Activity.Attachments ?? [])
         {
             if (files.Count >= MaxFiles)
@@ -83,7 +100,20 @@ public sealed class IncomingFiles(
 
             try
             {
-                if (await FetchAsync(turnContext, attachment, cancellationToken) is { } file)
+                IncomingFile? file;
+                if (attachment.ContentUrl is { Length: > 0 } url && AttachmentPath.IsMatch(url))
+                {
+                    pasted ??= new Queue<byte[]>(await PastedImagesAsync(turnContext, cancellationToken));
+                    file = pasted.TryDequeue(out byte[]? bytes)
+                        ? Describe(attachment.Name, url, attachment.ContentType, bytes)
+                        : throw new InvalidOperationException("貼り付けられた画像を会話から取得できませんでした。");
+                }
+                else
+                {
+                    file = await FetchAsync(turnContext, attachment, cancellationToken);
+                }
+
+                if (file is not null)
                 {
                     files.Add(file);
                     logger.LogInformation("Received {Name} ({Type}, {Bytes} bytes)", file.Name, file.ContentType, file.Bytes.Length);
@@ -190,16 +220,67 @@ public sealed class IncomingFiles(
             return FromDataUri(attachment.Name, contentUrl);
         }
 
-        string fileName = SafeName(attachment.Name, contentUrl);
-        return new IncomingFile(
-            fileName,
-            TypeOf(fileName, type),
+        return Describe(
+            attachment.Name, contentUrl, type,
             await DownloadAsync(turnContext, contentUrl, cancellationToken));
     }
 
     /// <summary>
-    /// Teams pre-authenticates file download links but not inline image links, and which one is
-    /// which is not visible from the URL, so the bot token is only added after a refusal.
+    /// A pasted screenshot is never uploaded anywhere the agent can reach: it lives inside the
+    /// Teams message itself, and the channel's own attachment API answers 401 anonymously and 500
+    /// with the agent's token. The bytes are only served to a participant of the chat, so they are
+    /// read through Graph as the agent's own user.
+    /// </summary>
+    private async Task<IReadOnlyList<byte[]>> PastedImagesAsync(
+        ITurnContext turnContext, CancellationToken cancellationToken)
+    {
+        if (turnContext.Activity.Conversation?.Id is not { Length: > 0 } chat
+            || turnContext.Activity.Id is not { Length: > 0 } message)
+        {
+            return [];
+        }
+
+        string? token = await tokens.GetTokenAsync(GraphScope, cancellationToken);
+        if (token is not { Length: > 0 })
+        {
+            return [];
+        }
+
+        using HttpClient http = httpClientFactory.CreateClient();
+        http.Timeout = TimeSpan.FromSeconds(90);
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        string root = $"https://graph.microsoft.com/v1.0/chats/{Uri.EscapeDataString(chat)}"
+            + $"/messages/{Uri.EscapeDataString(message)}/hostedContents";
+
+        using HttpResponseMessage listing = await http.GetAsync(root, cancellationToken);
+        if (!listing.IsSuccessStatusCode)
+        {
+            logger.LogWarning("Hosted contents for {Message} came back {Status}", message, (int)listing.StatusCode);
+            return [];
+        }
+
+        using JsonDocument parsed = JsonDocument.Parse(await listing.Content.ReadAsStringAsync(cancellationToken));
+        var images = new List<byte[]>();
+        foreach (JsonElement item in parsed.RootElement.GetProperty("value").EnumerateArray())
+        {
+            if (images.Count >= MaxFiles || ReadString(item, "id") is not { Length: > 0 } id)
+            {
+                break;
+            }
+
+            using HttpResponseMessage content = await http.GetAsync(
+                $"{root}/{Uri.EscapeDataString(id)}/$value", cancellationToken);
+            content.EnsureSuccessStatusCode();
+            images.Add(await ReadAsync(content, cancellationToken));
+        }
+
+        return images;
+    }
+
+    /// <summary>
+    /// Teams signs its own download links, but a link that came from somewhere else may not be,
+    /// and the URL does not say which, so the token is only added after a refusal.
     /// </summary>
     private async Task<byte[]> DownloadAsync(
         ITurnContext turnContext, string url, CancellationToken cancellationToken)
@@ -264,18 +345,47 @@ public sealed class IncomingFiles(
     private static IncomingFile? FromDataUri(string? name, string uri)
     {
         int comma = uri.IndexOf(',');
-        if (comma < 0 || !uri[..comma].EndsWith("base64", StringComparison.OrdinalIgnoreCase))
+        return comma < 0 || !uri[..comma].EndsWith("base64", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : Describe(name, null, uri[5..comma].Split(';')[0], Convert.FromBase64String(uri[(comma + 1)..]));
+    }
+
+    /// <summary>
+    /// A pasted screenshot carries no name, a URL ending in "/views/original", and the literal
+    /// content type "image/*", so only the bytes themselves say what it is. Left unresolved the
+    /// file is fetched but never shown to the model, because "image/*" is not a format it reads.
+    /// </summary>
+    private static IncomingFile Describe(string? name, string? url, string? declared, byte[] bytes)
+    {
+        string fileName = SafeName(name, url);
+        string type = TypeOf(fileName, declared);
+
+        if ((type == "application/octet-stream" || type.EndsWith("/*", StringComparison.Ordinal))
+            && Sniff(bytes) is { } actual)
         {
-            return null;
+            type = actual;
         }
 
-        string type = uri[5..comma].Split(';')[0];
-        byte[] bytes = Convert.FromBase64String(uri[(comma + 1)..]);
-        string fileName = SafeName(name, null) is { Length: > 0 } given && given != "file.bin"
-            ? given
-            : "pasted" + (ContentTypes.FirstOrDefault(pair => pair.Value == type).Key ?? ".bin");
-        return new IncomingFile(fileName, TypeOf(fileName, type), bytes);
+        if (!ContentTypes.ContainsKey(Path.GetExtension(fileName)))
+        {
+            string stem = name is { Length: > 0 } ? Path.GetFileNameWithoutExtension(fileName) : "pasted";
+            fileName = stem + (Extensions.GetValueOrDefault(type) ?? ".bin");
+        }
+
+        return new IncomingFile(fileName, type, bytes);
     }
+
+    private static string? Sniff(byte[] bytes) => bytes switch
+    {
+        [0x89, 0x50, 0x4E, 0x47, ..] => "image/png",
+        [0xFF, 0xD8, 0xFF, ..] => "image/jpeg",
+        [0x47, 0x49, 0x46, 0x38, ..] => "image/gif",
+        [0x52, 0x49, 0x46, 0x46, _, _, _, _, 0x57, 0x45, 0x42, 0x50, ..] => "image/webp",
+        [0x42, 0x4D, ..] => "image/bmp",
+        [0x25, 0x50, 0x44, 0x46, ..] => "application/pdf",
+        [0x50, 0x4B, 0x03, 0x04, ..] => "application/zip",
+        _ => null,
+    };
 
     private static string TypeOf(string name, string? declared)
     {
