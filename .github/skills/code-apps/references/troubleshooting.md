@@ -1687,3 +1687,151 @@ const payload = serializeMultiSelectPicklistFields(formState, MULTISELECT_FIELDS
 
 → 関連: [データソースパターン](data-source-patterns.md#multiselectpicklist複数選択列)、
 [コンポーネントカタログ](component-catalog.md#multiselectpicklist-の選択-ui)
+
+---
+
+## 34. scaffold 直後に詰まる 3 点（検証済 2026-08-10）
+
+`generic-base` を degit して `npm install` した直後、手順どおりに進めても止まる箇所が 3 つある。
+いずれもコードの問題ではなく、テンプレート／ドキュメント側の不整合。
+
+### 34.1 `npx power-apps` が `could not determine executable to run`
+
+```
+npm error could not determine executable to run
+```
+
+`@microsoft/power-apps-cli` は `@microsoft/power-apps` の**推移的依存**であり、
+npm は**直接依存の bin しか `node_modules/.bin` にリンクしない**。
+そのため SDK だけを依存に持つ状態では `npx power-apps` が解決できない。
+
+```bash
+npm install -D @microsoft/power-apps-cli
+```
+
+`templates/generic-base/package.json` には devDependency として追加済み。
+古いテンプレートから作ったプロジェクトでは手動で足す。
+
+### 34.2 `npx power-apps push --environment-id` が `unknown option`
+
+```
+error: unknown option '--environment-id'
+```
+
+`push` に `--environment-id` は**ない**。環境は `power.config.json` の `environmentId` から決まる。
+
+```bash
+npx power-apps push --solution-id {SOLUTION_ID_GUID}   # 初回
+npx power-apps push                                     # 2 回目以降
+```
+
+同じ理由で `add-data-source` / `list-codeapps` も `--environment-id` を拒否する。
+→ [CLI リファレンス](cli-reference.md#グローバルオプション)
+
+### 34.3 `npm run predeploy` が `.env の ENV_ID が未設定` で落ちる
+
+`scripts/pre-deploy-check.mjs` の必須キーは **`ENV_ID`** だが、
+`references/.env.example` は `ENVIRONMENT_ID` を案内している。
+両方を同じ値で `.env` に置くのが確実。
+
+```env
+ENVIRONMENT_ID=00000000-0000-0000-0000-000000000000
+ENV_ID=00000000-0000-0000-0000-000000000000
+```
+
+---
+
+## 35. Python ヘルパースクリプトが `.env` を読まない／`UnicodeEncodeError` で落ちる（検証済 2026-08-10）
+
+### 症状
+
+```
+DATAVERSE_URL が .env に設定されていません（または --environment-id を指定）
+```
+
+プロジェクト直下に `.env` があり、そこで `cd` しているのに読まれない。
+
+```
+UnicodeEncodeError: 'cp932' codec can't encode character '\u2705' in position 0
+```
+
+### 原因
+
+- `check_code_apps_environment.py` などは **スクリプト自身の親ディレクトリ**を遡って `.env` を探す
+  （`for _p in _SCRIPT_DIR.parents:`）。カレントディレクトリは見ない。
+  スキルをリポジトリ外から参照して実行すると、プロジェクトの `.env` に到達しない。
+- 日本語 Windows の既定コンソールは cp932 なので、`✅` / `⚠️` を含む出力で例外になる。
+
+### 対処
+
+プロセス環境変数として渡し、出力エンコーディングを UTF-8 に固定する。
+
+```powershell
+$env:DATAVERSE_URL  = "https://<org>.crm.dynamics.com"
+$env:TENANT_ID      = "<tenant-guid>"
+$env:PYTHONIOENCODING = "utf-8"
+python <skill>/scripts/check_code_apps_environment.py --environment-id <env-guid>
+```
+
+`--environment-id` のように引数で渡せるものは引数を優先する。
+
+
+---
+
+## 36. Dataverse の JSON 列をそのまま描画して "Minified React error #31" で落ちる（検証済 2026-08-10）
+
+### 症状
+
+一覧は表示できるのに、行をクリックして詳細モーダルを開いた瞬間に画面が真っ白になる。
+
+```
+Minified React error #31; Objects are not valid as a React child
+(found: object with keys {path})
+```
+
+### 原因
+
+Memo 列に格納した JSON を `JSON.parse` した結果を、そのまま JSX に埋め込んでいる。
+生成元によって同じフィールドが文字列だったりオブジェクトだったりするため、
+サンプルデータでは動いても本番データで落ちる。
+（例: ツール呼び出しの `arguments` が `"{\"path\":\"...\"}"` のときと `{ path: "..." }` のときがある）
+
+### 対処
+
+描画の直前で必ず文字列へ正規化するヘルパーを通す。列の型を信用しない。
+
+```typescript
+export function formatToolArguments(value: unknown): string {
+  if (value === null || value === undefined) return ""
+  if (typeof value === "string") return value
+  try { return JSON.stringify(value) } catch { return String(value) }
+}
+```
+
+型定義側も `arguments?: unknown` にしておくと、生の値を JSX へ渡した時点で
+TypeScript が気付いてくれる。
+
+---
+
+## 37. `power-apps push` 後もブラウザが古いバンドルを表示する（検証済 2026-08-10）
+
+### 症状
+
+ビルドと push は成功しているのに、プレイヤーで開くと修正前の挙動のまま。
+画面上部に「このアプリの古いバージョンを使用しています。更新してください」の
+バナーが出ることがある。
+
+### 原因
+
+Power Apps プレイヤーが直前のバンドルをキャッシュしている。
+
+### 対処
+
+バナーの「更新」を押すか、プレイヤー URL を再読み込みする。
+Playwright で検証する場合は `page.reload()` ではなく `page.goto(playerUrl)` の方が確実。
+
+なお、プレイヤーはアプリを **入れ子の iframe**
+（`*.environment.api.powerplatformusercontent.com`）で描画するため、
+自動操作は `page.frameLocator(...)` 経由で行う。
+行クリックが "element is not stable" でタイムアウトするときは
+`.click({ force: true })`、同名ボタンが複数あるときは `{ exact: true }` を使う。
