@@ -209,6 +209,29 @@ if (fs.existsSync(srcPath)) {
   }
 }
 
+// 8. 表示名が 3 箇所で食い違っていないか（改名時の取り残し）
+if (fs.existsSync(envPath) && fs.existsSync(configPath)) {
+  const envContent = fs.readFileSync(envPath, "utf-8");
+  const readEnv = (key) => envContent.match(new RegExp(`^${key}=(.+)$`, "m"))?.[1].trim();
+  const appName = readEnv("VITE_CODEAPPS_APP_NAME");
+  const docTitle = readEnv("VITE_CODEAPPS_DOCUMENT_TITLE");
+  let displayName;
+  try {
+    displayName = JSON.parse(fs.readFileSync(configPath, "utf-8")).appDisplayName;
+  } catch {
+    displayName = undefined;
+  }
+
+  const names = [appName, docTitle, displayName].filter(Boolean);
+  if (names.length > 1 && new Set(names).size > 1) {
+    console.warn("⚠ アプリ表示名が箇所によって違います:");
+    console.warn(`  .env VITE_CODEAPPS_APP_NAME       : ${appName ?? "(未設定)"}`);
+    console.warn(`  .env VITE_CODEAPPS_DOCUMENT_TITLE : ${docTitle ?? "(未設定)"}`);
+    console.warn(`  power.config.json appDisplayName  : ${displayName ?? "(未設定)"}`);
+    console.warn("  → 意図的な使い分けでなければ揃えてください（改名時の直し忘れ）。");
+  }
+}
+
 // 結果出力
 if (errors.length > 0) {
   console.error("\n❌ デプロイ前チェック失敗:\n");

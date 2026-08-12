@@ -84,6 +84,52 @@ Code Apps の画面を設計・実装する。
 Dataverse テーブル・Code Apps・Power Automate フロー・Copilot Studio エージェントは **すべて同一のソリューション内** に含める。
 UI コンポーネントの実装先となる Code Apps も同一ソリューションに所属する。
 
+## 名前とナビは最初から汎用にする
+
+ソリューションとして配布する可能性が少しでもあるなら、**最初の 1 画面目から固有名詞を入れない**。
+後からの改名はファイル横断になり、必ずどこか 1 箇所が取り残される。
+
+| 場所 | 値 | 見える場所 |
+|---|---|---|
+| `.env` `VITE_CODEAPPS_APP_NAME` | アプリ表示名 | サイドバー・ヘッダー |
+| `.env` `VITE_CODEAPPS_DOCUMENT_TITLE` | ブラウザタブ | ブラウザタブ・履歴 |
+| `power.config.json` `appDisplayName` | Power Apps 上の名前 | メーカー ポータル・ソリューション |
+| `.env` `VITE_CODEAPPS_THEME_STORAGE_KEY` | localStorage キー | （不可視） |
+
+- **上 3 つは必ず同時に変える。** 片方だけ直すと、ポータルとアプリ内で名前が食い違う
+  （`predeploy` のチェック 8 が検出する）。
+- **UI 文言に固有名詞を直書きしない。** チャットの話者ラベルや空状態の文言に
+  製品名・エージェント名を埋め込むと、`.env` を変えても画面に旧名が残る。
+  役割名（「エージェント」「担当者」）で書く。
+- ソリューション名・パブリッシャー接頭辞は**変えない**。変えるとテーブルの論理名が全部ずれる。
+  表示名だけを汎用化すればよい。
+
+**ナビは 5 項目を超えたらグループ化する。** `NAV_SECTIONS` は最初からセクション配列なので、
+タイトルを分けるだけで済む。「概要（ダッシュボード・推移）」「業務」「マスタ」の 3 層が基本形。
+
+```ts
+// src/config.ts — 用途で分けておくと、機能追加時に入れ先が迷わない
+const overviewItems: NavItem[] = [
+  { key: "dashboard", label: "ダッシュボード", path: "/dashboard" },
+  { key: "trend", label: "推移", path: "/trend" },
+]
+const operationItems: NavItem[] = [
+  { key: "items", label: "一覧", path: "/items" },
+]
+const masterItems: NavItem[] = [
+  { key: "rules", label: "ルール", path: "/rules" },
+]
+
+export const NAV_SECTIONS: NavSection[] = [
+  { title: "概要", items: overviewItems },
+  { title: "業務", items: operationItems },
+  { title: "マスタ", items: masterItems },
+]
+```
+
+> マスタ系（ルール・区分・宛先）を業務画面と同じ列に並べると、使う人が毎回探す。
+> 進めるうちに必ず増えるので、**1 項目しか無くてもセクションを分けておく**。
+
 ## 技術スタック
 
 | レイヤー | 技術 |
