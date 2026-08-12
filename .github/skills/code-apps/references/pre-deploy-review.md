@@ -204,6 +204,28 @@ Get-ChildItem -Path "src" -Recurse -Include "*.ts","*.tsx" -File |
 - `key` prop でコンポーネントを再マウントする（ScrollArea がリセットされ先頭から表示）
 - ScrollArea の Viewport ref を取得して `viewport.scrollTop = viewport.scrollHeight` で制御する
 
+### 5c. ScrollArea + truncate 併用チェック
+
+`ScrollArea` の内部 Viewport は水平方向の膨張を許容するため、配下の `truncate` / `line-clamp` が効かない。
+サイドリスト・一覧ペイン・カードリストなど**幅が制約された領域でテキスト省略を使う場合は `ScrollArea` を使わない**。
+
+> **実際に発生した障害（2026-08-12）:**
+> 詳細画面の左に置いた一覧ペインを `ScrollArea` で組んだところ、相手名・本文が枠からはみ出して見切れた。
+> `div` + `overflow-y-auto overflow-x-hidden` に置き換えて解消。
+
+**チェック方法:**
+
+```bash
+# ScrollArea と truncate / line-clamp が同居しているファイルを検出
+Get-ChildItem -Path "src" -Recurse -Include "*.tsx" -File |
+  Where-Object { (Get-Content $_ -Raw) -match '<ScrollArea' -and (Get-Content $_ -Raw) -match 'truncate|line-clamp' } |
+  ForEach-Object { $_.FullName }
+```
+
+**対処:** `<ScrollArea className="...">` → `<div className="... overflow-y-auto overflow-x-hidden">`。
+flex 内なら `flex-1 min-h-0` を付け、親に `overflow-hidden` を指定する。
+詳細は [一覧ペイン（マスター詳細）パターン](master-detail-pane-pattern.md)。
+
 ### 5a. React フック規則チェック
 
 React のフック規則違反（条件付きフック呼び出し）は本番でのみクラッシュすることがある（React error #310）。
