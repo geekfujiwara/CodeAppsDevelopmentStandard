@@ -334,6 +334,97 @@ min-content 幅の計算では無視されるため、長い URL や識別子を
 ブラウザ幅を 1280 → 768 → 375 と狭めて横スクロールバーが出ないことを見る。
 平均的なレコードだけで確認すると必ず見落とす。
 
+## ダッシュボードは「数字 → 一覧」の導線として作る
+
+ダッシュボードは眺めるものではなく、**気になる数字から該当データへ飛ぶ入口**。
+最初からこの 3 点を満たす形で書く（後から直すと KPI の作り直しになる）。
+
+### 1. KPI カードは小さく、1 行に並べる
+
+`text-3xl` + 既定パディングのカードは 6 枚並べると縦を占有し、下のグラフが折り返し以下に隠れる。
+KPI は**指標名・値・補足の 3 行**に収め、横一列に並ぶサイズにする。
+
+```tsx
+{/* 6 枚が 1 行に収まる。モバイルは 2 列 */}
+<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+  <Card className="h-full gap-0 py-3">
+    <CardHeader className="gap-0 px-3 pb-0">
+      <CardDescription className="flex min-w-0 items-center gap-1 text-xs">
+        <span className="truncate">要確認</span>
+        <ArrowRight className="size-3 shrink-0" />
+      </CardDescription>
+      <CardTitle className="text-xl leading-tight">12</CardTitle>
+    </CardHeader>
+    <CardContent className="px-3 pt-0.5">
+      <p className="truncate text-[11px] leading-tight text-muted-foreground">スコア 2 以下 または NG</p>
+    </CardContent>
+  </Card>
+</div>
+```
+
+| 項目 | 値 |
+| --- | --- |
+| カード余白 | `py-3` + `px-3`（既定の `py-6` は KPI には大きすぎる） |
+| 値 | `text-xl`〜`text-2xl`（`text-3xl` は 3 枚までの画面用） |
+| 補足 | `text-[11px]` の 1 行 + `truncate` |
+| 列数 | `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6` |
+
+### 2. 押せるカードは「実際に遷移」させる
+
+同じページの下部にドリルダウン領域を開くだけの実装は、**画面外で開くため「押しても何も起きない」**と受け取られる。
+押せる KPI は `<Link>` にして一覧画面へ遷移させ、押せることが分かるよう矢印アイコンとホバー色を付ける。
+
+```tsx
+{/* NG: 遠くのパネルが開くだけ。ユーザーからは無反応に見える */}
+<button onClick={() => setDrill({ kind: "attention" })}>{card}</button>
+
+{/* OK: 見るべき一覧へ飛ぶ。絞り込みはクエリで渡す */}
+<Link to="/turns?view=attention" className="min-w-0 rounded-xl focus-visible:ring-2 focus-visible:ring-ring">
+  {card}
+</Link>
+```
+
+- 遷移先が無い KPI（会話数の増減など）はリンクにせず、矢印も出さない。押せる／押せないを見た目で分ける。
+- 同一ページ内のドリルダウンは、**遷移先の画面が存在しない切り口**（相手別・ツール別・日別など）にだけ残す。
+
+### 3. 絞り込みはクエリパラメータ + タブで受け取る
+
+遷移先はクエリを `useSearchParams` で読み、**タブの初期選択**に反映する。
+タブ値と URL を双方向に同期させると、リンク・リロード・戻る操作のすべてで同じ画面が再現できる。
+
+```tsx
+const VIEWS = [
+  { key: "all", label: "すべて", match: () => true },
+  { key: "attention", label: "要確認", match: needsAttention },
+  { key: "unlabeled", label: "未評価", match: (t: Row) => t.verdict === null },
+] as const
+
+const [searchParams, setSearchParams] = useSearchParams()
+const requested = searchParams.get("view")
+const view = VIEWS.some((v) => v.key === requested) ? requested! : "all"
+const counts = Object.fromEntries(VIEWS.map((v) => [v.key, rows.filter(v.match).length]))
+
+<Tabs value={view} onValueChange={(next) => setSearchParams(next === "all" ? {} : { view: next }, { replace: true })}>
+  <TabsList>
+    {VIEWS.map((v) => (
+      <TabsTrigger key={v.key} value={v.key}>
+        {v.label}
+        <span className="ml-1.5 tabular-nums text-muted-foreground">{counts[v.key]}</span>
+      </TabsTrigger>
+    ))}
+  </TabsList>
+</Tabs>
+```
+
+- **不正な値はフォールバックする**。`?view=xxx` で空表示にならないよう、既知のキー以外は `all` に落とす。
+- **タブに件数を出す**。0 件のタブに飛ばされたとき、絞り込みが効いた結果だと分かる。
+- **`replace: true`** を使う。タブ切り替えで履歴が積み上がると戻るボタンが機能しなくなる。
+- **判定ロジックは `src/lib/` に置いて共有する**。「要確認」の閾値をダッシュボードと一覧で二重定義すると必ずずれる。
+- タブが多いときは `<div className="min-w-0 overflow-x-auto">` で包む（`TabsList` は横に伸びる）。
+
+> `scripts/pre-deploy-check.mjs` のチェック 9 が、リンクに書いたクエリを
+> どの画面も `useSearchParams` で読んでいない状態を検出する。
+
 ## コンポーネント選定ガイド
 
 | やりたいこと | 推奨コンポーネント |

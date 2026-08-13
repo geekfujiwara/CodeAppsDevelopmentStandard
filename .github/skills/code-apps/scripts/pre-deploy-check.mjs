@@ -232,6 +232,44 @@ if (fs.existsSync(envPath) && fs.existsSync(configPath)) {
   }
 }
 
+// 9. 遷移リンクのクエリを受け取る画面が無い（KPI カードを押しても何も起きない事故）
+if (fs.existsSync(srcPath)) {
+  const linked = new Map(); // key -> 最初に見つけた場所
+  const read = new Set();
+  const pending = [srcPath];
+
+  while (pending.length > 0) {
+    const currentPath = pending.pop();
+    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(entryPath);
+        continue;
+      }
+      if (!entry.isFile() || !/\.tsx?$/.test(entry.name)) continue;
+
+      const content = fs.readFileSync(entryPath, "utf-8");
+      const rel = path.relative(root, entryPath);
+
+      for (const m of content.matchAll(/\.get\(\s*["']([\w-]+)["']/g)) read.add(m[1]);
+      for (const m of content.matchAll(/(?:to=|navigate\()\s*["'`]\/[^"'`?]*\?([^"'`]+)["'`]/g)) {
+        const line = content.slice(0, m.index).split("\n").length;
+        for (const pair of m[1].split("&")) {
+          const key = pair.split("=")[0].trim();
+          if (key && !linked.has(key)) linked.set(key, `${rel}:${line}`);
+        }
+      }
+    }
+  }
+
+  const orphans = [...linked].filter(([key]) => !read.has(key));
+  if (orphans.length > 0) {
+    console.warn(`⚠ 遷移先で読まれていないクエリパラメータが ${orphans.length} 件あります:`);
+    for (const [key, at] of orphans) console.warn(`  ${at} ?${key}=... を useSearchParams で受け取る画面がありません。`);
+    console.warn("  → 押しても何も起きないボタンになります。遷移先でタブ/フィルターに反映してください。");
+  }
+}
+
 // 結果出力
 if (errors.length > 0) {
   console.error("\n❌ デプロイ前チェック失敗:\n");
