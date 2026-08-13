@@ -1860,3 +1860,38 @@ Playwright で検証する場合は `page.reload()` ではなく `page.goto(play
 **恒久対策済み**: `scripts/pre-deploy-check.mjs` のチェック 9 が、リンクに書いたクエリキーを
 どの画面も `useSearchParams().get()` で読んでいない場合に警告する。
 書き方は [デザインパターン「ダッシュボードは『数字 → 一覧』の導線として作る」](design-pattern.md)。
+
+## 39. 既存テーブルに列を追加したのに `Could not find a property named '...'`（検証済 2026-08-13）
+
+### 症状
+
+セットアップスクリプトで列を追加し、`EntityDefinitions(...)/Attributes` にも列が見えているのに、
+アプリからの読み取りが次のエラーで落ちる。
+
+```json
+{"error":{"code":"0x80060888","message":"Could not find a property named 'geek_conversation' on type 'Microsoft.Dynamics.CRM.geek_evalturn'."}}
+```
+
+### 原因
+
+列の作成（Metadata API）と、Web API が公開する `$metadata` の更新は別。**発行していないと
+`$metadata` が古いまま**なので、実体はあるのに `$select` / `$filter` から見えない。
+待っても直らない。テーブルを新規作成した直後は自動で発行されるため、
+「最初は動いたのに、あとで足した列だけ見えない」という形で出る。
+
+### 対処
+
+列を追加するスクリプトの**最後に必ず発行を入れる**。テーブル新規作成のときだけでなく、
+既存テーブルへの列追加でも必要。
+
+```powershell
+# 発行しないと Web API の $metadata が古いままで、追加した列を $select しただけで落ちる
+Invoke-Dataverse POST "PublishAllXml" -Body @{} | Out-Null
+```
+
+```python
+api_post("PublishAllXml", {})
+```
+
+発行後は `?$select=<新しい列>&$top=1` を 1 回叩いて、200 が返ることを確認してからアプリを触る。
+

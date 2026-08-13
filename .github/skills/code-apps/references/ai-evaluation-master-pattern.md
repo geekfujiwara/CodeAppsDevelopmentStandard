@@ -170,6 +170,10 @@ $mirror = @{
 | `turncount` | WholeNumber | 束ねた往復数（通常行は空） |
 | `conversation` | Memo 100000 | 往復の構造化 JSON（画面表示用） |
 
+列を足したら**発行する**。既存テーブルへの追加では自動で発行されないため、
+`PublishAllXml` を呼ばないと `Could not find a property named 'geek_conversation'` で読み取りが落ちる
+（→ [トラブルシューティング #39](troubleshooting.md)）。
+
 ### 元の行は消さずに「隠す」
 
 削除すると監査もやり直しもできない。統合先を指させ、既定のクエリから外すだけにする。
