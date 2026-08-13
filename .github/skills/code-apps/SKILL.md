@@ -522,7 +522,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [構築リファレンス](references/build-reference.md) | ビルド・デプロイの詳細手順・vite.config.ts 必須設定・TypeScript エラー対処 |
 | [npm CLI リファレンス](references/cli-reference.md) | `npx power-apps` 全コマンド（0.13.0 検証済み）・`push -s` の GUID 要件・`refresh-data-source` / `add-dataverse-api` / `auth-switch` |
 | [ソリューション ALM](references/solution-alm.md) | 接続参照バインド・`almMode` と初回 push・コンポーネント種別・共有時の権限モデル |
-| [データソースパターン](references/data-source-patterns.md) | 生成サービス・dataSourcesInfo・TanStack React Query（旧/native パターン含む） |
+| [データソースパターン](references/data-source-patterns.md) | 生成サービス・dataSourcesInfo・TanStack React Query（旧/native パターン含む）・外部システムの資産を Dataverse にミラーして読む |
 | [モックデータ開発パターン](references/mock-data-pattern.md) | 開発限定の `createMockDataExecutor` 導入・本番バンドル混入防止・SDK 1.2.7 の取得専用制約 |
 | [Lookup 名前解決](references/lookup-resolution.md) | クライアントサイド名前解決・OData FormattedValue パターン・所有者（Owner）列の表示 |
 | [日本語サニタイズ](references/japanese-sanitize.md) | 旧ネイティブ add-data-source 方式の日本語 DisplayName 回避 |
