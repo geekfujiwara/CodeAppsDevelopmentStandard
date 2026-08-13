@@ -152,6 +152,17 @@ $job = @(Get-All "geek_evaljobs?`$filter=geek_status eq 1&`$orderby=geek_request
 - **Free / Consumption 系プランには置かない。** Always On が無いプランはアイドルでプロセスが
   アンロードされ、走行中のジョブごと消える
 
+**実測で一番安く済んだのは Power Automate のクラウドフロー**（検証済 2026-08-13）。
+Dataverse の「行が追加された場合」トリガーでキュー行を拾い、判定は Azure OpenAI を
+カスタムコネクター経由で呼ぶ。常駐ホストもストレージアカウントも要らない。
+
+> テナントによっては**ストレージアカウントの公開アクセスが一律で禁止**されていることがある。
+> その場合 Azure Functions は VNet と Private Endpoint が必須になり、
+> App Service を 1 段上げるより高くつく。安いつもりで選ぶと逆になる。
+
+構築手順と落とし穴は `power-automate` スキルの
+`references/trigger-action-patterns.md` と `references/troubleshooting.md` を参照。
+
 ### 5.2 実行中のまま孤児になったジョブを回収する
 
 プロセスが落ちると、そのジョブは誰も触らないまま `実行中` で残り続ける。

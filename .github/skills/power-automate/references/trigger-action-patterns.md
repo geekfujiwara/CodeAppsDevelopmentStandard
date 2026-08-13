@@ -818,3 +818,49 @@ Code Apps 側の生成結果:
   → Response/PowerApp（処理結果を body で返却）
   → Code Apps 側で result.data.airesult 等で参照
 ```
+
+### パターン: Azure OpenAI をカスタムコネクターで呼ぶ（検証済 2026-08-13）
+
+Azure OpenAI 側で `disableLocalAuth: true` になっていると **API キーが使えない**。
+その場合はカスタムコネクターを Entra ID の OAuth 2.0 で作る。フロー定義にも接続にも
+キーが残らないので、鍵の持ち回りが要らない。
+
+#### 手順
+
+1. Entra アプリ登録を作り、`Microsoft Cognitive Services` の `user_impersonation`（委任）を付けて管理者同意
+   - リソース アプリ ID とスコープ ID は決め打ちにせず引く:
+     `az ad sp list --filter "servicePrincipalNames/any(n:n eq 'https://cognitiveservices.azure.com')" --query "[].{appId:appId,scopes:oauth2PermissionScopes}"`
+2. `pac connector init --connection-template OAuthAAD` で `apiProperties.json` の雛形を作り、
+   `clientId` / `clientSecret` / `scopes` / `AzureActiveDirectoryResourceId` / `resourceUri` を埋める
+   - `resourceUri` と `AzureActiveDirectoryResourceId` はどちらも `https://cognitiveservices.azure.com`
+3. OpenAPI 2.0 定義を書く（`host` はカスタムサブドメイン、`basePath` は `/openai`）
+4. `pac connector create --api-definition-file ... --api-properties-file ... --solution-unique-name <sol>`
+5. **リダイレクト URI を追加**（下の落とし穴を参照）
+6. Power Automate の接続ページで接続を 1 つ作る（OAuth 同意はブラウザ必須。API 化できない）
+7. 接続所有者に `Cognitive Services OpenAI User` を付与
+
+#### 構造化出力を使う
+
+`response_format` を自由形式オブジェクト（`{"type": "object"}`）として定義しておくと、
+フロー側から strict な `json_schema` をそのまま渡せる。型を作り込むより壊れにくい。
+
+```json
+"body/response_format": {
+  "type": "json_schema",
+  "json_schema": { "name": "evaluation", "strict": true, "schema": { "...": "..." } }
+}
+```
+
+応答は `body('Judge')?['choices'][0]?['message']?['content']` に JSON 文字列で入るので、
+`@json(...)` で 1 度パースしてから使う。
+
+#### 落とし穴
+
+- **リダイレクト URI はコネクターごとに変わる。** アプリ登録に
+  `https://global.consent.azure-apim.net/redirect` だけを入れておくと
+  `AADSTS50011` になる。実際に要求されるのは
+  `https://global.consent.azure-apim.net/redirect/{connectorinternalid の shared_ 以降}`。
+  コネクターを作ってから `connectors` テーブルの `connectorinternalid` を見て追加する
+- **`pac connector create` の論理名は `new_` 始まりになる。** `--solution-unique-name` を
+  指定してもソリューションの発行元プレフィックスは使われない。動作に支障はないが、
+  ALM 上の見た目を揃えたいなら UI で作り直すしかない
