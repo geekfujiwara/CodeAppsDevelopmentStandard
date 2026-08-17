@@ -84,6 +84,12 @@ SDK_PATTERNS = [
 # サービス層と初期化 provider だけに限定する（UI 層への漏出を検出する）
 SDK_SURFACE_DIRS = ("src/lib", "src/services", "src/providers")
 
+TEMPLATE_PACKAGE = Path(__file__).resolve().parent.parent / "templates" / "generic-base" / "package.json"
+TEMPLATE_PACKAGE_JSON = json.loads(TEMPLATE_PACKAGE.read_text(encoding="utf-8"))
+POWER_APPS_SDK_VERSION = TEMPLATE_PACKAGE_JSON["dependencies"]["@microsoft/power-apps"]
+POWER_APPS_CLI_VERSION = TEMPLATE_PACKAGE_JSON["devDependencies"]["@microsoft/power-apps-cli"]
+TEMPLATE_SNAPSHOT_PACKAGE = Path(__file__).resolve().parent.parent / "references" / "template-snapshot" / "package.json"
+
 # CRUD ラッパーは templates/dataverse-client.ts を正とし、各サンプルはそのコピーにする
 CANONICAL_CLIENT = Path(__file__).resolve().parent.parent / "templates" / "dataverse-client.ts"
 CLIENT_REL = "src/lib/dataverse-client.ts"
@@ -104,6 +110,18 @@ def check(sample: Path) -> list[str]:
             errors.append(
                 "package.json の scripts.deploy は "
                 "'npm run build && npm run predeploy && npx power-apps push' に統一してください"
+            )
+        sdk_version = pkg.get("dependencies", {}).get("@microsoft/power-apps")
+        if sdk_version != POWER_APPS_SDK_VERSION:
+            errors.append(
+                "package.json の dependencies に "
+                f"'@microsoft/power-apps': '{POWER_APPS_SDK_VERSION}' を指定してください"
+            )
+        cli_version = pkg.get("devDependencies", {}).get("@microsoft/power-apps-cli")
+        if cli_version != POWER_APPS_CLI_VERSION:
+            errors.append(
+                "package.json の devDependencies に "
+                f"'@microsoft/power-apps-cli': '{POWER_APPS_CLI_VERSION}' を指定してください"
             )
         for name, body in pkg.get("scripts", {}).items():
             for m in re.finditer(r"\bnode\s+([\w./-]+\.(?:mjs|cjs|js))", body):
@@ -165,6 +183,18 @@ def check_dataverse_client(sample: Path) -> list[str]:
     ]
 
 
+def check_template_snapshot() -> list[str]:
+    if not TEMPLATE_SNAPSHOT_PACKAGE.is_file():
+        return [f"テンプレートキャッシュがありません: {TEMPLATE_SNAPSHOT_PACKAGE}"]
+    pkg = json.loads(TEMPLATE_SNAPSHOT_PACKAGE.read_text(encoding="utf-8"))
+    errors: list[str] = []
+    if pkg.get("dependencies", {}).get("@microsoft/power-apps") != POWER_APPS_SDK_VERSION:
+        errors.append(f"template-snapshot の SDK を {POWER_APPS_SDK_VERSION} に同期してください")
+    if pkg.get("devDependencies", {}).get("@microsoft/power-apps-cli") != POWER_APPS_CLI_VERSION:
+        errors.append(f"template-snapshot の CLI を {POWER_APPS_CLI_VERSION} に同期してください")
+    return errors
+
+
 def scan_sdk_usage(sample: Path) -> list[str]:
     found: list[str] = []
     for path in sample.rglob("*"):
@@ -206,6 +236,12 @@ def main() -> int:
     base = Path(__file__).resolve().parent.parent / "samples"
     targets = [Path(a).resolve() for a in sys.argv[1:]] or sorted(p for p in base.iterdir() if p.is_dir())
 
+    snapshot_errors = check_template_snapshot()
+    if snapshot_errors:
+        print("\n❌ template-snapshot")
+        for error in snapshot_errors:
+            print(f"   • {error}")
+
     failed = 0
     for sample in targets:
         errors = check(sample)
@@ -218,7 +254,7 @@ def main() -> int:
             print(f"✅ {sample.name}")
 
     print(f"\n{len(targets) - failed}/{len(targets)} サンプルが OK")
-    return 1 if failed else 0
+    return 1 if failed or snapshot_errors else 0
 
 
 if __name__ == "__main__":

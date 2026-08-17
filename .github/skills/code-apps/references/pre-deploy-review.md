@@ -328,6 +328,27 @@ Select-String -Path "src/pages/_layout.tsx" -Pattern 'min-w-0'
 </div>
 ```
 
+### 8. 遷移リンクのクエリ受け取りチェック（押しても何も起きないカードの防止）
+
+ダッシュボードの KPI カードから `/turns?view=attention` のようなリンクを張ったのに、遷移先が
+`useSearchParams` でそのキーを読んでいないと、**画面は変わるが絞り込まれない**（＝押しても無反応に見える）。
+`npm run predeploy` のチェック 9 が自動検出する。
+
+**違反パターン:**
+
+```tsx
+// ❌ 同じページの下部にドリル領域を開くだけ → 画面外なので無反応に見える
+<button onClick={() => setDrill({ kind: "attention" })}>{card}</button>
+
+// ❌ 遷移はするが、/turns 側が view を読んでいない → 全件のまま
+<Link to="/turns?view=attention">{card}</Link>
+
+// ✅ 遷移先でクエリをタブの初期選択に反映する
+const view = searchParams.get("view") ?? "all"
+```
+
+詳細は [デザインパターン「ダッシュボードは『数字 → 一覧』の導線として作る」](design-pattern.md)。
+
 ## 実行フロー
 
 ```
@@ -365,6 +386,9 @@ Select-String -Path "src/pages/_layout.tsx" -Pattern 'min-w-0'
   │     → config.ts に template: true が残っていないか → エラー
   │     → config.ts のナビにルーターが無いパスが無いか → エラー
   │     → ルーターにナビが無いパスが無いか → 警告
+  │
+  ├─ ⑧a 遷移リンクのクエリ受け取りチェック（自動: npm run predeploy）
+  │     → to="/x?key=..." の key を useSearchParams で読む画面があるか → 警告
   │
   ├─ ⑨ npm run build
   │     → TypeScript エラーがあれば修正

@@ -206,6 +206,13 @@ cp -n .github/skills/standard/references/gitignore-template .gitignore   # .giti
 npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills/code-apps/templates/generic-base .
 npm install --no-audit --no-fund
 
+# 既存プロジェクトを更新するときは SDK / CLI とも latest を候補にし、build と CLI help を再検証する
+npm install @microsoft/power-apps@latest
+npm install -D @microsoft/power-apps-cli@latest
+npx power-apps --help
+npm run build
+# バージョン方針と検証項目: references/cli-reference.md#バージョン方針
+
 # Step 1: ソリューションと接続参照を用意（init より前に必須）
 # 接続 ID 直バインドはソリューションに入らないため、接続参照（Connection Reference）を先に作る。
 # 既存 CR 流用ファースト → 無ければ Dataverse Web API で新規作成（ポータル操作不要）。
@@ -224,9 +231,9 @@ npx power-apps init --environment-id {ENVIRONMENT_ID} --display-name "AppName"
 # Step 4: .env.example を .env にコピーしてテーマ固有の値を設定
 
 # Step 5: 初回ビルド＆デプロイ — ★必ず -s を付ける（almMode が Solution になるのは初回 push だけ）
-#         push に --environment-id はない（power.config.json の environmentId を見る）
+#         CLI 0.15.3 では --environment-id を指定できる。誤デプロイ防止のため対象環境を明示する
 npm run build
-npx power-apps push --solution-id {SOLUTION_ID}
+npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID}
 
 # Step 6: Dataverse コネクタを 1 回追加（全テーブル共通・接続参照バインド）
 npx power-apps add-data-source --api-id shared_commondataserviceforapps \
@@ -264,7 +271,7 @@ npx power-apps push
 | `python scripts/setup_connection_reference.py` | auth_helper（PAC プロファイル再利用） | なし | ✅ 標準（init の前に実行） |
 | `npx power-apps auth-status` / `auth-switch --account {UPN}` | Power Apps npm CLI | アクティブアカウントを明示 | ✅ テナント切り替え時に必須 |
 | `npx power-apps init --environment-id {ID} --display-name "Name"` | Power Apps npm CLI | 上記で確認 | ✅ 標準 |
-| `npx power-apps push --solution-id {GUID}` | Power Apps npm CLI | 上記で確認 | ✅ 標準（**初回から GUID 必須**。`--environment-id` は **ない**） |
+| `npx power-apps push --environment-id {ID} --solution-id {GUID}` | Power Apps npm CLI | 上記で確認 | ✅ 標準（**初回から GUID 必須**） |
 | `npx power-apps add-data-source --api-id shared_commondataserviceforapps -cr {CR} -s {SOLUTION_ID} --resource-name commondataserviceforapps --org-url {url}` | Power Apps npm CLI + 接続参照 | `npx power-apps login` が別キャッシュ | ✅ 標準（ALM 対応） |
 | `npx power-apps add-data-source ... --connection-id {id}` | Power Apps npm CLI + 接続 | 同上 | △ ソリューションに入らない（PoC のみ） |
 | `pac code *` | PAC CLI プロファイル | npm CLI と別キャッシュ | △ npm CLI で解決できない場合のみの移行時代替 |
@@ -520,9 +527,9 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [一覧ペイン（マスター詳細）パターン](references/master-detail-pane-pattern.md) | 詳細画面の左にレコード一覧を常駐させて遷移しないで切り替え（Dataverse 側検索・デバウンス・見切れ防止の落とし穴表） |
 | [AI 評価ルールのマスタ化パターン](references/ai-evaluation-master-pattern.md) | LLM の判定基準をテーブルに出してアプリから編集・ジョブ行キューで過去データを再評価・根拠ハイライトと改善提案（OData キーの URL エンコード落とし穴） |
 | [構築リファレンス](references/build-reference.md) | ビルド・デプロイの詳細手順・vite.config.ts 必須設定・TypeScript エラー対処 |
-| [npm CLI リファレンス](references/cli-reference.md) | `npx power-apps` 全コマンド（0.13.0 検証済み）・`push -s` の GUID 要件・`refresh-data-source` / `add-dataverse-api` / `auth-switch` |
+| [npm CLI リファレンス](references/cli-reference.md) | SDK 1.2.13 / CLI 0.15.3 検証済み・最新版への更新方針・`push -s` の GUID 要件・`create-connection` / `refresh-data-source` / `auth-switch` |
 | [ソリューション ALM](references/solution-alm.md) | 接続参照バインド・`almMode` と初回 push・コンポーネント種別・共有時の権限モデル |
-| [データソースパターン](references/data-source-patterns.md) | 生成サービス・dataSourcesInfo・TanStack React Query（旧/native パターン含む） |
+| [データソースパターン](references/data-source-patterns.md) | 生成サービス・dataSourcesInfo・TanStack React Query（旧/native パターン含む）・外部システムの資産を Dataverse にミラーして読む |
 | [モックデータ開発パターン](references/mock-data-pattern.md) | 開発限定の `createMockDataExecutor` 導入・本番バンドル混入防止・SDK 1.2.7 の取得専用制約 |
 | [Lookup 名前解決](references/lookup-resolution.md) | クライアントサイド名前解決・OData FormattedValue パターン・所有者（Owner）列の表示 |
 | [日本語サニタイズ](references/japanese-sanitize.md) | 旧ネイティブ add-data-source 方式の日本語 DisplayName 回避 |

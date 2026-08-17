@@ -1690,7 +1690,7 @@ const payload = serializeMultiSelectPicklistFields(formState, MULTISELECT_FIELDS
 
 ---
 
-## 34. scaffold 直後に詰まる 3 点（検証済 2026-08-10）
+## 34. scaffold 直後に詰まる 3 点（検証済 2026-08-10、更新 2026-08-17）
 
 `generic-base` を degit して `npm install` した直後、手順どおりに進めても止まる箇所が 3 つある。
 いずれもコードの問題ではなく、テンプレート／ドキュメント側の不整合。
@@ -1701,31 +1701,35 @@ const payload = serializeMultiSelectPicklistFields(formState, MULTISELECT_FIELDS
 npm error could not determine executable to run
 ```
 
-`@microsoft/power-apps-cli` は `@microsoft/power-apps` の**推移的依存**であり、
-npm は**直接依存の bin しか `node_modules/.bin` にリンクしない**。
-そのため SDK だけを依存に持つ状態では `npx power-apps` が解決できない。
+`@microsoft/power-apps` **1.2.12 以降で `@microsoft/power-apps-cli` が依存から削除された**。
+旧テンプレートの SDK バージョン範囲 `^1.0.17` でも 1.2.12 以降が解決されるため、
+CLI と `power-apps` bin がインストールされず `npx power-apps` を実行できない。
 
 ```bash
-npm install -D @microsoft/power-apps-cli
+npm install @microsoft/power-apps@latest
+npm install -D @microsoft/power-apps-cli@latest
 ```
 
-`templates/generic-base/package.json` には devDependency として追加済み。
+2026-08-17 時点の検証済み最新版は SDK 1.2.13 / CLI 0.15.3。
+`templates/generic-base/package.json` と全サンプルへ反映済みで、`scripts/validate_sample.py` は
+テンプレートを基準に SDK / CLI の両方を検証する。
 古いテンプレートから作ったプロジェクトでは手動で足す。
 
-### 34.2 `npx power-apps push --environment-id` が `unknown option`
+### 34.2 CLI 0.13.0 で `npx power-apps push --environment-id` が `unknown option`
 
 ```
 error: unknown option '--environment-id'
 ```
 
-`push` に `--environment-id` は**ない**。環境は `power.config.json` の `environmentId` から決まる。
+CLI 0.13.0 はhelpに表示した `--environment-id` を実行時に拒否する。
+CLI 0.15.3 では `push` / `add-data-source` / `list-codeapps` のhelpに同オプションがあり、最新版では環境IDを明示する。
 
 ```bash
-npx power-apps push --solution-id {SOLUTION_ID_GUID}   # 初回
+npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID_GUID}   # 初回
 npx power-apps push                                     # 2 回目以降
 ```
 
-同じ理由で `add-data-source` / `list-codeapps` も `--environment-id` を拒否する。
+0.13.0を使い続ける場合は `--environment-id` を外し、`power.config.json` の環境を使う。
 → [CLI リファレンス](cli-reference.md#グローバルオプション)
 
 ### 34.3 `npm run predeploy` が `.env の ENV_ID が未設定` で落ちる
@@ -1835,3 +1839,91 @@ Playwright で検証する場合は `page.reload()` ではなく `page.goto(play
 自動操作は `page.frameLocator(...)` 経由で行う。
 行クリックが "element is not stable" でタイムアウトするときは
 `.click({ force: true })`、同名ボタンが複数あるときは `{ exact: true }` を使う。
+
+## 38. ダッシュボードの KPI カードを押しても「何も起きない」（検証済 2026-08-13）
+
+### 症状
+
+「要確認 12 件」のような KPI カードをクリックしても画面が変わらないように見える。
+また KPI が 6 枚あると縦を占有し、下のグラフが初期表示で見えない。
+
+### 原因
+
+- クリックで同じページの**最下部**にドリルダウン領域を開く実装だった。開いてはいるが
+  スクロールしないと見えないため、ユーザーからは無反応と区別できない。
+- KPI カードが既定パディング（`py-6`）＋ `text-3xl` のまま `lg:grid-cols-3` で 2 段になっていた。
+
+### 対処
+
+1. 押せる KPI は `<Link to="/turns?view=attention">` にして**一覧画面へ遷移**させる。
+   押せることが分かるよう矢印アイコンとホバー色を付け、遷移先の無い KPI はリンクにしない。
+2. 遷移先は `useSearchParams` でクエリを読み、**タブの初期選択**に反映する（件数バッジ付き、`replace: true`）。
+3. KPI は `py-3 px-3` + `text-xl` に詰め、`grid-cols-2 sm:grid-cols-3 lg:grid-cols-6` で 1 行に並べる。
+4. 「要確認」の判定は `src/lib/` に置いてダッシュボードと一覧で共有する（閾値の二重定義を避ける）。
+
+**恒久対策済み**: `scripts/pre-deploy-check.mjs` のチェック 9 が、リンクに書いたクエリキーを
+どの画面も `useSearchParams().get()` で読んでいない場合に警告する。
+書き方は [デザインパターン「ダッシュボードは『数字 → 一覧』の導線として作る」](design-pattern.md)。
+
+## 39. 既存テーブルに列を追加したのに `Could not find a property named '...'`（検証済 2026-08-13）
+
+### 症状
+
+セットアップスクリプトで列を追加し、`EntityDefinitions(...)/Attributes` にも列が見えているのに、
+アプリからの読み取りが次のエラーで落ちる。
+
+```json
+{"error":{"code":"0x80060888","message":"Could not find a property named 'geek_conversation' on type 'Microsoft.Dynamics.CRM.geek_evalturn'."}}
+```
+
+### 原因
+
+列の作成（Metadata API）と、Web API が公開する `$metadata` の更新は別。**発行していないと
+`$metadata` が古いまま**なので、実体はあるのに `$select` / `$filter` から見えない。
+待っても直らない。テーブルを新規作成した直後は自動で発行されるため、
+「最初は動いたのに、あとで足した列だけ見えない」という形で出る。
+
+### 対処
+
+列を追加するスクリプトの**最後に必ず発行を入れる**。テーブル新規作成のときだけでなく、
+既存テーブルへの列追加でも必要。
+
+```powershell
+# 発行しないと Web API の $metadata が古いままで、追加した列を $select しただけで落ちる
+Invoke-Dataverse POST "PublishAllXml" -Body @{} | Out-Null
+```
+
+```python
+api_post("PublishAllXml", {})
+```
+
+発行後は `?$select=<新しい列>&$top=1` を 1 回叩いて、200 が返ることを確認してからアプリを触る。
+
+## 40. アプリから積んだ評価ジョブが待機中／実行中のまま進まない（検証済 2026-08-13）
+
+### 症状
+
+コマンドセンターで「再実行」を押すとジョブ行は増えるのに、実行履歴の状態が変わらない。
+あるいは一度 `実行中` になったまま、いつまで経っても `完了` にならない。
+
+### 原因
+
+- **消化する常駐側が居ない。** アプリはキュー行を作るだけなので、拾って回す常駐プロセスを
+  作っていなければ待機中のまま溜まる。開発者PCのタスクスケジューラは、ユーザーが押した
+  ボタンの受け皿にはならない
+- **常駐側を Always On の無いプランに置いている。** App Service の Free/Shared は
+  `alwaysOn` を設定できず、アイドルでワーカーごとアンロードされる。走行中のジョブは
+  `実行中` のまま取り残される
+- **待機中しか拾わない実装。** 取り残された行を誰も戻さないので、永久に復旧しない
+
+### 対処
+
+1. 常駐ワーカー（`BackgroundService` など）を用意し、**Always On が有効なプラン**に置く
+2. 拾う前に孤児を回収する。進捗更新で `modifiedon` が動くのを利用し、
+   `status eq 実行中 and modifiedon lt (now - 15分)` を待機中へ戻す
+3. 進捗は数件ごとに書き戻す。書き戻し間隔が長いと、正常なジョブまで孤児と誤判定される
+
+### 確認
+
+`geek_evaljobs` を `requestedon desc` で数件引き、`status` / `targetcount` / `donecount` が
+進むことを見る。`donecount` が止まったまま `modifiedon` だけ古くなっていれば、ワーカーが死んでいる。
