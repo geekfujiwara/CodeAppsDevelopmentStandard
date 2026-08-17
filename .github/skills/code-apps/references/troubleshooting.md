@@ -1690,7 +1690,7 @@ const payload = serializeMultiSelectPicklistFields(formState, MULTISELECT_FIELDS
 
 ---
 
-## 34. scaffold 直後に詰まる 3 点（検証済 2026-08-10）
+## 34. scaffold 直後に詰まる 3 点（検証済 2026-08-10、更新 2026-08-17）
 
 `generic-base` を degit して `npm install` した直後、手順どおりに進めても止まる箇所が 3 つある。
 いずれもコードの問題ではなく、テンプレート／ドキュメント側の不整合。
@@ -1701,15 +1701,16 @@ const payload = serializeMultiSelectPicklistFields(formState, MULTISELECT_FIELDS
 npm error could not determine executable to run
 ```
 
-`@microsoft/power-apps-cli` は `@microsoft/power-apps` の**推移的依存**であり、
-npm は**直接依存の bin しか `node_modules/.bin` にリンクしない**。
-そのため SDK だけを依存に持つ状態では `npx power-apps` が解決できない。
+`@microsoft/power-apps` **1.2.12 以降で `@microsoft/power-apps-cli` が依存から削除された**。
+SDK のバージョン範囲を `^1.0.17` としていると 1.2.12 以降が解決されるため、
+CLI と `power-apps` bin がインストールされず `npx power-apps` を実行できない。
 
 ```bash
 npm install -D @microsoft/power-apps-cli
 ```
 
-`templates/generic-base/package.json` には devDependency として追加済み。
+`templates/generic-base/package.json` と全サンプルには devDependency として追加済み。
+`scripts/validate_sample.py` でも CLI の直接依存を検証する。
 古いテンプレートから作ったプロジェクトでは手動で足す。
 
 ### 34.2 `npx power-apps push --environment-id` が `unknown option`

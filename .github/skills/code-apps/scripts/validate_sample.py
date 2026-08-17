@@ -83,6 +83,7 @@ SDK_PATTERNS = [
 # SDK の破壊的変更の影響範囲を押さえるため、SDK に直接触れてよいのは
 # サービス層と初期化 provider だけに限定する（UI 層への漏出を検出する）
 SDK_SURFACE_DIRS = ("src/lib", "src/services", "src/providers")
+POWER_APPS_CLI_VERSION = "^0.13.0"
 
 # CRUD ラッパーは templates/dataverse-client.ts を正とし、各サンプルはそのコピーにする
 CANONICAL_CLIENT = Path(__file__).resolve().parent.parent / "templates" / "dataverse-client.ts"
@@ -104,6 +105,12 @@ def check(sample: Path) -> list[str]:
             errors.append(
                 "package.json の scripts.deploy は "
                 "'npm run build && npm run predeploy && npx power-apps push' に統一してください"
+            )
+        cli_version = pkg.get("devDependencies", {}).get("@microsoft/power-apps-cli")
+        if cli_version != POWER_APPS_CLI_VERSION:
+            errors.append(
+                "package.json の devDependencies に "
+                f"'@microsoft/power-apps-cli': '{POWER_APPS_CLI_VERSION}' を指定してください"
             )
         for name, body in pkg.get("scripts", {}).items():
             for m in re.finditer(r"\bnode\s+([\w./-]+\.(?:mjs|cjs|js))", body):

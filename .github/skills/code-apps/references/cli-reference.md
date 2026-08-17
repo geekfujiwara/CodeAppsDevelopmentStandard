@@ -29,8 +29,7 @@ Code Apps 用 npm CLI（`npx power-apps`）の全コマンド一覧。
 
 ## 導入と実行方法
 
-`@microsoft/power-apps`（SDK）の依存として `node_modules` には入るが、
-**npm は直接依存の bin しか `node_modules/.bin` にリンクしない**ため、
+`@microsoft/power-apps` **1.2.12 以降は `@microsoft/power-apps-cli` を依存に含まない**ため、
 `@microsoft/power-apps` だけを依存に持つ状態で `npx power-apps` を実行すると
 `npm error could not determine executable to run` になる（検証済 2026-08-10）。
 **devDependencies に明示的に入れる**こと。
