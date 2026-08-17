@@ -1,0 +1,44 @@
+name: Power Platform SDK・公式Skills更新チェック
+
+on:
+  schedule:
+    # Every Monday at 06:00 JST (Sunday 21:00 UTC)
+    - cron: '0 21 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Issueを作成せず、検知結果だけをJob Summaryに表示する'
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: weekly-sdk-updates
+  cancel-in-progress: false
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: リポジトリを取得
+        uses: actions/checkout@v4
+
+      - name: Node.jsを設定
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 更新検知ロジックをテスト
+        run: node --test .github/scripts/check-sdk-updates.test.mjs
+
+      - name: SDK・公式Skillsの更新を確認
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_REPOSITORY: ${{ github.repository }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        run: node .github/scripts/check-sdk-updates.mjs
