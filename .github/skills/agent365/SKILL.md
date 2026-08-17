@@ -48,6 +48,7 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 | [usage-accounting.md](references/usage-accounting.md) | **誰が・何に・いくら使ったか**の計測（B15）。Azure ポータルでは出せない内訳。**Step 8 で読む** |
 | [incoming-files.md](references/incoming-files.md) | **送られたファイルを受け取る**（B16）。取得経路と `supportsFiles`。**Step 8 で読む** |
 | [assistant-agent-pattern.md](references/assistant-agent-pattern.md) | 秘書・同僚としての標準品質（承認後の実行 / 権限準拠検索 / 人格 / プレゼンス） |
+| [sample-implementation-cases.md](references/sample-implementation-cases.md) | **評価・運用のサンプル実装事例**（KPI ドリルダウン / 複数ターン評価 / 非同期ジョブ / Power Automate / Dataverse ミラー） |
 | [architecture.md](references/architecture.md) | 2 種類のブループリントの違い / manifest スキーマ / 公開経路 / 表示名・アイコンの変更 |
 | [troubleshooting.md](references/troubleshooting.md) | 異常系（401 / AADSTS82001 / AADSTS65001 / カタログ公開の 409・403 など） |
 | [.env.example](references/.env.example) | 環境変数の一覧と取得元 |
