@@ -18,6 +18,7 @@ Code Apps 用 npm CLI（`npx power-apps`）の全コマンド一覧。
 - [全コマンド一覧](#全コマンド一覧)
 - [グローバルオプション](#グローバルオプション)
 - [アプリライフサイクル](#アプリライフサイクル)
+- [アプリ共有](#アプリ共有)
 - [データソース](#データソース)
 - [Dataverse API（アクション／関数）](#dataverse-apiアクション関数)
 - [探索系（list-\*）](#探索系list-)
@@ -58,8 +59,10 @@ npm install -D @microsoft/power-apps-cli@latest
 npm ls @microsoft/power-apps @microsoft/power-apps-cli
 npx power-apps --help
 npx power-apps push --help
+npx power-apps share --help
 npm run build
 python .github/skills/code-apps/scripts/validate_sample.py
+python .github/skills/code-apps/scripts/validate_cli_reference.py
 ```
 
 `validate_sample.py` は `templates/generic-base/package.json` を基準に全サンプルの SDK / CLI 範囲を検証する。
@@ -71,6 +74,7 @@ python .github/skills/code-apps/scripts/validate_sample.py
 |---|---|
 | `init` | コードアプリの初期化（`power.config.json` 生成） |
 | `push` | 環境へ発行 |
+| `share` | 現在のコードアプリをユーザー／サービスプリンシパルへ共有 |
 | `run` | ローカルサーバー起動（接続をローカル読み込み） |
 | `add-data-source` | データソース追加 |
 | `refresh-data-source` | データソースのスキーマ／生成コード再取得 |
@@ -156,6 +160,77 @@ npx power-apps run --port 8080 --local-app-url http://localhost:3000
 ```
 
 `-p, --port` / `-l, --local-app-url` を指定できる。
+
+## アプリ共有
+
+### `share`
+
+現在の `power.config.json` が指す Code App を、ユーザーまたはサービスプリンシパルへ共有する。
+**通常利用者は既定の `play`** とし、共同開発者やデプロイ主体など編集が必要な principal に限って
+`--access edit` を明示する。閲覧・実行だけの主体へ `edit` を付与しない。
+
+| オプション | 説明 |
+|---|---|
+| `-p, --principal <principal>` | メールアドレスまたは Entra object ID。カンマ区切りで複数指定でき、object ID はユーザー／サービスプリンシパルのどちらも指定可能 |
+| `--access <access>` | `play`（既定）または `edit`。最小権限のため通常は `play` |
+| `-e, --environment-id <environment-id>` | 共有先の環境 ID。CI/CD と複数環境運用では必ず明示 |
+| `--cloud <cloud>` | `public`（既定）/ `usgov` / `usgovhigh` / `usgovdod` / `china` |
+| `--non-interactive` | 確認プロンプトを出さない。CI/CD では必須 |
+| `--json` | 結果を機械可読な JSON で出力。CI/CD では必須 |
+
+```bash
+# ユーザーのメールアドレス（--access 省略時も play）
+npx power-apps share --principal user@contoso.com
+
+# ユーザーの Entra object ID
+npx power-apps share --principal {USER_OBJECT_ID} --access play
+
+# サービスプリンシパルの Entra object ID（application/client ID ではない）
+npx power-apps share --principal {SERVICE_PRINCIPAL_OBJECT_ID} --access play
+
+# 複数主体を 1 回で共有
+npx power-apps share \
+	--principal "user@contoso.com,{USER_OBJECT_ID},{SERVICE_PRINCIPAL_OBJECT_ID}" \
+	--access play
+
+# 共同開発者だけ edit を明示
+npx power-apps share --principal {DEVELOPER_USER_OBJECT_ID} --access edit
+```
+
+#### push 後の CI/CD 標準
+
+共有はデプロイ成功後にだけ実行する。環境ごとの principal 一覧は CI/CD の環境変数または変数グループで管理し、
+リポジトリへ実値をコミットしない。商用クラウドでは `--cloud public` を省略できるが、ソブリンクラウドでは
+対象値を明示する。
+
+```bash
+# Bash を使う CI runner 向け（PowerShell runner では行継続と環境変数構文を読み替える）
+set -euo pipefail
+
+npx power-apps push \
+	--environment-id "${ENVIRONMENT_ID}" \
+	--solution-id "${SOLUTION_ID}"
+
+npx power-apps share \
+	--environment-id "${ENVIRONMENT_ID}" \
+	--cloud "${POWER_APPS_CLOUD:-public}" \
+	--principal "${CODE_APP_PLAY_PRINCIPALS}" \
+	--access play \
+	--non-interactive \
+	--json > share-result.json
+```
+
+`CODE_APP_PLAY_PRINCIPALS` はメールアドレス／object ID のカンマ区切りとする。`edit` 対象が必要な場合は
+`CODE_APP_EDIT_PRINCIPALS` を別変数にし、空でない場合だけ 2 回目の `share --access edit` を実行する。
+`--environment-id` は push と share で同じ値を渡し、別環境への共有を防ぐ。
+
+CLI help と本節の整合は次で検証する。スクリプトはテンプレートの
+`@microsoft/power-apps-cli` バージョンを読み、実際の `share --help` に主要オプションがあることと、
+本節に全オプション・ユーザー／サービスプリンシパル例・自動化例があることを確認する。
+
+```bash
+python .github/skills/code-apps/scripts/validate_cli_reference.py
+```
 
 ## データソース
 
@@ -312,7 +387,7 @@ npx power-apps telemetry --disable
 | `pac code list-tables` | `power-apps list-tables` | |
 | `pac code list-sql-stored-procedures` | `power-apps list-sqlStoredProcedures` | ハイフンとキャメルケースの違いに注意 |
 | `pac code list-connection-references` | `power-apps list-connection-references` | |
-| （なし） | `refresh-data-source` / `find-dataverse-api` / `add-dataverse-api` / `add-flow` / `remove-flow` / `list-flows` / `list-connections` / `list-connectors` / `list-environment-variables` / `create-connection` / `auth-*` | npm CLI のみ |
+| （なし） | `share` / `refresh-data-source` / `find-dataverse-api` / `add-dataverse-api` / `add-flow` / `remove-flow` / `list-flows` / `list-connections` / `list-connectors` / `list-environment-variables` / `create-connection` / `auth-*` | npm CLI のみ |
 
 > 本スキルの標準は npm CLI。実行前に `auth-status` / `auth-switch` で対象テナントの
 > アカウントを明示する。`pac code` は npm CLI で解消できない場合のみ移行時の代替手段として使う。
