@@ -85,6 +85,7 @@ SDK_PATTERNS = [
 SDK_SURFACE_DIRS = ("src/lib", "src/services", "src/providers")
 
 TEMPLATE_PACKAGE = Path(__file__).resolve().parent.parent / "templates" / "generic-base" / "package.json"
+TEMPLATE_ROOT = TEMPLATE_PACKAGE.parent
 TEMPLATE_PACKAGE_JSON = json.loads(TEMPLATE_PACKAGE.read_text(encoding="utf-8"))
 POWER_APPS_SDK_VERSION = TEMPLATE_PACKAGE_JSON["dependencies"]["@microsoft/power-apps"]
 POWER_APPS_CLI_VERSION = TEMPLATE_PACKAGE_JSON["devDependencies"]["@microsoft/power-apps-cli"]
@@ -195,6 +196,31 @@ def check_template_snapshot() -> list[str]:
     return errors
 
 
+def check_generic_template_telemetry() -> list[str]:
+    telemetry_path = TEMPLATE_ROOT / "src" / "lib" / "telemetry.ts"
+    main_path = TEMPLATE_ROOT / "src" / "main.tsx"
+    if not telemetry_path.is_file():
+        return ["generic-base に src/lib/telemetry.ts がありません"]
+
+    telemetry = telemetry_path.read_text(encoding="utf-8")
+    main = main_path.read_text(encoding="utf-8") if main_path.is_file() else ""
+    required_patterns = {
+        "initializeLogger によるロガー登録": "initializeLogger({",
+        "クエリ文字列の除去": "parsed.search = ''",
+        "フラグメントの除去": "parsed.hash = ''",
+        "OData キーのマスク": "ODATA_KEY_PATTERN",
+        "パス内 GUID のマスク": "RECORD_ID_PATTERN",
+    }
+    errors = [
+        f"generic-base のテレメトリに {label} がありません"
+        for label, pattern in required_patterns.items()
+        if pattern not in telemetry
+    ]
+    if "initializeTelemetry()" not in main:
+        errors.append("generic-base の src/main.tsx で initializeTelemetry() を呼び出していません")
+    return errors
+
+
 def scan_sdk_usage(sample: Path) -> list[str]:
     found: list[str] = []
     for path in sample.rglob("*"):
@@ -236,6 +262,12 @@ def main() -> int:
     base = Path(__file__).resolve().parent.parent / "samples"
     targets = [Path(a).resolve() for a in sys.argv[1:]] or sorted(p for p in base.iterdir() if p.is_dir())
 
+    template_errors = check_generic_template_telemetry()
+    if template_errors:
+        print("\n❌ generic-base telemetry")
+        for error in template_errors:
+            print(f"   • {error}")
+
     snapshot_errors = check_template_snapshot()
     if snapshot_errors:
         print("\n❌ template-snapshot")
@@ -254,7 +286,7 @@ def main() -> int:
             print(f"✅ {sample.name}")
 
     print(f"\n{len(targets) - failed}/{len(targets)} サンプルが OK")
-    return 1 if failed or snapshot_errors else 0
+    return 1 if failed or template_errors or snapshot_errors else 0
 
 
 if __name__ == "__main__":

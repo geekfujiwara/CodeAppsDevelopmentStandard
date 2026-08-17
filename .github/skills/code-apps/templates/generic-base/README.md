@@ -17,6 +17,7 @@ npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills/code-apps/temp
 | ビルド構成 | `vite.config.ts` / `plugins/plugin-power-apps.ts` / `tsconfig*.json` / `eslint.config.js` |
 | スタイル | `styles/index.pcss`（Ocean Blue 既定） / `src/index.css` / `components.json` |
 | 検証 | `scripts/pre-deploy-check.mjs`（`npm run predeploy`） |
+| 可観測性 | `src/lib/telemetry.ts`（`initializeLogger`、PII サニタイズ済み `code-apps:telemetry` イベント） |
 | 共通 UI | `src/components/ui/**`（shadcn プリミティブ） |
 | 汎用コンポーネント | `form-modal` / `list-table` / `loading-skeleton` / `mode-toggle` / `sidebar` / `sidebar-layout` / `stage-path` |
 | レイアウト | `src/pages/_layout.tsx` / `src/pages/not-found.tsx` |
@@ -29,6 +30,13 @@ npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills/code-apps/temp
   — `npx power-apps add-data-source` が生成する `src/generated/services/MicrosoftDataverseService.ts` を
   ラップする形で実装する（[build-reference.md](../../references/build-reference.md) Step 6）
 - 業務の型・選択肢定義（`src/types/`）
+
+## テレメトリの転送
+
+起動性能とネットワーク要求は `window` の `code-apps:telemetry` イベントへ出力されます。
+Application Insights 等へ転送するときは `initializeTelemetry(customSink)` に差し替え、
+送信先を CSP の `connect-src` に追加してください。URL は sink 到達前にクエリ文字列、フラグメント、GUID を除去します。
+詳細は [テレメトリ / 可観測性パターン](../../references/telemetry-pattern.md) を参照してください。
 
 ## 取得後の手順
 

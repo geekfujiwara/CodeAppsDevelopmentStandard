@@ -59,6 +59,13 @@ Code Apps は Google Fonts 禁止（外部通信・CSP の制約）。テンプ�
 `--badge-beginner` / `--badge-intermediate` / `--badge-advanced` / `--badge-administrator` / `--badge-developer` は
 **ステータスの意味（色の記号性）を担う**ため、テンプレートを切り替えても変更しない。
 
+### 可観測性 UI は意味色を固定する
+
+テレメトリを運用ダッシュボードへ表示する場合、正常値は `--primary`、注意値（3 秒超のネットワーク要求等）は
+`--badge-intermediate`、失敗値（`successfulAppLaunch: false` / HTTP 400 以上等）は `--destructive` を使う。
+色だけに依存せず、状態ラベルまたはアイコンを併記する。収集・PII サニタイズは
+[テレメトリ / 可観測性パターン](telemetry-pattern.md) に従う。
+
 ### 適用対象の変数一覧
 
 各テンプレートは以下の変数を上書きする:
