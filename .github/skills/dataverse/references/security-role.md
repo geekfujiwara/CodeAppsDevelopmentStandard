@@ -38,14 +38,13 @@ Dataverse テーブル・Code Apps・Power Automate フロー・Copilot Studio �
 
 | 項目                       | 内容                                                                   |
 | -------------------------- | ---------------------------------------------------------------------- |
-| ベースロール               | Basic User のコピーから開始（確定ルール。変更不可）                     |
+| 権限の範囲                 | 対象機能で使用するテーブル権限だけを明示（Basic User はコピーしない）   |
 | ロール名                   | 日本語表示名（ロール名に日本語 OK）                                    |
 | ロール説明                 | ロールの目的を簡潔に記述                                               |
 | テーブル権限               | テーブルごとのCRUD権限と深度（Basic/Local/Deep/Global）                 |
 | マスタテーブルの AppendTo  | Lookup 先マスタには必ず AppendTo を付与（読み取り専用でも）            |
-| その他の権限               | 特殊権限（prvExportToExcel, prvBulkDelete 等）が必要か                  |
 | モデル駆動型アプリ関連付け | 作成済みの AppModule に関連付けるか                                     |
-| ユーザー割り当て           | Copilot Studio エージェントに必要か、特定チームか                       |
+| ユーザー割り当て           | カスタムロールと Basic User の両方を割り当てる対象ユーザー/チーム       |
 
 ```
 セキュリティロール: 設計提示 → ユーザー承認 → デプロイスクリプト実行
@@ -109,11 +108,11 @@ TableSchemaName: テーブルのスキーマ名（prefix 含む。例: geek_Proj
 | 2      | Deep    | ユーザーのBU + 子BU のレコード                     |
 | 3      | Global  | 組織全体のレコード                                 |
 
-### 権限設定は AddPrivilegesRole アクションで
+### 権限設定は ReplacePrivilegesRole で全置換する
 
 ```python
-# Bound Action: POST roles({role_id})/Microsoft.Dynamics.CRM.AddPrivilegesRole
-api_post(f"roles({role_id})/Microsoft.Dynamics.CRM.AddPrivilegesRole", {
+# Bound Action: POST roles({role_id})/Microsoft.Dynamics.CRM.ReplacePrivilegesRole
+api_post(f"roles({role_id})/Microsoft.Dynamics.CRM.ReplacePrivilegesRole", {
     "Privileges": [
         {
             "PrivilegeId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
@@ -124,46 +123,47 @@ api_post(f"roles({role_id})/Microsoft.Dynamics.CRM.AddPrivilegesRole", {
 })
 ```
 
-> **注意**: `AddPrivilegesRole` は既存の権限に **追加** する。全置換する場合は `ReplacePrivilegesRole` を使う。
+> **注意**: 最初のバッチは必ず `ReplacePrivilegesRole` で全置換する。
+> `AddPrivilegesRole` は100件を超える場合の2バッチ目以降にだけ使用する。単独で使うと、
+> 既存ロールに Basic User 由来の権限が残るため禁止する。
 
-### 確定ルール（必須）: Basic User ロールの権限をコピーして土台にする
+### 確定ルール（必須）: 対象機能のテーブル権限だけを設定する
 
 ```
-**カスタムセキュリティロールは必ず Basic User のコピーから開始すること**
+**カスタムセキュリティロールへ Basic User の権限をコピーしないこと**
 
-ゼロから作成すると、プラットフォーム標準権限（メール送信・ダッシュボード表示・
-検索・ユーザー設定・ビュー切替等の約 480 権限）が欠落し、
-ユーザーがアプリを正常に使えなくなる。
+カスタムロールには、その機能で使用するテーブルの Create / Read / Write / Delete と、
+Lookup・所有権操作に必要な Append / AppendTo / Assign / Share だけを明示する。
 
-✅ Basic User（旧 Common Data Service User）の全権限を取得
-   → カスタムテーブル権限を上乗せ → ReplacePrivilegesRole で一括設定
-❌ 空のロールにカスタムテーブル権限だけ追加
-   → 標準機能（ダッシュボード・検索・ビュー切替等）が動かない
+✅ カスタムロール: 対象機能のテーブル権限だけ
+✅ 利用者: カスタムロール + Basic User を別々に割り当て
+❌ Basic User の約 480 権限をカスタムロールへコピー
+    → 環境ごとの許容深度差により、別テナントへのソリューション import が失敗することがある
 
-このルールは管理者・ユーザー・閲覧者のいずれのロールにも適用する。
+Dataverse のロール権限は加算されるため、標準機能に必要な権限は Basic User 側から得る。
+このルールは管理者・ユーザー・閲覧者のいずれのカスタムロールにも適用する。
 ```
 
 #### 実装パターン
 
 ```python
-# 1. Basic User ロールの権限を取得
-result = api_get(f"RetrieveRolePrivilegesRole(RoleId={basic_user_role_id})")
-base_privileges = result["RolePrivileges"]  # [{PrivilegeId, Depth}, ...]
-
-# 2. ベースをコピーし、カスタムテーブル権限で上書き/追加
-priv_dict = {p["PrivilegeId"]: p for p in base_privileges}
+# 対象機能のテーブル権限だけを組み立てる
+priv_dict = {}
 priv_dict[custom_priv_id] = {"PrivilegeId": custom_priv_id, "Depth": "Global"}
 
-# 3. 最初のバッチは ReplacePrivilegesRole で全置換、
-#    2 バッチ目以降は AddPrivilegesRole で追加
+# 最初のバッチは ReplacePrivilegesRole で全置換、2 バッチ目以降は追加
 api_post(f"roles({role_id})/Microsoft.Dynamics.CRM.ReplacePrivilegesRole",
          {"Privileges": first_batch})
 api_post(f"roles({role_id})/Microsoft.Dynamics.CRM.AddPrivilegesRole",
          {"Privileges": remaining_batch})
 ```
 
-> **Basic User の検索**: `name eq 'Basic User' or name eq 'Common Data Service User'` で両方の名前を検索（環境による揺れ対応）。
-> **RetrieveRolePrivilegesRole**: Function でルートBU上の Basic User ロール権限を取得。環境の Basic User は約 480 権限を持つ。
+> **割り当て手順を配布手順書へ明記する**: 新しい環境で利用者または利用者チームへ、カスタムロールと
+> `Basic User`（旧 `Common Data Service User`）の両方を割り当てる。Basic User の割り当てがないと、
+> ダッシュボード・検索・ユーザー設定・ビュー切替などの標準機能が動作しない場合がある。
+
+> **対象テーブルを絞る**: `table_privileges` には対象機能で使うテーブルを明示する。
+> `"*"` は、ソリューション内の全テーブルがその機能に属する場合だけ使用する。
 
 ### AddPrivilegesRole のバッチ分割（100 件制限）
 
@@ -228,16 +228,11 @@ for verb in TABLE_VERBS:
 | task           | Task                | タスク                   |
 | note           | Annotation          | 注記                     |
 
-### その他の特殊権限（テーブルに紐付かない）
+### テーブルに紐付かない特殊権限
 
-```
-prvExportToExcel     → Excel エクスポート
-prvBulkDelete        → 一括削除
-prvGoOffline         → オフラインモード
-prvPrint             → 印刷
-prvPublishDuplicateRule → 重複検出ルール公開
-prvReadSharePointData   → SharePoint データ読み取り
-```
+`prvExportToExcel` や `prvBulkDelete` などの特殊権限は、このカスタムロールへ追加しない。
+標準機能に必要な権限は Basic User から得る。追加要件がある場合は、対象機能のテーブル権限とは
+分離して別ロールとして設計し、複数テナント間で許容深度が一致することを検証する。
 
 ### ソリューション含有の検証
 

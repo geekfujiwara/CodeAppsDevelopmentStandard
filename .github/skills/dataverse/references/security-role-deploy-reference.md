@@ -88,9 +88,8 @@ ROLE_DEFINITIONS = [
 1. **ルートビジネスユニット取得** — `businessunits` から `parentbusinessunitid eq null` で取得
 2. **ソリューション内テーブル一覧取得** — `solutioncomponents` + `EntityDefinitions` で自動検出（SchemaName 取得必須）
 3. **テーブル権限 ID 取得** — `privileges` テーブルから `prv{Verb}{SchemaName}` パターンで検索
-3.5. **Basic User ロールの全権限取得** — `RetrieveRolePrivilegesRole(RoleId={id})` で約 480 権限を取得（カスタムロールの土台）
 4. **ロールのべき等作成** — 名前 + BU で検索 → 更新 or 新規作成
-5. **権限設定（Basic User + カスタム）** — Basic User 権限を dict にコピー → カスタムテーブル権限で上書き/追加 → 最初のバッチは `ReplacePrivilegesRole` で全置換、2 バッチ目以降は `AddPrivilegesRole` で追加
+5. **対象機能のテーブル権限設定** — `ROLE_DEFINITIONS` に明示した権限だけを組み立て → 最初のバッチは `ReplacePrivilegesRole` で全置換、2 バッチ目以降は `AddPrivilegesRole` で追加
 6. **ソリューション含有検証** — `AddSolutionComponent` (ComponentType=20)
 7. **モデル駆動型アプリ関連付け**（オプション）— `appmoduleroles_association`
 
@@ -98,3 +97,24 @@ ROLE_DEFINITIONS = [
 # 実行
 python ./deploy_security_role.py
 ```
+
+## ユーザー・チームへの割り当て
+
+利用者または利用者チームへ次の2ロールを別々に割り当てる:
+
+1. **Basic User** — Dataverse の標準機能に必要な権限
+2. **カスタムロール** — 対象機能のテーブル CRUD と必要な Append / AppendTo / Assign / Share
+
+この2ロールを割り当てる手順を配布手順書へ必ず記載する。カスタムロールだけでは標準機能が不足し、
+Basic User だけでは対象機能のカスタムテーブルへアクセスできない。
+
+### 既存ロールを移行する順序
+
+旧方式で Basic User の権限をコピー済みのカスタムロールを更新する場合は、次の順序を守る:
+
+1. 対象ユーザー/チームへ Basic User を先に割り当てる
+2. `deploy_security_role.py` を実行し、カスタムロールを対象機能のテーブル権限だけで全置換する
+3. 対象ユーザーで標準機能と対象機能の両方を確認する
+
+手順1より先にスクリプトを実行すると、全置換の時点で Basic User 由来の権限が失われ、
+利用中のユーザーが一時的に標準機能へアクセスできなくなる。

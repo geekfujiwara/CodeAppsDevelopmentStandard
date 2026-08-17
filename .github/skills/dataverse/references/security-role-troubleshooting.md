@@ -15,20 +15,6 @@
   → SchemaName で 0 件の場合は LogicalName で再検索するフォールバックが有効
 ```
 
-### RetrieveRolePrivilegesRole の戻り値フォーマット
-
-```
-戻り値の RolePrivileges 配列の各要素:
-  {
-    "PrivilegeId": "xxxxxxxx-xxxx-...",   # 大文字始まりキー
-    "Depth": "Local",                      # 文字列（Basic/Local/Deep/Global）
-    "BusinessUnitId": "...",
-    "PrivilegeName": "prvRead..."
-  }
-
-→ dict に変換する際は PrivilegeId キー（大文字 P）で統一する
-```
-
 ### ロール作成時に 403 Forbidden
 
 ```
@@ -73,10 +59,32 @@
     geek_Priority: { Read: "Global", AppendTo: "Global", 他は全て None }
 ```
 
-### ReplacePrivilegesRole が失敗する場合のフォールバック
+### 別テナントへのソリューション import で権限深度エラー
 
 ```
-原因: 環境やロール状態によって ReplacePrivilegesRole がエラーになるケースがある
-対策: ReplacePrivilegesRole 失敗時は AddPrivilegesRole にフォールバック
-      スクリプトで try/except で切り替え処理を実装済み
+症状: The privilege <name> with id = <id> can't have depth = Basic, RoleId = ...
+原因: コピー元環境の Basic User 権限をカスタムロールへ取り込むと、配布先環境の
+  canbebasic/canbelocal/canbedeep/canbeglobal と一致しないことがある
+対策: カスタムロールには対象機能のテーブル権限だけを設定する
+  利用者にはカスタムロールと Basic User を別々に割り当てる
+恒久対策: deploy_security_role.py の validate_role_definitions() が extra_privileges を拒否し、
+      Basic User の権限を取得・コピーしない
+```
+
+### ReplacePrivilegesRole が失敗する
+
+```
+原因: 環境やロール状態によって権限の全置換が拒否されている
+対策: エラー内容と各 privilege の許容深度を確認してから再実行する
+禁止: AddPrivilegesRole へのフォールバック
+  既存ロールに Basic User 由来の権限が残り、対象機能だけに絞れなくなるため
+```
+
+### 100件を超える権限設定が途中で失敗する
+
+```
+症状: 最初の ReplacePrivilegesRole は成功したが、2バッチ目以降の AddPrivilegesRole が失敗する
+影響: ロールは最初の100件までが設定された中間状態になる
+対策: エラー原因を解消して同じスクリプトを再実行する
+  最初に ReplacePrivilegesRole が再実行されるため、最終的に定義どおりの権限へ収束する
 ```
