@@ -1927,3 +1927,22 @@ api_post("PublishAllXml", {})
 
 `geek_evaljobs` を `requestedon desc` で数件引き、`status` / `targetcount` / `donecount` が
 進むことを見る。`donecount` が止まったまま `modifiedon` だけ古くなっていれば、ワーカーが死んでいる。
+
+---
+
+## 41. `power-apps share` が principal／権限／環境エラーになる（検証済 2026-08-17）
+
+### 症状・原因・対処
+
+| 症状 | 主な原因 | 対処 |
+|---|---|---|
+| principal が存在しない、または解決できない | メールアドレスの誤記、別テナントのユーザー、サービスプリンシパルの application/client ID を指定した | 対象テナントのユーザーメールまたは Entra **object ID** を使う。サービスプリンシパルも object ID を指定する |
+| 共有操作が forbidden／権限不足になる | CLI のアクティブアカウントにアプリ共有権限がない | `npx power-apps auth-status` で主体を確認し、アプリ所有者または共有可能な権限を持つアカウントへ `auth-switch` する |
+| コマンドは成功したが意図した環境で共有されない、またはアプリが見つからない | `power.config.json` と対象環境が違う、push と share で `--environment-id` が不一致 | push と share の両方に同じ `--environment-id` を明示し、実行前に `auth-status` と `power.config.json` を確認する |
+| `--access` が拒否される、または過剰な編集権限を付けた | `play` / `edit` 以外を指定した、通常利用者へ `edit` を指定した | 値は `play` または `edit` のみ。既定は `play` とし、`edit` は共同開発者など必要な主体だけに分離する |
+
+CI/CD では `--non-interactive --json` を付け、終了コードが 0 のときだけ後続処理へ進む。
+principal 一覧を環境別変数として管理し、開発環境の object ID を本番環境へ流用しない。
+
+**恒久対策済み**: [CLI リファレンスの `share`](cli-reference.md#share) に最小権限・環境明示・自動化の
+標準を集約し、`scripts/validate_cli_reference.py` が CLI help と主要オプション／実行例の整合を検証する。

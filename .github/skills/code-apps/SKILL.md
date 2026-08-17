@@ -6,6 +6,8 @@ triggers:
   - "Code Apps"
   - "power-apps init"
   - "power-apps push"
+  - "power-apps share"
+  - "Code Apps 共有"
   - "add-data-source"
   - "DataverseService"
   - "Tailwind"
@@ -112,7 +114,8 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
         ⑨ MicrosoftDataverseService + *WithOrganization ラッパーを実装
           │
 [§4 改善デプロイ]
-        ⑩ src/ 実装 → npm run deploy（power-apps push を反復）
+  ⑩ src/ 実装 → npm run deploy（power-apps push を反復）
+  ⑪ 最終 push 後に power-apps share（利用者は play、共同開発者だけ edit）
 ```
 
 ### この後の章構成
@@ -256,7 +259,15 @@ npm run predeploy
 # 再ビルド＆デプロイ（反復）
 npm run build
 npx power-apps push
+
+# Step 8: 最終 push 後に共有（カンマ区切りで複数指定可）
+npx power-apps share --environment-id {ENVIRONMENT_ID} \
+  --principal "${CODE_APP_PLAY_PRINCIPALS}" \
+  --access play --non-interactive --json
 ```
+
+共有対象のユーザー／サービスプリンシパル、`edit` の最小権限ルール、CI/CD 例は
+[npm CLI リファレンスの `share`](references/cli-reference.md#share)を参照する。
 
 > **Step 5 の `--solution-id` は後戻りできない**: 初回の `power-apps push --solution-id` がアプリを `almMode: Solution` にするのは
 > **`appId` 未割当の初回 push のみ**。`almMode: Environment` で作ってしまったアプリは、後から `-s` を付けて
@@ -532,7 +543,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [一覧ペイン（マスター詳細）パターン](references/master-detail-pane-pattern.md) | 詳細画面の左にレコード一覧を常駐させて遷移しないで切り替え（Dataverse 側検索・デバウンス・見切れ防止の落とし穴表） |
 | [AI 評価ルールのマスタ化パターン](references/ai-evaluation-master-pattern.md) | LLM の判定基準をテーブルに出してアプリから編集・ジョブ行キューで過去データを再評価・根拠ハイライトと改善提案（OData キーの URL エンコード落とし穴） |
 | [構築リファレンス](references/build-reference.md) | ビルド・デプロイの詳細手順・vite.config.ts 必須設定・TypeScript エラー対処 |
-| [npm CLI リファレンス](references/cli-reference.md) | SDK 1.2.13 / CLI 0.15.3 検証済み・最新版への更新方針・`push -s` の GUID 要件・`create-connection` / `refresh-data-source` / `auth-switch` |
+| [npm CLI リファレンス](references/cli-reference.md) | SDK 1.2.13 / CLI 0.15.3 検証済み・最新版への更新方針・`push -s` の GUID 要件・`share` の最小権限運用・`create-connection` / `refresh-data-source` / `auth-switch` |
 | [ソリューション ALM](references/solution-alm.md) | 接続参照バインド・`almMode` と初回 push・コンポーネント種別・共有時の権限モデル |
 | [データソースパターン](references/data-source-patterns.md) | 生成サービス・dataSourcesInfo・TanStack React Query（旧/native パターン含む）・外部システムの資産を Dataverse にミラーして読む |
 | [モックデータ開発パターン](references/mock-data-pattern.md) | 開発限定の `createMockDataExecutor` 導入・本番バンドル混入防止・SDK 1.2.7 の取得専用制約 |
@@ -561,6 +572,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
 | [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` / モック実行基盤の本番混入を検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |
 | [inspect_table_metadata.py](scripts/inspect_table_metadata.py) | 既存テーブルの EntitySetName / 主キー / 列 / 参照先 / 選択肢を調査（既存テーブル接続時は実装前に必須） |
+| [validate_cli_reference.py](scripts/validate_cli_reference.py) | テンプレート採用版の `power-apps share --help` と CLI リファレンスの主要オプション・実行例が一致することを検証 |
 | [validate_sample.py](scripts/validate_sample.py) | `samples/` 配下の完全性と generic-base のテレメトリ契約を検証（必須ファイル・import 先の実在・秘匿情報・SDK の使い方） |
 | [sync_dataverse_client.py](scripts/sync_dataverse_client.py) | [templates/dataverse-client.ts](templates/dataverse-client.ts) を `samples/` 配下の全コピーへ反映（SDK の破壊的変更への追従はこの 1 ファイルを直して配布） |
 | [scaffold_from_cache.ps1](scripts/scaffold_from_cache.ps1) | キャッシュからのテンプレート scaffold |
