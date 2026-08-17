@@ -7,6 +7,7 @@ import {
   issueCoversUpstream,
   normalizeVersionSpec,
   npmMarker,
+  parseIssueLabels,
   upstreamMarker,
 } from './check-sdk-updates.mjs';
 
@@ -14,7 +15,13 @@ test('normalizeVersionSpec handles common package.json ranges', () => {
   assert.equal(normalizeVersionSpec('^1.2.13'), '1.2.13');
   assert.equal(normalizeVersionSpec('~0.15.3'), '0.15.3');
   assert.equal(normalizeVersionSpec('workspace:^1.0.2'), '1.0.2');
+  assert.equal(normalizeVersionSpec('1.2.3-beta.1'), '1.2.3-beta.1');
   assert.equal(normalizeVersionSpec('latest'), null);
+});
+
+test('parseIssueLabels keeps a shared default set and honors env overrides', () => {
+  assert.deepEqual(parseIssueLabels('sdk-update, enhancement, release-note '), ['sdk-update', 'enhancement', 'release-note']);
+  assert.deepEqual(parseIssueLabels(''), []);
 });
 
 test('issueCoversNpm accepts source markers and legacy issue text', () => {

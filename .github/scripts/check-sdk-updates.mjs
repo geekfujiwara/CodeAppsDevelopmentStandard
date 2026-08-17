@@ -4,6 +4,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
+export const DEFAULT_ISSUE_LABELS = ['sdk-update', 'enhancement'];
+
 export const NPM_SOURCES = [
   '@microsoft/power-apps',
   '@microsoft/power-apps-cli',
@@ -30,8 +32,16 @@ function escapeRegExp(value) {
 
 export function normalizeVersionSpec(spec) {
   if (typeof spec !== 'string') return null;
-  const match = spec.trim().match(/^(?:workspace:)?[~^]?([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)/);
+  const match = spec.trim().match(/^(?:workspace:)?[~^]?([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?(?:-[0-9A-Za-z.-]+)?)/);
   return match?.[1] ?? null;
+}
+
+export function parseIssueLabels(rawLabels) {
+  const labels = typeof rawLabels === 'string' ? rawLabels : DEFAULT_ISSUE_LABELS.join(',');
+  return labels
+    .split(',')
+    .map((label) => label.trim())
+    .filter(Boolean);
 }
 
 export function npmMarker(packageName, version) {
@@ -160,7 +170,7 @@ async function getUpstreamLatest(sourcePath) {
   const query = new URLSearchParams({ path: sourcePath, per_page: '1' });
   const headers = {};
   if (process.env.UPSTREAM_GITHUB_TOKEN) {
-    headers.Authorization = `Bearer ${process.env.UPSTREAM_GITHUB_TOKEN}`;
+    headers.Authorization = 'Bearer ' + process.env.UPSTREAM_GITHUB_TOKEN;
   }
 
   const commits = await fetchJson(
@@ -181,15 +191,24 @@ async function getUpstreamLatest(sourcePath) {
 
 async function getRepositoryIssues(repository, token) {
   const issues = [];
-  for (let page = 1; ; page += 1) {
-    const pageItems = await fetchJson(
-      `https://api.github.com/repos/${repository}/issues?state=all&per_page=100&page=${page}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    issues.push(...pageItems.filter((item) => !item.pull_request));
-    if (pageItems.length < 100) break;
+  const headers = token ? { Authorization: 'Bearer ' + token } : {};
+
+  try {
+    for (let page = 1; ; page += 1) {
+      const pageItems = await fetchJson(
+        `https://api.github.com/repos/${repository}/issues?state=all&per_page=100&page=${page}`,
+        { headers },
+      );
+      issues.push(...pageItems.filter((item) => !item.pull_request));
+      if (pageItems.length < 100) break;
+    }
+    return issues;
+  } catch (error) {
+    if (process.env.DRY_RUN === 'true' || !token) {
+      return [];
+    }
+    throw error;
   }
-  return issues;
 }
 
 function formatDate(value) {
@@ -252,11 +271,14 @@ export function buildIssueBody(npmUpdates, upstreamUpdates, generatedAt = new Da
   return `${lines.join('\n')}\n`;
 }
 
-async function createIssue(repository, token, title, body) {
+async function createIssue(repository, token, title, body, labels = DEFAULT_ISSUE_LABELS) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = 'Bearer ' + token;
+
   return fetchJson(`https://api.github.com/repos/${repository}/issues`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, body, labels: ['sdk-update', 'enhancement'] }),
+    headers,
+    body: JSON.stringify({ title, body, labels }),
   });
 }
 
@@ -269,22 +291,33 @@ async function writeSummary(lines) {
 
 export async function main() {
   const repository = process.env.ISSUE_REPOSITORY ?? process.env.GITHUB_REPOSITORY;
-  const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
+  const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN ?? '';
   const dryRun = process.argv.includes('--dry-run') || process.env.DRY_RUN === 'true';
+  const issueLabels = parseIssueLabels(process.env.ISSUE_LABELS ?? DEFAULT_ISSUE_LABELS.join(','));
 
   if (!repository) throw new Error('ISSUE_REPOSITORY or GITHUB_REPOSITORY is required');
-  if (!token) throw new Error('GH_TOKEN or GITHUB_TOKEN is required');
+  if (!token && !dryRun) throw new Error('GH_TOKEN or GITHUB_TOKEN is required unless dry-run is enabled');
 
-  const issues = await getRepositoryIssues(repository, token);
+  const issues = await getRepositoryIssues(repository, token || undefined);
   const localVersions = await discoverLocalVersions(process.cwd());
   const npmLatest = [];
   const upstreamLatest = [];
 
   for (const packageName of NPM_SOURCES) {
-    npmLatest.push(await getNpmLatest(packageName));
+    try {
+      npmLatest.push(await getNpmLatest(packageName));
+    } catch (error) {
+      if (!dryRun) throw error;
+      console.warn(`Skipping npm registry check for ${packageName}: ${error.message}`);
+    }
   }
   for (const sourcePath of UPSTREAM_SOURCES) {
-    upstreamLatest.push(await getUpstreamLatest(sourcePath));
+    try {
+      upstreamLatest.push(await getUpstreamLatest(sourcePath));
+    } catch (error) {
+      if (!dryRun) throw error;
+      console.warn(`Skipping upstream GitHub check for ${sourcePath}: ${error.message}`);
+    }
   }
 
   const npmUpdates = npmLatest.filter((latest) => {
@@ -309,7 +342,7 @@ export async function main() {
     return;
   }
 
-  const issue = await createIssue(repository, token, title, body);
+  const issue = await createIssue(repository, token || undefined, title, body, issueLabels);
   await writeSummary(['## SDK update check', '', `Issue を作成しました: [#${issue.number}](${issue.html_url})`]);
 }
 

@@ -40,5 +40,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_REPOSITORY: ${{ github.repository }}
+          ISSUE_LABELS: sdk-update,enhancement
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
         run: node .github/scripts/check-sdk-updates.mjs
