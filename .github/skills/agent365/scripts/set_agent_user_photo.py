@@ -19,7 +19,7 @@ existing Azure CLI context only for Azure CLI operations.
 
 Usage:
     python scripts/set_agent_user_photo.py --upn agent-user@contoso.onmicrosoft.com
-    python scripts/set_agent_user_photo.py --instance-name "秘書 ミーナ" --icon mina
+    python scripts/set_agent_user_photo.py --instance-name "秘書 ミーナ" --icon assets/agent-icon.png
     python scripts/set_agent_user_photo.py --upn <upn> --check
 """
 from __future__ import annotations
@@ -38,7 +38,6 @@ from PIL import Image
 GRAPH = "https://graph.microsoft.com/v1.0"
 # Graph's documented recommended maximum for profile photos.
 PHOTO_SIZE = 648
-BUNDLED_ICONS = Path(__file__).resolve().parent.parent / "assets" / "icons"
 
 
 def load_env(path: Path) -> None:
@@ -71,13 +70,10 @@ def az_json(*args: str):
 def resolve_icon(icon: str | None) -> Path:
     """Resolve --icon / $AGENT_ICON the same way build_teams_package.py does."""
     icon = icon or os.environ.get("AGENT_ICON") or "assets/agent-icon.png"
-    bundled = BUNDLED_ICONS / f"{icon}.png"
-    if bundled.is_file():
-        return bundled
     path = Path(icon)
     if path.is_file():
         return path
-    raise SystemExit(f"Icon not found: {icon} (looked in {BUNDLED_ICONS} and as a path)")
+    raise SystemExit(f"Icon not found: {icon}")
 
 
 def resolve_agent_user(upn: str | None, instance_name: str | None) -> dict:
@@ -117,7 +113,7 @@ def main() -> int:
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument("--upn", help="Agentic user UPN, e.g. agent-user@contoso.onmicrosoft.com.")
     group.add_argument("--instance-name", help="Agent instance display name.")
-    parser.add_argument("--icon", help="Bundled icon name (mina/tech/hunter) or a file path. Defaults to $AGENT_ICON.")
+    parser.add_argument("--icon", help="Icon file path. Defaults to $AGENT_ICON.")
     parser.add_argument("--check", action="store_true", help="Only report the current photo state.")
     parser.add_argument("--env", default=".env")
     args = parser.parse_args()

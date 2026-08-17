@@ -51,7 +51,6 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 | [architecture.md](references/architecture.md) | 2 種類のブループリントの違い / manifest スキーマ / 公開経路 / 表示名・アイコンの変更 |
 | [troubleshooting.md](references/troubleshooting.md) | 異常系（401 / AADSTS82001 / AADSTS65001 / カタログ公開の 409・403 など） |
 | [.env.example](references/.env.example) | 環境変数の一覧と取得元 |
-| [assets/icons/](assets/icons/) | ペルソナ別のサンプル アイコン（`mina` / `tech` / `hunter`） |
 | [`alm`](../alm/SKILL.md) | 秘匿化ゲート・CI/CD・リリース記録 |
 | 参考のみ | [foundry-hosted-bot.md](references/foundry-hosted-bot.md)（Foundry ホスト方式）/ [poc-quickstart.md](references/poc-quickstart.md)（共有エージェントの簡易ルート）/ [team-pattern.md](references/team-pattern.md)（複数体構成）/ [a365-cli.md](references/a365-cli.md) |
 
@@ -65,7 +64,7 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 | 1 | ゴールはどこまでか | (a) ローカル scaffold のみ（Azure 操作なし）<br>(b) 自己ホスト App Service の endpoint を用意するまで（Step 1〜6）<br>(c) M365 管理センターに "Agent template" として登録するまで（Teams チャットはまだ動かない）<br>**(d) Teams で実際に会話できる状態まで（Step 0〜13・Azure 課金あり）** |
 | 2 | Azure サブスクリプションと認証キャッシュは使えるか | (d) を選ぶ場合は Agent 365 ライセンスの割り当ても必要 |
 | 3 | 「〇〇を行ってくれる同僚エージェント」の具体的な業務内容は？ | [digital-colleague-design.md](references/digital-colleague-design.md) §2 の役割カタログ（R1〜R6）を選択肢として提示する（複数可・自由記述可） |
-| 4 | エージェント名（kebab-case）と Teams での表示名は？ | 希望が無ければ 3 案提案する。アイコンは同梱サンプル（`mina` / `tech` / `hunter`）から選ぶ。**商標・著作権に触れる名称やキャラクターは使わない** |
+| 4 | エージェント名（kebab-case）と Teams での表示名は？ | 希望が無ければ 3 案提案する。アイコン画像（正方形・背景透過 PNG）を用意する。**商標・著作権に触れる名称やキャラクターは使わない** |
 
 質問 1 の回答が**テナントのアプリカタログへの公開の承認を兼ねる**。
 (a) は課金もカタログ公開も発生せず、(b) は Azure Bot / App Service の課金だけが発生する。
@@ -120,7 +119,7 @@ B12 を入れるなら **B13 と B14**、相手からファイルを渡される
 │   ├── manifest.template.json      # コミット対象
 │   ├── agenticUser.template.json   # コミット対象
 │   └── <agent-name>-teams-app.zip  # ビルド結果（.gitignore 済み）
-├── assets/agent-icon.png           # 正方形・背景透過（無ければ AGENT_ICON で同梱サンプルを指定）
+├── assets/agent-icon.png           # 正方形・背景透過（AGENT_ICON 未指定時に使用）
 └── scripts/                        # 本スキルの scripts/ をコピー
 ```
 
@@ -152,7 +151,7 @@ B12 を入れるなら **B13 と B14**、相手からファイルを渡される
 AGENT_NAME=mina-secretary          # kebab-case。フォルダ・リソース名
 AGENT_DISPLAY_NAME=秘書 ミーナ       # 30 文字以内。Teams の表示名（AGENT_NAME とは別物）
 AGENT_FULL_NAME=秘書 ミーナ - 予定とメールを掃く同僚エージェント   # 100 文字以内
-AGENT_ICON=mina                    # パス、または同梱サンプル名（mina / tech / hunter）
+AGENT_ICON=assets/agent-icon.png   # アイコン画像のファイルパス
 ```
 
 `AGENT_ICON` の解決順は `--icon` 引数 › `AGENT_ICON` › `assets/agent-icon.png`。
@@ -170,7 +169,7 @@ Copy-Item .github/skills/agent365/references/templates/manifest.template.json te
 Copy-Item .github/skills/agent365/references/templates/agenticUser.template.json teams/
 Copy-Item .github/skills/agent365/references/.env.example .env.example
 New-Item -ItemType Directory assets -Force | Out-Null
-Copy-Item .github/skills/agent365/assets/icons/mina.png assets/agent-icon.png
+Copy-Item C:/path/to/your-icon.png assets/agent-icon.png
 pip install -r requirements.txt   # azure-identity / PyYAML / Pillow / requests
 ```
 

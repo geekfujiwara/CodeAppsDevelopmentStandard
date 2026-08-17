@@ -297,7 +297,7 @@ Python と pip が利用可能な場合は、`spec-builder` 用 `.venv` の作�
 .
 ├── .github/
 │   ├── agents/                      # Copilot カスタムエージェント定義
-│   └── skills/                      # 製品単位で統合された 17 スキル
+│   └── skills/                      # 製品単位で統合された 19 スキル
 │       ├── architecture/            # アーキテクチャ設計
 │       ├── standard/                # 共通基盤（認証・アイコン・メールテンプレート）
 │       ├── update-skills/           # スキル作成・更新・PR 提出
