@@ -39,9 +39,6 @@ PLACEHOLDER = re.compile(r"\$\{([A-Z0-9_]+)\}")
 DEFAULT_ICON = "assets/agent-icon.png"
 # Max per-channel difference still counted as the icon's flat background colour.
 BACKGROUND_TOLERANCE = 16
-# Personas bundled with the skill, usable as-is when the project has no artwork yet.
-SAMPLE_ICON_DIR = Path(__file__).resolve().parent.parent / "assets" / "icons"
-SAMPLE_ICONS = {"mina": "mina.png", "tech": "tech.png", "hunter": "hunter.png"}
 
 # Per-install agent instances (each with their own Entra Agent ID) require an
 # Agent 365 blueprint. Without it the package can only be published as a single
@@ -138,12 +135,11 @@ def drop_flat_background(img: Image.Image) -> Image.Image:
 
 
 def resolve_icon(cli_icon: str | None) -> Path:
-    """--icon > AGENT_ICON > assets/agent-icon.png > bundled sample persona."""
+    """--icon > AGENT_ICON > assets/agent-icon.png."""
     for candidate in (cli_icon, os.environ.get("AGENT_ICON"), DEFAULT_ICON):
         if not candidate:
             continue
-        sample = SAMPLE_ICONS.get(candidate.lower())
-        path = SAMPLE_ICON_DIR / sample if sample else Path(candidate)
+        path = Path(candidate)
         if path.is_file():
             return path
         if candidate in (cli_icon, os.environ.get("AGENT_ICON")):
@@ -151,7 +147,7 @@ def resolve_icon(cli_icon: str | None) -> Path:
 
     raise SystemExit(
         f"No icon found. Put a square transparent PNG at {DEFAULT_ICON}, or set AGENT_ICON "
-        f"to a path or one of the bundled samples: {', '.join(sorted(SAMPLE_ICONS))}."
+        "to a file path."
     )
 
 
@@ -188,11 +184,7 @@ def main() -> int:
     parser.add_argument("--agentic-user-template", default="teams/agenticUser.template.json")
     parser.add_argument(
         "--icon",
-        help=(
-            "Icon path, or a bundled sample name ("
-            + ", ".join(sorted(SAMPLE_ICONS))
-            + f"). Default: AGENT_ICON, else {DEFAULT_ICON}."
-        ),
+        help=f"Icon file path. Default: AGENT_ICON, else {DEFAULT_ICON}.",
     )
     parser.add_argument("--output", help="Output ZIP (default: teams/<agent>-teams-app.zip).")
     parser.add_argument("--env", default=".env")
