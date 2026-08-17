@@ -83,6 +83,11 @@ Power Apps Code Apps（コードファースト）を **TypeScript + React + Tai
 UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の全領域をカバーする統合スキル。
 
 > [!NOTE]
+> 本スキルは React + Vite の **Web Code Apps** 用。Expo／React Native、camera／barcode／location 等の
+> 端末ネイティブ機能、Power Apps Developer app、Wrap が要件なら
+> [`mobile-apps`](../mobile-apps/SKILL.md) へ切り替える。Native は Private Preview で本番利用できない。
+
+> [!NOTE]
 > Microsoft Learn の現行概要では、Code Apps は **React / Vue などの SPA を Power Apps 上でホストする仕組み** とされている。
 > この開発標準はその中でも **React ベース実装に標準化**したガイドであり、他フレームワーク一般論ではなく、このリポジトリのテンプレートと運用実績に基づく推奨事項をまとめている。
 

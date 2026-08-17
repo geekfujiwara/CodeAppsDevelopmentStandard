@@ -32,7 +32,8 @@ Power Platform コードファースト開発エキスパート。
 
 | アプリ種類 | プレデプロイ | デプロイ |
 |---|---|---|
-| Code Apps | `npm run predeploy`（失敗なら停止） | `npm run deploy` |
+| Web Code Apps | `npm run predeploy`（失敗なら停止） | `npm run deploy` |
+| Native Mobile Code Apps | `npm run type-check` + `validate_mobile_project.py` + 対象 OS の `build:android` / `build:ios` | `power-apps push` |
 | Power Pages | ビルド確認 | スキル参照 |
 
 ## 重要制約
@@ -48,7 +49,8 @@ Power Platform コードファースト開発エキスパート。
 | 作業 | スキル |
 |---|---|
 | Dataverse | .github/skills/dataverse/SKILL.md |
-| Code Apps | .github/skills/code-apps/SKILL.md |
+| Web Code Apps（React/Vite） | .github/skills/code-apps/SKILL.md |
+| Native Mobile Code Apps（Expo/React Native、Private Preview） | .github/skills/mobile-apps/SKILL.md |
 | Power Automate | .github/skills/power-automate/SKILL.md |
 | Copilot Studio (v1/旧) | .github/skills/copilot-studio/SKILL.md |
 | Copilot Studio v2 (新アーキ/自動構築) | .github/skills/copilot-studio-v2/SKILL.md |
