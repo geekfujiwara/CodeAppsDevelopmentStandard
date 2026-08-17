@@ -1702,31 +1702,34 @@ npm error could not determine executable to run
 ```
 
 `@microsoft/power-apps` **1.2.12 以降で `@microsoft/power-apps-cli` が依存から削除された**。
-SDK のバージョン範囲を `^1.0.17` としていると 1.2.12 以降が解決されるため、
+旧テンプレートの SDK バージョン範囲 `^1.0.17` でも 1.2.12 以降が解決されるため、
 CLI と `power-apps` bin がインストールされず `npx power-apps` を実行できない。
 
 ```bash
-npm install -D @microsoft/power-apps-cli
+npm install @microsoft/power-apps@latest
+npm install -D @microsoft/power-apps-cli@latest
 ```
 
-`templates/generic-base/package.json` と全サンプルには devDependency として追加済み。
-`scripts/validate_sample.py` でも CLI の直接依存を検証する。
+2026-08-17 時点の検証済み最新版は SDK 1.2.13 / CLI 0.15.3。
+`templates/generic-base/package.json` と全サンプルへ反映済みで、`scripts/validate_sample.py` は
+テンプレートを基準に SDK / CLI の両方を検証する。
 古いテンプレートから作ったプロジェクトでは手動で足す。
 
-### 34.2 `npx power-apps push --environment-id` が `unknown option`
+### 34.2 CLI 0.13.0 で `npx power-apps push --environment-id` が `unknown option`
 
 ```
 error: unknown option '--environment-id'
 ```
 
-`push` に `--environment-id` は**ない**。環境は `power.config.json` の `environmentId` から決まる。
+CLI 0.13.0 はhelpに表示した `--environment-id` を実行時に拒否する。
+CLI 0.15.3 では `push` / `add-data-source` / `list-codeapps` のhelpに同オプションがあり、最新版では環境IDを明示する。
 
 ```bash
-npx power-apps push --solution-id {SOLUTION_ID_GUID}   # 初回
+npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID_GUID}   # 初回
 npx power-apps push                                     # 2 回目以降
 ```
 
-同じ理由で `add-data-source` / `list-codeapps` も `--environment-id` を拒否する。
+0.13.0を使い続ける場合は `--environment-id` を外し、`power.config.json` の環境を使う。
 → [CLI リファレンス](cli-reference.md#グローバルオプション)
 
 ### 34.3 `npm run predeploy` が `.env の ENV_ID が未設定` で落ちる

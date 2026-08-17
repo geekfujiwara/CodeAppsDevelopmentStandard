@@ -2,17 +2,19 @@
 
 Code Apps 用 npm CLI（`npx power-apps`）の全コマンド一覧。
 
-**検証環境**: `@microsoft/power-apps-cli` **0.13.0**（`@microsoft/power-apps` 1.2.7 の依存として導入）。
+**推奨・検証環境（2026-08-17）**: `@microsoft/power-apps` **1.2.13** / `@microsoft/power-apps-cli` **0.15.3**。
 本ドキュメントの内容は実際の `npx power-apps <command> --help` 出力に基づく。
 
 > [!IMPORTANT]
-> **PAC CLI（`pac`）とは別物**。`@microsoft/power-apps-cli` が提供するバイナリは `power-apps` のみで、
+> **PAC CLI（`pac`）とは別物**。`@microsoft/power-apps-cli` 0.15.x が提供するバイナリは
+> `power-apps` と短縮 alias の `pa` で、
 > `pac` は含まれない。PAC CLI は VS Code 拡張機能「Power Platform Tools」または
 > `dotnet tool install --global Microsoft.PowerApps.CLI.Tool` で導入する（npm 配布なし）。
 
 ## 目次
 
 - [導入と実行方法](#導入と実行方法)
+- [バージョン方針](#バージョン方針)
 - [全コマンド一覧](#全コマンド一覧)
 - [グローバルオプション](#グローバルオプション)
 - [アプリライフサイクル](#アプリライフサイクル)
@@ -35,11 +37,33 @@ Code Apps 用 npm CLI（`npx power-apps`）の全コマンド一覧。
 **devDependencies に明示的に入れる**こと。
 
 ```bash
-npm install -D @microsoft/power-apps-cli
+npm install @microsoft/power-apps@latest
+npm install -D @microsoft/power-apps-cli@latest
 npx power-apps --help
 ```
 
 Node.js **22 以上**が必要（`engines: { "node": ">=22" }`）。
+
+## バージョン方針
+
+- 新規プロジェクトは `templates/generic-base/package.json` の**検証済み最新版**を使う。
+- 既存プロジェクトを更新するときも SDK / CLI ともに npm の `latest` を候補とし、古い CLI へ固定しない。
+- CLI は 0.x のため、例えば `^0.15.3` は 0.16.x へ自動更新されない。新しい minor を取り込むときは
+	`@latest` を明示し、次の検証をすべて通してから採用する。
+- SDK の推移的依存に CLI が含まれることを前提にせず、CLI は常に `devDependencies` へ直接指定する。
+
+```bash
+npm install @microsoft/power-apps@latest
+npm install -D @microsoft/power-apps-cli@latest
+npm ls @microsoft/power-apps @microsoft/power-apps-cli
+npx power-apps --help
+npx power-apps push --help
+npm run build
+python .github/skills/code-apps/scripts/validate_sample.py
+```
+
+`validate_sample.py` は `templates/generic-base/package.json` を基準に全サンプルの SDK / CLI 範囲を検証する。
+テンプレートの基準値を更新したら、全サンプルも同じ変更で同期する。
 
 ## 全コマンド一覧
 
@@ -80,14 +104,13 @@ Node.js **22 以上**が必要（`engines: { "node": ">=22" }`）。
 | `--no-color` | 色付けを無効化 |
 | `-v, --version` / `-h, --help` | バージョン／ヘルプ |
 | `-e, --environment-id <id>` | 接続先環境 ID |
-| `--cloud <cloud>` | `prod`（既定・商用） / `gccmoderate` / `gcchigh` / `dod` / `mooncake` |
+| `--cloud <cloud>` | `public`（既定・商用） / `usgov` / `usgovhigh` / `usgovdod` / `china` |
 
 > `--cloud` は日本国内の通常テナントでは指定不要。GCC / DoD / 21Vianet 環境でのみ使用する。
 
 > [!WARNING]
-> CLI 0.13.0 の help は `--environment-id` を全コマンドに表示するが、`push` / `add-data-source` / `list-codeapps` は
-> 実行時に `unknown option '--environment-id'` として拒否する（push は 2026-08-10 実測、他は 2026-08-03 実測）。
-> これらは先に `init` で
+> CLI 0.13.0 は `push` / `add-data-source` / `list-codeapps` の `--environment-id` を実行時に拒否した。
+> 0.15.3 では3コマンドともhelpに同オプションを公開する。0.13.0を使い続ける場合だけ、先に `init` で
 > `power.config.json` を生成し、そこに保存された `environmentId` を使用する。
 
 ## アプリライフサイクル
@@ -111,11 +134,12 @@ npx power-apps init --environment-id {ENVIRONMENT_ID} --display-name "AppName"
 ### `push`
 
 ```bash
-npx power-apps push --solution-id {SOLUTION_ID}
+npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID}
 ```
 
 | オプション | 説明 |
 |---|---|
+| `-e, --environment-id <GUID>` | デプロイ先の環境 ID |
 | `-s, --solution-id <GUID>` | 追加先ソリューションの **ID（GUID）** |
 
 > [!WARNING]

@@ -29,6 +29,7 @@
 
 - **`template-snapshot/`**（このリポジトリにコミット）: 依存関係のバージョンを固定した `package.json` + `package-lock.json`。
   中身は `@GeekPowerCode` が標準 scaffold で使う依存関係一式（Vite / React / Tailwind v4 / shadcn/ui / TanStack Query / dnd-kit / recharts 等）。
+  `@microsoft/power-apps-cli` は SDK の推移的依存に頼らず、devDependency に直接指定する。
 - **GitHub Release**（`code-apps-template-cache-vite` タグ）: `template-snapshot` を `npm ci` した実体（`node_modules`）を
   tar.gz 化してアップロードしたもの。**これが「リモートのゴールデンフォルダ」**であり、ローカルマシンには同等のものを持たない。
 - **`scaffold_from_cache.ps1`**: 新規プロジェクト scaffold のたびに Release アセットをダウンロード → 展開 → `npm ci` で
@@ -81,4 +82,6 @@ pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
   差分パッケージのみネットワーク取得される（ゼロにはならないが最小限で済む）。
 - `template-snapshot` の内容が実際の `@GeekPowerCode` scaffold の依存関係セットと乖離した場合は、
   このリポジトリの `template-snapshot/package.json` を手動更新し、次の週次 Action 実行時に Release アセットが追随する。
+- Power Apps SDK / CLI を更新したときは `templates/generic-base`、全サンプル、`template-snapshot` を同時に更新し、
+  `python .github/skills/code-apps/scripts/validate_sample.py` でバージョン同期を確認する。
 
