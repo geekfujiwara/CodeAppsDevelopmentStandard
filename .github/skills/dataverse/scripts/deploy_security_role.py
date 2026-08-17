@@ -4,8 +4,8 @@
 Dataverse Web API を使用してカスタムセキュリティロールを作成し、
 ソリューション内テーブルに対する権限を自動設定する。
 
-★ Basic User ロールの権限をコピーして土台にし、
-  カスタムテーブル権限を上乗せする方式。
+★ カスタムロールには対象機能のテーブル権限だけを設定する。
+★ 利用者には Basic User ロールを別途割り当てる。
 ★ ROLE_DEFINITIONS をプロジェクトに合わせて書き換えてください。
 
 手順:
@@ -65,9 +65,6 @@ API = f"{DATAVERSE_URL}/api/data/v9.2"
 #
 # Verb: Create, Read, Write, Delete, Append, AppendTo, Assign, Share
 #
-# extra_privileges:
-#   テーブルに紐付かない特殊権限の名前リスト（オプション）
-
 ROLE_DEFINITIONS = [
     {
         "name": "{ソリューション名} 管理者",
@@ -84,7 +81,6 @@ ROLE_DEFINITIONS = [
                 "Share": "Global",
             },
         },
-        "extra_privileges": [],
     },
     {
         "name": "{ソリューション名} ユーザー",
@@ -122,7 +118,6 @@ ROLE_DEFINITIONS = [
                 "Share": None,
             },
         },
-        "extra_privileges": [],
     },
     {
         "name": "{ソリューション名} 閲覧者",
@@ -139,12 +134,43 @@ ROLE_DEFINITIONS = [
                 "Share": None,
             },
         },
-        "extra_privileges": [],
     },
 ]
 
 # テーブル操作の Verb 一覧
 TABLE_VERBS = ["Create", "Read", "Write", "Delete", "Append", "AppendTo", "Assign", "Share"]
+VALID_DEPTHS = {"Basic", "Local", "Deep", "Global", None}
+
+
+def validate_role_definitions(role_definitions):
+    """対象テーブル権限だけが明示されていることを API 呼び出し前に検証する。"""
+    if not role_definitions:
+        raise ValueError("ROLE_DEFINITIONS にロールを1件以上定義してください")
+
+    for role_def in role_definitions:
+        role_name = role_def.get("name", "<名称未設定>")
+        if "extra_privileges" in role_def:
+            raise ValueError(
+                f"ロール '{role_name}' の extra_privileges は使用できません。"
+                "カスタムロールには対象機能のテーブル権限だけを設定してください"
+            )
+
+        table_privileges = role_def.get("table_privileges")
+        if not table_privileges:
+            raise ValueError(f"ロール '{role_name}' に table_privileges を定義してください")
+
+        for table_name, permissions in table_privileges.items():
+            unknown_verbs = set(permissions) - set(TABLE_VERBS)
+            if unknown_verbs:
+                raise ValueError(
+                    f"ロール '{role_name}' のテーブル '{table_name}' に未対応の操作があります: "
+                    f"{', '.join(sorted(unknown_verbs))}"
+                )
+            for verb, depth in permissions.items():
+                if depth not in VALID_DEPTHS:
+                    raise ValueError(
+                        f"ロール '{role_name}' の {table_name}.{verb} に無効な深度が指定されています: {depth}"
+                    )
 
 
 # ── 認証 ──────────────────────────────────────────────────
@@ -322,59 +348,6 @@ def get_table_privileges(tables):
     return priv_map
 
 
-# ── Step 3.5: Basic User ロールの権限を取得 ──────────────
-
-def get_basic_user_privileges(root_bu_id):
-    """Basic User ロール（旧 Common Data Service User）の全権限を取得する。
-    新しいカスタムロールの土台として使用する。"""
-    print("\n=== Step 3.5: Basic User ロールの権限取得 ===")
-
-    # Basic User を検索（名前の揺れに対応）
-    for role_name in ["Basic User", "Common Data Service User"]:
-        roles = api_get("roles", {
-            "$filter": f"name eq '{role_name}' and _businessunitid_value eq {root_bu_id}",
-            "$select": "roleid,name",
-        })
-        if roles.get("value"):
-            break
-
-    if not roles.get("value"):
-        print("  ⚠️ Basic User ロールが見つかりません。空の権限セットで続行します。")
-        return []
-
-    base_role = roles["value"][0]
-    base_role_id = base_role["roleid"]
-    print(f"  ベースロール: {base_role['name']} ({base_role_id})")
-
-    # RetrieveRolePrivilegesRole で権限一覧を取得
-    try:
-        result = api_get(f"RetrieveRolePrivilegesRole(RoleId={base_role_id})")
-        priv_list = result.get("RolePrivileges", [])
-        print(f"  Basic User の権限数: {len(priv_list)}")
-        return priv_list
-    except requests.HTTPError as e:
-        print(f"  ⚠️ RetrieveRolePrivilegesRole 失敗: {e}")
-        # フォールバック: roleprivileges_association で取得
-        print("  → roleprivileges_association で再試行...")
-        try:
-            privs = api_get(f"roles({base_role_id})/roleprivileges_association", {
-                "$select": "privilegeid,name",
-            })
-            # roleprivileges_association は privilege エンティティを返す
-            # Depth 情報がないので Local をデフォルトにする
-            fallback_list = []
-            for p in privs.get("value", []):
-                fallback_list.append({
-                    "PrivilegeId": p["privilegeid"],
-                    "Depth": "Local",
-                })
-            print(f"  フォールバック権限数: {len(fallback_list)}")
-            return fallback_list
-        except requests.HTTPError as e2:
-            print(f"  ⚠️ フォールバックも失敗: {e2}")
-            return []
-
-
 # ── Step 4: ロールのべき等作成 ────────────────────────────
 
 def ensure_role(role_def, root_bu_id):
@@ -425,27 +398,15 @@ def ensure_role(role_def, root_bu_id):
     return role_id
 
 
-# ── Step 5: 権限設定（Basic User + カスタムテーブル権限）──
+# ── Step 5: 対象機能のテーブル権限設定 ────────────────────
 
-def set_role_privileges(role_id, role_def, tables, priv_map, base_privileges):
-    """Basic User の権限を土台にして、カスタムテーブル権限を上乗せする。
-    ReplacePrivilegesRole で全権限を一括設定する。"""
+def set_role_privileges(role_id, role_def, tables, priv_map):
+    """対象機能のテーブル権限だけを ReplacePrivilegesRole で設定する。"""
     role_name = role_def["name"]
     print(f"\n  === 権限設定: {role_name} ===")
 
-    # 1. Basic User の権限をベースにコピー（PrivilegeId → {PrivilegeId, Depth} の dict）
+    # 1. 対象機能のテーブル権限だけを保持する
     priv_dict = {}
-    for p in base_privileges:
-        pid = p.get("PrivilegeId") or p.get("privilegeId")
-        if pid:
-            priv_dict[pid] = {
-                "PrivilegeId": pid,
-                "Depth": p.get("Depth", "Local"),
-            }
-
-    print(f"    Basic User ベース権限数: {len(priv_dict)}")
-
-    # 2. カスタムテーブル権限を上乗せ（上書きまたは追加）
     table_privs = role_def.get("table_privileges", {})
     default_privs = table_privs.get("*", {})
 
@@ -465,7 +426,7 @@ def set_role_privileges(role_id, role_def, tables, priv_map, base_privileges):
                 continue  # 権限 ID が見つからない
 
             if depth is None:
-                # 明示的に None → この権限を除去（Basic User にあっても削除）
+                # 明示的に None → この権限を付与しない
                 priv_dict.pop(priv_id, None)
             else:
                 # 上書きまたは新規追加
@@ -477,34 +438,17 @@ def set_role_privileges(role_id, role_def, tables, priv_map, base_privileges):
 
     print(f"    カスタムテーブル権限追加/上書き: {custom_added}")
 
-    # 3. extra_privileges（テーブルに紐付かない特殊権限）
-    extra = role_def.get("extra_privileges", [])
-    if extra:
-        filter_parts = [f"name eq '{name}'" for name in extra]
-        filter_str = " or ".join(filter_parts)
-        try:
-            extra_privs = api_get("privileges", {
-                "$filter": filter_str,
-                "$select": "privilegeid,name",
-            })
-            for p in extra_privs.get("value", []):
-                priv_dict[p["privilegeid"]] = {
-                    "PrivilegeId": p["privilegeid"],
-                    "Depth": "Global",
-                }
-                print(f"    特殊権限: {p['name']}")
-        except requests.HTTPError as e:
-            print(f"    ⚠️ 特殊権限の取得失敗: {e}")
-
     privileges_list = list(priv_dict.values())
-    print(f"    合計権限数: {len(privileges_list)}（Basic User + カスタム）")
+    print(f"    合計権限数: {len(privileges_list)}（対象機能のテーブル権限のみ）")
 
     if not privileges_list:
-        print("    ⚠️ 設定する権限がありません")
-        return
+        raise ValueError(
+            f"ロール '{role_name}' に設定可能なテーブル権限がありません。"
+            "既存権限を残さないため処理を中止します"
+        )
 
-    # 4. ReplacePrivilegesRole で全権限を一括設定
-    #    （Basic User の権限 + カスタム権限が一度に反映される）
+    # 2. ReplacePrivilegesRole で全権限を一括設定
+    #    既存ロールに残る Basic User 由来の権限もここで除去する
     #    大量の権限を一度に送ると失敗する場合があるのでバッチ分割
     batch_size = 100
     first_batch = True
@@ -530,20 +474,9 @@ def set_role_privileges(role_id, role_def, tables, priv_map, base_privileges):
         except requests.HTTPError as e:
             err_text = e.response.text if e.response else str(e)
             print(f"    ⚠️ バッチ {i // batch_size + 1} 失敗: {err_text[:300]}")
-            # ReplacePrivilegesRole が失敗したら AddPrivilegesRole にフォールバック
-            if first_batch:
-                print("    → AddPrivilegesRole にフォールバック...")
-                first_batch = False
-                try:
-                    api_post(
-                        f"roles({role_id})/Microsoft.Dynamics.CRM.AddPrivilegesRole",
-                        {"Privileges": batch},
-                        include_solution=False,
-                    )
-                    print(f"    ✅ フォールバック成功: {len(batch)} 権限を追加")
-                except requests.HTTPError as e2:
-                    err_text2 = e2.response.text if e2.response else str(e2)
-                    print(f"    ⚠️ フォールバックも失敗: {err_text2[:300]}")
+            raise RuntimeError(
+                "権限の全置換に失敗しました。既存の Basic User 由来権限が残る可能性があるため処理を中止します"
+            ) from e
 
 
 # ── Step 6: ソリューション含有検証 ────────────────────────
@@ -601,6 +534,8 @@ def associate_with_app(role_ids):
 # ── メイン ────────────────────────────────────────────────
 
 def main():
+    validate_role_definitions(ROLE_DEFINITIONS)
+
     print("=" * 60)
     print("  カスタムセキュリティロール デプロイ")
     print(f"  ソリューション: {SOLUTION_NAME}")
@@ -619,15 +554,12 @@ def main():
     # Step 3: 権限 ID 取得
     priv_map = get_table_privileges(tables)
 
-    # Step 3.5: Basic User ロールの権限を取得（カスタムロールの土台）
-    base_privileges = get_basic_user_privileges(root_bu_id)
-
-    # Step 4-5: ロール作成 → 権限設定（Basic User + カスタム）
+    # Step 4-5: ロール作成 → 対象機能のテーブル権限設定
     print("\n=== Step 4-5: ロール作成 & 権限設定 ===")
     role_ids = []
     for role_def in ROLE_DEFINITIONS:
         role_id = ensure_role(role_def, root_bu_id)
-        set_role_privileges(role_id, role_def, tables, priv_map, base_privileges)
+        set_role_privileges(role_id, role_def, tables, priv_map)
         role_ids.append((role_id, role_def["name"]))
 
     # Step 6: ソリューション含有検証
@@ -641,6 +573,7 @@ def main():
     print("  ✅ カスタムセキュリティロールのデプロイ完了")
     for role_id, role_name in role_ids:
         print(f"    {role_name}: {role_id}")
+    print("  利用者には Basic User ロールも別途割り当ててください")
     print("=" * 60)
 
 
