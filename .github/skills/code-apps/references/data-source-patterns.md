@@ -224,25 +224,39 @@ export interface Customer { [key: string]: unknown; geek_customerid: string; }
 
 ```typescript
 // hooks/useRecordsPage.ts
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
-export function useRecordsPage(page: number, pageSize = 20) {
+export function useRecordsPage(page: number, pageSize = 20, filter?: string) {
+  const queryClient = useQueryClient();
+  const countKey = ["records", "count", filter] as const;
+
   return useQuery({
-    queryKey: ["records", "page", page, pageSize],
+    queryKey: ["records", "page", page, pageSize, filter],
     queryFn: async () => {
-      const result = await client.retrieveMultipleRecordsAsync<Record>("{prefix}_records", {
+      const cachedCount = queryClient.getQueryData<number>(countKey);
+      const result = await client.retrieveMultipleRecordsAsync<Record<string, unknown>>("{prefix}_records", {
         top: pageSize,
         skip: (page - 1) * pageSize,
-        // 総件数は初回のみ取得すれば十分（下記「総件数は初回のみ取得」参照）。
-        // ページ移動のたびに再取得しない場合は page === 1 のときだけ count: true を渡す。
-        count: page === 1,
+        filter,
+        count: cachedCount === undefined,
       });
       if (!result.success) throw result.error;
-      return { rows: result.data ?? [], count: result.count };
+      if (result.count !== undefined) queryClient.setQueryData(countKey, result.count);
+      return { rows: result.data ?? [], count: result.count ?? cachedCount };
     },
     placeholderData: keepPreviousData, // ページ切替時に前ページの内容を表示したまま次を取得
   });
 }
+```
+
+`data.count` をページャの総件数に使う。検索条件を変えると `countKey` も変わるため、新しい条件では
+再度 `count: true` が送られ、同じ条件でのページ移動ではキャッシュ済み件数が再利用される。
+
+```typescript
+const totalCount = pageQuery.data?.count;
+const totalPages = totalCount === undefined || totalCount >= 5000
+  ? undefined
+  : Math.ceil(totalCount / pageSize);
 ```
 
 ### 5000 件上限の扱い
@@ -266,13 +280,27 @@ export function useRecordsPage(page: number, pageSize = 20) {
 - 検索・フィルタ条件を絞らずに全件を対象にする一覧画面
 - 総ページ数の表示が必須要件ではない（「次へ」「前へ」のみで十分な）画面
 
-`skipToken` はレスポンスの `nextLink`（またはページング情報）から取得し、次リクエストの `skip` の代わりに使う。
-ページ番号ボタンは表示せず、「次へ」ボタンの有効/無効のみで制御する。
+SDK はレスポンスの `@odata.nextLink` から抽出したトークンを `result.skipToken` として返す。
+次リクエストでは `skip` の代わりにその値を `skipToken` へ渡す。
+
+```typescript
+const result = await client.retrieveMultipleRecordsAsync<Record<string, unknown>>("{prefix}_records", {
+  top: pageSize,
+  skipToken: currentSkipToken,
+});
+if (!result.success) throw result.error;
+
+const nextSkipToken = result.skipToken;
+const hasNextPage = nextSkipToken !== undefined;
+```
+
+ページ番号ボタンは表示せず、「次へ」ボタンは `result.skipToken` の有無で制御する。「前へ」も必要なら、
+ページごとに使用した `skipToken` を履歴として保持する。
 
 ### 総件数は初回のみ取得してキャッシュする
 
 `count: true` は毎回 `@odata.count` 集計コストが乗るため、**ページ移動のたびに再取得しない**。
-初回ロード時（`page === 1` または検索条件変更時）のみ `count: true` を送り、以降のページ取得は
+初回ロード時（キャッシュに総件数がない場合）と検索条件変更時のみ `count: true` を送り、以降のページ取得は
 `count: false`（省略）にして、取得済みの総件数を state / React Query キャッシュに保持する。
 `keepPreviousData`（TanStack Query）を併用し、ページ切替時の画面ちらつきも防ぐ。
 

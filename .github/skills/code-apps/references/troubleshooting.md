@@ -1635,8 +1635,8 @@ npx power-apps list-connections --environment-id {ENVIRONMENT_ID} --json
 1. `count === 5000` のときは実件数として表示せず「5000+ 件」「5000 件以上」と明示する。
 2. レコード数が 5000 件を超える可能性がある画面では、総件数ページャ（ページ番号 + 総ページ数）ではなく
    `skipToken` による「次へ」方式に切り替える。総ページ数を前提にした UI を作らない。
-3. `count: true` は初回取得（`page === 1` または検索条件変更時）のみ送り、以降のページ取得では省略して
-   取得済みの総件数を再利用する（React Query の `keepPreviousData` と併用）。
+3. `count: true` は総件数キャッシュがない場合（初回取得または検索条件変更時）のみ送り、以降のページ取得では
+  省略して取得済みの総件数を再利用する（React Query の `keepPreviousData` と併用）。
 
 > **恒久対策済み**: `data-source-patterns.md` の「ページングと総件数」節に、
 > `count: true` の実装例・5000 件上限の UI 表現・`skipToken` への切り替え基準・
