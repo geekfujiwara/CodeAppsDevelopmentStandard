@@ -143,7 +143,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 > **画面の骨格は [デザインシステム](references/design-pattern.md#ページの骨格新規画面はここから書き始める) からコピーして書き始める**: マルチカラムは `grid-cols-[minmax(0,1fr)_...]`（素の `1fr` は使わない）＋**直接の子すべてに `min-w-0`**、長文は `break-words` ではなく `[overflow-wrap:anywhere]`、コード・表・JSON は `overflow-x-auto` で閉じ込める。`min-w-0` は後付けすると必ず抜けるため最初から書く。`npm run predeploy` のチェック 7 が抜けを警告する。
 
-> **設計で提示する内容**: 選択テンプレート、画面一覧（ページ名・ルート）、各画面のコンポーネント構成、カラム定義、Lookup 名前解決方法（`_xxx_value` + `useMemo` Map）、ナビゲーション構造。
+> **設計で提示する内容**: 選択テンプレート、画面一覧（ページ名・ルート）、各画面のコンポーネント構成、カラム定義、Lookup 名前解決方法（`_xxx_value` + `useMemo` Map）、ナビゲーション構造、テレメトリの転送先と監視する SLI（転送しない場合も明記）。
 
 > **大前提（ソリューション運用）**: Dataverse テーブル・Code Apps・Power Automate・Copilot Studio は同一ソリューション内に開発し、`.env` の `SOLUTION_NAME` / `PUBLISHER_PREFIX` を全フェーズで統一する。詳細は [`standard` スキル](../standard/SKILL.md)。
 
@@ -187,6 +187,11 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 ```
 
 デプロイ前は `npm run predeploy`（`.env`・`power.config.json` を自動検証）→ `npm run deploy`（predeploy + build + push を一括実行）。
+
+テンプレートは `src/lib/telemetry.ts` を含み、起動時に `initializeLogger` を登録する。既定では外部送信せず、
+クエリ文字列・フラグメント・GUID を除去したメトリクスだけを `code-apps:telemetry` イベントへ出力する。
+Application Insights 等へ転送する場合は custom sink と CSP の `connect-src` を合わせて設計する
+（[テレメトリ / 可観測性パターン](references/telemetry-pattern.md)）。
 
 ### 標準ワークフロー
 
@@ -556,7 +561,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
 | [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` / モック実行基盤の本番混入を検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |
 | [inspect_table_metadata.py](scripts/inspect_table_metadata.py) | 既存テーブルの EntitySetName / 主キー / 列 / 参照先 / 選択肢を調査（既存テーブル接続時は実装前に必須） |
-| [validate_sample.py](scripts/validate_sample.py) | `samples/` 配下が欠落なくビルドできる状態か検証（必須ファイル・import 先の実在・秘匿情報・SDK の使い方） |
+| [validate_sample.py](scripts/validate_sample.py) | `samples/` 配下の完全性と generic-base のテレメトリ契約を検証（必須ファイル・import 先の実在・秘匿情報・SDK の使い方） |
 | [sync_dataverse_client.py](scripts/sync_dataverse_client.py) | [templates/dataverse-client.ts](templates/dataverse-client.ts) を `samples/` 配下の全コピーへ反映（SDK の破壊的変更への追従はこの 1 ファイルを直して配布） |
 | [scaffold_from_cache.ps1](scripts/scaffold_from_cache.ps1) | キャッシュからのテンプレート scaffold |
 | [toggle_table_lang.py](scripts/toggle_table_lang.py) | 旧方式の `pac code add-data-source` 向けにテーブル表示名を一時的に英語化 |
