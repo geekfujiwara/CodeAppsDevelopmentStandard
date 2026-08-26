@@ -607,3 +607,44 @@ site/route/altroute/systemuser/contract/shipment/investment/creditline/event/eve
 実行）で再実行しても常に「既存ならスキップ」を毎回評価する。API 呼び出しは全て `_post_debug()`
 経由に統一し、`_assert_json_safe()` によるチェックも合わせて毎回働く。
 
+---
+
+## 18. `ThreadPoolExecutor`（並行数2）でもテーブル数が多い（10件前後）と、複数テーブルが同時にリトライ上限（5回）へ到達し、1回の実行では完走しない
+
+### 症状
+
+多数の既存カスタムテーブル（他ソリューションと共用の混雑した環境）で 10 個前後のテーブルを
+並行数 2 で作成すると、複数のテーブル・列が同時にメタデータロック競合の `retry_metadata` 上限
+（5回・最大 50秒待機）へ到達し、`Errors occurred during parallel table creation` で
+スクリプトが異常終了する（実測: 10テーブル中 4テーブル/列が失敗）。項目 14 の修正により
+エラー自体は正しく検出されるようになったが、**エージェント/ユーザーが手動でスクリプトを
+再実行しないと完走しない**状態のままだった（スクリプトは冪等なので再実行自体は安全だが、
+「自動で完走する」体験ではなかった）。
+
+### 原因
+
+`create_tables()` は並行実行（`ThreadPoolExecutor(max_workers=2)`）の結果、失敗した
+テーブルをまとめて `RuntimeError` として送出するだけで、失敗分だけを対象にした
+自動リトライは行っていなかった。混雑環境では並行実行そのものがロック競合の原因になるため、
+同じ並行度で再試行しても解消しない一方、**直列（並行数1）で少し待ってから再試行すれば
+高確率で成功する**（実際、手動でスクリプトを再実行した際は 2 回目で全テーブルが完成した）。
+
+### 対処（恒久対策・`create_tables()` に実装済み）
+
+並行実行パスの後に、失敗したテーブルだけを対象とした**直列の自動リトライパス**を追加した。
+これにより、混雑環境でも 1 回のスクリプト実行内で自己修復し、ユーザーの手動再実行が
+不要になる（それでも失敗した場合のみ最終的に `RuntimeError` を送出する）。
+
+```python
+# create_tables() 内: 並行実行後に失敗分だけ直列リトライ
+if failed:
+    print(f"⚠ {len(failed)} table(s) failed during parallel creation (lock contention). Retrying sequentially...")
+    for tbl in TABLES:
+        if tbl["logical"] not in failed:
+            continue
+        time.sleep(15)  # メタデータロックの解放を待つ
+        _create_single_table(tbl)  # 失敗すれば still_failed に集約し、最後に RuntimeError
+```
+
+この恒久対策により、10 テーブル規模・混雑環境でも通常は 1 回の実行で完走するようになった。
+

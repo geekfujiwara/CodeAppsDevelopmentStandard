@@ -733,18 +733,36 @@ def create_tables():
         return
 
     print(f"  Creating {len(TABLES)} tables in parallel...")
-    errors: list[str] = []
     # 並行数はデフォルト 3。既存カスタムテーブルが多い（100件超）環境や他セッションが
     # 同時にメタデータ操作をしている環境では、並行数が高いほど 0x80040237（メタデータ
     # ロック競合）の retry_metadata 上限（5回）を超えて失敗しやすい（実測: 5並行で
     # 10テーブル中7テーブルが失敗、2並行で全成功）。失敗が多発する場合は 2 まで下げる。
-    # スクリプトはべき等なので、失敗した分だけを対象に何度でも安全に再実行できる。
+    failed: dict[str, Exception] = {}
     with ThreadPoolExecutor(max_workers=min(len(TABLES), 2)) as executor:
-        futures = {executor.submit(_create_single_table, tbl): tbl["logical"] for tbl in TABLES}
+        futures = {executor.submit(_create_single_table, tbl): tbl for tbl in TABLES}
         for future in as_completed(futures):
-            logical = futures[future]
+            tbl = futures[future]
             try:
                 future.result()
+            except Exception as exc:
+                failed[tbl["logical"]] = exc
+
+    # 恒久対策（再発防止）: 混雑環境では 2 並行でも retry_metadata の上限（5回）を
+    # 超えて失敗することが実測された（10テーブル中4テーブルが失敗した事例あり）。
+    # 並行実行の「後」に、失敗したテーブルだけを対象として直列（1件ずつ・並行数1）で
+    # 自動的に再試行する。スクリプトは冪等（既存テーブル/列は検出してスキップ）なので、
+    # この自動リトライだけで通常は解消し、ユーザーが手動で再実行する必要がなくなる。
+    if failed:
+        print(f"\n  ⚠ {len(failed)} table(s) failed during parallel creation (lock contention). "
+              f"Retrying sequentially: {', '.join(failed)}")
+        still_failed: list[str] = []
+        for tbl in TABLES:
+            if tbl["logical"] not in failed:
+                continue
+            time.sleep(15)  # メタデータロックの解放を待ってから直列リトライ
+            try:
+                _create_single_table(tbl)
+                print(f"  ✅ {tbl['logical']}: recovered on sequential retry")
             except Exception as exc:
                 detail_text = ""
                 resp = getattr(exc, "response", None)
@@ -753,12 +771,16 @@ def create_tables():
                         detail_text = f"\n  詳細: {resp.text}"
                     except Exception:
                         pass
-                msg = f"Error creating table '{logical}': {exc}{detail_text}"
+                msg = f"Error creating table '{tbl['logical']}': {exc}{detail_text}"
                 print(f"  ❌ {msg}")
-                errors.append(msg)
+                still_failed.append(msg)
 
-    if errors:
-        raise RuntimeError("Errors occurred during parallel table creation:\n" + "\n".join(errors))
+        if still_failed:
+            raise RuntimeError(
+                "Errors occurred during table creation, even after sequential retry:\n"
+                + "\n".join(still_failed)
+                + "\n(スクリプトは冪等なので、そのまま再実行すれば作成済み分をスキップして続行できます)"
+            )
 
 
 # ── Step 3: Lookup リレーション ──────────────────────────────
