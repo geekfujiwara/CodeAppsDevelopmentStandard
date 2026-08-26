@@ -25,6 +25,26 @@
    - ブラウザ標準のポップアップ（`window.confirm` / `alert`）は使わない。アプリのテーマと不一致でデザインが崩れるため。
    - Promise ベースの `useConfirm()` フックで `if (!(await confirm({...}))) return` の形に置き換える。削除は `destructive: true`。
 
+6. **データ読み込み中は空白/テキストではなくスケルトンを表示する**
+   - React Query の `isLoading` が `true` の間、一覧・カード・詳細は空白や「読み込み中...」テキストで済ませず、
+     テンプレート同梱の `src/components/loading-skeleton.tsx`（`LoadingSkeletonList` / `LoadingSkeletonGrid` / `LoadingSkeletonCard`）
+     でレイアウトに合わせたスケルトンを表示する。カンバン等スケルトンコンポーネントで表現しづらい UI は
+     `Skeleton`（`components/ui/skeleton.tsx`）を組み合わせて同等の骨組みを描く。
+   - `isLoading` は空データ（`data.length === 0`）と必ず区別する。`isLoading` 中は空メッセージを出さない。
+   - **保存・更新・削除中も操作可能なボタンを保存中のまま放置しない**。`FormModal` は `isSaving` を渡すだけで
+     保存ボタンが自動的にスピナー＋「保存中...」表示に切り替わる（`onSave` の完了を待って `isSaving` を false に戻す）。
+
+```tsx
+const { data: items = [], isLoading } = useItems()
+
+return isLoading ? (
+  <LoadingSkeletonList count={4} />
+  // グリッド一覧なら <LoadingSkeletonGrid columns={3} count={6} variant="compact" />
+) : (
+  <ListTable data={items} columns={columns} ... />
+)
+```
+
 ---
 
 ## 削除確認モーダル（Promise ベース）

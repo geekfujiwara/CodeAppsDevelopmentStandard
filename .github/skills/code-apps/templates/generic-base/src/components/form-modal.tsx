@@ -1,4 +1,5 @@
 import { type ReactNode } from "react"
+import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -121,8 +122,8 @@ export function FormModal({
                   disabled={isSaving}
                   className="gap-2"
                 >
-                  <span className="text-lg">💾</span>
-                  {saveLabel}
+                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="text-lg">💾</span>}
+                  {isSaving ? "保存中..." : saveLabel}
                 </Button>
               </div>
             </div>
