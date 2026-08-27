@@ -280,6 +280,49 @@ if (fs.existsSync(srcPath)) {
   }
 }
 
+// 10. Dataverse ルックアップ列を _value 注釈なしで $filter に使っている（400 エラーが空リストとして握りつぶされる）
+if (fs.existsSync(srcPath)) {
+  const lookupFilterErrors = [];
+  const pending = [srcPath];
+
+  while (pending.length > 0) {
+    const currentPath = pending.pop();
+    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(entryPath);
+        continue;
+      }
+      if (!entry.isFile() || !/\.tsx?$/.test(entry.name)) continue;
+
+      const content = fs.readFileSync(entryPath, "utf-8");
+      const rel = path.relative(root, entryPath);
+
+      for (const fm of content.matchAll(/filter:\s*`([^`]*)`/g)) {
+        const filterExpr = fm[1];
+        for (const lm of filterExpr.matchAll(/\$\{([\w.]*[Ii]d)\}\s+eq\s+/g)) {
+          const expr = lm[1];
+          // 既に _value 注釈済み、または LOOKUP_VALUE 経由（正しい書き方）ならスキップ
+          if (/_value$/i.test(expr) || expr.startsWith("_") || /LOOKUP_VALUE/i.test(expr)) continue;
+          const line = content.slice(0, fm.index).split("\n").length;
+          lookupFilterErrors.push(
+            `${rel}:${line} ルックアップ列 (${expr}) を _value 注釈なしで $filter に使っています → ` +
+            `LOOKUP_VALUE 相当（_${expr.replace(/^.*\./, "")}_value）を使ってください。`
+          );
+        }
+      }
+    }
+  }
+
+  if (lookupFilterErrors.length > 0) {
+    errors.push(
+      `Dataverse ルックアップ列の $filter 構文が誤っています（${lookupFilterErrors.length} 件）。` +
+      `この形式は 400 エラーになり、UI 側では「データ0件」として握りつぶされるため気づきにくいです:\n` +
+      lookupFilterErrors.map((e) => `      - ${e}`).join("\n")
+    );
+  }
+}
+
 // 結果出力
 if (errors.length > 0) {
   console.error("\n❌ デプロイ前チェック失敗:\n");
