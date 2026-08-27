@@ -1955,3 +1955,32 @@ principal 一覧を環境別変数として管理し、開発環境の object ID
 
 **恒久対策済み**: [CLI リファレンスの `share`](cli-reference.md#share) に最小権限・環境明示・自動化の
 標準を集約し、`scripts/validate_cli_reference.py` が CLI help と主要オプション／実行例の整合を検証する。
+
+## 42. Badge に動的な値を複数連結すると長文でカードからはみ出す（検証済 2026-08-27）
+
+### 症状
+
+一覧・詳細のカードに `<Badge>KPI: {name} +{value}{unit}</Badge>` のように複数の動的な値を
+連結して表示すると、KPI 名や説明文が長い場合にバッジの横幅がカード幅を超えてはみ出す。
+
+### 原因
+
+shadcn の `Badge`（`components/ui/badge.tsx`）は既定で `whitespace-nowrap shrink-0 w-fit` を
+持つ。ステータス等の**固定・短文の enum ラベル**（`{STATUS_LABEL[...]}` のような単一の式）を
+1 行で見せるための設計であり、複数の式を連結した**可変長の合成テキスト**（名前＋数値＋単位など）を
+入れると、`flex-wrap` の親の中でもバッジ自体が縮まずカード外にはみ出す。
+
+### 対処
+
+可変長の値を連結して表示するバッジには、個別に折り返し用のクラスを追加する。
+
+```tsx
+<Badge variant="secondary" className="max-w-full h-auto whitespace-normal break-words text-left">
+  KPI: {c.kpiName} +{c.value}{c.unit}
+</Badge>
+```
+
+**恒久対策済み**: `scripts/pre-deploy-check.mjs` のチェック 7d が、`<Badge>` の子要素に `{...}` 式が
+2 つ以上連結され、かつ `className` に `max-w-full` / `truncate` / `break-words` / `whitespace-normal` /
+`line-clamp` のいずれも無い箇所を警告する（enum の単一ラベル表示は式が 1 つのため誤検出しない）。
+

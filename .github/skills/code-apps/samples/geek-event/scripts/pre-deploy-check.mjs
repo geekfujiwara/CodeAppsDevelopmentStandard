@@ -198,6 +198,16 @@ if (fs.existsSync(srcPath)) {
           layoutWarnings.push(`${at} ScrollArea と truncate/line-clamp が同居しています → div + overflow-y-auto overflow-x-hidden に置き換えてください。`);
         }
       });
+
+      // 7d. Badge に動的な値を複数連結して表示している（長文でカードからはみ出す）
+      for (const bm of content.matchAll(/<Badge\b([^>]*)>([\s\S]*?)<\/Badge>/g)) {
+        const [, attrs, inner] = bm;
+        const exprCount = (inner.match(/\{[^}]*\}/g) ?? []).length;
+        if (exprCount < 2) continue;
+        if (/max-w-full|truncate|break-words|whitespace-normal|line-clamp/.test(attrs)) continue;
+        const atBadge = `${rel}:${content.slice(0, bm.index).split("\n").length}`;
+        layoutWarnings.push(`${atBadge} <Badge> に動的な値が複数連結されていますが折り返し指定 (max-w-full/break-words 等) がありません → 長い文字列でカードからはみ出します。`);
+      }
     }
   }
 
