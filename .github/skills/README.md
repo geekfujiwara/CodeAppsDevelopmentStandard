@@ -113,7 +113,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 
 ---
 
-## スキル一覧（19 スキル）
+## スキル一覧（20 スキル）
 
 ### architecture — アーキテクチャ・基盤
 
@@ -124,6 +124,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 | [update-skills](update-skills/SKILL.md) | スキル（SKILL.md/references/scripts）を作成・更新し、汎用化・秘匿化した上でリモートへ PR を作成・更新する。 |
 | [azure](azure/SKILL.md) | Azure のリファレンスアーキテクチャを選定し、テナントのセキュリティガバナンス（公衆アクセス禁止・共有キー禁止・MFA 必須等）に準拠した構成で構築・デプロイ・検証する。 |
 | [alm](alm/SKILL.md) | コードファースト資産を秘匿化・汎用化したテンプレートとして Git 管理し、pre-commit ゲート → 自律レビューゲート → 承認・デプロイ → リリース記録までを CI/CD で回す共通基盤。agent365 / code-apps などの各プロダクトスキルから利用する。 |
+| [sharepoint](sharepoint/SKILL.md) | AAD アプリ登録を行わずに、Microsoft Graph API 経由で SharePoint を包括的に操作する（リスト・列・リスト項目の作成、ファイルアップロード、ページ作成、M365 グループ経由のサイト作成）。 |
 
 ### data — データ層
 

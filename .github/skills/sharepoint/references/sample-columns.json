@@ -1,0 +1,48 @@
+[
+  {
+    "name": "SkillName",
+    "text": {}
+  },
+  {
+    "name": "DisplayName",
+    "text": {}
+  },
+  {
+    "name": "Category",
+    "choice": {
+      "choices": ["文書作成", "情報収集", "業務処理", "分析", "その他"],
+      "displayAs": "dropDownMenu"
+    }
+  },
+  {
+    "name": "Summary",
+    "text": { "allowMultipleLines": true }
+  },
+  {
+    "name": "SkillDescription",
+    "text": { "allowMultipleLines": true }
+  },
+  {
+    "name": "Owner",
+    "personOrGroup": { "allowMultipleSelection": false }
+  },
+  {
+    "name": "SkillVersion",
+    "text": {}
+  },
+  {
+    "name": "SourceUrl",
+    "text": {}
+  },
+  {
+    "name": "Status",
+    "choice": {
+      "choices": ["現行", "非推奨", "廃止"],
+      "displayAs": "dropDownMenu"
+    }
+  },
+  {
+    "name": "LastVerified",
+    "dateTime": { "displayAs": "default", "format": "dateOnly" }
+  }
+]

@@ -64,3 +64,4 @@ Power Platform コードファースト開発エキスパート。
 | AI チームメイト（Agent 365 / agentUser での Teams 公開） | .github/skills/agent365/SKILL.md |
 | スキル作成・更新 | .github/skills/update-skills/SKILL.md |
 | Azure リファレンスアーキテクチャ（セキュア構成） | .github/skills/azure/SKILL.md |
+| SharePoint（Graph API・AAD アプリ登録不要） | .github/skills/sharepoint/SKILL.md |
