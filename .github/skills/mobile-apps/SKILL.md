@@ -82,7 +82,7 @@ Expo、React Native、Tamagui、native host、Power Apps SDK を個別に `lates
 公式 template は Power Apps CLI を依存に含まないため、検証済み CLI を明示して実行する。
 
 ```powershell
-npx --yes --package @microsoft/power-apps-cli@0.15.3 power-apps init `
+npx --yes --package @microsoft/power-apps-cli@1.0.0 power-apps init `
   -t MobileApp `
   --display-name "$env:MOBILE_APP_DISPLAY_NAME" `
   --environment-id "$env:ENVIRONMENT_ID" `
@@ -110,7 +110,7 @@ Wrap が構成する redirect URI／API permission を手動で追加しない�
 
 ```powershell
 # Dataverse または Power Platform connector を CLI で追加し、src/generated/ を生成する
-npx --yes --package @microsoft/power-apps-cli@0.15.3 power-apps add-data-source <options>
+npx --yes --package @microsoft/power-apps-cli@1.0.0 power-apps add-data-source <options>
 ```
 
 React Native 画面は `src/generated/services/*Service.ts` を service／hook 層から呼び出す。
@@ -158,7 +158,7 @@ Metro の QR コードを Power Apps Developer app で読み取り、iOS／Andro
 
 ```powershell
 npm run build:android   # 対象 OS に応じて build:ios を選択
-npx --yes --package @microsoft/power-apps-cli@0.15.3 power-apps push
+npx --yes --package @microsoft/power-apps-cli@1.0.0 power-apps push
 ```
 
 push 後は `power.config.json` の app ID と環境 ID を使い、次の Wrap URL を案内する。

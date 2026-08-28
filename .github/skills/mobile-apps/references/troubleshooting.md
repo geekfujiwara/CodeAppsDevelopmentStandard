@@ -10,7 +10,7 @@
 公式 mobile template は `@microsoft/power-apps-cli` を依存に含まない。SDK の推移的依存も前提にしない。
 
 ```powershell
-npx --yes --package @microsoft/power-apps-cli@0.15.3 power-apps init --help
+npx --yes --package @microsoft/power-apps-cli@1.0.0 power-apps init --help
 ```
 
 ## Wrap sign-in が失敗する
