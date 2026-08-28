@@ -51,6 +51,7 @@ spec/                          ← スキル専用ディレクトリ
 - 既定 checklist: `spec/.cache/conversion-checklist.json`
 - `--input` / `--staging` / `--docs`（互換: `--output`）/ `--checklist` を指定した場合はそのパスを優先する
 - `spec/input/` に変換対象が見つからない場合、`scripts/convert_documents.py` はワークスペース・フォルダ全体をスキャンし、変換候補になりうるファイルがないか確認する。候補が見つかった場合は一覧を提示するので、`spec/input/` へ移動するか `--input` で対象パスを指定する
+- 「`spec/input/` へ移動する」とは**元の場所のファイルを削除するまでを含む**。`spec/input/` へコピーしただけで元ファイルを残すと、ワークスペース上に同一内容のファイルが重複し混乱の元になる。コピー→取り込み確認後は元ファイルを削除すること
 
 ## 処理フロー
 
