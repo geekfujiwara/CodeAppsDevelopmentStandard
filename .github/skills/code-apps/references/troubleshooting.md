@@ -217,6 +217,15 @@ flex-grow で親の余剰スペースに伸縮させることで、高さが確�
 </div>
 ```
 
+### 恒久対策（テンプレート自体に混入していた同一バグを修正済み）
+
+`templates/generic-base/src/components/sidebar.tsx` のナビゲーション `ScrollArea` が
+`className="flex-1 overflow-visible"` になっており、本項目が警告する典型的な症状（サイドバーの
+メニューが多いとスクロールできず下側の項目に到達できない）を scaffold 直後から再現する状態だった。
+`overflow-visible` を `h-0` に置き換えて修正済み（ツールチップは `fixed` 位置指定のため祖先の
+overflow 設定に影響されず、`h-0`化後も表示に問題は出ない）。新規プロジェクトはこの修正後の
+テンプレートを scaffold するため同じ不具合は再発しない。
+
 ---
 
 ## 7. 長文メッセージはトランケート+展開トグルにする
@@ -1946,3 +1955,112 @@ principal 一覧を環境別変数として管理し、開発環境の object ID
 
 **恒久対策済み**: [CLI リファレンスの `share`](cli-reference.md#share) に最小権限・環境明示・自動化の
 標準を集約し、`scripts/validate_cli_reference.py` が CLI help と主要オプション／実行例の整合を検証する。
+
+## 42. Badge に動的な値を複数連結すると長文でカードからはみ出す（検証済 2026-08-27）
+
+### 症状
+
+一覧・詳細のカードに `<Badge>KPI: {name} +{value}{unit}</Badge>` のように複数の動的な値を
+連結して表示すると、KPI 名や説明文が長い場合にバッジの横幅がカード幅を超えてはみ出す。
+
+### 原因
+
+shadcn の `Badge`（`components/ui/badge.tsx`）は既定で `whitespace-nowrap shrink-0 w-fit` を
+持つ。ステータス等の**固定・短文の enum ラベル**（`{STATUS_LABEL[...]}` のような単一の式）を
+1 行で見せるための設計であり、複数の式を連結した**可変長の合成テキスト**（名前＋数値＋単位など）を
+入れると、`flex-wrap` の親の中でもバッジ自体が縮まずカード外にはみ出す。
+
+### 対処
+
+可変長の値を連結して表示するバッジには、個別に折り返し用のクラスを追加する。
+
+```tsx
+<Badge variant="secondary" className="max-w-full h-auto whitespace-normal break-words text-left">
+  KPI: {c.kpiName} +{c.value}{c.unit}
+</Badge>
+```
+
+**恒久対策済み**: `scripts/pre-deploy-check.mjs` のチェック 7d が、`<Badge>` の子要素に `{...}` 式が
+2 つ以上連結され、かつ `className` に `max-w-full` / `truncate` / `break-words` / `whitespace-normal` /
+`line-clamp` のいずれも無い箇所を警告する（enum の単一ラベル表示は式が 1 つのため誤検出しない）。
+
+## 43. ルックアップ列を `_value` 注釈なしで `$filter` に使うと 400 エラーが空リストとして握りつぶされる（検証済 2026-08-27）
+
+### 症状
+
+「プロジェクトから直接 KPI を紐づけたのに、詳細画面に何も表示されない」というように、
+Dataverse へは正しく保存されているのに一覧画面には何も表示されない。ブラウザの開発者ツールを
+開くと `$filter=geek_aicoeprojectid eq <GUID>` へのリクエストが **400** で失敗している。
+
+### 原因
+
+Dataverse Web API では、ルックアップ（単一値ナビゲーションプロパティ）列を等価比較でフィルタする場合、
+列の論理名をそのまま使う `geek_aicoeprojectid eq <GUID>` は **無効な OData 構文**で 400 になる。
+`_geek_aicoeprojectid_value eq <GUID>`（`_value` 注釈付き）でなければならない。
+
+さらに悪いことに、`DataverseService.ListRecords` は失敗時に `throw` するが、呼び出し側が
+`const { data = [] } = XXX.useList(...)` と既定値付きで受けているため、**エラーが握りつぶされて
+「データ 0 件」の空状態としてそのまま描画される**。コンソールを見ない限り、機能が全く動いていない
+ことに気づけない。
+
+### 対処
+
+ルックアップ列で `$filter` する場合は必ず `entities.ts` の `LOOKUP_VALUE.xxx`（`_${COL.xxx}_value`）を使う。
+
+```tsx
+// ❌ 400 エラーになり、UI では「データ0件」に見える
+ProjectTasks.useList({ filter: `${COL.projectId} eq ${id}` })
+
+// ✅ 正しい書き方
+ProjectTasks.useList({ filter: `${LOOKUP_VALUE.projectId} eq ${id}` })
+```
+
+**恒久対策済み**: `scripts/pre-deploy-check.mjs` のチェック 10 が、`filter:` テンプレートリテラル内で
+`${xxxId} eq` の形式（`Id` で終わる補間かつ `_value` 注釈や `LOOKUP_VALUE` 経由でないもの）を検出し、
+デプロイをブロックする（誤検出を避けるため `LOOKUP_VALUE.*` や既に `_value` で終わる式はスキップする）。
+
+## 44. 半円ゲージのパーセント表示をアークに重ねると読みづらい（検証済 2026-08-27）
+
+### 症状
+
+RadialBarChart で作った半円（スピードメーター）ゲージで、達成率の数字を `absolute inset-0` で
+チャートの上に重ねて表示すると、特に値が小さい/大きいときにアークの線と数字が重なって読みづらい。
+
+### 原因
+
+`cy="100%"` で中心をコンテナ下端に置く半円ゲージは、アークの両端がちょうどコンテナ下端中央に
+集まる。そこへ `absolute` + `items-end justify-center` で数字を重ねると、アークの線がまさに
+数字の描画位置を通過し、視覚的に重なる。
+
+### 対処
+
+数字をチャートに重ねず、チャートの**下に通常のブロック要素として**並べる（`absolute` を使わない）。
+
+```tsx
+<div className="w-full max-w-[220px] aspect-[2/1]">
+  <ResponsiveContainer width="100%" height="100%">...</ResponsiveContainer>
+</div>
+<span className="text-2xl font-bold">{pct}%</span>
+```
+
+## 45. 詳細画面にチャート/テーブルを後から追加すると初期の `max-w-2xl` で窮屈になる（検証済 2026-08-27）
+
+### 症状
+
+シンプルなテキストフィールドのみを前提に `max-w-2xl`（672px）で作った詳細画面に、後からドーナツ
+グラフ＋テーブルのような横に並べるセクションを追加すると、テーブルが折り返せず横スクロール
+バーが出る、チャートとテーブルが窮屈に見えるなど「なんか細い」印象になる。
+
+### 原因
+
+詳細ページは基本的にテキスト中心のフォームとして `max-w-2xl` を初期値にしがちだが、チャートや
+テーブルなど横幅を要する要素を追加する際にこの制約を見直さないと、コンテンツ量に対してコンテナが
+狭すぎる状態になる。
+
+### 対処
+
+チャート/テーブルを含むセクションを追加する時点で、詳細ページの最大幅を `max-w-4xl`〜`max-w-5xl`
+程度に広げる。あわせて、2 カラムにする `grid-cols-[...]` のブレークポイントも `lg:` ではなく
+`xl:` にするなど、コンテナ幅とセットで見直す（狭い時は縦積みのままにして横スクロールを避ける）。
+
+

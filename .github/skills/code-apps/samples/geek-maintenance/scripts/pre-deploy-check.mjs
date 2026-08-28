@@ -198,6 +198,16 @@ if (fs.existsSync(srcPath)) {
           layoutWarnings.push(`${at} ScrollArea と truncate/line-clamp が同居しています → div + overflow-y-auto overflow-x-hidden に置き換えてください。`);
         }
       });
+
+      // 7d. Badge に動的な値を複数連結して表示している（長文でカードからはみ出す）
+      for (const bm of content.matchAll(/<Badge\b([^>]*)>([\s\S]*?)<\/Badge>/g)) {
+        const [, attrs, inner] = bm;
+        const exprCount = (inner.match(/\{[^}]*\}/g) ?? []).length;
+        if (exprCount < 2) continue;
+        if (/max-w-full|truncate|break-words|whitespace-normal|line-clamp/.test(attrs)) continue;
+        const atBadge = `${rel}:${content.slice(0, bm.index).split("\n").length}`;
+        layoutWarnings.push(`${atBadge} <Badge> に動的な値が複数連結されていますが折り返し指定 (max-w-full/break-words 等) がありません → 長い文字列でカードからはみ出します。`);
+      }
     }
   }
 
@@ -267,6 +277,49 @@ if (fs.existsSync(srcPath)) {
     console.warn(`⚠ 遷移先で読まれていないクエリパラメータが ${orphans.length} 件あります:`);
     for (const [key, at] of orphans) console.warn(`  ${at} ?${key}=... を useSearchParams で受け取る画面がありません。`);
     console.warn("  → 押しても何も起きないボタンになります。遷移先でタブ/フィルターに反映してください。");
+  }
+}
+
+// 10. Dataverse ルックアップ列を _value 注釈なしで $filter に使っている（400 エラーが空リストとして握りつぶされる）
+if (fs.existsSync(srcPath)) {
+  const lookupFilterErrors = [];
+  const pending = [srcPath];
+
+  while (pending.length > 0) {
+    const currentPath = pending.pop();
+    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(entryPath);
+        continue;
+      }
+      if (!entry.isFile() || !/\.tsx?$/.test(entry.name)) continue;
+
+      const content = fs.readFileSync(entryPath, "utf-8");
+      const rel = path.relative(root, entryPath);
+
+      for (const fm of content.matchAll(/filter:\s*`([^`]*)`/g)) {
+        const filterExpr = fm[1];
+        for (const lm of filterExpr.matchAll(/\$\{([\w.]*[Ii]d)\}\s+eq\s+/g)) {
+          const expr = lm[1];
+          // 既に _value 注釈済み、または LOOKUP_VALUE 経由（正しい書き方）ならスキップ
+          if (/_value$/i.test(expr) || expr.startsWith("_") || /LOOKUP_VALUE/i.test(expr)) continue;
+          const line = content.slice(0, fm.index).split("\n").length;
+          lookupFilterErrors.push(
+            `${rel}:${line} ルックアップ列 (${expr}) を _value 注釈なしで $filter に使っています → ` +
+            `LOOKUP_VALUE 相当（_${expr.replace(/^.*\./, "")}_value）を使ってください。`
+          );
+        }
+      }
+    }
+  }
+
+  if (lookupFilterErrors.length > 0) {
+    errors.push(
+      `Dataverse ルックアップ列の $filter 構文が誤っています（${lookupFilterErrors.length} 件）。` +
+      `この形式は 400 エラーになり、UI 側では「データ0件」として握りつぶされるため気づきにくいです:\n` +
+      lookupFilterErrors.map((e) => `      - ${e}`).join("\n")
+    );
   }
 }
 

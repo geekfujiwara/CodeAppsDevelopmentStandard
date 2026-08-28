@@ -57,7 +57,8 @@ export function Sidebar() {
         )}
       >
         {/* ナビゲーション */}
-        <ScrollArea className="flex-1 overflow-visible">
+        {/* flex-1 だけでは Radix ScrollArea の高さが確定せずスクロールしないため h-0 を併用する */}
+        <ScrollArea className="flex-1 h-0">
           <nav
             className={cn(
               "space-y-6 overflow-visible",
