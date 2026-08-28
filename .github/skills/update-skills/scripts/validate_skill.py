@@ -68,6 +68,7 @@ ALLOWLIST = {
     "14d82eec-204b-4c2f-b7e8-296a70dab67e",  # Microsoft Graph PowerShell の well-known パブリッククライアント ID（固定）
     "5a807f24-c9de-44ee-a3a7-329e88a00ffc",  # Messaging Bot API Application の appId（全テナント共通）
     "fdcc1f02-fc51-4226-8753-f668596af7f7",  # Work IQ 第一者アプリの appId（全テナント共通）
+    "6f9230af-2a98-4952-b205-9ede4f9ef548",  # Microsoft Graph sitePage の Text web part 種別 ID（全テナント共通・固定）
 }
 
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
