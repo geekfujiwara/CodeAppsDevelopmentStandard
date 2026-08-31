@@ -46,7 +46,7 @@ MCP が利用できない環境では Dataverse Web API（workflow テーブル�
 
 ### 1. 前提
 
-- Node.js 18+
+- Node.js 20+（FlowAgent v3.0.0 以降は MCP SDK v2 のため Node.js 18 では起動できない）
 - git（`microsoft/power-platform-skills` の `plugins/power-automate` を取得するために使用）
 - Azure CLI（`az login` — MCP サーバー自身の認証に必要。`auth_helper.py` とは別の資格情報ストア）
 
@@ -57,7 +57,7 @@ MCP が利用できない環境では Dataverse Web API（workflow テーブル�
 
 | 処理 | 内容 |
 |---|---|
-| Node.js 確認 | 18+ でなければ中断 |
+| Node.js 確認 | 20+ でなければ中断 |
 | az login 確認 | `az account list` で対象テナントの既存キャッシュを確認 → あれば `az account set` のみ（対話不要）。無い場合のみ案内を表示 |
 | auth_helper 認証 | Dataverse / Flow API トークンを取得・キャッシュ（Python スクリプト用） |
 | プラグイン取得 | `microsoft/power-platform-skills` を git スパースチェックアウトで `~/.power-platform-skills` に取得（マシン全体で共有・自動更新） |

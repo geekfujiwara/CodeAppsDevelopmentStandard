@@ -81,10 +81,10 @@ _PLUGIN_ROOT_CANDIDATES: list[Path] = [
 
 
 def check_node() -> None:
-    """Node.js 18+ が存在するかを確認する。"""
+    """Node.js 20+ が存在するかを確認する（FlowAgent v3.0.0+ の MCP SDK v2 要件）。"""
     node = shutil.which("node")
     if not node:
-        print("❌ Node.js が見つかりません。Node.js 18+ をインストールしてください。", file=sys.stderr)
+        print("❌ Node.js が見つかりません。Node.js 20+ をインストールしてください。", file=sys.stderr)
         sys.exit(1)
     result = subprocess.run(
         ["node", "--version"],
@@ -93,9 +93,9 @@ def check_node() -> None:
     version_str = result.stdout.strip()  # 例: "v20.11.0"
     try:
         major = int(version_str.lstrip("v").split(".")[0])
-        if major < 18:
+        if major < 20:
             print(
-                f"❌ Node.js {version_str} は古すぎます（18+ が必要）。",
+                f"❌ Node.js {version_str} は古すぎます（20+ が必要）。",
                 file=sys.stderr,
             )
             sys.exit(1)
