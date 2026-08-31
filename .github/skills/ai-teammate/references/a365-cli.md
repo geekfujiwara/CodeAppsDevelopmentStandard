@@ -31,7 +31,7 @@ CLI にハードコードされた SKU ID が実際に割り当て可能な SKU 
 ## 3. 認証キャッシュは standard の auth_helper を使う
 
 通常の Azure / Graph / Foundry 認証は `standard/scripts/auth_helper.py` が保存した
-AuthenticationRecord + MSAL 永続キャッシュを共有する。agent365 用に `az login` や
+AuthenticationRecord + MSAL 永続キャッシュを共有する。ai-teammate 用に `az login` や
 `a365` の個別ログインで新しい認証キャッシュを作る運用にはしない。
 
 `.a365-auth.json` / `auth-token.json` / `*token-cache*` が生成された場合もローカル専用で、

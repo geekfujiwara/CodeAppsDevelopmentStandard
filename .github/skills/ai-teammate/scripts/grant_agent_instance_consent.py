@@ -23,7 +23,7 @@ or from ``az ad sp list --display-name "<instance name>"``.
 
 Requires Microsoft Graph ``DelegatedPermissionGrant.ReadWrite.All`` (or an
 administrator role such as Privileged Role Administrator / Global
-Administrator). Do not create an agent365-specific login cache; use the
+Administrator). Do not create an ai-teammate-specific login cache; use the
 standard auth_helper cache for delegated tokens and an existing Azure CLI
 context only for Azure CLI operations.
 

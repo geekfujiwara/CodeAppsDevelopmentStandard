@@ -1,5 +1,5 @@
 ---
-name: agent365
+name: ai-teammate
 description: "AI チームメイト。Microsoft Agent SDK アプリを App Service で自己ホストし、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して、Teams / Microsoft 365 Copilot に agentUser として公開する。自分のメールアドレスと予定表を持ち、自分の権限で働く『デジタルな同僚』を、役割カタログと機能ブロック（メール応対 / Dataverse の権限準拠検索 / Web 検索 / 定期実行 / コード実行 / 経過連絡 / 成果物の共有と同意 / Teams プレゼンス）の組み合わせで設計・実装する。Foundry ホスト方式は agentUser チャットが 401 で成立せず無応答になるため正常系では使わず、references の参考情報として隔離する。CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。"
 category: automation
 triggers:
@@ -36,7 +36,7 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 | ALM は委譲 | pre-commit・CI/CD・レビューゲート・リリース記録は **`alm` スキル**が担当する |
 
 > 前提ツール: Python 3.10+、Azure CLI（`az`）、Agent 365 CLI（`a365`）、.NET 8 SDK、Git。
-> 認証は `standard/scripts/auth_helper.py` のキャッシュを共有し、agent365 用に個別ログインしない。
+> 認証は `standard/scripts/auth_helper.py` のキャッシュを共有し、ai-teammate 用に個別ログインしない。
 
 | 参照 | 用途 |
 |---|---|
@@ -163,12 +163,12 @@ AGENT_ICON=assets/agent-icon.png   # アイコン画像のファイルパス
 ### Step 2: リポジトリを scaffold する
 
 ```powershell
-Copy-Item .github/skills/agent365/scripts -Destination scripts -Recurse
+Copy-Item .github/skills/ai-teammate/scripts -Destination scripts -Recurse
 Copy-Item .github/skills/alm/scripts/*.py -Destination scripts
-Copy-Item .github/skills/agent365/references/templates/agent.template.yaml agents/<agent-name>/
-Copy-Item .github/skills/agent365/references/templates/manifest.template.json teams/
-Copy-Item .github/skills/agent365/references/templates/agenticUser.template.json teams/
-Copy-Item .github/skills/agent365/references/.env.example .env.example
+Copy-Item .github/skills/ai-teammate/references/templates/agent.template.yaml agents/<agent-name>/
+Copy-Item .github/skills/ai-teammate/references/templates/manifest.template.json teams/
+Copy-Item .github/skills/ai-teammate/references/templates/agenticUser.template.json teams/
+Copy-Item .github/skills/ai-teammate/references/.env.example .env.example
 New-Item -ItemType Directory assets -Force | Out-Null
 Copy-Item C:/path/to/your-icon.png assets/agent-icon.png
 pip install -r requirements.txt   # azure-identity / PyYAML / Pillow / requests
@@ -381,7 +381,7 @@ python scripts/configure_agent_presence.py `
   --managed-identity-client-id $env:AZURE_BOT_MSA_APP_ID `
   --agent-user-id $env:A365_AGENT_USER_ID `
   --resource-group $env:AZURE_RESOURCE_GROUP --webapp $env:AGENT_WEBAPP_NAME
-Copy-Item .github/skills/agent365/references/templates/PresenceWorker.template.cs `
+Copy-Item .github/skills/ai-teammate/references/templates/PresenceWorker.template.cs `
   src/<agent-name>-agent/PresenceWorker.cs
 ```
 

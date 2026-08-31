@@ -6,7 +6,7 @@ resolves the target agentic user, and optionally writes the non-secret runtime
 settings used by ``PresenceWorker`` to an Azure Web App.
 
 Requires an administrator allowed to create app role assignments. Do not create
-an agent365-specific login cache; use the standard auth_helper cache for
+an ai-teammate-specific login cache; use the standard auth_helper cache for
 delegated tokens and an existing Azure CLI context only for Azure CLI operations.
 
 Usage:

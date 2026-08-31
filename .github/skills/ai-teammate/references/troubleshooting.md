@@ -1,4 +1,4 @@
-# agent365 — 異常系・トラブルシュート
+# ai-teammate — 異常系・トラブルシュート
 
 > 秘匿化・汎用化・CI/CD・レビューゲートの問題は **`alm` スキル**を参照
 > → [ALM — 異常系・トラブルシュート](../../alm/references/troubleshooting.md)
@@ -47,7 +47,7 @@ src.save("assets/agent-icon.png")
 ## 6. `FOUNDRY_PROJECT_ENDPOINT is not set` / 認証エラー
 
 - 原因: `.env` が読み込まれていない、または `standard/scripts/auth_helper.py` の認証キャッシュを解決できない。
-- 対処: ローカルは `.env` の `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` と standard の `auth_helper.py` キャッシュを確認する。agent365 用に個別 `az login` しない。
+- 対処: ローカルは `.env` の `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` と standard の `auth_helper.py` キャッシュを確認する。ai-teammate 用に個別 `az login` しない。
   CI は `azure/login@v2` の OIDC（`AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID`）。
   対象アプリ登録に Foundry プロジェクトへのロール（Azure AI Developer 等）が必要。
 

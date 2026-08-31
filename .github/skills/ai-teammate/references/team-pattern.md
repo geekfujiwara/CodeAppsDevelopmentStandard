@@ -2,7 +2,7 @@
 
 「ハンター（リード開拓）・テック（技術提案）・ミーナ（Chief of Staff）」のように、
 **役割の異なる複数の名前付き AI エージェントが 1 つのチームとして協働する**という要望は、
-`architecture` スキルの判断基準（§7）で `agent365` を第一候補として推奨するパターンである。
+`architecture` スキルの判断基準（§7）で `ai-teammate` を第一候補として推奨するパターンである。
 本ドキュメントは、そのようなリクエストを受けたときに**単一エージェント向けの手順
 （[SKILL.md](../SKILL.md) の Step 0〜13）をどう拡張して複数エージェントに適用するか**の標準フローを示す。
 
@@ -39,7 +39,7 @@
 │   ├── hunter/agent-icon.png
 │   ├── tech/agent-icon.png
 │   └── meena/agent-icon.png
-└── scripts/                          # agent365 + alm の共通スクリプト（1 セットのみ）
+└── scripts/                          # ai-teammate + alm の共通スクリプト（1 セットのみ）
 ```
 
 ## 3. `.env` はエージェントごとに分離する
@@ -142,7 +142,7 @@ Azure Bot Service（課金）・Teams 組織カタログ公開（テナント全
   Application 権限（クライアントクレデンシャル）では動かないため、`publish_teams_app.py` も
   `auth_helper.py` の `DeviceCodeCredential`（永続キャッシュ）を再利用する設計にした。
   → [troubleshooting.md](troubleshooting.md) の該当項目。
-- **`auth_helper.py` は `TENANT_ID` を読む**が、`agent365` の `.env.example` は
+- **`auth_helper.py` は `TENANT_ID` を読む**が、`ai-teammate` の `.env.example` は
   `AZURE_TENANT_ID` を使っている。他スキルの `.env` を再利用するスクリプトを書くときは、
   `os.environ.setdefault("TENANT_ID", os.environ.get("AZURE_TENANT_ID", ""))` のような
   ブリッジが必要になる。

@@ -123,7 +123,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 | [standard](standard/SKILL.md) | 共通認証・環境変数・ソリューション運用など、全スキル共通の開発基盤を提供する。 |
 | [update-skills](update-skills/SKILL.md) | スキル（SKILL.md/references/scripts）を作成・更新し、汎用化・秘匿化した上でリモートへ PR を作成・更新する。 |
 | [azure](azure/SKILL.md) | Azure のリファレンスアーキテクチャを選定し、テナントのセキュリティガバナンス（公衆アクセス禁止・共有キー禁止・MFA 必須等）に準拠した構成で構築・デプロイ・検証する。 |
-| [alm](alm/SKILL.md) | コードファースト資産を秘匿化・汎用化したテンプレートとして Git 管理し、pre-commit ゲート → 自律レビューゲート → 承認・デプロイ → リリース記録までを CI/CD で回す共通基盤。agent365 / code-apps などの各プロダクトスキルから利用する。 |
+| [alm](alm/SKILL.md) | コードファースト資産を秘匿化・汎用化したテンプレートとして Git 管理し、pre-commit ゲート → 自律レビューゲート → 承認・デプロイ → リリース記録までを CI/CD で回す共通基盤。ai-teammate / code-apps などの各プロダクトスキルから利用する。 |
 | [sharepoint](sharepoint/SKILL.md) | AAD アプリ登録を行わずに、Microsoft Graph API 経由で SharePoint を包括的に操作する（リスト・列・リスト項目の作成、ファイルアップロード、ページ作成、M365 グループ経由のサイト作成）。 |
 
 ### data — データ層
@@ -150,7 +150,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 | [copilot-studio-v2](copilot-studio-v2/SKILL.md) | Copilot Studio の新アーキテクチャ（cliagent）エージェントを Dataverse API だけで UI 操作なし完全自動構築する。フラット Python スキル添付まで対応。MCP サーバー等のツール追加は Copilot Studio UI での手動作業。 |
 | [power-automate](power-automate/SKILL.md) | Power Automate クラウドフローをソリューション対応で作成・デプロイする。 |
 | [cowork](cowork/SKILL.md) | 目的特化型の Copilot Cowork プラグイン（Agent Skills + Dataverse MCP）を開発し、Entra ID SSO を構成して M365 管理センターのエージェント画面から公開・更新する。 |
-| [agent365](agent365/SKILL.md) | Microsoft Foundry のエージェン トを SDK/REST ベースで作成・バージョン管理し、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に公開する。エージェントテンプレート開発を担当し、秘匿化・CI/CD は `alm` スキルに委譲する。ライト実装（PoC）と本格実装の 2 ルートに対応。 |
+| [ai-teammate](ai-teammate/SKILL.md) | Microsoft Foundry のエージェン トを SDK/REST ベースで作成・バージョン管理し、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に公開する。エージェントテンプレート開発を担当し、秘匿化・CI/CD は `alm` スキルに委譲する。ライト実装（PoC）と本格実装の 2 ルートに対応。 |
 
 ### ai — AI / プロンプト
 
@@ -198,6 +198,6 @@ Track C（設計承認と同時に着手）:
 ── 全トラック完了後 ──
   8. cowork             → Cowork プラグイン化（Agent Skills + Dataverse MCP）・公開・更新
                            ※ 会社環境で Cowork の利用が許可されている場合のみ推奨
-  9. agent365           → Foundry エージェントを Agent 365 経由で Teams / M365 Copilot に公開
+  9. ai-teammate        → Foundry エージェントを Agent 365 経由で Teams / M365 Copilot に公開
                            ※ Foundry プロジェクトと Agent 365 ライセンスがある場合
 ```

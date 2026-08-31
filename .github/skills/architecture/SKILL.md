@@ -421,7 +421,7 @@ Code Apps や Web サイトに埋め込む → **Copilot Studio v1**（§3）。
 
 > ★ **パターン認識**: 「ハンター（リード開拓）・テック（技術提案）・ミーナ（進捗管理）のように、
 > 名前と役割を持つ複数の AI エージェントが 1 チームとして協働する（AI 社員・AI チーム）」という要件は、
-> **`agent365` スキル（エージェントテンプレート）を第一候補**として提案する。各エージェントを
+> **`ai-teammate` スキル（エージェントテンプレート）を第一候補**として提案する。各エージェントを
 > 個別の agentUser（Teams 公開）として構築し、共有データが必要な場合は
 > Dataverse テーブルを介した非同期連携を検討する。
 
@@ -446,7 +446,7 @@ Code Apps や Web サイトに埋め込む → **Copilot Studio v1**（§3）。
 
 **提案の進め方**（同じ質問を繰り返さない）:
 
-1. [agent365/references/digital-colleague-design.md](../agent365/references/digital-colleague-design.md) §2 の
+1. [ai-teammate/references/digital-colleague-design.md](../ai-teammate/references/digital-colleague-design.md) §2 の
    **役割カタログ（R1 予定調整の秘書 / R2 一次受付 / R3 ウォッチャー / R4 まとめ役 / R5 起票係 / R6 チーム）**を
    AskUserQuestion の選択肢として提示する（複数選択可）
 2. 同 §5 の**制約を先に伝える** — メールは push されず数分遅れる／エージェントはメールを既読にできない／
@@ -458,9 +458,9 @@ Code Apps や Web サイトに埋め込む → **Copilot Studio v1**（§3）。
 6. **外部の文章を読むブロック（メール / Web 検索 / ファイル取り込み）を入れるなら、
    プロンプト インジェクション対策を工数に含める**と伝える。agentUser は**依頼者ではなく自分の権限**で動くため、
    メール本文に書かれた命令がそのまま実行されると実データに被害が及ぶ
-   （→ [agent365/references/prompt-injection.md](../agent365/references/prompt-injection.md)）
+   （→ [ai-teammate/references/prompt-injection.md](../ai-teammate/references/prompt-injection.md)）
 7. そのうえで下の**ライト実装 / 本格実装**を選ぶ
-8. 選択結果をまとめて [`agent365` スキル](../agent365/SKILL.md) の Step 0 へ引き渡す
+8. 選択結果をまとめて [`ai-teammate` スキル](../ai-teammate/SKILL.md) の Step 0 へ引き渡す
 
 ### ★ Web 検索は聞かれる前に提案する（既定は Grounding with Bing）
 
@@ -481,7 +481,7 @@ Code Apps や Web サイトに埋め込む → **Copilot Studio v1**（§3）。
 
 同時に制約も伝える: Web の情報は正確性が保証されず、認証が要るページは読めない。
 回答には必ず出典 URL を添える。詳細は
-[agent365/references/web-grounding.md](../agent365/references/web-grounding.md)。
+[ai-teammate/references/web-grounding.md](../ai-teammate/references/web-grounding.md)。
 
 ### ★ 定期実行も聞かれる前に提案する（頻度はこちらから出す）
 
@@ -503,7 +503,7 @@ Code Apps や Web サイトに埋め込む → **Copilot Studio v1**（§3）。
 
 同時に制約も伝える: 粒度は日単位（時間ごとは想定外）、実行に失敗しても同じ回は再送しない、
 アプリが長く停止するとその回は飛ぶ。「毎朝必ず届く」と約束しない。詳細は
-[agent365/references/scheduled-delivery.md](../agent365/references/scheduled-delivery.md)。
+[ai-teammate/references/scheduled-delivery.md](../ai-teammate/references/scheduled-delivery.md)。
 
 **Agent 365 にしない場合の代替**（要望が実は軽いとき）:
 
@@ -514,10 +514,10 @@ Code Apps や Web サイトに埋め込む → **Copilot Studio v1**（§3）。
 | 共有メールボックスの体裁だけが欲しい | Exchange の共有メールボックス + Power Automate |
 | Code Apps / Web に埋め込むチャット | **Copilot Studio v1**（§3） |
 
-### ★ ライト実装 / 本格実装を AskUserQuestion で選ぶ（`agent365` スキルに入る前に必ず実行）
+### ★ ライト実装 / 本格実装を AskUserQuestion で選ぶ（`ai-teammate` スキルに入る前に必ず実行）
 
-`agent365` スキルは **本格実装（private リポジトリ + CI/CD + Agent Evals）を既定**としているが、
-検証目的の PoC にはその一式が重すぎる。**着手前に実装レベルを確認し、選んだ結果を `agent365` スキルへ引き渡す**。
+`ai-teammate` スキルは **本格実装（private リポジトリ + CI/CD + Agent Evals）を既定**としているが、
+検証目的の PoC にはその一式が重すぎる。**着手前に実装レベルを確認し、選んだ結果を `ai-teammate` スキルへ引き渡す**。
 
 AskUserQuestion で次のように尋ねる:
 
@@ -534,7 +534,7 @@ AskUserQuestion で次のように尋ねる:
 | リポジトリ | 任意（ローカルのみでも可） | **private リポジトリ必須** |
 | 秘匿値 | ローカル `.env` のみ | `.env` + CI のシークレットストア |
 | 品質担保 | 手動での動作確認 | 秘匿化ゲート + Agent Evals + 承認ゲート |
-| 実施 Step | `agent365` スキルの Step 4（ブループリント）・11（インスタンス同意）を省略 | 全 Step |
+| 実施 Step | `ai-teammate` スキルの Step 4（ブループリント）・11（インスタンス同意）を省略 | 全 Step |
 
 > **迷ったらライト実装から始める**。エージェント定義・Teams パッケージ・スクリプトはそのまま流用でき、
 > Step 4（Agent 365 ブループリント）と Step 11（インスタンス SP への同意）を追加し、
@@ -550,15 +550,15 @@ AskUserQuestion で次のように尋ねる:
 > - **Azure DevOps Repos（private）**
 > - **その他の Git**（GitLab / Bitbucket / 自己ホスト）
 
-| Git ホスティング | CI | シークレット保管先 | `agent365` の `SECRET_BACKEND` |
+| Git ホスティング | CI | シークレット保管先 | `ai-teammate` の `SECRET_BACKEND` |
 |---|---|---|---|
 | GitHub（private） | GitHub Actions | GitHub Actions Secrets | `github` |
 | Azure DevOps Repos（private） | Azure Pipelines | 変数グループ（Key Vault 連携可） | `azure-devops` |
 | その他 Git | 各 CI | Azure Key Vault | `keyvault` |
 | （ライト実装） | なし | ローカル `.env` のみ | `none` |
 
-> 選択結果は `agent365` スキルの Step 0 でそのまま使う（同じ質問を繰り返さない）。
-> 構築手順は [`agent365` スキル](../agent365/SKILL.md)、CI 定義の雛形は
+> 選択結果は `ai-teammate` スキルの Step 0 でそのまま使う（同じ質問を繰り返さない）。
+> 構築手順は [`ai-teammate` スキル](../ai-teammate/SKILL.md)、CI 定義の雛形は
 > [alm/references/ci-providers.md](../alm/references/ci-providers.md) を参照。
 
 ---
@@ -580,13 +580,13 @@ AskUserQuestion で次のように尋ねる:
 - [ ] **イベント駆動の自動処理が必要か？** → YES なら Power Automate を含む構成
 - [ ] **データ操作 UI が必要か？** → YES で外部ユーザー向けなら既定 Azure（Power Pages 宣言時のみ Power Pages）、内部ユーザー向けなら Code Apps / Model-Driven Apps を含む構成（Canvas Apps は常に対象外）
 - [ ] **標準ビュー/フォームで十分か？** → YES なら Model-Driven Apps が最速。カスタム UI なら Code Apps
-- [ ] **名前付きの複数 AI エージェント（AI 社員 / AI チーム）を作りたいか？** → YES なら **`agent365` スキル（エージェントテンプレート）を第一候補**にし、実装レベル（ライト/本格）を確認してから着手する
+- [ ] **名前付きの複数 AI エージェント（AI 社員 / AI チーム）を作りたいか？** → YES なら **`ai-teammate` スキル（エージェントテンプレート）を第一候補**にし、実装レベル（ライト/本格）を確認してから着手する
 - [ ] **通知・リマインド等で Power Automate フロー内に、チャット UI を使わずイベント駆動で AI 処理を組み込みたいか？** → YES なら AI Builder を含む構成。それ以外の社内汎用業務は原則 Copilot Studio v2 + Dataverse MCP
 - [ ] **確定的な処理か、LLM 判断が必要か？** → 確定的なら Power Automate、LLM なら Copilot Studio
 - [ ] **応答文の生成が必要か？** → YES なら Copilot Studio
 - [ ] **外部トリガー（メール/スケジュール）でエージェントを起動するか？** → YES なら Power Automate + Copilot Studio
 - [ ] **複数エージェント/フローから共用する AI 処理があるか？** → YES かつ Power Automate フロー内での利用なら AI Builder で共通化（社内汎用業務は Copilot Studio v2 + Dataverse MCP を優先）
-- [ ] **カスタムエンジンエージェントを Teams / M365 Copilot に公開するか？** → YES なら §7 で **ライト実装（PoC）/ 本格実装** を AskUserQuestion で確定してから `agent365` スキルへ渡す（実装方式は **Agents SDK の自己ホスト一択**。Foundry ホストを前提にしない）
-- [ ] **そのエージェントは外部の文章を読むか？**（メール本文 / Web ページ / 取り込んだファイル / 業務レコード） → YES なら**プロンプト インジェクション対策を設計段階で工数に含める**。agentUser は自分の権限で動くため、未対応だと実データに被害が及ぶ（[agent365/references/prompt-injection.md](../agent365/references/prompt-injection.md)）
+- [ ] **カスタムエンジンエージェントを Teams / M365 Copilot に公開するか？** → YES なら §7 で **ライト実装（PoC）/ 本格実装** を AskUserQuestion で確定してから `ai-teammate` スキルへ渡す（実装方式は **Agents SDK の自己ホスト一択**。Foundry ホストを前提にしない）
+- [ ] **そのエージェントは外部の文章を読むか？**（メール本文 / Web ページ / 取り込んだファイル / 業務レコード） → YES なら**プロンプト インジェクション対策を設計段階で工数に含める**。agentUser は自分の権限で動くため、未対応だと実データに被害が及ぶ（[ai-teammate/references/prompt-injection.md](../ai-teammate/references/prompt-injection.md)）
 - [ ] **本格実装を選んだか？** → YES なら **Git ホスティング（GitHub / Azure DevOps Repos / その他 Git）** も確認し、private リポジトリ前提で `SECRET_BACKEND` を決める
 - [ ] **画面設計はブロックの組み合わせで決めたか？** → 同じ CRUD をテーブル数だけ量産しない。可視化ニーズがあれば **ReactFlow を第一候補**に（[設計リファレンス §4](references/design-patterns.md#4-画面設計ブロックの組み合わせテンプレ化しない設計)）

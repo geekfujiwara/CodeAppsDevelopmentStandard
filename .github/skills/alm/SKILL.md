@@ -25,7 +25,7 @@ triggers:
 # ALM（秘匿化・汎用化・CI/CD）共通スキル
 
 コードファースト資産を**安全に Git へ載せ、機械判定だけでデプロイまで到達させる**ための共通基盤。
-**プロダクト非依存**であり、`agent365`（Foundry エージェント）、`code-apps`（Code Apps）など
+**プロダクト非依存**であり、`ai-teammate`（Foundry エージェント）、`code-apps`（Code Apps）など
 どのスキルからも同じ仕組みで利用できる。デプロイの実処理だけを各プロダクトスキルへ委譲する。
 
 | 原則 | 内容 |
@@ -46,7 +46,7 @@ triggers:
 | 担当 | 内容 | 参照先 |
 |---|---|---|
 | **`alm`（本スキル）** | 秘匿化・汎用化・pre-commit・レビューゲート・承認・リリース記録 | 本ファイル |
-| `agent365` | Foundry エージェント定義、ブループリント、Teams パッケージ、公開 | [`agent365`](../agent365/SKILL.md) |
+| `ai-teammate` | Foundry エージェント定義、ブループリント、Teams パッケージ、公開 | [`ai-teammate`](../ai-teammate/SKILL.md) |
 | `code-apps` | Code Apps の実装、`npm run deploy` などのデプロイ手順 | [`code-apps`](../code-apps/SKILL.md) |
 | `standard` | ソリューション運用・環境戦略などの上位ルール | [`standard`](../standard/SKILL.md) |
 
@@ -77,7 +77,7 @@ Copy-Item .github/skills/alm/scripts/*.py scripts/
 Copy-Item .github/skills/alm/alm.config.example.json alm.config.json
 ```
 
-| キー | 意味 | 例（agent365） | 例（code-apps） |
+| キー | 意味 | 例（ai-teammate） | 例（code-apps） |
 |---|---|---|---|
 | `forbidden_tracked` | 追跡してはいけないファイル | `.env`, `a365.generated.config.json` | `.env`, `.power/` の生成物 |
 | `templates` | `${VAR}` 入りテンプレート（コミット対象） | `agents/**/*.template.yaml` | `power.config.template.json` |
@@ -166,7 +166,7 @@ python scripts/review_report.py --verdict-dir .gate --out .gate/review-report.md
 ## Step 6: デプロイを承認付きで実行する
 
 1. 既定ブランチへのマージでデプロイジョブを起動する。
-2. デプロイの実処理は**プロダクトスキル**が定義する（`agent365` なら `deploy.py`、
+2. デプロイの実処理は**プロダクトスキル**が定義する（`ai-teammate` なら `deploy.py`、
    `code-apps` なら `npm run deploy`）。ALM 側は認証・環境・順序だけを規定する。
 3. 承認の扱いは 2 択にする。**両方を併用しない**。
    - **自律運用**: ゲート連鎖を審査とみなし、Environment の必須レビュアーを外す。

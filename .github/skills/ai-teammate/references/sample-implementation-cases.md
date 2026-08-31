@@ -9,7 +9,7 @@ Agent 365 本体に、評価用 Code App、Dataverse、Power Automate を組み�
 | 事例 | Agent 365 での用途 | 主な担当 |
 |---|---|---|
 | KPI から詳細一覧へ遷移 | 会話品質・利用実績の運用ダッシュボード | `code-apps` |
-| 複数ターンを 1 会話として評価 | B15 利用実績、Agent Evals | `agent365` + `code-apps` |
+| 複数ターンを 1 会話として評価 | B15 利用実績、Agent Evals | `ai-teammate` + `code-apps` |
 | Dataverse 列追加後の発行 | 評価・キュー・ミラー用スキーマの変更 | `dataverse` |
 | 評価ジョブの非同期実行と孤児回収 | 長時間評価、B13 経過連絡 | Agent 365 の常駐 worker または `power-automate` |
 | Power Automate から Azure OpenAI を呼ぶ | 常駐 worker を増やさない評価処理 | `power-automate` |

@@ -155,8 +155,8 @@ az cognitiveservices account deployment list -g $env:AZURE_RESOURCE_GROUP -n <ai
 ## 6. 実装手順
 
 ```powershell
-Copy-Item .github/skills/agent365/references/templates/UsageStore.template.cs src/<agent-name>-agent/UsageStore.cs
-Copy-Item .github/skills/agent365/references/templates/UsageTools.template.cs src/<agent-name>-agent/UsageTools.cs
+Copy-Item .github/skills/ai-teammate/references/templates/UsageStore.template.cs src/<agent-name>-agent/UsageStore.cs
+Copy-Item .github/skills/ai-teammate/references/templates/UsageTools.template.cs src/<agent-name>-agent/UsageTools.cs
 
 az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
   Usage__Enabled=true Usage__StorePath=/home/data/usage Usage__Currency=USD Usage__JpyRate=150 `

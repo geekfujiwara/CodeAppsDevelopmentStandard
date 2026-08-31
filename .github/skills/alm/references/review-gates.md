@@ -328,7 +328,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ↓ ここだけプロダクト固有。agent365 なら render.py → deploy.py、
+      # ↓ ここだけプロダクト固有。ai-teammate なら render.py → deploy.py、
       #   code-apps なら npm ci → npm run deploy に差し替える。
       - name: Deploy
         id: deploy
