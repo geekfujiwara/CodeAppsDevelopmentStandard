@@ -61,7 +61,7 @@ src/lib/incident-types.ts
 # Python
 __pycache__/
 
-# agent365 (PoC scaffold under agents/sales-copilot-nova — generated/secret artifacts)
+# ai-teammate (PoC scaffold under agents/sales-copilot-nova — generated/secret artifacts)
 agents/**/agent.yaml
 teams/*.zip
 a365.generated.config*.json

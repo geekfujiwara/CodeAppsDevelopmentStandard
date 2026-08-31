@@ -8,7 +8,7 @@
 
 > 共通の前提: すべてのブロックは Step 6 のエンドポイントが応答している状態で足す。
 > アプリ設定の `__`（アンダースコア 2 つ）は階層区切り。値は `.env` から渡し、コードに埋めない。
-> コピー元はすべて `.github/skills/agent365/references/templates/`。名前空間だけアプリに合わせる。
+> コピー元はすべて `.github/skills/ai-teammate/references/templates/`。名前空間だけアプリに合わせる。
 
 | ブロック | 追加ファイル | 主なアプリ設定 | 詳細 |
 |---|---|---|---|
@@ -39,10 +39,10 @@ B14 は `Files.ReadWrite` が要る。ここでコードを入れただけでは
 （push されるのは Teams だけ）。自分で見に行く。
 
 ```powershell
-Copy-Item .github/skills/agent365/references/templates/AgenticIdentity.template.cs src/<agent-name>-agent/AgenticIdentity.cs
-Copy-Item .github/skills/agent365/references/templates/MailboxWorker.template.cs   src/<agent-name>-agent/MailboxWorker.cs
-Copy-Item .github/skills/agent365/references/templates/MessageHtml.template.cs     src/<agent-name>-agent/MessageHtml.cs
-Copy-Item .github/skills/agent365/references/templates/MailTools.template.cs       src/<agent-name>-agent/MailTools.cs
+Copy-Item .github/skills/ai-teammate/references/templates/AgenticIdentity.template.cs src/<agent-name>-agent/AgenticIdentity.cs
+Copy-Item .github/skills/ai-teammate/references/templates/MailboxWorker.template.cs   src/<agent-name>-agent/MailboxWorker.cs
+Copy-Item .github/skills/ai-teammate/references/templates/MessageHtml.template.cs     src/<agent-name>-agent/MessageHtml.cs
+Copy-Item .github/skills/ai-teammate/references/templates/MailTools.template.cs       src/<agent-name>-agent/MailTools.cs
 
 az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
   Agentic__TenantId=$env:AZURE_TENANT_ID `
@@ -116,8 +116,8 @@ builder.Services.AddHostedService<MailboxWorker>();
 **エージェント本人からのメッセージ**として届く（[agent-brain.md](agent-brain.md) §8）。
 
 ```powershell
-Copy-Item .github/skills/agent365/references/templates/TeamsChatTools.template.cs src/<agent-name>-agent/TeamsChatTools.cs
-Copy-Item .github/skills/agent365/references/templates/MessageHtml.template.cs    src/<agent-name>-agent/MessageHtml.cs
+Copy-Item .github/skills/ai-teammate/references/templates/TeamsChatTools.template.cs src/<agent-name>-agent/TeamsChatTools.cs
+Copy-Item .github/skills/ai-teammate/references/templates/MessageHtml.template.cs    src/<agent-name>-agent/MessageHtml.cs
 
 az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
   TeamsChat__Enabled=true TeamsChat__FromMailbox=false
@@ -152,7 +152,7 @@ builder.Services.AddSingleton<TeamsChatTools>();
 **追加の Azure リソースもプレビュー招待も要らない。**
 
 ```powershell
-Copy-Item .github/skills/agent365/references/templates/WebSearchTools.template.cs src/<agent-name>-agent/WebSearchTools.cs
+Copy-Item .github/skills/ai-teammate/references/templates/WebSearchTools.template.cs src/<agent-name>-agent/WebSearchTools.cs
 
 az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings WebSearch__Enabled=true
 ```
@@ -183,9 +183,9 @@ builder.Services.AddSingleton<WebSearchTools>();
 変更のたびに再デプロイしない。
 
 ```powershell
-Copy-Item .github/skills/agent365/references/templates/ScheduleStore.template.cs  src/<agent-name>-agent/ScheduleStore.cs
-Copy-Item .github/skills/agent365/references/templates/ScheduleTools.template.cs  src/<agent-name>-agent/ScheduleTools.cs
-Copy-Item .github/skills/agent365/references/templates/ScheduleWorker.template.cs src/<agent-name>-agent/ScheduleWorker.cs
+Copy-Item .github/skills/ai-teammate/references/templates/ScheduleStore.template.cs  src/<agent-name>-agent/ScheduleStore.cs
+Copy-Item .github/skills/ai-teammate/references/templates/ScheduleTools.template.cs  src/<agent-name>-agent/ScheduleTools.cs
+Copy-Item .github/skills/ai-teammate/references/templates/ScheduleWorker.template.cs src/<agent-name>-agent/ScheduleWorker.cs
 
 az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
   Schedule__Enabled=true Schedule__TickSeconds=60 Schedule__CatchUpMinutes=30
@@ -226,8 +226,8 @@ Python を実行させ、出力をそのまま読ませて自分で直させる�
 ```powershell
 python scripts/provision_code_sandbox.py --write-settings
 
-Copy-Item .github/skills/agent365/references/templates/CodeSandbox.template.cs  src/<agent-name>-agent/CodeSandbox.cs
-Copy-Item .github/skills/agent365/references/templates/SandboxTools.template.cs src/<agent-name>-agent/SandboxTools.cs
+Copy-Item .github/skills/ai-teammate/references/templates/CodeSandbox.template.cs  src/<agent-name>-agent/CodeSandbox.cs
+Copy-Item .github/skills/ai-teammate/references/templates/SandboxTools.template.cs src/<agent-name>-agent/SandboxTools.cs
 ```
 
 ```csharp
@@ -267,7 +267,7 @@ REST の形・取り込み経路・落とし穴は [code-sandbox.md](code-sandbo
 **無言の数分は「壊れた」と受け取られる。** B10 / B12 を入れたら自動的に入れる。
 
 ```powershell
-Copy-Item .github/skills/agent365/references/templates/AgentProgress.template.cs src/<agent-name>-agent/AgentProgress.cs
+Copy-Item .github/skills/ai-teammate/references/templates/AgentProgress.template.cs src/<agent-name>-agent/AgentProgress.cs
 
 az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
   Agent__Progress__Enabled=true Agent__Progress__FirstNoteSeconds=25 `
@@ -294,8 +294,8 @@ az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBA
 B12 を入れたら自動的に入れる。
 
 ```powershell
-Copy-Item .github/skills/agent365/references/templates/DocumentLedger.template.cs     src/<agent-name>-agent/DocumentLedger.cs
-Copy-Item .github/skills/agent365/references/templates/DocumentShareTools.template.cs src/<agent-name>-agent/DocumentShareTools.cs
+Copy-Item .github/skills/ai-teammate/references/templates/DocumentLedger.template.cs     src/<agent-name>-agent/DocumentLedger.cs
+Copy-Item .github/skills/ai-teammate/references/templates/DocumentShareTools.template.cs src/<agent-name>-agent/DocumentShareTools.cs
 
 az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
   Documents__Enabled=true Documents__Folder=$env:DOCUMENTS_FOLDER
@@ -331,8 +331,8 @@ builder.Services.AddSingleton<DocumentShareTools>();
 マネージド ID から出るため。記録していなかった期間はさかのぼれないので、**B3 と同時に入れる**。
 
 ```powershell
-Copy-Item .github/skills/agent365/references/templates/UsageStore.template.cs src/<agent-name>-agent/UsageStore.cs
-Copy-Item .github/skills/agent365/references/templates/UsageTools.template.cs src/<agent-name>-agent/UsageTools.cs
+Copy-Item .github/skills/ai-teammate/references/templates/UsageStore.template.cs src/<agent-name>-agent/UsageStore.cs
+Copy-Item .github/skills/ai-teammate/references/templates/UsageTools.template.cs src/<agent-name>-agent/UsageTools.cs
 
 az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
   Usage__Enabled=true Usage__StorePath=/home/data/usage Usage__Currency=USD Usage__JpyRate=150 `
@@ -375,7 +375,7 @@ builder.Services.AddSingleton<UsageTools>();
 **ファイルが付いていたことすら見えない**。エラーにならず「ファイルを送ってください」と返し続ける。
 
 ```powershell
-Copy-Item .github/skills/agent365/references/templates/IncomingFiles.template.cs src/<agent-name>-agent/IncomingFiles.cs
+Copy-Item .github/skills/ai-teammate/references/templates/IncomingFiles.template.cs src/<agent-name>-agent/IncomingFiles.cs
 ```
 
 ```csharp

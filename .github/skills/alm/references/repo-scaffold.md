@@ -19,7 +19,7 @@ Copy-Item .github/skills/alm/scripts/*.py scripts/
 Copy-Item .github/skills/alm/alm.config.example.json alm.config.json
 ```
 
-プロダクトスキル側のスクリプト（`agent365` の `deploy.py` など）も同じ `scripts/` に置く。
+プロダクトスキル側のスクリプト（`ai-teammate` の `deploy.py` など）も同じ `scripts/` に置く。
 
 ## requirements.txt
 

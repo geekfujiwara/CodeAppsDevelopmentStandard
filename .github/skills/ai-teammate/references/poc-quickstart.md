@@ -41,11 +41,11 @@ FOUNDRY_PROJECT_ENDPOINT=https://<account>.services.ai.azure.com/api/projects/<p
 
 ```powershell
 # Step 2: 最小 scaffold（.githooks/ と CI 定義は作らない）
-Copy-Item .github/skills/agent365/scripts -Destination scripts -Recurse
+Copy-Item .github/skills/ai-teammate/scripts -Destination scripts -Recurse
 New-Item -ItemType Directory -Force agents/$env:AGENT_NAME, teams, assets | Out-Null
-Copy-Item .github/skills/agent365/references/templates/agent.template.yaml agents/$env:AGENT_NAME/
-Copy-Item .github/skills/agent365/references/templates/manifest.template.json teams/
-Copy-Item .github/skills/agent365/references/.env.example .env.example
+Copy-Item .github/skills/ai-teammate/references/templates/agent.template.yaml agents/$env:AGENT_NAME/
+Copy-Item .github/skills/ai-teammate/references/templates/manifest.template.json teams/
+Copy-Item .github/skills/ai-teammate/references/.env.example .env.example
 pip install -r requirements.txt
 
 # Step 3: .env を用意する（認証は standard の auth_helper キャッシュを利用）

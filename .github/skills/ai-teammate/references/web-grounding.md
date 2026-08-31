@@ -71,7 +71,7 @@ MCP ではなく、[agent-brain.md](agent-brain.md) §8-3 と同じ**ローカ�
 [templates/WebSearchTools.template.cs](templates/WebSearchTools.template.cs)。
 
 ```powershell
-Copy-Item .github/skills/agent365/references/templates/WebSearchTools.template.cs `
+Copy-Item .github/skills/ai-teammate/references/templates/WebSearchTools.template.cs `
   src/<agent-name>-agent/WebSearchTools.cs
 ```
 

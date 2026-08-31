@@ -313,7 +313,7 @@ Python と pip が利用可能な場合は、`spec-builder` 用 `.venv` の作�
 │       ├── copilot-studio-v2/       # 新アーキテクチャ（cliagent）エージェント完全自動構築
 │       ├── power-automate/          # クラウドフロー作成・デプロイ
 │       ├── cowork/                  # Copilot Cowork プラグイン開発・公開
-│       ├── agent365/                # Foundry エージェントを Agent 365 経由で Teams / M365 に公開
+│       ├── ai-teammate/                # Foundry エージェントを Agent 365 経由で Teams / M365 に公開
 │       ├── ai-builder/              # AI プロンプト作成
 │       ├── spec-builder/            # 一次情報→要件定義書（仕様書）作成
 │       ├── package-sample/          # サンプルのパブリック公開パッケージング

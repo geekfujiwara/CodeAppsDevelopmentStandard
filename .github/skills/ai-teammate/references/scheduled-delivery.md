@@ -47,9 +47,9 @@ B11 は**スケジュールをデータとして持つ**。エージェントは
 ## 2. 実装
 
 ```powershell
-Copy-Item .github/skills/agent365/references/templates/ScheduleStore.template.cs  src/<agent>-agent/ScheduleStore.cs
-Copy-Item .github/skills/agent365/references/templates/ScheduleTools.template.cs  src/<agent>-agent/ScheduleTools.cs
-Copy-Item .github/skills/agent365/references/templates/ScheduleWorker.template.cs src/<agent>-agent/ScheduleWorker.cs
+Copy-Item .github/skills/ai-teammate/references/templates/ScheduleStore.template.cs  src/<agent>-agent/ScheduleStore.cs
+Copy-Item .github/skills/ai-teammate/references/templates/ScheduleTools.template.cs  src/<agent>-agent/ScheduleTools.cs
+Copy-Item .github/skills/ai-teammate/references/templates/ScheduleWorker.template.cs src/<agent>-agent/ScheduleWorker.cs
 ```
 
 `Program.cs`:
