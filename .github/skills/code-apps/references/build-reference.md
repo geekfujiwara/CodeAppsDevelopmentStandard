@@ -211,8 +211,8 @@ export default defineConfig({
 ### Step 3: 初回ビルド＆デプロイ（`-s` 必須）
 
 ```bash
-# 検証済み最新版の npm CLI 0.15.3 を使用。Step 1 で取得したソリューション GUID を渡す
-# 0.15.3 では --environment-id を指定できる。誤デプロイ防止のため対象環境を明示する
+# 検証済み最新版の npm CLI 1.0.0 を使用。Step 1 で取得したソリューション GUID を渡す
+# 1.0.0 では --environment-id を指定できる。誤デプロイ防止のため対象環境を明示する
 npm run build
 npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID}
 ```

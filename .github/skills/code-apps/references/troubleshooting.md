@@ -1699,7 +1699,7 @@ const payload = serializeMultiSelectPicklistFields(formState, MULTISELECT_FIELDS
 
 ---
 
-## 34. scaffold 直後に詰まる 3 点（検証済 2026-08-10、更新 2026-08-17）
+## 34. scaffold 直後に詰まる 3 点（検証済 2026-08-10、更新 2026-08-23）
 
 `generic-base` を degit して `npm install` した直後、手順どおりに進めても止まる箇所が 3 つある。
 いずれもコードの問題ではなく、テンプレート／ドキュメント側の不整合。
@@ -1719,7 +1719,7 @@ npm install @microsoft/power-apps@latest
 npm install -D @microsoft/power-apps-cli@latest
 ```
 
-2026-08-17 時点の検証済み最新版は SDK 1.2.13 / CLI 0.15.3。
+2026-08-23 時点の検証済み最新版は SDK 1.3.0 / CLI 1.0.0。
 `templates/generic-base/package.json` と全サンプルへ反映済みで、`scripts/validate_sample.py` は
 テンプレートを基準に SDK / CLI の両方を検証する。
 古いテンプレートから作ったプロジェクトでは手動で足す。
@@ -1731,7 +1731,7 @@ error: unknown option '--environment-id'
 ```
 
 CLI 0.13.0 はhelpに表示した `--environment-id` を実行時に拒否する。
-CLI 0.15.3 では `push` / `add-data-source` / `list-codeapps` のhelpに同オプションがあり、最新版では環境IDを明示する。
+CLI 1.0.0 では `push` / `add-data-source` / `list-codeapps` のhelpに同オプションがあり、最新版では環境IDを明示する。
 
 ```bash
 npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID_GUID}   # 初回
@@ -1939,7 +1939,7 @@ api_post("PublishAllXml", {})
 
 ---
 
-## 41. `power-apps share` が principal／権限／環境エラーになる（検証済 2026-08-17）
+## 41. `power-apps share` が principal／権限／環境エラーになる（検証済 2026-08-23）
 
 ### 症状・原因・対処
 

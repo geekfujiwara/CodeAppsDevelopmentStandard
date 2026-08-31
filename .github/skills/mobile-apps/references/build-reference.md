@@ -84,7 +84,7 @@ Power Apps Developer app で Metro の QR を読み取る。確認項目:
 ```powershell
 npm run type-check
 npm run build:android   # 対象 OS のみ
-npx --yes --package @microsoft/power-apps-cli@0.15.3 power-apps push
+npx --yes --package @microsoft/power-apps-cli@1.0.0 power-apps push
 ```
 
 ローカル `expo run:ios` / `expo run:android`、store 配布は v0 の対応範囲外。

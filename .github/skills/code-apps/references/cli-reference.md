@@ -2,14 +2,15 @@
 
 Code Apps 用 npm CLI（`npx power-apps`）の全コマンド一覧。
 
-**推奨・検証環境（2026-08-17）**: `@microsoft/power-apps` **1.2.13** / `@microsoft/power-apps-cli` **0.15.3**。
+**推奨・検証環境（2026-08-23）**: `@microsoft/power-apps` **1.3.0** / `@microsoft/power-apps-cli` **1.0.0**。
 本ドキュメントの内容は実際の `npx power-apps <command> --help` 出力に基づく。
 
 > [!IMPORTANT]
-> **PAC CLI（`pac`）とは別物**。`@microsoft/power-apps-cli` 0.15.x が提供するバイナリは
+> **PAC CLI（`pac`）とは別物**。`@microsoft/power-apps-cli` 1.x が提供するバイナリは
 > `power-apps` と短縮 alias の `pa` で、
-> `pac` は含まれない。PAC CLI は VS Code 拡張機能「Power Platform Tools」または
-> `dotnet tool install --global Microsoft.PowerApps.CLI.Tool` で導入する（npm 配布なし）。
+> `pac` は含まれない。最新 CLI では `pa` / `power-apps` が併用可能で、フラグのグループ化と一部リネームが入るため、
+> 既存スクリプトでは `npx power-apps --help` で実際の署名を確認したうえで整理する。PAC CLI は VS Code 拡張機能
+> 「Power Platform Tools」または `dotnet tool install --global Microsoft.PowerApps.CLI.Tool` で導入する（npm 配布なし）。
 
 ## 目次
 
@@ -49,8 +50,8 @@ Node.js **22 以上**が必要（`engines: { "node": ">=22" }`）。
 
 - 新規プロジェクトは `templates/generic-base/package.json` の**検証済み最新版**を使う。
 - 既存プロジェクトを更新するときも SDK / CLI ともに npm の `latest` を候補とし、古い CLI へ固定しない。
-- CLI は 0.x のため、例えば `^0.15.3` は 0.16.x へ自動更新されない。新しい minor を取り込むときは
-	`@latest` を明示し、次の検証をすべて通してから採用する。
+- CLI は 1.x 系で、`^1.0.0` を使うと 1.x の更新に追従する。`pa` / `power-apps` の併用と一部の grouped flag リネームが入ったため、
+	`npx power-apps <command> --help` で実際の署名を確認してから採用する。
 - SDK の推移的依存に CLI が含まれることを前提にせず、CLI は常に `devDependencies` へ直接指定する。
 
 ```bash
@@ -114,7 +115,7 @@ python .github/skills/code-apps/scripts/validate_cli_reference.py
 
 > [!WARNING]
 > CLI 0.13.0 は `push` / `add-data-source` / `list-codeapps` の `--environment-id` を実行時に拒否した。
-> 0.15.3 では3コマンドともhelpに同オプションを公開する。0.13.0を使い続ける場合だけ、先に `init` で
+> 1.0.0 では3コマンドともhelpに同オプションを公開する。0.13.0を使い続ける場合だけ、先に `init` で
 > `power.config.json` を生成し、そこに保存された `environmentId` を使用する。
 
 ## アプリライフサイクル
