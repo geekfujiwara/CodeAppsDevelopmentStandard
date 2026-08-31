@@ -3,7 +3,8 @@
 ## 概要
 
 FlowAgent MCP SERVER は `server/mcp.mjs`（自己完結型 ESM バンドル）で動作する
-Node.js 18+ の MCP サーバー。VS Code の GitHub Copilot Chat（エージェントモード）から
+Node.js 20+ の MCP サーバー（v3.0.0 以降は MCP SDK v2 化に伴い Node.js 18 では起動しない）。
+VS Code の GitHub Copilot Chat（エージェントモード）から
 Power Automate クラウドフローを自然言語で構築・編集・デバッグできる。
 
 > ★ このプラグイン本体は元々 Claude Code / GitHub Copilot CLI 向けの `/plugin marketplace add`
@@ -20,7 +21,7 @@ Power Automate クラウドフローを自然言語で構築・編集・デバ�
 
 | 要件 | 確認コマンド |
 |---|---|
-| Node.js 18+ | `node --version` |
+| Node.js 20+ | `node --version` |
 | git（プラグイン本体の取得に使用） | `git --version` |
 | Python 3 + azure-identity + python-dotenv | `pip install -r .github/skills/standard/scripts/requirements.txt` |
 | Azure CLI（MCP サーバーの認証） | `az --version` |
@@ -47,7 +48,7 @@ python .github/skills/power-automate/scripts/setup_flow_mcp.py
 
 スクリプトは次の処理を自動で行う:
 
-1. Node.js 18+ を確認する
+1. Node.js 20+ を確認する
 2. `az account list` で対象テナントの既存キャッシュを確認する
    - 既にキャッシュ済みなら `az account set` だけで切り替え（対話不要）
    - 無い場合のみ `az login --tenant {id}` の案内を表示（★ いきなりログインを迫らない）
@@ -141,6 +142,18 @@ python .github/skills/power-automate/scripts/setup_flow_mcp.py [オプション]
 | `manage-desktop-flows` | デスクトップフロー（RPA）の一覧・実行 |
 | `route-environments` | 環境の解決・ルーティング |
 
+## 認証・ID の診断ツール（v3.0.4+）
+
+FlowAgent は Azure CLI（`az`）のサインイン ID をそのまま使う。意図しないアカウントで
+認証されていると、原因が分かりにくい権限エラーや DNS エラーとして表面化する。
+以下のツールで可視化・復旧できる。
+
+| ツール | 使うタイミング |
+|---|---|
+| `whoami` | 認証系のエラーが出たらまず実行。有効な `az` アカウント、CLI プロファイルのパス（`AZURE_CONFIG_DIR` 反映）、解決済みクラウド、トークンキャッシュの場所、トークンが実際に持つテナントを表示する |
+| `reconnect` | `az login` / `az account set` でアカウントを切り替えた後、または古いトークンで 401/403 が出るとき。キャッシュされたトークンを破棄して再取得する |
+| `doctor` | 総合チェック（CLI の有無・サインイン状態・config dir・クラウド・トークン取得・トークンと `az` ID の一致・現在の環境・環境への到達性）を一括診断し、それぞれに具体的な対処を提示する |
+
 ## よくあるトラブル
 
 ### セットアップスクリプトが `DATAVERSE_URL が未設定` で終了する
@@ -149,11 +162,11 @@ python .github/skills/power-automate/scripts/setup_flow_mcp.py [オプション]
 
 ### `Node.js が見つかりません` エラー
 
-Node.js 18+ をインストールする。`node --version` で確認。
+Node.js 20+ をインストールする。`node --version` で確認。
 
 ### `FlowAgent プラグインが見つかりません` エラー
 
-1. `git` と Node.js 18+ がインストールされているか確認する（`git --version` / `node --version`）
+1. `git` と Node.js 20+ がインストールされているか確認する（`git --version` / `node --version`）
 2. 手動で取得する場合:
    ```bash
    git clone --depth 1 --filter=blob:none --sparse https://github.com/microsoft/power-platform-skills.git ~/.power-platform-skills
