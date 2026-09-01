@@ -68,6 +68,10 @@ cp .github/skills/standard/references/gitignore-template .gitignore
   - [VS Code + GitHub Copilot](#vs-code--github-copilot)
   - [ライセンス要件](#ライセンス要件)
   - [Power Platform 環境](#power-platform-環境)
+    - [専用環境を作成する](#専用環境を作成する)
+    - [Copilot Credits を環境に割り当てる](#copilot-credits-を環境に割り当てる)
+    - [Advanced Connector Policy を設定する](#advanced-connector-policy-を設定する)
+    - [Code Apps を有効化する](#code-apps-を有効化する)
   - [前提条件をまだ準備していない場合](#前提条件をまだ準備していない場合)
 - [管理者権限（管理者ロール）要件](#管理者権限管理者ロール要件)
 - [チーム開発向けの手順](#チーム開発向けの手順)
@@ -111,6 +115,69 @@ VS Code をインストールすると **GitHub Copilot 拡張機能は最初か
 
 > [!CAUTION]
 > **デフォルト環境（Default）では開発しないでください。** 組織全員が参照できる共有環境のため、テーブルやソリューションが意図せず他ユーザーに見えます。必ず専用の **Developer 環境** または **Sandbox 環境** を用意してください。
+
+Copilot Studio を利用する場合は、次の順序で管理者による事前設定を行います。
+
+1. Dataverse を含む専用環境を作成する
+2. Copilot Credits をその環境に割り当てる
+3. Advanced Connector Policy で利用を許可するコネクタを設定する
+4. Code Apps を使用する場合は環境の機能を有効化する
+
+#### 専用環境を作成する
+
+この操作には **Power Platform Administrator** または **Dynamics 365 Administrator** などの環境作成権限が必要です。Sandbox 環境の作成には、テナントに 1 GB 以上の空き Dataverse データベース容量も必要です。
+
+1. [Power Platform 管理センター](https://admin.powerplatform.microsoft.com/) を開く
+2. **管理** > **環境** > **新規** を選択
+3. 環境名とリージョンを入力し、用途に応じて **Developer** または **Sandbox** を選択
+4. **Dataverse データ ストアを追加する** を **はい** にして **次へ** を選択
+5. 言語、URL、基本通貨、セキュリティグループを設定する
+6. Dynamics 365 アプリが不要な場合は **Dynamics 365 アプリを有効にする** を **いいえ** にして **保存** を選択
+7. 作成完了後、対象の開発者に少なくとも **Environment Maker** セキュリティロールを付与する
+
+詳細: [Power Platform 管理センターで環境を作成および管理する（Microsoft Learn）](https://learn.microsoft.com/ja-jp/power-platform/admin/create-environment)
+
+#### Copilot Credits を環境に割り当てる
+
+Copilot Studio のエージェントを作成・実行する環境には、購入済みの **Copilot Credits** を割り当てます。この操作には **Power Platform Administrator** または **Global Administrator** など、ライセンスと容量を管理できるロールが必要です。
+
+1. [Power Platform 管理センター](https://admin.powerplatform.microsoft.com/) を開く
+2. **ライセンス** > **製品** > **Copilot Studio** を選択
+3. **Copilot Credits の管理** を選択
+4. 検索ボックスから対象環境を選択
+5. **容量の割り当て** に環境へ割り当てる Copilot Credits 数を入力
+6. **容量超過** の **テナントで使用可能な容量から取得する** を、組織の予算管理方針に合わせて選択または解除する
+   - 選択: 環境の割り当てを使い切った後も、テナントの未割り当て容量を使用する
+   - 解除: 割り当てを上限とし、使い切るとそれ以上消費しない
+7. **保存** を選択
+
+> [!WARNING]
+> 利用可能な Copilot Credits がなくなると、クレジットを必要とする作成者向け機能や公開済みエージェントが停止する可能性があります。割り当て量と消費量を定期的に確認してください。
+
+詳細: [Copilot Credits の環境割り当て（Microsoft Learn）](https://learn.microsoft.com/ja-jp/power-platform/admin/programmability-tutorial-manage-copilot-credit-allocations)
+
+#### Advanced Connector Policy を設定する
+
+DLP（データ損失防止）のコネクタ制御には、原則として **Advanced Connector Policy（ACP）** を使用します。ACP は許可リスト方式のため、明示的に追加していないコネクタとアクションは既定でブロックされます。
+
+1. 対象環境で利用するコネクタとアクションを事前に棚卸しする
+2. [Power Platform 管理センター](https://admin.powerplatform.microsoft.com/) を開く
+3. **セキュリティ** > **データとプライバシー** > **Advanced connector policies** を選択
+4. 対象環境を選び、**Add connectors** から必要な認定コネクタを許可リストへ追加する
+5. コネクタ内の一部アクションだけを許可する場合は、許可対象のトリガーとアクションを指定する
+6. 設定内容を確認して **保存** を選択
+7. ポリシーの **Status** が **Applied** になったことを確認する
+
+> [!IMPORTANT]
+> 初回導入時は、従来の DLP ポリシーも評価される既定の **Mixed mode** を使用してください。Mixed mode では ACP と従来の DLP のうち、より制限の厳しい設定が適用されます。従来の DLP から完全に移行し、必要な許可リストを検証できた場合にのみ **ACP-only mode** を検討してください。
+>
+> ACP は現在、認定コネクタと MCP コネクタを対象とします。**カスタムコネクタ、HTTP コネクタ、Copilot Studio の仮想コネクタは ACP だけでは管理できません。** これらを利用する場合は、従来の DLP ポリシーやコネクタ エンドポイント フィルタリングも継続して設定してください。
+
+環境グループへ一括適用する場合は、**管理** > **環境グループ** > 対象グループ > **ルール** > **Advanced connector policies** で許可リストを保存した後、**ルールの公開**を実行します。
+
+詳細: [Advanced connector policies（Microsoft Learn）](https://learn.microsoft.com/ja-jp/power-platform/admin/advanced-connector-policies)
+
+#### Code Apps を有効化する
 
 Code Apps は環境ごとに初期状態で無効です。有効化手順:
 
