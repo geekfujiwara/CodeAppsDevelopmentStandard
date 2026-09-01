@@ -13,7 +13,7 @@ Power Apps Code Apps, モデル駆動型アプリ, Generative page, Dataverse, P
 
 ## クイックスタート
 
-VS Code + GitHub Copilot が使える状態（[前提条件](#前提条件をまだ準備していない場合)を参照）であれば、次のコマンドと 1 依頼だけで開発を始められます。
+VS Code + GitHub Copilot が使える状態（[ローカル開発環境の準備](#ローカル開発環境の準備)を参照）であれば、次のコマンドと 1 依頼だけで開発を始められます。
 
 ```bash
 npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
@@ -65,14 +65,14 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 - [クイックスタート](#クイックスタート)
 - [Claude Code でのクイックスタート](#claude-code-でのクイックスタート)
 - [前提条件](#前提条件)
-  - [VS Code + GitHub Copilot](#vs-code--github-copilot)
-  - [ライセンス要件](#ライセンス要件)
-  - [Power Platform 環境](#power-platform-環境)
+  - [ライセンスの準備](#ライセンスの準備)
+  - [クラウド環境の準備](#クラウド環境の準備)
     - [専用環境を作成する](#専用環境を作成する)
     - [Copilot Credits を環境に割り当てる](#copilot-credits-を環境に割り当てる)
     - [Advanced Connector Policy を設定する](#advanced-connector-policy-を設定する)
     - [Code Apps を有効化する](#code-apps-を有効化する)
-  - [前提条件をまだ準備していない場合](#前提条件をまだ準備していない場合)
+  - [ローカル開発環境の準備](#ローカル開発環境の準備)
+    - [VS Code + GitHub Copilot](#vs-code--github-copilot)
 - [管理者権限（管理者ロール）要件](#管理者権限管理者ロール要件)
 - [チーム開発向けの手順](#チーム開発向けの手順)
 - [上流の開発標準更新を取り込む](#上流の開発標準更新を取り込む)
@@ -88,11 +88,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 
 ## 前提条件
 
-### VS Code + GitHub Copilot
-
-VS Code をインストールすると **GitHub Copilot 拡張機能は最初から同梱**されています。別途 Extensions からインストールする必要はありません。GitHub アカウントでサインインし、Copilot ライセンスを有効化してください。
-
-### ライセンス要件
+### ライセンスの準備
 
 | 対象 | 必要なライセンス / 前提 | 出典 |
 |---|---|---|
@@ -111,7 +107,7 @@ VS Code をインストールすると **GitHub Copilot 拡張機能は最初か
 | Microsoft Copilot Studio ライセンスガイド（日本語） | [aka.ms/MCSLicJP](https://aka.ms/MCSLicJP) |
 | Copilot Credits ライセンスガイド | [aka.ms/CopilotCredits/LicensingGuide](https://aka.ms/CopilotCredits/LicensingGuide) |
 
-### Power Platform 環境
+### クラウド環境の準備
 
 > [!CAUTION]
 > **デフォルト環境（Default）では開発しないでください。** 組織全員が参照できる共有環境のため、テーブルやソリューションが意図せず他ユーザーに見えます。必ず専用の **Developer 環境** または **Sandbox 環境** を用意してください。
@@ -187,7 +183,11 @@ Code Apps は環境ごとに初期状態で無効です。有効化手順:
 
 詳細: [Code Apps 公式ドキュメント（Microsoft Learn）](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/overview)
 
-### 前提条件をまだ準備していない場合
+### ローカル開発環境の準備
+
+#### VS Code + GitHub Copilot
+
+VS Code をインストールすると **GitHub Copilot 拡張機能は最初から同梱**されています。別途 Extensions からインストールする必要はありません。GitHub アカウントでサインインし、Copilot ライセンスを有効化してください。
 
 <details>
 <summary><strong>プロンプトによる自動環境準備（所要 15 分）</strong></summary>
