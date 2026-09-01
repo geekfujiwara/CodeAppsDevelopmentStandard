@@ -68,6 +68,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
   - [ライセンスの準備](#ライセンスの準備)
   - [クラウド環境の準備](#クラウド環境の準備)
     - [専用環境を作成する](#専用環境を作成する)
+    - [開発者へセキュリティ ロールを割り当てる](#開発者へセキュリティ-ロールを割り当てる)
     - [Copilot Credits を環境に割り当てる](#copilot-credits-を環境に割り当てる)
     - [Advanced Connector Policy を設定する](#advanced-connector-policy-を設定する)
     - [Code Apps を有効化する](#code-apps-を有効化する)
@@ -115,9 +116,10 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 Copilot Studio を利用する場合は、次の順序で管理者による事前設定を行います。
 
 1. Dataverse を含む専用環境を作成する
-2. Copilot Credits をその環境に割り当てる
-3. Advanced Connector Policy で利用を許可するコネクタを設定する
-4. Code Apps を使用する場合は環境の機能を有効化する
+2. 開発者へ必要なセキュリティ ロールを割り当てる
+3. Copilot Credits をその環境に割り当てる
+4. Advanced Connector Policy で利用を許可するコネクタを設定する
+5. Code Apps を使用する場合は環境の機能を有効化する
 
 #### 専用環境を作成する
 
@@ -129,9 +131,32 @@ Copilot Studio を利用する場合は、次の順序で管理者による事�
 4. **Dataverse データ ストアを追加する** を **はい** にして **次へ** を選択
 5. 言語、URL、基本通貨、セキュリティグループを設定する
 6. Dynamics 365 アプリが不要な場合は **Dynamics 365 アプリを有効にする** を **いいえ** にして **保存** を選択
-7. 作成完了後、対象の開発者に少なくとも **Environment Maker** セキュリティロールを付与する
+7. 作成完了後、次の「開発者へセキュリティ ロールを割り当てる」に進む
 
 詳細: [Power Platform 管理センターで環境を作成および管理する（Microsoft Learn）](https://learn.microsoft.com/ja-jp/power-platform/admin/create-environment)
+
+#### 開発者へセキュリティ ロールを割り当てる
+
+Dataverse を含む開発環境では、開発者に次の 2 つのセキュリティ ロールを割り当てます。ロールの権限は累積されるため、両方を割り当てることでテーブルとその他の Power Platform リソースを開発できます。
+
+| セキュリティ ロール | 用途 |
+|---|---|
+| **System Customizer（システム カスタマイザー）** | Dataverse テーブル、列、リレーションなどを作成・変更する |
+| **Environment Maker（環境作成者）** | アプリ、フロー、接続、カスタム API、ソリューションなど、環境内のリソースを作成する |
+
+割り当ては、対象環境の **System Administrator** またはセキュリティ ロールを割り当てる権限を持つ管理者が実施します。
+
+1. [Power Platform 管理センター](https://admin.powerplatform.microsoft.com/) を開く
+2. **管理** > **環境** を選択し、対象環境を開く
+3. **設定** > **ユーザー + アクセス許可** > **ユーザー** を選択
+4. 対象の開発者を選択し、**セキュリティ ロールの管理** を選択
+5. **System Customizer（システム カスタマイザー）** と **Environment Maker（環境作成者）** を選択
+6. **保存** を選択し、両方のロールが割り当てられたことを確認する
+
+> [!IMPORTANT]
+> **Environment Maker だけでは Dataverse テーブルを作成できません。** テーブルを作成・変更する開発者には **System Customizer** も必要です。通常の開発者へ完全な管理権限を持つ **System Administrator** を安易に割り当てず、必要最小限のロールを使用してください。
+
+詳細: [セキュリティ ロールを割り当てる（Microsoft Learn）](https://learn.microsoft.com/ja-jp/power-platform/admin/assign-security-roles)、[Dataverse のロールベースのセキュリティ（Microsoft Learn）](https://learn.microsoft.com/ja-jp/power-platform/admin/database-security)
 
 #### Copilot Credits を環境に割り当てる
 
