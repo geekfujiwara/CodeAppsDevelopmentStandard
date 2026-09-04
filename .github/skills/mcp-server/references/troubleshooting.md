@@ -104,6 +104,35 @@ Get-Content "$env:TEMP\publish.log" -Tail 30
 
 ---
 
+## Copilot Studio との接続
+
+### curl では `tools/list` が返るのに、Copilot Studio のコネクタからは接続できない
+
+**原因**: Copilot Studio は **Streamable トランスポートのみ**対応する（SSE は 2025 年 8 月で廃止）。
+自前実装で以下のいずれかを外していると、自前の curl では成功するのに接続だけが失敗する。
+
+| 違反 | 症状 |
+|---|---|
+| `id` なしの通知（`notifications/initialized`）に JSON-RPC 本文を返す | initialize 直後のハンドシェイクで切断される |
+| `protocolVersion` を `2024-11-05` 等に固定し、クライアント提示版を無視する | Streamable と見なされない |
+| `methods: ['POST']` のみで GET が 404 | サーバー不在と誤判定される |
+
+**対処**: [protocol.md](protocol.md) の「Streamable HTTP の必須要件」に従い、通知は **202 + 本文なし**、
+`protocolVersion` は `2025-03-26` 以降をネゴシエート、GET / DELETE は **405** を返す。
+
+**恒久対策済み**: `verify_mcp_server.py` の `check_streamable_compliance()` が、
+毎回の E2E 検証で上記 3 点を実測して違反を列挙する（`tools/list` の前に実行される）。
+
+### カスタムコネクタの OAuth 同意でリダイレクトが失敗する
+
+**原因**: Entra アプリ登録にカスタムコネクタ共通のリダイレクト URI
+`https://global.consent.azure-apim.net/redirect` が登録されていない。
+
+**対処**: `configure_connector_oauth.py` を実行する（リダイレクト URI 追加・シークレット発行・
+自己スコープへの委任アクセス付与をまとめて行う）。
+
+---
+
 ## 認証・認可
 
 ### トークン取得が `AADSTS650057: Invalid resource ... List of valid resources from app registration: .`

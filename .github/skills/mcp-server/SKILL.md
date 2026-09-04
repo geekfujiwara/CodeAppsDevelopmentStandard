@@ -32,7 +32,7 @@ Copilot Studio のエージェントから **社内の業務データ（DB・フ
 |---|---|
 | **データ層は非公開、コンピュート層は公開** | SQL / Storage は Private Endpoint のみ。Function App の HTTP エンドポイントは公開する（Copilot Studio は SaaS からアウトバウンド接続するため、非公開にすると到達できない） |
 | **キーレス** | 受信 = Entra ID Bearer JWT 検証、送信 = Managed Identity。関数キー・接続文字列・共有キーを使わない |
-| **プロトコルは最小実装** | `initialize` / `tools/list` / `tools/call` の 3 メソッドのみ。SSE・セッション管理は実装しない |
+| **プロトコルは最小実装** | `initialize` / `tools/list` / `tools/call` / `ping` のみ。SSE ストリーム・セッション管理は実装しないが、**Streamable HTTP の規約には従う**（Copilot Studio は Streamable のみ対応） |
 | **成否はルート実測で判定** | デプロイの終了コードや ARM のメタデータを信用せず、HTTP プローブで実際のルートを確認する |
 | **非対話で完走** | Azure 操作も `auth_helper` 経由（`az login` を手順に含めない）。→ [認証リファレンス](../standard/references/auth-patterns.md) |
 
@@ -40,9 +40,10 @@ Copilot Studio のエージェントから **社内の業務データ（DB・フ
 
 | リファレンス | 内容 |
 |---|---|
-| [MCP プロトコル最小実装](references/protocol.md) | JSON-RPC 2.0 の 3 メソッドとツール定義の書き方 |
+| [MCP プロトコル最小実装](references/protocol.md) | JSON-RPC 2.0 の実装と Streamable HTTP の必須要件、ツール定義の書き方 |
 | [認証モデル](references/auth-model.md) | 受信 JWT 検証 / 送信 Managed Identity の実装 |
 | [Private 環境でのデータ投入](references/private-data-seeding.md) | Private Endpoint 下でシードするための管理エンドポイントパターン |
+| [Copilot Studio への登録](references/copilot-studio-registration.md) | カスタムコネクタ（OpenAPI）とコネクタ用 OAuth 設定 |
 | [.env サンプル](references/.env.example) | 本スキルのパラメータ |
 | [異常系・トラブルシュート](references/troubleshooting.md) | 実際に踏んだ失敗と恒久対策 |
 
@@ -125,6 +126,9 @@ Azure Functions（Node.js 20 / TypeScript / v4 プログラミングモデル）
 - ハンドラは `authLevel: 'anonymous'` にし、**認可はコード側の JWT 検証で行う**（関数キーを使わない）。
 - `src/index.ts` は各関数モジュールを `import` するだけにする。**存在しないモジュールを 1 行でも import すると worker が
   起動できず、全ルートが 404 になる**（関数を削除・退避したら import も必ず消す）。
+- Copilot Studio から使うなら **Streamable HTTP の必須要件**を満たす（通知には 202 + 本文なし、
+  `protocolVersion` は `2025-03-26` 以降をネゴシエート、GET / DELETE に 405）。これを外すと
+  curl では成功するのにコネクタ接続だけが失敗する。
 - 実装の詳細は [protocol.md](references/protocol.md) と [auth-model.md](references/auth-model.md) を参照。
 
 ### Step 5: デプロイする
@@ -172,7 +176,8 @@ python .github/skills/mcp-server/scripts/seed_mcp_data.py
 python .github/skills/mcp-server/scripts/verify_mcp_server.py
 ```
 
-`api://{app-id}/.default` のトークンを取得し、`tools/list` でツール一覧、`tools/call` で**実データ**が返ることを確認する。
+`api://{app-id}/.default` のトークンを取得し、**Streamable HTTP 準拠の検査**に続けて
+`tools/list` でツール一覧、`tools/call` で**実データ**が返ることを確認する。
 ツール一覧が返るだけでは不十分で、**必ず 1 つ以上のツールを実行して中身を見る**。
 
 ### Step 8: 管理エンドポイントを削除して Copilot Studio に登録する
@@ -188,9 +193,16 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 
 2. アプリ設定から `ADMIN_SEED_SECRET` を削除する。
 3. 残すルートが 401、削除したルートが 404 であることを HTTP で実測する。
-4. [copilot-studio-v2 スキル](../copilot-studio-v2/SKILL.md) の手順で、エージェントに MCP サーバーをツールとして追加する。
-   複数の MCP Server を 1 エージェントに束ねる場合は、エージェントの指示文に
-   **「どの質問でどのサーバーを使うか」** を明記しないと選択を誤る。
+4. カスタム コネクタ（OpenAPI + OAuth）を作成し、エージェントにツールとして追加する。
+   → [copilot-studio-registration.md](references/copilot-studio-registration.md)
+
+   ```powershell
+   python .github/skills/mcp-server/scripts/configure_connector_oauth.py --audience $env:MCP_API_AUDIENCE --secret-out .secrets/connector-oauth.json
+   ```
+
+   複数の MCP Server を 1 エージェントに束ねる場合は、コネクタの `description` とエージェントの指示文の
+   **両方に「どの質問でどのサーバーを使うか」**を明記しないと選択を誤る。
+   エージェント本体の構築は [copilot-studio-v2 スキル](../copilot-studio-v2/SKILL.md) に委譲する。
 
 ---
 
@@ -205,6 +217,7 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 - [ ] `src/index.ts` の相対 import が全て実在するモジュールを指している
 - [ ] デプロイ成否を **終了コードではなくルートの HTTP 実測**で判定した
 - [ ] `tools/call` で実データが返ることを確認した
+- [ ] Streamable HTTP 準拠（通知に 202 / バージョンネゴシエーション / GET に 405）を検証した
 - [ ] 管理エンドポイントを削除し、`ADMIN_SEED_SECRET` をアプリ設定から消した
 - [ ] 削除後に「残すルート = 401 / 削除したルート = 404」を HTTP で実測した
 - [ ] スクリプトが `auth_helper` 経由で非対話に完走する（`az login` を要求しない）
