@@ -161,7 +161,7 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 1. 投入用の管理エンドポイントを削除して再デプロイする（攻撃面を残さない）。
 
    ```powershell
-   python .github/skills/mcp-server/scripts/cleanup_admin_endpoints.py --project <path> --app <function-app-name>
+   python .github/skills/mcp-server/scripts/cleanup_admin_endpoints.py --project <path> --app <function-app-name> --confirm
    ```
 
 2. アプリ設定から `ADMIN_SEED_SECRET` を削除する。

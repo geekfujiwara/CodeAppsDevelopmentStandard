@@ -19,11 +19,9 @@ import os
 import sys
 from pathlib import Path
 
-import requests
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
 
-from azure_helper import get_app_settings, get_sql_access_token  # noqa: E402
+from azure_helper import function_url, get_app_settings, get_sql_access_token, http_post  # noqa: E402
 
 
 def resolve_secret(app: str) -> str:
@@ -51,11 +49,19 @@ def main() -> int:
         # CREATE USER ... FROM EXTERNAL PROVIDER は Entra 管理者権限が必要で MI では実行できない
         body["accessToken"] = get_sql_access_token()
 
-    url = f"https://{args.app}.azurewebsites.net/api/{args.route}"
-    res = requests.post(url, headers={"x-admin-seed-secret": resolve_secret(args.app)}, json=body, timeout=600)
-    # トークンを含むリクエストボディはログに出さない
-    print(f"{args.route} -> {res.status_code} {res.text[:500]}")
-    return 0 if res.status_code < 400 else 1
+    try:
+        status, _ = http_post(
+            function_url(args.app, args.route),
+            body,
+            headers={"x-admin-seed-secret": resolve_secret(args.app)},
+            timeout=600,
+        )
+    except (RuntimeError, ValueError, KeyError) as exc:
+        print(f"{args.route} -> 接続失敗: {exc}", file=sys.stderr)
+        return 1
+    # 応答がリクエスト内容を反射してもトークンを漏らさないよう本文は表示しない。
+    print(f"{args.route} -> {status}")
+    return 0 if status < 400 else 1
 
 
 if __name__ == "__main__":

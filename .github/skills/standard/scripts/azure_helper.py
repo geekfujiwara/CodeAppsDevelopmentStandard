@@ -16,6 +16,7 @@ token = get_sql_access_token()
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -96,6 +97,40 @@ def get_api_access_token(audience: str) -> str:
     ``AADSTS650057`` になる場合はアプリ登録側でスコープ公開とクライアント事前承認が未設定。
     """
     return get_token(scope=f"{audience.rstrip('/')}/.default")
+
+
+def function_url(app: str, route: str) -> str:
+    """検証済みの Azure Functions HTTP エンドポイント URL を返す。"""
+    if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,58}[A-Za-z0-9])?", app):
+        raise ValueError(f"Function App 名が不正です: {app}")
+    normalized_route = route.strip("/")
+    if not normalized_route or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._~/-]*", normalized_route):
+        raise ValueError(f"Function route が不正です: {route}")
+    return f"https://{app}.azurewebsites.net/api/{normalized_route}"
+
+
+def http_post(
+    url: str,
+    body: dict | None = None,
+    headers: dict[str, str] | None = None,
+    scope: str | None = None,
+    timeout: int = _TIMEOUT,
+) -> tuple[int, Any]:
+    """任意の HTTPS API を POST し、status code と解析済み応答を返す。"""
+    if not url.startswith("https://"):
+        raise ValueError("HTTP POST の送信先は HTTPS URL に限ります")
+    request_headers = {"Content-Type": "application/json", **(headers or {})}
+    if scope:
+        request_headers["Authorization"] = f"Bearer {get_token(scope=scope)}"
+    try:
+        res = requests.post(url, headers=request_headers, json=body or {}, timeout=timeout)
+    except requests.RequestException as exc:
+        raise RuntimeError(f"POST {url} への接続に失敗しました: {exc}") from exc
+    try:
+        payload: Any = res.json() if res.content else None
+    except requests.JSONDecodeError:
+        payload = res.text
+    return res.status_code, payload
 
 
 def get_app_settings(subscription_id: str, resource_group: str, site_name: str) -> dict[str, str]:

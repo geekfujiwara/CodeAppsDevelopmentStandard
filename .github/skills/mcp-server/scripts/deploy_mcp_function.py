@@ -20,7 +20,9 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-import requests
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
+
+from azure_helper import function_url, http_post  # noqa: E402
 
 LOCAL_SETTINGS = {
     "IsEncrypted": False,
@@ -98,10 +100,13 @@ def verify_routes(app: str, routes: list[str]) -> bool:
     """ルートを HTTP プローブする。401 = 存在して認可が動いている、404 = 未デプロイ。"""
     ok = True
     for route in routes:
-        url = f"https://{app}.azurewebsites.net/api/{route}"
         try:
-            status = requests.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, timeout=60).status_code
-        except requests.RequestException as exc:
+            status, _ = http_post(
+                function_url(app, route),
+                {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+                timeout=60,
+            )
+        except (RuntimeError, ValueError) as exc:
             print(f"[verify] {route}: 接続失敗 {exc}")
             ok = False
             continue
