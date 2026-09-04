@@ -40,6 +40,8 @@ test('workflow is cloud-only and explicitly provisions its runtime', async () =>
   assert.match(workflow, /docker version/);
   assert.doesNotMatch(workflow, /COMMUNITY_AGENT_TOKEN/);
   assert.match(workflow, /GH_TOKEN: \$\{\{ github\.token \}\}/);
+  assert.match(workflow, /--no-ask-user/);
+  assert.match(workflow, /timeout-minutes: 5/);
 });
 
 test('sandbox accepts only narrow test and validation commands', () => {

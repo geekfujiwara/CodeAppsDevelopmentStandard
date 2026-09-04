@@ -29,6 +29,7 @@ jobs:
            github.event.issue.author_association != 'MEMBER' &&
            github.event.issue.author_association != 'COLLABORATOR') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write
@@ -53,6 +54,7 @@ jobs:
     name: Reproduce and classify in isolation
     needs: acknowledge
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       issues: write
@@ -90,10 +92,13 @@ jobs:
 
       - name: Create a constrained reproduction plan
         if: ${{ env.COPILOT_CLI_TOKEN != '' }}
+        timeout-minutes: 5
         env:
           GH_TOKEN: ${{ secrets.COPILOT_CLI_TOKEN }}
         run: >-
           copilot --prompt "$(cat .github/prompts/community-issue-reproduction.md)"
+          --no-ask-user
+          --silent
           --allow-tool write
 
       - name: Verify the planner did not edit tracked files
@@ -118,10 +123,13 @@ jobs:
 
       - name: Classify from repository and reproduction evidence
         if: ${{ env.COPILOT_CLI_TOKEN != '' }}
+        timeout-minutes: 5
         env:
           GH_TOKEN: ${{ secrets.COPILOT_CLI_TOKEN }}
         run: >-
           copilot --prompt "$(cat .github/prompts/community-issue-decision.md)"
+          --no-ask-user
+          --silent
           --allow-tool write
 
       - name: Use owner review when the agent is unavailable
@@ -148,6 +156,7 @@ jobs:
     needs: review
     if: ${{ needs.review.outputs.decision == 'AUTO_PR' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
       issues: write
@@ -178,10 +187,13 @@ jobs:
         run: npm install --global "@github/copilot@${COPILOT_CLI_VERSION}"
 
       - name: Implement without command execution
+        timeout-minutes: 5
         env:
           GH_TOKEN: ${{ secrets.COPILOT_CLI_TOKEN }}
         run: >-
           copilot --prompt "$(cat .github/prompts/community-issue-implementation.md)"
+          --no-ask-user
+          --silent
           --allow-tool write
 
       - name: Enforce changed path and diff limits
@@ -233,6 +245,7 @@ jobs:
     needs: review
     if: ${{ always() && needs.review.result == 'failure' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write
@@ -258,6 +271,7 @@ jobs:
     needs: implement
     if: ${{ always() && needs.implement.result == 'failure' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write
