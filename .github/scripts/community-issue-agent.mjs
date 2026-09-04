@@ -74,6 +74,17 @@ export function validatePlan(plan, policy, validationMode = false) {
   });
 }
 
+export function parseJsonDocument(value) {
+  const trimmed = String(value ?? '').trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch (directError) {
+    const fenced = trimmed.match(/^```json\s*\r?\n([\s\S]*?)\r?\n```$/i);
+    if (!fenced) throw directError;
+    return JSON.parse(fenced[1]);
+  }
+}
+
 export function normalizeDecision(rawDecision, policy, reproductionPassed) {
   const decision = decisions.has(rawDecision?.decision) ? rawDecision.decision : 'OWNER_REVIEW';
   const confidence = Number.isFinite(rawDecision?.confidence) ? rawDecision.confidence : 0;
@@ -184,7 +195,7 @@ async function prepare(issueNumber) {
 
 async function validatePlanFile(file, mode) {
   const policy = await loadPolicy();
-  const plan = JSON.parse(await readFile(path.resolve(root, file), 'utf8'));
+  const plan = parseJsonDocument(await readFile(path.resolve(root, file), 'utf8'));
   const commands = validatePlan(plan, policy, mode === 'validation');
   await writeFile(path.join(root, '.agent/validated-plan.json'), `${JSON.stringify({ commands }, null, 2)}\n`);
 }
@@ -219,7 +230,7 @@ async function runPlan(outputFile = '.agent/reproduction-report.json') {
 async function validateDecision(file) {
   const policy = await loadPolicy();
   const report = JSON.parse(await readFile(path.join(root, '.agent/reproduction-report.json'), 'utf8'));
-  const raw = JSON.parse(await readFile(path.resolve(root, file), 'utf8'));
+  const raw = parseJsonDocument(await readFile(path.resolve(root, file), 'utf8'));
   const decision = normalizeDecision(raw, policy, report.passed);
   await writeFile(path.join(root, '.agent/validated-decision.json'), `${JSON.stringify(decision, null, 2)}\n`);
   if (process.env.GITHUB_OUTPUT) {

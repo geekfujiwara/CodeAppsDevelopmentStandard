@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   buildAcknowledgement,
   normalizeDecision,
+  parseJsonDocument,
   validateChangedPaths,
   validatePlan,
   validateSandboxCommand,
@@ -60,6 +61,13 @@ test('plan validation rejects an unsafe command among safe commands', () => {
     () => validatePlan({ commands: [{ argv: ['node', '--test', '.agent/repro/case.test.mjs'] }, { argv: ['git', 'push'] }] }, policy),
     /Command 2 rejected/,
   );
+});
+
+test('JSON parser accepts one fenced document but rejects surrounding prose', () => {
+  assert.deepEqual(parseJsonDocument('{"commands":[]}'), { commands: [] });
+  assert.deepEqual(parseJsonDocument('```json\n{"commands":[]}\n```'), { commands: [] });
+  assert.throws(() => parseJsonDocument('Here is the result:\n```json\n{}\n```'));
+  assert.throws(() => parseJsonDocument('```json\n{}\n```\n```json\n{}\n```'));
 });
 
 test('reproduction may expect a failure but post-change validation may not', () => {
