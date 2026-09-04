@@ -141,6 +141,11 @@ existing_tables = [t for t in all_tables["value"] if t["LogicalName"].startswith
 
 衝突がある場合はユーザーに報告し、名前を変更してから設計を確定する。
 
+> プレフィックスを既存プロジェクトと共用する環境では `{prefix}_project` のような一般名が
+> 高確率で衝突する。専用の名前空間（例: `{prefix}_kbproject`）を採用して回避する。
+> なお `setup_dataverse.py` は Step 1 の前に `validate_no_foreign_tables()` で
+> **対象ソリューション外の既存テーブルとの衝突を必ず再検証**し、検出したら API 呼び出し前に中断する。
+
 ### Step 3: テーブル設計（ユーザー承認必須）
 
 設計書を作成してユーザーに提示する。以下をすべて含める:

@@ -648,3 +648,68 @@ if failed:
 
 この恒久対策により、10 テーブル規模・混雑環境でも通常は 1 回の実行で完走するようになった。
 
+---
+
+## 19. 同じプレフィックスを共有する環境で、既存テーブルと論理名が衝突し他プロジェクトのテーブルを拡張してしまう
+
+### 症状
+
+発行元プレフィックスを既存プロジェクトと共用する環境で `{prefix}_project` /
+`{prefix}_incident` / `{prefix}_knowledge` のような一般的な論理名を `TABLES` に定義すると、
+テーブル作成 API が「既存テーブルあり」として素通りし、**別プロジェクトのテーブルに
+自分の列が追加される**。エラーにならないため気付きにくく、他プロジェクトのスキーマを
+汚染したうえで、デモデータ投入時に想定外の既存行が混ざる。
+
+### 原因
+
+`_create_single_table()` は既存テーブルを検出したら列追加へ進む設計（べき等性のため）で、
+「その既存テーブルが**自ソリューションのものか**」を確認していなかった。
+
+### 対処（恒久対策・`validate_no_foreign_tables()` に実装済み）
+
+Step 1 の前に、`TABLES` の論理名が対象ソリューション**外**の既存テーブルと衝突していないかを
+検証する事前チェックを追加した。`EntityDefinitions`（プレフィックス一致）と
+`solutioncomponents`（`componenttype eq 1`）を突き合わせ、ソリューション未所属の
+既存テーブルを検出したら API 呼び出し前に中断する。再実行時は自ソリューションのテーブルなので
+素通りし、べき等性は保たれる。
+
+衝突が出た場合は、論理名を専用の名前空間に変更して回避する（例: `geek_` プレフィックスを
+共用しつつ `geek_kbproject` のように 2〜3 文字の識別子を挟む）。
+
+---
+
+## 20. `setup_dataverse.py` をプロジェクトの `scripts/` にコピーすると `ModuleNotFoundError: auth_helper`
+
+### 症状
+
+テンプレート `.github/skills/dataverse/scripts/setup_dataverse.py` をプロジェクトの
+`scripts/` にコピーして実行すると、`from auth_helper import ...` が
+`ModuleNotFoundError` になる。
+
+### 原因
+
+テンプレートが `sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "standard", "scripts"))`
+とスキル配下の相対パスを直書きしていたため、コピー先では解決できなかった。
+
+### 対処（恒久対策・`_resolve_auth_helper_dir()` に実装済み）
+
+配置場所に依存しないよう、スキル配下 → スクリプト同階層 → 祖先ディレクトリの
+`.github/skills/standard/scripts` → 祖先ディレクトリ直下、の順で `auth_helper.py` を探索し、
+見つからない場合は配置方法を示す明示的なエラーを送出する。
+
+---
+
+## 21. 同一プレフィックスの発行元が複数あり、意図しない発行元でソリューションが作られる
+
+### 症状
+
+`publishers?$filter=customizationprefix eq '{prefix}'` が複数件返る環境で、先頭要素を
+暗黙採用していたため、意図しない発行元にソリューションが紐づく。
+
+### 対処（恒久対策・`resolve_publisher_id()` に実装済み）
+
+候補が 2 件以上の場合は `uniquename` / `friendlyname` / `publisherid` を列挙して中断し、
+`.env` の `PUBLISHER_UNIQUE_NAME`（または `PUBLISHER_ID`）で明示させる。
+テンプレートに特定環境の `uniquename` をハードコードしていた箇所も併せて削除した。
+
+
