@@ -190,9 +190,8 @@ def main() -> None:
     print("=" * 72)
     print("次のコマンドでデータソースを接続参照バインドできます:")
     print(
-        f"  npx power-apps add-data-source --api-id {args.api_id} "
-        f"-cr {logical_name} -s {solution_id} "
-        "--resource-name commondataserviceforapps "
+        f"  npx pa app add data-source --connector {args.api_id} "
+        f"--connection-ref {logical_name} --solution-id {solution_id} "
         f"--org-url {os.getenv('DATAVERSE_URL', '{DATAVERSE_URL}')} --non-interactive"
     )
 

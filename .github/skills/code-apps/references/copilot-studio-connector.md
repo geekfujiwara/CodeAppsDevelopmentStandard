@@ -13,9 +13,8 @@ Power Automate フローを介さずに、Code Apps SDK の `executeAsync` で�
 
 ```bash
 # Copilot Studio コネクタを追加
-npx power-apps add-data-source \
-  --api-id shared_microsoftcopilotstudio \
-  --resource-name microsoftcopilotstudio \
+npx pa app add data-source \
+  --connector shared_microsoftcopilotstudio \
   --org-url {DATAVERSE_URL}
 ```
 

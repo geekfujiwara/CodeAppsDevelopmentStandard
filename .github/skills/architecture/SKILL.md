@@ -13,6 +13,9 @@ triggers:
   - "Cowork プラグイン"
   - "Copilot Studio スキル"
   - "Dataverse MCP"
+  - "自前 MCP Server"
+  - "基幹データをエージェントに繋ぐ"
+  - "Dataverse に無いデータ"
   - "データ入力の接点"
   - "統合パターン"
   - "設計判断"
@@ -60,6 +63,7 @@ triggers:
 | **利用者・規模** | 誰が使いますか？社内のみですか？何人くらいですか？ |
 | **必要な操作** | 登録・検索・承認・通知・レポートのうち何が必要ですか？ |
 | **外部連携** | Teams / Outlook / SharePoint / 既存システムとつなぎたいですか？ |
+| **Dataverse 外のデータ** | 参照したいデータは **既存の基幹 DB・ファイルサーバー・業務 API** にありますか？（→ あるなら §6.5：自前 MCP Server） |
 | **AI・自動化** | チャットで問い合わせできると便利ですか？自動通知は必要ですか？ |
 | **人としての同僚** | ツールとしての AI でよいですか？それとも**自分のメールアドレスや予定表を持ち、メンバーとして働く存在**が欲しいですか？（→ 後者なら §7） |
 
@@ -81,7 +85,8 @@ triggers:
 | **AI Builder**        | **Power Automate フロー内**に組み込む定型 AI 処理（通知・リマインド等、イベント駆動でチャット UI を使わない場合のみ） | チャット UI での対話・社内汎用業務全般（★ §6 参照: 原則 Copilot Studio v2 + Dataverse MCP、AI Builder は限定的採用） |
 | **Dataverse**         | リレーショナルデータ、行レベルセキュリティ、監査、ビジネスルール                             | 大量ログデータ、非構造化データ、全文検索                       |
 | **Copilot Studio v2 スキル + Dataverse MCP** | 自然言語での業務データ登録・照会（Dataverse MCP 経由）、Teams / Copilot Studio 上での利用、SKILL.md による業務知識の付与。**環境制約が少なく作りやすい（★ 第一候補）** | リッチな一覧/編集 UI、複雑なビジュアル、外部/匿名公開 |
-| **Copilot Cowork プラグイン** | M365 Copilot 上での自然言語登録・照会（Dataverse MCP 経由）。M365 Copilot との統合が必須要件の場合に採用。**会社環境で Cowork の利用が許可されている場合のみ推奨** | 環境制約が多い（Entra App 登録・Teams 開発者ポータル・M365 管理センター公開・Teams Admin / Global Admin 権限が必要）。環境が揃わない場合は Copilot Studio v2 + Dataverse MCP を優先 |
+| **Copilot Cowork プラグイン** | M365 Copilot 上での自然言語登録・照会（Dataverse MCP / **自前 MCP Server** 経由）。M365 Copilot との統合が必須要件の場合に採用。**会社環境で Cowork の利用が許可されている場合のみ推奨** | 環境制約が多い（Entra App 登録・Teams 開発者ポータル・M365 管理センター公開・Teams Admin / Global Admin 権限が必要）。環境が揃わない場合は Copilot Studio v2 + Dataverse MCP を優先 |
+| **自前 MCP Server（Azure Functions）** | **Dataverse に無いデータ**（既存の基幹 DB / ファイルサーバー / 業務 API）をエージェントに公開する。Private Endpoint の内側にあるデータをキーレス（Entra JWT + Managed Identity）で提供。**Copilot Studio / Cowork の両方から同じ Server を使い回せる** | ノーコードでの構築。Azure の基盤（VNet / Private Endpoint / 監視）と運用が別途必要。Dataverse の行レベルセキュリティは傣かない（自前で設計する） |
 | **Agent 365 / AI チームメイト** | カスタムエンジンエージェントをコードファーストでバージョン管理し、Teams / M365 Copilot へ公開。インストールごとの専用 Entra Agent ID。**エージェント自身のメールアドレス・予定表・権限を持つ「デジタルな同僚」**（★ §7: 採用時はライト/本格を必ず確認） | ノーコードでの素早い構築、Code Apps / Web への埋め込み、Dataverse 標準 UI |
 
 ---
@@ -129,7 +134,8 @@ triggers:
     │
     ├─ ② 自律的に起動して動く必要がある
     │     （メール受信・Teams 返信・スケジュール等のイベントで自動実行、無人で判断・応答）
-    │        ──→ 【Copilot Studio（Workflow / トリガー）+ Power Automate】（§3・§4 へ）
+    │        ├─ トリガーが Dataverse のレコード作成/更新 ──→ ★【Copilot Studio v2 ワークフロー（Agentflow: Dataverse トリガー + エージェント ノード）】（設計リファレンス パターン F）
+    │        └─ トリガーがメール/Teams/スケジュール等の外部イベント ──→ 【Copilot Studio（Workflow / トリガー）+ Power Automate】（§3・§4 へ）
     │
     ├─ ③ アプリ（Code Apps / Web サイト）に組み込んで呼び出す
     │     （画面内チャット・埋め込み・WebChat SDK での外部公開）
@@ -150,7 +156,11 @@ triggers:
 >   1. **チャットで話しかけて実行するケース**（v2 スキル + Dataverse MCP）— 第一候補（①）
 >   2. **自律的なケース** — イベント/トリガーで無人起動し、自分で判断・応答・データ更新する（②）
 >   3. **アプリに組み込むケース** — Code Apps / Web サイトに埋め込んで呼び出す（③、v1 必須）
+> - **自律的なケース（②）で、すでに Copilot Studio v2 スキルを採用している場合**は、Power Automate + v1 トリガーではなく **Copilot Studio v2 ワークフロー（Agentflow: Dataverse トリガー + エージェント ノード）を標準の第一候補**とする。既存の発行済み v2 スキルをエージェント ノードから呼び出せるため、Power Automate も v1 も追加せずに同一アーキテクチャで完結できる（設計リファレンス [パターン F](references/design-patterns.md#パターン-f-dataverse-トリガー駆動-agentflowcopilot-studio-v2-ワークフロー--エージェント-ノード)）。
 > - 構築手順は [`copilot-studio-v2` スキル](../copilot-studio-v2/SKILL.md)（①）、Cowork の UI 併設方針は §5 を参照。
+> - **参照したいデータが Dataverse に無い場合**（既存の基幹 DB・ファイルサーバー・業務 API）は、
+>   上記のどの分岐であっても **自前 MCP Server（Azure Functions）** を併せて検討する（→ §6.5）。
+>   同じ MCP Server を **Copilot Studio v2 にも Cowork にも**登録できるため、公開先は後から増やせる。
 
 ### 2.2 複合パターン（最も多い）
 
@@ -248,6 +258,8 @@ AskUserQuestion で次のように尋ねる:
 >
 > - **提案の型**: **Dataverse（基盤）＋ Code Apps（閲覧・分析・複雑操作）＋ Copilot Studio v2 スキル + Dataverse MCP（自然言語での登録・照会）** を既定セットとして提示する。
 > - **内部ユーザー向け**の入力は Copilot Studio v2 スキル + Dataverse MCP を優先。M365 Copilot との統合が必須要件の場合のみ **Cowork プラグイン**を追加検討（Global Admin 等の権限が別途必要。**会社環境で Cowork の利用が許可されている場合のみ推奨**）。**外部ユーザー向け**は Copilot Studio v1 埋め込み / Power Pages を使う（§3・§5 参照）。
+> - **既存の基幹 DB ・ファイルサーバーのデータを併せて見せたい場合**は、Dataverse への移行を前提にせず
+>   **自前 MCP Server** を追加して読み取りだけ公開する（→ §6.5）。Copilot Studio v2 / Cowork のどちらからでも使える。
 > - 構築手順は [`copilot-studio-v2` スキル](../copilot-studio-v2/SKILL.md) を参照。
 
 ```
@@ -404,6 +416,72 @@ Q: その AI 処理は再利用するか？
 └─ 構造化された入出力（JSON スキーマ）が必要
     └─ → AI Builder プロンプト（output.formats: ["json"]）
 ```
+
+---
+
+## 6.5 自前 MCP Server を使う判断ポイント（Dataverse 外のデータを繋ぐ）
+
+**使う**: 参照したいデータが **Dataverse に無い**（既存の基幹 DB / ファイルサーバー / 業務 API に既にある）／
+移行・二重管理をせずに **読み取りだけエージェントへ公開**したい／Private Endpoint の内側にあるデータを
+キーレス（Entra JWT + Managed Identity）で安全に出したい。
+
+**使わない**（→ 代替）: データが Dataverse にある → **Dataverse MCP**（自前実装は不要）／
+確定手順での一括連携・書き込み同期 → **Power Automate**／単発の分析 → **Copilot Studio のナレッジ**。
+
+```
+Q: エージェントに読ませたいデータはどこにある？
+
+├─ Dataverse ──────────────→ 【Dataverse MCP】（追加開発なし。§2.1.1 ①）
+│
+├─ SharePoint / Web / ファイル（非構造）
+│                ──────────→ 【Copilot Studio のナレッジ】
+│
+└─ 既存の基幹 DB / ファイルサーバー / 業務 API
+                 ──────────→ ★【自前 MCP Server（Azure Functions）】（mcp-server スキル）
+                                 ＋ 呼び出し側を下の「公開先」で選ぶ
+```
+
+### 公開先の選択（★ Cowork とセットで提案できる）
+
+同じ MCP Server を **Copilot Studio からも Cowork からも**使える。違いは登録方法だけで、
+Server 側の実装は共通（どちらも Streamable HTTP + Entra OAuth）。
+
+| 公開先 | 登録方法 | 向くケース | 使用スキル |
+|---|---|---|---|
+| **Copilot Studio v2 スキル** | カスタム コネクタ（OpenAPI, `x-ms-agentic-protocol: mcp-streamable-1.0`） | Teams / Copilot Studio 単体で使う。**環境制約が少なく第一候補** | [`mcp-server`](../mcp-server/SKILL.md) + [`copilot-studio-v2`](../copilot-studio-v2/SKILL.md) |
+| **Copilot Cowork プラグイン** | manifest の `agentConnectors.remoteMcpServer` | **M365 Copilot（Cowork）上での利用が必須要件**。文書作成・レビュー等 Cowork の生成能力と組み合わせたい | [`mcp-server`](../mcp-server/SKILL.md) + [`cowork`](../cowork/SKILL.md) |
+
+> **AskUserQuestion で確認する**: 「このデータをどこから使いますか？
+> ① Teams / Copilot Studio（作りやすい・第一候補）、② M365 Copilot（Cowork。Global Admin 権限と
+> Frontier 参加が必要）、③ 両方（MCP Server は 1 つのまま、登録を 2 系統作る）」
+>
+> **③ を選んでも Server の実装は増えない**。API アプリ（`api://<api-app-id>`）を 1 つに集約しておけば、
+> Copilot Studio 用のカスタムコネクタと Cowork 用の OAuth registration を並行して作れる。
+
+### セット提案の型（Cowork + 自前 MCP Server）
+
+M365 Copilot 上で基幹データを扱いたい要件では、次の 3 点セットで提案する。
+
+1. **自前 MCP Server（Azure Functions）** — データソースごとに 1 つ。ツールは「一覧 / 検索 / 取得」の 3 系統
+2. **Entra API アプリ** — スコープ 1 つ（例 `MCP.Access`）を公開し、Cowork の OAuth クライアントを事前承認
+3. **Cowork プラグイン** — ビジネススキル（`SKILL.md`）＋ `agentConnectors`（MCP Server 分だけ列挙）
+
+Dataverse も併用する場合は、`agentConnectors` に Dataverse MCP を**併載**し、各 `description` に
+どのコネクタをどの用途で使うかを明記する（エージェントはこの説明でツールを選ぶ）。
+手順は [cowork スキルの自前 MCP コネクタ手順](../cowork/references/custom-mcp-connector.md) を参照。
+
+### 見積もりに含める工数
+
+| 項目 | 備考 |
+|---|---|
+| Azure 基盤（VNet / Private Endpoint / Managed Identity / 監視） | [azure スキル](../azure/SKILL.md)。テナントのガバナンス次第で増減 |
+| MCP Server 実装（ツール定義 → 実装 → デプロイ → 実測検証） | データソース 1 つあたり。ツール数に比例 |
+| Entra 認可（スコープ公開・事前承認・コネクタ用 OAuth） | 管理者同意の調整リードタイムを含める |
+| 登録（カスタムコネクタ or Cowork パッケージ） | 公開先の数だけ |
+| **運用**（証明書/シークレット更新・スキーマ変更追従・障害対応） | MCP Server は自社資産になるため、Dataverse MCP には無い継続コストが発生する |
+
+> **プロンプト インジェクション対策**: MCP Server が返すデータに外部由来の文章（メール本文・
+> 取り込んだ文書等）が含まれる場合は、§0 のとおり対策を設計段階で工数に含める。
 
 ---
 
@@ -574,6 +652,7 @@ AskUserQuestion で次のように尋ねる:
 - [ ] **外部ユーザー向け UI か？** → YES なら既定で Azure、ユーザーが Power Pages を宣言した場合のみ Power Pages を含む構成
 - [ ] **Dataverse にデータを貯める構成か？** → YES なら入力接点として **Copilot Studio v2 スキル + Dataverse MCP**（自然言語登録）を第一候補に含める（Code Apps は閲覧・分析・複雑操作を担当）
 - [ ] **自然言語対話が必要か？** → YES ならまず §2.1.1 で分岐。**ユーザーが能動的にチャットで話しかけて実行**するなら **Copilot Studio v2 スキル + Dataverse MCP**を第一候補（M365 Copilot 統合が必須かつ会社環境で Cowork の利用が許可されている場合のみ Cowork も検討）。Copilot Studio v1 は **①自律起動 / ②アプリ組込** の 2 ケースに限る
+- [ ] **エージェントに読ませたいデータが Dataverse の外にあるか？**（既存の基幹 DB / ファイルサーバー / 業務 API） → YES なら **自前 MCP Server（Azure Functions）** を構成に含め、公開先（Copilot Studio v2 / Cowork / 両方）を AskUserQuestion で確定する。Server の実装は共通で、登録方法だけが変わる（§6.5）
 - [ ] **エージェント自身のメールアドレス・予定表・権限が要るか？**（デジタルな同僚・予定調整・メール一次対応） → YES なら **Agent 365**。他のコンポーネントでは実現できない（§7）
 - [ ] **その業務に社外の情報が含まれるか？**（相手企業・業界動向・製品仕様・ニュース・URL 閲覧） → YES なら**聞かれる前に Web 検索を提案**する。既定は **Grounding with Bing**（追加リソース・招待なし）、画像/動画検索が要件なら Web IQ を併用（§7）
 - [ ] **その業務に繰り返しの仕事が含まれるか？**（毎朝の要約・週次レポート・滞留チェック） → YES なら**聞かれる前に定期実行を提案**する。頻度は質問せず 1 案（例: 平日 8:00 / Teams チャット）を出して可否を取る（§7）

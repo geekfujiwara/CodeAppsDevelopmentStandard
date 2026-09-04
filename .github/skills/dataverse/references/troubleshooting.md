@@ -648,3 +648,154 @@ if failed:
 
 この恒久対策により、10 テーブル規模・混雑環境でも通常は 1 回の実行で完走するようになった。
 
+---
+
+## 19. 同じプレフィックスを共有する環境で、既存テーブルと論理名が衝突し他プロジェクトのテーブルを拡張してしまう
+
+### 症状
+
+発行元プレフィックスを既存プロジェクトと共用する環境で `{prefix}_project` /
+`{prefix}_incident` / `{prefix}_knowledge` のような一般的な論理名を `TABLES` に定義すると、
+テーブル作成 API が「既存テーブルあり」として素通りし、**別プロジェクトのテーブルに
+自分の列が追加される**。エラーにならないため気付きにくく、他プロジェクトのスキーマを
+汚染したうえで、デモデータ投入時に想定外の既存行が混ざる。
+
+### 原因
+
+`_create_single_table()` は既存テーブルを検出したら列追加へ進む設計（べき等性のため）で、
+「その既存テーブルが**自ソリューションのものか**」を確認していなかった。
+
+### 対処（恒久対策・`validate_no_foreign_tables()` に実装済み）
+
+Step 1 の前に、`TABLES` の論理名が対象ソリューション**外**の既存テーブルと衝突していないかを
+検証する事前チェックを追加した。`EntityDefinitions`（プレフィックス一致）と
+`solutioncomponents`（`componenttype eq 1`）を突き合わせ、ソリューション未所属の
+既存テーブルを検出したら API 呼び出し前に中断する。再実行時は自ソリューションのテーブルなので
+素通りし、べき等性は保たれる。
+
+衝突が出た場合は、論理名を専用の名前空間に変更して回避する（例: `geek_` プレフィックスを
+共用しつつ `geek_kbproject` のように 2〜3 文字の識別子を挟む）。
+
+---
+
+## 20. `setup_dataverse.py` をプロジェクトの `scripts/` にコピーすると `ModuleNotFoundError: auth_helper`
+
+### 症状
+
+テンプレート `.github/skills/dataverse/scripts/setup_dataverse.py` をプロジェクトの
+`scripts/` にコピーして実行すると、`from auth_helper import ...` が
+`ModuleNotFoundError` になる。
+
+### 原因
+
+テンプレートが `sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "standard", "scripts"))`
+とスキル配下の相対パスを直書きしていたため、コピー先では解決できなかった。
+
+### 対処（恒久対策・`_resolve_auth_helper_dir()` に実装済み）
+
+配置場所に依存しないよう、スキル配下 → スクリプト同階層 → 祖先ディレクトリの
+`.github/skills/standard/scripts` → 祖先ディレクトリ直下、の順で `auth_helper.py` を探索し、
+見つからない場合は配置方法を示す明示的なエラーを送出する。
+
+---
+
+## 21. 同一プレフィックスの発行元が複数あり、意図しない発行元でソリューションが作られる
+
+### 症状
+
+`publishers?$filter=customizationprefix eq '{prefix}'` が複数件返る環境で、先頭要素を
+暗黙採用していたため、意図しない発行元にソリューションが紐づく。
+
+### 対処（恒久対策・`resolve_publisher_id()` に実装済み）
+
+候補が 2 件以上の場合は `uniquename` / `friendlyname` / `publisherid` を列挙して中断し、
+`.env` の `PUBLISHER_UNIQUE_NAME`（または `PUBLISHER_ID`）で明示させる。
+テンプレートに特定環境の `uniquename` をハードコードしていた箇所も併せて削除した。
+
+---
+
+## 22. KPI の日数計算に `createdon` を使い、全 KPI が「データなし」または 0 日になる
+
+### 症状
+
+ダッシュボードの日数系 KPI（平均クローズ日数・承認リードタイム・初回応答日数）が
+すべて `—`／`データなし`／`対象 0 件`、あるいは `0.0日` になる。
+Dataverse を直接照会すると、終了側の日時列（`{prefix}_closedon` 等）には値が入っている。
+
+### 原因
+
+起点に Dataverse の**監査列 `createdon` を使っていた**。
+`createdon` は「レコードを Dataverse に書き込んだ日時」であり、業務上の発生日時ではない。
+
+```text
+createdon  = 2026-09-04T10:34:38Z   ← デモデータ投入日（＝スクリプト実行日）
+closedon   = 2025-03-12T08:30:00Z   ← 業務上のクローズ日時
+diffDays() = -541 日                ← 負の値になり、KPI 側のフィルタで全件除外される
+```
+
+同じ理由で、デモデータや移行データは全レコードの `createdon` がほぼ同一時刻になるため、
+
+- 「起票 → 初回回答」の日数差が **0 日**に潰れる
+- 月次トレンドが**投入した月だけ**に固まり、時系列として意味を持たない
+- 「未承認ナレッジの滞留日数」が常に 0 日になり、滞留を検知できない
+
+### 対処（恒久対策）
+
+**日数計算の起点・終点になる日時は、監査列とは別に業務日時列として明示的に持つ。**
+
+| 監査列（使わない） | 業務日時列（KPI はこちらを使う） |
+|---|---|
+| `createdon` | `{prefix}_reportedon`（起票日時） |
+| `createdon` | `{prefix}_answeredon`（回答日時） |
+| `createdon` | `{prefix}_generatedon`（生成日時） |
+
+テーブル定義（`setup_dataverse.py` の `TABLES`）:
+
+```python
+# 起票日時は Dataverse の createdon（レコード作成日時）とは別に持つ。
+# createdon は移行・再投入で変わるため、KPI の起点に使えない。
+{"logical": f"{PREFIX}_reportedon", "type": "DateTime", "display": "起票日時"},
+```
+
+読み取り側（Code Apps）は業務日時列を優先し、未設定のときだけ `createdon` に退避する:
+
+```ts
+/**
+ * KPI の起点となる「業務上の日時」を取り出す。
+ * createdon はレコードを Dataverse に書いた日時であり業務上の発生日時ではないため、
+ * 業務日時列を優先し、未設定の場合だけフォールバックする。
+ */
+function businessDate(row: DataverseRow, businessField: string): string {
+  return str(row, businessField) ?? str(row, "createdon") ?? ""
+}
+```
+
+デモデータ投入時は、業務日時列に**過去日**を入れて時系列に散らす。
+5W1H の「いつ」のような自由記述 String 列がある場合は、解釈できたときだけ変換して流用する:
+
+```python
+def _to_iso(value: str | None) -> str | None:
+    """"YYYY-MM-DD HH:MM" 形式の自由記述を DateTime 列用の ISO 8601(UTC) に変換する。"""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value.strip(), "%Y-%m-%d %H:%M").strftime("%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return None
+```
+
+### 既存環境の移行
+
+`setup_dataverse.py` のデモデータ投入は既存行をスキップする（べき等）ため、
+定義を直しただけでは既存レコードに値が入らない。列追加と backfill を行う
+**移行専用スクリプトを別に用意して 1 回だけ実行する**。
+
+### レビュー観点
+
+日数・リードタイム系の KPI を実装したら、必ず次を確認する。
+
+- 起点の日時列は業務日時列か（`createdon` になっていないか）
+- 「対象 0 件」「0.0日」は正常値ではなく、**起点日時の設計ミスのシグナル**として疑う
+- 月次トレンドのラベルが実行月の周辺だけに固まっていないか
+
+

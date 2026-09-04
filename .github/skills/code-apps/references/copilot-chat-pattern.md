@@ -643,7 +643,7 @@ Copilot Studio 呼び出し失敗時にローカルデータで代替回答:
 |---|------|---------|
 | 1 | Copilot Studio エージェントが公開済み | Copilot Studio UI でステータス確認 |
 | 2 | `shared_microsoftcopilotstudio` コネクタの接続が環境内に存在 | Power Platform 管理センター → 接続 |
-| 3 | `npx power-apps add-data-source` でコネクタ追加済み | `src/generated/services/MicrosoftCopilotStudioService.ts` が存在 |
+| 3 | `npx pa app add data-source` でコネクタ追加済み | `src/generated/services/MicrosoftCopilotStudioService.ts` が存在 |
 | 4 | `dataSourcesInfo` 統合版を使用 | `src/lib/dataSourcesInfo.ts` で `.power` と `generated` をマージ |
 | 5 | 生成サービスのインポートパスが統合版を参照 | `MicrosoftCopilotStudioService.ts` 内の import を確認 |
 

@@ -13,6 +13,8 @@ triggers:
   - "Agent Skills"
   - "SKILL.md"
   - "Dataverse MCP コネクタ"
+  - "自前 MCP を Cowork で使いたい"
+  - "Cowork に MCP Server を追加"
   - "remoteMcpServer"
   - "OAuthPluginVault"
   - "Teams 開発者ポータル"
@@ -32,9 +34,22 @@ triggers:
 ビジネススキル（`SKILL.md`）と **Dataverse MCP コネクタ**をセットにし、**Entra ID の OAuth 2.0 認可コードフロー認証**で
 Cowork から Dataverse を直接操作できるようにする。
 
+> **データ先は Dataverse だけではない**: `agentConnectors` は remote MCP server を指すため、
+> [mcp-server スキル](../mcp-server/SKILL.md) で構築した **自前 MCP Server（Azure Functions）** も
+> 同じようにコネクタにできる。基幹 DB・ファイルサーバー・業務 API など **Dataverse に無いデータ**を
+> Cowork から扱う場合は [自前 MCP Server をコネクタにする](references/custom-mcp-connector.md) を併せて読む
+> （差分は Step 3 の権限・Step 4 の可否・Step 5 の Scope・Step 6 の URL の 4 点だけ）。
+
 > 前提: 利用テナントが [Frontier プレビュー](https://adoption.microsoft.com/en-us/copilot/frontier-program/) に参加していること。
 > **会社環境で Cowork の利用が許可されている場合のみ**このスキルを使用してください。利用可否が不明な場合は管理者に確認してください。
 > 異常系・トラブルシュートは [references/troubleshooting.md](references/troubleshooting.md) を参照。
+
+## サブリファレンス
+
+| リファレンス | 内容 |
+|---|---|
+| [自前 MCP Server をコネクタにする](references/custom-mcp-connector.md) | Dataverse 外のデータ（基幹 DB / ファイルサーバー / 業務 API）を Cowork から扱う場合の差分手順 |
+| [異常系・トラブルシュート](references/troubleshooting.md) | 実際に踏んだ失敗と恒久対策 |
 
 ## パッケージ構成（Skills + remote connector）
 
@@ -81,6 +96,9 @@ Cowork から Dataverse を直接操作できるようにする。
    Dataverse のデータで支援する』ような形を想定しています」と確認する。
 2. **対象データの把握**: 連携する Dataverse 環境／テーブル（顧客・契約・実績など）をヒアリング。
    不明なら `describe` / `search` 系で既存テーブルを軽く調べて候補を出す。
+   **Dataverse に無いデータ（基幹 DB・ファイルサーバー・業務 API）が必要なら、この段階で確認する**。
+   必要なら [mcp-server スキル](../mcp-server/SKILL.md) で自前 MCP Server を先に立て、
+   [references/custom-mcp-connector.md](references/custom-mcp-connector.md) でコネクタとして併載する。
 3. **スキル案を5つ提案**: その業務ドメインで Cowork が役立つ**スキルを5つ程度**列挙する。
    各スキルは「名前（kebab-case）＋一言の用途＋トリガー語の例」をセットで示す。
 
@@ -161,6 +179,15 @@ python .github/skills/cowork/scripts/setup_entra_oauth_graph.py
 # 例: python .github/skills/cowork/scripts/setup_entra_oauth_graph.py --display-name "MyApp-Cowork-OAuth" --secret-years 1
 ```
 
+> **自前 MCP Server を使う場合**は付与する権限が違う（Dynamics CRM の `mcp.tools` ではなく
+> 自前 API の公開スコープ）。`--api-audience` を指定する。
+>
+> ```powershell
+> python .github/skills/cowork/scripts/setup_entra_oauth_graph.py --api-audience "api://<api-app-id>" --api-scope MCP.Access
+> ```
+>
+> 併用するなら `--include-dataverse` を足す。詳細は [custom-mcp-connector.md](references/custom-mcp-connector.md)。
+
 **代替（az CLI 版）**: [scripts/setup_entra_oauth.ps1](scripts/setup_entra_oauth.ps1)（`az login` のデバイスコード認証が必要）:
 
 ```powershell
@@ -211,6 +238,10 @@ $secret = az ad app credential reset --id $appId --display-name "cowork-oauth" `
 > 同意を得てから Step 4 以降に進む。
 
 ### Step 4: Entra Client ID を許可 MCP クライアントに登録（必須）
+
+> **自前 MCP Server のみを使う場合はこの Step をスキップする**（Dataverse を経由しないため）。
+> 代わりに MCP Server 側の API アプリで Cowork の Client ID を事前承認する
+> → [custom-mcp-connector.md](references/custom-mcp-connector.md)。
 
 OAuth 認可コードフローでは Dataverse に提示されるトークンの **appid がこのカスタムアプリ**になる。
 そのため、**Entra の Client ID を `allowedmcpclients` テーブルに登録・有効化**しないと、認証は通っても
@@ -270,6 +301,10 @@ Step 8 のアップロードでも同じプロファイルを使用する。
 Save すると **OAuth client registration ID** が発行される。これを **生の値のまま**（Base64 変換せず）
 `.env` の `COWORK_OAUTH_REGISTRATION_ID` に保存する。
 
+> **自前 MCP Server の場合**は Base URL を `https://<app>.azurewebsites.net`、Scope を
+> `api://<api-app-id>/.default,offline_access` に差し替える
+> → [custom-mcp-connector.md](references/custom-mcp-connector.md)。
+
 > **referenceId の値**: OAuth 方式でも SSO 方式と同じく
 > `Base64("<tenantId>##<registrationId>")` 形式が必要（実機検証で確認済み。→ troubleshooting.md #23）。
 > `.env` には生の registration ID を保存し、Base64 エンコードは Step 7 の
@@ -313,6 +348,9 @@ Save すると **OAuth client registration ID** が発行される。これを *
 - **`referenceId` はプレースホルダー `__COWORK_OAUTH_REGISTRATION_ID__` のまま source に残す**（Step 5 の
   実 registration ID を直接コミットしない）。実値は `.env` の `COWORK_OAUTH_REGISTRATION_ID` に置き、
   Step 7 のビルドスクリプトが zip 生成時に注入する。
+- **`agentConnectors` は複数書ける**。Dataverse MCP と自前 MCP Server（`https://<app>.azurewebsites.net/api/mcp`）を
+  併載できる。その場合は各 `description` に **どのコネクタをどの用途で使うか**を明記する
+  （エージェントはこの説明でツールを選ぶため）→ [custom-mcp-connector.md](references/custom-mcp-connector.md)。
 - `id` は `python -c "import uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, '<安定URL>'))"` で決定的に生成。
 - **`mcpToolDescription` は必須**（公式 docs の例は省略しているが、M365 管理センターのアップロード検証が必須化）。
   値は **オブジェクト `{ "file": "<相対パス>" }`**（文字列不可）。参照先ファイルは **JSON 形式の tools 定義**でなければ
@@ -431,6 +469,7 @@ ZIP 検証: ルートに `manifest.json`（build 後、プレースホルダー�
 - [ ] Entra: redirect URI×2 / Dynamics CRM **mcp.tools** / クライアントシークレット（.env）— `scripts/setup_entra_oauth.ps1`
 - [ ] Entra: **テナント管理者の事前同意（admin consent）**が付与済み（未同意だと Cowork 初回同意がサイレントに失敗 → troubleshooting #22）
 - [ ] Power Platform: Entra の **Client ID** を許可された MCP クライアントとして登録・有効化— `scripts/register_mcp_client.py`（`--check` で検証）
+- [ ] （自前 MCP Server 併用時）`verify_mcp_server.py` が **Streamable HTTP 準拠 OK** を返し、`tools/list` の実測名と `mcpToolDescription` が一致
 - [ ] 上記3層を `scripts/diagnose_cowork_connector.py` で一括確認（すべて ✅）
 - [ ] Teams ポータル **OAuth client registration**（SSO ではない）: Base URL は `/api/mcp` なし、scope は `.default offline_access`、Restrict by app = Any Teams app → registrationId を manifest に反映
 - [ ] manifest に `mcpToolDescription: { file: "dataverse-mcp-tools.json" }`（JSONツール定義）
@@ -444,3 +483,4 @@ ZIP 検証: ルートに `manifest.json`（build 後、プレースホルダー�
 - [Build plugins for Cowork (Frontier)](https://learn.microsoft.com/en-us/microsoft-365/copilot/cowork/cowork-plugin-development)
 - [Configure authentication for MCP and API plugins](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/plugin-authentication)
 - [Dataverse MCP 登録](../standard/references/dataverse-mcp-setup.md)
+- [自前 MCP Server の構築](../mcp-server/SKILL.md) / [コネクタ化の差分手順](references/custom-mcp-connector.md)

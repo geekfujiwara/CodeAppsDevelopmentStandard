@@ -346,7 +346,7 @@ const isCommentAllowed = !isReadOnly || isManager;  // マネージャーはコ�
 
 ## チェックリスト
 
-- [ ] Dataverse コネクタを `npx power-apps add-data-source` で追加し、`MicrosoftDataverseService` から `systemuser` を取得できる
+- [ ] Dataverse コネクタを `npx pa app add data-source` で追加し、`MicrosoftDataverseService` から `systemuser` を取得できる
 - [ ] 担当者テーブル（bookableresources 等）をデータソースに追加済み
 - [ ] `getCurrentUserId()` → `getMyRecordId()` の 2 段階解決を実装
 - [ ] GUID 比較で `.toLowerCase()` を使用

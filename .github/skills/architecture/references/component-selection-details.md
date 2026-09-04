@@ -156,6 +156,7 @@
 | 判断ポイント                       | 代替手段                                            |
 | ---------------------------------- | --------------------------------------------------- |
 | 社内汎用業務全般（チャットで話しかけて登録/照会） | → **Copilot Studio v2 スキル + Dataverse MCP**（Cowork は M365 Copilot 必須時のみ） |
+| Dataverse に無い既存データ（基幹 DB / ファイルサーバー / 業務 API）を読ませたい | → **自前 MCP Server**（[mcp-server](../../mcp-server/SKILL.md)）+ Copilot Studio v2 または [Cowork](../../cowork/references/custom-mcp-connector.md) |
 | 対話形式で AI を使いたい           | → **Copilot Studio**（Instructions で制御）または **Copilot Studio v2 + Dataverse MCP** |
 | リアルタイムの対話応答に AI が必要 | → **Copilot Studio**（基盤モデルが直接応答）        |
 | 1回限りの分析                      | → **Copilot Studio** に直接指示（プロンプト化不要） |

@@ -51,6 +51,7 @@ export async function verifyToken(authorization: string | null): Promise<{ ok: b
           `https://sts.windows.net/${TENANT_ID}/`,
         ],
         algorithms: ['RS256'],
+        clockTolerance: 60, // 秒。サーバー間の時計ずれで有効なトークンを弾かないための許容
       },
       (err) => resolve(err ? { ok: false, reason: err.message } : { ok: true }),
     );
@@ -63,6 +64,11 @@ export async function verifyToken(authorization: string | null): Promise<{ ok: b
 - **`audience` は 2 パターン許容する**。トークンの `aud` は `api://{app-id}` の場合と `{app-id}` の場合がある。
 - **`issuer` も v1.0 / v2.0 の両方**を許容する。クライアントによって発行元が異なる。
 - `algorithms: ['RS256']` を必ず指定する。省略すると `alg: none` を受け入れる脆弱性になる。
+- **有効期限は検証ライブラリ任せにしつつ、`exp` の存在自体も確認する**。`exp` を持たないトークンは
+  期限なしとして通ってしまう。デコード結果の `typeof decoded.exp !== 'number'` を弾く。
+- **`clockTolerance` を 60 秒程度入れる**。入れないと、時計が数秒ずれただけで断続的に 401 が出て
+  「たまに繋がらない」という再現しにくい障害になる。
+- 期限切れトークンは**必ず 401 で返す**（200 + エラー本文にしない）。クライアントは 401 を見て再取得する。
 - JWKS はキャッシュする。毎リクエストで取りに行くとコールドスタート時にタイムアウトする。
 
 ---
@@ -76,17 +82,42 @@ import { DefaultAzureCredential } from '@azure/identity';
 import sql from 'mssql';
 
 const credential = new DefaultAzureCredential();
+const REFRESH_MARGIN_MS = 5 * 60 * 1000;
+
+let pool: sql.ConnectionPool | undefined;
+let expiresOn = 0;
+let connecting: Promise<sql.ConnectionPool> | undefined;
 
 export async function getPool(): Promise<sql.ConnectionPool> {
-  const token = await credential.getToken('https://database.windows.net/.default');
-  return new sql.ConnectionPool({
-    server: process.env.SQL_SERVER!,
-    database: process.env.SQL_DATABASE!,
-    options: { encrypt: true },
-    authentication: { type: 'azure-active-directory-access-token', options: { token: token!.token } },
-  }).connect();
+  if (pool?.connected && Date.now() < expiresOn - REFRESH_MARGIN_MS) return pool;
+  connecting ??= refresh();
+  return connecting;
+}
+
+async function refresh(): Promise<sql.ConnectionPool> {
+  const previous = pool;
+  try {
+    const token = await credential.getToken('https://database.windows.net/.default');
+    const created = await new sql.ConnectionPool({
+      server: process.env.SQL_SERVER!,
+      database: process.env.SQL_DATABASE!,
+      options: { encrypt: true },
+      authentication: { type: 'azure-active-directory-access-token', options: { token: token!.token } },
+    }).connect();
+    pool = created;
+    expiresOn = token!.expiresOnTimestamp;
+    previous?.close().catch(() => undefined); // 切り替え後に旧プールを閉じる
+    return created;
+  } finally {
+    connecting = undefined;
+  }
 }
 ```
+
+> **毎回 `new ConnectionPool(...).connect()` しない。** 接続が積み上がって枯渇する。
+> 逆に**張りっぱなしにもしない**。アクセストークンで作ったプールはトークンと寿命を共にするため、
+> 期限の手前で作り直す必要がある。取りこぼしに備えて `ELOGIN` 等での 1 回リトライも入れる。
+> → [sql-tools-pattern.md](sql-tools-pattern.md)
 
 MI は事前に SQL 側でユーザーとして作成し、ロールを付与しておく必要がある
 （Entra 管理者権限が必要なため、[private-data-seeding.md](private-data-seeding.md) の管理エンドポイント経由で実行する）。
