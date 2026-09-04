@@ -8,7 +8,6 @@ auth_helper のキャッシュ認証で Microsoft Graph を呼ぶため Azure CL
 
 from __future__ import annotations
 
-import argparse
 import os
 import sys
 import uuid
@@ -41,9 +40,6 @@ def _new_scope(scope_value: str) -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.parse_args()
-
     app_id = os.getenv("MCP_API_APP_ID")
     if not app_id:
         print("MCP_API_APP_ID を .env に設定してください")

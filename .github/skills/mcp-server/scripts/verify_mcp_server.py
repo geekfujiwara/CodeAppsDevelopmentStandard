@@ -15,29 +15,30 @@ import os
 import sys
 from pathlib import Path
 
+import requests
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
 
-from azure_helper import function_url, get_api_access_token, http_post  # noqa: E402
+from azure_helper import get_api_access_token  # noqa: E402
 
 
 def rpc(url: str, token: str, method: str, params: dict | None = None) -> dict:
-    status, payload = http_post(
+    res = requests.post(
         url,
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-        body={"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}},
+        json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}},
         timeout=180,
     )
-    if status != 200:
-        raise RuntimeError(f"{method} が失敗しました: HTTP {status}")
-    if not isinstance(payload, dict):
-        raise RuntimeError(f"{method} が不正な JSON 応答を返しました")
+    if res.status_code != 200:
+        raise RuntimeError(f"{method} が失敗しました: {res.status_code} {res.text[:300]}")
+    payload = res.json()
     if "error" in payload:
         raise RuntimeError(f"{method} が JSON-RPC エラーを返しました: {payload['error']}")
     return payload.get("result", {})
 
 
 def verify(app: str, token: str, call: str | None) -> bool:
-    url = function_url(app, "mcp")
+    url = f"https://{app}.azurewebsites.net/api/mcp"
     print(f"\n=== {app} ===")
     try:
         tools = [t["name"] for t in rpc(url, token, "tools/list").get("tools", [])]

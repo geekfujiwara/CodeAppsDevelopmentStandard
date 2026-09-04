@@ -92,6 +92,7 @@ python .github/skills/mcp-server/scripts/configure_entra_api.py
 | Function App | **Flex Consumption** + VNet 統合 + システム割り当て MI。HTTP は公開のまま |
 | データストア | Private Endpoint のみ（`publicNetworkAccess=Disabled`・共有キー禁止） |
 | RBAC | Function App の MI にデータ層への**データプレーン**ロールを付与 |
+| Functions 用ストレージ | 共有キー禁止のため `AzureWebJobsStorage` は使わず、`AzureWebJobsStorage__accountName` の **ID ベース接続**にする。MI に `Storage Blob Data Owner` が必要 |
 | ファイル共有 | 共有の作成は**マネジメントプレーン**で行う（データプレーンのロールでは共有を作成できない） |
 
 ### Step 4: MCP Server を実装する
@@ -115,6 +116,8 @@ Azure Functions（Node.js 20 / TypeScript / v4 プログラミングモデル）
 ```
 
 - ハンドラは `authLevel: 'anonymous'` にし、**認可はコード側の JWT 検証で行う**（関数キーを使わない）。
+- `src/index.ts` は各関数モジュールを `import` するだけにする。**存在しないモジュールを 1 行でも import すると worker が
+  起動できず、全ルートが 404 になる**（関数を削除・退避したら import も必ず消す）。
 - 実装の詳細は [protocol.md](references/protocol.md) と [auth-model.md](references/auth-model.md) を参照。
 
 ### Step 5: デプロイする
@@ -132,7 +135,14 @@ python .github/skills/mcp-server/scripts/deploy_mcp_function.py --project <path>
 | `local.settings.json` の存在と `FUNCTIONS_WORKER_RUNTIME` | 無いと `Worker runtime cannot be 'None'` で publish が失敗する。このファイルは `.gitignore` 対象のため clone 直後は存在しない |
 | `func` コマンドの実行可否 | npm グローバルインストールで zip が未展開のまま残ることがある。失敗時は自動で展開して復旧する |
 | ビルド出力（`dist/`）の存在 | 空パッケージのままデプロイされ、ルートが 404 になるのを防ぐ |
+| ビルド前の `dist/` 削除 | `tsc` は `dist/` をクリーンしない。削除した関数の `.js` が残り、ルートが復活する |
 | publish 後のルート実測 | `func publish` は成功しても終了コード 1 と "appears to be unhealthy" を返すことがある。**終了コードで判定しない** |
+
+ルートが 404 のままなら、ホストの起動ログで原因を特定する（`0 functions loaded` なら worker の起動失敗）。
+
+```powershell
+python .github/skills/mcp-server/scripts/query_host_logs.py --component <app-insights-name>
+```
 
 ### Step 6: データを投入する
 
@@ -161,11 +171,15 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 1. 投入用の管理エンドポイントを削除して再デプロイする（攻撃面を残さない）。
 
    ```powershell
-   python .github/skills/mcp-server/scripts/cleanup_admin_endpoints.py --project <path> --app <function-app-name> --confirm
+   python .github/skills/mcp-server/scripts/cleanup_admin_endpoints.py --project <path> --app <function-app-name>
    ```
 
+   このスクリプトは関数ファイルの削除に加えて **`src/index.ts` から該当 `import` を除去**し、
+   `dist/` をクリーンしてから再デプロイする。どちらか一方でも漏れると、残すべき `mcp` を含む全ルートが落ちる。
+
 2. アプリ設定から `ADMIN_SEED_SECRET` を削除する。
-3. [copilot-studio-v2 スキル](../copilot-studio-v2/SKILL.md) の手順で、エージェントに MCP サーバーをツールとして追加する。
+3. 残すルートが 401、削除したルートが 404 であることを HTTP で実測する。
+4. [copilot-studio-v2 スキル](../copilot-studio-v2/SKILL.md) の手順で、エージェントに MCP サーバーをツールとして追加する。
    複数の MCP Server を 1 エージェントに束ねる場合は、エージェントの指示文に
    **「どの質問でどのサーバーを使うか」** を明記しないと選択を誤る。
 

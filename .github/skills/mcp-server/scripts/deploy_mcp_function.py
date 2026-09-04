@@ -20,9 +20,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
-
-from azure_helper import function_url, http_post  # noqa: E402
+import requests
 
 LOCAL_SETTINGS = {
     "IsEncrypted": False,
@@ -71,11 +69,15 @@ def ensure_func_cli() -> str:
 
 
 def build(project: Path) -> None:
+    # tsc は dist/ をクリーンしないため、削除した関数の .js が残ってルートが復活する
+    dist = project / "dist"
+    if dist.exists():
+        shutil.rmtree(dist)
+        print("[clean] dist/ を削除しました")
     for args in (["npm", "install"], ["npm", "run", "build"]):
         res = subprocess.run(args, cwd=project, shell=os.name == "nt")
         if res.returncode != 0:
             raise SystemExit(f"{' '.join(args)} が失敗しました")
-    dist = project / "dist"
     if not dist.exists() or not any(dist.rglob("*.js")):
         raise SystemExit("ビルド出力 dist/ が空です。空パッケージのデプロイを中止しました")
     print("[check] ビルド出力 OK")
@@ -100,13 +102,10 @@ def verify_routes(app: str, routes: list[str]) -> bool:
     """ルートを HTTP プローブする。401 = 存在して認可が動いている、404 = 未デプロイ。"""
     ok = True
     for route in routes:
+        url = f"https://{app}.azurewebsites.net/api/{route}"
         try:
-            status, _ = http_post(
-                function_url(app, route),
-                {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
-                timeout=60,
-            )
-        except (RuntimeError, ValueError) as exc:
+            status = requests.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, timeout=60).status_code
+        except requests.RequestException as exc:
             print(f"[verify] {route}: 接続失敗 {exc}")
             ok = False
             continue
