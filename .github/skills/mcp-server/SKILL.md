@@ -43,7 +43,7 @@ Copilot Studio のエージェントから **社内の業務データ（DB・フ
 | [MCP プロトコル最小実装](references/protocol.md) | JSON-RPC 2.0 の実装と Streamable HTTP の必須要件、ツール定義の書き方 |
 | [認証モデル](references/auth-model.md) | 受信 JWT 検証 / 送信 Managed Identity の実装 |
 | [Private 環境でのデータ投入](references/private-data-seeding.md) | Private Endpoint 下でシードするための管理エンドポイントパターン |
-| [Copilot Studio への登録](references/copilot-studio-registration.md) | カスタムコネクタ（OpenAPI）とコネクタ用 OAuth 設定 |
+| [Copilot Studio への登録](references/copilot-studio-registration.md) | カスタムコネクタ（OpenAPI）とコネクタ用 OAuth 設定。Cowork から使う場合の参照先もここ |
 | [.env サンプル](references/.env.example) | 本スキルのパラメータ |
 | [異常系・トラブルシュート](references/troubleshooting.md) | 実際に踏んだ失敗と恒久対策 |
 
@@ -203,6 +203,11 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
    複数の MCP Server を 1 エージェントに束ねる場合は、コネクタの `description` とエージェントの指示文の
    **両方に「どの質問でどのサーバーを使うか」**を明記しないと選択を誤る。
    エージェント本体の構築は [copilot-studio-v2 スキル](../copilot-studio-v2/SKILL.md) に委譲する。
+
+5. （任意）**M365 Copilot（Cowork）からも使う場合**は、同じ MCP Server を Cowork プラグインの
+   `agentConnectors.remoteMcpServer` としても登録する。**Server の実装は増えない**
+   （API アプリを 1 つに集約しておけば登録が 2 系統になるだけ）。
+   → [cowork/references/custom-mcp-connector.md](../cowork/references/custom-mcp-connector.md)
 
 ---
 

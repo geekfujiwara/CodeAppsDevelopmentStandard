@@ -10,6 +10,11 @@ Copilot Studio が対応するのは **Streamable トランスポートのみ**�
 | MCP オンボーディング ウィザード | Copilot Studio の **ツール > ツールの追加 > 新しいツール > Model Context Protocol** でサーバー URL と認証を入力 | 単発・手早く繋ぐ |
 | **カスタム コネクタ（OpenAPI）** | `x-ms-agentic-protocol: mcp-streamable-1.0` を持つ swagger を Power Apps にインポート | **定義をコード管理したい場合。既定はこちら** |
 
+> **M365 Copilot（Cowork）から使いたい場合**は本手順ではなく、Cowork プラグインの
+> `agentConnectors.remoteMcpServer` として登録する →
+> [cowork/references/custom-mcp-connector.md](../../cowork/references/custom-mcp-connector.md)。
+> **同じ MCP Server を両方に登録できる**（API アプリを 1 つに集約しておけば、実装は増えず登録が 2 系統になるだけ）。
+
 ## Step 1: OpenAPI 定義を用意する
 
 `swagger: '2.0'` で、MCP エンドポイントの POST 操作 1 つだけを定義する。
