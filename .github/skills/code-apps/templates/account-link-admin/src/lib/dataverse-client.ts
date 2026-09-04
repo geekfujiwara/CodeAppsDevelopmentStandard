@@ -1,7 +1,7 @@
 import { getContext } from "@microsoft/power-apps/app"
 import { MicrosoftDataverseService } from "@/generated/services/MicrosoftDataverseService"
 
-// npx power-apps add-data-source --api-id shared_commondataserviceforapps で生成される
+// npx pa app add data-source --connector shared_commondataserviceforapps で生成される
 // 単一・非型付けサービスの薄いラッパー。
 // organization を省略すると Invalid organization URL 'null' provided で失敗するため、
 // 常に *WithOrganization 系を使う。

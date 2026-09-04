@@ -140,6 +140,8 @@ python .github/skills/code-apps/scripts/validate_cli_reference.py
 | `pa app push` | `-e` / `--environment-id` | `error: unknown option '-e'` | `power.config.json` の `environmentId` が使われる |
 | `pa app add data-source` | `--environment-id` | `error: unknown option '--environment-id'` | 同上 |
 | `pa app add data-source` | `--api-id` / `--resource-name` | 廃止 | `--connector <connectorId>` に統合 |
+| `pa app share` | `--environment-id` | `error: unknown option '--environment-id'` | `power.config.json` の `environmentId` が使われる |
+| `pa app share` | `--cloud` | `error: unknown option '--cloud'` | 廃止。クラウドは `pa auth login` 時のアカウントで決まる |
 
 対象環境を切り替えたい場合は `npx pa app init --environment-id {ID}` をやり直すか、
 `npx pa app set-setting` で `power.config.json` を更新する。
@@ -154,13 +156,10 @@ python .github/skills/code-apps/scripts/validate_cli_reference.py
 | `--json` | 出力を JSON 化（`list` 系をスクリプトから使うときに必須） |
 | `--no-color` | 色付けを無効化 |
 | `-v, --version` / `-h, --help` | バージョン／ヘルプ |
-| `--cloud <cloud>` | `public`（既定・商用） / `usgov` / `usgovhigh` / `usgovdod` / `china` |
-
-> `--cloud` は日本国内の通常テナントでは指定不要。GCC / DoD / 21Vianet 環境でのみ使用する。
 
 > [!WARNING]
-> `-e, --environment-id` は **`app init` と `app share` でしか使えない**。
-> `app push` / `app add data-source` は `--help` に載っていても実行時に拒否する。
+> `-e, --environment-id` を受け付けるのは **`app init` だけ**。
+> `app push` / `app add data-source` / `app share` は `--help` に載っていても実行時に拒否する。
 > これらのコマンドは `power.config.json` の `environmentId` を使う。
 
 ## アプリライフサイクル
@@ -223,10 +222,13 @@ npx pa app run --port 8080 --local-app-url http://localhost:3000
 |---|---|
 | `-p, --principal <principal>` | メールアドレスまたは Entra object ID。カンマ区切りで複数指定でき、object ID はユーザー／サービスプリンシパルのどちらも指定可能 |
 | `--access <access>` | `play`（既定）または `edit`。最小権限のため通常は `play` |
-| `-e, --environment-id <environment-id>` | 共有先の環境 ID。CI/CD と複数環境運用では必ず明示 |
-| `--cloud <cloud>` | `public`（既定）/ `usgov` / `usgovhigh` / `usgovdod` / `china` |
 | `--non-interactive` | 確認プロンプトを出さない。CI/CD では必須 |
 | `--json` | 結果を機械可読な JSON で出力。CI/CD では必須 |
+
+> [!IMPORTANT]
+> 1.0.1 の `app share` は `--environment-id` も `--cloud` も受け付けない（`error: unknown option`）。
+> 共有先環境は `power.config.json` の `environmentId` で決まるため、
+> 複数環境を扱う CI/CD では **`app share` の前に対象環境の `power.config.json` を確定させる**。
 
 ```bash
 # ユーザーのメールアドレス（--access 省略時も play）
@@ -250,19 +252,17 @@ npx pa app share --principal {DEVELOPER_USER_OBJECT_ID} --access edit
 #### push 後の CI/CD 標準
 
 共有はデプロイ成功後にだけ実行する。環境ごとの principal 一覧は CI/CD の環境変数または変数グループで管理し、
-リポジトリへ実値をコミットしない。商用クラウドでは `--cloud public` を省略できるが、ソブリンクラウドでは
-対象値を明示する。
+リポジトリへ実値をコミットしない。`push` も `share` も対象環境は `power.config.json` で決まるため、
+ジョブの先頭で対象環境を確定させる。
 
 ```bash
 # Bash を使う CI runner 向け（PowerShell runner では行継続と環境変数構文を読み替える）
 set -euo pipefail
 
-# push に --environment-id は渡せない。対象環境は power.config.json で固定する
+# push も share も --environment-id は渡せない。対象環境は power.config.json で固定する
 npx pa app push --solution-id "${SOLUTION_ID}"
 
 npx pa app share \
-	--environment-id "${ENVIRONMENT_ID}" \
-	--cloud "${POWER_APPS_CLOUD:-public}" \
 	--principal "${CODE_APP_PLAY_PRINCIPALS}" \
 	--access play \
 	--non-interactive \
@@ -270,8 +270,7 @@ npx pa app share \
 ```
 
 `CODE_APP_PLAY_PRINCIPALS` はメールアドレス／object ID のカンマ区切りとする。`edit` 対象が必要な場合は
-`CODE_APP_EDIT_PRINCIPALS` を別変数にし、空でない場合だけ 2 回目の `share --access edit` を実行する。
-`share` の `--environment-id` には `power.config.json` と同じ環境を渡し、別環境への共有を防ぐ。
+`CODE_APP_EDIT_PRINCIPALS` を別変数にし、空でない場合だけ 2 回目の `app share --access edit` を実行する。
 
 CLI help と本節の整合は次で検証する。スクリプトはテンプレートの
 `@microsoft/power-apps-cli` バージョンを読み、実際の `app share --help` に主要オプションがあることと、

@@ -276,13 +276,13 @@ npm run build
 npx pa app push
 
 # Step 8: 最終 push 後に共有（カンマ区切りで複数指定可）
-npx pa app share --environment-id {ENVIRONMENT_ID} \
-  --principal "${CODE_APP_PLAY_PRINCIPALS}" \
+#   共有先環境は power.config.json で決まる（share に --environment-id は無い）
+npx pa app share --principal "${CODE_APP_PLAY_PRINCIPALS}" \
   --access play --non-interactive --json
 ```
 
 共有対象のユーザー／サービスプリンシパル、`edit` の最小権限ルール、CI/CD 例は
-[npm CLI リファレンスの `share`](references/cli-reference.md#share)を参照する。
+[npm CLI リファレンスの `app share`](references/cli-reference.md#app-share)を参照する。
 
 > **Step 5 の `--solution-id` は後戻りできない**: 初回の `pa app push --solution-id` がアプリを `almMode: Solution` にするのは
 > **`appId` 未割当の初回 push のみ**。`almMode: Environment` で作ってしまったアプリは、後から `-s` を付けて
