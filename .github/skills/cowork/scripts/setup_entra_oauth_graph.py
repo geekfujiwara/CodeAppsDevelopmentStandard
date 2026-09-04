@@ -76,6 +76,10 @@ REDIRECT_URIS = [
 ]
 
 
+def resolve_api_scope(cli_value: str | None) -> str:
+    return cli_value or os.getenv("MCP_API_SCOPE_VALUE") or "MCP.Access"
+
+
 def resolve_env() -> Path:
     """プロジェクトルートの .env を探す。"""
     d = HERE
@@ -176,7 +180,7 @@ def main() -> int:
                     help="シークレットの有効年数（既定: 2）")
     ap.add_argument("--api-audience", action="append", default=[],
                     help="自前 MCP Server の API アプリの identifierUri（api://...）。複数指定可")
-    ap.add_argument("--api-scope", default=os.getenv("MCP_API_SCOPE_VALUE", "MCP.Access"),
+    ap.add_argument("--api-scope",
                     help="--api-audience に対して付与する委任スコープ名（既定: MCP.Access）")
     ap.add_argument("--include-dataverse", action="store_true",
                     help="--api-audience 指定時も Dataverse MCP の mcp.tools を併せて付与する")
@@ -185,13 +189,14 @@ def main() -> int:
 
     env_path = Path(args.env_path) if args.env_path else resolve_env()
     load_dotenv(env_path)
+    api_scope = resolve_api_scope(args.api_scope)
 
     # 付与する委任権限を確定する（--api-audience 指定時は自前 API を優先）
     resources: list[tuple[str, str]] = []
     required_access: list[dict] = []
     for audience in args.api_audience:
-        resource_app_id, scope_id = resolve_api_permission(audience, args.api_scope)
-        resources.append((resource_app_id, args.api_scope))
+        resource_app_id, scope_id = resolve_api_permission(audience, api_scope)
+        resources.append((resource_app_id, api_scope))
         required_access.append({
             "resourceAppId": resource_app_id,
             "resourceAccess": [{"id": scope_id, "type": "Scope"}],
