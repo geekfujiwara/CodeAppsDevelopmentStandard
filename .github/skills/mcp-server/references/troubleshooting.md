@@ -47,6 +47,50 @@
 
 **対処**: ARM のメタデータを信用しない。**HTTP プローブを唯一の真実**として扱う。
 
+### 削除したはずの関数のルートが、再デプロイ後も 401 を返す（404 にならない）
+
+**原因**: `tsc` は `dist/` をクリーンせず、削除・退避したソースのコンパイル済み `.js` が `dist/` に残る。
+Azure Functions は `dist/` 内の全 `.js` を走査して関数を登録するため、ルートが復活する。
+
+**対処**: ビルド前に `dist/` を削除する。
+
+**恒久対策済**: `deploy_mcp_function.py` の `build()` が毎回 `dist/` を削除してからビルドする。
+
+### 関数を削除・退避したら、残すはずの `mcp` を含む**全ルート**が 404 になった
+
+**原因**: エントリポイント（`src/index.ts`）が削除済みモジュールを `import` したまま。
+worker が `Cannot find module './functions/adminDbSetup'` で起動に失敗し、**0 functions loaded** になる。
+Functions ホスト自体は 200 を返す（ルート URL は生きている）ため、原因が見えにくい。
+
+**対処**: 関数ファイルを消したら必ずエントリポイントの `import` も消す。
+`cleanup_admin_endpoints.py` は削除と同時に `src/index.ts` から該当 `import` を除去する。
+
+**恒久対策済**: `deploy_mcp_function.py` の `check_entrypoint_imports()` が、毎回のデプロイ前に
+`src/index.ts` の相対 import を全て解決できるか検査し、未解決なら publish 前に中断する。
+
+**切り分け**: Application Insights の `traces` を見る。`Worker was unable to load entry point` が出ていれば確定。
+
+```kql
+union traces, exceptions
+| where timestamp > ago(1h)
+| project timestamp, severityLevel, msg = coalesce(message, outerMessage)
+| order by timestamp desc | take 40
+```
+
+### `0 functions loaded` かつ `AzureWebJobsStorage` が接続文字列
+
+**原因**: ストレージの `allowSharedKeyAccess=false` にすると、共有キーの接続文字列ではホストが起動できない。
+デプロイ（`func publish`）はマネージド ID で成功するため、**デプロイは成功したのにアプリだけ動かない**という状態になる。
+
+**対処**: `AzureWebJobsStorage` を削除し、ID ベース接続に置き換える。ホスト ID 管理に `Storage Blob Data Owner` が要る。
+
+```powershell
+python .github/skills/mcp-server/scripts/configure_function_storage.py --app <app> --account <storage-account>
+```
+
+**恒久対策済**: `deploy_mcp_function.py` の `check_storage_auth()` が、接続文字列の `AzureWebJobsStorage` と
+`allowSharedKeyAccess=false` の組み合わせをデプロイ前に検出して中断する。
+
 ### publish がハングしたように見えて進捗が分からない
 
 **原因**: PowerShell で `| Select-Object -Last N` を挟むと、コマンドの全出力がバッファされて完了まで何も表示されない。
@@ -94,6 +138,17 @@ Graph は同一トランザクション内の新規スコープ ID を未登録�
 
 **対処**: そもそも **`az` を手順に含めない**。Azure 操作は `azure_helper.py`（`auth_helper` 経由）で行う。
 どうしても `az` が必要な場合のみ `--tenant <tenant-id>` を明示して列挙をスキップする。
+
+### リソースの書き込みが `AADSTS50076` / `RequestDisallowedByAzure ... without authenticating through MFA` で失敗する
+
+**原因**: 読み取りは通るがリソースの作成・更新・削除には MFA 済みトークンが必要、という条件付きアクセスポリシー。
+`az` でも `auth_helper` のキャッシュトークンでも、MFA を経ていなければ同じく弾かれる。
+
+**対処**: エラーに含まれる `--claims-challenge` を付けて対話サインインし直す。ブラウザで MFA を完了させる。
+
+```powershell
+az login --tenant <tenant-id> --scope "https://management.core.windows.net//.default" --claims-challenge <challenge>
+```
 
 ---
 
