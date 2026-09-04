@@ -95,11 +95,11 @@ jobs:
         timeout-minutes: 5
         env:
           GH_TOKEN: ${{ secrets.COPILOT_CLI_TOKEN }}
-        run: >-
-          copilot --prompt "$(cat .github/prompts/community-issue-reproduction.md)"
-          --no-ask-user
-          --silent
-          --allow-tool write
+        run: |
+          copilot --prompt "$(cat .github/prompts/community-issue-reproduction.md)" \
+            --no-ask-user \
+            --silent \
+            > .agent/reproduction-plan.json
 
       - name: Verify the planner did not edit tracked files
         if: ${{ env.COPILOT_CLI_TOKEN != '' }}
@@ -126,11 +126,11 @@ jobs:
         timeout-minutes: 5
         env:
           GH_TOKEN: ${{ secrets.COPILOT_CLI_TOKEN }}
-        run: >-
-          copilot --prompt "$(cat .github/prompts/community-issue-decision.md)"
-          --no-ask-user
-          --silent
-          --allow-tool write
+        run: |
+          copilot --prompt "$(cat .github/prompts/community-issue-decision.md)" \
+            --no-ask-user \
+            --silent \
+            > .agent/decision.json
 
       - name: Use owner review when the agent is unavailable
         if: ${{ env.COPILOT_CLI_TOKEN == '' }}
@@ -194,6 +194,7 @@ jobs:
           copilot --prompt "$(cat .github/prompts/community-issue-implementation.md)"
           --no-ask-user
           --silent
+          --allow-all-paths
           --allow-tool write
 
       - name: Enforce changed path and diff limits

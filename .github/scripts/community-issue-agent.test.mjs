@@ -41,6 +41,8 @@ test('workflow is cloud-only and explicitly provisions its runtime', async () =>
   assert.doesNotMatch(workflow, /COMMUNITY_AGENT_TOKEN/);
   assert.match(workflow, /GH_TOKEN: \$\{\{ github\.token \}\}/);
   assert.match(workflow, /--no-ask-user/);
+  assert.match(workflow, /> \.agent\/reproduction-plan\.json/);
+  assert.match(workflow, /> \.agent\/decision\.json/);
   assert.match(workflow, /timeout-minutes: 5/);
 });
 
