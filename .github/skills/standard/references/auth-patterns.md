@@ -41,6 +41,37 @@ from auth_helper import flow_api_call
 flow_api_call("GET", f"/providers/Microsoft.ProcessSimple/environments/{env_id}/flows")
 ```
 
+## Azure リソース操作も auth_helper で行う（`az login` 不要）
+
+`get_token(scope=...)` は Dataverse 以外の任意のスコープに使える。**Azure CLI / Azure PowerShell に依存した手順は書かない**。
+`az login` は対話が必要なうえ、テナント列挙でハングしたりセッション失効で手順が止まるため、非対話で完走するという前提を壊す。
+
+| 用途 | スコープ |
+|---|---|
+| Azure Resource Manager（リソース作成・設定取得） | `https://management.azure.com/.default` |
+| Azure SQL Database（Entra ID 認証） | `https://database.windows.net/.default` |
+| Microsoft Graph（アプリ登録・権限操作） | `https://graph.microsoft.com/.default` |
+| 自前 API（Azure Functions 上の MCP Server 等） | `api://{app-id}/.default` |
+
+`scripts/azure_helper.py` が ARM / Graph の薄いラッパーを提供する。
+
+```python
+from azure_helper import arm_get, arm_post, graph_get, graph_patch, get_app_settings, get_sql_access_token
+
+# Function App のアプリ設定を取得（az functionapp config appsettings list の代替）
+settings = get_app_settings(subscription_id, "rg-example", "func-example")
+
+# Azure SQL に Entra ID トークンで接続
+sql_token = get_sql_access_token()
+
+# アプリ登録を Graph で更新
+app = graph_get("/applications?$filter=appId eq '{app-id}'")
+```
+
+> **自前 API のトークンが `AADSTS650057` になる場合**は、呼び出し側の問題ではなくアプリ登録側の設定不足。
+> 対象アプリで **OAuth2 スコープを公開**し、**パブリッククライアントを事前承認**する必要がある
+> （→ [mcp-server スキル](../../mcp-server/SKILL.md)）。
+
 #### `retry_metadata()` がリトライ／スキップする条件（★ 2026-07 拡張）
 
 | 条件 | 対処 |
