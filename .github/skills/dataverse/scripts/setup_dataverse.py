@@ -56,8 +56,29 @@ load_dotenv()
 #   retry_metadata(fn, desc, max)    → メタデータロック・重複検出リトライ
 #   get_token(scope=)                → アクセストークン文字列
 #   DATAVERSE_URL                    → .env から読み込んだ URL
+#
+# このテンプレートはプロジェクトの scripts/ にコピーして使うため、スキル配下の相対パス
+# （../../standard/scripts）を直書きするとコピー先で ModuleNotFoundError になる。
+# 配置場所に依存しないよう候補を順に探索する。
+def _resolve_auth_helper_dir() -> str:
+    here = Path(__file__).resolve()
+    candidates = [
+        here.parent.parent.parent / "standard" / "scripts",  # スキル配下（テンプレート本体）
+        here.parent,                                          # スクリプトと同階層
+        *[p / ".github" / "skills" / "standard" / "scripts" for p in here.parents],
+        *here.parents,                                        # auth_helper.py をルートに置いた場合
+    ]
+    for c in candidates:
+        if (c / "auth_helper.py").is_file():
+            return str(c)
+    raise ModuleNotFoundError(
+        "auth_helper.py が見つかりません。"
+        ".github/skills/standard/scripts/auth_helper.py を配置するか、"
+        "本スクリプトと同じフォルダにコピーしてください。"
+    )
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "standard", "scripts"))
+
+sys.path.insert(0, _resolve_auth_helper_dir())
 from auth_helper import (
     api_get,
     api_post,
@@ -527,6 +548,43 @@ def get_navprop(from_logical: str, to_logical: str, referencing_attribute: str |
 
 # ── Step 1: ソリューション ──────────────────────────────────
 
+def resolve_publisher_id() -> str:
+    """PUBLISHER_PREFIX から Publisher を一意に解決する。
+
+    同一プレフィックスの Publisher が複数存在する環境があり、先頭要素を暗黙採用すると
+    意図しない Publisher でソリューションが作られる。曖昧な場合は候補を提示して中断し、
+    .env の PUBLISHER_UNIQUE_NAME（または PUBLISHER_ID）で明示させる。
+    """
+    explicit_id = os.environ.get("PUBLISHER_ID", "").strip()
+    if explicit_id:
+        return explicit_id
+
+    unique_name = os.environ.get("PUBLISHER_UNIQUE_NAME", "").strip()
+    flt = f"customizationprefix eq '{PREFIX}'"
+    if unique_name:
+        flt += f" and uniquename eq '{unique_name}'"
+    pubs = api_get(f"publishers?$filter={flt}&$select=publisherid,uniquename,friendlyname")
+    values = pubs.get("value", [])
+
+    if not values:
+        raise RuntimeError(
+            f"Publisher with prefix='{PREFIX}'"
+            + (f" and uniquename='{unique_name}'" if unique_name else "")
+            + " not found. Please create it in Power Apps."
+        )
+    if len(values) > 1:
+        listed = "\n".join(
+            f"    - uniquename={v['uniquename']} / friendlyname={v.get('friendlyname')} / id={v['publisherid']}"
+            for v in values
+        )
+        raise RuntimeError(
+            f"Publisher with prefix='{PREFIX}' is ambiguous ({len(values)} found).\n"
+            f"{listed}\n"
+            "  → .env に PUBLISHER_UNIQUE_NAME（または PUBLISHER_ID）を設定して一意に指定してください。"
+        )
+    return values[0]["publisherid"]
+
+
 def ensure_solution():
     global SOLUTION_DISPLAY_NAME
     print("\n=== Step 1: Solution check ===")
@@ -539,14 +597,7 @@ def ensure_solution():
         return
 
     print(f"  Creating solution '{SOLUTION_NAME}'...")
-    # ⚠️ この環境には prefix='geek' の Publisher が uniquename='geek' と
-    #    uniquename='geek_fujiwara' の2つ存在するため、uniquename を明示して一意に解決する。
-    pubs = api_get(f"publishers?$filter=customizationprefix eq '{PREFIX}' and uniquename eq 'geek'&$select=publisherid")
-    if not pubs.get("value"):
-        pubs = api_get(f"publishers?$filter=customizationprefix eq '{PREFIX}'&$select=publisherid")
-    if not pubs.get("value"):
-        raise RuntimeError(f"Publisher with prefix='{PREFIX}' not found. Please create it in Power Apps.")
-    pub_id = pubs["value"][0]["publisherid"]
+    pub_id = resolve_publisher_id()
 
     api_post("solutions", {
         "uniquename": SOLUTION_NAME,
@@ -660,6 +711,42 @@ def validate_tables() -> None:
         raise ValueError(
             "TABLES definition has values exceeding Dataverse limits (detected before any API call):\n"
             + "\n".join(f"  - {e}" for e in errors)
+        )
+
+
+def validate_no_foreign_tables() -> None:
+    """TABLES の論理名が「対象ソリューション外の既存テーブル」と衝突していないか検証する。
+
+    同じ発行元プレフィックスを共有する環境では {prefix}_project のような一般的な名前が
+    別プロジェクトで既に使われていることがある。そのまま実行すると他プロジェクトの
+    テーブルに列を追記してしまうため、ソリューション未所属の既存テーブルを検出したら中断する。
+    再実行時は自ソリューションのテーブルなので素通りし、べき等性は保たれる。
+    """
+    wanted = {t["logical"] for t in TABLES}
+    existing = api_get(
+        f"EntityDefinitions?$select=LogicalName,MetadataId&$filter=startswith(LogicalName,'{PREFIX}_')"
+    ).get("value", [])
+    hit = {e["LogicalName"]: e["MetadataId"] for e in existing if e["LogicalName"] in wanted}
+    if not hit:
+        return
+
+    sol = api_get(f"solutions?$filter=uniquename eq '{SOLUTION_NAME}'&$select=solutionid").get("value", [])
+    owned: set[str] = set()
+    if sol:
+        components = api_get(
+            f"solutioncomponents?$select=objectid"
+            f"&$filter=_solutionid_value eq {sol[0]['solutionid']} and componenttype eq 1"
+        ).get("value", [])
+        owned = {c["objectid"].lower() for c in components}
+
+    foreign = sorted(name for name, mid in hit.items() if mid.lower() not in owned)
+    if foreign:
+        raise RuntimeError(
+            f"The following table logical names already exist outside solution '{SOLUTION_NAME}':\n"
+            + "\n".join(f"  - {n}" for n in foreign)
+            + "\n  → 別プロジェクトのテーブルを破壊しないよう中断しました。"
+            "\n     TABLES の logical 名を専用の名前空間（例: {prefix}_<abbr><entity>）に変更するか、"
+            "\n     意図的に既存テーブルを拡張する場合のみ本チェックを外してください。"
         )
 
 
@@ -1651,6 +1738,7 @@ def main():
     validate_tables()             # Step 0: TABLES 定義の事前検証（API 呼び出し前）
 
     if not args.localize_only:
+        validate_no_foreign_tables() # Step 0: 他ソリューションのテーブルとの論理名衝突検出
         ensure_solution()            # Step 1: ソリューション
         create_tables()              # Step 2: テーブル作成
         create_lookups()             # Step 3: Lookup
