@@ -97,6 +97,11 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 > ワンショット実行できる（`.env` の構成に従い作成→アイコン→Edit details→スキル→公開を連結）。
 > MCP サーバーの追加は自動化対象外のため、この一括実行には含まれない。
 
+> **1 つのエージェントに複数スキルを添付する**場合は、`SKILL_DIR` / `SKILL_NAME` を変えて
+> `attach_skill.py` を必要な回数だけ実行する（削除は同名スキル限定のため、先に添付した分は残る）。
+> 対話系のスキルと、Agentflow から呼ばれる自動処理系のスキルは**分けて書く**。
+> → [データ参照エージェントの SKILL.md 執筆パターン](references/data-agent-skill-authoring.md)
+
 ## 運用中エージェントの更新（★新規作成しない）
 
 `deploy_agent.py` は `create_agent.py` から始まるため、**実行するたびに新しい Bot が作られる**。
