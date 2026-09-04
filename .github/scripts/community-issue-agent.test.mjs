@@ -63,10 +63,10 @@ test('plan validation rejects an unsafe command among safe commands', () => {
   );
 });
 
-test('JSON parser accepts one fenced document but rejects surrounding prose', () => {
+test('JSON parser extracts one fenced document but rejects multiple candidates', () => {
   assert.deepEqual(parseJsonDocument('{"commands":[]}'), { commands: [] });
   assert.deepEqual(parseJsonDocument('```json\n{"commands":[]}\n```'), { commands: [] });
-  assert.throws(() => parseJsonDocument('Here is the result:\n```json\n{}\n```'));
+  assert.deepEqual(parseJsonDocument('Untrusted explanation\n```json\n{"commands":[]}\n```\nMore prose'), { commands: [] });
   assert.throws(() => parseJsonDocument('```json\n{}\n```\n```json\n{}\n```'));
 });
 
