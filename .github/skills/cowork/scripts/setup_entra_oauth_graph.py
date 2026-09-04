@@ -2,7 +2,8 @@
 
 auth_helper.py の認証キャッシュを利用するため、az CLI のデバイスコード認証が不要。
 Cowork プラグイン用の OAuth 2.0 認可コードフロー クライアントを作成し、
-Dynamics CRM の委任権限 mcp.tools を付与、クライアントシークレットを .env に保存する。
+委任権限（既定: Dynamics CRM の mcp.tools / --api-audience 指定時は自前 MCP Server の API スコープ）を
+付与し、クライアントシークレットを .env に保存する。
 
 前提: auth_helper.py（standard/scripts）、python-dotenv、requests。
 
@@ -10,6 +11,10 @@ Dynamics CRM の委任権限 mcp.tools を付与、クライアントシーク�
   python setup_entra_oauth_graph.py
   python setup_entra_oauth_graph.py --display-name "MyApp-Cowork-OAuth"
   python setup_entra_oauth_graph.py --display-name "MyApp-Cowork-OAuth" --secret-years 1
+  # 自前 MCP Server（mcp-server スキル）をコネクタにする場合
+  python setup_entra_oauth_graph.py --api-audience "api://<api-app-id>" --api-scope MCP.Access
+  # Dataverse MCP と自前 MCP を併用する場合
+  python setup_entra_oauth_graph.py --api-audience "api://<api-app-id>" --include-dataverse
 
 設定（引数 > .env > 既定）:
   TENANT_ID                  テナント ID（.env から取得）
@@ -71,6 +76,10 @@ REDIRECT_URIS = [
 ]
 
 
+def resolve_api_scope(cli_value: str | None) -> str:
+    return cli_value or os.getenv("MCP_API_SCOPE_VALUE") or "MCP.Access"
+
+
 def resolve_env() -> Path:
     """プロジェクトルートの .env を探す。"""
     d = HERE
@@ -103,6 +112,23 @@ def graph_get(path: str) -> dict:
     return r.json()
 
 
+def resolve_api_permission(audience: str, scope_value: str) -> tuple[str, str]:
+    """identifierUri （api://...）から resourceAppId と委任スコープ ID を解決する。"""
+    found = graph_get(
+        f"/applications?$filter=identifierUris/any(u:u eq '{audience}')"
+        "&$select=appId,api"
+    )
+    values = found.get("value", [])
+    if not values:
+        sys.exit(f"identifierUri '{audience}' のアプリ登録が見つかりません。"
+                 "mcp-server スキルの configure_entra_api.py を先に実行してください。")
+    api_app = values[0]
+    for scope in (api_app.get("api") or {}).get("oauth2PermissionScopes", []):
+        if scope.get("value") == scope_value:
+            return api_app["appId"], scope["id"]
+    sys.exit(f"'{audience}' にスコープ '{scope_value}' が公開されていません。")
+
+
 def ensure_service_principal(app_id: str) -> str | None:
     """自アプリのサービスプリンシパルを取得（無ければ作成）し、その id を返す。
 
@@ -121,26 +147,27 @@ def ensure_service_principal(app_id: str) -> str | None:
         return None
 
 
-def check_admin_consent(sp_id: str) -> bool | None:
-    """mcp.tools の委任スコープにテナント全体の事前同意が既にあるかを確認する。
+def check_admin_consent(sp_id: str, resources: list[tuple[str, str]]) -> bool | None:
+    """付与した全委任スコープにテナント全体の事前同意があるかを確認する。
 
-    戻り値: True=同意済み / False=未同意 / None=権限不足等で確認不能（要手動確認）。
+    resources: (resourceAppId, scopeValue) の一覧。
+    戻り値: True=全て同意済み / False=未同意あり / None=権限不足等で確認不能。
     """
     if not sp_id:
         return None
     try:
-        dynamics_sp = graph_get(
-            f"/servicePrincipals?$filter=appId eq '{DYNAMICS_CRM_APP_ID}'&$select=id"
-        )
-        dyn_values = dynamics_sp.get("value", [])
-        if not dyn_values:
-            return None
-        resource_id = dyn_values[0]["id"]
         grants = graph_get(f"/servicePrincipals/{sp_id}/oauth2PermissionGrants")
+        granted: dict[str, set[str]] = {}
         for g in grants.get("value", []):
-            if g.get("resourceId") == resource_id and "mcp.tools" in (g.get("scope") or "").split():
-                return True
-        return False
+            granted.setdefault(g.get("resourceId", ""), set()).update((g.get("scope") or "").split())
+        for resource_app_id, scope_value in resources:
+            sp = graph_get(f"/servicePrincipals?$filter=appId eq '{resource_app_id}'&$select=id")
+            sp_values = sp.get("value", [])
+            if not sp_values:
+                return None
+            if scope_value not in granted.get(sp_values[0]["id"], set()):
+                return False
+        return True
     except requests.HTTPError:
         return None
 
@@ -151,27 +178,45 @@ def main() -> int:
                     help="アプリの表示名（既定: Cowork-DataverseMCP-OAuth）")
     ap.add_argument("--secret-years", type=int, default=2,
                     help="シークレットの有効年数（既定: 2）")
+    ap.add_argument("--api-audience", action="append", default=[],
+                    help="自前 MCP Server の API アプリの identifierUri（api://...）。複数指定可")
+    ap.add_argument("--api-scope",
+                    help="--api-audience に対して付与する委任スコープ名（既定: MCP.Access）")
+    ap.add_argument("--include-dataverse", action="store_true",
+                    help="--api-audience 指定時も Dataverse MCP の mcp.tools を併せて付与する")
     ap.add_argument("--env-path", help=".env のパス（既定: プロジェクトルートから自動検出）")
     args = ap.parse_args()
 
     env_path = Path(args.env_path) if args.env_path else resolve_env()
     load_dotenv(env_path)
+    api_scope = resolve_api_scope(args.api_scope)
+
+    # 付与する委任権限を確定する（--api-audience 指定時は自前 API を優先）
+    resources: list[tuple[str, str]] = []
+    required_access: list[dict] = []
+    for audience in args.api_audience:
+        resource_app_id, scope_id = resolve_api_permission(audience, api_scope)
+        resources.append((resource_app_id, api_scope))
+        required_access.append({
+            "resourceAppId": resource_app_id,
+            "resourceAccess": [{"id": scope_id, "type": "Scope"}],
+        })
+    if not args.api_audience or args.include_dataverse:
+        resources.append((DYNAMICS_CRM_APP_ID, "mcp.tools"))
+        required_access.append({
+            "resourceAppId": DYNAMICS_CRM_APP_ID,
+            "resourceAccess": [{"id": MCP_TOOLS_PERMISSION_ID, "type": "Scope"}],
+        })
 
     # ---- Step 1: アプリ登録 ----
     print(f"== 1. アプリ登録: {args.display_name} ==")
+    print("   付与する委任スコープ: " + ", ".join(f"{r}/{s}" for r, s in resources))
 
     app_body = {
         "displayName": args.display_name,
         "signInAudience": "AzureADMyOrg",
         "web": {"redirectUris": REDIRECT_URIS},
-        "requiredResourceAccess": [
-            {
-                "resourceAppId": DYNAMICS_CRM_APP_ID,
-                "resourceAccess": [
-                    {"id": MCP_TOOLS_PERMISSION_ID, "type": "Scope"}
-                ],
-            }
-        ],
+        "requiredResourceAccess": required_access,
     }
 
     result = graph_post("/applications", app_body)
@@ -215,9 +260,9 @@ def main() -> int:
     print("== 5. テナント管理者の事前同意（admin consent）確認 ==")
     tenant_id = os.environ.get("TENANT_ID", "")
     consent_url = f"https://login.microsoftonline.com/{tenant_id or '<TENANT_ID>'}/adminconsent?client_id={app_id}"
-    consented = check_admin_consent(sp_id) if sp_id else None
+    consented = check_admin_consent(sp_id, resources) if sp_id else None
     if consented is True:
-        print("   ✅ 既にテナント全体への事前同意が付与済みです（mcp.tools）。")
+        print("   ✅ 既にテナント全体への事前同意が付与済みです。")
     else:
         status = "❌ 未同意" if consented is False else "❓ 確認不能（権限不足）"
         print(f"   {status}: テナント管理者（Global Admin 等）が下記 URL にアクセスして事前同意してください：")
@@ -231,7 +276,11 @@ def main() -> int:
     print()
     print("次のステップ:")
     print("  1. 上記 admin consent が ❌/❓ の場合、テナント管理者に URL を共有して同意を得る")
-    print("  2. python .github/skills/cowork/scripts/register_mcp_client.py")
+    if any(r == DYNAMICS_CRM_APP_ID for r, _ in resources):
+        print("  2. python .github/skills/cowork/scripts/register_mcp_client.py")
+    else:
+        print("  2. （自前 MCP Server のみの場合 allowedmcpclients 登録は不要）"
+              " → references/custom-mcp-connector.md 参照")
     print("  3. Teams 開発者ポータルで OAuth client registration を作成")
     print("  4. python .github/skills/cowork/scripts/diagnose_cowork_connector.py で総合確認")
     return 0
