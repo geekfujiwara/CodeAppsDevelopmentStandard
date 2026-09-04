@@ -113,7 +113,7 @@ npx pa app add data-source --connector shared_commondataserviceforapps \
 ✅ 正しい順序:
   1. npx pa app init
   2. npm run build && npx pa app push
-  3. pac code add-data-source -a dataverse -t {table}
+  3. npx pa app add data-source --connector shared_commondataserviceforapps --org-url {DATAVERSE_URL} --non-interactive
   4. 開発を進める
 
 ❌ 間違い順序:
@@ -212,8 +212,8 @@ PUBLISHER_PREFIX=geek
 | 主な用途       | 認証プロファイル、ソリューション ALM、Power Pages、環境操作                                                                            | Code Apps の init / push / データソース接続       |
 | インストール単位 | マシン全体（グローバル）                                                                                                            | プロジェクトローカル                              |
 
-> **PAC CLI は npm では配布されていない。** `npm install -g @microsoft/power-apps-cli` を実行しても
-> インストールされるのは `pa` コマンドのみで、`pac` は入らない。
+> **PAC CLI は npm では配布されていない。** `npm install -g @microsoft/power-apps-cli` を実行すると
+> Code Apps CLI の `power-apps` コマンドと短縮形の `pa` がインストールされるが、`pac` は入らない。
 
 ### 2.2 .env ファイル設定
 
