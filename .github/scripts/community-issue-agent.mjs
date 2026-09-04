@@ -79,9 +79,9 @@ export function parseJsonDocument(value) {
   try {
     return JSON.parse(trimmed);
   } catch (directError) {
-    const fenced = trimmed.match(/^```json\s*\r?\n([\s\S]*?)\r?\n```$/i);
-    if (!fenced) throw directError;
-    return JSON.parse(fenced[1]);
+    const fenced = [...trimmed.matchAll(/```json\s*\r?\n([\s\S]*?)\r?\n```/gi)];
+    if (fenced.length !== 1) throw directError;
+    return JSON.parse(fenced[0][1]);
   }
 }
 
