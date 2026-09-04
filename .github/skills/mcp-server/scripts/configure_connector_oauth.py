@@ -4,7 +4,7 @@
 
 1. リダイレクト URI ``https://global.consent.azure-apim.net/redirect``（コネクタ共通の固定値）
 2. クライアントシークレット
-3. 自分自身のスコープへの ``requiredResourceAccess``（同意を成立させるため）
+3. 自分自身のスコープへの ``requiredResourceAccess`` とテナント全体の委任同意
 
 シークレットは **標準出力に出さず**、``--secret-out`` のファイルにだけ書き出す。
 ファイルは必ず .gitignore の対象に置くこと。
@@ -67,6 +67,44 @@ def ensure_self_permission(app: dict, scope_name: str) -> str:
     return scope["id"]
 
 
+def ensure_service_principal(app_id: str) -> dict:
+    principals = graph_get(f"/servicePrincipals?$filter=appId eq '{app_id}'")["value"]
+    if principals:
+        return principals[0]
+    principal = graph_post("/servicePrincipals", {"appId": app_id})
+    print("[tenant] API の service principal を作成")
+    return principal
+
+
+def ensure_admin_consent(service_principal: dict, scope_name: str) -> None:
+    principal_id = service_principal["id"]
+    grants = graph_get(
+        f"/oauth2PermissionGrants?$filter=clientId eq '{principal_id}' and resourceId eq '{principal_id}'"
+    )["value"]
+    grant = next((item for item in grants if item.get("consentType") == "AllPrincipals"), None)
+    if grant:
+        scopes = set(grant.get("scope", "").split())
+        if scope_name in scopes:
+            print("[skip] テナント全体の委任同意は付与済み")
+            return
+        scopes.add(scope_name)
+        graph_patch(f"/oauth2PermissionGrants/{grant['id']}", {"scope": " ".join(sorted(scopes))})
+        print(f"[tenant] 既存の委任同意に {scope_name} を追加")
+        return
+
+    graph_post(
+        "/oauth2PermissionGrants",
+        {
+            "clientId": principal_id,
+            "consentType": "AllPrincipals",
+            "principalId": None,
+            "resourceId": principal_id,
+            "scope": scope_name,
+        },
+    )
+    print(f"[tenant] {scope_name} の委任同意を全ユーザーへ付与")
+
+
 def create_secret(app: dict, display_name: str) -> dict:
     return graph_post(
         f"/applications/{app['id']}/addPassword",
@@ -95,6 +133,8 @@ def main() -> int:
     app = find_application(args.audience)
     ensure_redirect_uri(app)
     ensure_self_permission(app, args.scope)
+    service_principal = ensure_service_principal(app["appId"])
+    ensure_admin_consent(service_principal, args.scope)
     secret = create_secret(app, args.secret_name)
 
     out = Path(args.secret_out)

@@ -45,8 +45,8 @@ securityDefinitions:
   oauth2_auth:
     type: oauth2
     flow: accessCode
-    authorizationUrl: https://login.microsoftonline.com/common/oauth2/v2.0/authorize
-    tokenUrl: https://login.microsoftonline.com/common/oauth2/v2.0/token
+    authorizationUrl: https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize
+    tokenUrl: https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token
     scopes:
       ${MCP_API_AUDIENCE}/${MCP_API_SCOPE_VALUE}: MCP サーバーへのアクセス
 security:
@@ -71,7 +71,8 @@ python .github/skills/mcp-server/scripts/configure_connector_oauth.py `
 
 1. リダイレクト URI `https://global.consent.azure-apim.net/redirect` を追加する（全カスタムコネクタ共通の固定値）。
 2. クライアントシークレットを発行する。
-3. 自分自身のスコープへの委任アクセスを `requiredResourceAccess` に追加し、同意を成立させる。
+3. 自分自身のスコープへの委任アクセスを `requiredResourceAccess` に追加する。
+4. service principal を解決し、`oauth2PermissionGrant` でテナント全体の管理者同意を付与する。
 
 > **シークレットは標準出力に出さず**、`--secret-out` のファイルにだけ書き出す。
 > 出力先は必ず `.gitignore` 対象のパスにする。
