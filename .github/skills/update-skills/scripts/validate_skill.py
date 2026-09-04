@@ -64,6 +64,7 @@ ALLOWLIST = {
     "edfdb190-3791-45d8-9a6c-8f90a37c278a",  # AI Builder GPT Dynamic Prompt テンプレート ID（全環境固定）
     "00000001-0000-0000-0001-00000000009b",  # Dataverse Default Solution（全環境固定）
     "4273edbd-ac1d-40d3-9fb2-095c621b552d",  # 標準フォームコントロール CLASSID（全環境固定）
+    "270bd3db-d9af-4782-9025-509e298dec0a",  # Lookup フォームコントロール CLASSID（全環境固定）
     "04b07795-8ddb-461a-bbee-02f9e1bf7b46",  # Azure CLI の well-known パブリッククライアント ID（固定）
     "1950a258-227b-4e31-a9cf-717495945fc2",  # Azure PowerShell の well-known パブリッククライアント ID（固定）
     "14d82eec-204b-4c2f-b7e8-296a70dab67e",  # Microsoft Graph PowerShell の well-known パブリッククライアント ID（固定）
