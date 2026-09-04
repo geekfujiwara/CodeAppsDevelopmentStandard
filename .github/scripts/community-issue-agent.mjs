@@ -86,8 +86,46 @@ export function parseJsonDocument(value) {
     return JSON.parse(trimmed);
   } catch (directError) {
     const fenced = [...trimmed.matchAll(/```json\s*\r?\n([\s\S]*?)\r?\n```/gi)];
-    if (fenced.length !== 1) throw directError;
-    return JSON.parse(fenced[0][1]);
+    if (fenced.length === 1) return JSON.parse(fenced[0][1]);
+    if (fenced.length > 1) throw directError;
+
+    const candidates = [];
+    let start = -1;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = 0; index < trimmed.length; index += 1) {
+      const character = trimmed[index];
+      if (depth === 0) {
+        if (character === '{') {
+          start = index;
+          depth = 1;
+          inString = false;
+          escaped = false;
+        }
+        continue;
+      }
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (character === '\\') escaped = true;
+        else if (character === '"') inString = false;
+      } else if (character === '"') inString = true;
+      else if (character === '{') depth += 1;
+      else if (character === '}') {
+        depth -= 1;
+        if (depth === 0) candidates.push(trimmed.slice(start, index + 1));
+      }
+    }
+    const parsed = candidates.flatMap((candidate) => {
+      try {
+        const document = JSON.parse(candidate);
+        return document && typeof document === 'object' && !Array.isArray(document) ? [document] : [];
+      } catch {
+        return [];
+      }
+    });
+    if (parsed.length !== 1) throw directError;
+    return parsed[0];
   }
 }
 
