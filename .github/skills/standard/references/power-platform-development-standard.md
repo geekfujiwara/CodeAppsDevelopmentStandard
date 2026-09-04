@@ -48,7 +48,7 @@ Dataverse のスキーマ名（Logical Name）は**必ず英語**で設計する
 
 #### 日本語 DisplayName サニタイズエラーの回避方法
 
-`@microsoft/power-apps` SDK v1.0.x では、`npx power-apps add-data-source` 実行時にテーブルの **DisplayName**（表示名）を TypeScript 識別子にサニタイズする処理がある。このサニタイズ関数は ASCII 文字のみを許容するため、日本語ローカライズ済みのテーブル（例: 表示名「レコード」）で以下のエラーが発生する:
+`@microsoft/power-apps` SDK v1.0.x では、`npx pa app add data-source` 実行時にテーブルの **DisplayName**（表示名）を TypeScript 識別子にサニタイズする処理がある。このサニタイズ関数は ASCII 文字のみを許容するため、日本語ローカライズ済みのテーブル（例: 表示名「レコード」）で以下のエラーが発生する:
 
 ```
 Failed to update database references: Failed to sanitize string レコード
@@ -94,8 +94,7 @@ node .github/skills/code-apps/references/patch-nameutils.cjs
 node -e "const c=require('fs').readFileSync('node_modules/@microsoft/power-apps-actions/dist/CodeGen/shared/nameUtils.js','utf8');c.split('\n').forEach((l,i)=>{if(l.includes('replace')&&l.includes('a-zA-Z'))console.log(i+':',l.trim())})"
 
 # パッチ後にデータソース追加を実行
-npx power-apps add-data-source --api-id dataverse \
-  --resource-name {table_logical_name} \
+npx pa app add data-source --connector shared_commondataserviceforapps \
   --org-url {DATAVERSE_URL} \
   --non-interactive
 ```
@@ -104,7 +103,7 @@ npx power-apps add-data-source --api-id dataverse \
 
 > **注意**: `npm install` を再実行すると `node_modules` が再生成されパッチが消える。データソース追加のたびに `node .github/skills/code-apps/references/patch-nameutils.cjs` を実行すること。
 
-> **PAC CLI との関係**: `pac code add-data-source` は内部で `@microsoft/power-apps` の CLI スクリプトを呼び出す。SDK v1.0.x ではスクリプトパスが変更されたため `pac code` 経由では `Could not find the PowerApps CLI script` エラーになる。**`npx power-apps add-data-source` を使用すること**。
+> **PAC CLI との関係**: `pac code add-data-source` は内部で `@microsoft/power-apps` の CLI スクリプトを呼び出す。SDK v1.0.x ではスクリプトパスが変更されたため `pac code` 経由では `Could not find the PowerApps CLI script` エラーになる。**`npx pa app add data-source` を使用すること**。
 
 ### 1.3 先にデプロイ、後から開発
 
@@ -112,8 +111,8 @@ npx power-apps add-data-source --api-id dataverse \
 
 ```
 ✅ 正しい順序:
-  1. npx power-apps init
-  2. npm run build && npx power-apps push
+  1. npx pa app init
+  2. npm run build && npx pa app push
   3. pac code add-data-source -a dataverse -t {table}
   4. 開発を進める
 
@@ -131,7 +130,7 @@ npx power-apps add-data-source --api-id dataverse \
 pac code init -env {ENVIRONMENT_ID} -n "AppName"
 
 # ✅ npx 版でもOK（ただしマルチテナントで Environment not found になることがある）
-# npx power-apps init --display-name "AppName" --environment-id {ENVIRONMENT_ID} --non-interactive
+# npx pa app init --display-name "AppName" --environment-id {ENVIRONMENT_ID} --non-interactive
 
 # ❌ 手動で power.config.json を作成・編集する
 # ❌ 別プロジェクトの power.config.json をコピーする（appId が環境固有のため失敗する）
@@ -172,7 +171,7 @@ PUBLISHER_PREFIX=geek
 | コンポーネント              | ソリューション紐づけ方法                                          |
 | --------------------------- | ----------------------------------------------------------------- |
 | Dataverse テーブル          | API ヘッダー `MSCRM.SolutionName` + `AddSolutionComponent` で検証 |
-| Code Apps                   | `npx power-apps push`（環境 ID で自動紐づけ）                     |
+| Code Apps                   | `npx pa app push`（環境 ID で自動紐づけ）                     |
 | Power Automate フロー       | API ヘッダー `MSCRM.SolutionUniqueName`                           |
 | 接続参照                    | API ヘッダー `MSCRM.SolutionUniqueName`                           |
 | Copilot Studio エージェント | UI 作成時に「ソリューション」を選択                               |
@@ -207,14 +206,14 @@ PUBLISHER_PREFIX=geek
 
 | 項目           | PAC CLI                                                                                                                             | Code Apps CLI                                     |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| コマンド       | `pac`                                                                                                                                 | `power-apps`（`npx power-apps`）                  |
+| コマンド       | `pac`                                                                                                                                 | `pa`（`npx pa`）                  |
 | 配布           | VS Code 拡張機能 / .NET tool / Windows MSI                                                                                            | npm パッケージ `@microsoft/power-apps-cli`        |
 | インストール   | 拡張機能「Power Platform Tools」<br>`dotnet tool install --global Microsoft.PowerApps.CLI.Tool`<br>MSI: <https://aka.ms/PowerAppsCLI> | `npm install`（プロジェクトの devDependencies）   |
 | 主な用途       | 認証プロファイル、ソリューション ALM、Power Pages、環境操作                                                                            | Code Apps の init / push / データソース接続       |
 | インストール単位 | マシン全体（グローバル）                                                                                                            | プロジェクトローカル                              |
 
 > **PAC CLI は npm では配布されていない。** `npm install -g @microsoft/power-apps-cli` を実行しても
-> インストールされるのは `power-apps` コマンドのみで、`pac` は入らない。
+> インストールされるのは `pa` コマンドのみで、`pac` は入らない。
 
 ### 2.2 .env ファイル設定
 
@@ -272,7 +271,7 @@ npm run setup
 - Node.js / npm のバージョン
 - Python の実行経路（`python` または `py -3`）
 - pip（`python -m pip` または `py -3 -m pip`）
-- `npx power-apps`
+- `npx pa`
 - `pac`（未導入時はインストール案内を表示）
 - `gh` + `gh auth login` が有効な場合は、デフォルトブランチの Copilot 承認バイパス設定（Branch protection の bypass app）
 
@@ -510,13 +509,13 @@ pac auth create --name {profile-name} --environment {ENVIRONMENT_ID}
 pac auth list
 ```
 
-> **教訓**: `pac auth list` にターゲット環境がない状態で `npx power-apps push` を実行すると認証エラーになる。新しい環境では必ず `pac auth create` を先に実行すること。
+> **教訓**: `pac auth list` にターゲット環境がない状態で `npx pa app push` を実行すると認証エラーになる。新しい環境では必ず `pac auth create` を先に実行すること。
 
 #### セットアップ手順
 
 ```bash
 # 1. プロジェクト初期化（power.config.json が SDK により自動生成される）
-npx power-apps init --display-name "アプリ名" \
+npx pa app init --display-name "アプリ名" \
   --environment-id {ENVIRONMENT_ID} --non-interactive
 
 # 2. 依存関係インストール
@@ -524,28 +523,27 @@ npm install
 
 # 3. 先にビルド＆デプロイ（Dataverse 接続確立のため）
 npm run build
-npx power-apps push --non-interactive
+npx pa app push --non-interactive
 
 # 4. Dataverse コネクタ追加（テーブルごとに実行）
 #    → src/generated/ と .power/schemas/appschemas/dataSourcesInfo.ts が自動生成される
 #    ※ 日本語 DisplayName でサニタイズエラーが出る場合は §1.2 の回避方法を参照
-npx power-apps add-data-source --api-id dataverse \
-  --resource-name {table_logical_name} \
+npx pa app add data-source --connector shared_commondataserviceforapps \
   --org-url {DATAVERSE_URL} --non-interactive
 
 # 5. 再ビルド（生成コードを含む）
 npm run build
-npx power-apps push --non-interactive
+npx pa app push --non-interactive
 ```
 
 > **重要**: SDK コマンドが以下のファイルを自動生成する。これらを手動で作成・他プロジェクトからコピーしてはならない。
 >
 > | コマンド                         | 自動生成されるファイル                                                                                                                                                                         |
 > | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-> | `npx power-apps init`            | `power.config.json`, `plugins/plugin-power-apps.ts`, `vite.config.ts`, `tsconfig*.json`, `eslint.config.js`, `index.html`, `package.json`, `src/main.tsx`, `src/App.tsx`, `components.json` 等 |
-> | `npx power-apps add-data-source` | `src/generated/`（モデル・サービス）, `.power/schemas/appschemas/dataSourcesInfo.ts`                                                                                                           |
+> | `npx pa app init`            | `power.config.json`, `plugins/plugin-power-apps.ts`, `vite.config.ts`, `tsconfig*.json`, `eslint.config.js`, `index.html`, `package.json`, `src/main.tsx`, `src/App.tsx`, `components.json` 等 |
+> | `npx pa app add data-source` | `src/generated/`（モデル・サービス）, `.power/schemas/appschemas/dataSourcesInfo.ts`                                                                                                           |
 
-> **SDK v1.0.x への移行**: `pac code add-data-source` は SDK v1.0.x で CLI パスが変更されたため動作しない。`npx power-apps add-data-source` を使用すること。日本語ローカライズ済み環境では nameUtils.js のパッチが必要（§1.2 参照）。
+> **SDK v1.0.x への移行**: `pac code add-data-source` は SDK v1.0.x で CLI パスが変更されたため動作しない。`npx pa app add data-source` を使用すること。日本語ローカライズ済み環境では nameUtils.js のパッチが必要（§1.2 参照）。
 
 ### 4.2 DataverseService パターン
 
@@ -652,7 +650,7 @@ export const statusColors: Record<RecordStatus, string> = {
 
 ### 4.4 SDK Lookup 名フィールドの未ポピュレート問題（補足）
 
-`npx power-apps add-data-source` で生成される SDK サービスの `getAll()` / `get()` は、**フォーマット済み Lookup 名フィールド**（`createdbyname`, `geek_assignedtoidname`, `geek_categoryidname` 等）を **返さない**。
+`npx pa app add data-source` で生成される SDK サービスの `getAll()` / `get()` は、**フォーマット済み Lookup 名フィールド**（`createdbyname`, `geek_assignedtoidname`, `geek_categoryidname` 等）を **返さない**。
 
 これは SDK の既知の制約であり、**初回デプロイから必ず発生する**。
 回避策は §4.2 の「Lookup フィールドの読み取り」に定義した **`_xxx_value` + クライアントサイド名前解決パターン** を最初から適用すること。
@@ -1406,8 +1404,8 @@ publish_to_channels(bot_id)
 | 12  | フロー環境が見つからない                                                                   | DATAVERSE_URL 末尾スラッシュ不一致                                                       | `rstrip("/")` で統一                                                                      | §5.3 参照   |
 | 13  | `retry_metadata` でエラーコード検出不可                                                    | `str(e)` にレスポンスボディが含まれない                                                  | `e.response.text` からエラーコードを抽出                                                  | §3.2 参照   |
 | 14  | テーブル作成で `0x80044363`                                                                | ソリューション内にコンポーネント重複                                                     | `retry_metadata` でスキップ                                                               | §3.2 参照   |
-| 15  | `npx power-apps add-data-source` で `Failed to sanitize string`                            | SDK の `sanitizeName()` が ASCII のみ許容、日本語 DisplayName が全て `_` に変換される    | `nameUtils.js` の正規表現を Unicode 対応にパッチ                                          | §1.2 参照   |
-| 16  | `pac code add-data-source` で `Could not find the PowerApps CLI script`                    | SDK v1.0.x で CLI スクリプトパスが変更                                                   | `npx power-apps add-data-source` を使用                                                   | §4.1 参照   |
+| 15  | `npx pa app add data-source` で `Failed to sanitize string`                            | SDK の `sanitizeName()` が ASCII のみ許容、日本語 DisplayName が全て `_` に変換される    | `nameUtils.js` の正規表現を Unicode 対応にパッチ                                          | §1.2 参照   |
+| 16  | `pac code add-data-source` で `Could not find the PowerApps CLI script`                    | SDK v1.0.x で CLI スクリプトパスが変更                                                   | `npx pa app add data-source` を使用                                                   | §4.1 参照   |
 | 17  | Flow API で作成したフローがソリューションに追加できない                                    | Flow API は非ソリューション対応フローを作成する。`workflow` テーブルにも存在しない       | Dataverse Web API の `workflows` テーブルに直接作成 + `MSCRM.SolutionUniqueName` ヘッダー | §5.9 参照   |
 | 18  | Flow API で `ConnectionMissingAuthenticatedUserObjectId` エラー                            | DeviceCodeCredential のトークンが接続所有者と不一致                                      | Dataverse Web API 方式に切り替え（authenticatedUser 不要）                                | §5.9.2 参照 |
 | 19  | Dataverse Web API でフロー作成時 `statuscode 2 is not valid for state Draft`               | `statecode=1` で直接作成不可                                                             | Draft（statecode=0）で作成後に PATCH で有効化                                             | §5.9.5 参照 |
@@ -1416,9 +1414,9 @@ publish_to_channels(bot_id)
 | 22  | ソリューション内フローで「接続参照を使用する必要があります」警告                           | フロー定義が直接接続（Embedded）を使用している                                           | Power Automate UI でフローを開いて手動で接続参照に変更                                    | §5.9.7 参照 |
 | 23  | API 作成フローの Send Email Body が空                                                      | Python f-string と非 f-string 混在で `@{{}}` が二重ブレースになる                        | f-string 不要の行は `@{expression}` で単一ブレースにする                                  | §5.9.7 参照 |
 | 24  | Dataverse `bots` テーブルに直接挿入した Bot が Copilot Studio でエラー                     | PVA Bot Management Service にプロビジョニングされない。`botroutinginfo` が 404           | Copilot Studio UI で作成し、API は設定変更のみに使用                                      | §6.2 参照   |
-| 25  | `npx power-apps push` で `AppLeaseMissing` エラー（409）                                   | `power.config.json` に別環境の `appId` がハードコードされている                          | `appId` を空文字にして新規アプリとしてデプロイ                                            | §1.4 参照   |
-| 26  | `npx power-apps push` で `CodeAppOperationNotAllowedInEnvironment`（403）                  | 環境で Code Apps が許可されていない                                                      | Power Platform 管理センターで「コード アプリを許可する」をオンにする                      | §1.6 参照   |
-| 27  | `npm run build` で `Cannot find module dataSourcesInfo`（TS2307）                          | `.power/` が `.gitignore` で除外されており git clone 後に存在しない                      | `npx power-apps add-data-source` を全テーブルに対して再実行                               | §4.1 参照   |
+| 25  | `npx pa app push` で `AppLeaseMissing` エラー（409）                                   | `power.config.json` に別環境の `appId` がハードコードされている                          | `appId` を空文字にして新規アプリとしてデプロイ                                            | §1.4 参照   |
+| 26  | `npx pa app push` で `CodeAppOperationNotAllowedInEnvironment`（403）                  | 環境で Code Apps が許可されていない                                                      | Power Platform 管理センターで「コード アプリを許可する」をオンにする                      | §1.6 参照   |
+| 27  | `npm run build` で `Cannot find module dataSourcesInfo`（TS2307）                          | `.power/` が `.gitignore` で除外されており git clone 後に存在しない                      | `npx pa app add data-source` を全テーブルに対して再実行                               | §4.1 参照   |
 | 28  | スクリプトで `get_token()` の引数不一致                                                    | 旧インターフェース `get_token(tenant, client, scope)` vs 新 `get_token(scope=...)`       | `auth_helper.get_token()` は `.env` から自動読み込み。`scope` キーワード引数のみ渡す      | §2.3 参照   |
 | 29  | PAC CLI 認証プロファイル未設定で push 失敗                                                 | 新環境への認証プロファイルが存在しない                                                   | `pac auth create --name {name} --environment {env-id}` で作成                             | §4.1 参照   |
 | 30  | nameUtils.js パッチが PowerShell で適用されない                                            | `$` のエスケープ問題で文字列置換が失敗する（適用されたように見えて実は変更されていない） | `patch-nameutils.cjs`（Node.js スクリプト）を使い、適用後に必ず検証する                   | §1.2 参照   |
@@ -1429,6 +1427,8 @@ publish_to_channels(bot_id)
 | 35  | ConversationStart をシングル改行 YAML で更新 → 送信ノードが消える                          | 同上。PVA ダブル改行フォーマットが必須                                                   | ConversationStart もダブル改行で全行を結合                                                | §6.5 参照   |
 | 36  | GPT data 上書きで基盤モデルがデフォルト（GPT 4.1）に戻る                                   | PVA が data YAML 末尾に `aISettings.model.modelNameHint` を格納しており、上書きで消える  | 更新前に `aISettings` セクションを抽出して新 YAML 末尾に付加                              | §6.6 参照   |
 | 37  | SVG アイコンで Teams チャネルのアイコンが表示されない                                      | Teams は SVG を受け付けない。PNG 形式が必須                                              | PNG 3 サイズ生成（240/192/32）、data: prefix なしの生 Base64、outlineIcon は白い透明背景  | §6.7 参照   |
+| 38  | preflight が Windows で `npm` / `npx` / `pac` / `gh` を一律に「未検出」と報告する           | これらは `.cmd` シム。Node 20+ は CVE-2024-27980 対策で shell 無しに `.cmd` を spawn できない | Windows では `cmd.exe /d /s /c <cmd> <args>` 経由で spawn する（`shell: true` は DEP0190） | §7.3 参照   |
+| 39  | `.gitignore` テンプレートが実アプリのソースを黙って除外する                                | 特定案件のファイル名（`src/pages/incidents.tsx` 等）が汎用テンプレートに残留していた     | テンプレートには案件固有のパスを入れない。`git status --ignored` で意図しない除外を確認する | §7.3 参照   |
 
 ### 7.2 共通のアンチパターン
 
@@ -1444,12 +1444,14 @@ publish_to_channels(bot_id)
 ❌ Flow API に Dataverse トークンを使い回す（スコープが異なる）
 ❌ 接続を API で自動作成しようとする（手動で事前作成が必要）
 ❌ フロー定義の失敗時にデバッグ JSON を保存しない
-❌ pac code add-data-source を SDK v1.0.x で使う（npx power-apps add-data-source を使え）
+❌ pac code add-data-source を SDK v1.0.x で使う（npx pa app add data-source を使え）
 ❌ 日本語 DisplayName の sanitize 問題を放置する（nameUtils.js をパッチせよ）
 ❌ Flow API でソリューション対応フローを作ろうとする（Dataverse Web API を使え）
 ❌ workflow を statecode=1 で直接作成する（Draft → Activate の2ステップが必須）
 ❌ 個別スクリプトに認証ロジックを書く（auth_helper.py を使え）
 ❌ 認証レコードを保存せず毎回デバイスコード認証を要求する
+❌ Windows で `npm` / `npx` / `pac` を shell 経由せずに spawn する（`.cmd` シムなので必ず失敗する）
+❌ `.gitignore` テンプレートに案件固有のソースパスを残す
 ❌ AuthenticationRecord だけ保存して TokenCachePersistenceOptions を設定しない（トークンが永続化されない）
 ❌ retry_metadata で str(e) だけチェックする（レスポンスボディの Dataverse エラーコードを見逃す）
 ❌ API で接続参照を自動作成してフロー有効化しようとする（Power Automate UI で手動変更が確実）
@@ -1457,7 +1459,7 @@ publish_to_channels(bot_id)
 ❌ Dataverse bots テーブルに直接 Bot を作成する（PVA にプロビジョニングされない。Copilot Studio UI で作成せよ）
 ❌ 別環境の appId を power.config.json に残したままデプロイする（AppLeaseMissing エラー。appId を空にせよ）
 ❌ 環境の Code Apps 有効化を確認せずにデプロイする（CodeAppOperationNotAllowedInEnvironment エラー）
-❌ git clone 後に dataSourcesInfo.ts を再生成せずにビルドする（`npx power-apps add-data-source` で全テーブルを再追加）
+❌ git clone 後に dataSourcesInfo.ts を再生成せずにビルドする（`npx pa app add data-source` で全テーブルを再追加）
 ❌ PAC CLI の認証プロファイルを作成せずに push する（pac auth create が必要）
 ❌ get_token() に旧インターフェース（3引数）で呼び出す（auth_helper は .env から自動読み込み。scope のみ指定）
 ❌ nameUtils.js パッチを PowerShell で適用しようとする（$ エスケープで失敗。node .github/skills/code-apps/references/patch-nameutils.cjs を使え）
@@ -1471,6 +1473,48 @@ publish_to_channels(bot_id)
 ❌ SVG アイコンを Teams チャネルに登録する（PNG 形式が必須。3 サイズ生成し data: prefix なしで登録）
 ❌ optInUseLatestModels を True にする（基盤モデルが GPT に強制変更される。明示的に False を設定）
 ```
+
+### 7.3 preflight / テンプレートの落とし穴
+
+#### Windows の `.cmd` シムを spawn する
+
+`npm` / `npx` / `pac` / `gh` / `py` は Windows では `.cmd`（または `.ps1`）ラッパーであり、
+`spawnSync("npm", ["--version"])` は **ENOENT / EINVAL** になる。
+Node 20 以降は CVE-2024-27980 対策で `shell` 無しの `.cmd` 起動が禁止されているためだ。
+
+これを見落とすと preflight が恒常的に「未検出」を出し続け、
+ユーザーが警告を無視するようになって preflight 自体が意味を失う。
+
+`shell: true` でも動くが、引数がエスケープされず連結されるため Node が **DEP0190** を出す。
+`cmd.exe` を直接起動して引数を Node にエスケープさせるのが安全。
+
+```js
+const WINDOWS_SHIM_COMMANDS = new Set(["npm", "npx", "pac", "gh", "py"]);
+
+function run(cmd, args, options = {}) {
+  const useComSpec = isWindows && WINDOWS_SHIM_COMMANDS.has(cmd);
+  const command = useComSpec ? process.env.ComSpec || "cmd.exe" : cmd;
+  const commandArgs = useComSpec ? ["/d", "/s", "/c", cmd, ...args] : args;
+  return spawnSync(command, commandArgs, { encoding: "utf-8", stdio: "pipe", ...options });
+}
+```
+
+> `pac` に `--version` は**存在しない**。`pac help` のバナー先頭の `Version: ` 行を抾うこと。
+> `pac --version` は使用方法ヘルプ全文を吐くので、そのままログに出すと preflight が読めなくなる。
+
+#### `.gitignore` テンプレートに案件固有のパスを入れない
+
+汎用テンプレートに特定案件のファイル名が残っていると、
+同じ名前を使う別案件で**実ソースが黙って git 管理外になる**。
+初回コミット前のリポジトリでは気づけないままファイルを欠落させやすい。
+
+```powershell
+# 意図しない除外を検出する
+git status --ignored --short | Select-String "^!! src/"
+```
+
+テンプレートに入れてよいのは、生成物（`src/generated/`, `power.config.json`, `dist/`）と
+秘匿情報（`.env`, `.secrets/`, `*token-cache*`）だけに限定する。
 
 ---
 
@@ -1499,8 +1543,8 @@ flowchart TD
       direction TB
       P6D["🎨 Phase 6 設計: Code Apps UI\n1. code-apps スキルの references/design-pattern.md で設計\n2. 画面構成・コンポーネント選定\n3. Lookup 名前解決パターン設計\n4. ★ ユーザーに UI 設計を提示し承認を得る"]
       PNPM["📦 scaffold + npm install\nネットワーク待ちのみ。テーブル不要のため即着手"]
-      P6I["⚛️ 先行実装（テーブル不要）\n1. npx power-apps init\n2. 初回 build & push（先にデプロイ！）"]
-      P6["⚛️ Phase 6 実装: Code Apps\n3. npx power-apps add-data-source（★同期①後）\n4. npx power-apps add-flow（★同期②後・Phase 5 参照）\n5. 承認済み設計に従い実装\n6. ビルド & 再デプロイ"]
+      P6I["⚛️ 先行実装（テーブル不要）\n1. npx pa app init\n2. 初回 build & push（先にデプロイ！）"]
+      P6["⚛️ Phase 6 実装: Code Apps\n3. npx pa app add data-source（★同期①後）\n4. npx pa app add flow（★同期②後・Phase 5 参照）\n5. 承認済み設計に従い実装\n6. ビルド & 再デプロイ"]
       P6D --> PNPM --> P6I --> P6
     end
 
@@ -1830,12 +1874,12 @@ Code Apps を含む構成の場合、テーブル設計と同時に以下を提�
 
 - [ ] 環境で **Code Apps が有効化**されている（Power Platform 管理センター → 機能）
 - [ ] PAC CLI 認証プロファイルが対象環境用に作成済み（`pac auth create --environment {env-id}`）
-- [ ] `power.config.json` が `npx power-apps init` で生成済み
+- [ ] `power.config.json` が `npx pa app init` で生成済み
 - [ ] `power.config.json` の `environmentId` が正しい
-- [ ] `.power/schemas/appschemas/dataSourcesInfo.ts` が `npx power-apps add-data-source` で生成済み
+- [ ] `.power/schemas/appschemas/dataSourcesInfo.ts` が `npx pa app add data-source` で生成済み
 - [ ] `npm run build` がエラーなし
 - [ ] 先に初回デプロイ済み（Dataverse 接続確立済み）
-- [ ] Dataverse コネクタ追加済み（`npx power-apps add-data-source`）
+- [ ] Dataverse コネクタ追加済み（`npx pa app add data-source`）
 - [ ] 型定義と Choice マッピングが一致
 
 ### Power Automate フロー作成前
@@ -1910,8 +1954,8 @@ Code Apps を含む構成の場合、テーブル設計と同時に以下を提�
 
 #### Code Apps（`code-apps`）
 
-- 先にデプロイ、後から開発（`npm run build && npx power-apps push` を最初に実行）
-- `pac code` ではなく `npx power-apps` を使用（SDK v1.0.x のパス変更問題）
+- 先にデプロイ、後から開発（`npm run build && npx pa app push` を最初に実行）
+- `pac code` ではなく `npx pa` を使用（SDK v1.0.x のパス変更問題）
 - 日本語 DisplayName で nameUtils.js のサニタイズエラー → Unicode パッチで回避
 - DataverseService パターンで CRUD 操作を統一
 - Choice 値は `100000000` 始まり
