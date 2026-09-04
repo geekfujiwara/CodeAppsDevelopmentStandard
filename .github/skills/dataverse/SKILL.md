@@ -238,7 +238,7 @@ existing_tables = [t for t in all_tables["value"] if t["LogicalName"].startswith
 | **ユーザー参照は systemuser ＋ システム列** | カスタムユーザーテーブルを作らない。`ownerid`/`createdby`/`modifiedby` を活用 |
 | **顧客は account/contact を再利用** | 標準テーブルを使う。顧客 Lookup は customer 型（account/contact ポリモーフィック） |
 | **製品は product/pricelevel/uom を再利用** | 製品マスタを新規作成しない |
-| **スキーマ名は英語のみ** | 日本語スキーマ名は `npx pa app add data-source` で失敗する |
+| **スキーマ名は英語のみ** | 日本語スキーマ名は `npx power-apps add-data-source` で失敗する |
 | **ユーザー参照は SystemUser テーブル** | カスタムユーザーテーブルを作らない |
 | **作成者・報告者は `createdby` システム列を利用** | カスタム ReportedBy Lookup は不要 |
 
