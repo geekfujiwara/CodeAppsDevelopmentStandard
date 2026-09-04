@@ -3,9 +3,9 @@
 ## 前提と生成順
 
 1. `scaffold_mobile_app.py --preview-approved --install` で pinned 公式 template を生成
-2. `power-apps init -t MobileApp` で `power.config.json` を生成
+2. `pa app init -t MobileApp` で `power.config.json` を生成
 3. Power Apps Wrap で app registration を作成し、`auth.config.json` を設定
-4. `power-apps add-data-source` で `src/generated/` を生成
+4. `pa app add data-source` で `src/generated/` を生成
 5. React Native 画面、native wrapper、navigation を実装
 6. type-check、実機 preview、build、push
 
@@ -37,7 +37,7 @@ generated connector schema を受け取り、`useAuth` が sign-in state を提�
 ## Dataverse と connector
 
 connector-first を標準とし、`fetch` / `axios` で Power Platform API を直接呼ばない。
-`add-data-source` の引数は connector ごとに [`code-apps` の CLI リファレンス](../../code-apps/references/cli-reference.md)を参照する。
+`add data-source` の引数は connector ごとに [`code-apps` の CLI リファレンス](../../code-apps/references/cli-reference.md)を参照する。
 
 生成後は画面から `src/generated/services` を直接散在呼び出しせず、hook に閉じる。
 
@@ -84,7 +84,7 @@ Power Apps Developer app で Metro の QR を読み取る。確認項目:
 ```powershell
 npm run type-check
 npm run build:android   # 対象 OS のみ
-npx --yes --package @microsoft/power-apps-cli@1.0.0 power-apps push
+npx --yes --package @microsoft/power-apps-cli@1.0.1 pa app push
 ```
 
 ローカル `expo run:ios` / `expo run:android`、store 配布は v0 の対応範囲外。

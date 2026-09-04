@@ -1849,6 +1849,40 @@ Playwright で検証する場合は `page.reload()` ではなく `page.goto(play
 行クリックが "element is not stable" でタイムアウトするときは
 `.click({ force: true })`、同名ボタンが複数あるときは `{ exact: true }` を使う。
 
+### 追記: push 出力の新しい URL で開き直しても古いままのことがある（検証済 2026-09-05）
+
+`pa app push` が出力する **新しい `hint=` / `sourcetime=` 付き URL** を、
+まっさらなページ（`forceNew: true`）で開いても古いバンドルが配信されることがある。
+このとき画面上部には英語で次のバナーが出る。
+
+```
+You're using an old version of this app. Refresh to use the latest version.
+```
+
+バナーの「Refresh」を押すのが唯一の確実な解決で、**URL を変えても効かない**。
+ただしこのバナーはプレイヤーのシェル側（iframe の外）にあり、
+`locator.click()` は `Element is outside of the viewport` でタイムアウトする。
+`force: true` でも失敗するため、**DOM イベントを直接発火**させる。
+
+```javascript
+await page.evaluate(() => {
+  const b = [...document.querySelectorAll('button')].find(x => x.innerText.trim() === 'Refresh')
+  b && b.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+})
+await page.waitForTimeout(15000)
+```
+
+検証順序は次のとおり。
+
+1. `pa app push` の出力 URL を `forceNew: true` で開く
+2. **バナーの有無を必ず確認する**（無ければそのまま検証してよい）
+3. 出ていれば上記 `dispatchEvent` で Refresh
+4. ナビゲーションのラベルなど「変わったはずの箇所」を `innerText` で確認してから本題の検証に入る
+
+画面を削除した場合の確認は、削除したパスへ
+`location.hash = "#/<削除したパス>"` で遷移して 404 になることまで見る。
+ナビから消えているだけではルート定義が残っている可能性がある。
+
 ## 38. ダッシュボードの KPI カードを押しても「何も起きない」（検証済 2026-08-13）
 
 ### 症状
@@ -2062,5 +2096,367 @@ RadialBarChart で作った半円（スピードメーター）ゲージで、�
 チャート/テーブルを含むセクションを追加する時点で、詳細ページの最大幅を `max-w-4xl`〜`max-w-5xl`
 程度に広げる。あわせて、2 カラムにする `grid-cols-[...]` のブレークポイントも `lg:` ではなく
 `xl:` にするなど、コンテナ幅とセットで見直す（狭い時は縦積みのままにして横スクロールを避ける）。
+
+---
+
+## 46. `npx power-apps` が `could not determine executable to run` になる
+
+### 症状
+
+これまで動いていた手順どおりに実行しても、どのサブコマンドでも同じエラーしか出ない。
+
+```
+npm error could not determine executable to run
+```
+
+`npm ls @microsoft/power-apps-cli` では CLI が正しくインストールされている。
+
+### 原因
+
+`@microsoft/power-apps-cli` 1.0.x で **bin 名が `power-apps` から `pa` にリネームされ、
+コマンドが group 化された**。`npx` は「そのパッケージの bin に旧名が無い」としか言えないため、
+エラーメッセージからは原因が読み取れない。
+
+| 旧 | 新 |
+|---|---|
+| `npx power-apps init` | `npx pa app init` |
+| `npx power-apps push` | `npx pa app push` |
+| `npx power-apps share` | `npx pa app share` |
+| `npx power-apps add-data-source` | `npx pa app add data-source` |
+| `npx power-apps auth-status` / `auth-switch` | `npx pa auth status` / `npx pa auth switch` |
+| `npx power-apps list-connections` | `npx pa connection list` |
+
+全対応表は [CLI リファレンスの旧コマンド対応表](cli-reference.md#旧コマンド対応表)。
+
+### 対処
+
+```bash
+npx pa --help        # bin 名と group 一覧を確認
+npx pa app --help    # app group のサブコマンドを確認
+```
+
+`package.json` の `scripts.deploy` を新コマンドへ更新する。
+
+```jsonc
+{
+  "scripts": {
+    "deploy": "npm run build && npm run predeploy && npx pa app push"
+  }
+}
+```
+
+### 恒久対策（実装済み）
+
+`scripts/pre-deploy-check.mjs` の**チェック 11** が、`node_modules/@microsoft/power-apps-cli/package.json`
+の `bin` キーを読み、`package.json` の `scripts.*` が呼んでいる `npx <name>` が実在する bin か、
+かつ `pa` の場合に `app` group が付いているかを検証して失敗させる。
+`npm run predeploy` を通せば、CLI を上げた直後にコマンド名の不一致を検出できる。
+
+---
+
+## 47. 生成された `MicrosoftDataverseService` に `GetNextPageWithOrganization` が無い
+
+### 症状
+
+CLI を 1.0.x に上げて `npx pa app add data-source` をやり直したあと、既存のページング処理がビルドできない。
+
+```
+error TS2551: Property 'GetNextPageWithOrganization' does not exist on type 'MicrosoftDataverseService'.
+```
+
+### 原因
+
+CLI 1.0.x の生成物から `GetNextPage*` 系のヘルパーメソッドが削除された。
+ページングは `ListRecordsWithOrganization` の **`$skiptoken` 引数**で行う設計に変わっている。
+
+`ListRecordsWithOrganization` は**位置引数**である点に注意する。
+
+```ts
+ListRecordsWithOrganization(
+  organization, entityName, prefer?, accept?, x_ms_odata_metadata_full?,
+  MSCRM_IncludeMipSensitivityLabel?, $select?, $filter?, $orderby?, $expand?,
+  fetchXml?, $top?, $skiptoken?, partitionId?
+)
+```
+
+### 対処
+
+`@odata.nextLink` から `$skiptoken` を取り出して次ページを要求するループを、薄いラッパーとして実装する。
+無限ループを避けるため上限ページ数と「トークンが変化しなければ打ち切る」条件を必ず入れる。
+
+```ts
+// src/data/dataverse-client.ts
+const MAX_PAGES = 20;
+
+function readSkipToken(nextLink: string | undefined): string | null {
+  if (!nextLink) return null;
+  return new URL(nextLink, ORGANIZATION).searchParams.get("$skiptoken");
+}
+
+export async function listAll(
+  entitySetName: string,
+  options: { select?: string; filter?: string; orderBy?: string; top?: number } = {},
+): Promise<Record<string, unknown>[]> {
+  const rows: Record<string, unknown>[] = [];
+  let skipToken: string | undefined;
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const res = await MicrosoftDataverseService.ListRecordsWithOrganization(
+      ORGANIZATION,
+      entitySetName,
+      PREFER_FORMATTED,
+      undefined,
+      undefined,
+      undefined,
+      options.select,
+      options.filter,
+      options.orderBy,
+      undefined,
+      undefined,
+      options.top,
+      skipToken,
+    );
+
+    rows.push(...(res.data?.value ?? []));
+
+    const next = readSkipToken(res.data?.["@odata.nextLink"] as string | undefined);
+    if (!next || next === skipToken) break;
+    skipToken = next;
+  }
+
+  return rows;
+}
+```
+
+> `GetOrganizations` / `GetMetadata*` / `GetEntities*` など、他の探索系ヘルパーも同様に削除されている。
+> CLI を上げたら、まず `src/generated/services/MicrosoftDataverseService.ts` の実際のメソッド一覧を確認する。
+
+---
+
+## 48. CLI 移行後、スキル自身の検証・bootstrap スクリプトが壊れたまま放置される
+
+### 症状
+
+CLI のリネーム対応（`power-apps` → `pa`）でドキュメント・サンプルを一斉更新したのに、
+後日スキルの自己検証を回すと全件失敗する。
+
+```
+$ python .github/skills/code-apps/scripts/validate_cli_reference.py
+ERROR: share --help の取得に失敗しました (exit 1): 'power-apps' is not recognized as an internal or external command
+
+$ python .github/skills/code-apps/scripts/validate_sample.py
+❌ geek-approval
+   • package.json の devDependencies に '@microsoft/power-apps-cli': '^1.0.1' を指定してください
+...
+0/21 サンプルが OK
+```
+
+また `bootstrap.mjs` は常に `⚠️ npx power-apps 未検出` を出し続ける。
+
+### 原因
+
+CLI 移行の**影響範囲にスキル自身のツールが含まれている**ことを見落とした。
+`*.md` / `package.json` は grep で機械的に置換できるが、次の 4 種類は置換対象から漏れやすい。
+
+| 漏れやすい場所 | 具体例 | 症状 |
+| --- | --- | --- |
+| 検証スクリプトの**期待値** | `validate_sample.py` が旧 deploy 文字列・旧 setup コマンド列を assert | 移行が完了した瞬間に全サンプルが自分の検証で落ちる |
+| 検証スクリプトの**実行コマンド** | `validate_cli_reference.py` が `power-apps share --help` を spawn | 存在しない bin を叩いて exit 1 |
+| **bootstrap / preflight** の存在確認 | `npx --no-install power-apps --version` | 恒久的に「未検出」を報告し、ユーザーが無視するようになる |
+| Python スクリプトの**案内文（print）** | `setup_dataverse.py` / `setup_connection_reference.py` の「次はこれを実行」 | ユーザーが死んだコマンドをコピペする |
+| **バージョンピンの取りこぼし** | サンプル 21 件の `"@microsoft/power-apps-cli": "^1.0.0"` | テンプレートだけ上げてサンプルが取り残される |
+
+### 対処
+
+**1. CLI 移行のチェックリストを固定する**
+
+```
+□ SKILL.md / references/*.md のコマンド文字列
+□ samples/**/package.json と template-snapshot の CLI ピン（全件、テンプレートだけで終わらせない）
+□ scripts/validate_*.py の「期待値」と「spawn するコマンド」
+□ scripts/bootstrap.mjs（preflight）の存在確認コマンドと node_modules フォールバックのパッケージ名
+□ *.py の print() による次アクション案内
+□ 生成物ヘッダーコメント（dataSourcesInfo.ts の "Auto-generated by ..."）
+□ .gitignore テンプレートのコメント
+```
+
+**2. 移行後に必ず全検証スクリプトを実行して exit 0 を確認する**
+
+```powershell
+python .github/skills/code-apps/scripts/validate_sample.py
+python .github/skills/code-apps/scripts/validate_cli_reference.py
+node   .github/skills/standard/scripts/bootstrap.mjs
+npm run predeploy
+```
+
+ドキュメントの grep が 0 件になっても、**スクリプトが exit 0 になるまでは移行は完了していない**。
+
+**3. `--help` の出力を信用しない**
+
+同じ移行で、`--help` に載っているのに実行すると `unknown option` になるフラグが 3 つ見つかった。
+`validate_cli_reference.py` のように `--help` を正としてドキュメントを検証していると、
+**実際には拒否されるフラグを「正しい」と判定してしまう**。
+フラグを追加・維持するときは必ずダミー値で実行して受理されることを確かめる。
+
+```powershell
+npx pa app share --environment-id 00000000-0000-0000-0000-000000000000   # error: unknown option
+npx pa app share --cloud public                                          # error: unknown option
+```
+
+### レビュー観点
+
+- 「ドキュメントを N ファイル更新した」で移行完了と報告しない。**実行して緑になったか**で判断する。
+- 自己検証スクリプトを持つスキルは、そのスクリプト自体が移行対象であることを前提にする。
+- 移行 PR には、検証スクリプトの実行結果（exit code）を必ず添える。
+
+---
+
+## 49. 一覧の詳細をモーダルで作ると作り直しになる／矢羽（chevron）に枠線が出ない（検証済 2026-09-05）
+
+### 症状
+
+1. `ListTable` の行クリックで `FormModal` を開く「一覧＋モーダル詳細」を実装したところ、
+   レビューで **「詳細はモーダルでやらない、画面埋め込みにして」** と差し戻され、フォーム一式を作り直した。
+2. Salesforce 風の矢羽（`clip-path: polygon(...)` で切り抜いたステージ表示）に選択状態の枠線を付けようと
+   `ring-2` / `outline` / `border` を当てたが、**枠線が矢羽の形に沿わず消えたように見える**。
+
+### 原因
+
+1. **モーダルは「一覧 → 詳細 → 一覧」の往復が必要な業務画面と相性が悪い。**
+   ステージ切り替え・検索・詳細編集を行き来する画面では、詳細が一覧と同時に見えている方が使われる。
+   加えて `ListTable` に内蔵された `FormModal` は **保存ボタンが未配線**（`renderForm` を渡したときだけ描画される
+   ガワだけの実装）なので、どのみちページ側で状態を持つ必要がある。→ 最初から埋め込みパネルで作るのが正解。
+2. `clip-path` は **ボーダー・アウトライン・リング・ボックスシャドウを含めて要素全体を切り抜く**。
+   矩形の `ring` を矢羽で切り抜けば、当然「矢羽の内側の矩形」しか残らず枠線に見えない。
+
+### 対処
+
+**1. 詳細は同一画面に埋め込む（モーダルを使わない）**
+
+```tsx
+// 一覧の直前に置き、開いたらスクロールして見せる
+const detailRef = useRef<HTMLDivElement>(null)
+const isDetailOpen = form !== null
+useEffect(() => {
+  if (isDetailOpen) detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+}, [isDetailOpen])
+
+<div ref={detailRef} className="scroll-mt-4">
+  {form && <DetailPanel form={form} onChange={setForm} onSave={submit} onClose={close} onDelete={askDelete} />}
+</div>
+
+<ListTable data={rows} columns={cols} onRowClick={openDetail} />   {/* renderForm は渡さない */}
+```
+
+- フォーム状態は **ページ側** に持つ（`useState<Input | null>`）。`null` が「閉じている」を兼ねる。
+- 削除だけは `ConfirmDialog`（モーダル）でよい。取り消せない操作の確認はダイアログが適切。
+- 一覧のタブ／ステージを切り替えたら開いている詳細は閉じる。文脈が変わったのに古い詳細が残ると混乱する。
+
+**2. 矢羽の枠線は「二重 clip-path」で作る**
+
+外側に枠線色の要素、内側に塗りの要素を置き、**同じ clip-path を両方に当てて** パディング分だけ枠線に見せる。
+
+```tsx
+const clip = `polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%, 18px 50%)`
+
+<button style={{ clipPath: clip, marginLeft: -16 }}
+        className={selected ? "p-[3px] bg-foreground/70" : "p-[3px] bg-transparent"}>
+  <span style={{ clipPath: clip }} className="flex h-full w-full flex-col bg-gradient-to-br ...">
+    ...
+  </span>
+</button>
+```
+
+- 先頭のセルだけ左ノッチ（`18px 50%`）を外す。
+- 負の `marginLeft` でノッチ幅ぶん重ねて連結する。
+- 非選択は `opacity` ではなく **塗りのアルファ**（`from-sky-500/25`）を下げる。`opacity` だと文字まで薄くなる。
+
+### レビュー観点
+
+- 一覧と詳細を往復する業務画面では、**モーダルを既定にしない**。埋め込みパネルを第一候補にする。
+- `ListTable` に `renderForm` を渡すと保存が効かないガワのモーダルが出る。詳細を自前で持つなら渡さない。
+- `clip-path` を使った要素に `ring` / `border` / `shadow` を期待しない。枠線が要るなら入れ子にする。
+
+---
+
+## 50. 使い方ガイド（オンボーディング）実装でビルド・チェックが止まる 3 点（検証済 2026-09-05）
+
+### 症状
+
+1. `guide-provider.tsx` に Context とフックをまとめたら `npm run lint` が失敗する。
+
+   ```
+   error  Fast refresh only works when a file only exports components.
+          Move your React context(s) to a separate file  react-refresh/only-export-components
+   ```
+
+2. 一覧の行クリックで別画面の詳細へ飛ばすため `new URLSearchParams` でクエリを組んだところ、
+   `npm run predeploy` のチェック 9 が **「遷移先で読まれていないクエリパラメータが 3 件」** と警告する。
+   遷移先では `useSearchParams` で正しく読んでいるのに消えない。
+
+3. ツアーのスポットライトが**ルート遷移直後だけ対象からずれる**／`autoClick` が効かない。
+
+### 原因
+
+1. eslint の `react-refresh/only-export-components` は、**コンポーネントを export するファイルからの
+   非コンポーネント export**（`createContext` の戻り値・カスタムフック）を許さない。
+2. `scripts/pre-deploy-check.mjs` のチェック 9 は `navigate("/path?key=...")` を**文字列として静的に解析する**。
+   `` navigate(`/incidents?${new URLSearchParams({ id })}`) `` はキー名がソース上に現れないため、
+   「遷移元が付けたキー」を特定できず未使用扱いになる。
+3. 遷移先の DOM は React Query のフェッチ後に描画されるため、遷移直後は `data-tour` 要素がまだ存在しない。
+   1 回だけ `getBoundingClientRect()` を測る実装では、その時点の（存在しない or 旧画面の）位置で固定される。
+
+### 対処
+
+**1. Context とフックは `.ts` に分離する**
+
+```
+src/components/guide/guide-context.ts    # createContext + useGuide（コンポーネントを含めない）
+src/components/guide/guide-provider.tsx  # GuideProvider のみ export
+```
+
+同じ理由で `ThemeProvider` / `SidebarProvider` などもこの分割にする。**後から分割すると import の書き換えが
+全画面に波及する**ので、Provider を作る時点で 2 ファイルにしておく。
+
+**2. クエリ付き遷移はリテラルのテンプレート文字列で書く**
+
+```tsx
+// NG: キー名が静的解析できない
+navigate(`/incidents?${new URLSearchParams({ id: record.id })}`)
+
+// OK: キー名がソース上に現れる。値だけ補間する
+navigate(`/incidents?id=${record.id}`)
+navigate(`/incidents?new=1&status=${encodeURIComponent(status)}`)
+```
+
+値に `&` `#` `スペース` が入りうるなら `encodeURIComponent()` を掛ける。キー名は必ずリテラルで書く。
+
+**3. ハイライト位置は定期的に測り直す**
+
+```tsx
+useEffect(() => {
+  if (!open) return
+  const measure = () => {
+    const el = document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`)
+    setRect(el ? el.getBoundingClientRect() : null)   // 未描画中は null → カードを画面中央に出す
+  }
+  measure()
+  const timer = window.setInterval(measure, 200)      // 遷移・遅延描画・スクロールに追従
+  window.addEventListener("resize", measure)
+  return () => { window.clearInterval(timer); window.removeEventListener("resize", measure) }
+}, [open, step])
+```
+
+`autoClick` も同様に **`setInterval(150ms)` × 最大 20 回のポーリング**で要素の出現を待ってから `.click()` する。
+
+### レビュー観点
+
+- Provider を新規作成したら、その場で `context.ts` / `provider.tsx` に割る。lint 待ちにしない。
+- `navigate()` のクエリはリテラル。`URLSearchParams` はブックマーク URL の**読み取り側**でだけ使う。
+- ツアー・ポップオーバーなど「他要素の位置に依存する UI」は、単発測定ではなく再測定ループで実装する。
+- `autoClick` に削除・送信など破壊的操作を指定しない。ガイドが実データを壊す。
+
+> 実装一式は [使い方ガイドパターン](onboarding-guide-pattern.md) を参照。
+
 
 

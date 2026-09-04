@@ -1,0 +1,294 @@
+# Reviews community issues, reproduces reported behavior in an isolated container,
+# and opens a draft pull request only for clear, low-risk changes.
+name: Community issue autonomous review
+
+on:
+  issues:
+    types: [opened, reopened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Existing issue number to review
+        required: true
+        type: number
+
+concurrency:
+  group: community-issue-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  acknowledge:
+    name: Thank and acknowledge the contributor
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event.issue.user.type != 'Bot' &&
+           github.event.issue.author_association != 'OWNER' &&
+           github.event.issue.author_association != 'MEMBER' &&
+           github.event.issue.author_association != 'COLLABORATOR') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+    steps:
+      - name: Check out trusted workflow code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up the cloud Node.js runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Post the idempotent acknowledgement
+        run: node .github/scripts/community-issue-agent.mjs acknowledge "$ISSUE_NUMBER"
+
+  review:
+    name: Reproduce and classify in isolation
+    needs: acknowledge
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      decision: ${{ steps.decision.outputs.decision }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+      COPILOT_CLI_TOKEN: ${{ secrets.COPILOT_CLI_TOKEN }}
+      COPILOT_CLI_VERSION: ${{ vars.COPILOT_CLI_VERSION || 'latest' }}
+    steps:
+      - name: Check out without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up the cloud Node.js runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify the GitHub hosted runner
+        run: |
+          node --version
+          gh --version
+          docker version
+          node --test .github/scripts/community-issue-agent.test.mjs
+
+      - name: Read the issue as untrusted JSON
+        run: node .github/scripts/community-issue-agent.mjs prepare "$ISSUE_NUMBER"
+
+      - name: Install the Copilot CLI
+        if: ${{ env.COPILOT_CLI_TOKEN != '' }}
+        run: npm install --global "@github/copilot@${COPILOT_CLI_VERSION}"
+
+      - name: Create a constrained reproduction plan
+        if: ${{ env.COPILOT_CLI_TOKEN != '' }}
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_CLI_TOKEN }}
+        run: |
+          copilot --prompt "$(cat .github/prompts/community-issue-reproduction.md)" \
+            --no-ask-user \
+            --silent \
+            > .agent/reproduction-plan.json
+
+      - name: Verify the planner did not edit tracked files
+        if: ${{ env.COPILOT_CLI_TOKEN != '' }}
+        run: git diff --exit-code
+
+      - name: Validate the reproduction plan
+        if: ${{ env.COPILOT_CLI_TOKEN != '' }}
+        run: node .github/scripts/community-issue-agent.mjs validate-plan .agent/reproduction-plan.json
+
+      - name: Preload pinned sandbox runtimes
+        if: ${{ env.COPILOT_CLI_TOKEN != '' }}
+        run: |
+          docker pull node:22-bookworm
+          docker pull python:3.12-bookworm
+
+      - name: Execute reproduction without network or secrets
+        id: reproduce
+        if: ${{ env.COPILOT_CLI_TOKEN != '' }}
+        continue-on-error: true
+        run: node .github/scripts/community-issue-agent.mjs run-plan .agent/reproduction-report.json
+
+      - name: Classify from repository and reproduction evidence
+        if: ${{ env.COPILOT_CLI_TOKEN != '' }}
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_CLI_TOKEN }}
+        run: |
+          copilot --prompt "$(cat .github/prompts/community-issue-decision.md)" \
+            --no-ask-user \
+            --silent \
+            > .agent/decision.json
+
+      - name: Use owner review when the agent is unavailable
+        if: ${{ env.COPILOT_CLI_TOKEN == '' }}
+        run: node .github/scripts/community-issue-agent.mjs fallback-decision "COPILOT_CLI_TOKEN is not configured."
+
+      - name: Validate and constrain the decision
+        id: decision
+        run: node .github/scripts/community-issue-agent.mjs validate-decision .agent/decision.json
+
+      - name: Record the decision without posting another issue comment
+        run: node .github/scripts/community-issue-agent.mjs finalize-review "$ISSUE_NUMBER"
+
+      - name: Upload review evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: community-issue-${{ env.ISSUE_NUMBER }}-review
+          path: .agent/
+          include-hidden-files: true
+          retention-days: 30
+
+  implement:
+    name: Implement and validate the recommended change
+    needs: review
+    if: ${{ needs.review.outputs.decision == 'AUTO_PR' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+      COPILOT_CLI_TOKEN: ${{ secrets.COPILOT_CLI_TOKEN }}
+      COPILOT_CLI_VERSION: ${{ vars.COPILOT_CLI_VERSION || 'latest' }}
+    steps:
+      - name: Check out the approved base revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up the cloud Node.js runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download the validated review evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: community-issue-${{ env.ISSUE_NUMBER }}-review
+          path: .agent/
+
+      - name: Install the Copilot CLI
+        run: npm install --global "@github/copilot@${COPILOT_CLI_VERSION}"
+
+      - name: Implement without command execution
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_CLI_TOKEN }}
+        run: >-
+          copilot --prompt "$(cat .github/prompts/community-issue-implementation.md)"
+          --no-ask-user
+          --silent
+          --allow-all-paths
+          --allow-tool write
+
+      - name: Enforce changed path and diff limits
+        run: node .github/scripts/community-issue-agent.mjs validate-diff
+
+      - name: Validate the generated test plan
+        run: node .github/scripts/community-issue-agent.mjs validate-plan .agent/validation-plan.json validation
+
+      - name: Preload pinned sandbox runtimes
+        run: |
+          docker pull node:22-bookworm
+          docker pull python:3.12-bookworm
+
+      - name: Validate changes without network or secrets
+        id: validate
+        continue-on-error: true
+        run: node .github/scripts/community-issue-agent.mjs run-plan .agent/validation-report.json
+
+      - name: Stop and request owner review when validation fails
+        if: ${{ steps.validate.outcome != 'success' }}
+        run: node .github/scripts/community-issue-agent.mjs escalate "$ISSUE_NUMBER" "Generated changes did not pass sandbox validation."
+
+      - name: Stop the job after failed validation
+        if: ${{ steps.validate.outcome != 'success' }}
+        run: exit 1
+
+      - name: Build the pull request record
+        run: node .github/scripts/community-issue-agent.mjs build-pr-body "$ISSUE_NUMBER"
+
+      - name: Create the internal branch and draft pull request
+        id: pull-request
+        env:
+          BRANCH_NAME: agent/issue-${{ env.ISSUE_NUMBER }}-${{ github.run_id }}
+        run: |
+          git config user.name "community-issue-agent[bot]"
+          git config user.email "community-issue-agent[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH_NAME"
+          git add --all -- ':!.agent'
+          git commit -m "fix: address community issue #${ISSUE_NUMBER}"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH_NAME}"
+          pr_url=$(gh pr create --draft --head "$BRANCH_NAME" --title "fix: address community issue #${ISSUE_NUMBER}" --body-file .agent/pr-body.md)
+          echo "url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Record the draft pull request without posting another issue comment
+        run: node .github/scripts/community-issue-agent.mjs complete-pr "$ISSUE_NUMBER" "${{ steps.pull-request.outputs.url }}"
+
+  handle-review-failure:
+    name: Escalate an incomplete review
+    needs: review
+    if: ${{ always() && needs.review.result == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+    steps:
+      - name: Check out trusted workflow code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up the cloud Node.js runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Stop and request owner review
+        run: node .github/scripts/community-issue-agent.mjs escalate "$ISSUE_NUMBER" "The autonomous reproduction or classification job failed."
+
+  handle-implementation-failure:
+    name: Escalate an incomplete implementation
+    needs: implement
+    if: ${{ always() && needs.implement.result == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+    steps:
+      - name: Check out trusted workflow code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up the cloud Node.js runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Stop and request owner review
+        run: node .github/scripts/community-issue-agent.mjs escalate "$ISSUE_NUMBER" "The autonomous implementation or sandbox validation job failed."

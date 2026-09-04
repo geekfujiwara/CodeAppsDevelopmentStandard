@@ -5,12 +5,12 @@
 本番利用は禁止。`mobile-preview-approval.json` の `productionAllowed` は常に `false` とし、
 レスポンシブ Web Code App または GA 済みの代替を提示する。
 
-## `npx power-apps` が実行できない
+## `npx pa` が実行できない
 
 公式 mobile template は `@microsoft/power-apps-cli` を依存に含まない。SDK の推移的依存も前提にしない。
 
 ```powershell
-npx --yes --package @microsoft/power-apps-cli@1.0.0 power-apps init --help
+npx --yes --package @microsoft/power-apps-cli@1.0.1 pa app init --help
 ```
 
 ## Wrap sign-in が失敗する

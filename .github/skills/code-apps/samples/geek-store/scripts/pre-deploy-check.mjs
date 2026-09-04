@@ -1,7 +1,7 @@
 /**
  * pre-deploy-check.mjs — テンプレートそのままのデプロイを防止する
  *
- * npx power-apps push の前に実行し、
+ * npx pa app push の前に実行し、
  * テーマ固有のカスタマイズが行われていることを確認する。
  *
  * このファイルはプロジェクト直下の scripts/ にコピーして使う。
@@ -28,7 +28,7 @@ if (!fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, "utf-8");
 
   // 必須項目のチェック
-  const required = ["DATAVERSE_URL", "TENANT_ID", "ENV_ID", "SOLUTION_NAME", "PUBLISHER_PREFIX"];
+  const required = ["DATAVERSE_URL", "TENANT_ID", "ENV_ID", "SOLUTION_ID", "SOLUTION_NAME", "PUBLISHER_PREFIX"];
   for (const key of required) {
     const match = envContent.match(new RegExp(`^${key}=(.+)$`, "m"));
     if (!match || match[1].includes("{") || match[1].trim() === "") {
@@ -40,7 +40,7 @@ if (!fs.existsSync(envPath)) {
 // 2. power.config.json が存在するか
 const configPath = path.join(root, "power.config.json");
 if (!fs.existsSync(configPath)) {
-  errors.push("power.config.json が存在しません。npx power-apps init を先に実行してください。");
+  errors.push("power.config.json が存在しません。npx pa app init を先に実行してください。");
 }
 
 // 3. config.ts のアプリ名がデフォルトのままでないか
@@ -320,6 +320,57 @@ if (fs.existsSync(srcPath)) {
       `この形式は 400 エラーになり、UI 側では「データ0件」として握りつぶされるため気づきにくいです:\n` +
       lookupFilterErrors.map((e) => `      - ${e}`).join("\n")
     );
+  }
+}
+
+// 11. package.json のデプロイコマンドが、インストール済み CLI の bin 名と一致しているか
+//     @microsoft/power-apps-cli は v1.0.0 で bin が power-apps → pa にリネームされ、
+//     コマンドも group 化された (init → app init / push → app push)。
+//     旧名のままだと npm error "could not determine executable to run" になり、
+//     原因がテンプレート側にあることに気づきにくいので恆久チェックする。
+const pkgPath = path.join(root, "package.json");
+const cliPkgPath = path.join(root, "node_modules", "@microsoft", "power-apps-cli", "package.json");
+if (fs.existsSync(pkgPath) && fs.existsSync(cliPkgPath)) {
+  let scripts = {};
+  let binNames = [];
+  try {
+    scripts = JSON.parse(fs.readFileSync(pkgPath, "utf-8")).scripts ?? {};
+    const bin = JSON.parse(fs.readFileSync(cliPkgPath, "utf-8")).bin ?? {};
+    binNames = typeof bin === "string" ? ["power-apps-cli"] : Object.keys(bin);
+  } catch {
+    binNames = [];
+  }
+
+  if (binNames.length > 0) {
+    // CLI が提供していない実行ファイル名を npm script が呼んでいないか
+    for (const [name, body] of Object.entries(scripts)) {
+      for (const m of String(body).matchAll(/npx\s+(?:-y\s+)?([\w@/.-]+)/g)) {
+        const invoked = m[1];
+        if (!/^power-apps$|^pa$|power-apps-cli/.test(invoked)) continue;
+        if (invoked.includes("/")) continue; // npx @microsoft/power-apps-cli 形式は常に有効
+        if (binNames.includes(invoked)) continue;
+        errors.push(
+          `package.json の scripts.${name} が "npx ${invoked}" を呼んでいますが、` +
+          `インストール済みの @microsoft/power-apps-cli が提供する実行ファイルは ${binNames.join(" / ")} です。\n` +
+          `     → "npx ${binNames[0]} app push" のように bin 名とサブコマンド group を修正してください。`
+        );
+      }
+    }
+
+    // 新 CLI では push / init が group 配下 (app push / app init) に移動している
+    if (binNames.includes("pa")) {
+      for (const [name, body] of Object.entries(scripts)) {
+        const text = String(body);
+        for (const sub of ["push", "init", "share", "run"]) {
+          if (new RegExp(`npx\\s+pa\\s+${sub}\\b`).test(text)) {
+            errors.push(
+              `package.json の scripts.${name} の "pa ${sub}" は group 名が抜けています。` +
+              `→ "pa app ${sub}" に修正してください。`
+            );
+          }
+        }
+      }
+    }
   }
 }
 

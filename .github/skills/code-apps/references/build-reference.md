@@ -36,22 +36,22 @@ npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills/code-apps/temp
 pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
 # ↑ 使えない環境ではフォールバック: npm install --no-audit --no-fund
 
-# ①.5 マネージド環境 / Code Apps 許可が有効化済みか確認（power-apps init の前に必ず実行。
+# ①.5 マネージド環境 / Code Apps 許可が有効化済みか確認（pa app init の前に必ず実行。
 #     architecture 提案時に確認済みなら再実行不要）
 python .github/skills/code-apps/scripts/check_code_apps_environment.py
 #     ❌ が出たら出力される管理センター URL で有効化してから先へ進む。
 #     ⚠️ （Power Platform 管理者ロールがなく API で判定できない）は管理センターで目視確認する。
 
-# ①.6 ソリューションと接続参照を用意（power-apps init より前に実行）
+# ①.6 ソリューションと接続参照を用意（pa app init より前に実行）
 #     接続 ID 直バインドはソリューションに入らないため、接続参照を先に作る。
 #     既存 CR 流用ファースト → 無ければ Dataverse Web API で新規作成（ポータル操作不要）
 python .github/skills/code-apps/scripts/setup_connection_reference.py
 #     → 出力される {CONNECTION_REFERENCE_LOGICAL_NAME} / {SOLUTION_ID} を Step 4 で使う
 
 # ② npm CLI の認証先を確認し、power.config.json のみ生成
-npx power-apps auth-status
-npx power-apps auth-switch --account user@contoso.com
-npx power-apps init --environment-id {ENVIRONMENT_ID} --display-name "AppName"
+npx pa auth status
+npx pa auth switch --account user@contoso.com
+npx pa app init --environment-id {ENVIRONMENT_ID} --display-name "AppName"
 # ↑ vite.config.ts や plugins/ は生成しない（①のテンプレート由来）
 # ↑ init にソリューション指定オプションは無い。ソリューション所属は Step 3 の初回 push で決まる
 ```
@@ -211,10 +211,10 @@ export default defineConfig({
 ### Step 3: 初回ビルド＆デプロイ（`-s` 必須）
 
 ```bash
-# 検証済み最新版の npm CLI 1.0.0 を使用。Step 1 で取得したソリューション GUID を渡す
-# 1.0.0 では --environment-id を指定できる。誤デプロイ防止のため対象環境を明示する
+# 検証済み最新版の npm CLI 1.0.1 を使用。Step 1 で取得したソリューション GUID を渡す
+# push は --environment-id を受け付けない。対象環境は power.config.json の内容で決まる
 npm run build
-npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID}
+npx pa app push --solution-id {SOLUTION_ID}
 ```
 
 > **`-s` は初回 push でしか効かない（検証済 2026-06-15）**
@@ -222,8 +222,8 @@ npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID
 > `almMode: Environment` で作られたアプリは、後から `-s` を付けてもソリューションに入らない（ポータル手作業が必要になる）。
 > 詳細: [ソリューション ALM](solution-alm.md)
 
-> **認証先の確認**: 403/404 になった場合は `auth-status` でアクティブアカウントを確認し、
-> `auth-switch --account {UPN}` で対象テナントのアカウントへ切り替えてから再実行する。
+> **認証先の確認**: 403/404 になった場合は `pa auth status` でアクティブアカウントを確認し、
+> `pa auth switch --account {UPN}` で対象テナントのアカウントへ切り替えてから再実行する。
 > `pac code push` は npm CLI で解消できない場合のみ、[移行時の代替手段](troubleshooting.md#16-初回デプロイコマンドの選択)として使用する。
 
 > **二つの CLI で `-s` の値が違う（npm CLI 0.13.0 で検証済み）**
@@ -231,7 +231,7 @@ npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID
 > | コマンド | フラグ | 渡す値 |
 > |---|---|---|
 > | `pac code push` | `-s, --solutionName` | ソリューション**名** |
-> | `npx power-apps push` | `-s, --solution-id` | ソリューション **ID（GUID）** |
+> | `npx pa app push` | `-s, --solution-id` | ソリューション **ID（GUID）** |
 >
 > npm CLI は 0.13.0 で GUID 検証が入り、名前を渡すと
 > `Invalid --solution-id value: expected a GUID, got '<値>'.` で即失敗する
@@ -243,23 +243,21 @@ npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID
 
 ```bash
 # 標準: Step 1 で用意した接続参照にバインドする（ソリューション同梱可）
-npx power-apps add-data-source --api-id shared_commondataserviceforapps \
-  -cr {CONNECTION_REFERENCE_LOGICAL_NAME} \
-  -s {SOLUTION_ID} \
-  --resource-name commondataserviceforapps \
+npx pa app add data-source --connector shared_commondataserviceforapps \
+  --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
+  --solution-id {SOLUTION_ID} \
   --org-url {DATAVERSE_URL} \
   --non-interactive
 
 # PoC 等でソリューション不要な場合のみ: 接続 ID 直バインド
-npx power-apps list-connections
-npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+npx pa connection list
+npx pa app add data-source --connector shared_commondataserviceforapps \
   --connection-id {DATAVERSE_CONNECTION_ID} \
-  --resource-name commondataserviceforapps \
   --org-url {DATAVERSE_URL} \
   --non-interactive
 ```
 
-> **接続参照にしても生成物は変わらない**: `--resource-name commondataserviceforapps` はコネクタ単位の指定で、
+> **接続参照にしても生成物は変わらない**: `--connector shared_commondataserviceforapps` はコネクタ単位の指定で、
 > 生成されるのは `MicrosoftDataverseService.ts` / `MicrosoftDataverseModel.ts` の 2 ファイルのみ（テーブル数に非依存）。
 > `power.config.json` に `xrmConnectionReferenceLogicalName` が 1 行追加されるだけで、**アプリ側コードの変更は不要**。
 
@@ -467,7 +465,7 @@ export const statusColors: Record<RecordStatus, string> = {
 
 ```bash
 npm run build
-npx power-apps push
+npx pa app push
 ```
 
 ### Step 8.1: ビルド後検証 — Circular chunk 警告チェック（必須）

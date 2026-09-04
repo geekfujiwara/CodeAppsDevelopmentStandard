@@ -27,7 +27,7 @@ npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills/code-apps/temp
 
 - 業務ページ（`src/pages/` はダッシュボードのプレースホルダーのみ）
 - データアクセス層（`src/services/` / `src/hooks/use-dataverse.ts`）
-  — `npx power-apps add-data-source` が生成する `src/generated/services/MicrosoftDataverseService.ts` を
+  — `npx pa app add data-source` が生成する `src/generated/services/MicrosoftDataverseService.ts` を
   ラップする形で実装する（[build-reference.md](../../references/build-reference.md) Step 6）
 - 業務の型・選択肢定義（`src/types/`）
 
@@ -42,8 +42,8 @@ Application Insights 等へ転送するときは `initializeTelemetry(customSink
 
 1. `.env.example` を `.env` にコピーして値を入力
 2. `npm install`
-3. `npx power-apps auth-status` で認証先を確認し、必要なら `auth-switch --account {UPN}` で切り替える
-4. `npx power-apps init --environment-id {ENVIRONMENT_ID} --display-name "AppName"`
+3. `npx pa auth status` で認証先を確認し、必要なら `pa auth switch --account {UPN}` で切り替える
+4. `npx pa app init --environment-id {ENVIRONMENT_ID} --display-name "AppName"`
 5. 初回は `npm run deploy -- --solution-id {SOLUTION_ID}`（GUID）でソリューションへ追加する
-6. `npx power-apps add-data-source`（`src/generated/` が生成される）
+6. `npx pa app add data-source`（`src/generated/` が生成される）
 7. 業務ページを追加したら `src/config.ts` と `src/router.tsx` に**同じ path** で登録し、`npm run predeploy` で整合を確認する

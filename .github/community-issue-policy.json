@@ -1,0 +1,26 @@
+{
+  "minimumAutoPrConfidence": 0.85,
+  "maximumIssueCharacters": 20000,
+  "maximumChangedFiles": 8,
+  "maximumChangedLines": 600,
+  "allowedChangePrefixes": [
+    ".github/scripts/",
+    ".github/skills/",
+    "README.md"
+  ],
+  "forbiddenChangePrefixes": [
+    ".github/workflows/",
+    ".github/agents/",
+    ".github/prompts/",
+    ".github/community-issue-policy.json",
+    ".gitignore",
+    "LICENSE"
+  ],
+  "sandbox": {
+    "timeoutMilliseconds": 120000,
+    "maximumCommands": 6,
+    "maximumOutputCharacters": 12000,
+    "nodeImage": "node:22-bookworm",
+    "pythonImage": "python:3.12-bookworm"
+  }
+}

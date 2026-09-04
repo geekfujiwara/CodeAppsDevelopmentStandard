@@ -30,10 +30,9 @@ Power Pages の **Account アクセス**（[power-pages スキル](../../../powe
 2. Dataverse データソースを 1 回だけ追加する（未実施の場合）。
 
    ```bash
-   npx power-apps add-data-source --api-id shared_commondataserviceforapps \
-     -cr {CONNECTION_REFERENCE_LOGICAL_NAME} \
-     -s {SOLUTION_ID} \
-     --resource-name commondataserviceforapps \
+   npx pa app add data-source --connector shared_commondataserviceforapps \
+     --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
+     --solution-id {SOLUTION_ID} \
      --org-url {DATAVERSE_URL} \
      --non-interactive
    ```
