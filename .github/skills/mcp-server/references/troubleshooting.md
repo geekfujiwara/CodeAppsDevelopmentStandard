@@ -132,6 +132,15 @@ Graph は同一トランザクション内の新規スコープ ID を未登録�
 
 **対処**: 両形式を配列で許容する。→ [auth-model.md](auth-model.md)
 
+### JWT 検証が `jwt expired` で失敗する
+
+**原因**: 受信側の Entra ID Bearer JWT の `exp` を過ぎている。
+キーレスは関数キー・接続文字列・共有キーを使わないという意味で、JWT の期限確認を省略するという意味ではない。
+
+**対処**: MCP Server は期限切れトークンを更新せず 401 を返す。Copilot Studio または検証クライアント側で
+新しいアクセストークンを取得して再送する。長時間の検証スクリプトでは、HTTP 送信直前に
+`get_api_access_token()` を呼び直す。
+
 ### `az login --use-device-code` が「Retrieving tenants and subscriptions」でハングする
 
 **原因**: 全テナントを列挙しようとして応答が返らない。

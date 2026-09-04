@@ -1,6 +1,8 @@
 # 認証モデル（キーレス）
 
 MCP Server は **受信・送信の両方でシークレットを持たない**。
+ここでいうキーレスは「関数キー・接続文字列・共有キーを使わない」という意味であり、
+受信側の Bearer JWT 検証や送信側の Managed Identity トークン取得が不要になるわけではない。
 
 ```
 Copilot Studio ──(Entra ID Bearer JWT)──▶ Function App ──(Managed Identity)──▶ Azure SQL / Azure Files
@@ -9,7 +11,7 @@ Copilot Studio ──(Entra ID Bearer JWT)──▶ Function App ──(Managed 
 
 | 方向 | 方式 | 使わないもの |
 |---|---|---|
-| 受信 | Entra ID が発行した JWT を JWKS で署名検証 | 関数キー・API キー |
+| 受信 | Entra ID が発行した Bearer JWT を JWKS で署名・標準クレーム検証 | 関数キー・API キー |
 | 送信 | `DefaultAzureCredential`（システム割り当て MI） | 接続文字列・ストレージ共有キー |
 
 ---
@@ -62,8 +64,11 @@ export async function verifyToken(authorization: string | null): Promise<{ ok: b
 
 - **`audience` は 2 パターン許容する**。トークンの `aud` は `api://{app-id}` の場合と `{app-id}` の場合がある。
 - **`issuer` も v1.0 / v2.0 の両方**を許容する。クライアントによって発行元が異なる。
+- **期限切れ（`exp`）は拒否する**。`jsonwebtoken` は既定で `exp` を検証するため、`ignoreExpiration` は使わない。
 - `algorithms: ['RS256']` を必ず指定する。省略すると `alg: none` を受け入れる脆弱性になる。
 - JWKS はキャッシュする。毎リクエストで取りに行くとコールドスタート時にタイムアウトする。
+- MCP Server は受信トークンを更新しない。期限切れは 401 とし、Copilot Studio または検証クライアントが
+  Entra ID から新しいアクセストークンを取得して再送する。
 
 ---
 
@@ -130,3 +135,7 @@ token = get_api_access_token(os.environ["MCP_API_AUDIENCE"])
 
 `AADSTS650057: Invalid resource` が返る場合、**呼び出し側ではなくアプリ登録側の設定不足**。
 `scripts/configure_entra_api.py` でスコープ公開と事前承認を行う（SKILL.md の Step 2）。
+
+検証スクリプトや管理スクリプトで長時間処理する場合は、送信直前に `get_api_access_token()` を呼び直す。
+更新トークンやキャッシュの扱いは `auth_helper` / Azure SDK など呼び出し側の責務であり、MCP Server 本体に
+更新トークンを保存しない。

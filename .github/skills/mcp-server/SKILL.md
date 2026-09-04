@@ -31,7 +31,7 @@ Copilot Studio のエージェントから **社内の業務データ（DB・フ
 | 原則 | 内容 |
 |---|---|
 | **データ層は非公開、コンピュート層は公開** | SQL / Storage は Private Endpoint のみ。Function App の HTTP エンドポイントは公開する（Copilot Studio は SaaS からアウトバウンド接続するため、非公開にすると到達できない） |
-| **キーレス** | 受信 = Entra ID Bearer JWT 検証、送信 = Managed Identity。関数キー・接続文字列・共有キーを使わない |
+| **キーレス** | 受信 = Entra ID Bearer JWT 検証、送信 = Managed Identity。関数キー・接続文字列・共有キーを使わない（トークン不要という意味ではない） |
 | **プロトコルは最小実装** | `initialize` / `tools/list` / `tools/call` の 3 メソッドのみ。SSE・セッション管理は実装しない |
 | **成否はルート実測で判定** | デプロイの終了コードや ARM のメタデータを信用せず、HTTP プローブで実際のルートを確認する |
 | **非対話で完走** | Azure 操作も `auth_helper` 経由（`az login` を手順に含めない）。→ [認証リファレンス](../standard/references/auth-patterns.md) |
@@ -123,6 +123,8 @@ Azure Functions（Node.js 20 / TypeScript / v4 プログラミングモデル）
 ```
 
 - ハンドラは `authLevel: 'anonymous'` にし、**認可はコード側の JWT 検証で行う**（関数キーを使わない）。
+- JWT 検証では署名・`aud`・`iss`・`exp` を確認する。期限切れトークンは MCP Server 側で更新せず 401 を返し、
+  Copilot Studio / 検証クライアント側で新しいトークンを取得させる。
 - `src/index.ts` は各関数モジュールを `import` するだけにする。**存在しないモジュールを 1 行でも import すると worker が
   起動できず、全ルートが 404 になる**（関数を削除・退避したら import も必ず消す）。
 - 実装の詳細は [protocol.md](references/protocol.md) と [auth-model.md](references/auth-model.md) を参照。
@@ -200,6 +202,7 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 - [ ] Entra アプリ登録でスコープを公開し、クライアントを事前承認した（Step 2）
 - [ ] Function App の HTTP は公開、データ層は Private Endpoint のみ
 - [ ] 関数キー・接続文字列・共有キーを一切使っていない
+- [ ] 受信 JWT の署名・`aud`・`iss`・`exp` を検証し、期限切れ時は 401 を返す
 - [ ] `local.settings.json` が存在し `FUNCTIONS_WORKER_RUNTIME` が設定されている
 - [ ] `AzureWebJobsStorage__accountName` による ID ベース接続になっている（接続文字列が残っていない）
 - [ ] `src/index.ts` の相対 import が全て実在するモジュールを指している
