@@ -66,8 +66,28 @@ new sql.ConnectionPool({
 
 - **アクセストークンで作ったプールはトークンと寿命を共にする**。期限切れの数分前にプールを張り直す。
   張りっぱなしにすると、数十分〜数時間後に突然「Login failed」で全ツールが落ちる。
-- プール生成は同時実行されうる。生成中の Promise を 1 つ保持して共有し、旧プールは張り替え後に閉じる。
+- プール生成は同時実行されうる。生成中の Promise を 1 つ保持して共有し、旧プールは**張り替えに成功してから**閉じる。
+  失敗時に旧プールを閉じると、`pool` が閉じたプールを指したまま残り、以後すべてのクエリが失敗する。
+- **1 回だけリトライする経路を用意する**。期限直前に更新していても、アイドル状態のプールが先に切れることはある。
+  `ELOGIN` / `ECONNCLOSED` / `ENOTOPEN` / `ECONNRESET` / `ETIMEOUT` や `login failed` `token is expired` を
+  含むエラーだけを対象にプールを破棄して再実行する。**無条件リトライにしない**（構文エラーまで 2 回投げることになる）。
 - `requestTimeout` を必ず設定する。無制限のクエリは Functions のタイムアウトまで枠を占有する。
+
+```ts
+export async function query(statement, params) {
+  try {
+    return await runQuery(statement, params);
+  } catch (err) {
+    if (!isRecoverableConnectionError(err)) throw err;
+    invalidatePool();          // pool = undefined; expiresOn = 0; 旧プールは非同期に close
+    return runQuery(statement, params);
+  }
+}
+```
+
+> **Storage / Dataverse SDK は自前でトークンを更新する。** `ShareServiceClient` などに `TokenCredential` を
+> 渡す方式ではクライアントを使い回してよい。**自分でトークン文字列を取り出して埋め込む接続だけ**が
+> 寿命管理の対象になる（`azure-active-directory-access-token` の SQL 接続がこれに当たる）。
 
 ## 5. 権限は DB 側でも読み取り専用にする
 
@@ -114,5 +134,6 @@ MCP を跨いで突き合わせるなら、**結合キーの体系を先に合�
 - [ ] 不正な `groupBy` / 書式違反のコード / 不正な日付がエラーになる
 - [ ] `%` のみのキーワードで全件が返らない
 - [ ] シードデータの外部キーが全て解決する（投入前に静的チェックする）
+- [ ] トークン期限前にプールが張り直され、`ELOGIN` 系のみ 1 回リトライされる
 - [ ] 全ツールの戻り値に `_notice` が入っている
 - [ ] シード後に管理エンドポイントと `ADMIN_SEED_KEY` を削除し、権限を `db_datareader` に戻した

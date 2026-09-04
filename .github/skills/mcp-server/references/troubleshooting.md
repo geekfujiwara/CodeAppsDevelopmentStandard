@@ -236,8 +236,17 @@ az login --tenant <tenant-id> --scope "https://management.core.windows.net//.def
 プールの寿命はアクセストークンの寿命に縛られる。
 
 **対処**: トークンの `expiresOnTimestamp` を保持し、期限の 5 分前を過ぎたらプールを作り直す。
-生成中の Promise を共有して同時再生成を防ぎ、旧プールは張り替え後に閉じる。
-→ [sql-tools-pattern.md](sql-tools-pattern.md)
+生成中の Promise を共有して同時再生成を防ぎ、旧プールは張り替え**成功後**に閉じる
+（失敗時に閉じると閉じたプールを参照し続けて全滅する）。あわせて `ELOGIN` などの接続系エラーに限り
+1 回だけプールを捨てて再実行する。→ [sql-tools-pattern.md](sql-tools-pattern.md)
+
+### 有効なはずのトークンで断続的に 401 が出る
+
+**原因**: JWT 検証に `clockTolerance` を入れていない。Functions ホストと Entra の時刻が数秒ずれるだけで
+`exp` / `nbf` の判定が反転し、再現しにくい間欠障害になる。
+
+**対処**: `clockTolerance: 60`（秒）を指定する。あわせて `exp` クレームの**存在**も確認する
+（`exp` の無いトークンは無期限として通ってしまう）。→ [auth-model.md](auth-model.md)
 
 ### モデルが `groupBy` や並び順に想定外の文字列を渡してくる
 
