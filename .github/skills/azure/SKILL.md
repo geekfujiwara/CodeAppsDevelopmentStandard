@@ -31,6 +31,7 @@ Azure 開発を、**テナントのセキュリティガバナンスに準拠**�
 |---|---|---|
 | セキュアな Web × ストレージ | 公衆アクセス禁止ストレージのコンテンツを Web で安全配信 | [references/secure-website.md](references/secure-website.md) |
 | Microsoft Foundry エージェント | Web 組み込みエージェント / 知識グラウンディング(Work IQ・Foundry IQ・Fabric IQ) / AI Gateway ガバナンス | [references/foundry-agent.md](references/foundry-agent.md) |
+| MCP Server（Azure Functions） | 社内データを Copilot Studio エージェントへ公開する自前 MCP Server | [mcp-server スキル](../mcp-server/SKILL.md) |
 
 > 新しいリファレンスは `references/<topic>.md` として追加し、この表と参考リンクに1行足す。
 

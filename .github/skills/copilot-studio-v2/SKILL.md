@@ -177,6 +177,9 @@ MCP サーバー（Dataverse MCP / Work IQ 等）のツール追加は、**Copil
 挙動が多く、API 経由での自動化は事故りやすい。そのため本スキルでは MCP ツール追加を
 **スクリプト化しない**。詳細な手動手順は [MCP サーバーの追加](references/mcp-servers.md) を参照。
 
+> **自前の MCP Server を作る場合**（社内 DB・ファイル共有・業務 API をエージェントに繋ぐ）は
+> [mcp-server スキル](../mcp-server/SKILL.md) で構築してから、ここでツールとして追加する。
+
 ## 必須要件・落とし穴（実機検証済み）
 
 ### Bot 作成は cliagent テンプレートなら API で成功する
