@@ -155,6 +155,8 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 > **画面の骨格は [デザインシステム](references/design-pattern.md#ページの骨格新規画面はここから書き始める) からコピーして書き始める**: マルチカラムは `grid-cols-[minmax(0,1fr)_...]`（素の `1fr` は使わない）＋**直接の子すべてに `min-w-0`**、長文は `break-words` ではなく `[overflow-wrap:anywhere]`、コード・表・JSON は `overflow-x-auto` で閉じ込める。`min-w-0` は後付けすると必ず抜けるため最初から書く。`npm run predeploy` のチェック 7 が抜けを警告する。
 
+> **画面が 3 つ以上あるアプリには [使い方ガイド](references/onboarding-guide-pattern.md) を標準実装する**: 初回起動でカルーセルを自動表示し、「使い方を見る」から実操作ツアーへ繋ぐ。設計提示の段階でスライド構成（4〜6 枚）とツアー手順を画面一覧と一緒に示す。
+
 > **設計で提示する内容**: 選択テンプレート、画面一覧（ページ名・ルート）、各画面のコンポーネント構成、カラム定義、Lookup 名前解決方法（`_xxx_value` + `useMemo` Map）、ナビゲーション構造、テレメトリの転送先と監視する SLI（転送しない場合も明記）。
 
 > **大前提（ソリューション運用）**: Dataverse テーブル・Code Apps・Power Automate・Copilot Studio は同一ソリューション内に開発し、`.env` の `SOLUTION_NAME` / `PUBLISHER_PREFIX` を全フェーズで統一する。詳細は [`standard` スキル](../standard/SKILL.md)。
@@ -467,6 +469,16 @@ SDK 生成サービスは Lookup 名フィールド（`createdbyname` 等）を�
 
 → 詳細: **[ステージ矢羽パターン](references/stage-path-pattern.md)**
 
+### 使い方ガイド（オンボーディング）— 全アプリ標準
+
+**画面が 3 つ以上あるアプリには、指示がなくても使い方ガイドを実装する。** 初回起動時にカルーセル（4〜6 枚）を自動表示し、「使い方を見る」で**実際の画面を操作しながら案内するツアー**へ繋ぐ。2 回目以降はサイドバー／ヘッダーのボタンから任意に開く。
+
+- 定義は `src/guide-config.ts` の `GUIDE_SLIDES` / `TOUR_STEPS` に集約し、画面側は `data-tour="..."` を足すだけにする
+- Context とフックは `guide-context.ts`（`.ts`）に分離する。`guide-provider.tsx` に混ぜると `react-refresh/only-export-components` で lint が落ちる
+- `autoClick` に削除・送信など破壊的操作を指定しない
+
+→ 詳細: **[使い方ガイドパターン](references/onboarding-guide-pattern.md)**
+
 ### scaffold 時に含めないファイル
 
 scaffold の取得元は **[templates/generic-base](templates/generic-base/)** のみとする。
@@ -551,6 +563,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [デザインシステム](references/design-pattern.md) | Tailwind CSS v4 のコンポーネント選定・画面設計パターン |
 | [コンポーネントカタログ](references/component-catalog.md) | 全コンポーネントの詳細仕様・使用例 |
 | [ステージ矢羽パターン](references/stage-path-pattern.md) | OptionSet（ステージ／ステータス）を Salesforce 風の矢羽で可視化・クリックで変更 |
+| [使い方ガイドパターン](references/onboarding-guide-pattern.md) | 初回起動のカルーセル＋実操作ツアー（`data-tour` 属性・localStorage 初回判定・スポットライト・全アプリ標準） |
 | [月間カレンダーパターン](references/calendar-pattern.md) | 日付を持つレコードを月間グリッドで俯瞰（date-fns のみ・依存追加なし・イベントチップ・今日ハイライト） |
 | [ウィザードフォームパターン](references/wizard-form-pattern.md) | 入力項目の多いフォームを複数ステップに分割（ステップインジケーター・ステップ別バリデーション・確認画面） |
 | [CSV エクスポートパターン](references/csv-export-pattern.md) | フィルター適用後の一覧を UTF-8 BOM 付き CSV でダウンロード（Excel 日本語対応・OptionSet ラベル変換） |

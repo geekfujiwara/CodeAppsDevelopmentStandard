@@ -2377,5 +2377,86 @@ const clip = `polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%
 - `ListTable` に `renderForm` を渡すと保存が効かないガワのモーダルが出る。詳細を自前で持つなら渡さない。
 - `clip-path` を使った要素に `ring` / `border` / `shadow` を期待しない。枠線が要るなら入れ子にする。
 
+---
+
+## 50. 使い方ガイド（オンボーディング）実装でビルド・チェックが止まる 3 点（検証済 2026-09-05）
+
+### 症状
+
+1. `guide-provider.tsx` に Context とフックをまとめたら `npm run lint` が失敗する。
+
+   ```
+   error  Fast refresh only works when a file only exports components.
+          Move your React context(s) to a separate file  react-refresh/only-export-components
+   ```
+
+2. 一覧の行クリックで別画面の詳細へ飛ばすため `new URLSearchParams` でクエリを組んだところ、
+   `npm run predeploy` のチェック 9 が **「遷移先で読まれていないクエリパラメータが 3 件」** と警告する。
+   遷移先では `useSearchParams` で正しく読んでいるのに消えない。
+
+3. ツアーのスポットライトが**ルート遷移直後だけ対象からずれる**／`autoClick` が効かない。
+
+### 原因
+
+1. eslint の `react-refresh/only-export-components` は、**コンポーネントを export するファイルからの
+   非コンポーネント export**（`createContext` の戻り値・カスタムフック）を許さない。
+2. `scripts/pre-deploy-check.mjs` のチェック 9 は `navigate("/path?key=...")` を**文字列として静的に解析する**。
+   `` navigate(`/incidents?${new URLSearchParams({ id })}`) `` はキー名がソース上に現れないため、
+   「遷移元が付けたキー」を特定できず未使用扱いになる。
+3. 遷移先の DOM は React Query のフェッチ後に描画されるため、遷移直後は `data-tour` 要素がまだ存在しない。
+   1 回だけ `getBoundingClientRect()` を測る実装では、その時点の（存在しない or 旧画面の）位置で固定される。
+
+### 対処
+
+**1. Context とフックは `.ts` に分離する**
+
+```
+src/components/guide/guide-context.ts    # createContext + useGuide（コンポーネントを含めない）
+src/components/guide/guide-provider.tsx  # GuideProvider のみ export
+```
+
+同じ理由で `ThemeProvider` / `SidebarProvider` などもこの分割にする。**後から分割すると import の書き換えが
+全画面に波及する**ので、Provider を作る時点で 2 ファイルにしておく。
+
+**2. クエリ付き遷移はリテラルのテンプレート文字列で書く**
+
+```tsx
+// NG: キー名が静的解析できない
+navigate(`/incidents?${new URLSearchParams({ id: record.id })}`)
+
+// OK: キー名がソース上に現れる。値だけ補間する
+navigate(`/incidents?id=${record.id}`)
+navigate(`/incidents?new=1&status=${encodeURIComponent(status)}`)
+```
+
+値に `&` `#` `スペース` が入りうるなら `encodeURIComponent()` を掛ける。キー名は必ずリテラルで書く。
+
+**3. ハイライト位置は定期的に測り直す**
+
+```tsx
+useEffect(() => {
+  if (!open) return
+  const measure = () => {
+    const el = document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`)
+    setRect(el ? el.getBoundingClientRect() : null)   // 未描画中は null → カードを画面中央に出す
+  }
+  measure()
+  const timer = window.setInterval(measure, 200)      // 遷移・遅延描画・スクロールに追従
+  window.addEventListener("resize", measure)
+  return () => { window.clearInterval(timer); window.removeEventListener("resize", measure) }
+}, [open, step])
+```
+
+`autoClick` も同様に **`setInterval(150ms)` × 最大 20 回のポーリング**で要素の出現を待ってから `.click()` する。
+
+### レビュー観点
+
+- Provider を新規作成したら、その場で `context.ts` / `provider.tsx` に割る。lint 待ちにしない。
+- `navigate()` のクエリはリテラル。`URLSearchParams` はブックマーク URL の**読み取り側**でだけ使う。
+- ツアー・ポップオーバーなど「他要素の位置に依存する UI」は、単発測定ではなく再測定ループで実装する。
+- `autoClick` に削除・送信など破壊的操作を指定しない。ガイドが実データを壊す。
+
+> 実装一式は [使い方ガイドパターン](onboarding-guide-pattern.md) を参照。
+
 
 
