@@ -44,7 +44,7 @@ Native 経路は Preview 承認に加え、対象 OS、必要な端末機能、�
 
 1. Private Preview で本番利用できない。
 2. iOS / Android のローカル native build や App Store / Google Play 配布は v0 の対応範囲外。
-3. 公式対応は Power Apps Developer app による実機 preview と、`power-apps push` 後の Wrap 導線まで。
+3. 公式対応は Power Apps Developer app による実機 preview と、`pa app push` 後の Wrap 導線まで。
 4. Preview の破壊的変更に備え、upstream commit と依存セットを固定する。
 
 承認がない場合は [`code-apps`](../code-apps/SKILL.md) のレスポンシブ Web 案を提示して停止する。
@@ -82,7 +82,7 @@ Expo、React Native、Tamagui、native host、Power Apps SDK を個別に `lates
 公式 template は Power Apps CLI を依存に含まないため、検証済み CLI を明示して実行する。
 
 ```powershell
-npx --yes --package @microsoft/power-apps-cli@1.0.0 power-apps init `
+npx --yes --package @microsoft/power-apps-cli@1.0.1 pa app init `
   -t MobileApp `
   --display-name "$env:MOBILE_APP_DISPLAY_NAME" `
   --environment-id "$env:ENVIRONMENT_ID" `
@@ -110,7 +110,7 @@ Wrap が構成する redirect URI／API permission を手動で追加しない�
 
 ```powershell
 # Dataverse または Power Platform connector を CLI で追加し、src/generated/ を生成する
-npx --yes --package @microsoft/power-apps-cli@1.0.0 power-apps add-data-source <options>
+npx --yes --package @microsoft/power-apps-cli@1.0.1 pa app add data-source <options>
 ```
 
 React Native 画面は `src/generated/services/*Service.ts` を service／hook 層から呼び出す。
@@ -158,7 +158,7 @@ Metro の QR コードを Power Apps Developer app で読み取り、iOS／Andro
 
 ```powershell
 npm run build:android   # 対象 OS に応じて build:ios を選択
-npx --yes --package @microsoft/power-apps-cli@1.0.0 power-apps push
+npx --yes --package @microsoft/power-apps-cli@1.0.1 pa app push
 ```
 
 push 後は `power.config.json` の app ID と環境 ID を使い、次の Wrap URL を案内する。
