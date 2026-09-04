@@ -117,7 +117,7 @@
 
 ### Power Apps V2 トリガー（PowerAppV2）— パラメータ形式（★ 重要）
 
-Code Apps から `npx power-apps add-flow` で呼び出すフローのトリガー。
+Code Apps から `npx pa app add flow` で呼び出すフローのトリガー。
 パラメータの形式を間違えると Power Automate UI でパラメータが正しく表示されない。
 
 ```
@@ -176,7 +176,7 @@ Code Apps から `npx power-apps add-flow` で呼び出すフローのトリガ�
   "x-ms-content-hint": "FILE"    → ファイル
 
 Code Apps 側の生成結果:
-  npx power-apps add-flow --flow-id {id} 実行後、
+  npx pa app add flow --flow-id {id} 実行後、
   src/generated/models/ にモデルが生成される:
     text → text (string, required)
     text_1 → text_1 (string, required)
@@ -806,7 +806,7 @@ Code Apps にフロー実行結果を返す「応答」アクション。
   ✅ additionalProperties: {} を必ず含める（UI が自動生成する属性）
 
 Code Apps 側の生成結果:
-  npx power-apps add-flow --flow-id {id} 実行後、
+  npx pa app add flow --flow-id {id} 実行後、
   src/generated/models/ の ResponseActionOutput に型が生成される:
     airesult → airesult?: string  (optional)
     bookingid → bookingid?: string  (optional)

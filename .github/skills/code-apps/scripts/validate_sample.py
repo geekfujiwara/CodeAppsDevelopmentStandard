@@ -107,10 +107,10 @@ def check(sample: Path) -> list[str]:
     if pkg_path.is_file():
         pkg = json.loads(pkg_path.read_text(encoding="utf-8"))
         deploy = pkg.get("scripts", {}).get("deploy")
-        if deploy != "npm run build && npm run predeploy && npx power-apps push":
+        if deploy != "npm run build && npm run predeploy && npx pa app push":
             errors.append(
                 "package.json の scripts.deploy は "
-                "'npm run build && npm run predeploy && npx power-apps push' に統一してください"
+                "'npm run build && npm run predeploy && npx pa app push' に統一してください"
             )
         sdk_version = pkg.get("dependencies", {}).get("@microsoft/power-apps")
         if sdk_version != POWER_APPS_SDK_VERSION:
@@ -140,15 +140,16 @@ def check(sample: Path) -> list[str]:
             errors.append(f"README.md に廃止予定の標準コマンドが残っています: {legacy.group(0)}")
         setup_commands = [
             r"^npm install --no-audit --no-fund\s*$",
-            r"^npx power-apps auth-status\s*$",
-            r"^npx power-apps init --environment-id",
-            r"^npx power-apps add-data-source",
+            r"^npx pa auth status\s*$",
+            r"^npx pa app init --environment-id",
+            r"^npx pa app add data-source",
         ]
         matches = [re.search(command, readme, re.MULTILINE) for command in setup_commands]
         positions = [match.start() if match else -1 for match in matches]
         if any(position < 0 for position in positions) or positions != sorted(positions):
             errors.append(
-                "README.md のセットアップは npm install → auth-status → init → add-data-source の順にしてください"
+                "README.md のセットアップは npm install → pa auth status → pa app init "
+                "→ pa app add data-source の順にしてください"
             )
 
     index_css = sample / "src/index.css"

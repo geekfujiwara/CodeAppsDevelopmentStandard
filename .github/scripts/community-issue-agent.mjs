@@ -48,6 +48,12 @@ export function validateSandboxCommand(command) {
     return validTargets ? { valid: true, runtime: 'python' } : { valid: false, reason: 'python targets are not allowed' };
   }
 
+  if (executable === 'python' && args[0] === '-c' && args.length === 2) {
+    const diagnostic = args[1];
+    const allowed = diagnostic.length > 0 && diagnostic.length <= 4000 && !/[\r\n\0]/.test(diagnostic);
+    return allowed ? { valid: true, runtime: 'python' } : { valid: false, reason: 'python diagnostic is not allowed' };
+  }
+
   if (executable === 'python' && args.length === 1 && isSafeRelativePath(args[0])) {
     const target = args[0].replaceAll('\\', '/');
     const allowed = /(^|\/)(test_[^/]+|validate_[^/]+)\.py$/.test(target) || target.startsWith('.agent/repro/');
@@ -72,6 +78,55 @@ export function validatePlan(plan, policy, validationMode = false) {
     }
     return { ...command, expectedExitCode, runtime: validation.runtime };
   });
+}
+
+export function parseJsonDocument(value) {
+  const trimmed = String(value ?? '').trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch (directError) {
+    const fenced = [...trimmed.matchAll(/```json\s*\r?\n([\s\S]*?)\r?\n```/gi)];
+    if (fenced.length === 1) return JSON.parse(fenced[0][1]);
+    if (fenced.length > 1) throw directError;
+
+    const candidates = [];
+    let start = -1;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = 0; index < trimmed.length; index += 1) {
+      const character = trimmed[index];
+      if (depth === 0) {
+        if (character === '{') {
+          start = index;
+          depth = 1;
+          inString = false;
+          escaped = false;
+        }
+        continue;
+      }
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (character === '\\') escaped = true;
+        else if (character === '"') inString = false;
+      } else if (character === '"') inString = true;
+      else if (character === '{') depth += 1;
+      else if (character === '}') {
+        depth -= 1;
+        if (depth === 0) candidates.push(trimmed.slice(start, index + 1));
+      }
+    }
+    const parsed = candidates.flatMap((candidate) => {
+      try {
+        const document = JSON.parse(candidate);
+        return document && typeof document === 'object' && !Array.isArray(document) ? [document] : [];
+      } catch {
+        return [];
+      }
+    });
+    if (parsed.length !== 1) throw directError;
+    return parsed[0];
+  }
 }
 
 export function normalizeDecision(rawDecision, policy, reproductionPassed) {
@@ -184,7 +239,7 @@ async function prepare(issueNumber) {
 
 async function validatePlanFile(file, mode) {
   const policy = await loadPolicy();
-  const plan = JSON.parse(await readFile(path.resolve(root, file), 'utf8'));
+  const plan = parseJsonDocument(await readFile(path.resolve(root, file), 'utf8'));
   const commands = validatePlan(plan, policy, mode === 'validation');
   await writeFile(path.join(root, '.agent/validated-plan.json'), `${JSON.stringify({ commands }, null, 2)}\n`);
 }
@@ -219,7 +274,7 @@ async function runPlan(outputFile = '.agent/reproduction-report.json') {
 async function validateDecision(file) {
   const policy = await loadPolicy();
   const report = JSON.parse(await readFile(path.join(root, '.agent/reproduction-report.json'), 'utf8'));
-  const raw = JSON.parse(await readFile(path.resolve(root, file), 'utf8'));
+  const raw = parseJsonDocument(await readFile(path.resolve(root, file), 'utf8'));
   const decision = normalizeDecision(raw, policy, report.passed);
   await writeFile(path.join(root, '.agent/validated-decision.json'), `${JSON.stringify(decision, null, 2)}\n`);
   if (process.env.GITHUB_OUTPUT) {

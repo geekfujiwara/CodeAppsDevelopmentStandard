@@ -6,10 +6,10 @@
 
 | ツール | 原因 | 回避策 |
 |---|---|---|
-| `npx power-apps add-data-source` | `nameUtils.js` が ASCII のみ許容 | `patch-nameutils.cjs` で CJK 許容パッチ |
+| `npx pa app add data-source` | `nameUtils.js` が ASCII のみ許容 | `patch-nameutils.cjs` で CJK 許容パッチ |
 | `pac code add-data-source` | PAC CLI .NET 内蔵ランタイム（パッチ不可） | `toggle_table_lang.py` で英語切替 |
 
-> **正常系は `npx power-apps add-data-source`**。実行前に `auth-status` / `auth-switch` で対象テナントを明示する。
+> **正常系は `npx pa app add data-source`**。実行前に `pa auth status` / `pa auth switch` で対象テナントを明示する。
 > CJK パッチをプロジェクトに同梱していない場合は、CLI に依存しない `toggle_table_lang.py` で一時的に英語表示名へ
 > 切り替えてから実行する。`pac code add-data-source` は npm CLI で解消できない場合のみの移行時代替とする。
 
@@ -20,10 +20,9 @@
 python scripts/toggle_table_lang.py en
 
 # 2. Dataverse データソースを接続参照で追加（全テーブル共通で 1 回）
-npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+npx pa app add data-source --connector shared_commondataserviceforapps \
     --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
     --solution-id {SOLUTION_ID} \
-    --resource-name commondataserviceforapps \
     --org-url {DATAVERSE_URL} \
     --non-interactive
 
@@ -94,9 +93,9 @@ if __name__ == "__main__":
         print("Usage: python scripts/toggle_table_lang.py [en|jp]")
 ```
 
-## フォールバック: npx power-apps add-data-source 用パッチ
+## フォールバック: npx pa app add data-source 用パッチ
 
-`npx power-apps add-data-source` を使う場合は、このスキル同梱の [`patch-nameutils.cjs`](patch-nameutils.cjs) で Node.js パッチを適用する。
+`npx pa app add data-source` を使う場合は、このスキル同梱の [`patch-nameutils.cjs`](patch-nameutils.cjs) で Node.js パッチを適用する。
 `node_modules/@microsoft/power-apps-actions/.../nameUtils.js` の文字許容パターンに CJK 等を追加する。
 
 ```bash

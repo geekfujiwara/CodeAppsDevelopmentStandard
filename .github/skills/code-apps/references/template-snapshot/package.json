@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
-    "@microsoft/power-apps-cli": "^1.0.0",
+    "@microsoft/power-apps-cli": "^1.0.1",
     "@microsoft/power-apps-vite": "^1.0.2",
     "@tailwindcss/vite": "^4.3.2",
     "@types/node": "^24.10.1",

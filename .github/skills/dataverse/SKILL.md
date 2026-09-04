@@ -141,6 +141,11 @@ existing_tables = [t for t in all_tables["value"] if t["LogicalName"].startswith
 
 衝突がある場合はユーザーに報告し、名前を変更してから設計を確定する。
 
+> プレフィックスを既存プロジェクトと共用する環境では `{prefix}_project` のような一般名が
+> 高確率で衝突する。専用の名前空間（例: `{prefix}_kbproject`）を採用して回避する。
+> なお `setup_dataverse.py` は Step 1 の前に `validate_no_foreign_tables()` で
+> **対象ソリューション外の既存テーブルとの衝突を必ず再検証**し、検出したら API 呼び出し前に中断する。
+
 ### Step 3: テーブル設計（ユーザー承認必須）
 
 設計書を作成してユーザーに提示する。以下をすべて含める:
@@ -242,6 +247,7 @@ existing_tables = [t for t in all_tables["value"] if t["LogicalName"].startswith
 | **マスタテーブルは要件から網羅的に洗い出す** | カテゴリ・場所・設備等、ユーザーが言及した分類はすべてマスタ化 |
 | **全 Lookup リレーションシップを設計書に明記** | 漏れると Lookup が機能しない |
 | **デモデータは全テーブル（従属テーブル含む）に計画** | コメント等の従属テーブルにもデモデータを用意 |
+| **KPI・日数計算の起点になる日時は業務日時列として明示的に持つ** | `createdon` はレコードを Dataverse に書いた日時であり業務上の発生日時ではない。デモデータ投入や環境移行で全レコードが同日に寄り、終了日時より後ろになって日数差が負になる。詳細は [references/troubleshooting.md](references/troubleshooting.md) の教訓を参照 |
 | **Instructions のテーブル名は単数形の論理名** | Power Apps MCP / Dataverse MCP は LogicalName でアクセス。複数形(EntitySetName)や表示名は不可 |
 
 ### 構築スクリプト
