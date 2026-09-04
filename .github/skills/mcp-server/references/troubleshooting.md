@@ -52,7 +52,9 @@
 **原因**: `tsc` は `dist/` をクリーンせず、削除・退避したソースのコンパイル済み `.js` が `dist/` に残る。
 Azure Functions は `dist/` 内の全 `.js` を走査して関数を登録するため、ルートが復活する。
 
-**対処**: ビルド前に `dist/` を削除する。`deploy_mcp_function.py` は毎回削除してからビルドする。
+**対処**: ビルド前に `dist/` を削除する。
+
+**恒久対策済**: `deploy_mcp_function.py` の `build()` が毎回 `dist/` を削除してからビルドする。
 
 ### 関数を削除・退避したら、残すはずの `mcp` を含む**全ルート**が 404 になった
 
@@ -62,6 +64,9 @@ Functions ホスト自体は 200 を返す（ルート URL は生きている）
 
 **対処**: 関数ファイルを消したら必ずエントリポイントの `import` も消す。
 `cleanup_admin_endpoints.py` は削除と同時に `src/index.ts` から該当 `import` を除去する。
+
+**恒久対策済**: `deploy_mcp_function.py` の `check_entrypoint_imports()` が、毎回のデプロイ前に
+`src/index.ts` の相対 import を全て解決できるか検査し、未解決なら publish 前に中断する。
 
 **切り分け**: Application Insights の `traces` を見る。`Worker was unable to load entry point` が出ていれば確定。
 
@@ -80,11 +85,11 @@ union traces, exceptions
 **対処**: `AzureWebJobsStorage` を削除し、ID ベース接続に置き換える。ホスト ID 管理に `Storage Blob Data Owner` が要る。
 
 ```powershell
-az role assignment create --assignee-object-id <mi-object-id> --assignee-principal-type ServicePrincipal `
-  --role "Storage Blob Data Owner" --scope <storage-account-resource-id>
-az functionapp config appsettings delete -n <app> -g <rg> --setting-names AzureWebJobsStorage
-az functionapp config appsettings set -n <app> -g <rg> --settings "AzureWebJobsStorage__accountName=<account>"
+python .github/skills/mcp-server/scripts/configure_function_storage.py --app <app> --account <storage-account>
 ```
+
+**恒久対策済**: `deploy_mcp_function.py` の `check_storage_auth()` が、接続文字列の `AzureWebJobsStorage` と
+`allowSharedKeyAccess=false` の組み合わせをデプロイ前に検出して中断する。
 
 ### publish がハングしたように見えて進捗が分からない
 

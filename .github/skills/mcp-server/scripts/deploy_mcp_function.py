@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -22,10 +23,14 @@ from pathlib import Path
 
 import requests
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
+
 LOCAL_SETTINGS = {
     "IsEncrypted": False,
     "Values": {"FUNCTIONS_WORKER_RUNTIME": "node", "AzureWebJobsStorage": ""},
 }
+
+RELATIVE_IMPORT_RE = re.compile(r"""(?:^|\s)(?:import|require\()\s*['"](\.[^'"]+)['"]""", re.MULTILINE)
 
 
 def ensure_local_settings(project: Path) -> None:
@@ -44,6 +49,57 @@ def ensure_local_settings(project: Path) -> None:
     else:
         print("[fix] local.settings.json が無いため生成します")
     path.write_text(json.dumps(LOCAL_SETTINGS, indent=2), encoding="utf-8")
+
+
+def check_entrypoint_imports(project: Path) -> None:
+    """エントリポイントの相対 import が全て解決できることを確認する。
+
+    存在しないモジュールを 1 行でも import すると worker が起動できず
+    `0 functions loaded` となり、残すはずのルートまで 404 になる。
+    """
+    entry = project / "src" / "index.ts"
+    if not entry.exists():
+        return
+    missing = []
+    for spec in RELATIVE_IMPORT_RE.findall(entry.read_text(encoding="utf-8")):
+        base = (entry.parent / spec).resolve()
+        if not any(base.with_suffix(ext).exists() for ext in (".ts", ".js")) and not (base / "index.ts").exists():
+            missing.append(spec)
+    if missing:
+        raise SystemExit(
+            f"{entry} が解決できないモジュールを import しています: {', '.join(missing)}\n"
+            "関数ファイルを削除・退避した場合は import も削除してください。"
+        )
+    print("[check] エントリポイントの import OK")
+
+
+def check_storage_auth(app: str, subscription: str | None, resource_group: str | None) -> None:
+    """共有キー禁止のストレージに接続文字列で繋ごうとしていないか確認する。
+
+    この組み合わせではデプロイは成功するが、ホストが起動できず全ルートが 404 になる。
+    """
+    if not subscription or not resource_group:
+        print("[skip] AZURE_SUBSCRIPTION_ID / AZURE_RESOURCE_GROUP 未設定のためストレージ設定チェックを省略")
+        return
+    from azure_helper import arm_get, get_app_settings  # noqa: PLC0415
+
+    conn = get_app_settings(subscription, resource_group, app).get("AzureWebJobsStorage", "")
+    if not conn:
+        print("[check] AzureWebJobsStorage は ID ベース接続 OK")
+        return
+    account = next((p.split("=", 1)[1] for p in conn.split(";") if p.startswith("AccountName=")), "")
+    if not account:
+        return
+    path = (
+        f"/subscriptions/{subscription}/resourceGroups/{resource_group}"
+        f"/providers/Microsoft.Storage/storageAccounts/{account}"
+    )
+    if arm_get(path, api_version="2023-01-01")["properties"].get("allowSharedKeyAccess") is False:
+        raise SystemExit(
+            f"{app} は共有キー接続文字列で {account} に接続しようとしていますが、"
+            "このストレージは共有キーが禁止されています（ホストが起動せず全ルートが 404 になります）。\n"
+            "configure_function_storage.py で ID ベース接続に切り替えてください。"
+        )
 
 
 def ensure_func_cli() -> str:
@@ -122,6 +178,8 @@ def main() -> int:
     parser.add_argument("--project", required=True, help="Functions プロジェクトのパス")
     parser.add_argument("--app", required=True, help="Function App 名")
     parser.add_argument("--route", action="append", default=None, help="検証するルート（既定: mcp）")
+    parser.add_argument("--subscription", default=os.getenv("AZURE_SUBSCRIPTION_ID"))
+    parser.add_argument("--resource-group", default=os.getenv("AZURE_RESOURCE_GROUP"))
     parser.add_argument("--skip-build", action="store_true")
     args = parser.parse_args()
 
@@ -130,6 +188,8 @@ def main() -> int:
         raise SystemExit(f"Functions プロジェクトが見つかりません: {project}")
 
     ensure_local_settings(project)
+    check_entrypoint_imports(project)
+    check_storage_auth(args.app, args.subscription, args.resource_group)
     func = ensure_func_cli()
     if not args.skip_build:
         build(project)

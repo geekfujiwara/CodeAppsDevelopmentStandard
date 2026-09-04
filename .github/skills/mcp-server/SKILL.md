@@ -95,6 +95,13 @@ python .github/skills/mcp-server/scripts/configure_entra_api.py
 | Functions 用ストレージ | 共有キー禁止のため `AzureWebJobsStorage` は使わず、`AzureWebJobsStorage__accountName` の **ID ベース接続**にする。MI に `Storage Blob Data Owner` が必要 |
 | ファイル共有 | 共有の作成は**マネジメントプレーン**で行う（データプレーンのロールでは共有を作成できない） |
 
+Function App の作成直後は `AzureWebJobsStorage` に**共有キーの接続文字列**が入る。共有キー禁止のストレージでは
+この状態でホストが起動できず、**デプロイは成功するのに全ルートが 404** になる。作成直後に必ず切り替える。
+
+```powershell
+python .github/skills/mcp-server/scripts/configure_function_storage.py --app <function-app-name> --account <storage-account>
+```
+
 ### Step 4: MCP Server を実装する
 
 Azure Functions（Node.js 20 / TypeScript / v4 プログラミングモデル）で実装する。
@@ -136,6 +143,8 @@ python .github/skills/mcp-server/scripts/deploy_mcp_function.py --project <path>
 | `func` コマンドの実行可否 | npm グローバルインストールで zip が未展開のまま残ることがある。失敗時は自動で展開して復旧する |
 | ビルド出力（`dist/`）の存在 | 空パッケージのままデプロイされ、ルートが 404 になるのを防ぐ |
 | ビルド前の `dist/` 削除 | `tsc` は `dist/` をクリーンしない。削除した関数の `.js` が残り、ルートが復活する |
+| `src/index.ts` の相対 import が全て実在すること | 解決できない import が 1 行でもあると worker が起動できず、**残すはずのルートまで含めて全滅**する |
+| `AzureWebJobsStorage` が ID ベース接続であること | 共有キー禁止のストレージに接続文字列で繋ごうとするとホストが起動しない（Step 3）|
 | publish 後のルート実測 | `func publish` は成功しても終了コード 1 と "appears to be unhealthy" を返すことがある。**終了コードで判定しない** |
 
 ルートが 404 のままなら、ホストの起動ログで原因を特定する（`0 functions loaded` なら worker の起動失敗）。
@@ -192,9 +201,12 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 - [ ] Function App の HTTP は公開、データ層は Private Endpoint のみ
 - [ ] 関数キー・接続文字列・共有キーを一切使っていない
 - [ ] `local.settings.json` が存在し `FUNCTIONS_WORKER_RUNTIME` が設定されている
+- [ ] `AzureWebJobsStorage__accountName` による ID ベース接続になっている（接続文字列が残っていない）
+- [ ] `src/index.ts` の相対 import が全て実在するモジュールを指している
 - [ ] デプロイ成否を **終了コードではなくルートの HTTP 実測**で判定した
 - [ ] `tools/call` で実データが返ることを確認した
 - [ ] 管理エンドポイントを削除し、`ADMIN_SEED_SECRET` をアプリ設定から消した
+- [ ] 削除後に「残すルート = 401 / 削除したルート = 404」を HTTP で実測した
 - [ ] スクリプトが `auth_helper` 経由で非対話に完走する（`az login` を要求しない）
 
 ## 参考リンク
