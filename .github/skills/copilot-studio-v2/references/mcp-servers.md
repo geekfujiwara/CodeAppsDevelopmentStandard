@@ -13,6 +13,11 @@ McpTool + 接続参照）で自動追加する手順を提供していたが、�
   環境に存在していること。無ければ make.powerautomate.com で一度作成・承認する。
 - エージェント（cliagent）が `scripts/create_agent.py` 等で作成済みであること。
 
+> **自前の MCP Server を追加する場合**は、事前にカスタム コネクタ（`x-ms-agentic-protocol: mcp-streamable-1.0`
+> の OpenAPI）と Entra の OAuth 設定が必要になる。作り方は
+> [mcp-server スキルの Copilot Studio 登録手順](../../mcp-server/references/copilot-studio-registration.md) を参照。
+> コネクタを用意したうえで、以下の UI 手順で追加する。
+
 ## 手順（UI）
 
 開始前に [ブラウザ自動化方針](../../standard/references/browser-automation.md)に従い、
