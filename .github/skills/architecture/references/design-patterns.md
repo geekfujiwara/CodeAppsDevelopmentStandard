@@ -9,9 +9,9 @@
 | **CRUD + 通知**         | Code Apps + Power Automate                               | インシデント管理、資産管理、申請管理  |
 | **対話 + データ操作**   | Copilot Studio + Dataverse（ナレッジ）                   | ヘルプデスク、FAQ、データ照会         |
 | **対話 + 外部連携**     | Copilot Studio + MCP Server / コネクタ                   | メール処理、ドキュメント分析          |
+| **基幹データ + エージェント** | 自前 MCP Server（Azure Functions）+ Copilot Studio v2 スキル または Cowork プラグイン | Dataverse に無い既存の基幹 DB / ファイルサーバー / 業務 API を、移行せず読み取りだけエージェントへ公開（→ [パターン G](#パターン-g-自前-mcp-server--copilot-studio-v2--cowork)） |
 | **対話 + 定期実行**     | Copilot Studio + Power Automate（スケジュールトリガー）  | ニュース配信、定期レポート            |
-| **対話 + イベント駆動** | Copilot Studio + Power Automate（メール/Teams トリガー） | メール自動応答、問い合わせ対応        |
-| **AI 分析 + 対話**      | AI Builder + Copilot Studio                              | ドキュメント分類 + 対話で結果説明     |
+| **対話 + イベント駆動** | Copilot Studio + Power Automate（メール/Teams トリガー） | メール自動応答、問い合わせ対応        || **Dataverse イベント駆動 + v2 エージェント（新）** | Copilot Studio v2 ワークフロー（Agentflow: Dataverse トリガー + エージェント ノード） | レコード作成/更新を契機にした自動要約・分類・重複判定・未承認ナレッジ生成（Power Automate 不要、v2 スキルと同一アーキテクチャで完結） || **AI 分析 + 対話**      | AI Builder + Copilot Studio                              | ドキュメント分類 + 対話で結果説明     |
 | **外部ポータル + データ操作** | Power Pages + Dataverse + Power Automate            | 顧客向けポータル、パートナーサイト、公開フォーム |
 | **フルスタック**        | Dataverse + Code Apps + Power Automate + Copilot Studio  | 業務アプリ + 自動化 + AI アシスタント |
 
@@ -89,6 +89,51 @@
 ```
 
 **使うスキル**: 全フェーズスキルを順番に適用
+
+### パターン F: Dataverse トリガー駆動 Agentflow（Copilot Studio v2 ワークフロー + エージェント ノード）
+
+```
+[Dataverse] — レコード作成/更新（例: ステータス→完了）
+      ↓ Dataverse トリガー
+[Copilot Studio v2 ワークフロー（Agentflow）]
+      ↓ エージェント ノード（既存の発行済み v2 スキルを呼び出すか、ワークフロー専用のインラインエージェント）
+      ↓ 推論・分類・重複判定（構造化出力）
+[Dataverse へ書き戻し]（例: 未承認ナレッジレコード作成）
+```
+
+**使うスキル**: `copilot-studio-v2`（ワークフロー/エージェント ノードの構築は Copilot Studio UI での手作業。参考: [ワークフローにエージェントノードを追加する](https://learn.microsoft.com/ja-jp/microsoft-copilot-studio/workflows-experience/agent-node-workflow)）
+
+> **パターン C との使い分け**: 社内向けの応答エージェントをすでに Copilot Studio v2 スキル（SKILL.md + Dataverse MCP）で構築済みの場合は、パターン F（Agentflow）で非同期自動化を追加し、Power Automate や v1 トリガーを導入せずに v2 アーキテクチャで完結させる。
+> メール/Teams など外部システムのトリガーが必要な場合や、Code Apps / Web 埋め込みが必要な場合は引き続きパターン C（Power Automate + Copilot Studio v1）を使う。
+> **利点**: Dataverse への更新経路を問わず（チャット経由でも Code Apps からの直接書き込みでも）必ず自動化が起動するため、「クローズは必ずエージェントとの対話で行う」という運用依存のリスクを構造的に解消できる。
+
+---
+
+### パターン G: 自前 MCP Server + Copilot Studio v2 / Cowork
+
+```
+[既存の基幹 DB / ファイルサーバー / 業務 API]   ← 移行しない。読み取りだけ公開
+      ↑ Managed Identity（送信・キーレス）
+[自前 MCP Server（Azure Functions）]            ← データソースごとに 1 つ
+      ↑ Entra ID Bearer JWT（受信・キーレス。API アプリは 1 つに集約）
+      ├─ カスタム コネクタ（OpenAPI, mcp-streamable-1.0） → [Copilot Studio v2 スキル]  ← Teams / Copilot Studio
+      └─ agentConnectors.remoteMcpServer               → [Cowork プラグイン]        ← M365 Copilot
+```
+
+**使うスキル**: `azure`（VNet / Private Endpoint）→ `mcp-server`（実装・Entra 認可・検証）→
+`copilot-studio-v2` または `cowork`（公開先）
+
+**選び方**: 公開先は要件で決める。Teams / Copilot Studio 単体なら **Copilot Studio v2**（環境制約が少ない）、
+M365 Copilot 上での利用が必須要件なら **Cowork**（Frontier 参加と Global Admin 権限が必要）。
+**両方を選んでも MCP Server の実装は増えない**（API アプリを 1 つに集約しておけば登録を 2 系統作るだけ）。
+
+**Dataverse MCP との併用**: Cowork の `agentConnectors` は複数書けるので、Dataverse MCP と自前 MCP を
+併載できる。各 `description` に「どのコネクタをどの用途で使うか」を明記する（エージェントはこの説明で
+ツールを選ぶため、曖昧だと誤ったコネクタを呼ぶ）。
+手順は [cowork/references/custom-mcp-connector.md](../../cowork/references/custom-mcp-connector.md)。
+
+> **注意**: MCP Server は自社資産になるため、Dataverse MCP には無い**継続的な運用コスト**
+> （シークレット更新・スキーマ変更追従・障害対応・監視）が発生する。見積もりに含める（→ SKILL.md §6.5）。
 
 ---
 
