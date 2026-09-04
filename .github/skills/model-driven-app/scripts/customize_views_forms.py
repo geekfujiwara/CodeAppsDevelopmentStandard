@@ -263,6 +263,11 @@ def customize_default_view(entity_logical_name, attributes):
 # ═══════════════════════════════════════════════════════════
 
 CLASSID_STANDARD = "{4273EDBD-AC1D-40D3-9FB2-095C621B552D}"
+# Lookup / Customer / Owner 型の列専用 classid。
+# 汎用の CLASSID_STANDARD を使うと、フォームは保存・公開できてしまうが
+# Lookup 検索（インライン候補・検索ダイアログ）が「読み込んでいます...」のまま
+# 進まなくなる（メーカーポータル UI 経由の作業では発生しない落とし穴）。
+CLASSID_LOOKUP = "{270BD3DB-D9AF-4782-9025-509E298DEC0A}"
 
 # 列の分類キーワード
 LOOKUP_KEYWORDS = ("_value",)
@@ -370,10 +375,12 @@ def _build_cell(attr, entity_logical_name, disabled=False):
     required_attr = ""
     if attr.get("is_autonumber"):
         required_attr = ' isrequired="false"'
+    # Lookup / Customer / Owner 型には専用の classid を使う（そうしないと検索が動作しない）
+    classid = CLASSID_LOOKUP if attr.get("is_lookup") else CLASSID_STANDARD
     return (
         f'<cell id="{cell_id}" showlabel="true" locklevel="0">'
         f'<labels><label description="{attr["display_name"]}" languagecode="1041" /></labels>'
-        f'<control id="{ctrl_id}" classid="{CLASSID_STANDARD}" '
+        f'<control id="{ctrl_id}" classid="{classid}" '
         f'datafieldname="{attr["logical_name"]}"{disabled_attr}{required_attr} />'
         f'</cell>'
     )
