@@ -2275,5 +2275,73 @@ npx pa app share --cloud public                                          # error
 - 自己検証スクリプトを持つスキルは、そのスクリプト自体が移行対象であることを前提にする。
 - 移行 PR には、検証スクリプトの実行結果（exit code）を必ず添える。
 
+---
+
+## 49. 一覧の詳細をモーダルで作ると作り直しになる／矢羽（chevron）に枠線が出ない（検証済 2026-09-05）
+
+### 症状
+
+1. `ListTable` の行クリックで `FormModal` を開く「一覧＋モーダル詳細」を実装したところ、
+   レビューで **「詳細はモーダルでやらない、画面埋め込みにして」** と差し戻され、フォーム一式を作り直した。
+2. Salesforce 風の矢羽（`clip-path: polygon(...)` で切り抜いたステージ表示）に選択状態の枠線を付けようと
+   `ring-2` / `outline` / `border` を当てたが、**枠線が矢羽の形に沿わず消えたように見える**。
+
+### 原因
+
+1. **モーダルは「一覧 → 詳細 → 一覧」の往復が必要な業務画面と相性が悪い。**
+   ステージ切り替え・検索・詳細編集を行き来する画面では、詳細が一覧と同時に見えている方が使われる。
+   加えて `ListTable` に内蔵された `FormModal` は **保存ボタンが未配線**（`renderForm` を渡したときだけ描画される
+   ガワだけの実装）なので、どのみちページ側で状態を持つ必要がある。→ 最初から埋め込みパネルで作るのが正解。
+2. `clip-path` は **ボーダー・アウトライン・リング・ボックスシャドウを含めて要素全体を切り抜く**。
+   矩形の `ring` を矢羽で切り抜けば、当然「矢羽の内側の矩形」しか残らず枠線に見えない。
+
+### 対処
+
+**1. 詳細は同一画面に埋め込む（モーダルを使わない）**
+
+```tsx
+// 一覧の直前に置き、開いたらスクロールして見せる
+const detailRef = useRef<HTMLDivElement>(null)
+const isDetailOpen = form !== null
+useEffect(() => {
+  if (isDetailOpen) detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+}, [isDetailOpen])
+
+<div ref={detailRef} className="scroll-mt-4">
+  {form && <DetailPanel form={form} onChange={setForm} onSave={submit} onClose={close} onDelete={askDelete} />}
+</div>
+
+<ListTable data={rows} columns={cols} onRowClick={openDetail} />   {/* renderForm は渡さない */}
+```
+
+- フォーム状態は **ページ側** に持つ（`useState<Input | null>`）。`null` が「閉じている」を兼ねる。
+- 削除だけは `ConfirmDialog`（モーダル）でよい。取り消せない操作の確認はダイアログが適切。
+- 一覧のタブ／ステージを切り替えたら開いている詳細は閉じる。文脈が変わったのに古い詳細が残ると混乱する。
+
+**2. 矢羽の枠線は「二重 clip-path」で作る**
+
+外側に枠線色の要素、内側に塗りの要素を置き、**同じ clip-path を両方に当てて** パディング分だけ枠線に見せる。
+
+```tsx
+const clip = `polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%, 18px 50%)`
+
+<button style={{ clipPath: clip, marginLeft: -16 }}
+        className={selected ? "p-[3px] bg-foreground/70" : "p-[3px] bg-transparent"}>
+  <span style={{ clipPath: clip }} className="flex h-full w-full flex-col bg-gradient-to-br ...">
+    ...
+  </span>
+</button>
+```
+
+- 先頭のセルだけ左ノッチ（`18px 50%`）を外す。
+- 負の `marginLeft` でノッチ幅ぶん重ねて連結する。
+- 非選択は `opacity` ではなく **塗りのアルファ**（`from-sky-500/25`）を下げる。`opacity` だと文字まで薄くなる。
+
+### レビュー観点
+
+- 一覧と詳細を往復する業務画面では、**モーダルを既定にしない**。埋め込みパネルを第一候補にする。
+- `ListTable` に `renderForm` を渡すと保存が効かないガワのモーダルが出る。詳細を自前で持つなら渡さない。
+- `clip-path` を使った要素に `ring` / `border` / `shadow` を期待しない。枠線が要るなら入れ子にする。
+
 
 
