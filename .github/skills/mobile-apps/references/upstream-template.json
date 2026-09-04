@@ -5,7 +5,7 @@
   "syncedAt": "2026-08-23",
   "status": "Private Preview",
   "productionAllowed": false,
-  "cliVersion": "1.0.0",
+  "cliVersion": "1.0.1",
   "degitVersion": "2.8.4",
   "dependencies": {
     "expo": "55.0.26",
