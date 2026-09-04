@@ -1,4 +1,4 @@
-"""Validate the Code Apps CLI reference against the published ``share --help``.
+"""Validate the Code Apps CLI reference against the published ``app share --help``.
 
 Usage:
   python validate_cli_reference.py
@@ -30,8 +30,6 @@ HELP_PATTERNS = {
     "share command description": r"Share the current Power Apps code app with users or service principals\.",
     "principal": r"--principal <principal>",
     "access": r"--access <access>",
-    "environment": r"--environment-id <environment-id>",
-    "cloud": r"--cloud <cloud>",
     "non-interactive": r"--non-interactive",
     "JSON output": r"--json",
     "play/edit values": r"play \(default\) or edit",
@@ -40,19 +38,17 @@ HELP_PATTERNS = {
 REFERENCE_PATTERNS = {
     "principal option": r"--principal <principal>",
     "access option": r"--access <access>",
-    "environment option": r"--environment-id <environment-id>",
-    "cloud option": r"--cloud <cloud>",
     "non-interactive option": r"--non-interactive",
     "JSON option": r"--json",
-    "user email example": r"power-apps share --principal user@contoso\.com",
-    "user object ID example": r"power-apps share --principal \{USER_OBJECT_ID\}",
-    "service principal example": r"power-apps share --principal \{SERVICE_PRINCIPAL_OBJECT_ID\}",
+    "user email example": r"pa app share --principal user@contoso\.com",
+    "user object ID example": r"pa app share --principal \{USER_OBJECT_ID\}",
+    "service principal example": r"pa app share --principal \{SERVICE_PRINCIPAL_OBJECT_ID\}",
     "multiple principals example": (
         r"--principal\s+[\"']user@contoso\.com,\{USER_OBJECT_ID\},\{SERVICE_PRINCIPAL_OBJECT_ID\}[\"']"
     ),
     "least-privilege play guidance": r"通常利用者は既定の `play`",
     "explicit edit example": r"--principal \{DEVELOPER_USER_OBJECT_ID\} --access edit",
-    "push before share automation": r"power-apps push[\s\S]+power-apps share",
+    "push before share automation": r"pa app push[\s\S]+pa app share",
 }
 
 
@@ -68,12 +64,14 @@ def run_share_help() -> str:
         raise RuntimeError("npx が見つかりません。Node.js 22 以上をインストールしてください。")
 
     version = pinned_cli_version()
+    # bin 名は pa。share は app group 配下（v1.0.0 で power-apps share から変更）。
     command = [
         npx,
         "--yes",
         "--package",
         f"@microsoft/power-apps-cli@{version}",
-        "power-apps",
+        "pa",
+        "app",
         "share",
         "--help",
     ]
@@ -92,9 +90,9 @@ def run_share_help() -> str:
 
 
 def share_section(reference: str) -> str:
-    match = re.search(r"^### `share`\s*$([\s\S]*?)(?=^## |\Z)", reference, re.MULTILINE)
+    match = re.search(r"^### `app share`\s*$([\s\S]*?)(?=^## |\Z)", reference, re.MULTILINE)
     if not match:
-        raise RuntimeError("cli-reference.md に `### `share`` 節がありません。")
+        raise RuntimeError("cli-reference.md に `### `app share`` 節がありません。")
     return match.group(1)
 
 

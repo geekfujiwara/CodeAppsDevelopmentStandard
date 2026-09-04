@@ -4,10 +4,14 @@ description: "Power Apps Code Apps（コードファースト）の初期化・D
 category: ui
 triggers:
   - "Code Apps"
+  - "pa app init"
+  - "pa app push"
+  - "pa app share"
   - "power-apps init"
   - "power-apps push"
   - "power-apps share"
   - "Code Apps 共有"
+  - "add data-source"
   - "add-data-source"
   - "DataverseService"
   - "Tailwind"
@@ -110,17 +114,17 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 [§2 初回デプロイ]
         ③ テンプレート scaffold + npm install（Dataverse 構築 Phase 2 と並行して即着手／VS Code では Code Apps サブエージェントとして起動）
         ④ ソリューション + 接続参照を用意（setup_connection_reference.py）★init より前
-        ⑤ npx power-apps init（power.config.json 生成）
+        ⑤ npx pa app init（power.config.json 生成）
         ⑥ vite.config.ts 必須設定の確認 / .env 設定
-        ⑦ npm run deploy -- --solution-id {GUID}（build + power-apps push）★初回 push でソリューション所属が確定
+        ⑦ npm run deploy -- --solution-id {GUID}（build + pa app push）★初回 push でソリューション所属が確定
           │
 [§3 データソース接続]
-        ⑧ npx power-apps add-data-source --api-id shared_commondataserviceforapps -cr ... -s ...（1 回だけ）
+        ⑧ npx pa app add data-source --connector shared_commondataserviceforapps --connection-ref ... -s ...（1 回だけ）
         ⑨ MicrosoftDataverseService + *WithOrganization ラッパーを実装
           │
 [§4 改善デプロイ]
-  ⑩ src/ 実装 → npm run deploy（power-apps push を反復）
-  ⑪ 最終 push 後に power-apps share（利用者は play、共同開発者だけ edit）
+  ⑩ src/ 実装 → npm run deploy（pa app push を反復）
+  ⑪ 最終 push 後に pa app share（利用者は play、共同開発者だけ edit）
 ```
 
 ### この後の章構成
@@ -151,6 +155,8 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 > **画面の骨格は [デザインシステム](references/design-pattern.md#ページの骨格新規画面はここから書き始める) からコピーして書き始める**: マルチカラムは `grid-cols-[minmax(0,1fr)_...]`（素の `1fr` は使わない）＋**直接の子すべてに `min-w-0`**、長文は `break-words` ではなく `[overflow-wrap:anywhere]`、コード・表・JSON は `overflow-x-auto` で閉じ込める。`min-w-0` は後付けすると必ず抜けるため最初から書く。`npm run predeploy` のチェック 7 が抜けを警告する。
 
+> **画面が 3 つ以上あるアプリには [使い方ガイド](references/onboarding-guide-pattern.md) を標準実装する**: 初回起動でカルーセルを自動表示し、「使い方を見る」から実操作ツアーへ繋ぐ。設計提示の段階でスライド構成（4〜6 枚）とツアー手順を画面一覧と一緒に示す。
+
 > **設計で提示する内容**: 選択テンプレート、画面一覧（ページ名・ルート）、各画面のコンポーネント構成、カラム定義、Lookup 名前解決方法（`_xxx_value` + `useMemo` Map）、ナビゲーション構造、テレメトリの転送先と監視する SLI（転送しない場合も明記）。
 
 > **大前提（ソリューション運用）**: Dataverse テーブル・Code Apps・Power Automate・Copilot Studio は同一ソリューション内に開発し、`.env` の `SOLUTION_NAME` / `PUBLISHER_PREFIX` を全フェーズで統一する。詳細は [`standard` スキル](../standard/SKILL.md)。
@@ -164,22 +170,29 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
    → オフの場合: CodeAppOperationNotAllowedInEnvironment (403) エラー
 
 2. npm CLI のアクティブアカウントが対象テナント用
-  npx power-apps auth-status
-  npx power-apps auth-switch --account user@contoso.com
+  npx pa auth status
+  npx pa auth switch --account user@contoso.com
 
-3. power.config.json は npx power-apps init で生成する
+3. power.config.json は npx pa app init で生成する
    → テンプレートから手動コピーしない
    → 別環境の appId が残っていると: AppLeaseMissing (409) エラー
-  → 新規環境では必ず npx power-apps init で新規生成
+  → 新規環境では必ず npx pa app init で新規生成
 ```
+
+> [!IMPORTANT]
+> **CLI の実行ファイル名は `pa`**。`@microsoft/power-apps-cli` は bin を `power-apps` から **`pa`** にリネームし、
+> コマンドも group 化した（`init` → `app init`、`push` → `app push`、`auth-status` → `auth status`）。
+> 旧名を呼ぶと `npm error could not determine executable to run` だけが出て原因が見えない。
+> `npm run predeploy`（チェック 11）が package.json のデプロイコマンドとインストール済み bin 名の不一致を検出する。
+> 全コマンドの対応表は [npm CLI リファレンス](references/cli-reference.md)。
 
 ### プロジェクトの 3 つの生成段階（生成物は手動作成・コピー禁止）
 
 | 生成元 | 主な生成物 |
 |---|---|
 | ① テンプレート scaffold | `vite.config.ts` / `plugins/` / `styles/` / `src/` / `tsconfig*` / `package.json` 一式 |
-| ② `npx power-apps init` | `power.config.json`（＋ `.power/`）。`vite.config.ts` や `plugins/` は生成**しない** |
-| ③ `npx power-apps add-data-source --api-id shared_commondataserviceforapps` | `.power/schemas/appschemas/dataSourcesInfo.ts` / `src/generated/services/MicrosoftDataverseService.ts` / `src/generated/models/MicrosoftDataverseModel.ts` |
+| ② `npx pa app init` | `power.config.json`（＋ `.power/`）。`vite.config.ts` や `plugins/` は生成**しない** |
+| ③ `npx pa app add data-source --connector shared_commondataserviceforapps` | `.power/schemas/appschemas/dataSourcesInfo.ts` / `src/generated/services/MicrosoftDataverseService.ts` / `src/generated/models/MicrosoftDataverseModel.ts` |
 
 > どのファイルを誰が生成し、何をカスタマイズしてよいかの一覧は [ビルドリファレンス](references/build-reference.md)。SDK 管理ファイル（`power.config.json` / `dataSourcesInfo.ts` / `src/generated/`）は手動編集禁止。
 
@@ -211,8 +224,8 @@ Application Insights 等へ転送する場合は custom sink と CSP の `connec
 # （npm install はネットワーク待ちのみで Dataverse 構築をブロックしないため、待たずに並行実行する）。
 # VS Code では本トラック全体を「Code Apps サブエージェント」として並行起動できる。
 # 先行工程（scaffold / init / 初回 build & push）はテーブル不要。以下は Dataverse 接続情報の準備を待つ同期点:
-#   ★同期①: shared_commondataserviceforapps の connectionId / orgUrl が揃ったら add-data-source を 1 回実行
-#   ★同期②: power-apps add-flow は Power Automate Phase 5（フロー実装）完了後に実行
+#   ★同期①: shared_commondataserviceforapps の connectionId / orgUrl が揃ったら add data-source を 1 回実行
+#   ★同期②: pa app add flow は Power Automate Phase 5（フロー実装）完了後に実行
 # 詳細は standard §8「開発フロー全体図」を参照。
 cp -n .github/skills/standard/references/gitignore-template .gitignore   # .gitignore がなければコピー
 # scaffold の取得元は templates/generic-base のみ（samples/geek-* は業務ページ実装の参照専用）
@@ -222,7 +235,7 @@ npm install --no-audit --no-fund
 # 既存プロジェクトを更新するときは SDK / CLI とも latest を候補にし、build と CLI help を再検証する
 npm install @microsoft/power-apps@latest
 npm install -D @microsoft/power-apps-cli@latest
-npx power-apps --help
+npx pa --help          # ★ bin 名は pa。コマンドは auth / app / connector / connection / solution の group 制
 npm run build
 # バージョン方針と検証項目: references/cli-reference.md#バージョン方針
 
@@ -234,9 +247,9 @@ python .github/skills/code-apps/scripts/setup_connection_reference.py
 #   → 詳細は references/solution-alm.md
 
 # Step 2: npm CLI の認証先を確認して初期化
-npx power-apps auth-status
-npx power-apps auth-switch --account user@contoso.com
-npx power-apps init --environment-id {ENVIRONMENT_ID} --display-name "AppName"
+npx pa auth status
+npx pa auth switch --account user@contoso.com
+npx pa app init --environment-id {ENVIRONMENT_ID} --display-name "AppName" --app-type CodeApp
 
 # Step 3: vite.config.ts 必須設定を確認（base: "./" / external に @microsoft/power-apps を含めない）
 #         → references/build-reference.md Step 2
@@ -244,15 +257,14 @@ npx power-apps init --environment-id {ENVIRONMENT_ID} --display-name "AppName"
 # Step 4: .env.example を .env にコピーしてテーマ固有の値を設定
 
 # Step 5: 初回ビルド＆デプロイ — ★必ず -s を付ける（almMode が Solution になるのは初回 push だけ）
-#         CLI 1.0.0 では --environment-id を指定できる。誤デプロイ防止のため対象環境を明示する
+#         対象環境は power.config.json の environmentId を使う（push には --environment-id が無い）
 npm run build
-npx power-apps push --environment-id {ENVIRONMENT_ID} --solution-id {SOLUTION_ID}
+npx pa app push --solution-id {SOLUTION_ID}
 
 # Step 6: Dataverse コネクタを 1 回追加（全テーブル共通・接続参照バインド）
-npx power-apps add-data-source --api-id shared_commondataserviceforapps \
-  -cr {CONNECTION_REFERENCE_LOGICAL_NAME} \
-  -s {SOLUTION_ID} \
-  --resource-name commondataserviceforapps \
+npx pa app add data-source --connector shared_commondataserviceforapps \
+  --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
+  --solution-id {SOLUTION_ID} \
   --org-url {DATAVERSE_URL} \
   --non-interactive
 
@@ -263,25 +275,25 @@ npm run predeploy
 
 # 再ビルド＆デプロイ（反復）
 npm run build
-npx power-apps push
+npx pa app push
 
 # Step 8: 最終 push 後に共有（カンマ区切りで複数指定可）
-npx power-apps share --environment-id {ENVIRONMENT_ID} \
-  --principal "${CODE_APP_PLAY_PRINCIPALS}" \
+#   共有先環境は power.config.json で決まる（share に --environment-id は無い）
+npx pa app share --principal "${CODE_APP_PLAY_PRINCIPALS}" \
   --access play --non-interactive --json
 ```
 
 共有対象のユーザー／サービスプリンシパル、`edit` の最小権限ルール、CI/CD 例は
-[npm CLI リファレンスの `share`](references/cli-reference.md#share)を参照する。
+[npm CLI リファレンスの `app share`](references/cli-reference.md#app-share)を参照する。
 
-> **Step 5 の `--solution-id` は後戻りできない**: 初回の `power-apps push --solution-id` がアプリを `almMode: Solution` にするのは
+> **Step 5 の `--solution-id` は後戻りできない**: 初回の `pa app push --solution-id` がアプリを `almMode: Solution` にするのは
 > **`appId` 未割当の初回 push のみ**。`almMode: Environment` で作ってしまったアプリは、後から `-s` を付けて
 > push してもソリューションに入らず、Power Apps ポータルの「既存の追加 → アプリ → コード アプリ」でしか
 > 復旧できない。詳細は [ソリューション ALM リファレンス](references/solution-alm.md)。
 
 > **`-s` に渡す値は CLI で違う**: `pac code push -s` はソリューション**名**だが、
-> `npx power-apps push -s` は **GUID** を要求する（CLI 0.13.0 で GUID 検証が入り、名前はエラーになった）。
-> 詳細は [ソリューション ALM](references/solution-alm.md#npm-cli-npx-power-apps-push-の場合は-guid-を渡す)。
+> `npx pa app push -s` は **GUID** を要求する（CLI 0.13.0 で GUID 検証が入り、名前はエラーになった）。
+> 詳細は [ソリューション ALM](references/solution-alm.md)。
 
 > **インポート／ラッパーの必須パターン**: 生成された `MicrosoftDataverseService` を薄いラッパーで包み、`ListRecordsWithOrganization` / `CreateRecordWithOrganization` / `GetItemWithOrganization` / `UpdateRecordWithOrganization` / `DeleteRecordWithOrganization` に **Dataverse URL（organization）を必ず渡す**。`organization` を省略すると `Invalid organization URL 'null' provided` で失敗する。詳細は [ビルドリファレンス](references/build-reference.md) を参照。
 
@@ -290,13 +302,13 @@ npx power-apps share --environment-id {ENVIRONMENT_ID} \
 | コマンド | 認証基盤 | テナント問題 | 推奨度 |
 |---|---|---|---|
 | `python scripts/setup_connection_reference.py` | auth_helper（PAC プロファイル再利用） | なし | ✅ 標準（init の前に実行） |
-| `npx power-apps auth-status` / `auth-switch --account {UPN}` | Power Apps npm CLI | アクティブアカウントを明示 | ✅ テナント切り替え時に必須 |
-| `npx power-apps init --environment-id {ID} --display-name "Name"` | Power Apps npm CLI | 上記で確認 | ✅ 標準 |
-| `npx power-apps push --environment-id {ID} --solution-id {GUID}` | Power Apps npm CLI | 上記で確認 | ✅ 標準（**初回から GUID 必須**） |
-| `npx power-apps add-data-source --api-id shared_commondataserviceforapps -cr {CR} -s {SOLUTION_ID} --resource-name commondataserviceforapps --org-url {url}` | Power Apps npm CLI + 接続参照 | `npx power-apps login` が別キャッシュ | ✅ 標準（ALM 対応） |
-| `npx power-apps add-data-source ... --connection-id {id}` | Power Apps npm CLI + 接続 | 同上 | △ ソリューションに入らない（PoC のみ） |
+| `npx pa auth status` / `pa auth switch --account {UPN}` | Power Apps npm CLI | アクティブアカウントを明示 | ✅ テナント切り替え時に必須 |
+| `npx pa app init --environment-id {ID} --display-name "Name" --app-type CodeApp` | Power Apps npm CLI | 上記で確認 | ✅ 標準 |
+| `npx pa app push --solution-id {GUID}` | Power Apps npm CLI | 上記で確認 | ✅ 標準（**初回から GUID 必須**。環境は power.config.json から） |
+| `npx pa app add data-source --connector shared_commondataserviceforapps --connection-ref {CR} --solution-id {GUID} --org-url {url}` | Power Apps npm CLI + 接続参照 | `pa auth` が別キャッシュ | ✅ 標準（ALM 対応） |
+| `npx pa app add data-source ... --connection-id {id}` | Power Apps npm CLI + 接続 | 同上 | △ ソリューションに入らない（PoC のみ） |
 | `pac code *` | PAC CLI プロファイル | npm CLI と別キャッシュ | △ npm CLI で解決できない場合のみの移行時代替 |
-| `npm run deploy -- --solution-id {GUID}` | Power Apps npm CLI | auth-switch で切り替え | ✅ 初回デプロイに推奨（predeploy チェック付き） |
+| `npm run deploy -- --solution-id {GUID}` | Power Apps npm CLI | auth switch で切り替え | ✅ 初回デプロイに推奨（predeploy チェック付き） |
 
 ### CI/CD・秘匿化（チーム開発で継続的にデプロイする場合）
 
@@ -360,31 +372,34 @@ python scripts/review_report.py --verdict-dir .gate --out .gate/review-report.md
 
 ### 正常系: Microsoft Dataverse connector（`shared_commondataserviceforapps`）
 
-Dataverse 接続は **`shared_commondataserviceforapps` を 1 回だけ追加する方式を標準**とする。これにより、テーブルごとに `add-data-source` を繰り返さなくても、生成された `MicrosoftDataverseService` から `entityName` を実行時に渡して全テーブルへ CRUD できる。
+Dataverse 接続は **`shared_commondataserviceforapps` を 1 回だけ追加する方式を標準**とする。これにより、テーブルごとに `add data-source` を繰り返さなくても、生成された `MicrosoftDataverseService` から `entityName` を実行時に渡して全テーブルへ CRUD できる。
 
-`npx power-apps add-data-source --api-id shared_commondataserviceforapps` を 1 回実行すると、`.power/schemas/appschemas/dataSourcesInfo.ts` に加え `src/generated/services/MicrosoftDataverseService.ts` と `src/generated/models/MicrosoftDataverseModel.ts` が生成される。アプリ側ではこの生成サービスを薄いラッパーで包み、`organization` に対象環境の Dataverse URL を明示的に渡す。
+`npx pa app add data-source --connector shared_commondataserviceforapps` を 1 回実行すると、`.power/schemas/appschemas/dataSourcesInfo.ts` に加え `src/generated/services/MicrosoftDataverseService.ts` と `src/generated/models/MicrosoftDataverseModel.ts` が生成される。アプリ側ではこの生成サービスを薄いラッパーで包み、`organization` に対象環境の Dataverse URL を明示的に渡す。
 
-バインド先は **接続 ID ではなく接続参照（`-cr`）を標準**とする。接続はソリューション コンポーネントになれないが、接続参照はなれるため、環境間移送ができる。
+バインド先は **接続 ID ではなく接続参照（`--connection-ref`）を標準**とする。接続はソリューション コンポーネントになれないが、接続参照はなれるため、環境間移送ができる。
 
 ```bash
 # Step 1 で作成済みの接続参照にバインドする
-npx power-apps add-data-source --api-id shared_commondataserviceforapps \
-  -cr {CONNECTION_REFERENCE_LOGICAL_NAME} \
-  -s {SOLUTION_ID} \
-  --resource-name commondataserviceforapps \
+npx pa app add data-source --connector shared_commondataserviceforapps \
+  --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
+  --solution-id {SOLUTION_ID} \
   --org-url {DATAVERSE_URL} \
   --non-interactive
 ```
 
-接続参照にしても **「1 回の追加で全テーブルをカバーする」設計は変わらない**（`--resource-name` はコネクタ単位。生成ファイル 2 つ・生成メソッド同一・アプリコード変更不要）。`power.config.json` には `xrmConnectionReferenceLogicalName` が 1 行追加されるだけである。検証結果と確認コマンドは [ソリューション ALM リファレンス](references/solution-alm.md)。
+接続参照にしても **「1 回の追加で全テーブルをカバーする」設計は変わらない**（`--connector` はコネクタ単位。生成ファイル 2 つ・生成メソッド同一・アプリコード変更不要）。`power.config.json` には `xrmConnectionReferenceLogicalName` が 1 行追加されるだけである。検証結果と確認コマンドは [ソリューション ALM リファレンス](references/solution-alm.md)。
 
-> **接続参照は CLI では作れない**: `-cr` に未存在の論理名を渡すと
+> **接続参照は CLI では作れない**: `--connection-ref` に未存在の論理名を渡すと
 > `Failed to resolve connection ID for reference '...'` で失敗する（自動作成されない）。
 > ポータル手作業を避けるため、Step 1 の
 > [setup_connection_reference.py](scripts/setup_connection_reference.py)（Dataverse Web API）を標準とする。
 
-> **PoC やソリューション不要の場合のみ**、`-cr {CR} -s {SOLUTION_ID}` を
-> `--connection-id {DATAVERSE_CONNECTION_ID}`（`npx power-apps list-connections` で取得）に置き換えてもよい。
+> **`add data-source` に `--environment-id` は渡せない**: `--help` には載っているが実際には
+> `error: unknown option '--environment-id'` で拒否される。対象環境は `power.config.json` から読まれる。
+> 同じく `pa app push` も `-e` / `--environment-id` を拒否する。
+
+> **PoC やソリューション不要の場合のみ**、`--connection-ref {CR} --solution-id {SOLUTION_ID}` を
+> `--connection-id {DATAVERSE_CONNECTION_ID}`（`npx pa connection list` で取得）に置き換えてもよい。
 > ただしそのデータソースはソリューションに入らず、環境間移送できない。
 
 Lookup 列の書き込みは従来どおり `parentcustomerid_account@odata.bind` のような `@odata.bind` 形式を使う。`organization` を省略した通常メソッドは `Invalid organization URL 'null' provided` で失敗しやすいため、`*WithOrganization` 系メソッドを使う。
@@ -454,6 +469,16 @@ SDK 生成サービスは Lookup 名フィールド（`createdbyname` 等）を�
 
 → 詳細: **[ステージ矢羽パターン](references/stage-path-pattern.md)**
 
+### 使い方ガイド（オンボーディング）— 全アプリ標準
+
+**画面が 3 つ以上あるアプリには、指示がなくても使い方ガイドを実装する。** 初回起動時にカルーセル（4〜6 枚）を自動表示し、「使い方を見る」で**実際の画面を操作しながら案内するツアー**へ繋ぐ。2 回目以降はサイドバー／ヘッダーのボタンから任意に開く。
+
+- 定義は `src/guide-config.ts` の `GUIDE_SLIDES` / `TOUR_STEPS` に集約し、画面側は `data-tour="..."` を足すだけにする
+- Context とフックは `guide-context.ts`（`.ts`）に分離する。`guide-provider.tsx` に混ぜると `react-refresh/only-export-components` で lint が落ちる
+- `autoClick` に削除・送信など破壊的操作を指定しない
+
+→ 詳細: **[使い方ガイドパターン](references/onboarding-guide-pattern.md)**
+
 ### scaffold 時に含めないファイル
 
 scaffold の取得元は **[templates/generic-base](templates/generic-base/)** のみとする。
@@ -520,7 +545,7 @@ SDK の破壊的変更への追従は、この 1 ファイルを直して `pytho
 
 ### Power Automate フロー統合
 
-フロー追加は `npx power-apps add-flow --flow-id {id}` を使う（`add-data-source --api-id logicflows` は旧方式）。
+フロー追加は `npx pa app add flow --flow-id {id}` を使う（`add data-source --connector logicflows` は旧方式）。
 Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 配列の最初の要素を取得する。
 502 タイムアウト対策としてローカル検索へのフォールバックを必ず実装する。
 
@@ -538,6 +563,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [デザインシステム](references/design-pattern.md) | Tailwind CSS v4 のコンポーネント選定・画面設計パターン |
 | [コンポーネントカタログ](references/component-catalog.md) | 全コンポーネントの詳細仕様・使用例 |
 | [ステージ矢羽パターン](references/stage-path-pattern.md) | OptionSet（ステージ／ステータス）を Salesforce 風の矢羽で可視化・クリックで変更 |
+| [使い方ガイドパターン](references/onboarding-guide-pattern.md) | 初回起動のカルーセル＋実操作ツアー（`data-tour` 属性・localStorage 初回判定・スポットライト・全アプリ標準） |
 | [月間カレンダーパターン](references/calendar-pattern.md) | 日付を持つレコードを月間グリッドで俯瞰（date-fns のみ・依存追加なし・イベントチップ・今日ハイライト） |
 | [ウィザードフォームパターン](references/wizard-form-pattern.md) | 入力項目の多いフォームを複数ステップに分割（ステップインジケーター・ステップ別バリデーション・確認画面） |
 | [CSV エクスポートパターン](references/csv-export-pattern.md) | フィルター適用後の一覧を UTF-8 BOM 付き CSV でダウンロード（Excel 日本語対応・OptionSet ラベル変換） |
@@ -573,11 +599,11 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 
 | スクリプト | 用途 |
 |---|---|
-| [check_code_apps_environment.py](scripts/check_code_apps_environment.py) | マネージド環境 / Code Apps 許可の前提条件を確認（`power-apps init` の前に実行） |
+| [check_code_apps_environment.py](scripts/check_code_apps_environment.py) | マネージド環境 / Code Apps 許可の前提条件を確認（`pa app init` の前に実行） |
 | [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
 | [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` / モック実行基盤の本番混入を検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |
 | [inspect_table_metadata.py](scripts/inspect_table_metadata.py) | 既存テーブルの EntitySetName / 主キー / 列 / 参照先 / 選択肢を調査（既存テーブル接続時は実装前に必須） |
-| [validate_cli_reference.py](scripts/validate_cli_reference.py) | テンプレート採用版の `power-apps share --help` と CLI リファレンスの主要オプション・実行例が一致することを検証 |
+| [validate_cli_reference.py](scripts/validate_cli_reference.py) | テンプレート採用版の `pa app share --help` と CLI リファレンスの主要オプション・実行例が一致することを検証 |
 | [validate_sample.py](scripts/validate_sample.py) | `samples/` 配下の完全性と generic-base のテレメトリ契約を検証（必須ファイル・import 先の実在・秘匿情報・SDK の使い方） |
 | [sync_dataverse_client.py](scripts/sync_dataverse_client.py) | [templates/dataverse-client.ts](templates/dataverse-client.ts) を `samples/` 配下の全コピーへ反映（SDK の破壊的変更への追従はこの 1 ファイルを直して配布） |
 | [scaffold_from_cache.ps1](scripts/scaffold_from_cache.ps1) | キャッシュからのテンプレート scaffold |

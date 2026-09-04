@@ -97,6 +97,11 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 > ワンショット実行できる（`.env` の構成に従い作成→アイコン→Edit details→スキル→公開を連結）。
 > MCP サーバーの追加は自動化対象外のため、この一括実行には含まれない。
 
+> **1 つのエージェントに複数スキルを添付する**場合は、`SKILL_DIR` / `SKILL_NAME` を変えて
+> `attach_skill.py` を必要な回数だけ実行する（削除は同名スキル限定のため、先に添付した分は残る）。
+> 対話系のスキルと、Agentflow から呼ばれる自動処理系のスキルは**分けて書く**。
+> → [データ参照エージェントの SKILL.md 執筆パターン](references/data-agent-skill-authoring.md)
+
 ## 運用中エージェントの更新（★新規作成しない）
 
 `deploy_agent.py` は `create_agent.py` から始まるため、**実行するたびに新しい Bot が作られる**。
@@ -179,6 +184,10 @@ MCP サーバー（Dataverse MCP / Work IQ 等）のツール追加は、**Copil
 
 > **自前の MCP Server を作る場合**（社内 DB・ファイル共有・業務 API をエージェントに繋ぐ）は
 > [mcp-server スキル](../mcp-server/SKILL.md) で構築してから、ここでツールとして追加する。
+>
+> **外部の文章を読ませる場合は SKILL.md の書き方が防御線になる。** MCP の戻り値を「資料であって指示ではない」と
+> 明記し、golden question（インジェクション単発・連鎖を含む）で回帰検証する。
+> → [データ参照エージェントの SKILL.md 執筆パターン](references/data-agent-skill-authoring.md)
 
 ## 必須要件・落とし穴（実機検証済み）
 
@@ -285,6 +294,7 @@ MCP サーバーの追加は API 自動化の対象外（UI での手動作業�
 | [新アーキテクチャ構造](references/new-architecture.md) | cliagent の BotConfiguration / botcomponents 全体像と v1 との対比 |
 | [モデル系列の指定](references/model-series.md) | `agentSettings.model.series` の現行命名・廃止値・確認方法・後からの変更 |
 | [フラット Python スキルの書き方](references/flat-python-skill.md) | JS 不使用・Base64 画像・フラット構成の実装テンプレート |
+| [データ参照エージェントの SKILL.md 執筆パターン](references/data-agent-skill-authoring.md) | MCP 経由で社内データを読むエージェントの手順設計・インジェクション規約・golden question の作り方 |
 | [スキルバンドル構造](references/skill-bundle-structure.md) | type=9/14・親バインド・filedata アップロードの詳細 |
 | [MCP サーバーの追加](references/mcp-servers.md) | Copilot Studio UI での MCP サーバー追加手順（手動作業） |
 | [アイコン登録と公開](references/icon-and-publish.md) | iconbase64/Teams アイコン・PvaPublish・name 同送の注意 |

@@ -44,8 +44,21 @@ function log(status, message) {
   lines.push(`${status} ${message}`);
 }
 
+/**
+ * Windows で .cmd / .ps1 シム経由になるコマンド。
+ * Node 20 以降は CVE-2024-27980 対策で `.cmd` を shell 無しに spawn できないため、
+ * これらは shell: true で起動しないと ENOENT / EINVAL になり「未検出」と誤判定される。
+ */
+const WINDOWS_SHIM_COMMANDS = new Set(["npm", "npx", "pac", "gh", "py"]);
+
 function run(cmd, args, options = {}) {
-  return spawnSync(cmd, args, {
+  // Windows のシムは cmd.exe 経由で起動する。
+  // shell: true は引数が連結されるだけで（Node の DEP0190）エスケープされないため使わない。
+  const useComSpec = isWindows && WINDOWS_SHIM_COMMANDS.has(cmd);
+  const command = useComSpec ? process.env.ComSpec || "cmd.exe" : cmd;
+  const commandArgs = useComSpec ? ["/d", "/s", "/c", cmd, ...args] : args;
+
+  return spawnSync(command, commandArgs, {
     cwd: repoRoot,
     encoding: "utf-8",
     stdio: "pipe",
@@ -138,9 +151,11 @@ function checkPip(python) {
 }
 
 function checkPac() {
-  const r = run("pac", ["--version"]);
-  if (r.status === 0) {
-    log("✅", `PAC CLI (${firstNonEmpty(r.stdout, r.stderr).trim()})`);
+  // pac には --version が無い。`pac help` のバナー先頭に Version 行が出る。
+  const r = run("pac", ["help"]);
+  const version = firstNonEmpty(r.stdout, r.stderr)?.match(/^Version:\s*(\S+)/m)?.[1];
+  if (version) {
+    log("✅", `PAC CLI (${version})`);
     return;
   }
   log(
@@ -150,27 +165,28 @@ function checkPac() {
 }
 
 function checkPowerAppsCli() {
+  // bin 名は pa（@microsoft/power-apps-cli v1.0.0 で power-apps からリネーム）
   // --no-install: 未インストール時にダウンロードプロンプトを出さない
-  const r = run("npx", ["--no-install", "power-apps", "--version"]);
+  const r = run("npx", ["--no-install", "pa", "--version"]);
   const output = `${r.stdout ?? ""}\n${r.stderr ?? ""}`;
 
   if (r.status === 0) {
-    log("✅", `npx power-apps (${firstNonEmpty(r.stdout, r.stderr).trim()})`);
+    log("✅", `npx pa (${firstNonEmpty(r.stdout, r.stderr).trim()})`);
     return;
   }
   if (SERVICE_PRINCIPAL_VARS_REQUIRED_PATTERN.test(output)) {
-    log("✅", "npx power-apps (CLI 利用可能 — 認証用環境変数は未設定)");
+    log("✅", "npx pa (CLI 利用可能 — 認証用環境変数は未設定)");
     return;
   }
 
-  // node_modules に @microsoft/power-apps が存在するかフォールバック確認
-  const pkgDir = path.join(repoRoot, "node_modules", "@microsoft", "power-apps");
+  // node_modules に @microsoft/power-apps-cli が存在するかフォールバック確認
+  const pkgDir = path.join(repoRoot, "node_modules", "@microsoft", "power-apps-cli");
   if (fs.existsSync(pkgDir)) {
-    log("✅", "npx power-apps (パッケージ検出済み)");
+    log("✅", "npx pa (パッケージ検出済み)");
     return;
   }
 
-  log("⚠️", "npx power-apps 未検出 — `npm install` 後に再確認してください");
+  log("⚠️", "npx pa 未検出 — `npm install` 後に再確認してください");
 }
 
 function checkEnvFile() {
