@@ -48,6 +48,12 @@ export function validateSandboxCommand(command) {
     return validTargets ? { valid: true, runtime: 'python' } : { valid: false, reason: 'python targets are not allowed' };
   }
 
+  if (executable === 'python' && args[0] === '-c' && args.length === 2) {
+    const diagnostic = args[1];
+    const allowed = diagnostic.length > 0 && diagnostic.length <= 4000 && !/[\r\n\0]/.test(diagnostic);
+    return allowed ? { valid: true, runtime: 'python' } : { valid: false, reason: 'python diagnostic is not allowed' };
+  }
+
   if (executable === 'python' && args.length === 1 && isSafeRelativePath(args[0])) {
     const target = args[0].replaceAll('\\', '/');
     const allowed = /(^|\/)(test_[^/]+|validate_[^/]+)\.py$/.test(target) || target.startsWith('.agent/repro/');

@@ -21,5 +21,6 @@ Allowed commands are limited to:
 - `node --test <repository *.test.mjs>`
 - `python <test_*.py, validate_*.py, or .agent/repro path>`
 - `python -m unittest <safe relative paths>`
+- `python -c <single-line diagnostic up to 4000 characters>`
 
-Use argument arrays, never shell syntax. Do not use package installation, deployment, Git, GitHub CLI, curl, PowerShell, Bash, environment inspection, external URLs, or generated test files. If the report cannot be reproduced directly, choose the closest safe existing validation that helps establish whether a code change is justified.
+Use argument arrays, never shell syntax. A `python -c` diagnostic may read repository files and assert deterministic facts, but must not inspect environment variables, spawn processes, or attempt network access. Do not use package installation, deployment, Git, GitHub CLI, curl, PowerShell, Bash, environment inspection, external URLs, or generated test files. If the report cannot be reproduced directly, choose the closest safe existing validation that helps establish whether a code change is justified.
