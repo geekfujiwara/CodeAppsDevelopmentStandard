@@ -11,7 +11,9 @@
 | **対話 + 外部連携**     | Copilot Studio + MCP Server / コネクタ                   | メール処理、ドキュメント分析          |
 | **基幹データ + エージェント** | 自前 MCP Server（Azure Functions）+ Copilot Studio v2 スキル または Cowork プラグイン | Dataverse に無い既存の基幹 DB / ファイルサーバー / 業務 API を、移行せず読み取りだけエージェントへ公開（→ [パターン G](#パターン-g-自前-mcp-server--copilot-studio-v2--cowork)） |
 | **対話 + 定期実行**     | Copilot Studio + Power Automate（スケジュールトリガー）  | ニュース配信、定期レポート            |
-| **対話 + イベント駆動** | Copilot Studio + Power Automate（メール/Teams トリガー） | メール自動応答、問い合わせ対応        || **Dataverse イベント駆動 + v2 エージェント（新）** | Copilot Studio v2 ワークフロー（Agentflow: Dataverse トリガー + エージェント ノード） | レコード作成/更新を契機にした自動要約・分類・重複判定・未承認ナレッジ生成（Power Automate 不要、v2 スキルと同一アーキテクチャで完結） || **AI 分析 + 対話**      | AI Builder + Copilot Studio                              | ドキュメント分類 + 対話で結果説明     |
+| **対話 + イベント駆動** | Copilot Studio + Power Automate（メール/Teams トリガー） | メール自動応答、問い合わせ対応        |
+| **Dataverse イベント駆動 + v2 エージェント（新）** | Copilot Studio v2 ワークフロー（Agentflow: Dataverse トリガー + エージェント ノード） | レコード作成/更新を契機にした自動要約・分類・重複判定・未承認ナレッジ生成（Power Automate 不要、v2 スキルと同一アーキテクチャで完結） |
+| **AI 分析 + 対話**      | AI Builder + Copilot Studio                              | ドキュメント分類 + 対話で結果説明     |
 | **外部ポータル + データ操作** | Power Pages + Dataverse + Power Automate            | 顧客向けポータル、パートナーサイト、公開フォーム |
 | **フルスタック**        | Dataverse + Code Apps + Power Automate + Copilot Studio  | 業務アプリ + 自動化 + AI アシスタント |
 
