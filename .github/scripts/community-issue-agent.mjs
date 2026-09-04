@@ -268,6 +268,9 @@ async function finalizeReview(issueNumber) {
     REJECTED_INPUT: ['decision:rejected-input', 'b60205', 'Input was rejected by the safety policy'],
   };
   const [name, color, description] = names[decision.decision];
+  for (const [otherDecision, [otherName]] of Object.entries(names)) {
+    if (otherDecision !== decision.decision) await removeLabel(issueNumber, otherName);
+  }
   await addLabels(issueNumber, [{ name, color, description }]);
   await removeLabel(issueNumber, 'agent:reviewing');
   if (decision.decision === 'NEEDS_INFO' || decision.decision === 'OWNER_REVIEW' || decision.decision === 'REJECTED_INPUT') {
@@ -319,6 +322,7 @@ async function escalate(issueNumber, reason) {
     method: 'POST',
     body: JSON.stringify({ assignees: ['geekfujiwara'] }),
   });
+  await removeLabel(issueNumber, 'agent:reviewing');
   if (process.env.GITHUB_STEP_SUMMARY) {
     await writeFile(process.env.GITHUB_STEP_SUMMARY, `Owner review required: ${String(reason).slice(0, 2000)}\n`, { flag: 'a' });
   }
