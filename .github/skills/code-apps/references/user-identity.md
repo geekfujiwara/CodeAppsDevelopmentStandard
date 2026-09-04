@@ -21,10 +21,9 @@ Code Apps では `Xrm` オブジェクトや `fetch()` が使えない（CSP 制
 ### 前提: Dataverse コネクタをデータソースに追加
 
 ```bash
-npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+npx pa app add data-source --connector shared_commondataserviceforapps \
   --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
   --solution-id {SOLUTION_ID} \
-  --resource-name commondataserviceforapps \
   --org-url {DATAVERSE_URL} \
   --non-interactive
 ```

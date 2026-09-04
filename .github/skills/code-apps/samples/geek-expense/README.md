@@ -15,7 +15,7 @@ Power Automate 承認フロー連携と Copilot Studio 連携をオプション�
 1. 共通 `.env.example`（standard/references）を `.env` にコピーして共通設定を入力
 2. `samples/geek-expense/.env.example` の内容を `.env` に追記
 3. 機能フラグ（`VITE_FEATURE_*`）を用途に合わせて設定
-4. `npx power-apps init` + `npx power-apps add-data-source` でデータソースを追加
+4. `npx pa app init` + `npx pa app add data-source` でデータソースを追加
 5. `npm run dev` で動作確認
 
 ## カスタマイズポイント
@@ -44,13 +44,12 @@ python scripts/setup_dataverse.py
 # データソースの追加
 python scripts/toggle_table_lang.py en
 npm install --no-audit --no-fund
-npx power-apps auth-status
-npx power-apps auth-switch --account {UPN}
-npx power-apps init --environment-id ${ENV_ID} --display-name "経費精算管理"
-npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+npx pa auth status
+npx pa auth switch --account {UPN}
+npx pa app init --environment-id ${ENV_ID} --display-name "経費精算管理"
+npx pa app add data-source --connector shared_commondataserviceforapps \
   --connection-ref ${CONNECTION_REFERENCE_LOGICAL_NAME} \
   --solution-id ${SOLUTION_ID} \
-  --resource-name commondataserviceforapps \
   --org-url ${DATAVERSE_URL} \
   --non-interactive
 python scripts/toggle_table_lang.py jp

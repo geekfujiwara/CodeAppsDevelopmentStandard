@@ -17,7 +17,7 @@ IT機器・備品の台帳管理・貸出管理・廃棄申請・棚卸を一元
 
 `{prefix}` は `PUBLISHER_PREFIX` の値（例: `PUBLISHER_PREFIX=myco` → `myco_asset`）
 
-### カスタムテーブル（`npx power-apps add-data-source` で追加）
+### カスタムテーブル（`npx pa app add data-source` で追加）
 
 | テーブル論理名 | 用途 |
 |---|---|
@@ -71,13 +71,12 @@ python scripts/setup_dataverse.py
 python scripts/toggle_table_lang.py en
 
 npm install --no-audit --no-fund
-npx power-apps auth-status
-npx power-apps auth-switch --account {UPN}
-npx power-apps init --environment-id ${ENV_ID} --display-name "資産管理ポータル"
-npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+npx pa auth status
+npx pa auth switch --account {UPN}
+npx pa app init --environment-id ${ENV_ID} --display-name "資産管理ポータル"
+npx pa app add data-source --connector shared_commondataserviceforapps \
   --connection-ref ${CONNECTION_REFERENCE_LOGICAL_NAME} \
   --solution-id ${SOLUTION_ID} \
-  --resource-name commondataserviceforapps \
   --org-url ${DATAVERSE_URL} \
   --non-interactive
 
@@ -88,7 +87,7 @@ python scripts/toggle_table_lang.py jp
 
 ```bash
 npm run dev      # ローカル開発
-npm run deploy -- --solution-id ${SOLUTION_ID}   # 初回: ビルド + power-apps push
+npm run deploy -- --solution-id ${SOLUTION_ID}   # 初回: ビルド + pa app push
 ```
 
 ## 機能フラグ詳細
@@ -102,9 +101,9 @@ npm run deploy -- --solution-id ${SOLUTION_ID}   # 初回: ビルド + power-app
 
 | ファイル | 理由 |
 |---|---|
-| `.power/` | `npx power-apps init` が生成する |
-| `src/generated/` | `npx power-apps add-data-source` が生成する |
-| `power.config.json` | `npx power-apps init` が環境ごとに生成する |
+| `.power/` | `npx pa app init` が生成する |
+| `src/generated/` | `npx pa app add data-source` が生成する |
+| `power.config.json` | `npx pa app init` が環境ごとに生成する |
 | `.env` | 環境固有。`.env.example` を参照 |
 | `node_modules/` | `npm install` で復元 |
 

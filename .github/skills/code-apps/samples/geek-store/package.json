@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "node scripts/pre-deploy-check.mjs",
-    "deploy": "npm run build && npm run predeploy && npx power-apps push"
+    "deploy": "npm run build && npm run predeploy && npx pa app push"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -33,11 +33,10 @@ Select-String -Path "src/generated/appschemas/dataSourcesInfo.ts" \
 # npm CLI で Dataverse コネクタを接続参照に追加する（手動追記禁止）
 # 日本語表示名エラーが出る場合は toggle_table_lang.py を使う
 python scripts/toggle_table_lang.py en
-npx power-apps auth-switch --account {UPN}
-npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+npx pa auth switch --account {UPN}
+npx pa app add data-source --connector shared_commondataserviceforapps \
   --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
   --solution-id {SOLUTION_ID} \
-  --resource-name commondataserviceforapps \
   --org-url {DATAVERSE_URL} \
   --non-interactive
 python scripts/toggle_table_lang.py jp
@@ -92,7 +91,7 @@ import { dataSourcesInfo } from "@/lib/dataSourcesInfo";
 ### 3. SDK 生成サービスのインポート元チェック
 
 `src/generated/services/` のサービスファイルが `../../lib/dataSourcesInfo` をインポートしていることを確認。
-**`npx power-apps add-data-source` でテーブル追加すると、SDK がサービスファイルを再生成し、
+**`npx pa app add data-source` でテーブル追加すると、SDK がサービスファイルを再生成し、
 インポート先が `../appschemas/dataSourcesInfo` に戻ることがある。**
 
 **チェック方法:**
@@ -393,7 +392,7 @@ const view = searchParams.get("view") ?? "all"
   ├─ ⑨ npm run build
   │     → TypeScript エラーがあれば修正
   │
-  └─ ⑩ npx power-apps push
+  └─ ⑩ npx pa app push
         → デプロイ完了
 ```
 
@@ -413,4 +412,4 @@ const view = searchParams.get("view") ?? "all"
 1. **最初にチェック**: `dataSourcesInfo` のインポート元（チェック②③④）
 2. コネクタが `dataSourcesInfo` 統合版に含まれているか確認
 3. `.power/schemas/appschemas/dataSourcesInfo.ts` にコネクタ定義があるか確認
-4. なければ `npx power-apps add-data-source --api-id microsoftcopilotstudio ...` で再追加
+4. なければ `npx pa app add data-source --connector microsoftcopilotstudio ...` で再追加

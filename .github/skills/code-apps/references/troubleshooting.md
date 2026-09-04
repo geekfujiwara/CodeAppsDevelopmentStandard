@@ -2063,4 +2063,138 @@ RadialBarChart で作った半円（スピードメーター）ゲージで、�
 程度に広げる。あわせて、2 カラムにする `grid-cols-[...]` のブレークポイントも `lg:` ではなく
 `xl:` にするなど、コンテナ幅とセットで見直す（狭い時は縦積みのままにして横スクロールを避ける）。
 
+---
+
+## 46. `npx power-apps` が `could not determine executable to run` になる
+
+### 症状
+
+これまで動いていた手順どおりに実行しても、どのサブコマンドでも同じエラーしか出ない。
+
+```
+npm error could not determine executable to run
+```
+
+`npm ls @microsoft/power-apps-cli` では CLI が正しくインストールされている。
+
+### 原因
+
+`@microsoft/power-apps-cli` 1.0.x で **bin 名が `power-apps` から `pa` にリネームされ、
+コマンドが group 化された**。`npx` は「そのパッケージの bin に旧名が無い」としか言えないため、
+エラーメッセージからは原因が読み取れない。
+
+| 旧 | 新 |
+|---|---|
+| `npx power-apps init` | `npx pa app init` |
+| `npx power-apps push` | `npx pa app push` |
+| `npx power-apps share` | `npx pa app share` |
+| `npx power-apps add-data-source` | `npx pa app add data-source` |
+| `npx power-apps auth-status` / `auth-switch` | `npx pa auth status` / `npx pa auth switch` |
+| `npx power-apps list-connections` | `npx pa connection list` |
+
+全対応表は [CLI リファレンスの旧コマンド対応表](cli-reference.md#旧コマンド対応表)。
+
+### 対処
+
+```bash
+npx pa --help        # bin 名と group 一覧を確認
+npx pa app --help    # app group のサブコマンドを確認
+```
+
+`package.json` の `scripts.deploy` を新コマンドへ更新する。
+
+```jsonc
+{
+  "scripts": {
+    "deploy": "npm run build && npm run predeploy && npx pa app push"
+  }
+}
+```
+
+### 恒久対策（実装済み）
+
+`scripts/pre-deploy-check.mjs` の**チェック 11** が、`node_modules/@microsoft/power-apps-cli/package.json`
+の `bin` キーを読み、`package.json` の `scripts.*` が呼んでいる `npx <name>` が実在する bin か、
+かつ `pa` の場合に `app` group が付いているかを検証して失敗させる。
+`npm run predeploy` を通せば、CLI を上げた直後にコマンド名の不一致を検出できる。
+
+---
+
+## 47. 生成された `MicrosoftDataverseService` に `GetNextPageWithOrganization` が無い
+
+### 症状
+
+CLI を 1.0.x に上げて `npx pa app add data-source` をやり直したあと、既存のページング処理がビルドできない。
+
+```
+error TS2551: Property 'GetNextPageWithOrganization' does not exist on type 'MicrosoftDataverseService'.
+```
+
+### 原因
+
+CLI 1.0.x の生成物から `GetNextPage*` 系のヘルパーメソッドが削除された。
+ページングは `ListRecordsWithOrganization` の **`$skiptoken` 引数**で行う設計に変わっている。
+
+`ListRecordsWithOrganization` は**位置引数**である点に注意する。
+
+```ts
+ListRecordsWithOrganization(
+  organization, entityName, prefer?, accept?, x_ms_odata_metadata_full?,
+  MSCRM_IncludeMipSensitivityLabel?, $select?, $filter?, $orderby?, $expand?,
+  fetchXml?, $top?, $skiptoken?, partitionId?
+)
+```
+
+### 対処
+
+`@odata.nextLink` から `$skiptoken` を取り出して次ページを要求するループを、薄いラッパーとして実装する。
+無限ループを避けるため上限ページ数と「トークンが変化しなければ打ち切る」条件を必ず入れる。
+
+```ts
+// src/data/dataverse-client.ts
+const MAX_PAGES = 20;
+
+function readSkipToken(nextLink: string | undefined): string | null {
+  if (!nextLink) return null;
+  return new URL(nextLink, ORGANIZATION).searchParams.get("$skiptoken");
+}
+
+export async function listAll(
+  entitySetName: string,
+  options: { select?: string; filter?: string; orderBy?: string; top?: number } = {},
+): Promise<Record<string, unknown>[]> {
+  const rows: Record<string, unknown>[] = [];
+  let skipToken: string | undefined;
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const res = await MicrosoftDataverseService.ListRecordsWithOrganization(
+      ORGANIZATION,
+      entitySetName,
+      PREFER_FORMATTED,
+      undefined,
+      undefined,
+      undefined,
+      options.select,
+      options.filter,
+      options.orderBy,
+      undefined,
+      undefined,
+      options.top,
+      skipToken,
+    );
+
+    rows.push(...(res.data?.value ?? []));
+
+    const next = readSkipToken(res.data?.["@odata.nextLink"] as string | undefined);
+    if (!next || next === skipToken) break;
+    skipToken = next;
+  }
+
+  return rows;
+}
+```
+
+> `GetOrganizations` / `GetMetadata*` / `GetEntities*` など、他の探索系ヘルパーも同様に削除されている。
+> CLI を上げたら、まず `src/generated/services/MicrosoftDataverseService.ts` の実際のメソッド一覧を確認する。
+
 
