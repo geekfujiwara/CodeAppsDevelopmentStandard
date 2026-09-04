@@ -6,7 +6,7 @@ function client() {
 }
 
 // Trigger approval notification flow
-// Requires: npx power-apps add-flow --flow-id {FLOW_WORKFLOW_ID}
+// Requires: npx pa app add flow --flow-id {FLOW_WORKFLOW_ID}
 // env var: FLOW_WORKFLOW_ID (CONNREF_OUTLOOK for the Outlook connection reference)
 export async function triggerApprovalNotification(params: {
   expenseId: string

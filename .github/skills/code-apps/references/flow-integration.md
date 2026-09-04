@@ -6,21 +6,21 @@ Code Apps から Power Automate フローを呼び出し、AI Builder の結果�
 
 - フローは **PowerApps (V2) トリガー** を使用するインスタントフロー
 - フローはソリューション内に含まれている
-- `npx power-apps add-flow` で Code Apps にフローを追加済み
+- `npx pa app add flow` で Code Apps にフローを追加済み
 - `@microsoft/power-apps` npm パッケージ v1.1.1 以上
 
 ## フロー追加手順
 
 ```bash
 # 1. 利用可能なフローを一覧表示
-npx power-apps list-flows
+npx pa app list-flows
 
 # 2. フローを Code Apps に追加（Flow ID を指定）
-npx power-apps add-flow --flow-id <flow-id>
+npx pa app add flow --flow-id <flow-id>
 
 # 3. ビルド & デプロイ
 npm run build
-npx power-apps push
+npx pa app push
 ```
 
 ### 生成されるファイル
@@ -43,8 +43,8 @@ src/generated/
 
 SDK の `getClient()` はシングルトンで、最初に呼ばれた `dataSourcesInfo` で初期化される。
 
-- `src/generated/appschemas/dataSourcesInfo.ts` → Dataverse テーブルのみ（`npx power-apps add-data-source` で生成）
-- `.power/schemas/appschemas/dataSourcesInfo.ts` → フローコネクタ含む（`npx power-apps add-flow` で生成）
+- `src/generated/appschemas/dataSourcesInfo.ts` → Dataverse テーブルのみ（`npx pa app add data-source` で生成）
+- `.power/schemas/appschemas/dataSourcesInfo.ts` → フローコネクタ含む（`npx pa app add flow` で生成）
 
 **アプリ起動時に `src/generated` 版で先に初期化されると、フローサービスが `Data source not found` エラーになる。**
 
@@ -89,7 +89,7 @@ import { dataSourcesInfo } from '../../lib/dataSourcesInfo';
 ```
 
 > [!WARNING]
-> `npx power-apps add-flow` や `npx power-apps add-data-source` を再実行すると
+> `npx pa app add flow` や `npx pa app add data-source` を再実行すると
 > 自動生成ファイルが上書きされる。再実行後はフローサービスのインポートパスを再確認すること。
 
 ## フロー呼び出しコード

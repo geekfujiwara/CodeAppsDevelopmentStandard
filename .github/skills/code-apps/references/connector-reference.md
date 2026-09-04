@@ -28,8 +28,8 @@ Power Apps Code Apps でサポートされるコネクタの設定方法と使�
 # 1. 接続 ID を確認
 pac connection list
 
-# 2. コネクタを追加
-pac code add-data-source -a {api-name} -c {connection-id}
+# 2. コネクタを接続参照として追加
+npx pa app add data-source --connector {api-name} --connection-ref {connection-reference-logical-name} --solution-id {SOLUTION_ID} --org-url {DATAVERSE_URL} --non-interactive
 ```
 
 追加後、以下が自動生成されます:
@@ -47,7 +47,7 @@ pac code add-data-source -a {api-name} -c {connection-id}
 ### セットアップ
 
 ```bash
-pac code add-data-source -a shared_office365users -c {connection-id}
+npx pa app add data-source --connector shared_office365users --connection-ref {connection-reference-logical-name} --solution-id {SOLUTION_ID} --org-url {DATAVERSE_URL} --non-interactive
 ```
 
 ### 主要メソッド
@@ -92,7 +92,7 @@ const results = await Office365UsersService.SearchUser_V2("田中", 10);
 ### セットアップ
 
 ```bash
-pac code add-data-source -a shared_sql -c {connection-id}
+npx pa app add data-source --connector shared_sql --connection-ref {connection-reference-logical-name} --solution-id {SOLUTION_ID} --org-url {DATAVERSE_URL} --non-interactive
 ```
 
 ### 使用例
@@ -132,7 +132,7 @@ const result = await SqlService.ExecuteStoredProcedure(
 ### セットアップ
 
 ```bash
-pac code add-data-source -a shared_sharepointonline -c {connection-id}
+npx pa app add data-source --connector shared_sharepointonline --connection-ref {connection-reference-logical-name} --solution-id {SOLUTION_ID} --org-url {DATAVERSE_URL} --non-interactive
 ```
 
 ### 使用例
@@ -165,41 +165,39 @@ await SharePointService.PostItem("{site-url}", "{list-id}", {
 ```bash
 # 標準: 接続参照（Connection Reference）にバインドして 1 回だけ追加（全テーブル共通・ソリューション同梱可）
 # 接続参照は事前に scripts/setup_connection_reference.py で用意しておく
-npx power-apps add-data-source --api-id shared_commondataserviceforapps \
-  -cr {CONNECTION_REFERENCE_LOGICAL_NAME} \
-  -s {SOLUTION_ID} \
-  --resource-name commondataserviceforapps \
+npx pa app add data-source --connector shared_commondataserviceforapps \
+  --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
+  --solution-id {SOLUTION_ID} \
   --org-url {DATAVERSE_URL} --non-interactive
 
 # PoC 等でソリューション不要な場合のみ: 接続 ID 直バインド
-npx power-apps list-connections
-npx power-apps add-data-source --api-id shared_commondataserviceforapps \
+npx pa connection list
+npx pa app add data-source --connector shared_commondataserviceforapps \
   --connection-id {connection-id} \
-  --resource-name commondataserviceforapps \
   --org-url {DATAVERSE_URL} --non-interactive
 ```
 
 | バインド方式 | `power.config.json` | ソリューション同梱 | 用途 |
 |---|---|---|---|
-| `-cr {logical-name} -s {SOLUTION_ID}` | `xrmConnectionReferenceLogicalName` | ✅ | **標準**（ALM・環境間移送） |
+| `--connection-ref {logical-name} --solution-id {SOLUTION_ID}` | `xrmConnectionReferenceLogicalName` | ✅ | **標準**（ALM・環境間移送） |
 | `--connection-id {id}` | `authenticationType: "Oauth"` | ✗ | PoC・使い捨て |
 
 > **接続参照にしても「1 回で全テーブル」は不変**（検証済み）
-> `--resource-name commondataserviceforapps` は**コネクタ単位**の指定でテーブル名ではない。
+> `--connector shared_commondataserviceforapps` は**コネクタ単位**の指定でテーブル名ではない。
 > 接続参照バインドでも生成物は `MicrosoftDataverseService.ts` / `MicrosoftDataverseModel.ts` の 2 ファイルのみ、
 > 生成メソッドも同一で、テーブルは実行時の `entityName` で指定する。**アプリ側コードの変更は不要**。
 > 詳細・確認コマンドは [ソリューション ALM リファレンス](solution-alm.md)。
 
 > **接続参照は CLI では作成できない**
-> `-cr` に未存在の論理名を渡すと `Failed to resolve connection ID for reference '...'` で失敗する（自動作成されない）。
-> `pac connection create` / `npx power-apps create-connection` はいずれも**接続**を作るコマンドで接続参照ではない。
+> `--connection-ref` に未存在の論理名を渡すと `Failed to resolve connection ID for reference '...'` で失敗する（自動作成されない）。
+> `pac connection create` / `npx pa connection create` はいずれも**接続**を作るコマンドで接続参照ではない。
 > Dataverse Web API（`POST /connectionreferences`）で作成する
 > [scripts/setup_connection_reference.py](../scripts/setup_connection_reference.py) を標準とする。
 
-> **バインドを差し替えるとき**: `add-data-source` は既存データソースを上書きせず `_1` 等の別名で増える。
+> **バインドを差し替えるとき**: `pa app add data-source` は既存データソースを上書きせず `_1` 等の別名で増える。
 > 先に削除してから再追加する（フラグ名は `-n/--data-source-name`。`--data-source` は無効）。
 > ```bash
-> npx power-apps delete-data-source --api-id shared_commondataserviceforapps \
+> npx pa app remove data-source --connector shared_commondataserviceforapps \
 >   --data-source-name commondataserviceforapps --force
 > ```
 
@@ -284,7 +282,7 @@ await MicrosoftDataverseService.DeleteRecordWithOrganization(
 ### セットアップ
 
 ```bash
-pac code add-data-source -a shared_onedriveforbusiness -c {connection-id}
+npx pa app add data-source --connector shared_onedriveforbusiness --connection-ref {connection-reference-logical-name} --solution-id {SOLUTION_ID} --org-url {DATAVERSE_URL} --non-interactive
 ```
 
 ### 使用例
@@ -311,7 +309,7 @@ await OneDriveService.CreateFile("{folder-path}", "{filename}", fileContent);
 ### セットアップ
 
 ```bash
-pac code add-data-source -a shared_teams -c {connection-id}
+npx pa app add data-source --connector shared_teams --connection-ref {connection-reference-logical-name} --solution-id {SOLUTION_ID} --org-url {DATAVERSE_URL} --non-interactive
 ```
 
 ### 使用例
@@ -340,7 +338,7 @@ await TeamsService.PostMessageToChannel("{team-id}", "{channel-id}", {
 ### セットアップ
 
 ```bash
-pac code add-data-source -a shared_msnweather -c {connection-id}
+npx pa app add data-source --connector shared_msnweather --connection-ref {connection-reference-logical-name} --solution-id {SOLUTION_ID} --org-url {DATAVERSE_URL} --non-interactive
 ```
 
 ### 使用例
@@ -364,7 +362,7 @@ const forecast = await MsnWeatherService.TodaysForecast("Tokyo, JP", "ja-JP");
 ### セットアップ
 
 ```bash
-pac code add-data-source -a shared_microsofttranslator -c {connection-id}
+npx pa app add data-source --connector shared_microsofttranslator --connection-ref {connection-reference-logical-name} --solution-id {SOLUTION_ID} --org-url {DATAVERSE_URL} --non-interactive
 ```
 
 ### 使用例
@@ -388,7 +386,7 @@ const translated = await TranslatorService.Translate(
 ### セットアップ
 
 ```bash
-pac code add-data-source -a shared_kusto -c {connection-id}
+npx pa app add data-source --connector shared_kusto --connection-ref {connection-reference-logical-name} --solution-id {SOLUTION_ID} --org-url {DATAVERSE_URL} --non-interactive
 ```
 
 ### 使用例
@@ -413,7 +411,7 @@ const result = await KustoService.RunQuery(
 ### セットアップ
 
 ```bash
-pac code add-data-source -a shared_office365groups -c {connection-id}
+npx pa app add data-source --connector shared_office365groups --connection-ref {connection-reference-logical-name} --solution-id {SOLUTION_ID} --org-url {DATAVERSE_URL} --non-interactive
 ```
 
 ### 使用例
