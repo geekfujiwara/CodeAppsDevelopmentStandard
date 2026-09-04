@@ -1849,6 +1849,40 @@ Playwright で検証する場合は `page.reload()` ではなく `page.goto(play
 行クリックが "element is not stable" でタイムアウトするときは
 `.click({ force: true })`、同名ボタンが複数あるときは `{ exact: true }` を使う。
 
+### 追記: push 出力の新しい URL で開き直しても古いままのことがある（検証済 2026-09-05）
+
+`pa app push` が出力する **新しい `hint=` / `sourcetime=` 付き URL** を、
+まっさらなページ（`forceNew: true`）で開いても古いバンドルが配信されることがある。
+このとき画面上部には英語で次のバナーが出る。
+
+```
+You're using an old version of this app. Refresh to use the latest version.
+```
+
+バナーの「Refresh」を押すのが唯一の確実な解決で、**URL を変えても効かない**。
+ただしこのバナーはプレイヤーのシェル側（iframe の外）にあり、
+`locator.click()` は `Element is outside of the viewport` でタイムアウトする。
+`force: true` でも失敗するため、**DOM イベントを直接発火**させる。
+
+```javascript
+await page.evaluate(() => {
+  const b = [...document.querySelectorAll('button')].find(x => x.innerText.trim() === 'Refresh')
+  b && b.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+})
+await page.waitForTimeout(15000)
+```
+
+検証順序は次のとおり。
+
+1. `pa app push` の出力 URL を `forceNew: true` で開く
+2. **バナーの有無を必ず確認する**（無ければそのまま検証してよい）
+3. 出ていれば上記 `dispatchEvent` で Refresh
+4. ナビゲーションのラベルなど「変わったはずの箇所」を `innerText` で確認してから本題の検証に入る
+
+画面を削除した場合の確認は、削除したパスへ
+`location.hash = "#/<削除したパス>"` で遷移して 404 になることまで見る。
+ナビから消えているだけではルート定義が残っている可能性がある。
+
 ## 38. ダッシュボードの KPI カードを押しても「何も起きない」（検証済 2026-08-13）
 
 ### 症状
