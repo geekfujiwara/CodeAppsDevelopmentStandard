@@ -65,11 +65,15 @@ test('plan validation rejects an unsafe command among safe commands', () => {
   );
 });
 
-test('JSON parser extracts one fenced document but rejects multiple candidates', () => {
+test('JSON parser extracts one document but rejects multiple candidates', () => {
   assert.deepEqual(parseJsonDocument('{"commands":[]}'), { commands: [] });
   assert.deepEqual(parseJsonDocument('```json\n{"commands":[]}\n```'), { commands: [] });
   assert.deepEqual(parseJsonDocument('Untrusted explanation\n```json\n{"commands":[]}\n```\nMore prose'), { commands: [] });
+  assert.deepEqual(parseJsonDocument('Confirmed result: {"commands":[{"argv":["python","-c","assert {1: 2}[1] == 2"]}]} done'), {
+    commands: [{ argv: ['python', '-c', 'assert {1: 2}[1] == 2'] }],
+  });
   assert.throws(() => parseJsonDocument('```json\n{}\n```\n```json\n{}\n```'));
+  assert.throws(() => parseJsonDocument('First {"a":1}, second {"b":2}'));
 });
 
 test('reproduction may expect a failure but post-change validation may not', () => {
