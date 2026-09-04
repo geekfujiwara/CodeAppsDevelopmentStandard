@@ -230,6 +230,23 @@ az login --tenant <tenant-id> --scope "https://management.core.windows.net//.def
 一部だけ包むと抜け道になるので**全ツール**に適用する。あわせてエージェント側の指示文にも同じ規約を書き、
 埋め込み指示入りのダミー資料を使った golden question で検証する。→ [file-backed-tools.md](file-backed-tools.md)
 
+### しばらく動いていた SQL ツールが突然 Login failed になる
+
+**原因**: `azure-active-directory-access-token` で作った接続プールを張りっぱなしにした。
+プールの寿命はアクセストークンの寿命に縛られる。
+
+**対処**: トークンの `expiresOnTimestamp` を保持し、期限の 5 分前を過ぎたらプールを作り直す。
+生成中の Promise を共有して同時再生成を防ぎ、旧プールは張り替え後に閉じる。
+→ [sql-tools-pattern.md](sql-tools-pattern.md)
+
+### モデルが `groupBy` や並び順に想定外の文字列を渡してくる
+
+**原因**: `inputSchema` の `enum` はモデルへのヒントに過ぎず、実行時の防御にならない。
+そのまま SQL 断片として連結するとインジェクションになる。
+
+**対処**: 集計軸・ソート列は定数表（ホワイトリスト）で固定句にマップし、
+引けなかったらエラーを返す。値は必ずパラメータで渡す。→ [sql-tools-pattern.md](sql-tools-pattern.md)
+
 ---
 
 ## Copilot Studio 連携

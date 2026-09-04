@@ -44,6 +44,7 @@ Copilot Studio のエージェントから **社内の業務データ（DB・フ
 | [認証モデル](references/auth-model.md) | 受信 JWT 検証 / 送信 Managed Identity の実装 |
 | [Private 環境でのデータ投入](references/private-data-seeding.md) | Private Endpoint 下でシードするための管理エンドポイントパターン |
 | [ファイルを読ませるツールの設計](references/file-backed-tools.md) | サイドカーテキストレイヤー・パストラバーサル対策・出力上限・プロンプトインジェクション防御 |
+| [SQL バックエンドのツール設計](references/sql-tools-pattern.md) | パラメータ化クエリ・集計軸のホワイトリスト・トークン寿命と接続プール・読み取り専用権限 |
 | [Copilot Studio への登録](references/copilot-studio-registration.md) | カスタムコネクタ（OpenAPI）とコネクタ用 OAuth 設定。Cowork から使う場合の参照先もここ |
 | [.env サンプル](references/.env.example) | 本スキルのパラメータ |
 | [異常系・トラブルシュート](references/troubleshooting.md) | 実際に踏んだ失敗と恒久対策 |
@@ -133,6 +134,8 @@ Azure Functions（Node.js 20 / TypeScript / v4 プログラミングモデル）
 - 実装の詳細は [protocol.md](references/protocol.md) と [auth-model.md](references/auth-model.md) を参照。
 - ストレージ上の文書を読ませるツールを作るなら、**パス検証・出力上限・戻り値の注意書き**を必ず入れる。
   → [file-backed-tools.md](references/file-backed-tools.md)
+- SQL を読むツールを作るなら、**全クエリのパラメータ化と読み取り専用権限**を前提にする。
+  → [sql-tools-pattern.md](references/sql-tools-pattern.md)
 
 ### Step 5: デプロイする
 
