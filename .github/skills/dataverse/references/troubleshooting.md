@@ -712,4 +712,90 @@ Step 1 の前に、`TABLES` の論理名が対象ソリューション**外**の
 `.env` の `PUBLISHER_UNIQUE_NAME`（または `PUBLISHER_ID`）で明示させる。
 テンプレートに特定環境の `uniquename` をハードコードしていた箇所も併せて削除した。
 
+---
+
+## 22. KPI の日数計算に `createdon` を使い、全 KPI が「データなし」または 0 日になる
+
+### 症状
+
+ダッシュボードの日数系 KPI（平均クローズ日数・承認リードタイム・初回応答日数）が
+すべて `—`／`データなし`／`対象 0 件`、あるいは `0.0日` になる。
+Dataverse を直接照会すると、終了側の日時列（`{prefix}_closedon` 等）には値が入っている。
+
+### 原因
+
+起点に Dataverse の**監査列 `createdon` を使っていた**。
+`createdon` は「レコードを Dataverse に書き込んだ日時」であり、業務上の発生日時ではない。
+
+```text
+createdon  = 2026-09-04T10:34:38Z   ← デモデータ投入日（＝スクリプト実行日）
+closedon   = 2025-03-12T08:30:00Z   ← 業務上のクローズ日時
+diffDays() = -541 日                ← 負の値になり、KPI 側のフィルタで全件除外される
+```
+
+同じ理由で、デモデータや移行データは全レコードの `createdon` がほぼ同一時刻になるため、
+
+- 「起票 → 初回回答」の日数差が **0 日**に潰れる
+- 月次トレンドが**投入した月だけ**に固まり、時系列として意味を持たない
+- 「未承認ナレッジの滞留日数」が常に 0 日になり、滞留を検知できない
+
+### 対処（恒久対策）
+
+**日数計算の起点・終点になる日時は、監査列とは別に業務日時列として明示的に持つ。**
+
+| 監査列（使わない） | 業務日時列（KPI はこちらを使う） |
+|---|---|
+| `createdon` | `{prefix}_reportedon`（起票日時） |
+| `createdon` | `{prefix}_answeredon`（回答日時） |
+| `createdon` | `{prefix}_generatedon`（生成日時） |
+
+テーブル定義（`setup_dataverse.py` の `TABLES`）:
+
+```python
+# 起票日時は Dataverse の createdon（レコード作成日時）とは別に持つ。
+# createdon は移行・再投入で変わるため、KPI の起点に使えない。
+{"logical": f"{PREFIX}_reportedon", "type": "DateTime", "display": "起票日時"},
+```
+
+読み取り側（Code Apps）は業務日時列を優先し、未設定のときだけ `createdon` に退避する:
+
+```ts
+/**
+ * KPI の起点となる「業務上の日時」を取り出す。
+ * createdon はレコードを Dataverse に書いた日時であり業務上の発生日時ではないため、
+ * 業務日時列を優先し、未設定の場合だけフォールバックする。
+ */
+function businessDate(row: DataverseRow, businessField: string): string {
+  return str(row, businessField) ?? str(row, "createdon") ?? ""
+}
+```
+
+デモデータ投入時は、業務日時列に**過去日**を入れて時系列に散らす。
+5W1H の「いつ」のような自由記述 String 列がある場合は、解釈できたときだけ変換して流用する:
+
+```python
+def _to_iso(value: str | None) -> str | None:
+    """"YYYY-MM-DD HH:MM" 形式の自由記述を DateTime 列用の ISO 8601(UTC) に変換する。"""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value.strip(), "%Y-%m-%d %H:%M").strftime("%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return None
+```
+
+### 既存環境の移行
+
+`setup_dataverse.py` のデモデータ投入は既存行をスキップする（べき等）ため、
+定義を直しただけでは既存レコードに値が入らない。列追加と backfill を行う
+**移行専用スクリプトを別に用意して 1 回だけ実行する**。
+
+### レビュー観点
+
+日数・リードタイム系の KPI を実装したら、必ず次を確認する。
+
+- 起点の日時列は業務日時列か（`createdon` になっていないか）
+- 「対象 0 件」「0.0日」は正常値ではなく、**起点日時の設計ミスのシグナル**として疑う
+- 月次トレンドのラベルが実行月の周辺だけに固まっていないか
+
 
