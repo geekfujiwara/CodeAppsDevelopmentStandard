@@ -425,6 +425,61 @@ const counts = Object.fromEntries(VIEWS.map((v) => [v.key, rows.filter(v.match).
 > `scripts/pre-deploy-check.mjs` のチェック 9 が、リンクに書いたクエリを
 > どの画面も `useSearchParams` で読んでいない状態を検出する。
 
+## 日次推移グラフは「基準日」と「分母」で決まる
+
+「毎日の推移が見たい」という要求は KPI カードより実装事故が多い。次の 4 点を先に決める。
+
+### 1. 基準日は「今日」ではなく**データ上の最新日**にする
+
+`new Date()` を起点に直近 N 日のバケットを作ると、移行直後やデモ環境のように
+**データが過去に寄っている環境で必ず空のグラフになる**。原因がデータ不足なのか実装ミスなのか
+判別できず、調査に時間を取られる。
+
+```ts
+// 起票日・回答日など、グラフに載せる日付の最大値を基準にする
+const latest = allDays.length > 0 ? allDays.reduce((a, b) => (a > b ? a : b)) : today
+```
+
+基準日はカードの説明文に出す（「基準日 2026-09-04 から遡って 30 日」）。
+今日でないことが読み手に伝わらないと、別の誤解を生む。
+
+### 2. 日付は**業務日時列**で束ねる。`createdon` は使わない
+
+`createdon` はレコードを書いた日時であって業務上の発生日時ではない。移行やデモデータ投入をすると
+全件が同じ日に寄り、推移が 1 本の棒になる。業務日時列（起票日・回答日）を優先し、
+未設定のときだけ `createdon` にフォールバックする。
+
+### 3. 率の分母は「明細」ではなく「業務の単位」で数える
+
+「自動回答率」を**回答レコード数**で割ると、1 件の問い合わせに複数回答があるだけで率が動く。
+分母は問い合わせ（親）の一意件数にする。
+
+```ts
+const answeredIncidentIds = new Set(answers.map((a) => a.incidentId).filter(Boolean))
+const autoAnsweredIncidentIds = new Set(
+  answers.filter((a) => a.isAiGenerated && a.isAnswerable).map((a) => a.incidentId).filter(Boolean),
+)
+```
+
+### 4. 期間切替は 14 / 30 / 90 日の 3 択に固定する
+
+日付ピッカーを置くと状態管理と検証が増える割に使われない。ボタン 3 つで足りる。
+`useState` で日数だけ持ち、集計関数に渡す。
+
+```tsx
+const [trendDays, setTrendDays] = useState(30)
+const trend = computeDailyAnswerTrend(data, trendDays)
+```
+
+グラフは `ComposedChart` で「積み上げ棒（内訳）＋折れ線（母数）」にすると、
+内訳と全体量を 1 枚で読める（成功/失敗の内訳 + 起票数など）。
+積み上げは `stackId` を揃え、**一番上の系列にだけ `radius` を付ける**（全系列に付けると角が重なって濁る）。
+
+> Choice 列のラベルは `Prefer: odata.include-annotations` を付けて
+> `<列名>@OData.Community.Display.V1.FormattedValue` から取る。
+> 検証用スクリプトを別途 Python で書くときに注釈ヘッダーを付け忘れると、
+> フロントでは出ている値が `None` に見えて「データが入っていない」と誤診する。
+
 ## コンポーネント選定ガイド
 
 | やりたいこと | 推奨コンポーネント |
