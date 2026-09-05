@@ -18,8 +18,22 @@ Power Platform コードファースト開発エキスパート。
 
 1. 作業開始前に `.github/skills/standard/SKILL.md` を読む
 2. 該当スキルを読む（下表）
-3. 設計提示 → ユーザー承認 → 実装
+3. 設計提示 → ユーザー承認 → **DLP 事前チェック** → 実装
 4. **デプロイ時は必ず各スキルのプレデプロイチェックを実行してからデプロイする**
+
+## DLP 事前チェック（実装着手前に必須）
+
+構成が確定したら、**実装を始める前に** そのソリューションが使うコネクタが
+対象環境のデータ ポリシー（DLP）で使えるかを確認し、**結果をユーザーに提示する**。
+
+```powershell
+python .github/skills/standard/scripts/check_dlp.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID --connector shared_commondataserviceforapps
+```
+
+- 読み取り専用。ブロック / Business・Non-business の混在 / カスタムコネクタの未分類を検出する
+- 問題があれば実装に入らず、解消方針（代替コネクタ / ポリシー変更依頼）を合意してから進む
+- ポリシーを変更する場合は `set_dlp_custom_connector.py` の dry-run 出力を必ずユーザーに確認してもらう
+- 詳細: `.github/skills/standard/references/dlp-precheck.md`
 
 ## 言語設定
 

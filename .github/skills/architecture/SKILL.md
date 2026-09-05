@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。Agent 365 の AI チームメイトを採用する場合はライト実装（PoC）と本格実装（private リポジトリ + CI/CD + Agent Evals）を AskUserQuestion で選ばせ、Git ホスティング（GitHub / Azure DevOps Repos / その他）も確定してから実装へ進む。外部の文章を読むエージェントではプロンプト インジェクション対策を設計段階で工数に含める。"
+description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。構成が確定したら、実装着手前に DLP 事前チェック（使用コネクタがブロックされていないか・Business / Non-business が混在しないか）を実行して結果をユーザーに提示する。Agent 365 の AI チームメイトを採用する場合はライト実装（PoC）と本格実装（private リポジトリ + CI/CD + Agent Evals）を AskUserQuestion で選ばせ、Git ホスティング（GitHub / Azure DevOps Repos / その他）も確定してから実装へ進む。外部の文章を読むエージェントではプロンプト インジェクション対策を設計段階で工数に含める。"
 category: architecture
 triggers:
   - "アーキテクチャ設計"
@@ -686,3 +686,32 @@ AskUserQuestion で次のように尋ねる:
 - [ ] **そのエージェントは外部の文章を読むか？**（メール本文 / Web ページ / 取り込んだファイル / 業務レコード） → YES なら**プロンプト インジェクション対策を設計段階で工数に含める**。agentUser は自分の権限で動くため、未対応だと実データに被害が及ぶ（[ai-teammate/references/prompt-injection.md](../ai-teammate/references/prompt-injection.md)）
 - [ ] **本格実装を選んだか？** → YES なら **Git ホスティング（GitHub / Azure DevOps Repos / その他 Git）** も確認し、private リポジトリ前提で `SECRET_BACKEND` を決める
 - [ ] **画面設計はブロックの組み合わせで決めたか？** → 同じ CRUD をテーブル数だけ量産しない。可視化ニーズがあれば **ReactFlow を第一候補**に（[設計リファレンス §4](references/design-patterns.md#4-画面設計ブロックの組み合わせテンプレ化しない設計)）
+- [ ] **構成が決まったら DLP 事前チェックを実行したか？** → 実装着手前に §10 を必ず実行する
+
+---
+
+## 10. DLP 事前チェック（実装着手前に必須）
+
+構成が確定したら、**実装を始める前に**、その構成が使うコネクタが対象環境の
+データ ポリシー（DLP）で利用可能かを確認する。設計後に発覚すると、コネクタ選定から
+やり直しになるため、必ずこのタイミングで実施する。
+
+```powershell
+python .github/skills/standard/scripts/check_dlp.py `
+  --environment-id $env:ENV_ID `
+  --tenant-id $env:TENANT_ID `
+  --connector shared_commondataserviceforapps `
+  --custom-host <自前 MCP Server のホスト名>
+```
+
+読み取り専用で、対象環境に**適用される**ポリシーだけを評価する。確認する観点は 3 つ。
+
+| 観点 | 影響 |
+|---|---|
+| ブロックされたコネクタがないか | 使えない。代替コネクタへ設計変更するか、管理者にポリシー変更を依頼する |
+| Business / Non-business が混在していないか | 同一アプリ・フロー・エージェントで併用できない。どちらかに寄せるか構成を分割する |
+| カスタムコネクタが未分類でないか | Copilot Studio でツールがブロック表示になる。ホストを明示分類する |
+
+**結果は必ずユーザーに提示し、問題がある場合は解消方針を合意してから実装に入る。**
+手順・コネクタ一覧・カスタムコネクタの明示分類は
+[standard/references/dlp-precheck.md](../standard/references/dlp-precheck.md) を参照。
