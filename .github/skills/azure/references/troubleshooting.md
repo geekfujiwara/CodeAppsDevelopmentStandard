@@ -20,6 +20,24 @@
   - `PublicNetwork_Modify` 系はリソース型ごとに定義されることが多い。
   - ストレージ限定なら **コンピュート(Microsoft.Web)は公開可**（案 A）。Web も対象なら案 B（Front Door 等）。
 
+## ストレージのファイル配信
+
+- **Azure Files はユーザー委任 SAS に非対応**
+  - `getUserDelegationKey` は **Blob 専用**。File 共有の SAS はアカウントキー（または保存済みアクセスポリシー）でしか署名できない。
+  - したがって `allowSharedKeyAccess=false` の環境では **Azure Files の署名付き URL を一切発行できない**。
+  - 対処: ①ブラウザ直リンクを諦めて **API/Functions のプロキシ配信**（Entra 認証 + Managed Identity で読み出し）にする、
+    ②配信目的のファイルは **Blob Storage に置く**（ユーザー委任 SAS が使える）、
+    ③参照用途だけなら **パス表示＋リンク**に割り切る。
+  - 設計判断: 「SMB マウント/レガシー互換が要る」= Files、「HTTP で配りたい」= Blob。**用途で選ぶ**。
+
+- **Entra 認証必須のエンドポイントは iframe に埋め込めない**
+  - Entra ID のサインイン画面は `X-Frame-Options: DENY`。iframe 内でサインインを完了できないため、
+    JWT 必須の Function App / APIM をブラウザの `<iframe>` から直接叩く設計は成立しない。
+  - 対処: 別タブ遷移にする、またはホスト側で取得したトークンを使ってサーバー経由で配信する。
+
+- **`fileRequestIntent: "backup"` を使う OAuth アクセスには *Privileged* ロールが必要**
+  - `Storage File Data Privileged Reader` / `... Privileged Contributor`。通常の `Storage File Data SMB Share Reader` では 403 になる。
+
 ## 認証 (MFA)
 
 - **`RequestDisallowedByAzure: ... without authenticating through MFA`**
