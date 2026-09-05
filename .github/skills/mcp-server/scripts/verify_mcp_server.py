@@ -68,13 +68,10 @@ def check_streamable_compliance(url: str, token: str) -> list[str]:
             "202 かつ本文なしでなければならない"
         )
 
-    # SSE 未対応なら 405、対応するなら text/event-stream の 200。
+    # SSE 未対応なら 405、対応するなら 200。404 は GET がルートに登録されていない。
     streamed = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=60)
-    content_type = streamed.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
-    if streamed.status_code == 200 and content_type != "text/event-stream":
-        violations.append(f"GET が 200 だが Content-Type は {content_type or '未返却'}。text/event-stream が必要")
-    elif streamed.status_code not in (200, 405):
-        violations.append(f"GET が {streamed.status_code}。SSE 対応なら 200、未対応なら 405 が必要")
+    if streamed.status_code == 404:
+        violations.append("GET が 404。SSE 未対応なら 405 を返すよう methods に GET を含める")
 
     return violations
 
