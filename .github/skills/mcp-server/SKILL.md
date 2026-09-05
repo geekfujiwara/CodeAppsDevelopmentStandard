@@ -227,8 +227,8 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 
    - `This tool is blocked by your data loss prevention policy` と表示された場合は、公開やポリシー変更を
      繰り返さず、[Copilot Studio の DLP 診断](references/copilot-studio-dlp.md) に従って適用ポリシーと
-     コネクタ分類を読み取り確認する。DLP ポリシーを操作する公開 REST API はないため、公式の
-     `Microsoft.PowerApps.Administration.PowerShell` cmdlet を使う。
+     コネクタ分類を読み取り確認する。認証は `standard` スキルの `auth_helper.py` に統一し、
+     PowerShell の対話サインインやブラウザ認証を追加しない。
 
    OpenAPI をコード管理する必要がある場合だけ、カスタムコネクタのインポート方式を使う。
 
