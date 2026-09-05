@@ -29,9 +29,11 @@ import sys
 import time
 
 # 進捗ログをリアルタイム表示するため stdout/stderr を行バッファに切り替え。
+# ログファイルへリダイレクトすると Windows では cp932 になり絵文字 print が
+# UnicodeEncodeError で落ちるため、UTF-8 を明示する（references/troubleshooting.md #11）。
 try:
-    sys.stdout.reconfigure(line_buffering=True)
-    sys.stderr.reconfigure(line_buffering=True)
+    sys.stdout.reconfigure(line_buffering=True, encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(line_buffering=True, encoding="utf-8", errors="replace")
 except AttributeError:
     pass
 
