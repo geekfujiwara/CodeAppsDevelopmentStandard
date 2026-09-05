@@ -45,7 +45,8 @@ Copilot Studio のエージェントから **社内の業務データ（DB・フ
 | [Private 環境でのデータ投入](references/private-data-seeding.md) | Private Endpoint 下でシードするための管理エンドポイントパターン |
 | [ファイルを読ませるツールの設計](references/file-backed-tools.md) | サイドカーテキストレイヤー・パストラバーサル対策・出力上限・プロンプトインジェクション防御 |
 | [SQL バックエンドのツール設計](references/sql-tools-pattern.md) | パラメータ化クエリ・集計軸のホワイトリスト・トークン寿命と接続プール・読み取り専用権限 |
-| [Copilot Studio への登録](references/copilot-studio-registration.md) | カスタムコネクタ（OpenAPI）とコネクタ用 OAuth 設定。Cowork から使う場合の参照先もここ |
+| [Copilot Studio への登録](references/copilot-studio-registration.md) | オンボーディングウィザード、コピペ用 MD 生成、OAuth 接続。OpenAPI 方式もここ |
+| [Copilot Studio の DLP 診断](references/copilot-studio-dlp.md) | MCP ツールが DLP でブロックされた場合の読み取り診断と最小変更 |
 | [.env サンプル](references/.env.example) | 本スキルのパラメータ |
 | [異常系・トラブルシュート](references/troubleshooting.md) | 実際に踏んだ失敗と恒久対策 |
 
@@ -199,12 +200,37 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 
 2. アプリ設定から `ADMIN_SEED_SECRET` を削除する。
 3. 残すルートが 401、削除したルートが 404 であることを HTTP で実測する。
-4. カスタム コネクタ（OpenAPI + OAuth）を作成し、エージェントにツールとして追加する。
+4. Copilot Studio の MCP オンボーディングウィザードで、エージェントにツールとして追加する。
    → [copilot-studio-registration.md](references/copilot-studio-registration.md)
 
    ```powershell
    python .github/skills/mcp-server/scripts/configure_connector_oauth.py --audience $env:MCP_API_AUDIENCE --secret-out .secrets/connector-oauth.json
+   python .github/skills/mcp-server/scripts/generate_copilot_studio_guide.py `
+     --server-name example-files-mcp `
+     --server-description "文書を検索して内容を取得します。" `
+     --server-url "https://<function-app>.azurewebsites.net/api/mcp" `
+     --display-name "文書 MCP 接続" `
+     --output "<server-dir>/copilot-studio-connection.md"
    ```
+
+   - `Server name` は **1～64 文字の英字・数字・ハイフン・ドットのみ**。日本語や空白は
+     Power Platform の内部コネクタ名作成で 400 になるため、生成スクリプトが事前に拒否する。
+   - 生成 MD は Client secret を含む。**MCP Server ごとに分け**、先に `.gitignore` へ追加する。
+   - 認証は `OAuth 2.0`、構成は `Manual` を選ぶ。接続画面では任意の表示名も生成 MD から貼り付ける。
+   - コネクタ作成後に表示された callback URL、または `AADSTS50011` に表示された URI は、次で Entra に追加する。
+
+     ```powershell
+     python .github/skills/mcp-server/scripts/add_connector_redirect_uri.py `
+       --audience $env:MCP_API_AUDIENCE `
+       --redirect-uri "https://global.consent.azure-apim.net/redirect/<connector-id>"
+     ```
+
+   - `This tool is blocked by your data loss prevention policy` と表示された場合は、公開やポリシー変更を
+     繰り返さず、[Copilot Studio の DLP 診断](references/copilot-studio-dlp.md) に従って適用ポリシーと
+     コネクタ分類を読み取り確認する。DLP ポリシーを操作する公開 REST API はないため、公式の
+     `Microsoft.PowerApps.Administration.PowerShell` cmdlet を使う。
+
+   OpenAPI をコード管理する必要がある場合だけ、カスタムコネクタのインポート方式を使う。
 
    複数の MCP Server を 1 エージェントに束ねる場合は、コネクタの `description` とエージェントの指示文の
    **両方に「どの質問でどのサーバーを使うか」**を明記しないと選択を誤る。
