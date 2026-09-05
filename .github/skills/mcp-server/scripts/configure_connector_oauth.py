@@ -2,12 +2,16 @@
 
 カスタムコネクタは認可コードフローで動くため、API アプリ登録に以下が必要になる。
 
-1. リダイレクト URI ``https://global.consent.azure-apim.net/redirect``（コネクタ共通の固定値）
+1. リダイレクト URI ``https://global.consent.azure-apim.net/redirect``（OpenAPI インポート方式の共通値）
 2. クライアントシークレット
 3. 自分自身のスコープへの ``requiredResourceAccess``（同意を成立させるため）
 
+オンボーディングウィザードが生成するパス付き Redirect URI は、コネクタ作成後に
+``add_connector_redirect_uri.py`` で追加する。
+
 シークレットは **標準出力に出さず**、``--secret-out`` のファイルにだけ書き出す。
-ファイルは必ず .gitignore の対象に置くこと。
+ファイルは必ず .gitignore の対象に置くこと。既存ファイルは既定で上書きせず、
+意図的な更新時だけ ``--rotate-secret`` を指定する。
 
 使い方:
     python .github/skills/mcp-server/scripts/configure_connector_oauth.py --audience api://<app-id> --secret-out .secrets/connector.json
@@ -19,7 +23,9 @@ import argparse
 import json
 import os
 import stat
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
@@ -27,6 +33,39 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scrip
 from azure_helper import graph_get, graph_patch, graph_post  # noqa: E402
 
 CONNECTOR_REDIRECT_URI = "https://global.consent.azure-apim.net/redirect"
+
+
+def preflight_secret_output(path: Path, rotate_secret: bool) -> str | None:
+    ignored = subprocess.run(
+        ["git", "check-ignore", "--no-index", "-q", "--", str(path)],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if ignored.returncode != 0:
+        raise SystemExit(f"--secret-out が Git ignore されていません: {path}")
+    old_key_id = None
+    if path.exists():
+        if not path.is_file():
+            raise SystemExit(f"--secret-out はファイルを指定してください: {path}")
+        if not rotate_secret:
+            raise SystemExit(
+                f"OAuth 設定ファイルは既に存在します: {path}\n"
+                "既存の Client secret を使うか、意図的に更新する場合だけ --rotate-secret を指定してください"
+            )
+        try:
+            with path.open("r+b"):
+                pass
+            old_key_id = json.loads(path.read_text(encoding="utf-8")).get("keyId")
+        except (OSError, json.JSONDecodeError) as exc:
+            raise SystemExit(f"既存の OAuth 設定ファイルを安全に置換できません: {path}: {exc}") from exc
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with tempfile.NamedTemporaryFile(dir=path.parent):
+            pass
+    except OSError as exc:
+        raise SystemExit(f"--secret-out の親フォルダへ書き込めません: {path.parent}: {exc}") from exc
+    return old_key_id
 
 
 def find_application(audience: str) -> dict:
@@ -75,10 +114,21 @@ def create_secret(app: dict, display_name: str) -> dict:
 
 
 def write_secret_file(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as handle:
+        temporary = Path(handle.name)
+        json.dump(payload, handle, ensure_ascii=False, indent=2)
+    try:
+        if os.name != "nt":
+            temporary.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
     if os.name != "nt":
         path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
+
+def remove_secret(app: dict, key_id: str) -> None:
+    graph_post(f"/applications/{app['id']}/removePassword", {"keyId": key_id})
 
 
 def main() -> int:
@@ -87,28 +137,46 @@ def main() -> int:
     parser.add_argument("--scope", default=os.getenv("MCP_API_SCOPE_VALUE", "MCP.Access"))
     parser.add_argument("--secret-out", default=".secrets/connector-oauth.json")
     parser.add_argument("--secret-name", default="power-platform-custom-connector")
+    parser.add_argument("--rotate-secret", action="store_true", help="既存ファイルを置換して新しい secret を発行する")
     args = parser.parse_args()
 
     if not args.audience:
         raise SystemExit("--audience または MCP_API_AUDIENCE を指定してください")
 
+    out = Path(args.secret_out)
+    old_key_id = preflight_secret_output(out, args.rotate_secret)
+    if args.rotate_secret and out.exists() and not old_key_id:
+        print("[warning] 既存ファイルに keyId がないため、以前の credential は Entra で手動削除してください")
     app = find_application(args.audience)
     ensure_redirect_uri(app)
     ensure_self_permission(app, args.scope)
     secret = create_secret(app, args.secret_name)
 
-    out = Path(args.secret_out)
-    write_secret_file(
-        out,
-        {
-            "clientId": app["appId"],
-            "clientSecret": secret["secretText"],
-            "secretExpiresOn": secret["endDateTime"],
-            "resourceUri": args.audience,
-            "scope": f"{args.audience}/{args.scope}",
-            "redirectUri": CONNECTOR_REDIRECT_URI,
-        },
-    )
+    try:
+        write_secret_file(
+            out,
+            {
+                "clientId": app["appId"],
+                "clientSecret": secret["secretText"],
+                "keyId": secret["keyId"],
+                "secretExpiresOn": secret["endDateTime"],
+                "resourceUri": args.audience,
+                "scope": f"{args.audience}/{args.scope}",
+                "redirectUri": CONNECTOR_REDIRECT_URI,
+            },
+        )
+    except OSError as exc:
+        try:
+            remove_secret(app, secret["keyId"])
+        except Exception as rollback_exc:
+            raise SystemExit(
+                "Client secret の保存とロールバックに失敗しました。Entra で新しい credential を削除してください: "
+                f"{rollback_exc}"
+            ) from exc
+        raise SystemExit(f"Client secret を保存できなかったため、発行した credential を削除しました: {exc}") from exc
+    if old_key_id and old_key_id != secret["keyId"]:
+        remove_secret(app, old_key_id)
+        print("[secret] 以前の credential を削除しました")
     print(f"[secret] {out} に書き出しました（値は表示しません）")
     print(f"[info] clientId={app['appId']} / scope={args.audience}/{args.scope}")
     return 0

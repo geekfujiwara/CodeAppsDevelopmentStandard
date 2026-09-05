@@ -126,6 +126,20 @@ Get-Content "$env:TEMP\publish.log" -Tail 30
 
 ## Copilot Studio との接続
 
+### Add MCP server が `POST .../connectors/apim 400` で失敗する
+
+**症状**: Response に `Name ... did not match validation regex ^[a-zA-Z0-9\-\.]{1,64}$` と表示される。
+Console の Initiator に出る JavaScript スタックだけでは原因は分からないため、ブラウザ開発者ツールの
+**Network > connectors/apim > Response** を確認する。Request Payload は Client secret を含むため共有しない。
+
+**原因**: `Server name` に日本語、空白、アンダースコア等を使い、Power Platform が生成する
+内部コネクタ名の制約に違反している。
+
+**対処**: `Server name` を 1～64 文字の英字・数字・ハイフン・ドットだけにする。
+
+**恒久対策済み**: `generate_copilot_studio_guide.py` の `validate_server_name()` が、入力ガイド生成時に
+不正な名前を検出して、Copilot Studio へ入力する前に中断する。
+
 ### curl では `tools/list` が返るのに、Copilot Studio のコネクタからは接続できない
 
 **原因**: Copilot Studio は **Streamable トランスポートのみ**対応する（SSE は 2025 年 8 月で廃止）。
@@ -145,11 +159,38 @@ Get-Content "$env:TEMP\publish.log" -Tail 30
 
 ### カスタムコネクタの OAuth 同意でリダイレクトが失敗する
 
-**原因**: Entra アプリ登録にカスタムコネクタ共通のリダイレクト URI
-`https://global.consent.azure-apim.net/redirect` が登録されていない。
+**症状**: サインイン時に `AADSTS50011: The redirect URI ... does not match` が表示される。
 
-**対処**: `configure_connector_oauth.py` を実行する（リダイレクト URI 追加・シークレット発行・
-自己スコープへの委任アクセス付与をまとめて行う）。
+**原因**: オンボーディングウィザードが作るカスタムコネクタは、共通 URI
+`https://global.consent.azure-apim.net/redirect` ではなく、末尾にコネクタ ID が付いた URI を送る。
+Entra の Redirect URI は完全一致のため、共通 URI だけでは認証できない。
+
+**対処**: callback URL、または `AADSTS50011` に表示された URI をそのまま追加する。
+
+```powershell
+python .github/skills/mcp-server/scripts/add_connector_redirect_uri.py `
+  --audience $env:MCP_API_AUDIENCE `
+  --redirect-uri "https://global.consent.azure-apim.net/redirect/<connector-id>"
+```
+
+**恒久対策済み**: `add_connector_redirect_uri.py` が URI のホストとパスを検証し、既存 URI を保持したまま
+追加して、Graph の再取得で反映を確認する。Client secret は再発行しない。
+
+### MCP ツールが DLP ポリシーでブロックされ、公開できない
+
+**症状**: ツールに `This tool is blocked by your data loss prevention policy` と表示される。
+
+**原因**: MCP Server は Power Platform のカスタムコネクタとして DLP 評価される。対象コネクタが
+`Blocked` の場合だけでなく、エージェント内でデータを受け渡す他のコネクタと `Business` / `Non-Business`
+グループが異なる場合も違反になる。OAuth の `AADSTS50011` は別問題で、Redirect URI の追加だけでは
+DLP 分類は変わらない。
+
+**対処**: [Copilot Studio の DLP 診断](copilot-studio-dlp.md) に従い、まず読み取り専用スクリプトで
+適用ポリシー、コネクタの明示分類、Host URL パターンを確認する。Copilot Studio のエラー詳細も
+ダウンロードし、違反したポリシー名とコネクタ名を一致させてから管理者が最小変更する。
+
+**恒久対策済み**: `diagnose_copilot_dlp.ps1` は対象環境に適用されるポリシーだけを抽出し、対象カスタム
+コネクタが明示分類されていなければ既定グループを表示する。スクリプトはポリシーを変更しない。
 
 ---
 

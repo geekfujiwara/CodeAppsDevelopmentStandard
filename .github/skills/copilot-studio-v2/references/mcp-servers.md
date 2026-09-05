@@ -9,16 +9,27 @@ McpTool + 接続参照）で自動追加する手順を提供していたが、�
 
 ## 前提
 
-- 対象コネクタ（例: Microsoft Dataverse、Work IQ OneDrive）の **Connected な接続**が
-  環境に存在していること。無ければ make.powerautomate.com で一度作成・承認する。
+- 既存コネクタ（例: Microsoft Dataverse、Work IQ OneDrive）を追加する場合は、対象の
+  **Connected な接続**が環境に存在していること。
 - エージェント（cliagent）が `scripts/create_agent.py` 等で作成済みであること。
 
-> **自前の MCP Server を追加する場合**は、事前にカスタム コネクタ（`x-ms-agentic-protocol: mcp-streamable-1.0`
-> の OpenAPI）と Entra の OAuth 設定が必要になる。作り方は
-> [mcp-server スキルの Copilot Studio 登録手順](../../mcp-server/references/copilot-studio-registration.md) を参照。
-> コネクタを用意したうえで、以下の UI 手順で追加する。
+## 自前 MCP Server をウィザードで追加する
 
-## 手順（UI）
+自前 Server は、Copilot Studio の **Tools > Add a tool > New tool > Model Context Protocol** から
+オンボーディングウィザードで追加する。事前に OpenAPI コネクタを作る必要はない。
+
+1. [mcp-server スキルの登録手順](../../mcp-server/references/copilot-studio-registration.md) に従い、
+   Server ごとのコピペ用 MD を `generate_copilot_studio_guide.py` で生成する。
+2. `Server name` は英字・数字・ハイフン・ドットだけにする。日本語名は内部コネクタ名の作成で 400 になる。
+3. `Authentication = OAuth 2.0`、`Configuration type = Manual` を選び、生成 MD から貼り付けて **Add** する。
+4. **Select a connection** で生成 MD の `Display name (optional)` を入力し、**Create** を選ぶ。
+5. `AADSTS50011` が出たら、エラーのパス付き Redirect URI を
+   `add_connector_redirect_uri.py` で Entra アプリへ追加し、接続ダイアログを開き直す。
+6. 接続後に **Add to agent**、必要なら **Confirm**、最後にエージェントを再公開する。
+
+入力 MD は Client secret を含むため、Server ごとに分けて `.gitignore` 対象にする。
+
+## 既存コネクタを追加する
 
 開始前に [ブラウザ自動化方針](../../standard/references/browser-automation.md)に従い、
 `AskUserQuestion` で使用する Edge プロファイルを確認する。回答前は Copilot Studio を開かず、
@@ -89,3 +100,5 @@ PAC CLI・Dataverse Web API のいずれにも自動化手段は提供しない�
 | 実行時に MCP が反応しない / 認可エラー | 追加後の Confirm 未実施、または接続未承認 | UI で **Confirm** ＋ 接続の承認を確認 |
 | **UI の Confirm を押しても接続できない** | 接続参照バインドが古い状態で残っている | UI で対象 MCP サーバーを削除→再追加 → 再公開 → 再 Confirm |
 | `Connected な接続がありません` | 環境に該当コネクタの接続が無い | make.powerautomate.com で接続を作成/承認 |
+| `POST .../connectors/apim 400` | Server name に日本語・空白等を使用 | 英字・数字・ハイフン・ドットだけに変更 |
+| サインインで `AADSTS50011` | コネクタ固有 Redirect URI が Entra に未登録 | エラーに表示された URI を `add_connector_redirect_uri.py` で追加 |
