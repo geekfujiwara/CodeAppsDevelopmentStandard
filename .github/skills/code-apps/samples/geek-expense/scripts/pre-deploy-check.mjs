@@ -28,7 +28,7 @@ if (!fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, "utf-8");
 
   // 必須項目のチェック
-  const required = ["DATAVERSE_URL", "TENANT_ID", "ENV_ID", "SOLUTION_ID", "SOLUTION_NAME", "PUBLISHER_PREFIX"];
+  const required = ["DATAVERSE_URL", "TENANT_ID", "ENV_ID", "SOLUTION_NAME", "PUBLISHER_PREFIX"];
   for (const key of required) {
     const match = envContent.match(new RegExp(`^${key}=(.+)$`, "m"));
     if (!match || match[1].includes("{") || match[1].trim() === "") {
