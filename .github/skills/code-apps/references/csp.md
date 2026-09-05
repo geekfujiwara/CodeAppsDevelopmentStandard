@@ -18,6 +18,11 @@ triggers:
   - "Refused to frame"
   - "外部 API"
   - "外部スクリプト"
+  - "PDF"
+  - "添付ファイル"
+  - "ファイルプレビュー"
+  - "blob:"
+  - "クリップボード"
 ---
 
 # Code Apps CSP 構成スキル
@@ -124,6 +129,76 @@ const embedUrl = `https://maps.google.com/maps?q=${lat},${lon}&z=16&output=embed
 | ディレクティブ | 追加するソース |
 |---|---|
 | `script-src` | CDN ドメイン（例: `https://cdn.jsdelivr.net`） |
+
+### 6. PDF・添付ファイルの表示（埋め込み vs リンク）
+
+**まず「埋め込む必要が本当にあるか」を判定する。** 埋め込みは CSP 追加に加えて「ブラウザから認証なしで取得できる URL」が必須で、
+エンタープライズのストレージ構成では成立しないことが多い。**成立しない場合はリンク方式に割り切る**のが正解。
+
+#### 判定フロー
+
+```
+ファイルの実体はどこ？
+├─ SharePoint / OneDrive
+│   └─ 埋め込み可。frame-src に https://<tenant>.sharepoint.com を追加
+├─ Dataverse の添付（annotation / fileattachment）
+│   └─ retrieveRecordAsync で base64 取得 → blob: URL 化。frame-src に blob: を追加（fetch 不要なので connect-src は不要）
+├─ Azure Blob Storage
+│   └─ ユーザー委任 SAS を発行できれば埋め込み可。frame-src に <account>.blob.core.windows.net を追加
+├─ Azure Files
+│   └─ ❌ 埋め込み不可（ユーザー委任 SAS 非対応。共有キー禁止環境では署名付き URL を発行できない）→ リンク方式
+└─ Entra ID 認証必須の API（Function App / APIM）
+    └─ ❌ 埋め込み不可（Entra のサインイン画面は X-Frame-Options: DENY で iframe 内認証が不可）→ リンク方式
+```
+
+#### リンク方式（CSP 変更が不要）
+
+```tsx
+<a href={url} target="_blank" rel="noopener noreferrer">開く</a>
+```
+
+> **`<a target="_blank">` によるページ遷移は CSP の対象外。**
+> `frame-src` は iframe、`connect-src` は fetch/XHR を制御するもので、**ナビゲーションはどちらにも該当しない**。
+> したがってリンク方式なら CSP の追加設定は一切不要（ブロックされるとしたらブラウザのポップアップブロックのみ）。
+
+基点 URL は `.env` の `VITE_*` に外出しし、未設定ならリンクを出さずパス表示とコピーだけに縮退させると、環境差分に強くなる。
+
+#### 埋め込み方式に必要な CSP
+
+| ディレクティブ | 既定値 | 追加する値 | 理由 |
+|---|---|---|---|
+| `frame-src` | `'self'` | `blob:` または配信元ドメイン | `<iframe>` / `<embed>` で表示する。**`blob:` は `'self'` に含まれない**ため明示追加が必須 |
+| `connect-src` | `'none'` | 配信元ドメイン | fetch/XHR でバイト列を取得する場合。既定が `'none'` なので**追加ではなく置換**になる |
+| `object-src` | `default-src` に従う | `blob:` / 配信元ドメイン | `<object>` で表示する場合 |
+| `worker-src` | `default-src` に従う | `blob:` | pdf.js の Web Worker を使う場合 |
+| `img-src` | `'self' data: <platform>` | `blob:` | pdf.js で canvas → 画像化する場合 |
+
+#### クリップボードは必ずフォールバックを書く
+
+Code Apps は cross-origin iframe で動作するため、ホストの Permissions-Policy によって `navigator.clipboard` が拒否されることがある。
+
+```ts
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    try {
+      const el = document.createElement("textarea")
+      el.value = text
+      el.style.position = "fixed"
+      el.style.opacity = "0"
+      document.body.appendChild(el)
+      el.select()
+      const ok = document.execCommand("copy")
+      document.body.removeChild(el)
+      return ok
+    } catch {
+      return false
+    }
+  }
+}
+```
 
 ## 設定方法
 
