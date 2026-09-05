@@ -50,19 +50,31 @@ Copilot Studio で公開エラーの **Details > Download** を選び、次を�
 診断結果に `Blocked` 規則がなく、違反詳細にも対象 MCP が出ない場合は DLP を変更しない。
 OAuth 接続を作り直し、ツールを開き直してから再評価する。
 
-## Step 3: 管理者が最小変更する
+## Step 3: 未分類のカスタムコネクタを API で明示分類する
 
-DLP ポリシーの書き込みには安定した公開 REST 契約がないため、診断スクリプトは変更を行わない。
-Power Platform 管理センターで、違反詳細に示されたポリシーだけを編集する。
+テナントレベルポリシーの URL 規則が `Ignore *` だけの場合、カスタムコネクタは**未分類**のまま残り、
+Copilot Studio 側でツールがブロック扱いになる。対象 Host だけに規則を 1 本追加して解消する。
 
-1. **Security > Data and privacy > Data policy** を開く。
-2. 違反したポリシーを選ぶ。
-3. 環境レベルポリシーでは対象カスタムコネクタ 1 件だけを、連携先と同じグループへ移す。
-4. テナントレベルポリシーでは **Custom connectors** で対象 Host の規則だけを追加または変更する。
-5. `*` 規則、他の Host 規則、対象外環境は変更しない。
+```powershell
+# 既定は dry-run。変更前後の規則を表示するだけで、ポリシーは更新しない
+python .github/skills/standard/scripts/set_dlp_custom_connector.py `
+  --tenant-id $env:TENANT_ID `
+  --policy "<違反詳細に示されたポリシー名>" `
+  --host $env:MCP_CONNECTOR_HOST `
+  --classification General
 
-既に別グループへ明示分類されている場合、削除と追加による API 更新は非アトミックになる。
-公開スキルでは自動実行せず、管理センターの差分確認を通して更新する。
+# 表示内容を確認してから --apply を付けて適用する
+```
+
+- `--classification` は **エージェント内で併用する他コネクタと同じグループ**に合わせる
+  （Dataverse が Non-business なら `General`）。異なるグループにすると今度はグループ不一致でブロックされる。
+- スクリプトは既存規則と末尾の `*` 規則を保持し、対象 Host の規則だけを先頭に追加する。
+- 元に戻すときは同じスクリプトで元の分類を指定するか、追加した規則を管理センターで削除する。
+
+環境レベルポリシーで既に別グループへ明示分類されている場合、削除と追加による更新は非アトミックになる。
+この場合は自動化せず、Power Platform 管理センターの
+**Security > Data and privacy > Data policy** で対象コネクタ 1 件だけを連携先と同じグループへ移す。
+いずれの場合も `*` 規則・他の Host 規則・対象外環境は変更しない。
 
 ## Step 4: 再評価する
 
