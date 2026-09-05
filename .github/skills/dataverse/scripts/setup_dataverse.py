@@ -1756,7 +1756,7 @@ def main():
     verify_tables()              # Step 8: テーブル検証
 
     print("\n✅ Dataverse setup complete!")
-    print("Next: create app / npx power-apps add-data-source / pac model genpage generate-types")
+    print("Next: create app / npx pa app add data-source / pac model genpage generate-types")
 
 
 if __name__ == "__main__":

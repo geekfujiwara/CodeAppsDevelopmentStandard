@@ -74,8 +74,8 @@ GitHub Copilot Agent モードで、作成したいテーブルの要件を会�
 | **作成順序: マスタ→主→従属**       | リレーションシップの依存関係を守らないとエラー                                                                                                       |
 | **日本語ローカライズは PUT**       | PATCH/POST では DisplayName が反映されないケースがある                                                                                               |
 | **MSCRM.MergeLabels: true 必須**   | ローカライズ時のリクエストヘッダーに必要                                                                                                             |
-| **nameUtils.js の Unicode パッチ** | `npx power-apps add-data-source` が日本語 DisplayName で `Failed to sanitize string` 失敗する。[§1.2 参照](../../standard/references/power-platform-development-standard.md) |
-| **npx でデータソース追加**         | `pac code add-data-source` は SDK v1.0.x で動作しない。`npx power-apps add-data-source` を使用                                                       |
+| **nameUtils.js の Unicode パッチ** | `npx pa app add data-source` が日本語 DisplayName で `Failed to sanitize string` 失敗する。[§1.2 参照](../../standard/references/power-platform-development-standard.md) |
+| **npx でデータソース追加**         | `pac code add-data-source` は SDK v1.0.x で動作しない。`npx pa app add data-source` を使用                                                       |
 
 > 📖 詳細は [AI ファースト開発標準](../../standard/references/power-platform-development-standard.md) を参照してください。
 
@@ -99,8 +99,7 @@ pac solution init --publisher-name "YourPublisher" --publisher-prefix "yp"
 
 ```bash
 # 推奨: npx 経由（SDK v1.0.x 対応）
-npx power-apps add-data-source --api-id dataverse \
-  --resource-name {table-logical-name} \
+npx pa app add data-source --connector shared_commondataserviceforapps \
   --org-url {DATAVERSE_URL} --non-interactive
 
 # レガシー: pac cli 経由（SDK v0.3.x のみ）
