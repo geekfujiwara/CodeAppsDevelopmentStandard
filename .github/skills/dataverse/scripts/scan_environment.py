@@ -17,9 +17,11 @@ import os
 import sys
 
 # 進捗ログをリアルタイム表示するため stdout/stderr を行バッファに切り替え。
+# ログへリダイレクトすると Windows では cp932 になり絵文字 print が落ちるため UTF-8 を明示する
+# （references/troubleshooting.md #11）。
 try:
-    sys.stdout.reconfigure(line_buffering=True)
-    sys.stderr.reconfigure(line_buffering=True)
+    sys.stdout.reconfigure(line_buffering=True, encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(line_buffering=True, encoding="utf-8", errors="replace")
 except AttributeError:
     pass
 

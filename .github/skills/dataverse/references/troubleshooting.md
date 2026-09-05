@@ -798,4 +798,63 @@ def _to_iso(value: str | None) -> str | None:
 - 「対象 0 件」「0.0日」は正常値ではなく、**起点日時の設計ミスのシグナル**として疑う
 - 月次トレンドのラベルが実行月の周辺だけに固まっていないか
 
+---
+
+## 23. `EntityDefinitions` を PATCH すると `405 Method Not Allowed`（テーブル監査の有効化等）
+
+### 症状
+
+テーブルの監査（`IsAuditEnabled`）や表示名などのテーブル メタデータを更新しようとして
+PATCH すると、レコードの更新と同じ書き方なのに 405 で失敗する。
+
+```text
+requests.exceptions.HTTPError: 405 Client Error: Method Not Allowed for url:
+  .../api/data/v9.2/EntityDefinitions(510c7696-....)
+```
+
+### 原因
+
+`EntityDefinitions`（メタデータ エンティティ）は **PATCH をサポートしていない**。
+レコード（`geek_xxx` 等のビジネスデータ）は PATCH で部分更新できるが、
+メタデータの更新は **PUT + `MSCRM.MergeLabels: true`** を使う。
+
+### 対処
+
+対象の定義を GET してから変更点を上書きし、PUT で書き戻す。
+`@odata.context` は送り返すとエラーになるため削除する。
+
+```python
+def enable_table_audit(metadata_id: str) -> None:
+    definition = api_get(f"EntityDefinitions({metadata_id})")
+    definition.pop("@odata.context", None)
+    definition["IsAuditEnabled"] = {
+        "Value": True,
+        "CanBeChanged": True,
+        "ManagedPropertyLogicalName": "canmodifyauditsettings",
+    }
+    # auth_helper.api_request は MSCRM.MergeLabels を付けて任意メソッドを送る
+    api_request(f"EntityDefinitions({metadata_id})", definition, method="PUT")
+```
+
+> **部分 PUT は避ける**。変更したいプロパティだけを PUT すると、
+> 送らなかったプロパティが既定値へ戻ることがある。必ず GET したフル定義を編集して送る。
+
+> **反映には公開が必要**: テーブル数分の PUT を終えたら `PublishAllXml` を 1 回呼ぶ。
+> 19 テーブル程度でも数分かかるため、タイムアウトを短く設定した実行環境では
+> バックグラウンド実行かログへのリダイレクトを併用する。
+
+### 関連: 組織レベルの監査は PATCH でよい
+
+組織設定は通常のレコードなので PATCH で更新できる。
+
+```python
+org = api_get("organizations?$select=organizationid,isauditenabled,isuseraccessauditenabled")["value"][0]
+api_patch(f"organizations({org['organizationid']})",
+          {"isauditenabled": True, "isuseraccessauditenabled": True})
+```
+
+`isauditenabled`（組織）→ 各テーブルの `IsAuditEnabled` の **両方**を有効にしないと監査ログは記録されない。
+レコードの参照（Retrieve）監査はストレージと性能への影響が大きいため、要件が明確な場合だけ有効化する。
+
+
 
