@@ -47,6 +47,26 @@
 
 **対処**: ARM のメタデータを信用しない。**HTTP プローブを唯一の真実**として扱う。
 
+### 関数一覧には出るのに、呼ぶと本文が空の 404 が返る
+
+**原因**: ルート名が Functions ホストの**組み込みルートと衝突**している。代表例は
+`route: 'admin-seed'` のように **`admin` で始まる**ルート（`/admin/host/status` などと衝突する）。
+衝突した関数だけが読み込まれず、ホストが 404 を返す。ビルドもデプロイも成功し、
+`az functionapp function list` にも `Invoke url` 付きで表示されるため気付きにくい。
+
+ホストログに理由がそのまま出る。
+
+```
+The 'adminSeed' function is in error: The specified route conflicts with one or more built in routes.
+```
+
+**対処**: ルート名を変える（`seed-data` など）。切り分けは `curl -i` で本文の有無を見る。
+
+| 404 の見え方 | 発生源 |
+|---|---|
+| `Content-Length: 0` / `Server: Kestrel`（本文なし） | **ホスト**。ルートが未登録＝ルート衝突かデプロイ漏れ |
+| `{"error":"not found"}` のような JSON 本文あり | **自作ハンドラー**。鍵の不一致・メソッド違い等 |
+
 ### 削除したはずの関数のルートが、再デプロイ後も 401 を返す（404 にならない）
 
 **原因**: `tsc` は `dist/` をクリーンせず、削除・退避したソースのコンパイル済み `.js` が `dist/` に残る。
@@ -195,6 +215,24 @@ az login --tenant <tenant-id> --scope "https://management.core.windows.net//.def
 共有作成の権限（`Microsoft.Storage/storageAccounts/fileServices/shares/write`）が含まれない。
 
 **対処**: 共有はマネジメントプレーンで先に作成する。→ [private-data-seeding.md](private-data-seeding.md)
+
+### 共有は実在するのに `This request is not authorized to perform this operation using this permission.`
+
+**原因**: コードが `share.exists()` / `share.create()` を呼んでいる。これらは **share レベル操作**で、
+Entra 認証（OAuth）では実行できない。ファイルの読み書きができる権限でも、この 2 つだけは通らない。
+
+**対処**: 共有は事前にマネジメントプレーンで作る前提にし、コードからは
+ディレクトリ・ファイルレベルの操作だけを行う（存在確認も含めて share レベルは触らない）。
+
+### SQL で `CREATE SCHEMA failed due to previous errors.` になる
+
+**原因**: MI のデータベースユーザーに DDL 権限（`db_owner` / `db_ddladmin` 相当）が無い。
+`publicNetworkAccess=Disabled` のため、開発 PC から `GRANT` を流すこともできない。
+
+**対処**: シードの間だけ **MI をサーバーの Entra 管理者に昇格**させ、終わったら元の管理者へ戻す。
+コントロールプレーンだけで完結し、公衆ネットワークを開ける必要がない。
+戻し忘れると元の管理者が SQL に入れなくなるため、事前に `az sql server ad-admin list` で
+`login` と `sid` を控えること。→ [private-data-seeding.md](private-data-seeding.md)
 
 ### ローカルから SQL / Storage に接続できない
 
