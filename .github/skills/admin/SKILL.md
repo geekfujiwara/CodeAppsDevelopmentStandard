@@ -1,6 +1,6 @@
 ---
 name: admin
-description: "Power Platform のテナント / 環境ガバナンスを確認・設定する管理スキル。開発着手前の環境チェック（既定環境ではないか・マネージド環境・Dataverse / Code Apps / MCP の有効化・セキュリティ ロール・管理 API アクセス）と DLP 事前チェックを非対話スクリプトで実行し、必要ならマネージド環境設定・カスタムコネクタの DLP 分類・ACP（Advanced connector policies）の許可コネクタを dry-run 付きで変更する。クラシック DLP と ACP は既定の混成モードで併用され、より制限の厳しい方が適用されるため両方を確認する。IP 制限・テナント分離・監査ログ・ライセンス配分などの管理設定は references にまとめる。"
+description: "Power Platform のテナント / 環境ガバナンスを確認・設定する管理スキル。開発着手前の環境チェック（既定環境ではないか・マネージド環境・Dataverse / Code Apps / MCP の有効化・セキュリティ ロール・管理 API アクセス）と DLP 事前チェックを非対話スクリプトで実行し、必要ならマネージド環境設定・カスタムコネクタの DLP 分類・ACP（Advanced connector policies）の許可コネクタを dry-run 付きで変更する。Microsoft 第一者サービスだけを許可する ACP 推奨プロファイルの適用と、クラシック DLP から ACP への移行も支援する。クラシック DLP と ACP は既定の混成モードで併用され、より制限の厳しい方が適用されるため両方を確認する。IP 制限・テナント分離・監査ログ・ライセンス配分などの管理設定は references にまとめる。"
 category: platform
 triggers:
   - "環境チェック"
@@ -12,6 +12,8 @@ triggers:
   - "ACP"
   - "Advanced connector policies"
   - "コネクタがブロックされる"
+  - "DLP 推奨設定"
+  - "DLP から ACP へ移行"
   - "ガバナンス"
   - "マネージド環境"
   - "Managed Environment"
@@ -54,8 +56,11 @@ triggers:
 | [scripts/check_dlp.py](scripts/check_dlp.py) | 使用コネクタが DLP で使えるかの事前チェック | なし |
 | [scripts/set_dlp_custom_connector.py](scripts/set_dlp_custom_connector.py) | カスタムコネクタ（自前 MCP Server 等）の DLP 分類を設定 | `--apply` 時のみ |
 | [scripts/set_acp_connector.py](scripts/set_acp_connector.py) | ACP（Advanced connector policies）の許可コネクタを確認・追加 | `--apply` 時のみ |
+| [scripts/apply_acp_profile.py](scripts/apply_acp_profile.py) | ACP の許可セットを推奨プロファイル（Microsoft 第一者のみ）で一括設定 | `--apply` 時のみ |
+| [scripts/migrate_dlp_to_acp.py](scripts/migrate_dlp_to_acp.py) | クラシック DLP の分類を ACP の許可リストへ移行 | `--apply` 時のみ |
 | [scripts/set_managed_environment.py](scripts/set_managed_environment.py) | マネージド環境の有効化・共有制限・ソリューション チェッカー設定 | `--apply` 時のみ |
 | [scripts/dlp_helper.py](scripts/dlp_helper.py) | DLP 管理 API の共通ロジック（他スクリプトから import） | なし |
+| [references/acp-profiles.json](references/acp-profiles.json) | ACP 推奨許可セットの定義（パターン / ブロック / 要確認） | なし |
 
 ## ワークフロー（正常系）
 
@@ -158,7 +163,76 @@ python .github/skills/admin/scripts/set_acp_connector.py `
 **環境グループ側のポリシーを更新**しないと再同期で元に戻る。
 適用後は必ず再確認し、許可コネクタ数が増えていることを確認する。
 
-### Step 7: 反映を確認する
+### Step 7: ACP を推奨プロファイルで一括設定する（任意）
+
+「Microsoft 第一者サービスだけを許可し、Microsoft が公開していても実体がサードパーティの
+サービス（Google Drive / Facebook / Mailchimp / YouTube / Workday / Zendesk など）と
+非推奨コネクタ（Dynamics 365 レガシー）はブロックする」推奨セットを 1 コマンドで適用する。
+
+定義は [references/acp-profiles.json](references/acp-profiles.json)。
+`publisher` では第一者判定できない（Google Drive も YouTube も publisher は `Microsoft`）ため、
+コネクタ ID のパターンで判定している。
+
+```powershell
+# 解決される許可セットを一覧する（読み取りのみ）
+python .github/skills/admin/scripts/apply_acp_profile.py `
+  --environment-id $env:ENV_ID --profile microsoft-first-party --list
+
+# 現在の ACP との差分を確認する（dry-run）
+python .github/skills/admin/scripts/apply_acp_profile.py `
+  --environment-id $env:ENV_ID --profile microsoft-first-party --include-group
+
+# 内容を確認してもらってから適用する
+python .github/skills/admin/scripts/apply_acp_profile.py `
+  --environment-id $env:ENV_ID --profile microsoft-first-party `
+  --include-group --include-connector shared_example-mcp --apply
+```
+
+| 事項 | 挙動 |
+|---|---|
+| 許可リストの扱い | **置き換え**。差分（追加 / 削除）を必ずユーザーに提示してから `--apply` |
+| カスタムコネクタ | 既に許可済みのものは自動で引き継ぐ（`--no-keep-custom` で無効化） |
+| 要確認コネクタ | `reviewConnectors`（コンシューマー版 OneDrive / Outlook.com / GitHub 等）は実行時に一覧表示される。**AskUserQuestion で利用有無を確認**し、不要なら `--exclude-connector` で外す |
+| 安全弁 | `mustNotAllow`（Google Drive 等）が許可セットに紛れ込んだら中断する |
+
+### Step 8: クラシック DLP から ACP へ移行する（任意）
+
+既存のクラシック DLP の分類を読み取り、ACP の許可リストへ写す。
+DLP は「グループ分け」、ACP は「default-deny の許可リスト」で意味論が異なるため、
+機械的に移せない部分は **未確定事項**として出力される。
+
+```powershell
+# 1. 現状分析。未確定事項を出力する（変更しない）
+python .github/skills/admin/scripts/migrate_dlp_to_acp.py `
+  --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID `
+  --report-only --report-file dlp-to-acp.json
+
+# 2. AskUserQuestion で回答を得てから、対応するオプションを付けて dry-run
+python .github/skills/admin/scripts/migrate_dlp_to_acp.py `
+  --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID `
+  --allow-group Confidential --keep-custom --include-group
+
+# 3. 差分を確認してもらってから適用
+#    上記コマンドに --apply を付ける
+```
+
+出力される未確定事項と、AskUserQuestion で確認すべき内容:
+
+| ID | 確認内容 | 反映するオプション |
+|---|---|---|
+| `default-classification` | DLP の未分類コネクタは既定で許可扱い。ACP でも許可するか（既定は許可しない＝ default-deny 維持） | `--allow-unclassified` |
+| `allow-groups` | Business（Confidential）と Non-business（General）のどちらを ACP へ移すか | `--allow-group Confidential` / `--allow-group General` |
+| `custom-connectors` | カスタムコネクタを許可リストに含めるか | `--keep-custom` |
+| `url-rules` | DLP の Host URL 規則には ACP の等価機能がない。対象コネクタを個別に許可するか | `--include-connector shared_xxx` |
+
+許可セットが 0 件になる指定は事故防止のため中断する（意図的なら `--allow-empty`）。
+
+**ACP のみモード**（クラシック DLP を無視する）への切り替えは API が公開されていない。
+Power Platform 管理センターの **セキュリティ > データとプライバシー** で
+「Advanced connector policies only」を有効化する手動操作が必要。
+移行が完了して ACP だけで運用できることを確認してから切り替える。
+
+### Step 9: 反映を確認する
 
 変更後に Step 1・Step 2・Step 6 を再実行し、`OK` になったことを確認してからユーザーへ報告する。
 DLP は反映に時間がかかるため、直後に解消していなくても再評価まで待って判断する。
@@ -172,6 +246,7 @@ DLP は反映に時間がかかるため、直後に解消していなくても�
 | `code-apps` | 初回デプロイ前 | Step 1（`--require-managed --require-code-apps`） |
 | `copilot-studio` / `copilot-studio-v2` | エージェント作成前・MCP ツール追加前 | Step 1（`--require-mcp`）→ Step 2 → Step 6 |
 | `mcp-server` | カスタムコネクタ登録前後 | Step 2 → Step 5 → Step 6 |
+| ユーザー依頼 | DLP / ACP の推奨設定・移行 | Step 7（推奨プロファイル）/ Step 8（DLP → ACP 移行） |
 
 ## 参考リンク
 

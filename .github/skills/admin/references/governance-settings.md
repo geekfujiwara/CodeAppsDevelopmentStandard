@@ -62,6 +62,50 @@ python .github/skills/admin/scripts/set_acp_connector.py `
 python .github/skills/admin/scripts/set_acp_connector.py --environment-id $env:ENV_ID --list
 ```
 
+### 推奨許可セット（Microsoft 第一者のみ）
+
+[acp-profiles.json](acp-profiles.json) の `microsoft-first-party` プロファイルは、
+Microsoft 第一者サービスのコネクタだけを許可し、
+サードパーティ サービス（Google Drive / Facebook / Mailchimp / Mandrill / YouTube /
+Workday / Zendesk など）と非推奨コネクタ（Dynamics 365 レガシー）をブロックする。
+
+**`publisher` は第一者判定に使えない。** Google Drive も YouTube も `publisher` は `Microsoft`。
+Microsoft はサードパーティ サービス向けのコネクタも自社で作成・公開しているため。
+`metadata.stackOwner` も第一者コネクタでは空になる。そのためコネクタ ID のパターンで判定する。
+
+| プロファイルの要素 | 役割 |
+|---|---|
+| `sourceFilter` | `metadata.source` で絞る（`marketplace` = 認定コネクタ。`independentpublisher` は除外） |
+| `allowPatterns` | 許可するコネクタ ID の正規表現（完全一致） |
+| `denyConnectors` | パターンに一致しても除外するもの（レガシー / Independent Publisher 版） |
+| `reviewConnectors` | コンシューマー版 OneDrive・Outlook.com・GitHub など、利用有無をユーザーに確認すべきもの |
+| `mustNotAllow` | 混入したら実行を中断する安全弁 |
+
+```powershell
+# 解決される許可セットを一覧
+python .github/skills/admin/scripts/apply_acp_profile.py `
+  --environment-id $env:ENV_ID --profile microsoft-first-party --list
+
+# 現在の ACP との差分（dry-run）。--apply で反映
+python .github/skills/admin/scripts/apply_acp_profile.py `
+  --environment-id $env:ENV_ID --profile microsoft-first-party --include-group
+```
+
+許可リストは**置き換え**になる。既に許可されているカスタムコネクタは自動で引き継がれるが、
+削除件数が大きくなるため、差分を必ずユーザーに提示してから適用する。
+
+### クラシック DLP からの移行
+
+`migrate_dlp_to_acp.py` が適用中の DLP を読み取り、Blocked 以外を許可リスト候補にする。
+DLP の「グループ分け」と ACP の「default-deny 許可リスト」は意味論が違うため、
+未確定事項（未分類コネクタの扱い / 移行対象グループ / カスタムコネクタ / Host URL 規則）は
+出力を見て AskUserQuestion で確認し、対応するオプションを付けて再実行する。
+
+`Ignore` の Host URL 規則やカスタムコネクタの URL パターンには ACP の等価機能がない。
+対象コネクタを `--include-connector` で個別に許可する。
+
+**ACP のみモード**への切り替え API は公開されていない。管理センター UI で操作する。
+
 ## 設定変更の進め方
 
 1. **現状を読み取る**: `check_environment.py` で現在値を出力し、変更前の状態を記録する。

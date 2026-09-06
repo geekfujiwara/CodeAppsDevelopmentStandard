@@ -56,6 +56,47 @@ HTTP は成功するのに、読み直すと件数が元のままになる。
 グループの `policyId` を取得し、そちらを `--policy-id` に指定して更新する。
 `set_acp_connector.py --include-group` は両方を確認するので、差分が出たらグループ側を直す。
 
+## 1-d. ACP の許可セットを `publisher` で作ろうとして 3rd パーティが混ざる
+
+**症状**: 「Microsoft 提供のコネクタだけ許可する」つもりで
+`properties.publisher == "Microsoft"` を条件にしたら、Google Drive・YouTube・Mailchimp・
+Zendesk などが許可セットに入ってしまう。
+
+**原因**: コネクタの `publisher` は**コネクタの作者**であり、**サービスの提供元ではない**。
+サードパーティ サービス向けのコネクタも Microsoft が作成・公開しているため publisher は `Microsoft` になる。
+`metadata.stackOwner` も第一者コネクタでは空で、判定に使えない。
+
+**対処**: コネクタ ID（`shared_xxx`）のパターンで判定する。
+定義は [acp-profiles.json](acp-profiles.json) にあり、`mustNotAllow` に代表的な
+サードパーティ サービスを列挙して、混入したら `apply_acp_profile.py` が中断する。
+
+## 1-e. ACP の許可リストを置き換えて全部ブロックしてしまう
+
+**症状**: 移行やプロファイル適用で `AllowedConnectorList` を上書きした結果、
+必要なコネクタまで消えてアプリ・フロー・エージェントが一斉に動かなくなる。
+
+**原因**: `apply_acp_profile.py` と `migrate_dlp_to_acp.py` は許可リストを**置き換える**。
+クラシック DLP の「Non-business を全部許可」に相当する状態から移行すると、削除件数が 1,000 件を超えることもある。
+
+**対処**:
+
+- 必ず dry-run の差分（追加 / 削除の件数と一覧）をユーザーに提示してから `--apply` する。
+- カスタムコネクタは既定で引き継がれる（`apply_acp_profile.py`）。移行スクリプトでは `--keep-custom` を明示する。
+- 許可セットが 0 件になる指定は `migrate_dlp_to_acp.py` が中断する（意図的なら `--allow-empty`）。
+- 環境グループ配下の全環境に効くため、まず 1 環境だけに ACP を割り当てて検証する。
+
+## 1-f. 「ACP のみ」モードを API で切り替えられない
+
+**症状**: クラシック DLP を無視して ACP だけで運用したいが、実施モードを変える API が見つからない。
+
+**原因**: 実施モードの切り替えは管理センター UI のみの提供。
+`listTenantSettings` や `governance/tenantSettings` は 404、
+`governance/ruleBasedPolicies/settings` は 400 になる。
+
+**対処**: Power Platform 管理センターの **セキュリティ > データとプライバシー** で
+「Advanced connector policies only」を有効化する。未チェック時は**混成モード（既定）**で、
+クラシック DLP と ACP の**より制限の厳しい方**が適用される。
+
 ## 2. `urlPatterns` の POST で既存規則が消えた
 
 **原因**: `POST .../policies/{policy}/urlPatterns` は**全置換**。差分更新ではない。
