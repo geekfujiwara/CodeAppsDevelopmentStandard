@@ -140,6 +140,41 @@
     "why": "Dataverse 検索（リレーショナル 検索）を全環境で有効化する。Copilot Studio の知識・Code Apps の検索体験の前提。",
     "attribute": "organizations.isexternalsearchindexenabled"
   },
+  "lifecyclePolicy": {
+    "why": "環境グループへ環境を入れる前に棚卸しをする。使われていない環境をそのままグループへ入れると、マネージド環境化のライセンスも Dataverse 容量も無駄に消費し続ける。先に削除すれば容量がテナント プールへ戻り、新しい環境を作る余地が生まれる。",
+    "unusedEnvironment": {
+      "maxApps": 2,
+      "maxFlows": 2,
+      "inactiveDays": 180,
+      "excludeDefault": true,
+      "excludeSkus": [
+        "Default",
+        "Teams"
+      ],
+      "why": "アプリもフローもほとんど無く、最終更新から半年以上動いていない環境は、作りかけか一度きりの検証で放置されたもの。所有者に確認したうえで削除する。",
+      "action": "所有者へ確認 → ソリューション / データのバックアップ → 削除",
+      "note": "削除すると Database / File / Log の消費量がテナント容量プールへ戻る。削除後 7 日間は管理センターからリカバリできる。"
+    },
+    "reuseExistingEnvironment": {
+      "looseConnectorAllowedCount": 100,
+      "minApps": 10,
+      "recommendGroup": "AI CoE 内製開発グループ",
+      "recommendStage": "Dev",
+      "why": "コネクタ制限がゆるく（ACP 未割り当て、または許可コネクタが多い）アプリが多数動いている既存環境は、実質的に内製開発の現場になっている。これを市民開発者グループの厳しいルールへ入れると既存アプリが止まる。AI CoE 内製開発グループの開発環境として採用し、パイプラインで下流へ流す形に整える。"
+    },
+    "blockUnmanagedCustomizations": {
+      "meansProduction": true,
+      "why": "「アンマネージド カスタマイズ不可」が既に ON の環境は、ソリューション経由でしか変更できない運用が確立している。これは本番環境に求められる条件そのものなので、新規作成せずに AI CoE 内製開発グループの本番環境として採用する。",
+      "api": "GET {pp}/environmentmanagement/environments/{envId}/settings?api-version=2022-03-01-preview（委任アクセス許可 EnvironmentManagement.Settings.Read が必要）",
+      "fallback": "上記 API が 403 になる場合は Power Platform 管理センターの [環境] > [設定] > [製品] > [機能] で目視確認し、下の environmentFacts に手入力する。"
+    }
+  },
+  "environmentFacts": {
+    "$comment": "API で読めない環境個別の事実を手入力で補う。キーは環境の表示名。scan_environment_strategy.py が API 値より優先して採用する。",
+    "<環境の表示名>": {
+      "blockUnmanagedCustomizations": false
+    }
+  },
   "groups": [
     {
       "name": "既定環境グループ",
@@ -258,7 +293,15 @@
     {
       "name": "AI CoE 内製開発グループ",
       "code": "COE",
-      "purpose": "本部 / 事業部の AI CoE が Code Apps を含む内製開発を行う。開発とテストのランドスケープを Power Platform パイプラインで繋ぎ、データのサイロ化を防ぐ。本番運用の環境はこのグループには置かない。",
+      "purpose": "本部 / 事業部の AI CoE が Code Apps を含む内製開発を行う。開発・テスト・本番のランドスケープを Power Platform パイプラインで繋ぎ、データのサイロ化と手動デプロイを防ぐ。",
+      "productionPolicy": {
+        "mode": "createNew",
+        "why": "このグループの本番環境は条件が厳しい（アンマネージド カスタマイズ不可・デプロイはパイプライン経由のみ・コネクタは最小限）。既存環境を本番へ転用すると、既に入っているアンマネージド コンポーネントを剥がせず条件を満たせない。原則として新規作成する。",
+        "validationEnvironment": "optional",
+        "validationWhy": "検証（UAT）環境は必須ではない。開発 → テスト → 本番の 3 段で足りる場合は作らず、ユーザー受け入れテストが要件になっているプロジェクトだけ追加する。",
+        "adoptExistingWhenBlockUnmanaged": true,
+        "adoptExistingWhy": "例外として、既に「アンマネージド カスタマイズ不可」が ON になっている既存環境があれば、新規作成せずにこのグループの本番環境として採用する。"
+      },
       "rules": {
         "sharingLimitUsers": null,
         "solutionCheckerMode": "warn",
@@ -283,6 +326,25 @@
           "lifecycle": "永続",
           "stage": "Test",
           "sharingLimitUsers": 20
+        },
+        {
+          "name": "AI CoE 検証（オプション）",
+          "workload": "KBMGR",
+          "type": "Sandbox",
+          "lifecycle": "永続",
+          "stage": "Sandbox",
+          "optional": true,
+          "sharingLimitUsers": 20,
+          "note": "ユーザー受け入れテストが要件のプロジェクトだけ作る。不要なら作らない（容量とライセンスを消費するため）。"
+        },
+        {
+          "name": "AI CoE 本番",
+          "workload": "KBMGR",
+          "type": "Production",
+          "lifecycle": "永続",
+          "stage": "Prod",
+          "provisioning": "createNew",
+          "note": "原則として新規作成する。既に「アンマネージド カスタマイズ不可」が ON の既存環境があれば、それを本番として採用する。"
         }
       ]
     }

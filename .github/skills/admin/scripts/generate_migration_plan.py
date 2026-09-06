@@ -55,11 +55,20 @@ def build(scan: dict, blueprint: dict, decisions: dict) -> str:
         add("| --- | --- | --- | --- | --- |")
         for environment in group["environments"]:
             limit = environment.get("sharingLimitUsers", group["rules"].get("sharingLimitUsers"))
+            name = environment["name"] + ("（任意）" if environment.get("optional") else "")
             add(
-                f"| {environment['name']} | {environment['type']} | {environment['lifecycle']} | "
+                f"| {name} | {environment['type']} | {environment['lifecycle']} | "
                 f"{_sharing(limit)} | {environment.get('note', '-')} |"
             )
         add("")
+        production = group.get("productionPolicy")
+        if production:
+            add(f"**本番環境の方針**: {production['why']}")
+            add("")
+            add(f"- 検証（UAT）環境: {production['validationWhy']}")
+            if production.get("adoptExistingWhenBlockUnmanaged"):
+                add(f"- 例外: {production['adoptExistingWhy']}")
+            add("")
 
     add("## 2. 現状とのギャップ")
     add("")
@@ -70,6 +79,13 @@ def build(scan: dict, blueprint: dict, decisions: dict) -> str:
             add(f"- [ ] `{name}` を新規作成する")
     else:
         add("- 推奨グループはすべて存在します。")
+    reclaimable = scan.get("reclaimableStorageMb") or 0
+    candidates = scan.get("unusedEnvironmentCandidates") or []
+    if candidates:
+        add(
+            f"- [ ] **グループへ入れる前に、使われていない {len(candidates)} 環境を削除する（Dataverse 容量を "
+            f"{reclaimable:g}MB 削減できます）** → 詳細は 2-6"
+        )
     if scan["ungroupedEnvironments"]:
         add(f"- [ ] どのグループにも属していない環境を割り当てる: {', '.join(scan['ungroupedEnvironments'])}")
     if scan["unmanagedEnvironments"]:
@@ -81,12 +97,15 @@ def build(scan: dict, blueprint: dict, decisions: dict) -> str:
 
     add("### 2-2. 環境ごとの現状")
     add("")
-    add("| 環境 | SKU | マネージド | 共有上限 | 現グループ | ACP 許可数 | Copilot クレジット |")
-    add("| --- | --- | --- | --- | --- | --- | --- |")
+    add("| 環境 | SKU | マネージド | アプリ | フロー | 容量(MB) | 現グループ | ACP 許可数 | Copilot クレジット |")
+    add("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for environment in scan["environments"]:
         add(
             f"| {environment['displayName']} | {environment['sku']} | "
-            f"{'はい' if environment['managed'] else '**いいえ**'} | {_sharing(environment['maxSharingUsers'])} | "
+            f"{'はい' if environment['managed'] else '**いいえ**'} | "
+            f"{environment.get('appCount') if environment.get('appCount') is not None else '-'} | "
+            f"{environment.get('flowCount') if environment.get('flowCount') is not None else '-'} | "
+            f"{environment.get('storageMb', 0):g} | "
             f"{environment['group'] or '-'} | {environment['acpAllowedCount'] or '-'} | "
             f"{environment['copilotCredits'] if environment['copilotCredits'] is not None else '-'} |"
         )
@@ -138,6 +157,56 @@ def build(scan: dict, blueprint: dict, decisions: dict) -> str:
         add(f"- Copilot クレジット割り当て済み合計: {allocated}（テナント購入数は管理センターで確認）")
     add("")
 
+    add("### 2-6. 使われていない環境（削除候補）")
+    add("")
+    criteria = blueprint["lifecyclePolicy"]["unusedEnvironment"]
+    add(
+        f"判定基準: アプリ {criteria['maxApps']} 件以下かつフロー {criteria['maxFlows']} 件以下、"
+        f"かつ最終更新から {criteria['inactiveDays']} 日以上経過。"
+    )
+    add("")
+    if candidates:
+        add("| 環境 | SKU | アプリ | フロー | 最終更新 | 解放される容量(MB) |")
+        add("| --- | --- | --- | --- | --- | --- |")
+        for candidate in candidates:
+            add(
+                f"| {candidate['displayName']} | {candidate['sku']} | "
+                f"{candidate['appCount'] if candidate['appCount'] is not None else '-'} | "
+                f"{candidate['flowCount'] if candidate['flowCount'] is not None else '-'} | "
+                f"{(candidate['lastActivity'] or '-')[:10]} | {candidate['storageMb']:g} |"
+            )
+        add("")
+        add(
+            f"- **環境グループへ追加するフェーズの前にこの {len(candidates)} 環境を削除すると、"
+            f"Dataverse 容量を {reclaimable:g}MB 削減できます。**"
+        )
+        add(f"- {blueprint['lifecyclePolicy']['why']}")
+        add(f"- 手順: {criteria['action']}")
+        add(f"- 注意: {criteria['note']}")
+    else:
+        add("- 削除候補はありません。")
+    add("")
+
+    add("### 2-7. 既存環境の割り当て提案")
+    add("")
+    recommendations = scan.get("groupRecommendations") or []
+    if recommendations:
+        add("| 環境 | 提案する環境グループ | 段階 | 理由 |")
+        add("| --- | --- | --- | --- |")
+        for item in recommendations:
+            add(f"| {item['displayName']} | {item['group']} | {item['stage']} | {item['reason']} |")
+    else:
+        add("- 既存環境をそのまま採用する提案はありません。")
+    add("")
+    unknown = scan.get("blockUnmanagedUnknown") or []
+    if unknown:
+        add(
+            f"- 「アンマネージド カスタマイズ不可」を API で読み取れなかった環境が {len(unknown)} 件あります: "
+            f"{', '.join(unknown)}"
+        )
+        add(f"- {blueprint['lifecyclePolicy']['blockUnmanagedCustomizations']['fallback']}")
+        add("")
+
     add("## 3. 実行手順")
     add("")
     add("設定は環境グループのルールで行うのが原則。グループ ルールに無い項目だけを手順 5 以降で補う。")
@@ -145,6 +214,11 @@ def build(scan: dict, blueprint: dict, decisions: dict) -> str:
     add("")
     add("| # | 作業 | 手段 | 影響 |")
     add("| --- | --- | --- | --- |")
+    if candidates:
+        add(
+            f"| 0 | 使われていない環境を削除（{len(candidates)} 件 / {reclaimable:g}MB 削減） | "
+            "管理センターまたは `DELETE {bap}/.../environments/{id}` | 元に戻せない。所有者の承認とバックアップが必須 |"
+        )
     add("| 1 | 対象環境をマネージド環境化 | `set_managed_environment.py --apply` | Premium ライセンスが必要。グループへ入れる前提条件 |")
     add("| 2 | 不足している環境グループを作成 | `apply_environment_strategy.py --groups-only --apply` | 追加のみ。既存環境に影響なし |")
     add("| 3 | 環境をグループへ割り当て | `PATCH {bap}/.../environments/{id}` の `parentEnvironmentGroup`（既定環境は `apply_environment_strategy.py --apply` が実施） | グループのルールを継承する |")
@@ -155,6 +229,8 @@ def build(scan: dict, blueprint: dict, decisions: dict) -> str:
     add("| 8 | Copilot クレジットを配分 | `set_environment_capacity.py --environment-id <ENV> --quantity <N> --apply` | 環境ごとの上限。合計が保有数を超えないこと |")
     add("| 9 | 利用ガイドラインを SharePoint に公開 | `sharepoint` スキル | 読み取り専用の情報ページ |")
     add("| 10 | ガイドライン URL をウェルカム コンテンツへ設定 | `set_environment_group_rules.py --welcome-markdown-file <FILE> --welcome-url <URL> --apply` | メーカーに表示される |")
+    add("| 11 | AI CoE 内製開発の本番環境を新規作成 | `create_environments.py --apply` | 原則新規作成。既にアンマネージド不可の環境があれば 2-7 の提案に従って採用 |")
+    add("| 12 | 開発 → テスト → 本番 のパイプラインを構成 | `setup_pipeline.py --apply` | 手動インポートを禁止し、変更の経路を 1 本にする |")
     add("")
     add("> 手順 4 の既知の制限: グループのルールを発行すると、環境側で設定済みの共有上限・ウェルカム コンテンツ・")
     add("> ソリューション チェッカー・使用状況分析・バックアップ保持・生成 AI 設定はグループの値で上書きされます。")
@@ -176,6 +252,9 @@ def build(scan: dict, blueprint: dict, decisions: dict) -> str:
     add("")
     questions = decisions.get("openQuestions") or [
         "既存の `Dev` / `Production` グループを推奨グループへ名称変更するか、新規に作り直すか",
+        "2-6 の削除候補を実際に削除するか（所有者への確認とバックアップの有無）",
+        "AI CoE 内製開発の本番環境を新規作成するか、アンマネージド不可の既存環境を採用するか",
+        "AI CoE 内製開発に検証（UAT）環境を作るか（オプション）",
         "既定環境（Contoso）をどのグループに入れるか、グループ外のままにするか",
         "個人の開発者環境の作成を全メーカーに開放するか、セキュリティ グループで絞るか",
         "ACP の許可セットから外れるコネクタのうち、業務で必要なものはあるか（申請フローで個別追加）",

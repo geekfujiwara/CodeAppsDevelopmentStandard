@@ -76,7 +76,43 @@ AI CoE / IT 部門が利用。決められたユーザーのみ。Copilot クレ
 | --- | --- | --- | --- |
 | AI CoE 開発 | Sandbox | 10 名 | パイプラインのソース |
 | AI CoE テスト | Sandbox | 20 名 | パイプラインのステージ |
+| AI CoE 検証（任意） | Sandbox | 20 名 | ユーザー受け入れテストが要件のプロジェクトだけ作る |
 | AI CoE 本番 | Production | 無制限 | **マネージド ソリューションのみ**を有効化 |
+
+#### 本番環境の方針
+
+このグループの本番環境は条件が厳しい（アンマネージド カスタマイズ不可・デプロイはパイプライン経由のみ・コネクタは最小限）。
+既存環境を本番へ転用すると、既に入っているアンマネージド コンポーネントを剥がせず条件を満たせない。
+
+- **原則：新規作成**する（`create_environments.py`）。
+- **例外：「アンマネージド カスタマイズ不可」が既に ON の既存環境があれば、それを本番として採用する。** ソリューション経由でしか変更できない運用が既に確立しているため。
+- **検証（UAT）環境はオプション**。開発 → テスト → 本番の 3 段で足りるなら作らない（容量とライセンスを消費するため）。
+- **コネクタ制限がゆるくアプリが多数ある既存環境は、このグループの「開発」として採用する。** 市民開発者グループの厳しいルールへ入れると既存アプリが止まるため。
+
+判定基準はブループリントの `lifecyclePolicy.reuseExistingEnvironment`（既定: ACP 未割り当てまたは許可コネクタ 100 以上、かつアプリ 10 件以上）。
+`scan_environment_strategy.py` が自動で提案し、`generate_migration_plan.py` が移行プランの 2-7 に出力する。
+
+> 「アンマネージド カスタマイズ不可」の読み取りには Power Platform API の委任アクセス許可 `EnvironmentManagement.Settings.Read` が必要。
+> 既定のクライアントには無いため 403 になる。許可を付与した Entra アプリを `--client-id` で渡すか、
+> 管理センターの [環境] > [設定] > [製品] > [機能] で目視確認してブループリントの `environmentFacts` に手入力する。
+
+## 使われていない環境の棚卸し
+
+環境グループへ環境を入れる**前に**棚卸しする。使われていない環境をそのままグループへ入れると、
+マネージド環境化のライセンスも Dataverse 容量も無駄に消費し続ける。先に削除すれば容量がテナント プールへ戻る。
+
+| 項目 | 既定値（`lifecyclePolicy.unusedEnvironment`） |
+| --- | --- |
+| アプリ数 | `maxApps` = 2 件以下 |
+| フロー数 | `maxFlows` = 2 件以下 |
+| 未使用期間 | `inactiveDays` = 180 日以上 |
+| 除外 | 既定環境、`excludeSkus` に含まれる SKU |
+
+- 活動の有無は**アプリ / フローの最終更新日時**で判定する。環境自体の `lastModifiedTime` は管理操作でも更新されるため使わない。
+- 作成から `inactiveDays` 未満の新しい環境は候補にしない。
+- 削減できる容量は `Database` + `File` + `Log` の消費量（MB）の合計。`capacity.consumed` と `payGo.consumed` の両方を足す。
+- 削除は元に戻せない。**所有者への確認とバックアップを先に行う**（削除後 7 日間は管理センターからリカバリできる）。
+- `scan_environment_strategy.py` が候補と削減可能容量を出力し、`generate_migration_plan.py` が移行プランの 2-6 と手順 0 に反映する。
 
 ## ライセンスの前提
 
@@ -144,6 +180,10 @@ apply_acp_profile.py           （ACP 許可リストの個別調整）
 | **パイプラインの構成** | パイプライン ホスト環境の `deploymentpipelines` / `deploymentstages` / `deploymentenvironments`（`setup_pipeline.py`） |
 | **CSP（Code Apps を含む）** | `PATCH {dataverseUrl}/api/data/v9.2/organizations({orgId})` の `iscontentsecuritypolicyenabled` 他（`set_content_security_policy.py`） |
 | テナント容量 | `GET {PP}/licensing/tenantCapacity?api-version=2022-03-01-preview` |
+| アプリ数と最終更新日時 | `GET https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/{env}/apps?api-version=2016-11-01` |
+| フロー数と最終更新日時 | `GET https://api.flow.microsoft.com/providers/Microsoft.ProcessSimple/scopes/admin/environments/{env}/v2/flows?api-version=2016-11-01` |
+| アンマネージド カスタマイズ不可（環境個別） | `GET {PP}/environmentmanagement/environments/{env}/settings?api-version=2022-03-01-preview`。委任アクセス許可 `EnvironmentManagement.Settings.Read` が必要で、無いと 403 |
+| 環境の削除 | `DELETE {BAP}/scopes/admin/environments/{env}?api-version=2021-04-01`。**取り消し不可**。スクリプト化していない（提案までを自動化し、実行は人が行う） |
 
 `{T}` はテナント専用ホスト。生成規則と詳細は [rule-catalog.md](rule-catalog.md) を参照。
 

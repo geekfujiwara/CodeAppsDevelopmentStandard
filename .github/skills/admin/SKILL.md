@@ -75,7 +75,7 @@ triggers:
 | [scripts/apply_acp_profile.py](scripts/apply_acp_profile.py) | ACP の許可セットを推奨プロファイル（Microsoft 第一者のみ）で一括設定 | `--apply` 時のみ |
 | [scripts/migrate_dlp_to_acp.py](scripts/migrate_dlp_to_acp.py) | クラシック DLP の分類を ACP の許可リストへ移行 | `--apply` 時のみ |
 | [scripts/set_managed_environment.py](scripts/set_managed_environment.py) | マネージド環境の有効化・共有制限・ソリューション チェッカー設定 | `--apply` 時のみ |
-| [scripts/scan_environment_strategy.py](scripts/scan_environment_strategy.py) | 環境戦略の現状スキャン（テナント設定 / 環境グループ / 環境 / ACP / DLP / ライセンス / Copilot クレジット） | なし |
+| [scripts/scan_environment_strategy.py](scripts/scan_environment_strategy.py) | 環境戦略の現状スキャン（テナント設定 / 環境グループ / 環境 / アプリ・フロー数 / Dataverse 容量 / ACP / DLP / ライセンス / Copilot クレジット）。削除候補と割り当て先も提案 | なし |
 | [scripts/generate_migration_plan.py](scripts/generate_migration_plan.py) | スキャン結果から `admin-migration-plan.md` を生成 | なし |
 | [scripts/apply_environment_strategy.py](scripts/apply_environment_strategy.py) | 環境グループの作成・ルール発行・既定環境の割り当て・テナント設定 | `--apply` 時のみ |
 | [scripts/set_environment_group_rules.py](scripts/set_environment_group_rules.py) | 環境グループのルールを個別に確認・設定（共有上限 / ACP / アンマネージド禁止 / Code Apps / ウェルカム コンテンツ） | `--apply` 時のみ |
@@ -283,12 +283,18 @@ DLP は反映に時間がかかるため、直後に解消していなくても�
 - Dataverse for Teams は利用せず、Dataverse 検索は全環境で有効化すること
 - 環境ログ・アラート・エラーログ、テナントレベルの分析、週間ダイジェストを有効化すること
 - キャンバス アプリの共有設定と、グループごとの共有可能ユーザー数の上限
+- **グループへ入れる前に、使われていない環境を削除して Dataverse 容量を取り戻すこと**
 
 そのうえで **「これから行うスキャンは読み取りのみで、環境には一切変更を加えません」** と明示してから実行する。
 
 ```bash
 python scan_environment_strategy.py --tenant-id <TENANT_ID> --report-file scan.json
 ```
+
+アプリ / フロー数の収集で時間がかかる場合は `--no-usage` で省ける（ただし削除候補の判定は行われない）。
+「アンマネージド カスタマイズ不可」の読み取りには委任アクセス許可 `EnvironmentManagement.Settings.Read` が必要なため、
+許可を付与した Entra アプリを `--client-id <APP_ID>` で渡す。渡せない場合は管理センターの
+[環境] > [設定] > [製品] > [機能] で目視確認し、`environment-strategy.json` の `environmentFacts` に手入力する。
 
 #### 10-2. 現状の問題点とメリットを説明する
 
@@ -301,12 +307,18 @@ python scan_environment_strategy.py --tenant-id <TENANT_ID> --report-file scan.j
 | コネクタ ポリシー | クラシック DLP は既定許可で新規コネクタが素通りする。ACP は default-deny で新規コネクタも自動でブロックされる |
 | ライセンス | マネージド環境のアプリ・フローを使うユーザーには **Power Apps Premium 等のスタンドアロン ライセンス**が必要。シード ライセンスでは不可 |
 | Copilot クレジット | テナントの保有数と環境ごとの割り当て合計を示し、超過していれば配分案を提案する |
+| **使われていない環境** | グループへ入れる前に削除を提案する。**削除すれば Dataverse 容量を 〇〇MB 削減できる**と具体的な数値で示す（スキャン出力の「使われていない環境」セクション） |
+| **既存環境の割り当て先** | コネクタ制限がゆるくアプリが多数ある環境は **AI CoE 内製開発グループの「開発」**として提案する（市民開発者グループの厳しいルールでは既存アプリが止まるため） |
+| **本番環境** | AI CoE 内製開発の本番は条件が厳しいため**原則新規作成**。検証（UAT）環境はオプション。ただし**「アンマネージド カスタマイズ不可」が既に ON の既存環境があれば、それを本番として採用する** |
 
 ライセンス不足がある場合は、**不足数と対象者を具体的に示してから**次へ進む。
+削除候補を示すときは、**削除は取り消せないこと・所有者への確認とバックアップが先に必要なこと**を必ず伝える。
+削除の実行はスクリプト化していない（提案までを自動化し、管理センターで人が実行する）。
 
 #### 10-3. 希望を確認して移行プランを作成する
 
-AskUserQuestion で未確定事項を確認する（既存グループの扱い / 既定環境の扱い / 開発者環境の開放範囲 /
+AskUserQuestion で未確定事項を確認する（既存グループの扱い / 削除候補の環境を実際に削除するか /
+本番環境を新規作成するか既存を採用するか / 検証（UAT）環境を作るか / 既定環境の扱い / 開発者環境の開放範囲 /
 追加で許可したいコネクタ / Copilot クレジットの配分 / トレーニング環境のリセット周期）。
 決定内容を JSON にまとめ、移行プランを生成する。
 
@@ -317,6 +329,8 @@ python generate_migration_plan.py --scan-file scan.json --decisions-file decisio
 #### 10-4. レビュー後に適用する
 
 `admin-migration-plan.md` をユーザーがレビューし、**承認を得てから**適用する。
+使われていない環境の削除（プランの手順 0）は、マネージド環境化とグループ割り当ての**前に**行うと
+ライセンスと Dataverse 容量を無駄にしない。削除は取り消せないためスクリプト化せず、管理センターで人が実行する。
 マネージド環境化はグループへ入れる前提条件なので先に実行する。
 
 ```bash
