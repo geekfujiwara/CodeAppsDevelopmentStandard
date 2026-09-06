@@ -1,6 +1,6 @@
 ---
 name: admin
-description: "Power Platform のテナント / 環境ガバナンスを確認・設定する管理スキル。開発着手前の環境チェック（既定環境ではないか・マネージド環境・Dataverse / Code Apps / MCP の有効化・セキュリティ ロール・管理 API アクセス）と DLP 事前チェックを非対話スクリプトで実行し、必要ならマネージド環境設定・カスタムコネクタの DLP 分類・ACP（Advanced connector policies）の許可コネクタを dry-run 付きで変更する。Microsoft 第一者サービスだけを許可する ACP 推奨プロファイルの適用と、クラシック DLP から ACP への移行も支援する。クラシック DLP と ACP は既定の混成モードで併用され、より制限の厳しい方が適用されるため両方を確認する。IP 制限・テナント分離・監査ログ・ライセンス配分などの管理設定は references にまとめる。"
+description: "Power Platform のテナント / 環境ガバナンスを確認・設定する管理スキル。開発着手前の環境チェック（既定環境ではないか・マネージド環境・Dataverse / Code Apps / MCP の有効化・セキュリティ ロール・管理 API アクセス）と DLP 事前チェックを非対話スクリプトで実行し、必要ならマネージド環境設定・カスタムコネクタの DLP 分類・ACP（Advanced connector policies）の許可コネクタを dry-run 付きで変更する。Microsoft 第一者サービスだけを許可する ACP 推奨プロファイルの適用と、クラシック DLP から ACP への移行も支援する。クラシック DLP と ACP は既定の混成モードで併用され、より制限の厳しい方が適用されるため両方を確認する。オプションとして、個人開発者環境 / 市民開発者環境 / AI CoE セントラル / AI CoE 内製開発の 4 グループからなるテナント全体の環境戦略を、読み取り専用スキャン → 移行プラン（admin-migration-plan.md）→ レビュー → 適用の順で策定・実行する。IP 制限・テナント分離・監査ログ・ライセンス配分などの管理設定は references にまとめる。"
 category: platform
 triggers:
   - "環境チェック"
@@ -18,6 +18,14 @@ triggers:
   - "マネージド環境"
   - "Managed Environment"
   - "環境グループ"
+  - "環境戦略"
+  - "環境設計"
+  - "環境の見直し"
+  - "テナント設計"
+  - "CoE"
+  - "市民開発者"
+  - "個人の開発者環境"
+  - "ACP 専用モード"
   - "IP 制限"
   - "テナント分離"
   - "監査ログ"
@@ -42,6 +50,7 @@ triggers:
 
 > 必要なロールは [管理者ロール要件](references/admin-roles.md)、
 > 環境チェックの判定基準は [environment-check.md](references/environment-check.md)、
+> テナント全体の環境設計は [environment-strategy.md](references/environment-strategy.md)、
 > DLP は [dlp-precheck.md](references/dlp-precheck.md)、
 > IP 制限・テナント分離・監査・ライセンスは [governance-settings.md](references/governance-settings.md)、
 > 異常系は [troubleshooting.md](references/troubleshooting.md) を参照。
@@ -59,8 +68,12 @@ triggers:
 | [scripts/apply_acp_profile.py](scripts/apply_acp_profile.py) | ACP の許可セットを推奨プロファイル（Microsoft 第一者のみ）で一括設定 | `--apply` 時のみ |
 | [scripts/migrate_dlp_to_acp.py](scripts/migrate_dlp_to_acp.py) | クラシック DLP の分類を ACP の許可リストへ移行 | `--apply` 時のみ |
 | [scripts/set_managed_environment.py](scripts/set_managed_environment.py) | マネージド環境の有効化・共有制限・ソリューション チェッカー設定 | `--apply` 時のみ |
+| [scripts/scan_environment_strategy.py](scripts/scan_environment_strategy.py) | 環境戦略の現状スキャン（テナント設定 / 環境グループ / 環境 / ACP / DLP / ライセンス / Copilot クレジット） | なし |
+| [scripts/generate_migration_plan.py](scripts/generate_migration_plan.py) | スキャン結果から `admin-migration-plan.md` を生成 | なし |
+| [scripts/apply_environment_strategy.py](scripts/apply_environment_strategy.py) | 環境グループの作成とテナント設定の適用 | `--apply` 時のみ |
 | [scripts/dlp_helper.py](scripts/dlp_helper.py) | DLP 管理 API の共通ロジック（他スクリプトから import） | なし |
 | [references/acp-profiles.json](references/acp-profiles.json) | ACP 推奨許可セットの定義（パターン / ブロック / 要確認） | なし |
+| [references/environment-strategy.json](references/environment-strategy.json) | 環境戦略のブループリント（グループ / 環境 / 共有上限 / テナント設定） | なし |
 
 ## ワークフロー（正常系）
 
@@ -237,6 +250,83 @@ Power Platform 管理センターの **セキュリティ > データとプラ�
 変更後に Step 1・Step 2・Step 6 を再実行し、`OK` になったことを確認してからユーザーへ報告する。
 DLP は反映に時間がかかるため、直後に解消していなくても再評価まで待って判断する。
 
+### Step 10: 環境戦略を策定する（オプション）
+
+環境の新規設計・全体の見直し・ACP 移行の意図がある場合に実行する。
+標準設計は [environment-strategy.md](references/environment-strategy.md)、機械可読な定義は
+[references/environment-strategy.json](references/environment-strategy.json) にある。
+
+#### 10-1. 推奨戦略を説明する
+
+スキャンの前に、まず目指す姿を提示する。
+
+- 4 つの環境グループ（個人開発者環境 / 市民開発者環境 / AI CoE セントラル / AI CoE 内製開発）と各環境の役割
+- 全環境をマネージド環境にし、環境グループのルールで設定をロックすること
+- コネクタは **ACP 専用モード + Microsoft 第一者のみ**にし、クラシック DLP を評価対象外にすること
+- 環境ログ・アラート・エラーログ、テナントレベルの分析、週間ダイジェストを有効化すること
+- キャンバス アプリの共有設定と、グループごとの共有可能ユーザー数の上限
+
+そのうえで **「これから行うスキャンは読み取りのみで、環境には一切変更を加えません」** と明示してから実行する。
+
+```bash
+python scan_environment_strategy.py --tenant-id <TENANT_ID> --report-file scan.json
+```
+
+#### 10-2. 現状の問題点とメリットを説明する
+
+スキャン結果から以下を整理してユーザーへ提示する。
+
+| 観点 | 説明すること |
+|---|---|
+| グループ未所属 / 未マネージド環境 | 環境グループにはマネージド環境しか入れられないため、先に対応が必要 |
+| 共有上限 | 無制限のままだと意図しない全社共有が起きる |
+| コネクタ ポリシー | クラシック DLP は既定許可で新規コネクタが素通りする。ACP は default-deny で新規コネクタも自動でブロックされる |
+| ライセンス | マネージド環境のアプリ・フローを使うユーザーには **Power Apps Premium 等のスタンドアロン ライセンス**が必要。シード ライセンスでは不可 |
+| Copilot クレジット | テナント購入数と環境ごとの割り当て済み合計を示し、配分案を提案する |
+
+ライセンス不足がある場合は、**不足数と対象者を具体的に示してから**次へ進む。
+
+#### 10-3. 希望を確認して移行プランを作成する
+
+AskUserQuestion で未確定事項を確認する（既存グループの扱い / 既定環境の扱い / 開発者環境の開放範囲 /
+追加で許可したいコネクタ / Copilot クレジットの配分 / トレーニング環境のリセット周期）。
+決定内容を JSON にまとめ、移行プランを生成する。
+
+```bash
+python generate_migration_plan.py --scan-file scan.json --decisions-file decisions.json --output admin-migration-plan.md
+```
+
+#### 10-4. レビュー後に適用する
+
+`admin-migration-plan.md` をユーザーがレビューし、**承認を得てから**適用する。
+
+```bash
+python apply_environment_strategy.py                 # dry-run（差分の確認）
+python apply_environment_strategy.py --apply         # グループ作成・テナント設定
+python set_managed_environment.py --environment-id <ENV_ID> --apply
+python apply_acp_profile.py --environment-id <ENV_ID> --include-group --apply
+```
+
+環境のグループ割り当て・グループのルール発行・ACP 専用モードの切り替え・Copilot クレジットの配分は
+公開 API が無いため、管理センターでの手動作業としてユーザーに手順を示す。
+
+#### 10-5. 個人開発者環境・市民開発者環境のコネクタを決める
+
+どちらも ACP は同じ `microsoft-first-party` プロファイル（Microsoft のみ。サードパーティ・レガシー不可）を
+**環境グループ単位**で適用する。プロファイルの `reviewConnectors`（個人向けサービスに繋がるコネクタなど
+判断が分かれるもの）は AskUserQuestion で採否を確認し、決まったものだけを
+`apply_acp_profile.py --include-connector` / `--exclude-connector` で調整する。
+
+#### 10-6. 利用ガイドラインを公開して配布する
+
+利用可能なコネクタ・利用できないコネクタとその理由・追加申請フロー・認定プロセス・共有上限・
+Copilot クレジット・問い合わせ先をまとめたページを作成する。
+**ページ作成は `sharepoint` スキルへ委譲**し、構成は
+[environment-strategy.json](references/environment-strategy.json) の `guideline.sections` に従う。
+
+公開後、そのページ URL を各環境グループの **メーカー ウェルカム コンテンツ** ルールに設定して発行する
+（管理センター > 管理 > 環境グループ > ルール）。これでグループ内の全メーカーにガイドラインが表示される。
+
 ## 他スキルからの呼び出し
 
 | 呼び出し元 | タイミング | 実行するもの |
@@ -247,6 +337,8 @@ DLP は反映に時間がかかるため、直後に解消していなくても�
 | `copilot-studio` / `copilot-studio-v2` | エージェント作成前・MCP ツール追加前 | Step 1（`--require-mcp`）→ Step 2 → Step 6 |
 | `mcp-server` | カスタムコネクタ登録前後 | Step 2 → Step 5 → Step 6 |
 | ユーザー依頼 | DLP / ACP の推奨設定・移行 | Step 7（推奨プロファイル）/ Step 8（DLP → ACP 移行） |
+| ユーザー依頼 | 環境戦略の策定・環境の見直し | Step 10 |
+| `sharepoint` | 利用ガイドライン ページの作成依頼を受ける側 | Step 10-6 |
 
 ## 参考リンク
 
@@ -255,3 +347,6 @@ DLP は反映に時間がかかるため、直後に解消していなくても�
 - [Advanced connector policies](https://learn.microsoft.com/power-platform/admin/advanced-connector-policies)
 - [ACP をプログラムから管理する](https://learn.microsoft.com/power-platform/admin/programmability-tutorial-manage-advanced-connector-policies)
 - [Power Platform 管理者ロール](https://learn.microsoft.com/power-platform/admin/use-service-admin-role-manage-tenant)
+- [環境グループ](https://learn.microsoft.com/power-platform/admin/environment-groups)
+- [環境グループのルール](https://learn.microsoft.com/power-platform/admin/environment-groups-rules)
+- [メーカー ウェルカム コンテンツ](https://learn.microsoft.com/power-platform/admin/welcome-content)

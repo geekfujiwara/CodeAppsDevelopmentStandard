@@ -1,0 +1,171 @@
+{
+  "$comment": [
+    "環境戦略のブループリント。scan_environment_strategy.py が現状と突き合わせ、",
+    "generate_migration_plan.py が admin-migration-plan.md を生成する。",
+    "組織固有の名称・人数はここを編集して調整する（スクリプトは変更しない）。"
+  ],
+  "tenantSettings": {
+    "powerPlatform.governance.disableAdminDigest": {
+      "expected": false,
+      "label": "週間ダイジェスト（管理者ダイジェスト）",
+      "why": "環境・アプリ・フローの週次サマリーを管理者へ配信し、放置環境と異常を早期に検知する。"
+    },
+    "powerPlatform.governance.enableDefaultEnvironmentRouting": {
+      "expected": true,
+      "label": "既定環境ルーティング",
+      "why": "新規メーカーを既定環境ではなく個人の開発者環境へ誘導し、既定環境の肥大化を防ぐ。"
+    },
+    "powerPlatform.governance.environmentRoutingTargetEnvironmentGroupId": {
+      "expectedGroup": "個人開発者環境グループ",
+      "label": "ルーティング先の環境グループ",
+      "why": "自動作成される開発者環境が最初からグループのルールで統制される。"
+    },
+    "powerPlatform.governance.disableDeveloperEnvironmentCreationByNonAdminUsers": {
+      "expected": false,
+      "label": "個人の開発者環境の作成（非管理者）",
+      "why": "学習用の個人開発者環境を許可する。ルーティング先グループのルールで統制する。"
+    },
+    "powerPlatform.powerApps.disableShareWithEveryone": {
+      "expected": true,
+      "label": "キャンバス アプリの「全員と共有」を禁止",
+      "why": "テナント全体への意図しない共有を防ぐ。共有上限は環境グループのルールで別途制御する。"
+    },
+    "powerPlatform.powerApps.enableCanvasAppInsights": {
+      "expected": true,
+      "label": "キャンバス アプリの Application Insights",
+      "why": "アプリのエラー・利用ログを Application Insights へ送り、障害調査を可能にする。"
+    },
+    "powerPlatform.licensing.enableTenantLicensingReportForEnvironmentAdmins": {
+      "expected": true,
+      "label": "テナント ライセンス レポート（環境管理者へ公開）",
+      "why": "テナントレベルの分析を環境管理者が確認でき、ライセンス不足を早期に把握できる。"
+    },
+    "powerPlatform.licensing.enableTenantCapacityReportForEnvironmentAdmins": {
+      "expected": true,
+      "label": "テナント容量レポート（環境管理者へ公開）",
+      "why": "容量超過による停止を未然に防ぐ。"
+    }
+  },
+  "connectorPolicy": {
+    "mode": "ACPOnly",
+    "profile": "microsoft-first-party",
+    "why": "ACP は default-deny の許可リストで、新規コネクタが自動で許可されない。ACP 専用モードにするとクラシック DLP は評価されなくなるため、ポリシーが一本化されて運用が単純になる。",
+    "note": "ACP 専用モードの切り替え API は非公開。管理センターの セキュリティ > データとプライバシー で切り替える。切り替え後、クラシック DLP は削除せず無効化（評価対象外）になる。"
+  },
+  "groups": [
+    {
+      "name": "個人開発者環境グループ",
+      "purpose": "学習用。会社のポリシーを理解した市民開発者が個人の開発者環境を持つ。本番利用は不可。",
+      "environmentRoutingTarget": true,
+      "rules": {
+        "sharingLimitUsers": 1,
+        "solutionCheckerMode": "warn",
+        "codeApps": false,
+        "copilotCredits": false,
+        "makerWelcomeContent": true
+      },
+      "environments": [
+        {
+          "name": "各メーカーの個人開発者環境",
+          "type": "Developer",
+          "lifecycle": "永続",
+          "note": "既定環境ルーティングで自動作成される。手動作成は不要。"
+        }
+      ]
+    },
+    {
+      "name": "市民開発者環境グループ",
+      "purpose": "一般の市民開発者が利用する。認定前後で環境を分ける。",
+      "rules": {
+        "sharingLimitUsers": 10,
+        "solutionCheckerMode": "warn",
+        "codeApps": false,
+        "copilotCredits": true,
+        "makerWelcomeContent": true
+      },
+      "environments": [
+        {
+          "name": "トレーニング環境",
+          "type": "Sandbox",
+          "lifecycle": "定期リセット",
+          "sharingLimitUsers": 5,
+          "copilotCredits": false,
+          "note": "認定前。AI CoE がルール理解度とスキルを確認するための環境。"
+        },
+        {
+          "name": "市民開発者環境",
+          "type": "Production",
+          "lifecycle": "永続",
+          "sharingLimitUsers": 10,
+          "copilotCredits": true,
+          "note": "認定後。最低限のコネクタのみ。Code Apps は不可。"
+        }
+      ]
+    },
+    {
+      "name": "AI CoE セントラルグループ",
+      "purpose": "AI CoE / IT 部門が全社分析と新技術検証に使う。決められたユーザーのみ。",
+      "rules": {
+        "sharingLimitUsers": null,
+        "solutionCheckerMode": "warn",
+        "codeApps": true,
+        "copilotCredits": true,
+        "makerWelcomeContent": true
+      },
+      "environments": [
+        {"name": "AI CoE 分析", "type": "Production", "lifecycle": "永続", "note": "テナント分析基盤（CoE Starter Kit 等）。"},
+        {"name": "AI CoE 検証", "type": "Sandbox", "lifecycle": "永続", "note": "新機能・プレビューの検証。"}
+      ]
+    },
+    {
+      "name": "AI CoE 内製開発グループ",
+      "purpose": "本部 / 事業部の AI CoE が Code Apps を含む内製開発を行う。3 ランドスケープ + Power Platform パイプラインでデータのサイロ化を防ぐ。",
+      "rules": {
+        "sharingLimitUsers": null,
+        "solutionCheckerMode": "warn",
+        "codeApps": true,
+        "copilotCredits": true,
+        "makerWelcomeContent": true,
+        "pipelines": true
+      },
+      "environments": [
+        {"name": "AI CoE 開発", "type": "Sandbox", "lifecycle": "永続", "sharingLimitUsers": 10},
+        {"name": "AI CoE テスト", "type": "Sandbox", "lifecycle": "永続", "sharingLimitUsers": 20},
+        {
+          "name": "AI CoE 本番",
+          "type": "Production",
+          "lifecycle": "永続",
+          "sharingLimitUsers": null,
+          "managedSolutionsOnly": true,
+          "note": "共有上限なし。アンマネージド ソリューションの持ち込みを禁止する。"
+        }
+      ]
+    }
+  ],
+  "licenses": {
+    "managedEnvironmentSkuKeywords": [
+      "POWERAPPS_PER_USER",
+      "POWERAPPS_PER_APP",
+      "POWERAUTOMATE_ATTENDED_RPA",
+      "FLOW_PER_USER",
+      "POWERAPPS_PREMIUM",
+      "DYN365"
+    ],
+    "copilotStudioSkuKeywords": ["POWER_VIRTUAL_AGENTS", "COPILOT_STUDIO", "MCS"],
+    "why": "マネージド環境のアプリ・フローを利用するユーザーには Power Apps Premium 等のスタンドアロン ライセンスが必要。Microsoft 365 に含まれるシード ライセンスだけでは利用できない。"
+  },
+  "guideline": {
+    "sharePointPageTitle": "Power Platform 利用ガイドライン",
+    "sections": [
+      "対象となる環境グループと、それぞれで何ができるか",
+      "利用可能なコネクタ一覧（ACP の許可セット）",
+      "利用できないコネクタと、その理由（サードパーティ / レガシー）",
+      "追加コネクタの申請フローと承認基準",
+      "認定プロセス（トレーニング環境 → 市民開発者環境）",
+      "共有可能人数の上限と、超える場合の相談先",
+      "Copilot クレジットの割り当てと消費の考え方",
+      "問い合わせ先（AI CoE）"
+    ],
+    "distribution": "作成したページの URL を、各環境グループの「メーカー ウェルカム コンテンツ」ルールに設定して配布する。"
+  }
+}
