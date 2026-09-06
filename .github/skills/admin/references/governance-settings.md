@@ -32,9 +32,35 @@
 | IP アドレスベースの Cookie バインディング | 同上 | セッション トークンの持ち出しを防ぐ。IP が頻繁に変わる環境では影響を確認する |
 | テナント分離（クロステナント制限） | テナント設定 | 既定は許可。方向（受信 / 送信）ごとに例外テナントを登録する |
 | 環境グループとルール | 環境グループ > ルール | 複数環境へ共通ルールを配布。公開すると各環境でライフサイクル操作が走る |
-| Advanced connector policies | セキュリティ > データとプライバシー | 認定コネクタ / MCP コネクタの許可リスト。カスタム・HTTP・仮想コネクタは対象外 |
+| Advanced connector policies | セキュリティ > データとプライバシー | 認定コネクタ / MCP コネクタの許可リスト。下記の節を参照 |
 | 監査ログ（Purview 連携） | Dataverse 設定 + Microsoft Purview | 組織の監査とテーブル単位の監査の**両方**を有効にする必要がある |
 | ライセンス / 容量の割り当て | Microsoft 365 管理センター + Power Platform 管理センター | Copilot Credits は環境単位で割り当てる。未割り当てだと生成 AI 機能が動かない |
+
+## Advanced connector policies（ACP）
+
+ACP はクラシック DLP の Business / Non-business / Blocked 分類を置き換える
+**default-deny の厳格な許可リスト**。コネクタがブロックされる原因を調べるときは、
+クラシック DLP だけでなく ACP も必ず確認する。
+
+| 項目 | 内容 |
+|---|---|
+| 実施モード | **混成モード（既定）** = クラシック DLP と併用し、**より制限の厳しい方**を適用。ACP 専用モードにするとクラシック DLP を無視する |
+| 適用スコープ | 環境グループ > ルール、または単一環境の セキュリティ > データとプライバシー。1 環境に有効な ACP は最大 1 つ |
+| 対象コネクタ | 認定コネクタと MCP コネクタ（MCP はサーバー単位でブロック可）。HTTP / 仮想コネクタは対象外 |
+| ルールの削除 | グループからルールを削除しても、**継承済みの環境からは消えない**。環境単位で `removeRule` する |
+| 設計時の適用 | Power Automate → Copilot Studio → Power Apps の順で展開中 |
+
+環境に割り当てられる `Synced Environment Policy (from Environment Group)` は
+環境グループのポリシーの**同期コピー**。恒久的に変えるならグループ側のポリシーを更新する。
+
+```powershell
+# 確認（環境とグループの両方）
+python .github/skills/admin/scripts/set_acp_connector.py `
+  --environment-id $env:ENV_ID --include-group --connector shared_example
+
+# 許可リスト全件を見る
+python .github/skills/admin/scripts/set_acp_connector.py --environment-id $env:ENV_ID --list
+```
 
 ## 設定変更の進め方
 
@@ -51,4 +77,5 @@
 - [テナント分離](https://learn.microsoft.com/power-platform/admin/cross-tenant-restrictions)
 - [環境グループ](https://learn.microsoft.com/power-platform/admin/environment-groups)
 - [Advanced connector policies](https://learn.microsoft.com/power-platform/admin/advanced-connector-policies)
+- [ACP をプログラムから管理する](https://learn.microsoft.com/power-platform/admin/programmability-tutorial-manage-advanced-connector-policies)
 - [Dataverse の監査](https://learn.microsoft.com/power-platform/admin/manage-dataverse-auditing)
