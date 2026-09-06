@@ -315,14 +315,15 @@ def assign_environments(blueprint: dict, apply: bool) -> int:
 
 
 def print_manual_steps() -> None:
-    print("\n=== 残る手動作業 ===")
+    print("\n=== 別スクリプトで行う設定（環境グループのルールに無い項目） ===")
     print("  1. マネージド環境ではない環境をマネージド化する（set_managed_environment.py）")
     print("     グループにはマネージド環境しか入れられない。")
     print("  2. 既定環境以外の環境をグループへ割り当てる")
     print("     PATCH .../environments/{id} の properties.parentEnvironmentGroup.id で設定できる。")
-    print("  3. Copilot クレジットの環境別配分")
-    print("     管理センター > ライセンス > Copilot Credits（グループ ルールは消費可否のみ）")
-    print("  4. 利用ガイドラインを SharePoint に公開し、URL をウェルカム コンテンツへ設定する")
+    print("  3. Dataverse 検索を有効化する（enable_dataverse_search.py）")
+    print("  4. Copilot クレジットの環境別配分（set_copilot_credits.py）")
+    print("     グループ ルールはテナント クレジット プールの消費可否のみ。")
+    print("  5. 利用ガイドラインを SharePoint に公開し、URL をウェルカム コンテンツへ設定する")
 
 
 def main() -> int:

@@ -80,6 +80,7 @@ triggers:
 | [scripts/apply_environment_strategy.py](scripts/apply_environment_strategy.py) | 環境グループの作成・ルール発行・既定環境の割り当て・テナント設定 | `--apply` 時のみ |
 | [scripts/set_environment_group_rules.py](scripts/set_environment_group_rules.py) | 環境グループのルールを個別に確認・設定（共有上限 / ACP / アンマネージド禁止 / Code Apps / ウェルカム コンテンツ） | `--apply` 時のみ |
 | [scripts/enable_dataverse_search.py](scripts/enable_dataverse_search.py) | 全環境の Dataverse 検索を有効化 | `--apply` 時のみ |
+| [scripts/set_copilot_credits.py](scripts/set_copilot_credits.py) | Copilot クレジットの保有数・環境別割り当ての確認と配分 | `--apply` 時のみ |
 | [scripts/dlp_helper.py](scripts/dlp_helper.py) | DLP 管理 API の共通ロジック（他スクリプトから import） | なし |
 | [references/acp-profiles.json](references/acp-profiles.json) | ACP 推奨許可セットの定義（パターン / ブロック / 要確認） | なし |
 | [references/rule-catalog.md](references/rule-catalog.md) | 環境グループのルール ID と非公開 API の一覧 | なし |
@@ -295,7 +296,7 @@ python scan_environment_strategy.py --tenant-id <TENANT_ID> --report-file scan.j
 | 共有上限 | 無制限のままだと意図しない全社共有が起きる |
 | コネクタ ポリシー | クラシック DLP は既定許可で新規コネクタが素通りする。ACP は default-deny で新規コネクタも自動でブロックされる |
 | ライセンス | マネージド環境のアプリ・フローを使うユーザーには **Power Apps Premium 等のスタンドアロン ライセンス**が必要。シード ライセンスでは不可 |
-| Copilot クレジット | テナント購入数と環境ごとの割り当て済み合計を示し、配分案を提案する |
+| Copilot クレジット | テナントの保有数と環境ごとの割り当て合計を示し、超過していれば配分案を提案する |
 
 ライセンス不足がある場合は、**不足数と対象者を具体的に示してから**次へ進む。
 
@@ -319,6 +320,7 @@ python set_managed_environment.py --environment-id <ENV_ID> --apply
 python apply_environment_strategy.py --tenant-id <TENANT_ID>                    # dry-run（差分の確認）
 python apply_environment_strategy.py --tenant-id <TENANT_ID> --apply            # グループ作成・ルール発行・テナント設定
 python enable_dataverse_search.py --apply
+python set_copilot_credits.py --tenant-id <TENANT_ID>                           # 保有数と環境別割り当ての確認
 ```
 
 全環境をグループへ割り当てるには、各環境を
@@ -334,7 +336,12 @@ python set_environment_group_rules.py --tenant-id <TENANT_ID> --environment-grou
 ```
 
 ルール ID の一覧は [rule-catalog.md](references/rule-catalog.md)。
-Copilot クレジットの環境別配分だけは管理センター（ライセンス > Copilot Credits）で行う。
+Copilot クレジットの環境別配分はグループ ルールに無いため、`set_copilot_credits.py` で個別に行う。
+割り当て合計がテナントの保有数を超えても API は成功するので、適用前に必ず一覧で確認する。
+
+```bash
+python set_copilot_credits.py --tenant-id <TENANT_ID> --environment-id <ENV_ID> --credits 500 --apply
+```
 
 #### 10-5. 個人開発者環境・市民開発者環境のコネクタを決める
 

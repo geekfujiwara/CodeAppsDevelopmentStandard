@@ -85,17 +85,22 @@ Zendesk などが許可セットに入ってしまう。
 - 許可セットが 0 件になる指定は `migrate_dlp_to_acp.py` が中断する（意図的なら `--allow-empty`）。
 - 環境グループ配下の全環境に効くため、まず 1 環境だけに ACP を割り当てて検証する。
 
-## 1-f. 「ACP のみ」モードを API で切り替えられない
+## 1-f. 「ACP のみ」モードを切り替えたい
 
-**症状**: クラシック DLP を無視して ACP だけで運用したいが、実施モードを変える API が見つからない。
+**症状**: クラシック DLP を無視して ACP だけで運用したいが、`listTenantSettings` や
+`governance/tenantSettings` に実施モードの項目が見つからない。
 
-**原因**: 実施モードの切り替えは管理センター UI のみの提供。
-`listTenantSettings` や `governance/tenantSettings` は 404、
-`governance/ruleBasedPolicies/settings` は 400 になる。
+**原因**: 実施モードはテナント設定ではなく**環境グループのルール**として保存される。
 
-**対処**: Power Platform 管理センターの **セキュリティ > データとプライバシー** で
-「Advanced connector policies only」を有効化する。未チェック時は**混成モード（既定）**で、
-クラシック DLP と ACP の**より制限の厳しい方**が適用される。
+**対処**: グループ ルール `AdvancedConnectorPoliciesOnly` を設定する。
+
+```bash
+python set_environment_group_rules.py --tenant-id <TENANT_ID> --environment-group-id <GROUP_ID> `
+  --policy-rule "AdvancedConnectorPoliciesOnly/EnableAdvancedConnectorPoliciesOnly=true" --apply
+```
+
+未設定時は**混成モード（既定）**で、クラシック DLP と ACP の**より制限の厳しい方**が適用される。
+テナント全体に一括適用するスイッチは無いので、グループごとに設定する。
 
 ## 2. `urlPatterns` の POST で既存規則が消えた
 
@@ -148,3 +153,68 @@ Zendesk などが許可セットに入ってしまう。
 **原因**: 表示名の部分一致で複数ヒットした。
 
 **対処**: エラーメッセージに出る候補から、完全一致する表示名または `name`（GUID）を指定する。
+
+## 9. 管理センターでしかできない設定の API を見つけたい
+
+**症状**: 環境グループのルールや Copilot クレジット配分など、公開ドキュメントに API が無い。
+
+**対処**: VS Code の統合ブラウザで管理センターを開き、`fetch` と `XMLHttpRequest` を差し替えて
+実際の呼び出しを採取する。操作後に `window.__cap` を読む。
+
+```javascript
+window.__cap = [];
+const of = window.fetch;
+window.fetch = function (input, init) {
+  const url = typeof input === 'string' ? input : (input && input.url);
+  window.__cap.push({ method: (init && init.method) || 'GET', url, body: init && init.body });
+  return of.apply(this, arguments);
+};
+const oo = XMLHttpRequest.prototype.open, os = XMLHttpRequest.prototype.send;
+XMLHttpRequest.prototype.open = function (m, u) { this.__m = m; this.__u = u; return oo.apply(this, arguments); };
+XMLHttpRequest.prototype.send = function (b) {
+  window.__cap.push({ method: this.__m, url: this.__u, body: typeof b === 'string' ? b : undefined });
+  return os.apply(this, arguments);
+};
+```
+
+- ページをフルロードすると差し替えが消えるので、遷移後に再度実行する。
+- 読み取りはページを開くだけ、書き込みは実際に保存ボタンを押すと採取できる。
+- 見つけた API は [rule-catalog.md](rule-catalog.md) に記録しておく。
+
+## 10. グループ ルールの PATCH が 400 `Expected Boolean but got String` になる
+
+**原因**: `GET .../ruleBasedPolicies` は Boolean も整数も**文字列**で返す（`"False"` / `"1"`）が、
+`PATCH` は JSON の型を要求する。GET の結果をそのまま送り返すと失敗する。
+
+**対処**: 送信前に型を戻す（`set_environment_group_rules.py` の `_coerce()`）。
+変更しない既存の `inputs` も同じボディに含まれるので、全件を正規化する。
+`MakerOnboardingContent` の値だけは常に文字列のままでよい。
+
+## 11. `saveTenantSettings` がどの API バージョンでも 404 になる
+
+**原因**: `saveTenantSettings` は存在しない。`scopes/admin` を付けても 404。
+
+**対処**: 書き込みは
+`POST {BAP}/providers/Microsoft.BusinessAppPlatform/scopes/admin/updateTenantSettings?api-version=2021-04-01`。
+ボディは**変更する項目の差分だけ**を入れ子のまま送る（全体を送る必要はない）。
+読み取りは `POST {BAP}/providers/Microsoft.BusinessAppPlatform/listTenantSettings?api-version=2021-04-01`
+（こちらは `scopes/admin` を**付けない**）。
+
+## 12. 既定環境ルーティングの送り先グループを変えられない
+
+**症状**: `PATCH {T}/governance/tenantRuleBasedPolicies/{id}` が 404 `RouteNotFound`。
+
+**原因**: `tenantRuleBasedPolicies` は読み取り専用の射影。
+
+**対処**: テナント設定の
+`powerPlatform.governance.environmentRoutingTargetEnvironmentGroupId`（と `enableDefaultEnvironmentRouting`）を
+`updateTenantSettings` で更新する。`apply_environment_strategy.py --tenant-settings-only --apply` がこれを行う。
+
+## 13. `api.bap.microsoft.com` で SSL 切断・接続リセットが頻発する
+
+**症状**: `SSLEOFError` や `RemoteDisconnected` でスクリプトが落ちる。
+
+**原因**: BAP の管理 API は長めの応答で接続を切ることがある。
+
+**対処**: 3 秒間隔で 4 回程度リトライする（本スキルの各スクリプトは実装済み）。
+タイムアウトは 120〜180 秒を見込む。

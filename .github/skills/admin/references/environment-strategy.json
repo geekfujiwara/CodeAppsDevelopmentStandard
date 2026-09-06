@@ -12,17 +12,17 @@
       {
         "item": "既定環境ルーティング（有効化とルーティング先グループ）",
         "where": "テナント設定",
-        "api": "POST {bap}/providers/Microsoft.BusinessAppPlatform/saveTenantSettings"
+        "api": "POST {bap}/providers/Microsoft.BusinessAppPlatform/scopes/admin/updateTenantSettings?api-version=2021-04-01（差分のみ）"
       },
       {
         "item": "Dataverse for Teams 環境の作成禁止",
         "where": "テナント設定",
-        "api": "POST {bap}/providers/Microsoft.BusinessAppPlatform/saveTenantSettings"
+        "api": "POST {bap}/providers/Microsoft.BusinessAppPlatform/scopes/admin/updateTenantSettings?api-version=2021-04-01（差分のみ）"
       },
       {
         "item": "キャンバス アプリの「全員と共有」を禁止 / Application Insights / ライセンス レポート公開",
         "where": "テナント設定",
-        "api": "POST {bap}/providers/Microsoft.BusinessAppPlatform/saveTenantSettings"
+        "api": "POST {bap}/providers/Microsoft.BusinessAppPlatform/scopes/admin/updateTenantSettings?api-version=2021-04-01（差分のみ）"
       },
       {
         "item": "Dataverse 検索の有効化",
@@ -42,7 +42,7 @@
       {
         "item": "Copilot クレジットの環境別割り当て数",
         "where": "ライセンス",
-        "api": "{pp}/licensing/environments/{envId}/allocations（グループ ルールは「テナント クレジット プールを使うか」の可否のみ）"
+        "api": "PATCH {tenantHost}/licensing/environments/{envId}/allocations?api-version=1（グループ ルールは「テナント クレジット プールを使うか」の可否のみ）"
       }
     ]
   },

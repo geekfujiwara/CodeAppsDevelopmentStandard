@@ -166,6 +166,30 @@ Usage insights
 割り当ての `PATCH` は `202 Accepted` を返す非同期処理で、反映まで数十秒かかる。グループに入れられるのは
 **マネージド環境のみ**なので、先に `set_managed_environment.py` でマネージド化する。
 
+## Copilot クレジットの環境別配分（同じテナント専用ホスト、`api-version=1`）
+
+環境グループのルールには「テナント クレジット プールから消費するか」（`CostControlsDrawFromTenantCreditPool`）
+しか無く、環境ごとの配分数はここでしか設定できない。`set_copilot_credits.py` が実装している。
+
+| 用途 | 呼び出し |
+| --- | --- |
+| テナントの保有・割り当て合計 | `GET {host}/licensing/entitlements/MCSMessages?api-version=1` |
+| 環境ごとの割り当てと消費 | `GET {host}/licensing/environments/entitlements/MCSMessages?searchRequest=&api-version=1` |
+| 割り当てだけを一覧 | `GET {host}/licensing/AllocationsByEnvironment?api-version=1` |
+| 消費の推移 | `GET {host}/licensing/entitlements/MCSMessages/trends?fromDate=MM-DD-YYYY&toDate=MM-DD-YYYY&interval=daily&api-version=1` |
+| **配分を変更** | `PATCH {host}/licensing/environments/{envId}/allocations?api-version=1` |
+
+配分のボディは次の形。`currencyType` は `MCSMessages`（Copilot クレジット）と `MCSSessions`（セッション）。
+
+```json
+{ "currencyAllocations": [ { "currencyType": "MCSMessages", "allocated": 500, "autoAllocated": 0.0 } ] }
+```
+
+- 保有数を超えて割り当てても API は成功する。合計が超過していないか `--list` で必ず確認する。
+- レスポンスの `enforcementRules` に `{"ruleType":"TenantPool","enabled":true|false}` が入る。これは
+  環境グループの `CostControlsDrawFromTenantCreditPool` の結果なので、ここでは変更しない。
+- `PATCH {host}/licensing/AllocationsByEnvironment` は 400（配列を受け付けない）。環境単位で呼ぶ。
+
 ## 注意
 
 - ここに記載した API は Microsoft の公開ドキュメントに無い。予告なく変更される可能性がある。

@@ -15,6 +15,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import requests
@@ -23,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from dlp_helper import applied_policies, get_token  # noqa: E402
 from set_acp_connector import allowed_ids, assigned_policy_id, connector_rule_set, get_policy  # noqa: E402
+from set_environment_group_rules import tenant_host  # noqa: E402
 
 BAP_BASE = "https://api.bap.microsoft.com"
 BAP_SCOPE = "https://api.bap.microsoft.com/.default"
@@ -34,13 +36,20 @@ _TIMEOUT = 120
 
 
 def _get(url: str, scope: str, method: str = "GET", body: dict | None = None):
-    response = requests.request(
-        method,
-        url,
-        headers={"Authorization": f"Bearer {get_token(scope=scope)}", "Content-Type": "application/json"},
-        json=body,
-        timeout=_TIMEOUT,
-    )
+    for attempt in range(4):
+        try:
+            response = requests.request(
+                method,
+                url,
+                headers={"Authorization": f"Bearer {get_token(scope=scope)}", "Content-Type": "application/json"},
+                json=body,
+                timeout=_TIMEOUT,
+            )
+            break
+        except requests.exceptions.RequestException as error:
+            if attempt == 3:
+                return {"_error": str(error)}
+            time.sleep(3)
     if response.status_code >= 300:
         return {"_error": f"HTTP {response.status_code}"}
     return response.json() if response.content else {}
@@ -64,13 +73,24 @@ def environments() -> list[dict]:
     return (_get(url, BAP_SCOPE).get("value")) or []
 
 
-def copilot_allocation(environment_id: str) -> float | None:
-    url = f"{PP_BASE}/licensing/environments/{environment_id}/allocations?api-version=2022-03-01-preview"
-    data = _get(url, PP_SCOPE)
-    for allocation in data.get("currencyAllocations") or []:
-        if allocation.get("currencyType") == "MCSMessages":
-            return allocation.get("allocated")
-    return None
+def copilot_allocations(tenant_id: str) -> dict[str, float]:
+    """環境ごとの Copilot クレジット割り当てを一括取得する。"""
+    data = _get(f"{tenant_host(tenant_id)}/licensing/AllocationsByEnvironment?api-version=1", PP_SCOPE)
+    if isinstance(data, dict):
+        return {}
+    allocations = {}
+    for entry in data:
+        for currency in entry.get("currencyAllocations") or []:
+            if currency.get("currencyType") == "MCSMessages":
+                allocations[entry.get("environmentId")] = currency.get("allocated")
+    return allocations
+
+
+def copilot_entitled(tenant_id: str) -> float | None:
+    """テナントが保有する Copilot クレジット数を返す。"""
+    data = _get(f"{tenant_host(tenant_id)}/licensing/entitlements/MCSMessages?api-version=1", PP_SCOPE)
+    capacity = ((data.get("entitlement") or {}).get("capacity") or {}) if isinstance(data, dict) else {}
+    return (capacity.get("entitled") or {}).get("value")
 
 
 def license_summary(blueprint: dict) -> dict:
@@ -107,6 +127,7 @@ def scan(tenant_id: str, blueprint: dict) -> dict:
     settings = tenant_settings()
     groups = environment_groups()
     group_by_id = {group.get("id"): group.get("displayName") for group in groups}
+    allocations = copilot_allocations(tenant_id)
     envs = []
     for environment in environments():
         properties = environment.get("properties") or {}
@@ -133,7 +154,7 @@ def scan(tenant_id: str, blueprint: dict) -> dict:
                 "group": group_by_id.get(parent),
                 "acpPolicyId": acp_policy,
                 "acpAllowedCount": acp_count,
-                "copilotCredits": copilot_allocation(environment_id),
+                "copilotCredits": allocations.get(environment_id),
             }
         )
 
@@ -167,6 +188,7 @@ def scan(tenant_id: str, blueprint: dict) -> dict:
         "ungroupedEnvironments": [e["displayName"] for e in envs if not e["group"] and e["hasDataverse"]],
         "classicDlpPolicies": dlp,
         "licenses": license_summary(blueprint),
+        "copilotCreditsEntitled": copilot_entitled(tenant_id),
     }
 
 
@@ -228,8 +250,10 @@ def print_report(report: dict, blueprint: dict) -> None:
             print(f"  {sku['skuPartNumber']}: {sku['consumed']} / {sku['enabled']}")
 
     allocated = sum(e["copilotCredits"] or 0 for e in report["environments"])
-    print(f"\n  Copilot クレジット（MCSMessages）割り当て済み合計: {allocated}")
-    print("  テナントの購入数は 管理センター > ライセンス > Copilot Credits で確認する。")
+    entitled = report.get("copilotCreditsEntitled")
+    print(f"\n  Copilot クレジット（MCSMessages）: 保有 {entitled if entitled is not None else '?'} / 割り当て済み合計 {allocated}")
+    if entitled is not None and allocated > entitled:
+        print(f"  [要対応] 保有数を {allocated - entitled:g} 超えて割り当てています。set_copilot_credits.py で調整してください。")
 
 
 def main() -> int:

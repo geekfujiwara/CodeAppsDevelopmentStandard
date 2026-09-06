@@ -94,6 +94,7 @@ generate_migration_plan.py     （admin-migration-plan.md を生成）
 set_managed_environment.py     （マネージド環境化 = グループの前提条件）
 apply_environment_strategy.py  （グループ作成・ルール発行・既定環境の割り当て・テナント設定）
 enable_dataverse_search.py     （全環境の Dataverse 検索）
+set_copilot_credits.py         （Copilot クレジットの環境別配分）
 apply_acp_profile.py           （ACP 許可リストの個別調整）
 ```
 
@@ -116,9 +117,9 @@ apply_acp_profile.py           （ACP 許可リストの個別調整）
 | アンマネージド禁止 / Code Apps / クレジット プール | グループ ルール（rule-catalog.md 参照） |
 | メーカー ウェルカム コンテンツ | グループ ルール `MakerOnboardingContent` |
 | Dataverse 検索 | `PATCH {dataverseUrl}/api/data/v9.2/organizations({orgId})` の `isexternalsearchindexenabled` |
-| Copilot クレジットの参照 | `GET {PP}/licensing/environments/{env}/allocations?api-version=2022-03-01-preview` |
+| Copilot クレジットの参照 | `GET {T}/licensing/environments/entitlements/MCSMessages?searchRequest=&api-version=1` |
+| **Copilot クレジットの配分** | `PATCH {T}/licensing/environments/{env}/allocations?api-version=1`（`set_copilot_credits.py`） |
 | テナント容量 | `GET {PP}/licensing/tenantCapacity?api-version=2022-03-01-preview` |
-| **Copilot クレジットの配分** | 未判明。管理センター > ライセンス > Copilot Credits |
 
 `{T}` はテナント専用ホスト。生成規則と詳細は [rule-catalog.md](rule-catalog.md) を参照。
 
