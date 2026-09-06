@@ -1,6 +1,6 @@
 ---
 name: admin
-description: "Power Platform のテナント / 環境ガバナンスを確認・設定する管理スキル。開発着手前の環境チェック（既定環境ではないか・マネージド環境・Dataverse / Code Apps / MCP の有効化・セキュリティ ロール・管理 API アクセス）と DLP 事前チェックを非対話スクリプトで実行し、必要ならマネージド環境設定・カスタムコネクタの DLP 分類・ACP（Advanced connector policies）の許可コネクタを dry-run 付きで変更する。Microsoft 第一者サービスだけを許可する ACP 推奨プロファイルの適用と、クラシック DLP から ACP への移行も支援する。クラシック DLP と ACP は既定の混成モードで併用され、より制限の厳しい方が適用されるため両方を確認する。オプションとして、個人開発者環境 / 市民開発者環境 / AI CoE セントラル / AI CoE 内製開発の 4 グループからなるテナント全体の環境戦略を、読み取り専用スキャン → 移行プラン（admin-migration-plan.md）→ レビュー → 適用の順で策定・実行する。IP 制限・テナント分離・監査ログ・ライセンス配分などの管理設定は references にまとめる。"
+description: "Power Platform のテナント / 環境ガバナンスを確認・設定する管理スキル。開発着手前の環境チェック（既定環境ではないか・マネージド環境・Dataverse / Code Apps / MCP の有効化・セキュリティ ロール・管理 API アクセス）と DLP 事前チェックを非対話スクリプトで実行し、必要ならマネージド環境設定・カスタムコネクタの DLP 分類・ACP（Advanced connector policies）の許可コネクタを dry-run 付きで変更する。Microsoft 第一者サービスだけを許可する ACP 推奨プロファイルの適用と、クラシック DLP から ACP への移行も支援する。クラシック DLP と ACP は既定の混成モードで併用され、より制限の厳しい方が適用されるため両方を確認する。オプションとして、既定環境 / 個人開発者環境 / 市民開発者環境 / AI CoE セントラル / AI CoE 内製開発の 5 グループからなるテナント全体の環境戦略を、読み取り専用スキャン → 移行プラン（admin-migration-plan.md）→ レビュー → 適用の順で策定・実行する。設定は環境グループのルールで行うのを原則とし、グループ ルールに無い項目（既定環境ルーティング・Dataverse for Teams 禁止・Dataverse 検索・グループへの割り当て・Copilot クレジット配分）だけをテナント設定・環境個別設定・Dataverse の組織設定で補う。IP 制限・テナント分離・監査ログ・ライセンス配分などの管理設定は references にまとめる。"
 category: platform
 triggers:
   - "環境チェック"
@@ -18,6 +18,12 @@ triggers:
   - "マネージド環境"
   - "Managed Environment"
   - "環境グループ"
+  - "環境グループのルール"
+  - "ウェルカム コンテンツ"
+  - "アンマネージドカスタマイズ禁止"
+  - "Dataverse 検索"
+  - "Dataverse for Teams"
+  - "既定環境ルーティング"
   - "環境戦略"
   - "環境設計"
   - "環境の見直し"
@@ -51,6 +57,7 @@ triggers:
 > 必要なロールは [管理者ロール要件](references/admin-roles.md)、
 > 環境チェックの判定基準は [environment-check.md](references/environment-check.md)、
 > テナント全体の環境設計は [environment-strategy.md](references/environment-strategy.md)、
+> 環境グループのルール ID と非公開 API は [rule-catalog.md](references/rule-catalog.md)、
 > DLP は [dlp-precheck.md](references/dlp-precheck.md)、
 > IP 制限・テナント分離・監査・ライセンスは [governance-settings.md](references/governance-settings.md)、
 > 異常系は [troubleshooting.md](references/troubleshooting.md) を参照。
@@ -70,9 +77,12 @@ triggers:
 | [scripts/set_managed_environment.py](scripts/set_managed_environment.py) | マネージド環境の有効化・共有制限・ソリューション チェッカー設定 | `--apply` 時のみ |
 | [scripts/scan_environment_strategy.py](scripts/scan_environment_strategy.py) | 環境戦略の現状スキャン（テナント設定 / 環境グループ / 環境 / ACP / DLP / ライセンス / Copilot クレジット） | なし |
 | [scripts/generate_migration_plan.py](scripts/generate_migration_plan.py) | スキャン結果から `admin-migration-plan.md` を生成 | なし |
-| [scripts/apply_environment_strategy.py](scripts/apply_environment_strategy.py) | 環境グループの作成とテナント設定の適用 | `--apply` 時のみ |
+| [scripts/apply_environment_strategy.py](scripts/apply_environment_strategy.py) | 環境グループの作成・ルール発行・既定環境の割り当て・テナント設定 | `--apply` 時のみ |
+| [scripts/set_environment_group_rules.py](scripts/set_environment_group_rules.py) | 環境グループのルールを個別に確認・設定（共有上限 / ACP / アンマネージド禁止 / Code Apps / ウェルカム コンテンツ） | `--apply` 時のみ |
+| [scripts/enable_dataverse_search.py](scripts/enable_dataverse_search.py) | 全環境の Dataverse 検索を有効化 | `--apply` 時のみ |
 | [scripts/dlp_helper.py](scripts/dlp_helper.py) | DLP 管理 API の共通ロジック（他スクリプトから import） | なし |
 | [references/acp-profiles.json](references/acp-profiles.json) | ACP 推奨許可セットの定義（パターン / ブロック / 要確認） | なし |
+| [references/rule-catalog.md](references/rule-catalog.md) | 環境グループのルール ID と非公開 API の一覧 | なし |
 | [references/environment-strategy.json](references/environment-strategy.json) | 環境戦略のブループリント（グループ / 環境 / 共有上限 / テナント設定） | なし |
 
 ## ワークフロー（正常系）
@@ -260,9 +270,12 @@ DLP は反映に時間がかかるため、直後に解消していなくても�
 
 スキャンの前に、まず目指す姿を提示する。
 
-- 4 つの環境グループ（個人開発者環境 / 市民開発者環境 / AI CoE セントラル / AI CoE 内製開発）と各環境の役割
+- **設定は環境グループのルールで行う**ことを原則とし、グループ ルールに無い項目だけを他の機能で補うこと
+- 5 つの環境グループ（既定環境 / 個人開発者環境 / 市民開発者環境 / AI CoE セントラル / AI CoE 内製開発）と各環境の役割
+- 既定環境は専用グループに隔離し、全コネクタブロック + 利用禁止のウェルカム メッセージで実質使用不可にすること
 - 全環境をマネージド環境にし、環境グループのルールで設定をロックすること
 - コネクタは **ACP 専用モード + Microsoft 第一者のみ**にし、クラシック DLP を評価対象外にすること
+- Dataverse for Teams は利用せず、Dataverse 検索は全環境で有効化すること
 - 環境ログ・アラート・エラーログ、テナントレベルの分析、週間ダイジェストを有効化すること
 - キャンバス アプリの共有設定と、グループごとの共有可能ユーザー数の上限
 
@@ -299,16 +312,29 @@ python generate_migration_plan.py --scan-file scan.json --decisions-file decisio
 #### 10-4. レビュー後に適用する
 
 `admin-migration-plan.md` をユーザーがレビューし、**承認を得てから**適用する。
+マネージド環境化はグループへ入れる前提条件なので先に実行する。
 
 ```bash
-python apply_environment_strategy.py                 # dry-run（差分の確認）
-python apply_environment_strategy.py --apply         # グループ作成・テナント設定
 python set_managed_environment.py --environment-id <ENV_ID> --apply
-python apply_acp_profile.py --environment-id <ENV_ID> --include-group --apply
+python apply_environment_strategy.py --tenant-id <TENANT_ID>                    # dry-run（差分の確認）
+python apply_environment_strategy.py --tenant-id <TENANT_ID> --apply            # グループ作成・ルール発行・テナント設定
+python enable_dataverse_search.py --apply
 ```
 
-環境のグループ割り当て・グループのルール発行・ACP 専用モードの切り替え・Copilot クレジットの配分は
-公開 API が無いため、管理センターでの手動作業としてユーザーに手順を示す。
+全環境をグループへ割り当てるには、各環境を
+`PATCH {BAP}/.../environments/{ENV_ID}` の `properties.parentEnvironmentGroup.id` で設定する
+（既定環境は `apply_environment_strategy.py` が自動で行う）。
+グループ ルールを個別に調整する場合は `set_environment_group_rules.py` を使う。
+
+```bash
+python set_environment_group_rules.py --tenant-id <TENANT_ID> --environment-group-id <GROUP_ID> --list
+python set_environment_group_rules.py --tenant-id <TENANT_ID> --environment-group-id <GROUP_ID> `
+  --rule "Sharing/App/MaximumShareLimit=10" `
+  --policy-rule "CodeAppsFeature/PowerApps_AllowCodeApps=true" --apply
+```
+
+ルール ID の一覧は [rule-catalog.md](references/rule-catalog.md)。
+Copilot クレジットの環境別配分だけは管理センター（ライセンス > Copilot Credits）で行う。
 
 #### 10-5. 個人開発者環境・市民開発者環境のコネクタを決める
 
@@ -324,8 +350,12 @@ Copilot クレジット・問い合わせ先をまとめたページを作成す
 **ページ作成は `sharepoint` スキルへ委譲**し、構成は
 [environment-strategy.json](references/environment-strategy.json) の `guideline.sections` に従う。
 
-公開後、そのページ URL を各環境グループの **メーカー ウェルカム コンテンツ** ルールに設定して発行する
-（管理センター > 管理 > 環境グループ > ルール）。これでグループ内の全メーカーにガイドラインが表示される。
+公開後、そのページ URL を各環境グループの **メーカー ウェルカム コンテンツ** ルールに設定する。
+
+```bash
+python set_environment_group_rules.py --tenant-id <TENANT_ID> --environment-group-id <GROUP_ID> `
+  --welcome-markdown-file welcome.md --welcome-url <GUIDELINE_URL> --apply
+```
 
 ## 他スキルからの呼び出し
 

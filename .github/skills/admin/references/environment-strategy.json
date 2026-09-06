@@ -1,9 +1,51 @@
 {
   "$comment": [
     "環境戦略のブループリント。scan_environment_strategy.py が現状と突き合わせ、",
-    "generate_migration_plan.py が admin-migration-plan.md を生成する。",
+    "generate_migration_plan.py が admin-migration-plan.md を生成し、",
+    "apply_environment_strategy.py が環境グループのルールとして適用する。",
     "組織固有の名称・人数はここを編集して調整する（スクリプトは変更しない）。"
   ],
+  "ruleModel": {
+    "principle": "設定は環境グループのルールで行うことを原則とする。環境グループのルールに存在しない設定だけを、テナント設定・環境個別設定・Dataverse の組織設定で補う。",
+    "why": "環境グループのルールは発行するとグループ内の全環境へ一括適用され、環境側での上書きがロックされる。環境ごとに設定するとドリフトが発生し、新しい環境を作るたびに設定漏れが起きる。",
+    "outsideGroup": [
+      {
+        "item": "既定環境ルーティング（有効化とルーティング先グループ）",
+        "where": "テナント設定",
+        "api": "POST {bap}/providers/Microsoft.BusinessAppPlatform/saveTenantSettings"
+      },
+      {
+        "item": "Dataverse for Teams 環境の作成禁止",
+        "where": "テナント設定",
+        "api": "POST {bap}/providers/Microsoft.BusinessAppPlatform/saveTenantSettings"
+      },
+      {
+        "item": "キャンバス アプリの「全員と共有」を禁止 / Application Insights / ライセンス レポート公開",
+        "where": "テナント設定",
+        "api": "POST {bap}/providers/Microsoft.BusinessAppPlatform/saveTenantSettings"
+      },
+      {
+        "item": "Dataverse 検索の有効化",
+        "where": "環境ごとの Dataverse 組織設定",
+        "api": "PATCH {dataverseUrl}/api/data/v9.2/organizations({orgId}) の isexternalsearchindexenabled"
+      },
+      {
+        "item": "環境をグループへ割り当てる",
+        "where": "環境の設定",
+        "api": "PATCH {bap}/.../environments/{envId} の properties.parentEnvironmentGroup.id"
+      },
+      {
+        "item": "マネージド環境化（グループへ入れる前提条件）",
+        "where": "環境の設定",
+        "api": "PATCH {bap}/.../environments/{envId} の properties.governanceConfiguration"
+      },
+      {
+        "item": "Copilot クレジットの環境別割り当て数",
+        "where": "ライセンス",
+        "api": "{pp}/licensing/environments/{envId}/allocations（グループ ルールは「テナント クレジット プールを使うか」の可否のみ）"
+      }
+    ]
+  },
   "tenantSettings": {
     "powerPlatform.governance.disableAdminDigest": {
       "expected": false,
@@ -16,9 +58,14 @@
       "why": "新規メーカーを既定環境ではなく個人の開発者環境へ誘導し、既定環境の肥大化を防ぐ。"
     },
     "powerPlatform.governance.environmentRoutingTargetEnvironmentGroupId": {
-      "expectedGroup": "個人開発者環境グループ",
+      "expectedGroup": "市民開発者環境グループ",
       "label": "ルーティング先の環境グループ",
-      "why": "自動作成される開発者環境が最初からグループのルールで統制される。"
+      "why": "自動作成される開発者環境が最初から市民開発者グループのルールで統制される。"
+    },
+    "disableTeamsEnvironmentCreationByNonAdminUsers": {
+      "expected": true,
+      "label": "Dataverse for Teams 環境の作成を禁止",
+      "why": "Dataverse for Teams は利用しない。統制対象外の環境が増えるのを防ぐ。"
     },
     "powerPlatform.governance.disableDeveloperEnvironmentCreationByNonAdminUsers": {
       "expected": false,
@@ -50,13 +97,45 @@
     "mode": "ACPOnly",
     "profile": "microsoft-first-party",
     "why": "ACP は default-deny の許可リストで、新規コネクタが自動で許可されない。ACP 専用モードにするとクラシック DLP は評価されなくなるため、ポリシーが一本化されて運用が単純になる。",
-    "note": "ACP 専用モードの切り替え API は非公開。管理センターの セキュリティ > データとプライバシー で切り替える。切り替え後、クラシック DLP は削除せず無効化（評価対象外）になる。"
+    "note": "ACP 専用モードは環境グループのルール `AdvancedConnectorPoliciesOnly` として設定する（グループ単位で有効化できる）。有効化してもクラシック DLP は削除されず、評価対象外になるだけなので切り戻せる。"
+  },
+  "dataverse": {
+    "searchEnabledForAllEnvironments": true,
+    "why": "Dataverse 検索（リレーショナル 検索）を全環境で有効化する。Copilot Studio の知識・Code Apps の検索体験の前提。",
+    "attribute": "organizations.isexternalsearchindexenabled"
   },
   "groups": [
     {
+      "name": "既定環境グループ",
+      "purpose": "既定環境を隔離するためのグループ。新規開発には使わせない。",
+      "isolateDefaultEnvironment": true,
+      "rules": {
+        "sharingLimitUsers": 1,
+        "solutionCheckerMode": "block",
+        "codeApps": false,
+        "copilotCredits": false,
+        "managedSolutionsOnly": true,
+        "makerWelcomeContent": true,
+        "welcomeMessage": "### この環境（既定環境）は利用しないでください\n\n既定環境は組織全体に共有される特別な環境のため、業務アプリ・フロー・エージェントの開発には使用できません。\n\n- すべてのコネクタがブロックされています\n- アンマネージド カスタマイズは保存できません\n- 共有は 1 名までに制限されています\n\n開発は **個人開発者環境** または **市民開発者環境** で行ってください。"
+      },
+      "connectorPolicyOverride": {
+        "mode": "BlockAll",
+        "allowedConnectors": [],
+        "why": "既定環境は全テナントのユーザーがメーカー権限を持つため、コネクタを全てブロックして実質的に利用不可にする。ACP は default-deny なので許可リストを空にすればよい。"
+      },
+      "environments": [
+        {
+          "name": "既定環境（テナントに 1 つ）",
+          "type": "Default",
+          "lifecycle": "永続",
+          "managedSolutionsOnly": true,
+          "note": "削除できないため、全コネクタブロック + 利用禁止のウェルカム メッセージで隔離する。"
+        }
+      ]
+    },
+    {
       "name": "個人開発者環境グループ",
       "purpose": "学習用。会社のポリシーを理解した市民開発者が個人の開発者環境を持つ。本番利用は不可。",
-      "environmentRoutingTarget": true,
       "rules": {
         "sharingLimitUsers": 1,
         "solutionCheckerMode": "warn",
@@ -76,6 +155,7 @@
     {
       "name": "市民開発者環境グループ",
       "purpose": "一般の市民開発者が利用する。認定前後で環境を分ける。",
+      "environmentRoutingTarget": true,
       "rules": {
         "sharingLimitUsers": 10,
         "solutionCheckerMode": "warn",
