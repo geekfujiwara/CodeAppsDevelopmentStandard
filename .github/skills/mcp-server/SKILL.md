@@ -47,6 +47,7 @@ Copilot Studio のエージェントから **社内の業務データ（DB・フ
 | [SQL バックエンドのツール設計](references/sql-tools-pattern.md) | パラメータ化クエリ・集計軸のホワイトリスト・トークン寿命と接続プール・読み取り専用権限 |
 | [Copilot Studio への登録](references/copilot-studio-registration.md) | オンボーディングウィザード、コピペ用 MD 生成、OAuth 接続。OpenAPI 方式もここ |
 | [Copilot Studio の DLP 診断](references/copilot-studio-dlp.md) | MCP ツールが DLP でブロックされた場合の読み取り診断と最小変更 |
+| [admin スキル](../admin/SKILL.md) | 実装着手前の環境チェックと DLP 事前チェック、カスタムコネクタの DLP 分類変更 |
 | [.env サンプル](references/.env.example) | 本スキルのパラメータ |
 | [異常系・トラブルシュート](references/troubleshooting.md) | 実際に踏んだ失敗と恒久対策 |
 

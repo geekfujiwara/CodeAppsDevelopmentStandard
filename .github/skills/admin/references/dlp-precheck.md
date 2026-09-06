@@ -6,7 +6,7 @@ Power Platform のデータ ポリシー（DLP）は、**どのコネクタを�
 
 ## いつ実行するか
 
-- `architecture` スキルで構成を決めた直後（Phase 1 の最後）。
+- `architecture` スキルで構成を決めた直後（Phase 1 の最後）。環境チェック（[environment-check.md](environment-check.md)）の次に実行する。
 - 自前 MCP Server / カスタムコネクタを新規に作る前と、Copilot Studio へ登録する前。
 - 既存ソリューションに新しいコネクタを追加するとき。
 
@@ -33,7 +33,7 @@ Power Platform のデータ ポリシー（DLP）は、**どのコネクタを�
 ## Step 2: 事前チェックを実行する
 
 ```powershell
-python .github/skills/standard/scripts/check_dlp.py `
+python .github/skills/admin/scripts/check_dlp.py `
   --environment-id $env:ENV_ID `
   --tenant-id $env:TENANT_ID `
   --connector shared_commondataserviceforapps `
@@ -60,7 +60,7 @@ python .github/skills/standard/scripts/check_dlp.py `
 
 ```powershell
 # 既定は dry-run。変更前後の URL 規則を表示するだけ
-python .github/skills/standard/scripts/set_dlp_custom_connector.py `
+python .github/skills/admin/scripts/set_dlp_custom_connector.py `
   --tenant-id $env:TENANT_ID `
   --policy "<ポリシーの表示名>" `
   --host func-example-mcp.azurewebsites.net `

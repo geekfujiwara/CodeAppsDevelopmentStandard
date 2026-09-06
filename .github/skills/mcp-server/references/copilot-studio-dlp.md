@@ -12,6 +12,8 @@ Copilot Studio の MCP Server は Power Platform のカスタムコネクタと�
 - カスタムコネクタは、環境レベルポリシーではコネクタ ID、テナントレベルポリシーでは Host URL パターンで
   分類される。環境レベルの明示分類がある場合は URL パターンより優先される。
 - `Business` が常に正解とは限らない。エージェント内でデータを受け渡すコネクタは同じグループに置く。
+- DLP の共通ロジックとポリシー変更スクリプトは [admin スキル](../../admin/SKILL.md) にある。
+  MCP 固有でない DLP 確認（使用コネクタ全体の事前チェック等）はそちらを使う。
 
 ## Step 1: 読み取り診断を実行する
 
@@ -57,7 +59,7 @@ Copilot Studio 側でツールがブロック扱いになる。対象 Host だ�
 
 ```powershell
 # 既定は dry-run。変更前後の規則を表示するだけで、ポリシーは更新しない
-python .github/skills/standard/scripts/set_dlp_custom_connector.py `
+python .github/skills/admin/scripts/set_dlp_custom_connector.py `
   --tenant-id $env:TENANT_ID `
   --policy "<違反詳細に示されたポリシー名>" `
   --host $env:MCP_CONNECTOR_HOST `

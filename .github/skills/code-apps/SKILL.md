@@ -179,7 +179,9 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
   → 新規環境では必ず npx pa app init で新規生成
 ```
 
-> [!IMPORTANT]
+> 環境全体の状態（既定環境ではないか / マネージド環境 / Dataverse / Code Apps / MCP / セキュリティ ロール / DLP）は
+> [admin スキル](../admin/SKILL.md) の `check_environment.py` でまとめて確認できる。
+> 開発着手前に一度実行しておくと、デプロイ直前の 403 を避けられる。
 > **CLI の実行ファイル名は `pa`**。`@microsoft/power-apps-cli` は bin を `power-apps` から **`pa`** にリネームし、
 > コマンドも group 化した（`init` → `app init`、`push` → `app push`、`auth-status` → `auth status`）。
 > 旧名を呼ぶと `npm error could not determine executable to run` だけが出て原因が見えない。

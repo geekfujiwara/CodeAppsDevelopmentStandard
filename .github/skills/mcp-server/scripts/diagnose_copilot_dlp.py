@@ -1,6 +1,6 @@
 """Copilot Studio MCP カスタムコネクタの DLP 分類を読み取り診断する。
 
-DLP の共通ロジックは standard スキルの `dlp_helper.py` に集約している。
+DLP の共通ロジックは admin スキルの `dlp_helper.py` に集約している。
 このスクリプトは MCP のホスト名を起点に、コネクタ特定と URL 規則の照合だけを行う。
 読み取り専用でポリシーは変更しない。
 """
@@ -12,7 +12,9 @@ import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
+_SKILLS = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_SKILLS / "standard" / "scripts"))
+sys.path.insert(0, str(_SKILLS / "admin" / "scripts"))
 
 from dlp_helper import (  # noqa: E402
     applied_policies,

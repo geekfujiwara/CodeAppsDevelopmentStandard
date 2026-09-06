@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。構成が確定したら、実装着手前に DLP 事前チェック（使用コネクタがブロックされていないか・Business / Non-business が混在しないか）を実行して結果をユーザーに提示する。Agent 365 の AI チームメイトを採用する場合はライト実装（PoC）と本格実装（private リポジトリ + CI/CD + Agent Evals）を AskUserQuestion で選ばせ、Git ホスティング（GitHub / Azure DevOps Repos / その他）も確定してから実装へ進む。外部の文章を読むエージェントではプロンプト インジェクション対策を設計段階で工数に含める。"
+description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。構成が確定したら、実装着手前に admin スキルで環境チェック（既定環境ではないか・マネージド環境・Code Apps / MCP の有効化・セキュリティ ロール）と DLP 事前チェック（使用コネクタがブロックされていないか・Business / Non-business が混在しないか）を実行して結果をユーザーに提示する。Agent 365 の AI チームメイトを採用する場合はライト実装（PoC）と本格実装（private リポジトリ + CI/CD + Agent Evals）を AskUserQuestion で選ばせ、Git ホスティング（GitHub / Azure DevOps Repos / その他）も確定してから実装へ進む。外部の文章を読むエージェントではプロンプト インジェクション対策を設計段階で工数に含める。"
 category: architecture
 triggers:
   - "アーキテクチャ設計"
@@ -686,18 +686,21 @@ AskUserQuestion で次のように尋ねる:
 - [ ] **そのエージェントは外部の文章を読むか？**（メール本文 / Web ページ / 取り込んだファイル / 業務レコード） → YES なら**プロンプト インジェクション対策を設計段階で工数に含める**。agentUser は自分の権限で動くため、未対応だと実データに被害が及ぶ（[ai-teammate/references/prompt-injection.md](../ai-teammate/references/prompt-injection.md)）
 - [ ] **本格実装を選んだか？** → YES なら **Git ホスティング（GitHub / Azure DevOps Repos / その他 Git）** も確認し、private リポジトリ前提で `SECRET_BACKEND` を決める
 - [ ] **画面設計はブロックの組み合わせで決めたか？** → 同じ CRUD をテーブル数だけ量産しない。可視化ニーズがあれば **ReactFlow を第一候補**に（[設計リファレンス §4](references/design-patterns.md#4-画面設計ブロックの組み合わせテンプレ化しない設計)）
-- [ ] **構成が決まったら DLP 事前チェックを実行したか？** → 実装着手前に §10 を必ず実行する
+- [ ] **構成が決まったら環境チェックと DLP 事前チェックを実行したか？** → 実装着手前に §10 を必ず実行する
 
 ---
 
-## 10. DLP 事前チェック（実装着手前に必須）
+## 10. 環境チェックと DLP 事前チェック（実装着手前に必須）
 
-構成が確定したら、**実装を始める前に**、その構成が使うコネクタが対象環境の
-データ ポリシー（DLP）で利用可能かを確認する。設計後に発覚すると、コネクタ選定から
-やり直しになるため、必ずこのタイミングで実施する。
+構成が確定したら、**実装を始める前に** `admin` スキルで「その環境で作れるか」を確認する。
+設計後に発覚するとコネクタ選定や環境準備からやり直しになるため、必ずこのタイミングで実施する。
 
 ```powershell
-python .github/skills/standard/scripts/check_dlp.py `
+# 1. 環境チェック（既定環境でないか / マネージド環境 / Dataverse / Code Apps / MCP / ロール）
+python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID
+
+# 2. DLP 事前チェック（構成が使うコネクタを列挙する）
+python .github/skills/admin/scripts/check_dlp.py `
   --environment-id $env:ENV_ID `
   --tenant-id $env:TENANT_ID `
   --connector shared_commondataserviceforapps `
@@ -713,5 +716,4 @@ python .github/skills/standard/scripts/check_dlp.py `
 | カスタムコネクタが未分類でないか | Copilot Studio でツールがブロック表示になる。ホストを明示分類する |
 
 **結果は必ずユーザーに提示し、問題がある場合は解消方針を合意してから実装に入る。**
-手順・コネクタ一覧・カスタムコネクタの明示分類は
-[standard/references/dlp-precheck.md](../standard/references/dlp-precheck.md) を参照。
+判定基準・コネクタ一覧・変更手順は [admin スキル](../admin/SKILL.md) を参照。
