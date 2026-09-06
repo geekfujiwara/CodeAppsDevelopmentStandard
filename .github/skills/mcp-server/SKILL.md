@@ -230,6 +230,17 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
      繰り返さず、[Copilot Studio の DLP 診断](references/copilot-studio-dlp.md) に従って適用ポリシーと
      コネクタ分類を読み取り確認する。認証は `standard` スキルの `auth_helper.py` に統一し、
      PowerShell の対話サインインやブラウザ認証を追加しない。
+   - DLP を解消したのに **Edit 画面で `Couldn't load MCP tools ... HTTP 401`** が出る場合は、
+     DLP やアプリ登録を疑う前に必ず次のスクリプトで原因を分類する。
+
+     ```powershell
+     python .github/skills/mcp-server/scripts/diagnose_connector_token.py --apps $env:MCP_FUNCTION_APPS
+     ```
+
+     繰り返す `jwt expired` と診断された場合は設定不備ではなく、Copilot Studio 側が保持する
+     アクセストークンが失効したまま更新されていないだけ。Copilot Studio（または Power Apps >
+     Connections）で対象コネクタの接続を選び、**再認証（reconnect）**すれば解消する。
+     詳細は [troubleshooting.md](references/troubleshooting.md) を参照。
 
    OpenAPI をコード管理する必要がある場合だけ、カスタムコネクタのインポート方式を使う。
 
@@ -259,6 +270,8 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 - [ ] 管理エンドポイントを削除し、`ADMIN_SEED_SECRET` をアプリ設定から消した
 - [ ] 削除後に「残すルート = 401 / 削除したルート = 404」を HTTP で実測した
 - [ ] スクリプトが `auth_helper` 経由で非対話に完走する（`az login` を要求しない）
+- [ ] Copilot Studio の Edit 画面で 401 が出たら、DLP/設定変更の前に `diagnose_connector_token.py` で
+      「未接続・トークン失効・その他」を切り分けた
 
 ## 参考リンク
 
