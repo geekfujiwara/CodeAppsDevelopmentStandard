@@ -218,3 +218,41 @@ XMLHttpRequest.prototype.send = function (b) {
 
 **対処**: 3 秒間隔で 4 回程度リトライする（本スキルの各スクリプトは実装済み）。
 タイムアウトは 120〜180 秒を見込む。
+
+## 14. CSP を空に戻そうとして 400 `contentsecuritypolicyconfiguration cannot be NULL` になる
+
+**症状**: `contentsecuritypolicyconfiguration` に `null` を PATCH すると 400 になる。
+
+**原因**: この列は必須項目で `null` を受け付けない。
+
+**対処**: 空の JSON 文字列 `{}` を送る。スクリプトなら次のとおり。
+
+```bash
+python set_content_security_policy.py --environment-url <ENV_URL> --reset-directives --disable --apply
+```
+
+## 15. CSP を有効にしたらアプリが白画面になった
+
+**症状**: `--enable` した直後からアプリが表示されなくなる。
+
+**原因**: ディレクティブに載っていない読み込み元がブラウザー側でブロックされている。
+
+**対処**: いきなり強制せず、次の順で進める。戻すときは `--disable --apply`。
+
+1. `--report-uri` だけを設定して report-only で違反を集める
+2. 違反に出た読み込み元を `--directive` に追加する
+3. 違反が出なくなってから `--enable` する
+
+反映まで数分かかるため、ブラウザーのキャッシュも消してから確認する。
+
+## 16. Dataverse 容量を環境ごとに配分できない
+
+**症状**: `PATCH {T}/licensing/environments/{env}/allocations` に `currencyType: "Database"` を渡すと
+400 `Error converting value "Database"` になる。
+
+**原因**: Dataverse ストレージは消費ベースでテナント プールから引かれる仕組みで、環境ごとの配分 API は無い。
+配分できるのは Copilot クレジットや AI Builder クレジットなどのアドオン容量だけ。
+
+**対処**: `set_environment_capacity.py --storage` で環境ごとの消費量を一覧し、逼迫している場合は
+不要な環境の削除・監査ログの保持期間短縮・ファイルの整理で対処する。
+

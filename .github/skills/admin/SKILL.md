@@ -80,7 +80,11 @@ triggers:
 | [scripts/apply_environment_strategy.py](scripts/apply_environment_strategy.py) | 環境グループの作成・ルール発行・既定環境の割り当て・テナント設定 | `--apply` 時のみ |
 | [scripts/set_environment_group_rules.py](scripts/set_environment_group_rules.py) | 環境グループのルールを個別に確認・設定（共有上限 / ACP / アンマネージド禁止 / Code Apps / ウェルカム コンテンツ） | `--apply` 時のみ |
 | [scripts/enable_dataverse_search.py](scripts/enable_dataverse_search.py) | 全環境の Dataverse 検索を有効化 | `--apply` 時のみ |
-| [scripts/set_copilot_credits.py](scripts/set_copilot_credits.py) | Copilot クレジットの保有数・環境別割り当ての確認と配分 | `--apply` 時のみ |
+| [scripts/set_environment_capacity.py](scripts/set_environment_capacity.py) | Copilot クレジット・AI Builder クレジット等の環境別配分と、Dataverse 容量（Database / File / Log）の一覧 | `--apply` 時のみ |
+| [scripts/environment_naming.py](scripts/environment_naming.py) | 環境名をルールベースで生成（表示名とドメイン名） | なし |
+| [scripts/create_environments.py](scripts/create_environments.py) | ブループリントに対して不足している環境を作成し、環境グループへ割り当て | `--apply` 時のみ |
+| [scripts/setup_pipeline.py](scripts/setup_pipeline.py) | Power Platform パイプライン（開発 → テスト → 本番）の構成 | `--apply` 時のみ |
+| [scripts/set_content_security_policy.py](scripts/set_content_security_policy.py) | 環境の CSP（Code Apps / モデル駆動 / キャンバス）の確認と設定 | `--apply` 時のみ |
 | [scripts/dlp_helper.py](scripts/dlp_helper.py) | DLP 管理 API の共通ロジック（他スクリプトから import） | なし |
 | [references/acp-profiles.json](references/acp-profiles.json) | ACP 推奨許可セットの定義（パターン / ブロック / 要確認） | なし |
 | [references/rule-catalog.md](references/rule-catalog.md) | 環境グループのルール ID と非公開 API の一覧 | なし |
@@ -320,7 +324,7 @@ python set_managed_environment.py --environment-id <ENV_ID> --apply
 python apply_environment_strategy.py --tenant-id <TENANT_ID>                    # dry-run（差分の確認）
 python apply_environment_strategy.py --tenant-id <TENANT_ID> --apply            # グループ作成・ルール発行・テナント設定
 python enable_dataverse_search.py --apply
-python set_copilot_credits.py --tenant-id <TENANT_ID>                           # 保有数と環境別割り当ての確認
+python set_environment_capacity.py --tenant-id <TENANT_ID>                           # 保有数と環境別割り当ての確認
 ```
 
 全環境をグループへ割り当てるには、各環境を
@@ -336,21 +340,67 @@ python set_environment_group_rules.py --tenant-id <TENANT_ID> --environment-grou
 ```
 
 ルール ID の一覧は [rule-catalog.md](references/rule-catalog.md)。
-Copilot クレジットの環境別配分はグループ ルールに無いため、`set_copilot_credits.py` で個別に行う。
+Copilot クレジットの環境別配分はグループ ルールに無いため、`set_environment_capacity.py` で個別に行う。
 割り当て合計がテナントの保有数を超えても API は成功するので、適用前に必ず一覧で確認する。
 
 ```bash
-python set_copilot_credits.py --tenant-id <TENANT_ID> --environment-id <ENV_ID> --credits 500 --apply
+python set_environment_capacity.py --tenant-id <TENANT_ID> --environment-id <ENV_ID> --quantity 500 --apply
 ```
 
-#### 10-5. 個人開発者環境・市民開発者環境のコネクタを決める
+Dataverse 容量（Database / File / Log）はテナント プールから消費ベースで引かれるため、環境ごとの配分 API は無い。
+`--storage` で環境ごとの消費量を一覧し、逼迫している環境があれば不要な環境の削除やログ保持期間の短縮で対処する。
+
+```bash
+python set_environment_capacity.py --tenant-id <TENANT_ID> --storage
+```
+
+#### 10-5. 不足している環境を作成してパイプラインを繋ぐ
+
+環境名は都度考えず、ブループリントの `namingConvention` に従って機械的に決める。
+`{orgCode}-{groupCode}-{workload}-{stageCode}` の形にすると、名前だけでどのグループのどの段階かが判別でき、
+同じ workload の Dev / Test / Prod がパイプラインの対応関係として読める。
+
+```bash
+python environment_naming.py --preview                                          # 生成される名前の確認
+python create_environments.py --tenant-id <TENANT_ID>                           # dry-run（不足分の一覧）
+python create_environments.py --tenant-id <TENANT_ID> --apply                   # 作成 + グループ割り当て
+```
+
+`location` / `baseLanguage` / `currency` は作成後に変更できないため、ブループリントの
+`environmentDefaults` で先に固定しておく。
+
+作成した開発環境とテスト環境をパイプラインで繋ぐ。ブループリントの `pipelines` に
+パイプライン ホスト環境・開発環境・ステージを書いてから実行する。
+
+```bash
+python setup_pipeline.py --host-url <PIPELINE_HOST_URL>                         # dry-run
+python setup_pipeline.py --host-url <PIPELINE_HOST_URL> --apply
+```
+
+#### 10-6. Code Apps の CSP を設定する
+
+CSP（コンテンツ セキュリティ ポリシー）は環境ごとの Dataverse 組織設定で、管理センターの
+「App（モデル駆動）」タブの設定が **Code Apps にも適用される**。既定モードで変更できるのは
+`Frame-Ancestor`（アプリの埋め込みを許可する親サイト）だけで、それ以外のディレクティブは
+Strict CSP を有効にした場合にのみ設定できる。
+
+```bash
+python set_content_security_policy.py --environment-url <ENV_URL>                             # 現状確認
+python set_content_security_policy.py --environment-url <ENV_URL> --enable `
+  --directive "Frame-Ancestor='self',https://*.powerapps.com" --apply
+```
+
+いきなり強制すると既存アプリが白画面になるため、まず `--report-uri` で report-only の違反を集め、
+違反が出ないことを確認してから `--enable` する。
+
+#### 10-7. 個人開発者環境・市民開発者環境のコネクタを決める
 
 どちらも ACP は同じ `microsoft-first-party` プロファイル（Microsoft のみ。サードパーティ・レガシー不可）を
 **環境グループ単位**で適用する。プロファイルの `reviewConnectors`（個人向けサービスに繋がるコネクタなど
 判断が分かれるもの）は AskUserQuestion で採否を確認し、決まったものだけを
 `apply_acp_profile.py --include-connector` / `--exclude-connector` で調整する。
 
-#### 10-6. 利用ガイドラインを公開して配布する
+#### 10-8. 利用ガイドラインを公開して配布する
 
 利用可能なコネクタ・利用できないコネクタとその理由・追加申請フロー・認定プロセス・共有上限・
 Copilot クレジット・問い合わせ先をまとめたページを作成する。

@@ -5,6 +5,42 @@
     "apply_environment_strategy.py が環境グループのルールとして適用する。",
     "組織固有の名称・人数はここを編集して調整する（スクリプトは変更しない）。"
   ],
+  "namingConvention": {
+    "why": "環境名を人が都度考えると表記ゆれが起きて、どのグループのどの段階の環境かが一覧で判別できなくなる。ルールベースで機械的に決めれば、環境グループへの割り当ても DLP の棚卸しも名前だけで判断できる。",
+    "displayNamePattern": "{orgCode}-{groupCode}-{workload}-{stageCode}",
+    "domainNamePattern": "{orgcode}{groupcode}{workload}{stagecode}",
+    "orgCode": "CONTOSO",
+    "separator": "-",
+    "maxDisplayNameLength": 64,
+    "maxDomainNameLength": 32,
+    "stageCodes": {
+      "Dev": "DEV",
+      "Test": "TST",
+      "Prod": "PRD",
+      "Sandbox": "SBX",
+      "Trial": "TRL",
+      "Personal": "PSN"
+    },
+    "rules": [
+      "英数字とハイフンのみを使う。日本語・空白・記号は使わない（ドメイン名に流用できなくなるため）。",
+      "workload は業務・製品の略号を 3〜12 文字で書く（例: KBMGR / SALES / HRDESK）。",
+      "個人開発者環境は Power Platform が自動命名するため、この規則の対象外とする。",
+      "既定環境は名前を変更しない。",
+      "同じ workload の Dev / Test / Prod は stageCode だけが違う名前にして、パイプラインの対応関係を名前で追えるようにする。"
+    ],
+    "examples": [
+      "CONTOSO-COE-KBMGR-DEV",
+      "CONTOSO-COE-KBMGR-TST",
+      "CONTOSO-CTZ-HRDESK-DEV"
+    ]
+  },
+  "environmentDefaults": {
+    "why": "環境を作るたびにリージョン・言語・通貨を選び直すと、環境ごとにばらつきが出て後から揃えられない（作り直すしかない）。既定値をここで固定する。",
+    "location": "japan",
+    "baseLanguage": 1041,
+    "currency": "JPY",
+    "note": "location / baseLanguage / currency は環境の作成後に変更できない。テナントの主要な利用地域に合わせて最初に決める。"
+  },
   "ruleModel": {
     "principle": "設定は環境グループのルールで行うことを原則とする。環境グループのルールに存在しない設定だけを、テナント設定・環境個別設定・Dataverse の組織設定で補う。",
     "why": "環境グループのルールは発行するとグループ内の全環境へ一括適用され、環境側での上書きがロックされる。環境ごとに設定するとドリフトが発生し、新しい環境を作るたびに設定漏れが起きる。",
@@ -107,6 +143,7 @@
   "groups": [
     {
       "name": "既定環境グループ",
+      "code": "DEF",
       "purpose": "既定環境を隔離するためのグループ。新規開発には使わせない。",
       "isolateDefaultEnvironment": true,
       "rules": {
@@ -135,6 +172,7 @@
     },
     {
       "name": "個人開発者環境グループ",
+      "code": "PSN",
       "purpose": "学習用。会社のポリシーを理解した市民開発者が個人の開発者環境を持つ。本番利用は不可。",
       "rules": {
         "sharingLimitUsers": 1,
@@ -154,6 +192,7 @@
     },
     {
       "name": "市民開発者環境グループ",
+      "code": "CTZ",
       "purpose": "一般の市民開発者が利用する。認定前後で環境を分ける。",
       "environmentRoutingTarget": true,
       "rules": {
@@ -166,6 +205,8 @@
       "environments": [
         {
           "name": "トレーニング環境",
+          "workload": "TRAIN",
+          "stage": "Sandbox",
           "type": "Sandbox",
           "lifecycle": "定期リセット",
           "sharingLimitUsers": 5,
@@ -174,6 +215,8 @@
         },
         {
           "name": "市民開発者環境",
+          "workload": "CITIZEN",
+          "stage": "Prod",
           "type": "Production",
           "lifecycle": "永続",
           "sharingLimitUsers": 10,
@@ -184,6 +227,7 @@
     },
     {
       "name": "AI CoE セントラルグループ",
+      "code": "CTRL",
       "purpose": "AI CoE / IT 部門が全社分析と新技術検証に使う。決められたユーザーのみ。",
       "rules": {
         "sharingLimitUsers": null,
@@ -193,13 +237,28 @@
         "makerWelcomeContent": true
       },
       "environments": [
-        {"name": "AI CoE 分析", "type": "Production", "lifecycle": "永続", "note": "テナント分析基盤（CoE Starter Kit 等）。"},
-        {"name": "AI CoE 検証", "type": "Sandbox", "lifecycle": "永続", "note": "新機能・プレビューの検証。"}
+        {
+          "name": "AI CoE 分析",
+          "workload": "ANALYTICS",
+          "stage": "Prod",
+          "type": "Production",
+          "lifecycle": "永続",
+          "note": "テナント分析基盤（CoE Starter Kit 等）。"
+        },
+        {
+          "name": "AI CoE 検証",
+          "workload": "LAB",
+          "stage": "Sandbox",
+          "type": "Sandbox",
+          "lifecycle": "永続",
+          "note": "新機能・プレビューの検証。"
+        }
       ]
     },
     {
       "name": "AI CoE 内製開発グループ",
-      "purpose": "本部 / 事業部の AI CoE が Code Apps を含む内製開発を行う。3 ランドスケープ + Power Platform パイプラインでデータのサイロ化を防ぐ。",
+      "code": "COE",
+      "purpose": "本部 / 事業部の AI CoE が Code Apps を含む内製開発を行う。開発とテストのランドスケープを Power Platform パイプラインで繋ぎ、データのサイロ化を防ぐ。本番運用の環境はこのグループには置かない。",
       "rules": {
         "sharingLimitUsers": null,
         "solutionCheckerMode": "warn",
@@ -209,15 +268,21 @@
         "pipelines": true
       },
       "environments": [
-        {"name": "AI CoE 開発", "type": "Sandbox", "lifecycle": "永続", "sharingLimitUsers": 10},
-        {"name": "AI CoE テスト", "type": "Sandbox", "lifecycle": "永続", "sharingLimitUsers": 20},
         {
-          "name": "AI CoE 本番",
-          "type": "Production",
+          "name": "AI CoE 開発",
+          "workload": "KBMGR",
+          "type": "Sandbox",
           "lifecycle": "永続",
-          "sharingLimitUsers": null,
-          "managedSolutionsOnly": true,
-          "note": "共有上限なし。アンマネージド ソリューションの持ち込みを禁止する。"
+          "stage": "Dev",
+          "sharingLimitUsers": 10
+        },
+        {
+          "name": "AI CoE テスト",
+          "workload": "KBMGR",
+          "type": "Sandbox",
+          "lifecycle": "永続",
+          "stage": "Test",
+          "sharingLimitUsers": 20
         }
       ]
     }
@@ -231,7 +296,11 @@
       "POWERAPPS_PREMIUM",
       "DYN365"
     ],
-    "copilotStudioSkuKeywords": ["POWER_VIRTUAL_AGENTS", "COPILOT_STUDIO", "MCS"],
+    "copilotStudioSkuKeywords": [
+      "POWER_VIRTUAL_AGENTS",
+      "COPILOT_STUDIO",
+      "MCS"
+    ],
     "why": "マネージド環境のアプリ・フローを利用するユーザーには Power Apps Premium 等のスタンドアロン ライセンスが必要。Microsoft 365 に含まれるシード ライセンスだけでは利用できない。"
   },
   "guideline": {
@@ -247,5 +316,27 @@
       "問い合わせ先（AI CoE）"
     ],
     "distribution": "作成したページの URL を、各環境グループの「メーカー ウェルカム コンテンツ」ルールに設定して配布する。"
-  }
+  },
+  "pipelines": [
+    {
+      "name": "AI CoE 内製開発パイプライン",
+      "purpose": "AI CoE 内製開発グループの開発環境からテスト環境へ、ソリューションをマネージドで配布する。手動エクスポート/インポートを禁止して、変更の経路を 1 本にする。",
+      "hostEnvironmentName": "<パイプライン ホスト環境の名前>",
+      "hostEnvironmentUrl": "https://<pipelinehost>.crm.dynamics.com",
+      "developmentEnvironments": [
+        {
+          "name": "<開発環境の名前>",
+          "environmentId": "<開発環境の環境 ID>"
+        }
+      ],
+      "stages": [
+        {
+          "name": "テストへ配布",
+          "environmentName": "<テスト環境の名前>",
+          "environmentId": "<テスト環境の環境 ID>"
+        }
+      ],
+      "note": "本番環境を持つ場合は stages に「本番へ配布」を追加する。stages は配列の順序どおりに前段のステージが previousDeploymentStage として連結される。"
+    }
+  ]
 }

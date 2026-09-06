@@ -253,7 +253,7 @@ def print_report(report: dict, blueprint: dict) -> None:
     entitled = report.get("copilotCreditsEntitled")
     print(f"\n  Copilot クレジット（MCSMessages）: 保有 {entitled if entitled is not None else '?'} / 割り当て済み合計 {allocated}")
     if entitled is not None and allocated > entitled:
-        print(f"  [要対応] 保有数を {allocated - entitled:g} 超えて割り当てています。set_copilot_credits.py で調整してください。")
+        print(f"  [要対応] 保有数を {allocated - entitled:g} 超えて割り当てています。set_environment_capacity.py で調整してください。")
 
 
 def main() -> int:

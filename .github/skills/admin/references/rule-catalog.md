@@ -169,7 +169,7 @@ Usage insights
 ## Copilot クレジットの環境別配分（同じテナント専用ホスト、`api-version=1`）
 
 環境グループのルールには「テナント クレジット プールから消費するか」（`CostControlsDrawFromTenantCreditPool`）
-しか無く、環境ごとの配分数はここでしか設定できない。`set_copilot_credits.py` が実装している。
+しか無く、環境ごとの配分数はここでしか設定できない。`set_environment_capacity.py` が実装している。
 
 | 用途 | 呼び出し |
 | --- | --- |
@@ -189,6 +189,94 @@ Usage insights
 - レスポンスの `enforcementRules` に `{"ruleType":"TenantPool","enabled":true|false}` が入る。これは
   環境グループの `CostControlsDrawFromTenantCreditPool` の結果なので、ここでは変更しない。
 - `PATCH {host}/licensing/AllocationsByEnvironment` は 400（配列を受け付けない）。環境単位で呼ぶ。
+
+同じエンドポイントで `currencyType` を変えれば、他のアドオン容量も同じ形で配分できる。
+
+`MCSMessages` / `MCSSessions` / `AI`（AI Builder クレジット）/ `AppPass` / `AppPassForTeams` /
+`PAHostedRPA` / `PAUnattendedRPA` / `PerFlowPlan` / `PowerAutomatePerProcess` / `PortalLogins` /
+`PortalViews` / `PowerPagesAnonymous` / `PowerPagesAuthenticated` / `ProcessMiningDataStorage`
+
+## Dataverse 容量（Database / File / Log）
+
+Dataverse ストレージは**環境ごとに配分できない**。テナント プールから消費ベースで引かれる。
+
+| 用途 | 呼び出し |
+| --- | --- |
+| テナントの保有と消費 | `GET {host}/licensing/entitlements/{Database\|File\|Log}?api-version=1` |
+| 環境ごとの消費 | `GET {host}/licensing/environments/entitlements/{Database\|File\|Log}?searchRequest=&api-version=1` |
+| 環境ごとの消費（集計用） | `GET {host}/licensing/environments/entitlementConsumptions/{Database\|File\|Log}?api-version=1` |
+| テナント全体のサマリー | `GET {host}/licensing/tenantCapacity?api-version=2022-03-01-preview` |
+| 予約済み容量の合計 | `GET {host}/licensing/allocationsV2/entitlements/reserved?$filter=EntitlementId in (Database,Log,File)&api-version=1` |
+
+- `PATCH {host}/licensing/environments/{envId}/allocations` に `currencyType: "Database"` を渡すと
+  400（`Error converting value "Database"`）。ストレージは配分できないという意味。
+- `PUT {host}/licensing/allocationsV2` は存在するが、ボディの `scope` が非公開のモデルで
+  400 `Invalid scope or Allocations` になる。ストレージの予約用途では使わない。
+- 環境ごとに上限を掛けたい場合は、環境の作成数と種類（Developer / Sandbox）で制御する。
+
+## 環境の作成（`{bap}`）
+
+| 用途 | 呼び出し |
+| --- | --- |
+| 作成 | `POST {bap}/scopes/admin/environments?api-version=2021-04-01` |
+| 一覧（グループ所属込み） | `GET {bap}/scopes/admin/environments?api-version=2021-04-01&$expand=properties` |
+
+```json
+{
+  "location": "japan",
+  "properties": {
+    "displayName": "CONTOSO-COE-KBMGR-DEV",
+    "environmentSku": "Sandbox",
+    "databaseType": "CommonDataService",
+    "linkedEnvironmentMetadata": {
+      "baseLanguage": 1041,
+      "domainName": "contosocoekbmgrdev",
+      "currency": { "code": "JPY" },
+      "templates": []
+    }
+  }
+}
+```
+
+`202 Accepted` を返す非同期処理。`location` / `baseLanguage` / `currency` / `domainName` は作成後に変更できない。
+
+## パイプライン（パイプライン ホスト環境の Dataverse Web API）
+
+| テーブル | エンティティ セット | 主な列 |
+| --- | --- | --- |
+| `deploymentpipeline` | `deploymentpipelines` | `name` / `description` |
+| `deploymentenvironment` | `deploymentenvironments` | `name` / `environmentid` / `environmenttype` |
+| `deploymentstage` | `deploymentstages` | `name` / `deploymentpipelineid` / `targetdeploymentenvironmentid` / `previousdeploymentstageid` |
+
+`environmenttype` は `200000000`（開発環境）と `200000001`（配布先環境）の 2 値。
+ステージの参照列は `deploymentpipelineid@odata.bind` のように、列名と同じ名前のナビゲーション プロパティで束縛する。
+
+## CSP（コンテンツ セキュリティ ポリシー、環境の Dataverse `organization`）
+
+管理センターの「環境 > 設定 > プライバシー + セキュリティ」に相当する。
+**「App（モデル駆動）」タブの設定が Code Apps にも適用される。**
+
+| 列 | 型 | 意味 |
+| --- | --- | --- |
+| `iscontentsecuritypolicyenabled` | Boolean | CSP 違反をブロックする（モデル駆動 / Code Apps） |
+| `iscontentsecuritypolicyenabledforcanvas` | Boolean | 同上（キャンバス アプリ） |
+| `contentsecuritypolicyconfiguration` | 文字列（JSON） | ディレクティブの上書き |
+| `contentsecuritypolicyconfigurationforcanvas` | 文字列（JSON） | 同上（キャンバス アプリ） |
+| `contentsecuritypolicyoptions` | 整数（ビット） | `1` = Strict CSP |
+| `contentsecuritypolicyreporturi` | 文字列 | 違反レポートの送信先（report-only） |
+
+`contentsecuritypolicyconfiguration` は **JSON を文字列として** 格納する。
+
+```json
+{"Frame-Ancestor":{"sources":[{"source":"'self'"},{"source":"https://*.powerapps.com"}]},"Script-Src":{"sources":[{"source":"'self'"}]}}
+```
+
+- ディレクティブ名は `Frame-Ancestor` / `Script-Src` / `Img-Src` / `Style-Src` / `Font-Src` /
+  `Connect-Src` / `Frame-Src` / `Form-Action`。
+- 既定モードで上書きできるのは `Frame-Ancestor` だけ。他は `contentsecuritypolicyoptions=1`（Strict CSP）が前提。
+- キーを省略すると既定値が使われ、`sources` を空配列にするとそのディレクティブは無効になる。
+- `contentsecuritypolicyconfiguration` に `null` を PATCH すると 400（必須項目）。空に戻すときは `"{}"` を送る。
+- 更新は `PATCH {orgUrl}/api/data/v9.2/organizations({organizationid})`。
 
 ## 注意
 

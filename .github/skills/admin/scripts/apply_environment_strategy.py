@@ -321,7 +321,7 @@ def print_manual_steps() -> None:
     print("  2. 既定環境以外の環境をグループへ割り当てる")
     print("     PATCH .../environments/{id} の properties.parentEnvironmentGroup.id で設定できる。")
     print("  3. Dataverse 検索を有効化する（enable_dataverse_search.py）")
-    print("  4. Copilot クレジットの環境別配分（set_copilot_credits.py）")
+    print("  4. Copilot クレジットの環境別配分（set_environment_capacity.py）")
     print("     グループ ルールはテナント クレジット プールの消費可否のみ。")
     print("  5. 利用ガイドラインを SharePoint に公開し、URL をウェルカム コンテンツへ設定する")
 

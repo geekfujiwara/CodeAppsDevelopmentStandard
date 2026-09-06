@@ -84,6 +84,22 @@ AI CoE / IT 部門が利用。決められたユーザーのみ。Copilot クレ
 - Copilot Studio のクレジット（`MCSMessages`）はテナントで購入し、環境ごとに割り当てる。割り当て済みの合計は購入数を超えられない。
 - スキャン スクリプトが Microsoft Graph の `subscribedSkus` から保有数・消費数を読み取り、不足があれば警告する。
 
+## 環境の命名規則
+
+環境名を都度考えると表記ゆれが起きて、一覧からどのグループのどの段階の環境かを判別できなくなる。
+ブループリントの `namingConvention` でパターンを決め、`environment_naming.py` が機械的に生成する。
+
+| 項目 | 既定値 |
+| --- | --- |
+| 表示名 | `{orgCode}-{groupCode}-{workload}-{stageCode}`（例 `CONTOSO-COE-KBMGR-DEV`） |
+| ドメイン名 | `{orgcode}{groupcode}{workload}{stagecode}`（例 `contosocoekbmgrdev`） |
+| ステージ コード | `Dev`=DEV / `Test`=TST / `Prod`=PRD / `Sandbox`=SBX / `Trial`=TRL / `Personal`=PSN |
+
+- 英数字とハイフンだけを使う。日本語・空白・記号はドメイン名に流用できないため使わない。
+- 同じ `workload` の Dev / Test / Prod は `stageCode` だけが違う名前にして、パイプラインの対応関係を名前で追えるようにする。
+- 個人開発者環境は Power Platform が自動命名するため対象外。既定環境は改名しない。
+- `location` / `baseLanguage` / `currency` は作成後に変更できないため、`environmentDefaults` で先に固定する。
+
 ## ワークフローと成果物
 
 ```
@@ -93,8 +109,12 @@ generate_migration_plan.py     （admin-migration-plan.md を生成）
         ↓ ユーザー レビュー・承認
 set_managed_environment.py     （マネージド環境化 = グループの前提条件）
 apply_environment_strategy.py  （グループ作成・ルール発行・既定環境の割り当て・テナント設定）
+environment_naming.py          （環境名の生成規則の確認）
+create_environments.py         （不足している環境の作成とグループ割り当て）
+setup_pipeline.py              （開発 → テストのパイプライン構成）
 enable_dataverse_search.py     （全環境の Dataverse 検索）
-set_copilot_credits.py         （Copilot クレジットの環境別配分）
+set_environment_capacity.py    （Copilot クレジット等の環境別配分と Dataverse 容量の一覧）
+set_content_security_policy.py （Code Apps / モデル駆動 / キャンバスの CSP）
 apply_acp_profile.py           （ACP 許可リストの個別調整）
 ```
 
@@ -118,7 +138,11 @@ apply_acp_profile.py           （ACP 許可リストの個別調整）
 | メーカー ウェルカム コンテンツ | グループ ルール `MakerOnboardingContent` |
 | Dataverse 検索 | `PATCH {dataverseUrl}/api/data/v9.2/organizations({orgId})` の `isexternalsearchindexenabled` |
 | Copilot クレジットの参照 | `GET {T}/licensing/environments/entitlements/MCSMessages?searchRequest=&api-version=1` |
-| **Copilot クレジットの配分** | `PATCH {T}/licensing/environments/{env}/allocations?api-version=1`（`set_copilot_credits.py`） |
+| **Copilot クレジット・アドオン容量の配分** | `PATCH {T}/licensing/environments/{env}/allocations?api-version=1`（`set_environment_capacity.py`） |
+| Dataverse 容量（Database / File / Log） | 参照のみ。`GET {T}/licensing/environments/entitlements/{type}?searchRequest=&api-version=1`。環境ごとの配分 API は無い |
+| **環境の作成** | `POST {BAP}/scopes/admin/environments?api-version=2021-04-01`（`create_environments.py`） |
+| **パイプラインの構成** | パイプライン ホスト環境の `deploymentpipelines` / `deploymentstages` / `deploymentenvironments`（`setup_pipeline.py`） |
+| **CSP（Code Apps を含む）** | `PATCH {dataverseUrl}/api/data/v9.2/organizations({orgId})` の `iscontentsecuritypolicyenabled` 他（`set_content_security_policy.py`） |
 | テナント容量 | `GET {PP}/licensing/tenantCapacity?api-version=2022-03-01-preview` |
 
 `{T}` はテナント専用ホスト。生成規則と詳細は [rule-catalog.md](rule-catalog.md) を参照。

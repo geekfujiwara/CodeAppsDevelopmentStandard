@@ -152,7 +152,7 @@ def build(scan: dict, blueprint: dict, decisions: dict) -> str:
     add("| 5 | テナント設定（ルーティング / Teams 禁止 / 共有制限 / レポート公開） | `apply_environment_strategy.py --tenant-settings-only --apply` | テナント全体に即時反映 |")
     add("| 6 | Dataverse 検索を有効化 | `enable_dataverse_search.py --apply` | インデックス作成に数時間かかる |")
     add("| 7 | ACP 推奨プロファイルを適用 | `apply_acp_profile.py --include-group --apply` | 許可リストを置換。事前に dry-run で差分確認 |")
-    add("| 8 | Copilot クレジットを配分 | `set_copilot_credits.py --environment-id <ENV> --credits <N> --apply` | 環境ごとの上限。合計が保有数を超えないこと |")
+    add("| 8 | Copilot クレジットを配分 | `set_environment_capacity.py --environment-id <ENV> --quantity <N> --apply` | 環境ごとの上限。合計が保有数を超えないこと |")
     add("| 9 | 利用ガイドラインを SharePoint に公開 | `sharepoint` スキル | 読み取り専用の情報ページ |")
     add("| 10 | ガイドライン URL をウェルカム コンテンツへ設定 | `set_environment_group_rules.py --welcome-markdown-file <FILE> --welcome-url <URL> --apply` | メーカーに表示される |")
     add("")
@@ -169,7 +169,7 @@ def build(scan: dict, blueprint: dict, decisions: dict) -> str:
     add("- ACP 専用モード: グループ ルール `AdvancedConnectorPoliciesOnly` を false に戻すとクラシック DLP の評価が復活する（DLP は削除しない）。")
     add("- 環境グループ: 環境をグループから外すと直前の設定を保持したままロックが解除される。")
     add("- マネージド環境: 無効化できるが、グループに属したままにはできない。")
-    add("- Copilot クレジット: `set_copilot_credits.py` の一覧出力で変更前の割り当て数を控えておく。")
+    add("- Copilot クレジット: `set_environment_capacity.py` の一覧出力で変更前の割り当て数を控えておく。")
     add("")
 
     add("## 5. 未確定事項（承認前に決める）")

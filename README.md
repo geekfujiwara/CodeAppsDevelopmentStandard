@@ -124,6 +124,49 @@ Copilot Studio を利用する場合は、次の順序で管理者による事�
 4. Advanced Connector Policy で利用を許可するコネクタを設定する
 5. Code Apps を使用する場合は環境の機能を有効化する
 
+#### 開発端末からコマンドで設定する（推奨）
+
+これらのクラウド側の設定は、管理センターの画面を開かずに **ローカルの開発環境から [admin スキル](.github/skills/admin/SKILL.md) のスクリプト**で実行できます。画面操作は手順が長く、環境が増えるたびに設定漏れとドリフトが起きるため、コマンドで再現できる形にしておきます。
+
+事前に「ローカル開発環境の準備」を済ませ、Power Platform 管理者の資格情報でサインインしておいてください。
+
+```powershell
+cd .github/skills/admin/scripts
+
+# 0. 現状を確認する（環境・グループ・容量・ルールの棚卸し）
+python scan_environment_strategy.py --tenant-id <TENANT_ID>
+
+# 1. 環境グループを作成し、ルールを発行する
+python apply_environment_strategy.py --tenant-id <TENANT_ID> --groups-only --apply
+python apply_environment_strategy.py --tenant-id <TENANT_ID> --rules-only --apply
+
+# 2. 不足している環境を命名規則どおりに作成し、環境グループへ割り当てる
+python environment_naming.py --preview
+python create_environments.py --tenant-id <TENANT_ID> --apply
+
+# 3. 開発者へセキュリティ ロールを割り当てる（管理センターの画面で行う。下のアコーディオンを参照）
+
+# 4. Copilot Credits と容量を環境ごとに配分する
+python set_environment_capacity.py --tenant-id <TENANT_ID>
+python set_environment_capacity.py --tenant-id <TENANT_ID> --environment-id <ENV_ID> --quantity 500 --apply
+
+# 5. Advanced Connector Policy を適用する
+python apply_acp_profile.py --environment-id <ENV_ID> --profile <PROFILE> --include-group --apply
+
+# 6. Code Apps の有効化は環境グループのルールで一括設定される（apply_environment_strategy.py --rules-only）
+
+# 7. Code Apps の CSP（埋め込み許可元）を設定する
+python set_content_security_policy.py --environment-url <ENV_URL> --enable --directive "Frame-Ancestor='self',https://*.powerapps.com" --apply
+
+# 8. 開発 → テストのパイプラインを構成する
+python setup_pipeline.py --host-url <PIPELINE_HOST_URL> --apply
+```
+
+どのスクリプトも `--apply` を付けない限り dry-run です。適用内容を表示して確認してから `--apply` を付けてください。設定値は `.github/skills/admin/references/environment-strategy.json`（ブループリント）に集約されており、組織固有の名称・人数・命名規則はこのファイルだけを編集します。
+
+<details>
+<summary><strong>手動で設定する場合（Power Platform 管理センターの画面操作）</strong></summary>
+
 #### 専用環境を作成する
 
 この操作には **Power Platform Administrator** または **Dynamics 365 Administrator** などの環境作成権限が必要です。Sandbox 環境の作成には、テナントに 1 GB 以上の空き Dataverse データベース容量も必要です。
@@ -211,7 +254,16 @@ Code Apps は環境ごとに初期状態で無効です。有効化手順:
 
 詳細: [Code Apps 公式ドキュメント（Microsoft Learn）](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/overview)
 
+</details>
+
 ### ローカル開発環境の準備
+
+> [!IMPORTANT]
+> ローカル開発環境のセットアップは、次の条件を満たす端末とアカウントで実施してください。条件を満たさない端末では、スクリプトの実行やアプリの発行が途中で失敗します。
+>
+> - **ライセンス**: GitHub Copilot Pro 以上と、Power Apps Premium（または Power Apps 開発者プラン）のライセンスが割り当てられていること
+> - **セキュリティ ロール**: 対象環境で **System Customizer** と **Environment Maker** が割り当てられていること（テナント全体の設定を行う場合は Power Platform 管理者も必要）
+> - **端末の権限**: PowerShell 7 / Git / Node.js / Python と、`npm install -g` や `pip install` によるライブラリ導入が許可されていること（管理された端末では IT 部門に事前確認してください）
 
 #### VS Code + GitHub Copilot
 
