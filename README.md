@@ -74,6 +74,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
     - [Code Apps を有効化する](#code-apps-を有効化する)
   - [ローカル開発環境の準備](#ローカル開発環境の準備)
     - [VS Code + GitHub Copilot](#vs-code--github-copilot)
+    - [Python パッケージと初回サインイン](#python-パッケージと初回サインイン)
 - [管理者権限（管理者ロール）要件](#管理者権限管理者ロール要件)
 - [チーム開発向けの手順](#チーム開発向けの手順)
 - [上流の開発標準更新を取り込む](#上流の開発標準更新を取り込む)
@@ -279,6 +280,26 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 
 </details>
 
+#### Python パッケージと初回サインイン
+
+スキルの Python スクリプト（Dataverse 構築、DLP 事前チェック、Azure 連携など）は、共通認証
+`.github/skills/standard/scripts/auth_helper.py` 経由で API を呼びます。初回だけ次を実行してください。
+
+```powershell
+python -m pip install -r .github/skills/standard/scripts/requirements.txt
+```
+
+導入されるのは `azure-identity` / `python-dotenv` / `requests` の 3 つだけです。
+
+- `.env` に **`TENANT_ID`** を設定します。認証キャッシュはテナントごとに
+  `~/.power-platform-cli/auth_record_{TENANT_ID}.json` へ分離保存されるため、複数テナントを行き来しても再認証は最小限で済みます。
+- 環境 ID を使うスクリプト（DLP 事前チェックなど）では **`ENV_ID`** も設定します。
+- **初回のみデバイスコード認証**が表示されます。以降はキャッシュからサイレントに認証され、スクリプトは非対話で完走します。
+  毎回デバイスコードを求められる場合は、`.env` の `TENANT_ID` が未設定でないかを確認してください。
+
+> [!NOTE]
+> PR 作成やスキル公開を行う場合は `gh auth login` 済みの GitHub CLI も必要です。
+
 ---
 
 ## 管理者権限（管理者ロール）要件
@@ -295,11 +316,20 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 | 6 | **Teams でのカスタムアプリのサイドロード許可**（アップロードした Cowork プラグインを Teams 経由で直接インストールする「迂回」導線を使う場合） | Teams 管理センター | **Teams Administrator** または **Global Administrator** | [Teams アプリの管理](https://learn.microsoft.com/ja-jp/microsoftteams/manage-apps) |
 | 7 | **M365 管理センターでのプラグインアップロード・公開**（`admin.cloud.microsoft` の「エージェント」画面） | Microsoft 365 管理センター | **Global Administrator** または **Teams Administrator**（組織設定による） | [Microsoft 365 管理センターの概要](https://learn.microsoft.com/ja-jp/microsoft-365/admin/admin-overview/about-the-admin-center) |
 | 8 | **Frontier プログラムへのテナント参加**（Cowork 利用の前提） | Microsoft 365 管理センター | **Global Administrator** | [Frontier プログラムの概要](https://learn.microsoft.com/ja-jp/microsoft-copilot-studio/frontier/overview) |
+| 9 | **テナントレベルのデータ ポリシー（DLP）の参照・作成・編集**（カスタムコネクタの Host URL パターン分類を含む） | Power Platform 管理センター（`セキュリティ > データとプライバシー > データ ポリシー`）または管理 API | **Power Platform Administrator** | [データ ポリシーの管理](https://learn.microsoft.com/ja-jp/power-platform/admin/prevent-data-loss) |
+| 10 | **環境レベルのデータ ポリシーの作成・編集** | 同上 | **Environment Admin**（Dataverse を含む環境では **System Administrator**）。テナント管理者が作成したポリシーは編集・削除できない | [データ ポリシーの管理](https://learn.microsoft.com/ja-jp/power-platform/admin/prevent-data-loss) |
 
 > [!NOTE]
 > 上記のうち **#3・#4（Entra App Registration と管理者同意）は一度きり**（テナントで1回）、**#2（allowedmcpclients）は環境ごとに1回**の設定です。開発者自身が必要権限を持っていない場合は、管理者へ依頼してください。
 >
 > **ロール名は目安です。** 実際に付与すべき最小権限は組織のセキュリティ方針により異なる場合があるため、上記の出典（Microsoft Learn）を必ず確認してください。
+
+> [!IMPORTANT]
+> **DLP（データ ポリシー）の確認・変更について**
+>
+> - 実装に入る前に、そのソリューションが使うコネクタが利用できるかを確認します（[DLP 事前チェック](.github/skills/standard/references/dlp-precheck.md)）。**参照にも #9 / #10 の管理者権限が必要**なため、権限がない場合は管理者にスクリプトを実行してもらい、結果を共有してもらってください。
+> - ポリシー変更の反映には**通常 1 時間以内、最大 24 時間**かかります。変更直後に解消していなくても、再評価まで待ってから判断してください。
+> - **Advanced connector policies（ACP）は認定コネクタと MCP コネクタのみ**が対象です。カスタムコネクタ・HTTP コネクタ・Copilot Studio の仮想コネクタは、従来のデータ ポリシーで引き続き管理する必要があります。
 
 ---
 
