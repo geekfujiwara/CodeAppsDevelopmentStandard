@@ -75,11 +75,14 @@ Microsoft はサードパーティ サービス向けのコネクタも自社で
 
 | プロファイルの要素 | 役割 |
 |---|---|
-| `sourceFilter` | `metadata.source` で絞る（`marketplace` = 認定コネクタ。`independentpublisher` は除外） |
+| `excludeSources` | `metadata.source` で除外（`independentpublisher` / `powerapps-user-defined`） |
 | `allowPatterns` | 許可するコネクタ ID の正規表現（完全一致） |
-| `denyConnectors` | パターンに一致しても除外するもの（レガシー / Independent Publisher 版） |
+| `denyConnectors` | パターンに一致しても除外するもの（レガシー / 名前が似ているだけの他社サービス） |
 | `reviewConnectors` | コンシューマー版 OneDrive・Outlook.com・GitHub など、利用有無をユーザーに確認すべきもの |
 | `mustNotAllow` | 混入したら実行を中断する安全弁 |
+
+判定は**コネクタ カタログと「現在 ACP で許可中の ID」の和集合**に対して行う。
+プレビュー コネクタは環境のカタログに現れないことがあり、カタログだけで判定すると黙って取りこぼす。
 
 ```powershell
 # 解決される許可セットを一覧

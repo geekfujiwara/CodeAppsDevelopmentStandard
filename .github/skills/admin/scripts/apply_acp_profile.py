@@ -53,21 +53,22 @@ def load_profile(profile_file: Path, name: str) -> dict:
     return profiles[name]
 
 
-def resolve_allow_set(profile: dict, catalog: list[dict]) -> tuple[set[str], list[str]]:
-    """プロファイルとコネクタ カタログから許可セットを解決する。"""
+def resolve_allow_set(profile: dict, names: set[str], sources: dict[str, str]) -> tuple[set[str], list[str]]:
+    """プロファイルとコネクタ ID 集合から許可セットを解決する。
+
+    ``names`` にはカタログだけでなく現在 ACP で許可中の ID も含める。
+    プレビューコネクタは環境のカタログに現れないことがあり、
+    カタログだけで判定すると黙って取りこぼしてしまうため。
+    """
     pattern = re.compile(r"^shared_(" + "|".join(profile["allowPatterns"]) + r")$")
-    sources = set(profile.get("sourceFilter") or [])
+    excluded = set(profile.get("excludeSources") or [])
     deny = set(profile.get("denyConnectors") or [])
 
-    allow: set[str] = set()
-    for connector in catalog:
-        name = connector.get("name") or ""
-        if sources and connector_source(connector) not in sources:
-            continue
-        if name in deny or not pattern.match(name):
-            continue
-        allow.add(name)
-
+    allow = {
+        name
+        for name in names
+        if pattern.match(name) and name not in deny and sources.get(name, "") not in excluded
+    }
     violations = sorted(allow & set(profile.get("mustNotAllow") or []))
     return allow, violations
 
@@ -132,6 +133,23 @@ def _process(
     return True
 
 
+def _current_allowed(environment_id: str, policy_id: str | None, include_group: bool, group_id: str | None) -> set[str]:
+    """判定対象を広げるため、現在 ACP で許可中の ID を集める。"""
+    ids: set[str] = set()
+    policy_ids = [policy_id] if policy_id else [assigned_policy_id("Environment", environment_id)]
+    if include_group and not policy_id:
+        resolved = group_id or _environment_group_id(environment_id)
+        if resolved:
+            policy_ids.append(assigned_policy_id("EnvironmentGroup", resolved))
+    for candidate in policy_ids:
+        if not candidate:
+            continue
+        rule_set = connector_rule_set(get_policy(candidate))
+        if rule_set:
+            ids |= allowed_ids(rule_set)
+    return ids
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="ACP の許可セットを推奨プロファイルで設定する")
     parser.add_argument("--environment-id", default=os.environ.get("ENV_ID"), help="対象環境 ID")
@@ -154,9 +172,12 @@ def main() -> int:
     profile = load_profile(args.profile_file, args.profile)
     catalog = list_connector_catalog(args.environment_id)
     display = {c.get("name"): (c.get("properties") or {}).get("displayName", "") for c in catalog}
-    custom_names = {c.get("name") for c in catalog if connector_source(c) == CUSTOM_SOURCE}
+    sources = {c.get("name"): connector_source(c) for c in catalog}
+    custom_names = {name for name, source in sources.items() if source == CUSTOM_SOURCE}
 
-    target, violations = resolve_allow_set(profile, catalog)
+    current = _current_allowed(args.environment_id, args.policy_id, args.include_group, args.environment_group_id)
+    universe = set(display) | current
+    target, violations = resolve_allow_set(profile, universe, sources)
     if violations:
         print("プロファイルの mustNotAllow に該当するコネクタが許可セットに入りました。")
         for name in violations:
@@ -168,7 +189,7 @@ def main() -> int:
     target -= set(args.exclude_connector)
 
     print(f"プロファイル: {args.profile} — {profile.get('displayName')}")
-    print(f"カタログ {len(catalog)} 件から {len(target)} 件を許可セットに解決しました。")
+    print(f"判定対象 {len(universe)} 件（カタログ {len(display)} 件 + 現在の許可 {len(current)} 件）から {len(target)} 件を許可セットに解決しました。")
     review = [n for n in profile.get("reviewConnectors") or [] if n in target]
     if review:
         print("\n利用有無をユーザーに確認すべきコネクタ（不要なら --exclude-connector で外す）:")
