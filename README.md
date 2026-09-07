@@ -92,6 +92,64 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 
 ## 前提条件
 
+### 統合プロンプトで一気に準備する（推奨）
+
+ローカル開発環境の準備から Power Platform のクラウド環境準備までを、コマンドを手打ちせずに **1 つのプロンプト**で一気通貫に実行できます。GitHub Copilot / Claude Code のチャットに、以下をそのまま貼り付けて送信してください。
+
+> [!IMPORTANT]
+> クラウド環境の準備には Power Platform 管理者権限が必要な工程が含まれます。**実行者が管理者権限を持っていないと判明した時点で、エージェントは処理を中断します。** 権限昇格や迂回は行わず、不足しているロールと管理者への依頼内容を報告して終了する前提のプロンプトです。
+
+```text
+ローカル開発環境の準備から、Power Platform のクラウド環境準備まで、一気通貫で実行してください。
+途中で Power Platform 管理者権限が必要な工程に到達し、自分（実行者）がその権限を持っていないと判明した場合は、
+その時点で処理を中断し、不足している権限と管理者への依頼内容を整理して報告し、終了してください。
+無理に権限を回避・昇格しようとしないでください。
+
+## フェーズ 1: ローカル開発環境の準備
+1. Git / Node.js LTS / Python 3.12 を導入する。既定のターミナル（Windows の場合 PowerShell 5.1 で可、追加導入は不要）で動作すればよい。
+2. `npm install -g degit` で degit をグローバル導入する。
+3. Power Platform は PP CLI（pac）のみ導入する（VS Code 拡張は入れない）。
+4. PATH 未反映の可能性を考慮し、実体パス確認と PATH 反映を行う。特に Node.js インストール直後は `npx` が既存ターミナルで認識されないことがあるので注意する。
+5. `gh auth status` で GitHub CLI のログイン状態を確認する（未ログインなら `gh auth login` を案内）。
+6. `npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github` を実行し、admin スキルを含むスキル一式を取得する。
+7. `python -m pip install -r .github/skills/standard/scripts/requirements.txt` を実行する。
+8. クラウド側の準備に進めるよう、`.env` に設定する `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` の値をユーザーに確認する。
+
+検証コマンド:
+- git --version / node --version / npm --version / npx --version / degit --version
+- python --version（または py --version）
+- pac help（ヘッダの Version を確認）
+- gh --version / gh auth status
+
+## フェーズ 2: Power Platform 管理者権限の確認（ここで即座に判断する）
+1. `.github/skills/admin/SKILL.md` と `.github/skills/admin/references/admin-roles.md` を読み込み、これ以降の操作に必要な最小ロール（Power Platform Administrator 等）を把握する。
+2. `python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID` を実行し、「管理 API アクセス」（管理者ロール相当か）の判定を確認する。
+3. 管理者権限がない、または判定が NG の場合は、**ここで作業を中断**し、次を報告して終了する。無理に自分の端末や権限で回避しようとしないこと。
+   - 何が不足しているか（必要ロール名）
+   - 管理者に依頼すべき内容（環境作成・セキュリティ ロール割り当て・Copilot Credits 割り当て・ACP 設定など）
+
+## フェーズ 3: クラウド環境の準備（管理者権限がある場合のみ）
+`.github/skills/admin/SKILL.md` を読み込み、`.github/skills/admin/scripts/` 配下のスクリプトを次の順で実行する。
+**すべて `--apply` を付けずに dry-run で内容を提示し、ユーザーの確認を得てから `--apply` を追加すること。**
+
+1. 現状の棚卸し: `scan_environment_strategy.py --tenant-id <TENANT_ID>`
+2. 環境グループの作成とルール発行: `apply_environment_strategy.py --tenant-id <TENANT_ID> --groups-only` → `apply_environment_strategy.py --tenant-id <TENANT_ID> --rules-only`
+3. 命名規則に沿った環境の作成: `environment_naming.py --preview` → `create_environments.py --tenant-id <TENANT_ID>`
+4. 開発者へのセキュリティ ロール割り当ては管理センターの画面操作が必要なため、README の「開発者へセキュリティ ロールを割り当てる」の手順をユーザーへ案内する
+5. Copilot Credits と容量の配分: `set_environment_capacity.py --tenant-id <TENANT_ID>` → 環境ごとに `--environment-id <ENV_ID> --quantity <数量>` を指定して適用
+6. Advanced Connector Policy の適用: `apply_acp_profile.py --environment-id <ENV_ID> --profile <PROFILE> --include-group`
+7. Code Apps の CSP（埋め込み許可元）設定: `set_content_security_policy.py --environment-url <ENV_URL> --enable --directive "Frame-Ancestor='self',https://*.powerapps.com"`
+8. 開発 → テストのパイプライン構成: `setup_pipeline.py --host-url <PIPELINE_HOST_URL>`
+
+## 完了報告
+- フェーズ 1〜3 それぞれの成否を報告する。
+- クラウド環境の準備まで完了したら、続けて README の「クイックスタート」に進んでよい旨を案内する。
+- フェーズ 2 で権限不足により中断した場合は、フェーズ 1（ローカル）が完了済みであることと、フェーズ 3 を再開するために必要な条件（誰にどの権限を依頼すべきか）を案内する。
+```
+
+> [!NOTE]
+> 設定値は `.github/skills/admin/references/environment-strategy.json`（ブループリント）に集約されています。組織固有の名称・人数・命名規則を変えたい場合は、プロンプト実行前後にこのファイルを編集してください。
+
 ### ライセンスの準備
 
 | 対象 | 必要なライセンス / 前提 | 出典 |
