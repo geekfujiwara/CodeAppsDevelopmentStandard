@@ -424,7 +424,8 @@ python -m pip install -r .github/skills/standard/scripts/requirements.txt
 gh repo create <your-account>/<your-theme-repo> --private --clone && cd <your-theme-repo>
 
 # 2. エージェント・スキルと .gitignore を取得
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills
 cp .github/skills/standard/references/gitignore-template .gitignore
 
 # 3. Code Apps 標準の依存関係を先読みインストール（ほとんどのケースで Code Apps を作成するため）
