@@ -34,6 +34,42 @@ except Exception as e:
 | フロー実行時に接続エラー                | 接続が Error/Disconnected 状態                 | Power Automate UI で接続を再認証                               |
 | `AppLeaseMissing` / `ConnectionNotFound` | 環境が変わった / 接続 ID が古い               | PowerApps API で毎回 Connected 接続を検索                     |
 
+## `contentBase64` が不正、または `$content` を選択できない
+
+SharePoint の `Get file content` は、利用する operation と実行環境により本文が
+`{"$content": "..."}` 形式ではなく平文 `String` として返る場合がある。
+
+| 症状 | 原因 | 対処 |
+| --- | --- | --- |
+| Function が `contentBase64 が不正` を返す | `body('Get_File_Content')` の平文を Base64 契約へそのまま渡した | `@base64(body('Get_File_Content'))` を渡す |
+| `Property '$content' cannot be selected` | 実際の本文型が Object ではなく String | `$content` 選択をやめ、本文全体を `base64()` へ渡す |
+
+恒久対策済み: `scripts/validate_flow_definition.py` の
+`assert_base64_content_contract()` が、実行時の `contentBase64` 値に `@base64(...)` がない定義を
+デプロイ前に拒否する。定義生成スクリプトから毎回呼び出す。
+
+## Dataverse `Could not find a property named ...`
+
+Dataverse コネクタの `$filter` や item で、表示名から推測した列名を使うと実行時に400になる。
+特に図面番号・改訂番号などが専用列ではなくPrimary Name列に格納されている設計では、
+`<prefix>_name` が正しい場合がある。`EntityDefinitions(LogicalName='<table>')/Attributes` から
+実列名を取得し、推測せず照合する。
+
+恒久対策済み: `scripts/validate_flow_definition.py` の
+`assert_required_dataverse_columns()` へメタデータAPIで取得した列集合とフローの必須列集合を渡し、
+既存フローの削除・更新より前に不一致を拒否する。
+
+## Lookup の `@odata.bind` が undeclared property になる
+
+Lookup属性の論理名と `@odata.bind` に使うナビゲーションプロパティ名は一致するとは限らず、
+大文字小文字も区別される。属性名や表示名から組み立てず、対象テーブルの
+`ManyToOneRelationships` を `ReferencedEntity` と `ReferencingAttribute` で絞り、
+`ReferencingEntityNavigationPropertyName` を使用する。
+
+恒久対策済み: `scripts/validate_flow_definition.py` の `require_navigation_property()` が
+空または不正な関係メタデータをデプロイ前に拒否する。デプロイスクリプトはこの関数で解決した値だけを
+`<navigation-property>@odata.bind` に使用する。
+
 ## ジョブ行キューを消化するフローの落とし穴（検証済 2026-08-13）
 
 Dataverse の「行が追加された場合」トリガーでキュー行を拾い、対象を採点して書き戻す

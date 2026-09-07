@@ -106,12 +106,31 @@ python .github/skills/power-automate/scripts/add_flow_to_solution.py <flow-id>
 
 詳細な設定・トラブルシュートは [references/flow-agent-mcp.md](references/flow-agent-mcp.md) を参照。
 
+コネクター接続は [接続作成標準](references/connection-creation.md) に従う。
+Power Apps API で Connected 接続を先に検索し、存在しない場合だけ VS Code 統合ブラウザで
+接続パラメーターを自動入力する。ユーザー操作は OAuth のアカウント選択・同意に限定し、
+Connected 確認後の接続参照・フロー作成・有効化・テストは API で行う。
+OAuth 完了後は子ページを自動で閉じる。自動クローズできない場合は Connected を API で確認してから、
+その画面を閉じてよいことをユーザーへ明示する。
+
+`HTTP with Microsoft Entra ID` の内部 API、要求本文、権限の実測値は
+[非公開接続 API の実測結果](references/http-entra-connection-private-api.md) を参照する。
+
 ---
 
 ## API アプローチ（Flow agent MCP が使えない場合）
 
 以下は MCP サーバーが利用できない環境向けの **フォールバック手順**。
 Python スクリプトで Dataverse Web API を直接操作する。
+
+定義を送信する前に `scripts/validate_flow_definition.py` の
+`assert_base64_content_contract()` を必ず実行する。JSON の `contentBase64` に実行時の本文を渡す場合は
+`@base64(...)` で明示的にエンコードし、コネクタ出力型の違いによる実行時失敗をデプロイ前に止める。
+Dataverse アクションを含む場合は、参照列をメタデータ API で取得し、
+`assert_required_dataverse_columns()` で列の存在を確認してから既存フローを変更する。
+Lookup を `@odata.bind` で書き込む場合は `ManyToOneRelationships` から
+`ReferencingEntityNavigationPropertyName` を取得し、`require_navigation_property()` で検証する。
+Lookup属性の論理名や表示名からナビゲーションプロパティ名を推測しない。
 
 ## 核心原則: 接続参照（Connection Reference）が有効化成功の鍵
 
@@ -191,13 +210,19 @@ Graph API:     https://graph.microsoft.com/.default          ← ユーザー情
 Dataverse API: https://{org}.crm7.dynamics.com/.default      ← workflow テーブル操作・接続参照作成
 ```
 
-### 接続は環境内に事前作成が必要
+### 接続は Connected 状態で環境内に必要
 
 ```
-❌ API で接続の自動作成はできない
-✅ Power Automate UI で事前に接続を作成 → API ではその接続 ID を参照するのみ
-   https://make.powerautomate.com/connections
+1. Power Apps API で Connected 接続を自動検索する
+2. 見つからない場合だけ、VS Code 統合ブラウザで接続を仮作成する
+3. ユーザーは OAuth のアカウント選択・同意だけを行う
+4. Connected を API で検証し、接続 ID を接続参照へ設定する
 ```
+
+`auth_helper` の既定クライアントには `Connectivity.Connections.Write` がないため、
+新規接続の仮作成はメーカーポータル自身の認証済み API 呼び出しを利用する。
+Microsoft Dataverse も OAuth 接続では同意フローを使用する。詳細は
+[接続作成標準](references/connection-creation.md) を参照する。
 
 ### f-string と式の二重ブレース問題
 
