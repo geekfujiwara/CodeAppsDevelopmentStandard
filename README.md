@@ -112,7 +112,15 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 1. Git / Node.js LTS / Python 3.12 を導入する。既定のターミナル（Windows の場合 PowerShell 5.1 で可、追加導入は不要）で動作すればよい。
 2. `npm install -g degit` で degit をグローバル導入する。
 3. Power Platform は PP CLI（pac）のみ導入する（VS Code 拡張は入れない）。
-4. PATH 未反映の可能性を考慮し、実体パス確認と PATH 反映を行う。特に Node.js インストール直後は `npx` が既存ターミナルで認識されないことがあるので注意する。
+4. **必要なすべてのツールの PATH を通す**。実体パスを確認したうえで、未登録のものは**ユーザー環境変数 PATH に恒久的に追加**し、さらに現在のセッションの `$env:Path` にも反映して、ターミナルを開き直さずに続行できる状態にする。対象は以下（実際のインストール先に読み替える）。
+   - Git: `%ProgramFiles%\Git\cmd`
+   - Node.js / npm / npx: `%ProgramFiles%\nodejs`
+   - npm グローバル（degit など。`npm config get prefix` で確認）: `%APPDATA%\npm`
+   - Python 3.12 本体とスクリプト: `%LOCALAPPDATA%\Programs\Python\Python312` と `%LOCALAPPDATA%\Programs\Python\Python312\Scripts`
+   - Power Platform CLI（pac）: MSI 版は `%LOCALAPPDATA%\Microsoft\PowerAppsCLI`、dotnet tool 版は `%USERPROFILE%\.dotnet\tools`
+   - GitHub CLI（gh）: `%ProgramFiles%\GitHub CLI`
+   - VS Code CLI（code）: `%LOCALAPPDATA%\Programs\Microsoft VS Code\bin`
+   - 追加時は既存の PATH を上書きせず**追記**し、重複エントリは作らないこと。特に Node.js インストール直後は `npx` が既存ターミナルで認識されないため、この反映を必ず行う。
 5. `gh auth status` で GitHub CLI のログイン状態を確認する（未ログインなら `gh auth login` を案内）。
 6. `npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents` と `npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills` を実行し、admin スキルを含むスキル一式とエージェント定義を取得する。
 7. `python -m pip install -r .github/skills/standard/scripts/requirements.txt` を実行する。
@@ -123,6 +131,8 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 - python --version（または py --version）
 - pac help（ヘッダの Version を確認）
 - gh --version / gh auth status
+- where.exe git / where.exe node / where.exe npx / where.exe degit / where.exe python / where.exe pac / where.exe gh（すべて PATH 経由で解決できること）
+- 新規に開いたターミナルでも上記が同じ結果になること（恒久的な PATH 登録の確認）
 
 ## フェーズ 2: Power Platform 管理者権限の確認（ここで即座に判断する）
 1. `.github/skills/admin/SKILL.md` と `.github/skills/admin/references/admin-roles.md` を読み込み、これ以降の操作に必要な最小ロール（Power Platform Administrator 等）を把握する。
@@ -320,7 +330,15 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 1. Git / Node.js LTS / Python 3.12 を導入する。既定のターミナル（Windows の場合 PowerShell 5.1 で可、追加導入は不要）で動作すればよい。
 2. `npm install -g degit` で degit をグローバル導入する。クイックスタートの `npx degit` が初回ダウンロード待ちなしで即座に実行できるようにするため。
 3. Power Platform は PP CLI のみ導入する（VS Code 拡張は入れない）。
-4. PATH 未反映の可能性を考慮し、実体パス確認と PATH 反映を行う。特に Node.js インストール直後は `npx` が既存ターミナルで認識されないことがあるので注意する。
+4. **必要なすべてのツールの PATH を通す**。実体パスを確認したうえで、未登録のものは**ユーザー環境変数 PATH に恒久的に追加**し、さらに現在のセッションの `$env:Path` にも反映して、ターミナルを開き直さずに続行できる状態にする。対象は以下（実際のインストール先に読み替える）。
+   - Git: `%ProgramFiles%\Git\cmd`
+   - Node.js / npm / npx: `%ProgramFiles%\nodejs`
+   - npm グローバル（degit など。`npm config get prefix` で確認）: `%APPDATA%\npm`
+   - Python 3.12 本体とスクリプト: `%LOCALAPPDATA%\Programs\Python\Python312` と `%LOCALAPPDATA%\Programs\Python\Python312\Scripts`
+   - Power Platform CLI（pac）: MSI 版は `%LOCALAPPDATA%\Microsoft\PowerAppsCLI`、dotnet tool 版は `%USERPROFILE%\.dotnet\tools`
+   - GitHub CLI（gh）: `%ProgramFiles%\GitHub CLI`
+   - VS Code CLI（code）: `%LOCALAPPDATA%\Programs\Microsoft VS Code\bin`
+   - 追加時は既存の PATH を上書きせず**追記**し、重複エントリは作らないこと。特に Node.js インストール直後は `npx` が既存ターミナルで認識されないため、この反映を必ず行う。
 5. `gh auth status` で GitHub CLI のログイン状態を確認する（未ログインなら `gh auth login` を案内）。
 6. リポジトリの fork / clone / `npm install` は実行しない。次のステップとしてクイックスタートへ案内する。
 
@@ -333,14 +351,14 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 - python --version
 - py --version
 - pac help  （ヘッダの Version を確認）
-- where.exe pac
+- where.exe git / where.exe node / where.exe npx / where.exe degit / where.exe python / where.exe pac / where.exe gh  （すべて PATH 経由で解決できること）
 - gh --version
 - gh auth status
 
 実施ルール:
-- VS Code CLI など PATH 未反映の可能性があるコマンドは実体パス呼び出しを優先する。
+- VS Code CLI など PATH 未反映の可能性があるコマンドは、まず実体パス呼び出しで存在を確認し、その後 PATH に登録して名前だけで実行できる状態にする。
 - 最終検証は「新規に開いたターミナル」と「作業開始時の既存セッション」の両方で確認する。特に `npx --version` は、Node.js 導入後に新規セッションで再確認する。
-- 実行結果は「導入済み」「要再起動」「PATH 反映待ち」を分けて報告する。
+- 実行結果は「導入済み」「要再起動」「PATH 反映待ち」を分けて報告し、PATH に追加したエントリを一覧で示す。
 - 最後のユーザー向けコメントには以下を含める:
   - 「環境準備 OK（ツール導入と動作確認まで完了）」の明示
   - 次のアクションとして README の「クイックスタート」を実行してローカルに clone することを案内
