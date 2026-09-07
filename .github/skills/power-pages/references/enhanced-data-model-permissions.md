@@ -255,7 +255,7 @@ role_id = r.json()["value"][0]["powerpagecomponentid"]
 ```yaml
 # サイト設定（必須）
 Webapi/{table_logical_name}/enabled: "true"
-Webapi/{table_logical_name}/fields: "*"    # または列名カンマ区切り
+Webapi/{table_logical_name}/fields: "cr4fc_name,cr4fc_description,..."    # 列名をカンマ区切りで明示列挙（`*` は 403 切り分け時の一時値のみ・教訓 16）
 ```
 
 ### 完全構成（一般ユーザー向け）
@@ -285,6 +285,8 @@ headers = {
 
 # テーブル Web API 有効化
 tables = ["geek_incident", "geek_knowledge"]
+# fields は本番では列名の明示列挙にする（例: "geek_name,geek_description,..."）。
+# "*" は 403 切り分け時の一時値としてのみ使い、原因特定後に置き換える（教訓 16）。
 for table in tables:
     for suffix, value in [("/enabled", "true"), ("/fields", "*")]:
         setting = {

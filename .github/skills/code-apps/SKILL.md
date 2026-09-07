@@ -576,7 +576,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [一覧ペイン（マスター詳細）パターン](references/master-detail-pane-pattern.md) | 詳細画面の左にレコード一覧を常駐させて遷移しないで切り替え（Dataverse 側検索・デバウンス・見切れ防止の落とし穴表） |
 | [AI 評価ルールのマスタ化パターン](references/ai-evaluation-master-pattern.md) | LLM の判定基準をテーブルに出してアプリから編集・ジョブ行キューで過去データを再評価・根拠ハイライトと改善提案（OData キーの URL エンコード落とし穴） |
 | [構築リファレンス](references/build-reference.md) | ビルド・デプロイの詳細手順・vite.config.ts 必須設定・TypeScript エラー対処 |
-| [npm CLI リファレンス](references/cli-reference.md) | SDK 1.3.0 / CLI 1.0.0 検証済み・最新版への更新方針・`push -s` の GUID 要件・`share` の最小権限運用・`create-connection` / `refresh-data-source` / `auth-switch` |
+| [npm CLI リファレンス](references/cli-reference.md) | SDK 1.3.1 / CLI 1.0.1 検証済み・最新版への更新方針・`push -s` の GUID 要件・`share` の最小権限運用・`create-connection` / `refresh-data-source` / `auth-switch` |
 | [ソリューション ALM](references/solution-alm.md) | 接続参照バインド・`almMode` と初回 push・コンポーネント種別・共有時の権限モデル |
 | [データソースパターン](references/data-source-patterns.md) | 生成サービス・dataSourcesInfo・TanStack React Query（旧/native パターン含む）・外部システムの資産を Dataverse にミラーして読む |
 | [モックデータ開発パターン](references/mock-data-pattern.md) | 開発限定の `createMockDataExecutor` 導入・本番バンドル混入防止・SDK 1.2.7 の取得専用制約 |

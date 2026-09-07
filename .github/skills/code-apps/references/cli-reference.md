@@ -2,7 +2,7 @@
 
 Code Apps 用 npm CLI（`npx pa`）の全コマンド一覧。
 
-**推奨・検証環境**: `@microsoft/power-apps` **1.3.0** / `@microsoft/power-apps-cli` **1.0.1**。
+**推奨・検証環境**: `@microsoft/power-apps` **1.3.1** / `@microsoft/power-apps-cli` **1.0.1**。
 本ドキュメントの内容は実際の `npx pa <group> <command> --help` 出力と実行検証に基づく。
 
 > [!IMPORTANT]
