@@ -16,7 +16,8 @@ Power Apps Code Apps, モデル駆動型アプリ, Generative page, Dataverse, P
 VS Code + GitHub Copilot が使える状態（[ローカル開発環境の準備](#ローカル開発環境の準備)を参照）であれば、次のコマンドと 1 依頼だけで開発を始められます。
 
 ```bash
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills
 cp .github/skills/standard/references/gitignore-template .gitignore
 ```
 
@@ -38,7 +39,8 @@ GitHub Copilot だけでなく **Claude Code** からも同じ開発標準をそ
 プロジェクトのルートで以下を実行し、`.github/`（エージェント・スキル）と `.gitignore` を配置します。
 
 ```bash
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills
 cp .github/skills/standard/references/gitignore-template .gitignore
 ```
 
@@ -112,7 +114,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 3. Power Platform は PP CLI（pac）のみ導入する（VS Code 拡張は入れない）。
 4. PATH 未反映の可能性を考慮し、実体パス確認と PATH 反映を行う。特に Node.js インストール直後は `npx` が既存ターミナルで認識されないことがあるので注意する。
 5. `gh auth status` で GitHub CLI のログイン状態を確認する（未ログインなら `gh auth login` を案内）。
-6. `npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github` を実行し、admin スキルを含むスキル一式を取得する。
+6. `npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents` と `npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills` を実行し、admin スキルを含むスキル一式とエージェント定義を取得する。
 7. `python -m pip install -r .github/skills/standard/scripts/requirements.txt` を実行する。
 8. クラウド側の準備に進めるよう、`.env` に設定する `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` の値をユーザーに確認する。
 
@@ -422,7 +424,8 @@ python -m pip install -r .github/skills/standard/scripts/requirements.txt
 gh repo create <your-account>/<your-theme-repo> --private --clone && cd <your-theme-repo>
 
 # 2. エージェント・スキルと .gitignore を取得
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills
 cp .github/skills/standard/references/gitignore-template .gitignore
 
 # 3. Code Apps 標準の依存関係を先読みインストール（ほとんどのケースで Code Apps を作成するため）
@@ -447,11 +450,12 @@ npm install
 git merge は不要です。テーマのリポジトリで以下を再実行するだけで、最新の標準（`.github/` のエージェント・スキル）に追従できます。
 
 ```bash
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github --force
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents --force
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills --force
 ```
 
 > [!TIP]
-> 同期対象は `.github/` のみで、テーマ固有のコード（`src/` 等）には触れません。同期後は `git diff` で差分を確認してからコミットしてください。
+> 同期対象は `.github/agents` と `.github/skills` のみで、テーマ固有のコード（`src/` 等）や `.github/prompts`・`.github/workflows`・`.github/community-issue-policy.json` には触れません。同期後は `git diff` で差分を確認してからコミットしてください。
 
 ---
 
