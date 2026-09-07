@@ -263,7 +263,7 @@ Code Apps は環境ごとに初期状態で無効です。有効化手順:
 >
 > - **ライセンス**: GitHub Copilot Pro 以上と、Power Apps Premium（または Power Apps 開発者プラン）のライセンスが割り当てられていること
 > - **セキュリティ ロール**: 対象環境で **System Customizer** と **Environment Maker** が割り当てられていること（テナント全体の設定を行う場合は Power Platform 管理者も必要）
-> - **端末の権限**: PowerShell 7 / Git / Node.js / Python と、`npm install -g` や `pip install` によるライブラリ導入が許可されていること（管理された端末では IT 部門に事前確認してください）
+> - **端末の権限**: Git / Node.js / Python と、`npm install -g` や `pip install` によるライブラリ導入が許可されていること（管理された端末では IT 部門に事前確認してください）
 
 #### VS Code + GitHub Copilot
 
@@ -285,23 +285,19 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 リポジトリの clone や npm install は行いません。完了したらクイックスタートに進む案内をしてください。
 
 要件:
-1. PowerShell 7 を最優先で導入し、以後の作業は PowerShell 7 で確認する。
-2. VS Code の既定ターミナルプロファイルを PowerShell 7 に設定する（`terminal.integrated.defaultProfile.windows` を `PowerShell` = pwsh 7 にする）。クイックスタートのコマンドがそのまま動くことを確認する。
-3. Git / Node.js LTS / Python 3.12 を導入する。
-4. `npm install -g degit` で degit をグローバル導入する。クイックスタートの `npx degit` が初回ダウンロード待ちなしで即座に実行できるようにするため。
-5. Power Platform は PP CLI のみ導入する（VS Code 拡張は入れない）。
-6. PATH 未反映の可能性を考慮し、実体パス確認と PATH 反映を行う。特に Node.js インストール直後は `npx` が既存ターミナルで認識されないことがあるので注意する。
-7. `gh auth status` で GitHub CLI のログイン状態を確認する（未ログインなら `gh auth login` を案内）。
-8. リポジトリの fork / clone / `npm install` は実行しない。次のステップとしてクイックスタートへ案内する。
+1. Git / Node.js LTS / Python 3.12 を導入する。既定のターミナル（Windows の場合 PowerShell 5.1 で可、追加導入は不要）で動作すればよい。
+2. `npm install -g degit` で degit をグローバル導入する。クイックスタートの `npx degit` が初回ダウンロード待ちなしで即座に実行できるようにするため。
+3. Power Platform は PP CLI のみ導入する（VS Code 拡張は入れない）。
+4. PATH 未反映の可能性を考慮し、実体パス確認と PATH 反映を行う。特に Node.js インストール直後は `npx` が既存ターミナルで認識されないことがあるので注意する。
+5. `gh auth status` で GitHub CLI のログイン状態を確認する（未ログインなら `gh auth login` を案内）。
+6. リポジトリの fork / clone / `npm install` は実行しない。次のステップとしてクイックスタートへ案内する。
 
 検証コマンド:
-- $PSVersionTable.PSVersion
 - git --version
 - node --version
 - npm --version
 - npx --version
 - degit --version  （degit がグローバル導入済みで即座に実行できることを確認）
-- Write-Output A && Write-Output B  （`&&` が PS7 で動作することを確認。エラーになる場合は PowerShell 5.1 のままなので既定ターミナルプロファイルの設定を見直す）
 - python --version
 - py --version
 - pac help  （ヘッダの Version を確認）
@@ -310,14 +306,11 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 - gh auth status
 
 実施ルール:
-- 長いワンライナーは避け、一時的な `.ps1` ファイルに処理を書いて PS7 で実行する。
-- PS7 への初回切り替えは `pwsh` が未解決でも進められるよう、`C:\Users\<user>\AppData\Local\Microsoft\WindowsApps\pwsh.exe` の実体パス実行を優先する。
 - VS Code CLI など PATH 未反映の可能性があるコマンドは実体パス呼び出しを優先する。
-- 最終検証は「新規に開いた PS7 セッション」と「作業開始時の既存セッション」の両方で確認する。特に `npx --version` と `&&` の検証は、Node.js 導入後に新規セッションで再確認する。
+- 最終検証は「新規に開いたターミナル」と「作業開始時の既存セッション」の両方で確認する。特に `npx --version` は、Node.js 導入後に新規セッションで再確認する。
 - 実行結果は「導入済み」「要再起動」「PATH 反映待ち」を分けて報告する。
 - 最後のユーザー向けコメントには以下を含める:
   - 「環境準備 OK（ツール導入と動作確認まで完了）」の明示
-  - クイックスタートのコマンドは新しい VS Code ウィンドウ／ターミナル（既定プロファイルが PowerShell 7 のもの）で実行するよう案内すること
   - 次のアクションとして README の「クイックスタート」を実行してローカルに clone することを案内
   - クイックスタートはリモートに fork せず、本リポジトリをローカルに直接 clone する方針である旨を補足
   - クイックスタート完了後は、VS Code の Copilot チャット（`Ctrl+Alt+I`）を開き、入力欄に `@GeekPowerCode` と入力してカスタムエージェントを選択し、作りたいテーマを伝えるよう案内する
@@ -328,7 +321,7 @@ Windows 端末の開発環境準備（開発ツールの導入と動作確認ま
 > `pac --version` は無効なため、バージョン確認は `pac help` のヘッダ表示を利用します。
 
 > [!Note]
-> クイックスタートのコマンドで `npx` や `&&` が実行できないというエラーが出る場合は、(1) PowerShell 5.1 のターミナルを使っている、(2) Node.js インストール直後で PATH がまだ反映されていない、のどちらかを疑ってください。
+> クイックスタートのコマンドで `npx` が実行できないというエラーが出る場合は、Node.js インストール直後で PATH がまだ反映されていない可能性があります。新しいターミナルを開き直して再実行してください。
 
 完了したら [クイックスタート](#クイックスタート) に戻ってください。
 
