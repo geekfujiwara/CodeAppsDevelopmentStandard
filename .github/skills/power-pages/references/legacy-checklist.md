@@ -43,5 +43,5 @@
 - [ ] HashRouter を使用している
 - [ ] `pac auth` で正しいユーザー・環境に接続されている（教訓 10）
 - [ ] テーブル権限が正しい `powerpagesiteid` に紐づいている（教訓 9）
-- [ ] アクセスする全テーブルに `Webapi/{table}/enabled=true` + `Webapi/{table}/fields=*` を設定済み（教訓 8）
+- [ ] アクセスする全テーブルに `Webapi/{table}/enabled=true` + `Webapi/{table}/fields`（明示列挙。`*` は切り分け用のみ）を設定済み（教訓 8・16）
 - [ ] `Webapi/error/innererror = true` が開発環境で有効

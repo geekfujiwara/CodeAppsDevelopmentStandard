@@ -402,6 +402,13 @@ contact Self 権限・`Webapi/contact/enabled=true` を設定し Web ロール�
 > 関連スクリプト: `scripts/setup_contact_self.py`（contact Self 権限 + Webapi 設定を
 > content JSON 正本方式で冪等作成）/ `scripts/relink_table_permissions.py`（デプロイ後の一括修復）。
 
+> [!IMPORTANT]
+> **`Webapi/{table}/fields = "*"` は 403 切り分け中の一時的な診断用にとどめ、本番設定として残さない。**
+> Microsoft 公式 power-platform-skills（2026-09 更新、[Web API wildcard 除去](https://github.com/microsoft/power-platform-skills/commit/f9fe8714cc340bb36b2255446de2470d47acf368)）は
+> `fields` に大文字小文字を区別した LogicalName の明示列挙を必須化し、集計 OData など真に必要な場合を除き `*` を非推奨とした。
+> 本リポジトリでも `*` で 404/403 を切り分けたら、`$select` / `$filter` / `$orderby` / `@odata.bind` で実際に使う列だけの
+> 明示リストに置き換えること（教訓 16 の「クライアントの SELECT 全列を列挙」が引き続き恒久対策）。
+
 ---
 
 ### 教訓 17: フォントはコード側（HTML + CSS + Tailwind theme）で一元管理する
@@ -660,9 +667,9 @@ await powerPagesFetch("/_api/geek_projects", { method: "POST", body: JSON.string
 | 設定 | 値 | 備考 |
 |---|---|---|
 | `Webapi/account/enabled` | `true` | 無いと 404 (9004010C) |
-| `Webapi/account/fields` | `*`（または `accountid,name,...`） | 許可リスト外の列を SELECT すると 403 (90040101) |
-| `Webapi/contact/fields` | `parentcustomerid` を**含める** | `_parentcustomerid_value` を SELECT するため。迷えば `*` |
-| `Webapi/{業務テーブル}/enabled` / `/fields` | `true` / `*` | 教訓 8 |
+| `Webapi/account/fields` | `accountid,name,...`（明示列挙。`*` は 403 切り分け時の一時診断のみ） | 許可リスト外の列を SELECT すると 403 (90040101) |
+| `Webapi/contact/fields` | `parentcustomerid` を**含める** | `_parentcustomerid_value` を SELECT するため |
+| `Webapi/{業務テーブル}/enabled` / `/fields` | `true` / 明示列挙 | 教訓 8・16（`*` は本番設定として残さない） |
 
 **切り分け手順（read は通るのに create が 403）**
 
@@ -914,7 +921,7 @@ name: Authenticated Users
 | # | レイヤー | テーブル | 紐付け先 |
 |---|---------|---------|---------|
 | 1 | `adx_sitesettings` | `Webapi/contact/enabled=true` | `adx_websites` |
-| 2 | `adx_sitesettings` | `Webapi/contact/fields=*` | `adx_websites` |
+| 2 | `adx_sitesettings` | `Webapi/contact/fields=*`（診断用。原因特定後は明示列挙に置き換える） | `adx_websites` |
 | 3 | `powerpagecomponent` type=18 | テーブル権限 (Self) | `powerpagesites` + **`powerpagesitelanguages`** |
 | 4 | N:N association（$ref POST） | `powerpagecomponent_powerpagecomponent` でロールを紐付け | type=11 (Authenticated Users) |
 
@@ -970,7 +977,7 @@ PATCH /api/data/v9.2/powerpagecomponents({perm_id})
 ```python
 # 1. adx_sitesettings (→ adx_websites にバインド)
 create_site_setting("Webapi/contact/enabled", "true", website_id)
-create_site_setting("Webapi/contact/fields", "*", website_id)  # system table は * 推奨
+create_site_setting("Webapi/contact/fields", "*", website_id)  # 診断用の暫定値。原因特定後はクライアントが使う列の明示列挙に置き換える（教訓 16）
 
 # 2. powerpagecomponent type=18 (★ powerpagesitelanguageid 必須、content に webrole を含める)
 content = json.dumps({
@@ -1001,7 +1008,8 @@ body = {
 > - **N:N association を作成せず content 配列だけ書く → 403 (90040120)**（教訓 2・14）
 > - content に `mspp_` プレフィックスの文字列値 → 整数・bool 値が正しい
 > - `credentials: "include"` → 正しくは `"same-origin"`
-> - `Webapi/<table>/fields` に明示リストのみ → 列指定なし取得（`*`）で 403 になるため `*` 推奨（教訓 16）
+> - `Webapi/<table>/fields` に明示リストのみ設定 → クライアントが `$select` を省略すると全列要求扱いになり 403（教訓 16）。
+>   `*` で一時的に切り分けてもよいが、恒久対策はクライアント側で必要な列だけ `$select` するか、`fields` にその列を追加すること
 
 ---
 

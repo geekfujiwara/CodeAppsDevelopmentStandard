@@ -725,7 +725,7 @@ export async function getLocations(): Promise<Location[]> {
 `/_api/{table}` が動くにはサーバー側で次の 3 つが揃う必要がある。1 つでも欠けると 403 / 404。
 
 ```
-① Site Settings  : Webapi/{table}/enabled=true, fields=*   → ないと 404
+① Site Settings  : Webapi/{table}/enabled=true, fields=<明示列挙>   → ないと 404
 ② Table Permission: powerpagecomponent type=18（scope/CRUD）  → ないと 403
 ③ Web ロール紐付け: Table Permission ↔ Authenticated Users → ないと一般ユーザー 403
 ```

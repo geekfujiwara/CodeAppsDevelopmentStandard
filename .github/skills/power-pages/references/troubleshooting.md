@@ -32,7 +32,7 @@ requests.post(f"{DV}/api/data/v9.2/adx_sitesettings", headers=h, json=body)
 |------|-----------|---------|------|------|
 | 401 | 90040107 | Anti-forgery token required | CSRF トークン未送信 | `/_layout/tokenhtml` から取得してヘッダー付与 |
 | 403 | 90040120 | EntityPermissionReadIsMissing | type=18 の N:N association が空（content 配列だけでは不十分） | `$ref` POST で association を作成（教訓 2・14） |
-| 403 | 90040101 | AttributePermissionIsMissing | `Webapi/{table}/fields` 許可リスト外の列を要求（$select なし＝`*` 要求も含む） | fields にクライアントの SELECT 全列を列挙（迷えば `*`）（教訓 16） |
+| 403 | 90040101 | AttributePermissionIsMissing | `Webapi/{table}/fields` 許可リスト外の列を要求（$select なし＝`*` 要求も含む） | fields にクライアントの SELECT 全列を列挙（教訓 16）。`*` は切り分け用の一時値にとどめ、原因特定後は明示列挙に戻す |
 | 403 | 90040106 | AppendTo permission missing | 参照先テーブルに appendto=false | EDM content で `"appendto": true` に更新（account リレーション時は `account` 権限に付与・教訓 21） |
 | 403 | — | Account スコープで read は通るが create が 403 | POST 本文に account Lookup が無い／`contact.parentcustomerid` 未設定／権限が create=false | POST で `@odata.bind`、contact に取引先企業を紐付け、create=true を付与（教訓 21） |
 | 404 | 9004010D | CDS entity resolution failed | `@odata.bind` のターゲットテーブルが違う | `ManyToOneRelationships` で正しい参照先を確認 |
