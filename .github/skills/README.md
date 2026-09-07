@@ -72,7 +72,7 @@ skill-name/
 | Geek Delivery | `code-apps/samples/geek-delivery/` | 物流・配送管理（配送便・車両・配達トラッキング・縦タイムライン） |
 | Power Pages ポータル | `power-pages/samples/portal/` | Power Pages サイト実体（web-templates / page-templates） |
 | Power Pages テンプレート | `power-pages/templates/` | `corporate-lp`（React 雛形）/ `minimal-code-site`（素の HTML 雛形）/ `access-scope`（部分テンプレート） |
-| Code Apps テンプレート | `code-apps/templates/` | `generic-base`（scaffold 元）/ `account-link-admin`（contact ↔ 取引先企業 紐づけ管理画面のアドオン） |
+| Code Apps テンプレート | `code-apps/templates/` | `generic-base`（scaffold 元）/ `account-link-admin`（contact ↔ 取引先企業 紐づけ管理画面のアドオン）/ [modular-plant](code-apps/templates/modular-plant/README.md)（JSON 設計・3D 接続・共有改訂・Python 候補生成のアドオン） |
 
 **サンプルに含まれない SDK 生成物**（手で作らず各テーマで生成させる）:
 

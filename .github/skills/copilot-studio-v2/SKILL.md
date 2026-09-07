@@ -102,6 +102,11 @@ Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テ
 > 対話系のスキルと、Agentflow から呼ばれる自動処理系のスキルは**分けて書く**。
 > → [データ参照エージェントの SKILL.md 執筆パターン](references/data-agent-skill-authoring.md)
 
+> **設計 JSON の候補生成と人による採用**: Code Apps の [モジュール設計パターン](../code-apps/references/modular-plant-design.md)
+> と [フラット候補生成バンドル](../code-apps/templates/modular-plant/agent-skill/SKILL.md) を再利用できる。
+> 対話は Teams、提案の差分・採用は共有 Dataverse を介した Code Apps 側で行う（v2 の直接呼び出し・埋め込みではない）。
+> 公開・添付成功と Python 依存解決・Teams 実応答は別々に検証する。
+
 ## 運用中エージェントの更新（★新規作成しない）
 
 `deploy_agent.py` は `create_agent.py` から始まるため、**実行するたびに新しい Bot が作られる**。

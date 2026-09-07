@@ -1,0 +1,419 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Plant concept design",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "revision",
+    "site",
+    "modules",
+    "units",
+    "connections"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000
+    },
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boundary",
+        "exclusions",
+        "clearance"
+      ],
+      "properties": {
+        "boundary": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 100,
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": -1000,
+              "maximum": 1000
+            },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "clearance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "exclusions": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name",
+              "polygon"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "polygon": {
+                "type": "array",
+                "minItems": 4,
+                "maxItems": 100,
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": -1000,
+                    "maximum": 1000
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "modules": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "equipment",
+          "connections"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "equipment": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 30,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "tag",
+                "name",
+                "kind",
+                "position",
+                "size",
+                "properties"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+                },
+                "tag": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "kind": {
+                  "enum": [
+                    "tank",
+                    "pump",
+                    "exchanger",
+                    "valve",
+                    "tower",
+                    "component"
+                  ]
+                },
+                "position": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": -1000,
+                    "maximum": 1000
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "size": {
+                  "type": "array",
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "items": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 50
+                  }
+                },
+                "properties": {
+                  "type": "object",
+                  "maxProperties": 20,
+                  "additionalProperties": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          },
+          "connections": {
+            "type": "array",
+            "maxItems": 60,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "from",
+                "to",
+                "elevation",
+                "lane"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+                },
+                "from": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "nodeId",
+                    "portId"
+                  ],
+                  "properties": {
+                    "nodeId": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+                    },
+                    "portId": {
+                      "enum": [
+                        "inlet",
+                        "outlet",
+                        "power"
+                      ]
+                    }
+                  }
+                },
+                "to": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "nodeId",
+                    "portId"
+                  ],
+                  "properties": {
+                    "nodeId": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+                    },
+                    "portId": {
+                      "enum": [
+                        "inlet",
+                        "outlet",
+                        "power"
+                      ]
+                    }
+                  }
+                },
+                "elevation": {
+                  "type": "number",
+                  "minimum": 0.2,
+                  "maximum": 100
+                },
+                "lane": {
+                  "type": "number",
+                  "minimum": -1000,
+                  "maximum": 1000
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "units": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "moduleId",
+          "name",
+          "position",
+          "rotation"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+          },
+          "moduleId": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "position": {
+            "type": "array",
+            "items": [
+              {
+                "type": "number",
+                "minimum": -1000,
+                "maximum": 1000
+              },
+              {
+                "const": 0
+              },
+              {
+                "type": "number",
+                "minimum": -1000,
+                "maximum": 1000
+              }
+            ],
+            "minItems": 3,
+            "maxItems": 3,
+            "additionalItems": false
+          },
+          "rotation": {
+            "enum": [
+              0,
+              90,
+              180,
+              270
+            ]
+          }
+        }
+      }
+    },
+    "connections": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "from",
+          "to",
+          "elevation",
+          "lane"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+          },
+          "from": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "unitId",
+              "nodeId",
+              "portId"
+            ],
+            "properties": {
+              "nodeId": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+              },
+              "portId": {
+                "enum": [
+                  "inlet",
+                  "outlet",
+                  "power"
+                ]
+              },
+              "unitId": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+              }
+            }
+          },
+          "to": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "unitId",
+              "nodeId",
+              "portId"
+            ],
+            "properties": {
+              "nodeId": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+              },
+              "portId": {
+                "enum": [
+                  "inlet",
+                  "outlet",
+                  "power"
+                ]
+              },
+              "unitId": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,59}$"
+              }
+            }
+          },
+          "elevation": {
+            "type": "number",
+            "minimum": 0.2,
+            "maximum": 100
+          },
+          "lane": {
+            "type": "number",
+            "minimum": -1000,
+            "maximum": 1000
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "modular-plant-addon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.18.0" },
+  "scripts": {
+    "generate": "node --experimental-strip-types scripts/generate-design.mjs",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test:skill": "python -X utf8 -m unittest discover -s tests -p test_design_skill.py",
+    "test:metadata": "python -X utf8 -m unittest discover -s tests -p test_metadata.py",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@turf/helpers": "^7.4.0",
+    "@turf/kinks": "^7.4.0",
+    "ajv": "^8.20.0",
+    "polygon-clipping": "^0.15.7",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.185.4",
+    "typescript": "~5.9.3"
+  }
+}

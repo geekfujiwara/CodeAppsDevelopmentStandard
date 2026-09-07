@@ -23,6 +23,9 @@ triggers:
   - "nameUtils パッチ"
   - "日本語サニタイズ"
   - "Code Apps デザイン"
+  - "プラント設計"
+  - "JSON 駆動 3D"
+  - "ユニット配置"
   - "UI 設計"
   - "コンポーネント選定"
   - "画面レイアウト"
@@ -85,6 +88,11 @@ triggers:
 
 Power Apps Code Apps（コードファースト）を **TypeScript + React + Tailwind CSS** で開発する。
 UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の全領域をカバーする統合スキル。
+
+> **プラント・設備の JSON 駆動設計**: [モジュール設計パターン](references/modular-plant-design.md) と
+> [追加テンプレート](templates/modular-plant/README.md) を参照。敷地・ユニット・ポート接続、CSP 対応検証器、
+> Python 候補生成、Dataverse 改訂・提案レビューを再利用できる。既存アプリへのアドオンであり scaffold 元ではない。
+> 型・形状・共有保存の単独テストを先に通し、導入後のブラウザー/Teams/一般利用者権限は別ゲートで実測する。
 
 > [!NOTE]
 > 本スキルは React + Vite の **Web Code Apps** 用。Expo／React Native、camera／barcode／location 等の
