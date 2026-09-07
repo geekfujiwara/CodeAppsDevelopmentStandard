@@ -68,6 +68,9 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 - [Claude Code でのクイックスタート](#claude-code-でのクイックスタート)
 - [前提条件](#前提条件)
   - [統合プロンプトで一気に準備する（推奨）](#統合プロンプトで一気に準備する推奨)
+  - [ローカル開発環境の準備](#ローカル開発環境の準備)
+    - [VS Code + GitHub Copilot](#vs-code--github-copilot)
+    - [Python パッケージと初回サインイン](#python-パッケージと初回サインイン)
   - [ライセンスの準備](#ライセンスの準備)
   - [クラウド環境の準備](#クラウド環境の準備)
     - [専用環境を作成する](#専用環境を作成する)
@@ -75,9 +78,6 @@ cp .github/skills/standard/references/gitignore-template .gitignore
     - [Copilot Credits を環境に割り当てる](#copilot-credits-を環境に割り当てる)
     - [Advanced Connector Policy を設定する](#advanced-connector-policy-を設定する)
     - [Code Apps を有効化する](#code-apps-を有効化する)
-  - [ローカル開発環境の準備](#ローカル開発環境の準備)
-    - [VS Code + GitHub Copilot](#vs-code--github-copilot)
-    - [Python パッケージと初回サインイン](#python-パッケージと初回サインイン)
 - [管理者権限（管理者ロール）要件](#管理者権限管理者ロール要件)
 - [チーム開発向けの手順](#チーム開発向けの手順)
 - [上流の開発標準更新を取り込む](#上流の開発標準更新を取り込む)
@@ -162,6 +162,13 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 
 > [!NOTE]
 > 設定値は `.github/skills/admin/references/environment-strategy.json`（ブループリント）に集約されています。組織固有の名称・人数・命名規則を変えたい場合は、プロンプト実行前後にこのファイルを編集してください。
+
+### ローカル開発環境の準備
+
+クラウド環境を準備する前に、開発端末へ必要なツールを導入してください。手順の詳細は後述の [ローカル開発環境の手順詳細](#ローカル開発環境の手順詳細) を参照してください。
+
+> [!IMPORTANT]
+> ローカル環境の準備では、Git / Node.js LTS / Python 3.12 / `degit` / Power Platform CLI / GitHub CLI を導入し、各コマンドが PATH 経由で実行できることを確認します。クラウド側の設定を行う前に、ローカルのツール導入と動作確認を完了してください。
 
 ### ライセンスの準備
 
@@ -295,7 +302,7 @@ Code Apps は環境ごとに初期状態で無効です。有効化手順:
 
 </details>
 
-### ローカル開発環境の準備
+### ローカル開発環境の手順詳細
 
 > [!IMPORTANT]
 > ローカル開発環境のセットアップは、次の条件を満たす端末とアカウントで実施してください。条件を満たさない端末では、スクリプトの実行やアプリの発行が途中で失敗します。
@@ -309,73 +316,7 @@ Code Apps は環境ごとに初期状態で無効です。有効化手順:
 VS Code をインストールすると **GitHub Copilot 拡張機能は最初から同梱**されています。別途 Extensions からインストールする必要はありません。GitHub アカウントでサインインし、Copilot ライセンスを有効化してください。
 
 > [!TIP]
-> クラウド環境の準備も合わせて行いたい場合は、[前提条件冒頭の統合プロンプト](#統合プロンプトで一気に準備する推奨)を使ってください。以下はローカル環境のみを準備したい場合向けの手順です。
-
-<details>
-<summary><strong>プロンプトによる自動環境準備（ローカルのみ・所要 15 分）</strong></summary>
-
-| ステップ | 操作 |
-|---|---|
-| 1. VS Code をインストール | [https://code.visualstudio.com/](https://code.visualstudio.com/) からダウンロード → インストール |
-| 2. GitHub アカウントでサインイン | 左下のアカウントアイコン → GitHub でサインイン（GitHub Copilot 拡張は同梱済みのためインストール不要、サブスクリプションの有効化のみ必要） |
-| 3. Copilot チャットを開く | `Ctrl+Alt+I`（Mac: `⌃⌘I`）または左サイドバーのチャットアイコンをクリック |
-
-チャットが開いたら、以下のプロンプトをそのまま貼り付けて送信してください。**リポジトリの clone や `npm install` はこの段階では行いません。**
-
-```text
-Windows 端末の開発環境準備（開発ツールの導入と動作確認まで）を実行してください。
-リポジトリの clone や npm install は行いません。完了したらクイックスタートに進む案内をしてください。
-
-要件:
-1. Git / Node.js LTS / Python 3.12 を導入する。既定のターミナル（Windows の場合 PowerShell 5.1 で可、追加導入は不要）で動作すればよい。
-2. `npm install -g degit` で degit をグローバル導入する。クイックスタートの `npx degit` が初回ダウンロード待ちなしで即座に実行できるようにするため。
-3. Power Platform は PP CLI のみ導入する（VS Code 拡張は入れない）。
-4. **必要なすべてのツールの PATH を通す**。実体パスを確認したうえで、未登録のものは**ユーザー環境変数 PATH に恒久的に追加**し、さらに現在のセッションの `$env:Path` にも反映して、ターミナルを開き直さずに続行できる状態にする。対象は以下（実際のインストール先に読み替える）。
-   - Git: `%ProgramFiles%\Git\cmd`
-   - Node.js / npm / npx: `%ProgramFiles%\nodejs`
-   - npm グローバル（degit など。`npm config get prefix` で確認）: `%APPDATA%\npm`
-   - Python 3.12 本体とスクリプト: `%LOCALAPPDATA%\Programs\Python\Python312` と `%LOCALAPPDATA%\Programs\Python\Python312\Scripts`
-   - Power Platform CLI（pac）: MSI 版は `%LOCALAPPDATA%\Microsoft\PowerAppsCLI`、dotnet tool 版は `%USERPROFILE%\.dotnet\tools`
-   - GitHub CLI（gh）: `%ProgramFiles%\GitHub CLI`
-   - VS Code CLI（code）: `%LOCALAPPDATA%\Programs\Microsoft VS Code\bin`
-   - 追加時は既存の PATH を上書きせず**追記**し、重複エントリは作らないこと。特に Node.js インストール直後は `npx` が既存ターミナルで認識されないため、この反映を必ず行う。
-5. `gh auth status` で GitHub CLI のログイン状態を確認する（未ログインなら `gh auth login` を案内）。
-6. リポジトリの fork / clone / `npm install` は実行しない。次のステップとしてクイックスタートへ案内する。
-
-検証コマンド:
-- git --version
-- node --version
-- npm --version
-- npx --version
-- degit --version  （degit がグローバル導入済みで即座に実行できることを確認）
-- python --version
-- py --version
-- pac help  （ヘッダの Version を確認）
-- where.exe git / where.exe node / where.exe npx / where.exe degit / where.exe python / where.exe pac / where.exe gh  （すべて PATH 経由で解決できること）
-- gh --version
-- gh auth status
-
-実施ルール:
-- VS Code CLI など PATH 未反映の可能性があるコマンドは、まず実体パス呼び出しで存在を確認し、その後 PATH に登録して名前だけで実行できる状態にする。
-- 最終検証は「新規に開いたターミナル」と「作業開始時の既存セッション」の両方で確認する。特に `npx --version` は、Node.js 導入後に新規セッションで再確認する。
-- 実行結果は「導入済み」「要再起動」「PATH 反映待ち」を分けて報告し、PATH に追加したエントリを一覧で示す。
-- 最後のユーザー向けコメントには以下を含める:
-  - 「環境準備 OK（ツール導入と動作確認まで完了）」の明示
-  - 次のアクションとして README の「クイックスタート」を実行してローカルに clone することを案内
-  - クイックスタートはリモートに fork せず、本リポジトリをローカルに直接 clone する方針である旨を補足
-  - クイックスタート完了後は、VS Code の Copilot チャット（`Ctrl+Alt+I`）を開き、入力欄に `@GeekPowerCode` と入力してカスタムエージェントを選択し、作りたいテーマを伝えるよう案内する
-  - 可能なら現在ディレクトリ名からテーマ候補を推測し、推奨プロンプトを 1 つ提案すること
-```
-
-> [!Note]
-> `pac --version` は無効なため、バージョン確認は `pac help` のヘッダ表示を利用します。
-
-> [!Note]
-> クイックスタートのコマンドで `npx` が実行できないというエラーが出る場合は、Node.js インストール直後で PATH がまだ反映されていない可能性があります。新しいターミナルを開き直して再実行してください。
-
-完了したら [クイックスタート](#クイックスタート) に戻ってください。
-
-</details>
+> クラウド環境の準備も合わせて行いたい場合は、[前提条件冒頭の統合プロンプト](#統合プロンプトで一気に準備する推奨)を使ってください。
 
 #### Python パッケージと初回サインイン
 
