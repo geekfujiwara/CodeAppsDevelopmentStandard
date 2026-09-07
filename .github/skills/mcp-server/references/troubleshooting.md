@@ -238,6 +238,24 @@ traces
 **原因**: スコープの新規追加と、そのスコープ ID を参照する事前承認を**同一 PATCH** で送っている。
 Graph は同一トランザクション内の新規スコープ ID を未登録として扱う。
 
+### `preAuthorizedApplications` の一部クライアントだけ scope id が食い違っている
+
+**症状**: `GET /applications` で確認すると、同じスコープ（例: `MCP.Access`）を指しているはずの
+`delegatedPermissionIds` が、クライアントごとに異なる GUID になっている
+（例: 一方は `...4830...`、もう一方は `...483a...`）。Graph は既存の無効な id を書き込み時に
+エラーにしないため、気付かずに残り続ける。
+
+**原因**: スコープを一度削除・作り直す、または手動でポータル編集すると id が変わる。
+`configure_entra_api.py` は以前、既存の `delegatedPermissionIds` を無条件にマージしていたため、
+古いスコープを指す無効な id が新しい id と混在・残存したまま更新され続けていた。
+
+**対処**: 現在有効なスコープ id の集合と突き合わせ、無効な id を検出して削除してから
+現在のスコープ id を付与し直す。
+
+**恒久対策済み**: `configure_entra_api.py` が毎回の実行で `oauth2PermissionScopes` の現行 id 集合を計算し、
+`preAuthorizedApplications` の既存エントリからその集合に無い id を削除してから現行スコープ id を
+付与し直す（`valid_scope_ids` によるプルーニング）。正常系の実行でも毎回このチェックが動作する。
+
 **対処**: PATCH を 2 段階に分ける。
 
 1. `identifierUris` + `oauth2PermissionScopes` を PATCH
