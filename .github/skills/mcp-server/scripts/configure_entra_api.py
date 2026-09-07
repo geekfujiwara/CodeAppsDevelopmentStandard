@@ -69,12 +69,28 @@ def main() -> int:
             "api": {**api, "oauth2PermissionScopes": scopes},
         },
     )
+    # 現在有効なスコープ id の集合。過去にスコープを作り直した際の古い id が
+    # preAuthorizedApplications に残っていると、Copilot Studio 等のクライアントで
+    # 同意チェックが食い違い、断続的な認可エラーの原因になる。既存値を無条件にマージせず、
+    # 無効な id はここで検出して落とす。
+    valid_scope_ids = {s["id"] for s in scopes}
+    existing_preauth: dict[str, set[str]] = {}
+    for item in api.get("preAuthorizedApplications") or []:
+        ids = set(item.get("delegatedPermissionIds") or [])
+        stale = ids - valid_scope_ids
+        if stale:
+            print(f"[warning] {item['appId']} の preAuthorizedApplications から無効な scope id を削除: {sorted(stale)}")
+            ids -= stale
+        existing_preauth[item["appId"]] = ids
+    for client_id in preauth:
+        existing_preauth.setdefault(client_id, set()).add(scope["id"])
     graph_patch(
         f"/applications/{object_id}",
         {
             "api": {
                 "preAuthorizedApplications": [
-                    {"appId": cid, "delegatedPermissionIds": [scope["id"]]} for cid in preauth
+                    {"appId": client_id, "delegatedPermissionIds": sorted(permission_ids)}
+                    for client_id, permission_ids in sorted(existing_preauth.items())
                 ]
             }
         },
