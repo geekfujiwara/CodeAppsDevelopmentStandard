@@ -16,7 +16,8 @@ Power Apps Code Apps, モデル駆動型アプリ, Generative page, Dataverse, P
 VS Code + GitHub Copilot が使える状態（[ローカル開発環境の準備](#ローカル開発環境の準備)を参照）であれば、次のコマンドと 1 依頼だけで開発を始められます。
 
 ```bash
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills
 cp .github/skills/standard/references/gitignore-template .gitignore
 ```
 
@@ -38,7 +39,8 @@ GitHub Copilot だけでなく **Claude Code** からも同じ開発標準をそ
 プロジェクトのルートで以下を実行し、`.github/`（エージェント・スキル）と `.gitignore` を配置します。
 
 ```bash
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents
+npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills
 cp .github/skills/standard/references/gitignore-template .gitignore
 ```
 
