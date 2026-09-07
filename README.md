@@ -125,6 +125,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 6. `npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents` と `npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills` を実行し、admin スキルを含むスキル一式とエージェント定義を取得する。
 7. `python -m pip install -r .github/skills/standard/scripts/requirements.txt` を実行する。
 8. クラウド側の準備に進めるよう、`.env` に設定する `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` の値をユーザーに確認する。
+9. **認証をキャッシュする前に、認証方式をユーザーに確認する。** 既定は **DEVICE CODE 認証**（別デバイス/ブラウザでコードを入力する方式）。組織の条件付きアクセス ポリシー等でデバイスコードフローがブロックされている場合は、ローカルブラウザでの**インタラクティブ認証**に切り替えられる。どちらを使うかをユーザーに確認し、インタラクティブを選んだ場合のみ `.env` に `AUTH_MODE=interactive` を追加する（DEVICE CODE のままでよい場合は `.env` に何も追加しない、または `AUTH_MODE=device_code` を明示してもよい）。この確認は、フェーズ 2 で最初に認証が行われる前に完了させること。
 
 検証コマンド:
 - git --version / node --version / npm --version / npx --version / degit --version
@@ -136,7 +137,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 
 ## フェーズ 2: Power Platform 管理者権限の確認（ここで即座に判断する）
 1. `.github/skills/admin/SKILL.md` と `.github/skills/admin/references/admin-roles.md` を読み込み、これ以降の操作に必要な最小ロール（Power Platform Administrator 等）を把握する。
-2. `python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID` を実行し、「管理 API アクセス」（管理者ロール相当か）の判定を確認する。
+2. `python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID` を実行し、「管理 API アクセス」（管理者ロール相当か）の判定を確認する。（フェーズ 1 の手順 9 で確認した認証方式で初回のみ認証が行われる。以降はキャッシュからサイレントに認証され、再実行時は非対話で完走する。）
 3. 管理者権限がない、または判定が NG の場合は、**ここで作業を中断**し、次を報告して終了する。無理に自分の端末や権限で回避しようとしないこと。
    - 何が不足しているか（必要ロール名）
    - 管理者に依頼すべき内容（環境作成・セキュリティ ロール割り当て・Copilot Credits 割り当て・ACP 設定など）
@@ -390,8 +391,11 @@ python -m pip install -r .github/skills/standard/scripts/requirements.txt
 - `.env` に **`TENANT_ID`** を設定します。認証キャッシュはテナントごとに
   `~/.power-platform-cli/auth_record_{TENANT_ID}.json` へ分離保存されるため、複数テナントを行き来しても再認証は最小限で済みます。
 - 環境 ID を使うスクリプト（DLP 事前チェックなど）では **`ENV_ID`** も設定します。
-- **初回のみデバイスコード認証**が表示されます。以降はキャッシュからサイレントに認証され、スクリプトは非対話で完走します。
-  毎回デバイスコードを求められる場合は、`.env` の `TENANT_ID` が未設定でないかを確認してください。
+- **初回に認証をキャッシュする前に、DEVICE CODE 認証（既定）とインタラクティブ認証のどちらを使うかを確認してください。**
+  - 既定は **DEVICE CODE 認証**（表示されたコードを別のデバイス／ブラウザで入力する方式）です。`.env` に何も追加しなければこの方式になります。
+  - 組織の条件付きアクセスポリシー等でデバイスコードフローがブロックされている場合は、`.env` に `AUTH_MODE=interactive` を設定すると、ローカルブラウザを起動する**インタラクティブ認証**に切り替わります。
+  - どちらの方式でも、**初回のみ**認証画面が表示されます。以降はキャッシュからサイレントに認証され、スクリプトは非対話で完走します。
+  毎回認証を求められる場合は、`.env` の `TENANT_ID` が未設定でないかを確認してください。
 - サインインできたら、開発に入る前に [Power Platform 環境のチェック](#power-platform-環境のチェック開発着手前に必須) を実行してください。
 
 > [!NOTE]
