@@ -193,6 +193,35 @@ DLP 分類は変わらない。
 対象環境に適用されるポリシーだけを抽出する。対象カスタムコネクタが明示分類されていなければ
 既定グループを表示する。スクリプトはポリシーを変更せず、ブラウザ認証も開始しない。
 
+### DLP を解消したのに、Edit 画面で `Couldn't load MCP tools ... HTTP 401` が出続ける
+
+**症状**: DLP ブロックのエラーは消えたのに、ツールの Edit 画面を開くたびに
+「The MCP server rejected the request (HTTP 401)」が表示される。サーバー側の Entra アプリ登録・
+JWT 検証ロジック・Function App はすべて正常で、こちらが取得したトークンでは `tools/list` / `tools/call`
+が問題なく成功する。
+
+**原因**: Copilot Studio 側が保持している OAuth アクセストークンが期限切れになったまま、
+**自動でリフレッシュされずに同じ古いトークンを送り続けている**。Application Insights の `traces` を見ると、
+数時間〜十数時間にわたって同一の `jwt expired` が繰り返し記録される（DLP や Entra 設定の問題ではない）。
+
+```kql
+traces
+| where timestamp > ago(6h)
+| where message has '認証失敗'
+| project timestamp, message
+| order by timestamp desc
+```
+
+**対処**: Copilot Studio（または Power Apps > Connections）で対象コネクタの接続を開き、
+組織アカウントで**再認証（reconnect）**する。新しいアクセストークンが発行され、即座に解消する。
+ポリシー変更・アプリ登録変更・Client secret のローテーションは不要（かつ無関係）。
+
+**恒久対策済み**: `diagnose_connector_token.py` が Application Insights の認証失敗ログを
+「未接続（Authorization ヘッダーなし）」「トークン失効（繰り返し発生かどうかで一時的か放置かを判定）」
+「aud/iss 不一致」に自動分類する。401 を見たら DLP を疑う前にこのスクリプトを実行し、
+`token_expired` が閾値（既定 15 分）を超えて繰り返していれば再認証、`not_connected` なら
+接続未完了と即座に切り分けられる。読み取り専用でポリシー・アプリ設定は変更しない。
+
 ---
 
 ## 認証・認可

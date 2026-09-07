@@ -11,7 +11,11 @@ Copilot Studio の MCP Server は Power Platform のカスタムコネクタと�
 - `TENANT_ID` を `.env` に設定し、standard スキルの認証キャッシュを事前に作成しておく。
 - カスタムコネクタは、環境レベルポリシーではコネクタ ID、テナントレベルポリシーでは Host URL パターンで
   分類される。環境レベルの明示分類がある場合は URL パターンより優先される。
+- **クラシック DLP だけでは判断できない**。ACP（Advanced connector policies）が適用されていると、
+  既定の混成モードで両方が評価され**より制限の厳しい方**が適用される（Step 3-b）。
 - `Business` が常に正解とは限らない。エージェント内でデータを受け渡すコネクタは同じグループに置く。
+- DLP の共通ロジックとポリシー変更スクリプトは [admin スキル](../../admin/SKILL.md) にある。
+  MCP 固有でない DLP 確認（使用コネクタ全体の事前チェック等）はそちらを使う。
 
 ## Step 1: 読み取り診断を実行する
 
@@ -57,7 +61,7 @@ Copilot Studio 側でツールがブロック扱いになる。対象 Host だ�
 
 ```powershell
 # 既定は dry-run。変更前後の規則を表示するだけで、ポリシーは更新しない
-python .github/skills/standard/scripts/set_dlp_custom_connector.py `
+python .github/skills/admin/scripts/set_dlp_custom_connector.py `
   --tenant-id $env:TENANT_ID `
   --policy "<違反詳細に示されたポリシー名>" `
   --host $env:MCP_CONNECTOR_HOST `
@@ -76,6 +80,26 @@ python .github/skills/standard/scripts/set_dlp_custom_connector.py `
 **Security > Data and privacy > Data policy** で対象コネクタ 1 件だけを連携先と同じグループへ移す。
 いずれの場合も `*` 規則・他の Host 規則・対象外環境は変更しない。
 
+## Step 3-b: ACP（Advanced connector policies）を確認する
+
+Step 3 まででクラシック DLP が `OK` になってもブロックが続く場合は ACP を疑う。
+ACP は default-deny の厳格な許可リストで、許可リストに無いコネクタはブロックされる。
+
+```powershell
+# 環境と環境グループの両方で許可状況を確認（読み取りのみ）
+python .github/skills/admin/scripts/set_acp_connector.py `
+  --environment-id $env:POWER_PLATFORM_ENVIRONMENT_ID --include-group `
+  --connector <MCP コネクタの shared_ ID>
+
+# グループ側の元ポリシーに追加する
+python .github/skills/admin/scripts/set_acp_connector.py `
+  --policy-id <グループ ポリシー ID> --connector <shared_ ID> --apply
+```
+
+環境側の `Synced Environment Policy (from Environment Group)` は同期コピーなので、
+グループ側を更新しないと再同期で元に戻る。適用後は許可コネクタ数が増えたことを必ず確認する。
+詳細は [admin スキルの governance-settings.md](../../admin/references/governance-settings.md)。
+
 ## Step 4: 再評価する
 
 ポリシー変更は通常 1 時間以内、最大 24 時間の反映遅延があり得る。反映後に診断スクリプトを再実行し、
@@ -85,5 +109,6 @@ python .github/skills/standard/scripts/set_dlp_custom_connector.py `
 
 - [PowerShell support for Power Apps and Power Automate](https://learn.microsoft.com/power-platform/admin/powerapps-powershell)
 - [Connector classification](https://learn.microsoft.com/power-platform/admin/dlp-connector-classification)
+- [Advanced connector policies](https://learn.microsoft.com/power-platform/admin/advanced-connector-policies)
 - [Custom connector classification](https://learn.microsoft.com/power-platform/admin/dlp-custom-connector-parity)
 - [Configure data policies for agents](https://learn.microsoft.com/microsoft-copilot-studio/admin-data-loss-prevention)

@@ -113,7 +113,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 
 ---
 
-## スキル一覧（21 スキル）
+## スキル一覧（22 スキル）
 
 ### architecture — アーキテクチャ・基盤
 
@@ -121,6 +121,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 |--------|------|
 | [architecture](architecture/SKILL.md) | Power Platform 全体の構成方針を設計し、最適なコンポーネント構成を決定する。Agent 365 採用時はライト実装 / 本格実装と Git ホスティングを確定する。 |
 | [standard](standard/SKILL.md) | 共通認証・環境変数・ソリューション運用など、全スキル共通の開発基盤を提供する。 |
+| [admin](admin/SKILL.md) | テナント / 環境ガバナンスを確認・設定する。開発着手前の環境チェック（既定環境 / マネージド環境 / Dataverse・Code Apps・MCP の有効化 / セキュリティ ロール）と DLP 事前チェックを非対話スクリプトで実行する。 |
 | [update-skills](update-skills/SKILL.md) | スキル（SKILL.md/references/scripts）を作成・更新し、汎用化・秘匿化した上でリモートへ PR を作成・更新する。 |
 | [azure](azure/SKILL.md) | Azure のリファレンスアーキテクチャを選定し、テナントのセキュリティガバナンス（公衆アクセス禁止・共有キー禁止・MFA 必須等）に準拠した構成で構築・デプロイ・検証する。 |
 | [mcp-server](mcp-server/SKILL.md) | Copilot Studio から利用する自前 MCP Server を Azure Functions 上に構築する。JSON-RPC 最小実装・キーレス認証（受信 Entra JWT / 送信 Managed Identity）・Private Endpoint 下でのデータ投入・デプロイの実測検証までを非対話スクリプトで完結する。 |
@@ -181,6 +182,7 @@ VS Code では 3 トラックをサブエージェントに割り当てて並行
 0. spec-builder   → 既存資料から要件定義書（仕様書）を作成（必要時）
 1. architecture       → 全体設計・コンポーネント選定
 2. standard           → 共通基盤の確認（.env・認証）
+2.5 admin             → 環境チェック + DLP 事前チェック（実装着手前に必須）
 ── ここで設計承認 → 以下 3 トラックを並行実行（VS Code サブエージェント）──
 Track A（データ基盤オーナー）:
   3. dataverse          → テーブル設計・構築・セキュリティロール設定

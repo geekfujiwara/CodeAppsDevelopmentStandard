@@ -79,6 +79,8 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 - [チーム開発向けの手順](#チーム開発向けの手順)
 - [上流の開発標準更新を取り込む](#上流の開発標準更新を取り込む)
 - [環境チェック](#環境チェック)
+  - [ローカル開発ツールのチェック](#ローカル開発ツールのチェック)
+  - [Power Platform 環境のチェック](#power-platform-環境のチェック開発着手前に必須)
 - [カスタムエージェント前提の利用方法](#カスタムエージェント前提の利用方法)
 - [リポジトリ構成](#リポジトリ構成)
 - [主要ドキュメント](#主要ドキュメント)
@@ -121,6 +123,49 @@ Copilot Studio を利用する場合は、次の順序で管理者による事�
 3. Copilot Credits をその環境に割り当てる
 4. Advanced Connector Policy で利用を許可するコネクタを設定する
 5. Code Apps を使用する場合は環境の機能を有効化する
+
+#### 開発端末からコマンドで設定する（推奨）
+
+これらのクラウド側の設定は、管理センターの画面を開かずに **ローカルの開発環境から [admin スキル](.github/skills/admin/SKILL.md) のスクリプト**で実行できます。画面操作は手順が長く、環境が増えるたびに設定漏れとドリフトが起きるため、コマンドで再現できる形にしておきます。
+
+事前に「ローカル開発環境の準備」を済ませ、Power Platform 管理者の資格情報でサインインしておいてください。
+
+```powershell
+cd .github/skills/admin/scripts
+
+# 0. 現状を確認する（環境・グループ・容量・ルールの棚卸し）
+python scan_environment_strategy.py --tenant-id <TENANT_ID>
+
+# 1. 環境グループを作成し、ルールを発行する
+python apply_environment_strategy.py --tenant-id <TENANT_ID> --groups-only --apply
+python apply_environment_strategy.py --tenant-id <TENANT_ID> --rules-only --apply
+
+# 2. 不足している環境を命名規則どおりに作成し、環境グループへ割り当てる
+python environment_naming.py --preview
+python create_environments.py --tenant-id <TENANT_ID> --apply
+
+# 3. 開発者へセキュリティ ロールを割り当てる（管理センターの画面で行う。下のアコーディオンを参照）
+
+# 4. Copilot Credits と容量を環境ごとに配分する
+python set_environment_capacity.py --tenant-id <TENANT_ID>
+python set_environment_capacity.py --tenant-id <TENANT_ID> --environment-id <ENV_ID> --quantity 500 --apply
+
+# 5. Advanced Connector Policy を適用する
+python apply_acp_profile.py --environment-id <ENV_ID> --profile <PROFILE> --include-group --apply
+
+# 6. Code Apps の有効化は環境グループのルールで一括設定される（apply_environment_strategy.py --rules-only）
+
+# 7. Code Apps の CSP（埋め込み許可元）を設定する
+python set_content_security_policy.py --environment-url <ENV_URL> --enable --directive "Frame-Ancestor='self',https://*.powerapps.com" --apply
+
+# 8. 開発 → テストのパイプラインを構成する
+python setup_pipeline.py --host-url <PIPELINE_HOST_URL> --apply
+```
+
+どのスクリプトも `--apply` を付けない限り dry-run です。適用内容を表示して確認してから `--apply` を付けてください。設定値は `.github/skills/admin/references/environment-strategy.json`（ブループリント）に集約されており、組織固有の名称・人数・命名規則はこのファイルだけを編集します。
+
+<details>
+<summary><strong>手動で設定する場合（Power Platform 管理センターの画面操作）</strong></summary>
 
 #### 専用環境を作成する
 
@@ -209,7 +254,16 @@ Code Apps は環境ごとに初期状態で無効です。有効化手順:
 
 詳細: [Code Apps 公式ドキュメント（Microsoft Learn）](https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/overview)
 
+</details>
+
 ### ローカル開発環境の準備
+
+> [!IMPORTANT]
+> ローカル開発環境のセットアップは、次の条件を満たす端末とアカウントで実施してください。条件を満たさない端末では、スクリプトの実行やアプリの発行が途中で失敗します。
+>
+> - **ライセンス**: GitHub Copilot Pro 以上と、Power Apps Premium（または Power Apps 開発者プラン）のライセンスが割り当てられていること
+> - **セキュリティ ロール**: 対象環境で **System Customizer** と **Environment Maker** が割り当てられていること（テナント全体の設定を行う場合は Power Platform 管理者も必要）
+> - **端末の権限**: PowerShell 7 / Git / Node.js / Python と、`npm install -g` や `pip install` によるライブラリ導入が許可されていること（管理された端末では IT 部門に事前確認してください）
 
 #### VS Code + GitHub Copilot
 
@@ -296,6 +350,7 @@ python -m pip install -r .github/skills/standard/scripts/requirements.txt
 - 環境 ID を使うスクリプト（DLP 事前チェックなど）では **`ENV_ID`** も設定します。
 - **初回のみデバイスコード認証**が表示されます。以降はキャッシュからサイレントに認証され、スクリプトは非対話で完走します。
   毎回デバイスコードを求められる場合は、`.env` の `TENANT_ID` が未設定でないかを確認してください。
+- サインインできたら、開発に入る前に [Power Platform 環境のチェック](#power-platform-環境のチェック開発着手前に必須) を実行してください。
 
 > [!NOTE]
 > PR 作成やスキル公開を行う場合は `gh auth login` 済みの GitHub CLI も必要です。
@@ -327,9 +382,10 @@ python -m pip install -r .github/skills/standard/scripts/requirements.txt
 > [!IMPORTANT]
 > **DLP（データ ポリシー）の確認・変更について**
 >
-> - 実装に入る前に、そのソリューションが使うコネクタが利用できるかを確認します（[DLP 事前チェック](.github/skills/standard/references/dlp-precheck.md)）。**参照にも #9 / #10 の管理者権限が必要**なため、権限がない場合は管理者にスクリプトを実行してもらい、結果を共有してもらってください。
+> - 実装に入る前に、そのソリューションが使うコネクタが利用できるかを確認します（[DLP 事前チェック](.github/skills/admin/references/dlp-precheck.md)）。**参照にも #9 / #10 の管理者権限が必要**なため、権限がない場合は管理者にスクリプトを実行してもらい、結果を共有してもらってください。
 > - ポリシー変更の反映には**通常 1 時間以内、最大 24 時間**かかります。変更直後に解消していなくても、再評価まで待ってから判断してください。
 > - **Advanced connector policies（ACP）は認定コネクタと MCP コネクタのみ**が対象です。カスタムコネクタ・HTTP コネクタ・Copilot Studio の仮想コネクタは、従来のデータ ポリシーで引き続き管理する必要があります。
+> - 上記の管理者ロール一覧と、権限がない場合の進め方は [admin スキルの管理者ロール一覧](.github/skills/admin/references/admin-roles.md) にまとめています。
 
 ---
 
@@ -378,6 +434,8 @@ npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github --force
 
 ## 環境チェック
 
+### ローカル開発ツールのチェック
+
 ```bash
 npm run check:env   # Node.js / Python / pac 等の確認のみ
 npm run setup       # 上記 + Python venv bootstrap
@@ -399,6 +457,46 @@ Python と pip が利用可能な場合は、`spec-builder` 用 `.venv` の作�
 
 </details>
 
+### Power Platform 環境のチェック（開発着手前に必須）
+
+ローカルのツールが揃っても、**環境側の設定が足りないと開発の途中で止まります**（Code Apps が無効、既定環境で作ってしまった、セキュリティ ロールが足りない等）。`.env` に `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` を設定したら、次を実行してください。読み取り専用で、環境の設定は一切変更しません。
+
+```powershell
+python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID
+```
+
+確認する項目:
+
+| # | 項目 | 判定内容 |
+|---|---|---|
+| 1 | 既定環境ではないか | 既定環境（Default）で開発していないか。既定環境は組織全員が参照できるため `NG` |
+| 2 | 環境の状態 | 環境が `Enabled`（無効化・削除待ちでない）か |
+| 3 | マネージド環境 | マネージド環境か。共有制限・ソリューション チェッカーの設定値も表示 |
+| 4 | Dataverse | Dataverse が有効で `Ready` か。インスタンス URL とバージョンを表示 |
+| 5 | 監査 | 組織の監査（`isauditenabled`）が有効か |
+| 6 | Dataverse MCP | Dataverse MCP（`IsMCPEnabled`）が有効か |
+| 7 | MCP クライアント許可 | `allowedmcpclients` で有効なクライアント数（Cowork 等の利用可否） |
+| 8 | Code Apps | 環境でコード アプリが利用できるか |
+| 9 | セキュリティ ロール | 自分に **System Administrator**（または System Customizer + Environment Maker）が割り当てられているか。チーム経由の割り当ても検出 |
+| 10 | 管理 API アクセス | テナントのデータ ポリシーを参照できるか（管理者ロール相当か） |
+| 11 | 適用される DLP | この環境に適用されるデータ ポリシーの一覧 |
+
+`NG` が 1 つでもあれば、開発に入る前に解消してください（対処方法は
+[admin スキル](.github/skills/admin/SKILL.md) と
+[管理者ロール一覧](.github/skills/admin/references/admin-roles.md) を参照）。
+Code Apps・MCP・マネージド環境が要件の場合は `--require-code-apps` / `--require-mcp` / `--require-managed`
+を付けると、警告を `NG` に昇格させて確実に止められます。
+
+続けて、ソリューションが使うコネクタが DLP でブロックされないかを確認します。
+
+```powershell
+python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID --connector shared_commondataserviceforapps
+```
+
+> [!TIP]
+> Copilot チャットで `@GeekPowerCode` に「開発を始める前に環境をチェックして」と依頼すれば、
+> 上記 2 つを実行して結果を要約し、`NG` があれば解消方針まで提示します。
+
 ---
 
 ## カスタムエージェント前提の利用方法
@@ -419,9 +517,10 @@ Python と pip が利用可能な場合は、`spec-builder` 用 `.venv` の作�
 .
 ├── .github/
 │   ├── agents/                      # Copilot カスタムエージェント定義
-│   └── skills/                      # 製品単位で統合された 19 スキル
+│   └── skills/                      # 製品単位で統合された 22 スキル
 │       ├── architecture/            # アーキテクチャ設計
 │       ├── standard/                # 共通基盤（認証・アイコン・メールテンプレート）
+│       ├── admin/                   # 環境チェック・DLP 事前チェック・ガバナンス設定
 │       ├── update-skills/           # スキル作成・更新・PR 提出
 │       ├── alm/                     # テンプレート化・pre-commit ゲート・CI/CD デプロイ
 │       ├── azure/                   # Azure リファレンスアーキテクチャ・セキュアデプロイ

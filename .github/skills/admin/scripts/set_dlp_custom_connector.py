@@ -5,7 +5,7 @@ Copilot Studio でツールが「データ損失防止ポリシーによりブ�
 対象ホストだけに URL パターン規則を 1 本追加して、明示的に分類する。
 
 ```powershell
-python .github/skills/standard/scripts/set_dlp_custom_connector.py `
+python .github/skills/admin/scripts/set_dlp_custom_connector.py `
   --tenant-id $env:TENANT_ID `
   --policy "Tenant policy" `
   --host func-example-mcp.azurewebsites.net `

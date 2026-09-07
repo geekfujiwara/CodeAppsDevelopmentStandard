@@ -18,22 +18,30 @@ Power Platform コードファースト開発エキスパート。
 
 1. 作業開始前に `.github/skills/standard/SKILL.md` を読む
 2. 該当スキルを読む（下表）
-3. 設計提示 → ユーザー承認 → **DLP 事前チェック** → 実装
+3. 設計提示 → ユーザー承認 → **環境チェック + DLP 事前チェック（admin スキル）** → 実装
 4. **デプロイ時は必ず各スキルのプレデプロイチェックを実行してからデプロイする**
 
-## DLP 事前チェック（実装着手前に必須）
+## 環境チェック・DLP 事前チェック（実装着手前に必須）
 
-構成が確定したら、**実装を始める前に** そのソリューションが使うコネクタが
-対象環境のデータ ポリシー（DLP）で使えるかを確認し、**結果をユーザーに提示する**。
+構成が確定したら、**実装を始める前に** `admin` スキル（`.github/skills/admin/SKILL.md`）で
+「その環境で作れるか」を確認し、**結果をユーザーに提示する**。
 
 ```powershell
-python .github/skills/standard/scripts/check_dlp.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID --connector shared_commondataserviceforapps
+# 1. 環境チェック（既定環境ではないか / マネージド環境 / Dataverse / Code Apps / MCP / 監査 / セキュリティ ロール / 管理 API）
+python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID
+
+# 2. DLP 事前チェック（ソリューションが使うコネクタを列挙する）
+python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID --connector shared_commondataserviceforapps
 ```
 
-- 読み取り専用。ブロック / Business・Non-business の混在 / カスタムコネクタの未分類を検出する
-- 問題があれば実装に入らず、解消方針（代替コネクタ / ポリシー変更依頼）を合意してから進む
-- ポリシーを変更する場合は `set_dlp_custom_connector.py` の dry-run 出力を必ずユーザーに確認してもらう
-- 詳細: `.github/skills/standard/references/dlp-precheck.md`
+- どちらも読み取り専用。`NG` が 1 つでもあれば実装に入らない
+- 環境チェックの観点: 既定環境で開発していないか / 環境が Enabled か / マネージド環境か / Dataverse が有効か /
+  Code Apps が使えるか / Dataverse MCP が有効か / 監査が有効か / 必要なセキュリティ ロールがあるか / 管理 API を呼べるか
+- Code Apps・MCP・マネージド環境が要件なら `--require-code-apps` / `--require-mcp` / `--require-managed` を付けて WARN を NG に昇格させる
+- DLP はブロック / Business・Non-business の混在 / カスタムコネクタの未分類を検出する
+- 問題があれば解消方針（代替コネクタ / 環境変更 / 管理者への依頼）を合意してから進む
+- 設定を変更する場合は `set_managed_environment.py` / `set_dlp_custom_connector.py` の dry-run 出力を必ずユーザーに確認してもらう
+- 詳細: `.github/skills/admin/SKILL.md`
 
 ## 言語設定
 
@@ -62,6 +70,7 @@ python .github/skills/standard/scripts/check_dlp.py --environment-id $env:ENV_ID
 
 | 作業 | スキル |
 |---|---|
+| 環境チェック・DLP・ガバナンス（管理） | .github/skills/admin/SKILL.md |
 | Dataverse | .github/skills/dataverse/SKILL.md |
 | Web Code Apps（React/Vite） | .github/skills/code-apps/SKILL.md |
 | Native Mobile Code Apps（Expo/React Native、Private Preview） | .github/skills/mobile-apps/SKILL.md |

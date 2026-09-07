@@ -1,0 +1,468 @@
+{
+  "$comment": [
+    "環境戦略のブループリント。scan_environment_strategy.py が現状と突き合わせ、",
+    "generate_migration_plan.py が admin-migration-plan.md を生成し、",
+    "apply_environment_strategy.py が環境グループのルールとして適用する。",
+    "組織固有の名称・人数はここを編集して調整する（スクリプトは変更しない）。"
+  ],
+  "organizationStrategy": {
+    "why": "誰が何を作るかを決めないと、市民開発者が保守の必要な業務システムを作り、作った本人が異動した瞬間に誰も直せないアプリだけが残る。開発の役割を先に分けてから環境グループを設計する。",
+    "principles": [
+      {
+        "title": "市民開発者は GitHub Copilot を使った開発を行わない",
+        "detail": "トークン消費を抑えるため。市民開発者は GitHub Copilot が必要になるような業務システムを開発しない。"
+      },
+      {
+        "title": "業務システムの内製開発は AI CoE が行う",
+        "detail": "業務システムには保守運用が必要。保守できる体制を持つ AI CoE（本部 / 事業部）が開発し、Power Platform パイプラインで開発 → テスト → 本番を通す。"
+      },
+      {
+        "title": "市民開発が作るのは Copilot Cowork のスキル",
+        "detail": "スキルは保守が要らない。チームで共有し、うまくいった改善事例は AI CoE（事業部）へ共有する。今後の市民開発はスキル開発が前提。"
+      },
+      {
+        "title": "業務システムが欲しいときは 2 つの道しかない",
+        "detail": "自分が AI CoE 開発者（事業部）になるか、AI CoE に保守も含めた開発をリクエストするか。個人で作って個人で抱えることはしない。"
+      },
+      {
+        "title": "AI CoE（本部 / 事業部）は事例化を手伝う",
+        "detail": "市民開発者から上がってきた改善事例を AI CoE がテンプレート化・横展開する。市民開発を止めるのではなく、成果を全社の資産に変える。"
+      }
+    ],
+    "roles": [
+      {
+        "role": "市民開発者",
+        "develops": "Copilot Cowork のスキル",
+        "tools": "Copilot Cowork / Copilot Studio（スキル用途）",
+        "githubCopilot": false,
+        "maintenance": "不要（スキルは保守対象外）",
+        "group": "市民開発者環境グループ / 個人開発者環境グループ"
+      },
+      {
+        "role": "AI CoE 開発者（事業部）",
+        "develops": "業務システム（Code Apps / モデル駆動型アプリ / フロー / エージェント）",
+        "tools": "GitHub Copilot / Power Platform パイプライン",
+        "githubCopilot": true,
+        "maintenance": "必要（開発したものを保守運用する）",
+        "group": "AI CoE 内製開発グループ"
+      },
+      {
+        "role": "AI CoE（本部）",
+        "develops": "全社共通基盤・テナント分析・新技術検証・事例化",
+        "tools": "GitHub Copilot / 管理 API",
+        "githubCopilot": true,
+        "maintenance": "必要",
+        "group": "AI CoE セントラルグループ"
+      }
+    ],
+    "citizenDeveloperExceptions": {
+      "policy": "Cowork スキル以外の開発（キャンバス アプリ / モデル駆動型アプリ / フロー / エージェント）は、どうしても必要になった場合のみ市民開発者に許可する。",
+      "conditions": [
+        "Cowork スキルでは実現できない理由が説明できること",
+        "保守の担当者と期限が決まっていること（決まらないなら AI CoE へ依頼する）",
+        "市民開発者環境グループのルール（共有上限・コネクタ・Code Apps 不可）の範囲に収まること"
+      ],
+      "escalation": "上記を満たせない場合は AI CoE 内製開発グループへ移管する。"
+    },
+    "reviewThresholds": {
+      "citizenBusinessSystemApps": 10,
+      "why": "市民開発者向けグループの環境にアプリ + フローが多数あるのは、保守が必要な業務システムが育っている兆候。AI CoE への移管を検討する。"
+    }
+  },
+  "namingConvention": {
+    "why": "環境名を人が都度考えると表記ゆれが起きて、どのグループのどの段階の環境かが一覧で判別できなくなる。ルールベースで機械的に決めれば、環境グループへの割り当ても DLP の棚卸しも名前だけで判断できる。",
+    "displayNamePattern": "{orgCode}-{groupCode}-{workload}-{stageCode}",
+    "domainNamePattern": "{orgcode}{groupcode}{workload}{stagecode}",
+    "orgCode": "CONTOSO",
+    "separator": "-",
+    "maxDisplayNameLength": 64,
+    "maxDomainNameLength": 32,
+    "stageCodes": {
+      "Dev": "DEV",
+      "Test": "TST",
+      "Prod": "PRD",
+      "Sandbox": "SBX",
+      "Trial": "TRL",
+      "Personal": "PSN"
+    },
+    "rules": [
+      "英数字とハイフンのみを使う。日本語・空白・記号は使わない（ドメイン名に流用できなくなるため）。",
+      "workload は業務・製品の略号を 3〜12 文字で書く（例: KBMGR / SALES / HRDESK）。",
+      "個人開発者環境は Power Platform が自動命名するため、この規則の対象外とする。",
+      "既定環境は名前を変更しない。",
+      "同じ workload の Dev / Test / Prod は stageCode だけが違う名前にして、パイプラインの対応関係を名前で追えるようにする。"
+    ],
+    "examples": [
+      "CONTOSO-COE-KBMGR-DEV",
+      "CONTOSO-COE-KBMGR-TST",
+      "CONTOSO-CTZ-HRDESK-DEV"
+    ]
+  },
+  "environmentDefaults": {
+    "why": "環境を作るたびにリージョン・言語・通貨を選び直すと、環境ごとにばらつきが出て後から揃えられない（作り直すしかない）。既定値をここで固定する。",
+    "location": "japan",
+    "baseLanguage": 1041,
+    "currency": "JPY",
+    "note": "location / baseLanguage / currency は環境の作成後に変更できない。テナントの主要な利用地域に合わせて最初に決める。"
+  },
+  "ruleModel": {
+    "principle": "設定は環境グループのルールで行うことを原則とする。環境グループのルールに存在しない設定だけを、テナント設定・環境個別設定・Dataverse の組織設定で補う。",
+    "why": "環境グループのルールは発行するとグループ内の全環境へ一括適用され、環境側での上書きがロックされる。環境ごとに設定するとドリフトが発生し、新しい環境を作るたびに設定漏れが起きる。",
+    "outsideGroup": [
+      {
+        "item": "既定環境ルーティング（有効化とルーティング先グループ）",
+        "where": "テナント設定",
+        "api": "POST {bap}/providers/Microsoft.BusinessAppPlatform/scopes/admin/updateTenantSettings?api-version=2021-04-01（差分のみ）"
+      },
+      {
+        "item": "Dataverse for Teams 環境の作成禁止",
+        "where": "テナント設定",
+        "api": "POST {bap}/providers/Microsoft.BusinessAppPlatform/scopes/admin/updateTenantSettings?api-version=2021-04-01（差分のみ）"
+      },
+      {
+        "item": "キャンバス アプリの「全員と共有」を禁止 / Application Insights / ライセンス レポート公開",
+        "where": "テナント設定",
+        "api": "POST {bap}/providers/Microsoft.BusinessAppPlatform/scopes/admin/updateTenantSettings?api-version=2021-04-01（差分のみ）"
+      },
+      {
+        "item": "Dataverse 検索の有効化",
+        "where": "環境ごとの Dataverse 組織設定",
+        "api": "PATCH {dataverseUrl}/api/data/v9.2/organizations({orgId}) の isexternalsearchindexenabled"
+      },
+      {
+        "item": "環境をグループへ割り当てる",
+        "where": "環境の設定",
+        "api": "PATCH {bap}/.../environments/{envId} の properties.parentEnvironmentGroup.id"
+      },
+      {
+        "item": "マネージド環境化（グループへ入れる前提条件）",
+        "where": "環境の設定",
+        "api": "PATCH {bap}/.../environments/{envId} の properties.governanceConfiguration"
+      },
+      {
+        "item": "Copilot クレジットの環境別割り当て数",
+        "where": "ライセンス",
+        "api": "PATCH {tenantHost}/licensing/environments/{envId}/allocations?api-version=1（グループ ルールは「テナント クレジット プールを使うか」の可否のみ）"
+      }
+    ]
+  },
+  "tenantSettings": {
+    "powerPlatform.governance.disableAdminDigest": {
+      "expected": false,
+      "label": "週間ダイジェスト（管理者ダイジェスト）",
+      "why": "環境・アプリ・フローの週次サマリーを管理者へ配信し、放置環境と異常を早期に検知する。"
+    },
+    "powerPlatform.governance.enableDefaultEnvironmentRouting": {
+      "expected": true,
+      "label": "既定環境ルーティング",
+      "why": "新規メーカーを既定環境ではなく個人の開発者環境へ誘導し、既定環境の肥大化を防ぐ。"
+    },
+    "powerPlatform.governance.environmentRoutingTargetEnvironmentGroupId": {
+      "expectedGroup": "市民開発者環境グループ",
+      "label": "ルーティング先の環境グループ",
+      "why": "自動作成される開発者環境が最初から市民開発者グループのルールで統制される。"
+    },
+    "disableTeamsEnvironmentCreationByNonAdminUsers": {
+      "expected": true,
+      "label": "Dataverse for Teams 環境の作成を禁止",
+      "why": "Dataverse for Teams は利用しない。統制対象外の環境が増えるのを防ぐ。"
+    },
+    "powerPlatform.governance.disableDeveloperEnvironmentCreationByNonAdminUsers": {
+      "expected": false,
+      "label": "個人の開発者環境の作成（非管理者）",
+      "why": "学習用の個人開発者環境を許可する。ルーティング先グループのルールで統制する。"
+    },
+    "powerPlatform.powerApps.disableShareWithEveryone": {
+      "expected": true,
+      "label": "キャンバス アプリの「全員と共有」を禁止",
+      "why": "テナント全体への意図しない共有を防ぐ。共有上限は環境グループのルールで別途制御する。"
+    },
+    "powerPlatform.powerApps.enableCanvasAppInsights": {
+      "expected": true,
+      "label": "キャンバス アプリの Application Insights",
+      "why": "アプリのエラー・利用ログを Application Insights へ送り、障害調査を可能にする。"
+    },
+    "powerPlatform.licensing.enableTenantLicensingReportForEnvironmentAdmins": {
+      "expected": true,
+      "label": "テナント ライセンス レポート（環境管理者へ公開）",
+      "why": "テナントレベルの分析を環境管理者が確認でき、ライセンス不足を早期に把握できる。"
+    },
+    "powerPlatform.licensing.enableTenantCapacityReportForEnvironmentAdmins": {
+      "expected": true,
+      "label": "テナント容量レポート（環境管理者へ公開）",
+      "why": "容量超過による停止を未然に防ぐ。"
+    }
+  },
+  "connectorPolicy": {
+    "mode": "ACPOnly",
+    "profile": "microsoft-first-party",
+    "why": "ACP は default-deny の許可リストで、新規コネクタが自動で許可されない。ACP 専用モードにするとクラシック DLP は評価されなくなるため、ポリシーが一本化されて運用が単純になる。",
+    "note": "ACP 専用モードは環境グループのルール `AdvancedConnectorPoliciesOnly` として設定する（グループ単位で有効化できる）。有効化してもクラシック DLP は削除されず、評価対象外になるだけなので切り戻せる。"
+  },
+  "dataverse": {
+    "searchEnabledForAllEnvironments": true,
+    "why": "Dataverse 検索（リレーショナル 検索）を全環境で有効化する。Copilot Studio の知識・Code Apps の検索体験の前提。",
+    "attribute": "organizations.isexternalsearchindexenabled"
+  },
+  "lifecyclePolicy": {
+    "why": "環境グループへ環境を入れる前に棚卸しをする。使われていない環境をそのままグループへ入れると、マネージド環境化のライセンスも Dataverse 容量も無駄に消費し続ける。先に削除すれば容量がテナント プールへ戻り、新しい環境を作る余地が生まれる。",
+    "unusedEnvironment": {
+      "maxApps": 2,
+      "maxFlows": 2,
+      "inactiveDays": 180,
+      "excludeDefault": true,
+      "excludeSkus": [
+        "Default",
+        "Teams"
+      ],
+      "why": "アプリもフローもほとんど無く、最終更新から半年以上動いていない環境は、作りかけか一度きりの検証で放置されたもの。所有者に確認したうえで削除する。",
+      "action": "所有者へ確認 → ソリューション / データのバックアップ → 削除",
+      "note": "削除すると Database / File / Log の消費量がテナント容量プールへ戻る。削除後 7 日間は管理センターからリカバリできる。"
+    },
+    "reuseExistingEnvironment": {
+      "looseConnectorAllowedCount": 100,
+      "minApps": 10,
+      "recommendGroup": "AI CoE 内製開発グループ",
+      "recommendStage": "Dev",
+      "why": "コネクタ制限がゆるく（ACP 未割り当て、または許可コネクタが多い）アプリが多数動いている既存環境は、実質的に内製開発の現場になっている。これを市民開発者グループの厳しいルールへ入れると既存アプリが止まる。AI CoE 内製開発グループの開発環境として採用し、パイプラインで下流へ流す形に整える。"
+    },
+    "blockUnmanagedCustomizations": {
+      "meansProduction": true,
+      "why": "「アンマネージド カスタマイズ不可」が既に ON の環境は、ソリューション経由でしか変更できない運用が確立している。これは本番環境に求められる条件そのものなので、新規作成せずに AI CoE 内製開発グループの本番環境として採用する。",
+      "api": "GET {pp}/environmentmanagement/environments/{envId}/settings?api-version=2022-03-01-preview（委任アクセス許可 EnvironmentManagement.Settings.Read が必要）",
+      "fallback": "上記 API が 403 になる場合は Power Platform 管理センターの [環境] > [設定] > [製品] > [機能] で目視確認し、下の environmentFacts に手入力する。"
+    }
+  },
+  "environmentFacts": {
+    "$comment": "API で読めない環境個別の事実を手入力で補う。キーは環境の表示名。scan_environment_strategy.py が API 値より優先して採用する。",
+    "<環境の表示名>": {
+      "blockUnmanagedCustomizations": false
+    }
+  },
+  "groups": [
+    {
+      "name": "既定環境グループ",
+      "code": "DEF",
+      "purpose": "既定環境を隔離するためのグループ。新規開発には使わせない。",
+      "isolateDefaultEnvironment": true,
+      "rules": {
+        "sharingLimitUsers": 1,
+        "solutionCheckerMode": "block",
+        "codeApps": false,
+        "copilotCredits": false,
+        "managedSolutionsOnly": true,
+        "makerWelcomeContent": true,
+        "welcomeMessage": "### この環境（既定環境）は利用しないでください\n\n既定環境は組織全体に共有される特別な環境のため、業務アプリ・フロー・エージェントの開発には使用できません。\n\n- すべてのコネクタがブロックされています\n- アンマネージド カスタマイズは保存できません\n- 共有は 1 名までに制限されています\n\n開発は **個人開発者環境** または **市民開発者環境** で行ってください。"
+      },
+      "connectorPolicyOverride": {
+        "mode": "BlockAll",
+        "allowedConnectors": [],
+        "why": "既定環境は全テナントのユーザーがメーカー権限を持つため、コネクタを全てブロックして実質的に利用不可にする。ACP は default-deny なので許可リストを空にすればよい。"
+      },
+      "environments": [
+        {
+          "name": "既定環境（テナントに 1 つ）",
+          "type": "Default",
+          "lifecycle": "永続",
+          "managedSolutionsOnly": true,
+          "note": "削除できないため、全コネクタブロック + 利用禁止のウェルカム メッセージで隔離する。"
+        }
+      ]
+    },
+    {
+      "name": "個人開発者環境グループ",
+      "code": "PSN",
+      "purpose": "学習用。会社のポリシーを理解した市民開発者が個人の開発者環境を持つ。本番利用は不可。",
+      "rules": {
+        "sharingLimitUsers": 1,
+        "solutionCheckerMode": "warn",
+        "codeApps": false,
+        "copilotCredits": false,
+        "makerWelcomeContent": true
+      },
+      "environments": [
+        {
+          "name": "各メーカーの個人開発者環境",
+          "type": "Developer",
+          "lifecycle": "永続",
+          "note": "既定環境ルーティングで自動作成される。手動作成は不要。"
+        }
+      ]
+    },
+    {
+      "name": "市民開発者環境グループ",
+      "code": "CTZ",
+      "purpose": "一般の市民開発者が利用する。認定前後で環境を分ける。",
+      "environmentRoutingTarget": true,
+      "rules": {
+        "sharingLimitUsers": 10,
+        "solutionCheckerMode": "warn",
+        "codeApps": false,
+        "copilotCredits": true,
+        "makerWelcomeContent": true
+      },
+      "environments": [
+        {
+          "name": "トレーニング環境",
+          "workload": "TRAIN",
+          "stage": "Sandbox",
+          "type": "Sandbox",
+          "lifecycle": "定期リセット",
+          "sharingLimitUsers": 5,
+          "copilotCredits": false,
+          "note": "認定前。AI CoE がルール理解度とスキルを確認するための環境。"
+        },
+        {
+          "name": "市民開発者環境",
+          "workload": "CITIZEN",
+          "stage": "Prod",
+          "type": "Production",
+          "lifecycle": "永続",
+          "sharingLimitUsers": 10,
+          "copilotCredits": true,
+          "note": "認定後。最低限のコネクタのみ。Code Apps は不可。"
+        }
+      ]
+    },
+    {
+      "name": "AI CoE セントラルグループ",
+      "code": "CTRL",
+      "purpose": "AI CoE / IT 部門が全社分析と新技術検証に使う。決められたユーザーのみ。",
+      "rules": {
+        "sharingLimitUsers": null,
+        "solutionCheckerMode": "warn",
+        "codeApps": true,
+        "copilotCredits": true,
+        "makerWelcomeContent": true
+      },
+      "environments": [
+        {
+          "name": "AI CoE 分析",
+          "workload": "ANALYTICS",
+          "stage": "Prod",
+          "type": "Production",
+          "lifecycle": "永続",
+          "note": "テナント分析基盤（CoE Starter Kit 等）。"
+        },
+        {
+          "name": "AI CoE 検証",
+          "workload": "LAB",
+          "stage": "Sandbox",
+          "type": "Sandbox",
+          "lifecycle": "永続",
+          "note": "新機能・プレビューの検証。"
+        }
+      ]
+    },
+    {
+      "name": "AI CoE 内製開発グループ",
+      "code": "COE",
+      "purpose": "本部 / 事業部の AI CoE が Code Apps を含む内製開発を行う。開発・テスト・本番のランドスケープを Power Platform パイプラインで繋ぎ、データのサイロ化と手動デプロイを防ぐ。",
+      "productionPolicy": {
+        "mode": "createNew",
+        "why": "このグループの本番環境は条件が厳しい（アンマネージド カスタマイズ不可・デプロイはパイプライン経由のみ・コネクタは最小限）。既存環境を本番へ転用すると、既に入っているアンマネージド コンポーネントを剥がせず条件を満たせない。原則として新規作成する。",
+        "validationEnvironment": "optional",
+        "validationWhy": "検証（UAT）環境は必須ではない。開発 → テスト → 本番の 3 段で足りる場合は作らず、ユーザー受け入れテストが要件になっているプロジェクトだけ追加する。",
+        "adoptExistingWhenBlockUnmanaged": true,
+        "adoptExistingWhy": "例外として、既に「アンマネージド カスタマイズ不可」が ON になっている既存環境があれば、新規作成せずにこのグループの本番環境として採用する。"
+      },
+      "rules": {
+        "sharingLimitUsers": null,
+        "solutionCheckerMode": "warn",
+        "codeApps": true,
+        "copilotCredits": true,
+        "makerWelcomeContent": true,
+        "pipelines": true
+      },
+      "environments": [
+        {
+          "name": "AI CoE 開発",
+          "workload": "KBMGR",
+          "type": "Sandbox",
+          "lifecycle": "永続",
+          "stage": "Dev",
+          "sharingLimitUsers": 10
+        },
+        {
+          "name": "AI CoE テスト",
+          "workload": "KBMGR",
+          "type": "Sandbox",
+          "lifecycle": "永続",
+          "stage": "Test",
+          "sharingLimitUsers": 20
+        },
+        {
+          "name": "AI CoE 検証（オプション）",
+          "workload": "KBMGR",
+          "type": "Sandbox",
+          "lifecycle": "永続",
+          "stage": "Sandbox",
+          "optional": true,
+          "sharingLimitUsers": 20,
+          "note": "ユーザー受け入れテストが要件のプロジェクトだけ作る。不要なら作らない（容量とライセンスを消費するため）。"
+        },
+        {
+          "name": "AI CoE 本番",
+          "workload": "KBMGR",
+          "type": "Production",
+          "lifecycle": "永続",
+          "stage": "Prod",
+          "provisioning": "createNew",
+          "note": "原則として新規作成する。既に「アンマネージド カスタマイズ不可」が ON の既存環境があれば、それを本番として採用する。"
+        }
+      ]
+    }
+  ],
+  "licenses": {
+    "managedEnvironmentSkuKeywords": [
+      "POWERAPPS_PER_USER",
+      "POWERAPPS_PER_APP",
+      "POWERAUTOMATE_ATTENDED_RPA",
+      "FLOW_PER_USER",
+      "POWERAPPS_PREMIUM",
+      "DYN365"
+    ],
+    "copilotStudioSkuKeywords": [
+      "POWER_VIRTUAL_AGENTS",
+      "COPILOT_STUDIO",
+      "MCS"
+    ],
+    "why": "マネージド環境のアプリ・フローを利用するユーザーには Power Apps Premium 等のスタンドアロン ライセンスが必要。Microsoft 365 に含まれるシード ライセンスだけでは利用できない。"
+  },
+  "guideline": {
+    "sharePointPageTitle": "Power Platform 利用ガイドライン",
+    "sections": [
+      "対象となる環境グループと、それぞれで何ができるか",
+      "利用可能なコネクタ一覧（ACP の許可セット）",
+      "利用できないコネクタと、その理由（サードパーティ / レガシー）",
+      "追加コネクタの申請フローと承認基準",
+      "認定プロセス（トレーニング環境 → 市民開発者環境）",
+      "共有可能人数の上限と、超える場合の相談先",
+      "Copilot クレジットの割り当てと消費の考え方",
+      "問い合わせ先（AI CoE）"
+    ],
+    "distribution": "作成したページの URL を、各環境グループの「メーカー ウェルカム コンテンツ」ルールに設定して配布する。"
+  },
+  "pipelines": [
+    {
+      "name": "AI CoE 内製開発パイプライン",
+      "purpose": "AI CoE 内製開発グループの開発環境からテスト環境へ、ソリューションをマネージドで配布する。手動エクスポート/インポートを禁止して、変更の経路を 1 本にする。",
+      "hostEnvironmentName": "<パイプライン ホスト環境の名前>",
+      "hostEnvironmentUrl": "https://<pipelinehost>.crm.dynamics.com",
+      "developmentEnvironments": [
+        {
+          "name": "<開発環境の名前>",
+          "environmentId": "<開発環境の環境 ID>"
+        }
+      ],
+      "stages": [
+        {
+          "name": "テストへ配布",
+          "environmentName": "<テスト環境の名前>",
+          "environmentId": "<テスト環境の環境 ID>"
+        }
+      ],
+      "note": "本番環境を持つ場合は stages に「本番へ配布」を追加する。stages は配列の順序どおりに前段のステージが previousDeploymentStage として連結される。"
+    }
+  ]
+}

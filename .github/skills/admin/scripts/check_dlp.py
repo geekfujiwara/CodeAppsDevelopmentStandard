@@ -5,7 +5,7 @@
 読み取り専用でポリシーは一切変更しない。手順の詳細は references/dlp-precheck.md を参照。
 
 ```powershell
-python .github/skills/standard/scripts/check_dlp.py `
+python .github/skills/admin/scripts/check_dlp.py `
   --environment-id $env:ENV_ID `
   --tenant-id $env:TENANT_ID `
   --connector shared_commondataserviceforapps `

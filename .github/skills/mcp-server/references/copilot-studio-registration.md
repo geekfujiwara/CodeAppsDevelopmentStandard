@@ -118,6 +118,10 @@ Client secret は作成・ローテーションしない。入力ガイドにも
 実データが回答へ反映されることを確認する。ツールが呼ばれない場合は、登録問題と Server 問題を分けるため
 `verify_mcp_server.py` を再実行する。
 
+接続が `Connected` のはずなのに Edit 画面で `HTTP 401` が出る場合は、DLP やアプリ登録を疑う前に
+`diagnose_connector_token.py` で「未接続」「トークン失効（要再認証）」「aud/iss 不一致」を切り分ける。
+→ [troubleshooting.md](troubleshooting.md)
+
 ## 代替: OpenAPI からカスタムコネクタを作る
 
 定義をコード管理する場合は `swagger: '2.0'` で MCP の POST 操作だけを定義し、Power Apps の

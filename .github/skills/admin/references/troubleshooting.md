@@ -1,0 +1,281 @@
+# 異常系・詰まりどころ
+
+## 1. Copilot Studio で「データ損失防止ポリシーによりブロックされています」と出る
+
+**症状**: カスタムコネクタ（自前 MCP Server 等）をツールとして追加すると、DLP でブロックされたと表示される。
+ポリシーを見ても、そのコネクタは Blocked に入っていない。
+
+**原因**: テナント ポリシーの URL パターン規則が `Ignore *` だけの場合、カスタムコネクタは
+**未分類**のままになる。Copilot Studio の評価では、未分類はブロック相当として扱われることがある。
+
+**対処**: 対象ホストだけに規則を 1 本追加して明示分類する。
+
+```powershell
+python .github/skills/admin/scripts/set_dlp_custom_connector.py `
+  --tenant-id $env:TENANT_ID --policy "<表示名>" `
+  --host <host>.azurewebsites.net --classification General --apply
+```
+
+**恒久対策済み**: `check_dlp.py` の `_custom_classification()` が未分類を検出して `NG` にする。
+
+## 1-b. DLP は OK なのに Copilot Studio でブロックが続く（ACP）
+
+**症状**: `check_dlp.py` が `OK` を返し、URL 規則も他コネクタと同じグループに揃えたのに、
+Copilot Studio でツールを追加すると「組織のデータ損失防止ポリシーによりブロックされています」が出続ける。
+
+**原因**: **ACP（Advanced connector policies）**が環境または環境グループに適用されている。
+ACP は default-deny の厳格な許可リストで、既定の**混成モード**ではクラシック DLP と併用され
+**より制限の厳しい方**が適用される。許可リストに無いコネクタはクラシック DLP が OK でもブロックされる。
+
+**確認**:
+
+```powershell
+python .github/skills/admin/scripts/set_acp_connector.py `
+  --environment-id $env:ENV_ID --include-group --connector <shared_xxx>
+```
+
+`[ブロック]` と表示されたら ACP が原因。管理センターでは
+**セキュリティ > データとプライバシー > Advanced connector policies** で `Status` を確認できる。
+
+**対処**: 許可リストに追加する。反映後は許可コネクタ数が増えることを必ず確認する。
+
+```powershell
+python .github/skills/admin/scripts/set_acp_connector.py `
+  --policy-id <グループ ポリシー ID> --connector <shared_xxx> --apply
+```
+
+## 1-c. ACP に追加したのに許可コネクタ数が増えない
+
+**症状**: 環境ポリシー（`Synced Environment Policy (from Environment Group)`）に PATCH すると
+HTTP は成功するのに、読み直すと件数が元のままになる。
+
+**原因**: 環境に割り当てられているのは環境グループからの**同期コピー**。
+グループ側のポリシーが正であり、同期でその内容に戻される。
+
+**対処**: `GET /governance/ruleBasedPolicies/environmentGroups/{groupId}/assignments` で
+グループの `policyId` を取得し、そちらを `--policy-id` に指定して更新する。
+`set_acp_connector.py --include-group` は両方を確認するので、差分が出たらグループ側を直す。
+
+## 1-d. ACP の許可セットを `publisher` で作ろうとして 3rd パーティが混ざる
+
+**症状**: 「Microsoft 提供のコネクタだけ許可する」つもりで
+`properties.publisher == "Microsoft"` を条件にしたら、Google Drive・YouTube・Mailchimp・
+Zendesk などが許可セットに入ってしまう。
+
+**原因**: コネクタの `publisher` は**コネクタの作者**であり、**サービスの提供元ではない**。
+サードパーティ サービス向けのコネクタも Microsoft が作成・公開しているため publisher は `Microsoft` になる。
+`metadata.stackOwner` も第一者コネクタでは空で、判定に使えない。
+
+**対処**: コネクタ ID（`shared_xxx`）のパターンで判定する。
+定義は [acp-profiles.json](acp-profiles.json) にあり、`mustNotAllow` に代表的な
+サードパーティ サービスを列挙して、混入したら `apply_acp_profile.py` が中断する。
+
+## 1-e. ACP の許可リストを置き換えて全部ブロックしてしまう
+
+**症状**: 移行やプロファイル適用で `AllowedConnectorList` を上書きした結果、
+必要なコネクタまで消えてアプリ・フロー・エージェントが一斉に動かなくなる。
+
+**原因**: `apply_acp_profile.py` と `migrate_dlp_to_acp.py` は許可リストを**置き換える**。
+クラシック DLP の「Non-business を全部許可」に相当する状態から移行すると、削除件数が 1,000 件を超えることもある。
+
+**対処**:
+
+- 必ず dry-run の差分（追加 / 削除の件数と一覧）をユーザーに提示してから `--apply` する。
+- カスタムコネクタは既定で引き継がれる（`apply_acp_profile.py`）。移行スクリプトでは `--keep-custom` を明示する。
+- 許可セットが 0 件になる指定は `migrate_dlp_to_acp.py` が中断する（意図的なら `--allow-empty`）。
+- 環境グループ配下の全環境に効くため、まず 1 環境だけに ACP を割り当てて検証する。
+
+## 1-f. 「ACP のみ」モードを切り替えたい
+
+**症状**: クラシック DLP を無視して ACP だけで運用したいが、`listTenantSettings` や
+`governance/tenantSettings` に実施モードの項目が見つからない。
+
+**原因**: 実施モードはテナント設定ではなく**環境グループのルール**として保存される。
+
+**対処**: グループ ルール `AdvancedConnectorPoliciesOnly` を設定する。
+
+```bash
+python set_environment_group_rules.py --tenant-id <TENANT_ID> --environment-group-id <GROUP_ID> `
+  --policy-rule "AdvancedConnectorPoliciesOnly/EnableAdvancedConnectorPoliciesOnly=true" --apply
+```
+
+未設定時は**混成モード（既定）**で、クラシック DLP と ACP の**より制限の厳しい方**が適用される。
+テナント全体に一括適用するスイッチは無いので、グループごとに設定する。
+
+## 2. `urlPatterns` の POST で既存規則が消えた
+
+**原因**: `POST .../policies/{policy}/urlPatterns` は**全置換**。差分更新ではない。
+
+**対処**: 必ず GET してから、既存規則を含めた完全な配列を送る。
+
+**恒久対策済み**: `set_dlp_custom_connector.py` の `_build_rules()` が既存規則と末尾の `*` を保持し、
+`order` を 1 から振り直す。入力の辞書はコピーしてから加工するため、dry-run 表示が壊れることもない。
+
+## 3. dry-run の「現在」表示が変更後と同じになる
+
+**原因**: 規則リストの辞書を破壊的に加工していた（`order` の振り直しが元データにも及んでいた）。
+
+**対処 / 恒久対策済み**: `_build_rules()` で `dict(rule)` によりコピーしてから加工する。
+
+## 4. 環境チェックの Dataverse 項目がスキップされる
+
+**症状**: `WARN Dataverse 接続先: .env の DATAVERSE_URL が環境の instanceUrl と一致しません`。
+
+**原因**: `.env` の `DATAVERSE_URL` と `ENV_ID` が別の環境を指している。
+
+**対処**: `.env` の 2 つを同じ環境に揃える。複数環境を扱う場合は `--environment-id` と
+`DATAVERSE_URL` を同時に切り替える。誤った組織を検査しないための意図的な安全策。
+
+## 5. Code Apps が `WARN` になるが、実際は有効
+
+**原因**: Code Apps の許可トグルを読む公開 API が無いため、環境内のコード アプリ件数で代替判定している。
+まだ 1 つもデプロイしていない環境では 0 件になる。
+
+**対処**: 管理センター（環境 > 設定 > 製品 > 機能）でトグルを確認する。確認済みなら `WARN` は無視してよい。
+
+## 6. `api.powerplatform.com` が 403 (`InsufficientDelegatedPermissions`) になる
+
+**原因**: `auth_helper` が使う公開クライアントには Power Platform API の委任アクセス許可
+（`EnvironmentManagement.Settings.Read` など）が付与されていない。
+
+**対処**: 同等の情報は BAP（`api.bap.microsoft.com`）の管理 API から取得できる。
+このスキルのスクリプトはすべて BAP / PowerApps / Dataverse の API だけを使っている。
+
+## 7. ポリシー変更が反映されない
+
+**原因**: DLP の反映には時間がかかる（通常 1 時間以内、最大 24 時間）。
+
+**対処**: 待ってから `check_dlp.py` を再実行する。急ぐ場合でもポリシーを何度も書き換えない
+（全置換 API のため、事故のリスクだけが増える）。
+
+## 8. `--policy` で複数のポリシーが一致してエラーになる
+
+**原因**: 表示名の部分一致で複数ヒットした。
+
+**対処**: エラーメッセージに出る候補から、完全一致する表示名または `name`（GUID）を指定する。
+
+## 9. 管理センターでしかできない設定の API を見つけたい
+
+**症状**: 環境グループのルールや Copilot クレジット配分など、公開ドキュメントに API が無い。
+
+**対処**: VS Code の統合ブラウザで管理センターを開き、`fetch` と `XMLHttpRequest` を差し替えて
+実際の呼び出しを採取する。操作後に `window.__cap` を読む。
+
+```javascript
+window.__cap = [];
+const of = window.fetch;
+window.fetch = function (input, init) {
+  const url = typeof input === 'string' ? input : (input && input.url);
+  window.__cap.push({ method: (init && init.method) || 'GET', url, body: init && init.body });
+  return of.apply(this, arguments);
+};
+const oo = XMLHttpRequest.prototype.open, os = XMLHttpRequest.prototype.send;
+XMLHttpRequest.prototype.open = function (m, u) { this.__m = m; this.__u = u; return oo.apply(this, arguments); };
+XMLHttpRequest.prototype.send = function (b) {
+  window.__cap.push({ method: this.__m, url: this.__u, body: typeof b === 'string' ? b : undefined });
+  return os.apply(this, arguments);
+};
+```
+
+- ページをフルロードすると差し替えが消えるので、遷移後に再度実行する。
+- 読み取りはページを開くだけ、書き込みは実際に保存ボタンを押すと採取できる。
+- 見つけた API は [rule-catalog.md](rule-catalog.md) に記録しておく。
+
+## 10. グループ ルールの PATCH が 400 `Expected Boolean but got String` になる
+
+**原因**: `GET .../ruleBasedPolicies` は Boolean も整数も**文字列**で返す（`"False"` / `"1"`）が、
+`PATCH` は JSON の型を要求する。GET の結果をそのまま送り返すと失敗する。
+
+**対処**: 送信前に型を戻す（`set_environment_group_rules.py` の `_coerce()`）。
+変更しない既存の `inputs` も同じボディに含まれるので、全件を正規化する。
+`MakerOnboardingContent` の値だけは常に文字列のままでよい。
+
+## 11. `saveTenantSettings` がどの API バージョンでも 404 になる
+
+**原因**: `saveTenantSettings` は存在しない。`scopes/admin` を付けても 404。
+
+**対処**: 書き込みは
+`POST {BAP}/providers/Microsoft.BusinessAppPlatform/scopes/admin/updateTenantSettings?api-version=2021-04-01`。
+ボディは**変更する項目の差分だけ**を入れ子のまま送る（全体を送る必要はない）。
+読み取りは `POST {BAP}/providers/Microsoft.BusinessAppPlatform/listTenantSettings?api-version=2021-04-01`
+（こちらは `scopes/admin` を**付けない**）。
+
+## 12. 既定環境ルーティングの送り先グループを変えられない
+
+**症状**: `PATCH {T}/governance/tenantRuleBasedPolicies/{id}` が 404 `RouteNotFound`。
+
+**原因**: `tenantRuleBasedPolicies` は読み取り専用の射影。
+
+**対処**: テナント設定の
+`powerPlatform.governance.environmentRoutingTargetEnvironmentGroupId`（と `enableDefaultEnvironmentRouting`）を
+`updateTenantSettings` で更新する。`apply_environment_strategy.py --tenant-settings-only --apply` がこれを行う。
+
+## 13. `api.bap.microsoft.com` で SSL 切断・接続リセットが頻発する
+
+**症状**: `SSLEOFError` や `RemoteDisconnected` でスクリプトが落ちる。
+
+**原因**: BAP の管理 API は長めの応答で接続を切ることがある。
+
+**対処**: 3 秒間隔で 4 回程度リトライする（本スキルの各スクリプトは実装済み）。
+タイムアウトは 120〜180 秒を見込む。
+
+## 14. CSP を空に戻そうとして 400 `contentsecuritypolicyconfiguration cannot be NULL` になる
+
+**症状**: `contentsecuritypolicyconfiguration` に `null` を PATCH すると 400 になる。
+
+**原因**: この列は必須項目で `null` を受け付けない。
+
+**対処**: 空の JSON 文字列 `{}` を送る。スクリプトなら次のとおり。
+
+```bash
+python set_content_security_policy.py --environment-url <ENV_URL> --reset-directives --disable --apply
+```
+
+## 15. CSP を有効にしたらアプリが白画面になった
+
+**症状**: `--enable` した直後からアプリが表示されなくなる。
+
+**原因**: ディレクティブに載っていない読み込み元がブラウザー側でブロックされている。
+
+**対処**: いきなり強制せず、次の順で進める。戻すときは `--disable --apply`。
+
+1. `--report-uri` だけを設定して report-only で違反を集める
+2. 違反に出た読み込み元を `--directive` に追加する
+3. 違反が出なくなってから `--enable` する
+
+反映まで数分かかるため、ブラウザーのキャッシュも消してから確認する。
+
+## 16. Dataverse 容量を環境ごとに配分できない
+
+**症状**: `PATCH {T}/licensing/environments/{env}/allocations` に `currencyType: "Database"` を渡すと
+400 `Error converting value "Database"` になる。
+
+**原因**: Dataverse ストレージは消費ベースでテナント プールから引かれる仕組みで、環境ごとの配分 API は無い。
+配分できるのは Copilot クレジットや AI Builder クレジットなどのアドオン容量だけ。
+
+**対処**: `set_environment_capacity.py --storage` で環境ごとの消費量を一覧し、逼迫している場合は
+不要な環境の削除・監査ログの保持期間短縮・ファイルの整理で対処する。
+
+## 17. HTML レポートが統合ブラウザで `Forbidden. File does not reside within a trusted folder.` になる
+
+**症状**: `generate_strategy_report.py --output $env:TEMP\report.html` で生成した HTML を
+VS Code の統合ブラウザで `file:///...` として開くと、上記エラーで表示されない。
+
+**原因**: 統合ブラウザは信頼されたフォルダー（開いているワークスペース）配下の `file://` しか読み込まない。
+一時ディレクトリはワークスペース外なので拒否される。
+
+**対処**: `--output` にワークスペース内のパスを指定する（例: `.\admin-strategy-report.html`）。
+
+**恒久対策済み**: `generate_strategy_report.py` の `assert_openable()` が、出力先が一時ディレクトリ配下なら
+生成前に終了コード 1 で中断する。ブラウザで開かないことが確定している場合のみ `--allow-outside-workspace` で回避する。
+
+## 18. 設計合意の待ち合わせでターミナルが止まったように見える
+
+**症状**: レポートを提示した後、コマンド プロンプトで承認を待つと、処理が終わったのか入力待ちなのかが
+ユーザーから判別できず、セッションが停滞する。
+
+**原因**: 承認ゲートをターミナル側（`Read-Host` / `pause` / `input()`）で作っていた。
+
+**対処**: 承認ゲートは**チャットで取る**。レポートを開いたらそのターンをチャットの応答で終了し、
+確認してほしい点を箇条書きで示してユーザーの返答を待つ。長時間動くコマンドも同じターンに続けない。
+スキル同梱スクリプトはすべて非対話で、`--apply` を付けるまで dry-run（SKILL.md「ワークフロー（正常系）」冒頭の注記）。

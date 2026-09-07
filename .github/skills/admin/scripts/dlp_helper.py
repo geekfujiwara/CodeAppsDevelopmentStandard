@@ -18,7 +18,7 @@ from typing import Any
 
 import requests
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
 
 from auth_helper import get_token  # noqa: E402
 
@@ -95,6 +95,26 @@ def list_custom_connectors(environment_id: str) -> list[dict[str, Any]]:
         f"{environment_id}/apis?api-version={CONNECTOR_API_VERSION}"
     )
     return (_request("GET", url, POWERAPPS_SCOPE) or {}).get("value") or []
+
+
+def list_connector_catalog(environment_id: str) -> list[dict[str, Any]]:
+    """対象環境で参照できる全コネクタ（認定・Independent Publisher 含む）を列挙する。
+
+    ``properties.publisher`` は第一者判定に使えない。Google Drive や YouTube の
+    publisher も ``Microsoft`` になるため、コネクタ ID で判定すること。
+    ``properties.metadata.source`` は ``marketplace`` / ``independentpublisher`` /
+    ``powerapps-user-defined``（カスタムコネクタ）を返す。
+    """
+    url = (
+        f"{POWERAPPS_BASE}/providers/Microsoft.PowerApps/apis"
+        f"?api-version=2016-11-01&showApisWithToS=true"
+        f"&$filter=environment%20eq%20%27{environment_id}%27"
+    )
+    return (_request("GET", url, POWERAPPS_SCOPE) or {}).get("value") or []
+
+
+def connector_source(connector: dict[str, Any]) -> str:
+    return ((connector.get("properties") or {}).get("metadata") or {}).get("source") or ""
 
 
 def normalize_host(value: str) -> str:
