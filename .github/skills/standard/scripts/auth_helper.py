@@ -11,9 +11,17 @@ Power Platform Dataverse デプロイスクリプト用 共通認証ヘルパー
      - pac auth select → pac auth token でトークンを取得
      - インタラクティブセットアップで pac auth create 済みの場合に自動利用
      - デバイスコード認証が不要（インタラクティブ認証済みプロファイルを再利用）
-  2. DeviceCodeCredential（PAC CLI が未設定または失敗した場合のフォールバック）
+  2. DeviceCodeCredential（既定・PAC CLI が未設定または失敗した場合のフォールバック）
      - 2 層キャッシュ（AuthenticationRecord + MSAL 永続キャッシュ）
      - 初回のみデバイスコード認証が走り、以後はサイレントリフレッシュ
+  3. InteractiveBrowserCredential（条件付きアクセスポリシーでデバイスコードフローが
+     ブロックされているテナント向けのオプション）
+     - .env に AUTH_MODE=interactive を設定すると、DeviceCodeCredential の代わりに
+       ローカルブラウザを起動する InteractiveBrowserCredential を使う
+     - 「条件付きアクセスによりこのフローはブロックされています」
+       (AADSTS50199 / device_code flow がテナントポリシーで無効) のエラーが出る場合に使用する
+     - キャッシュの仕組み（AuthenticationRecord + MSAL 永続キャッシュ）は DeviceCodeCredential
+       と共通のため、初回のみブラウザ認証が走り、以後はサイレントリフレッシュされる
 
 PAC CLI 認証の仕組み:
   - PAC_AUTH_PROFILE に pac auth create で作成したプロファイル名を設定
@@ -52,6 +60,11 @@ DeviceCode 認証の仕組み（2 層キャッシュ・マシン全体・テナ�
   - 強制的に再認証したい場合のみ、該当テナントの
     ~/.power-platform-cli/auth_record_{TENANT_ID}.json を削除する
 
+条件付きアクセスポリシーでデバイスコード認証がブロックされる場合:
+  .env に AUTH_MODE=interactive を設定するとローカルブラウザでのインタラクティブ認証に切り替わる
+  （既定値は AUTH_MODE=device_code）。両モードとも既存の AuthenticationRecord /
+  MSAL 永続キャッシュを共有するため、モードを切り替えても初回のみ再認証が走る。
+
 使い方:
   from auth_helper import get_token, get_session, retry_metadata
 
@@ -84,6 +97,7 @@ from azure.core.exceptions import ClientAuthenticationError
 from azure.identity import (
     AuthenticationRecord,
     DeviceCodeCredential,
+    InteractiveBrowserCredential,
     TokenCachePersistenceOptions,
 )
 from dotenv import load_dotenv
@@ -95,6 +109,20 @@ load_dotenv()
 TENANT_ID: str = os.getenv("TENANT_ID", "")
 DATAVERSE_URL: str = os.getenv("DATAVERSE_URL", "").rstrip("/")
 PAC_AUTH_PROFILE: str = os.getenv("PAC_AUTH_PROFILE", "")
+
+# 認証モード: "device_code"（既定）または "interactive"。
+# 条件付きアクセスポリシーによりデバイスコードフロー（AADSTS50199 等）が
+# 許可されていないテナントでは、.env に AUTH_MODE=interactive を設定することで
+# ローカルブラウザを使った InteractiveBrowserCredential に切り替えられる。
+AUTH_MODE: str = os.getenv("AUTH_MODE", "device_code").strip().lower()
+if AUTH_MODE not in ("device_code", "interactive"):
+    print(
+        f"[auth_helper] AUTH_MODE '{AUTH_MODE}' は不正な値のため 'device_code' を使用します"
+        " (有効値: device_code / interactive)",
+        file=sys.stderr,
+    )
+    AUTH_MODE = "device_code"
+_USE_INTERACTIVE_AUTH = AUTH_MODE == "interactive"
 
 # AuthenticationRecord の保存先（マシン全体で共有・プロジェクトをまたいで再利用する）
 # ※ プロジェクトごとにディレクトリが変わると毎回デバイスコード認証が必要になるため、
@@ -156,7 +184,7 @@ _DEFAULT_SCOPE = f"{DATAVERSE_URL}/.default" if DATAVERSE_URL else ""
 # 既定のクライアントは Graph の固定パーミッションセットしか持たないため、
 # それに無いスコープ（例: AppCatalog.ReadWrite.All）が必要な場合のみ、
 # 呼び出し側で別の well-known パブリッククライアント ID を指定できるようにする。
-_credentials: dict[str, DeviceCodeCredential] = {}
+_credentials: dict[str, DeviceCodeCredential | InteractiveBrowserCredential] = {}
 
 
 def _auth_record_path_for(client_id: str | None) -> Path:
@@ -179,13 +207,13 @@ def _device_code_callback(verification_uri: str, user_code: str, expires_on: obj
     )
 
 
-def _build_credential(client_id: str | None = None) -> DeviceCodeCredential:
-    """DeviceCodeCredential を構築する（2 層キャッシュ付き）。
+def _build_credential(client_id: str | None = None) -> DeviceCodeCredential | InteractiveBrowserCredential:
+    """DeviceCodeCredential または InteractiveBrowserCredential を構築する（2 層キャッシュ付き）。
 
     1. TokenCachePersistenceOptions — MSAL 永続トークンキャッシュ
        リフレッシュトークン・アクセストークンを OS 資格情報ストアに保存。
        AuthenticationRecord だけではトークンは保存されないため、
-       この設定が無いと毎回デバイスコード認証が必要になる。
+       この設定が無いと毎回認証が必要になる。
     2. AuthenticationRecord — アカウント情報キャッシュ
        テナント・ユーザー情報を保存し、MSAL キャッシュから正しい
        トークンエントリを検索するキーとして機能する。
@@ -194,6 +222,10 @@ def _build_credential(client_id: str | None = None) -> DeviceCodeCredential:
     （従来どおりの挙動・従来どおりのキャッシュファイル）。別の well-known パブリック
     クライアント（例: Microsoft Graph PowerShell）が必要なスコープを要求する場合のみ
     client_id を明示的に渡す（キャッシュファイルも client_id 別に分離される）。
+
+    AUTH_MODE=interactive の場合は DeviceCodeCredential の代わりに
+    InteractiveBrowserCredential（ローカルブラウザ + ループバックリダイレクト）を使う。
+    条件付きアクセスポリシーでデバイスコードフローがブロックされているテナント向け。
     """
     # OS 永続トークンキャッシュが壊れることがあるため、
     # 環境変数 PP_NO_PERSISTENT_CACHE=1 で無効化可能
@@ -202,8 +234,9 @@ def _build_credential(client_id: str | None = None) -> DeviceCodeCredential:
     kwargs: dict = {
         "tenant_id": TENANT_ID or None,
         "client_id": client_id or None,
-        "prompt_callback": _device_code_callback,
     }
+    if not _USE_INTERACTIVE_AUTH:
+        kwargs["prompt_callback"] = _device_code_callback
 
     if use_persistent_cache:
         cache_options = TokenCachePersistenceOptions(
@@ -245,10 +278,23 @@ def _build_credential(client_id: str | None = None) -> DeviceCodeCredential:
     if auth_record is not None:
         kwargs["authentication_record"] = auth_record
 
+    return _instantiate_credential(kwargs)
+
+
+def _instantiate_credential(kwargs: dict) -> DeviceCodeCredential | InteractiveBrowserCredential:
+    """AUTH_MODE に応じて DeviceCodeCredential / InteractiveBrowserCredential を生成する。"""
+    if _USE_INTERACTIVE_AUTH:
+        print(
+            "[auth_helper] AUTH_MODE=interactive のためローカルブラウザでの"
+            "インタラクティブ認証を使用します（条件付きアクセスでデバイスコードが"
+            "ブロックされているテナント向け）",
+            file=sys.stderr,
+        )
+        return InteractiveBrowserCredential(**kwargs)
     return DeviceCodeCredential(**kwargs)
 
 
-def _ensure_credential(client_id: str | None = None) -> DeviceCodeCredential:
+def _ensure_credential(client_id: str | None = None) -> DeviceCodeCredential | InteractiveBrowserCredential:
     """client_id ごとのシングルトン credential を返す（既定は従来どおり単一の共有 credential）。"""
     key = client_id or ""
     if key not in _credentials:
@@ -424,11 +470,12 @@ def get_token(scope: str | None = None, client_id: str | None = None) -> str:
         kwargs_nocache: dict = {
             "tenant_id": TENANT_ID or None,
             "client_id": client_id or None,
-            "prompt_callback": _device_code_callback,
         }
+        if not _USE_INTERACTIVE_AUTH:
+            kwargs_nocache["prompt_callback"] = _device_code_callback
         kwargs_nocache = {k: v for k, v in kwargs_nocache.items() if v is not None}
         # 認証レコードは使わない（内部キャッシュが壊れる原因になる）
-        credential = DeviceCodeCredential(**kwargs_nocache)
+        credential = _instantiate_credential(kwargs_nocache)
         _credentials[client_id or ""] = credential
         record = credential.authenticate(scopes=[scope])
         _save_auth_record(record, client_id)

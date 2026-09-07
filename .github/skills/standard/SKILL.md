@@ -101,6 +101,7 @@ BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Copilot Studio Bot ID（URL で�
 | `SOLUTION_NAME`    | ソリューション一意名           | 全フェーズ                 |
 | `PUBLISHER_PREFIX` | テーブル・列のプレフィックス   | 全フェーズ                 |
 | `PAC_AUTH_PROFILE` | PAC CLI の認証プロファイル名   | Phase 6 (Code Apps)        |
+| `AUTH_MODE`        | 認証方式（`device_code` 既定 / `interactive`） | 全フェーズ（条件付きアクセスでデバイスコードがブロックされる場合） |
 | `ADMIN_EMAIL`      | フロー通知先メール             | Phase 5 (Power Automate)   |
 | `BOT_ID`           | Copilot Studio Bot ID or URL   | Phase 7 (Copilot Studio)   |
 
@@ -123,6 +124,11 @@ BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Copilot Studio Bot ID（URL で�
 2回目以降（別プロジェクトでも）: キャッシュから自動取得（認証プロンプトなし）
 テナント/アカウント切替時のみ: ~/.power-platform-cli/auth_record.json を削除して再認証
 ```
+
+条件付きアクセスポリシーでデバイスコード認証（AADSTS50199 等）がブロックされているテナントでは、
+`.env` に `AUTH_MODE=interactive` を設定するとローカルブラウザでのインタラクティブ認証
+（`InteractiveBrowserCredential`）に切り替わる（既定は `AUTH_MODE=device_code`）。
+キャッシュの仕組みは共通のため、モードを切り替えても初回のみ再認証すればよい。
 
 認証の公開 API・パターンの詳細実装は [認証リファレンス](references/auth-patterns.md) を参照。
 
