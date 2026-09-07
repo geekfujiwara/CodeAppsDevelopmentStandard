@@ -5,6 +5,70 @@
     "apply_environment_strategy.py が環境グループのルールとして適用する。",
     "組織固有の名称・人数はここを編集して調整する（スクリプトは変更しない）。"
   ],
+  "organizationStrategy": {
+    "why": "誰が何を作るかを決めないと、市民開発者が保守の必要な業務システムを作り、作った本人が異動した瞬間に誰も直せないアプリだけが残る。開発の役割を先に分けてから環境グループを設計する。",
+    "principles": [
+      {
+        "title": "市民開発者は GitHub Copilot を使った開発を行わない",
+        "detail": "トークン消費を抑えるため。市民開発者は GitHub Copilot が必要になるような業務システムを開発しない。"
+      },
+      {
+        "title": "業務システムの内製開発は AI CoE が行う",
+        "detail": "業務システムには保守運用が必要。保守できる体制を持つ AI CoE（本部 / 事業部）が開発し、Power Platform パイプラインで開発 → テスト → 本番を通す。"
+      },
+      {
+        "title": "市民開発が作るのは Copilot Cowork のスキル",
+        "detail": "スキルは保守が要らない。チームで共有し、うまくいった改善事例は AI CoE（事業部）へ共有する。今後の市民開発はスキル開発が前提。"
+      },
+      {
+        "title": "業務システムが欲しいときは 2 つの道しかない",
+        "detail": "自分が AI CoE 開発者（事業部）になるか、AI CoE に保守も含めた開発をリクエストするか。個人で作って個人で抱えることはしない。"
+      },
+      {
+        "title": "AI CoE（本部 / 事業部）は事例化を手伝う",
+        "detail": "市民開発者から上がってきた改善事例を AI CoE がテンプレート化・横展開する。市民開発を止めるのではなく、成果を全社の資産に変える。"
+      }
+    ],
+    "roles": [
+      {
+        "role": "市民開発者",
+        "develops": "Copilot Cowork のスキル",
+        "tools": "Copilot Cowork / Copilot Studio（スキル用途）",
+        "githubCopilot": false,
+        "maintenance": "不要（スキルは保守対象外）",
+        "group": "市民開発者環境グループ / 個人開発者環境グループ"
+      },
+      {
+        "role": "AI CoE 開発者（事業部）",
+        "develops": "業務システム（Code Apps / モデル駆動型アプリ / フロー / エージェント）",
+        "tools": "GitHub Copilot / Power Platform パイプライン",
+        "githubCopilot": true,
+        "maintenance": "必要（開発したものを保守運用する）",
+        "group": "AI CoE 内製開発グループ"
+      },
+      {
+        "role": "AI CoE（本部）",
+        "develops": "全社共通基盤・テナント分析・新技術検証・事例化",
+        "tools": "GitHub Copilot / 管理 API",
+        "githubCopilot": true,
+        "maintenance": "必要",
+        "group": "AI CoE セントラルグループ"
+      }
+    ],
+    "citizenDeveloperExceptions": {
+      "policy": "Cowork スキル以外の開発（キャンバス アプリ / モデル駆動型アプリ / フロー / エージェント）は、どうしても必要になった場合のみ市民開発者に許可する。",
+      "conditions": [
+        "Cowork スキルでは実現できない理由が説明できること",
+        "保守の担当者と期限が決まっていること（決まらないなら AI CoE へ依頼する）",
+        "市民開発者環境グループのルール（共有上限・コネクタ・Code Apps 不可）の範囲に収まること"
+      ],
+      "escalation": "上記を満たせない場合は AI CoE 内製開発グループへ移管する。"
+    },
+    "reviewThresholds": {
+      "citizenBusinessSystemApps": 10,
+      "why": "市民開発者向けグループの環境にアプリ + フローが多数あるのは、保守が必要な業務システムが育っている兆候。AI CoE への移管を検討する。"
+    }
+  },
   "namingConvention": {
     "why": "環境名を人が都度考えると表記ゆれが起きて、どのグループのどの段階の環境かが一覧で判別できなくなる。ルールベースで機械的に決めれば、環境グループへの割り当ても DLP の棚卸しも名前だけで判断できる。",
     "displayNamePattern": "{orgCode}-{groupCode}-{workload}-{stageCode}",

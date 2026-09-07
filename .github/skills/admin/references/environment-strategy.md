@@ -3,6 +3,42 @@
 テナント全体の環境をどう分割し、どのルールで統制するかの標準設計。
 機械可読な定義は [environment-strategy.json](environment-strategy.json) にある。組織固有の名称・人数はそちらを編集する。
 
+## 組織戦略（誰が何を作るか）
+
+環境戦略の前に、開発の役割分担を決める。
+誰が何を作るかを決めないと、市民開発者が保守の必要な業務システムを作り、
+作った本人が異動した瞬間に誰も直せないアプリだけが残る。
+
+| 役割 | 作るもの | 使うツール | GitHub Copilot | 保守 | 所属グループ |
+| --- | --- | --- | --- | --- | --- |
+| 市民開発者 | Copilot Cowork のスキル | Copilot Cowork / Copilot Studio（スキル用途） | 利用しない | 不要 | 市民開発者環境グループ / 個人開発者環境グループ |
+| AI CoE 開発者（事業部） | 業務システム（Code Apps / モデル駆動型アプリ / フロー / エージェント） | GitHub Copilot / Power Platform パイプライン | 利用する | 必要 | AI CoE 内製開発グループ |
+| AI CoE（本部） | 全社共通基盤・テナント分析・新技術検証・事例化 | GitHub Copilot / 管理 API | 利用する | 必要 | AI CoE セントラルグループ |
+
+- **市民開発者は GitHub Copilot を使った開発を行わない。** トークン消費を抑えるため。
+  GitHub Copilot が必要になるような業務システムは、そもそも市民開発の対象ではない。
+- **業務システムには保守運用が必要**なので、保守できる体制を持つ AI CoE が内製開発を行い、
+  Power Platform パイプラインで開発 → テスト → 本番を通す。
+- **市民開発が作るのは Copilot Cowork のスキル。** スキルは保守が要らない。
+  チームで共有し、うまくいった改善事例は AI CoE（事業部）へ共有する。
+- 業務システムが欲しいときは、**自分が AI CoE 開発者（事業部）になる**か、
+  **AI CoE に保守も含めた開発をリクエストする**かの 2 択。個人で作って個人で抱えることはしない。
+- AI CoE（本部 / 事業部）は、上がってきた改善事例のテンプレート化・横展開を手伝う。
+
+### 市民開発者の例外
+
+Cowork スキル以外の開発（キャンバス アプリ / モデル駆動型アプリ / フロー / エージェント）は、
+**どうしても必要になった場合のみ**市民開発者に許可する。次の 3 つを満たすこと。
+
+1. Cowork スキルでは実現できない理由が説明できること
+2. 保守の担当者と期限が決まっていること（決まらないなら AI CoE へ依頼する）
+3. 市民開発者環境グループのルール（共有上限・コネクタ・Code Apps 不可）の範囲に収まること
+
+満たせない場合は AI CoE 内製開発グループへ移管する。
+`scan_environment_strategy.py` + `generate_strategy_report.py` は、市民開発者向けグループの環境に
+アプリ + フローが `organizationStrategy.reviewThresholds.citizenBusinessSystemApps` 件以上ある場合に
+「業務システム化の兆候」としてレポートへ出力する。
+
 ## 大原則
 
 | 原則 | 内容 |
@@ -141,6 +177,7 @@ AI CoE / IT 部門が利用。決められたユーザーのみ。Copilot クレ
 ```
 scan_environment_strategy.py   （読み取り専用スキャン）
         ↓ scan.json
+generate_strategy_report.py    （admin-strategy-report.html を生成 → ブラウザで提示して合意を得る）
 generate_migration_plan.py     （admin-migration-plan.md を生成）
         ↓ ユーザー レビュー・承認
 set_managed_environment.py     （マネージド環境化 = グループの前提条件）
@@ -152,7 +189,13 @@ enable_dataverse_search.py     （全環境の Dataverse 検索）
 set_environment_capacity.py    （Copilot クレジット等の環境別配分と Dataverse 容量の一覧）
 set_content_security_policy.py （Code Apps / モデル駆動 / キャンバスの CSP）
 apply_acp_profile.py           （ACP 許可リストの個別調整）
+        ↓ results.json
+generate_strategy_report.py    （--results-file で「適用結果」タブを追記して再生成）
 ```
+
+`admin-strategy-report.html` は CDN 参照の無い自己完結 HTML なので、ワークスペース内に出力して
+VS Code の統合ブラウザ（`file:///`）またはプレビューで開ける。ワークスペース外のパスは
+`Forbidden. File does not reside within a trusted folder.` で拒否されるため、`$TEMP` などへ出力しない。
 
 グループ ルールを個別に触る場合は `set_environment_group_rules.py` を使う。
 ルール ID と API の一覧は [rule-catalog.md](rule-catalog.md) にある。

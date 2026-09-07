@@ -76,6 +76,7 @@ triggers:
 | [scripts/migrate_dlp_to_acp.py](scripts/migrate_dlp_to_acp.py) | クラシック DLP の分類を ACP の許可リストへ移行 | `--apply` 時のみ |
 | [scripts/set_managed_environment.py](scripts/set_managed_environment.py) | マネージド環境の有効化・共有制限・ソリューション チェッカー設定 | `--apply` 時のみ |
 | [scripts/scan_environment_strategy.py](scripts/scan_environment_strategy.py) | 環境戦略の現状スキャン（テナント設定 / 環境グループ / 環境 / アプリ・フロー数 / Dataverse 容量 / ACP / DLP / ライセンス / Copilot クレジット）。削除候補と割り当て先も提案 | なし |
+| [scripts/generate_strategy_report.py](scripts/generate_strategy_report.py) | スキャン結果から合意形成用のインタラクティブ HTML レポートを生成（組織戦略 / 環境戦略 / 現状 / ギャップ / 実行プラン / 適用結果） | なし |
 | [scripts/generate_migration_plan.py](scripts/generate_migration_plan.py) | スキャン結果から `admin-migration-plan.md` を生成 | なし |
 | [scripts/apply_environment_strategy.py](scripts/apply_environment_strategy.py) | 環境グループの作成・ルール発行・既定環境の割り当て・テナント設定 | `--apply` 時のみ |
 | [scripts/set_environment_group_rules.py](scripts/set_environment_group_rules.py) | 環境グループのルールを個別に確認・設定（共有上限 / ACP / アンマネージド禁止 / Code Apps / ウェルカム コンテンツ） | `--apply` 時のみ |
@@ -91,6 +92,11 @@ triggers:
 | [references/environment-strategy.json](references/environment-strategy.json) | 環境戦略のブループリント（グループ / 環境 / 共有上限 / テナント設定） | なし |
 
 ## ワークフロー（正常系）
+
+> **承認ゲートはチャットで取る。** レポートの提示・プラン合意・破壊的操作の承認は、いずれも
+> そのターンをチャットの応答で終了してユーザーの返答を待つ。ターミナルで `Read-Host` / `pause` /
+> `input()` のような入力待ちをしてはならない（処理が終わったのか待っているのかが判別できないため）。
+> スキル同梱スクリプトはすべて非対話で、`--apply` を付けるまで dry-run。
 
 ### Step 1: 環境チェックを実行する
 
@@ -275,6 +281,18 @@ DLP は反映に時間がかかるため、直後に解消していなくても�
 
 スキャンの前に、まず目指す姿を提示する。
 
+**先に組織戦略（誰が何を作るか）を示す。** これが決まらないと環境設計は決まらない
+（`environment-strategy.json` の `organizationStrategy`）。
+
+- 市民開発者は **GitHub Copilot を使った開発を行わない**（トークン消費を抑えるため）
+- **業務システムの内製開発は AI CoE が行う**。業務システムには保守運用が必要なため、保守できる体制が開発する
+- **市民開発が作るのは Copilot Cowork のスキル**。スキルは保守が要らない。改善事例は AI CoE（事業部）へ共有する
+- 業務システムが欲しいときは、自分が AI CoE 開発者（事業部）になるか、AI CoE に保守込みで開発を依頼するかの 2 択
+- Cowork スキル以外の開発（キャンバス アプリ / モデル駆動型アプリ / フロー / エージェント）は、
+  **どうしても必要になった場合のみ**市民開発者に許可する（保守担当者が決まっていることが条件）
+
+そのうえで環境戦略を示す。
+
 - **設定は環境グループのルールで行う**ことを原則とし、グループ ルールに無い項目だけを他の機能で補うこと
 - 5 つの環境グループ（既定環境 / 個人開発者環境 / 市民開発者環境 / AI CoE セントラル / AI CoE 内製開発）と各環境の役割
 - 既定環境は専用グループに隔離し、全コネクタブロック + 利用禁止のウェルカム メッセージで実質使用不可にすること
@@ -296,12 +314,35 @@ python scan_environment_strategy.py --tenant-id <TENANT_ID> --report-file scan.j
 許可を付与した Entra アプリを `--client-id <APP_ID>` で渡す。渡せない場合は管理センターの
 [環境] > [設定] > [製品] > [機能] で目視確認し、`environment-strategy.json` の `environmentFacts` に手入力する。
 
-#### 10-2. 現状の問題点とメリットを説明する
+#### 10-2. インタラクティブ レポートを生成して合意を得る
 
-スキャン結果から以下を整理してユーザーへ提示する。
+スキャン直後に HTML レポートを生成し、**ブラウザで開いてユーザーに見てもらってから**先へ進む。
+レポートには組織戦略・環境戦略・現状スキャン・ギャップとリスク・実行プランがタブで入っており、
+これ 1 枚で合意形成ができる。
+
+```bash
+python generate_strategy_report.py --scan-file scan.json --output admin-strategy-report.html
+```
+
+生成した HTML は**ワークスペース内**に出力し、VS Code の統合ブラウザ（`file:///` で開く）または
+プレビューで表示する。ワークスペース外のパスは統合ブラウザが `Forbidden. File does not reside within a
+trusted folder.` で拒否するため、`$TEMP` などへ出力しないこと。
+
+> **合意はチャットで取る。ターミナルで入力待ちをしない。**
+> レポートを開いたら、そのターンを**必ずチャットの応答で終了**し、確認してほしい点を箇条書きで示して
+> ユーザーの返答を待つ。`Read-Host` / `pause` / `input()` のようにコマンド プロンプトで待機すると、
+> 処理が終わったのか待っているのかがユーザーから判別できない。長時間動くコマンドも同じターンで続けない。
+
+ユーザーが**チャットで合意したら**次へ進む。合意が得られない項目は 10-4 の AskUserQuestion で詰める。
+適用が終わったら、結果 JSON を `--results-file` で渡して同じレポートを再生成し、「適用結果」タブを追加する。
+
+#### 10-3. 現状の問題点とメリットを説明する
+
+レポートの「ギャップとリスク」タブを画面で示しながら、以下を口頭でも補足する。
 
 | 観点 | 説明すること |
 |---|---|
+| **組織戦略との差異** | 市民開発者向けグループの環境にアプリ + フローが `reviewThresholds.citizenBusinessSystemApps` 件以上あれば、保守が必要な業務システムが育っている兆候。AI CoE 内製開発への移管、または Cowork スキルへの置き換えを提案する |
 | グループ未所属 / 未マネージド環境 | 環境グループにはマネージド環境しか入れられないため、先に対応が必要 |
 | 共有上限 | 無制限のままだと意図しない全社共有が起きる |
 | コネクタ ポリシー | クラシック DLP は既定許可で新規コネクタが素通りする。ACP は default-deny で新規コネクタも自動でブロックされる |
@@ -315,7 +356,7 @@ python scan_environment_strategy.py --tenant-id <TENANT_ID> --report-file scan.j
 削除候補を示すときは、**削除は取り消せないこと・所有者への確認とバックアップが先に必要なこと**を必ず伝える。
 削除の実行はスクリプト化していない（提案までを自動化し、管理センターで人が実行する）。
 
-#### 10-3. 希望を確認して移行プランを作成する
+#### 10-4. 希望を確認して移行プランを作成する
 
 AskUserQuestion で未確定事項を確認する（既存グループの扱い / 削除候補の環境を実際に削除するか /
 本番環境を新規作成するか既存を採用するか / 検証（UAT）環境を作るか / 既定環境の扱い / 開発者環境の開放範囲 /
@@ -326,7 +367,7 @@ AskUserQuestion で未確定事項を確認する（既存グループの扱い 
 python generate_migration_plan.py --scan-file scan.json --decisions-file decisions.json --output admin-migration-plan.md
 ```
 
-#### 10-4. レビュー後に適用する
+#### 10-5. レビュー後に適用する
 
 `admin-migration-plan.md` をユーザーがレビューし、**承認を得てから**適用する。
 使われていない環境の削除（プランの手順 0）は、マネージド環境化とグループ割り当ての**前に**行うと
@@ -368,7 +409,25 @@ Dataverse 容量（Database / File / Log）はテナント プールから消費
 python set_environment_capacity.py --tenant-id <TENANT_ID> --storage
 ```
 
-#### 10-5. 不足している環境を作成してパイプラインを繋ぐ
+適用が終わったら、実施内容を JSON にまとめてレポートへ追記し、同じ HTML をユーザーへ返す。
+
+```jsonc
+// results.json
+{
+  "appliedAt": "2026-01-01 10:00", "appliedBy": "<担当者>",
+  "steps": [
+    { "title": "対象環境をマネージド環境化", "status": "ok", "note": "3 環境" },
+    { "title": "ACP 推奨プロファイルを適用", "status": "skipped", "note": "次回に見送り" }
+  ],
+  "summary": "未使用環境の削除で 0MB を回収。残課題はライセンス調達。"
+}
+```
+
+```bash
+python generate_strategy_report.py --scan-file scan.json --results-file results.json --output admin-strategy-report.html
+```
+
+#### 10-6. 不足している環境を作成してパイプラインを繋ぐ
 
 環境名は都度考えず、ブループリントの `namingConvention` に従って機械的に決める。
 `{orgCode}-{groupCode}-{workload}-{stageCode}` の形にすると、名前だけでどのグループのどの段階かが判別でき、
@@ -391,7 +450,7 @@ python setup_pipeline.py --host-url <PIPELINE_HOST_URL>                         
 python setup_pipeline.py --host-url <PIPELINE_HOST_URL> --apply
 ```
 
-#### 10-6. Code Apps の CSP を設定する
+#### 10-7. Code Apps の CSP を設定する
 
 CSP（コンテンツ セキュリティ ポリシー）は環境ごとの Dataverse 組織設定で、管理センターの
 「App（モデル駆動）」タブの設定が **Code Apps にも適用される**。既定モードで変更できるのは
@@ -407,14 +466,14 @@ python set_content_security_policy.py --environment-url <ENV_URL> --enable `
 いきなり強制すると既存アプリが白画面になるため、まず `--report-uri` で report-only の違反を集め、
 違反が出ないことを確認してから `--enable` する。
 
-#### 10-7. 個人開発者環境・市民開発者環境のコネクタを決める
+#### 10-8. 個人開発者環境・市民開発者環境のコネクタを決める
 
 どちらも ACP は同じ `microsoft-first-party` プロファイル（Microsoft のみ。サードパーティ・レガシー不可）を
 **環境グループ単位**で適用する。プロファイルの `reviewConnectors`（個人向けサービスに繋がるコネクタなど
 判断が分かれるもの）は AskUserQuestion で採否を確認し、決まったものだけを
 `apply_acp_profile.py --include-connector` / `--exclude-connector` で調整する。
 
-#### 10-8. 利用ガイドラインを公開して配布する
+#### 10-9. 利用ガイドラインを公開して配布する
 
 利用可能なコネクタ・利用できないコネクタとその理由・追加申請フロー・認定プロセス・共有上限・
 Copilot クレジット・問い合わせ先をまとめたページを作成する。
@@ -439,7 +498,7 @@ python set_environment_group_rules.py --tenant-id <TENANT_ID> --environment-grou
 | `mcp-server` | カスタムコネクタ登録前後 | Step 2 → Step 5 → Step 6 |
 | ユーザー依頼 | DLP / ACP の推奨設定・移行 | Step 7（推奨プロファイル）/ Step 8（DLP → ACP 移行） |
 | ユーザー依頼 | 環境戦略の策定・環境の見直し | Step 10 |
-| `sharepoint` | 利用ガイドライン ページの作成依頼を受ける側 | Step 10-6 |
+| `sharepoint` | 利用ガイドライン ページの作成依頼を受ける側 | Step 10-9 |
 
 ## 参考リンク
 
