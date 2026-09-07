@@ -65,6 +65,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 - [クイックスタート](#クイックスタート)
 - [Claude Code でのクイックスタート](#claude-code-でのクイックスタート)
 - [前提条件](#前提条件)
+  - [統合プロンプトで一気に準備する（推奨）](#統合プロンプトで一気に準備する推奨)
   - [ライセンスの準備](#ライセンスの準備)
   - [クラウド環境の準備](#クラウド環境の準備)
     - [専用環境を作成する](#専用環境を作成する)
@@ -182,45 +183,13 @@ Copilot Studio を利用する場合は、次の順序で管理者による事�
 4. Advanced Connector Policy で利用を許可するコネクタを設定する
 5. Code Apps を使用する場合は環境の機能を有効化する
 
-#### 開発端末からコマンドで設定する（推奨）
+#### エージェントへのプロンプトで設定する（推奨）
 
-これらのクラウド側の設定は、管理センターの画面を開かずに **ローカルの開発環境から [admin スキル](.github/skills/admin/SKILL.md) のスクリプト**で実行できます。画面操作は手順が長く、環境が増えるたびに設定漏れとドリフトが起きるため、コマンドで再現できる形にしておきます。
+これらのクラウド側の設定は、管理センターの画面を開かずに **[admin スキル](.github/skills/admin/SKILL.md) を読み込んだエージェント**に依頼して実行できます。画面操作は手順が長く、環境が増えるたびに設定漏れとドリフトが起きるため、コマンドを手打ちするのではなく、エージェントにスキルを読ませて再現できる形にしておきます。
 
-事前に「ローカル開発環境の準備」を済ませ、Power Platform 管理者の資格情報でサインインしておいてください。
+[前提条件冒頭の統合プロンプト](#統合プロンプトで一気に準備する推奨)を使えば、ローカル準備からこのクラウド環境準備までを 1 回の依頼で実行できます。クラウド側だけをやり直したい場合は、そのプロンプトの「フェーズ 2」「フェーズ 3」部分だけを貼り付けて依頼してください。
 
-```powershell
-cd .github/skills/admin/scripts
-
-# 0. 現状を確認する（環境・グループ・容量・ルールの棚卸し）
-python scan_environment_strategy.py --tenant-id <TENANT_ID>
-
-# 1. 環境グループを作成し、ルールを発行する
-python apply_environment_strategy.py --tenant-id <TENANT_ID> --groups-only --apply
-python apply_environment_strategy.py --tenant-id <TENANT_ID> --rules-only --apply
-
-# 2. 不足している環境を命名規則どおりに作成し、環境グループへ割り当てる
-python environment_naming.py --preview
-python create_environments.py --tenant-id <TENANT_ID> --apply
-
-# 3. 開発者へセキュリティ ロールを割り当てる（管理センターの画面で行う。下のアコーディオンを参照）
-
-# 4. Copilot Credits と容量を環境ごとに配分する
-python set_environment_capacity.py --tenant-id <TENANT_ID>
-python set_environment_capacity.py --tenant-id <TENANT_ID> --environment-id <ENV_ID> --quantity 500 --apply
-
-# 5. Advanced Connector Policy を適用する
-python apply_acp_profile.py --environment-id <ENV_ID> --profile <PROFILE> --include-group --apply
-
-# 6. Code Apps の有効化は環境グループのルールで一括設定される（apply_environment_strategy.py --rules-only）
-
-# 7. Code Apps の CSP（埋め込み許可元）を設定する
-python set_content_security_policy.py --environment-url <ENV_URL> --enable --directive "Frame-Ancestor='self',https://*.powerapps.com" --apply
-
-# 8. 開発 → テストのパイプラインを構成する
-python setup_pipeline.py --host-url <PIPELINE_HOST_URL> --apply
-```
-
-どのスクリプトも `--apply` を付けない限り dry-run です。適用内容を表示して確認してから `--apply` を付けてください。設定値は `.github/skills/admin/references/environment-strategy.json`（ブループリント）に集約されており、組織固有の名称・人数・命名規則はこのファイルだけを編集します。
+管理者権限がない場合、エージェントはフェーズ 2 の時点で処理を中断し、不足している権限と管理者への依頼内容を報告します。開発者へのセキュリティ ロール割り当て（上記手順 2）は管理センターの画面操作が必要なため、エージェントは案内のみ行います（詳細は下のアコーディオンを参照）。
 
 <details>
 <summary><strong>手動で設定する場合（Power Platform 管理センターの画面操作）</strong></summary>
@@ -327,8 +296,11 @@ Code Apps は環境ごとに初期状態で無効です。有効化手順:
 
 VS Code をインストールすると **GitHub Copilot 拡張機能は最初から同梱**されています。別途 Extensions からインストールする必要はありません。GitHub アカウントでサインインし、Copilot ライセンスを有効化してください。
 
+> [!TIP]
+> クラウド環境の準備も合わせて行いたい場合は、[前提条件冒頭の統合プロンプト](#統合プロンプトで一気に準備する推奨)を使ってください。以下はローカル環境のみを準備したい場合向けの手順です。
+
 <details>
-<summary><strong>プロンプトによる自動環境準備（所要 15 分）</strong></summary>
+<summary><strong>プロンプトによる自動環境準備（ローカルのみ・所要 15 分）</strong></summary>
 
 | ステップ | 操作 |
 |---|---|
