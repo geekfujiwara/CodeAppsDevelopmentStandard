@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -631,13 +632,35 @@ def render(payload: dict) -> str:
     return HTML_TEMPLATE.replace("__PAYLOAD__", data)
 
 
+def assert_openable(output: Path, allow_outside: bool) -> None:
+    """VS Code の統合ブラウザは信頼されたフォルダー外の file:// を Forbidden で拒否するため、生成前に弾く。"""
+    if allow_outside:
+        return
+    resolved = output.resolve()
+    temp_root = Path(tempfile.gettempdir()).resolve()
+    if resolved == temp_root or temp_root in resolved.parents:
+        raise SystemExit(
+            f"出力先が一時ディレクトリ配下です: {resolved}\n"
+            "VS Code の統合ブラウザはこの場所を 'Forbidden. File does not reside within a trusted folder.' で"
+            "拒否するため、レポートを開けません。--output にワークスペース内のパスを指定してください\n"
+            "（ブラウザで開かないことが確定している場合は --allow-outside-workspace）。"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="スキャン結果からインタラクティブ HTML レポートを生成する")
     parser.add_argument("--scan-file", type=Path, required=True, help="scan_environment_strategy.py の JSON")
     parser.add_argument("--blueprint", type=Path, default=BLUEPRINT, help="ブループリント JSON")
     parser.add_argument("--results-file", type=Path, help="適用結果の JSON（適用後に渡すと「適用結果」タブが増える）")
     parser.add_argument("--output", type=Path, default=Path("admin-strategy-report.html"), help="出力先 HTML")
+    parser.add_argument(
+        "--allow-outside-workspace",
+        action="store_true",
+        help="一時ディレクトリなど統合ブラウザで開けない場所への出力を許可する",
+    )
     args = parser.parse_args()
+
+    assert_openable(args.output, args.allow_outside_workspace)
 
     scan = json.loads(args.scan_file.read_text(encoding="utf-8"))
     blueprint = json.loads(args.blueprint.read_text(encoding="utf-8"))

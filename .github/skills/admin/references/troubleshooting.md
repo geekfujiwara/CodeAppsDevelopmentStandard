@@ -256,3 +256,26 @@ python set_content_security_policy.py --environment-url <ENV_URL> --reset-direct
 **対処**: `set_environment_capacity.py --storage` で環境ごとの消費量を一覧し、逼迫している場合は
 不要な環境の削除・監査ログの保持期間短縮・ファイルの整理で対処する。
 
+## 17. HTML レポートが統合ブラウザで `Forbidden. File does not reside within a trusted folder.` になる
+
+**症状**: `generate_strategy_report.py --output $env:TEMP\report.html` で生成した HTML を
+VS Code の統合ブラウザで `file:///...` として開くと、上記エラーで表示されない。
+
+**原因**: 統合ブラウザは信頼されたフォルダー（開いているワークスペース）配下の `file://` しか読み込まない。
+一時ディレクトリはワークスペース外なので拒否される。
+
+**対処**: `--output` にワークスペース内のパスを指定する（例: `.\admin-strategy-report.html`）。
+
+**恒久対策済み**: `generate_strategy_report.py` の `assert_openable()` が、出力先が一時ディレクトリ配下なら
+生成前に終了コード 1 で中断する。ブラウザで開かないことが確定している場合のみ `--allow-outside-workspace` で回避する。
+
+## 18. 設計合意の待ち合わせでターミナルが止まったように見える
+
+**症状**: レポートを提示した後、コマンド プロンプトで承認を待つと、処理が終わったのか入力待ちなのかが
+ユーザーから判別できず、セッションが停滞する。
+
+**原因**: 承認ゲートをターミナル側（`Read-Host` / `pause` / `input()`）で作っていた。
+
+**対処**: 承認ゲートは**チャットで取る**。レポートを開いたらそのターンをチャットの応答で終了し、
+確認してほしい点を箇条書きで示してユーザーの返答を待つ。長時間動くコマンドも同じターンに続けない。
+スキル同梱スクリプトはすべて非対話で、`--apply` を付けるまで dry-run（SKILL.md「ワークフロー（正常系）」冒頭の注記）。
