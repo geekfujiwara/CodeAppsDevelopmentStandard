@@ -141,24 +141,23 @@ cp .github/skills/standard/references/gitignore-template .gitignore
    - 何が不足しているか（必要ロール名）
    - 管理者に依頼すべき内容（環境作成・セキュリティ ロール割り当て・Copilot Credits 割り当て・ACP 設定など）
 
-## フェーズ 3: クラウド環境の準備（管理者権限がある場合のみ）
-`.github/skills/admin/SKILL.md` を読み込み、`.github/skills/admin/scripts/` 配下のスクリプトを次の順で実行する。
-**すべて `--apply` を付けずに dry-run で内容を提示し、ユーザーの確認を得てから `--apply` を追加すること。**
+## フェーズ 3: 開発環境の確認（管理者権限がある場合のみ。これから開発に使う 1 環境だけが対象）
+`.github/skills/admin/SKILL.md` を読み込む。
+**対象は今回開発に使う 1 つの環境に限定する。テナント全体の環境戦略の棚卸し・環境グループの作成・命名規則に沿った環境の一括作成（`scan_environment_strategy.py` / `apply_environment_strategy.py` / `environment_naming.py` / `create_environments.py`）や、Copilot Credits の配分・ACP の適用・CSP の設定などの構成変更は行わない。これらはユーザーが明示的に依頼した場合にのみ実施する。**
 
-1. 現状の棚卸し: `scan_environment_strategy.py --tenant-id <TENANT_ID>`
-2. 環境グループの作成とルール発行: `apply_environment_strategy.py --tenant-id <TENANT_ID> --groups-only` → `apply_environment_strategy.py --tenant-id <TENANT_ID> --rules-only`
-3. 命名規則に沿った環境の作成: `environment_naming.py --preview` → `create_environments.py --tenant-id <TENANT_ID>`
-4. 開発者へのセキュリティ ロール割り当ては管理センターの画面操作が必要なため、README の「開発者へセキュリティ ロールを割り当てる」の手順をユーザーへ案内する
-5. Copilot Credits と容量の配分: `set_environment_capacity.py --tenant-id <TENANT_ID>` → 環境ごとに `--environment-id <ENV_ID> --quantity <数量>` を指定して適用
-6. Advanced Connector Policy の適用: `apply_acp_profile.py --environment-id <ENV_ID> --profile <PROFILE> --include-group`
-7. Code Apps の CSP（埋め込み許可元）設定: `set_content_security_policy.py --environment-url <ENV_URL> --enable --directive "Frame-Ancestor='self',https://*.powerapps.com"`
-8. 開発 → テストのパイプライン構成: `setup_pipeline.py --host-url <PIPELINE_HOST_URL>`
+1. 今回開発に使う環境を確認する: 既存の Dataverse 環境から選ぶか、専用の Developer/Sandbox 環境を新規作成するかをユーザーに確認する（新規作成する場合は README の「専用環境を作成する」の手順を管理者へ案内）。決定したら `.env` の `ENV_ID` / `DATAVERSE_URL` / `TENANT_ID` を設定する。
+2. `check_environment.py --environment-id $env:ENV_ID` を実行し、その環境で開発するにあたり最低限解消すべき問題点（既定環境ではないか・マネージド環境・Dataverse / Code Apps / MCP の有効化・セキュリティ ロール・管理 API アクセス・適用される DLP）を確認する。
+3. `check_dlp.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID --connector shared_commondataserviceforapps` で、これから使う予定のコネクタが DLP でブロックされないかを確認する。
+4. `NG` があれば、その内容と解消方法（開発者へのセキュリティ ロール割り当て・管理者への依頼内容など）を整理して報告する。`NG` がなければ、その環境で開発を始めてよい旨を報告する。
 
 ## 完了報告
 - フェーズ 1〜3 それぞれの成否を報告する。
-- クラウド環境の準備まで完了したら、続けて README の「クイックスタート」に進んでよい旨を案内する。
+- フェーズ 3 で問題（NG）がなければ、続けて README の「クイックスタート」に進んでよい旨を案内する。
 - フェーズ 2 で権限不足により中断した場合は、フェーズ 1（ローカル）が完了済みであることと、フェーズ 3 を再開するために必要な条件（誰にどの権限を依頼すべきか）を案内する。
 ```
+
+> [!NOTE]
+> テナント全体の環境戦略（環境グループの設計、命名規則に沿った環境の一括作成、不要環境の整理など）や、Copilot Credits の配分・ACP の適用・CSP の設定を実施したい場合は、`@GeekPowerCode` に「テナント全体の環境戦略を確認して」「この環境に Copilot Credits を配分して」のように明示的に依頼してください。admin スキルの読み取り専用スキャン・dry-run から始まり、内容提示 → ユーザー確認 → `--apply` の順で進みます。
 
 > [!NOTE]
 > 設定値は `.github/skills/admin/references/environment-strategy.json`（ブループリント）に集約されています。組織固有の名称・人数・命名規則を変えたい場合は、プロンプト実行前後にこのファイルを編集してください。
