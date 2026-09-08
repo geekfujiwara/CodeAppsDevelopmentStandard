@@ -221,6 +221,9 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
      発行されず、アクセストークン失効後に接続が `Missing refresh token` で無効になる。生成スクリプトが必ず付与する。
    - 生成 MD の Power Apps 接続一覧と Copilot Studio エージェント一覧のURLを利用者へ提示する。
      接続作成、サインイン、同意、Studioでの接続選択は利用者本人が行い、エージェントは事後検証を担当する。
+   - 接続作成後は `pac connection list --environment <environment-id>` で各接続のIDを取得し、
+     `https://make.preview.powerapps.com/environments/<environment-id>/connections/<connector-id>/<connection-id>/details`
+     形式のリンクを**接続ごとに**利用者へ提示する。接続の作成や再認証は代行しない。
    - 生成 MD は Client secret を含む。**MCP Server ごとに分け**、先に `.gitignore` へ追加する。
    - 認証は `OAuth 2.0`、構成は `Manual` を選ぶ。接続画面では任意の表示名も生成 MD から貼り付ける。
    - コネクタ作成後に表示された callback URL、または `AADSTS50011` に表示された URI は、次で Entra に追加する。
@@ -277,6 +280,7 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 - [ ] スクリプトが `auth_helper` 経由で非対話に完走する（`az login` を要求しない）
 - [ ] Copilot Studio 接続の Scopes に `<API scope> offline_access` が含まれ、再接続後に自動更新できる
 - [ ] 利用者へ対象環境の Power Apps 接続一覧と Copilot Studio エージェント一覧のURLを提示した
+- [ ] 作成済みの各接続について Power Apps の個別詳細URLを利用者へ提示した
 - [ ] Copilot Studio の Edit 画面で 401 が出たら、DLP/設定変更の前に `diagnose_connector_token.py` で
       「未接続・トークン失効・その他」を切り分けた
 

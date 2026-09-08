@@ -1,6 +1,11 @@
 import unittest
 
-from generate_copilot_studio_guide import build_markdown, connector_scopes, environment_links
+from generate_copilot_studio_guide import (
+    build_markdown,
+    connection_details_url,
+    connector_scopes,
+    environment_links,
+)
 
 
 class ConnectorScopesTests(unittest.TestCase):
@@ -40,6 +45,19 @@ class ConnectorScopesTests(unittest.TestCase):
         self.assertEqual(
             studio_url,
             "https://copilotstudio.microsoft.com/environments/environment-id/bots",
+        )
+
+    def test_connection_details_url_targets_exact_connection(self) -> None:
+        url = connection_details_url(
+            "environment-id",
+            "/providers/Microsoft.PowerApps/apis/shared_example-mcp",
+            "connection-id",
+        )
+
+        self.assertEqual(
+            url,
+            "https://make.preview.powerapps.com/environments/environment-id/"
+            "connections/shared_example-mcp/connection-id/details",
         )
 
 

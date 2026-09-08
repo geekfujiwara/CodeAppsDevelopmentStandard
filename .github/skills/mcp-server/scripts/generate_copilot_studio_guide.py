@@ -91,6 +91,14 @@ def environment_links(environment_id: str) -> tuple[str, str]:
     return f"{base}/connections", studio
 
 
+def connection_details_url(environment_id: str, connector_id: str, connection_id: str) -> str:
+    connector = connector_id.removeprefix("/providers/Microsoft.PowerApps/apis/")
+    return (
+        f"https://make.preview.powerapps.com/environments/{environment_id}"
+        f"/connections/{connector}/{connection_id}/details"
+    )
+
+
 def build_markdown(
     *,
     server_name: str,
@@ -104,6 +112,8 @@ def build_markdown(
     client_secret: str,
     redirect_uri: str | None,
     environment_id: str | None = None,
+    connector_id: str | None = None,
+    connection_id: str | None = None,
 ) -> str:
     authorization_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize"
     token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
@@ -124,9 +134,13 @@ Entra アプリ登録の **認証 > Web > リダイレクト URI** に追加す�
     links_section = ""
     if environment_id:
         connections_url, studio_url = environment_links(environment_id)
+        connection_link = ""
+        if connector_id and connection_id:
+            details_url = connection_details_url(environment_id, connector_id, connection_id)
+            connection_link = f"- Power Apps 接続詳細: {details_url}\n"
         links_section = f"""## 接続作成リンク
 
-- Power Apps 接続一覧: {connections_url}
+{connection_link}- Power Apps 接続一覧: {connections_url}
 - Copilot Studio エージェント一覧: {studio_url}
 
 接続作成、組織アカウントでのサインインと同意、Copilot Studio での接続選択は利用者本人が行う。
@@ -231,6 +245,8 @@ def main() -> int:
     parser.add_argument("--display-name", default=os.getenv("MCP_CONNECTOR_DISPLAY_NAME"))
     parser.add_argument("--tenant-id", default=os.getenv("ENTRA_TENANT_ID"))
     parser.add_argument("--environment-id", default=os.getenv("POWER_PLATFORM_ENVIRONMENT_ID"))
+    parser.add_argument("--connector-id", default=os.getenv("MCP_CONNECTOR_ID"))
+    parser.add_argument("--connection-id", default=os.getenv("MCP_CONNECTION_ID"))
     parser.add_argument("--audience", default=os.getenv("MCP_API_AUDIENCE"))
     parser.add_argument("--scope", default=os.getenv("MCP_API_SCOPE_VALUE"))
     parser.add_argument(
@@ -240,6 +256,11 @@ def main() -> int:
     parser.add_argument("--redirect-uri", help="コネクタ作成後に判明した callback URL")
     parser.add_argument("--output", default=os.getenv("MCP_CONNECTOR_GUIDE_OUT"))
     args = parser.parse_args()
+
+    if bool(args.connector_id) != bool(args.connection_id):
+        raise SystemExit("--connector-id と --connection-id は両方指定してください")
+    if (args.connector_id or args.connection_id) and not args.environment_id:
+        raise SystemExit("接続詳細URLの生成には --environment-id が必要です")
 
     server_name = require(args.server_name, "--server-name")
     server_description = require(args.server_description, "--server-description")
@@ -277,6 +298,8 @@ def main() -> int:
         client_secret=oauth["clientSecret"],
         redirect_uri=args.redirect_uri,
         environment_id=args.environment_id.strip() if args.environment_id else None,
+        connector_id=args.connector_id.strip() if args.connector_id else None,
+        connection_id=args.connection_id.strip() if args.connection_id else None,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(markdown, encoding="utf-8")

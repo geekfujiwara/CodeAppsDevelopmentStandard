@@ -112,9 +112,19 @@ Client secret は作成・ローテーションしない。入力ガイドにも
 1. Power Apps 接続一覧を開き、更新済みコネクタから接続を作成する。
 2. 生成 MD の `Display name (optional)` を貼り付け、組織アカウントでサインインして同意する。
 3. 接続が `Connected` になったことを確認する。
-4. Copilot Studio エージェント一覧を開き、対象エージェントの MCP Server で作成した接続を選ぶ。
-5. **Add to agent** を選び、表示される場合は **Confirm** を選ぶ。
-6. エージェントを再公開する。
+4. エージェントが `pac connection list --environment <environment-id>` でコネクタIDと接続IDを取得する。
+5. エージェントは接続ごとに次の形式の詳細URLを利用者へ提示する。
+
+  ```text
+  https://make.preview.powerapps.com/environments/<environment-id>/connections/<connector-id>/<connection-id>/details
+  ```
+
+6. Copilot Studio エージェント一覧を開き、対象エージェントの MCP Server で作成した接続を選ぶ。
+7. **Add to agent** を選び、表示される場合は **Confirm** を選ぶ。
+8. エージェントを再公開する。
+
+接続詳細URLを入力ガイドへ残す場合は、Step 2 の生成コマンドへ `--connector-id` と
+`--connection-id` を追加してServerごとに再生成する。片方だけの指定は生成スクリプトが拒否する。
 
 接続作成後、エージェントは接続状態、`tools/list`、`tools/call`、公開状態を読み取り検証する。
 
