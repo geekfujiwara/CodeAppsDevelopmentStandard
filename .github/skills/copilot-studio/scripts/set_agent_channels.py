@@ -32,6 +32,7 @@ from deploy_agent import (
     TEAMS_SHORT_DESCRIPTION, TEAMS_LONG_DESCRIPTION, TEAMS_ACCENT_COLOR,
     TEAMS_DEVELOPER_NAME, TEAMS_WEBSITE, TEAMS_PRIVACY_URL, TEAMS_TERMS_URL,
 )
+from set_agent_security import AUTH_MODE_VALUES
 
 load_dotenv()
 
@@ -155,7 +156,7 @@ def main():
 
     # 認証モードとチャネルの整合性チェック
     bot = api_get(f"bots({bot_id})?$select=authenticationmode")
-    if bot.get("authenticationmode") == 2 and (channels & {"teams", "copilot"}):
+    if bot.get("authenticationmode") == AUTH_MODE_VALUES["none"] and (channels & {"teams", "copilot"}):
         print("\n  ⚠️ 現在「認証なし」です。Teams / Copilot チャネルは Microsoft 認証が前提です。")
         print("     Teams / Copilot を使うには set_agent_security.py（AGENT_AUTH_MODE=microsoft）を先に実行してください。")
 

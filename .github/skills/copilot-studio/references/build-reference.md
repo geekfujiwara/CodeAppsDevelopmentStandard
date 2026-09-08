@@ -265,7 +265,7 @@ Copilot Studio の「設定 → セキュリティ → 認証」に相当。**�
 
 ```python
 # AGENT_AUTH_MODE=none | microsoft（.env で指定、未設定時は none）
-AUTH_MODE_VALUES = {"microsoft": 1, "none": 2}   # bots.authenticationmode の値
+AUTH_MODE_VALUES = {"microsoft": 2, "none": 1}   # Copilot Studio v1 の bots.authenticationmode
 
 value = AUTH_MODE_VALUES[mode]
 bot = api_get(f"bots({bot_id})?$select=name,authenticationmode")
@@ -274,20 +274,26 @@ if mode == "microsoft":
     body["authenticationtrigger"] = 0
 api_patch(f"bots({bot_id})", body)
 
+# ★ PATCH 後に保存値を再取得し、誤った対応表や更新失敗を検出する
+updated_bot = api_get(f"bots({bot_id})?$select=authenticationmode")
+if updated_bot.get("authenticationmode") != value:
+    raise RuntimeError("認証モードの保存値が期待値と一致しません")
+
 # ★ 認証変更は公開後に反映される
 api_post(f"bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", {})
 ```
 
-**`bots.authenticationmode` の値（実機 live 環境で確認済み）:**
+**Copilot Studio v1 の `bots.authenticationmode` の値（実機 live 環境で確認済み）:**
 
 | UI の選択肢 | `authenticationmode` | 用途 |
 |---|---|---|
-| 認証なし（No authentication） | `2` | **Web 埋め込み（匿名アクセス）に必須** |
-| Microsoft で認証（Authenticate with Microsoft） | `1` | **UI 既定**。Teams + M365 チャネル |
+| 認証なし（No authentication） | `1` | **Web 埋め込み（匿名アクセス）に必須** |
+| Microsoft で認証（Authenticate with Microsoft） | `2` | **UI 既定**。Teams + M365 チャネル |
 | 手動で認証（Authenticate manually） | （OAuth 設定が別途必要・本スクリプト対象外） | カスタム OAuth |
 
 ```
-❌ 認証モードを設定しない → UI 既定の Microsoft 認証（=1）で公開され Web 埋め込み不可
+❌ `authenticationmode=1` を Microsoft 認証として設定する → 実際には認証なしで公開される
+❌ 認証モードを設定しない → UI 既定の Microsoft 認証（=2）で公開され Web 埋め込み不可
 ❌ authenticationmode を設定したが公開しない → 変更が反映されない
 ✅ 認証なしの Web 埋め込みが必要なら AGENT_AUTH_MODE=none を明示 → PATCH → 公開
 ✅ bots PATCH には name 必須（省略すると "Empty or null bot name" エラー）
@@ -349,9 +355,9 @@ Teams マニフェスト設定項目:
 ```
 
 ```
-⚠️ Teams / Copilot チャネルは「Microsoft で認証」（authenticationmode=1）が前提。
-   認証なし（=2）のまま teams/copilot を選ぶと利用できないため、set_agent_channels.py は
-   authenticationmode=2 のとき警告を表示する。
+⚠️ Teams / Copilot チャネルは「Microsoft で認証」（authenticationmode=2）が前提。
+    認証なし（=1）のまま teams/copilot を選ぶと利用できないため、set_agent_channels.py は
+    authenticationmode=1 のとき警告を表示する。
 ✅ Web 埋め込み（認証なし）なら AGENT_CHANNELS=web のみで OK（追加のチャネル定義は不要）
 ```
 

@@ -316,7 +316,7 @@ if ai_idx >= 0:
 > | 2 | `set_agent_security.py` | 認証モード設定→公開 | `AGENT_AUTH_MODE`（`none` / `microsoft`） |
 > | 3 | `set_agent_channels.py` | チャネル選択→公開 | `AGENT_CHANNELS`（`web,teams,copilot`） |
 >
-> `bots.authenticationmode`: `2`=認証なし（Web 埋め込み必須）／`1`=Microsoft で認証（UI 既定・Teams）。
+> Copilot Studio v1 の `bots.authenticationmode`: `1`=認証なし（Web 埋め込み必須）／`2`=Microsoft で認証（UI 既定・Teams）。
 > 認証変更は**公開後に反映**される。
 
 Instructions テンプレート・既存エージェント改善パターンは [構築リファレンス](references/build-reference.md#instructions-テンプレート) を参照。
