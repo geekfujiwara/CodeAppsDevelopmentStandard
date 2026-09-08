@@ -10,7 +10,12 @@ import tempfile
 from pathlib import Path
 
 
-def apply_oauth_credentials(properties: dict, credential: dict) -> None:
+def apply_oauth_credentials(
+    properties: dict,
+    credential: dict,
+    resource_uri: str | None = None,
+    scope: str | None = None,
+) -> None:
     try:
         settings = properties["properties"]["connectionParameters"]["token"]["oAuthSettings"]
     except (KeyError, TypeError) as exc:
@@ -25,11 +30,25 @@ def apply_oauth_credentials(properties: dict, credential: dict) -> None:
 
     settings["clientId"] = client_id
     settings["clientSecret"] = client_secret
-    scopes = settings.get("scopes")
-    if not isinstance(scopes, list) or not all(isinstance(scope, str) for scope in scopes):
-        raise SystemExit("OAuth scopes は文字列配列である必要があります")
-    if "offline_access" not in scopes:
-        scopes.append("offline_access")
+    current_properties = settings.get("properties")
+    current_resource_uri = (
+        current_properties.get("AzureActiveDirectoryResourceId")
+        if isinstance(current_properties, dict)
+        else None
+    )
+    current_scopes = settings.get("scopes")
+    current_scope = (
+        next((item for item in current_scopes if item != "offline_access"), None)
+        if isinstance(current_scopes, list)
+        else None
+    )
+    effective_resource_uri = resource_uri or credential.get("resourceUri") or current_resource_uri
+    effective_scope = scope or credential.get("scope") or current_scope
+    if not isinstance(effective_scope, str) or not effective_scope.strip():
+        raise SystemExit("OAuth scope がありません")
+    if isinstance(effective_resource_uri, str) and effective_resource_uri.strip():
+        settings["properties"] = {"AzureActiveDirectoryResourceId": effective_resource_uri}
+    settings["scopes"] = [effective_scope, "offline_access"]
 
 
 def run(command: list[str]) -> None:
@@ -43,6 +62,8 @@ def main() -> int:
     parser.add_argument("--environment", required=True)
     parser.add_argument("--connector-id", action="append", required=True)
     parser.add_argument("--secret-file", default=".secrets/connector-oauth.json")
+    parser.add_argument("--resource-uri", help="OAuth resource URI。AADSTS90009 回避には API app ID の GUID を指定")
+    parser.add_argument("--scope", help="OAuth delegated scope。例: <API app ID>/MCP.Access")
     args = parser.parse_args()
 
     secret_file = Path(args.secret_file)
@@ -68,7 +89,7 @@ def main() -> int:
                 raise SystemExit(f"コネクタ定義を取得できません: {connector_id}")
 
             properties = json.loads(properties_file.read_text(encoding="utf-8-sig"))
-            apply_oauth_credentials(properties, credential)
+            apply_oauth_credentials(properties, credential, args.resource_uri, args.scope)
             properties_file.write_text(json.dumps(properties, ensure_ascii=False, indent=2), encoding="utf-8")
             run([
                 pac, "connector", "update", "--environment", args.environment,
