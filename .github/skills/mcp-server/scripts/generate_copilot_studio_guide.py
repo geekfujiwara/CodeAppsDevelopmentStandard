@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 SERVER_NAME_PATTERN = re.compile(r"^[A-Za-z0-9.\-]{1,64}$")
+REFRESH_SCOPE = "offline_access"
 
 
 def require(value: str | None, label: str) -> str:
@@ -75,6 +76,13 @@ def validate_redirect_uri(value: str) -> None:
         or parsed.fragment
     ):
         raise SystemExit("--redirect-uri には Copilot Studio が表示したパス付き callback URL を指定してください")
+
+
+def connector_scopes(api_scope: str) -> str:
+    scopes = api_scope.split()
+    if REFRESH_SCOPE not in scopes:
+        scopes.append(REFRESH_SCOPE)
+    return " ".join(scopes)
 
 
 def build_markdown(
@@ -182,7 +190,7 @@ Manual
 ### Scopes
 
 ```text
-{full_scope}
+{connector_scopes(full_scope)}
 ```
 """
 

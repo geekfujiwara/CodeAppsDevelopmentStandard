@@ -80,7 +80,7 @@ python .github/skills/mcp-server/scripts/generate_copilot_studio_guide.py `
 | Authorization URL | `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize` |
 | Token URL | `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` |
 | Refresh token URL | Token URL と同じ |
-| Scopes | `api://<app-id>/<scope>`。対話同意では `/.default` を使わない |
+| Scopes | `api://<app-id>/<scope> offline_access`。対話同意では `/.default` を使わない。`offline_access` を省くとリフレッシュトークンが発行されず、アクセストークンの期限切れ（既定 60〜90 分）ごとに手動再接続が必要になる |
 
 4. **Add** を選択する。`POST .../connectors/apim` が 400 の場合は、ブラウザ開発者ツールの
    **Network > connectors/apim > Response** を確認する。Initiator の JavaScript スタックだけでは原因は分からない。

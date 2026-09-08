@@ -222,6 +222,24 @@ traces
 `token_expired` が閾値（既定 15 分）を超えて繰り返していれば再認証、`not_connected` なら
 接続未完了と即座に切り分けられる。読み取り専用でポリシー・アプリ設定は変更しない。
 
+### Power Apps の接続一覧で頻繁に「再接続」表示になり、ツールチップが `Missing refresh token`
+
+**症状**: Copilot Studio の Tools 画面でツールが `Failed`（`reasonCode: ConnectionInvalid` /
+`HttpStatusCode: unauthorized`）になる。Power Apps > Connections の状態列は「再接続」で、
+ツールチップは `Failed to refresh access token for service: oauth2pkce ... Error: Missing refresh token.`
+
+**原因**: 上の「HTTP 401 が出続ける」問題とは別の事象。カスタムコネクタの **Scopes に
+`offline_access` を含めていない**ため、Entra がそもそもリフレッシュトークンを発行していない。
+アクセストークンの既定の有効期限（60〜90 分）が切れるたびに接続が無効化され、
+Copilot Studio・Power Apps 側にリフレッシュしようにも使えるリフレッシュトークンがない。
+「リフレッシュが早い／すぐ使えなくなる」という体感は、リフレッシュ間隔の問題ではなく
+リフレッシュトークン自体が存在しないことが原因。
+
+**対処**: 対象コネクタの Scopes を `api://<app-id>/<scope> offline_access` に変更し、
+Power Apps > Connections で対象接続を再接続（初回サインインをやり直す）する。
+以後はアクセストークン期限切れ時にリフレッシュトークンで自動更新され、手動再接続の頻度が下がる。
+複数コネクタが同じ Entra アプリ登録を共有している場合は、すべてのコネクタの Scopes を同様に修正する。
+
 ---
 
 ## 認証・認可

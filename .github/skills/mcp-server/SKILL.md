@@ -216,6 +216,8 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 
    - `Server name` は **1～64 文字の英字・数字・ハイフン・ドットのみ**。日本語や空白は
      Power Platform の内部コネクタ名作成で 400 になるため、生成スクリプトが事前に拒否する。
+   - 生成する Scopes は `<API scope> offline_access` とする。`offline_access` がないとリフレッシュトークンが
+     発行されず、アクセストークン失効後に接続が `Missing refresh token` で無効になる。生成スクリプトが必ず付与する。
    - 生成 MD は Client secret を含む。**MCP Server ごとに分け**、先に `.gitignore` へ追加する。
    - 認証は `OAuth 2.0`、構成は `Manual` を選ぶ。接続画面では任意の表示名も生成 MD から貼り付ける。
    - コネクタ作成後に表示された callback URL、または `AADSTS50011` に表示された URI は、次で Entra に追加する。
@@ -270,6 +272,7 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 - [ ] 管理エンドポイントを削除し、`ADMIN_SEED_SECRET` をアプリ設定から消した
 - [ ] 削除後に「残すルート = 401 / 削除したルート = 404」を HTTP で実測した
 - [ ] スクリプトが `auth_helper` 経由で非対話に完走する（`az login` を要求しない）
+- [ ] Copilot Studio 接続の Scopes に `<API scope> offline_access` が含まれ、再接続後に自動更新できる
 - [ ] Copilot Studio の Edit 画面で 401 が出たら、DLP/設定変更の前に `diagnose_connector_token.py` で
       「未接続・トークン失効・その他」を切り分けた
 
