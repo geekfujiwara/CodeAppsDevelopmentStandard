@@ -4,8 +4,8 @@ Copilot Studio エージェント — セキュリティ（ユーザー認証）
 Copilot Studio の「設定 → セキュリティ → 認証」に相当。
 認証モードを設定してから公開する（認証変更は公開後に反映される）。
 
-  AGENT_AUTH_MODE=none       … 認証なし（匿名アクセス／Web 埋め込みに必須）   authenticationmode=2
-  AGENT_AUTH_MODE=microsoft  … Microsoft で認証（Teams + M365 チャネル・既定） authenticationmode=1
+    AGENT_AUTH_MODE=none       … 認証なし（匿名アクセス／Web 埋め込みに必須）   authenticationmode=1
+    AGENT_AUTH_MODE=microsoft  … Microsoft で認証（Teams + M365 チャネル・既定） authenticationmode=2
 
 前提:
   - deploy_agent.py で構築済み（BOT_ID を .env に設定済み）
@@ -27,11 +27,11 @@ from deploy_agent import find_bot, api_get, api_patch, api_post, BOT_NAME
 load_dotenv()
 
 # 認証モード → Dataverse bots.authenticationmode の値
-#   1 = Microsoft で認証（Authenticate with Microsoft）
-#   2 = 認証なし（No authentication）
-# ※ 実機（live 環境）で確認済み。UI 既定は Microsoft 認証（=1）のため、
+#   1 = 認証なし（No authentication）
+#   2 = Microsoft で認証（Authenticate with Microsoft）
+# ※ Copilot Studio v1 の実機（live 環境）で確認済み。UI 既定は Microsoft 認証（=2）のため、
 #   認証なしの Web 埋め込みが必要な場合は必ず none を指定する。
-AUTH_MODE_VALUES = {"microsoft": 1, "none": 2}
+AUTH_MODE_VALUES = {"microsoft": 2, "none": 1}
 
 
 def set_security(bot_id: str, mode: str):
@@ -45,6 +45,12 @@ def set_security(bot_id: str, mode: str):
         # Teams では常に認証されるため trigger は 0（As needed）
         body["authenticationtrigger"] = 0
     api_patch(f"bots({bot_id})", body)
+    updated_bot = api_get(f"bots({bot_id})?$select=authenticationmode")
+    if updated_bot.get("authenticationmode") != value:
+        raise RuntimeError(
+            "認証モードの保存値が期待値と一致しません: "
+            f"expected={value}, actual={updated_bot.get('authenticationmode')}"
+        )
     label = "認証なし（匿名アクセス）" if mode == "none" else "Microsoft で認証"
     print(f"  ✅ 認証モードを設定: {label}")
 

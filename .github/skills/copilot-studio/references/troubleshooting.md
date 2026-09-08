@@ -380,8 +380,17 @@ Q: どのように起動しますか？
 ✅ ENV_ID のハイフンを除いた 32 桁を「先頭30桁 . 末尾2桁」に分割してホストにする
    例) aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
        → aaaaaaaabbbbccccddddeeeeeeeeee.ee.environment.api.powerplatform.com
-✅ 「認証なし」エージェント（authenticationmode=2）でも
+✅ 「認証なし」エージェント（Copilot Studio v1: authenticationmode=1）でも
    /powervirtualagents/botsbyschema/{SCHEMA}/directline/token は HTTP 200 でトークンを返す
+```
+
+### Microsoft 認証を設定したのに「認証なし」になる
+
+```
+❌ Copilot Studio v1 で authenticationmode=1 を Microsoft 認証として PATCH
+   → 1 は「認証なし」のため、匿名アクセスとして公開される
+✅ v1 は 1=認証なし、2=Microsoft で認証として設定する
+✅ set_agent_security.py は PATCH 後に authenticationmode を再取得し、期待値と異なれば公開前に停止する
 ```
 
 ### `az login` が使えない / az CLI が未認証
