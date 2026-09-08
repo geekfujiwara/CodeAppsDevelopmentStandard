@@ -219,7 +219,9 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
      Power Platform の内部コネクタ名作成で 400 になるため、生成スクリプトが事前に拒否する。
    - 生成する Scopes は `<API scope> offline_access` とする。`offline_access` がないとリフレッシュトークンが
      発行されず、アクセストークン失効後に接続が `Missing refresh token` で無効になる。生成スクリプトが必ず付与する。
-   - 生成 MD の Power Apps 接続一覧と Copilot Studio エージェント一覧のURLを利用者へ提示する。
+   - 生成 MD のPower Apps新規接続URL
+     `https://make.preview.powerapps.com/environments/<environment-id>/connections/available/<connector-id>` と
+     Copilot Studioエージェント一覧のURLを、コネクタごとに利用者へ直接提示する。
      接続作成、サインイン、同意、Studioでの接続選択は利用者本人が行い、エージェントは事後検証を担当する。
    - 接続作成後は `pac connection list --environment <environment-id>` で各接続のIDを取得し、
      `https://make.preview.powerapps.com/environments/<environment-id>/connections/<connector-id>/<connection-id>/details`

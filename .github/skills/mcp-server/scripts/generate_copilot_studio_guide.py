@@ -91,6 +91,14 @@ def environment_links(environment_id: str) -> tuple[str, str]:
     return f"{base}/connections", studio
 
 
+def connection_create_url(environment_id: str, connector_id: str) -> str:
+    connector = connector_id.removeprefix("/providers/Microsoft.PowerApps/apis/")
+    return (
+        f"https://make.preview.powerapps.com/environments/{environment_id}"
+        f"/connections/available/{connector}"
+    )
+
+
 def connection_details_url(environment_id: str, connector_id: str, connection_id: str) -> str:
     connector = connector_id.removeprefix("/providers/Microsoft.PowerApps/apis/")
     return (
@@ -134,13 +142,17 @@ Entra アプリ登録の **認証 > Web > リダイレクト URI** に追加す�
     links_section = ""
     if environment_id:
         connections_url, studio_url = environment_links(environment_id)
+        create_link = ""
         connection_link = ""
-        if connector_id and connection_id:
-            details_url = connection_details_url(environment_id, connector_id, connection_id)
-            connection_link = f"- Power Apps 接続詳細: {details_url}\n"
+        if connector_id:
+            create_url = connection_create_url(environment_id, connector_id)
+            create_link = f"- Power Apps このコネクタから新規作成: {create_url}\n"
+            if connection_id:
+                details_url = connection_details_url(environment_id, connector_id, connection_id)
+                connection_link = f"- Power Apps 作成済み接続の詳細: {details_url}\n"
         links_section = f"""## 接続作成リンク
 
-{connection_link}- Power Apps 接続一覧: {connections_url}
+{create_link}{connection_link}- Power Apps 接続一覧: {connections_url}
 - Copilot Studio エージェント一覧: {studio_url}
 
 接続作成、組織アカウントでのサインインと同意、Copilot Studio での接続選択は利用者本人が行う。
@@ -257,10 +269,10 @@ def main() -> int:
     parser.add_argument("--output", default=os.getenv("MCP_CONNECTOR_GUIDE_OUT"))
     args = parser.parse_args()
 
-    if bool(args.connector_id) != bool(args.connection_id):
-        raise SystemExit("--connector-id と --connection-id は両方指定してください")
+    if args.connection_id and not args.connector_id:
+        raise SystemExit("--connection-id を指定する場合は --connector-id も必要です")
     if (args.connector_id or args.connection_id) and not args.environment_id:
-        raise SystemExit("接続詳細URLの生成には --environment-id が必要です")
+        raise SystemExit("接続URLの生成には --environment-id が必要です")
 
     server_name = require(args.server_name, "--server-name")
     server_description = require(args.server_description, "--server-description")

@@ -102,14 +102,14 @@ Client secret は作成・ローテーションしない。入力ガイドにも
 
 ### Step 5: 接続を作成してエージェントへ追加する
 
-エージェントは接続作成を代行せず、生成 MD にある次の2リンクを利用者へ提示する。
+エージェントは接続作成を代行せず、コネクタごとに生成 MD の新規作成リンクを利用者へ直接提示する。
 
-- `https://make.powerapps.com/environments/<environment-id>/connections`
+- `https://make.preview.powerapps.com/environments/<environment-id>/connections/available/<connector-id>`
 - `https://copilotstudio.microsoft.com/environments/<environment-id>/bots`
 
 利用者本人が次を行う。
 
-1. Power Apps 接続一覧を開き、更新済みコネクタから接続を作成する。
+1. 提示されたPower Appsの新規作成リンクを開き、更新済みコネクタから接続を作成する。
 2. 生成 MD の `Display name (optional)` を貼り付け、組織アカウントでサインインして同意する。OAuthの
   ポップアップを許可し、Power Appsへ戻るまで閉じない。
 3. 接続が `Connected` になったことを確認する。認可を中断して作成された `Error` 接続は再利用せず、
@@ -125,8 +125,8 @@ Client secret は作成・ローテーションしない。入力ガイドにも
 7. **Add to agent** を選び、表示される場合は **Confirm** を選ぶ。
 8. エージェントを再公開する。
 
-接続詳細URLを入力ガイドへ残す場合は、Step 2 の生成コマンドへ `--connector-id` と
-`--connection-id` を追加してServerごとに再生成する。片方だけの指定は生成スクリプトが拒否する。
+新規作成URLを入力ガイドへ出すには、Step 2 の生成コマンドへ `--connector-id` を追加する。
+作成済み接続の詳細URLも残す場合だけ `--connection-id` を追加し、Serverごとに再生成する。
 
 接続作成後、エージェントは接続状態、`tools/list`、`tools/call`、公開状態を読み取り検証する。
 
