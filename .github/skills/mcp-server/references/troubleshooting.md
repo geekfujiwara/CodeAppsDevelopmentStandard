@@ -253,6 +253,12 @@ Function App認証ログに要求がなければ、失敗はMCPサーバー到�
 `Error` 接続は再利用せず、接続ごとの詳細URLから削除して新規作成する。`Connected` の既存接続や
 カスタムコネクタ定義を削除しない。エラー接続の再作成後は `pac connection list` で状態を再確認する。
 
+`AADSTS7000215: Invalid client secret provided` が応答本文にある場合は、ポップアップ中断ではなく
+コネクタに保存されたsecretが無効。`pac connector download` はsecret valueをexportしないため、取得した
+`apiProperties.json`をそのまま更新に使うとsecretが失われる。Entraで有効なcredential valueを保持する
+Git無視済みファイルを指定し、`update_connector_oauth.py`で対象コネクタへ再注入する。secret IDではなく
+作成時に一度だけ返されたvalueを使う。更新後、利用者本人が接続を再認証する。
+
 ---
 
 ## 認証・認可

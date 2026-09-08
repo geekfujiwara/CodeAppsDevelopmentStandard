@@ -227,6 +227,16 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
    - OAuthポップアップはPower Appsへ戻るまで閉じない。認可中断で残った `Error` 接続は再利用せず、
      個別詳細ページから削除して利用者本人が新しい接続を作成する。
    - 生成 MD は Client secret を含む。**MCP Server ごとに分け**、先に `.gitignore` へ追加する。
+   - `pac connector download` の `apiProperties.json` は `clientSecret`を含まない。そのまま
+     `pac connector update`へ渡すと有効なsecretが失われるため、既存コネクタの更新には必ず次を使う。
+
+     ```powershell
+     python .github/skills/mcp-server/scripts/update_connector_oauth.py `
+       --environment $env:POWER_PLATFORM_ENVIRONMENT_ID `
+       --connector-id <connector-id> `
+       --secret-file .secrets/connector-oauth.json
+     ```
+
    - 認証は `OAuth 2.0`、構成は `Manual` を選ぶ。接続画面では任意の表示名も生成 MD から貼り付ける。
    - コネクタ作成後に表示された callback URL、または `AADSTS50011` に表示された URI は、次で Entra に追加する。
 
