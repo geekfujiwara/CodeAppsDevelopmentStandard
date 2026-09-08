@@ -4,7 +4,7 @@
 > GitHub Copilot Agent モードとスキルベースの開発ワークフローにより、VS Code から Power Platform / Azure ソリューションを構築する実践ガイド。
 
 > [!NOTE]
-> 推奨モデル: Claude Sonnet 5
+> 推奨モデル: Claude Opus 5
 
 ---
 
