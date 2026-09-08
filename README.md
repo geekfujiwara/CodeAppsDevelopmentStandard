@@ -165,6 +165,11 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 
 ### ライセンスの準備
 
+利用する機能ごとに必要なライセンスが異なります。詳細は以下のアコーディオンを開いて確認してください。
+
+<details>
+<summary>必要なライセンス一覧・公式ガイドを表示</summary>
+
 | 対象 | 必要なライセンス / 前提 | 出典 |
 |---|---|---|
 | GitHub Copilot（VS Code / Claude Code でのエージェント開発） | **GitHub Copilot Pro 以上**（Pro / Pro+ / Business / Enterprise） | [GitHub Copilot のプラン](https://github.com/features/copilot/plans) |
@@ -181,6 +186,8 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 | Microsoft Copilot Studio ライセンスガイド（英語） | [aka.ms/MCSLic](https://aka.ms/MCSLic) |
 | Microsoft Copilot Studio ライセンスガイド（日本語） | [aka.ms/MCSLicJP](https://aka.ms/MCSLicJP) |
 | Copilot Credits ライセンスガイド | [aka.ms/CopilotCredits/LicensingGuide](https://aka.ms/CopilotCredits/LicensingGuide) |
+
+</details>
 
 ### クラウド環境の準備
 
@@ -326,7 +333,10 @@ VS Code をインストールすると **GitHub Copilot 拡張機能は最初か
 python -m pip install -r .github/skills/standard/scripts/requirements.txt
 ```
 
-導入されるのは `azure-identity` / `python-dotenv` / `requests` の 3 つだけです。
+導入されるのは `azure-identity` / `python-dotenv` / `requests` の 3 つだけです。統合プロンプトのフェーズ 1 を実行済みなら、`.env` の設定と初回認証（インタラクティブ→DEVICE CODE の順で自動検証）もすでに完了しています。
+
+<details>
+<summary>認証キャッシュの仕組みと手動設定の詳細を表示</summary>
 
 - `.env` に **`TENANT_ID`** を設定します。認証キャッシュはテナントごとに
   `~/.power-platform-cli/auth_record_{TENANT_ID}.json` へ分離保存されるため、複数テナントを行き来しても再認証は最小限で済みます。
@@ -334,16 +344,24 @@ python -m pip install -r .github/skills/standard/scripts/requirements.txt
 - **初回の認証キャッシュは、ユーザーに確認せず自動で検証します。** まず `.env` に `AUTH_MODE=interactive` を設定してローカルブラウザでの**インタラクティブ認証**を試し、キャッシュ（`AuthenticationRecord`）が作成できるか確認します。ブラウザ操作ができない環境などで失敗した場合は、`AUTH_MODE=interactive` を削除（または `AUTH_MODE=device_code` に変更）し、既定の **DEVICE CODE 認証**（表示されたコードを別のデバイス／ブラウザで入力する方式）にフォールバックします。
   - どちらの方式でキャッシュされても、**初回のみ**認証画面が表示されます。以降はキャッシュからサイレントに認証され、スクリプトは非対話で完走します。
   毎回認証を求められる場合は、`.env` の `TENANT_ID` が未設定でないかを確認してください。
-- サインインできたら、開発に入る前に [Power Platform 環境のチェック](#power-platform-環境のチェック開発着手前に必須) を実行してください。
 
 > [!NOTE]
 > PR 作成やスキル公開を行う場合は `gh auth login` 済みの GitHub CLI も必要です。
+
+</details>
+
+サインインできたら、開発に入る前に [Power Platform 環境のチェック](#power-platform-環境のチェック開発着手前に必須) を実行してください。
 
 ---
 
 ## 管理者権限（管理者ロール）要件
 
-開発者本人の権限だけでは完結せず、**テナント/環境の管理者**（またはその権限を持つ人）による事前設定が必要な操作があります。特に Cowork プラグインやテナント横断の設定は、開発者単独では実施できない場合があります。**Cowork 関連の操作（#2〜#8）は、会社環境で Cowork の利用が許可されている場合のみ実施してください。**
+開発者本人の権限だけでは完結せず、**テナント/環境の管理者**（またはその権限を持つ人）による事前設定が必要な操作があります。統合プロンプトのフェーズ 2 で管理者権限の有無を自動判定し、不足時は必要ロールと依頼内容を報告するため、通常はこの一覧を読む必要はありません。詳細を確認したい場合や、エージェント経由で対応できない操作（Cowork の Entra/Teams/M365 管理センター設定など）を手動で行う場合は、以下のアコーディオンを開いてください。
+
+<details>
+<summary>操作ごとの必要な最小ロール一覧を表示</summary>
+
+特に Cowork プラグインやテナント横断の設定は、開発者単独では実施できない場合があります。**Cowork 関連の操作（#2〜#8）は、会社環境で Cowork の利用が許可されている場合のみ実施してください。**
 
 | # | 操作 | 実施場所 | 必要な最小ロール | 出典 |
 |---|---|---|---|---|
@@ -370,6 +388,8 @@ python -m pip install -r .github/skills/standard/scripts/requirements.txt
 > - ポリシー変更の反映には**通常 1 時間以内、最大 24 時間**かかります。変更直後に解消していなくても、再評価まで待ってから判断してください。
 > - **Advanced connector policies（ACP）は認定コネクタと MCP コネクタのみ**が対象です。カスタムコネクタ・HTTP コネクタ・Copilot Studio の仮想コネクタは、従来のデータ ポリシーで引き続き管理する必要があります。
 > - 上記の管理者ロール一覧と、権限がない場合の進め方は [admin スキルの管理者ロール一覧](.github/skills/admin/references/admin-roles.md) にまとめています。
+
+</details>
 
 ---
 
@@ -451,7 +471,8 @@ Python と pip が利用可能な場合は、`spec-builder` 用 `.venv` の作�
 python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID
 ```
 
-確認する項目:
+<details>
+<summary>確認する項目の一覧を表示</summary>
 
 | # | 項目 | 判定内容 |
 |---|---|---|
@@ -466,6 +487,8 @@ python .github/skills/admin/scripts/check_environment.py --environment-id $env:E
 | 9 | セキュリティ ロール | 自分に **System Administrator**（または System Customizer + Environment Maker）が割り当てられているか。チーム経由の割り当ても検出 |
 | 10 | 管理 API アクセス | テナントのデータ ポリシーを参照できるか（管理者ロール相当か） |
 | 11 | 適用される DLP | この環境に適用されるデータ ポリシーの一覧 |
+
+</details>
 
 `NG` が 1 つでもあれば、開発に入る前に解消してください（対処方法は
 [admin スキル](.github/skills/admin/SKILL.md) と
