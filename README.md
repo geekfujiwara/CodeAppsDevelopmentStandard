@@ -202,7 +202,7 @@ Copilot Studio を利用する場合は、次の順序で管理者による事�
 4. Advanced Connector Policy で利用を許可するコネクタを設定する
 5. Code Apps を使用する場合は環境の機能を有効化する
 
-#### エージェントへのプロンプトで設定する（推奨）
+#### 自動で設定する（推奨）
 
 これらのクラウド側の設定は、管理センターの画面を開かずに **[admin スキル](.github/skills/admin/SKILL.md) を読み込んだエージェント**に依頼して実行できます。画面操作は手順が長く、環境が増えるたびに設定漏れとドリフトが起きるため、コマンドを手打ちするのではなく、エージェントにスキルを読ませて再現できる形にしておきます。
 
@@ -319,7 +319,25 @@ VS Code をインストールすると **GitHub Copilot 拡張機能は最初か
 2. 左下のアカウントアイコンから GitHub でサインイン（Copilot 拡張は同梱済みのためインストール不要、サブスクリプションの有効化のみ必要）
 3. Copilot チャットを開く（`Ctrl+Alt+I`、Mac: `⌃⌘I`）
 
-開発ツールの導入・PATH 設定・動作確認は、手順を手打ちせずに [前提条件冒頭の統合プロンプト](#統合プロンプトで一気に準備する推奨) をチャットに貼り付けて実行してください（クラウド環境の準備が不要な場合は、そのプロンプトの「フェーズ 1」部分だけを貼り付けても構いません）。
+##### 自動で導入する（推奨）
+
+開発ツール（Git / Node.js / Python / PP CLI / GitHub CLI 等）の導入・PATH 設定・動作確認は、手順を手打ちせずに [前提条件冒頭の統合プロンプト](#統合プロンプトで一気に準備する推奨) をチャットに貼り付けて実行してください（クラウド環境の準備が不要な場合は、そのプロンプトの「フェーズ 1」部分だけを貼り付けても構いません）。
+
+<details>
+<summary>手動で導入する場合</summary>
+
+| ツール | 入手先 |
+|---|---|
+| Git | [git-scm.com](https://git-scm.com/downloads) |
+| Node.js LTS | [nodejs.org](https://nodejs.org/) |
+| Python 3.12 | [python.org](https://www.python.org/downloads/) |
+| degit（`npx degit` を高速化） | `npm install -g degit` |
+| Power Platform CLI（pac） | VS Code 拡張機能「Power Platform Tools」または `dotnet tool install --global Microsoft.PowerApps.CLI.Tool`（**npm では配布されていない**） |
+| GitHub CLI（gh） | [cli.github.com](https://cli.github.com/) |
+
+導入後は、新規ターミナルで以下が全て PATH 経由で解決できることを確認してください：`git --version` / `node --version` / `npm --version` / `npx --version` / `degit --version` / `python --version` / `pac help` / `gh --version` / `gh auth status`。
+
+</details>
 
 > [!Note]
 > クイックスタートのコマンドで `npx` が実行できないというエラーが出る場合は、Node.js インストール直後で PATH がまだ反映されていない可能性があります。新しいターミナルを開き直して再実行してください。
