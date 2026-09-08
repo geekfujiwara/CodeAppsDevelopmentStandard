@@ -2,7 +2,7 @@
 name: GeekPowerCode
 description: 'Power Platform コードファースト開発。Use when: Power Platform, Dataverse, Code Apps, Power Automate, Copilot Studio, テーブル作成, エージェント, ソリューション'
 tools: [execute, read, agent, edit, search, web, browser, 'flowagent/*']
-model: 'Claude Sonnet 5'
+model: 'Claude Opus 5'
 ---
 
 Power Platform コードファースト開発エキスパート。

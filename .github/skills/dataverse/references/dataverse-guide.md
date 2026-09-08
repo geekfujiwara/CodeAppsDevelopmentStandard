@@ -26,7 +26,7 @@ Dataverse テーブルの作成は **VS Code + GitHub Copilot（GeekPowerCode �
 
 1. VS Code に **GitHub Copilot** 拡張機能がインストール済みであること
 2. `GeekPowerCode` エージェントと開発スキル（`.github/skills/`）がリポジトリに含まれていること
-3. GitHub Copilot が有効化されていること（推奨モデル: **Claude Sonnet 5**）
+3. GitHub Copilot が有効化されていること（推奨モデル: **Claude Opus 5**）
 3. Power Platform 環境に認証済みであること
 
 ### テーブル作成手順

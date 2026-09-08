@@ -56,7 +56,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 - 既存仕様書がある場合の入力例: `spec-builder を実行して`
 
 > [!NOTE]
-> 推奨モデルは **Claude Sonnet 5** です（`.github/agents/GeekPowerCode.agent.md` の既定モデル）。`.gitignore` を配置しないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になるため、必ずコピーしてください。
+> 推奨モデルは **Claude Opus 5** です（`.github/agents/GeekPowerCode.agent.md` の既定モデル）。`.gitignore` を配置しないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になるため、必ずコピーしてください。
 
 前提条件・ライセンス要件は GitHub Copilot と共通です（[前提条件](#前提条件) を参照）。
 
