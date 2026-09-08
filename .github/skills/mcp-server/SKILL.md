@@ -211,12 +211,36 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
      --server-description "文書を検索して内容を取得します。" `
      --server-url "https://<function-app>.azurewebsites.net/api/mcp" `
      --display-name "文書 MCP 接続" `
+    --environment-id $env:POWER_PLATFORM_ENVIRONMENT_ID `
      --output "<server-dir>/copilot-studio-connection.md"
    ```
 
    - `Server name` は **1～64 文字の英字・数字・ハイフン・ドットのみ**。日本語や空白は
      Power Platform の内部コネクタ名作成で 400 になるため、生成スクリプトが事前に拒否する。
+   - 生成する Scopes は `<API scope> offline_access` とする。`offline_access` がないとリフレッシュトークンが
+     発行されず、アクセストークン失効後に接続が `Missing refresh token` で無効になる。生成スクリプトが必ず付与する。
+   - Copilot Studioで利用する場合は、エージェント固有の
+     `https://copilotstudio.microsoft.com/c2/tenants/<tenant-id>/environments/<environment-id>/bots/<bot-schema>/channels/pva-studio/conversations/<conversation-id>/user-connections`
+     を直接提示する。Power Apps / Power Automateのみで利用する場合は、コネクタ固有の
+     `https://make.preview.powerapps.com/environments/<environment-id>/connections/available/<connector-id>`
+     だけを提示し、Copilot Studio URLは出さない。
+     接続作成、サインイン、同意、Studioでの接続選択は利用者本人が行い、エージェントは事後検証を担当する。
+   - 接続作成後は `pac connection list --environment <environment-id>` で各接続のIDを取得し、
+     `https://make.preview.powerapps.com/environments/<environment-id>/connections/<connector-id>/<connection-id>/details`
+     形式のリンクを**接続ごとに**利用者へ提示する。接続の作成や再認証は代行しない。
+   - OAuthポップアップはPower Appsへ戻るまで閉じない。認可中断で残った `Error` 接続は再利用せず、
+     個別詳細ページから削除して利用者本人が新しい接続を作成する。
    - 生成 MD は Client secret を含む。**MCP Server ごとに分け**、先に `.gitignore` へ追加する。
+   - `pac connector download` の `apiProperties.json` は `clientSecret`を含まない。そのまま
+     `pac connector update`へ渡すと有効なsecretが失われるため、既存コネクタの更新には必ず次を使う。
+
+     ```powershell
+     python .github/skills/mcp-server/scripts/update_connector_oauth.py `
+       --environment $env:POWER_PLATFORM_ENVIRONMENT_ID `
+       --connector-id <connector-id> `
+       --secret-file .secrets/connector-oauth.json
+     ```
+
    - 認証は `OAuth 2.0`、構成は `Manual` を選ぶ。接続画面では任意の表示名も生成 MD から貼り付ける。
    - コネクタ作成後に表示された callback URL、または `AADSTS50011` に表示された URI は、次で Entra に追加する。
 
@@ -270,6 +294,9 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 - [ ] 管理エンドポイントを削除し、`ADMIN_SEED_SECRET` をアプリ設定から消した
 - [ ] 削除後に「残すルート = 401 / 削除したルート = 404」を HTTP で実測した
 - [ ] スクリプトが `auth_helper` 経由で非対話に完走する（`az login` を要求しない）
+- [ ] Copilot Studio 接続の Scopes に `<API scope> offline_access` が含まれ、再接続後に自動更新できる
+- [ ] 利用者へ対象環境の Power Apps 接続一覧と Copilot Studio エージェント一覧のURLを提示した
+- [ ] 作成済みの各接続について Power Apps の個別詳細URLを利用者へ提示した
 - [ ] Copilot Studio の Edit 画面で 401 が出たら、DLP/設定変更の前に `diagnose_connector_token.py` で
       「未接続・トークン失効・その他」を切り分けた
 

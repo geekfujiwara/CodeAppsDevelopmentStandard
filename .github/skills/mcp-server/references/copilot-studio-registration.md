@@ -80,7 +80,7 @@ python .github/skills/mcp-server/scripts/generate_copilot_studio_guide.py `
 | Authorization URL | `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize` |
 | Token URL | `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` |
 | Refresh token URL | Token URL と同じ |
-| Scopes | `api://<app-id>/<scope>`。対話同意では `/.default` を使わない |
+| Scopes | `api://<app-id>/<scope> offline_access`。対話同意では `/.default` を使わない。`offline_access` を省くとリフレッシュトークンが発行されず、アクセストークンの期限切れ（既定 60〜90 分）ごとに手動再接続が必要になる |
 
 4. **Add** を選択する。`POST .../connectors/apim` が 400 の場合は、ブラウザ開発者ツールの
    **Network > connectors/apim > Response** を確認する。Initiator の JavaScript スタックだけでは原因は分からない。
@@ -102,12 +102,38 @@ Client secret は作成・ローテーションしない。入力ガイドにも
 
 ### Step 5: 接続を作成してエージェントへ追加する
 
-1. **Select a connection** で対象コネクタの **Create** を選ぶ。
-2. 生成 MD の `Display name (optional)` を貼り付ける。
-3. 組織アカウントでサインインする。Step 4 の URI 追加直後は、接続ダイアログを一度閉じて開き直す。
-4. 接続が `Connected` になったら **Add to agent** を選ぶ。
-5. MCP Server の詳細で接続を選び、表示される場合は **Confirm** を選ぶ。
-6. エージェントを再公開する。
+エージェントは接続作成を代行せず、利用製品に応じたリンクを利用者へ直接提示する。
+
+- **Copilot Studioで利用**: エージェント固有の
+  `https://copilotstudio.microsoft.com/c2/tenants/<tenant-id>/environments/<environment-id>/bots/<bot-schema>/channels/pva-studio/conversations/<conversation-id>/user-connections`
+- **Power Apps / Power Automateのみで利用**: コネクタ固有の
+  `https://make.preview.powerapps.com/environments/<environment-id>/connections/available/<connector-id>`
+
+Copilot Studioで利用する場合はStudio URLを第一リンクとして提示する。Power Apps / Power Automateのみなら
+Power Apps新規接続URLだけを提示し、Copilot Studio URLは提示しない。
+
+利用者本人が次を行う。
+
+1. 提示されたPower Appsの新規作成リンクを開き、更新済みコネクタから接続を作成する。
+2. 生成 MD の `Display name (optional)` を貼り付け、組織アカウントでサインインして同意する。OAuthの
+  ポップアップを許可し、Power Appsへ戻るまで閉じない。
+3. 接続が `Connected` になったことを確認する。認可を中断して作成された `Error` 接続は再利用せず、
+  個別詳細ページから削除して新しい接続を作成する。
+4. エージェントが `pac connection list --environment <environment-id>` でコネクタIDと接続IDを取得する。
+5. エージェントは接続ごとに次の形式の詳細URLを利用者へ提示する。
+
+  ```text
+  https://make.preview.powerapps.com/environments/<environment-id>/connections/<connector-id>/<connection-id>/details
+  ```
+
+6. Copilot Studio エージェント一覧を開き、対象エージェントの MCP Server で作成した接続を選ぶ。
+7. **Add to agent** を選び、表示される場合は **Confirm** を選ぶ。
+8. エージェントを再公開する。
+
+新規作成URLを入力ガイドへ出すには、Step 2 の生成コマンドへ `--connector-id` を追加する。
+作成済み接続の詳細URLも残す場合だけ `--connection-id` を追加し、Serverごとに再生成する。
+
+接続作成後、エージェントは接続状態、`tools/list`、`tools/call`、公開状態を読み取り検証する。
 
 生成オーケストレーションを有効にする。複数 Server を追加するときは、各 description と
 エージェントの Instructions の両方に、どの質問でどの Server を使うかを書く。

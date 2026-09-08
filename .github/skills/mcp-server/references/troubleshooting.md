@@ -222,6 +222,43 @@ traces
 `token_expired` が閾値（既定 15 分）を超えて繰り返していれば再認証、`not_connected` なら
 接続未完了と即座に切り分けられる。読み取り専用でポリシー・アプリ設定は変更しない。
 
+### Power Apps の接続一覧で頻繁に「再接続」表示になり、ツールチップが `Missing refresh token`
+
+**症状**: Copilot Studio の Tools 画面でツールが `Failed`（`reasonCode: ConnectionInvalid` /
+`HttpStatusCode: unauthorized`）になる。Power Apps > Connections の状態列は「再接続」で、
+ツールチップは `Failed to refresh access token for service: oauth2pkce ... Error: Missing refresh token.`
+
+**原因**: 上の「HTTP 401 が出続ける」問題とは別の事象。カスタムコネクタの **Scopes に
+`offline_access` を含めていない**ため、Entra がそもそもリフレッシュトークンを発行していない。
+アクセストークンの既定の有効期限（60〜90 分）が切れるたびに接続が無効化され、
+Copilot Studio・Power Apps 側にリフレッシュしようにも使えるリフレッシュトークンがない。
+「リフレッシュが早い／すぐ使えなくなる」という体感は、リフレッシュ間隔の問題ではなく
+リフレッシュトークン自体が存在しないことが原因。
+
+**対処**: 対象コネクタの Scopes を `api://<app-id>/<scope> offline_access` に変更し、
+Power Apps > Connections で対象接続を再接続（初回サインインをやり直す）する。
+以後はアクセストークン期限切れ時にリフレッシュトークンで自動更新され、手動再接続の頻度が下がる。
+複数コネクタが同じ Entra アプリ登録を共有している場合は、すべてのコネクタの Scopes を同様に修正する。
+
+### 接続作成時に `OAuth2 authorization flow failed` の PromiseRejection が出る
+
+**症状**: Power Apps のシェルに `OAuth2 authorization flow failed for service 'Generic Oauth 2 with PKCE'`
+という未処理の PromiseRejection が表示され、`pac connection list` では作成途中の接続が `Error` になる。
+
+**切り分け**: コネクタ定義の `identityProvider`、Scopes、Authorization/Token/Refresh URL、redirect URLを
+exportして確認する。Entra側のredirect URIとClient secretの有効期限も確認する。これらが正しく、同時刻の
+Function App認証ログに要求がなければ、失敗はMCPサーバー到達前のPower Apps OAuth画面で発生している。
+
+**対処**: OAuthポップアップを許可し、サインイン・同意後にPower Appsへ戻るまで閉じない。途中で作られた
+`Error` 接続は再利用せず、接続ごとの詳細URLから削除して新規作成する。`Connected` の既存接続や
+カスタムコネクタ定義を削除しない。エラー接続の再作成後は `pac connection list` で状態を再確認する。
+
+`AADSTS7000215: Invalid client secret provided` が応答本文にある場合は、ポップアップ中断ではなく
+コネクタに保存されたsecretが無効。`pac connector download` はsecret valueをexportしないため、取得した
+`apiProperties.json`をそのまま更新に使うとsecretが失われる。Entraで有効なcredential valueを保持する
+Git無視済みファイルを指定し、`update_connector_oauth.py`で対象コネクタへ再注入する。secret IDではなく
+作成時に一度だけ返されたvalueを使う。更新後、利用者本人が接続を再認証する。
+
 ---
 
 ## 認証・認可
