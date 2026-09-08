@@ -102,10 +102,15 @@ Client secret は作成・ローテーションしない。入力ガイドにも
 
 ### Step 5: 接続を作成してエージェントへ追加する
 
-エージェントは接続作成を代行せず、コネクタごとに生成 MD の新規作成リンクを利用者へ直接提示する。
+エージェントは接続作成を代行せず、利用製品に応じたリンクを利用者へ直接提示する。
 
-- `https://make.preview.powerapps.com/environments/<environment-id>/connections/available/<connector-id>`
-- `https://copilotstudio.microsoft.com/environments/<environment-id>/bots`
+- **Copilot Studioで利用**: エージェント固有の
+  `https://copilotstudio.microsoft.com/c2/tenants/<tenant-id>/environments/<environment-id>/bots/<bot-schema>/channels/pva-studio/conversations/<conversation-id>/user-connections`
+- **Power Apps / Power Automateのみで利用**: コネクタ固有の
+  `https://make.preview.powerapps.com/environments/<environment-id>/connections/available/<connector-id>`
+
+Copilot Studioで利用する場合はStudio URLを第一リンクとして提示する。Power Apps / Power Automateのみなら
+Power Apps新規接続URLだけを提示し、Copilot Studio URLは提示しない。
 
 利用者本人が次を行う。
 

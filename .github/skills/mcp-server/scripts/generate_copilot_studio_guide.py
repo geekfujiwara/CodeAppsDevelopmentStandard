@@ -107,6 +107,19 @@ def connection_details_url(environment_id: str, connector_id: str, connection_id
     )
 
 
+def copilot_studio_user_connections_url(
+    tenant_id: str,
+    environment_id: str,
+    bot_schema_name: str,
+    conversation_id: str,
+) -> str:
+    return (
+        f"https://copilotstudio.microsoft.com/c2/tenants/{tenant_id}"
+        f"/environments/{environment_id}/bots/{bot_schema_name}/channels/pva-studio"
+        f"/conversations/{conversation_id}/user-connections"
+    )
+
+
 def build_markdown(
     *,
     server_name: str,
@@ -122,6 +135,8 @@ def build_markdown(
     environment_id: str | None = None,
     connector_id: str | None = None,
     connection_id: str | None = None,
+    copilot_studio_bot_schema: str | None = None,
+    copilot_studio_conversation_id: str | None = None,
 ) -> str:
     authorization_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize"
     token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
@@ -141,19 +156,27 @@ Entra アプリ登録の **認証 > Web > リダイレクト URI** に追加す�
     )
     links_section = ""
     if environment_id:
-        connections_url, studio_url = environment_links(environment_id)
+        connections_url, _ = environment_links(environment_id)
         create_link = ""
         connection_link = ""
+        studio_link = ""
         if connector_id:
             create_url = connection_create_url(environment_id, connector_id)
             create_link = f"- Power Apps このコネクタから新規作成: {create_url}\n"
             if connection_id:
                 details_url = connection_details_url(environment_id, connector_id, connection_id)
                 connection_link = f"- Power Apps 作成済み接続の詳細: {details_url}\n"
+        if copilot_studio_bot_schema and copilot_studio_conversation_id:
+            studio_url = copilot_studio_user_connections_url(
+                tenant_id,
+                environment_id,
+                copilot_studio_bot_schema,
+                copilot_studio_conversation_id,
+            )
+            studio_link = f"- Microsoft Copilot Studio 接続管理: {studio_url}\n"
         links_section = f"""## 接続作成リンク
 
-{create_link}{connection_link}- Power Apps 接続一覧: {connections_url}
-- Copilot Studio エージェント一覧: {studio_url}
+{create_link}{connection_link}{studio_link}- Power Apps 接続一覧: {connections_url}
 
 接続作成、組織アカウントでのサインインと同意、Copilot Studio での接続選択は利用者本人が行う。
 
@@ -259,6 +282,8 @@ def main() -> int:
     parser.add_argument("--environment-id", default=os.getenv("POWER_PLATFORM_ENVIRONMENT_ID"))
     parser.add_argument("--connector-id", default=os.getenv("MCP_CONNECTOR_ID"))
     parser.add_argument("--connection-id", default=os.getenv("MCP_CONNECTION_ID"))
+    parser.add_argument("--copilot-studio-bot-schema", default=os.getenv("COPILOT_STUDIO_BOT_SCHEMA"))
+    parser.add_argument("--copilot-studio-conversation-id", default=os.getenv("COPILOT_STUDIO_CONVERSATION_ID"))
     parser.add_argument("--audience", default=os.getenv("MCP_API_AUDIENCE"))
     parser.add_argument("--scope", default=os.getenv("MCP_API_SCOPE_VALUE"))
     parser.add_argument(
@@ -273,6 +298,11 @@ def main() -> int:
         raise SystemExit("--connection-id を指定する場合は --connector-id も必要です")
     if (args.connector_id or args.connection_id) and not args.environment_id:
         raise SystemExit("接続URLの生成には --environment-id が必要です")
+    studio_values = (args.copilot_studio_bot_schema, args.copilot_studio_conversation_id)
+    if any(studio_values) and not all(studio_values):
+        raise SystemExit("Copilot Studio URLにはbot schemaとconversation IDの両方が必要です")
+    if any(studio_values) and not args.environment_id:
+        raise SystemExit("Copilot Studio URLの生成には --environment-id が必要です")
 
     server_name = require(args.server_name, "--server-name")
     server_description = require(args.server_description, "--server-description")
@@ -312,6 +342,10 @@ def main() -> int:
         environment_id=args.environment_id.strip() if args.environment_id else None,
         connector_id=args.connector_id.strip() if args.connector_id else None,
         connection_id=args.connection_id.strip() if args.connection_id else None,
+        copilot_studio_bot_schema=args.copilot_studio_bot_schema.strip() if args.copilot_studio_bot_schema else None,
+        copilot_studio_conversation_id=(
+            args.copilot_studio_conversation_id.strip() if args.copilot_studio_conversation_id else None
+        ),
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(markdown, encoding="utf-8")

@@ -5,6 +5,7 @@ from generate_copilot_studio_guide import (
     connection_create_url,
     connection_details_url,
     connector_scopes,
+    copilot_studio_user_connections_url,
     environment_links,
 )
 
@@ -91,6 +92,41 @@ class ConnectorScopesTests(unittest.TestCase):
 
         self.assertIn("connections/available/shared_example-mcp", markdown)
         self.assertNotIn("/connection-id/details", markdown)
+        self.assertNotIn("copilotstudio.microsoft.com", markdown)
+
+    def test_copilot_studio_url_targets_agent_conversation_connections(self) -> None:
+        url = copilot_studio_user_connections_url(
+            "tenant-id",
+            "environment-id",
+            "example_Agent",
+            "conversation-id",
+        )
+
+        self.assertEqual(
+            url,
+            "https://copilotstudio.microsoft.com/c2/tenants/tenant-id/environments/environment-id/"
+            "bots/example_Agent/channels/pva-studio/conversations/conversation-id/user-connections",
+        )
+
+    def test_generated_guide_adds_studio_url_only_when_configured(self) -> None:
+        markdown = build_markdown(
+            server_name="example-mcp",
+            server_description="Example MCP server",
+            server_url="https://example.invalid/api/mcp",
+            display_name="Example MCP",
+            tenant_id="tenant-id",
+            audience="api://example",
+            full_scope="api://example/MCP.Access",
+            client_id="example-client",
+            client_secret="example-secret",
+            redirect_uri=None,
+            environment_id="environment-id",
+            connector_id="shared_example-mcp",
+            copilot_studio_bot_schema="example_Agent",
+            copilot_studio_conversation_id="conversation-id",
+        )
+
+        self.assertIn("/conversations/conversation-id/user-connections", markdown)
 
 
 if __name__ == "__main__":
