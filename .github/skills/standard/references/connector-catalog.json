@@ -1,0 +1,220 @@
+{
+  "version": "1.0",
+  "note": [
+    "コネクタの通称（SharePoint / Outlook / SQL など）から コネクタ ID（shared_xxx）を解決するための共通カタログ。",
+    "CLI やスクリプトが対話プロンプトでコネクタ ID を尋ねてこないよう、実行前に ID を確定させる目的で使う。",
+    "ここに無いコネクタは scripts/connector_catalog.py のフォールバック（pa connector list --search）で解決する。",
+    "requires: pa app add data-source で追加指定が必要な項目。orgUrl / dataset / table のいずれか。"
+  ],
+  "connectors": [
+    {
+      "id": "shared_commondataserviceforapps",
+      "displayName": "Microsoft Dataverse",
+      "aliases": ["dataverse", "cds", "commondataservice", "microsoftdataverse", "dataverseconnector"],
+      "requires": ["orgUrl"],
+      "note": "Code Apps では 1 回追加すれば MicrosoftDataverseService で全テーブルを扱える（テーブルごとの追加は不要）"
+    },
+    {
+      "id": "shared_sharepointonline",
+      "displayName": "SharePoint",
+      "aliases": ["sharepoint", "sharepointonline", "spo", "sp"],
+      "requires": ["dataset", "table"],
+      "note": "--dataset にサイト URL、--table にリスト ID（またはリスト名）を指定する"
+    },
+    {
+      "id": "shared_office365",
+      "displayName": "Office 365 Outlook",
+      "aliases": ["outlook", "office365outlook", "o365outlook", "mail", "email", "メール"],
+      "requires": []
+    },
+    {
+      "id": "shared_office365users",
+      "displayName": "Office 365 Users",
+      "aliases": ["office365users", "o365users", "users", "userprofile", "ユーザー"],
+      "requires": []
+    },
+    {
+      "id": "shared_office365groups",
+      "displayName": "Office 365 Groups",
+      "aliases": ["office365groups", "o365groups", "groups"],
+      "requires": []
+    },
+    {
+      "id": "shared_teams",
+      "displayName": "Microsoft Teams",
+      "aliases": ["teams", "msteams", "microsoftteams"],
+      "requires": []
+    },
+    {
+      "id": "shared_sql",
+      "displayName": "SQL Server",
+      "aliases": ["sql", "sqlserver", "azuresql", "mssql"],
+      "requires": ["dataset", "table"],
+      "note": "--dataset にサーバー/データベース、--table にテーブル。ストアドプロシージャは --procedure"
+    },
+    {
+      "id": "shared_onedriveforbusiness",
+      "displayName": "OneDrive for Business",
+      "aliases": ["onedriveforbusiness", "odfb", "onedrivebusiness"],
+      "requires": []
+    },
+    {
+      "id": "shared_onedrive",
+      "displayName": "OneDrive",
+      "aliases": ["onedrive"],
+      "requires": []
+    },
+    {
+      "id": "shared_excelonlinebusiness",
+      "displayName": "Excel Online (Business)",
+      "aliases": ["excel", "excelonline", "excelonlinebusiness"],
+      "requires": ["dataset", "table"]
+    },
+    {
+      "id": "shared_approvals",
+      "displayName": "Approvals",
+      "aliases": ["approvals", "approval", "承認"],
+      "requires": []
+    },
+    {
+      "id": "shared_planner",
+      "displayName": "Planner",
+      "aliases": ["planner"],
+      "requires": []
+    },
+    {
+      "id": "shared_microsoftforms",
+      "displayName": "Microsoft Forms",
+      "aliases": ["forms", "microsoftforms", "msforms"],
+      "requires": []
+    },
+    {
+      "id": "shared_powerbi",
+      "displayName": "Power BI",
+      "aliases": ["powerbi", "pbi"],
+      "requires": []
+    },
+    {
+      "id": "shared_powervirtualagents",
+      "displayName": "Power Virtual Agents",
+      "aliases": ["powervirtualagents", "pva"],
+      "requires": []
+    },
+    {
+      "id": "shared_microsoftcopilotstudio",
+      "displayName": "Microsoft Copilot Studio",
+      "aliases": ["copilotstudio", "microsoftcopilotstudio", "mcs", "agent", "エージェント"],
+      "requires": []
+    },
+    {
+      "id": "shared_logicflows",
+      "displayName": "Power Automate (cloud flows)",
+      "aliases": ["logicflows", "flow", "flows", "powerautomate", "クラウドフロー"],
+      "requires": [],
+      "note": "Code Apps からフローを呼ぶときは pa app add flow を使う（add data-source ではない）"
+    },
+    {
+      "id": "shared_azureblob",
+      "displayName": "Azure Blob Storage",
+      "aliases": ["azureblob", "blob", "blobstorage"],
+      "requires": []
+    },
+    {
+      "id": "shared_azurequeues",
+      "displayName": "Azure Queues",
+      "aliases": ["azurequeues", "queues"],
+      "requires": []
+    },
+    {
+      "id": "shared_azuretables",
+      "displayName": "Azure Table Storage",
+      "aliases": ["azuretables", "tablestorage"],
+      "requires": []
+    },
+    {
+      "id": "shared_kusto",
+      "displayName": "Azure Data Explorer",
+      "aliases": ["kusto", "azuredataexplorer", "adx"],
+      "requires": []
+    },
+    {
+      "id": "shared_documentdb",
+      "displayName": "Azure Cosmos DB",
+      "aliases": ["cosmosdb", "documentdb", "cosmos"],
+      "requires": []
+    },
+    {
+      "id": "shared_azurekeyvault",
+      "displayName": "Azure Key Vault",
+      "aliases": ["keyvault", "azurekeyvault", "akv"],
+      "requires": []
+    },
+    {
+      "id": "shared_azureopenai",
+      "displayName": "Azure OpenAI",
+      "aliases": ["azureopenai", "aoai", "openai"],
+      "requires": []
+    },
+    {
+      "id": "shared_azuread",
+      "displayName": "Microsoft Entra ID",
+      "aliases": ["azuread", "entra", "entraid", "aad"],
+      "requires": []
+    },
+    {
+      "id": "shared_dynamicscrmonline",
+      "displayName": "Dynamics 365",
+      "aliases": ["dynamics", "dynamics365", "crm", "dynamicscrmonline"],
+      "requires": []
+    },
+    {
+      "id": "shared_visualstudioteamservices",
+      "displayName": "Azure DevOps",
+      "aliases": ["azuredevops", "ado", "vsts", "visualstudioteamservices"],
+      "requires": []
+    },
+    {
+      "id": "shared_github",
+      "displayName": "GitHub",
+      "aliases": ["github", "gh"],
+      "requires": []
+    },
+    {
+      "id": "shared_salesforce",
+      "displayName": "Salesforce",
+      "aliases": ["salesforce", "sfdc"],
+      "requires": []
+    },
+    {
+      "id": "shared_servicenow",
+      "displayName": "ServiceNow",
+      "aliases": ["servicenow", "snow"],
+      "requires": []
+    },
+    {
+      "id": "shared_msnweather",
+      "displayName": "MSN Weather",
+      "aliases": ["msnweather", "weather", "天気"],
+      "requires": []
+    },
+    {
+      "id": "shared_microsofttranslatorv2",
+      "displayName": "Microsoft Translator V2",
+      "aliases": ["translator", "microsofttranslator", "microsofttranslatorv2", "翻訳"],
+      "requires": []
+    },
+    {
+      "id": "shared_rss",
+      "displayName": "RSS",
+      "aliases": ["rss"],
+      "requires": []
+    },
+    {
+      "id": "shared_http",
+      "displayName": "HTTP",
+      "aliases": ["http"],
+      "requires": [],
+      "note": "DLP 事前チェック用。Code Apps のデータソースにはできない（CSP でブロックされる）"
+    }
+  ]
+}

@@ -35,6 +35,9 @@ from dlp_helper import (  # noqa: E402
     normalize_host,
 )
 
+# dlp_helper が standard/scripts を sys.path に追加済み
+from connector_catalog import ConnectorResolutionError, resolve_connector_id  # noqa: E402
+
 
 def _custom_classification(policy: dict, tenant_id: str | None, host: str) -> tuple[str, str]:
     """カスタムコネクタの実効分類と、その根拠を返す。"""
@@ -61,8 +64,8 @@ def main() -> int:
         "--connector",
         action="append",
         default=[],
-        metavar="shared_xxx",
-        help="ソリューションが使う標準コネクタ名（複数指定可）",
+        metavar="CONNECTOR",
+        help="標準コネクタのコネクタ ID または通称（例: shared_sharepointonline / sharepoint。複数指定可）",
     )
     parser.add_argument(
         "--custom-host",
@@ -78,6 +81,14 @@ def main() -> int:
     if not args.connector and not args.custom_host:
         parser.error("--connector または --custom-host を 1 つ以上指定してください")
 
+    # 通称（sharepoint 等）でもコネクタ ID でも受け付ける。曖昧な場合は問い合わせず停止する。
+    connectors: list[str] = []
+    for name in args.connector:
+        try:
+            connectors.append(resolve_connector_id(name))
+        except ConnectorResolutionError as exc:
+            parser.error(str(exc))
+
     hosts = [normalize_host(host) for host in args.custom_host]
     policies = applied_policies(args.environment_id)
     if not policies:
@@ -90,7 +101,7 @@ def main() -> int:
         print(f"    既定の分類: {label(policy.get('defaultConnectorsClassification') or 'unknown')}")
         groups: set[str] = set()
 
-        for name in args.connector:
+        for name in connectors:
             classification, explicit = classify_connector(policy, connector_id_for(name))
             source = "明示分類" if explicit else "既定"
             print(f"    [標準] {name}: {label(classification)}（{source}）")

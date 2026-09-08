@@ -2,12 +2,15 @@
 
 ## 原則
 
-1. **Dataverse コネクタは `npx pa app add data-source` で接続参照に 1 回追加** → `.power/schemas/appschemas/dataSourcesInfo.ts` が自動更新
-2. **手動で `dataSourcesInfo.ts` にカスタムテーブル定義を追記してはならない**
-3. **`systemuser` を含む Dataverse テーブルは生成された `MicrosoftDataverseService` から扱う**。
+1. **データソースの追加は `scripts/add_data_source.py`（非対話ラッパー）で行う**。
+  コネクタは通称（`sharepoint` 等）で指定でき、[コネクタ ID カタログ](../../standard/references/connector-catalog.json)
+  で `shared_xxx` に解決してから CLI を起動するため、コネクタ ID の入力待ちで止まらない
+2. **Dataverse コネクタは接続参照に 1 回追加** → `.power/schemas/appschemas/dataSourcesInfo.ts` が自動更新
+3. **手動で `dataSourcesInfo.ts` にカスタムテーブル定義を追記してはならない**
+4. **`systemuser` を含む Dataverse テーブルは生成された `MicrosoftDataverseService` から扱う**。
   `src/lib/dataSourcesInfo.ts` は生成ファイルを re-export するだけでよく、手動定義は不要
-4. **`src/lib/dataSourcesInfo.ts`** への手動追記は、SDK の `pa app add data-source` で追加**できなかった**システムテーブルやコネクタに限る（最後の手段）
-5. 実行前に `pa auth status` / `pa auth switch` で対象テナントを明示する（詳細: [トラブルシューティング #12](troubleshooting.md#12-npx-power-apps-add-data-source-がテナント不一致で-403-エラー)）。
+5. **`src/lib/dataSourcesInfo.ts`** への手動追記は、SDK の `pa app add data-source` で追加**できなかった**システムテーブルやコネクタに限る（最後の手段）
+6. 実行前に `pa auth status` / `pa auth switch` で対象テナントを明示する（詳細: [トラブルシューティング #12](troubleshooting.md#12-npx-power-apps-add-data-source-がテナント不一致で-403-エラー)）。
   日本語 DisplayName で失敗する場合は `toggle_table_lang.py` で英語化してから再実行する。
   `pac code add-data-source` は npm CLI で解消できない場合のみの移行時代替とする。
 

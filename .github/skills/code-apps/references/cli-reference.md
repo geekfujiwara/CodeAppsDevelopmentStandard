@@ -297,10 +297,17 @@ npx pa app add data-source --connector shared_commondataserviceforapps \
 | `--connector` | コネクタ ID（`shared_commondataserviceforapps`, `shared_sql` など）。旧 `--api-id` の後継 |
 | `-c, --connection-id` | 接続 ID（ソリューションに入らない。PoC 用） |
 | `--connection-ref` | 接続参照名（**ALM 標準**） |
-| `-d, --dataset` | データセット識別子 |
+| `--table` | テーブル名（SharePoint はリスト） |
+| `-d, --dataset` | データセット識別子（SharePoint はサイト URL、SQL は server,database） |
 | `-u, --org-url` | 組織 URL |
-| `-sp, --sql-stored-procedure` | SQL ストアドプロシージャ名 |
+| `--procedure` | SQL ストアドプロシージャ名 |
 | `-s, --solution-id` | ソリューション ID（`--connection-ref` と併用） |
+
+> [!IMPORTANT]
+> **コネクタ ID を省略すると対話プロンプトで停止する**（スクリプト実行が入力待ちで固まる）。
+> 自動化ではコネクタ ID を自動解決するラッパーを使う:
+> `python .github/skills/code-apps/scripts/add_data_source.py --connector sharepoint`
+> （詳細: [SKILL.md §3 データソース接続](../SKILL.md#3-データソース接続)）
 
 > [!WARNING]
 > `--environment-id` は拒否される（`error: unknown option '--environment-id'`）。
