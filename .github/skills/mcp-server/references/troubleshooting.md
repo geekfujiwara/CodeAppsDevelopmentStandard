@@ -240,6 +240,19 @@ Power Apps > Connections で対象接続を再接続（初回サインインを�
 以後はアクセストークン期限切れ時にリフレッシュトークンで自動更新され、手動再接続の頻度が下がる。
 複数コネクタが同じ Entra アプリ登録を共有している場合は、すべてのコネクタの Scopes を同様に修正する。
 
+### 接続作成時に `OAuth2 authorization flow failed` の PromiseRejection が出る
+
+**症状**: Power Apps のシェルに `OAuth2 authorization flow failed for service 'Generic Oauth 2 with PKCE'`
+という未処理の PromiseRejection が表示され、`pac connection list` では作成途中の接続が `Error` になる。
+
+**切り分け**: コネクタ定義の `identityProvider`、Scopes、Authorization/Token/Refresh URL、redirect URLを
+exportして確認する。Entra側のredirect URIとClient secretの有効期限も確認する。これらが正しく、同時刻の
+Function App認証ログに要求がなければ、失敗はMCPサーバー到達前のPower Apps OAuth画面で発生している。
+
+**対処**: OAuthポップアップを許可し、サインイン・同意後にPower Appsへ戻るまで閉じない。途中で作られた
+`Error` 接続は再利用せず、接続ごとの詳細URLから削除して新規作成する。`Connected` の既存接続や
+カスタムコネクタ定義を削除しない。エラー接続の再作成後は `pac connection list` で状態を再確認する。
+
 ---
 
 ## 認証・認可

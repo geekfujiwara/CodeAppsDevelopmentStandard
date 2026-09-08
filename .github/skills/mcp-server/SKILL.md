@@ -224,6 +224,8 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
    - 接続作成後は `pac connection list --environment <environment-id>` で各接続のIDを取得し、
      `https://make.preview.powerapps.com/environments/<environment-id>/connections/<connector-id>/<connection-id>/details`
      形式のリンクを**接続ごとに**利用者へ提示する。接続の作成や再認証は代行しない。
+   - OAuthポップアップはPower Appsへ戻るまで閉じない。認可中断で残った `Error` 接続は再利用せず、
+     個別詳細ページから削除して利用者本人が新しい接続を作成する。
    - 生成 MD は Client secret を含む。**MCP Server ごとに分け**、先に `.gitignore` へ追加する。
    - 認証は `OAuth 2.0`、構成は `Manual` を選ぶ。接続画面では任意の表示名も生成 MD から貼り付ける。
    - コネクタ作成後に表示された callback URL、または `AADSTS50011` に表示された URI は、次で Entra に追加する。

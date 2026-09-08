@@ -110,8 +110,10 @@ Client secret は作成・ローテーションしない。入力ガイドにも
 利用者本人が次を行う。
 
 1. Power Apps 接続一覧を開き、更新済みコネクタから接続を作成する。
-2. 生成 MD の `Display name (optional)` を貼り付け、組織アカウントでサインインして同意する。
-3. 接続が `Connected` になったことを確認する。
+2. 生成 MD の `Display name (optional)` を貼り付け、組織アカウントでサインインして同意する。OAuthの
+  ポップアップを許可し、Power Appsへ戻るまで閉じない。
+3. 接続が `Connected` になったことを確認する。認可を中断して作成された `Error` 接続は再利用せず、
+  個別詳細ページから削除して新しい接続を作成する。
 4. エージェントが `pac connection list --environment <environment-id>` でコネクタIDと接続IDを取得する。
 5. エージェントは接続ごとに次の形式の詳細URLを利用者へ提示する。
 
