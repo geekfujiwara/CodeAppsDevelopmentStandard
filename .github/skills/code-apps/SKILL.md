@@ -13,6 +13,10 @@ triggers:
   - "Code Apps 共有"
   - "add data-source"
   - "add-data-source"
+  - "コネクタ ID"
+  - "コネクタ追加"
+  - "shared_sharepointonline"
+  - "データソース追加"
   - "DataverseService"
   - "Tailwind"
   - "shadcn"
@@ -133,7 +137,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 |---|---|
 | §1 概要（本章） | 標準ワークフロー全体像・大前提・設計フェーズ（デザインテンプレート選択） |
 | [§2 初回デプロイ](#2-初回デプロイ) | 環境前提・scaffold・ソリューション/接続参照の準備・init・初回 build & push |
-| [§3 データソース接続](#3-データソース接続) | add-data-source（接続参照バインド）・MicrosoftDataverseService・Lookup 名前解決 |
+| [§3 データソース接続](#3-データソース接続) | add_data_source.py（コネクタ ID 自動解決・非対話）・接続参照バインド・MicrosoftDataverseService・Lookup 名前解決 |
 | [§4 改善デプロイ](#4-改善デプロイ) | 開発時の必須ルール・再デプロイ・プレデプロイレビュー |
 | [§5 リファレンス](#5-リファレンス) | 全リファレンス索引・技術スタック・.env |
 
@@ -372,7 +376,43 @@ python scripts/review_report.py --verdict-dir .gate --out .gate/review-report.md
 
 ## 3. データソース接続
 
-### 正常系: Microsoft Dataverse connector（`shared_commondataserviceforapps`）
+### 正常系: コネクタ ID は聞かずに解決する（`add_data_source.py`）
+
+`npx pa app add data-source` はコネクタ ID や接続を省略すると **対話プロンプトで停止**し、
+スクリプト実行・CI・エージェント実行が入力待ちのまま固まる。これを避けるため、
+データソース追加は次のラッパーを**正常フロー**とする。コネクタは「SharePoint」「Outlook」などの
+**通称で指定でき、スクリプトが `shared_xxx` に解決**してから `--non-interactive` で CLI を起動する。
+
+```powershell
+# SharePoint（接続は環境内に 1 つなら自動選択）
+python .github/skills/code-apps/scripts/add_data_source.py --connector sharepoint `
+  --dataset "{SITE_URL}" --table "{LIST_ID}"
+
+# Dataverse（ALM 標準: 接続参照バインド。--org-url は .env の DATAVERSE_URL を既定値にする）
+python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse `
+  --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} --solution-id {SOLUTION_ID}
+
+# 使えるコネクタの通称一覧 / 実行せずコマンドだけ確認
+python .github/skills/code-apps/scripts/add_data_source.py --list-connectors
+python .github/skills/code-apps/scripts/add_data_source.py --connector teams --dry-run
+```
+
+| 解決すること | 方法 |
+|---|---|
+| コネクタ ID | [コネクタ ID カタログ](../standard/references/connector-catalog.json) の通称・別名で解決。無ければ `pa connector list --search` で環境から解決 |
+| バインド先 | `--connection-ref` + `--solution-id`（ALM 標準）。未指定なら `pa connection list` で接続を 1 つに絞れたときだけ自動選択 |
+| 追加値 | `--org-url` / `--dataset` / `--table` / `--procedure`。コネクタごとの必須項目はカタログの `requires` |
+
+> **ハングしない仕組み**: CLI は必ず `--non-interactive` かつ **標準入力を閉じた状態**で起動し、
+> `--timeout`（既定 600 秒）を超えたら停止する。値が足りないときはプロンプトを出さずに
+> `NG:` と不足項目・取得コマンドを表示して終了コード 1 で止まる。
+> **候補が複数のときも勝手に選ばず**、候補一覧を出して止める（誤ったコネクタへのバインドを防ぐため）。
+
+> **カタログに無いコネクタ**: `--connector shared_xxx` のように ID を直接渡せばそのまま通る。
+> 繰り返し使うものは [connector-catalog.json](../standard/references/connector-catalog.json) に
+> `id` / `displayName` / `aliases` / `requires` を追記する（他スキルの DLP 事前チェックでも同じ通称が使える）。
+
+### Microsoft Dataverse connector（`shared_commondataserviceforapps`）
 
 Dataverse 接続は **`shared_commondataserviceforapps` を 1 回だけ追加する方式を標準**とする。これにより、テーブルごとに `add data-source` を繰り返さなくても、生成された `MicrosoftDataverseService` から `entityName` を実行時に渡して全テーブルへ CRUD できる。
 
@@ -381,7 +421,7 @@ Dataverse 接続は **`shared_commondataserviceforapps` を 1 回だけ追加す
 バインド先は **接続 ID ではなく接続参照（`--connection-ref`）を標準**とする。接続はソリューション コンポーネントになれないが、接続参照はなれるため、環境間移送ができる。
 
 ```bash
-# Step 1 で作成済みの接続参照にバインドする
+# Step 1 で作成済みの接続参照にバインドする（add_data_source.py が内部で実行するコマンド）
 npx pa app add data-source --connector shared_commondataserviceforapps \
   --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
   --solution-id {SOLUTION_ID} \
@@ -603,6 +643,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 |---|---|
 | [check_code_apps_environment.py](scripts/check_code_apps_environment.py) | マネージド環境 / Code Apps 許可の前提条件を確認（`pa app init` の前に実行） |
 | [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
+| [add_data_source.py](scripts/add_data_source.py) | データソースを**非対話**で追加する。コネクタの通称（`sharepoint` 等）を `shared_xxx` に解決し、接続・必須値を確定してから `--non-interactive` で CLI を起動する。Step 3 の標準 |
 | [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` / モック実行基盤の本番混入を検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |
 | [inspect_table_metadata.py](scripts/inspect_table_metadata.py) | 既存テーブルの EntitySetName / 主キー / 列 / 参照先 / 選択肢を調査（既存テーブル接続時は実装前に必須） |
 | [validate_cli_reference.py](scripts/validate_cli_reference.py) | テンプレート採用版の `pa app share --help` と CLI リファレンスの主要オプション・実行例が一致することを検証 |

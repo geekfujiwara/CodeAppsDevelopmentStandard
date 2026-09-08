@@ -22,15 +22,23 @@ Power Apps Code Apps でサポートされるコネクタの設定方法と使�
 
 ## コネクタ追加の基本手順
 
-すべてのコネクタは以下の統一手順で追加します:
+すべてのコネクタは **非対話ラッパー**で追加する。コネクタは通称で指定でき、
+スクリプトが [コネクタ ID カタログ](../../standard/references/connector-catalog.json) で `shared_xxx` に解決してから
+`--non-interactive` で CLI を起動する（コネクタ ID の入力待ちで止まらない）。
 
-```bash
-# 1. 接続 ID を確認
-pac connection list
+```powershell
+# 使える通称の一覧
+python .github/skills/code-apps/scripts/add_data_source.py --list-connectors
 
-# 2. コネクタを追加
-pac code add-data-source -a {api-name} -c {connection-id}
+# 追加（接続が環境内に 1 つなら自動選択。複数なら候補を出して停止）
+python .github/skills/code-apps/scripts/add_data_source.py --connector {通称または shared_xxx}
 ```
+
+接続を明示する場合は `--connection-id`（PoC）または `--connection-ref` + `--solution-id`（ALM 標準）を渡す。
+接続 ID の一覧は `npx pa connection list --json` で確認できる。
+
+以下の各節にある `pac code add-data-source -a {api-name} -c {connection-id}` は
+**コネクタ ID と生成物を示すための参考表記**であり、実行は上記ラッパーに寄せる。
 
 追加後、以下が自動生成されます:
 

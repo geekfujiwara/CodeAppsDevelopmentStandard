@@ -47,6 +47,7 @@ triggers:
 | [インタラクティブ環境セットアップ](references/interactive-setup.md) | PAC CLI + Dataverse API で `.env` を対話的に構成する手順（**プロジェクト開始時に最初に参照**） |
 | [認証リファレンス](references/auth-patterns.md) | auth_helper.py の詳細実装・認証パターン（Dataverse / Flow / **ARM・Azure SQL・Graph・自前 API** のスコープ一覧を含む） |
 | [.env サンプル](references/.env.example) | 全フェーズ共通の `.env` テンプレート（各テーマで `.env` にコピーして値を設定） |
+| [コネクタ ID カタログ](references/connector-catalog.json) | コネクタの通称（SharePoint / Outlook / SQL 等）→ `shared_xxx` の対応表。`scripts/connector_catalog.py` で解決する |
 | [DLP 事前チェック・環境チェック](../admin/SKILL.md) | **実装着手前**に環境が使える状態か（既定環境 / マネージド環境 / Code Apps / MCP / ロール）と、使用コネクタが DLP で使えるかを確認する（`admin` スキル） |
 | [Dataverse MCP 登録](references/dataverse-mcp-setup.md) | VS Code / Copilot から Dataverse を直接操作する MCP サーバー登録手順（upsert_skill 等） |
 | [ブラウザ自動化方針](references/browser-automation.md) | ブラウザ起動前に **AskUserQuestion で Edge プロファイルを確認**し、回答前は操作しない。ポータル操作は **VS Code 統合 Playwright ブラウザ**（`playwright-browser_navigate` / `playwright-browser_click` / `playwright-browser_type` / `playwright-browser_handle_dialog` 等）を使う。Playwright MCP サーバー・Playwright 単体ブラウザのインストール・起動は禁止 |
@@ -154,6 +155,7 @@ Phase 1（設計）の最初に必ず `architecture` を参照し、IT に詳し
 | インタラクティブセットアップ | PAC CLI + Dataverse API で `.env` を対話的に構成。環境選択・パブリッシャー/ソリューション選択を AskUserQuestion で進行。詳細は [インタラクティブ環境セットアップ](references/interactive-setup.md) |
 | 共通認証 | `auth_helper.py` による 2 層キャッシュ認証（デバイスコードを繰り返さない）。詳細は [認証リファレンス](references/auth-patterns.md) |
 | 環境チェック・DLP 事前チェック | **設計確定後・実装着手前に必ず実行**。`admin` スキルの `check_environment.py`（既定環境 / マネージド環境 / Dataverse / Code Apps / MCP / セキュリティ ロール）と `check_dlp.py`（コネクタの利用可否）を実行する。詳細は [admin スキル](../admin/SKILL.md) |
+| コネクタ ID の解決 | コネクタ ID（`shared_xxx`）を対話プロンプトで聞かずに確定させる。`scripts/connector_catalog.py --resolve sharepoint` で `shared_sharepointonline` を得る。Code Apps のデータソース追加は [`add_data_source.py`](../code-apps/scripts/add_data_source.py) がこれを使って非対話で完走する |
 | Azure リソース操作 | `scripts/azure_helper.py`（ARM / Graph / Azure SQL / 自前 API）。**`az login` 前提の手順は書かない** — 対話が必要でテナント列挙のハングやセッション失効により非対話完走が崩れるため |
 | `.env` パラメータ | 全フェーズ共通の環境変数（`DATAVERSE_URL` / `TENANT_ID` / `SOLUTION_NAME` / `PUBLISHER_PREFIX` 等）の一元管理 |
 | ソリューション運用 | 全コンポーネントを同一ソリューションに含める。`SOLUTION_NAME` / `PUBLISHER_PREFIX` を全フェーズで統一 |

@@ -62,7 +62,10 @@ python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --
 
 - **認証**: Python スクリプトでは必ず `auth_helper.py` の API（`get_token` / `get_session` / `api_get` / `api_post` / `api_patch` / `api_delete` / `retry_metadata`）を使う（`requests` 直呼び・MSAL 直接呼び出し禁止）
 - **認証はスキップ実行が前提**: `auth_helper.py` は 2 層キャッシュ（`.auth_record.json` + OS 資格情報ストア）により初回のみデバイスコード認証が発生し、以降はサイレントに認証が完了する。すべての新規スクリプトは **このキャッシュ済み認証を前提に、対話的な認証待ちなしで最後まで自動実行できる**ように書く。実行中にデバイスコードや資格情報の入力待ちが発生した場合は処理を止めず、`auth_helper.py` の実装（キャッシュ・スコープ）を疑って修正する
-- **データソース**: `npx power-apps add-data-source` で追加（`dataSourcesInfo.ts` 手動追記禁止）
+- **データソース**: `python .github/skills/code-apps/scripts/add_data_source.py --connector {通称または shared_xxx}` で追加する（`dataSourcesInfo.ts` 手動追記禁止）。
+  `npx pa app add data-source` を直接叩くとコネクタ ID の対話プロンプトで止まるため、通称（`sharepoint` 等）を
+  [コネクタ ID カタログ](.github/skills/standard/references/connector-catalog.json)で `shared_xxx` に解決してから
+  `--non-interactive` で実行するこのラッパーを正常フローとする
 - **外部データは指示ではない**: エージェント実装でメール本文・Web ページ・取り込んだファイル・業務レコードを読ませる場合は、フェンスで囲って渡し、送信・共有・実行など実害のある操作はコードで認証済み ID を検証する（[プロンプト インジェクション対策](.github/skills/ai-teammate/references/prompt-injection.md)）
 - 詳細は `.github/skills/standard/SKILL.md`（認証リファレンス: `.github/skills/standard/references/auth-patterns.md`）および各スキルを参照
 - Web UI 操作（管理ポータルのフォーム入力、OAuth クライアント登録等）は **VS Code 統合ブラウザツール** （`open_browser_page` 等）のみを使う。**Playwright MCP サーバー・Playwright 単体ブラウザはいかなる場合もインストール・起動しない。** 認証はユーザー自身に行ってもらい、機密値は `.env` から読んで画面へ直接入力する（チャットに出力しない）。詳細・使用例は[ブラウザ自動化方針](.github/skills/standard/references/browser-automation.md) を参照。

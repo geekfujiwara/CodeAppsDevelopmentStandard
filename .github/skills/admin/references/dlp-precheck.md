@@ -30,6 +30,11 @@ Power Platform のデータ ポリシー（DLP）は、**どのコネクタを�
 | 外部 API 呼び出し（HTTP） | `shared_http` |
 | 自前 MCP Server / カスタムコネクタ | `--custom-host <ホスト名>` で指定 |
 
+`--connector` には **通称も渡せる**（`sharepoint` → `shared_sharepointonline`）。
+対応表は [コネクタ ID カタログ](../../standard/references/connector-catalog.json)。
+一覧は `python .github/skills/standard/scripts/connector_catalog.py --list` で確認できる。
+候補が複数になる通称（`azure` など）は問い合わせずに候補を出して停止するため、コネクタ ID で指定し直す。
+
 ## Step 2: 事前チェックを実行する
 
 ```powershell
