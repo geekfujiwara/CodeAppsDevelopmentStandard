@@ -85,6 +85,12 @@ def connector_scopes(api_scope: str) -> str:
     return " ".join(scopes)
 
 
+def environment_links(environment_id: str) -> tuple[str, str]:
+    base = f"https://make.powerapps.com/environments/{environment_id}"
+    studio = f"https://copilotstudio.microsoft.com/environments/{environment_id}/bots"
+    return f"{base}/connections", studio
+
+
 def build_markdown(
     *,
     server_name: str,
@@ -97,6 +103,7 @@ def build_markdown(
     client_id: str,
     client_secret: str,
     redirect_uri: str | None,
+    environment_id: str | None = None,
 ) -> str:
     authorization_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize"
     token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
@@ -114,9 +121,20 @@ def build_markdown(
 Entra アプリ登録の **認証 > Web > リダイレクト URI** に追加する。
 """
     )
+    links_section = ""
+    if environment_id:
+        connections_url, studio_url = environment_links(environment_id)
+        links_section = f"""## 接続作成リンク
+
+- Power Apps 接続一覧: {connections_url}
+- Copilot Studio エージェント一覧: {studio_url}
+
+接続作成、組織アカウントでのサインインと同意、Copilot Studio での接続選択は利用者本人が行う。
+
+"""
     return f"""# {display_name}
 
-## コネクタ接続時に利用可能
+{links_section}## コネクタ接続時に利用可能
 
 ### Display name (optional)
 
@@ -212,6 +230,7 @@ def main() -> int:
     )
     parser.add_argument("--display-name", default=os.getenv("MCP_CONNECTOR_DISPLAY_NAME"))
     parser.add_argument("--tenant-id", default=os.getenv("ENTRA_TENANT_ID"))
+    parser.add_argument("--environment-id", default=os.getenv("POWER_PLATFORM_ENVIRONMENT_ID"))
     parser.add_argument("--audience", default=os.getenv("MCP_API_AUDIENCE"))
     parser.add_argument("--scope", default=os.getenv("MCP_API_SCOPE_VALUE"))
     parser.add_argument(
@@ -257,6 +276,7 @@ def main() -> int:
         client_id=oauth["clientId"],
         client_secret=oauth["clientSecret"],
         redirect_uri=args.redirect_uri,
+        environment_id=args.environment_id.strip() if args.environment_id else None,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(markdown, encoding="utf-8")

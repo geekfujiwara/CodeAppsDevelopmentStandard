@@ -1,6 +1,6 @@
 import unittest
 
-from generate_copilot_studio_guide import build_markdown, connector_scopes
+from generate_copilot_studio_guide import build_markdown, connector_scopes, environment_links
 
 
 class ConnectorScopesTests(unittest.TestCase):
@@ -29,6 +29,18 @@ class ConnectorScopesTests(unittest.TestCase):
 
         self.assertIn("api://example/MCP.Access offline_access", markdown)
         self.assertEqual(markdown.count("offline_access"), 1)
+
+    def test_environment_links_target_connections_and_studio(self) -> None:
+        connections_url, studio_url = environment_links("environment-id")
+
+        self.assertEqual(
+            connections_url,
+            "https://make.powerapps.com/environments/environment-id/connections",
+        )
+        self.assertEqual(
+            studio_url,
+            "https://copilotstudio.microsoft.com/environments/environment-id/bots",
+        )
 
 
 if __name__ == "__main__":

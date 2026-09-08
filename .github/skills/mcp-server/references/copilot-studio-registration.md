@@ -102,12 +102,21 @@ Client secret は作成・ローテーションしない。入力ガイドにも
 
 ### Step 5: 接続を作成してエージェントへ追加する
 
-1. **Select a connection** で対象コネクタの **Create** を選ぶ。
-2. 生成 MD の `Display name (optional)` を貼り付ける。
-3. 組織アカウントでサインインする。Step 4 の URI 追加直後は、接続ダイアログを一度閉じて開き直す。
-4. 接続が `Connected` になったら **Add to agent** を選ぶ。
-5. MCP Server の詳細で接続を選び、表示される場合は **Confirm** を選ぶ。
+エージェントは接続作成を代行せず、生成 MD にある次の2リンクを利用者へ提示する。
+
+- `https://make.powerapps.com/environments/<environment-id>/connections`
+- `https://copilotstudio.microsoft.com/environments/<environment-id>/bots`
+
+利用者本人が次を行う。
+
+1. Power Apps 接続一覧を開き、更新済みコネクタから接続を作成する。
+2. 生成 MD の `Display name (optional)` を貼り付け、組織アカウントでサインインして同意する。
+3. 接続が `Connected` になったことを確認する。
+4. Copilot Studio エージェント一覧を開き、対象エージェントの MCP Server で作成した接続を選ぶ。
+5. **Add to agent** を選び、表示される場合は **Confirm** を選ぶ。
 6. エージェントを再公開する。
+
+接続作成後、エージェントは接続状態、`tools/list`、`tools/call`、公開状態を読み取り検証する。
 
 生成オーケストレーションを有効にする。複数 Server を追加するときは、各 description と
 エージェントの Instructions の両方に、どの質問でどの Server を使うかを書く。
