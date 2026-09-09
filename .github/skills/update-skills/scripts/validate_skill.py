@@ -55,6 +55,9 @@ ALLOWLIST = {
     "14dad69e-099b-42c9-810b-d002981feec1",  # Microsoft Graph profile 委任スコープ ID（固定）
     "78ce3f0f-a1ce-49c2-8cde-64b5c0896db4",  # Dynamics CRM user_impersonation 委任スコープ ID（固定）
     "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",  # Azure 組み込みロール Storage Blob Data Owner のロール定義 ID（固定）
+    "9cee029c-6210-4654-90bb-17e6e9d36617",  # Power Platform CLI のパブリック クライアント ID（固定）
+    "14d82eec-204b-4c2f-b7e8-296a70dab67e",  # Microsoft Graph PowerShell のパブリック クライアント ID（固定）
+    "04b07795-8ddb-461a-bbee-02f9e1bf7b46",  # Azure CLI のパブリック クライアント ID（固定）
     "00000000-0000-0000-0000-000000000000",  # 空 GUID（既定値プレースホルダー）
     "00000000-0000-0000-0000-000000000001",  # 開発用モックの定番 ID（プレースホルダー）
     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",   # プレースホルダー

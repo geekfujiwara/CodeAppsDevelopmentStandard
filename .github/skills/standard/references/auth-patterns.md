@@ -72,6 +72,8 @@ flow_api_call("GET", f"/providers/Microsoft.ProcessSimple/environments/{env_id}/
 | Azure Resource Manager（リソース作成・設定取得） | `https://management.azure.com/.default` |
 | Azure SQL Database（Entra ID 認証） | `https://database.windows.net/.default` |
 | Microsoft Graph（アプリ登録・権限操作） | `https://graph.microsoft.com/.default` |
+| Power Platform 管理 API（環境設定・Code Apps の CSP 等） | `https://api.powerplatform.com/.default` |
+| BAP 管理 API（環境一覧・環境プロパティ） | `https://service.powerapps.com/.default` |
 | 自前 API（Azure Functions 上の MCP Server 等） | `api://{app-id}/.default` |
 
 `scripts/azure_helper.py` が ARM / Graph の薄いラッパーを提供する。
@@ -223,6 +225,47 @@ pac auth --help
 **対策**: 現状は DeviceCode フォールバックで機能上の問題はない（テナント別キャッシュ分離により
 往復しても再認証されない）。`pac auth token` に対応した pac CLI バージョンに更新できる場合は
 更新するとトークン取得が高速化する。
+
+#### Power Platform 管理 API が `403 InsufficientDelegatedPermissions` になる（★ 2026-09 検証済み）
+
+**症状**: `https://api.powerplatform.com/environmentmanagement/...` を叩くと 403 が返る。
+
+```json
+{"code":"Forbidden","innererror":{"code":"InsufficientDelegatedPermissions",
+ "message":"Application missing required delegated permissions: [EnvironmentManagement.Settings.Read, All.All.ReadWrite]"}}
+```
+
+**原因**: `auth_helper.get_token()` の既定クライアント（azure-identity の Azure CLI 互換クライアント）と
+`az account get-access-token` は同じアプリで、Power Platform API の `EnvironmentManagement.*` 委任アクセス許可を
+持っていない。トークン自体は問題なく発行されるので、認証エラーではなく**認可エラー**として現れる。
+
+**対策**: 403 を検出したら Power Platform CLI のパブリック クライアント
+`9cee029c-6210-4654-90bb-17e6e9d36617` を `client_id` に指定して再試行する。
+既定クライアントで通る API まで巻き込まないよう、**先に既定クライアントで試し 403 のときだけ切り替える**。
+
+```python
+CLIENT_IDS = [None, "9cee029c-6210-4654-90bb-17e6e9d36617"]  # 既定 → PAC CLI の順で試す
+
+def send(method, url, **kwargs):
+    for client_id in CLIENT_IDS:
+        token = get_token(scope="https://api.powerplatform.com/.default", client_id=client_id)
+        res = requests.request(method, url, headers={"Authorization": f"Bearer {token}"}, **kwargs)
+        if res.status_code != 403:
+            res.raise_for_status()
+            return res
+    res.raise_for_status()
+```
+
+**初回だけ対話が必要**: `client_id` を変えると `AuthenticationRecord` も
+`auth_record_{TENANT_ID}_{CLIENT_ID}.json` に分離されるため、そのクライアント初回はサインインが走る。
+**デバイスコードの入力待ちで止まってしまう**ため、その回だけ `AUTH_MODE=interactive` を付けて
+ブラウザ SSO で通す。2 回目以降はキャッシュから無操作で解決される。
+
+```powershell
+$env:AUTH_MODE="interactive"; python scripts/<script>.py; Remove-Item Env:AUTH_MODE
+```
+
+**実装例**: [Code Apps の CSP 構成スクリプト](../../code-apps/scripts/configure_code_app_csp.py)
 
 #### `az login` は auth_helper.py と全く別の資格情報ストア（★ 2026-07 検証済み）
 
