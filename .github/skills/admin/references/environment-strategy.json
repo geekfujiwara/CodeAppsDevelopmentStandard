@@ -158,9 +158,9 @@
       "why": "新規メーカーを既定環境ではなく個人の開発者環境へ誘導し、既定環境の肥大化を防ぐ。"
     },
     "powerPlatform.governance.environmentRoutingTargetEnvironmentGroupId": {
-      "expectedGroup": "市民開発者環境グループ",
+      "expectedGroup": "個人開発者環境グループ",
       "label": "ルーティング先の環境グループ",
-      "why": "自動作成される開発者環境が最初から市民開発者グループのルールで統制される。"
+      "why": "新旧のすべての既存ルーティングを個人開発者グループへ揃えることを提案し、同意後に API で適用する。対象ユーザーとポータル範囲は保持する。"
     },
     "disableTeamsEnvironmentCreationByNonAdminUsers": {
       "expected": true,
@@ -195,7 +195,10 @@
   },
   "connectorPolicy": {
     "mode": "ACPOnly",
+    "managementScope": "EnvironmentGroup",
     "profile": "microsoft-first-party",
+    "initialSetCommand": "apply_group_acp_strategy.py",
+    "excludeLegacy": true,
     "why": "ACP は default-deny の許可リストで、新規コネクタが自動で許可されない。ACP 専用モードにするとクラシック DLP は評価されなくなるため、ポリシーが一本化されて運用が単純になる。",
     "note": "ACP 専用モードは環境グループのルール `AdvancedConnectorPoliciesOnly` として設定する（グループ単位で有効化できる）。有効化してもクラシック DLP は削除されず、評価対象外になるだけなので切り戻せる。"
   },
@@ -272,6 +275,7 @@
     {
       "name": "個人開発者環境グループ",
       "code": "PSN",
+      "environmentRoutingTarget": true,
       "purpose": "学習用。会社のポリシーを理解した市民開発者が個人の開発者環境を持つ。本番利用は不可。",
       "rules": {
         "sharingLimitUsers": 1,
@@ -293,7 +297,6 @@
       "name": "市民開発者環境グループ",
       "code": "CTZ",
       "purpose": "一般の市民開発者が利用する。認定前後で環境を分ける。",
-      "environmentRoutingTarget": true,
       "rules": {
         "sharingLimitUsers": 10,
         "solutionCheckerMode": "warn",
@@ -320,13 +323,17 @@
           "lifecycle": "永続",
           "sharingLimitUsers": 10,
           "copilotCredits": true,
-          "note": "認定後。最低限のコネクタのみ。Code Apps は不可。"
+          "note": "認定後。Microsoft 第一者セット（Work IQ を含む、レガシー除外）をグループから継承。Code Apps は不可。"
         }
       ]
     },
     {
       "name": "AI CoE セントラルグループ",
       "code": "CTRL",
+      "connectorPolicyOverride": {
+        "profile": "all-supported",
+        "why": "全社分析・技術検証のため全カタログを許可する。ただしレガシー・廃止・非推奨コネクタは除外する。"
+      },
       "purpose": "AI CoE / IT 部門が全社分析と新技術検証に使う。決められたユーザーのみ。",
       "rules": {
         "sharingLimitUsers": null,

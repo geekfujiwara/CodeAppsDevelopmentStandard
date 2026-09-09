@@ -1,5 +1,72 @@
 # 異常系・詰まりどころ
 
+## HTML レポートのコピー・回答復元が使えない
+
+`file://` やブラウザの権限制限で Clipboard API / sessionStorage が拒否される場合がある。
+自動コピー失敗時は生成プロンプトを選択して手動コピーする。保存不可の場合は画面に警告を表示し、
+閉じる前にプロンプトをコピーする。回答の復元は同一スキャンの同じブラウザセッション内のみ。
+
+**恒久対策済み**: `generate_strategy_report.py` のコピー・復元処理は例外を捕捉し、
+選択コピーと未保存警告へ切り替える。`strategy-review.js` は未回答を未承認として扱い、
+レポート内データを JSON に隔離してコードフェンスの破壊を防ぐ。HTML への埋め込みもエスケープする。
+`test_strategy_report.py` で生成 JavaScript の構文・未選択項目除外・自由入力・特殊文字を検証する。
+
+## 全ルーティング統一が途中で停止する
+
+新ポリシー PATCH と旧テナント設定 POST はトランザクションではない。
+`apply_routing_strategy.py` は実行直前の計画ハッシュ照合、新ポリシーの読み戻し、
+旧設定の再比較、最終的な設定全体・環境所属の比較を毎回行う（恒久対策済み）。
+`failed-or-unverified` の場合は結果 JSON の `operations` を確認し、API で再スキャンして
+部分反映を確定する。古いハッシュで再送しない。残差分を再提示し、同意後に新ハッシュで適用する。
+適用中の他管理者による編集は止める。ハッシュ照合は原子的な同時更新制御ではない。
+
+スキャンの `get_token` import エラーは旧 `dlp_helper` 再エクスポートへの依存が原因。
+認証は `auth_helper`、ルーティングの `tenant_host` は `set_environment_routing` を直接参照する。
+一括設定の回帰テストで import とルーティング除外を検証する。
+
+## 空グループの削除が Conflict、従来ルーティング設定には参照がない
+
+**症状**: 所属環境 0 件、`listTenantSettings` のルーティング先も別グループだが、
+公開 DELETE は HTTP 400、本文は `Conflict`。管理センターはルーティング参照を警告する。
+
+**原因**: 新画面の `EnvironmentRouting` は `tenantRuleBasedPolicies` に別途保持される。
+従来の `environmentRoutingTargetEnvironmentGroupId` だけでは安全に削除判定できない。
+
+**恒久対策済み**: `delete_environment_group.py` の `preflight()` は新旧両方を読み取り、
+`set_environment_routing.py` の `group_references()` で参照があれば DELETE 前に停止する。
+読み取りエラー・曖昧なポリシーも安全側で停止する。移行先の承認後に既存ルールだけを変更し、
+再チェックする。手順と API は [environment-routing.md](environment-routing.md)。
+
+参照がない空グループでも単純な公開 DELETE が Conflict となることがある。
+管理センターでは割り当て DELETE 204 → ポリシー DELETE 204 → テナントホストのグループ DELETE 200 を実測した。
+**恒久対策済み**: `delete_via_api()` がこの順序を実装し、`policy_inventory()` と
+`require_exclusive_policies()` で共有参照を検査する。正常系は API スクリプトで完結する。
+通信結果不明や部分完了時は `operations` を確認し、現状の API 再取得からやり直す。共有ポリシーは削除しない。
+API 仕様変更の調査で UI が必要な場合のみ VS Code 統合ブラウザを使う。
+Manage > Environment groups の行を選択し Delete group を押すと確認なしで即時実行される場合があるので、
+API 失敗の調査だけで削除ボタンを押さない。
+
+## None への解除後に読み戻しが不一致になる
+
+管理センターの None は `EnvironmentGroup` のゼロ GUID であり、ルール削除やルーティング機能の無効化ではない。
+PATCH 後、サーバーは ruleSet に `lastModifiedDate` を追加することがある。
+**恒久対策済み**: `resolve_target_group()` はゼロ GUID を特別扱いし、
+`configuration_payload()` はこの更新日時だけを設定照合から除外する。ポータルや優先順位の差は拒否する。
+不一致のエラー後は再送せず実設定を確認する。`Dev` 等の固有名ではなく元グループ ID とルール名を検査する。
+
+## ACP の第一者判定と初期ルール作成
+
+表示名・ID の接頭辞・publisher のどれか 1 つだけでは第一者サービスと判定できない。
+レガシー/現行 Dataverse が同じ表示名になるケースもある。
+**恒久対策済み**: `resolve_catalog_set()` は ID と publisher を組み合わせ、レガシー共通拒否リストと
+カタログの非推奨情報を優先する。Microsoft セットでは Work IQ 9 種と現行 Dataverse を必須検査する。
+第一者セットに独自 MCP を自動混入させない。承認済み全許可グループは別プロファイルとする。
+
+`block-all` の許可 0 件とルール未作成は同義ではない。
+**恒久対策済み**: `_process()` は `ConnectorManagement` がなければ空のルールも作成対象とする。
+既存項目のアクション/接続種別と他ルールを保持し、保存後に読み戻す。
+`list_connector_catalog()` はページング、`assigned_policy_id()` は一意性を検査する。
+
 ## 新 Workflow の Agent ノードが事前チェックを通過した後にブロックされる
 
 新 Copilot Studio Workflow の Agent ノードは `shared_agentnode` を使う。
@@ -13,7 +80,7 @@ Dataverse や `shared_powervirtualagents` の許可だけでは利用可能と�
 
 環境グループに現在 ACP がない場合でも、環境には最後の設定が残るのが仕様。
 `Synced Environment Policy` という名前だけでグループへ ACP を新設しない。
-両方のルールを確認し、有効な継承元がある場合はグループ、環境にだけ残る場合は環境を対象にする。
+両方のルールを確認し、配下全環境の影響を提示してグループ設定を承認する。個別環境への書き込みはしない。
 
 構成チェックと管理センターの `Applied`、Studio の Review 成功は実行成功の代わりにならない。
 外部データ・ツールなしの最小実行が HTTP 442（DLP/ACP）で失敗する場合は、対象コネクタ、実行 ID、
@@ -60,11 +127,11 @@ python .github/skills/admin/scripts/set_acp_connector.py `
 `[ブロック]` と表示されたら ACP が原因。管理センターでは
 **セキュリティ > データとプライバシー > Advanced connector policies** で `Status` を確認できる。
 
-**対処**: 許可リストに追加する。反映後は許可コネクタ数が増えることを必ず確認する。
+**対処**: グループの適切なプロファイルの差分をレビューし、承認後に適用する。
 
 ```powershell
-python .github/skills/admin/scripts/set_acp_connector.py `
-  --policy-id <グループ ポリシー ID> --connector <shared_xxx> --apply
+python .github/skills/admin/scripts/apply_acp_profile.py `
+  --environment-id $env:ENV_ID --environment-group-id <GROUP_ID> --profile microsoft-first-party
 ```
 
 ## 1-c. ACP に追加したのに許可コネクタ数が増えない
@@ -76,7 +143,7 @@ HTTP は成功するのに、読み直すと件数が元のままになる。
 グループ側のポリシーが正であり、同期でその内容に戻される。
 
 **対処**: `GET /governance/ruleBasedPolicies/environmentGroups/{groupId}/assignments` で
-グループの `policyId` を取得し、そちらを `--policy-id` に指定して更新する。
+グループの `policyId` を取得し、`apply_acp_profile.py --environment-group-id <GROUP_ID>` で差分を確認する。
 `set_acp_connector.py --include-group` は両方を確認するので、差分が出たらグループ側を直す。
 
 ## 1-d. ACP の許可セットを `publisher` で作ろうとして 3rd パーティが混ざる

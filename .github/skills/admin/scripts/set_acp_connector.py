@@ -13,45 +13,56 @@ ACP は default-deny の厳格な許可リストです。許可リストに無�
     # 対象コネクタが許可されているか確認
     python set_acp_connector.py --environment-id <ENV_ID> --connector shared_xxx
 
-    # 許可リストに追加（環境グループのポリシーと環境のポリシーの両方）
-    python set_acp_connector.py --environment-id <ENV_ID> \
-        --connector shared_xxx --include-group --apply
+    # 書き込みは apply_acp_profile.py / apply_group_acp_strategy.py でグループのみへ行う
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import sys
 from pathlib import Path
 
-import requests
-
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
 
-from auth_helper import get_token  # noqa: E402
+from auth_helper import get_session  # noqa: E402
+from set_environment_routing import configuration_payload  # noqa: E402
 
 PP_BASE = "https://api.powerplatform.com"
 PP_SCOPE = "https://api.powerplatform.com/.default"
 API_VERSION = "2024-10-01"
 RULE_SET_ID = "ConnectorManagement"
 CONNECTOR_PREFIX = "/providers/Microsoft.PowerApps/apis/"
+PROFILE_FILE = Path(__file__).resolve().parents[1] / "references" / "acp-profiles.json"
 _TIMEOUT = 120
 
 
-def _headers() -> dict:
-    return {"Authorization": f"Bearer {get_token(PP_SCOPE)}"}
+def denied_connectors() -> set[str]:
+    """どのプロファイル・経路でも許可してはならないレガシー コネクタ ID。"""
+    return set(json.loads(PROFILE_FILE.read_text(encoding="utf-8")).get("legacyConnectors", []))
+
+
+def assert_not_denied(connectors) -> None:
+    """許可対象にレガシー コネクタが含まれていたら書き込み前に停止する。"""
+    blocked = sorted(denied_connectors() & {str(name).rsplit("/", 1)[-1] for name in connectors})
+    if blocked:
+        raise ValueError(
+            "レガシー コネクタは許可できません（acp-profiles.json legacyConnectors）: "
+            + ", ".join(blocked)
+        )
 
 
 def _request(method: str, path: str, body: dict | None = None):
     url = f"{PP_BASE}{path}"
     sep = "&" if "?" in path else "?"
     url = f"{url}{sep}api-version={API_VERSION}"
-    response = requests.request(
+    response = get_session(PP_SCOPE).request(
         method,
         url,
-        headers={**_headers(), "Content-Type": "application/json"},
+        headers={"Content-Type": "application/json"},
         json=body,
         timeout=_TIMEOUT,
     )
@@ -66,9 +77,17 @@ def _request(method: str, path: str, body: dict | None = None):
 
 
 def assigned_policy_id(resource_type: str, resource_id: str) -> str | None:
+    if resource_type not in ("Environment", "EnvironmentGroup"):
+        raise ValueError("Unknown assignment resource type")
     segment = "environments" if resource_type == "Environment" else "environmentGroups"
     data = _request("GET", f"/governance/ruleBasedPolicies/{segment}/{resource_id}/assignments")
-    values = (data or {}).get("value", [])
+    if not isinstance(data, dict) or not isinstance(data.get("value"), list):
+        raise ValueError("Incomplete policy assignments")
+    values = data["value"]
+    if data.get("nextLink") or data.get("@odata.nextLink") or len(values) > 1:
+        raise ValueError("Ambiguous policy assignments; inspect before continuing")
+    if values and not values[0].get("policyId"):
+        raise ValueError("Policy assignment has no policy ID")
     return values[0].get("policyId") if values else None
 
 
@@ -90,6 +109,7 @@ def allowed_ids(rule_set: dict) -> set[str]:
 
 def add_connectors(rule_set: dict, connectors: list[str]) -> list[str]:
     """許可リストに未登録のコネクタを追加し、追加したものを返す。"""
+    assert_not_denied(connectors)
     entries = rule_set.setdefault("inputs", {}).setdefault("AllowedConnectorList", [])
     existing = allowed_ids(rule_set)
     added = []
@@ -107,12 +127,20 @@ def add_connectors(rule_set: dict, connectors: list[str]) -> list[str]:
     return added
 
 
-def patch_policy(policy_id: str, policy_name: str, rule_set: dict) -> None:
-    _request(
-        "PATCH",
-        f"/governance/ruleBasedPolicies/{policy_id}",
-        {"name": policy_name, "ruleSets": [rule_set]},
-    )
+def patch_policy(policy_id: str, policy: dict, rule_set: dict) -> None:
+    """ConnectorManagement だけを差し替え、グループの他のルールは必ず保持して送る。"""
+    assert_not_denied(allowed_ids(rule_set))
+    body = configuration_payload(policy)
+    updated = copy.deepcopy(rule_set)
+    updated.pop("lastModifiedDate", None)
+    positions = [index for index, rule in enumerate(body["ruleSets"]) if rule.get("id") == RULE_SET_ID]
+    if len(positions) > 1:
+        raise ValueError(f"{RULE_SET_ID} ルールが重複しています。確認するまで書き込みません。")
+    if positions:
+        body["ruleSets"][positions[0]] = updated
+    else:
+        body["ruleSets"].append(updated)
+    _request("PATCH", f"/governance/ruleBasedPolicies/{policy_id}", body)
 
 
 def _process(label: str, policy_id: str, connectors: list[str], list_only: bool, apply: bool) -> bool:
@@ -145,7 +173,7 @@ def _process(label: str, policy_id: str, connectors: list[str], list_only: bool,
         print("  実際に反映するには --apply を付けてください。")
         return False
 
-    patch_policy(policy_id, policy.get("name", ""), rule_set)
+    patch_policy(policy_id, policy, rule_set)
     print(f"  追加しました: {', '.join(added)}")
     return True
 
@@ -156,10 +184,13 @@ def main() -> int:
     parser.add_argument("--environment-group-id", help="環境グループ ID（未指定なら環境から解決）")
     parser.add_argument("--policy-id", help="ポリシー ID を直接指定する場合")
     parser.add_argument("--connector", action="append", default=[], help="コネクタ ID（shared_xxx、複数可）")
-    parser.add_argument("--include-group", action="store_true", help="環境グループ側のポリシーも更新する")
+    parser.add_argument("--include-group", action="store_true", help="環境グループ側のポリシーも読み取る")
     parser.add_argument("--list", action="store_true", help="許可コネクタを一覧表示するだけ")
     parser.add_argument("--apply", action="store_true", help="実際に書き込む（既定は dry-run）")
     args = parser.parse_args()
+
+    if args.apply:
+        parser.error("この CLI は読み取り専用です。apply_acp_profile.py / apply_group_acp_strategy.py でグループのみへ設定してください。")
 
     if not args.policy_id and not args.environment_id:
         parser.error("--environment-id または --policy-id が必要です。")
@@ -198,12 +229,12 @@ def main() -> int:
 
 def _environment_group_id(environment_id: str) -> str | None:
     """BAP API から環境グループ ID を取得する。"""
-    token = get_token("https://api.bap.microsoft.com/.default")
+    session = get_session("https://api.bap.microsoft.com/.default")
     url = (
         "https://api.bap.microsoft.com/providers/Microsoft.BusinessAppPlatform"
         f"/scopes/admin/environments/{environment_id}?api-version=2021-04-01"
     )
-    response = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=_TIMEOUT)
+    response = session.get(url, timeout=_TIMEOUT)
     if response.status_code >= 300:
         return None
     group = response.json().get("properties", {}).get("parentEnvironmentGroup") or {}

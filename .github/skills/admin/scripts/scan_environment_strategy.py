@@ -30,9 +30,11 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from dlp_helper import applied_policies, get_token  # noqa: E402
+from dlp_helper import applied_policies  # noqa: E402
+from auth_helper import get_token  # noqa: E402
+from apply_routing_strategy import scan_routing, plan_hash as routing_plan_hash
 from set_acp_connector import allowed_ids, assigned_policy_id, connector_rule_set, get_policy  # noqa: E402
-from set_environment_group_rules import tenant_host  # noqa: E402
+from set_environment_routing import tenant_host  # noqa: E402
 
 BAP_BASE = "https://api.bap.microsoft.com"
 BAP_SCOPE = "https://api.bap.microsoft.com/.default"
@@ -339,6 +341,7 @@ def scan(tenant_id: str, blueprint: dict, collect_usage: bool = True, client_id:
     ]
     return {
         "tenantId": tenant_id,
+        "routingRecommendation": scan_routing(tenant_id, blueprint),
         "tenantSettings": {
             path: _nested(settings, path) for path in blueprint["tenantSettings"]
         },
@@ -364,6 +367,12 @@ def scan(tenant_id: str, blueprint: dict, collect_usage: bool = True, client_id:
 
 def print_report(report: dict, blueprint: dict) -> None:
     print("=== 環境戦略スキャン（読み取りのみ・変更していません）===\n")
+    routing = report["routingRecommendation"]
+    print(f"推奨: 新旧すべてのルーティング宛先を {routing['targetGroup']['displayName']} へ統一（同意後のみ実行）")
+    for rule in routing["rules"]:
+        print(f"  {rule['ruleName']}: {rule['sourceGroupId']} -> {rule['targetGroupId']} / 変更={rule['changeRequired']}")
+    print(f"  旧設定: {routing['legacyChange']}")
+    print("  対象ユーザー・ポータル・優先順位・既存環境所属は保持。apply_routing_strategy.py の計画を承認後に適用。")
 
     print(f"環境グループ: {len(report['environmentGroups'])} 件")
     for group in report["environmentGroups"]:
@@ -464,6 +473,7 @@ def main() -> int:
     parser.add_argument("--tenant-id", default=os.environ.get("TENANT_ID"), help="テナント ID")
     parser.add_argument("--blueprint", type=Path, default=BLUEPRINT, help="ブループリント JSON")
     parser.add_argument("--report-file", type=Path, help="スキャン結果を JSON で書き出す")
+    parser.add_argument("--routing-only", action="store_true", help="全グループ・環境所属・新旧ルーティングに絞った読み取りスキャン")
     parser.add_argument(
         "--no-usage",
         action="store_true",
@@ -479,6 +489,13 @@ def main() -> int:
         parser.error("--tenant-id が必要です。")
 
     blueprint = json.loads(args.blueprint.read_text(encoding="utf-8"))
+    if args.routing_only:
+        plan = scan_routing(args.tenant_id, blueprint)
+        report = {"tenantId": args.tenant_id, "routingRecommendation": plan, "expectedHash": routing_plan_hash(plan), "readOnly": True}
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        if args.report_file:
+            args.report_file.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        return 0
     report = scan(args.tenant_id, blueprint, collect_usage=not args.no_usage, client_id=args.client_id)
     print_report(report, blueprint)
 
