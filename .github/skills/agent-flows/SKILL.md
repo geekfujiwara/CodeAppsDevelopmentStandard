@@ -92,6 +92,18 @@ python .github/skills/agent-flows/scripts/inspect_agent_node.py --report-file .l
 Workflow の既存 Agent ノードは公式に案内されているが、ここで観測した直接 API は実験的経路として扱う。
 ACP 反映待ちでもユーザーの承認に基づき実装・モックテストを進められるが、実応答・本人認可・本番受入のゲートは保持する。
 
+既存 bot を呼ぶ要求/結果ワーカーは [構築・更新・受入パターン](references/conversation-worker.md) を使う。
+`conversation_contract.py` の定義・要求者・相関・結果検証を実装に組み込み、
+テーブル/列/許可対象を `.env` で指定して既存要求を読み取り検証する。
+
+```powershell
+python .github/skills/agent-flows/scripts/inspect_conversation.py --request-id <accepted-request-id>
+```
+
+このコマンドは GET のみ。`reply-envelope-verified` は相関/所有者/応答形式の成功であり、
+設計の幾何検証や回答の正しさは別ゲート。単一ユーザー限定なら対象変更を明示承認し、
+サーバーの CreatedBy を許可 ID と照合する。クライアント表示制限だけを認可にしない。
+
 ## Step 6: 検証と結果報告
 
 ```powershell

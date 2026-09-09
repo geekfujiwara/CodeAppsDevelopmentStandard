@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
+from conversation_contract import canonical_uuid, validate_envelope
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard/scripts"))
 
@@ -22,6 +23,7 @@ def digest(value):
 
 
 def validate_client(client):
+    validate_envelope(client)
     properties = client["properties"]
     definition = properties["definition"]
     if set(definition["triggers"]) != {"manual"} or set(definition["actions"]) != {"Agent"}:
@@ -150,12 +152,13 @@ class Api:
         self.dv_session = get_session()
         self.flow_session = get_session(FLOW_SCOPE)
 
-    def request(self, method, path, body=None, flow=False, solution=None):
+    def request(self, method, path, body=None, flow=False, solution=None, extra_headers=None):
         session = self.flow_session if flow else self.dv_session
         url = (self.flow if flow else self.dataverse) + path
         if flow:
             url += ("&" if "?" in url else "?") + "api-version=2016-11-01"
         headers = {"MSCRM.SolutionUniqueName": solution} if solution else {}
+        headers.update(extra_headers or {})
         response = session.request(method, url, json=body, headers=headers, timeout=120, allow_redirects=False)
         if not 200 <= response.status_code < 300:
             raise ValueError("API request failed: HTTP " + str(response.status_code))
@@ -163,6 +166,24 @@ class Api:
 
     def workflow(self, flow_id):
         return self.request("GET", f"workflows({flow_id})?$select={SELECT}")
+
+    def require_solution_component(self, component_id, component_type, solution):
+        component_id = canonical_uuid(component_id)
+        if type(component_type) is not int or component_type not in (29, 10185):
+            raise ValueError("Expected workflow or bot component")
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", solution):
+            raise ValueError("Invalid solution unique name")
+        rows = self.request("GET", f"solutions?$select=solutionid&$filter=uniquename eq '{solution}'&$top=2").get("value", [])
+        if len(rows) != 1:
+            raise ValueError("Unique target solution required")
+        solution_id = canonical_uuid(rows[0]["solutionid"])
+        components = self.request("GET", "solutioncomponents?$select=objectid,componenttype,_solutionid_value"
+                                  f"&$filter=objectid eq {component_id} and componenttype eq {component_type}"
+                                  f" and _solutionid_value eq {solution_id}&$top=2").get("value", [])
+        if (len(components) != 1 or canonical_uuid(components[0]["objectid"]) != component_id
+                or components[0]["componenttype"] != component_type
+                or canonical_uuid(components[0]["_solutionid_value"]) != solution_id):
+            raise ValueError("Actual solution membership not verified; plan explicit inclusion separately")
 
 
 def main():
@@ -257,12 +278,17 @@ def main():
                 flow_id = report["flowId"]
                 api.request("POST", "workflows", workflow_body(flow_id, name, plan["clientdata"]), solution=solution)
                 validate_workflow(api.workflow(flow_id), name, plan["clientdata"], 0)
+                api.require_solution_component(flow_id, 29, solution)
                 if digest(api.workflow(plan["sourceId"])) != plan["sourceHash"]:
                     raise ValueError("Source changed during create")
                 report["status"] = "created-verified"
             elif args.command == "publish":
+                api.require_solution_component(plan["flowId"], 29, solution)
                 before = api.workflow(plan["flowId"])
-                api.request("PATCH", "workflows(" + plan["flowId"] + ")", {"statecode": 1, "statuscode": 2})
+                if digest(before) != plan["workflowHash"] or not before.get("@odata.etag"):
+                    raise ValueError("Workflow changed or ETag missing before publish")
+                api.request("PATCH", "workflows(" + plan["flowId"] + ")", {"statecode": 1, "statuscode": 2},
+                            extra_headers={"If-Match": before["@odata.etag"]})
                 validate_workflow(api.workflow(plan["flowId"]), name, json.loads(before["clientdata"]), 1)
                 state = api.request("GET", plan["flowId"], flow=True)["properties"]["state"]
                 if state != "Started":
