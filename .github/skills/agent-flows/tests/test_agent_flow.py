@@ -8,10 +8,11 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from agent_flow import build_client, classify_output, digest, main, require_approval, safe_output_url, validate_client, validate_workflow, workflow_body
+from agent_flow import Api, build_client, classify_output, digest, main, require_approval, safe_output_url, validate_client, validate_workflow, workflow_body
 
 
 def fixture():
@@ -23,7 +24,7 @@ def fixture():
         {"id": "start", "type": "start", "data": {"config": {"triggerType": "manual"}}},
         {"id": "agent", "type": "agent", "data": {"config": config}}],
         "edges": [{"source": "start", "target": "agent"}], "connectionReferences": refs}
-    return {"properties": {"connectionReferences": refs, "definition": {
+    return {"schemaVersion": "1.0.0.0", "properties": {"connectionReferences": refs, "definition": {
         "triggers": {"manual": {"type": "Request", "kind": "Button", "inputs": {
             "schema": {"type": "object", "properties": {}, "required": []}}, "metadata": {
                 "associatedData": {"graph": graph, "nodeActionMapping": {"agent": ["Agent"]}}}}},
@@ -33,6 +34,18 @@ def fixture():
 
 
 class AgentFlowTests(unittest.TestCase):
+    def test_actual_solution_membership_is_required(self):
+        api = object.__new__(Api)
+        component_id, solution_id = str(uuid4()), str(uuid4())
+        solution = {"value": [{"solutionid": solution_id}]}
+        component = {"objectid": component_id, "componenttype": 29, "_solutionid_value": solution_id}
+        api.request = Mock(side_effect=[solution, {"value": [component]}])
+        api.require_solution_component(component_id, 29, "Sample")
+        for rows in ([], [component, component], [{**component, "_solutionid_value": str(uuid4())}]):
+            api.request = Mock(side_effect=[solution, {"value": rows}])
+            with self.subTest(count=len(rows)), self.assertRaises(ValueError):
+                api.require_solution_component(component_id, 29, "Sample")
+
     def test_clone_and_readback(self):
         source = fixture()
         before = copy.deepcopy(source)
@@ -43,6 +56,28 @@ class AgentFlowTests(unittest.TestCase):
         for key, value in [("modernflowtype", 0), ("statecode", 1), ("category", 0), ("name", "other")]:
             with self.subTest(key=key), self.assertRaises(ValueError):
                 validate_workflow(dict(actual, **{key: value}), "new", client, 0)
+
+    def test_publish_requires_etag_and_never_retries_failure(self):
+        identifier = str(uuid4())
+        settings = {"ENV_ID": identifier, "AGENT_FLOW_ID": identifier, "AGENT_FLOW_NAME": "sample",
+                    "SOLUTION_NAME": "Sample", "AGENT_FLOW_EXPECTED_JSON": '{"ok":true}'}
+        message = 'Return only this exact JSON without markdown: {"ok": true}. Do not use tools, knowledge, web search, email, or human assistance.'
+        actual = dict(workflow_body(identifier, "sample", build_client(fixture(), "sample", message)), statecode=0)
+        actual["@odata.etag"] = 'W/"version"'
+        auth = types.ModuleType("auth_helper")
+        auth.DATAVERSE_URL = "https://example.com"
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, settings), patch.dict(sys.modules, {"auth_helper": auth}), patch("agent_flow.Api") as api_type, contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            api = api_type.return_value
+            api.workflow.return_value = actual
+            path = Path(directory) / "plan.json"
+            with patch.object(sys, "argv", ["agent_flow", "publish", "--report-file", str(path)]):
+                self.assertEqual(main(), 0)
+            approved = json.loads(path.read_text())["expectedHash"]
+            api.request.side_effect = ValueError("HTTP 412")
+            with patch.object(sys, "argv", ["agent_flow", "publish", "--apply", "--expected-hash", approved, "--report-file", str(Path(directory) / "result.json")]):
+                self.assertEqual(main(), 1)
+            api.request.assert_called_once_with("PATCH", f"workflows({identifier})", {"statecode": 1, "statuscode": 2}, extra_headers={"If-Match": actual["@odata.etag"]})
+            api.require_solution_component.assert_called_once_with(identifier, 29, "Sample")
 
     def test_graph_runtime_mismatch_rejected(self):
         for mutation in ["model", "mapping", "tools", "edge", "web", "extra-action", "reference"]:

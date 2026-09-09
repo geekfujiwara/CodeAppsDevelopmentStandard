@@ -37,6 +37,10 @@ triggers:
 Copilot Studio の **「全く新しいアーキテクチャ」（`cliagent` テンプレート）** エージェントを
 **Dataverse Web API だけで完全自動構築** する。
 
+> **間接連携の補足**: [下書き専用botと非同期ワーカー](references/draft-only-worker-agent.md) は、
+> Workflow経由で既存botを呼び、Dataverse結果をCode Appsが読む実験的パターン。
+> 以下の「v2不可」は従来の直接SDK呼び出し・Web埋め込みの制約であり、この間接経路と区別する。
+
 ## v1（旧）スキルとの最大の違い
 
 | 観点 | v1（`copilot-studio` スキル / 旧アーキ） | **v2（本スキル / 新アーキ `cliagent`）** |

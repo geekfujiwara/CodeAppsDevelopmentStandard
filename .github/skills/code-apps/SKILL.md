@@ -93,6 +93,9 @@ triggers:
 Power Apps Code Apps（コードファースト）を **TypeScript + React + Tailwind CSS** で開発する。
 UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の全領域をカバーする統合スキル。
 
+> **選択対象付き設計チャット**: [コンテキスト・クイック返信・待機表示](references/contextual-design-chat.md) を参照。
+> 対象IDと設計版の固定、対象外変更の拒否、実状態だけの進捗表示、検証済み下書きと明示保存の分離を扱う。
+
 > **プラント・設備の JSON 駆動設計**: [モジュール設計パターン](references/modular-plant-design.md) と
 > [追加テンプレート](templates/modular-plant/README.md) を参照。敷地・ユニット・ポート接続、CSP 対応検証器、
 > Python 候補生成、Dataverse 改訂・提案レビューを再利用できる。既存アプリへのアドオンであり scaffold 元ではない。
