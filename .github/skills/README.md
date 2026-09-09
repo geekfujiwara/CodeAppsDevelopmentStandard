@@ -150,6 +150,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 |--------|------|
 | [copilot-studio](copilot-studio/SKILL.md) | Copilot Studio エージェントを生成オーケストレーション前提で構築・運用する。 |
 | [copilot-studio-v2](copilot-studio-v2/SKILL.md) | Copilot Studio の新アーキテクチャ（cliagent）エージェントを Dataverse API だけで UI 操作なし完全自動構築する。フラット Python スキル添付まで対応。MCP サーバー等のツール追加は Copilot Studio UI での手動作業。 |
+| [agent-flows](agent-flows/SKILL.md) | Copilot Studio 新 UI の Agent flows / Workflows を API で別名作成・公開・実行する。手動 Start + inline Agent、接続参照、承認付き dry-run と出力検証を扱う。既存 v2 bot 呼び出しは別途検証する。 |
 | [power-automate](power-automate/SKILL.md) | Power Automate クラウドフローをソリューション対応で作成・デプロイする。 |
 | [cowork](cowork/SKILL.md) | 目的特化型の Copilot Cowork プラグイン（Agent Skills + Dataverse MCP）を開発し、Entra ID SSO を構成して M365 管理センターのエージェント画面から公開・更新する。 |
 | [ai-teammate](ai-teammate/SKILL.md) | Microsoft Foundry のエージェン トを SDK/REST ベースで作成・バージョン管理し、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に公開する。エージェントテンプレート開発を担当し、秘匿化・CI/CD は `alm` スキルに委譲する。ライト実装（PoC）と本格実装の 2 ルートに対応。 |
