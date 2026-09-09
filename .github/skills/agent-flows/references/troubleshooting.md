@@ -28,6 +28,11 @@ Allow implementation to continue under explicit user approval while propagation 
 Do not add more connectors, disable DLP/ACP or reapply policies automatically. Retest once after propagation is confirmed or at an agreed checkpoint.
 Persistent divergence belongs in a support case. Setting save, new UI Review and runtime execution are three different checks.
 
+When a user reports a later successful run, read that exact workflow/run pair without submitting another run.
+Compare start/end timestamps, run status, Agent status and downloaded output. A later successful run supersedes
+the old block only for that tested path; keep the old 442 as history, not as proof that all current calls fail.
+Do not infer that an inline success proves ListAgents, an existing bot, MCP tools or public web chat authorization.
+
 ## Template Or Readback Rejected
 
 `validate_client` checks graph/runtime instruction, model, connection and mapping parity, empty tools, no web/human assistance and the input-free trigger.
@@ -46,3 +51,13 @@ The management endpoint may return an empty HTTP 200 body. Use run history and e
 `classify_output` requires successful run and action plus parsed JSON equality; boolean and number differences are rejected.
 Output mismatch is not repaired by stripping markdown or inventing missing fields.
 Code Apps inputs must not be sent using this input-free smoke transport.
+
+## Completed Agent With Empty Result
+
+A successful inline run was observed with HTTP 200 and `body` containing `conversationId`, `status: Completed`
+and an empty string `result`. This proves execution completion, not the requested answer or skill execution.
+The run/action may both be Succeeded while output verification remains incomplete. Do not fabricate a fallback answer.
+Permanent guard: `classify_output` accepts exactly one of legacy `message` or completed `result`, parses exact JSON,
+and rejects empty text, unknown/non-completed status, ambiguous fields and unexpected HTTP status.
+`test_completed_result_requires_nonempty_exact_json` covers these cases. This is an observed runtime shape,
+not a guarantee that all Agent operations share this response contract.
