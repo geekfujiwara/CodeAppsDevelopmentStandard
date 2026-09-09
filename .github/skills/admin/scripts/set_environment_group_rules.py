@@ -45,8 +45,9 @@ from pathlib import Path
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
 
-from dlp_helper import get_token  # noqa: E402
+from auth_helper import get_token  # noqa: E402
 
 PP_SCOPE = "https://api.powerplatform.com/.default"
 API_VERSION = "2021-10-01-preview"

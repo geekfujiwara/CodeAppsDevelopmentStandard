@@ -23,7 +23,27 @@ def _sharing(value) -> str:
     return "無制限" if value in (None, -1) else f"{value} 名まで"
 
 
+def routing_section(scan: dict) -> list[str]:
+    routing = scan.get("routingRecommendation")
+    if not routing:
+        return ["ルーティングは未スキャンです。新旧の API スキャンを実施してから承認してください。", ""]
+    lines = [f"推奨: 新旧すべての既存ルーティング宛先を **{routing['targetGroup']['displayName']}** へ統一。",
+             "", "| 対象 | 現在の宛先 | 推奨宛先 | 変更 |", "| --- | --- | --- | --- |"]
+    for rule in routing["rules"]:
+        lines.append(f"| {rule['ruleName']} | `{rule['sourceGroupId']}` | `{rule['targetGroupId']}` | {rule['changeRequired']} |")
+    legacy = routing["legacyChange"]
+    lines.extend([f"| 旧テナント設定 | `{legacy['before']}` | `{legacy['after']}` | {legacy['changeRequired']} |", "",
+                  "- [ ] 上記の全宛先統一に同意する（スキャンでは変更しません）。",
+                  "- 対象ユーザー・ポータル・優先順位・有効化状態・既存環境所属・ACP は変更しません。",
+                  "- API dry-run: `python apply_routing_strategy.py --tenant-id <TENANT_ID> --report-file routing-plan.json`",
+                  "- 差分とハッシュを確認して同意後: `python apply_routing_strategy.py --tenant-id <TENANT_ID> --report-file routing-result.json --expected-hash <APPROVED_HASH> --apply`",
+                  "- 適用後は API 再取得で全宛先と保持項目を検証。失敗時は部分反映を確認してから再計画します。", ""])
+    return lines
+
+
 def build(scan: dict, blueprint: dict, decisions: dict) -> str:
+    if scan.get("readOnly") and "environments" not in scan:
+        return "\n".join(["# 環境ルーティング移行プラン", "", "対象: 全グループ・環境所属・新旧ルーティングのみ。アプリ利用状況や DLP の総合監査ではありません。", "", *routing_section(scan)])
     lines: list[str] = []
     add = lines.append
     now = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
@@ -207,6 +227,10 @@ def build(scan: dict, blueprint: dict, decisions: dict) -> str:
         add(f"- {blueprint['lifecyclePolicy']['blockUnmanagedCustomizations']['fallback']}")
         add("")
 
+    add("### 2-8. 全ルーティングの個人開発者グループ統一")
+    add("")
+    lines.extend(routing_section(scan))
+
     add("## 3. 実行手順")
     add("")
     add("設定は環境グループのルールで行うのが原則。グループ ルールに無い項目だけを手順 5 以降で補う。")
@@ -223,7 +247,7 @@ def build(scan: dict, blueprint: dict, decisions: dict) -> str:
     add("| 2 | 不足している環境グループを作成 | `apply_environment_strategy.py --groups-only --apply` | 追加のみ。既存環境に影響なし |")
     add("| 3 | 環境をグループへ割り当て | `PATCH {bap}/.../environments/{id}` の `parentEnvironmentGroup`（既定環境は `apply_environment_strategy.py --apply` が実施） | グループのルールを継承する |")
     add("| 4 | グループのルールを設定して発行 | `apply_environment_strategy.py --rules-only --apply` | 環境側の設定がロックされる |")
-    add("| 5 | テナント設定（ルーティング / Teams 禁止 / 共有制限 / レポート公開） | `apply_environment_strategy.py --tenant-settings-only --apply` | テナント全体に即時反映 |")
+    add("| 5 | テナント設定（Teams 禁止 / 共有制限 / レポート公開。ルーティングは 2-8 の専用計画） | `apply_environment_strategy.py --tenant-settings-only --apply` | テナント全体に即時反映 |")
     add("| 6 | Dataverse 検索を有効化 | `enable_dataverse_search.py --apply` | インデックス作成に数時間かかる |")
     add("| 7 | ACP 推奨プロファイルを適用 | `apply_acp_profile.py --include-group --apply` | 許可リストを置換。事前に dry-run で差分確認 |")
     add("| 8 | Copilot クレジットを配分 | `set_environment_capacity.py --environment-id <ENV> --quantity <N> --apply` | 環境ごとの上限。合計が保有数を超えないこと |")

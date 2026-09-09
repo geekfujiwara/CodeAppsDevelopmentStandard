@@ -158,9 +158,9 @@
       "why": "新規メーカーを既定環境ではなく個人の開発者環境へ誘導し、既定環境の肥大化を防ぐ。"
     },
     "powerPlatform.governance.environmentRoutingTargetEnvironmentGroupId": {
-      "expectedGroup": "市民開発者環境グループ",
+      "expectedGroup": "個人開発者環境グループ",
       "label": "ルーティング先の環境グループ",
-      "why": "自動作成される開発者環境が最初から市民開発者グループのルールで統制される。"
+      "why": "新旧のすべての既存ルーティングを個人開発者グループへ揃えることを提案し、同意後に API で適用する。対象ユーザーとポータル範囲は保持する。"
     },
     "disableTeamsEnvironmentCreationByNonAdminUsers": {
       "expected": true,
@@ -275,6 +275,7 @@
     {
       "name": "個人開発者環境グループ",
       "code": "PSN",
+      "environmentRoutingTarget": true,
       "purpose": "学習用。会社のポリシーを理解した市民開発者が個人の開発者環境を持つ。本番利用は不可。",
       "rules": {
         "sharingLimitUsers": 1,
@@ -296,7 +297,6 @@
       "name": "市民開発者環境グループ",
       "code": "CTZ",
       "purpose": "一般の市民開発者が利用する。認定前後で環境を分ける。",
-      "environmentRoutingTarget": true,
       "rules": {
         "sharingLimitUsers": 10,
         "solutionCheckerMode": "warn",

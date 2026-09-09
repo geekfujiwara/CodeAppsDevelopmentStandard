@@ -36,6 +36,38 @@
 
 ## 取得・変更手順
 
+### 全ルーティングを個人開発者グループへ統一する標準フロー
+
+1. `scan_environment_strategy.py` で新旧両方を読み取り、全既存ルールと旧設定の宛先を PSN へ揃えることを提案する。
+2. 移行プランと dry-run の差分を提示し、ユーザーの同意を得る。ハッシュだけを同意の代わりにしない。
+3. 承認済みハッシュを指定して API 適用する。新ポリシーを PATCH、旧設定は宛先だけの最小差分を POST する。
+4. API 再取得で全宛先・他の設定・グループ一覧・全環境所属を比較する。
+
+```powershell
+python .github/skills/admin/scripts/scan_environment_strategy.py --tenant-id $env:TENANT_ID --routing-only --report-file routing-scan.json
+python .github/skills/admin/scripts/generate_migration_plan.py --scan-file routing-scan.json --output routing-migration-plan.md
+python .github/skills/admin/scripts/apply_routing_strategy.py --tenant-id $env:TENANT_ID --report-file routing-plan.json
+# 差分と expectedHash を提示し、同意後のみ実行する
+python .github/skills/admin/scripts/apply_routing_strategy.py --tenant-id $env:TENANT_ID --report-file routing-result.json --expected-hash <APPROVED_HASH> --apply
+python .github/skills/admin/scripts/scan_environment_strategy.py --tenant-id $env:TENANT_ID --routing-only --report-file routing-after.json
+```
+
+PSN はブループリントの `code: PSN` の名称とテナントのグループ表示名で一意に解決する。
+見つからない、重複する、既存ルールがない場合は停止する。グループやルールの新設は別途承認する。
+「すべて」は **全既存ルールの宛先と旧設定の宛先** を意味する。全ユーザーへの拡大・追加ポータル有効化・
+優先順位変更・既存環境移動・ACP 変更は含まない。無効なルーティングを暗黙に有効化しない。
+`--routing-only` は利用状況・ライセンス・DLP の総合監査ではない。
+一括 `apply_environment_strategy.py` はルーティング関連設定を除外し、この承認経路を迂回しない。
+
+旧設定の取得は BAP の `listTenantSettings?api-version=2021-04-01` への POST、更新は
+`scopes/admin/updateTenantSettings?api-version=2021-04-01` への POST。
+送信する JSON は `powerPlatform.governance.environmentRoutingTargetEnvironmentGroupId` の差分のみ。
+認証は `auth_helper.get_session("https://api.bap.microsoft.com/.default")` を使用する。
+実テナントで新ルールの None 宛先と旧設定の別グループ宛先を PSN へ統一し、Python API のみで
+保存・読み戻し・再スキャンの変更不要判定を検証済み。新規メーカー環境の自動作成は未検証。
+
+### 個別ルールの変更
+
 ```powershell
 python .github/skills/admin/scripts/set_environment_routing.py `
   --tenant-id $env:TENANT_ID --report-file routing-current.json

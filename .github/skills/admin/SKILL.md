@@ -82,6 +82,7 @@ triggers:
 | [scripts/scan_environment_strategy.py](scripts/scan_environment_strategy.py) | 環境戦略の現状スキャン（テナント設定 / 環境グループ / 環境 / アプリ・フロー数 / Dataverse 容量 / ACP / DLP / ライセンス / Copilot クレジット）。削除候補と割り当て先も提案 | なし |
 | [scripts/generate_strategy_report.py](scripts/generate_strategy_report.py) | スキャン結果から合意形成用のインタラクティブ HTML レポートを生成（組織戦略 / 環境戦略 / 現状 / ギャップ / 実行プラン / 適用結果） | なし |
 | [scripts/generate_migration_plan.py](scripts/generate_migration_plan.py) | スキャン結果から `admin-migration-plan.md` を生成 | なし |
+| [scripts/apply_routing_strategy.py](scripts/apply_routing_strategy.py) | 新旧の全既存ルーティング宛先を個人開発者グループへ統一する計画。ユーザー同意と承認ハッシュを条件に API 適用・再検証 | `--apply` 時のみ |
 | [scripts/apply_environment_strategy.py](scripts/apply_environment_strategy.py) | 環境グループの作成・ルール発行・既定環境の割り当て・テナント設定 | `--apply` 時のみ |
 | [scripts/set_environment_group_rules.py](scripts/set_environment_group_rules.py) | 環境グループのルールを個別に確認・設定（共有上限 / ACP / アンマネージド禁止 / Code Apps / ウェルカム コンテンツ） | `--apply` 時のみ |
 | [scripts/enable_dataverse_search.py](scripts/enable_dataverse_search.py) | 全環境の Dataverse 検索を有効化 | `--apply` 時のみ |
@@ -344,6 +345,13 @@ DLP は反映に時間がかかるため、直後に解消していなくても�
 ```bash
 python scan_environment_strategy.py --tenant-id <TENANT_ID> --report-file scan.json
 ```
+
+スキャン結果では **新旧すべての既存ルーティングの宛先を個人開発者環境グループ（PSN）へ揃える**ことを推奨し、
+各ルールと旧設定の現在値・推奨値を移行プランへ記載する。対象ユーザー・ポータル・優先順位・有効化状態・既存環境所属は保持する。
+ルーティングだけの依頼は `--routing-only` で全グループ・環境所属・新旧設定を読み取る。
+**自動適用しない。差分を提示して同意を得た後だけ** `apply_routing_strategy.py --expected-hash <APPROVED_HASH> --apply` を実行する。
+従来の一括テナント設定コマンドはルーティング関連項目を変更しない。API dry-run と適用の完全なコマンドは
+[environment-routing.md](references/environment-routing.md#全ルーティングを個人開発者グループへ統一する標準フロー) を参照。
 
 アプリ / フロー数の収集で時間がかかる場合は `--no-usage` で省ける（ただし削除候補の判定は行われない）。
 「アンマネージド カスタマイズ不可」の読み取りには委任アクセス許可 `EnvironmentManagement.Settings.Read` が必要なため、

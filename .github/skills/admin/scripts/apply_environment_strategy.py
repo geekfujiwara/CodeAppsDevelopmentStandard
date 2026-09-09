@@ -30,8 +30,9 @@ from pathlib import Path
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
 
-from dlp_helper import get_token  # noqa: E402
+from auth_helper import get_token  # noqa: E402
 from set_environment_group_rules import (  # noqa: E402
     apply_classic,
     apply_policy,
@@ -159,6 +160,9 @@ def apply_tenant_settings(blueprint: dict, apply: bool) -> int:
     groups_by_name = {group.get("displayName"): group.get("id") for group in list_groups()}
     changes = []
     for path, spec in blueprint["tenantSettings"].items():
+        if "routing" in path.lower():
+            print(f"  [専用計画] {spec['label']}: apply_routing_strategy.py で差分を確認し、同意後に適用してください。")
+            continue
         if "expected" in spec:
             expected = spec["expected"]
         elif spec.get("expectedGroup"):
