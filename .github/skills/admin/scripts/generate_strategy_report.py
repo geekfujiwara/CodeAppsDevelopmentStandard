@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import tempfile
@@ -54,7 +55,7 @@ def organization_findings(scan: dict, blueprint: dict) -> list[dict]:
                 "組織戦略",
                 f"統制外の環境が {len(ungrouped)} 件",
                 f"どの環境グループにも属していないため、誰が何を作ってよいかのルールが適用されていない: {', '.join(ungrouped)}",
-                "役割に合うグループへ割り当てる。開発実態が無ければ削除する。",
+                "所有者・利用状況・既存ポリシーを確認し、役割に合うグループへの割り当てを計画する。削除は別途承認とバックアップが必要。",
             )
         )
     for item in scan.get("groupRecommendations") or []:
@@ -127,7 +128,9 @@ def environment_findings(scan: dict, blueprint: dict) -> list[dict]:
                 "テナント設定",
                 gap["label"],
                 f"現在 `{gap['actual']}` / 推奨 `{gap['expected']}`。{gap['why']}",
-                "`apply_environment_strategy.py --tenant-settings-only --apply` で反映する。",
+                "ルーティング専用計画で対象範囲と有効化状態を確認する。宛先以外の変更は別途承認する。"
+                if "routing" in gap.get("setting", "").lower()
+                else "この設定だけの差分を取得し、影響を確認してから承認を求める。他項目の一括適用はしない。",
             )
         )
     if scan.get("classicDlpPolicies"):
@@ -136,9 +139,9 @@ def environment_findings(scan: dict, blueprint: dict) -> list[dict]:
             _finding(
                 "medium",
                 "コネクタ",
-                "クラシック DLP が適用されたまま",
-                f"クラシック DLP は既定許可のため、新しいコネクタが自動で使えてしまう。{policy['why']}",
-                f"`apply_acp_profile.py --include-group --apply` で {policy['profile']} プロファイルへ移行する。",
+                "クラシック DLP と ACP の適用範囲を確認",
+                "クラシック DLP と ACP は混成モードでは併用され、より厳しい制限が適用される。存在だけで違反とは判定しない。",
+                "グループ別 ACP 推奨セットと既存の承認済み例外を照合し、影響を提示する。ACP 専用モードへの移行や DLP 変更は別途承認を得る。",
             )
         )
     licenses = scan.get("licenses") or {}
@@ -206,7 +209,7 @@ def plan_steps(scan: dict) -> list[dict]:
         {"title": "グループのルールを設定して発行", "command": "apply_environment_strategy.py --rules-only --apply", "impact": "環境側の設定がロックされる"},
         {"title": "テナント設定を反映", "command": "apply_environment_strategy.py --tenant-settings-only --apply", "impact": "テナント全体に即時反映"},
         {"title": "Dataverse 検索を有効化", "command": "enable_dataverse_search.py --apply", "impact": "インデックス作成に数時間"},
-        {"title": "ACP 推奨プロファイルを適用", "command": "apply_acp_profile.py --include-group --apply", "impact": "許可リストを置換"},
+        {"title": "グループ別 ACP の差分を確認", "command": "apply_group_acp_strategy.py --help", "impact": "既存例外と配下環境への影響を確認してから別途承認"},
         {"title": "Copilot クレジットを配分", "command": "set_environment_capacity.py --environment-id <ENV> --quantity <N> --apply", "impact": "合計が保有数を超えないこと"},
         {"title": "AI CoE 内製開発の本番環境を作成", "command": "create_environments.py --apply", "impact": "原則新規作成"},
         {"title": "開発 → テスト → 本番のパイプラインを構成", "command": "setup_pipeline.py --apply", "impact": "手動インポートを禁止"},
@@ -215,10 +218,28 @@ def plan_steps(scan: dict) -> list[dict]:
 
 
 def build_payload(scan: dict, blueprint: dict, results: dict | None) -> dict:
-    findings = organization_findings(scan, blueprint) + environment_findings(scan, blueprint)
+  routing_only = bool(scan.get("readOnly") and "environments" not in scan)
+  findings = [] if routing_only else organization_findings(scan, blueprint) + environment_findings(scan, blueprint)
+  routing = scan.get("routingRecommendation")
+  if routing:
+    changed = sum(rule["changeRequired"] for rule in routing["rules"])
+    legacy_changed = routing["legacyChange"]["changeRequired"]
+    findings.insert(0, _finding(
+      "medium" if changed or legacy_changed else "info", "ルーティング",
+      "全ルーティングの宛先を個人開発者グループへ統一" if changed or legacy_changed else "全ルーティングの宛先は個人開発者グループに統一済み",
+      f"推奨先: {routing['targetGroup']['displayName']}。新ルールの差分 {changed} 件、旧設定の差分 {'あり' if legacy_changed else 'なし'}。",
+      "apply_routing_strategy.py で最新の計画を取得し、差分とハッシュの承認後に API 適用する。対象ユーザー・ポータル・優先順位・既存環境所属を保持する。"
+      if changed or legacy_changed else "変更は不要。現在の宛先と対象範囲を維持する。"))
+  elif not routing_only:
+    findings.insert(0, _finding("medium", "ルーティング", "新旧ルーティングの再スキャンが必要",
+                   "このスキャンには新旧ルーティング情報がありません。", "API で再取得し、個人開発者グループへの統一差分を提案する。"))
+  for finding in findings:
+    finding["id"] = hashlib.sha256(json.dumps(finding, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
     return {
         "generatedAt": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M"),
         "scan": scan,
+        "scope": "routing-only" if routing_only else "full",
+        "scanFingerprint": hashlib.sha256(json.dumps(scan, sort_keys=True).encode()).hexdigest(),
         "organizationStrategy": blueprint["organizationStrategy"],
         "groups": blueprint["groups"],
         "connectorPolicy": blueprint["connectorPolicy"],
@@ -232,34 +253,92 @@ def build_payload(scan: dict, blueprint: dict, results: dict | None) -> dict:
 
 
 HTML_TEMPLATE = """<!doctype html>
-<html lang="ja" data-theme="dark">
+<html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Power Platform 環境戦略レポート</title>
+<script>
+(() => {
+  const param = new URLSearchParams(window.location.search).get("scoutTheme");
+  const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
 <style>
-:root{--bg:#0f1117;--panel:#171a23;--panel2:#1e222d;--line:#2a2f3d;--fg:#e6e9ef;--muted:#9aa3b2;
---accent:#6aa6ff;--high:#ff6b6b;--medium:#ffb454;--info:#5ad19b;--shadow:0 8px 24px rgba(0,0,0,.35)}
-html[data-theme=light]{--bg:#f5f6f8;--panel:#fff;--panel2:#f0f2f6;--line:#dfe3ea;--fg:#1b1f28;--muted:#5c6575;
---accent:#2563eb;--high:#d92d20;--medium:#b54708;--info:#067647;--shadow:0 8px 24px rgba(16,24,40,.08)}
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef;
+  --cp-bg-elevated: #fcfbf8;
+  --cp-surface: #ffffff;
+  --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede;
+  --cp-border-strong: #919191;
+  --cp-text: #242424;
+  --cp-text-muted: #5c5c5c;
+  --cp-text-soft: #6f6f6f;
+  --cp-accent: #b11f4b;
+  --cp-accent-hover: #9a1a41;
+  --cp-accent-soft: rgba(177, 31, 75, 0.08);
+  --cp-accent-fg: #ffffff;
+  --cp-success: #16a34a;
+  --cp-danger: #dc2626;
+  --cp-warning: #f59e0b;
+  --cp-link: #0078d4;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+  --cp-overlay: rgba(255, 255, 255, 0.8);
+  --cp-panel: rgba(255, 255, 255, 0.86);
+  --cp-panel-strong: rgba(255, 255, 255, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.55);
+  --cp-highlight: rgba(177, 31, 75, 0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a;
+  --cp-bg-elevated: #343231;
+  --cp-surface: #292929;
+  --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747;
+  --cp-border-strong: #5f5f5f;
+  --cp-text: #dedede;
+  --cp-text-muted: #919191;
+  --cp-text-soft: #b0b0b0;
+  --cp-accent: #fd8ea1;
+  --cp-accent-hover: #fb7b91;
+  --cp-accent-soft: rgba(253, 142, 161, 0.14);
+  --cp-accent-fg: #1a1a1a;
+  --cp-success: #4ade80;
+  --cp-danger: #f87171;
+  --cp-warning: #fbbf24;
+  --cp-link: #4da6ff;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  --cp-overlay: rgba(41, 41, 41, 0.88);
+  --cp-panel: rgba(41, 41, 41, 0.72);
+  --cp-panel-strong: rgba(41, 41, 41, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.04);
+  --cp-highlight: rgba(253, 142, 161, 0.12);
+}
+:root{--bg:var(--cp-surface-soft);--panel:var(--cp-surface);--panel2:var(--cp-surface-soft);--line:var(--cp-border);--fg:var(--cp-text);--muted:var(--cp-text-muted);
+--accent:var(--cp-accent);--high:var(--cp-danger);--medium:var(--cp-warning);--info:var(--cp-success);--shadow:none}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:"Segoe UI","Yu Gothic UI",system-ui,sans-serif;line-height:1.7}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Segoe UI",Aptos,Calibri,-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.7;letter-spacing:0}
 header{padding:28px 32px 20px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}
-h1{margin:0;font-size:24px;letter-spacing:.02em}
+h1{margin:0;font-size:24px;letter-spacing:0}
 h2{font-size:19px;margin:32px 0 12px;padding-left:10px;border-left:4px solid var(--accent)}
-h3{font-size:15px;margin:22px 0 8px;color:var(--muted);letter-spacing:.04em}
+h3{font-size:15px;margin:22px 0 8px;color:var(--muted);letter-spacing:0}
 .sub{color:var(--muted);font-size:13px;margin-top:6px}
 main{padding:0 32px 80px;max-width:1280px;margin:0 auto}
 nav{display:flex;gap:6px;flex-wrap:wrap;padding:14px 32px;position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);z-index:10}
 nav button{background:transparent;border:1px solid transparent;color:var(--muted);padding:8px 14px;border-radius:999px;cursor:pointer;font-size:13px;font-family:inherit}
 nav button:hover{color:var(--fg);background:var(--panel2)}
-nav button[aria-selected=true]{background:var(--accent);color:#fff;border-color:var(--accent)}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:14px 0;box-shadow:var(--shadow)}
+nav button[aria-selected=true]{background:var(--accent);color:var(--cp-accent-fg);border-color:var(--accent)}
+.panel{border-bottom:1px solid var(--line);padding:16px 0;margin:14px 0;overflow-x:auto}
+.cards>.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px}
 .grid{display:grid;gap:14px}
 .kpis{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
 .cards{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
-.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
-.kpi .v{font-size:30px;font-weight:600;letter-spacing:-.02em}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px}
+.kpi .v{font-size:30px;font-weight:600;letter-spacing:0}
 .kpi .l{color:var(--muted);font-size:12px;margin-top:2px}
 .kpi.warn .v{color:var(--medium)} .kpi.bad .v{color:var(--high)} .kpi.good .v{color:var(--info)}
 table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
@@ -292,6 +371,31 @@ input[type=search],select{background:var(--panel2);border:1px solid var(--line);
 .note{border:1px dashed var(--line);border-radius:10px;padding:12px 14px;color:var(--muted);font-size:13px;margin-top:10px}
 .role td:first-child{font-weight:600;white-space:nowrap}
 footer{color:var(--muted);font-size:12px;padding:20px 32px;border-top:1px solid var(--line)}
+.review-layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(320px,1fr);gap:28px;align-items:start}
+.review-layout>*{min-width:0}.review-item{background:var(--cp-surface);border:1px solid var(--cp-border);border-radius:8px;padding:20px;margin:0 0 16px;overflow-wrap:anywhere}
+.review-item h3{margin:8px 0;color:var(--cp-text);font-size:16px}.review-item p{margin:8px 0;font-size:13px}
+.review-item[data-decision=ok]{border-left:4px solid var(--cp-success)}
+.review-item[data-decision=skip]{border-left:4px solid var(--cp-border-strong)}
+.review-item[data-decision=discuss]{border-left:4px solid var(--cp-link)}
+.decisions{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0 12px;border:0;padding:0;min-width:0}
+.decisions legend{font-size:12px;color:var(--cp-text-muted);margin-bottom:6px}
+.decisions label{position:relative;cursor:pointer}.decisions input{position:absolute;opacity:0;width:1px;height:1px}
+.decisions span{display:block;padding:6px 12px;border:1px solid var(--cp-border);border-radius:4px;font-size:13px;background:var(--cp-surface)}
+.decisions input:checked+span{background:var(--cp-accent-soft);border-color:var(--cp-accent);color:var(--cp-accent)}
+.decisions input:focus-visible+span,button:focus-visible,textarea:focus-visible{outline:2px solid var(--cp-link);outline-offset:3px}
+textarea{width:100%;resize:vertical;min-height:80px;background:var(--cp-surface);color:var(--cp-text);border:1px solid var(--cp-border-strong);border-radius:4px;padding:12px;font-family:inherit;font-size:13px;line-height:1.6}
+.field-label{display:block;font-size:12px;color:var(--cp-text-muted);margin:8px 0}
+.prompt-pane{position:sticky;top:96px;border-top:3px solid var(--cp-accent);padding-top:16px}
+.prompt-pane h2{margin:0 0 12px;border:0;padding:0;font-size:18px}
+#requestPrompt{height:360px;font-family:Consolas,"Courier New",Courier,monospace;font-size:12px;line-height:1.7}
+.primary{background:var(--cp-accent);color:var(--cp-accent-fg);border:0;border-radius:4px;padding:10px 16px;font:inherit;font-size:13px;cursor:pointer}
+.primary:hover{background:var(--cp-accent-hover)}button:disabled{opacity:.5;cursor:not-allowed}
+.review-progress{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:16px 0;font-size:13px}
+.review-progress progress{accent-color:var(--cp-accent);width:160px;height:8px}
+.copy-status{min-height:24px;font-size:13px;color:var(--cp-text-muted)}
+.handoff{font-size:13px;border-left:3px solid var(--cp-link);padding-left:12px;margin:16px 0}
+.scan-scope{font-size:12px;color:var(--cp-text-muted);overflow-wrap:anywhere}
+@media(max-width:800px){header{padding:20px 16px}h1{font-size:20px}nav{position:static;padding:12px 16px}main{padding:0 16px 40px}.review-layout{grid-template-columns:minmax(0,1fr);gap:16px}.prompt-pane{position:static}.cards{grid-template-columns:minmax(0,1fr)}.role td:first-child{white-space:normal}input[type=search]{max-width:100%}.review-item{padding:16px}#requestPrompt{height:300px}.sub{overflow-wrap:anywhere}}
 @media print{nav,.toolbar,.iconbtn{display:none}.panel{break-inside:avoid}section[hidden]{display:block!important}}
 </style>
 </head>
@@ -310,6 +414,7 @@ footer{color:var(--muted);font-size:12px;padding:20px 32px;border-top:1px solid 
 <main id="main"></main>
 <footer>このレポートは読み取り専用のスキャン結果から生成されています。適用は承認後に別途スクリプトで実行します。</footer>
 <script type="application/json" id="payload">__PAYLOAD__</script>
+<script>__REVIEW_JS__</script>
 <script>
 const D = JSON.parse(document.getElementById('payload').textContent);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -317,9 +422,10 @@ const num = v => (v === null || v === undefined) ? '-' : (typeof v === 'number' 
 const sevLabel = {high:'要対応', medium:'確認', info:'情報'};
 
 document.getElementById('meta').textContent =
-  `生成: ${D.generatedAt}　テナント: ${D.scan.tenantId}　環境 ${D.scan.environments.length} 件 / グループ ${D.scan.environmentGroups.length} 件`;
+  `生成: ${D.generatedAt}　テナント: ${D.scan.tenantId}　${D.scope === 'routing-only' ? 'ルーティング限定スキャン' : '環境 ' + D.scan.environments.length + ' 件 / グループ ' + D.scan.environmentGroups.length + ' 件'}`;
 
-const TABS = [
+const TABS = D.scope === 'routing-only' ? [['review','推奨レビュー']] : [
+  ['review', '推奨レビュー'],
   ['summary', 'サマリー'],
   ['org', '組織戦略'],
   ['env', '環境戦略'],
@@ -330,6 +436,69 @@ const TABS = [
 if (D.results) TABS.push(['results', '適用結果']);
 
 const counts = sev => D.findings.filter(f => f.severity === sev).length;
+
+const reviewKey = 'admin-review:' + D.scan.tenantId + ':' + D.scanFingerprint;
+let decisions = {};
+let generalNote = '';
+let storageMessage = '';
+try {
+  const saved = JSON.parse(sessionStorage.getItem(reviewKey) || 'null');
+  if (saved && saved.decisions && typeof saved.decisions === 'object') {
+    for (const item of D.findings) {
+      const answer = saved.decisions[item.id];
+      if (answer && ['pending','ok','skip','discuss'].includes(answer.status))
+        decisions[item.id] = {status:answer.status, note:typeof answer.note === 'string' ? answer.note : ''};
+    }
+    generalNote = typeof saved.generalNote === 'string' ? saved.generalNote : '';
+  }
+} catch { storageMessage = 'このブラウザでは再読み込み後の回答復元を利用できません。'; }
+
+function review() {
+  return `<div class="review-progress"><strong id="reviewCount"></strong><progress id="reviewProgress" max="${Math.max(1,D.findings.length)}" value="0" aria-label="回答済みの推奨"></progress><span>設定変更なし</span></div>
+  <div class="review-layout"><div>
+    ${D.findings.length ? D.findings.map(item => `<article class="review-item" id="review-${item.id}">
+      <span class="badge b-${item.severity}">${sevLabel[item.severity]}</span> <span class="badge b-mute">${esc(item.category)}</span>
+      <h3>${esc(item.title)}</h3><p>${esc(item.detail)}</p><p><b>推奨:</b> ${esc(item.action)}</p>
+      <fieldset class="decisions"><legend>${esc(item.title)}への回答</legend>
+        ${[['pending','未回答'],['ok','OK'],['skip','見送り'],['discuss','相談']].map(([value,label]) => `<label><input type="radio" name="decision-${item.id}" data-decision-id="${item.id}" value="${value}" ${(decisions[item.id]?.status || 'pending')===value?'checked':''}><span>${label}</span></label>`).join('')}
+      </fieldset><label class="field-label" for="note-${item.id}">条件・変更案・質問</label>
+      <textarea id="note-${item.id}" data-note-id="${item.id}" maxlength="4000" rows="2">${esc(decisions[item.id]?.note || '')}</textarea>
+    </article>`).join('') : '<p>推奨事項はありません。追加の依頼は自由入力へ記入できます。</p>'}
+  </div><aside class="prompt-pane">
+    <h2>次の依頼プロンプト</h2>
+    <p class="scan-scope">${D.scope==='routing-only'?'対象: ルーティングと環境所属。利用状況・ライセンス・DLP の総合監査は含みません。':'対象: このレポートに記録された環境戦略のスキャン結果。取得不能の項目は未確認です。'}</p>
+    ${D.scope!=='routing-only' && D.scan.environments.every(item=>item.appCount==null && item.flowCount==null)?'<p class="scan-scope">アプリ・フロー数は未収集です。削除候補の判定は行っていません。</p>':''}
+    <label class="field-label" for="generalNote">全体への要望・追加の依頼</label>
+    <textarea id="generalNote" maxlength="8000" rows="3">${esc(generalNote)}</textarea>
+    <label class="field-label" for="requestPrompt">チャットに送る内容</label>
+    <textarea id="requestPrompt" readonly aria-label="生成された依頼プロンプト"></textarea>
+    <div class="toolbar"><button class="primary" id="copyPrompt" disabled>プロンプトをコピー</button><button class="iconbtn" id="selectPrompt" disabled>全文を選択</button><button class="iconbtn" id="resetReview">回答をリセット</button></div>
+    <div class="copy-status" id="copyStatus" role="status" aria-live="polite"></div>
+    <p class="handoff">プロンプトをコピーして、このチャットに貼り付けて送信してください。回答内容に沿って環境設定の確認・計画を進めます。</p>
+    <p class="sub">OK は方針への同意です。実際の設定変更は、最新の差分と影響をチャットで確認してから実行します。</p>
+    <p class="sub" id="storageStatus">${esc(storageMessage)}</p>
+  </aside></div>`;
+}
+
+function updateReview(save) {
+  let answered = 0;
+  for (const item of D.findings) {
+    const status = decisions[item.id]?.status || 'pending';
+    if (status !== 'pending') answered++;
+    document.getElementById('review-' + item.id).dataset.decision = status;
+  }
+  document.getElementById('reviewCount').textContent = `${answered} / ${D.findings.length} 件を回答済み`;
+  document.getElementById('reviewProgress').value = answered;
+  const prompt = StrategyReview.buildPrompt(D, decisions, generalNote);
+  document.getElementById('requestPrompt').value = prompt;
+  document.getElementById('copyPrompt').disabled = !prompt;
+  document.getElementById('selectPrompt').disabled = !prompt;
+  document.getElementById('copyStatus').textContent = '';
+  if (save) {
+    try { sessionStorage.setItem(reviewKey, JSON.stringify({decisions,generalNote})); }
+    catch { document.getElementById('storageStatus').textContent = '回答を復元できないため、閉じる前にプロンプトをコピーしてください。'; }
+  }
+}
 
 function kpi(v, l, cls) { return `<div class="kpi ${cls||''}"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`; }
 
@@ -558,7 +727,7 @@ function results() {
   ${r.summary ? `<div class="note">${esc(r.summary)}</div>` : ''}`;
 }
 
-const RENDER = {summary, org, env: envStrategy, current, gaps, plan, results};
+const RENDER = {review, summary, org, env: envStrategy, current, gaps, plan, results};
 const nav = document.getElementById('tabs');
 const main = document.getElementById('main');
 TABS.forEach(([id, label]) => {
@@ -582,6 +751,38 @@ function show(id) {
 }
 
 function wire(id) {
+  if (id === 'review') {
+    document.querySelectorAll('[data-decision-id]').forEach(input => input.onchange = () => {
+      const answer = decisions[input.dataset.decisionId] ||= {status:'pending',note:''};
+      answer.status = input.value;
+      updateReview(true);
+    });
+    document.querySelectorAll('[data-note-id]').forEach(input => input.oninput = () => {
+      const answer = decisions[input.dataset.noteId] ||= {status:'pending',note:''};
+      answer.note = input.value;
+      updateReview(true);
+    });
+    document.getElementById('generalNote').oninput = event => { generalNote = event.target.value; updateReview(true); };
+    document.getElementById('selectPrompt').onclick = () => {
+      const textarea = document.getElementById('requestPrompt'); textarea.focus(); textarea.select();
+    };
+    document.getElementById('copyPrompt').onclick = async () => {
+      const text = document.getElementById('requestPrompt').value;
+      try {
+        await navigator.clipboard.writeText(text);
+        document.getElementById('copyStatus').textContent = 'コピーしました。チャットに貼り付けて送信してください。';
+      } catch {
+        const textarea = document.getElementById('requestPrompt'); textarea.focus(); textarea.select();
+        document.getElementById('copyStatus').textContent = '自動コピーできませんでした。選択した内容を Ctrl+C / Command+C でコピーしてください。';
+      }
+    };
+    document.getElementById('resetReview').onclick = () => {
+      if (!confirm('すべての回答と自由入力をリセットしますか？')) return;
+      decisions = {}; generalNote = '';
+      const section = document.getElementById('tab-review'); section.innerHTML = review(); wire('review'); updateReview(true);
+    };
+    updateReview(false);
+  }
   if (id === 'current') {
     const filter = document.getElementById('envFilter');
     filter.oninput = () => {
@@ -620,7 +821,7 @@ document.getElementById('themeBtn').onclick = () => {
   html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
 };
 
-show(TABS.some(([t]) => t === location.hash.slice(1)) ? location.hash.slice(1) : 'summary');
+show(TABS.some(([t]) => t === location.hash.slice(1)) ? location.hash.slice(1) : 'review');
 </script>
 </body>
 </html>
@@ -629,7 +830,8 @@ show(TABS.some(([t]) => t === location.hash.slice(1)) ? location.hash.slice(1) :
 
 def render(payload: dict) -> str:
     data = json.dumps(payload, ensure_ascii=False).replace("<", "\\u003c").replace("&", "\\u0026")
-    return HTML_TEMPLATE.replace("__PAYLOAD__", data)
+    review_js = Path(__file__).with_name("strategy-review.js").read_text(encoding="utf-8")
+    return HTML_TEMPLATE.replace("__REVIEW_JS__", review_js).replace("__PAYLOAD__", data)
 
 
 def assert_openable(output: Path, allow_outside: bool) -> None:
@@ -667,6 +869,7 @@ def main() -> int:
     results = json.loads(args.results_file.read_text(encoding="utf-8")) if args.results_file else None
 
     payload = build_payload(scan, blueprint, results)
+    payload["scanSource"] = str(args.scan_file)
     args.output.write_text(render(payload), encoding="utf-8")
     print(f"レポートを生成しました: {args.output.resolve()}")
     print(f"指摘: 要対応 {sum(1 for f in payload['findings'] if f['severity'] == 'high')} 件 / "
