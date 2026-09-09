@@ -214,47 +214,49 @@ async function copyToClipboard(text: string): Promise<boolean> {
 
 > **注意**: カスタム値はデフォルト値とマージされる。デフォルトが消えることはない。
 
-### 方法 B: REST API（PowerShell）
+### 方法 B: スクリプト（非対話・推奨）
 
-Power Platform API で CSP をプログラム的に設定できる。
+[scripts/configure_code_app_csp.py](../scripts/configure_code_app_csp.py) が確認・追加・検証を一括で行う。
+環境 ID は `.env` の `ENV_ID` から読む。
 
-**1. 認証トークン取得**:
 ```powershell
-$tenantId = "<your-tenant-id>"
-$clientId = "<powerplatform-cli-client-id>"  # Power Platform CLI の public client ID
-$token = azureauth aad --resource "https://api.powerplatform.com/" --tenant $tenantId --client $clientId --output token | ConvertTo-SecureString -AsPlainText -Force
+# 現状確認（dry-run）
+python .github/skills/code-apps/scripts/configure_code_app_csp.py
+
+# デプロイ前チェック: 不足があれば終了コード 1（--assert は何も変更しない）
+python .github/skills/code-apps/scripts/configure_code_app_csp.py `
+  --directive Frame-Src --source https://www.google.com --source https://maps.google.com --assert
+
+# 追加を適用（適用後に再取得して反映を検証する）
+python .github/skills/code-apps/scripts/configure_code_app_csp.py `
+  --directive Frame-Src --source https://www.google.com --source https://maps.google.com --apply
 ```
 
-**2. 現在の設定を取得**:
+> **警告**: `PowerApps_CSPConfigCodeApps` の PATCH は**ディレクティブ コレクション全体を置換**する。
+> スクリプトは必ず GET → マージ → PATCH の順で処理する（自前で PATCH を書く場合も同様）。
+
+**認証（詰まりどころ）**: このエンドポイントは `EnvironmentManagement.Settings.Read` / `All.All.ReadWrite`
+の委任アクセス許可を要求し、`auth_helper` の既定クライアント（Azure CLI 互換）や `az account get-access-token`
+では `403 InsufficientDelegatedPermissions` になる。スクリプトは 403 を検出したら Power Platform CLI の
+パブリック クライアント（`9cee029c-6210-4654-90bb-17e6e9d36617`）へ自動フォールバックする。
+そのクライアントの認証キャッシュが無い初回だけ、`AUTH_MODE=interactive` を付けてブラウザ SSO で通すと
+デバイスコード入力待ちで止まらない（→ [認証パターン](../../standard/references/auth-patterns.md)）。
+
 ```powershell
-# Get-CodeAppContentSecurityPolicy 関数（下記参照）を読み込み済みの前提
-Get-CodeAppContentSecurityPolicy -Token $token -Env "<environment-id>"
+$env:AUTH_MODE="interactive"; python .github/skills/code-apps/scripts/configure_code_app_csp.py; Remove-Item Env:AUTH_MODE
 ```
 
-**3. ディレクティブを更新**（例: Google Maps iframe 許可）:
-```powershell
-$env = "<environment-id>"
-$directives = (Get-CodeAppContentSecurityPolicy -Token $token -Env $env).Directives
-
-# frame-src に Google Maps を追加
-$directives['Frame-Src'] = @('https://www.google.com', 'https://maps.google.com')
-
-Set-CodeAppContentSecurityPolicy -Token $token -Env $env -Directives $directives
-```
-
-> **警告**: `-Directives` はディレクティブコレクション全体を置換する。
-> 必ず既存の設定を GET してからマージして PATCH すること。
-
-**PowerShell ヘルパー関数**: https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/content-security-policy#powershell-helper-functions
+**公式ドキュメント**: https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/content-security-policy
 
 ## 実装手順チェックリスト
 
 iframe 埋め込み（地図等）を実装する場合の手順:
 
-1. **CSP 設定を先に追加** — Power Platform 管理センターで `frame-src` にドメインを追加
+1. **CSP 設定を先に追加** — `configure_code_app_csp.py --apply` か管理センターで `frame-src` にドメインを追加
 2. **コード実装** — iframe コンポーネントを作成
-3. **ビルド＆デプロイ** — `npm run build && pac code push`
-4. **動作確認** — ブラウザの DevTools > Console で CSP 違反エラーがないことを確認
+3. **デプロイ前チェック** — `configure_code_app_csp.py ... --assert` を通す（不足があれば終了コード 1）
+4. **ビルド＆デプロイ** — `npm run build && pac code push`
+5. **動作確認** — ブラウザの DevTools > Console で CSP 違反エラーがないことを確認
 
 > **重要**: CSP 設定なしでデプロイすると iframe がブロックされて何も表示されない。
 > 必ず **CSP 設定 → デプロイ** の順序で行う。
@@ -276,7 +278,19 @@ iframe 埋め込み（地図等）を実装する場合の手順:
 
 - 設定変更後、**数分のラグ** がある場合がある
 - ブラウザのハードリロード（Ctrl+Shift+R）を試す
-- Power Platform 管理センターで設定が保存されているか再確認
+- `pac code push` 直後は Power Apps 側が旧バージョンをキャッシュしており
+  「You're using an old version of this app」バナーが出る。**Refresh を押してから**確認する
+- `configure_code_app_csp.py`（引数なし）で保存済みディレクティブを再確認する
+
+### CSP 設定を確認しようとして 403 / デバイスコード待ちで止まる
+
+- `403 InsufficientDelegatedPermissions` → 既定クライアントに権限が無い。PAC CLI クライアントへの
+  フォールバックが働いているか確認する（スクリプトは自動）
+- デバイスコードの入力待ちで止まる → `AUTH_MODE=interactive` を付けてブラウザ SSO で 1 回だけ通す。
+  以降は `~/.power-platform-cli/auth_record_{TENANT_ID}_{CLIENT_ID}.json` から無操作で再利用される
+- `pac auth token` サブコマンドは **PAC CLI 2.8 系には存在しない**ため、PAC からトークンを直接取り出す前提の手順は書かない
+- `pac env list-settings` に出るのは **Dataverse 組織設定**（`iscontentsecuritypolicyenabled` 等 =
+  モデル駆動/キャンバス用）で、Code Apps の CSP ではない。混同しない
 
 ## 教訓（検証済み 2026-04-23）
 
@@ -285,3 +299,9 @@ iframe 埋め込み（地図等）を実装する場合の手順:
 - **CSP 設定は環境レベル**。同一環境内の全 Code Apps に適用される
 - **`sandbox` 属性を適切に設定**。`allow-scripts allow-same-origin allow-popups` で地図操作・ポップアップを許可
 - **iframe の代替手段も検討**。CSP 設定が困難な場合は SVG 地図やリンクボタンで代替できる
+- **Code Apps の CSP は Power Platform API（`PowerApps_CSPConfigCodeApps`）にある**。Dataverse の組織設定
+  （`iscontentsecuritypolicyenabled` / `contentsecuritypolicyconfiguration`）はモデル駆動・キャンバス用で無関係
+- **設定済みかどうかは推測せず毎回スクリプトで確認する**。`--assert` をデプロイ前チェックに組み込むと、
+  CSP 未設定のまま push して「真っ白な iframe」を調べ直す事故が起きない
+- 複数拠点にピンを打つ地図が必要な場合は素の埋め込みでは実現できない
+  （→ [Google マップ埋め込み + 実座標ピン](japan-map-pattern.md#パターン-7-google-マップ埋め込み--実座標ピン)）

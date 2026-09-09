@@ -463,6 +463,14 @@ Lookup 列の書き込みは従来どおり `parentcustomerid_account@odata.bind
 Power Apps ランタイムはデフォルトで `connect-src 'none'`。外部 API への `fetch` はブロックされる。
 Code Apps が生成する Dataverse SDK / `MicrosoftDataverseService` のような **Power Apps ランタイム経由の API** のみ CSP 安全。
 
+iframe 埋め込み（地図・PDF ビューア等）を入れる場合は、**デプロイする前に** CSP を確認・追加する。
+
+```powershell
+# 不足があれば終了コード 1（デプロイ前チェック）
+python .github/skills/code-apps/scripts/configure_code_app_csp.py `
+  --directive Frame-Src --source https://www.google.com --assert
+```
+
 → 詳細: **[CSP 構成](references/csp.md)**
 
 ### ログインユーザーの systemuserid 取得
@@ -650,6 +658,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | スクリプト | 用途 |
 |---|---|
 | [check_code_apps_environment.py](scripts/check_code_apps_environment.py) | マネージド環境 / Code Apps 許可の前提条件を確認（`pa app init` の前に実行） |
+| [configure_code_app_csp.py](scripts/configure_code_app_csp.py) | Code Apps の CSP（`frame-src` 等）を確認・追加・検証。iframe を使うアプリはデプロイ前に `--assert` を通す |
 | [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
 | [add_data_source.py](scripts/add_data_source.py) | データソースを**非対話**で追加する。コネクタの通称（`sharepoint` 等）を `shared_xxx` に解決し、接続・必須値を確定してから `--non-interactive` で CLI を起動する。Step 3 の標準 |
 | [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` / モック実行基盤の本番混入を検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |

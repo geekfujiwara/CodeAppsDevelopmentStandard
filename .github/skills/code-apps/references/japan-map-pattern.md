@@ -367,12 +367,84 @@ export default function RegionDashboard() {
 
 ---
 
+## パターン 7: Google マップ埋め込み + 実座標ピン
+
+**向いている場面**: 拠点・工場・店舗を**実際の緯度経度**でマップに置き、ピンをクリックして詳細へ遷移させたい場合。
+都道府県単位で足りるなら SVG の `JapanMap`（パターン 6）を使う。実住所・実座標が要るときだけこちらを使う。
+
+> 前提: `frame-src` に `https://www.google.com` と `https://maps.google.com` を追加しておく
+> （→ [CSP 構成](csp.md)）。CSP 未設定だと iframe は**無言で真っ白**になる。
+
+### 制約: 素の Google マップ埋め込みに複数ピンは打てない
+
+`output=embed` の埋め込み URL は「1 箇所を中心に表示」しかできず、複数マーカー・マーカーのクリックイベントを
+扱えない。Maps JavaScript API を使えば可能だが、API キーの発行・課金・`script-src` / `connect-src` の追加が要る。
+
+**割り切り**: 埋め込み iframe を**静的な背景**として敷き、ピンは自前の DOM 要素を Web メルカトル投影で
+絶対配置する。ズーム/全体表示は自前ボタンで行い、iframe の URL を作り直すことでピンとのズレを防ぐ。
+
+### 実装の要点
+
+```tsx
+// src/components/plant-map.tsx
+const TILE_SIZE = 256
+const JAPAN_VIEW = { latitude: 37.2, longitude: 137.6, zoom: 5 } // 日本全体が収まる中心とズーム
+
+/** 緯度経度 → Web メルカトルのピクセル座標（Google マップと同じ投影） */
+function project(lat: number, lng: number, zoom: number) {
+  const scale = TILE_SIZE * 2 ** zoom
+  const siny = Math.min(Math.max(Math.sin((lat * Math.PI) / 180), -0.9999), 0.9999)
+  return {
+    x: scale * (0.5 + lng / 360),
+    y: scale * (0.5 - Math.log((1 + siny) / (1 - siny)) / (4 * Math.PI)),
+  }
+}
+
+// 中心とズームは state で持ち、iframe の URL と ピンの座標計算で必ず同じ値を使う
+const embedUrl = `https://www.google.com/maps?ll=${view.latitude},${view.longitude}&z=${view.zoom}&hl=ja&output=embed`
+```
+
+```tsx
+<div className="relative">
+  {/* iframe はあくまで背景。pointer-events を切らないとドラッグでピンとズレる */}
+  <iframe src={embedUrl} title="拠点マップ" loading="lazy" className="pointer-events-none absolute inset-0 h-full w-full" />
+  {visibleSites.map((site) => {
+    const p = project(site.latitude, site.longitude, view.zoom)
+    return (
+      <button
+        key={site.id}
+        type="button"
+        style={{ left: center.x + (p.x - origin.x), top: center.y + (p.y - origin.y) }}
+        className="absolute -translate-x-1/2 -translate-y-full"
+        onClick={() => onSelect(site.id)}
+      >
+        <MapPin style={{ color: STATUS_COLOR[site.status] }} />
+      </button>
+    )
+  })}
+</div>
+```
+
+### 守るポイント
+
+| ポイント | 理由 |
+|---|---|
+| iframe に `pointer-events: none` を付ける | ユーザーが地図をドラッグ/ズームすると中心が変わり、ピンだけ取り残されてズレる |
+| ズーム・全体表示は自前ボタンにする | `view` state を単一の真実にして iframe とピンを同期させる |
+| `ResizeObserver` でコンテナ実寸を取る | 中心ピクセルが分からないとピンを配置できない |
+| 表示範囲外のピンは描画しない | ズームインしたとき遠方のピンがコンテナ端に張り付くのを防ぐ |
+| 「Google マップで開く」リンクを別途置く | 経路検索など本格的な地図操作はナビゲーション（CSP 対象外）へ逃がす |
+| 拠点マスタは Dataverse テーブルに持つ | 住所・緯度経度・稼働状況を業務側で保守できるようにする（座標をコードに埋めない） |
+
+---
+
 ## コンポーネント選定ガイドへの追加
 
 | やりたいこと | 推奨コンポーネント |
 |------------|-----------------|
 | 地域別データを地図で可視化 | `JapanMap`（SVG 都道府県クリック + 色分け + 地方フィルタ） |
 | 地図の凡例表示 | `MapLegend`（カラースケール + ラベル） |
+| 実座標の拠点をピン留めして詳細へ遷移 | Google マップ埋め込み + 自前ピン（パターン 7） |
 
 ---
 
