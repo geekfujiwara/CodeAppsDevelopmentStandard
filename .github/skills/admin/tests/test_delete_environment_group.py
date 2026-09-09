@@ -84,6 +84,15 @@ class ApiLifecycleTests(unittest.TestCase):
                 self.execute()
         self.session.delete.assert_not_called()
 
+    def test_group_without_policy_deletes_directly(self):
+        self.plan = self.cleared
+        with patch.object(deletion, "preflight", return_value=self.plan), patch.object(deletion, "inventory", return_value=[]), patch.object(deletion, "policy_inventory") as policies:
+            result = self.execute()
+        policies.assert_not_called()
+        self.session.delete.assert_called_once()
+        self.assertTrue(result["environmentMembershipsUnchanged"])
+        self.assertEqual(self.records[-1]["stage"], "delete-group")
+
     def test_partial_failure_stops_and_records_stage(self):
         self.session.delete.side_effect = [Mock(status_code=204), Mock(status_code=403)]
         with patch.object(deletion, "preflight", return_value=self.plan), patch.object(deletion, "inventory", return_value=[]), patch.object(deletion, "policy_inventory", return_value=({}, {})):

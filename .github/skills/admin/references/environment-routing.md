@@ -28,7 +28,10 @@
 ルーティング解除 PATCH は Python から実行・読み戻し済み。
 グループ削除の DELETE 3 段階は管理センターで実測し、その順序を Python に実装している。
 全割り当て取得と削除済みポリシーの 404 は Python でも読み取り検証済み。
-Python の削除ライフサイクル全体はモックテスト済みで、実リソースでの通し実行は別ゲート。
+ユーザー提供の検証用ルールと空グループについて、Python だけでルール削除 PATCH →
+グループ DELETE 200 → 一覧消失・他グループ維持・全環境所属不変を通し実測済み。
+この検証グループの関連ポリシーは 0 件だったため、Python でのポリシー付き削除経路は
+モックテストと管理センターの通信実測までであり、通し実行済みとは扱わない。
 構造が違う、取得できない、ルーティングポリシーが複数ある場合は推測で更新しない。
 
 ## 取得・変更手順
@@ -49,8 +52,9 @@ python .github/skills/admin/scripts/set_environment_routing.py `
 **移行先の承認をチャットで得る**。グループ削除の承認だけで移行先を勝手に選ばない。
 承認後に同じ引数へ `--apply --expected-hash <expectedHash>` を追加し、別名の結果ファイルを指定する。
 
-スクリプトは既存ルールの `EnvironmentGroup` だけを変更する。ルール作成・削除・並べ替え・
-ポータル切り替えは行わない。`Portals`、`SecurityGroups`、`Priority`、他ルールを保持する。
+通常は既存ルールの `EnvironmentGroup` だけを変更し、`Portals`、`SecurityGroups`、`Priority`、
+他ルールを保持する。明示的な `--delete-rule` は後述の指定ルール削除に使う。
+ルール作成・任意の並べ替え・ポータル切り替えは行わない。
 送信直前に読み直してレビュー時点のハッシュと照合し、変化していれば PATCH 前に停止する。
 API による原子的な同時更新防止は未確認なので、適用中は他管理者の編集を止める。
 更新後は `id/name/ruleSets` を API で厳密照合する。サーバーが ruleSet に追加する
@@ -85,6 +89,32 @@ python .github/skills/admin/scripts/set_environment_routing.py `
 
 ## グループ削除（API 標準フロー）
 
+### 検証用など不要なルール自体を削除する場合
+
+グループ割り当てだけを解除する `None` と、ルール自体の削除は区別する。
+ルール削除が承認されている場合は `--delete-rule` を指定する。
+`ADMIN_ROUTING_TARGET_GROUP_ID` は未設定にし、`--target-group-id` は渡さない。
+
+```powershell
+python .github/skills/admin/scripts/set_environment_routing.py `
+  --tenant-id $env:TENANT_ID --rule-name $env:ADMIN_ROUTING_RULE_NAME `
+  --source-group-id $env:ADMIN_ROUTING_SOURCE_GROUP_ID `
+  --delete-rule --report-file routing-delete-plan.json
+
+# 削除差分の承認後
+$routingPlan = Get-Content routing-delete-plan.json -Raw | ConvertFrom-Json
+python .github/skills/admin/scripts/set_environment_routing.py `
+  --tenant-id $env:TENANT_ID --rule-name $env:ADMIN_ROUTING_RULE_NAME `
+  --source-group-id $env:ADMIN_ROUTING_SOURCE_GROUP_ID --delete-rule `
+  --expected-hash $routingPlan.expectedHash --report-file routing-delete-result.json --apply
+```
+
+ルール名と元グループ ID の完全一致で 1 件だけを除去し、残るルールの相対順序を保持して優先順位を連番化する。
+最後の 1 件は削除せず停止する。必要なら承認のうえ `None` へのグループ割り当て解除を使う。
+読み戻しで他の設定が計画と一致したことを確認してから、次のグループ削除へ進む。
+
+### 空グループを削除する
+
 正常系は **ブラウザ不要の API スクリプト**とする。単純な公開グループ DELETE への再試行ではなく、
 上表のテナント API で関連ポリシーを整理してからグループを削除する。
 `pac admin delete` / `Remove-AdminPowerAppEnvironment` は環境自体の削除であり使わない。
@@ -112,6 +142,7 @@ python .github/skills/admin/scripts/delete_environment_group.py `
 6. API 一覧で対象の消失、他グループの維持、全環境の ID と所属が変更されていないことを検証する。
 
 環境移動・環境削除・共有ポリシー削除は行わない。ルーティング解除は上の別コマンドで実行する。
+関連ポリシーが 0 件ならポリシー整理はスキップする。検証のためだけにポリシーを作成しない。
 送信前後の段階をレポートに記録し、403・409・通信切断・読み戻し不一致は自動再試行しない。
 部分完了時は API で現状を取得してレビューし直す。ハッシュ照合は原子的ロックではないので同時管理作業を止める。
 UI の削除操作に戻ることを正常系とせず、異常時の調査は [troubleshooting.md](troubleshooting.md) を参照する。

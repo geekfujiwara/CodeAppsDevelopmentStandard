@@ -45,6 +45,22 @@ class RoutingTests(unittest.TestCase):
     def test_modern_rule_reference(self):
         self.assertEqual(routing.group_references(self.policy, self.source), ["makers"])
 
+    def test_delete_only_named_rule(self):
+        before = copy.deepcopy(self.policy)
+        planned = routing.plan_delete_rule(self.policy, "other", self.target)
+        expected = copy.deepcopy(before)
+        expected["ruleSets"][1]["inputs"]["RoutingRules"].pop()
+        self.assertEqual(planned, expected)
+        self.assertEqual(self.policy, before)
+
+    def test_delete_preserves_remaining_order(self):
+        planned = routing.plan_delete_rule(self.policy, "makers", self.source)
+        self.assertEqual(routing.routing_inputs(planned)["RoutingRules"], [{"Name": "other", "SecurityGroups": [], "EnvironmentGroup": self.target, "Priority": 1}])
+        with self.assertRaises(ValueError):
+            routing.plan_delete_rule(planned, "other", self.target)
+        with self.assertRaises(ValueError):
+            routing.plan_delete_rule(self.policy, "other", self.source)
+
     def test_detach_group_preserves_rule_and_other_settings(self):
         none_id = str(UUID(int=0))
         self.assertEqual(routing.resolve_target_group([], none_id)["id"], none_id)

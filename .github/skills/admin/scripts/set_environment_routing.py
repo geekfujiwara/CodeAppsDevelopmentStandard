@@ -117,6 +117,23 @@ def group_references(policy, group_id):
             if str(rule["EnvironmentGroup"]).lower() == group_id.lower()]
 
 
+def plan_delete_rule(policy, rule_name, source_group_id):
+    source_group_id = str(UUID(source_group_id))
+    result = payload(policy)
+    inputs = routing_inputs(result)
+    matches = [rule for rule in inputs["RoutingRules"] if rule["Name"] == rule_name]
+    if len(matches) != 1 or str(matches[0]["EnvironmentGroup"]).lower() != source_group_id:
+        raise ValueError("Rule name/source group mismatch; regenerate dry-run")
+    if len(inputs["RoutingRules"]) <= 1:
+        raise ValueError("Cannot delete the final routing rule; use group detachment instead")
+    remaining = sorted([rule for rule in inputs["RoutingRules"] if rule["Name"] != rule_name], key=lambda rule: rule["Priority"])
+    for priority, rule in enumerate(remaining, start=1):
+        rule["Priority"] = priority
+    inputs["RoutingRules"] = remaining
+    routing_inputs(result)
+    return result
+
+
 def resolve_target_group(groups, target_id):
     target_id = str(UUID(target_id))
     if UUID(target_id).int == 0:
@@ -148,13 +165,16 @@ def main():
     parser.add_argument("--rule-name", default=os.getenv("ADMIN_ROUTING_RULE_NAME"))
     parser.add_argument("--source-group-id", default=os.getenv("ADMIN_ROUTING_SOURCE_GROUP_ID"))
     parser.add_argument("--target-group-id", default=os.getenv("ADMIN_ROUTING_TARGET_GROUP_ID"))
+    parser.add_argument("--delete-rule", action="store_true", help="Delete the named rule, preserving remaining rule order; cannot remove the final rule")
     parser.add_argument("--expected-hash")
     parser.add_argument("--report-file", required=True)
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     if not args.tenant_id:
         parser.error("--tenant-id is required")
-    changes = [args.rule_name, args.source_group_id, args.target_group_id]
+    changes = [args.rule_name, args.source_group_id] if args.delete_rule else [args.rule_name, args.source_group_id, args.target_group_id]
+    if args.delete_rule and (args.target_group_id or not all(changes)):
+        parser.error("--delete-rule requires rule name and source group, with no target group")
     if any(changes) and not all(changes):
         parser.error("Specify rule name, source group and target group together")
     if args.apply and (not all(changes) or not args.expected_hash):
@@ -169,11 +189,16 @@ def main():
         policy = read_routing_policy(session, args.tenant_id)
         report.update({"before": policy, "expectedHash": fingerprint(policy), "status": "read-only"})
         if all(changes):
-            groups = read_collection(session, "https://api.powerplatform.com/environmentmanagement/environmentGroups?api-version=2024-10-01")
-            target_id = str(UUID(args.target_group_id))
-            target = resolve_target_group(groups, target_id)
-            planned = plan_retarget(policy, args.rule_name, args.source_group_id, target_id)
-            report.update({"planned": planned, "targetGroup": target, "status": "dry-run"})
+            if args.delete_rule:
+                planned = plan_delete_rule(policy, args.rule_name, args.source_group_id)
+                report["operation"] = "delete-rule"
+            else:
+                groups = read_collection(session, "https://api.powerplatform.com/environmentmanagement/environmentGroups?api-version=2024-10-01")
+                target_id = str(UUID(args.target_group_id))
+                target = resolve_target_group(groups, target_id)
+                planned = plan_retarget(policy, args.rule_name, args.source_group_id, target_id)
+                report.update({"operation": "retarget", "targetGroup": target})
+            report.update({"planned": planned, "status": "dry-run"})
             report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
             if args.apply:
                 report["after"] = apply_retarget(session, args.tenant_id, policy, planned, args.expected_hash)
