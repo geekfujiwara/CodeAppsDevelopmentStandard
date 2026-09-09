@@ -114,8 +114,17 @@ def classify_output(run_status, action_status, output, expected):
         return {"status": "runtime-policy-blocked", "httpStatus": 442}
     if run_status != "Succeeded" or action_status != "Succeeded":
         return {"status": "run-not-succeeded"}
+    if "statusCode" in output and output["statusCode"] not in (200, 201):
+        return {"status": "output-mismatch"}
     body = output.get("body", {})
-    message = body.get("message") if isinstance(body, dict) else None
+    if not isinstance(body, dict):
+        return {"status": "output-mismatch"}
+    if "status" in body and body["status"] != "Completed":
+        return {"status": "output-mismatch"}
+    fields = [key for key in ("message", "result") if key in body]
+    if len(fields) != 1 or (fields[0] == "result" and body.get("status") != "Completed"):
+        return {"status": "output-mismatch"}
+    message = body[fields[0]]
     try:
         actual = json.loads(message) if isinstance(message, str) else None
     except ValueError:

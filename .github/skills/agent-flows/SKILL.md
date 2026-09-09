@@ -72,6 +72,8 @@ python .github/skills/agent-flows/scripts/agent_flow.py inspect --run-id <run-id
 
 実行受付は `run-accepted` として記録し、成功扱いにしない。履歴の開始時刻と対象 ID を照合して run を指定する。
 run / Agent の Succeeded と固定 JSON 一致で `output-verified` になる。
+出力の `body.message`、または `body.status=Completed` の `body.result` を検証する。
+実行成功と回答内容の検証は別に記録する。利用者から成功 run ID の報告を受けた場合は、再実行せずその履歴を照合する。
 履歴の最新1件を無条件に今回の run とみなさず、同時実行時は明示的に識別する。
 成功以外は [異常系](references/troubleshooting.md) に従う。自動リトライ・待機ループ・許可範囲拡大は行わない。
 

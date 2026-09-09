@@ -11,9 +11,25 @@
 
 ## Required Existing V2 Bot Proof
 
-The new designer offers a separate Copilot node. Capture its selected-bot connector operation, bot schema name, inputs and output shape from a dedicated draft.
+The new designer offers an existing Agent node. Capture its selected-bot connector operation, bot schema name, inputs and output shape from a dedicated draft.
 Verify the exact existing bot with a fixed response and then its skill/MCP execution. Do not infer that `InvokeDefinition` calls that bot, or that classic `ExecuteCopilotAsyncV2` supports the new architecture.
 Until this contract is verified, implement and test the request/result adapter independently; do not substitute another model silently.
+
+## Conversational Wizard And Assistant
+
+Use one in-app conversation beside the preview. Persist a conversation ID, turn ID and monotonically increasing
+conditions version with each request; include bounded conversation context and confirmed structured conditions.
+The agent asks for missing conditions or returns a candidate, while code validates the response discriminant and payload.
+Keep confirmed conditions and the preview separate from the saved design. Never describe a local canned response as an Agent reply.
+
+New messages may be collected during generation, but supersede older conditions explicitly. A result must match the
+conversation, turn, conditions version, base revision/hash and selected object before it can update a preview or assistant answer.
+Show only persisted execution states, not guessed progress percentages. A timeout is indeterminate until reconciled;
+local cancellation does not authorize another billable call or guarantee remote cancellation.
+
+Reuse the request/result transport for the existing assistant only after its selected-object context and user authorization
+tests pass. Use distinct allowlisted operations for design proposals and read-only knowledge answers, with separate validators.
+Enable each path independently after real response tests. Preserve the existing assistant and manual fallback until then.
 
 ## Security And Acceptance
 

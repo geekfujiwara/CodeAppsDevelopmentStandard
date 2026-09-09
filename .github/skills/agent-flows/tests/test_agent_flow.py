@@ -91,6 +91,19 @@ class AgentFlowTests(unittest.TestCase):
             with self.subTest(url=bad), self.assertRaises(ValueError):
                 safe_output_url(bad, environment)
 
+    def test_completed_result_requires_nonempty_exact_json(self):
+        expected = {"ok": True}
+        body = {"status": "Completed", "result": '{"ok":true}'}
+        self.assertEqual(classify_output("Succeeded", "Succeeded", {"statusCode": 200, "body": body}, expected)["status"], "output-verified")
+        invalid = [dict(body, result=""), dict(body, result="   "), dict(body, result={"ok": True}),
+                   dict(body, status="Running"), dict(body, status="Failed"),
+                   {"result": '{"ok":true}'}, dict(body, message='{"ok":true}'),
+                   dict(body, result='{"ok":1}'), [], None]
+        for value in invalid:
+            with self.subTest(body=value):
+                self.assertEqual(classify_output("Succeeded", "Succeeded", {"statusCode": 200, "body": value}, expected)["status"], "output-mismatch")
+        self.assertEqual(classify_output("Succeeded", "Succeeded", {"statusCode": 500, "body": body}, expected)["status"], "output-mismatch")
+
     def test_run_cli_requires_approval_and_reports_acceptance_only(self):
         identifier = "00000000-0000-0000-0000-000000000000"
         settings = {"ENV_ID": identifier, "AGENT_FLOW_ID": identifier, "AGENT_FLOW_NAME": "sample",
