@@ -39,8 +39,10 @@ from set_acp_connector import (  # noqa: E402
     CONNECTOR_PREFIX,
     _environment_group_id,
     allowed_ids,
+    assert_not_denied,
     assigned_policy_id,
     connector_rule_set,
+    denied_connectors,
     get_policy,
     patch_policy,
 )
@@ -166,7 +168,8 @@ def target_allow_set(report: dict, allow_groups: set[str], allow_unclassified: b
         allow |= set(report["customConnectors"])
     else:
         allow -= set(report["customConnectors"])
-    return allow
+    # DLP は既定許可のためレガシー コネクタを含み得る。ACP へは持ち込まない。
+    return allow - denied_connectors()
 
 
 def _process(label: str, policy_id: str, target: set[str], display: dict, limit: int, apply: bool) -> bool:
@@ -262,6 +265,7 @@ def main() -> int:
         return 0
 
     allow_groups = set(args.allow_group) or {"Confidential"}
+    assert_not_denied(args.include_connector)
     target = target_allow_set(report, allow_groups, args.allow_unclassified, args.keep_custom)
     target |= set(args.include_connector)
     target -= set(args.exclude_connector)

@@ -33,7 +33,23 @@ PP_SCOPE = "https://api.powerplatform.com/.default"
 API_VERSION = "2024-10-01"
 RULE_SET_ID = "ConnectorManagement"
 CONNECTOR_PREFIX = "/providers/Microsoft.PowerApps/apis/"
+PROFILE_FILE = Path(__file__).resolve().parents[1] / "references" / "acp-profiles.json"
 _TIMEOUT = 120
+
+
+def denied_connectors() -> set[str]:
+    """どのプロファイル・経路でも許可してはならないレガシー コネクタ ID。"""
+    return set(json.loads(PROFILE_FILE.read_text(encoding="utf-8")).get("legacyConnectors", []))
+
+
+def assert_not_denied(connectors) -> None:
+    """許可対象にレガシー コネクタが含まれていたら書き込み前に停止する。"""
+    blocked = sorted(denied_connectors() & {str(name).rsplit("/", 1)[-1] for name in connectors})
+    if blocked:
+        raise ValueError(
+            "レガシー コネクタは許可できません（acp-profiles.json legacyConnectors）: "
+            + ", ".join(blocked)
+        )
 
 
 def _request(method: str, path: str, body: dict | None = None):
@@ -90,6 +106,7 @@ def allowed_ids(rule_set: dict) -> set[str]:
 
 def add_connectors(rule_set: dict, connectors: list[str]) -> list[str]:
     """許可リストに未登録のコネクタを追加し、追加したものを返す。"""
+    assert_not_denied(connectors)
     entries = rule_set.setdefault("inputs", {}).setdefault("AllowedConnectorList", [])
     existing = allowed_ids(rule_set)
     added = []
@@ -108,6 +125,7 @@ def add_connectors(rule_set: dict, connectors: list[str]) -> list[str]:
 
 
 def patch_policy(policy_id: str, policy_name: str, rule_set: dict) -> None:
+    assert_not_denied(allowed_ids(rule_set))
     _request(
         "PATCH",
         f"/governance/ruleBasedPolicies/{policy_id}",

@@ -73,6 +73,8 @@ triggers:
 | [scripts/set_dlp_custom_connector.py](scripts/set_dlp_custom_connector.py) | カスタムコネクタ（自前 MCP Server 等）の DLP 分類を設定 | `--apply` 時のみ |
 | [scripts/check_development_environment.py](scripts/check_development_environment.py) | 標準事前チェック。環境 + Dataverse / 新 Workflow Agent ノードのクラシック DLP + 環境・グループ ACP を順に検査し、失敗時に停止 | なし |
 | [scripts/set_acp_connector.py](scripts/set_acp_connector.py) | ACP の実効設定とグループ設定を確認する（CLI は読み取り専用） | なし |
+| [scripts/add_group_acp_connector.py](scripts/add_group_acp_connector.py) | グループ ACP の既存ルールを保ったままコネクタを 1 件追加（ハッシュ照合と読み戻しあり） | `--apply` 時のみ |
+| [scripts/remove_group_acp_connector.py](scripts/remove_group_acp_connector.py) | グループ ACP からコネクタを 1 件削除（配下環境と既存接続の影響を dry-run で提示） | `--apply` 時のみ |
 | [scripts/apply_acp_profile.py](scripts/apply_acp_profile.py) | ACP の許可セットを推奨プロファイル（Microsoft 第一者のみ）で一括設定 | `--apply` 時のみ |
 | [scripts/apply_group_acp_strategy.py](scripts/apply_group_acp_strategy.py) | 5 グループの初期 ACP セットと配下環境への影響を一覧し、グループだけに設定 | `--apply` 時のみ |
 | [scripts/set_environment_routing.py](scripts/set_environment_routing.py) | API で宛先変更・None への割り当て解除・指定ルール削除。ハッシュ照合と読み戻しを実施 | `--apply` 時のみ |
@@ -214,6 +216,25 @@ ACP は環境ごとに有効なポリシーが 1 つあり、直接設定また�
 ポリシー名や件数だけで継承中と断定しない。両方の `ConnectorManagement` を読む。
 グループへの新設・置換は配下全環境への影響を提示して承認を得る。
 
+既存ルールを保ったまま 1 件だけ追加・削除する場合は、全置換ではなく差分コマンドを使う。
+どちらも dry-run でハッシュと配下環境を提示し、承認後に `--expected-hash <HASH> --apply` で適用する。
+
+```powershell
+# 削除の dry-run（配下環境とレガシー コネクタの既存接続数を報告）
+python .github/skills/admin/scripts/remove_group_acp_connector.py `
+  --group-id <GROUP_ID> --connector shared_commondataservice `
+  --report-file acp-remove-legacy.json
+```
+
+**レガシー コネクタはどの経路でも許可しない。**
+[acp-profiles.json](references/acp-profiles.json) の `legacyConnectors`（レガシー Dataverse
+`shared_commondataservice` を含む）は、プロファイル適用・差分追加・DLP からの移行・手動の
+`--include-connector` のすべてで拒否され、書き込み前に停止する。現行版の
+`shared_commondataserviceforapps` は影響を受けない。既に許可済みのレガシー コネクタは
+差分追加のレポートに `deniedExisting` として現れるので、上記の削除コマンドで外す。
+既存の接続・アプリ・フローがそのコネクタを使っていると停止するため、
+dry-run の `dependencies`（環境ごとの接続数）を必ずユーザーに提示してから適用する。
+
 ### Step 7: ACP を推奨プロファイルで一括設定する（任意）
 
 初期許可セットは全グループ共通ではなく、次の 3 プロファイルを使い分ける。
@@ -232,7 +253,7 @@ ACP は環境ごとに有効なポリシーが 1 つあり、直接設定また�
 第一者判定は **サービス ID と信頼する publisher の両方**を必要とする。
 Microsoft 公開の第三者サービスや、Microsoft 風 ID の第三者公開元は除外する。
 現行 Dataverse と Work IQ 9 種を必須確認し、レガシー Dataverse
-`shared_commondataservice` は全許可プロファイルでも除外する。
+`shared_commondataservice` は全許可プロファイルでも除外する（Step 6 の共通拒否リスト）。
 
 ```powershell
 # 解決される許可セットを一覧する（読み取りのみ）
@@ -566,6 +587,7 @@ python set_environment_group_rules.py --tenant-id <TENANT_ID> --environment-grou
 - [データ ポリシー（DLP）](https://learn.microsoft.com/power-platform/admin/wp-data-loss-prevention)
 - [マネージド環境の概要](https://learn.microsoft.com/power-platform/admin/managed-environment-overview)
 - [Advanced connector policies](https://learn.microsoft.com/power-platform/admin/advanced-connector-policies)
+- [Microsoft Dataverse (legacy) コネクタ](https://learn.microsoft.com/connectors/commondataservice/)
 - [ACP をプログラムから管理する](https://learn.microsoft.com/power-platform/admin/programmability-tutorial-manage-advanced-connector-policies)
 - [Power Platform 管理者ロール](https://learn.microsoft.com/power-platform/admin/use-service-admin-role-manage-tenant)
 - [環境グループ](https://learn.microsoft.com/power-platform/admin/environment-groups)
