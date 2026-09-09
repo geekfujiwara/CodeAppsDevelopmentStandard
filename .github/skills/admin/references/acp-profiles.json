@@ -3,6 +3,7 @@
     "ACP（Advanced connector policies）の推奨許可セット定義。",
     "ACP は default-deny のため、ここに載らないコネクタはすべてブロックされる。",
     "allowPatterns はコネクタ ID（shared_xxx）に対する完全一致の正規表現。",
+    "allowConnectors はカタログ未掲載時も候補に含める明示的なコネクタ ID。拒否規則と除外ソースは優先する。",
     "publisher や metadata.stackOwner では第一者判定できない（Google Drive / YouTube も publisher は Microsoft）ため、ID パターンで定義する。",
     "テナント固有のカスタムコネクタはここに書かず、--include-connector か --keep-custom で扱う。",
     "判定は「コネクタ カタログ」と「現在 ACP で許可中の ID」の和集合に対して行う。カタログに現れないプレビュー コネクタを取りこぼさないため。"
@@ -12,6 +13,7 @@
       "displayName": "Microsoft 第一者サービスのみ許可",
       "description": "Microsoft が提供する自社サービス系コネクタだけを許可し、Microsoft が公開していても実体がサードパーティのサービス（Google Drive / Facebook / Mailchimp / YouTube / Workday / Zendesk など）と非推奨コネクタはブロックする。",
       "excludeSources": ["independentpublisher", "powerapps-user-defined"],
+      "allowConnectors": ["shared_agentnode"],
       "allowPatterns": [
         "office365.*",
         "sharepoint.*",

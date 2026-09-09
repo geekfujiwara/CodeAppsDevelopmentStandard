@@ -66,8 +66,10 @@ def resolve_allow_set(profile: dict, names: set[str], sources: dict[str, str]) -
 
     allow = {
         name
-        for name in names
-        if pattern.match(name) and name not in deny and sources.get(name, "") not in excluded
+        for name in names | set(profile.get("allowConnectors") or [])
+        if (pattern.match(name) or name in (profile.get("allowConnectors") or []))
+        and name not in deny
+        and sources.get(name, "") not in excluded
     }
     violations = sorted(allow & set(profile.get("mustNotAllow") or []))
     return allow, violations
