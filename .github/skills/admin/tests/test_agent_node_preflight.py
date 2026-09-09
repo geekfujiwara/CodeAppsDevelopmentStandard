@@ -53,6 +53,35 @@ class AgentNodeProfileTests(unittest.TestCase):
     def setUp(self):
         self.profile = load_profile(DEFAULT_PROFILE_FILE, "microsoft-first-party")
 
+    def test_legacy_and_non_microsoft_publishers_are_rejected(self):
+        publishers = {
+            "shared_commondataservice": "Microsoft",
+            "shared_commondataserviceforapps": "Microsoft",
+            "shared_databricks": "Databricks Inc.",
+            "shared_microsoftacronyms": "Individual Publisher",
+            "shared_googledrive": "Microsoft",
+            "shared_geekcustom": "Microsoft",
+        }
+        allowed, violations = resolve_allow_set(self.profile, set(publishers), {}, publishers)
+        self.assertEqual(allowed, {"shared_commondataserviceforapps", "shared_agentnode"})
+        self.assertEqual(violations, [])
+
+    def test_work_iq_catalog_connectors_are_included(self):
+        names = {
+            "shared_a365copilotchatmcp", "shared_a365memcp", "shared_a365outlookcalendarmcp",
+            "shared_a365outlookmailmcp", "shared_a365teamsmcp", "shared_a365wordmcp",
+            "shared_workiqmcp", "shared_workiqonedrive", "shared_workiqsharepoint",
+        }
+        allowed, violations = resolve_allow_set(self.profile, names, {}, dict.fromkeys(names, "Microsoft"))
+        self.assertTrue(names <= allowed)
+        self.assertEqual(violations, [])
+
+    def test_unknown_publisher_fails_closed_except_verified_preview(self):
+        allowed, _ = resolve_allow_set(self.profile, {"shared_azureunknown"}, {})
+        self.assertEqual(allowed, {"shared_agentnode"})
+        allowed, _ = resolve_allow_set(self.profile, set(), {}, {"shared_agentnode": "Third Party"})
+        self.assertEqual(allowed, set())
+
     def test_agent_node_is_included_without_catalog_or_existing_permission(self):
         allowed, violations = resolve_allow_set(self.profile, set(), {})
         self.assertEqual(allowed, {"shared_agentnode"})

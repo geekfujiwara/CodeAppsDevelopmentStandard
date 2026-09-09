@@ -1,5 +1,35 @@
 # 異常系・詰まりどころ
 
+## 空グループの削除が Conflict、従来ルーティング設定には参照がない
+
+**症状**: 所属環境 0 件、`listTenantSettings` のルーティング先も別グループだが、
+公開 DELETE は HTTP 400、本文は `Conflict`。管理センターはルーティング参照を警告する。
+
+**原因**: 新画面の `EnvironmentRouting` は `tenantRuleBasedPolicies` に別途保持される。
+従来の `environmentRoutingTargetEnvironmentGroupId` だけでは安全に削除判定できない。
+
+**恒久対策済み**: `delete_environment_group.py` の `preflight()` は新旧両方を読み取り、
+`set_environment_routing.py` の `group_references()` で参照があれば DELETE 前に停止する。
+読み取りエラー・曖昧なポリシーも安全側で停止する。移行先の承認後に既存ルールだけを変更し、
+再チェックする。手順と API は [environment-routing.md](environment-routing.md)。
+
+参照がない別の空グループでも公開 DELETE が Conflict となり、管理センターの削除で成功した事例がある。
+UI の操作にはポリシー割り当て API の通信も含まれる。原因を一律にルーティングと断定せず、
+メソッドや影響を未確認のままポリシーを削除・解除しない。承認済みグループの UI 削除後は一覧で消失を確認する。
+
+## ACP の第一者判定と初期ルール作成
+
+表示名・ID の接頭辞・publisher のどれか 1 つだけでは第一者サービスと判定できない。
+レガシー/現行 Dataverse が同じ表示名になるケースもある。
+**恒久対策済み**: `resolve_catalog_set()` は ID と publisher を組み合わせ、レガシー共通拒否リストと
+カタログの非推奨情報を優先する。Microsoft セットでは Work IQ 9 種と現行 Dataverse を必須検査する。
+第一者セットに独自 MCP を自動混入させない。承認済み全許可グループは別プロファイルとする。
+
+`block-all` の許可 0 件とルール未作成は同義ではない。
+**恒久対策済み**: `_process()` は `ConnectorManagement` がなければ空のルールも作成対象とする。
+既存項目のアクション/接続種別と他ルールを保持し、保存後に読み戻す。
+`list_connector_catalog()` はページング、`assigned_policy_id()` は一意性を検査する。
+
 ## 新 Workflow の Agent ノードが事前チェックを通過した後にブロックされる
 
 新 Copilot Studio Workflow の Agent ノードは `shared_agentnode` を使う。
@@ -13,7 +43,7 @@ Dataverse や `shared_powervirtualagents` の許可だけでは利用可能と�
 
 環境グループに現在 ACP がない場合でも、環境には最後の設定が残るのが仕様。
 `Synced Environment Policy` という名前だけでグループへ ACP を新設しない。
-両方のルールを確認し、有効な継承元がある場合はグループ、環境にだけ残る場合は環境を対象にする。
+両方のルールを確認し、配下全環境の影響を提示してグループ設定を承認する。個別環境への書き込みはしない。
 
 構成チェックと管理センターの `Applied`、Studio の Review 成功は実行成功の代わりにならない。
 外部データ・ツールなしの最小実行が HTTP 442（DLP/ACP）で失敗する場合は、対象コネクタ、実行 ID、
@@ -60,11 +90,11 @@ python .github/skills/admin/scripts/set_acp_connector.py `
 `[ブロック]` と表示されたら ACP が原因。管理センターでは
 **セキュリティ > データとプライバシー > Advanced connector policies** で `Status` を確認できる。
 
-**対処**: 許可リストに追加する。反映後は許可コネクタ数が増えることを必ず確認する。
+**対処**: グループの適切なプロファイルの差分をレビューし、承認後に適用する。
 
 ```powershell
-python .github/skills/admin/scripts/set_acp_connector.py `
-  --policy-id <グループ ポリシー ID> --connector <shared_xxx> --apply
+python .github/skills/admin/scripts/apply_acp_profile.py `
+  --environment-id $env:ENV_ID --environment-group-id <GROUP_ID> --profile microsoft-first-party
 ```
 
 ## 1-c. ACP に追加したのに許可コネクタ数が増えない
@@ -76,7 +106,7 @@ HTTP は成功するのに、読み直すと件数が元のままになる。
 グループ側のポリシーが正であり、同期でその内容に戻される。
 
 **対処**: `GET /governance/ruleBasedPolicies/environmentGroups/{groupId}/assignments` で
-グループの `policyId` を取得し、そちらを `--policy-id` に指定して更新する。
+グループの `policyId` を取得し、`apply_acp_profile.py --environment-group-id <GROUP_ID>` で差分を確認する。
 `set_acp_connector.py --include-group` は両方を確認するので、差分が出たらグループ側を直す。
 
 ## 1-d. ACP の許可セットを `publisher` で作ろうとして 3rd パーティが混ざる

@@ -15,12 +15,11 @@ import re
 import sys
 from pathlib import Path
 from typing import Any
-
-import requests
+from urllib.parse import urljoin, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
 
-from auth_helper import get_token  # noqa: E402
+from auth_helper import get_session  # noqa: E402
 
 BAP_BASE = "https://api.bap.microsoft.com"
 BAP_SCOPE = "https://api.bap.microsoft.com/.default"
@@ -42,10 +41,10 @@ DATA_GROUPS = ("Confidential", "General", "Blocked")
 
 
 def _request(method: str, url: str, scope: str, body: dict | None = None) -> Any:
-    response = requests.request(
+    response = get_session(scope).request(
         method,
         url,
-        headers={"Authorization": f"Bearer {get_token(scope=scope)}", "Content-Type": "application/json"},
+        headers={"Content-Type": "application/json"},
         json=body,
         timeout=_TIMEOUT,
     )
@@ -100,8 +99,7 @@ def list_custom_connectors(environment_id: str) -> list[dict[str, Any]]:
 def list_connector_catalog(environment_id: str) -> list[dict[str, Any]]:
     """対象環境で参照できる全コネクタ（認定・Independent Publisher 含む）を列挙する。
 
-    ``properties.publisher`` は第一者判定に使えない。Google Drive や YouTube の
-    publisher も ``Microsoft`` になるため、コネクタ ID で判定すること。
+    第一者判定はサービス ID と publisher の両方を確認する。
     ``properties.metadata.source`` は ``marketplace`` / ``independentpublisher`` /
     ``powerapps-user-defined``（カスタムコネクタ）を返す。
     """
@@ -110,7 +108,19 @@ def list_connector_catalog(environment_id: str) -> list[dict[str, Any]]:
         f"?api-version=2016-11-01&showApisWithToS=true"
         f"&$filter=environment%20eq%20%27{environment_id}%27"
     )
-    return (_request("GET", url, POWERAPPS_SCOPE) or {}).get("value") or []
+    items = []
+    visited = set()
+    while url:
+        if url in visited or urlparse(url).scheme != "https" or urlparse(url).netloc != urlparse(POWERAPPS_BASE).netloc:
+            raise ValueError("Invalid connector catalog continuation URL")
+        visited.add(url)
+        data = _request("GET", url, POWERAPPS_SCOPE)
+        if not isinstance(data, dict) or not isinstance(data.get("value"), list):
+            raise ValueError("Incomplete connector catalog")
+        items.extend(data["value"])
+        next_url = data.get("nextLink") or data.get("@odata.nextLink")
+        url = urljoin(url, next_url) if next_url else None
+    return items
 
 
 def connector_source(connector: dict[str, Any]) -> str:

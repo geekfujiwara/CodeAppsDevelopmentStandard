@@ -72,8 +72,11 @@ triggers:
 | [scripts/check_dlp.py](scripts/check_dlp.py) | 使用コネクタが DLP で使えるかの事前チェック | なし |
 | [scripts/set_dlp_custom_connector.py](scripts/set_dlp_custom_connector.py) | カスタムコネクタ（自前 MCP Server 等）の DLP 分類を設定 | `--apply` 時のみ |
 | [scripts/check_development_environment.py](scripts/check_development_environment.py) | 標準事前チェック。環境 + Dataverse / 新 Workflow Agent ノードのクラシック DLP + 環境・グループ ACP を順に検査し、失敗時に停止 | なし |
-| [scripts/set_acp_connector.py](scripts/set_acp_connector.py) | ACP（Advanced connector policies）の許可コネクタを確認・追加 | `--apply` 時のみ |
+| [scripts/set_acp_connector.py](scripts/set_acp_connector.py) | ACP の実効設定とグループ設定を確認する（CLI は読み取り専用） | なし |
 | [scripts/apply_acp_profile.py](scripts/apply_acp_profile.py) | ACP の許可セットを推奨プロファイル（Microsoft 第一者のみ）で一括設定 | `--apply` 時のみ |
+| [scripts/apply_group_acp_strategy.py](scripts/apply_group_acp_strategy.py) | 5 グループの初期 ACP セットと配下環境への影響を一覧し、グループだけに設定 | `--apply` 時のみ |
+| [scripts/set_environment_routing.py](scripts/set_environment_routing.py) | 新ルーティング API の取得・既存ルールの移行先変更。ハッシュ照合と読み戻しを実施 | `--apply` 時のみ |
+| [scripts/delete_environment_group.py](scripts/delete_environment_group.py) | 名前・空・新旧ルーティング参照を検査して環境グループのみ削除 | `--apply` 時のみ |
 | [scripts/migrate_dlp_to_acp.py](scripts/migrate_dlp_to_acp.py) | クラシック DLP の分類を ACP の許可リストへ移行 | `--apply` 時のみ |
 | [scripts/set_managed_environment.py](scripts/set_managed_environment.py) | マネージド環境の有効化・共有制限・ソリューション チェッカー設定 | `--apply` 時のみ |
 | [scripts/scan_environment_strategy.py](scripts/scan_environment_strategy.py) | 環境戦略の現状スキャン（テナント設定 / 環境グループ / 環境 / アプリ・フロー数 / Dataverse 容量 / ACP / DLP / ライセンス / Copilot クレジット）。削除候補と割り当て先も提案 | なし |
@@ -201,32 +204,34 @@ python .github/skills/admin/scripts/set_acp_connector.py `
   --environment-id $env:ENV_ID --include-group `
   --connector shared_example-custom-connector
 
-# 内容を確認してから、環境グループ側の元ポリシーに追加する
-python .github/skills/admin/scripts/set_acp_connector.py `
-  --policy-id <グループ ポリシー ID> `
-  --connector shared_example-custom-connector --apply
 ```
 
-環境に割り当てられるのは環境グループから同期された写しなので、
-**環境グループ側のポリシーを更新**しないと再同期で元に戻る。
-適用後は必ず再確認し、許可コネクタ数が増えていることを確認する。
-
-ただし、グループに現在 ACP がない場合も、環境には最後の ACP が残る。
-ポリシー名だけで継承中と判断せず、両方の `ConnectorManagement` を確認し、
-環境にだけ残っている場合はその環境を対象にする。グループへの ACP 新設は別途承認が必要。
-標準利用対象 `shared_agentnode` が未許可なら、既存リストを保持する1件追加の dry-run を提示する。
+ACP は環境ごとに有効なポリシーが 1 つあり、直接設定またはグループ継承で決まる。
+環境とグループを独立した 2 枚の ACP として比較しない。
+標準の書き込みは **Step 7 のグループ単位コマンドのみ**とする。
+個別環境の ACP は変更しない。グループの ACP を外しても、環境には最後の設定が残るため、
+ポリシー名や件数だけで継承中と断定しない。両方の `ConnectorManagement` を読む。
+グループへの新設・置換は配下全環境への影響を提示して承認を得る。
 
 ### Step 7: ACP を推奨プロファイルで一括設定する（任意）
 
-「Microsoft 第一者サービスだけを許可し、Microsoft が公開していても実体がサードパーティの
-サービス（Google Drive / Facebook / Mailchimp / YouTube / Workday / Zendesk など）と
-非推奨コネクタ（Dynamics 365 レガシー）はブロックする」推奨セットを 1 コマンドで適用する。
+初期許可セットは全グループ共通ではなく、次の 3 プロファイルを使い分ける。
+
+| 環境グループ | 標準プロファイル |
+|---|---|
+| 既定環境 (DEF) | `block-all` |
+| 個人開発者 (PSN) | `microsoft-first-party` |
+| 市民開発者 (CTZ) | `microsoft-first-party` |
+| AI CoE セントラル (CTRL) | `all-supported`（レガシー除外） |
+| AI CoE 内製開発 (COE) | `microsoft-first-party` |
 
 定義は [references/acp-profiles.json](references/acp-profiles.json)。
 `microsoft-first-party` は新 Workflow Agent ノードの `shared_agentnode` を `allowConnectors` に明記し、
 カタログや既存許可リストにない場合も許可候補へ含める。明示拒否・除外ソース・安全弁は引き続き優先する。
-`publisher` では第一者判定できない（Google Drive も YouTube も publisher は `Microsoft`）ため、
-コネクタ ID のパターンで判定している。
+第一者判定は **サービス ID と信頼する publisher の両方**を必要とする。
+Microsoft 公開の第三者サービスや、Microsoft 風 ID の第三者公開元は除外する。
+現行 Dataverse と Work IQ 9 種を必須確認し、レガシー Dataverse
+`shared_commondataservice` は全許可プロファイルでも除外する。
 
 ```powershell
 # 解決される許可セットを一覧する（読み取りのみ）
@@ -237,18 +242,26 @@ python .github/skills/admin/scripts/apply_acp_profile.py `
 python .github/skills/admin/scripts/apply_acp_profile.py `
   --environment-id $env:ENV_ID --profile microsoft-first-party --include-group
 
-# 内容を確認してもらってから適用する
-python .github/skills/admin/scripts/apply_acp_profile.py `
-  --environment-id $env:ENV_ID --profile microsoft-first-party `
-  --include-group --include-connector shared_example-mcp --apply
+# 5 グループと配下全環境への影響を確認する（dry-run）
+python .github/skills/admin/scripts/apply_group_acp_strategy.py `
+  --environment-id $env:ENV_ID --report-file group-acp-plan.json
+# レポートを承認後、同じ条件に --apply を追加する
 ```
 
 | 事項 | 挙動 |
 |---|---|
 | 許可リストの扱い | **置き換え**。差分（追加 / 削除）を必ずユーザーに提示してから `--apply` |
-| カスタムコネクタ | 既に許可済みのものは自動で引き継ぐ（`--no-keep-custom` で無効化） |
+| カスタムコネクタ | 第一者限定では自動継承しない。`all-supported` は対象カタログにある ID を候補に含める |
 | 要確認コネクタ | `reviewConnectors`（コンシューマー版 OneDrive / Outlook.com / GitHub 等）は実行時に一覧表示される。**AskUserQuestion で利用有無を確認**し、不要なら `--exclude-connector` で外す |
 | 安全弁 | `mustNotAllow`（Google Drive 等）が許可セットに紛れ込んだら中断する |
+
+`all-supported` はレビュー時点のカタログの明示列挙であり、未来の新コネクタを自動許可しない。
+全プロファイルでレガシー ID とカタログの非推奨表示・フラグを除外する。
+テナント固有の例外は `--group-profile CODE=PROFILE` で指定し、標準 JSON を書き換えない。
+COE を全許可にする承認がある場合も、例外はグループ全体に作用する。
+既存のアクション・接続種別制限を保持し、配下環境独自の制限がある場合は別途移行をレビューする。
+ACP のカスタム/HTTP 対応範囲、クラシック DLP、接続認証、実行時評価は別に確認し、
+許可候補入りだけで独自 MCP の利用成功や「全通信が Microsoft のみ」を保証しない。
 
 ### Step 8: クラシック DLP から ACP へ移行する（任意）
 
@@ -282,14 +295,16 @@ python .github/skills/admin/scripts/migrate_dlp_to_acp.py `
 
 許可セットが 0 件になる指定は事故防止のため中断する（意図的なら `--allow-empty`）。
 
-**ACP のみモード**（クラシック DLP を無視する）への切り替えは API が公開されていない。
-Power Platform 管理センターの **セキュリティ > データとプライバシー** で
-「Advanced connector policies only」を有効化する手動操作が必要。
-移行が完了して ACP だけで運用できることを確認してから切り替える。
+**ACP のみモード**への変更は許可リストの変更とは別に承認を得る。
+グループルール `AdvancedConnectorPoliciesOnly/EnableAdvancedConnectorPoliciesOnly` は
+[rule-catalog.md](references/rule-catalog.md) を参照。クラシック DLP を削除する操作ではない。
+既存の移行補助コマンドから個別環境への `--apply` は行わず、分類結果を Step 7 のグループ計画に反映する。
 
 ### Step 9: 反映を確認する
 
 変更後に Step 1・Step 2・Step 6 を再実行し、`OK` になったことを確認してからユーザーへ報告する。
+グループの保存後は管理センターで **Publish rules** を実行し、配下全環境と実行時の検証を行う。
+API の保存・読み戻しや画面の Applied は、Workflow の Agent 実行成功とは別に記録する。
 DLP は反映に時間がかかるため、直後に解消していなくても再評価まで待って判断する。
 
 ### Step 10: 環境戦略を策定する（オプション）
@@ -318,7 +333,7 @@ DLP は反映に時間がかかるため、直後に解消していなくても�
 - 5 つの環境グループ（既定環境 / 個人開発者環境 / 市民開発者環境 / AI CoE セントラル / AI CoE 内製開発）と各環境の役割
 - 既定環境は専用グループに隔離し、全コネクタブロック + 利用禁止のウェルカム メッセージで実質使用不可にすること
 - 全環境をマネージド環境にし、環境グループのルールで設定をロックすること
-- コネクタは **ACP 専用モード + Microsoft 第一者のみ**にし、クラシック DLP を評価対象外にすること
+- コネクタは Step 7 のグループ別初期セットで管理すること。ACP 専用モードへの移行は別途承認すること
 - Dataverse for Teams は利用せず、Dataverse 検索は全環境で有効化すること
 - 環境ログ・アラート・エラーログ、テナントレベルの分析、週間ダイジェストを有効化すること
 - キャンバス アプリの共有設定と、グループごとの共有可能ユーザー数の上限
@@ -495,6 +510,10 @@ python set_content_security_policy.py --environment-url <ENV_URL> --enable `
 `apply_acp_profile.py --include-connector` / `--exclude-connector` で調整する。
 
 #### 10-9. 利用ガイドラインを公開して配布する
+
+ルーティング先の変更と旧グループ削除は [environment-routing.md](references/environment-routing.md) を使う。
+従来のテナント設定だけでなく、新 `EnvironmentRouting` ルールを API で取得し、
+元/先グループを提示して承認後に更新する。空グループでもルーティング参照があれば削除しない。
 
 利用可能なコネクタ・利用できないコネクタとその理由・追加申請フロー・認定プロセス・共有上限・
 Copilot クレジット・問い合わせ先をまとめたページを作成する。

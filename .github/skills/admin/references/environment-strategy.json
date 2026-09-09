@@ -195,7 +195,10 @@
   },
   "connectorPolicy": {
     "mode": "ACPOnly",
+    "managementScope": "EnvironmentGroup",
     "profile": "microsoft-first-party",
+    "initialSetCommand": "apply_group_acp_strategy.py",
+    "excludeLegacy": true,
     "why": "ACP は default-deny の許可リストで、新規コネクタが自動で許可されない。ACP 専用モードにするとクラシック DLP は評価されなくなるため、ポリシーが一本化されて運用が単純になる。",
     "note": "ACP 専用モードは環境グループのルール `AdvancedConnectorPoliciesOnly` として設定する（グループ単位で有効化できる）。有効化してもクラシック DLP は削除されず、評価対象外になるだけなので切り戻せる。"
   },
@@ -320,13 +323,17 @@
           "lifecycle": "永続",
           "sharingLimitUsers": 10,
           "copilotCredits": true,
-          "note": "認定後。最低限のコネクタのみ。Code Apps は不可。"
+          "note": "認定後。Microsoft 第一者セット（Work IQ を含む、レガシー除外）をグループから継承。Code Apps は不可。"
         }
       ]
     },
     {
       "name": "AI CoE セントラルグループ",
       "code": "CTRL",
+      "connectorPolicyOverride": {
+        "profile": "all-supported",
+        "why": "全社分析・技術検証のため全カタログを許可する。ただしレガシー・廃止・非推奨コネクタは除外する。"
+      },
       "purpose": "AI CoE / IT 部門が全社分析と新技術検証に使う。決められたユーザーのみ。",
       "rules": {
         "sharingLimitUsers": null,
