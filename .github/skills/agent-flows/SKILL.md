@@ -79,6 +79,15 @@ run / Agent の Succeeded と固定 JSON 一致で `output-verified` になる�
 
 [非同期連携の契約](references/code-apps-integration.md) に従い、Code Apps からの要求・結果と既存 v2 bot 呼び出しを別段階で実装する。
 inline `InvokeDefinition` の成功を既存 v2 bot / MCP / スキルの実行成功と同一視しない。
+既存エージェントを利用する場合は [Agent ノードの診断](references/existing-agent-node.md) に従い、
+`.env` に対象 bot と接続参照を指定して読み取り専用の確認を行う。
+
+```powershell
+python .github/skills/agent-flows/scripts/inspect_agent_node.py --report-file .local/agent-flow/agent-discovery.json
+```
+
+`target-verified` は一覧上の対象照合のみで、エージェントは実行しない。
+Workflow の既存 Agent ノードは公式に案内されているが、ここで観測した直接 API は実験的経路として扱う。
 ACP 反映待ちでもユーザーの承認に基づき実装・モックテストを進められるが、実応答・本人認可・本番受入のゲートは保持する。
 
 ## Step 6: 検証と結果報告

@@ -62,3 +62,9 @@ Server resource IDs are not cloned. Node IDs are scoped to each separate flow an
 - Output links may contain SAS credentials. Restrict to the observed environment-specific `environment.api.powerplatformusercontent.com` host, omit bearer and redirects, never log the URL or output body.
 - `body.message` is the expected response shape, still awaiting a successful live Agent response. A different successful output schema must be inspected and tested, not silently accepted.
 - Model availability, license/credits, connection ownership, new UI rollout and runtime ACP propagation remain environmental prerequisites.
+
+## Existing-Agent Discovery
+
+[Existing Agent node evidence](existing-agent-node.md) records the separate `InvokeAgent` contract and a read-only diagnostic.
+The API Hub runtime uses a different audience from connector metadata. Its successful list response, invocation and designer graph
+are not yet verified. The diagnostic deliberately does not extend the inline create/publish/run CLI to accept guessed existing-agent definitions.
