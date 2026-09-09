@@ -1,5 +1,28 @@
 # 異常系・詰まりどころ
 
+## 新 Workflow の Agent ノードが事前チェックを通過した後にブロックされる
+
+新 Copilot Studio Workflow の Agent ノードは `shared_agentnode` を使う。
+Dataverse や `shared_powervirtualagents` の許可だけでは利用可能と判定しない。
+
+**恒久対策済み**: `check_development_environment.py` の `check_commands()` は Dataverse と
+`shared_agentnode` をクラシック DLP と環境・グループ ACP の検査へ必ず渡し、失敗時は停止する。
+`apply_acp_profile.py` の `resolve_allow_set()` は `microsoft-first-party` の `allowConnectors` を参照し、
+カタログ未掲載・初回未許可でも Agent ノードを許可候補に含める。拒否規則は優先し、適用は明示承認後のみ。
+回帰テスト: `python -m unittest discover -s .github/skills/admin/tests -p test_agent_node_preflight.py -v`。
+
+環境グループに現在 ACP がない場合でも、環境には最後の設定が残るのが仕様。
+`Synced Environment Policy` という名前だけでグループへ ACP を新設しない。
+両方のルールを確認し、有効な継承元がある場合はグループ、環境にだけ残る場合は環境を対象にする。
+
+構成チェックと管理センターの `Applied`、Studio の Review 成功は実行成功の代わりにならない。
+外部データ・ツールなしの最小実行が HTTP 442（DLP/ACP）で失敗する場合は、対象コネクタ、実行 ID、
+エラーの `Last refresh` とポリシー変更時刻を記録する。古い取得日時だけで原因を断定せず、
+反映後に再検証し、継続する場合はサポートへ確認する。ACP 無効化・全許可化で回避しない。
+
+公式資料: [ACP の環境設定と保持仕様](https://learn.microsoft.com/en-us/power-platform/admin/advanced-connector-policies)、
+[API によるポリシー更新](https://learn.microsoft.com/en-us/power-platform/admin/programmability-tutorial-manage-advanced-connector-policies)。
+
 ## 1. Copilot Studio で「データ損失防止ポリシーによりブロックされています」と出る
 
 **症状**: カスタムコネクタ（自前 MCP Server 等）をツールとして追加すると、DLP でブロックされたと表示される。

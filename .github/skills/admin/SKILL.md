@@ -71,6 +71,7 @@ triggers:
 | [scripts/check_environment.py](scripts/check_environment.py) | 環境チェック一式（既定環境 / マネージド環境 / Dataverse / Code Apps / MCP / 監査 / セキュリティ ロール / 管理 API / 適用 DLP） | なし |
 | [scripts/check_dlp.py](scripts/check_dlp.py) | 使用コネクタが DLP で使えるかの事前チェック | なし |
 | [scripts/set_dlp_custom_connector.py](scripts/set_dlp_custom_connector.py) | カスタムコネクタ（自前 MCP Server 等）の DLP 分類を設定 | `--apply` 時のみ |
+| [scripts/check_development_environment.py](scripts/check_development_environment.py) | 標準事前チェック。環境 + Dataverse / 新 Workflow Agent ノードのクラシック DLP + 環境・グループ ACP を順に検査し、失敗時に停止 | なし |
 | [scripts/set_acp_connector.py](scripts/set_acp_connector.py) | ACP（Advanced connector policies）の許可コネクタを確認・追加 | `--apply` 時のみ |
 | [scripts/apply_acp_profile.py](scripts/apply_acp_profile.py) | ACP の許可セットを推奨プロファイル（Microsoft 第一者のみ）で一括設定 | `--apply` 時のみ |
 | [scripts/migrate_dlp_to_acp.py](scripts/migrate_dlp_to_acp.py) | クラシック DLP の分類を ACP の許可リストへ移行 | `--apply` 時のみ |
@@ -101,6 +102,19 @@ triggers:
 ### Step 1: 環境チェックを実行する
 
 対象環境が開発してよい状態かを一括で確認する。**新しい環境で作業を始める最初のステップ**。
+
+README の環境準備プロンプトでは、次の統合コマンドを標準とする。
+`shared_commondataserviceforapps` と `shared_agentnode` を必ず含め、環境チェックに続いて
+Step 2 のクラシック DLP と Step 6 の ACP 読み取りを実行する。追加コネクタは `--connector` で指定する。
+許可リストを変更するコマンドではない。ブロックや取得エラー時は停止して Step 3 の承認ゲートへ進む。
+
+```powershell
+python .github/skills/admin/scripts/check_development_environment.py `
+  --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID
+```
+
+構成上の成功と Workflow の実行成功は別に報告する。新 Workflow の利用時は、公開前の Review と
+外部データ・ツールなしの最小実行を追加ゲートとする。製品固有の必須条件は、以下の個別チェックで指定する。
 
 ```powershell
 python .github/skills/admin/scripts/check_environment.py `
@@ -197,6 +211,11 @@ python .github/skills/admin/scripts/set_acp_connector.py `
 **環境グループ側のポリシーを更新**しないと再同期で元に戻る。
 適用後は必ず再確認し、許可コネクタ数が増えていることを確認する。
 
+ただし、グループに現在 ACP がない場合も、環境には最後の ACP が残る。
+ポリシー名だけで継承中と判断せず、両方の `ConnectorManagement` を確認し、
+環境にだけ残っている場合はその環境を対象にする。グループへの ACP 新設は別途承認が必要。
+標準利用対象 `shared_agentnode` が未許可なら、既存リストを保持する1件追加の dry-run を提示する。
+
 ### Step 7: ACP を推奨プロファイルで一括設定する（任意）
 
 「Microsoft 第一者サービスだけを許可し、Microsoft が公開していても実体がサードパーティの
@@ -204,6 +223,8 @@ python .github/skills/admin/scripts/set_acp_connector.py `
 非推奨コネクタ（Dynamics 365 レガシー）はブロックする」推奨セットを 1 コマンドで適用する。
 
 定義は [references/acp-profiles.json](references/acp-profiles.json)。
+`microsoft-first-party` は新 Workflow Agent ノードの `shared_agentnode` を `allowConnectors` に明記し、
+カタログや既存許可リストにない場合も許可候補へ含める。明示拒否・除外ソース・安全弁は引き続き優先する。
 `publisher` では第一者判定できない（Google Drive も YouTube も publisher は `Microsoft`）ため、
 コネクタ ID のパターンで判定している。
 

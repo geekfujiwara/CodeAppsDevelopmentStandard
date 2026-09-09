@@ -148,8 +148,9 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 
 1. 今回開発に使う環境を確認する: 既存の Dataverse 環境から選ぶか、専用の Developer/Sandbox 環境を新規作成するかをユーザーに確認する（新規作成する場合は README の「専用環境を作成する」の手順を管理者へ案内）。決定したら `.env` の `ENV_ID` / `DATAVERSE_URL` / `TENANT_ID` を設定する。
 2. `check_environment.py --environment-id $env:ENV_ID` を実行し、その環境で開発するにあたり最低限解消すべき問題点（既定環境ではないか・マネージド環境・Dataverse / Code Apps / MCP の有効化・セキュリティ ロール・管理 API アクセス・適用される DLP）を確認する。
-3. `check_dlp.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID --connector shared_commondataserviceforapps` で、これから使う予定のコネクタが DLP でブロックされないかを確認する。
-4. `NG` があれば、その内容と解消方法（開発者へのセキュリティ ロール割り当て・管理者への依頼内容など）を整理して報告する。`NG` がなければ、その環境で開発を始めてよい旨を報告する。
+3. `python .github/skills/admin/scripts/check_development_environment.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID` を実行する。標準利用対象の Dataverse (`shared_commondataserviceforapps`) と新 Copilot Studio Workflow の Agent ノード (`shared_agentnode`) を、環境チェック・クラシック DLP・環境とグループの ACP のすべてで確認する。追加コネクタは `--connector shared_xxx` で列挙する。このコマンドは読み取り専用で、許可追加はしない。
+4. `NG` や取得エラーがあれば停止し、解消方法を報告する。ACP で `shared_agentnode` が未許可なら、継承元と影響範囲を確認し、既存の許可設定を保持した1件追加の dry-run を提示する。明示承認後だけ適用し、再チェックする。グループから ACP が削除されても環境側に残る場合があるため、グループへの無条件な新設や全許可化はしない。
+5. すべて成功したら構成上の事前チェック完了を報告する。新 Workflow の利用時は、公開前の Review と外部データ・ツールなしの最小実行も確認する。管理画面の Applied やチェック成功だけで実行可能とは断定しない。実行時の DLP/ACP エラーはエラーコードと Last refresh を記録し、追加の権限緩和はしない。
 
 ## 完了報告
 - フェーズ 1〜3 それぞれの成否を報告する。
@@ -273,7 +274,7 @@ Copilot Studio のエージェントを作成・実行する環境には、購�
 
 DLP（データ損失防止）のコネクタ制御には、原則として **Advanced Connector Policy（ACP）** を使用します。ACP は許可リスト方式のため、明示的に追加していないコネクタとアクションは既定でブロックされます。
 
-1. 対象環境で利用するコネクタとアクションを事前に棚卸しする
+1. 対象環境で利用するコネクタとアクションを事前に棚卸しする。標準利用対象には Dataverse (`shared_commondataserviceforapps`) と新 Copilot Studio Workflow の Agent ノード (`shared_agentnode`) を含める。`microsoft-first-party` 推奨プロファイルも Agent ノードを既定の許可候補に含む（適用は dry-run・承認後）。`shared_powervirtualagents` の許可だけでは代替できない
 2. [Power Platform 管理センター](https://admin.powerplatform.microsoft.com/) を開く
 3. **セキュリティ** > **データとプライバシー** > **Advanced connector policies** を選択
 4. 対象環境を選び、**Add connectors** から必要な認定コネクタを許可リストへ追加する
@@ -514,15 +515,17 @@ python .github/skills/admin/scripts/check_environment.py --environment-id $env:E
 Code Apps・MCP・マネージド環境が要件の場合は `--require-code-apps` / `--require-mcp` / `--require-managed`
 を付けると、警告を `NG` に昇格させて確実に止められます。
 
-続けて、ソリューションが使うコネクタが DLP でブロックされないかを確認します。
+続けて、標準利用対象の Dataverse と新 Copilot Studio Workflow の Agent ノードを含め、環境・クラシック DLP・ACP をまとめて確認します。追加コネクタは `--connector shared_xxx` で指定します。
 
 ```powershell
-python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID --connector shared_commondataserviceforapps
+python .github/skills/admin/scripts/check_development_environment.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID
 ```
+
+`shared_agentnode` は標準チェック対象であり、自動的に許可を付与するものではありません。未許可なら影響範囲と dry-run を確認して明示承認後に追加します。構成チェック成功後も Workflow の Review と最小実行で確認してください。実行時 HTTP 442（DLP/ACP）では `Last refresh` を記録し、反映・同期状態を確認します。実行成功前は準備完了と断定しません。
 
 > [!TIP]
 > Copilot チャットで `@GeekPowerCode` に「開発を始める前に環境をチェックして」と依頼すれば、
-> 上記 2 つを実行して結果を要約し、`NG` があれば解消方針まで提示します。
+> 上記の統合チェックを実行して結果を要約し、`NG` があれば解消方針まで提示します。
 
 ---
 
