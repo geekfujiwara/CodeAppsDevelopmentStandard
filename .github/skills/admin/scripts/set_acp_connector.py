@@ -19,14 +19,17 @@ ACP は default-deny の厳格な許可リストです。許可リストに無�
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
 
 from auth_helper import get_session  # noqa: E402
+from set_environment_routing import configuration_payload  # noqa: E402
 
 PP_BASE = "https://api.powerplatform.com"
 PP_SCOPE = "https://api.powerplatform.com/.default"
@@ -124,13 +127,20 @@ def add_connectors(rule_set: dict, connectors: list[str]) -> list[str]:
     return added
 
 
-def patch_policy(policy_id: str, policy_name: str, rule_set: dict) -> None:
+def patch_policy(policy_id: str, policy: dict, rule_set: dict) -> None:
+    """ConnectorManagement だけを差し替え、グループの他のルールは必ず保持して送る。"""
     assert_not_denied(allowed_ids(rule_set))
-    _request(
-        "PATCH",
-        f"/governance/ruleBasedPolicies/{policy_id}",
-        {"name": policy_name, "ruleSets": [rule_set]},
-    )
+    body = configuration_payload(policy)
+    updated = copy.deepcopy(rule_set)
+    updated.pop("lastModifiedDate", None)
+    positions = [index for index, rule in enumerate(body["ruleSets"]) if rule.get("id") == RULE_SET_ID]
+    if len(positions) > 1:
+        raise ValueError(f"{RULE_SET_ID} ルールが重複しています。確認するまで書き込みません。")
+    if positions:
+        body["ruleSets"][positions[0]] = updated
+    else:
+        body["ruleSets"].append(updated)
+    _request("PATCH", f"/governance/ruleBasedPolicies/{policy_id}", body)
 
 
 def _process(label: str, policy_id: str, connectors: list[str], list_only: bool, apply: bool) -> bool:
@@ -163,7 +173,7 @@ def _process(label: str, policy_id: str, connectors: list[str], list_only: bool,
         print("  実際に反映するには --apply を付けてください。")
         return False
 
-    patch_policy(policy_id, policy.get("name", ""), rule_set)
+    patch_policy(policy_id, policy, rule_set)
     print(f"  追加しました: {', '.join(added)}")
     return True
 

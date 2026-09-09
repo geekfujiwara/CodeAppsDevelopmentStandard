@@ -43,10 +43,30 @@ class LegacyConnectorGateTests(unittest.TestCase):
     def test_patch_rejects_any_final_list_holding_legacy(self):
         with patch.object(acp, "_request") as request:
             with self.assertRaises(ValueError):
-                acp.patch_policy("policy", "name", copy.deepcopy(policy(CURRENT, LEGACY)["ruleSets"][0]))
+                acp.patch_policy("policy", policy(CURRENT, LEGACY), copy.deepcopy(policy(CURRENT, LEGACY)["ruleSets"][0]))
             request.assert_not_called()
-            acp.patch_policy("policy", "name", copy.deepcopy(policy(CURRENT)["ruleSets"][0]))
+            acp.patch_policy("policy", policy(CURRENT), copy.deepcopy(policy(CURRENT)["ruleSets"][0]))
             request.assert_called_once()
+
+    def test_patch_keeps_every_other_group_rule(self):
+        current = policy(CURRENT)
+        with patch.object(acp, "_request") as request:
+            acp.patch_policy("policy", current, copy.deepcopy(current["ruleSets"][0]))
+        body = request.call_args[0][2]
+        self.assertEqual([rule["id"] for rule in body["ruleSets"]], ["ConnectorManagement", "CodeAppsFeature"])
+        self.assertEqual(body["ruleSets"][1], current["ruleSets"][1])
+        self.assertNotIn("lastModifiedDate", body["ruleSets"][0])
+
+    def test_patch_initializes_missing_rule_without_dropping_others(self):
+        existing = policy(CURRENT)
+        existing["ruleSets"] = [rule for rule in existing["ruleSets"] if rule["id"] != acp.RULE_SET_ID]
+        existing["ruleSets"].append({"id": "AdvancedConnectorPoliciesOnly", "inputs": {"Enabled": True}})
+        with patch.object(acp, "_request") as request:
+            acp.patch_policy("policy", existing, {"id": acp.RULE_SET_ID, "version": "1.0",
+                                                  "inputs": {"AllowedConnectorList": []}})
+        body = request.call_args[0][2]
+        self.assertEqual([rule["id"] for rule in body["ruleSets"]],
+                         ["CodeAppsFeature", "AdvancedConnectorPoliciesOnly", acp.RULE_SET_ID])
 
     def test_dlp_migration_drops_legacy(self):
         report = {"_classification": {LEGACY: "General", CURRENT: "General"}, "_display": {}, "customConnectors": []}

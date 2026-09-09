@@ -192,7 +192,7 @@ def _process(
         })
         for name in sorted(final)
     ]
-    patch_policy(policy_id, policy.get("name", ""), rule_set)
+    patch_policy(policy_id, policy, rule_set)
     actual = get_policy(policy_id)
     actual_rule = connector_rule_set(actual)
     if not actual_rule or actual_rule.get("inputs") != rule_set["inputs"]:

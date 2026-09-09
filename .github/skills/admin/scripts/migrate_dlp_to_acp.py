@@ -208,7 +208,7 @@ def _process(label: str, policy_id: str, target: set[str], display: dict, limit:
         }
         for name in sorted(target)
     ]
-    patch_policy(policy_id, policy.get("name", ""), rule_set)
+    patch_policy(policy_id, policy, rule_set)
     print(f"\n  反映しました（許可コネクタ数 {len(target)}）。")
     return True
 
