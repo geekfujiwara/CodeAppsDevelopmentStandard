@@ -75,8 +75,8 @@ triggers:
 | [scripts/set_acp_connector.py](scripts/set_acp_connector.py) | ACP の実効設定とグループ設定を確認する（CLI は読み取り専用） | なし |
 | [scripts/apply_acp_profile.py](scripts/apply_acp_profile.py) | ACP の許可セットを推奨プロファイル（Microsoft 第一者のみ）で一括設定 | `--apply` 時のみ |
 | [scripts/apply_group_acp_strategy.py](scripts/apply_group_acp_strategy.py) | 5 グループの初期 ACP セットと配下環境への影響を一覧し、グループだけに設定 | `--apply` 時のみ |
-| [scripts/set_environment_routing.py](scripts/set_environment_routing.py) | 新ルーティング API の取得・既存ルールの移行先変更。ハッシュ照合と読み戻しを実施 | `--apply` 時のみ |
-| [scripts/delete_environment_group.py](scripts/delete_environment_group.py) | 名前・空・新旧ルーティング参照を検査して環境グループのみ削除 | `--apply` 時のみ |
+| [scripts/set_environment_routing.py](scripts/set_environment_routing.py) | API で既存ルールの宛先変更・None へのグループ割り当て解除。ハッシュ照合と読み戻しを実施 | `--apply` 時のみ |
+| [scripts/delete_environment_group.py](scripts/delete_environment_group.py) | API で空・参照・専用ポリシーを検査し、割り当て解除 → 専用ポリシー削除 → グループ削除 → 検証 | `--apply` 時のみ |
 | [scripts/migrate_dlp_to_acp.py](scripts/migrate_dlp_to_acp.py) | クラシック DLP の分類を ACP の許可リストへ移行 | `--apply` 時のみ |
 | [scripts/set_managed_environment.py](scripts/set_managed_environment.py) | マネージド環境の有効化・共有制限・ソリューション チェッカー設定 | `--apply` 時のみ |
 | [scripts/scan_environment_strategy.py](scripts/scan_environment_strategy.py) | 環境戦略の現状スキャン（テナント設定 / 環境グループ / 環境 / アプリ・フロー数 / Dataverse 容量 / ACP / DLP / ライセンス / Copilot クレジット）。削除候補と割り当て先も提案 | なし |
@@ -512,8 +512,12 @@ python set_content_security_policy.py --environment-url <ENV_URL> --enable `
 #### 10-9. 利用ガイドラインを公開して配布する
 
 ルーティング先の変更と旧グループ削除は [environment-routing.md](references/environment-routing.md) を使う。
-従来のテナント設定だけでなく、新 `EnvironmentRouting` ルールを API で取得し、
-元/先グループを提示して承認後に更新する。空グループでもルーティング参照があれば削除しない。
+**正常系はすべて API とし、管理センターの操作を必須にしない。**
+新旧ルーティングを取得し、変更/解除の dry-run を提示して承認後に API PATCH。
+グループ参照の解除は `None`（ゼロ GUID）を用い、自動作成の停止とは区別する。
+続いて `delete_environment_group.py` の計画で空・新旧参照なし・専用ポリシーを確認し、
+承認済みハッシュを指定して API による割り当て解除・ポリシー削除・グループ削除を実行する。
+共有ポリシーや取得失敗は停止する。完了はグループ消失と全環境の所属保持を API で照合する。
 
 利用可能なコネクタ・利用できないコネクタとその理由・追加申請フロー・認定プロセス・共有上限・
 Copilot クレジット・問い合わせ先をまとめたページを作成する。

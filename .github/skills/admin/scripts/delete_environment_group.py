@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -12,7 +13,7 @@ from uuid import UUID
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
 from auth_helper import get_session
-from set_environment_routing import group_references, read_routing_policy
+from set_environment_routing import API_VERSION, group_references, read_routing_policy, tenant_host
 
 PP_BASE = "https://api.powerplatform.com"
 BAP_BASE = "https://api.bap.microsoft.com"
@@ -77,6 +78,45 @@ def validate_target(groups, environments, settings, group_id, expected_name):
     return matches[0]
 
 
+def policy_inventory(session, tenant_id, groups, environments):
+    host = tenant_host(tenant_id)
+    group_policies = {}
+    owners = {}
+
+    def register(policy_id, resource_type, resource_id):
+        policy_id = str(UUID(policy_id))
+        owners.setdefault(policy_id, []).append({"type": resource_type, "id": resource_id})
+
+    for group in groups:
+        group_id = str(UUID(group["id"]))
+        policies = inventory(session, f"{host}/governance/environmentGroups/{group_id}/ruleBasedPolicies?api-version={API_VERSION}&includeCustomerContent=true")
+        identifiers = []
+        for policy in policies:
+            if not isinstance(policy, dict) or not isinstance(policy.get("ruleSets"), list):
+                raise ValueError("Incomplete group policy inventory")
+            policy_id = str(UUID(policy["id"]))
+            identifiers.append(policy_id)
+            register(policy_id, "EnvironmentGroup", group_id)
+        if len(identifiers) != len(set(identifiers)):
+            raise ValueError("Duplicate group policies")
+        group_policies[group_id] = policies
+    for environment in environments:
+        environment_id = environment["name"]
+        assignments = inventory(session, f"{PP_BASE}/governance/ruleBasedPolicies/environments/{environment_id}/assignments?api-version=2024-10-01")
+        for assignment in assignments:
+            register(assignment["policyId"], "Environment", environment_id)
+    policies = inventory(session, f"{host}/governance/tenantRuleBasedPolicies?api-version={API_VERSION}")
+    for policy in policies:
+        register(policy["id"], "Tenant", tenant_id)
+    return group_policies, owners
+
+
+def require_exclusive_policies(policies, owners, group_id):
+    for policy in policies:
+        if owners.get(str(UUID(policy["id"]))) != [{"type": "EnvironmentGroup", "id": group_id}]:
+            raise ValueError("Shared or unverified policy; no deletion is permitted")
+
+
 def preflight(pp_session, bap_session, group_id, expected_name, tenant_id):
     groups = inventory(pp_session, GROUPS_URL)
     environments = inventory(bap_session, ENVIRONMENTS_URL)
@@ -88,7 +128,60 @@ def preflight(pp_session, bap_session, group_id, expected_name, tenant_id):
     blockers = group_references(policy, group_id)
     if blockers:
         raise ValueError(f"Modern routing rules still reference this group: {blockers}")
-    return {"group": group, "memberCount": 0, "tenantReferences": [], "routingPolicy": policy, "environmentCount": len(environments)}
+    group_policies, owners = policy_inventory(pp_session, tenant_id, groups, environments)
+    policies = group_policies[group_id]
+    require_exclusive_policies(policies, owners, group_id)
+    memberships = sorted([{"id": item["name"], "groupId": (item["properties"].get("parentEnvironmentGroup") or {}).get("id")} for item in environments], key=lambda item: item["id"])
+    return {"group": group, "memberCount": 0, "tenantReferences": [], "routingPolicy": policy,
+            "environmentCount": len(environments), "environmentMemberships": memberships,
+            "otherGroupIds": sorted(item["id"] for item in groups if item["id"] != group_id),
+            "policies": policies, "policyOwners": {item["id"]: owners[str(UUID(item["id"]))] for item in policies}}
+
+
+def plan_hash(plan):
+    return hashlib.sha256(json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def delete_via_api(pp_session, bap_session, tenant_id, group_id, expected_name, plan, expected_hash, record):
+    if not expected_hash or plan_hash(plan) != expected_hash:
+        raise ValueError("Reviewed deletion plan hash mismatch; no DELETE sent")
+    latest = preflight(pp_session, bap_session, group_id, expected_name, tenant_id)
+    if plan_hash(latest) != expected_hash:
+        raise ValueError("Deletion plan changed; no DELETE sent")
+    host = tenant_host(tenant_id)
+
+    def remove(path, stage):
+        record({"stage": stage, "path": path, "phase": "request"})
+        response = pp_session.delete(f"{host}{path}", timeout=120)
+        record({"stage": stage, "path": path, "phase": "response", "httpStatus": response.status_code})
+        if response.status_code not in (200, 204):
+            raise ValueError(f"{stage} rejected: HTTP {response.status_code}; inspect partial result before retrying")
+
+    for policy in plan["policies"]:
+        policy_id = str(UUID(policy["id"]))
+        remove(f"/governance/ruleBasedPolicies/{policy_id}/environmentGroups/{group_id}/assignments?api-version={API_VERSION}", "detach-policy")
+        groups = inventory(pp_session, GROUPS_URL)
+        environments = inventory(bap_session, ENVIRONMENTS_URL)
+        _, owners = policy_inventory(pp_session, tenant_id, groups, environments)
+        if owners.get(policy_id):
+            raise ValueError("Policy still assigned after detach; policy and group deletion stopped")
+        remove(f"/governance/ruleBasedPolicies/{policy_id}?api-version={API_VERSION}", "delete-exclusive-policy")
+        response = pp_session.get(f"{host}/governance/ruleBasedPolicies/{policy_id}?api-version={API_VERSION}", timeout=120)
+        if response.status_code != 404:
+            raise ValueError("Policy deletion is not verified; group deletion stopped")
+    current = preflight(pp_session, bap_session, group_id, expected_name, tenant_id)
+    if current["policies"] or current["environmentMemberships"] != plan["environmentMemberships"] or current["otherGroupIds"] != plan["otherGroupIds"]:
+        raise ValueError("Assignments or membership changed; group deletion stopped")
+    remove(f"/environmentmanagement/environmentGroups/{group_id}?api-version=1", "delete-group")
+    remaining = inventory(pp_session, GROUPS_URL)
+    identifiers = {item["id"] for item in remaining}
+    if group_id in identifiers or not set(plan["otherGroupIds"]) <= identifiers:
+        raise ValueError("Group deletion or preservation of other groups not verified")
+    environments = inventory(bap_session, ENVIRONMENTS_URL)
+    memberships = sorted([{"id": item["name"], "groupId": (item["properties"].get("parentEnvironmentGroup") or {}).get("id")} for item in environments], key=lambda item: item["id"])
+    if memberships != plan["environmentMemberships"]:
+        raise ValueError("Environment membership changed; inspect before further operations")
+    return {"groupAbsent": True, "otherGroupsPreserved": True, "environmentMembershipsUnchanged": True, "environmentCount": len(environments)}
 
 
 def main():
@@ -97,10 +190,13 @@ def main():
     parser.add_argument("--group-id", default=os.getenv("ADMIN_DELETE_GROUP_ID"))
     parser.add_argument("--expected-name", default=os.getenv("ADMIN_DELETE_GROUP_NAME"))
     parser.add_argument("--report-file", required=True)
+    parser.add_argument("--expected-hash")
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     if not args.group_id or not args.expected_name or not args.tenant_id:
         parser.error("--tenant-id, --group-id and --expected-name are required")
+    if args.apply and not args.expected_hash:
+        parser.error("--apply requires --expected-hash from the approved dry-run")
     group_id = str(UUID(args.group_id))
     report_path = Path(args.report_file)
     if report_path.exists():
@@ -111,20 +207,19 @@ def main():
         pp_session = get_session(f"{PP_BASE}/.default")
         bap_session = get_session(f"{BAP_BASE}/.default")
         report["preflight"] = preflight(pp_session, bap_session, group_id, args.expected_name, args.tenant_id)
+        report["expectedHash"] = plan_hash(report["preflight"])
+        report["operations"] = []
         report["status"] = "dry-run"
         report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         if args.apply:
-            report["preflight"] = preflight(pp_session, bap_session, group_id, args.expected_name, args.tenant_id)
-            response = pp_session.delete(f"{PP_BASE}/environmentmanagement/environmentGroups/{group_id}?api-version=2024-10-01", timeout=120)
-            report["httpStatus"] = response.status_code
-            if response.status_code not in (200, 204):
-                report["response"] = response.text
-                raise ValueError(f"Deletion rejected: HTTP {response.status_code}; see report")
-            remaining = inventory(pp_session, GROUPS_URL)
-            if any(group.get("id", "").lower() == group_id.lower() for group in remaining):
-                raise ValueError("Delete accepted but group still listed; completion unverified")
+            def record(operation):
+                report["status"] = "applying"
+                report["operations"].append(operation)
+                report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            report["verification"] = delete_via_api(pp_session, bap_session, args.tenant_id, group_id, args.expected_name, report["preflight"], args.expected_hash, record)
             report["status"] = "deleted-verified"
-        print(json.dumps({"group": args.expected_name, "status": report["status"], "report": str(report_path)}, ensure_ascii=False))
+        print(json.dumps({"group": args.expected_name, "status": report["status"], "expectedHash": report["expectedHash"], "policyCount": len(report["preflight"]["policies"]), "report": str(report_path)}, ensure_ascii=False))
         return 0
     except Exception as error:
         report["status"] = "failed-or-unverified"

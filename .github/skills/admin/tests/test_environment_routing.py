@@ -45,6 +45,17 @@ class RoutingTests(unittest.TestCase):
     def test_modern_rule_reference(self):
         self.assertEqual(routing.group_references(self.policy, self.source), ["makers"])
 
+    def test_detach_group_preserves_rule_and_other_settings(self):
+        none_id = str(UUID(int=0))
+        self.assertEqual(routing.resolve_target_group([], none_id)["id"], none_id)
+        planned = routing.plan_retarget(self.policy, "makers", self.source, none_id)
+        expected = copy.deepcopy(self.policy)
+        expected["ruleSets"][1]["inputs"]["RoutingRules"][0]["EnvironmentGroup"] = none_id
+        self.assertEqual(planned, expected)
+        self.assertEqual(routing.group_references(planned, self.source), [])
+        with self.assertRaises(ValueError):
+            routing.resolve_target_group([], self.target)
+
     def test_stale_plan_does_not_write(self):
         session = Mock()
         planned = routing.plan_retarget(self.policy, "makers", self.source, self.target)
@@ -65,6 +76,15 @@ class RoutingTests(unittest.TestCase):
         with patch.object(routing, "read_routing_policy", return_value=self.policy):
             with self.assertRaises(ValueError):
                 routing.apply_retarget(Mock(), self.source, self.policy, planned, routing.fingerprint(self.policy))
+
+    def test_server_timestamp_is_not_configuration_drift(self):
+        planned = routing.plan_retarget(self.policy, "makers", self.source, str(UUID(int=0)))
+        actual = copy.deepcopy(planned)
+        actual["ruleSets"][1]["lastModifiedDate"] = "2026-01-01T00:00:00Z"
+        with patch.object(routing, "read_routing_policy", side_effect=[self.policy, actual]):
+            routing.apply_retarget(Mock(), self.source, self.policy, planned, routing.fingerprint(self.policy))
+        actual["ruleSets"][1]["inputs"]["Portals"] = []
+        self.assertNotEqual(routing.configuration_payload(actual), routing.configuration_payload(planned))
 
 
 if __name__ == "__main__":

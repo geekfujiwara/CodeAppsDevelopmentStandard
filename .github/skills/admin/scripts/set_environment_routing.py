@@ -93,6 +93,13 @@ def fingerprint(policy):
     return hashlib.sha256(json.dumps(payload(policy), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def configuration_payload(policy):
+    result = payload(policy)
+    for rule in result["ruleSets"]:
+        rule.pop("lastModifiedDate", None)
+    return result
+
+
 def plan_retarget(policy, rule_name, source_group_id, target_group_id):
     source_group_id = str(UUID(source_group_id))
     target_group_id = str(UUID(target_group_id))
@@ -110,6 +117,16 @@ def group_references(policy, group_id):
             if str(rule["EnvironmentGroup"]).lower() == group_id.lower()]
 
 
+def resolve_target_group(groups, target_id):
+    target_id = str(UUID(target_id))
+    if UUID(target_id).int == 0:
+        return {"id": target_id, "displayName": "None (standalone developer environment)"}
+    targets = [group for group in groups if group.get("id", "").lower() == target_id]
+    if len(targets) != 1:
+        raise ValueError("Target group is missing or ambiguous")
+    return targets[0]
+
+
 def apply_retarget(session, tenant_id, policy, planned, expected_hash):
     if not expected_hash or fingerprint(policy) != expected_hash:
         raise ValueError("Reviewed policy hash mismatch")
@@ -120,7 +137,7 @@ def apply_retarget(session, tenant_id, policy, planned, expected_hash):
     response = session.patch(url, json=planned, timeout=120)
     response.raise_for_status()
     actual = read_routing_policy(session, tenant_id)
-    if payload(actual) != planned:
+    if configuration_payload(actual) != configuration_payload(planned):
         raise ValueError("PATCH accepted but readback differs; inspect before retrying")
     return actual
 
@@ -154,11 +171,9 @@ def main():
         if all(changes):
             groups = read_collection(session, "https://api.powerplatform.com/environmentmanagement/environmentGroups?api-version=2024-10-01")
             target_id = str(UUID(args.target_group_id))
-            targets = [group for group in groups if group.get("id", "").lower() == target_id]
-            if len(targets) != 1:
-                raise ValueError("Target group is missing or ambiguous")
+            target = resolve_target_group(groups, target_id)
             planned = plan_retarget(policy, args.rule_name, args.source_group_id, target_id)
-            report.update({"planned": planned, "targetGroup": targets[0], "status": "dry-run"})
+            report.update({"planned": planned, "targetGroup": target, "status": "dry-run"})
             report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
             if args.apply:
                 report["after"] = apply_retarget(session, args.tenant_id, policy, planned, args.expected_hash)

@@ -13,9 +13,22 @@
 読み取りエラー・曖昧なポリシーも安全側で停止する。移行先の承認後に既存ルールだけを変更し、
 再チェックする。手順と API は [environment-routing.md](environment-routing.md)。
 
-参照がない別の空グループでも公開 DELETE が Conflict となり、管理センターの削除で成功した事例がある。
-UI の操作にはポリシー割り当て API の通信も含まれる。原因を一律にルーティングと断定せず、
-メソッドや影響を未確認のままポリシーを削除・解除しない。承認済みグループの UI 削除後は一覧で消失を確認する。
+参照がない空グループでも単純な公開 DELETE が Conflict となることがある。
+管理センターでは割り当て DELETE 204 → ポリシー DELETE 204 → テナントホストのグループ DELETE 200 を実測した。
+**恒久対策済み**: `delete_via_api()` がこの順序を実装し、`policy_inventory()` と
+`require_exclusive_policies()` で共有参照を検査する。正常系は API スクリプトで完結する。
+通信結果不明や部分完了時は `operations` を確認し、現状の API 再取得からやり直す。共有ポリシーは削除しない。
+API 仕様変更の調査で UI が必要な場合のみ VS Code 統合ブラウザを使う。
+Manage > Environment groups の行を選択し Delete group を押すと確認なしで即時実行される場合があるので、
+API 失敗の調査だけで削除ボタンを押さない。
+
+## None への解除後に読み戻しが不一致になる
+
+管理センターの None は `EnvironmentGroup` のゼロ GUID であり、ルール削除やルーティング機能の無効化ではない。
+PATCH 後、サーバーは ruleSet に `lastModifiedDate` を追加することがある。
+**恒久対策済み**: `resolve_target_group()` はゼロ GUID を特別扱いし、
+`configuration_payload()` はこの更新日時だけを設定照合から除外する。ポータルや優先順位の差は拒否する。
+不一致のエラー後は再送せず実設定を確認する。`Dev` 等の固有名ではなく元グループ ID とルール名を検査する。
 
 ## ACP の第一者判定と初期ルール作成
 
