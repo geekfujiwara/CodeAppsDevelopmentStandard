@@ -80,6 +80,7 @@ python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --
 | Power Automate | .github/skills/power-automate/SKILL.md |
 | Copilot Studio (v1/旧) | .github/skills/copilot-studio/SKILL.md |
 | Copilot Studio v2 (新アーキ/自動構築) | .github/skills/copilot-studio-v2/SKILL.md |
+| Agent flows / 新 UI Workflow API | .github/skills/agent-flows/SKILL.md |
 | AI Builder | .github/skills/ai-builder/SKILL.md |
 | Generative Page | .github/skills/generative-page/SKILL.md |
 | Power Pages | .github/skills/power-pages/SKILL.md |
