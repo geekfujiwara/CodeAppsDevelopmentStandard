@@ -1,3 +1,17 @@
+# Agent Node Audience And Response Boundaries
+
+- Direct API Hub requests with the metadata audience can fail token exchange before reaching the connector.
+	Use the observed API Hub audience only for a validated environment-bound runtime URL. Permanent guards:
+	`inspect_agent_node.validate_runtime_url()` and separate `METADATA_SCOPE` / `RUNTIME_SCOPE` sessions.
+- Connector metadata requires the observed `$filter=environment eq '<environment-id>'`; a plain `environment` parameter returned HTTP 400.
+	`inspect_agent_node.inspect_agent()` supplies the filter on every metadata request.
+- ListAgents response declarations disagree between `agents` and `entities`. `resolve_agent()` requires a complete, unambiguous
+	ID/name match and rejects unknown formats. Add a fixture from sanitized successful evidence before accepting another shape.
+- A 442 after correcting the audience is still a policy block, not an invocation success. The diagnostic returns a sanitized
+	`runtime-policy-blocked` report and performs no policy changes or automatic retry.
+- HTTP 201, `result` text or attached file count alone do not prove the requested skill ran. Keep invocation, artifact retrieval,
+	domain validation and user approval as separate checks. See [existing-agent evidence](existing-agent-node.md).
+
 # Troubleshooting
 
 ## Classic Experience Instead Of New Workflow
