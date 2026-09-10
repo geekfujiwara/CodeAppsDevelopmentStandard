@@ -28,6 +28,7 @@ jobs:
           python-version: '3.12'
       - run: python .github/skills/update-skills/scripts/validate_skill.py .github/skills/code-apps
       - run: python .github/skills/update-skills/scripts/validate_skill.py .github/skills/mcp-server
+      - run: node .github/skills/code-apps/samples/plant-design-maintenance/scripts/check-sample.mjs --tracked
       - run: python -m pip install requests -r .github/skills/code-apps/samples/plant-design-maintenance/plant-design-skill/requirements.txt
       - run: python -m unittest discover -s .github/skills/mcp-server/scripts -p test_cleanup_admin_endpoints.py
       - run: npm ci --ignore-scripts

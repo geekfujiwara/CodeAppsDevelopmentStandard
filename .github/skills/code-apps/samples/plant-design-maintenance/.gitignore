@@ -3,6 +3,7 @@ dist/
 .env
 .env.*
 !.env.example
+!package-lock.json
 .power/
 .secrets/
 power.config.json

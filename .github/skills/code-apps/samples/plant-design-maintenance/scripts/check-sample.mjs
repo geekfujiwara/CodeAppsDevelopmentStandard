@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { execFileSync } from "node:child_process"
 import { readdir, readFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
@@ -21,6 +22,13 @@ async function check(directory) {
   }
 }
 await check(root)
+const lock = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8"))
+assert.ok(lock.lockfileVersion >= 1, "A committed npm lockfile is required")
+if (process.argv.includes("--tracked")) {
+  for (const filename of ["package-lock.json", ".env.example", "plant-design-skill/design_plant.py"]) {
+    execFileSync("git", ["ls-files", "--error-unmatch", "--", filename], { cwd: root, stdio: "pipe" })
+  }
+}
 const config = await readFile(path.join(root, "src/lib/plant-agent-config.ts"), "utf8")
 assert.ok(!/RETRIEVAL_READY\s*=\s*true/.test(config), "Retrieval must default off")
 console.log("Sample publication checks passed")

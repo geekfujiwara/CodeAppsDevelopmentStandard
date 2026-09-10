@@ -93,6 +93,8 @@ npm run dev
 `npm test` は形状・端点・敷地・出典・モデル改訂・対象・非同期相関・遅延応答・共有保存競合を検証します。
 `npm run generate` は CSP 対応の事前コンパイル検証器、JSON、GLB を再生成します。
 `npm run check:sample` は実 ID・固定 publisher・組織 URL・環境ファイルの混入を拒否します。
+CI の `check-sample.mjs --tracked` は lockfile・設定例・Python生成器の Git 追跡も検査します。
+親リポジトリの `package-lock.json` 除外により初回CIで `npm ci` が失敗したため、サンプルの `.gitignore` で例外化し、存在確認だけでなく追跡確認も必須にしました。
 これはソース配布ゲートです。自分の `.env` を置いた本番作業フォルダーでは code-apps の環境対応プレデプロイを使ってください。
 
 概念設計用です。法規・耐震・防爆・流体解析・3D干渉・設備の運転可否は評価しません。
