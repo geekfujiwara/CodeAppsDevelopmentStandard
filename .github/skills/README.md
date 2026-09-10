@@ -162,17 +162,6 @@ triggers:                      # スキル発動条件キーワード（必須�
 | [ai-builder](ai-builder/SKILL.md) | AI Builder の AI プロンプトを作成し、エージェントのツールとして組み込む。 |
 | [spec-builder](spec-builder/SKILL.md) | PDF・PowerPoint・Excel・画像等の一次情報から、Power Platform 開発向けの要件定義書（仕様書）一式を作成する。 |
 
-### samples — サンプルソリューション管理
-
-| スキル | 説明 |
-|--------|------|
-| [package-sample](package-sample/SKILL.md) | Code Apps サンプルをパブリックリポジトリ向けに仕上げる。セキュリティチェック・.env.example 生成・README 生成・コード再利用性チェックを一括実施する。 |
-
-> サンプルのパッケージング詳細（セキュリティチェック・.env.example 生成・README 生成・再利用性チェック）は
-> [update-skills/references/sample-packaging.md](update-skills/references/sample-packaging.md) にも統合されています。
-
----
-
 ## 推奨開発フロー
 
 Phase 1（設計）承認後は、Dataverse 構築と同時に Code Apps・Copilot Studio の開発も並行して着手する。

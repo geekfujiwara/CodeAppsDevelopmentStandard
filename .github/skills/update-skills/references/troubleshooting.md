@@ -142,3 +142,35 @@ Windows の日本語環境では `subprocess.run(text=True)` が既定で `local
 
 - サンプルにも同名ファイルがある場合、全部を追従させるか、**追従させない方針を明記**する。
   どちらでもない状態が一番危い。
+
+## 17. サンプル公開前スキャンの判断ポイント
+
+### OData バインド文字列は動的化しない
+
+テーブル名は原則 `${PUBLISHER_PREFIX}_xxx` で動的化するが、`@odata.bind` / `@odata.type` /
+`@odata.id` を含むフィールド名は Dataverse API のペイロード形式と型定義に連動するため、そのまま残す。
+プレフィックス変更時は手動置換する。`scan_sample.py` はこれらの行をテーブル名直書き検出から除外する。
+
+### システムテーブルとカスタムテーブルを区別する
+
+`bots` / `conversationtranscripts` / `systemusers` はシステムテーブルなのでプレフィックス不要。
+`{prefix}_customers` / `{prefix}_conversationsummaries` はカスタムテーブルなので動的化対象。
+Copilot Analytics 用テーブルもカスタムテーブルであり、プレフィックスを外すと参照に失敗する。
+
+### `VITE_` に秘匿情報を置かない
+
+`VITE_` 変数はビルド成果物に平文で含まれる。表示名・プレフィックス・feature flag 以外の
+トークン、パスワード、クライアントシークレットは置かない。`scan_sample.py` は
+`VITE_*SECRET/TOKEN/PASSWORD/KEY` 様の変数名を error として検出する。
+
+### ルートの除外設定を使う
+
+ルート `.gitignore` に `.env` / `power.config.json` / `.power/` / `src/generated/` を含める。
+サンプル個別の `.gitignore` は不要。スキャナーは対象から上位へ辿り、最初に見つけた
+`.gitignore` の不足を warning として報告する。
+
+### プレースホルダーを統一する
+
+`{your-tenant-id}` / `{your-environment-id}` / `https://{org}.crm.dynamics.com/` /
+`{your-bot-id}` / `{your-flow-workflow-id}` / `{your-connection-id}` / `admin@example.com` /
+`{YourProfileName}` のように、変更が必要だと分かる形式を使う。

@@ -1,6 +1,6 @@
 # サンプルソリューション パッケージングガイド
 
-> このドキュメントは `update-skills` スキルの Step 1.5 で参照する。
+> このドキュメントは `update-skills` スキルの Step 1「サンプル追加時」で参照する。
 > サンプル（`code-apps/samples/` 配下）を PR に含める場合に実施する。
 
 Code Apps サンプルを**世界中の開発者が再利用・カスタマイズできる形**に仕上げる。
@@ -57,20 +57,17 @@ Code Apps サンプルを**世界中の開発者が再利用・カスタマイ�
 
 ### 1-3. スキャン手順
 
-```bash
-# 実 GUID のパターンを検出（36文字形式）
-grep -rn "[0-9a-f]\{8\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{12\}" \
-  --include="*.ts" --include="*.tsx" --include="*.py" --include="*.env*" \
-  --exclude-dir=".power" --exclude-dir="node_modules" .
+スキャンは `scripts/scan_sample.py` で機械的に実行する（手作業の grep は残さない）。
+実 GUID・実 Dataverse URL・実メール・クライアントシークレット・テーブル名直書き・
+`VITE_` への秘匿混入・`.gitignore` 必須エントリを一括で検出する。
 
-# 実 Dataverse URL を検出
-grep -rn "\.crm[0-9]*\.dynamics\.com" \
-  --include="*.ts" --include="*.tsx" --include="*.py" --include="*.env*" .
-
-# テーブル名のハードコードを検出（サンプル名以外のプレフィックスが使われていないか）
-# ※ PUBLISHER_PREFIX を使わない直書きを検出
-grep -rn '"[a-z]\+_[a-z]\+s"' --include="*.ts" --include="*.tsx" src/services/
+```powershell
+python .github/skills/update-skills/scripts/scan_sample.py .github/skills/code-apps/samples/<sample-name>
 ```
+
+error が出た箇所をすべてプレースホルダーに置換し、再実行して error 0 になるまで修正する。
+動的化してはいけない例外やシステム/カスタムテーブルの区別は
+[troubleshooting.md](troubleshooting.md#17-サンプル公開前スキャンの判断ポイント) を参照。
 
 ---
 
