@@ -45,6 +45,7 @@ Copilot Studio のエージェントから **社内の業務データ（DB・フ
 | [Private 環境でのデータ投入](references/private-data-seeding.md) | Private Endpoint 下でシードするための管理エンドポイントパターン |
 | [ファイルを読ませるツールの設計](references/file-backed-tools.md) | サイドカーテキストレイヤー・パストラバーサル対策・出力上限・プロンプトインジェクション防御 |
 | [SQL バックエンドのツール設計](references/sql-tools-pattern.md) | パラメータ化クエリ・集計軸のホワイトリスト・トークン寿命と接続プール・読み取り専用権限 |
+| [File / DB の認可とページ画像](references/indexed-file-db-access.md) | 本人認可、索引 ID、改訂・ページ照合、PDF オンデマンド描画、キャッシュと実測ゲート |
 | [Copilot Studio への登録](references/copilot-studio-registration.md) | オンボーディングウィザード、コピペ用 MD 生成、OAuth 接続。OpenAPI 方式もここ |
 | [Copilot Studio の DLP 診断](references/copilot-studio-dlp.md) | MCP ツールが DLP でブロックされた場合の読み取り診断と最小変更 |
 | [admin スキル](../admin/SKILL.md) | 実装着手前の環境チェックと DLP 事前チェック、カスタムコネクタの DLP 分類変更 |
@@ -64,6 +65,7 @@ MCP は「エージェントがツール名と入力スキーマだけを見て�
 3. ツールは **「一覧」「検索」「取得」の 3 系統** を基本形にする。エージェントは一覧で語彙を得てから検索するため、
    `list_*` が無いと的外れな検索語で空振りする。
 4. 各ツールの `name` / `description` / `inputSchema` を確定する。→ [protocol.md](references/protocol.md)
+5. 一覧・検索・取得のすべてで、認証済み利用者が参照できる範囲を決める。MI のデータアクセス権を本人権限と扱わない。設計確定後に admin の環境・DLP/ACP チェックを実行し、NG があれば停止する。索引取得は [認可契約](references/indexed-file-db-access.md) に従う。
 
 ```
 例: 部品DB MCP   -> list_categories / search_parts / get_part_inquiries / search_inquiries
@@ -193,11 +195,12 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 1. 投入用の管理エンドポイントを削除して再デプロイする（攻撃面を残さない）。
 
    ```powershell
-   python .github/skills/mcp-server/scripts/cleanup_admin_endpoints.py --project <path> --app <function-app-name>
+  python .github/skills/mcp-server/scripts/cleanup_admin_endpoints.py --project <path> --app <function-app-name> --route seed-upload --route seed-sql
    ```
 
    このスクリプトは関数ファイルの削除に加えて **`src/index.ts` から該当 `import` を除去**し、
    `dist/` をクリーンしてから再デプロイする。どちらか一方でも漏れると、残すべき `mcp` を含む全ルートが落ちる。
+  `--route` は実際の削除対象すべてを列挙する必須引数。上記2ルートは例であり、関数登録の `route` と照合する。独自名の管理関数は自動検出されないため、削除計画に明示してから実行する。
 
 2. アプリ設定から `ADMIN_SEED_SECRET` を削除する。
 3. 残すルートが 401、削除したルートが 404 であることを HTTP で実測する。

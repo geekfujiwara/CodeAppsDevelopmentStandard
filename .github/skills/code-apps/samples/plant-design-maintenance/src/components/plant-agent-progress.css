@@ -1,0 +1,30 @@
+.plant-agent-progress { flex-shrink: 0; border-top: 1px solid var(--border); padding: 10px 12px; background: var(--background); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.plant-progress-heading { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.plant-progress-heading > svg { flex-shrink: 0; color: var(--primary); }
+.plant-progress-heading strong { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; }
+.plant-progress-heading button { flex-shrink: 0; }
+.plant-progress-time { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.plant-agent-progress p { margin-top: 5px; color: var(--muted-foreground); }
+.plant-agent-progress details { margin-top: 6px; max-height: 150px; overflow-y: auto; }
+.plant-agent-progress summary { cursor: pointer; }
+.plant-agent-progress summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.plant-wait-plan { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+.plant-wait-plan-caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; font-size: 10px; }
+.plant-wait-plan-caption > span { color: var(--muted-foreground); }
+.plant-wait-plan-track { display: flex; gap: 4px; margin: 8px 0; }
+.plant-wait-plan-track > span { flex: 1; height: 3px; background: var(--border); }
+.plant-wait-plan-track > span[data-highlighted="true"] { background: var(--primary); animation: plant-wait-pulse 1.8s ease-in-out infinite; }
+.plant-wait-plan-step { display: flex; align-items: center; gap: 10px; min-height: 52px; }
+.plant-wait-plan-step > svg { flex-shrink: 0; color: var(--primary); animation: plant-wait-spin 2.4s linear infinite; }
+.plant-wait-plan-content { min-width: 0; animation: plant-wait-reveal 220ms ease-out; }
+.plant-wait-plan-content > strong { display: block; font-size: 12px; }
+.plant-wait-plan-content > span { display: block; color: var(--muted-foreground); font-size: 10px; overflow-wrap: anywhere; }
+.plant-wait-plan ol { list-style: decimal; padding-left: 20px; }
+.plant-wait-plan li { padding: 3px 0; }
+.plant-wait-plan small { display: block; color: var(--muted-foreground); overflow-wrap: anywhere; }
+@keyframes plant-wait-spin { to { transform: rotate(360deg); } }
+@keyframes plant-wait-pulse { 50% { opacity: .4; } }
+@keyframes plant-wait-reveal { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+	.plant-wait-plan-step > svg, .plant-wait-plan-track > span[data-highlighted="true"], .plant-wait-plan-content { animation: none; }
+}

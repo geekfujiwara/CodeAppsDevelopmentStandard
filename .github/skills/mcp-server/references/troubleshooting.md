@@ -7,6 +7,19 @@
 
 ## デプロイ
 
+### 管理ルートの削除確認を実行せず成功終了する
+
+`cleanup_admin_endpoints.py` の旧実装は `--route` 省略時に HTTP 確認を0件で終え、`seedSql.ts` を検出しなかった。
+恒久対策済み: `main` で `--route` を必須にし、`find_admin_sources` に SQL シードを追加。
+`test_cleanup_admin_endpoints.py` で変更前の停止と検出を検証する。ルート名はファイル名から推測せず、登録定義の全削除対象を列挙する。
+`strip_entrypoint_imports` は import のモジュール名を完全一致させ、`seedSqlReport` のような別モジュールとコメントを保持する回帰テストも同梱する。
+
+### PDF が PNG として返るのに文字が空白になる
+
+PDF.js と canvas の版不整合、および日本語代替フォント未登録を切り分ける。
+対策と導入先で必須の非白紙・異ページ内容チェックは [PDFページ描画](indexed-file-db-access.md#pdf-ページ描画) を参照。
+PNG シグネチャ成功や単一ページのハッシュ一致だけを表示成功としない。
+
 ### `func publish` が「Worker runtime cannot be 'None'」「Can't determine project language」で失敗する
 
 **原因**: プロジェクト直下に `local.settings.json` が無い。`func` はこのファイルからワーカーランタイムを判定する。

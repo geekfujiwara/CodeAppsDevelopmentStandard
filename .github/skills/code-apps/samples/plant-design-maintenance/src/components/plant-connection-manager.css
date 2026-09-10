@@ -1,0 +1,14 @@
+.plant-auth-card { border: 1px solid var(--border); border-left: 3px solid var(--primary); background: var(--card); border-radius: 8px; padding: 12px; flex-shrink: 0; overflow-wrap: anywhere; }
+.plant-auth-card h4 { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 1.6; font-weight: 600; }
+.plant-auth-card h4 svg { flex-shrink: 0; }
+.plant-auth-card p, .plant-connection-note { font-size: 12px; line-height: 1.7; color: var(--muted-foreground); margin-top: 8px; overflow-wrap: anywhere; }
+.plant-connection-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.plant-connection-actions button { white-space: normal; height: auto; min-height: 34px; }
+.plant-connection-manager { max-height: calc(100dvh - 32px); overflow-y: auto; }
+.plant-connection-manager [data-slot="dialog-title"] { padding-right: 24px; }
+.plant-connection-list { margin: 0; padding: 0; list-style: none; min-width: 0; }
+.plant-connection-list li { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--border); }
+.plant-connection-list li > div { min-width: 0; overflow-wrap: anywhere; }
+.plant-connection-list strong { font-size: 14px; }
+.plant-connection-list p, .plant-connection-list small, .plant-connection-state { font-size: 12px; color: var(--muted-foreground); }
+.plant-connection-manager a { white-space: normal; min-height: 36px; height: auto; }

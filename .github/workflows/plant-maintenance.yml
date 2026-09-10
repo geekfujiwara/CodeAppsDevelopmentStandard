@@ -1,0 +1,38 @@
+name: Plant maintenance sample and MCP
+
+on:
+  pull_request:
+    paths:
+      - '.github/skills/code-apps/samples/plant-design-maintenance/**'
+      - '.github/skills/mcp-server/**'
+      - '.github/workflows/plant-maintenance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python .github/skills/update-skills/scripts/validate_skill.py .github/skills/code-apps
+      - run: python .github/skills/update-skills/scripts/validate_skill.py .github/skills/mcp-server
+      - run: python -m pip install requests -r .github/skills/code-apps/samples/plant-design-maintenance/plant-design-skill/requirements.txt
+      - run: python -m unittest discover -s .github/skills/mcp-server/scripts -p test_cleanup_admin_endpoints.py
+      - run: npm ci --ignore-scripts
+        working-directory: .github/skills/code-apps/samples/plant-design-maintenance
+      - run: npm run generate
+        working-directory: .github/skills/code-apps/samples/plant-design-maintenance
+      - run: npm run predeploy
+        working-directory: .github/skills/code-apps/samples/plant-design-maintenance

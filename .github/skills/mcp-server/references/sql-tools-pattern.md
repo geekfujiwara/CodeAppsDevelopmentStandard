@@ -33,8 +33,9 @@ const GROUP_BY_SPEC: Record<string, { key: string; label: string }> = {
   product:     { key: "p.ProductCode", label: "MAX(p.ProductName)" },
 };
 
-const spec = GROUP_BY_SPEC[String(args.groupBy ?? "")];
-if (!spec) throw new Error(`groupBy は ${Object.keys(GROUP_BY_SPEC).join(" / ")} のいずれかです`);
+const groupBy = String(args.groupBy ?? "");
+if (!Object.hasOwn(GROUP_BY_SPEC, groupBy)) throw new Error(`groupBy は ${Object.keys(GROUP_BY_SPEC).join(" / ")} のいずれかです`);
+const spec = GROUP_BY_SPEC[groupBy];
 ```
 
 `inputSchema` の `enum` にも同じキーを並べる。スキーマだけでは防御にならないので**実行時にも必ず照合する**。
@@ -98,7 +99,11 @@ CREATE USER [<function-app-name>] FROM EXTERNAL PROVIDER;
 ALTER ROLE db_datareader ADD MEMBER [<function-app-name>];
 ```
 
+上記 `db_datareader` は全ユーザーテーブルを参照できる広いロールで、分離済みサンプル DB 向けの例。
+実 DB では承認されたビュー／ストアドプロシージャへの SELECT / EXECUTE に限定する。
 `db_datawriter` / `db_ddladmin` は**シード時のみ一時的に**付与し、投入後に外す。
+MI 接続は利用者本人の DB 権限を継承しない。認証済み主体から導く許可プラント・設備を固定クエリに渡し、
+一覧・検索・集計・取得のすべてへ適用する。モデルが渡した利用者 ID を認可に使わない。
 
 ## 6. Private Endpoint 下でのシード
 
@@ -124,8 +129,9 @@ ALTER ROLE db_datareader ADD MEMBER [<function-app-name>];
 ## 8. キーを業務データ側と揃える
 
 MCP を跨いで突き合わせるなら、**結合キーの体系を先に合わせる**。
-例: 故障 DB の `PartCode` を Dataverse の図面タグと同一体系にしておくと、
-図面から特定したタグをそのまま検索引数に渡せる。合っていないと、エージェントに変換を推測させることになり誤答源になる。
+部品コード単独や表示名だけで結合しない。同じタグが別プラント・モデル改訂に存在するため、
+プラント ID・モデル改訂・設備 ID・部位 ID と部品コードを承認済み対応表で解決する。
+対応がない場合や複数候補がある場合は停止し、エージェントに変換を推測させない。
 
 ## 9. 検証チェックリスト
 
