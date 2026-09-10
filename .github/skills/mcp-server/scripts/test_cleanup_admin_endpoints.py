@@ -1,3 +1,5 @@
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -9,6 +11,16 @@ import cleanup_admin_endpoints as cleanup
 
 
 class CleanupTests(unittest.TestCase):
+    def test_output_supports_japanese_on_english_windows(self):
+        result = subprocess.run(
+            [sys.executable, "-c", "import cleanup_admin_endpoints; print('\\u691c\\u8a3c')"],
+            cwd=Path(__file__).resolve().parent,
+            env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+            capture_output=True,
+            check=True,
+        )
+        self.assertEqual(result.stdout.decode("utf-8").strip(), "\u691c\u8a3c")
+
     def test_import_cleanup_preserves_similarly_named_modules_and_comments(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

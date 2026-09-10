@@ -13,6 +13,7 @@
 恒久対策済み: `main` で `--route` を必須にし、`find_admin_sources` に SQL シードを追加。
 `test_cleanup_admin_endpoints.py` で変更前の停止と検出を検証する。ルート名はファイル名から推測せず、登録定義の全削除対象を列挙する。
 `strip_entrypoint_imports` は import のモジュール名を完全一致させ、`seedSqlReport` のような別モジュールとコメントを保持する回帰テストも同梱する。
+英語 Windows の cp1252 標準出力では日本語ログが例外になるため、スクリプト起動時に出力を UTF-8 へ固定する。cp1252 を指定した子プロセスの回帰テストで確認する。
 
 ### PDF が PNG として返るのに文字が空白になる
 

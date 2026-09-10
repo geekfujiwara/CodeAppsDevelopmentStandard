@@ -15,6 +15,10 @@ from pathlib import Path
 
 import requests
 
+for stream in (sys.stdout, sys.stderr):
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8")
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from deploy_mcp_function import build, ensure_func_cli, ensure_local_settings, publish  # noqa: E402
