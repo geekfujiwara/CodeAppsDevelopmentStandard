@@ -1,0 +1,26 @@
+.plant-fullscreen-dialog[data-slot="dialog-content"] {
+  width: calc(100vw - 16px);
+  max-width: none;
+  height: calc(100dvh - 16px);
+  max-height: none;
+  padding: 0;
+  gap: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: none;
+}
+.plant-fullscreen-dialog .plant-viewport {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+}
+.plant-fullscreen-dialog .plant-view-toolbar,
+.plant-fullscreen-dialog .plant-viewport-footer { flex-shrink: 0; }
+.plant-viewport-placeholder { visibility: hidden; }
+@media (max-width: 700px) {
+  .plant-fullscreen-dialog[data-slot="dialog-content"] { width: 100vw; height: 100dvh; border: 0; border-radius: 0; }
+}

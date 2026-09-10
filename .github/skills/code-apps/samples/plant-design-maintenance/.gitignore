@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+!package-lock.json
+.power/
+.secrets/
+power.config.json
+local.settings.json
+src/generated/
+__pycache__/
+*.pyc

@@ -101,6 +101,11 @@ UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の�
 > Python 候補生成、Dataverse 改訂・提案レビューを再利用できる。既存アプリへのアドオンであり scaffold 元ではない。
 > 型・形状・共有保存の単独テストを先に通し、導入後のブラウザー/Teams/一般利用者権限は別ゲートで実測する。
 
+> **設計と保守を統合する場合**: [Plant Design & Maintenance サンプル](samples/plant-design-maintenance/README.md) を参照。
+> 既存画面・合成3Dモデル・部位別の故障／修理・ヒートマップ・AI候補の変更前後比較を同梱。
+> `npm ci` → Python依存導入 → `npm run generate` → `npm run predeploy` で単体検証できる。
+> AI候補は確定まで下書きに適用せず、共有保存と分離する。外部接続は既定無効で、Dataverse／AI／MCP は導入先で生成したサービスへ交換する。
+
 > [!NOTE]
 > 本スキルは React + Vite の **Web Code Apps** 用。Expo／React Native、camera／barcode／location 等の
 > 端末ネイティブ機能、Power Apps Developer app、Wrap が要件なら

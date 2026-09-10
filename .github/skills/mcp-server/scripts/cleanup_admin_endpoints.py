@@ -3,22 +3,27 @@
 投入が終わったら必ず実行する。攻撃面を残さないための後始末。
 
 使い方:
-    python .github/skills/mcp-server/scripts/cleanup_admin_endpoints.py --project mcp-servers/example-mcp --app func-example-mcp
+    python .github/skills/mcp-server/scripts/cleanup_admin_endpoints.py --project mcp-servers/example-mcp --app func-example-mcp --route seed-upload
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
 import requests
 
+for stream in (sys.stdout, sys.stderr):
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8")
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from deploy_mcp_function import build, ensure_func_cli, ensure_local_settings, publish  # noqa: E402
 
-ADMIN_FILE_HINTS = ("adminseed", "adminsetup", "admindbsetup", "seedupload")
+ADMIN_FILE_HINTS = ("adminseed", "adminsetup", "admindbsetup", "seedupload", "seedsql")
 
 
 def find_admin_sources(project: Path) -> list[Path]:
@@ -34,7 +39,13 @@ def strip_entrypoint_imports(project: Path, removed: list[Path]) -> None:
     if not entry.exists():
         return
     stems = {p.stem for p in removed}
-    kept = [line for line in entry.read_text(encoding="utf-8").splitlines() if not any(f"functions/{s}" in line for s in stems)]
+    import_pattern = re.compile(r"^\s*import\s+(?:[^;]*?\s+from\s+)?['\"]\./functions/([^'\"]+)['\"]\s*;?\s*$")
+    removed_modules = {name + suffix for name in stems for suffix in ("", ".js", ".ts")}
+    kept = []
+    for line in entry.read_text(encoding="utf-8").splitlines():
+        match = import_pattern.fullmatch(line)
+        if not match or match.group(1) not in removed_modules:
+            kept.append(line)
     entry.write_text("\n".join(kept) + "\n", encoding="utf-8")
     print(f"[entry] {entry.relative_to(project)} から削除済みモジュールの import を除去しました")
 
@@ -43,7 +54,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", required=True)
     parser.add_argument("--app", required=True)
-    parser.add_argument("--route", action="append", default=None, help="削除されたことを確認するルート")
+    parser.add_argument("--route", action="append", required=True, help="削除されたことを確認する全ルート（各ルートにつき繰り返す）")
     args = parser.parse_args()
 
     project = Path(args.project).resolve()
