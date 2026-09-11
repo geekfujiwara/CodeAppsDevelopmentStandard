@@ -13,7 +13,12 @@
 | Dataverse のセキュリティ ロール割り当て | Power Platform 管理センター / Dataverse | Dataverse の **System Administrator** | [ユーザーへのロール割り当て](https://learn.microsoft.com/power-platform/admin/assign-security-roles) |
 | Dataverse の監査の有効化 | Dataverse（組織設定・テーブル設定） | Dataverse の **System Administrator** | [Dataverse の監査](https://learn.microsoft.com/power-platform/admin/manage-dataverse-auditing) |
 | テナント分離 / IP ファイアウォールなどのテナント設定 | Power Platform 管理センター | **Power Platform Administrator** | [テナント分離](https://learn.microsoft.com/power-platform/admin/cross-tenant-restrictions) |
-| ライセンス割り当て・容量の配分 | Microsoft 365 管理センター | **Global Administrator** または **License Administrator** | [ライセンスの割り当て](https://learn.microsoft.com/microsoft-365/admin/manage/assign-licenses-to-users) |
+| ライセンス棚卸 | Microsoft Graph / Microsoft 365 管理センター | **Directory Readers** または **Global Reader** + `LicenseAssignment.Read.All` | [subscribedSkus の一覧](https://learn.microsoft.com/graph/api/subscribedsku-list) |
+| ライセンス割り当て・解除 | Microsoft Graph / Microsoft 365 管理センター | **License Administrator** + `LicenseAssignment.ReadWrite.All` | [assignLicense](https://learn.microsoft.com/graph/api/user-assignlicense) |
+| クラウドユーザー作成 | Microsoft Graph / Microsoft 365 管理センター | **User Administrator** + `User.Create` | [ユーザー作成](https://learn.microsoft.com/graph/api/user-post-users) |
+| ユーザー有効化・無効化 | Microsoft Graph / Microsoft 365 管理センター | **User Administrator** + `User.EnableDisableAccount.All` + `User.Read.All` | [ユーザー更新](https://learn.microsoft.com/graph/api/user-update) |
+| 非アクティブ候補の棚卸 | Microsoft Graph | レポートを読める管理ロール + `AuditLog.Read.All`、Entra ID P1/P2 | [signInActivity](https://learn.microsoft.com/graph/api/resources/signinactivity) |
+| Copilot エージェントの公開・配布 | Microsoft 365 管理センター | **AI Administrator** | [エージェント管理](https://learn.microsoft.com/microsoft-365/admin/manage/manage-agents-integrated-apps) |
 
 ## 重要な制約
 

@@ -36,6 +36,12 @@ triggers:
   - "テナント分離"
   - "監査ログ"
   - "ライセンス"
+  - "ライセンス棚卸"
+  - "ユーザー追加"
+  - "非アクティブユーザー"
+  - "Microsoft 365 管理センター"
+  - "Frontier"
+  - "Copilot メニュー"
   - "セキュリティ ロール確認"
   - "管理者権限"
   - "admin"
@@ -93,10 +99,13 @@ triggers:
 | [scripts/create_environments.py](scripts/create_environments.py) | ブループリントに対して不足している環境を作成し、環境グループへ割り当て | `--apply` 時のみ |
 | [scripts/setup_pipeline.py](scripts/setup_pipeline.py) | Power Platform パイプライン（開発 → テスト → 本番）の構成 | `--apply` 時のみ |
 | [scripts/set_content_security_policy.py](scripts/set_content_security_policy.py) | 環境の CSP（Code Apps / モデル駆動 / キャンバス）の確認と設定 | `--apply` 時のみ |
+| [scripts/manage_m365_users.py](scripts/manage_m365_users.py) | Graph v1.0 で M365 ライセンス棚卸・付与/解除・ユーザー作成・有効/無効化 | 変更は承認ハッシュ + `--apply` 時のみ |
+| [scripts/manage_m365_portal_api.py](scripts/manage_m365_portal_api.py) | Frontier と Agent availability の管理センター private API plan を検証 | `READY_FOR_BROWSER_API` 後に統合ブラウザ session API で変更 |
 | [scripts/dlp_helper.py](scripts/dlp_helper.py) | DLP 管理 API の共通ロジック（他スクリプトから import） | なし |
 | [references/acp-profiles.json](references/acp-profiles.json) | ACP 推奨許可セットの定義（パターン / ブロック / 要確認） | なし |
 | [references/rule-catalog.md](references/rule-catalog.md) | 環境グループのルール ID と非公開 API の一覧 | なし |
 | [references/environment-strategy.json](references/environment-strategy.json) | 環境戦略のブループリント（グループ / 環境 / 共有上限 / テナント設定） | なし |
+| [references/m365-tenant-api.md](references/m365-tenant-api.md) | M365 ユーザー/ライセンス/エージェント/Frontier/Copilot の公開 API とポータル API 調査基準 | なし |
 
 ## ワークフロー（正常系）
 
@@ -569,6 +578,30 @@ python set_environment_group_rules.py --tenant-id <TENANT_ID> --environment-grou
   --welcome-markdown-file welcome.md --welcome-url <GUIDELINE_URL> --apply
 ```
 
+### Step 11: Microsoft 365 ユーザーとライセンスを管理する（オプション）
+
+Microsoft 365 管理センターのユーザー/ライセンス操作は、公開済みの Microsoft Graph v1.0 を正常系にする。
+詳細な API、権限、非アクティブ判定、ポータル通信の調査基準は
+[m365-tenant-api.md](references/m365-tenant-api.md)を参照する。
+
+```powershell
+# 棚卸（読み取り専用）
+python .github/skills/admin/scripts/manage_m365_users.py inventory `
+  --inactive-days 90 --report-file m365-inventory.json
+
+# 変更は dry-run -> PLAN_HASH の承認 -> 同じ hash で --apply
+python .github/skills/admin/scripts/manage_m365_users.py license `
+  --user user@example.com --add-sku <SKU_PART_NUMBER>
+```
+
+非アクティブ候補は自動無効化しない。`lastSuccessfulSignInDateTime`、M365 利用状況、アカウント種別、
+所有者確認を合わせて判断する。ユーザー作成時の一時パスワードは環境変数だけで渡し、ログへ出さない。
+
+Agent Registry、MCP コネクター、Frontier、Copilot 機能トグルに公開 API がない場合は、
+VS Code 統合ブラウザで通信を調査する。Bearer token、Cookie、CSRF token、secret、個人/テナントの
+実値は保存しない。捕捉した API は公開 API と混同せず `observed/unsupported`、確認日、portal build を
+記録し、Cookie/CSRF 依存なら CLI で再送せずブラウザ自動化を fallback にする。
+
 ## 他スキルからの呼び出し
 
 | 呼び出し元 | タイミング | 実行するもの |
@@ -580,6 +613,7 @@ python set_environment_group_rules.py --tenant-id <TENANT_ID> --environment-grou
 | `mcp-server` | カスタムコネクタ登録前後 | Step 2 → Step 5 → Step 6 |
 | ユーザー依頼 | DLP / ACP の推奨設定・移行 | Step 7（推奨プロファイル）/ Step 8（DLP → ACP 移行） |
 | ユーザー依頼 | 環境戦略の策定・環境の見直し | Step 10 |
+| ユーザー依頼 | M365 ユーザー・ライセンス・Frontier・Copilot 管理 | Step 11 |
 | `sharepoint` | 利用ガイドライン ページの作成依頼を受ける側 | Step 10-9 |
 
 ## 参考リンク
