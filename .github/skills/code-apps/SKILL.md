@@ -55,10 +55,10 @@ triggers:
   - "base64"
   - "html2canvas"
   - "jsPDF"
-  - "日本地図"
   - "地図"
   - "マップ"
-  - "JapanMap"
+  - "Google Maps"
+  - "MapEmbed"
   - "add-flow"
   - "list-flows"
   - "フロー呼び出し"
@@ -668,7 +668,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [Copilot Studio コネクタ](references/copilot-studio-connector.md) | Copilot Studio エージェント直接呼び出し・会話継続・レスポンス解析 |
 | [コネクタリファレンス](references/connector-reference.md) | Code Apps で利用する主要コネクタの追加方法・使用例 |
 | [メール・PDF 送信](references/mail-pdf.md) | HTML→PDF 変換・Power Automate 経由メール添付送信パターン |
-| [日本地図パターン](references/japan-map-pattern.md) | SVG 都道府県地図の実装パターン |
+| [地図埋め込みパターン](../standard/references/map-embed-pattern.md) | Google Maps iframe 埋め込み（**Code Apps は `frame-src` 追加が必須**） |
 | [高度な実装パターン](references/advanced-patterns.md) | マルチ環境・オフライン・i18n・パフォーマンス最適化パターン |
 | [プレデプロイレビュー](references/pre-deploy-review.md) | 「デプロイして」「プッシュして」時の自動チェック手順 |
 | [新規テーマ開始チェックリスト](references/new-theme-checklist.md) | 前テーマの残骸がないクリーン開始の確認手順・scaffold 時に含めないファイル |

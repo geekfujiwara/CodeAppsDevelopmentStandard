@@ -33,6 +33,20 @@ CSP（Content Security Policy）ディレクティブの追加が必要。
 
 > **参考**: https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/content-security-policy
 
+## ホストごとに CSP の効き方が違う（取り違え注意）
+
+**このドキュメントの内容を他ホストにそのまま適用してはいけない。**
+
+| ホスト | CSP の既定 | `frame-src` の追加 |
+|---|---|---|
+| **Code Apps**（本ドキュメントの対象） | プラットフォームが `frame-src 'self'` を**強制**（無効化不可） | **必須** |
+| **Generative Pages / モデル駆動型アプリ** | CSP は**オプトイン**。`iscontentsecuritypolicyenabled` の既定は `false` | **不要**（既定のまま埋め込める） |
+
+モデル駆動側で CSP を有効化している環境だけは `Frame-Src` の追加が必要で、かつ `Frame-Src` は
+**Strict CSP を有効にしたときだけ効く**（`Frame-Ancestor` のみ既定モードで設定可）。
+地図を出すためだけに環境全体の CSP を有効化してはいけない。
+→ ホスト共通の地図実装は [地図埋め込みパターン](../../standard/references/map-embed-pattern.md)。
+
 ## デフォルト CSP ディレクティブ
 
 Code Apps は以下のデフォルト CSP で動作する:
@@ -81,7 +95,7 @@ Code Apps iframe は `connect-src: 'none'` のため、**postMessage ベース�
 
 **コード例**（iframe 埋め込み）:
 ```tsx
-const embedUrl = `https://maps.google.com/maps?q=${lat},${lon}&z=16&output=embed`;
+const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(`${lat},${lon}`)}&z=16&hl=ja&output=embed`;
 
 <iframe
   src={embedUrl}
@@ -93,6 +107,10 @@ const embedUrl = `https://maps.google.com/maps?q=${lat},${lon}&z=16&output=embed
   sandbox="allow-scripts allow-same-origin allow-popups"
 />
 ```
+
+> **`allow-same-origin` は外せない**: 外すと Maps JS が
+> `SecurityError: Blocked a frame at "https://www.google.com" from accessing a frame at "null"` を投げる（実測済）。
+> URL レシピ（座標 / 住所 / ルート / 海外拠点）は [地図埋め込みパターン](../../standard/references/map-embed-pattern.md) を参照。
 
 ### 2. 外部 API 呼び出し（REST API / GraphQL）
 
@@ -298,10 +316,10 @@ iframe 埋め込み（地図等）を実装する場合の手順:
 - **Google Maps iframe は `https://maps.google.com` と `https://www.google.com` の両方が必要**。リダイレクトで両ドメインを経由する
 - **CSP 設定は環境レベル**。同一環境内の全 Code Apps に適用される
 - **`sandbox` 属性を適切に設定**。`allow-scripts allow-same-origin allow-popups` で地図操作・ポップアップを許可
-- **iframe の代替手段も検討**。CSP 設定が困難な場合は SVG 地図やリンクボタンで代替できる
+- **iframe の代替手段も検討**。CSP 設定が困難な場合は「Google マップで開く」リンクボタンで代替できる
 - **Code Apps の CSP は Power Platform API（`PowerApps_CSPConfigCodeApps`）にある**。Dataverse の組織設定
   （`iscontentsecuritypolicyenabled` / `contentsecuritypolicyconfiguration`）はモデル駆動・キャンバス用で無関係
 - **設定済みかどうかは推測せず毎回スクリプトで確認する**。`--assert` をデプロイ前チェックに組み込むと、
   CSP 未設定のまま push して「真っ白な iframe」を調べ直す事故が起きない
 - 複数拠点にピンを打つ地図が必要な場合は素の埋め込みでは実現できない
-  （→ [Google マップ埋め込み + 実座標ピン](japan-map-pattern.md#パターン-7-google-マップ埋め込み--実座標ピン)）
+  （→ [地図埋め込みパターン / 複数ピンを同時に出す](../../standard/references/map-embed-pattern.md#8-応用-複数ピンを同時に出す自前オーバーレイ)）

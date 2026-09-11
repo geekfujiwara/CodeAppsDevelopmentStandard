@@ -247,7 +247,9 @@ const handleUnassignedAreaChange = (val: string) => {
 `https://www.google.com/maps?saddr=${encodeURIComponent(origin)}&daddr=${encodeURIComponent(dest)}&dirflg=d&hl=ja&output=embed`
 ```
 
-> CSP 設定: `frame-src` に `https://www.google.com` を追加する必要がある。
+> CSP 設定: **Code Apps では** `frame-src` に `https://www.google.com` の追加が必須。
+> Generative Pages / モデル駆動型アプリでは既定で CSP が無効のため不要。
+> → [地図埋め込みパターン](../../standard/references/map-embed-pattern.md)
 
 ## クロスページナビゲーション
 

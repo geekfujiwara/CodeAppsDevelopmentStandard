@@ -20,12 +20,11 @@ triggers:
   - "KPI"
   - "チャート"
   - "アニメーション"
-  - "日本地図"
   - "地図"
   - "マップ"
-  - "都道府県"
+  - "拠点マップ"
   - "地域別"
-  - "JapanMap"
+  - "Google Maps"
 ---
 
 # Generative Pages 開発スキル
@@ -285,7 +284,7 @@ Generative Pages は **いきなり KPI ダッシュボードを作らない**�
 >    B) **KPI ダッシュボード** — 数値指標・チャートで全体像を俯瞰
 >    C) **カンバンボード** — ドラッグ＆ドロップでステータス管理
 >    D) **スケジュール管理（ガントチャート）** — タスクの期間・依存関係を可視化
->    E) **日本地図ダッシュボード** — 都道府県別データの地図可視化・地域分析（SVG 方式 / Google Maps 方式）
+>    E) **拠点マップダッシュボード** — 拠点・住所・座標を Google Maps で地図表示（国内外共通）
 >    G) **分析レポート** — 多軸データの期間別集計・メンバー別比較・予実対比チャート
 >    F) **オブジェクトフロー** — 特定レコード中心に関連エンティティのフロー・因果関係を可視化
 >
@@ -294,7 +293,7 @@ Generative Pages は **いきなり KPI ダッシュボードを作らない**�
 
 ### 段階 1: 構築パターンの提案
 
-ユーザーの回答に基づき、6 つの構築パターン（**A 入力ウィザード / B KPI ダッシュボード / C カンバンボード / D スケジュール管理（ガント）/ E 日本地図ダッシュボード / F オブジェクトフロー**）から最適なものを選ぶ。各パターンの向いている場面・代表コンポーネントは [design-template.md](references/design-template.md) を参照。
+ユーザーの回答に基づき、6 つの構築パターン（**A 入力ウィザード / B KPI ダッシュボード / C カンバンボード / D スケジュール管理（ガント）/ E 拠点マップダッシュボード / F オブジェクトフロー**）から最適なものを選ぶ。各パターンの向いている場面・代表コンポーネントは [design-template.md](references/design-template.md) を参照。
 
 選んだパターンのレイアウト・使用コンポーネントを提案し、承認を得る。
 
@@ -323,16 +322,16 @@ C: DnD/WIPリミット/スイムレーン、D: ズーム/依存関係線/進捗�
 
 ### 段階 4: 高度な UI（Tier 3 — さらなる提案）
 
-さらに日本地図表示（D3 geoMercator + バブル）・ダークモード（themeToVars）・リフレッシュボタン・
+さらに拠点マップ表示（Google Maps iframe）・ダークモード（themeToVars）・リフレッシュボタン・
 追加チャート（カタログから選定）を提案する。
 
 ### テンプレート参照
 
 | ファイル | 内容 |
 |---|---|
-| [design-template.md](references/design-template.md) | 6構築パターン（入力ウィザード/KPI/カンバン/ガント/日本地図/オブジェクトフロー）、UIカタログ、チャート選定ガイド |
+| [design-template.md](references/design-template.md) | 6構築パターン（入力ウィザード/KPI/カンバン/ガント/拠点マップ/オブジェクトフロー）、UIカタログ、チャート選定ガイド |
 | [genpage-design-system.md](references/genpage-design-system.md) | モダンデザインシステム（カラーパレット・セクションカード・ピル型バッジ・グラデーションボタン・ガント D3 バー・ツールチップ・トースト・日付ナビゲーション） |
-| [japan-map-pattern.md](references/japan-map-pattern.md) | 日本地図パターン（SVG 方式 / Google Maps iframe 方式・都道府県別データ可視化・色分け・地方フィルタ・Dataverse 連携） |
+| [地図埋め込みパターン](../standard/references/map-embed-pattern.md) | Google Maps iframe 埋め込み。URL レシピ・`sandbox` 必須トークン・ホスト別 CSP（**Generative Pages は CSP 設定不要**） |
 | [objectflow-example.tsx](references/objectflow-example.tsx) | Pattern F 完全実装例（オブジェクトフロー：3列フロー図・詳細サイドバー・レコードモーダル・関連ハイライト） |
 | [objectflow-RuntimeTypes.ts](references/objectflow-RuntimeTypes.ts) | Pattern F 用 Dataverse 型定義（account・opportunity・quote・salesorder 等） |
 | [code-patterns.md](references/code-patterns.md) | DataAPI・D3 チャート・DataGrid のコードパターン |
