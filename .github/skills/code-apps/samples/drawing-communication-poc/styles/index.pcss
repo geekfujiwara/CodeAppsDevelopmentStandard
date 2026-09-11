@@ -1,0 +1,205 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "Hiragino Sans",
+    "Yu Gothic UI",
+    Meiryo,
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --radius: 0.375rem;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #334155;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #334155;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #475569;
+  --accent-foreground: #ffffff;
+  --accent-hover: #e2e8f0;
+  --destructive: #dc2626;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #334155;
+  --chart-1: #334155;
+  --chart-2: #475569;
+  --chart-3: #64748b;
+  --chart-4: #94a3b8;
+  --chart-5: #cbd5e1;
+  --badge-beginner: #dbeafe;
+  --badge-beginner-foreground: #1e3a8a;
+  --badge-intermediate: #fef9c3;
+  --badge-intermediate-foreground: #713f12;
+  --badge-advanced: #fecdd3;
+  --badge-advanced-foreground: #881337;
+  --badge-administrator: #f3e8ff;
+  --badge-administrator-foreground: #6b21a8;
+  --badge-developer: #d1fae5;
+  --badge-developer-foreground: #065f46;
+  --sidebar: #f1f5f9;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #334155;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e2e8f0;
+  --sidebar-accent-foreground: #334155;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #334155;
+  --header-bg: #ffffff;
+  --menu-bg: #f8fafc;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-hover: var(--accent-hover);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-badge-beginner: var(--badge-beginner);
+  --color-badge-beginner-foreground: var(--badge-beginner-foreground);
+  --color-badge-intermediate: var(--badge-intermediate);
+  --color-badge-intermediate-foreground: var(--badge-intermediate-foreground);
+  --color-badge-advanced: var(--badge-advanced);
+  --color-badge-advanced-foreground: var(--badge-advanced-foreground);
+  --color-badge-administrator: var(--badge-administrator);
+  --color-badge-administrator-foreground: var(--badge-administrator-foreground);
+  --color-badge-developer: var(--badge-developer);
+  --color-badge-developer-foreground: var(--badge-developer-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-header-bg: var(--header-bg);
+  --color-menu-bg: var(--menu-bg);
+}
+
+.dark {
+  --background: #020617;
+  --foreground: #e2e8f0;
+  --card: #0f172a;
+  --card-foreground: #e2e8f0;
+  --popover: #0f172a;
+  --popover-foreground: #e2e8f0;
+  --primary: #94a3b8;
+  --primary-foreground: #020617;
+  --secondary: #1e293b;
+  --secondary-foreground: #e2e8f0;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #cbd5e1;
+  --accent-foreground: #020617;
+  --accent-hover: #1e293b;
+  --destructive: #f87171;
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #94a3b8;
+  --chart-1: #94a3b8;
+  --chart-2: #cbd5e1;
+  --chart-3: #e2e8f0;
+  --chart-4: #f1f5f9;
+  --chart-5: #f8fafc;
+  --badge-beginner: #1e3a8a;
+  --badge-beginner-foreground: #dbeafe;
+  --badge-intermediate: #713f12;
+  --badge-intermediate-foreground: #fef9c3;
+  --badge-advanced: #881337;
+  --badge-advanced-foreground: #fecdd3;
+  --badge-administrator: #6b21a8;
+  --badge-administrator-foreground: #f3e8ff;
+  --badge-developer: #065f46;
+  --badge-developer-foreground: #d1fae5;
+  --sidebar: #0b1120;
+  --sidebar-foreground: #e2e8f0;
+  --sidebar-primary: #94a3b8;
+  --sidebar-primary-foreground: #020617;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #e2e8f0;
+  --sidebar-border: #1e293b;
+  --sidebar-ring: #94a3b8;
+  --header-bg: #020617;
+  --menu-bg: #0f172a;
+}
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* クリック可能な要素にカーソルポインターを適用 */
+  a, button, [role="button"], [type="button"], [type="submit"], [type="reset"],
+  input[type="checkbox"], input[type="radio"], select, label[for],
+  summary, [tabindex]:not([tabindex="-1"]), [onclick] {
+    cursor: pointer;
+  }
+
+  /* 無効な要素は通常のカーソル */
+  a[disabled], button[disabled], [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  /* スクロールバーを非表示にする */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari, Opera */
+  }
+
+  /* アンカーリンクのスクロール位置調整（ヘッダーの高さ分） */
+  [id] {
+    scroll-margin-top: 6rem; /* ヘッダー高さ (64px) + 余白 (32px) = 96px = 6rem */
+  }
+}

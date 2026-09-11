@@ -22,3 +22,13 @@ remote execution trace independently. Revalidate returned designs locally agains
 
 Verify the new bot and worker's actual solution membership, preserving any existing membership. Keep real identities,
 receipts, prompts, reports and connection data in local evidence outside the public repository.
+
+Creating a cliagent with a solution header does not prove solution membership. Read `solutioncomponents` back after
+creation. In the observed v2 schema, the bot uses component type `10185` and attached skill/file components use
+`10186`; add the bot with required components only when the intended solution is missing, then verify the bot and
+every attachment in that solution without removing their generated/default memberships.
+
+Provisioning can report `Provisioned` before the Teams management gateway accepts app-detail writes. Attach the
+skill and publish the bot first when `set_app_details.py` returns error 7513 (`The Teams channel must be enabled`),
+then retry the same idempotent app-detail write against the existing bot ID. Never create a replacement bot for
+this propagation delay.

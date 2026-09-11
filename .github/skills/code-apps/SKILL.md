@@ -103,6 +103,11 @@ UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の�
 > `npm ci` → Python依存導入 → `npm run generate` → `npm run predeploy` で単体検証できる。
 > AI候補は確定まで下書きに適用せず、共有保存と分離する。外部接続は既定無効。Code App は Dataverse と Copilot Studio の生成サービスだけへ接続し、MCP Server は Copilot Studio のツールとして構成する。
 
+> **図面レビューを非同期会話で回す場合**: [図面コミュニケーション アドオン](templates/drawing-communication/README.md) と
+> [PoC サンプル](samples/drawing-communication-poc/README.md) を参照。版付き図面 JSON と検証器、A3 の SVG 描画、
+> 注釈／タスク、候補の差分・採用・Undo、会話の相関コントラクト（会話 ID・ターン ID・編集バージョン・基準ハッシュ、重複ターン拒否）、
+> A3 PDF を生成する Python スキルを再利用できる。Dataverse 未接続時は DEMO ワーカーであることを UI に明示し、実エージェント応答と偽らない。
+
 > [!NOTE]
 > 本スキルは React + Vite の **Web Code Apps** 用。Expo／React Native、camera／barcode／location 等の
 > 端末ネイティブ機能、Power Apps Developer app、Wrap が要件なら

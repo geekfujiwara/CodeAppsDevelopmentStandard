@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/drawing-communication/drawing-v1.json",
+  "title": "Drawing (schemaVersion 1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "templateId", "revision", "sheet", "titleBlock", "parameters", "annotations"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "#/$defs/identifier" },
+    "templateId": { "enum": ["surface-laptop-exterior", "horizontal-pump-assembly", "generic-equipment-layout"] },
+    "revision": { "type": "integer", "minimum": 1, "maximum": 100000 },
+    "sheet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["size", "widthMm", "heightMm"],
+      "properties": {
+        "size": { "const": "A3" },
+        "widthMm": { "const": 420 },
+        "heightMm": { "const": 297 }
+      }
+    },
+    "titleBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["drawingNumber", "title", "project", "designer", "checker", "scale", "date", "note"],
+      "properties": {
+        "drawingNumber": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "project": { "type": "string", "maxLength": 120 },
+        "designer": { "type": "string", "maxLength": 120 },
+        "checker": { "type": "string", "maxLength": 120 },
+        "scale": { "type": "string", "maxLength": 120 },
+        "date": { "type": "string", "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$" },
+        "note": { "type": "string", "maxLength": 120 }
+      }
+    },
+    "parameters": { "type": "object", "additionalProperties": { "type": "number" } },
+    "annotations": {
+      "type": "array",
+      "maxItems": 60,
+      "items": { "$ref": "#/$defs/annotation" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "templateId": { "const": "surface-laptop-exterior" } }, "required": ["templateId"] },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "bodyWidth",
+              "bodyDepth",
+              "closedHeight",
+              "displayBezel",
+              "lidAngle",
+              "keyboardWidth",
+              "keyboardDepth",
+              "touchpadWidth",
+              "touchpadDepth",
+              "portCount"
+            ],
+            "properties": {
+              "bodyWidth": { "type": "number", "minimum": 200, "maximum": 400 },
+              "bodyDepth": { "type": "number", "minimum": 150, "maximum": 320 },
+              "closedHeight": { "type": "number", "minimum": 8, "maximum": 30 },
+              "displayBezel": { "type": "number", "minimum": 2, "maximum": 20 },
+              "lidAngle": { "type": "number", "minimum": 90, "maximum": 140 },
+              "keyboardWidth": { "type": "number", "minimum": 150, "maximum": 360 },
+              "keyboardDepth": { "type": "number", "minimum": 60, "maximum": 180 },
+              "touchpadWidth": { "type": "number", "minimum": 60, "maximum": 180 },
+              "touchpadDepth": { "type": "number", "minimum": 40, "maximum": 120 },
+              "portCount": { "type": "integer", "minimum": 1, "maximum": 6 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "templateId": { "const": "horizontal-pump-assembly" } }, "required": ["templateId"] },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "baseLength",
+              "baseWidth",
+              "baseHeight",
+              "shaftCenterHeight",
+              "casingDiameter",
+              "suctionDN",
+              "dischargeDN",
+              "couplingGap",
+              "motorLength",
+              "motorDiameter"
+            ],
+            "properties": {
+              "baseLength": { "type": "number", "minimum": 600, "maximum": 2500 },
+              "baseWidth": { "type": "number", "minimum": 300, "maximum": 1200 },
+              "baseHeight": { "type": "number", "minimum": 80, "maximum": 400 },
+              "shaftCenterHeight": { "type": "number", "minimum": 120, "maximum": 600 },
+              "casingDiameter": { "type": "number", "minimum": 150, "maximum": 800 },
+              "suctionDN": { "type": "number", "minimum": 50, "maximum": 400 },
+              "dischargeDN": { "type": "number", "minimum": 40, "maximum": 300 },
+              "couplingGap": { "type": "number", "minimum": 40, "maximum": 300 },
+              "motorLength": { "type": "number", "minimum": 200, "maximum": 1200 },
+              "motorDiameter": { "type": "number", "minimum": 150, "maximum": 700 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "templateId": { "const": "generic-equipment-layout" } }, "required": ["templateId"] },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "roomWidth",
+              "roomDepth",
+              "gridPitch",
+              "columns",
+              "rows",
+              "machineWidth",
+              "machineDepth",
+              "aisleWidth",
+              "clearance"
+            ],
+            "properties": {
+              "roomWidth": { "type": "number", "minimum": 3000, "maximum": 40000 },
+              "roomDepth": { "type": "number", "minimum": 3000, "maximum": 30000 },
+              "gridPitch": { "type": "number", "minimum": 1000, "maximum": 6000 },
+              "columns": { "type": "integer", "minimum": 1, "maximum": 10 },
+              "rows": { "type": "integer", "minimum": 1, "maximum": 6 },
+              "machineWidth": { "type": "number", "minimum": 400, "maximum": 6000 },
+              "machineDepth": { "type": "number", "minimum": 400, "maximum": 6000 },
+              "aisleWidth": { "type": "number", "minimum": 600, "maximum": 6000 },
+              "clearance": { "type": "number", "minimum": 300, "maximum": 3000 }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+    "annotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "status", "severity", "title", "body", "at", "assignee", "dueDate", "createdAt", "comments"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "source": { "enum": ["human", "ai"] },
+        "status": { "enum": ["open", "in-review", "resolved", "rejected"] },
+        "severity": { "enum": ["info", "minor", "major"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "body": { "type": "string", "maxLength": 400 },
+        "at": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "number", "minimum": 0, "maximum": 420 },
+            "y": { "type": "number", "minimum": 0, "maximum": 297 }
+          }
+        },
+        "assignee": { "type": "string", "maxLength": 80 },
+        "dueDate": { "type": "string", "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$" },
+        "createdAt": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "comments": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "author", "body", "createdAt"],
+            "properties": {
+              "id": { "$ref": "#/$defs/identifier" },
+              "author": { "type": "string", "minLength": 1, "maxLength": 80 },
+              "body": { "type": "string", "minLength": 1, "maxLength": 400 },
+              "createdAt": { "type": "string", "minLength": 1, "maxLength": 40 }
+            }
+          }
+        }
+      }
+    }
+  }
+}
