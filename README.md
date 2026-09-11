@@ -54,6 +54,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 
 - 依頼例: `@GeekPowerCode 在庫管理をもっと効率的に行いたい。`
 - 既存仕様書がある場合の入力例: `spec-builder を実行して`
+- AI チームメイト（Agent 365 / Teams 同僚エージェント）の依頼例: `@GeekPowerCode 予定調整をしてくれる同僚エージェントを Teams に置きたい。` — 1 回の質問確認のあと `scaffold_ai_teammate.py` が同僚エージェントと AI チームメイト評価Hub を同時に scaffold する（[.github/skills/ai-teammate/SKILL.md](.github/skills/ai-teammate/SKILL.md)）
 
 > [!NOTE]
 > 推奨モデルは **Claude Opus 5** です（`.github/agents/GeekPowerCode.agent.md` の既定モデル）。`.gitignore` を配置しないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になるため、必ずコピーしてください。

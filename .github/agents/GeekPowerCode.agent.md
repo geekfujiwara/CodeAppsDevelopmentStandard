@@ -88,7 +88,7 @@ python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --
 | アーキテクチャ判断 | .github/skills/architecture/SKILL.md |
 | 要件理解・仕様書変換 | .github/skills/spec-builder/SKILL.md |
 | Cowork / MCP クライアント登録 | .github/skills/cowork/SKILL.md |
-| AI チームメイト（Agent 365 / agentUser での Teams 公開） | .github/skills/ai-teammate/SKILL.md |
+| AI チームメイト（Agent 365 / agentUser での Teams 公開。1 回の AskUserQuestion → `scaffold_ai_teammate.py` で同僚エージェント + 評価Hub を同時 scaffold） | .github/skills/ai-teammate/SKILL.md |
 | スキル作成・更新 | .github/skills/update-skills/SKILL.md |
 | Azure リファレンスアーキテクチャ（セキュア構成） | .github/skills/azure/SKILL.md |
 | MCP Server 開発（Azure Functions / Copilot Studio 連携） | .github/skills/mcp-server/SKILL.md |

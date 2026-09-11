@@ -1,0 +1,46 @@
+{
+  "$schema": "one AskUserQuestion response → this JSON → python scripts/scaffold_ai_teammate.py --decisions",
+  "agentName": "sample-colleague",
+  "displayName": "サンプル同僚",
+  "namespace": "SampleColleagueAgent",
+  "role": "予定調整の秘書",
+  "personality": "親しみやすく温かい態度で、社内の仕事を前のめりに手伝います",
+  "implementationMode": "full",
+  "preset": "role",
+  "roles": ["R1"],
+  "blocks": ["B9", "B10"],
+  "entryPoints": {
+    "teamsChat": true,
+    "mailbox": true,
+    "webSearch": true
+  },
+  "permissionBoundary": "社内カレンダー・メールのみ。HR/報酬データへはアクセスしない",
+  "goal": "d",
+  "poc": {
+    "selected": false
+  },
+  "full": {
+    "selected": true,
+    "gitProvider": "github",
+    "repository": {
+      "owner": "your-org",
+      "name": "your-agent-repo",
+      "visibility": "private"
+    },
+    "secretBackend": "github-secrets",
+    "administrators": {
+      "agentIdDeveloper": "admin@example.onmicrosoft.com",
+      "aiAdministrator": "admin@example.onmicrosoft.com",
+      "privilegedRoleAdministrator": "admin@example.onmicrosoft.com",
+      "licenseAdministrator": "admin@example.onmicrosoft.com"
+    }
+  },
+  "publishScope": {
+    "testAudience": "Just me",
+    "deployAudience": ["pilot-team@example.onmicrosoft.com"]
+  },
+  "evaluationApp": {
+    "required": true,
+    "note": "AI チームメイト評価Hub は role/preset に関わらず常に scaffold・同時展開する。無効化できない。"
+  }
+}

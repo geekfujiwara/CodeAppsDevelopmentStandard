@@ -153,7 +153,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 | [agent-flows](agent-flows/SKILL.md) | Copilot Studio 新 UI の Agent flows / Workflows を API で別名作成・公開・実行する。手動 Start + inline Agent、接続参照、承認付き dry-run と出力検証を扱う。既存 v2 bot 呼び出しは別途検証する。 |
 | [power-automate](power-automate/SKILL.md) | Power Automate クラウドフローをソリューション対応で作成・デプロイする。 |
 | [cowork](cowork/SKILL.md) | 目的特化型の Copilot Cowork プラグイン（Agent Skills + Dataverse MCP）を開発し、Entra ID SSO を構成して M365 管理センターのエージェント画面から公開・更新する。 |
-| [ai-teammate](ai-teammate/SKILL.md) | Microsoft Foundry のエージェン トを SDK/REST ベースで作成・バージョン管理し、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に公開する。エージェントテンプレート開発を担当し、秘匿化・CI/CD は `alm` スキルに委譲する。ライト実装（PoC）と本格実装の 2 ルートに対応。 |
+| [ai-teammate](ai-teammate/SKILL.md) | Microsoft Agent SDK アプリを App Service で自己ホストし、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に「同僚エージェント（agentUser）」として公開する。1 回の AskUserQuestion の回答から `scaffold_ai_teammate.py` が同僚エージェント（B1〜B17）と AI チームメイト評価Hub（Code Apps）を同時に scaffold し、`deploy_ai_teammate.py` が `--check` → `--execute` の 2 段階でデプロイする。ライト実装（PoC）と本格実装（private リポジトリ + CI/CD）の 2 ルートに対応し、秘匿化・CI/CD は `alm` スキルに委譲する。 |
 
 ### ai — AI / プロンプト
 

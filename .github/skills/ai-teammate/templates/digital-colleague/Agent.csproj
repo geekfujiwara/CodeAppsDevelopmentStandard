@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>${AGENT_NAMESPACE}</RootNamespace>
+    <AssemblyName>${AGENT_NAMESPACE}</AssemblyName>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Agents.Hosting.AspNetCore" Version="1.*" />
+    <PackageReference Include="Microsoft.Agents.Authentication.Msal" Version="1.*" />
+    <PackageReference Include="Microsoft.Agents.Extensions.Teams" Version="1.*" />
+    <PackageReference Include="Azure.AI.OpenAI" Version="2.*" />
+    <PackageReference Include="Azure.Identity" Version="1.*" />
+    <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="prompts\**" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="sandbox\**" CopyToOutputDirectory="PreserveNewest" Condition="Exists('sandbox')" />
+  </ItemGroup>
+
+</Project>
