@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "ly-0012",
+  "templateId": "generic-equipment-layout",
+  "revision": 1,
+  "sheet": {
+    "size": "A3",
+    "widthMm": 420,
+    "heightMm": 297
+  },
+  "titleBlock": {
+    "drawingNumber": "LY-0012",
+    "title": "汎用機器配置図",
+    "project": "設計レビュー PoC",
+    "designer": "設計担当",
+    "checker": "",
+    "scale": "NTS",
+    "date": "2026-09-11",
+    "note": "寸法は mm。公差は別紙による。"
+  },
+  "parameters": {
+    "roomWidth": 16000,
+    "roomDepth": 9000,
+    "gridPitch": 3000,
+    "columns": 4,
+    "rows": 2,
+    "machineWidth": 2200,
+    "machineDepth": 1400,
+    "aisleWidth": 1500,
+    "clearance": 700
+  },
+  "annotations": [
+    {
+      "id": "note-001",
+      "source": "ai",
+      "status": "open",
+      "severity": "minor",
+      "title": "通路幅を確認",
+      "body": "台車搬送を想定する場合は 1200 mm 以上を確保する",
+      "at": {
+        "x": 132,
+        "y": 96
+      },
+      "assignee": "",
+      "dueDate": "",
+      "createdAt": "2026-09-11T13:53:47.802Z",
+      "comments": []
+    },
+    {
+      "id": "note-002",
+      "source": "ai",
+      "status": "open",
+      "severity": "major",
+      "title": "受電盤前の保守スペース",
+      "body": "盤前 1000 mm の離隔を図示に追加すること",
+      "at": {
+        "x": 236,
+        "y": 150
+      },
+      "assignee": "",
+      "dueDate": "",
+      "createdAt": "2026-09-11T13:53:47.833Z",
+      "comments": []
+    }
+  ]
+}

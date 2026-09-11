@@ -10,6 +10,7 @@ cliagent エージェントの構造を検証する。
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 from pathlib import Path
@@ -25,6 +26,7 @@ BOT_ID = os.getenv("AGENT_BOTID") or (
     if Path("agent_botid.txt").exists()
     else ""
 )
+SKILL_DIR = Path(os.getenv("SKILL_DIR", "")) if os.getenv("SKILL_DIR") else None
 
 
 def main() -> None:
@@ -50,7 +52,20 @@ def main() -> None:
             dl = sess.get(f"{API}/botcomponents({c['botcomponentid']})/filedata/$value")
             status = dl.status_code
             size = len(dl.content)
-            print(f"  {c['name']:<24} status={status} size={size} bytes")
+            detail = ""
+            if status == 200 and SKILL_DIR:
+                local_path = SKILL_DIR / (c.get("filedata_name") or c["name"])
+                if not local_path.is_file():
+                    detail = " local=missing"
+                    ok = False
+                else:
+                    remote_hash = hashlib.sha256(dl.content).hexdigest()
+                    local_hash = hashlib.sha256(local_path.read_bytes()).hexdigest()
+                    matched = remote_hash == local_hash
+                    detail = f" sha256={'match' if matched else 'mismatch'}"
+                    if not matched:
+                        ok = False
+            print(f"  {c['name']:<24} status={status} size={size} bytes{detail}")
             if status != 200 or size == 0:
                 ok = False
     print("\n" + ("✅ 検証 OK" if ok else "⚠️ 一部 filedata が読めません"))

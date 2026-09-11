@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.power/
+power.config.json
+src/generated/
+__pycache__/
+*.pyc
