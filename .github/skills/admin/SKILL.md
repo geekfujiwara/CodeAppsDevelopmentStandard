@@ -100,7 +100,8 @@ triggers:
 | [scripts/setup_pipeline.py](scripts/setup_pipeline.py) | Power Platform パイプライン（開発 → テスト → 本番）の構成 | `--apply` 時のみ |
 | [scripts/set_content_security_policy.py](scripts/set_content_security_policy.py) | 環境の CSP（Code Apps / モデル駆動 / キャンバス）の確認と設定 | `--apply` 時のみ |
 | [scripts/manage_m365_users.py](scripts/manage_m365_users.py) | Graph v1.0 で M365 ライセンス棚卸・付与/解除・ユーザー作成・有効/無効化 | 変更は承認ハッシュ + `--apply` 時のみ |
-| [scripts/manage_m365_portal_api.py](scripts/manage_m365_portal_api.py) | Frontier と Agent availability の管理センター private API plan を検証 | `READY_FOR_BROWSER_API` 後に統合ブラウザ session API で変更 |
+| [scripts/manage_m365_portal_api.py](scripts/manage_m365_portal_api.py) | Frontier と Agent Registry の Install / Publish / Permission private API plan を検証 | `READY_FOR_BROWSER_API` 後に統合ブラウザ session API で変更 |
+| [scripts/m365_portal_browser_runner.mjs](scripts/m365_portal_browser_runner.mjs) | 承認済み plan のhash/allowlistを再検証し、session header継承、write、poll、read-backを実行 | 承認済み plan のみ変更 |
 | [scripts/dlp_helper.py](scripts/dlp_helper.py) | DLP 管理 API の共通ロジック（他スクリプトから import） | なし |
 | [references/acp-profiles.json](references/acp-profiles.json) | ACP 推奨許可セットの定義（パターン / ブロック / 要確認） | なし |
 | [references/rule-catalog.md](references/rule-catalog.md) | 環境グループのルール ID と非公開 API の一覧 | なし |
