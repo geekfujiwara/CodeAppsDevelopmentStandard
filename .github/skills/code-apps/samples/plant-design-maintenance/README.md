@@ -11,7 +11,7 @@ JSON 正本のプラント設計と設備起点の保守履歴を統合した Re
 - AI 候補の変更前／変更後の同縮尺2カラム比較、確定による下書き反映、取り消し。小画面は縦並び。
 - 3種類の合成プラント、設備・部位選択、期間／未解決フィルター、故障件数ヒートマップ、故障と修理の相互参照。
 - 50 MB 以下の自己完結した静的 GLB をローカルで閲覧。実資料への名前一致による自動紐付けはしません。
-- Dataverse の共有改訂・提案、非同期 AI 要求と結果照合、出典検査、索引 ID ベースの図面画像取得の接続コード。
+- Dataverse の共有改訂・提案、非同期 AI 要求と結果照合、出典検査、検証済み索引に保存した図面ページ画像の表示。
 
 ## 起動
 
@@ -60,11 +60,11 @@ npm run dev
 
 1. 対象環境・ソリューション・公開範囲を設計し、admin の環境・DLP/ACP チェックを通します。
 2. code-apps の標準テンプレートで Code App を初期化し、共通 `.env` と本サンプルの `.env.example` を設定します。
-3. スキルリポジトリ側の [add_data_source.py](../../scripts/add_data_source.py) で Dataverse、必要なら Copilot Studio と図面ページ API のデータソースを生成します。既存プロジェクトの `power.config.json` や `src/generated/` をコピーしません。
+3. スキルリポジトリ側の [add_data_source.py](../../scripts/add_data_source.py) で Dataverse と Copilot Studio のデータソースを生成します。MCP Server は Code App に追加せず、Copilot Studio のツールとして接続します。既存プロジェクトの `power.config.json` や `src/generated/` をコピーしません。
 4. `src/integrations/connectors.ts` の未接続アダプターを、自分の環境で生成されたサービスの import / export に置き換えます。メソッド契約はコンパイルで検査してください。
 5. 標準テンプレートの Power Apps Vite plugin、CSP、プレデプロイゲートを保持して画面・データ・ロジックを導入します。本サンプルの Vite はローカル用です。
 6. 非同期 Worker は agent-flows の要求／結果パターンを使用します。認証済み作成者・所有者・相関・対象をサーバーでも検査し、管理者1名の成功を全利用者への公開許可にしません。
-7. File / DB 接続は mcp-server の [認可・ページ画像契約](../../../mcp-server/references/indexed-file-db-access.md) を適用します。
+7. File / DB 接続は mcp-server の [認可・ページ画像契約](../../../mcp-server/references/indexed-file-db-access.md) を適用します。取り込み処理でページ画像を生成し、検証済み索引の `{prefix}_pageimagejson` に保存します。
 8. 標準の `npm run predeploy` 成功後に `npm run deploy`。公開ホストで本人認可・実応答・改訂保存を別途確認します。本サンプル自身に push コマンドはありません。
 
 ## カスタマイズ
@@ -93,6 +93,7 @@ npm run dev
 `npm test` は形状・端点・敷地・出典・モデル改訂・対象・非同期相関・遅延応答・共有保存競合を検証します。
 `npm run generate` は CSP 対応の事前コンパイル検証器、JSON、GLB を再生成します。
 `npm run check:sample` は実 ID・固定 publisher・組織 URL・環境ファイルの混入を拒否します。
+同時に Code App からの直接 MCP 呼び出しを拒否し、図面画像が Dataverse キャッシュ経由であることを検査します。
 CI の `check-sample.mjs --tracked` は lockfile・設定例・Python生成器の Git 追跡も検査します。
 親リポジトリの `package-lock.json` 除外により初回CIで `npm ci` が失敗したため、サンプルの `.gitignore` で例外化し、存在確認だけでなく追跡確認も必須にしました。
 これはソース配布ゲートです。自分の `.env` を置いた本番作業フォルダーでは code-apps の環境対応プレデプロイを使ってください。

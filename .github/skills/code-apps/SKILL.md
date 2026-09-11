@@ -93,9 +93,6 @@ triggers:
 Power Apps Code Apps（コードファースト）を **TypeScript + React + Tailwind CSS** で開発する。
 UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の全領域をカバーする統合スキル。
 
-> **選択対象付き設計チャット**: [コンテキスト・クイック返信・待機表示](references/contextual-design-chat.md) を参照。
-> 対象IDと設計版の固定、対象外変更の拒否、実状態だけの進捗表示、検証済み下書きと明示保存の分離を扱う。
-
 > **プラント・設備の JSON 駆動設計**: [モジュール設計パターン](references/modular-plant-design.md) と
 > [追加テンプレート](templates/modular-plant/README.md) を参照。敷地・ユニット・ポート接続、CSP 対応検証器、
 > Python 候補生成、Dataverse 改訂・提案レビューを再利用できる。既存アプリへのアドオンであり scaffold 元ではない。
@@ -104,7 +101,7 @@ UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の�
 > **設計と保守を統合する場合**: [Plant Design & Maintenance サンプル](samples/plant-design-maintenance/README.md) を参照。
 > 既存画面・合成3Dモデル・部位別の故障／修理・ヒートマップ・AI候補の変更前後比較を同梱。
 > `npm ci` → Python依存導入 → `npm run generate` → `npm run predeploy` で単体検証できる。
-> AI候補は確定まで下書きに適用せず、共有保存と分離する。外部接続は既定無効で、Dataverse／AI／MCP は導入先で生成したサービスへ交換する。
+> AI候補は確定まで下書きに適用せず、共有保存と分離する。外部接続は既定無効。Code App は Dataverse と Copilot Studio の生成サービスだけへ接続し、MCP Server は Copilot Studio のツールとして構成する。
 
 > [!NOTE]
 > 本スキルは React + Vite の **Web Code Apps** 用。Expo／React Native、camera／barcode／location 等の
@@ -391,6 +388,23 @@ python scripts/review_report.py --verdict-dir .gate --out .gate/review-report.md
 > - **実務上の判断**: 性能よりも、型安全性・再生成コスト・複数テーブル横断のしやすさで選ぶ
 
 ## 3. データソース接続
+
+### MCP Server は Copilot Studio 経由に統一する
+
+Code App に MCP カスタムコネクタを直接追加しない。会話・検索・原本取得は
+`Code App → Copilot Studio → MCP Server`、画面表示用の構造化データやページ画像は
+`取り込み処理 → Dataverse → Code App` と分離する。画像や大きなバイナリをエージェント応答へ載せない。
+
+同じ MCP 接続が Code App の同意一覧へ重複すると、接続更新ボタンが反応せずモーダルが閉じないことがある。
+誤って追加した場合は SDK 管理ファイルを手編集せず、CLI で削除する。
+
+```powershell
+npx pa app remove data-source --connector <shared_mcp_connector_id> --force --non-interactive
+```
+
+標準 `pre-deploy-check.mjs` は `.power` と `src/generated` の `/api/mcp` / `InvokeServer` を検出し、
+直接 MCP データソースが残ったデプロイを拒否する。詳しい切り分けは
+[トラブルシューティング](references/troubleshooting.md) を参照する。
 
 ### 正常系: コネクタ ID は聞かずに解決する（`add_data_source.py`）
 

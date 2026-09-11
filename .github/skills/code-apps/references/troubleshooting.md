@@ -2458,5 +2458,40 @@ useEffect(() => {
 
 > 実装一式は [使い方ガイドパターン](onboarding-guide-pattern.md) を参照。
 
+---
+
+## 51. MCP 接続の更新ボタンが反応せず、同意モーダルが閉じない（検証済 2026-09-11）
+
+### 症状
+
+Code App 起動時の接続モーダルに MCP カスタムコネクタが表示されるが、「接続の更新」を押しても
+何も起きず、モーダルが開いたままになる。ブラウザコンソールには同一 connection ID の
+`Encountered two children with the same key`、`useMemo changed size`、`React.createElement: type is invalid`
+が繰り返し出る。
+
+### 原因
+
+MCPカスタムコネクタを Code App のデータソースへ直接追加し、同じ接続が同意一覧へ重複して渡されている。
+これは接続資格情報の更新失敗ではなく、Power Apps の同意UIが重複行を処理できない状態。
+
+### 対処
+
+MCP Server は Copilot Studio のツールとして接続し、Code App は Copilot Studio と Dataverse のみにする。
+ページ画像のような画面表示データは投入時に検証して Dataverse の索引へ保存し、Code App はそこから読む。
+SDK管理ファイルを手編集せず、CLIで直接MCPデータソースを削除して再デプロイする。
+
+```powershell
+npx pa app remove data-source --connector <shared_mcp_connector_id> --force --non-interactive
+npm run predeploy
+npm run deploy
+```
+
+最新版へ更新後、接続モーダルにMCP接続が無いことを確認する。古い版のバナーが出た場合は
+[デプロイ後の旧バンドル](#37-power-apps-push-後もブラウザが古いバンドルを表示する検証済-2026-08-10)の手順で更新する。
+
+**恒久対策済み**: `scripts/pre-deploy-check.mjs` が `.power` と `src/generated` の `/api/mcp` / `InvokeServer`
+を検出し、直接MCPデータソースが残るデプロイを拒否する。Plant Design & Maintenanceサンプルの
+`check:sample` も直接MCPサービス参照を拒否し、Dataverse画像キャッシュ経由を検査する。
+
 
 

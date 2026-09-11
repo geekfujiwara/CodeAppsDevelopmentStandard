@@ -13,7 +13,7 @@ const answer: PlantWaitStep = { title: "根拠と回答の整理", service: "AI 
 const plans: Record<string, PlantWaitPlan> = {
   image: { title: "図面画像", steps: [
     { title: "設備・資料の対応確認", service: "Dataverse", tool: "ListRecordsWithOrganization" },
-    { title: "PDFの指定ページを画像化", service: "Azure Files / Functions", tool: "GetIndexedDrawingPageImage" },
+    { title: "取り込み済みページ画像の取得", service: "Dataverse", tool: "ListRecordsWithOrganization" },
     { title: "図面番号・改訂・ページの確認", service: "画像ビューアー", tool: "" },
   ] },
   overview: { title: "設備の調査", steps: [index, drawing, document, answer] },

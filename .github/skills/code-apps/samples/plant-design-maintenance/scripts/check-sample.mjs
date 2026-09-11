@@ -31,4 +31,15 @@ if (process.argv.includes("--tracked")) {
 }
 const config = await readFile(path.join(root, "src/lib/plant-agent-config.ts"), "utf8")
 assert.ok(!/RETRIEVAL_READY\s*=\s*true/.test(config), "Retrieval must default off")
+const sourceFiles = [
+  "src/components/plant-agent-images.tsx",
+  "src/lib/plant-page-image-loader.ts",
+  "src/integrations/connectors.ts",
+]
+for (const filename of sourceFiles) {
+  const source = await readFile(path.join(root, filename), "utf8")
+  assert.ok(!/Drawing_files_mcpService|GetIndexedDrawingPageImage|InvokeServer/.test(source), `Direct MCP connector usage: ${filename}`)
+}
+const imageLoader = await readFile(path.join(root, "src/lib/plant-page-image-loader.ts"), "utf8")
+assert.match(imageLoader, /pageimagejson/, "Drawing images must be read from the verified Dataverse cache")
 console.log("Sample publication checks passed")

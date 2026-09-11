@@ -9,4 +9,3 @@ function disconnected(name: string): Connector {
 
 export const MicrosoftDataverseService = disconnected("Dataverse")
 export const MicrosoftCopilotStudioService = disconnected("Copilot Studio")
-export const Drawing_files_mcpService = disconnected("Drawing page API")

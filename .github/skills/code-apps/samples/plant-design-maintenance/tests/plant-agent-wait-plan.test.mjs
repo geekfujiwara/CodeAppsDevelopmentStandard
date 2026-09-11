@@ -5,11 +5,11 @@ import { plantWaitPlan, waitPlanStep } from '../src/lib/plant-agent-wait-plan.ts
 
 const selection = { modelId: 'plant', modelRevision: 1, nodeId: 'tk101', label: 'Tank' }
 
-test('image quick reply describes indexed PDF rendering without agent invocation', () => {
+test('image quick reply describes Dataverse cache retrieval without agent invocation', () => {
   const question = plantAgentQuickReplies(selection).groups.find(group => group.id === 'drawings').replies[0].text
   const plan = plantWaitPlan(selection, question)
   assert.equal(plan.title, '図面画像')
-  assert.deepEqual(plan.steps.map(step => step.tool), ['ListRecordsWithOrganization', 'GetIndexedDrawingPageImage', ''])
+  assert.deepEqual(plan.steps.map(step => step.tool), ['ListRecordsWithOrganization', 'ListRecordsWithOrganization', ''])
 })
 
 test('every quick reply selects its group while free text and design remain generic', () => {

@@ -3,13 +3,16 @@ import { parsePlantPageImage, type PlantPageImage } from "./plant-page-images.ts
 type ReadRows = (table: string, options: { select: string[]; filter: string; top: number }) => Promise<Record<string, unknown>[]>
 const guid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
 
-export async function loadPlantPageImages(read: ReadRows, sourceIds: string[], reply: string, direct: boolean, publisher: string, tables: string, fetchImage: (sourceId: string) => Promise<Record<string, unknown>>) {
-  if (!sourceIds.length || sourceIds.length > 8 || sourceIds.some(id => !guid.test(id))) return []
+export type PlantPageImageResult = { images: PlantPageImage[]; unavailable: number }
+
+export async function loadPlantPageImages(read: ReadRows, sourceIds: string[], reply: string, direct: boolean, publisher: string, tables: string): Promise<PlantPageImageResult> {
+  if (!sourceIds.length || sourceIds.length > 8 || sourceIds.some(id => !guid.test(id))) return { images: [], unavailable: 0 }
   const rows = await read(`${tables}sourceindexes`, {
-    select: [`${tables}sourceindexid`, `${publisher}_pagenumber`, `_${publisher}_drawingrevisionid_value`],
+    select: [`${tables}sourceindexid`, `${publisher}_pagenumber`, `_${publisher}_drawingrevisionid_value`, `${publisher}_pageimagejson`],
     filter: `(${sourceIds.map(id => `${tables}sourceindexid eq ${id}`).join(" or ")}) and statecode eq 0 and ${publisher}_verified eq true and ${publisher}_sourcekind eq 100000000`, top: 8,
   })
   const images: PlantPageImage[] = []
+  let unavailable = 0
   for (const row of rows) {
     const sourceId = row[`${tables}sourceindexid`]
     if (typeof sourceId !== "string" || !sourceIds.includes(sourceId)) continue
@@ -29,11 +32,15 @@ export async function loadPlantPageImages(read: ReadRows, sourceIds: string[], r
     const page = row[`${publisher}_pagenumber`]
     if (typeof drawingNumber !== "string" || typeof revisionName !== "string" || typeof path !== "string" || typeof page !== "number") continue
     if (!direct && (!reply.includes(drawingNumber) || !reply.includes(revisionName))) continue
-    const result = await fetchImage(sourceId)
-    if (result.sourceId !== sourceId) throw new Error("画像の索引IDが一致しません。")
-    const image = await parsePlantPageImage(JSON.stringify(result), { drawingNumber, revision: revisionName, path, page })
+    // 取り込み時に描画された画像がまだ無い索引が混ざっていても、揃っているページは表示する
+    const cached = row[`${publisher}_pageimagejson`]
+    if (typeof cached !== "string" || !cached) {
+      unavailable++
+      continue
+    }
+    const image = await parsePlantPageImage(cached, { drawingNumber, revision: revisionName, path, page })
     if (!image) throw new Error("画像の図面・改訂・ページを検証できません。")
     images.push(image)
   }
-  return images.sort((first, second) => first.page - second.page)
+  return { images: images.sort((first, second) => first.page - second.page), unavailable }
 }
