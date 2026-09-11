@@ -93,6 +93,13 @@ class ResolveBlocksTests(unittest.TestCase):
         for expected in ("B3", "B12", "B13", "B14", "B16", "B15"):
             self.assertIn(expected, plan.blocks, f"{expected} should be pulled in by B12")
 
+    def test_b17_dependency_pulls_in_delivery_and_sandbox_blocks(self) -> None:
+        plan = scaffold_ai_teammate.build_plan(
+            base_decisions(preset="role", blocks=["B17"]), Path("unused")
+        )
+        for expected in ("B3", "B12", "B14", "B15", "B17"):
+            self.assertIn(expected, plan.blocks, f"{expected} should be pulled in by B17")
+
     def test_role_r1_resolves_documented_blocks(self) -> None:
         plan = scaffold_ai_teammate.build_plan(
             base_decisions(preset="role", roles=["R1"]), Path("unused")
@@ -177,6 +184,20 @@ class ScaffoldFileSystemTests(unittest.TestCase):
             # Base files are always present.
             self.assertTrue((target / "AgentBrain.cs").is_file())
             self.assertTrue((target / "UsageStore.cs").is_file())
+
+    def test_b17_scaffolds_image_generation_and_delivery_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "agent"
+            target.mkdir()
+            plan = scaffold_ai_teammate.build_plan(
+                base_decisions(preset="role", blocks=["B17"]), target
+            )
+            scaffold_ai_teammate.scaffold(plan, dict(FULL_ENV), force=False)
+
+            self.assertTrue((target / "ImageGenerationTools.cs").is_file())
+            self.assertTrue((target / "FileDelivery.cs").is_file())
+            self.assertTrue((target / "DocumentLedger.cs").is_file())
+            self.assertTrue((target / "SandboxTools.cs").is_file())
 
     def test_rendered_csharp_has_no_leftover_block_markers(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

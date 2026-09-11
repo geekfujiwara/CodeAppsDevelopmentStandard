@@ -1186,9 +1186,20 @@ Windows PowerShell 5.1 へフォールバックする場合、`Set-Content -Enco
   接続して初めて生成されるコードで、秘匿情報を含むため scaffold の対象外
   （`code-apps` スキルの標準と同じ）。
 - `deploy_ai_teammate.py --check` はこれを失敗として扱わない: `power.config.json` が無い段階では
-  `npm install` と `npx tsc -b --noEmit` までを検証範囲とし、`npm run build` は試さない。
+  `npm install` と `npm run lint` までを検証範囲とし、`npm run build` は試さない。
   `power.config.json` が存在する（`pa app init` まで進んだ）場合のみ `npm run build --if-present`
   を実行して本当のビルド健全性を見る。
 - 対処: `python scripts/deploy_ai_teammate.py --execute` が
   `pa app init` → `setup_connection_reference.py --write-env` → `add_data_source.py` →
   `npm run predeploy` の順に実行して初めて `src/generated/` が揃い、`npm run build` が成立する。
+
+## 57. `npx pa app push` が無関係な `pa@0.1.1` のインストールを要求する
+
+- 原因: `package.json` が旧 `@microsoft/power-apps-cli` 0.x を固定しているか、CLI を直接依存に持たず、
+  ローカルの `pa` bin を解決できていない。npm は同名の無関係な `pa` パッケージを取得しようとする。
+- 対処: `@microsoft/power-apps-cli` 1.x を `devDependencies` に明示し、`npx pa --version` と
+  `npx pa app --help` を確認する。`deploy` は
+  `npm run build && npm run predeploy && npx pa app push` に統一する。
+- 恒久対策済み: Evaluation App の `scripts/pre-deploy-check.mjs` が CLI の major version と deploy
+  script を毎回検証し、`test_deploy_ai_teammate.py::test_template_uses_current_pa_cli` がテンプレートの
+  回帰を検出する。

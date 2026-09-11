@@ -10,6 +10,7 @@ Run with:
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import tempfile
 import unittest
@@ -41,14 +42,14 @@ class PreConnectionStepsTests(unittest.TestCase):
     def _steps(self, target: Path, env: dict[str, str] | None = None) -> list:
         return deploy_ai_teammate.build_pre_connection_steps(target, env or dict(FAKE_ENV), _skill_root())
 
-    def test_no_old_power_apps_cli_name_anywhere(self) -> None:
+    def test_uses_current_pa_group_cli(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp)
             (target / "evaluation-app").mkdir()
             steps = self._steps(target)
             for step in steps:
                 self.assertNotIn("power-apps", step.command,
-                                  f"{step.name}: must use the `pa` CLI, not the retired `power-apps` binary")
+                                  f"{step.name}: must use the `pa` group CLI")
 
     def test_pa_app_init_present_with_required_flags_when_not_yet_initialized(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -97,6 +98,27 @@ class PreConnectionStepsTests(unittest.TestCase):
             (target / "evaluation-app").mkdir()
             names = [s.name for s in self._steps(target)]
             self.assertIn("deploy_agent_webapp.py", names)
+
+    def test_image_model_is_provisioned_only_for_b17(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            (target / "evaluation-app").mkdir()
+            (target / "scaffold-plan.json").write_text(
+                json.dumps({"blocks": ["B3", "B12", "B14", "B17"]}), encoding="utf-8"
+            )
+            names = [s.name for s in self._steps(target)]
+            self.assertIn("provision_image_model.py", names)
+            self.assertLess(names.index("provision_image_model.py"), names.index("provision_selfhost.py"))
+
+    def test_image_model_is_not_provisioned_without_b17(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            (target / "evaluation-app").mkdir()
+            (target / "scaffold-plan.json").write_text(
+                json.dumps({"blocks": ["B1", "B3", "B15"]}), encoding="utf-8"
+            )
+            names = [s.name for s in self._steps(target)]
+            self.assertNotIn("provision_image_model.py", names)
 
 
 class PostConnectionStepsTests(unittest.TestCase):
@@ -159,11 +181,18 @@ class EvaluationAppEnvGenerationTests(unittest.TestCase):
 
 class CheckHelpersTests(unittest.TestCase):
     def test_template_uses_current_pa_cli(self) -> None:
-        package_json = (
-            SCRIPT_PATH.parent.parent / "templates" / "evaluation-app" / "package.json"
-        ).read_text(encoding="utf-8")
+        app_template = SCRIPT_PATH.parent.parent / "templates" / "evaluation-app"
+        package_json = (app_template / "package.json").read_text(encoding="utf-8")
+        predeploy = (app_template / "scripts" / "pre-deploy-check.mjs").read_text(encoding="utf-8")
         self.assertIn("npx pa app push", package_json)
         self.assertNotIn("npx power-apps", package_json)
+        self.assertIn('"@microsoft/power-apps-cli": "^1.0.1"', package_json)
+        self.assertIn(
+            '"deploy": "npm run build && npm run predeploy && npx pa app push"',
+            package_json,
+        )
+        self.assertIn("npx pa app init", predeploy)
+        self.assertNotIn("npx power-apps", predeploy)
 
     def test_scaffold_blocks_reads_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

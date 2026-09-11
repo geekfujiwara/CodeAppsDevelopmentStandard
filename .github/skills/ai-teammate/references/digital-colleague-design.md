@@ -123,6 +123,7 @@ Exchange の共有設定、Work IQ のポリシーで縛る。
 | **B14** | 成果物の共有と同意 | `DocumentLedger.cs` / `DocumentShareTools.cs` | 作ったファイルの依頼元と区分を覚えておき、別の人への共有は依頼元の許可を取ってから行う | B3 B12 ＋ Graph 委任同意（許可の受け付けに B9）|
 | **B15** | 利用実績とコスト | `UsageStore.cs` / `UsageTools.cs` | 誰が・どの処理が・どのツールがどれだけ使ったかを記録し、会話で内訳を返す | B3 |
 | **B16** | 添付の受け取り | `IncomingFiles.cs` | Teams で送られた画像・資料を見て理解し、作業環境で加工する | B1 B3 B12 ＋ マニフェスト `supportsFiles` |
+| **B17** | 画像生成 | `ImageGenerationTools.cs` | 新しい画像素材を生成し、OneDrive の台帳付き成果物として渡す | B3 B14 ＋ Azure OpenAI 画像モデル |
 
 雛形は [templates/](templates/) にある。`AgenticIdentity.template.cs` / `MailboxWorker.template.cs` /
 `PresenceWorker.template.cs` / `TeamsChatTools.template.cs` / `WebSearchTools.template.cs` /
@@ -130,7 +131,8 @@ Exchange の共有設定、Work IQ のポリシーで縛る。
 `CodeSandbox.template.cs` / `SandboxTools.template.cs` / `AgentProgress.template.cs` /
 `MessageHtml.template.cs` / `MailTools.template.cs` / `DocumentLedger.template.cs` /
 `DocumentShareTools.template.cs` / `UsageStore.template.cs` / `UsageTools.template.cs` /
-`IncomingFiles.template.cs`
+`IncomingFiles.template.cs`。一括 scaffold の原本は `templates/digital-colleague/` にあり、B17 の
+`ImageGenerationTools.cs` もそこから選択されたブロックに応じて生成される。
 をコピーし、名前空間だけ合わせる。
 
 > **B9 だけは Work IQ を通らない。** Work IQ のパス allowlist に `/chats` が無いため、
@@ -188,6 +190,7 @@ Exchange の共有設定、Work IQ のポリシーで縛る。
         B14 成果物の共有（B12 の出口に付く・許可の受け付けは B1 のターンでしかできない）
         B15 利用実績（B3 のツール ループ全体を 1 ターン単位で計測・全入口共通）
         B16 添付の受け取り（B1 のターンの入口に付く・画像は B3 に見せ、実体は B12 に置く）
+        B17 画像生成（B3 のローカル ツール・生成物は B14 の OneDrive と台帳へ渡す）
 ```
 
 **入口が増えても頭脳は 1 つ**にする。Teams とメールで判断が食い違うと、利用者は必ず気付く。
@@ -202,14 +205,14 @@ Exchange の共有設定、Work IQ のポリシーで縛る。
 
 ## 4. 役割 × ブロックの対応表
 
-| 役割 | B1 Teams | B2 ID | B3 頭脳 | B4 M365 | B5 Dataverse | B6 メール | B7 在席 | B8 人格 | B9 チャット | B10 Web | B11 定期 | B12 作業環境 | B13 経過 | B14 共有 | B15 実績 | B16 添付 |
-|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| R1 予定調整の秘書 | ● | ● | ● | ● | ○ | ● | ● | ● | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ |
-| R2 一次受付 | ○ | ● | ● | ● | ● | ● | ○ | ● | ○ | ● | ○ | ○ | ○ | ○ | ● | ○ |
-| R3 ウォッチャー | ● | ● | ● | ○ | ● | ○ | ● | ● | ● | ● | ● | ○ | ● | ○ | ● | ○ |
-| R4 まとめ役 | ○ | ● | ● | ● | ● | ○ | ○ | ● | ○ | ○ | ● | ● | ● | ● | ● | ● |
-| R5 起票・下書き係 | ● | ● | ● | ○ | ● | ● | ● | ● | — | ○ | ○ | ● | ● | ● | ● | ● |
-| R6 チーム | 各体に依存 | ● | ● | — | ● | — | ● | ● | ○ | ● | ○ | ○ | ● | ○ | ● | ○ |
+| 役割 | B1 Teams | B2 ID | B3 頭脳 | B4 M365 | B5 Dataverse | B6 メール | B7 在席 | B8 人格 | B9 チャット | B10 Web | B11 定期 | B12 作業環境 | B13 経過 | B14 共有 | B15 実績 | B16 添付 | B17 画像 |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| R1 予定調整の秘書 | ● | ● | ● | ● | ○ | ● | ● | ● | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ | ○ |
+| R2 一次受付 | ○ | ● | ● | ● | ● | ● | ○ | ● | ○ | ● | ○ | ○ | ○ | ○ | ● | ○ | ○ |
+| R3 ウォッチャー | ● | ● | ● | ○ | ● | ○ | ● | ● | ● | ● | ● | ○ | ● | ○ | ● | ○ | ○ |
+| R4 まとめ役 | ○ | ● | ● | ● | ● | ○ | ○ | ● | ○ | ○ | ● | ● | ● | ● | ● | ● | ○ |
+| R5 起票・下書き係 | ● | ● | ● | ○ | ● | ● | ● | ● | — | ○ | ○ | ● | ● | ● | ● | ● | ○ |
+| R6 チーム | 各体に依存 | ● | ● | — | ● | — | ● | ● | ○ | ● | ○ | ○ | ● | ○ | ● | ○ | ○ |
 
 ● 必須 ／ ○ 業務次第 ／ — 不要
 
