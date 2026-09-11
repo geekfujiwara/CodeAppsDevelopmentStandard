@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { findDirectMcpDataSources } from "./detect-direct-mcp-data-sources.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 // scripts/ の一つ上がプロジェクトルート
@@ -41,6 +42,16 @@ if (!fs.existsSync(envPath)) {
 const configPath = path.join(root, "power.config.json");
 if (!fs.existsSync(configPath)) {
   errors.push("power.config.json が存在しません。npx pa app init を先に実行してください。");
+}
+
+// 2a. MCP Server は Copilot Studio のツールとして接続し、Code App へ直接追加しない
+const directMcpFiles = findDirectMcpDataSources(root);
+if (directMcpFiles.length > 0) {
+  errors.push(
+    `Code App に MCP Server の直接データソースが含まれています: ${directMcpFiles.join(", ")}\n` +
+    `     → MCP は Copilot Studio のツールとして接続してください。Code App は Copilot Studio と Dataverse のみを使い、` +
+    `"npx pa app remove data-source --connector <shared_xxx> --force --non-interactive" で直接接続を削除してください。`
+  );
 }
 
 // 3. config.ts のアプリ名がデフォルトのままでないか

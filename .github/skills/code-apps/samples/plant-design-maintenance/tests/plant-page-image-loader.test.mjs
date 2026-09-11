@@ -13,7 +13,7 @@ const row = { sample_kbsourceindexid: source, sample_pagenumber: 1, sample_pagei
 const fixture = (cache = row, revisionRows = [{ sample_name: 'Rev.B', sample_fileurl: path, _sample_drawingid_value: drawing }]) => async (table, options) => {
   assert.match(options.filter, /statecode eq 0/)
   if (table === 'sample_kbsourceindexes') {
-    assert.ok(!options.select.includes('sample_pageimagejson'))
+    assert.ok(options.select.includes('sample_pageimagejson'))
     assert.ok(options.filter.includes(source))
     assert.match(options.filter, /sample_verified eq true/)
     return [cache]
@@ -27,20 +27,22 @@ const fixture = (cache = row, revisionRows = [{ sample_name: 'Rev.B', sample_fil
   assert.ok(options.filter.includes(drawing))
   return [{ sample_name: 'DWG-TK101-1001' }]
 }
-const load = (reader, direct = true, ids = [source], fetchImage = async id => ({ ...image, sourceId: id })) => loadPlantPageImages(reader, ids, '', direct, 'sample', 'sample_kb', fetchImage)
+const load = (reader, direct = true, ids = [source]) => loadPlantPageImages(reader, ids, '', direct, 'sample', 'sample_kb')
 
 test('explicit image request validates a synthetic PNG without AI reply text', async () => {
-  assert.equal((await load(fixture()))[0].src, 'data:image/png;base64,' + image.data)
-  assert.deepEqual(await load(fixture(), false), [])
+  assert.equal((await load(fixture())).images[0].src, 'data:image/png;base64,' + image.data)
+  assert.deepEqual(await load(fixture(), false), { images: [], unavailable: 0 })
 })
 test('missing image and inaccessible revision do not substitute another image', async () => {
-  assert.equal((await load(fixture({ ...row, sample_pageimagejson: null })))[0].src, 'data:image/png;base64,' + image.data)
-  assert.deepEqual(await load(fixture(row, [])), [])
+  assert.deepEqual(await load(fixture({ ...row, sample_pageimagejson: null })), { images: [], unavailable: 1 })
+  assert.deepEqual(await load(fixture(row, [])), { images: [], unavailable: 0 })
   await assert.rejects(load(fixture({ ...row, sample_pagenumber: 2 })), /検証できません/)
-  await assert.rejects(load(fixture(), true, [source], async () => ({ ...image, sourceId: revision })), /索引ID/)
-  await assert.rejects(load(fixture(), true, [source], async () => { throw new Error('renderer unavailable') }), /renderer unavailable/)
+  await assert.rejects(load(fixture({ ...row, sample_pageimagejson: JSON.stringify({ ...image, drawingNumber: 'DWG-OTHER-9999' }) })), /検証できません/)
+})
+test('drawings without a cached page image are reported without failing the whole request', async () => {
+  assert.deepEqual(await load(fixture({ ...row, sample_pageimagejson: '' })), { images: [], unavailable: 1 })
 })
 test('permission errors propagate and invalid IDs do not query', async () => {
   await assert.rejects(load(async () => { throw new Error('403') }), /403/)
-  assert.deepEqual(await load(async () => assert.fail('invalid ID must not query'), true, ['invalid']), [])
+  assert.deepEqual(await load(async () => assert.fail('invalid ID must not query'), true, ['invalid']), { images: [], unavailable: 0 })
 })
