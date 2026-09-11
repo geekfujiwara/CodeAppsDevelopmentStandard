@@ -13,7 +13,7 @@ Power Apps Code Apps, モデル駆動型アプリ, Generative page, Dataverse, P
 
 ## クイックスタート
 
-VS Code + GitHub Copilot が使える状態（[ローカル開発環境の準備](#ローカル開発環境の準備)を参照）であれば、次のコマンドと 1 依頼だけで開発を始められます。
+VS Code + GitHub Copilot が使える状態（[統合プロンプトで一気に準備する（推奨）](#統合プロンプトで一気に準備する（推奨）)を参照）であれば、次のコマンドと 1 依頼だけで開発を始められます。
 
 ```bash
 npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents
