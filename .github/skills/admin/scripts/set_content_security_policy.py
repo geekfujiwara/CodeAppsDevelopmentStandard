@@ -3,6 +3,13 @@
 管理センターの「環境 > 設定 > プライバシー + セキュリティ > コンテンツ セキュリティ ポリシー」に相当する。
 「App（モデル駆動）」タブの設定が Code Apps にも適用される。
 
+注意:
+- この設定は既定で無効（iscontentsecuritypolicyenabled=False）。無効の間は
+  モデル駆動型アプリ / Generative Pages に CSP ヘッダーが付かず、iframe 埋め込みは制限されない。
+- Code Apps はこれとは別に `frame-src 'self'` が常時強制される。
+- Frame-Src 等のディレクティブは Strict CSP（--strict）を有効にした場合のみ効く。
+  有効化は環境全体に影響するため、単一の iframe を許可する目的で有効化しないこと。
+
 使い方:
     python set_content_security_policy.py --environment-url <ENV_URL>          # 現状確認
     python set_content_security_policy.py --environment-url ... --enable --apply                  # 強制を有効化
