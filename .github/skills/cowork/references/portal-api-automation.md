@@ -19,7 +19,8 @@
 | OAuth client registration | `GET/POST/PATCH/DELETE /v1.0/oauthconfigurations` | private API、portal Bearer session |
 | Agent Registry の Install/Uninstall | `POST /fd/addins/api/apps` | private API、admin browser session |
 | Agent Registry の Publish/Finalize | `POST /fd/addins/api/v2/actionableApps` | private API、admin browser session |
-| Agent request/permission approval | `POST /fd/addins/api/agentActions/approve` | private API、admin browser session |
+| Agent 利用要求の承認 | `POST /fd/addins/api/agentActions/approve` | private API、admin browser session |
+| Agent Entra permission の更新 | `POST /fd/addins/api/v2/AgentPermission/update` | private API、admin browser session |
 | Frontier 対象者 | `GET/POST /admin/api/settings/company/frontier/access` | private API、admin browser session |
 
 ```powershell
@@ -68,8 +69,17 @@ Agent Registry の実測契約は次のとおり。package登録/更新はGraph�
 |---|---|
 | Install / Uninstall | `/fd/addins/api/apps`、`Command=DEPLOY/UNDEPLOY`、`UserAssignmentDetails` |
 | Publish / Finalize | `/fd/addins/api/v2/actionableApps`、`Apps[].Command=APPROVE/FINALIZEPACKAGE` |
-| Request / permission approval | `/fd/addins/api/agentActions/approve?workload=SharedAgent`、`requestIds[]` |
+| Agent 利用要求の承認 | `/fd/addins/api/agentActions/approve?workload=SharedAgent`、`requestIds[]` |
+| Entra permission Grant / Revoke | `/fd/addins/api/v2/AgentPermission/update`、`ActiveDirectoryAppId`、`PermissionRequestData[]` |
 | 完了確認 | `/fd/addins/api/deploymentRequestStatus/{requestId}` をpollし、Agent detailsをGET |
+
+`PermissionRequestData[]` は `Type` (`Scope` / `Role`)、`Action` (`Grant` / `Revoke`)、
+`ResourceId`、`Scope`、`AppId` の完全な組で送る。利用要求承認とEntra permission更新は別操作としてplanを作る。
+
+Install/Uninstallは成功応答とdetails read-backまで実測済み。Publish/FinalizeとEntra permission更新は
+bundle契約の捕捉とrunner契約テストまでで、成功mutationは未実測である。`AppCatalog.ReadWrite.All`を
+同意した検証用認証でdisposable packageを登録するか、管理者が検証専用agentを指定するまで、既存agentへ
+冪等性未確認のGrant/Revokeを送らない。
 
 ## Teams 開発者ポータル通信の調査
 

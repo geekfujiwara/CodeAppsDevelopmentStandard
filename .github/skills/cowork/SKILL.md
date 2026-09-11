@@ -461,7 +461,7 @@ python .github/skills/cowork/scripts/manage_agent_package_graph.py deploy `
 ```
 
 Graph のアプリカタログ登録と、Agent Registry の公開/Install 設定は別工程である。
-Install/Uninstall、Publish/Finalize、permission approval は管理センター private API を正常系とし、GET inventory から
+Install/Uninstall、Publish/Finalize、利用要求承認、Entra permission Grant/Revoke は管理センター private API を正常系とし、GET inventory から
 対象 ID を解決して `manage_m365_portal_api.py` の plan を作る。hash 承認後は
 `m365_portal_browser_runner.mjs` で送信し、deployment status とAgent detailsを読み戻す。
 API が401/403/404、schema不一致、read-back不一致の場合だけ、次の管理センターfallbackを選択する。
