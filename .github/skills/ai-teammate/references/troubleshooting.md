@@ -1150,3 +1150,45 @@ Windows PowerShell 5.1 へフォールバックする場合、`Set-Content -Enco
 
 雛形は [templates/MailTools.template.cs](templates/MailTools.template.cs) と
 [templates/MailboxWorker.template.cs](templates/MailboxWorker.template.cs) に入っている。
+
+## 53. `scaffold_ai_teammate.py` が `Unresolved ${VAR} tokens after rendering` で失敗する
+
+- 原因: `${VAR}` を参照しているテンプレート（`appsettings.template.json` や `Agent.csproj` など）に
+  対応する値が `.env` に無い。デプロイ時にしか埋まらない値（`A365_AGENT_BLUEPRINT_ID` /
+  `A365_AGENT_INSTANCE_ID` / `A365_AGENT_USER_ID` / `AZURE_BOT_MSA_APP_ID` / `SANDBOX_ENDPOINT` /
+  `IMAGE_GENERATION_DEPLOYMENT` / `EVALUATION_JUDGE_DEPLOYMENT`）は許可リスト
+  （`DEFERRED_TOKENS`）に含まれるため未設定でも scaffold は止まらない。エラーに出た変数名は
+  **scaffold 時点で埋まっているべき値**なので、`.env` に追加してから再実行する。
+- これは事前検証であり恒久対策そのもの: 新しいテンプレート ファイルを足すときは、
+  そこで使った `${VAR}` を [.env.example](.env.example) にも必ず追記する。
+
+## 54. `scaffold_ai_teammate.py` が空でないターゲットで `Target is not empty` と拒否する
+
+- 原因: 既定では非空ディレクトリへの scaffold を拒否する（意図しない上書き防止）。
+- 対処: 空の作業ディレクトリを使うか、`--force` を明示して意図的にマージする。
+  `--force` はコミット済みファイルを上書きしうるため、Git の作業ツリーがクリーンな状態で使う。
+
+## 55. 一部の機能ブロックを外したのに `dotnet build` が知らない型でエラーになる
+
+- 原因: `templates/digital-colleague/` を手で編集し、あるファイルは block A に依存する型を
+  参照しているのに、block A 自体のファイル一覧（`BLOCK_FILES`）や依存関係
+  （`BLOCK_DEPENDENCIES`）を更新していない。
+- 対処: 新しい機能ブロックのファイルを追加したら、`scaffold_ai_teammate.py` の
+  `BLOCK_FILES` / `BLOCK_DEPENDENCIES` を合わせて更新し、
+  `scripts/tests/test_scaffold_ai_teammate.py` の `test_excluded_block_files_are_not_scaffolded`
+  相当のテストを通す。`preset: full` は常に全ブロックを含むため、この問題は role プリセットの
+  部分構成でのみ表面化する。
+
+## 56. scaffold 直後に `evaluation-app` で `npm run build` が `Cannot find module '@/generated/...'` で失敗する
+
+- **これは既知の制約であり、テンプレートの不具合ではない。** `src/generated/` は
+  `npx pa app add data-source`（`add_data_source.py` ラッパー経由）が**生きた Dataverse 環境**に
+  接続して初めて生成されるコードで、秘匿情報を含むため scaffold の対象外
+  （`code-apps` スキルの標準と同じ）。
+- `deploy_ai_teammate.py --check` はこれを失敗として扱わない: `power.config.json` が無い段階では
+  `npm install` と `npx tsc -b --noEmit` までを検証範囲とし、`npm run build` は試さない。
+  `power.config.json` が存在する（`pa app init` まで進んだ）場合のみ `npm run build --if-present`
+  を実行して本当のビルド健全性を見る。
+- 対処: `python scripts/deploy_ai_teammate.py --execute` が
+  `pa app init` → `setup_connection_reference.py --write-env` → `add_data_source.py` →
+  `npm run predeploy` の順に実行して初めて `src/generated/` が揃い、`npm run build` が成立する。

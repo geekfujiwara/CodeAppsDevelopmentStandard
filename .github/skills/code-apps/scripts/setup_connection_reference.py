@@ -22,6 +22,9 @@ Code Apps を ALM 対応（ソリューション同梱・環境間移送可能�
   python .github/skills/code-apps/scripts/setup_connection_reference.py
   python .github/skills/code-apps/scripts/setup_connection_reference.py --force-create
   python .github/skills/code-apps/scripts/setup_connection_reference.py --api-id shared_sql
+  python .github/skills/code-apps/scripts/setup_connection_reference.py --write-env .env
+    # SOLUTION_ID / CONNECTION_REFERENCE_LOGICAL_NAME を .env へ upsert する
+    # （呼び出し側が標準出力をパースしなくて済むようにするための最小実装）
 """
 
 from __future__ import annotations
@@ -140,6 +143,22 @@ def create_connection_reference(
     }
 
 
+def upsert_env(path: Path, values: dict[str, str]) -> None:
+    """`.env` の該当キーだけを書き換える（無ければ追記）。他の行・順序・コメントは保持する。
+
+    ここで書くのは SOLUTION_ID / CONNECTION_REFERENCE_LOGICAL_NAME のような**非秘匿の識別子**の
+    みで、シークレット値は扱わない。呼び出し側の標準出力パース（stdout 依存）を無くすための最小実装。
+    """
+    remaining = dict(values)
+    lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    for i, line in enumerate(lines):
+        key = line.split("=", 1)[0].strip() if "=" in line and not line.strip().startswith("#") else None
+        if key in remaining:
+            lines[i] = f"{key}={remaining.pop(key)}"
+    lines.extend(f"{k}={v}" for k, v in remaining.items())
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="接続参照をソリューションに用意する")
     parser.add_argument(
@@ -152,6 +171,11 @@ def main() -> None:
     parser.add_argument("--connection-id", default=os.getenv("DATAVERSE_CONNECTION_ID", ""))
     parser.add_argument(
         "--force-create", action="store_true", help="既存 CR を流用せず必ず新規作成する"
+    )
+    parser.add_argument(
+        "--write-env", type=Path, default=None,
+        help="SOLUTION_ID / CONNECTION_REFERENCE_LOGICAL_NAME をこの .env へ upsert する"
+             "（呼び出し側が標準出力をパースしなくて済むようにする）",
     )
     args = parser.parse_args()
 
@@ -194,6 +218,13 @@ def main() -> None:
         f"--connection-ref {logical_name} --solution-id {solution_id} "
         f"--org-url {os.getenv('DATAVERSE_URL', '{DATAVERSE_URL}')} --non-interactive"
     )
+
+    if args.write_env:
+        upsert_env(args.write_env, {
+            "SOLUTION_ID": solution_id,
+            "CONNECTION_REFERENCE_LOGICAL_NAME": logical_name,
+        })
+        print(f"\n  + {args.write_env} に SOLUTION_ID / CONNECTION_REFERENCE_LOGICAL_NAME を書き込みました。")
 
 
 if __name__ == "__main__":

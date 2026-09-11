@@ -52,6 +52,9 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 | [architecture.md](references/architecture.md) | 2 種類のブループリントの違い / manifest スキーマ / 公開経路 / 表示名・アイコンの変更 |
 | [troubleshooting.md](references/troubleshooting.md) | 異常系（401 / AADSTS82001 / AADSTS65001 / カタログ公開の 409・403 など） |
 | [.env.example](references/.env.example) | 環境変数の一覧と取得元 |
+| [scaffold-decisions.example.json](references/scaffold-decisions.example.json) | **一括 scaffold の入力**。AskUserQuestion の回答をこの形へ書き出す（役割 / 機能ブロック / poc・full / リポジトリ可視性 / 管理担当者） |
+| [`templates/digital-colleague/`](templates/digital-colleague/) | scaffold される Agents SDK プロジェクトの原本（B1〜B17。`scaffold_ai_teammate.py` が読む） |
+| [`templates/evaluation-app/`](templates/evaluation-app/) | scaffold される AI チームメイト評価Hub（Code Apps）の原本 |
 | [`alm`](../alm/SKILL.md) | 秘匿化ゲート・CI/CD・リリース記録 |
 | 参考のみ | [foundry-hosted-bot.md](references/foundry-hosted-bot.md)（Foundry ホスト方式）/ [poc-quickstart.md](references/poc-quickstart.md)（共有エージェントの簡易ルート）/ [team-pattern.md](references/team-pattern.md)（複数体構成）/ [a365-cli.md](references/a365-cli.md) |
 
@@ -98,14 +101,40 @@ B12 を入れるなら **B13 と B14**、相手からファイルを渡される
 「エージェントはメールを既読にできない」「他人の予定表は直接読めない」
 「共有リンクは一度渡すと取り消せない」の 4 点は、後から言うと要件が崩れる。
 
+### 一括 scaffold（Step 0〜3 をまとめて実行する）
+
+**1 回の AskUserQuestion で集めた回答は、利用者に手入力させず、エージェントが
+[references/scaffold-decisions.example.json](references/scaffold-decisions.example.json) の
+スキーマに沿った JSON へ自分で書き出す。** 役割 / 機能ブロック / poc・full / GitHub リポジトリ
+（full のときは private を既定）/ 公開範囲 / 管理担当者をこの 1 ファイルにまとめ、
+[scripts/scaffold_ai_teammate.py](scripts/scaffold_ai_teammate.py) に渡すと、Step 0〜3 が一度に終わる。
+
+```powershell
+python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --target .
+```
+
+- 役割ベースの構成可能テンプレート（`preset: "role"` + `roles` / `blocks`）と、
+  Meena 互換の全部入り（`preset: "full"` → B1〜B17 すべて）の両方に対応する。
+- **Code Apps の「AI チームメイト評価Hub」は常に同時 scaffold される**（`evaluation-app/` 配下）。
+  無効化はできない。
+- 選ばなかった機能ブロックの C# ファイルと DI 登録は自動的に除かれる（`full` は全部入りで生成される）。
+- `target` が空でない場合は既定で失敗する（`--force` で明示的に上書きする）。
+- `${VAR}` が `.env` に無く未解決のまま残る場合はエラーで停止する
+  （デプロイ時にしか埋まらない値は [.env.example](references/.env.example) の説明どおり後回しでよい）。
+- `implementationMode: "full"` を選ぶと ALM の pre-commit ゲートと CI ワークフローも同時に生成される。
+
 ## スキル同梱スクリプト
 
 値は引数または `.env`（[references/.env.example](references/.env.example)）から取得する。
 
 | スクリプト | 用途 | Step |
 |---|---|---|
+| [scaffold_ai_teammate.py](scripts/scaffold_ai_teammate.py) | 1 回の AskUserQuestion の回答（decisions JSON）から同僚エージェント + 評価Hub を同時 scaffold する | 0〜3 |
+| [deploy_ai_teammate.py](scripts/deploy_ai_teammate.py) | `--check`（検証のみ）→ `--execute`（Dataverse スキーマ作成・自己ホスト展開・評価Hub デプロイ）の 2 段階デプロイ。`pa app init` / 接続参照 / `add-data-source` / `npm run predeploy` を正しい順序で実行する。M365 管理センターの devPreview 公開だけは手動ゲートとして案内する | 6・9〜11 |
+| [setup_evaluation_dataverse.py](scripts/setup_evaluation_dataverse.py) | 評価Hub の 4 テーブル（`evalturn`/`evalrule`/`evalresult`/`evaljob`）を `PUBLISHER_PREFIX` で冪等作成・列補完する。`--check` は作成せず不足だけ列挙する | 3・6 |
 | [provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し `.env` へ書き戻す。`--check` でプラン・Always On のドリフト検出 | 6 |
-| [provision_code_sandbox.py](scripts/provision_code_sandbox.py) | コード実行サンドボックス（Container Apps 動的セッション プール）を冪等に作成しロールを付与 | 8 |
+| [deploy_agent_webapp.py](scripts/deploy_agent_webapp.py) | ブループリント作成/シークレット ローテーション（App Service 設定へのみ注入・ログ非出力）・`dotnet publish`・`az webapp deploy`/`restart`・`a365 setup blueprint --endpoint-only` を実行する | 4・6 |
+| [provision_code_sandbox.py](scripts/provision_code_sandbox.py) | コード実行サンドボックス（Container Apps 動的セッション プール）を冪等に作成しロールを付与（B12 のときのみ `deploy_ai_teammate.py --check` の対象） | 8 |
 | [build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + `agenticUser.json` を ZIP 化 | 9 |
 | [publish_teams_app.py](scripts/publish_teams_app.py) | Graph で ZIP を組織カタログへ登録（**devPreview は Graph 側で拒否される**） | 10 |
 | [grant_agent_instance_consent.py](scripts/grant_agent_instance_consent.py) | インスタンス SP に Messaging Bot API の管理者同意を付与 | 11 |
@@ -178,36 +207,41 @@ AGENT_ICON=assets/agent-icon.png   # アイコン画像のファイルパス
 背景を透過にしないと Step 9 の outline アイコンが塗り潰しになる。
 **商標・著作権に触れる意匠やキャラクターは使わない。**
 
-### Step 2: リポジトリを scaffold する
+### Step 2: `decisions.json` と `.env` を用意する
+
+Step 0 で決めた内容を [scaffold-decisions.example.json](references/scaffold-decisions.example.json) の
+形へ書き出す（利用者に手入力させず、エージェントがこの JSON へ書く）。
 
 ```powershell
-Copy-Item .github/skills/ai-teammate/scripts -Destination scripts -Recurse
-Copy-Item .github/skills/alm/scripts/*.py -Destination scripts
-Copy-Item .github/skills/ai-teammate/references/templates/agent.template.yaml agents/<agent-name>/
-Copy-Item .github/skills/ai-teammate/references/templates/manifest.template.json teams/
-Copy-Item .github/skills/ai-teammate/references/templates/agenticUser.template.json teams/
 Copy-Item .github/skills/ai-teammate/references/.env.example .env.example
+Copy-Item .env.example .env   # 値を埋める（AZURE_* / DATAVERSE_URL / AZURE_OPENAI_* など）
 New-Item -ItemType Directory assets -Force | Out-Null
 Copy-Item C:/path/to/your-icon.png assets/agent-icon.png
-pip install -r requirements.txt   # azure-identity / PyYAML / Pillow / requests
-```
-
-`.gitignore` は[汎用化と秘匿化](#汎用化と秘匿化)の一覧を満たすこと。
-本格実装のリポジトリ雛形・hook・CI 定義は **`alm` スキル**に従う。
-
-### Step 3: `.env` を用意する
-
-```powershell
-Copy-Item .env.example .env
 ```
 
 最低限 `AZURE_SUBSCRIPTION_ID` / `AZURE_TENANT_ID` / `AZURE_RESOURCE_GROUP` /
-`AGENT_NAME` / `AGENT_DISPLAY_NAME` と Teams manifest の公開メタデータを入れる。
+`DATAVERSE_URL` / `ENV_ID` / `SOLUTION_NAME` / `PUBLISHER_PREFIX` / `AZURE_OPENAI_ENDPOINT` /
+`AZURE_OPENAI_DEPLOYMENT` を入れる（未解決の `${VAR}` が残ると Step 3 の scaffold が失敗する）。
 認証は `standard/scripts/auth_helper.py` が保存したキャッシュを使い、
 `az login` / `a365` の個別ログインを増やさない。
 
 **Foundry プロジェクトの設定は要らない。** `AZURE_AI_ACCOUNT` / `FOUNDRY_PROJECT_ENDPOINT` は
 正常系では未設定のままでよい。
+
+### Step 3: 一括 scaffold する（同僚エージェント + 評価Hub を同時生成）
+
+```powershell
+python .github/skills/ai-teammate/scripts/scaffold_ai_teammate.py `
+  --decisions decisions.json --env .env --target .
+```
+
+- `--target .` は空のリポジトリ ルート、または `--force` を付けて既存リポジトリへマージする。
+- 生成される主なもの: `Agent.csproj` / `Program.cs` / `Agent.cs` / `AgentBrain.cs` などの
+  Agents SDK プロジェクト一式（選んだ機能ブロックの分だけ）、`prompts/system.md`、
+  `evaluation-app/`（AI チームメイト評価Hub。Code Apps。常に生成）、`scaffold-plan.json`（確定した構成の記録）。
+- `.gitignore` は[汎用化と秘匿化](#汎用化と秘匿化)の一覧を満たすこと。
+  本格実装（`implementationMode: "full"`）のリポジトリ雛形・hook・CI 定義は
+  scaffold が同時生成し、詳細は **`alm` スキル**に従う。
 
 ### Step 4: Agent 365 のエージェント ID ブループリントを作成する
 
@@ -256,6 +290,10 @@ src/<agent-name>-agent/
 > （チャネルは再送しない）。「久しぶりに話しかけると 1 回めだけ無視される」はこれ（→ troubleshooting #44）。
 > `provision_selfhost.py` が F1/D1 を弾き、Always On を有効化し、**成功時にも読み戻して検証**する。
 
+**`python scripts/deploy_ai_teammate.py --execute` がここから下を自動で行う**
+（`provision_selfhost.py` → [deploy_agent_webapp.py](scripts/deploy_agent_webapp.py)）。
+以下は `deploy_agent_webapp.py` が実行する内容そのもの（手動で追う場合や障害調査用の参考）。
+
 ```powershell
 # 1. UAMI + Azure Bot(Teams チャネル) + App Service を作成し .env に書き戻す
 python scripts/provision_selfhost.py --write .env
@@ -280,6 +318,8 @@ az webapp restart -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME
 a365 setup blueprint -n <agent-name> --endpoint-only --messaging-endpoint $env:AGENT_MESSAGING_ENDPOINT
 ```
 
+- `A365_AGENT_BLUEPRINT_ID` が未設定なら `deploy_agent_webapp.py` が先に
+  `a365 setup blueprint -n <agent-name> --no-endpoint` を実行してから続ける（Step 4 の未実施を自動で補う）。
 - `--messaging-endpoint` は **`--endpoint-only` との併用が必須**。
 - 2 つの `a365 setup blueprint` は `a365.generated.config.json` があるディレクトリで実行する。
 - エンドポイントは**自前 App Service の `/api/messages`**。ここに Foundry の URL を入れない。
