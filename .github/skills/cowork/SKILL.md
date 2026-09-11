@@ -102,6 +102,8 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
 | [scripts/build_agent_package.ps1](scripts/build_agent_package.ps1) | `.env` の `COWORK_OAUTH_REGISTRATION_ID`（引用符付きでも可）を manifest.json のプレースホルダーに注入し、必須ファイルを検証して .zip を生成（Step 7） |
 | [scripts/manage_agent_package_graph.py](scripts/manage_agent_package_graph.py) | Graph v1.0 で組織アプリ/エージェントを一覧し、M365 app package を新規登録または更新（Step 8） |
 | [scripts/manage_oauth_registration_api.py](scripts/manage_oauth_registration_api.py) | Developer Portal OAuth private API の CRUD plan を検証（Step 5）。実送信はログイン済み統合ブラウザ session で行う |
+| [../admin/scripts/manage_m365_portal_api.py](../admin/scripts/manage_m365_portal_api.py) | Agent Registry の Install / Publish / Permission plan を検証（Step 8） |
+| [../admin/scripts/m365_portal_browser_runner.mjs](../admin/scripts/m365_portal_browser_runner.mjs) | 承認済みplanをbrowser session APIで実行し、pollとread-backを検証（Step 8） |
 
 ## ワークフロー（正常系）
 
@@ -458,10 +460,11 @@ python .github/skills/cowork/scripts/manage_agent_package_graph.py deploy `
   --package <name>.zip --requires-review --expected-hash <APPROVED_HASH> --apply
 ```
 
-Graph のアプリカタログ登録と、Agent Registry の公開対象/Install 設定は別工程である。
-公開対象/Install/Block は管理センター private API を正常系とし、GET inventory から対象 ID と action config を
-解決して `manage_m365_portal_api.py` の plan を作り、hash 承認後に統合ブラウザ session API で送信・読み戻す。
-Graph が権限または package 種別に対応しない場合だけ、次の管理センター fallback を使う。
+Graph のアプリカタログ登録と、Agent Registry の公開/Install 設定は別工程である。
+Install/Uninstall、Publish/Finalize、permission approval は管理センター private API を正常系とし、GET inventory から
+対象 ID を解決して `manage_m365_portal_api.py` の plan を作る。hash 承認後は
+`m365_portal_browser_runner.mjs` で送信し、deployment status とAgent detailsを読み戻す。
+API が401/403/404、schema不一致、read-back不一致の場合だけ、次の管理センターfallbackを選択する。
 
 #### 管理センター fallback
 

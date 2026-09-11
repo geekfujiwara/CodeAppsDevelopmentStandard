@@ -17,7 +17,9 @@
 | 組織カタログ一覧 | `manage_agent_package_graph.py list` | Graph v1.0 |
 | 組織カタログ新規/更新 | `manage_agent_package_graph.py deploy` | manifest ID を維持し version を増加 |
 | OAuth client registration | `GET/POST/PATCH/DELETE /v1.0/oauthconfigurations` | private API、portal Bearer session |
-| Agent Registry の公開対象/Install | `/fd/addins/api/availableAgents` | private API、admin browser session |
+| Agent Registry の Install/Uninstall | `POST /fd/addins/api/apps` | private API、admin browser session |
+| Agent Registry の Publish/Finalize | `POST /fd/addins/api/v2/actionableApps` | private API、admin browser session |
+| Agent request/permission approval | `POST /fd/addins/api/agentActions/approve` | private API、admin browser session |
 | Frontier 対象者 | `GET/POST /admin/api/settings/company/frontier/access` | private API、admin browser session |
 
 ```powershell
@@ -56,7 +58,18 @@ OAuth registration の list/get/create/update/delete を確認済み。region �
 Developer Portal 内から direct API を実行する。package 登録・更新は引き続き Graph v1.0 を正常系とする。
 
 変更は `manage_oauth_registration_api.py` または admin の `manage_m365_portal_api.py` で dry-run し、
-`PLAN_HASH` 承認後に `--apply` で `READY_FOR_BROWSER_API` を得る。その plan だけを送信し、GET で読み戻す。
+`PLAN_HASH` 承認後に `--apply` で `READY_FOR_BROWSER_API` を得る。その plan だけを admin の
+`m365_portal_browser_runner.mjs` で送信する。runner は session headers を値を出力せず継承し、
+`appManagementRequestID` のpollとAgent detailsのread-backまで実行する。
+
+Agent Registry の実測契約は次のとおり。package登録/更新はGraph、登録後の配布ライフサイクルはprivate APIを正常系にする。
+
+| 工程 | 契約 |
+|---|---|
+| Install / Uninstall | `/fd/addins/api/apps`、`Command=DEPLOY/UNDEPLOY`、`UserAssignmentDetails` |
+| Publish / Finalize | `/fd/addins/api/v2/actionableApps`、`Apps[].Command=APPROVE/FINALIZEPACKAGE` |
+| Request / permission approval | `/fd/addins/api/agentActions/approve?workload=SharedAgent`、`requestIds[]` |
+| 完了確認 | `/fd/addins/api/deploymentRequestStatus/{requestId}` をpollし、Agent detailsをGET |
 
 ## Teams 開発者ポータル通信の調査
 
