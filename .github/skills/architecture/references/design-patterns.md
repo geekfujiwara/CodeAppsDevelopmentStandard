@@ -12,7 +12,10 @@
 | **基幹データ + エージェント** | 自前 MCP Server（Azure Functions）+ Copilot Studio v2 スキル または Cowork プラグイン | Dataverse に無い既存の基幹 DB / ファイルサーバー / 業務 API を、移行せず読み取りだけエージェントへ公開（→ [パターン G](#パターン-g-自前-mcp-server--copilot-studio-v2--cowork)） |
 | **台帳 + 複数外部ソースの合成回答** | Dataverse（台帳）+ 自前 MCP Server 複数（ファイル系 / RDB 系）+ Copilot Studio v2 スキル | 一次資料（図面・仕様書）と過去実績（故障・修理履歴）を突き合わせて根拠付きで回答し、確定した知見を台帳へ戻す（→ [パターン G2](#パターン-g2-複数の外部データソースを横断する合成回答型)） |
 | **対話 + 定期実行**     | Copilot Studio + Power Automate（スケジュールトリガー）  | ニュース配信、定期レポート            |
-| **対話 + イベント駆動** | Copilot Studio + Power Automate（メール/Teams トリガー） | メール自動応答、問い合わせ対応        || **Dataverse イベント駆動 + v2 エージェント（新）** | Copilot Studio v2 ワークフロー（Agentflow: Dataverse トリガー + エージェント ノード） | レコード作成/更新を契機にした自動要約・分類・重複判定・未承認ナレッジ生成（Power Automate 不要、v2 スキルと同一アーキテクチャで完結） || **AI 分析 + 対話**      | AI Builder + Copilot Studio                              | ドキュメント分類 + 対話で結果説明     |
+| **対話 + イベント駆動** | Copilot Studio + Power Automate（メール/Teams トリガー） | メール自動応答、問い合わせ対応 |
+| **Dataverse イベント駆動 + v2 エージェント** | Copilot Studio v2 ワークフロー（Agentflow: Dataverse トリガー + エージェント ノード） | レコード作成/更新を契機にした自動要約・分類・重複判定・未承認ナレッジ生成（→ [パターン F](#パターン-f-dataverse-トリガー駆動-agentflowcopilot-studio-v2-ワークフロー--エージェント-ノード)） |
+| **AI 分析 + 対話** | AI Builder + Copilot Studio | ドキュメント分類 + 対話で結果説明 |
+| **Code Apps + v2 非同期埋め込み体験** | Code Apps + Dataverse 要求/結果 + Workflow Agent ノード + Copilot Studio v2 | アプリ内チャット、構造化JSON・文書・設計候補の生成（→ [パターン F2](#パターン-f2-code-apps-v2-非同期埋め込み体験)） |
 | **外部ポータル + データ操作** | Power Pages + Dataverse + Power Automate            | 顧客向けポータル、パートナーサイト、公開フォーム |
 | **フルスタック**        | Dataverse + Code Apps + Power Automate + Copilot Studio  | 業務アプリ + 自動化 + AI アシスタント |
 
@@ -105,8 +108,43 @@
 **使うスキル**: `copilot-studio-v2`（ワークフロー/エージェント ノードの構築は Copilot Studio UI での手作業。参考: [ワークフローにエージェントノードを追加する](https://learn.microsoft.com/ja-jp/microsoft-copilot-studio/workflows-experience/agent-node-workflow)）
 
 > **パターン C との使い分け**: 社内向けの応答エージェントをすでに Copilot Studio v2 スキル（SKILL.md + Dataverse MCP）で構築済みの場合は、パターン F（Agentflow）で非同期自動化を追加し、Power Automate や v1 トリガーを導入せずに v2 アーキテクチャで完結させる。
-> メール/Teams など外部システムのトリガーが必要な場合や、Code Apps / Web 埋め込みが必要な場合は引き続きパターン C（Power Automate + Copilot Studio v1）を使う。
+> メール/Teams など外部システムのトリガーにはパターン C を使う。Code Apps 内の非同期対話はパターン F2、
+> 同期応答・ストリーミングが必要な Code Apps 連携と一般 Web サイトへの WebChat 埋め込みは v1 を使う。
 > **利点**: Dataverse への更新経路を問わず（チャット経由でも Code Apps からの直接書き込みでも）必ず自動化が起動するため、「クローズは必ずエージェントとの対話で行う」という運用依存のリスクを構造的に解消できる。
+
+---
+
+### パターン F2: Code Apps + v2 非同期埋め込み体験
+
+```
+[Code Apps のチャット UI]
+    ↓ ユーザー所有の要求行（conversationId / turnId / version / basis hash）
+[Dataverse request] → [Workflow: 一意 Claim]
+    ↓ Claim 成功時だけ実行
+[Agent ノード] → [既存の発行済み Copilot Studio v2 + フラット Python スキル]
+    ↓ 完全応答・構造化 JSON・成果物
+[Dataverse result] → [Code Apps が権限内の結果を取得・独立検証・差分表示]
+    ↓
+[利用者が明示的に採用]（共有保存・発行は自動化しない）
+```
+
+**標準提案条件**: Code Apps 内で AI 対話や構造化生成が必要で、トークンストリーミングではなく
+「受付済み / 実行中 / 完了」の非同期 UI を許容できる場合は、このパターンを v1 直接連携より先に提案する。
+v2 のフラット Python スキル、再現構築、Teams 側の同一エージェントを活用できる。
+
+**必須設計**: 要求と結果を別テーブルにし、グローバル一意 turn ID、要求者所有、許可 operation、入力サイズ上限、
+一意 result Claim、実行前 receipt、同一 conversation の再開、完全応答の相関検証を実装する。タイムアウトは不確定状態であり、
+別要求として自動再実行しない。maker 所有接続を要求者委任と表現せず、一般利用者2名で行分離を実測する。
+
+**AI結果の扱い**: v2 の結果は未審査候補である。Code Apps 側で JSON Schema と業務バリデータを再実行し、
+基準改訂・hash・選択対象・conditions version が一致した結果だけを編集ドラフトへ適用する。共有保存、承認、通知、
+外部更新は利用者の明示操作または別の確定的ワークフローに限定する。
+
+**制約**: `ExecuteCopilotAsyncV2` による直接呼び出しや WebChat 埋め込みではなく、トークンストリーミングはない。
+`shared_agentnode` の実行可否は環境・DLP・継承 ACP と実応答で別々に検証する。構築と受入は
+[`agent-flows`](../../agent-flows/SKILL.md) の `code-apps-integration.md` / `conversation-worker.md` に従う。
+
+**使うスキル**: `architecture` → `admin` → `dataverse` → `code-apps` + `copilot-studio-v2` + `agent-flows`
 
 ---
 

@@ -28,12 +28,16 @@
 
 ### Copilot Studio v1 / v2 の判断軸（詳細）
 
-判断の起点と推奨は [SKILL.md §3](../SKILL.md#3-copilot-studio-を使う判断ポイント) を参照（連携利用→v1／単独利用→v2）。
+判断の起点と推奨は [SKILL.md §3](../SKILL.md#3-copilot-studio-を使う判断ポイント) を参照する。
+Code Apps連携は一律v1ではなく、非同期を許容できる場合はv2ワーカー方式を第一候補にする。
 
 | 判断軸 | v2（新アーキ） | v1（旧アーキ） |
 |---|---|---|
 | **Code Apps から呼び出し（ExecuteCopilotAsyncV2）** | ❌ 不可 | ✅ |
+| **Code Apps 非同期埋め込み体験（Dataverse + Workflow Agent ノード）** | ✅ 第一候補（直接呼び出しではない） | △ 通常は直接連携を選ぶ |
 | **Web サイト埋め込み（WebChat SDK / 外部公開）** | ❌ 不可 | ✅ |
+| **トークンストリーミング** | ❌ | ✅ |
+| **構造化JSON・ファイル生成用Pythonスキル** | ✅ | △ |
 | トリガー・ニュース配信などの既存 references 資産 | △ | ✅ |
 | 自動構築（UI 操作不要） | ✅ | ❌ UI 手動が必要 |
 | conversationStarters / 会話の開始 / クイック返信の作り込み | △ | ✅ |

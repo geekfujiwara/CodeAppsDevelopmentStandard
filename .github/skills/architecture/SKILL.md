@@ -154,11 +154,17 @@ Power Pages では認証方式と table permission をそれぞれ別条件と�
     │        ├─ トリガーが Dataverse のレコード作成/更新 ──→ ★【Copilot Studio v2 ワークフロー（Agentflow: Dataverse トリガー + エージェント ノード）】（設計リファレンス パターン F）
     │        └─ トリガーがメール/Teams/スケジュール等の外部イベント ──→ 【Copilot Studio（Workflow / トリガー）+ Power Automate】（§3・§4 へ）
     │
-    ├─ ③ アプリ（Code Apps / Web サイト）に組み込んで呼び出す
-    │     （画面内チャット・埋め込み・WebChat SDK での外部公開）
-    │        ──→ 【Copilot Studio v1】（§3 へ）
+      ├─ ③ Code Apps に AI 対話を組み込む
+      │        ├─ 非同期でよい（要求受付→実行中→完全応答）
+      │        │    ──→ ★【Code Apps + Dataverse 要求/結果 + Workflow Agent ノード + v2】を第一候補
+      │        │          （設計リファレンス パターン F2。直接埋め込みではなく非同期の埋め込み体験）
+      │        └─ トークンストリーミングや同期応答が必須
+      │             ──→ 【Copilot Studio v1 の直接連携】（§3 へ）
+      │
+      ├─ ④ 一般 Web サイトへ WebChat SDK で直接埋め込む
+      │        ──→ 【Copilot Studio v1】（§3 へ）
     │
-    └─ ④ カスタムエンジンエージェントとして Teams / M365 Copilot に公開する
+      └─ ⑤ カスタムエンジンエージェントとして Teams / M365 Copilot に公開する
           （独自モデル・独自ツール・コードファーストのバージョン管理が要る
            ★または、エージェント自身がメールアドレス・予定表・権限を持つ「人」として働く）
              ──→ 【Agent 365 / AI チームメイト】（§7 へ）
@@ -169,10 +175,16 @@ Power Pages では認証方式と table permission をそれぞれ別条件と�
 >   環境制約が少なく作りやすいため、第一候補とする。
 >   Dataverse + Code Apps で組んだ業務データへのアクセスは、原則 Copilot Studio v2 スキル経由の自然言語操作を提案する。
 >   M365 Copilot との統合が必須要件の場合のみ **Cowork プラグイン**を追加検討（Global Admin 等の権限が別途必要。**会社環境で Cowork の利用が許可されている場合のみ推奨**）。
-> - **Copilot Studio でエージェントを作るのは次の 3 つのケース**:
+> - **Copilot Studio でエージェントを作るのは次の 4 つのケース**:
 >   1. **チャットで話しかけて実行するケース**（v2 スキル + Dataverse MCP）— 第一候補（①）
 >   2. **自律的なケース** — イベント/トリガーで無人起動し、自分で判断・応答・データ更新する（②）
->   3. **アプリに組み込むケース** — Code Apps / Web サイトに埋め込んで呼び出す（③、v1 必須）
+>   3. **Code Apps に組み込むケース** — 非同期を許容できるなら v2 ワーカー方式を第一候補、同期応答が必須なら v1（③）
+>   4. **一般 Web サイトへ直接埋め込むケース** — WebChat SDK を使うため v1（④）
+> - **v2 ワーカー方式（③）**は、Code Apps がユーザー所有の要求行を Dataverse に作成し、Workflow の Agent ノードが
+>   既存の発行済み v2 を呼び、完全応答を結果行へ保存して Code Apps が読む。v2 のフラット Python スキルを再利用できるため、
+>   JSON・文書・設計候補などの構造化生成では標準の第一候補とする。これは `ExecuteCopilotAsyncV2` や WebChat による
+>   直接埋め込みではない。重複 Claim、要求者認可、相関 ID、タイムアウト後の同一 receipt 照合、AI 結果の独立検証を必須とする
+>   （設計リファレンス [パターン F2](references/design-patterns.md#パターン-f2-code-apps-v2-非同期埋め込み体験)）。
 > - **自律的なケース（②）で、すでに Copilot Studio v2 スキルを採用している場合**は、Power Automate + v1 トリガーではなく **Copilot Studio v2 ワークフロー（Agentflow: Dataverse トリガー + エージェント ノード）を標準の第一候補**とする。既存の発行済み v2 スキルをエージェント ノードから呼び出せるため、Power Automate も v1 も追加せずに同一アーキテクチャで完結できる（設計リファレンス [パターン F](references/design-patterns.md#パターン-f-dataverse-トリガー駆動-agentflowcopilot-studio-v2-ワークフロー--エージェント-ノード)）。
 > - 構築手順は [`copilot-studio-v2` スキル](../copilot-studio-v2/SKILL.md)（①）、Cowork の UI 併設方針は §5 を参照。
 > - **参照したいデータが Dataverse に無い場合**（既存の基幹 DB・ファイルサーバー・業務 API）は、
@@ -188,8 +200,9 @@ Power Pages では認証方式と table permission をそれぞれ別条件と�
 ## 3. Copilot Studio を使う判断ポイント
 
 > ★ **まず §2.1.1 を確認する**。「ユーザーがチャットで話しかけて Dataverse に登録/照会する」有人の対話は
-> **Copilot Studio v2 スキル + Dataverse MCP を第一候補**とし、Copilot Studio v1 は次の 2 ケースに絞って採用する:
-> ① **自律的なケース**（イベント/トリガーで無人起動）、② **アプリに組み込むケース**（Code Apps / Web 埋め込み）。
+> **Copilot Studio v2 スキル + Dataverse MCP を第一候補**とする。Code Apps 内の対話も、非同期を許容できるなら
+> **Dataverse 要求/結果 + Workflow Agent ノードによる v2 ワーカー方式**を標準提案する。v1 は同期応答・トークン
+> ストリーミング、一般 Web サイトへの直接埋め込み、または既存 v1 資産の継続利用が必要な場合に採用する。
 
 **使う**: 自律起動（イベント/トリガー）での無人実行・アプリ埋め込み/Web 公開・複数ツールの自律オーケストレーション・ナレッジ検索・要約/分析/レポート生成。
 **使わない**（→ 代替）: ユーザーが能動的にチャットで登録/照会するだけ → **Copilot Studio v2 スキル + Dataverse MCP**（Cowork は M365 Copilot 必須時かつ会社環境で利用が許可されている場合のみ）／確定手順の 100% 実行・大量一括処理・LLM 不要の条件分岐 → **Power Automate**／UI 入力編集 → **Code Apps**／承認ワークフロー → **Power Automate**。
@@ -208,31 +221,38 @@ Power Pages では認証方式と table permission をそれぞれ別条件と�
 
 Copilot Studio を採用すると決まったら、**v2（新アーキ）/ v1（旧アーキ）のどちらで作るかを必ずユーザーに確認する**。
 
-**判断の起点は「他サービスと連携して使うか、単独で使うか」**:
+**判断の起点は「直接・同期連携が必要か、非同期の要求/結果方式を許容できるか」**:
 
 ```
-そのエージェントを Code Apps / Web サイト / 他システムから呼び出すか？
+Code Apps / Web サイトとの連携方式は？
 
-├─ YES（連携利用）──→ ★ v1 を推奨
-│     理由: v2（cliagent）は Code Apps からも Web サイトからも呼び出せない致命的制約がある。
-│           外部公開（Web 埋め込み・WebChat SDK）・トリガー・他サービス連携は v1 のみ対応。
+├─ Code Apps で非同期応答を許容 ──→ ★ v2 ワーカー方式を標準提案
+│     Code Apps → Dataverse 要求 → Workflow Agent ノード → v2 → Dataverse 結果 → Code Apps
+│     フラット Python スキルと構造化出力を再利用できる。直接 SDK 呼び出しではない。
 │
-└─ NO（単独利用：Teams / Copilot Studio 単体での対話のみ）──→ ★ v2 を推奨
-      理由: UI 操作なしで自動構築でき、再現性・量産性に優れる。
+├─ Code Apps で同期応答・ストリーミングが必須 ──→ v1 直接連携
+│
+├─ 一般 Web サイトへ WebChat SDK で直接埋め込み ──→ v1
+│
+└─ Teams / Copilot Studio 単独利用 ──→ v2
 ```
 
-> **重要（v2 の致命的制約）**: v2（新アーキ / cliagent）のエージェントは **Code Apps から呼び出せない・Web サイトに埋め込めない**。
-> Code Apps の `ExecuteCopilotAsyncV2` 連携や WebChat SDK での外部公開を行うシナリオでは **必ず v1 を選ぶ**。
+> **重要（直接連携の制約）**: v2（新アーキ / cliagent）は Code Apps の `ExecuteCopilotAsyncV2` から直接呼び出せず、
+> WebChat SDK でも直接埋め込めない。Code Apps では、非同期を許容する場合に限り、Dataverse と Workflow Agent ノードを
+> 介した v2 ワーカー方式を使う。直接呼び出し不可とサーバー側ワーカー呼び出しを混同しない。
 
 AskUserQuestion で次のように尋ねる:
 
 > Copilot Studio エージェントの構築方法を選べます。どちらにしますか？
-> - **v1（旧アーキテクチャ / classic）**: Code Apps・Web サイト・他システムと**連携**するなら必須。外部公開（Web 埋め込み・WebChat SDK）・トリガー・ニュース配信の既存 references 資産も流用可。Bot 作成は UI 手動。
-> - **v2（新アーキテクチャ / cliagent）**: Teams 等での**単独利用**向け。Dataverse API だけで UI 操作なしに自動構築でき、再現構築・量産に優れる。**Code Apps / Web サイトからは呼び出せない**。
+> - **v2 非同期ワーカー（標準提案）**: Code Apps 内で受付・実行状態・完全応答を表示する。Dataverse要求/結果とWorkflow Agentノードを介し、v2スキルを利用する。ストリーミングは不可。
+> - **v1 直接連携**: Code Appsの同期応答・ストリーミング、または一般WebサイトのWebChat SDK埋め込みが必要な場合。
+> - **v2 単独利用**: Teams / Copilot Studioで利用する。APIによる再現構築・量産に優れる。
 
 | シナリオ | 推奨 | 使用スキル |
 |---|---|---|
-| **連携利用**（Code Apps / Web 埋め込み / 他システム連携）【既定で確認】 | **v1** | [`copilot-studio`](../copilot-studio/SKILL.md) |
+| **Code Apps内の非同期チャット・構造化生成** | **v2ワーカー方式（第一候補）** | [`code-apps`](../code-apps/SKILL.md) + [`agent-flows`](../agent-flows/SKILL.md) + [`copilot-studio-v2`](../copilot-studio-v2/SKILL.md) |
+| **Code Appsの同期応答・ストリーミング** | **v1直接連携** | [`copilot-studio`](../copilot-studio/SKILL.md) |
+| **一般WebサイトへのWebChat SDK直接埋め込み** | **v1** | [`copilot-studio`](../copilot-studio/SKILL.md) |
 | **単独利用**（Teams / Copilot Studio 単体の対話のみ） | **v2** | [`copilot-studio-v2`](../copilot-studio-v2/SKILL.md) |
 
 > v1/v2 の詳細な判断軸表（呼び出し可否・自動構築・作り込み等）は
