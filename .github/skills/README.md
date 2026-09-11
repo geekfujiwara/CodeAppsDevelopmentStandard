@@ -32,7 +32,6 @@ skill-name/
     csp.md                          # CSP 構成（旧 code-apps-csp）
     mail-pdf.md                     # PDF メール送信（旧 code-apps-mail）
     component-catalog.md            # コンポーネントカタログ
-    japan-map-pattern.md            # 日本地図パターン
     build-reference.md              # ビルドリファレンス
   scripts/
     add_app_to_solution.py

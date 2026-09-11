@@ -62,6 +62,7 @@ triggers:
 | [HTML メールテンプレート](references/html-email-template.md)・[テンプレートコンポーネント](references/template-components.md) | power-automate / copilot-studio |
 | [デザイン言語（トークン/配色/UXパターン選定）](references/design-language.md) | code-apps / power-pages / azure |
 | [デモ用 PDF 生成（reportlab / 日本語 CID フォント）](references/demo-pdf-generation.md) | dataverse / code-apps / mcp-server |
+| [地図埋め込み（Google Maps iframe・ホスト別 CSP）](references/map-embed-pattern.md) | generative-page / code-apps / power-pages |
 
 ## 大前提: 一つのソリューション内に開発
 
