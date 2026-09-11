@@ -45,7 +45,7 @@ Copilot Studio のエージェントから **社内の業務データ（DB・フ
 | [Private 環境でのデータ投入](references/private-data-seeding.md) | Private Endpoint 下でシードするための管理エンドポイントパターン |
 | [ファイルを読ませるツールの設計](references/file-backed-tools.md) | サイドカーテキストレイヤー・パストラバーサル対策・出力上限・プロンプトインジェクション防御 |
 | [SQL バックエンドのツール設計](references/sql-tools-pattern.md) | パラメータ化クエリ・集計軸のホワイトリスト・トークン寿命と接続プール・読み取り専用権限 |
-| [File / DB の認可とページ画像](references/indexed-file-db-access.md) | 本人認可、索引 ID、改訂・ページ照合、PDF オンデマンド描画、キャッシュと実測ゲート |
+| [File / DB の認可とページ画像](references/indexed-file-db-access.md) | 本人認可、索引 ID、改訂・ページ照合、投入時画像キャッシュ、欠損404と実測ゲート |
 | [Copilot Studio への登録](references/copilot-studio-registration.md) | オンボーディングウィザード、コピペ用 MD 生成、OAuth 接続。OpenAPI 方式もここ |
 | [Copilot Studio の DLP 診断](references/copilot-studio-dlp.md) | MCP ツールが DLP でブロックされた場合の読み取り診断と最小変更 |
 | [admin スキル](../admin/SKILL.md) | 実装着手前の環境チェックと DLP 事前チェック、カスタムコネクタの DLP 分類変更 |
@@ -140,6 +140,9 @@ Azure Functions（Node.js 20 / TypeScript / v4 プログラミングモデル）
   → [file-backed-tools.md](references/file-backed-tools.md)
 - SQL を読むツールを作るなら、**全クエリのパラメータ化と読み取り専用権限**を前提にする。
   → [sql-tools-pattern.md](references/sql-tools-pattern.md)
+- MCP Server は Copilot Studio のツールとして登録し、Code App のデータソースへ直接追加しない。
+  Code App に表示するページ画像は、認可された投入処理で描画・検証して Dataverse の索引へ保存する。
+  エージェント応答へ Base64 画像を載せず、会話経路と画面表示経路を分離する。
 
 ### Step 5: デプロイする
 
@@ -179,6 +182,9 @@ python .github/skills/mcp-server/scripts/seed_mcp_data.py
 - 管理エンドポイントは **共有シークレット（`ADMIN_SEED_SECRET`）** で保護し、アプリ設定に置く。
 - DB のスキーマ作成・MI へのロール付与は Entra 管理者権限が要るため、**実行者のアクセストークンを渡して**実行する。
 - 詳細は [private-data-seeding.md](references/private-data-seeding.md)。
+- 継続的な文書取り込みは一時シードと分け、SharePoint / 業務ストレージの作成イベントから Agent flow を起動する。
+  Function は PDF 正本と検索用サイドカーを書き、図番・改訂・ページを照合した画像キャッシュを Dataverse の
+  検証済み索引へ保存する。既存の人手注記サイドカーは上書きしない。
 
 ### Step 7: エンドツーエンドで検証する
 
