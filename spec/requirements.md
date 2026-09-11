@@ -56,4 +56,4 @@ Code Apps 上で図面テンプレートを選び、Copilot Studio v2 の非同�
 - [x] Code Apps の再利用可能な drawing-communication 追加テンプレートを作成する
 - [x] v2 drawing skill を環境非依存のフラット Python バンドルとして作成する
 - [x] 実装・デプロイで得た知見を該当スキルの正常系または references に反映する
-- [ ] テンプレートとスキルを標準検証し、既存 PR を確認して PR を作成または更新する
+- [x] テンプレートとスキルを標準検証し、既存 PR を確認して PR を作成または更新する
