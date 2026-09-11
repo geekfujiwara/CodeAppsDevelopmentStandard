@@ -16,7 +16,7 @@ test("allows Dataverse and Copilot Studio generated services", async () => {
   }
 })
 
-test("detects MCP schema and generated InvokeServer service", async () => {
+test("detects MCP schema and generated TypeScript or JavaScript InvokeServer services", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "codeapp-connections-"))
   try {
     const schema = path.join(root, ".power", "schemas", "drawing-mcp")
@@ -25,8 +25,10 @@ test("detects MCP schema and generated InvokeServer service", async () => {
     await mkdir(generated, { recursive: true })
     await writeFile(path.join(schema, "drawing.Schema.json"), JSON.stringify({ path: "/{connectionId}/api/mcp" }))
     await writeFile(path.join(generated, "DrawingMcpService.ts"), "operationName: 'InvokeServer'")
+    await writeFile(path.join(generated, "CompiledMcpService.mjs"), "operationName: 'InvokeServer'")
     assert.deepEqual(findDirectMcpDataSources(root), [
       path.join(".power", "schemas", "drawing-mcp", "drawing.Schema.json"),
+      path.join("src", "generated", "services", "CompiledMcpService.mjs"),
       path.join("src", "generated", "services", "DrawingMcpService.ts"),
     ])
   } finally {

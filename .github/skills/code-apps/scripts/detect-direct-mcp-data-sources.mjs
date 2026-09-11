@@ -14,7 +14,7 @@ export function findDirectMcpDataSources(root) {
       for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
         const entryPath = path.join(currentPath, entry.name)
         if (entry.isDirectory()) { pending.push(entryPath); continue }
-        if (!entry.isFile() || !/\.(json|tsx?)$/i.test(entry.name)) continue
+        if (!entry.isFile() || !/\.(json|[cm]?[jt]sx?)$/i.test(entry.name)) continue
         const content = fs.readFileSync(entryPath, "utf-8")
         if (markers.some(marker => marker.test(content))) matches.push(path.relative(root, entryPath))
       }
