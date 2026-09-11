@@ -18,7 +18,8 @@
 | M365 app package の登録・更新 | `POST /appCatalogs/teamsApps[/{id}/appDefinitions]` | `AppCatalog.ReadWrite.All` | 公開 Graph v1.0、委任のみ |
 | Agent Registry の Install/Uninstall | `POST /fd/addins/api/apps` | `AI Administrator` | private API、browser session |
 | Agent Registry の Publish/Finalize | `POST /fd/addins/api/v2/actionableApps` | `AI Administrator` | private API、browser session |
-| Agent request/permission の承認 | `POST /fd/addins/api/agentActions/approve` | `AI Administrator` | private API、browser session |
+| Agent 利用要求の承認 | `POST /fd/addins/api/agentActions/approve` | `AI Administrator` | private API、browser session |
+| Agent Entra permission の更新 | `POST /fd/addins/api/v2/AgentPermission/update` | `AI Administrator` | private API、browser session |
 | MCP コネクターの Registry 表示・公開対象 | M365 管理センター | `AI Administrator` | 読み取り通信のみ `observed/unsupported` |
 | Frontier 対象者の有効化 | `GET/POST /admin/api/settings/company/frontier/access` | 製品画面で確認 | private API、browser session |
 | Copilot メニューのプレビュー機能 | Copilot 管理画面 | 製品画面で確認 | 読み取り通信のみ `observed/unsupported` |
@@ -72,7 +73,8 @@ python .github/skills/admin/scripts/manage_m365_users.py account `
 |---|---|---|
 | Install / Uninstall | `POST /fd/addins/api/apps` | `WorkloadManagementList[].Command` は `DEPLOY` / `UNDEPLOY`。割り当ては `Members`, `DeployToEveryone`, `UserAssignmentCategory` |
 | Publish / Finalize | `POST /fd/addins/api/v2/actionableApps` | `Apps[].Command` は `APPROVE` / `FINALIZEPACKAGE`。`AppId`, `Workload`, version/etag を送る |
-| Request / permission approval | `POST /fd/addins/api/agentActions/approve?workload=SharedAgent` | `{ "requestIds": ["<request-id>"] }` |
+| Agent 利用要求の承認 | `POST /fd/addins/api/agentActions/approve?workload=SharedAgent` | `{ "requestIds": ["<request-id>"] }` |
+| Entra permission Grant / Revoke | `POST /fd/addins/api/v2/AgentPermission/update` | `ActiveDirectoryAppId`, `PermissionRequestData[]` |
 | Deployment status | `GET /fd/addins/api/deploymentRequestStatus/{requestId}` | `POST` が返す `appManagementRequestID` を完了まで poll |
 | Agent details read-back | `GET /fd/addins/api/availableAgents/details/{id}` | `assignedUsersAndGroups`, `isDeployed`, permissions/status を照合 |
 
@@ -83,11 +85,26 @@ python .github/skills/admin/scripts/manage_m365_portal_api.py frontier-access `
 
 python .github/skills/admin/scripts/manage_m365_portal_api.py agent-publish `
   --payload-file publish-plan.json
-python .github/skills/admin/scripts/manage_m365_portal_api.py agent-permission-approve `
-  --payload-file permission-plan.json --workload SharedAgent
+python .github/skills/admin/scripts/manage_m365_portal_api.py agent-request-approve `
+  --payload-file request-approval-plan.json --workload SharedAgent
+python .github/skills/admin/scripts/manage_m365_portal_api.py agent-permission-update `
+  --payload-file permission-update-plan.json
 ```
 
-`READY_FOR_BROWSER_API` の plan だけを `m365_portal_browser_runner.mjs` へ渡す。runner は VS Code 統合ブラウザの
+`PermissionRequestData[]` の各要素は portal bundle の request builder と同じ
+`Type` (`Scope` / `Role`)、`Action` (`Grant` / `Revoke`)、`ResourceId`、`Scope`、`AppId` を送る。
+このAPIはHTTP `200`（全件成功）または`207`（項目別結果）を返す。`agentActions/approve` は利用要求の
+承認であり、Entra permission のGrantではないため代用しない。
+
+実測状況は区別する。Install/Uninstallはwrite、poll、details read-backまで成功済み。Publish/Finalizeと
+Entra permission更新はportal bundleからendpoint/body/response contractを捕捉しplan/runner契約テストまで
+完了しているが、成功するmutationは未実測。検証専用packageのGraph登録はcached tokenに`AppCatalog.*`
+scopeがなくHTTP `403`でwrite前に停止した。既存agentを代用せず、disposable agentまたは管理者指定の
+検証専用agentを用意してから実測する。この条件を満たすまでは「完全なAPI-only」と判定しない。
+
+`READY_FOR_BROWSER_API` のplanだけを、VS Code統合ブラウザの`page`とともに
+`runApprovedPlan(page, planPath, expectedHash)`へ渡す。この一括入口はplan fileのhash検証後にだけ送信する。runnerは
+VS Code 統合ブラウザの
 同一 session GET から `ajaxsessionkey` と `x-admin*` / `x-ms-mac*` headers をメモリ内だけで継承する。
 値をログや戻り値へ出さずに direct `fetch` し、deployment poll と `readBack` を実行する。
 通常の `fetch` だけでは write が HTTP 400 になるため、session header 継承を省略しない。

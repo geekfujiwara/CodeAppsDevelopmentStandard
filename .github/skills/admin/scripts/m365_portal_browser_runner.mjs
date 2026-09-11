@@ -7,8 +7,9 @@ const CONTRACTS = new Map([
   ["agent-availability", { method: "POST", path: "/fd/addins/api/availableAgents" }],
   ["agent-lifecycle", { method: "POST", path: "/fd/addins/api/apps" }],
   ["agent-publish", { method: "POST", path: "/fd/addins/api/v2/actionableApps" }],
-  ["agent-permission-approve", { method: "POST", path: "/fd/addins/api/agentActions/approve" }],
-  ["agent-permission-approve-v1", { method: "POST", path: "/fd/addins/api/v1/agentactions/approve" }],
+  ["agent-request-approve", { method: "POST", path: "/fd/addins/api/agentActions/approve" }],
+  ["agent-permission-update", { method: "POST", path: "/fd/addins/api/v2/AgentPermission/update" }],
+  ["agent-request-approve-v1", { method: "POST", path: "/fd/addins/api/v1/agentactions/approve" }],
 ]);
 const READ_PATHS = [
   /^\/admin\/api\/settings\/company\/frontier\/access$/,
@@ -66,9 +67,33 @@ export function validatePlan(plan) {
   if (!plan.payload || typeof plan.payload !== "object" || Array.isArray(plan.payload)) {
     throw new Error("payload must be an object");
   }
-  if (plan.operation.startsWith("agent-permission-approve")) {
+  if (plan.operation === "agent-request-approve") {
     if (!plan.query || typeof plan.query.workload !== "string" || !plan.query.workload) {
-      throw new Error("permission approval requires workload query");
+      throw new Error("request approval requires workload query");
+    }
+  }
+  if (plan.operation === "agent-permission-update") {
+    const requests = plan.payload.PermissionRequestData;
+    if (typeof plan.payload.ActiveDirectoryAppId !== "string" || !plan.payload.ActiveDirectoryAppId) {
+      throw new Error("permission update requires ActiveDirectoryAppId");
+    }
+    if (!Array.isArray(requests) || requests.length === 0) {
+      throw new Error("permission update requires PermissionRequestData");
+    }
+    const fields = ["Action", "AppId", "ResourceId", "Scope", "Type"];
+    for (const request of requests) {
+      if (!request || typeof request !== "object" || Array.isArray(request)) {
+        throw new Error("permission request must be an object");
+      }
+      if (Object.keys(request).sort().join(",") !== fields.join(",")) {
+        throw new Error("permission request fields do not match the observed contract");
+      }
+      if (!["Scope", "Role"].includes(request.Type) || !["Grant", "Revoke"].includes(request.Action)) {
+        throw new Error("permission request enum is invalid");
+      }
+      if (![request.ResourceId, request.Scope, request.AppId].every((value) => typeof value === "string" && value)) {
+        throw new Error("permission request identifiers must be non-empty strings");
+      }
     }
   }
   return plan;
@@ -79,6 +104,11 @@ export async function loadApprovedPlan(planPath, expectedHash) {
   const actualHash = canonicalHash(plan);
   if (!expectedHash || actualHash !== expectedHash) throw new Error("approved plan hash mismatch");
   return plan;
+}
+
+export async function runApprovedPlan(page, planPath, expectedHash, options = {}) {
+  const plan = await loadApprovedPlan(planPath, expectedHash);
+  return executeApprovedPlan(page, plan, options);
 }
 
 export async function executeApprovedPlan(page, plan, options = {}) {

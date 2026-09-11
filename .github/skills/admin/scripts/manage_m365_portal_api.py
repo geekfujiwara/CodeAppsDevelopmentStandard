@@ -63,12 +63,19 @@ CONTRACTS = {
         "required": {"Apps"},
         "allowed": {"Apps"},
     },
-    "agent-permission-approve": {
+    "agent-request-approve": {
         "method": "POST",
         "path": "/fd/addins/api/agentActions/approve",
         "readBack": "/fd/addins/api/agents",
         "required": {"requestIds"},
         "allowed": {"requestIds"},
+    },
+    "agent-permission-update": {
+        "method": "POST",
+        "path": "/fd/addins/api/v2/AgentPermission/update",
+        "readBack": "/fd/addins/api/agents",
+        "required": {"ActiveDirectoryAppId", "PermissionRequestData"},
+        "allowed": {"ActiveDirectoryAppId", "PermissionRequestData"},
     },
 }
 
@@ -90,6 +97,7 @@ WORKLOAD_FIELDS = {
 ASSIGNMENT_FIELDS = {"Members", "DeployToEveryone", "UserAssignmentCategory"}
 PUBLISH_COMMANDS = {"APPROVE", "FINALIZEPACKAGE", "UPDATESTAGEDAPP"}
 PUBLISH_FIELDS = {"AppId", "Command", "Workload", "IterationEtag", "Version", "TitleId", "MosOperationId"}
+PERMISSION_FIELDS = {"Type", "Action", "ResourceId", "Scope", "AppId"}
 
 
 def canonical_hash(value: dict[str, Any]) -> str:
@@ -172,12 +180,28 @@ def validate_payload(operation: str, payload: dict[str, Any]) -> None:
                 raise SystemExit("publish app には AppId と Workload が必要です。")
             if app.get("Command") not in PUBLISH_COMMANDS:
                 raise SystemExit("未確認の publish Command です。")
-    if operation == "agent-permission-approve":
+    if operation == "agent-request-approve":
         request_ids = payload["requestIds"]
         if not isinstance(request_ids, list) or not request_ids:
             raise SystemExit("requestIds は空でない配列で指定してください。")
         if any(not isinstance(value, str) or not value.strip() for value in request_ids):
             raise SystemExit("requestIds の各要素は空でない文字列で指定してください。")
+    if operation == "agent-permission-update":
+        if not isinstance(payload["ActiveDirectoryAppId"], str) or not payload["ActiveDirectoryAppId"].strip():
+            raise SystemExit("ActiveDirectoryAppId は空でない文字列で指定してください。")
+        requests = payload["PermissionRequestData"]
+        if not isinstance(requests, list) or not requests:
+            raise SystemExit("PermissionRequestData は空でない配列で指定してください。")
+        for request in requests:
+            if not isinstance(request, dict) or set(request) != PERMISSION_FIELDS:
+                raise SystemExit("permission request の field が一致しません。")
+            if request["Type"] not in {"Scope", "Role"}:
+                raise SystemExit("permission Type は Scope または Role で指定してください。")
+            if request["Action"] not in {"Grant", "Revoke"}:
+                raise SystemExit("permission Action は Grant または Revoke で指定してください。")
+            for key in ("ResourceId", "Scope", "AppId"):
+                if not isinstance(request[key], str) or not request[key].strip():
+                    raise SystemExit(f"{key} は空でない文字列で指定してください。")
 
 
 def build_plan(args: argparse.Namespace) -> dict[str, Any]:
@@ -189,9 +213,9 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
         if not args.bot_id or not args.environment_id:
             raise SystemExit("agent-availability では --bot-id と --environment-id が必須です。")
         query = {"botId": args.bot_id, "environmentId": args.environment_id}
-    if args.operation == "agent-permission-approve":
+    if args.operation == "agent-request-approve":
         if not args.workload:
-            raise SystemExit("agent-permission-approve では --workload が必須です。")
+            raise SystemExit("agent-request-approve では --workload が必須です。")
         query = {"workload": args.workload}
     return {
         "origin": "https://admin.cloud.microsoft",

@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import {
   canonicalHash,
+  runApprovedPlan,
   validatePlan,
 } from "../scripts/m365_portal_browser_runner.mjs";
 
@@ -54,14 +58,62 @@ test("rejects an unobserved read-back path", () => {
   );
 });
 
-test("permission approval requires a workload query", () => {
+test("request approval requires a workload query", () => {
   assert.throws(
     () =>
       validatePlan({
         ...lifecyclePlan,
-        operation: "agent-permission-approve",
+        operation: "agent-request-approve",
         path: "/fd/addins/api/agentActions/approve",
       }),
     /requires workload query/,
   );
+});
+
+test("allows the observed permission update payload", () => {
+  const plan = {
+    ...lifecyclePlan,
+    operation: "agent-permission-update",
+    path: "/fd/addins/api/v2/AgentPermission/update",
+    payload: {
+      ActiveDirectoryAppId: "agent-app-example",
+      PermissionRequestData: [
+        {
+          Type: "Role",
+          Action: "Grant",
+          ResourceId: "resource-example",
+          Scope: "role.example",
+          AppId: "api-example",
+        },
+      ],
+    },
+  };
+  assert.equal(validatePlan(plan), plan);
+});
+
+test("rejects incomplete permission update payload", () => {
+  assert.throws(
+    () =>
+      validatePlan({
+        ...lifecyclePlan,
+        operation: "agent-permission-update",
+        path: "/fd/addins/api/v2/AgentPermission/update",
+        payload: { ActiveDirectoryAppId: "agent-app-example", PermissionRequestData: [{}] },
+      }),
+    /fields do not match/,
+  );
+});
+
+test("runApprovedPlan rejects an unapproved hash before browser access", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "m365-runner-"));
+  const planPath = join(directory, "plan.json");
+  await writeFile(planPath, JSON.stringify(lifecyclePlan), "utf8");
+  let browserWasAccessed = false;
+  const page = new Proxy({}, { get: () => { browserWasAccessed = true; } });
+  try {
+    await assert.rejects(runApprovedPlan(page, planPath, "not-approved"), /approved plan hash mismatch/);
+    assert.equal(browserWasAccessed, false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

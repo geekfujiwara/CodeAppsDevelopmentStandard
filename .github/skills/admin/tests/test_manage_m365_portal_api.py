@@ -110,9 +110,9 @@ class ManageM365PortalApiTests(unittest.TestCase):
         plan = MODULE.build_plan(args)
         self.assertEqual("/fd/addins/api/v2/actionableApps", plan["path"])
 
-    def test_permission_approval_uses_workload_query(self):
+    def test_request_approval_uses_workload_query(self):
         args = argparse.Namespace(
-            operation="agent-permission-approve",
+            operation="agent-request-approve",
             payload_file=self.payload_file({"requestIds": ["request-example"]}),
             bot_id=None,
             environment_id=None,
@@ -121,6 +121,30 @@ class ManageM365PortalApiTests(unittest.TestCase):
         plan = MODULE.build_plan(args)
         self.assertEqual("/fd/addins/api/agentActions/approve", plan["path"])
         self.assertEqual({"workload": "SharedAgent"}, plan["query"])
+
+    def test_permission_update_uses_agent_permission_endpoint(self):
+        args = argparse.Namespace(
+            operation="agent-permission-update",
+            payload_file=self.payload_file(
+                {
+                    "ActiveDirectoryAppId": "app-example",
+                    "PermissionRequestData": [
+                        {
+                            "Type": "Scope",
+                            "Action": "Grant",
+                            "ResourceId": "resource-example",
+                            "Scope": "scope.example",
+                            "AppId": "api-example",
+                        }
+                    ],
+                }
+            ),
+            bot_id=None,
+            environment_id=None,
+            workload=None,
+        )
+        plan = MODULE.build_plan(args)
+        self.assertEqual("/fd/addins/api/v2/AgentPermission/update", plan["path"])
 
     def test_hash_is_order_independent(self):
         self.assertEqual(MODULE.canonical_hash({"a": 1, "b": 2}), MODULE.canonical_hash({"b": 2, "a": 1}))
