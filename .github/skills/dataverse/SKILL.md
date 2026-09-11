@@ -44,6 +44,23 @@ Dataverse のソリューション・テーブル・リレーション・ロー�
 
 ## 前提
 
+### 事前確認（会話の最初に 1 回だけ）
+
+本スキルの利用が確定したら、[standard の共通契約](../standard/SKILL.md#共通の事前確認契約会話の最初に-1-回だけ)に加え、
+**1 回の AskUserQuestion で次をまとめて確認する**。
+
+| # | 質問 | 合格条件 |
+|---|---|---|
+| 1 | 対象 environment、solution、publisher はどれか | URL、環境種別、solution unique name、既存 publisher の再利用方針が確定している |
+| 2 | schema を変更できる担当者は誰か | テーブル、列、relationship、choice を作成・更新できる `System Customizer` 相当の権限がある |
+| 3 | security role を変更する担当者は誰か | role / privilege の作成・割り当て権限を持つ担当者を別に記録している |
+| 4 | データ ownership と access depth は何か | User / Team / Organization ownership、Business Unit、行共有、監査を設計済みである |
+| 5 | デモデータや既存データを変更してよいか | 対象件数、個人情報、削除 / rollback、バックアップ方針を承認済みである |
+
+`System Administrator` を既定にせず、schema 変更は `System Customizer` または必要 privilege の
+カスタムロールを優先する。security role の変更・割り当ては、その工程の担当者を分離する。
+実装先または publisher が未確定なら Step 0 へ進まない。
+
 ### 共通認証: auth_helper.py
 
 認証ヘルパーは `standard` スキルに同梱（`.github/skills/standard/scripts/auth_helper.py`）。

@@ -25,6 +25,23 @@ Azure 開発を、**テナントのセキュリティガバナンスに準拠**�
 > **原則**: 組織ポリシー（Azure Policy / Conditional Access）と戦わず、**準拠する構成**を採る。
 > `publicNetworkAccess=Disabled` でも Private Link は常に到達可能——これを土台にする。
 
+## Step 0: 事前確認（会話の最初に 1 回だけ）
+
+本スキルの利用が確定したら、[standard の共通契約](../standard/SKILL.md#共通の事前確認契約会話の最初に-1-回だけ)に加え、
+**1 回の AskUserQuestion で次をまとめて確認する**。
+
+| # | 質問 | 合格条件 |
+|---|---|---|
+| 1 | 対象 subscription、resource group、region、予算はどれか | 実装先と課金上限、作成 / 削除の承認範囲が確定している |
+| 2 | リソース作成と RBAC 割り当ての担当者は誰か | リソース作成は対象 scope の `Contributor` 相当、role assignment は `Role Based Access Control Administrator` / `User Access Administrator` / `Owner` の担当者を記録している |
+| 3 | 適用される Azure Policy と Conditional Access は何か | public network、shared key、allowed regions / SKUs、private endpoint、MFA の制約を確認している |
+| 4 | ネットワーク変更の担当者は誰か | VNet、subnet、Private DNS、private endpoint に必要な権限と既存ネットワーク所有者の承認がある |
+| 5 | デプロイ経路とシークレット管理は何か | Managed Identity / workload identity、Key Vault、CI runner のネットワーク到達性を確定している |
+| 6 | 検証とクリーンアップを誰が行うか | security test、cost確認、削除期限、保持対象を記録している |
+
+広い `Owner` を既定にせず、リソース作成と role assignment を分離する。
+Policy、MFA、Private DNS のいずれかが不明なら Step 4 の構築へ進まない。
+
 ## リファレンスアーキテクチャ一覧（メニュー）
 
 | リファレンス | 用途 | ドキュメント |

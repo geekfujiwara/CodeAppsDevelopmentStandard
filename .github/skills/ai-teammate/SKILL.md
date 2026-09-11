@@ -57,18 +57,36 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 
 ## 事前確認（会話の最初に 1 回だけ）
 
-本スキルの利用が確定したら、**1 回の AskUserQuestion で次の 4 点をまとめて確認する**。
+本スキルの利用が確定したら、**1 回の AskUserQuestion で次の 7 点をまとめて確認する**。
 以降の Step で同じ内容を聞き直さない。
 
 | # | 質問 | 選択肢 / 記入例 |
 |---|---|---|
 | 1 | ゴールはどこまでか | (a) ローカル scaffold のみ（Azure 操作なし）<br>(b) 自己ホスト App Service の endpoint を用意するまで（Step 1〜6）<br>(c) M365 管理センターに "Agent template" として登録するまで（Teams チャットはまだ動かない）<br>**(d) Teams で実際に会話できる状態まで（Step 0〜13・Azure 課金あり）** |
-| 2 | Azure サブスクリプションと認証キャッシュは使えるか | (d) を選ぶ場合は Agent 365 ライセンスの割り当ても必要 |
-| 3 | 「〇〇を行ってくれる同僚エージェント」の具体的な業務内容は？ | [digital-colleague-design.md](references/digital-colleague-design.md) §2 の役割カタログ（R1〜R6）を選択肢として提示する（複数可・自由記述可） |
-| 4 | エージェント名（kebab-case）と Teams での表示名は？ | 希望が無ければ 3 案提案する。アイコン画像（正方形・背景透過 PNG）を用意する。**商標・著作権に触れる名称やキャラクターは使わない** |
+| 2 | Azure サブスクリプション、リソース作成権限、ロール割り当て権限、認証キャッシュは使えるか | App Service B1+、Azure Bot、UAMI の作成可否と Azure RBAC の担当者を確認する |
+| 3 | Agent 365 の対象ライセンスと利用資格は確認済みか | テナントに qualifying Agent 365 license があり、対象ユーザーが利用可能であることを M365 管理センターで確認する |
+| 4 | `devPreview` または別のプレビュー機能を使うか | (c)/(d) は本スキルの `devPreview` Agent template を使うため Frontier が必要。管理者とテストユーザーの Microsoft Copilot ライセンスおよび Frontier 登録を確認する |
+| 5 | 各管理操作の担当者とロールは誰か | Agent Registry: `AI Administrator`、blueprint 作成: `Agent ID Developer`、インスタンス同意: `Privileged Role Administrator`、ライセンス割当: `License Administrator`。`Global Administrator` は代替に限定する |
+| 6 | 「〇〇を行ってくれる同僚エージェント」の具体的な業務内容は？ | [digital-colleague-design.md](references/digital-colleague-design.md) §2 の役割カタログ（R1〜R6）を選択肢として提示する（複数可・自由記述可） |
+| 7 | エージェント名、表示名、owner / sponsor、公開・テスト対象、アイコンは？ | kebab-case 名、Teams 表示名、ユーザーまたはセキュリティ グループを確認する。希望が無ければ名称を 3 案提案する。アイコンは正方形・背景透過 PNG。**商標・著作権に触れる名称やキャラクターは使わない** |
 
 質問 1 の回答が**テナントのアプリカタログへの公開の承認を兼ねる**。
 (a) は課金もカタログ公開も発生せず、(b) は Azure Bot / App Service の課金だけが発生する。
+
+> **Agent 365 と Frontier を混同しない。** Agent 365 は GA の製品・ライセンス条件、Frontier は
+> opt-in のプレビュー制度である。本スキルでは (c)/(d) の `devPreview` manifest を使う場合だけ
+> Frontier を必須とし、対象ユーザー単位で登録状況を確認する。
+
+工程別の最小権限:
+
+| 工程 | 推奨ロール | 注記 |
+|---|---|---|
+| Agent 365 / Microsoft Copilot ライセンス割り当て | `License Administrator` | 購入権限とは別。`usageLocation` も確認する |
+| Frontier 設定 | `AI Administrator` / `Security Administrator` / `Office Apps Administrator` | 管理者自身にも Microsoft Copilot ライセンスが必要 |
+| Agent ID blueprint 作成 | `Agent ID Developer` | 作成者は blueprint と blueprint principal の owner になる |
+| Agent ID のフル ライフサイクル | `AI Administrator` / `Agent ID Administrator` | instance / agentUser を含む管理 |
+| M365 Agent Registry への追加・公開・配布 | `AI Administrator` | `Global Administrator` は緊急時の代替のみ |
+| インスタンスへのテナント全体 OAuth 同意 | `Privileged Role Administrator` | `Global Administrator` は代替。インスタンス再作成ごとに必要 |
 
 **質問 3 の回答から、依頼者が言っていない機能ブロックを自分から提案する。**
 依頼者は「Web 検索が欲しい」「定期実行を付けて」とは言わない。
@@ -331,9 +349,18 @@ python scripts/build_teams_package.py --require-template
 明示的に拒否する**（`Please use M365 Admin Center.`）。スクリプトでは回避できないハード制約
 （→ [troubleshooting.md](references/troubleshooting.md) #16）。
 
-1. `https://admin.cloud.microsoft/?#/agents/all` の **Upload** から ZIP を手動アップロードする。
-2. 公開（Publish）→ **Activation** を行う。
-3. Agent template からインスタンスを作成し、表示名とインスタンス ID を控える。
+事前に Step 0 で確認した `AI Administrator` が次を実施する。
+
+1. **Agents > All agents > Registry > Add agent** を開き、ZIP を選択して検証する。
+2. Agent template の名前、説明、アイコン、開発者情報を確認する。
+3. **Publish audience** と **Deploy audience** をユーザーまたはセキュリティ グループで指定する。
+4. security template を適用し、要求される agent permissions とリスクをレビューする。
+5. 内容を最終確認して **Finish deployment** を選ぶ。
+6. Registry の Agent template から agent instance を作成し、instance ID、service principal、UPN、
+  owner / sponsor を記録する。
+
+**Add agent が表示されない場合は先へ進まない。** `AI Administrator` の割り当て、Agent 365 の
+利用資格、`devPreview` の場合は管理者自身の Microsoft Copilot ライセンスと Frontier 登録を確認する。
 
 GA スキーマ（非 devPreview）の共有エージェントのみ `python scripts/publish_teams_app.py`
 （管理者ロールが無い場合は `--requires-review`）で Graph 経由の公開ができる。
@@ -449,7 +476,8 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 **設計**
 
 - [ ] Step 0 で役割・機能ブロック・段階を確定し、制約（メールは push されない / 既読にできない / 他人の予定表は直接読めない / 共有リンクは取り消せない）を依頼者へ共有している
-- [ ] 事前確認の 4 点を 1 回で確認し、以降の Step で聞き直していない
+- [ ] 事前確認の 7 点を 1 回で確認し、以降の Step で聞き直していない
+- [ ] Agent Registry、blueprint、ライセンス、OAuth 同意の各担当者と最小権限を記録している
 
 **秘匿化**
 

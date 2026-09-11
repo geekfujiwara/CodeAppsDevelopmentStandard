@@ -69,6 +69,23 @@ triggers:
 
 全体像が掴みにくいときは、Excel・業務フロー図・画面イメージ・帳票の共有を依頼する（`/spec-builder` でドキュメントから要件整理も可）。要件が明確になったら、以下の判断フローチャートでコンポーネントを選定し設計提案へ進む。
 
+### 実装前提ゲート（コンポーネント選定後に 1 回だけ）
+
+構成案が固まったら、実装開始前に [standard の共通事前確認契約](../standard/SKILL.md#共通の事前確認契約会話の最初に-1-回だけ)を
+1 回の AskUserQuestion で確認する。特に次を構成図と見積もりに含める。
+
+| 観点 | 設計で確定する内容 |
+|---|---|
+| 製品条件 | コンポーネントごとのライセンス / capacity と、preview / Frontier 等の参加条件を分離して記載 |
+| 実装先 | tenant、Power Platform environment、Azure subscription、region、開発 / テスト / 本番 |
+| 権限分離 | maker、schema 変更、Azure RBAC、公開、管理者同意、ライセンス割り当ての担当者 |
+| 公開範囲 | internal / external / anonymous、対象ユーザーまたはグループ、データ分類 |
+| 運用 | Git provider、secret backend、監視、評価、release、rollback、所有者 |
+
+選定した各専門スキルの事前確認で1項目でも未確認なら、そのコンポーネントの実装を開始しない。
+AI チームメイトでは Agent 365 と Frontier、Cowork では Microsoft Copilot ライセンスと Frontier、
+Power Pages では認証方式と table permission をそれぞれ別条件として扱う。
+
 ---
 
 ## 1. コンポーネント早見表

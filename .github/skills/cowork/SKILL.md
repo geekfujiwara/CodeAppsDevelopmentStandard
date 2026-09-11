@@ -64,13 +64,29 @@ Cowork から Dataverse を直接操作できるようにする。
         └── SKILL.md              # frontmatter(name/description) + ワークフロー本文
 ```
 
-## 前提条件（最初に確認）
+## 事前確認（会話の最初に 1 回だけ）
 
-1. **環境で Microsoft Cowork が許可されていること**
-   `python .github/skills/standard/scripts/check_mcp_client.py cowork` → ✅ なら OK。
-   未許可なら Power Platform 管理センター → 環境 → `allowedmcpclient` で有効化。
-2. **Frontier 参加**（管理者も Copilot → Settings → Frontier に登録）。
-3. ツール: Python 3（auth_helper.py / アイコン生成）、PowerShell（パッケージビルド）。
+本スキルの利用が確定したら、[standard の共通契約](../standard/SKILL.md#共通の事前確認契約会話の最初に-1-回だけ)に加え、
+**1 回の AskUserQuestion で次をまとめて確認する**。
+
+| # | 質問 | 合格条件 |
+|---|---|---|
+| 1 | Cowork と Frontier を会社が許可し、対象者を登録済みか | 管理者とテストユーザーに Microsoft Copilot ライセンスがあり、Frontier 対象ユーザーである |
+| 2 | Dataverse MCP を使う対象環境とテーブルはどれか | `DATAVERSE_URL`、論理名、データ分類、許可する read / write 操作が確定している |
+| 3 | Entra OAuth アプリを作成・変更する担当者は誰か | アプリ登録を作成でき、必要な API permission を構成できる担当者を記録している |
+| 4 | 管理者同意と MCP クライアント許可の担当者は誰か | tenant-wide consent の担当者と、環境の `allowedmcpclients` を変更できる担当者を記録している |
+| 5 | Teams Developer Portal と M365 管理センターの担当者は誰か | OAuth registration ID を作成でき、`AI Administrator` がパッケージの追加・公開・配布を実行できる |
+| 6 | 公開対象と検証範囲はどこまでか | 最初は単一テストユーザーまたはセキュリティ グループ、1 skill + 1 connector で合意している |
+
+Frontier は Cowork を利用するためのプレビュー条件であり、Microsoft Copilot ライセンスとは別に確認する。
+`Global Administrator` を常用せず、Agent 管理は `AI Administrator`、全テナントへの高権限な
+OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工程だけに使用する。
+
+前提チェック:
+
+1. `python .github/skills/standard/scripts/check_mcp_client.py cowork` が ✅ であること。
+2. Python 3（auth_helper.py / アイコン生成）と PowerShell（パッケージビルド）が利用可能であること。
+3. いずれかの前提が未確認なら、アプリ登録・シークレット作成・公開へ進まないこと。
 
 ## スキル同梱スクリプト（再利用）
 
