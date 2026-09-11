@@ -100,6 +100,8 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
 | [scripts/register_mcp_client.py](scripts/register_mcp_client.py) | Client ID を Dataverse 許可 MCP クライアント（`allowedmcpclients`）に登録・有効化・確認（Step 4） |
 | [scripts/diagnose_cowork_connector.py](scripts/diagnose_cowork_connector.py) | アプリ登録・admin consent・allowedmcpclients の3層をまとめて診断（Step 4→5 の間で実行推奨） |
 | [scripts/build_agent_package.ps1](scripts/build_agent_package.ps1) | `.env` の `COWORK_OAUTH_REGISTRATION_ID`（引用符付きでも可）を manifest.json のプレースホルダーに注入し、必須ファイルを検証して .zip を生成（Step 7） |
+| [scripts/manage_agent_package_graph.py](scripts/manage_agent_package_graph.py) | Graph v1.0 で組織アプリ/エージェントを一覧し、M365 app package を新規登録または更新（Step 8） |
+| [scripts/manage_oauth_registration_api.py](scripts/manage_oauth_registration_api.py) | Developer Portal OAuth private API の CRUD plan を検証（Step 5）。実送信はログイン済み統合ブラウザ session で行う |
 
 ## ワークフロー（正常系）
 
@@ -289,11 +291,22 @@ python .github/skills/cowork/scripts/register_mcp_client.py --app-id <CLIENT_ID>
 > ```
 > いずれかのレイヤーが ❌/❓ の場合は、表示される対処コマンドを実行してから Step 5 に進む。
 
-### Step 5: Teams 開発者ポータルで OAuth client 登録 → registrationId 取得（ブラウザ）
+### Step 5: OAuth client registration API → registrationId 取得
 
-実行前に [ブラウザ自動化方針](../standard/references/browser-automation.md)に従い、
-`AskUserQuestion` で使用する Edge プロファイルを確認する。回答前はポータルを開かず、
-Step 8 のアップロードでも同じプロファイルを使用する。
+正常系は Developer Portal private API の CRUD。CLI で payload と `PLAN_HASH` を検証し、承認後に
+ログイン済み VS Code 統合ブラウザから同一オリジン API を直接実行して GET で読み戻す。
+専用 portal client は Device Code flow を許可せず `AADSTS7000218` になるため、Bearer token や Cookie を
+CLI へ取り出さない。手順と endpoint は [portal-api-automation.md](references/portal-api-automation.md)を参照。
+
+```powershell
+python .github/skills/cowork/scripts/manage_oauth_registration_api.py create `
+  --name "Dataverse MCP OAuth" --base-url $env:DATAVERSE_URL `
+  --scopes "$env:DATAVERSE_URL/.default,offline_access"
+# 承認後、同じ引数に --expected-hash <APPROVED_HASH> --apply
+```
+
+API が `401` / `403` / `404`、または観測済み schema と一致しない場合だけフォーム操作へ切り替える。
+[ブラウザ自動化方針](../standard/references/browser-automation.md)に従い、使用する Edge プロファイルを確認する。
 
 [dev.teams.microsoft.com/tools](https://dev.teams.microsoft.com/tools) → Tools →
 **OAuth client registration** → New（**SSO client registration ではない**）。
@@ -428,7 +441,29 @@ Compress-Archive -Path manifest.built.json, color.png, outline.png, dataverse-mc
 ZIP 検証: ルートに `manifest.json`（build 後、プレースホルダーが実 ID に置換済み）/ `dataverse-mcp-tools.json`、
 `skills/<skill-name>/SKILL.md` が含まれること。
 
-### Step 8: アップロード（M365 管理センター → エージェント画面）
+### Step 8: 組織カタログへ登録・更新する
+
+公開 API を正常系にする。`manage_agent_package_graph.py` は ZIP の `manifest.json.id` で既存アプリを
+判定し、新規なら `POST /appCatalogs/teamsApps`、既存なら
+`POST /appCatalogs/teamsApps/{id}/appDefinitions` を使う。詳細は
+[portal-api-automation.md](references/portal-api-automation.md)。
+
+```powershell
+# dry-run。package SHA-256 を含む PLAN_HASH を確認する
+python .github/skills/cowork/scripts/manage_agent_package_graph.py deploy `
+  --package <name>.zip --requires-review
+
+# 承認した同一 package だけを登録/更新する
+python .github/skills/cowork/scripts/manage_agent_package_graph.py deploy `
+  --package <name>.zip --requires-review --expected-hash <APPROVED_HASH> --apply
+```
+
+Graph のアプリカタログ登録と、Agent Registry の公開対象/Install 設定は別工程である。
+公開対象/Install/Block は管理センター private API を正常系とし、GET inventory から対象 ID と action config を
+解決して `manage_m365_portal_api.py` の plan を作り、hash 承認後に統合ブラウザ session API で送信・読み戻す。
+Graph が権限または package 種別に対応しない場合だけ、次の管理センター fallback を使う。
+
+#### 管理センター fallback
 
 > ⚠️ Cowork プラグインは**「統合アプリ」ではなく、新しい「エージェント」画面**からアップロードする（UI 変更済み）。
 
@@ -464,12 +499,13 @@ ZIP 検証: ルートに `manifest.json`（build 後、プレースホルダー�
 
 1. manifest.json の **`version` をインクリメント**（例: `1.0.2` → `1.0.3`）。`id` は変更しない。
 2. zip を再ビルド（Step 7 と同じ。`dataverse-mcp-tools.json` も忘れず含める）。
-3. 管理センター → **エージェント（Agents）** (`#/agents/all`) → **Registry** タブ →
+3. Step 8 の `manage_agent_package_graph.py deploy` で更新する。
+4. Graph が未対応の場合は、管理センター → **エージェント（Agents）** (`#/agents/all`) → **Registry** タブ →
    ツールバー右の **More actions（…、Export の隣）** → **Add agent**。
-4. **Upload agent** で新しい zip を選択 → 検証が再実行される（`id` が一致するため更新として処理される）。
-5. **Publish to users**（公開対象と Install を選択。**更新時も再選択が必要**） →
+5. **Upload agent** で新しい zip を選択 → 検証が再実行される（`id` が一致するため更新として処理される）。
+6. **Publish to users**（公開対象と Install を選択。**更新時も再選択が必要**） →
    **Apply template**（Default で Next）→ **Accept permissions** → **Review & finish** → **Publish**。
-6. 「**You uploaded \<name\>**」表示で完了 → **Close**。
+7. 「**You uploaded \<name\>**」表示で完了 → **Close**。
 
 > 注意:
 > - `id` を変えると別エージェント扱いになり、既存の公開設定・同意が引き継がれない。
@@ -490,13 +526,16 @@ ZIP 検証: ルートに `manifest.json`（build 後、プレースホルダー�
 - [ ] Teams ポータル **OAuth client registration**（SSO ではない）: Base URL は `/api/mcp` なし、scope は `.default offline_access`、Restrict by app = Any Teams app → registrationId を manifest に反映
 - [ ] manifest に `mcpToolDescription: { file: "dataverse-mcp-tools.json" }`（JSONツール定義）
 - [ ] ZIP ルートに manifest.json / dataverse-mcp-tools.json、skills/<name>/SKILL.md
-- [ ] 管理センターの**エージェント画面**からアップロード→Publish→Status=Available
+- [ ] `manage_agent_package_graph.py deploy` の package SHA-256 と PLAN_HASH を承認後に Graph で登録/更新
+- [ ] Graph で組織カタログへ登録、または管理センター fallback でアップロード
+- [ ] Agent Registry で Publish→Status=Available（Graph 登録成功とは別に確認）
 - [ ] Cowork に表示 → 初回同意 → データ取得成功
-- [ ] 更新時: version をインクリメント（id 据え置き）→ More actions → Update in store → Publish
+- [ ] 更新時: version をインクリメント（id 据え置き）→ Graph 更新または管理センター fallback → Publish
 
 ## 参考リンク
 
 - [Build plugins for Cowork (Frontier)](https://learn.microsoft.com/en-us/microsoft-365/copilot/cowork/cowork-plugin-development)
 - [Configure authentication for MCP and API plugins](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/plugin-authentication)
+- [ポータル API 自動化](references/portal-api-automation.md)
 - [Dataverse MCP 登録](../standard/references/dataverse-mcp-setup.md)
 - [自前 MCP Server の構築](../mcp-server/SKILL.md) / [コネクタ化の差分手順](references/custom-mcp-connector.md)

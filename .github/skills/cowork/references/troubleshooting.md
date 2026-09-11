@@ -348,4 +348,17 @@ manifest 注入が壊れる症状とその**下流での**対処（`.Trim("'", '
 他スクリプト（`standard` スキル配下含む）で `set_key()` を使う場合も同様に
 `quote_mode="never"` を指定することを推奨する。
 
+## 25. Developer Portal private API の Device Code 認証が `AADSTS7000218` になる
+
+**症状**: Developer Portal が使用する client ID と `AppDefinitions.ReadWrite` scope を指定しても、
+Device Code flow で `client_assertion` または `client_secret` が必要という `AADSTS7000218` が返る。
+
+**原因**: Portal の client はブラウザ内の認証方式を前提とし、汎用 CLI の Device Code flow を
+public client として許可していない。scope や auth cache の不具合ではない。
+
+**対処**: token、Cookie、client secret を CLI へ取り出さない。`manage_oauth_registration_api.py` で
+payload と `PLAN_HASH` を検証し、`READY_FOR_BROWSER_API` になった plan だけをログイン済み VS Code
+統合ブラウザの同一 session から OAuth CRUD API へ送信する。GET で読み戻して一致を確認する。
+401/403/404 または schema 不一致の場合だけ、Developer Portal のフォーム操作へ切り替える。
+
 
