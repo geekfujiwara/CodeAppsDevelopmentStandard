@@ -310,7 +310,7 @@ Code Apps を採用したら、**テーブルの数だけ同じ「一覧＋フ�
 | 順序を持つステータス／ステージがあるか？ | `KanbanBoard`（ドラッグでステータス変更） or `StagePath`（矢羽でクリック即変更） |
 | 期間（開始/終了）を持つレコードか？ | `GanttChart`（dnd-kit、ドラッグリサイズ中心）。自由配置・ズームが必要なら **ReactFlow** カスタムノード |
 | 他レコードとの関係性・依存・フローを見せたいか？ | **ReactFlow**（ノード＋エッジ） |
-| 地域・位置情報を持つか？ | 地図（`JapanMap` 等） |
+| 地域・位置情報を持つか？ | 地図（`MapEmbed` = Google Maps iframe） |
 | 階層構造（親子）か？ | `TreeStructure` |
 | 集計・比率を見せたいだけか？ | `ChartDashboard`（Recharts: 棒・円・折れ線） |
 | 上記のいずれにも該当しないか？ | `ListTable` / `InlineEditTable`（この場合のみ従来通りの CRUD テーブル） |
