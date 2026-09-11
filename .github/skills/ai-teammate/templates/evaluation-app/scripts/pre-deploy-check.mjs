@@ -1,7 +1,7 @@
 /**
  * pre-deploy-check.mjs — テンプレートそのままのデプロイを防止する
  *
- * npx power-apps push の前に実行し、
+ * npx pa app push の前に実行し、
  * テーマ固有のカスタマイズが行われていることを確認する。
  *
  * このファイルはプロジェクト直下の scripts/ にコピーして使う。
@@ -40,7 +40,23 @@ if (!fs.existsSync(envPath)) {
 // 2. power.config.json が存在するか
 const configPath = path.join(root, "power.config.json");
 if (!fs.existsSync(configPath)) {
-  errors.push("power.config.json が存在しません。npx power-apps init を先に実行してください。");
+  errors.push("power.config.json が存在しません。npx pa app init を先に実行してください。");
+}
+
+// 2a. package.json と CLI bin が Code Apps 標準に揃っているか
+const packagePath = path.join(root, "package.json");
+if (!fs.existsSync(packagePath)) {
+  errors.push("package.json が存在しません。");
+} else {
+  const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf-8"));
+  const expectedDeploy = "npm run build && npm run predeploy && npx pa app push";
+  if (packageJson.scripts?.deploy !== expectedDeploy) {
+    errors.push(`package.json の deploy を '${expectedDeploy}' に統一してください。`);
+  }
+  const cliVersion = packageJson.devDependencies?.["@microsoft/power-apps-cli"] ?? "";
+  if (!/^[~^]?1\./.test(cliVersion)) {
+    errors.push("@microsoft/power-apps-cli 1.x を devDependencies に明示してください。");
+  }
 }
 
 // 3. config.ts のアプリ名がデフォルトのままでないか

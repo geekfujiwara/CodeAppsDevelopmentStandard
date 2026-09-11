@@ -214,6 +214,7 @@ def check_existing_scripts(skill_root: Path, env_path: Path, target: Path, env: 
     for script_name in script_names:
         script = skill_root / "scripts" / script_name
         if not script.is_file():
+            problems.append(f"required provisioning script not found: {script_name}")
             continue
         ok, output = run(
             [sys.executable, str(script), "--check", "--env", str(env_path)],
@@ -342,6 +343,7 @@ def build_pre_connection_steps(target: Path, env: dict[str, str], skill_root: Pa
     env_path = target / ".env"
     app_dir = target / "evaluation-app"
     code_apps_scripts = skill_root.parent / "code-apps" / "scripts"
+    blocks = _scaffold_blocks(target)
 
     steps = [
         Step(
@@ -349,6 +351,14 @@ def build_pre_connection_steps(target: Path, env: dict[str, str], skill_root: Pa
             (sys.executable, str(skill_root / "scripts" / "setup_evaluation_dataverse.py"), "--env", str(env_path)),
             target,
         ),
+    ]
+    if "B17" in blocks:
+        steps.append(Step(
+            "provision_image_model.py",
+            (sys.executable, str(skill_root / "scripts" / "provision_image_model.py"), "--env", str(env_path)),
+            target,
+        ))
+    steps += [
         Step(
             "provision_selfhost.py",
             (sys.executable, str(skill_root / "scripts" / "provision_selfhost.py"), "--write", str(env_path)),

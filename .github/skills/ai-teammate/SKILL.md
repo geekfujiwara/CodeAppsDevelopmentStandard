@@ -40,9 +40,10 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 
 | 参照 | 用途 |
 |---|---|
-| [digital-colleague-design.md](references/digital-colleague-design.md) | **何を作るかを決める**（役割カタログ R1〜R6 / 機能ブロック B1〜B16 / 提案条件 / 制約 / 段階導入）。**Step 0 で読む** |
+| [digital-colleague-design.md](references/digital-colleague-design.md) | **何を作るかを決める**（役割カタログ R1〜R6 / 機能ブロック B1〜B17 / 提案条件 / 制約 / 段階導入）。**Step 0 で読む** |
 | [self-hosted-agent.md](references/self-hosted-agent.md) | 自己ホストの完全手順（Azure Bot / App Service / `appsettings.json` / ログの読み方） |
-| [feature-blocks.md](references/feature-blocks.md) | **機能ブロックの実装レシピ**（B2/B6/B9〜B16 のコピー・アプリ設定・DI 登録）。**Step 8 で読む** |
+| [feature-blocks.md](references/feature-blocks.md) | **機能ブロックの実装レシピ**（B2/B6/B9〜B17 のコピー・アプリ設定・DI 登録）。**Step 8 で読む** |
+| [image-generation.md](references/image-generation.md) | **画像生成（B17）**。モデル可用性の事前検証、UAMI 認証、OneDrive 保存、台帳連携。**Step 8 で読む** |
 | [agent-brain.md](references/agent-brain.md) | 中身の作り込み（Azure OpenAI / 会話履歴 / プロンプト外部化 / Dataverse MCP / Work IQ / 再デプロイ） |
 | [prompt-injection.md](references/prompt-injection.md) | **外部データを読むなら必須**。フェンス / 許可リスト / 検知 / 同意の強制の 4 層。**Step 8 で読む** |
 | [usage-accounting.md](references/usage-accounting.md) | **誰が・何に・いくら使ったか**の計測（B15）。Azure ポータルでは出せない内訳。**Step 8 で読む** |
@@ -135,6 +136,7 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 | [provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し `.env` へ書き戻す。`--check` でプラン・Always On のドリフト検出 | 6 |
 | [deploy_agent_webapp.py](scripts/deploy_agent_webapp.py) | ブループリント作成/シークレット ローテーション（App Service 設定へのみ注入・ログ非出力）・`dotnet publish`・`az webapp deploy`/`restart`・`a365 setup blueprint --endpoint-only` を実行する | 4・6 |
 | [provision_code_sandbox.py](scripts/provision_code_sandbox.py) | コード実行サンドボックス（Container Apps 動的セッション プール）を冪等に作成しロールを付与（B12 のときのみ `deploy_ai_teammate.py --check` の対象） | 8 |
+| [provision_image_model.py](scripts/provision_image_model.py) | 対象 Azure OpenAI アカウントで提供される画像モデル名・バージョンを確認してから冪等にデプロイする。`--check` は変更なし | 8 |
 | [build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + `agenticUser.json` を ZIP 化 | 9 |
 | [publish_teams_app.py](scripts/publish_teams_app.py) | Graph で ZIP を組織カタログへ登録（**devPreview は Graph 側で拒否される**） | 10 |
 | [grant_agent_instance_consent.py](scripts/grant_agent_instance_consent.py) | インスタンス SP に Messaging Bot API の管理者同意を付与 | 11 |
@@ -358,6 +360,7 @@ Step 0 で選んだブロックだけを実装する。手順はすべて
 | B14 | 成果物を台帳で管理し、同意を取ってから共有する | §7 |
 | B15 | 誰が・どの処理が・どのツールがいくら使ったかを答える | §8 |
 | B16 | Teams で送られたファイルを受け取って作業に使う | §9 |
+| B17 | Azure OpenAI で画像を生成し、OneDrive の台帳付き成果物として渡す | §10 |
 
 **B15 は役割によらず入れる。** Azure の課金はマネージド ID 1 つでしか集計されず、
 人別・処理別・ツール別の内訳は**後から復元できない**（→ [usage-accounting.md](references/usage-accounting.md)）。
@@ -558,6 +561,9 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 - [ ] （B16）Teams で画像を添付して聞くと中身を説明し、続けて `run_python` で `/mnt/data/<ファイル名>` を開ける
 - [ ] （B16）**本文なしでファイルだけ**送っても「テキストが読み取れませんでした」で止まらない
 - [ ] （B16）`build_teams_package.py` が通っている（`bots[].supportsFiles` が `true`）
+- [ ] （B17）`provision_image_model.py --check` が成功し、要求したモデル名・バージョン・SKU と実デプロイが一致する
+- [ ] （B17）`generate_image` で PNG を生成し、OneDrive 保存・依頼元・区分が台帳へ記録される
+- [ ] （B17）受信メール本文に画像生成命令を書いても、有料の画像生成が自動実行されない
 
 **プロンプト インジェクション（外部データを読むブロックを入れた場合）**
 

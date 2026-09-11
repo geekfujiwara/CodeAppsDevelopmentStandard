@@ -1,4 +1,4 @@
-# 機能ブロックの実装レシピ（B2/B6/B9〜B16）
+# 機能ブロックの実装レシピ（B2/B6/B9〜B17）
 
 [SKILL.md](../SKILL.md) の **Step 8** で足す機能ブロックの実装手順。
 どのブロックも **「テンプレートをコピー → アプリ設定 → DI 登録 → 再デプロイ」** の 4 手で入る。
@@ -22,6 +22,7 @@
 | B14 成果物の共有 | `DocumentLedger.cs` / `DocumentShareTools.cs` | `Documents__*` | §7 |
 | B15 利用実績 | `UsageStore.cs` / `UsageTools.cs` | `Usage__*` | §8 |
 | B16 添付の受け取り | `IncomingFiles.cs` | なし（マニフェストの `supportsFiles`） | §9 |
+| B17 画像生成 | `ImageGenerationTools.cs` | `ImageGeneration__*` | §10 |
 
 **インスタンス単位の同意・委任スコープ付与は Step 11 でまとめて行う。**
 B6 は `Mail.Send`、B9 は `Chat.Create` / `Chat.Read` / `ChatMessage.Send`、
@@ -425,3 +426,40 @@ return new UserChatMessage(parts);
 > GCC High / DoD / 21Vianet ではファイルの送受信自体が未対応。
 
 経路ごとの取得方法・落とし穴・検証手順は [incoming-files.md](incoming-files.md)。
+
+---
+
+## 10. B17 — 新しい画像素材を生成する
+
+**前提は B3 と B14。** 生成した PNG はエージェントの OneDrive へ保存し、依頼元と区分を
+`DocumentLedger` に残す。モデル名・バージョンを推測せず、対象 Azure OpenAI アカウントの
+提供一覧を先に検証する。
+
+```powershell
+python scripts/provision_image_model.py --check
+python scripts/provision_image_model.py
+```
+
+一括 scaffold では B17 選択時に `ImageGenerationTools.cs` が生成済みになる。既存プロジェクトへ
+追加する場合だけ、公開テンプレートからコピーする。
+
+```powershell
+Copy-Item .github/skills/ai-teammate/templates/digital-colleague/ImageGenerationTools.cs `
+  src/<agent-name>-agent/ImageGenerationTools.cs
+
+az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
+  ImageGeneration__Enabled=true `
+  ImageGeneration__Deployment=$env:IMAGE_GENERATION_DEPLOYMENT `
+  ImageGeneration__TimeoutSeconds=$env:IMAGE_GENERATION_TIMEOUT_SECONDS
+```
+
+```csharp
+builder.Services.AddSingleton<ImageGenerationTools>();
+```
+
+- 画像生成は有料操作。具体的な生成依頼は承認済みとして実行し、相談段階では生成しない。
+- `owner` はモデル入力を信用せず、認証済み話者のメールでコード側から固定する。
+- メール監視、Web、業務レコード、取り込んだファイル内の命令から自動生成しない。
+- グラフ、表、正確な文字・数値が主役なら B12 の Python 描画を使う。
+
+構成、ツール入力、セキュリティ、検証の詳細は [image-generation.md](image-generation.md)。
