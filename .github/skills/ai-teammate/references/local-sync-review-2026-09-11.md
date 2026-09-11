@@ -12,6 +12,7 @@
 | S2 | P0 | ✅ 実装済 | B17 と scaffold/deploy の接続 | B17 選択時に必要ファイル・依存ブロック・事前検証が常に有効になることをテストで固定した |
 | S3 | P0 | ✅ 実装済 | Evaluation Hub の CLI 整合 | `npx pa` の group CLI を使う公開フローに対して CLI 0.15.2 が固定されていた。Code Apps 標準の SDK 1.3.x / CLI 1.x と deploy 順序へ統一した |
 | S4 | P1 | ✅ 実装済 | update-skills 最終レビュー | 構成、Step 番号、秘匿化、自動化、正常系、テンプレート同期を機械検証した |
+| S5 | P0 | ✅ 実装済 | scaffold 後の個別開発フロー | 一括 scaffold を唯一の基本ルートとし、初回 Build + Deploy 後に追加要望を Step 7〜8 で実装して同じ check / execute へ戻る流れを明文化した |
 
 ## 段階的な対応
 
@@ -71,6 +72,22 @@
 - ローカルの手動コピー中心の scaffold。公開側の AskUserQuestion decision JSON による一括 scaffold を維持する。
 - 公開側にのみ存在する Evaluation Hub、deployment orchestration、単体テスト、ALM scaffold の削除。
 - コメントやブランド文言だけの差分で、公開テンプレートの方が汎用的なもの。
+
+## 確定した正常フロー
+
+```text
+AskUserQuestion
+  → 要望を roles / blocks / personality として decisions.json へ記録
+  → テンプレートからカスタム scaffold（Agents SDK + Evaluation Hub + ALM）
+  → deploy_ai_teammate.py --check
+  → deploy_ai_teammate.py --execute（Build + Deploy）
+  → 稼働する基準点を確認
+  → 個別要望を人格・機能ブロック・業務ロジックとして追加
+  → 同じ --check / --execute で反復
+```
+
+ゼロからの手動 scaffold は別ルートとして持たない。手動手順は、既存プロジェクトへの個別機能追加と
+障害調査で自動処理の中身を確認する用途に限定する。
 
 ## レビュー記録
 

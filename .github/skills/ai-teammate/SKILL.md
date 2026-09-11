@@ -124,6 +124,12 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
   （デプロイ時にしか埋まらない値は [.env.example](references/.env.example) の説明どおり後回しでよい）。
 - `implementationMode: "full"` を選ぶと ALM の pre-commit ゲートと CI ワークフローも同時に生成される。
 
+**基本フローは「一括 scaffold → 初回 Build + Deploy → 個別開発」の 1 本だけにする。**
+ゼロから手でファイルを並べる別ルートは正常系に持たない。最初の AskUserQuestion で分かっている要望は
+役割・機能ブロックとしてテンプレートへ反映し、Step 3 でカスタム済みの初期実装を生成する。Step 6 で
+`deploy_ai_teammate.py --check` → `--execute` を通して動く基準点を作った後、追加要望を Step 7〜8 の
+人格・機能ブロックとして実装し、同じ check / execute で再デプロイする。
+
 ## スキル同梱スクリプト
 
 値は引数または `.env`（[references/.env.example](references/.env.example)）から取得する。
@@ -188,7 +194,7 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 |---|---|
 | B1 Teams 会話 / B3 頭脳 / B8 人格 | Step 5・6・7 |
 | B4 Microsoft 365 接続 / B5 Dataverse 接続 | [agent-brain.md](references/agent-brain.md) §6・§7 |
-| B2 自分の ID / B6 メール / B9 チャット / B10 Web / B11 定期 / B12 作業環境 / B13 経過 / B14 共有 / B15 実績 / B16 添付 | Step 8 |
+| B2 自分の ID / B6 メール / B9 チャット / B10 Web / B11 定期 / B12 作業環境 / B13 経過 / B14 共有 / B15 実績 / B16 添付 / B17 画像生成 | Step 8 |
 | B7 Teams プレゼンス | Step 12 |
 
 ### Step 1: 名前・表示名・アイコンを決める
@@ -260,9 +266,10 @@ a365 setup blueprint -n <agent-name> --no-endpoint
 - 初回はディレクトリ伝播の遅延で失敗することがあるが、**再実行すれば冪等に修復**される。
 - エンドポイント登録は Step 6 で行う（この時点ではまだ URL が存在しない）。
 
-### Step 5: Agents SDK アプリを実装する
+### Step 5: scaffold 済み Agents SDK アプリを初期要望に合わせる
 
-**ここで作るアプリが agentUser チャットの実体。**
+**Step 3 で生成したアプリが agentUser チャットの実体。** 選択した役割・機能ブロック、プロンプト、
+環境設定が初期要望と一致することを確認し、テンプレートでは表現できない業務固有部分だけを実装する。
 
 ```text
 src/<agent-name>-agent/
@@ -329,6 +336,9 @@ a365 setup blueprint -n <agent-name> --endpoint-only --messaging-endpoint $env:A
   `python scripts/provision_selfhost.py --check` を通す。
 
 ### Step 7: 人格と初期品質を入れる
+
+ここからは**初回 Build + Deploy 後の個別開発ループ**。追加要望を小さく実装し、変更ごとに
+`python scripts/deploy_ai_teammate.py --check` を通してから `--execute` で再デプロイする。
 
 公開前に [秘書プロンプト雛形](references/templates/assistant-system-prompt.template.md) を
 `prompts/system.md` へコピーし、`<表示名>` / `<役割>` / `<人格>` を業務に合わせて置き換える。
