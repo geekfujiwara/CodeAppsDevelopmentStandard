@@ -41,6 +41,22 @@ triggers:
 > 前提ツール: Python 3.10+、Git、Azure CLI（`az`）。
 > シークレットストアに応じて GitHub CLI（`gh`）または `az extension add --name azure-devops` を追加する。
 
+## 事前確認（会話の最初に 1 回だけ）
+
+本スキルの利用が確定したら、[standard の共通契約](../standard/SKILL.md#共通の事前確認契約会話の最初に-1-回だけ)に加え、
+**1 回の AskUserQuestion で次をまとめて確認する**。
+
+| # | 質問 | 合格条件 |
+|---|---|---|
+| 1 | Git provider、repository、visibility、既定 branch は何か | GitHub / Azure DevOps / その他と private / public を確定している |
+| 2 | branch protection と environment approval を変更できる担当者は誰か | repository / project の管理担当者と承認者を記録している |
+| 3 | secret backend と CI identity は何か | GitHub Secrets / variable group / Key Vault、OIDC / workload identity、rotation owner を確定している |
+| 4 | CI が各デプロイ先へ持つ最小権限は何か | 対象環境ごとの scope、期限、role assignment 担当者を記録している |
+| 5 | release、rollback、監査ログの運用は何か | version 規則、成果物保持、失敗時の戻し方、通知先を承認済みである |
+
+personal access token や長期 client secret を既定にせず、OIDC / workload identity を優先する。
+repository 管理権限、secret backend、CI identity のいずれかが未確定ならパイプラインを有効化しない。
+
 ## 各プロダクトスキルとの責務分担
 
 | 担当 | 内容 | 参照先 |

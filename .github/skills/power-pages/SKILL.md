@@ -187,7 +187,23 @@ Response: 202 Accepted + Operation-Location ヘッダー
 
 **⚠️ API バージョン注意**: `2022-03-01-preview` を使用すること。`2024-10-01` ではアクティベーションが正しく動作しない。
 
-## 前提条件
+## 前提条件・事前確認（会話の最初に 1 回だけ）
+
+作業開始前に、[standard の共通契約](../standard/SKILL.md#共通の事前確認契約会話の最初に-1-回だけ)に加え、
+**1 回の AskUserQuestion で次をまとめて確認する**。
+
+| # | 質問 | 合格条件 |
+|---|---|---|
+| 1 | 対象環境、サイト名、subdomain、サイト種別は何か | 新規 / 更新、公開 URL、開発・テスト・本番の対象が確定している |
+| 2 | Power Pages のライセンス / capacity は利用可能か | 認証ユーザー / 匿名ユーザーの想定数と課金方式を確認している |
+| 3 | 認証方式とアクセス scope は何か | anonymous / authenticated、Self / Account、IdP、Web role、table permission を承認済みである |
+| 4 | サイトと Dataverse を変更する担当者は誰か | Code Site の upload、site settings、Web role、table permission を変更できる担当者を記録している |
+| 5 | 公開データとセキュリティ検証は何か | 公開列、PII、未認証時の期待値、403 / 200 のテスト担当者を確定している |
+| 6 | デプロイ後の relink / restart を実施できるか | `deploy_site.py` または upload → relink → restart の一連を実行することで合意している |
+
+環境全体の `System Administrator` を既定にせず、サイト管理と対象 Dataverse 構成に必要な
+権限を持つ担当者を使用する。認証、scope、Web role、table permission のいずれかが未確定なら
+外部公開へ進まない。
 
 | ツール | バージョン | 用途 |
 |--------|-----------|------|

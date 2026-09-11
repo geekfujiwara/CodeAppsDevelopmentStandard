@@ -104,7 +104,8 @@ flowchart LR
    **`TEAMS_APP_VERSION` を上げる**。`AGENT_NAME` と `INSTANCE_IDENTITY_CLIENT_ID` は変えない
    （変えると別アプリ扱いになり、同意やインスタンスを作り直す羽目になる）。
 2. `python scripts/build_teams_package.py --require-template` でパッケージを作り直す。
-3. 管理センターの Agent template を**同じアプリの新しいバージョンとして**差し替え、再度 Publish / Activation する。
+3. M365 管理センターの **Agents > All agents > Registry** で Agent template を
+  **同じアプリの新しいバージョンとして**差し替え、権限と対象を確認して **Finish deployment** する。
 4. 既存インスタンスの表示名はテンプレート更新だけでは追従しないことがある。
    管理センターのインスタンス詳細で表示名を直すか、作り直す。
    **作り直した場合は SKILL.md Step 11 の同意付与と Step 12 のプロフィール写真をやり直す**

@@ -28,7 +28,25 @@ CLI にハードコードされた SKU ID が実際に割り当て可能な SKU 
 `Get-MgSubscribedSku` 等で自テナントの `skuId` を確認して割り当てる。
 割り当て時は `usageLocation` が必須。
 
-## 3. 認証キャッシュは standard の auth_helper を使う
+Microsoft 365 Frontier は Agent 365 ライセンスではなく opt-in のプレビュー制度である。
+`devPreview` の Agent template を使う場合は、管理者とテストユーザーに Microsoft Copilot
+ライセンスを割り当て、対象ユーザーを Frontier に登録する。GA 機能だけを使う場合は不要。
+
+## 3. 必要な Microsoft Entra ロール
+
+| 操作 | 推奨される最小ロール |
+|---|---|
+| Agent ID blueprint を新規作成する | `Agent ID Developer` |
+| blueprint、instance、agentUser のフル ライフサイクルを管理する | `AI Administrator` または `Agent ID Administrator` |
+| M365 管理センターで Agent template を追加・公開・配布する | `AI Administrator` |
+| instance service principal へテナント全体の OAuth 同意を付与する | `Privileged Role Administrator` |
+| ユーザーへライセンスを割り当てる | `License Administrator` |
+
+`Global Administrator` は上記操作の代替になり得るが、通常手順では使わない。
+ロールは 1 人へ集約せず、blueprint 作成、Agent Registry、ライセンス、管理者同意の担当者を
+事前に記録する。
+
+## 4. 認証キャッシュは standard の auth_helper を使う
 
 通常の Azure / Graph / Foundry 認証は `standard/scripts/auth_helper.py` が保存した
 AuthenticationRecord + MSAL 永続キャッシュを共有する。ai-teammate 用に `az login` や
@@ -37,7 +55,7 @@ AuthenticationRecord + MSAL 永続キャッシュを共有する。ai-teammate �
 `.a365-auth.json` / `auth-token.json` / `*token-cache*` が生成された場合もローカル専用で、
 コミット・貼り付けは禁止。
 
-## 4. 出力をパイプしない
+## 5. 出力をパイプしない
 
 `a365` のブループリント設定時に例外的に対話プロンプトが出る場合は WAM（ネイティブ ダイアログ）を使う。
 
@@ -45,7 +63,7 @@ AuthenticationRecord + MSAL 永続キャッシュを共有する。ai-teammate �
 - ログが必要なときだけパイプし、プロンプト待ちが疑われたらパイプ無しで再実行する。
 - CLI に `--device-code` オプションは無い。デバイスコードは WAM / ブラウザ失敗時の自動フォールバックのみ。
 
-## 5. 埋め込みターミナルでは WAM ダイアログが出せない
+## 6. 埋め込みターミナルでは WAM ダイアログが出せない
 
 VS Code の統合ターミナルからは WAM のダイアログを表示できない。可視ウィンドウで起動する。
 
@@ -56,7 +74,7 @@ Start-Process powershell -ArgumentList '-NoExit','-EncodedCommand',$b64
 
 `-Command` を `-ArgumentList` で渡すと引用符が壊れるため、**必ず `-EncodedCommand`** を使う。
 
-## 6. ブラウザのプロファイル問題
+## 7. ブラウザのプロファイル問題
 
 CLI はブラウザを `ProcessStartInfo` + `UseShellExecute=true`（= OS 既定ハンドラー）で開く。
 **プロファイルを指定するオプションも環境変数も無い。**
@@ -69,20 +87,20 @@ Start-Process msedge.exe -ArgumentList '--profile-directory="Profile N"','https:
 
 恒久策は `edge://settings/profiles/multiProfileSettings` の「自動プロファイル切り替え」。
 
-## 7. 冪等性と再実行
+## 8. 冪等性と再実行
 
 - 初回の `a365 setup blueprint` はディレクトリ伝播の遅延で
   inheritable permissions が 404 になり失敗しがち。
   **同じコマンドをもう一度流せば冪等に修復される**（追加スコープの付与も同様）。
 - `a365 setup permissions mcp|bot` は **`--agent-name <name>` が必須**（無いと即エラー終了）。
 
-## 8. シークレットの取り扱い
+## 9. シークレットの取り扱い
 
 - 実行のたびに**新しいクライアント シークレットが平文でコンソール出力される**。
 - ログファイルに残すと平文で残るため、実行後に削除する。
   `.gitignore` に `a365-*.log` と `a365.generated.config.json` を必ず入れる。
 
-## 9. 生成される設定ファイル
+## 10. 生成される設定ファイル
 
 `a365.generated.config.json` の主なキー（値は環境固有 = 秘匿）:
 

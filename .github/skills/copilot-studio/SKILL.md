@@ -67,6 +67,23 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 | [ニュース配信メールテンプレート](references/market-research-email-template.md) | ニュース配信メールの HTML テンプレート |
 | [トランスクリプト分析](references/transcript-analytics.md) | 会話トランスクリプトの分析パターン（ボット識別・ユーザー識別） |
 
+## 事前確認（会話の最初に 1 回だけ）
+
+本スキルの利用が確定したら、[standard の共通契約](../standard/SKILL.md#共通の事前確認契約会話の最初に-1-回だけ)に加え、
+**1 回の AskUserQuestion で次をまとめて確認する**。
+
+| # | 質問 | 合格条件 |
+|---|---|---|
+| 1 | v1 が必要な利用形態か | Code Apps 連携、WebChat、外部トリガー等の v1 採用理由が明確である |
+| 2 | 対象環境で作成・公開できるか | Copilot Studio の必要ライセンス / capacity と maker / publish 権限がある |
+| 3 | channel と audience は何か | Teams / M365 Copilot / Web、internal / external / anonymous、公開担当者が確定している |
+| 4 | 認証とデータアクセスは何か | Microsoft 認証 / manual auth / none、Dataverse RLS、接続所有者を承認済みである |
+| 5 | knowledge、MCP、trigger、外部文章を使うか | 接続権限、送信データ、prompt injection 対策、実害操作の確認方法が確定している |
+| 6 | エージェント設計とテスト範囲は承認済みか | Instructions、モデル、ツール、アイコン、テストユーザー、期待応答を記録している |
+
+外部公開で `AGENT_AUTH_MODE=none` を使う場合は、匿名アクセスで公開してよいデータと操作を
+明示承認する。ライセンス、認証方式、公開対象のいずれかが未確認なら公開しない。
+
 ## 外部公開 Web サイト開発フロー（必須）
 
 **外部公開は WebChat UI（BotFramework WebChat SDK）を標準とする。** iframe 埋め込みは

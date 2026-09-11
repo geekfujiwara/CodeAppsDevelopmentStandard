@@ -58,6 +58,23 @@ AI Builder で AI 処理を実装する場合、以下の方針に従う:
 | 利用先             | Copilot Studio ツール or Power Automate フロー       |
 | shouldPromptUser   | 各入力変数をユーザーに自動的に尋ねるか（true/false） |
 
+## 事前確認（会話の最初に 1 回だけ）
+
+本スキルの利用が確定したら、[standard の共通契約](../standard/SKILL.md#共通の事前確認契約会話の最初に-1-回だけ)に加え、
+**1 回の AskUserQuestion で次をまとめて確認する**。
+
+| # | 質問 | 合格条件 |
+|---|---|---|
+| 1 | 対象環境で AI Builder を利用できるか | 必要なライセンス / AI Builder capacity があり、利用制限を確認している |
+| 2 | AI プロンプトを作成・公開する権限があるか | `msdyn_aimodel` 等の必要テーブルと `AIModelPublish` を実行できる担当者がいる |
+| 3 | 利用先はどこか | Copilot Studio / Power Automate、接続参照、実行ユーザー、呼び出し側ライセンスを確定している |
+| 4 | 入力データをモデルへ送信してよいか | document / image / text の分類、個人情報、保持・リージョン要件を承認済みである |
+| 5 | プロンプト、入力、JSON schema、モデル、テスト値は承認済みか | 正常系、拒否すべき入力、期待出力を記録している |
+
+`System Administrator` を常用せず、AI モデルの作成・公開とソリューション追加に必要な
+Dataverse 権限だけを持つ担当者を優先する。capacity または権限が未確認なら
+`AIModelPublish` を呼び出さない。
+
 ## 重要事項: AIModelPublish 1ステップ・アクティベーション
 
 **2026-04-15 検証済み: `AIModelPublish` アクションは1ステップでモデルを完全にアクティブ化する。**
