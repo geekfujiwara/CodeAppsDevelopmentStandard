@@ -33,6 +33,14 @@ Compare start/end timestamps, run status, Agent status and downloaded output. A 
 the old block only for that tested path; keep the old 442 as history, not as proof that all current calls fail.
 Do not infer that an inline success proves ListAgents, an existing bot, MCP tools or public web chat authorization.
 
+## Existing-Agent Invoke Returns HTTP 202
+
+Authenticated connector Swagger declares 201 with `result`, `structuredOutput` and `files`, but the direct runtime can return 202.
+Treat it as `accepted-unverified`: do not parse an assumed output body, claim the agent completed, or retry the same approved plan.
+Search the exact nonce in an independent transcript/run source once. If no matching completion evidence exists, preserve the gap.
+`invoke_agent_node.apply_plan` returns `runtimeValidated=false` for 202 and only accepts exact structured nonce output with zero files
+on HTTP 201. Direct API behavior does not replace a supported Workflow run and its run-history evidence.
+
 ## Template Or Readback Rejected
 
 `validate_client` checks graph/runtime instruction, model, connection and mapping parity, empty tools, no web/human assistance and the input-free trigger.

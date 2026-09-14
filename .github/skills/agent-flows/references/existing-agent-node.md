@@ -59,10 +59,35 @@ Reports omit names, IDs, tokens, response text and signed file URLs. Existing re
 `resolve_agent()` rejects duplicate matches, multiple collection shapes, pagination and unknown response formats.
 `validate_runtime_url()` rejects other environments, credentials, query strings, fragments and unobserved hosts.
 
+## Approval-Bound Smoke Invocation
+
+After `target-verified`, create a separate one-time smoke plan. The nonce must be unique for the test.
+
+```powershell
+python .github/skills/agent-flows/scripts/invoke_agent_node.py plan `
+	--nonce <unique-smoke-nonce> `
+	--output .local/agent-flow/invoke-plan.json
+
+python .github/skills/agent-flows/scripts/invoke_agent_node.py apply `
+	--plan .local/agent-flow/invoke-plan.json `
+	--expected-hash <approved-hash>
+```
+
+The plan binds the environment, Dataverse origin, bot identity/schema and ETag, connection-reference identity and ETag,
+environment-bound runtime URL/path, exact prompt, disabled HITL, output schema and expected nonce JSON. Apply repeats all discovery
+and ListAgents checks before one POST. The prompt prohibits tools, knowledge, browsing, files, messages and data changes.
+
+The authenticated Swagger declares HTTP 201, but live `InvokeAgent` returned HTTP 202 on 2026-09-14. No transcript containing the
+nonce was available in the immediate independent Dataverse read-back. Therefore 202 is `accepted-unverified` and exit 2; do not
+retry the same plan or call it a completed run. Only HTTP 201 with exact `structuredOutput`, no unknown response fields and an empty
+`files` array is `output-verified`. This direct API remains experimental and does not replace the supported Workflow designer path.
+
 ## Verification Boundary
 
-The corrected API Hub audience reached HTTP 442 at ListAgents in the development environment.
-That confirms progress beyond the earlier audience rejection, not successful target enumeration or agent execution.
+The corrected API Hub audience initially reached HTTP 442 at ListAgents. After policy propagation, the same read-only diagnostic
+returned the observed `agents` collection with `agentId` equal to the bot schema name and uniquely verified the target.
+That proves current target enumeration for the tested connection, not successful agent execution. A later smoke POST returned 202,
+which conflicts with the Swagger-declared 201 and had no immediate transcript evidence.
 Policy configuration readback, runtime policy evaluation, publish acceptance and business output are separate gates.
 If another session owns governance, report the stage and status without changing or repeatedly rechecking its settings.
 

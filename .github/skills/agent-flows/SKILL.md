@@ -117,6 +117,11 @@ python .github/skills/agent-flows/scripts/inspect_agent_node.py --report-file .l
 Workflow の既存 Agent ノードは公式に案内されているが、ここで観測した直接 API は実験的経路として扱う。
 ACP 反映待ちでもユーザーの承認に基づき実装・モックテストを進められるが、実応答・本人認可・本番受入のゲートは保持する。
 
+ListAgentsで対象を一意確認できた後の限定smokeは、[既存Agent node](references/existing-agent-node.md)の
+plan/hash手順に従う。`invoke_agent_node.py`はHITLを無効化し、ツール・knowledge・file生成を禁止する固定nonce
+promptと出力schemaを承認対象にする。HTTP 202は`accepted-unverified`であり、再実行や成功扱いにしない。
+HTTP 201、structured output完全一致、files 0件の組み合わせだけを`output-verified`とする。
+
 既存 bot を呼ぶ要求/結果ワーカーは [構築・更新・受入パターン](references/conversation-worker.md) を使う。
 `conversation_contract.py` の定義・要求者・相関・結果検証を実装に組み込み、
 テーブル/列/許可対象を `.env` で指定して既存要求を読み取り検証する。
