@@ -61,6 +61,7 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 | [外部公開 iframe（レガシー・非推奨）](references/external-web-embed.md) | iframe で埋め込む簡易版。UI カスタマイズ不可のため**標準では使わない**。動作確認・PoC 用のみ |
 | [外部トリガー](references/trigger.md) | メール受信・Teams メッセージ・スケジュール等のトリガー追加 |
 | [Standard MCP tool](references/standard-mcp-tools.md) | UI観測済みprivate APIによる承認付きMCP追加とread-back |
+| [Standard model selection](references/model-selection.md) | GPT component YAMLのモデル値をETag・SHA-256・承認plan付きで変更 |
 | [トリガーパターン](references/trigger-patterns.md) | トリガーの設定パターン集 |
 | [トラブルシューティング](references/troubleshooting.md) | トリガー関連を中心とした異常系・トラブルシューティング |
 | [ニュース配信エージェント](references/market-research-report.md) | RSS + Web検索 + Work IQ MCP によるニュース収集・配信エージェント構築 |
@@ -257,7 +258,7 @@ new_data = "\n\n".join(lines) + "\n\n"
 ✅ actions 配下は 4 スペースインデント
 ```
 
-### 基盤モデル選択の保持（aISettings）
+### 基盤モデル選択（aISettings）
 
 PVA は GPT コンポーネントの `data` YAML 末尾に基盤モデル情報を格納する:
 
@@ -268,23 +269,20 @@ aISettings:
 ```
 
 GPT コンポーネントの `data` を上書きすると、この `aISettings` セクションが消えて
-デフォルトモデル（GPT 4.1）に戻る。
+デフォルトモデル（GPT 4.1）に戻る。モデル変更は`set_model.py`でplanを作り、承認したhashだけをapplyする。
 
-```python
-# ✅ 更新前に既存データから aISettings セクションを抽出 → 新 YAML の末尾に付加
-existing_data = ui_comp.get("data", "")
-ai_idx = existing_data.find("\naISettings:")
-if ai_idx < 0:
-    ai_idx = existing_data.find("aISettings:")
-if ai_idx >= 0:
-    ai_settings_section = existing_data[ai_idx:].rstrip()
-    final_yaml = new_yaml.rstrip("\n") + "\n\n" + ai_settings_section + "\n\n"
+```powershell
+python scripts/set_model.py show --bot-id $env:BOT_ID
+python scripts/set_model.py plan --bot-id $env:BOT_ID --model $env:AGENT_MODEL_NAME
+python scripts/set_model.py apply --expected-hash <承認したSHA-256>
 ```
 
 ```
 ❌ GPT data を丸ごと上書き → 基盤モデルがデフォルトに戻る
-✅ 更新前に aISettings セクションを抽出して保持
-✅ 初回デプロイ後にユーザーが UI でモデルを設定 → 2 回目以降のデプロイで保持される
+❌ componentが複数あるときに先頭を更新 → UI所有componentとずれる
+✅ configuration.gPTSettings.defaultSchemaNameで所有componentを特定。無い場合はGPT componentが1件のときだけ続行
+✅ 元YAML hashとETagを承認planへ束縛し、modelNameHint以外を保持
+✅ PATCH後にYAML全体hashとmodelNameHintをread-back。反映には再公開が必要
 ```
 
 ### 説明（Description）の保存場所
@@ -318,11 +316,12 @@ if ai_idx >= 0:
 2. **Step 1-1.5**: Bot 検索 + プロビジョニング完了待ち
 3. **Step 2**: カスタムトピック削除（システムトピック保護）
 4. **Step 3**: 生成オーケストレーション有効化
-5. **Step 4-4.5**: Instructions + 会話の開始設定
-6. **Step 5-6**: エージェント公開 + 説明設定（`deploy_agent.py` はここまで）
-7. **Step 7**: セキュリティ（認証モード）設定 → 公開（`set_agent_security.py`）
-8. **Step 8**: チャネル選択（Web/Teams/Copilot）→ 公開（`set_agent_channels.py`）
-9. **Step 9**: Standard MCP toolを承認付きprivate APIで追加。connector tool・ナレッジ・トリガーは各contractに従う
+5. **Step 4**: `set_model.py`でmodel plan生成・hash承認・apply
+6. **Step 5-5.5**: Instructions + 会話の開始設定
+7. **Step 6-7**: エージェント公開 + 説明設定（`deploy_agent.py` はここまで）
+8. **Step 8**: セキュリティ（認証モード）設定 → 公開（`set_agent_security.py`）
+9. **Step 9**: チャネル選択（Web/Teams/Copilot）→ 公開（`set_agent_channels.py`）
+10. **Step 10**: Standard MCP toolを承認付きprivate APIで追加。connector tool・ナレッジ・トリガーは各contractに従う
 
 > **⚠️ 「公開」処理は 3 スクリプトに分離する（一体化禁止）**
 >
@@ -333,9 +332,10 @@ if ai_idx >= 0:
 > | 順 | スクリプト | 役割 | 主な .env |
 > |---|---|---|---|
 > | 1 | `provision_agent.py` | 承認付き初回プロビジョニング | `AGENT_NAME`, `BOT_SCHEMA`, `AGENT_LANGUAGE`, `SOLUTION_NAME` |
-> | 2 | `deploy_agent.py` | 構築（Step 1–6）＋公開 | `BOT_ID` または `AGENT_NAME` |
-> | 3 | `set_agent_security.py` | 認証モード設定→公開 | `AGENT_AUTH_MODE`（`none` / `microsoft`） |
-> | 4 | `set_agent_channels.py` | チャネル選択→公開 | `AGENT_CHANNELS`（`web,teams,copilot`） |
+> | 2 | `set_model.py` | 承認付き基盤モデル設定 | `BOT_ID`, `AGENT_MODEL_NAME` |
+> | 3 | `deploy_agent.py` | 構築（Instructions等）＋公開 | `BOT_ID` または `AGENT_NAME` |
+> | 4 | `set_agent_security.py` | 認証モード設定→公開 | `AGENT_AUTH_MODE`（`none` / `microsoft`） |
+> | 5 | `set_agent_channels.py` | チャネル選択→公開 | `AGENT_CHANNELS`（`web,teams,copilot`） |
 >
 > Copilot Studio v1 の `bots.authenticationmode`: `1`=認証なし（Web 埋め込み必須）／`2`=Microsoft で認証（UI 既定・Teams）。
 > 認証変更は**公開後に反映**される。
@@ -356,4 +356,5 @@ AGENT_LANGUAGE=1041
 BOT_SCHEMA=prefix_AgentName
 BOT_ID=https://copilotstudio.../bots/xxxxxxxx-xxxx-.../overview
 # ↑ Copilot Studio URL をそのまま貼り付け可。GUID だけでも OK
+AGENT_MODEL_NAME=Sonnet46
 ```

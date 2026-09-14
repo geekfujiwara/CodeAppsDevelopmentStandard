@@ -1,5 +1,35 @@
 # Copilot Studio トリガー トラブルシューティング・設計ガイド
 
+## Standard model plan後にapplyが拒否される
+
+**症状**: `GPT component changed after approval; create a new plan`またはHTTP 412になる。
+
+**原因**: plan後にCopilot Studio UI、Instructions更新、別scriptが同じGPT YAMLまたはETagを変更した。
+古いplanを強制適用すると新しいInstructionsやmodel設定を失う。
+
+**恒久対策済み**: `set_model.py`は元YAML SHA-256とETagをapproval planへ含め、apply直前の再取得と
+`If-Match`を両方行う。最新状態で`plan`を作り直し、新しいhashを承認する。
+
+## 検証用Standard agentをDELETEできない
+
+**症状**: `DELETE /api/data/v9.2/bots(<id>)`が`0x8004f01f`を返し、topicやGPT componentから
+参照されているため削除できない。
+
+**原因**: Bot recordの直接DELETEは所有componentを管理削除しない。子componentを個別に推測削除すると、
+system componentやsolution dependencyを取り残すおそれがある。
+
+**対策**: Dataverse metadataで確認できるBot bound actionをexact Bot IDへ実行する。
+
+```http
+POST /api/data/v9.2/bots(<bot-id>)/Microsoft.Dynamics.CRM.PvaDeleteBot
+Content-Type: application/json
+
+{}
+```
+
+成功時は204。続けてBot IDまたは名前の検索が0件、`_parentbotid_value`が同じ`botcomponents`も0件であることを
+確認する。対象IDと用途を確認せずに共有・本番agentへ実行しない。
+
 ## Standard trigger の Power Automate widget が読み込まれない
 
 Standard agentの`Add trigger`は、generative orchestration有効化後にPower Automateの
