@@ -34,8 +34,10 @@ Code Apps連携は一律v1ではなく、非同期を許容できる場合はv2�
 | 判断軸 | v2（新アーキ） | v1（旧アーキ） |
 |---|---|---|
 | **Code Apps から呼び出し（ExecuteCopilotAsyncV2）** | ❌ 不可 | ✅ |
+| **Code Apps / Web に標準 UI を iframe 表示** | ✅ Web app チャネル | △ 既存資産向け |
 | **Code Apps 非同期埋め込み体験（Dataverse + Workflow Agent ノード）** | ✅ 第一候補（直接呼び出しではない） | △ 通常は直接連携を選ぶ |
-| **Web サイト埋め込み（WebChat SDK / 外部公開）** | ❌ 不可 | ✅ |
+| **WebChat SDK で UI・メッセージをプログラム制御** | ❌ 未確立 | ✅ |
+| **Dataverse レコード作成/更新から Agent flows で起動** | ✅ 既存 Agent ノードを第一候補 | △ 既存 v1 資産の継続時 |
 | **トークンストリーミング** | ❌ | ✅ |
 | **構造化JSON・ファイル生成用Pythonスキル** | ✅ | △ |
 | トリガー・ニュース配信などの既存 references 資産 | △ | ✅ |

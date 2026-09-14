@@ -1,7 +1,7 @@
 """既存の cliagent エージェントを**作り直さずに**更新する。
 
 deploy_agent.py は create_agent.py から始まるため、実行するたびに新しい Bot が作られる。
-運用中のエージェント（UI で手動追加した MCP ツール・接続参照を持つ）を更新するときは
+運用中のエージェント（追加済み MCP ツール・接続参照を持つ）を更新するときは
 こちらを使う。
 
   1) set_instructions.py … Instructions を差し替え（configuration を deep-merge PATCH）
@@ -10,7 +10,7 @@ deploy_agent.py は create_agent.py から始まるため、実行するたび�
   4) attach_skill.py     … 同名スキルだけを入れ替え（type=9/14）
   5) publish_agent.py    … 再公開
 
-手動追加したツール（MCP）は botcomponents の別レコードで、上記のいずれも触らない。
+追加済みツール（MCP）は botcomponents の別レコードで、上記のいずれも触らない。
 実行前後で MCP ツールの一覧を取得して差分を表示し、消えていないことを検証する。
 
 .env / 引数:
@@ -53,8 +53,16 @@ def resolve_bot_id() -> str:
     sys.exit("AGENT_BOTID が未設定で agent_botid.txt もありません。")
 
 
+def tool_kind(data: str) -> str | None:
+    for line in data.splitlines():
+        if line.startswith("kind:"):
+            kind = line.split(":", 1)[1].strip()
+            return kind if kind in ("McpTool", "ConnectorTool") else None
+    return None
+
+
 def snapshot_tools(bot_id: str) -> dict[str, str]:
-    """手動追加されたツール（MCP など）の schemaname → 接続参照 を採取する。"""
+    """追加された MCP / connector tool の schemaname → 接続参照を採取する。"""
     rows = api_get(
         "botcomponents?$select=name,schemaname,data"
         f"&$filter=_parentbotid_value eq {bot_id} and componenttype eq 9"
@@ -62,7 +70,7 @@ def snapshot_tools(bot_id: str) -> dict[str, str]:
     tools: dict[str, str] = {}
     for row in rows:
         data = row.get("data") or ""
-        if "kind: McpTool" not in data:
+        if tool_kind(data) is None:
             continue
         ref = next(
             (line.split(":", 1)[1].strip() for line in data.splitlines()

@@ -19,7 +19,7 @@ from urllib.parse import urljoin, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
 
-from auth_helper import get_session  # noqa: E402
+from auth_helper import get_session, get_token  # noqa: E402
 
 BAP_BASE = "https://api.bap.microsoft.com"
 BAP_SCOPE = "https://api.bap.microsoft.com/.default"

@@ -1,6 +1,6 @@
 ---
 name: agent-flows
-description: "Copilot Studio 新 UI の Agent flows / Workflows を Dataverse と Flow 管理 API で作成・公開・実行する。手動 Start と inline Agent の最小定義、接続参照、new UI 属性、承認付き dry-run、実行結果の検証を扱う。Code Apps との非同期連携を設計する場合にも使用する。"
+description: "Copilot Studio 新 UI の Agent flows / Workflows を構築・公開・検証する。Dataverse レコード作成/更新トリガーから既存の発行済み Copilot Studio v2 を Agent ノードで呼ぶ標準経路、Code Apps との非同期要求/結果連携、および手動 Start + inline Agent の API ライフサイクル検証を扱う。"
 category: automation
 triggers:
   - "Agent flows"
@@ -9,15 +9,37 @@ triggers:
   - "Workflows API"
   - "shared_agentnode"
   - "InvokeDefinition"
+  - "Dataverse トリガー"
+  - "レコード作成トリガー"
+  - "レコード更新トリガー"
+  - "既存 Agent ノード"
 ---
 
 # Agent Flows: 新 UI Workflow の API 構築
 
-対象は新 Copilot Studio Workflow の **手動 Start + 外部ツールなし inline Agent**。
+標準対象は、Copilot Studio Workflow の **Dataverse レコード作成/更新トリガー + 既存 Agent ノード**で
+発行済み v2 エージェントを起動する経路。Code Apps を介さないバックグラウンド処理にも使う。
+手動 Start + 外部ツールなし inline Agent の CLI は、new UI Workflow の作成・公開・実行契約を検証する
+補助経路であり、既存 v2 の呼び出し成功を代用しない。一般クラウドフローは
+[power-automate](../power-automate/SKILL.md)、既存 bot の構築は [copilot-studio-v2](../copilot-studio-v2/SKILL.md) を使う。
+
+## 標準経路: Dataverse トリガー + 既存 v2 Agent ノード
+
+1. 対象 v2 を公開し、対象環境、bot schema、利用スキル/MCP、実行主体を確定する。
+2. Copilot Studio の Workflows で Dataverse の行追加・変更トリガーを選び、テーブル、scope、filter columns、filter expression を最小化する。
+3. Agent ノードで **既存の発行済み v2** を明示選択し、固定された業務指示とトリガー行の必要項目だけを入力へ割り当てる。
+4. 構造化出力を検証してから Dataverse へ書き戻す。元行の再更新で自己再帰しない終了状態と条件を設ける。
+5. Review 後に公開し、専用テスト行を 1 件作成または更新して、trigger / Agent / write-back の run と業務出力を照合する。
+
+製品 UI の Agent ノードが標準の authoring 経路。観測した `shared_agentnode` API Hub 契約を使って
+定義を推測生成しない。接続所有者の権限を要求者本人の権限と表現せず、ACP/DLP、クレジット、重複起動、
+タイムアウト後の再照合を受入項目に含める。API 側の検証境界は
+[Agent ノードの診断](references/existing-agent-node.md) を参照する。
+
+## 補助経路: 手動 Start + inline Agent の API ライフサイクル
+
 既存の最小フローを信頼済みテンプレートとして読み、同一ソリューション内へ別名作成する。
 モデルと接続参照はテンプレートから継承する。既存フローの更新・削除は行わない。
-一般クラウドフローは [power-automate](../power-automate/SKILL.md)、既存 bot の構築は
-[copilot-studio-v2](../copilot-studio-v2/SKILL.md) を使う。
 
 ## Step 1: 対象と実行ゲートを確認する
 

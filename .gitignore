@@ -45,6 +45,7 @@ Thumbs.db
 # Power Platform
 .power/
 .auth_record.json
+.mcp/
 *.log
 
 # SDK generated (npx power-apps add-data-source で再生成)
