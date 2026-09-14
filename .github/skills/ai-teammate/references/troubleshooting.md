@@ -152,15 +152,15 @@ Edge プロファイル）を参照。初回失敗時は同じコマンドを再
   Teams 管理センター向けの汎用アップロード経路であり、`devPreview` / agentic
   （Agent 365 テンプレート化された）マニフェストのアップロードを**サーバー側で明示的に拒否**する。
   権限やスクリプトの実装では回避できないハード制約（2026-07 時点で確認）。
-- 対処: **この場合のみ、Teams / Microsoft 365 管理センターへの手動アップロードが必須**
-  （`https://admin.cloud.microsoft/?#/agents/all` の "Upload" または Teams 管理センターの
-  "Manage apps" → "Upload new app"）。`publish_teams_app.py` は `manifest.json` の
-  `manifestVersion` が `devPreview` の場合、Graph 呼び出しを試みる前にこの旨を案内して
-  終了する（本 PR で実装済み）。
+- 対処: `publish_teams_app.py` は `devPreview` をGraphへ送らず停止する。代わりに
+  `plan_agent_template_upload.py` と `agent_template_browser_runner.mjs` を使い、M365管理センターの
+  実測private APIをログイン済みbrowser sessionから実行する。stagingと`FINALIZEPACKAGE`は別plan・
+  別hashで承認し、browser tenantとZIP fingerprintを照合する。詳細は
+  [agent-template-upload.md](agent-template-upload.md)。
 - 影響範囲: 事前確認の質問 1 で **(a)/(b)** を選んだ場合は公開自体を行わないため無関係。
   **(c)/(d)** を選び `--require-template` でビルドした場合は必ずこの制約に当たるため、
   SKILL.md の Step 10 は「Graph 公開は GA/共有エージェント manifest 専用、
-  Agent template は手動アップロード」と明記する。
+  Agent template はM365管理センターprivate APIの二重承認フロー」とする。
 
 ## 17. Teams で bot に無反応（サインイン カードすら出ない）／ agentUser チャットが完全無反応
 

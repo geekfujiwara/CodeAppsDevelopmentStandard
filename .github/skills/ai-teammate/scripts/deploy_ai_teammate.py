@@ -472,16 +472,15 @@ def run_execute(target: Path, env: dict[str, str]) -> int:
     agent_name = env.get("AGENT_NAME", "")
     print()
     print("Everything up to Teams packaging is done and the agent/evaluation hub are deployed.")
-    print("The remaining step cannot be automated:")
+    print("The remaining M365 Agent template publish is a separate approval-bound operation:")
     print()
-    print("  M365 admin center: Agents > All agents > Registry > Add agent")
-    print(f"    Upload teams/{agent_name}-teams-app.zip, review permissions, Publish, then Deploy.")
-    print("  This is a hard stop by design (references/troubleshooting.md #16): Microsoft Graph")
-    print("  rejects a devPreview manifest upload, so it must be done by a human with the")
-    print("  AI Administrator role in the browser.")
+    print("  python scripts/plan_agent_template_upload.py ^")
+    print(f"    --package teams/{agent_name}-teams-app.zip ^")
+    print("    --tenant-id <AZURE_TENANT_ID> --output .mcp/agent-template-stage-plan.json")
     print()
-    print("  Open the admin center yourself (or ask the agent to open it in the VS Code")
-    print("  integrated browser) using your own Edge profile — do not automate this step.")
+    print("  Review and approve the staging hash, then use the logged-in VS Code browser runner.")
+    print("  Publishing requires a second approval for the generated FINALIZEPACKAGE plan.")
+    print("  See references/agent-template-upload.md. Authentication and MFA remain manual.")
     return 0
 
 
