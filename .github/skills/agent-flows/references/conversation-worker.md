@@ -34,6 +34,12 @@ indeterminate runtime failure merely because configuration checks passed.
    The app checks request ID, full scope, identity and editing version again after every asynchronous boundary.
    A successful connector action without a verified reply is not successful generation.
 
+The scope may be represented either inside one result envelope or in immutable typed result columns with a bounded
+JSON payload column. Both are valid only when the worker and every inspector use the same representation. For the
+typed-column form, verify request lookup, owner, conversationId, turnId, version and baseHash from columns before
+parsing the payload; keep the payload limited to domain output such as summary/candidate/error. Do not run the
+envelope-only `inspect_conversation.py` unchanged against this form and interpret its rejection as a worker failure.
+
 `conversation_contract.py` supplies pure validation functions and is used by the normal lifecycle CLI and
 `inspect_conversation.py`. These are application/diagnostic guards, not a Dataverse server plugin or an authorization
 enforcement layer. Implement equivalent pre-claim checks in the worker; prove row permissions separately.
