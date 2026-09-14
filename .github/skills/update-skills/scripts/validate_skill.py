@@ -92,6 +92,7 @@ EMAIL_ALLOW = ("example.com", "example.org", "contoso.com", "noreply.github.com"
 NON_EMAIL_RE = re.compile(r"@(odata|microsoft|xmlns)\.", re.IGNORECASE)
 # プレースホルダー的な組織名（<org> / {org} / yourorg）は許容
 CRM_PLACEHOLDER = re.compile(r"https://(<org>|\{org\}|yourorg|\{[^}]+\})\.crm", re.IGNORECASE)
+IGNORED_SCAN_DIRS = {".git", ".venv", "__pycache__", "node_modules", "venv"}
 
 
 def load_env(start: Path) -> None:
@@ -195,6 +196,8 @@ def validate_skill(skill_dir: Path) -> Report:
     # 秘匿情報スキャン（テキスト系ファイルのみ）
     exts = {".md", ".py", ".ps1", ".json", ".jsonc", ".ts", ".tsx", ".env", ".example"}
     for p in skill_dir.rglob("*"):
+        if any(part in IGNORED_SCAN_DIRS for part in p.relative_to(skill_dir).parts):
+            continue
         if p.is_file() and (p.suffix in exts or p.name == ".env.example"):
             scan_secrets(p, rep)
 

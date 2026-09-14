@@ -174,3 +174,16 @@ Copilot Analytics 用テーブルもカスタムテーブルであり、プレ�
 `{your-tenant-id}` / `{your-environment-id}` / `https://{org}.crm.dynamics.com/` /
 `{your-bot-id}` / `{your-flow-workflow-id}` / `{your-connection-id}` / `admin@example.com` /
 `{YourProfileName}` のように、変更が必要だと分かる形式を使う。
+
+## 18. `validate_skill.py` が依存パッケージ内の GUID / 作者メールを大量検出する
+
+### 原因
+
+`node_modules`、Python仮想環境、cache等のvendored/generated filesまで再帰走査すると、package metadataの
+公開GUIDや作者メールをスキル固有の秘匿情報として誤検出する。大量の誤検出は真の漏えいを埋もれさせる。
+
+### 恒久対策（スクリプトに実装済み）
+
+`validate_skill.py`は`.git`、`.venv`、`venv`、`__pycache__`、`node_modules`を走査対象から除外する。
+スキル自身の`SKILL.md`、`references/`、`scripts/`、templates/samplesのソースは引き続き走査する。
+除外追加時は、依存物内の検出を無視するtestと、source内の同じ値を検出するtestを対で追加する。
