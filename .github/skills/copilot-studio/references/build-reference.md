@@ -2,10 +2,31 @@
 
 ## 構築手順
 
-### Step 0: Copilot Studio UI での Bot 作成（ユーザー手動）
+### Step 0: 承認付き private API で Bot をプロビジョニング
 
-ユーザーに依頼する際は、ソリューションの **スキーマ名（`SOLUTION_NAME`）** と **表示名** の両方を伝える。
-Copilot Studio UI のドロップダウンには表示名が表示されるため、スキーマ名だけではユーザーが特定できない。
+Standard agent 作成画面で観測した `POST /api/data/v9.2/bots?$select=botid` のcontractを使う。
+単純な`bots` INSERTではなく、`template=default-2.1.0`と完全な`BotConfiguration`がprovisioning triggerになる。
+実行前にplanとSHA-256をレビューし、承認したhashをapplyへ渡す。
+
+```powershell
+python scripts/provision_agent.py plan `
+    --name "{エージェント表示名}" `
+    --schema "{prefix}_{BotSchema}" `
+    --language 1041 `
+    --solution "{SolutionUniqueName}"
+
+python scripts/provision_agent.py apply `
+    --plan .mcp/copilot-studio-v1-agent-plan.json `
+    --expected-hash {表示されたSHA-256}
+```
+
+planは`.mcp/`へ保存しGitへ含めない。applyは次を送信前に検証する。
+
+- contract、method、Dataverse endpoint、固定template/認証値が観測値と一致する
+- planのoriginが実行時`DATAVERSE_URL`と一致する
+- agent schemaが未使用である
+- icon bytesが承認済みhash/sizeと一致する
+- 作成後にcomponenttype `9`（topic）と`15`（GPT）が両方出現する
 
 **⚠️ プロビジョニング完了を待つこと（重要）**
 
@@ -13,32 +34,14 @@ Bot を「作成」した直後は Dataverse に `bots` レコードが即座に
 **デフォルトトピック・GPT コンポーネント等は PVA Bot Management Service が非同期でプロビジョニング**する。
 Bot ID URL をコピーしてすぐにスクリプトを実行すると、カスタムトピック削除が 0 件になる。
 
-ユーザーには以下を案内する:
+正常系:
 
 ```
-1. Copilot Studio UI でエージェントを作成
-2. ★ 作成後、Copilot Studio UI でエージェントが完全にロードされるまで待つ
-   （トピック一覧・概要ページが表示されるまで）
-3. ブラウザ URL を .env に貼り付け
-4. python ./deploy_agent.py を実行
+1. `plan`を生成し、name/schema/language/solution/originとSHA-256を承認
+2. 同じhashで`apply`を実行
+3. 出力されたBot IDを`.env`の`BOT_ID`へ設定
+4. `python ./deploy_agent.py`を実行
 ```
-
-```
-1. https://copilotstudio.microsoft.com/ にアクセス
-2. 「+ 作成」をクリック
-3. エージェント名を入力
-4. ★「エージェント設定 (オプション)」を展開:
-   - 言語: 日本語 (日本)
-   - ソリューション: 「{SOLUTION_DISPLAY_NAME}」を選択
-     （スキーマ名: {SOLUTION_NAME}、表示名: {SOLUTION_DISPLAY_NAME}）
-   - スキーマ名: {prefix}_agent_name
-5. 「作成」をクリック
-6. ★ エージェントが完全にロードされるまで待つ（トピック一覧が表示されるまで）
-7. ブラウザ URL を .env に貼り付け:
-   BOT_ID=https://copilotstudio.../bots/xxxxxxxx-xxxx-.../overview
-```
-
-> **教訓**: UI のドロップダウンにはソリューションの「表示名」が表示される。スキーマ名だけ伝えるとユーザーがどれを選ぶか迷う。必ず「表示名: ○○○（スキーマ名: △△△）」の形式で伝える。
 
 ### Step 1: Bot 検索
 

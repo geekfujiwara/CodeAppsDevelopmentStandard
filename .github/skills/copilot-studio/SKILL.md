@@ -1,6 +1,6 @@
 ---
 name: copilot-studio
-description: "Copilot Studio エージェントの構築・設定・外部トリガー追加・ニュース配信エージェント等のソリューション構築。生成オーケストレーション（Generative Orchestration）モード一択。"
+description: "Copilot Studio Standard エージェントを承認付き private API で初回プロビジョニングし、設定・外部トリガー追加・ニュース配信エージェント等を構築する。生成オーケストレーション（Generative Orchestration）モード一択。"
 category: automation
 triggers:
   - "Copilot Studio"
@@ -157,15 +157,17 @@ PUBLISHER_PREFIX=geek              ← ソリューション発行者の prefix
 
 ## 必須要件
 
-### Bot 作成は API 不可 → Copilot Studio UI 必須
+### Bot 作成は観測済みcontractで承認付き自動化
 
 ```
-❌ Dataverse bots テーブルへの直接 INSERT
+❌ name / schemanameだけの Dataverse bots INSERT
    → PVA Bot Management Service にプロビジョニングされない
    → Copilot Studio UI で「エージェントの作成中に問題が発生しました」エラー
    → botroutinginfo が 404 になる
 
-✅ Copilot Studio UI で手動作成 → API で設定変更のみ
+✅ scripts/provision_agent.py plan でUI観測済みcontractとSHA-256を生成
+✅ 承認したhashでapplyし、template/configuration/iconを含むPOSTを1回だけ実行
+✅ componenttype 9（topic）と15（GPT）のread-back後に設定変更へ進む
 ```
 
 ### GPT コンポーネント（componenttype=15）の扱い
@@ -311,7 +313,7 @@ if ai_idx >= 0:
 
 高レベルの手順:
 
-1. **Step 0**: Copilot Studio UI で Bot 作成（ユーザー手動）
+1. **Step 0**: `provision_agent.py`でplan生成・hash承認・Botプロビジョニング
 2. **Step 1-1.5**: Bot 検索 + プロビジョニング完了待ち
 3. **Step 2**: カスタムトピック削除（システムトピック保護）
 4. **Step 3**: 生成オーケストレーション有効化
@@ -329,9 +331,10 @@ if ai_idx >= 0:
 >
 > | 順 | スクリプト | 役割 | 主な .env |
 > |---|---|---|---|
-> | 1 | `deploy_agent.py` | 構築（Step 1–6）＋公開 | — |
-> | 2 | `set_agent_security.py` | 認証モード設定→公開 | `AGENT_AUTH_MODE`（`none` / `microsoft`） |
-> | 3 | `set_agent_channels.py` | チャネル選択→公開 | `AGENT_CHANNELS`（`web,teams,copilot`） |
+> | 1 | `provision_agent.py` | 承認付き初回プロビジョニング | `AGENT_NAME`, `BOT_SCHEMA`, `AGENT_LANGUAGE`, `SOLUTION_NAME` |
+> | 2 | `deploy_agent.py` | 構築（Step 1–6）＋公開 | `BOT_ID` または `AGENT_NAME` |
+> | 3 | `set_agent_security.py` | 認証モード設定→公開 | `AGENT_AUTH_MODE`（`none` / `microsoft`） |
+> | 4 | `set_agent_channels.py` | チャネル選択→公開 | `AGENT_CHANNELS`（`web,teams,copilot`） |
 >
 > Copilot Studio v1 の `bots.authenticationmode`: `1`=認証なし（Web 埋め込み必須）／`2`=Microsoft で認証（UI 既定・Teams）。
 > 認証変更は**公開後に反映**される。
@@ -347,6 +350,9 @@ Instructions テンプレート・既存エージェント改善パターンは 
 DATAVERSE_URL=https://{org}.crm.dynamics.com/
 SOLUTION_NAME=SolutionName
 PUBLISHER_PREFIX=prefix
+AGENT_NAME=AgentName
+AGENT_LANGUAGE=1041
+BOT_SCHEMA=prefix_AgentName
 BOT_ID=https://copilotstudio.../bots/xxxxxxxx-xxxx-.../overview
 # ↑ Copilot Studio URL をそのまま貼り付け可。GUID だけでも OK
 ```
