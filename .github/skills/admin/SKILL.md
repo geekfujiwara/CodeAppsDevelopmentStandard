@@ -93,6 +93,7 @@ triggers:
 | [scripts/apply_routing_strategy.py](scripts/apply_routing_strategy.py) | 新旧の全既存ルーティング宛先を個人開発者グループへ統一する計画。ユーザー同意と承認ハッシュを条件に API 適用・再検証 | `--apply` 時のみ |
 | [scripts/apply_environment_strategy.py](scripts/apply_environment_strategy.py) | 環境グループの作成・ルール発行・既定環境の割り当て・テナント設定 | `--apply` 時のみ |
 | [scripts/set_environment_group_rules.py](scripts/set_environment_group_rules.py) | 環境グループのルールを個別に確認・設定（共有上限 / ACP / アンマネージド禁止 / Code Apps / ウェルカム コンテンツ） | `--apply` 時のみ |
+| [scripts/set_group_acp_mode.py](scripts/set_group_acp_mode.py) | 環境グループのACP専用/混成モードをmember固定・承認hash・read-back付きで切り替え | `--apply` 時のみ |
 | [scripts/enable_dataverse_search.py](scripts/enable_dataverse_search.py) | 全環境の Dataverse 検索を有効化 | `--apply` 時のみ |
 | [scripts/set_environment_capacity.py](scripts/set_environment_capacity.py) | Copilot クレジット・AI Builder クレジット等の環境別配分と、Dataverse 容量（Database / File / Log）の一覧 | `--apply` 時のみ |
 | [scripts/environment_naming.py](scripts/environment_naming.py) | 環境名をルールベースで生成（表示名とドメイン名） | なし |
@@ -475,6 +476,25 @@ python set_environment_group_rules.py --tenant-id <TENANT_ID> --environment-grou
 python set_environment_group_rules.py --tenant-id <TENANT_ID> --environment-group-id <GROUP_ID> `
   --rule "Sharing/App/MaximumShareLimit=10" `
   --policy-rule "CodeAppsFeature/PowerApps_AllowCodeApps=true" --apply
+```
+
+ACP専用モードはグループ内の全環境でクラシックDLPの評価を止めるため、専用の承認フローを使う。
+最初の実行でreportとSHA-256を確認し、同じgroup member・policy snapshotの間だけapplyを許可する。
+PATCH後は全policy ruleとgroup memberを再取得して完全一致を確認する。
+
+```powershell
+# ACP専用モードのplan
+python set_group_acp_mode.py --tenant-id <TENANT_ID> --group-id <GROUP_ID> `
+  --mode acp-only --report-file .mcp/acp-only-plan.json
+
+# 別のreport pathで承認済みhashを適用
+python set_group_acp_mode.py --tenant-id <TENANT_ID> --group-id <GROUP_ID> `
+  --mode acp-only --report-file .mcp/acp-only-apply.json `
+  --expected-hash <SHA256> --apply
+
+# rollbackも新しいplan/hash承認を経て混成モードへ戻す
+python set_group_acp_mode.py --tenant-id <TENANT_ID> --group-id <GROUP_ID> `
+  --mode mixed --report-file .mcp/acp-mixed-plan.json
 ```
 
 ルール ID の一覧は [rule-catalog.md](references/rule-catalog.md)。
