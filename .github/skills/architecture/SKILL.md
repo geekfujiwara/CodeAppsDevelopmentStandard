@@ -155,14 +155,17 @@ Power Pages では認証方式と table permission をそれぞれ別条件と�
     │        └─ トリガーがメール/Teams/スケジュール等の外部イベント ──→ 【Copilot Studio（Workflow / トリガー）+ Power Automate】（§3・§4 へ）
     │
       ├─ ③ Code Apps に AI 対話を組み込む
-      │        ├─ 非同期でよい（要求受付→実行中→完全応答）
-      │        │    ──→ ★【Code Apps + Dataverse 要求/結果 + Workflow Agent ノード + v2】を第一候補
-      │        │          （設計リファレンス パターン F2。直接埋め込みではなく非同期の埋め込み体験）
-      │        └─ トークンストリーミングや同期応答が必須
-      │             ──→ 【Copilot Studio v1 の直接連携】（§3 へ）
+      │        ├─ Copilot Studio の標準チャット UI をそのまま表示
+      │        │    ──→ ★【Copilot Studio v2 Web app iframe】を第一候補
+      │        ├─ 業務 UI と要求・結果を統合（非同期でよい）
+      │        │    ──→ ★【Code Apps + Dataverse 要求/結果 + Workflow Agent ノード + v2】
+      │        │          （設計リファレンス パターン F2）
+      │        └─ 親アプリからのメッセージ注入・応答イベント取得・ストリーミングが必須
+      │             ──→ 【Copilot Studio v1 の直接 SDK 連携】（§3 へ）
       │
-      ├─ ④ 一般 Web サイトへ WebChat SDK で直接埋め込む
-      │        ──→ 【Copilot Studio v1】（§3 へ）
+      ├─ ④ 一般 Web サイトに表示する
+      │        ├─ 標準チャット UI の iframe ──→ 【Copilot Studio v2 Web app】
+      │        └─ WebChat SDK で UI・メッセージを制御 ──→ 【Copilot Studio v1】（§3 へ）
     │
       └─ ⑤ カスタムエンジンエージェントとして Teams / M365 Copilot に公開する
           （独自モデル・独自ツール・コードファーストのバージョン管理が要る
@@ -178,8 +181,8 @@ Power Pages では認証方式と table permission をそれぞれ別条件と�
 > - **Copilot Studio でエージェントを作るのは次の 4 つのケース**:
 >   1. **チャットで話しかけて実行するケース**（v2 スキル + Dataverse MCP）— 第一候補（①）
 >   2. **自律的なケース** — イベント/トリガーで無人起動し、自分で判断・応答・データ更新する（②）
->   3. **Code Apps に組み込むケース** — 非同期を許容できるなら v2 ワーカー方式を第一候補、同期応答が必須なら v1（③）
->   4. **一般 Web サイトへ直接埋め込むケース** — WebChat SDK を使うため v1（④）
+>   3. **Code Apps に組み込むケース** — 標準 UI は v2 iframe、業務 UI 統合は v2 ワーカー方式、直接 SDK 制御が必須なら v1（③）
+>   4. **一般 Web サイトへ表示するケース** — 標準 UI の v2 iframe、または UI を制御する v1 WebChat SDK（④）
 > - **v2 ワーカー方式（③）**は、Code Apps がユーザー所有の要求行を Dataverse に作成し、Workflow の Agent ノードが
 >   既存の発行済み v2 を呼び、完全応答を結果行へ保存して Code Apps が読む。v2 のフラット Python スキルを再利用できるため、
 >   JSON・文書・設計候補などの構造化生成では標準の第一候補とする。これは `ExecuteCopilotAsyncV2` や WebChat による
@@ -200,9 +203,9 @@ Power Pages では認証方式と table permission をそれぞれ別条件と�
 ## 3. Copilot Studio を使う判断ポイント
 
 > ★ **まず §2.1.1 を確認する**。「ユーザーがチャットで話しかけて Dataverse に登録/照会する」有人の対話は
-> **Copilot Studio v2 スキル + Dataverse MCP を第一候補**とする。Code Apps 内の対話も、非同期を許容できるなら
-> **Dataverse 要求/結果 + Workflow Agent ノードによる v2 ワーカー方式**を標準提案する。v1 は同期応答・トークン
-> ストリーミング、一般 Web サイトへの直接埋め込み、または既存 v1 資産の継続利用が必要な場合に採用する。
+> **Copilot Studio v2 スキル + Dataverse MCP を第一候補**とする。Code Apps への標準チャット表示は v2 Web app iframe、
+> 業務 UI と要求・結果を統合する場合は **Dataverse 要求/結果 + Workflow Agent ノードによる v2 ワーカー方式**を標準提案する。
+> v1 は親アプリからのプログラム的な会話制御、WebChat SDK、または既存 v1 資産の継続利用が必要な場合に採用する。
 
 **使う**: 自律起動（イベント/トリガー）での無人実行・アプリ埋め込み/Web 公開・複数ツールの自律オーケストレーション・ナレッジ検索・要約/分析/レポート生成。
 **使わない**（→ 代替）: ユーザーが能動的にチャットで登録/照会するだけ → **Copilot Studio v2 スキル + Dataverse MCP**（Cowork は M365 Copilot 必須時かつ会社環境で利用が許可されている場合のみ）／確定手順の 100% 実行・大量一括処理・LLM 不要の条件分岐 → **Power Automate**／UI 入力編集 → **Code Apps**／承認ワークフロー → **Power Automate**。
@@ -226,33 +229,41 @@ Copilot Studio を採用すると決まったら、**v2（新アーキ）/ v1（
 ```
 Code Apps / Web サイトとの連携方式は？
 
-├─ Code Apps で非同期応答を許容 ──→ ★ v2 ワーカー方式を標準提案
+├─ Copilot Studio の標準チャット UI を表示 ──→ ★ v2 Web app iframe
+│     Code Apps では frame-src、サインイン、一般利用者の本人認可を公開ホストで検証する。
+│
+├─ Code Apps の業務 UI と非同期応答を統合 ──→ ★ v2 ワーカー方式
 │     Code Apps → Dataverse 要求 → Workflow Agent ノード → v2 → Dataverse 結果 → Code Apps
 │     フラット Python スキルと構造化出力を再利用できる。直接 SDK 呼び出しではない。
 │
-├─ Code Apps で同期応答・ストリーミングが必須 ──→ v1 直接連携
+├─ 親アプリからのメッセージ注入・応答イベント取得・ストリーミングが必須 ──→ v1 直接 SDK 連携
 │
-├─ 一般 Web サイトへ WebChat SDK で直接埋め込み ──→ v1
+├─ 一般 Web サイトへ標準 UI を iframe 表示 ──→ v2 Web app
 │
-└─ Teams / Copilot Studio 単独利用 ──→ v2
+├─ 一般 Web サイトで WebChat SDK を使用 ──→ v1
+│
+└─ Teams / Copilot Studio で利用 ──→ v2
 ```
 
-> **重要（直接連携の制約）**: v2（新アーキ / cliagent）は Code Apps の `ExecuteCopilotAsyncV2` から直接呼び出せず、
-> WebChat SDK でも直接埋め込めない。Code Apps では、非同期を許容する場合に限り、Dataverse と Workflow Agent ノードを
-> 介した v2 ワーカー方式を使う。直接呼び出し不可とサーバー側ワーカー呼び出しを混同しない。
+> **重要（連携方式の分離）**: v2（新アーキ / cliagent）の Web app iframe は表示チャネルとして利用できる。
+> ただし、iframe 表示は `ExecuteCopilotAsyncV2` や WebChat SDK の代替 API ではなく、親アプリからの任意メッセージ注入、
+> 応答イベント取得、利用者コンテキスト連携を自動的には保証しない。アプリ制御が必要なら v2 ワーカー方式または v1 を選ぶ。
 
 AskUserQuestion で次のように尋ねる:
 
 > Copilot Studio エージェントの構築方法を選べます。どちらにしますか？
+> - **v2 Web app iframe（標準表示）**: Code Apps / Web に Copilot Studio の標準チャット画面を表示する。
 > - **v2 非同期ワーカー（標準提案）**: Code Apps 内で受付・実行状態・完全応答を表示する。Dataverse要求/結果とWorkflow Agentノードを介し、v2スキルを利用する。ストリーミングは不可。
-> - **v1 直接連携**: Code Appsの同期応答・ストリーミング、または一般WebサイトのWebChat SDK埋め込みが必要な場合。
+> - **v1 直接 SDK 連携**: 親アプリからの会話制御、応答イベント取得、ストリーミング、または WebChat SDK が必要な場合。
 > - **v2 単独利用**: Teams / Copilot Studioで利用する。APIによる再現構築・量産に優れる。
 
 | シナリオ | 推奨 | 使用スキル |
 |---|---|---|
+| **Code Apps内に標準チャットUIを表示** | **v2 Web app iframe（第一候補）** | [`code-apps`](../code-apps/SKILL.md) + [`copilot-studio-v2`](../copilot-studio-v2/SKILL.md) |
 | **Code Apps内の非同期チャット・構造化生成** | **v2ワーカー方式（第一候補）** | [`code-apps`](../code-apps/SKILL.md) + [`agent-flows`](../agent-flows/SKILL.md) + [`copilot-studio-v2`](../copilot-studio-v2/SKILL.md) |
-| **Code Appsの同期応答・ストリーミング** | **v1直接連携** | [`copilot-studio`](../copilot-studio/SKILL.md) |
-| **一般WebサイトへのWebChat SDK直接埋め込み** | **v1** | [`copilot-studio`](../copilot-studio/SKILL.md) |
+| **Code Appsから会話を直接制御** | **v1直接 SDK 連携** | [`copilot-studio`](../copilot-studio/SKILL.md) |
+| **一般Webサイトへの標準UI iframe** | **v2 Web app** | [`copilot-studio-v2`](../copilot-studio-v2/SKILL.md) |
+| **一般WebサイトへのWebChat SDK統合** | **v1** | [`copilot-studio`](../copilot-studio/SKILL.md) |
 | **単独利用**（Teams / Copilot Studio 単体の対話のみ） | **v2** | [`copilot-studio-v2`](../copilot-studio-v2/SKILL.md) |
 
 > v1/v2 の詳細な判断軸表（呼び出し可否・自動構築・作り込み等）は

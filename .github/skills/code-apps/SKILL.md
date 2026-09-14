@@ -1,6 +1,6 @@
 ---
 name: code-apps
-description: "Power Apps Code Apps（コードファースト）の初期化・Dataverse 接続・UI 設計・開発・デプロイ。TypeScript + React + Tailwind CSS で開発する。CSP 構成・メール送信パターンも含む。"
+description: "Power Apps Code Apps（コードファースト）の初期化・Dataverse 接続・UI 設計・開発・デプロイ。TypeScript + React + Tailwind CSS で開発する。Copilot Studio v2 Web app iframe、Agent flows 非同期連携、CSP 構成・メール送信パターンも含む。"
 category: ui
 triggers:
   - "Code Apps"
@@ -73,6 +73,9 @@ triggers:
   - "executeAsync"
   - "dataSourcesInfo"
   - "Copilot Studio コネクタ"
+  - "Copilot Studio v2 iframe"
+  - "Web app iframe"
+  - "cliAgent"
   - "Copilot Studio 直接"
   - "ExecuteCopilotAsyncV2"
   - "shared_microsoftcopilotstudio"
@@ -671,6 +674,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [ディープリンク](references/deep-link.md) | MDA / Power Automate から特定ページへパラメータ付き遷移 |
 | [フロー連携](references/flow-integration.md) | Power Automate フロー呼び出し・Copilot Studio 応答パース・エラーハンドリング |
 | [Copilot Studio コネクタ](references/copilot-studio-connector.md) | Copilot Studio エージェント直接呼び出し・会話継続・レスポンス解析 |
+| [Copilot Studio v2 iframe](references/copilot-studio-v2-embed.md) | v2 Web app チャネルを Code Apps に表示する標準パターン。URL、CSP、認証・受入境界 |
 | [コネクタリファレンス](references/connector-reference.md) | Code Apps で利用する主要コネクタの追加方法・使用例 |
 | [メール・PDF 送信](references/mail-pdf.md) | HTML→PDF 変換・Power Automate 経由メール添付送信パターン |
 | [地図埋め込みパターン](../standard/references/map-embed-pattern.md) | Google Maps iframe 埋め込み（**Code Apps は `frame-src` 追加が必須**） |

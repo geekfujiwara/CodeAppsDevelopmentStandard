@@ -15,6 +15,7 @@
 | **対話 + イベント駆動** | Copilot Studio + Power Automate（メール/Teams トリガー） | メール自動応答、問い合わせ対応 |
 | **Dataverse イベント駆動 + v2 エージェント** | Copilot Studio v2 ワークフロー（Agentflow: Dataverse トリガー + エージェント ノード） | レコード作成/更新を契機にした自動要約・分類・重複判定・未承認ナレッジ生成（→ [パターン F](#パターン-f-dataverse-トリガー駆動-agentflowcopilot-studio-v2-ワークフロー--エージェント-ノード)） |
 | **AI 分析 + 対話** | AI Builder + Copilot Studio | ドキュメント分類 + 対話で結果説明 |
+| **Code Apps + v2 標準チャット表示** | Code Apps + Copilot Studio v2 Web app iframe | アプリ内で Copilot Studio の標準チャット UI を表示 |
 | **Code Apps + v2 非同期埋め込み体験** | Code Apps + Dataverse 要求/結果 + Workflow Agent ノード + Copilot Studio v2 | アプリ内チャット、構造化JSON・文書・設計候補の生成（→ [パターン F2](#パターン-f2-code-apps-v2-非同期埋め込み体験)） |
 | **外部ポータル + データ操作** | Power Pages + Dataverse + Power Automate            | 顧客向けポータル、パートナーサイト、公開フォーム |
 | **フルスタック**        | Dataverse + Code Apps + Power Automate + Copilot Studio  | 業務アプリ + 自動化 + AI アシスタント |
@@ -105,11 +106,15 @@
 [Dataverse へ書き戻し]（例: 未承認ナレッジレコード作成）
 ```
 
-**使うスキル**: `copilot-studio-v2`（ワークフロー/エージェント ノードの構築は Copilot Studio UI での手作業。参考: [ワークフローにエージェントノードを追加する](https://learn.microsoft.com/ja-jp/microsoft-copilot-studio/workflows-experience/agent-node-workflow)）
+**使うスキル**: `copilot-studio-v2` → `agent-flows`。Dataverse トリガーと既存 Agent ノードは
+Copilot Studio Workflow UI の製品経路で構築する（参考: [ワークフローにエージェントノードを追加する](https://learn.microsoft.com/ja-jp/microsoft-copilot-studio/workflows-experience/agent-node-workflow)）。
+`agent-flows` の CLI は現時点では手動 Start + inline Agent のライフサイクル検証用であり、
+Dataverse トリガー + 既存 Agent ノードの定義を推測して API 作成しない。
 
 > **パターン C との使い分け**: 社内向けの応答エージェントをすでに Copilot Studio v2 スキル（SKILL.md + Dataverse MCP）で構築済みの場合は、パターン F（Agentflow）で非同期自動化を追加し、Power Automate や v1 トリガーを導入せずに v2 アーキテクチャで完結させる。
 > メール/Teams など外部システムのトリガーにはパターン C を使う。Code Apps 内の非同期対話はパターン F2、
-> 同期応答・ストリーミングが必要な Code Apps 連携と一般 Web サイトへの WebChat 埋め込みは v1 を使う。
+> Code Apps に標準チャット UI を表示するだけなら v2 Web app iframe を先に選ぶ。親アプリからのメッセージ注入、
+> 応答イベント取得、ストリーミング、WebChat SDK による UI 制御が必要な場合は v1 を使う。
 > **利点**: Dataverse への更新経路を問わず（チャット経由でも Code Apps からの直接書き込みでも）必ず自動化が起動するため、「クローズは必ずエージェントとの対話で行う」という運用依存のリスクを構造的に解消できる。
 
 ---

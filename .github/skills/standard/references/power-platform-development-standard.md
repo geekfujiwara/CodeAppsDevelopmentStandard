@@ -1087,20 +1087,29 @@ Dataverse Web API で作成したフローは **直接接続（Embedded）** モ
 
 ### 6.1 開発方針
 
-Copilot Studio エージェントの **新規作成は Copilot Studio UI で行う**。Dataverse `bots` テーブルへの直接挿入では PVA Bot Management Service にプロビジョニングされず、エージェントが正常に動作しない。
-
-作成後の設定（生成オーケストレーション有効化、Instructions 設定等）は Python スクリプトで自動化する。
+Copilot Studio エージェントの新規開発は **v2（新アーキテクチャ / cliagent）を第一候補**にする。
+v2 は `POST /bots` に対応し、Bot 作成、Instructions、モデル、メモリ、フラット Python スキル、公開を
+[`copilot-studio-v2`](../../copilot-studio-v2/SKILL.md) で再現可能に構築できる。
 
 ```
-1. Copilot Studio UI でエージェントを作成（手動）
-2. スクリプトで設定を適用（カスタムトピック削除、生成オーケストレーション、Instructions）
-3. ナレッジとツール（Dataverse MCP Server）を UI で手動追加
-4. 公開
+1. copilot-studio-v2 スキルで v2 Bot を API 作成・構成・公開
+2. MCP ツールは Copilot Studio UI で追加
+3. Code Apps に標準チャット UI を表示する場合は v2 Web app iframe
+4. Dataverse レコード作成/更新から起動する場合は Agent flows の既存 Agent ノード
+5. 公開ホストまたは実トリガーで認証・本人認可・実応答・業務出力を受入確認
 ```
 
-> **教訓**: Dataverse `bots` テーブルに直接レコードを挿入すると `botroutinginfo` が 404 になり Copilot Studio UI でエラーになる。Bot 作成は必ず UI で行うこと。
+iframe 表示と、`ExecuteCopilotAsyncV2` / WebChat SDK によるプログラム的な会話制御は別方式である。
+親アプリからのメッセージ注入、応答イベント取得、ストリーミングが必須の場合、または既存 v1 資産を
+継続する場合に限り [`copilot-studio`](../../copilot-studio/SKILL.md) を選ぶ。
 
-### 6.2 エージェント作成（Copilot Studio UI — 手動）
+Dataverse イベント駆動は [`agent-flows`](../../agent-flows/SKILL.md) に従い、Workflow UI で
+Dataverse トリガー + 既存の発行済み v2 Agent ノードを構築する。観測した `shared_agentnode` の
+直接 API 契約を推測して本番定義を生成しない。
+
+### 6.2 v1 継続案件のエージェント作成（Copilot Studio UI — 手動）
+
+以下は既存 v1 資産の継続、または v1 の直接 SDK 連携が必要な場合だけ使用する。
 
 以下の手順で Copilot Studio UI からエージェントを作成する:
 
@@ -1579,7 +1588,8 @@ flowchart TD
 >
 > **オーナーシップ（競合回避）**: Dataverse スキーマの書き込みは **Track A が単独で所有**し、Track B/C はテーブルを**参照するのみ**。
 > 3 トラックは同一ソリューション・同一 `.env`・同一認証（`auth_helper.py` の 2 層キャッシュ）を共有する。
-> Code Apps の `pac code push` と Copilot Studio の Bot 作成（UI）は Dataverse API と競合しないため安全に並行実行できる。
+> Code Apps の `power-apps push` と Copilot Studio v2 の Bot 作成は独立トラックとして並行できる。
+> Agent flows の Dataverse トリガーは対象テーブル作成後に構成する。
 
 ### 8.1 VS Code サブエージェントによる並行実行
 
@@ -1590,7 +1600,7 @@ VS Code の Copilot（@GeekPowerCode）では、Phase 1 承認後にオーケス
 |---|---|---|---|
 | **Track A: Dataverse** | `dataverse` → `power-automate`（＋必要時 `ai-builder`） | Phase 1 承認直後 | なし（データ基盤オーナー） |
 | **Track B: Code Apps** | `code-apps` | Phase 1 承認直後 | ★同期①（`add-data-source`）／★同期②（`add-flow`） |
-| **Track C: Copilot Studio** | `copilot-studio` | Phase 1 承認直後 | ★同期①（ナレッジ／MCP）／★同期②（フロー系ツール） |
+| **Track C: Copilot Studio** | `copilot-studio-v2` → 必要時 `agent-flows`（v1 要件時のみ `copilot-studio`） | Phase 1 承認直後 | ★同期①（ナレッジ／MCP）／★同期②（Dataverse トリガー／フロー系ツール） |
 
 オーケストレーターの役割:
 
@@ -1925,13 +1935,23 @@ Code Apps を含む構成の場合、テーブル設計と同時に以下を提�
 | スキル名         | 場所                                                     | 用途                                                        |
 | ---------------- | -------------------------------------------------------- | ----------------------------------------------------------- |
 | `standard`       | [standard/SKILL.md](../SKILL.md)                         | Power Platform 包括開発標準（全体参照）                     |
-| `copilot-studio` | [copilot-studio/SKILL.md](../../copilot-studio/SKILL.md) | Copilot Studio エージェント構築（生成オーケストレーション） |
+| `copilot-studio-v2` | [copilot-studio-v2/SKILL.md](../../copilot-studio-v2/SKILL.md) | Copilot Studio v2 構築・Web app iframe・Agent flows 連携 |
+| `agent-flows` | [agent-flows/SKILL.md](../../agent-flows/SKILL.md) | Dataverse トリガー + 既存 v2 Agent ノード、非同期要求/結果連携 |
+| `copilot-studio` | [copilot-studio/SKILL.md](../../copilot-studio/SKILL.md) | v1 継続案件・直接 SDK / WebChat 連携 |
 | `power-automate` | [power-automate/SKILL.md](../../power-automate/SKILL.md) | Power Automate クラウドフロー作成・デプロイ                 |
 | `code-apps`      | [code-apps/SKILL.md](../../code-apps/SKILL.md)           | Code Apps 開発・UI 設計・CSP 構成・メール送信（統合スキル） |
 
 ### スキルに記録されている主な教訓
 
-#### Copilot Studio（`copilot-studio`）
+#### Copilot Studio v2（`copilot-studio-v2` / `agent-flows`）
+
+- 新規開発は v2 を第一候補にし、`POST /bots` から公開まで再現可能に構築する
+- Code Apps / Web の標準チャット表示は Web app iframe を使い、CSP・サインイン・本人認可を公開ホストで確認する
+- Dataverse イベント駆動は Workflow UI の Dataverse トリガー + 既存 Agent ノードを使う
+- iframe、直接 SDK、Workflow 呼び出しを同一視せず、それぞれ実応答を検証する
+- `shared_agentnode` の観測 API は診断用。成功未検証の定義を推測生成しない
+
+#### Copilot Studio v1（`copilot-studio`）
 
 - Bot 作成は API 不可 → Copilot Studio UI 必須
 - GPT コンポーネント（componenttype=15）は UI が作成したものを特定して更新

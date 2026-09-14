@@ -1,104 +1,165 @@
-# MCP サーバーを追加する（Copilot Studio UI・手動作業）
+# 初回ツールと接続参照を承認付き private API で追加する
 
-cliagent エージェントへの MCP サーバー（Dataverse MCP / Work IQ など）のツール追加は、
-**Copilot Studio UI で手動**に行う。以前は Dataverse Web API（botcomponent type=9 の
-McpTool + 接続参照）で自動追加する手順を提供していたが、接続参照の命名規約・公開後の
-「確認(Confirm)」操作など UI 側の内部状態に依存する挙動が多く、API 経由の自動化は
-事故りやすい。そのため本スキルでは MCP ツール追加をスクリプト化せず、以下の手動手順を
-正常系とする。
+Copilot Studio v2 (`cliagent`) の MCP / ConnectorTool 追加は、UI の Save が送る PVA gateway change-set を
+ブラウザで捕捉し、dry-run、承認、同一セッションでの apply、Dataverse read-back の順で行う。
+botcomponent を Dataverse Web API へ直接 INSERT してはいけない。UI が生成する
+`DialogComponent` と `ConnectionReferenceInsert` を一体で保存する必要がある。
+
+> **API の位置付け**: 2026-09-14、Copilot Studio shell release `2026.09.03.1` で実機観測した
+> private/unsupported API。Microsoft の公開契約ではない。host/path/schema が変わったら
+> fail closed とし、再捕捉するまで UI 操作へ戻す。
+
+## 観測済み契約
+
+| 工程 | method / path | 成功条件 |
+|---|---|---|
+| 接続作成 | `PUT https://{environment-host}/connectivity/connectors/{connector}/connections/{id}?api-version=1` | 201、その後の接続一覧 GET が 200 |
+| ツール保存 | `PUT https://{pva-gateway}/api/botmanagement/v1/environments/{environmentId}/bots/{botId}/content/botcomponents?includeWorkflows=true` | 200 |
+| 読み戻し | Dataverse `GET /api/data/v9.2/botcomponents`、親 bot + componenttype 9 で限定 | tool kind / connector / operation / connectionReference が完全一致 |
+
+Save body の必須部分は次の構造である。実値の ID や完全な bot payload を文書・fixture・Git に
+保存しない。
+
+```text
+botComponentChanges[0]
+  $kind = BotComponentInsert
+  component.$kind = DialogComponent
+  component.dialog.$kind = McpTool または ConnectorTool
+  component.dialog.connectorId / operationId / connectionReference / authMode
+connectionReferenceChanges[0]
+  $kind = ConnectionReferenceInsert
+  connectionReference.$kind = ConnectionReference
+  connectorId / connectionId / connectionReferenceLogicalName
+bot.cdsBotId
+```
+
+`cloudFlowDefinitionChanges`、`connectorDefinitionChanges`、`environmentVariableChanges`、
+AI model、connected agent、Dataverse search 等の change 配列は空でなければならない。
+別の未保存変更が混ざっていれば planner は拒否する。
 
 ## 前提
 
-- 既存コネクタ（例: Microsoft Dataverse、Work IQ OneDrive）を追加する場合は、対象の
-  **Connected な接続**が環境に存在していること。
-- エージェント（cliagent）が `scripts/create_agent.py` 等で作成済みであること。
+- [ブラウザ自動化方針](../../standard/references/browser-automation.md)に従い、最初に Edge profile と
+  対象環境、対象 agent、connector / operation、接続作成の可否を一度だけ確認する。
+- VS Code 統合ブラウザだけを使う。別ブラウザ、Playwright のインストール、token の外部取得は行わない。
+- 対象 agent は保存済みで、追加対象 connector の接続が環境に存在すること。
+- 実行中は同じ page / browser context / profile を維持する。
+- `.mcp/` は Git 対象外である。capture、plan、report は必ずこのディレクトリへ置く。
 
-## 自前 MCP Server をウィザードで追加する
+## 1. 接続を用意する
 
-自前 Server は、Copilot Studio の **Tools > Add a tool > New tool > Model Context Protocol** から
-オンボーディングウィザードで追加する。事前に OpenAPI コネクタを作る必要はない。
+Tools > Add tool > Model Context Protocol (MCP) で対象サーバーを選ぶ。接続が無ければ UI の
+**Create new connection** から作る。OAuth、同意、接続修復は UI で行い、資格情報を API plan に
+含めない。接続作成後、いったん Add dialog を閉じてもよい。
 
-1. [mcp-server スキルの登録手順](../../mcp-server/references/copilot-studio-registration.md) に従い、
-   Server ごとのコピペ用 MD を `generate_copilot_studio_guide.py` で生成する。
-2. `Server name` は英字・数字・ハイフン・ドットだけにする。日本語名は内部コネクタ名の作成で 400 になる。
-3. `Authentication = OAuth 2.0`、`Configuration type = Manual` を選び、生成 MD から貼り付けて **Add** する。
-4. **Select a connection** で生成 MD の `Display name (optional)` を入力し、**Create** を選ぶ。
-5. `AADSTS50011` が出たら、エラーのパス付き Redirect URI を
-   `add_connector_redirect_uri.py` で Entra アプリへ追加し、接続ダイアログを開き直す。
-6. 接続後に **Add to agent**、必要なら **Confirm**、最後にエージェントを再公開する。
+自前 MCP Server は [mcp-server スキルの登録手順](../../mcp-server/references/copilot-studio-registration.md)
+で connector を作る。Server name は英字・数字・ハイフン・ドットだけにする。`AADSTS50011` の場合は
+表示された Redirect URI を Entra app へ登録してから接続を作り直す。
 
-入力 MD は Client secret を含むため、Server ごとに分けて `.gitignore` 対象にする。
+## 2. Save PUT を変更なしで捕捉する
 
-## 既存コネクタを追加する
+1. agent を reload し、他の未保存変更がないことを確認する。
+2. `mcp_tool_browser_runner.mjs` の `captureToolSave(page, capturePath, stageAndSave)` を使う。
+3. callback 内で Add tool から対象 MCP と接続を選び、Addする。tool編集dialogが開くbuildでは
+  MCP toolsのloading完了を待ってConfirmし、Saveがenabledになったことを確認してからSaveする。
+4. helper は対象 gateway PUT を捕捉して `route.abort()` する。サーバーは変更されない。
+5. Save 失敗表示は捕捉のために意図したものなので、agent を reload してローカル編集を破棄する。
 
-開始前に [ブラウザ自動化方針](../../standard/references/browser-automation.md)に従い、
-`AskUserQuestion` で使用する Edge プロファイルを確認する。回答前は Copilot Studio を開かず、
-接続作成・再公開・再確認まで同じプロファイルを使用する。
+helper が保存するのは method、URL、request JSON body だけである。`Authorization`、Cookie、CSRF、
+session header、response business data は取得・記録・返却しない。
 
-1. Copilot Studio でエージェントを開く。
-2. **ツール**（または「MCP サーバー」）メニューから **追加** を選択する。
-3. 追加する MCP サーバー（例: Microsoft Dataverse MCP サーバー、Work IQ OneDrive）を選択する。
-4. 接続が未作成の場合は、画面の案内に従って接続を作成・サインインする。
-5. 追加後、対象サーバーを開き、接続が選択されていることを確認して **確認(Confirm)** を押す。
-   - これは Dataverse レコードを変更しない（Confirm 前後でレコード差分なし）。
-     オーサリング/ランタイム **セッション側で接続を再バインドする**動作。
-6. 再公開する（`scripts/publish_agent.py` または UI の「公開」）。
+## 3. plan と PLAN_HASH を作る
 
-> 自動化メモ: 上記のブラウザ操作は VS Code 統合ブラウザ（`open_browser_page` / `read_page` / `click_element` /
-> `type_in_page`）で自動化できる（Playwright MCP サーバー・Playwright 単体ブラウザのインストール・起動は行わない
-> → [ブラウザ自動化方針](../../standard/references/browser-automation.md)）。対象は「ツール > 追加」
-> メニューと対象サーバー詳細パネルの「確認 / Confirm」ボタン。API での代替（botcomponent 直接作成）は行わない。
+```powershell
+python .github/skills/copilot-studio-v2/scripts/mcp_tool_plan.py `
+  .mcp/mcp-capture.json --plan-file .mcp/mcp-plan.json
+```
 
-## 追加後に設定を更新してもツールは消えない
+planner は次を検証する。
 
-手動追加した MCP ツールは `botcomponents` の **type=9**（`data` が `kind: McpTool`、
-`connectionReference` を保持）として保存される。Instructions・モデル・スキルの更新とは
-別レコードなので、次の 2 点を守れば消えない。
+- HTTPS の `*.gateway.prod.island.powerapps.com` と観測済み path/query だけである
+- URL の environment / bot と `bot.cdsBotId` が一致する
+- change-set が `BotComponentInsert` 1件と `ConnectionReferenceInsert` 1件である
+- connector、operation、connection ID、connection reference が相互一致する
+- tool kind が `McpTool` または `ConnectorTool`、`authMode` が `Invoker` である
+- 他の change 配列が空である
 
-- `bots.configuration` は**丸ごと上書きせず GET → deep-merge → PATCH**（`name` 列を同送）。
-- スキル入れ替え時の削除は `name eq '<SKILL_NAME>' and componenttype eq 9` で**同名スキル限定**。
-  `componenttype eq 9` だけで一括削除すると **MCP ツールも巻き添えで消える**。
+出力された `expectedHash` と、connector、operation、対象 environment / bot、display name を提示して
+ユーザー承認を得る。plan 全文には完全な bot payload が含まれるため、チャットやログへ貼らない。
 
-運用中エージェントの更新は [scripts/update_agent.py](../scripts/update_agent.py) を使う。
-更新の前後で MCP ツールの schemaname と接続参照をスナップショットして差分を表示し、
-消失を検知した場合は公開せずに異常終了する。
+## 4. 初回投入 manifest を作る
 
-実機検証: Instructions 更新 + スキル全ファイル再添付 + 再公開を行っても、
-Dataverse MCP の schemaname と `connectionReference` は同一のまま維持され、Confirm の再実行も不要だった。
+承認した各planのpathとhashを指定する。同一environment / botではないplan、重複する
+connector / operation、hash不一致が1件でもあればmanifestを作らない。
 
-## 「確認(Confirm)」を押しても接続できない場合
+```powershell
+python .github/skills/copilot-studio-v2/scripts/create_initial_tools_manifest.py `
+  --approval .mcp/dataverse-plan.json=<approved-hash> `
+  --approval .mcp/outlook-plan.json=<approved-hash> `
+  --approval .mcp/teams-plan.json=<approved-hash> `
+  --output .mcp/initial-tools.json
+```
 
-新しい Copilot Studio UI では、MCP サーバーの「確認(Confirm)」を押しても接続が完了しない
-（エラーが消えない）ケースがある。
+## 5. 同一ブラウザセッションで一括 apply する
 
-- 対象の MCP サーバーを一度 UI から**削除**し、再度手順どおりに**追加し直す**。
-- 再登録後は再公開が必要（`scripts/publish_agent.py` または UI の「公開」）。
-- 再登録後に Copilot Studio UI を開き直し、MCP サーバーが正常に表示されることを確認する。
-  その後、UI で改めて「確認(Confirm)」を押すと接続が完了する。
+`runInitialToolProvisioning(page, manifestPath, reportPath)`へmanifestを渡す。runnerはbrowserに触れる前に
+全planのcanonical SHA-256、target、重複、change-setを検証する。1件でも不一致ならgateway requestを
+1件も送らない。単一toolの後方互換APIは`runApprovedPlan`である。
 
-## PAC CLI による対応について（調査結果）
+この関数はbrowser内のJavaScriptではなく、VS Code統合ブラウザの`page`を保持するNode.js側の
+automation hostで呼び出す。新しいbrowser/profileを起動せず、capture時と同じ`page`を渡す。
 
-`pac copilot` コマンドには MCP サーバーを追加・管理する専用サブコマンドは**存在しない**。
-調査した主なコマンド群:
+```javascript
+import { runInitialToolProvisioning } from "./scripts/mcp_tool_browser_runner.mjs";
 
-| コマンド | 用途 | MCP 追加 |
-|---|---|---|
-| `pac copilot list` | エージェント一覧 | ✗ |
-| `pac copilot create` | エージェント作成（YAML テンプレート） | ✗ |
-| `pac copilot publish` | エージェント公開 | ✗ |
-| `pac copilot clone` / `push` / `pull` | ワークスペース操作 | ✗ |
-| `pac copilot status` | デプロイ状態確認 | ✗ |
+const result = await runInitialToolProvisioning(
+  page,
+  ".mcp/initial-tools.json",
+  ".mcp/initial-tools-report.json",
+);
+```
 
-**結論**: MCP サーバーの追加・再登録は **Copilot Studio UI での手動作業**として行う。
-PAC CLI・Dataverse Web API のいずれにも自動化手段は提供しない。
+戻り値とreportはstatus、connectorId、operationId、write/read-back statusだけを含み、header値、token、
+Cookie、業務データを含まない。`status=verified`かつ全toolが`added-verified`または`already-present`に
+なるまで公開しない。
 
-## 既知エラーと対処
+runner は reload 時の gateway / Dataverse request から必要な header だけをメモリ内で継承する。
+値はログ、戻り値、plan に出さない。apply 前に exact tool を読み戻し、すでに1件あれば
+`already-present` として PUT を省略する。0件の場合だけ PUT し、直後に再読込する。
 
-| 症状 | 原因 | 対処 |
-|---|---|---|
-| 公開時 `1 missing connection reference` | UI 追加後に接続参照が正しくバインドされていない | 対象 MCP サーバーを UI から削除→再追加→再公開 |
-| 実行時に MCP が反応しない / 認可エラー | 追加後の Confirm 未実施、または接続未承認 | UI で **Confirm** ＋ 接続の承認を確認 |
-| **UI の Confirm を押しても接続できない** | 接続参照バインドが古い状態で残っている | UI で対象 MCP サーバーを削除→再追加 → 再公開 → 再 Confirm |
-| `Connected な接続がありません` | 環境に該当コネクタの接続が無い | make.powerautomate.com で接続を作成/承認 |
-| `POST .../connectors/apim 400` | Server name に日本語・空白等を使用 | 英字・数字・ハイフン・ドットだけに変更 |
-| サインインで `AADSTS50011` | コネクタ固有 Redirect URI が Entra に未登録 | エラーに表示された URI を `add_connector_redirect_uri.py` で追加 |
+成功結果は次のいずれかだけである。
+
+```json
+{"status":"already-present","writeStatus":null,"readBackStatus":200}
+{"status":"added-verified","writeStatus":200,"readBackStatus":200}
+```
+
+reload 後に Tools 一覧でも全toolが表示されることを確認し、agent を再公開する。runtime の認可と
+実データ範囲は Preview の golden question で別途検証する。
+
+## 6. fail closed と UI fallback
+
+次の場合は自動補正や推測をせず、書き込みを停止する。
+
+| 症状 | 対処 |
+|---|---|
+| 401 / 403、認証 request を捕捉できない | 同じ profile で再サインイン。token を CLI へ移さない |
+| 404、gateway host/path/query 不一致 | portal build を記録し、UI 通信を再捕捉する |
+| schema drift、他 change の混入 | reload して MCP だけを編集。解消しなければ UI Save を使う |
+| `0x80072042 UnmanagedCustomizationsNotAllowed` | 管理ポリシーに従う。許可環境へ切替えるか管理ソリューション経路を使う |
+| read-back 0件 / 複数件 / connection reference 不一致 | 公開しない。UI で削除・再追加し、再捕捉する |
+| stale connection / OAuth error | UI で接続を修復し、新しい capture と hash を作る |
+| planner が `Only Invoker authMode is allowed` | UI で対象toolを削除し、利用者接続を選び直して `User` / Invoker でAddする。新しいcaptureとhashを作り、Maker modeをplan改変で回避しない |
+| Add後もSaveが`Fix errors to save` | tool編集dialogのMCP toolsがloading中、またはConfirm未完了の可能性がある。loading完了→Inputs確認→Confirmの順で完了させる。それでも無効ならtoolを外してagent本体のprovisioningを切り分ける |
+
+fallback の UI 手順は、Add tool > MCP > server > connection > Add > Save である。必要な画面に
+Confirm が表示される build では Confirm も実行する。API plan を手修正して schema drift を回避しては
+ならない。
+
+## セキュリティ規約
+
+- 記録可: method、sanitized host/path、query key、JSON field 名と型、HTTP status、portal build、確認日。
+- 記録禁止: Bearer token、Cookie、CSRF、session header 値、secret、UPN、実 tenant/environment/bot/
+  connection ID、業務データ。
+- 実 ID を含む `.mcp/` はローカル一時物として扱い、PR、issue、テスト fixture に含めない。
+- plan hash は変更承認であり、公開 API のサポート保証ではない。

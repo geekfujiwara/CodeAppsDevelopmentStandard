@@ -1,5 +1,5 @@
 """
-Copilot Studio v2 (cliagent) エージェントを API だけでフル自動デプロイするオーケストレーター。
+Copilot Studio v2 (cliagent) エージェントの基礎構成をデプロイするオーケストレーター。
 ================================================================================
 以下を順に実行する（各ステップは個別スクリプトとしても実行可能）:
   1) create_agent.py     … cliagent Bot を API 作成 + プロビジョニング待ち（agent_botid.txt を出力）
@@ -11,8 +11,8 @@ Copilot Studio v2 (cliagent) エージェントを API だけでフル自動デ�
 
 各ステップは agent_botid.txt（cwd）でエージェントを受け渡すため、同一作業ディレクトリで実行する。
 
-MCP サーバー（Dataverse MCP / Work IQ 等）のツール追加は本オーケストレーターの対象外。
-Copilot Studio UI で手動追加する（references/mcp-servers.md）。
+初回からツールを持たせる場合は --defer-publish を指定し、ログイン済み統合ブラウザで
+initial tool manifest を apply/read-back してから publish_agent.py を実行する。
 
 .env パラメータ（詳細は references/.env.example）:
   AGENT_NAME / AGENT_SCHEMA / AGENT_MODEL_SERIES / AGENT_INSTRUCTIONS
@@ -26,7 +26,7 @@ Copilot Studio UI で手動追加する（references/mcp-servers.md）。
   PVA_GATEWAY_BASE / BAP_ENVIRONMENT_ID   省略可（BAP API から自動取得）
   APP_DETAILS_REQUIRE_CONFIRM   true なら自動補完が発生した時点で停止（公開前に確認）
 
-実行: python deploy_agent.py
+実行: python deploy_agent.py [--defer-publish]
 """
 from __future__ import annotations
 
@@ -55,6 +55,7 @@ def run(script: str, *args: str) -> None:
 
 
 def main() -> None:
+    defer_publish = "--defer-publish" in sys.argv[1:]
     run("create_agent.py")
     run("set_icon.py")
 
@@ -67,12 +68,19 @@ def main() -> None:
     else:
         print(f"\n⏭ スキルディレクトリ '{skill_dir}' が無いため attach_skill をスキップ")
 
-    run("publish_agent.py")
+    if not defer_publish:
+        run("publish_agent.py")
 
     print("\n" + "=" * 64)
-    print("✅ デプロイ完了。確認: pac copilot list（Published / Active / Provisioned）")
-    print("   ※ MCP サーバー（Dataverse / Work IQ 等）を使う場合は、Copilot Studio UI で")
-    print("     手動追加してください（references/mcp-servers.md）。")
+    if defer_publish:
+        print("✅ 基礎構築完了。初回ツール投入後に publish_agent.py を実行してください。")
+        print("   1. 各 Save を captureToolSave で捕捉し、mcp_tool_plan.py で plan/hash を作成")
+        print("   2. create_initial_tools_manifest.py で承認済み plan/hash を集約")
+        print("   3. 統合ブラウザの同一 page で runInitialToolProvisioning を実行")
+        print("   4. publish_agent.py で最終公開")
+        print("   詳細: references/mcp-servers.md")
+    else:
+        print("✅ デプロイ完了。確認: pac copilot list（Published / Active / Provisioned）")
 
 
 if __name__ == "__main__":

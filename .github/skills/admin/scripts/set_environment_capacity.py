@@ -84,8 +84,23 @@ def set_allocation(host: str, environment_id: str, currency: str, quantity: int)
         host,
         "PATCH",
         f"/licensing/environments/{environment_id}/allocations",
-        {"currencyAllocations": [{"currencyType": currency, "allocated": quantity}]},
+        {"currencyAllocations": [{"currencyType": currency, "allocated": quantity, "autoAllocated": 0.0}]},
     )
+
+
+def get_allocation(host: str, environment_id: str, currency: str) -> float | None:
+    response = _request(host, "GET", "/licensing/AllocationsByEnvironment")
+    if not response.ok:
+        return None
+    data = response.json()
+    environments = data if isinstance(data, list) else data.get("value", [])
+    for environment in environments:
+        if environment.get("environmentId") != environment_id:
+            continue
+        for allocation in environment.get("currencyAllocations") or []:
+            if allocation.get("currencyType") == currency:
+                return allocation.get("allocated")
+    return None
 
 
 def _capacity(environment: dict) -> dict:
@@ -161,11 +176,16 @@ def main() -> int:
         return 0
 
     response = set_allocation(host, args.environment_id, args.currency, args.quantity)
-    if response.ok:
-        print("配分しました。")
-        return 0
-    print(f"[失敗] HTTP {response.status_code}: {response.text[:300]}")
-    return 1
+    if not response.ok:
+        print(f"[失敗] HTTP {response.status_code}: {response.text[:300]}")
+        return 1
+
+    actual = get_allocation(host, args.environment_id, args.currency)
+    if actual != args.quantity:
+        print(f"[失敗] API 応答後の read-back が一致しません（期待 {args.quantity:g} / 実際 {actual}）。")
+        return 1
+    print(f"配分しました。read-back: {actual:g}")
+    return 0
 
 
 if __name__ == "__main__":
