@@ -364,12 +364,15 @@ Teams マニフェスト設定項目:
 ✅ Web 埋め込み（認証なし）なら AGENT_CHANNELS=web のみで OK（追加のチャネル定義は不要）
 ```
 
-### Step 9: ナレッジ・ツール・トリガーの手動追加（ユーザーに依頼）
+### Step 9: MCP toolの承認付き追加と残りのUI設定
 
 ```
-★ ナレッジ・ツール・トリガーは API では追加不可 — Copilot Studio UI で手動操作が必要
-★ スクリプト完了後に以下の案内をユーザーに提示すること
+✅ Standard MCP toolはUIのfresh requestを承認付きで通過させ、componenttype 9をread-backする
+⚠️ connector tool・ナレッジ・トリガーにMCP contractを流用しない。各UI requestの実測が必要
 ```
+
+MCPの正常系は[Standard agent MCP tool provisioning](standard-mcp-tools.md)を使う。
+接続がなければ接続作成標準に従い、OAuthのアカウント選択・MFA・同意だけをユーザーが行う。
 
 **ユーザーに提示するテンプレート:**
 
@@ -383,7 +386,7 @@ Teams マニフェスト設定項目:
 3. データソースを選択（Dataverse テーブル / SharePoint サイト / ファイル等）
 4. 対象を設定して保存
 
-#### ツールの追加
+#### MCP以外のツールの追加
 
 1. 左メニュー「ツール」→「+ ツールの追加」
 2. コネクタまたは MCP Server を検索して選択
