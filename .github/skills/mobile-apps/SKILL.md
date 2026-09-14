@@ -93,16 +93,29 @@ npx --yes --package @microsoft/power-apps-cli@1.0.1 pa app init `
 
 ### Step 4: Wrap app registration を設定する
 
-ブラウザを開く前に `AskUserQuestion` で使用する Microsoft Edge プロファイルを確認する。
-回答後、VS Code 統合ブラウザで次を開く。
+Wrap UIで観測したMicrosoft Graph v1.0 contractを承認付きで実行する。まずplanとSHA-256を確認する。
 
-```text
-https://make.powerapps.com/environments/{ENVIRONMENT_ID}/wraps#create-app-registration
+```powershell
+python scripts/register_wrap_application.py plan --tenant-id $env:TENANT_ID `
+  --name $env:MOBILE_APP_DISPLAY_NAME --output .mcp/wrap-registration-plan.json
+
+python scripts/register_wrap_application.py apply `
+  --plan .mcp/wrap-registration-plan.json --expected-hash <SHA256> `
+  --report-file .mcp/wrap-registration-result.json
 ```
 
-Wrap で登録を作成し、Application (client) ID と environment の tenant ID を
+applyはtokenのtenant一致と同名registration不存在を確認し、Graph `POST /v1.0/applications`後に
+redirect URI、audience、全resource/scopeをread-backする。reportのApplication (client) ID とtenant IDを
 `auth.config.json` の `msal.clientId` / `msal.tenantId` に設定する。client secret は不要で、保存しない。
-Wrap が構成する redirect URI／API permission を手動で追加しない。
+OAuth consent、MFA、policy acceptanceは自動化しない。
+観測contractとcleanup境界は[Wrap registrationリファレンス](references/wrap-registration.md)を参照する。
+
+検証用registrationを削除する場合は、report内の`cleanupHash`を別途承認して実行する。
+
+```powershell
+python scripts/register_wrap_application.py cleanup `
+  --report-file .mcp/wrap-registration-result.json --expected-hash <CLEANUP_SHA256>
+```
 
 ### Step 5: Power Platform データを接続する
 
