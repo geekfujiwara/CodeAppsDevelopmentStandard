@@ -44,6 +44,22 @@ Copilot Studio エージェントに **Power Automate フロー経由の外部�
 **正しいアプローチ:** Copilot Studio UI の「トリガー > + トリガーの追加」ですべてを行う。
 UI がフロー作成・ExternalTriggerComponent 登録・接続参照をすべて自動で正しく生成する。
 
+2026-09-14 の Standard agent UI では、外部トリガー追加前に generative orchestration の有効化が必要。
+トリガー選択後は Power Automate の `flowCreation` widget が開き、environment、solution、
+on-behalf-of token 設定を引き継いでフローを構成する。widget の正常保存request全体をcaptureできるまでは、
+Dataverse workflowとExternalTriggerComponentだけを再現した自動化を正常系として扱わない。
+
+### 既存experimental scriptsの安全境界
+
+`deploy_email_trigger.py`と`fix_email_trigger.py`は既存環境の調査・修復用fallbackであり、
+新規構築の推奨経路ではない。実行する場合は次を満たさない限りwriteを開始しない。
+
+- bot ID、environment ID、bot schema、接続参照logical nameが空でない
+- `flowId`はDataverse workflow ID、`flowName`はFlow API検索で得た別のIDである
+- ExternalTriggerComponent YAMLは`scripts/trigger_contract.py`で生成する
+- Flow API IDを確認できない場合、workflow IDへfallbackせず停止する
+- 登録エラーを成功として扱わず、公開へ進まない
+
 **「メールに返信する (V3)」コネクタの Attachments 属性問題:**
 
 - 「メールに返信する (V3)」ツールは Attachments が AutomaticTaskInput として定義される

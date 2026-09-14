@@ -1,5 +1,13 @@
 # Copilot Studio トリガー トラブルシューティング・設計ガイド
 
+## Standard trigger の Power Automate widget が読み込まれない
+
+Standard agentの`Add trigger`は、generative orchestration有効化後にPower Automateの
+`/widgets/manage/environments/{environmentId}/templates/flowCreation`をiframeで開く。
+iframeが空、または`net::ERR_ABORTED`になる場合は保存contractを観測できていないため、
+workflowやExternalTriggerComponentの推測payloadを送信しない。UI session、third-party cookie、
+Power Automate accessを確認して再captureする。検証用agentはmanaged deleteし、同名検索0件を確認する。
+
 ## MCP Addをabortした後にtoolが作成された
 
 **症状**: gateway PUTをabortして失敗表示になった後、routeを解除するとtoolが作成された。

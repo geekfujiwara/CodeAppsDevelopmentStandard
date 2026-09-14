@@ -3,6 +3,9 @@ Word日報出力 - メール受信トリガーのデプロイスクリプト
 
 メール受信 → ExecuteCopilot → メール返信 のフローを作成し、
 ExternalTriggerComponent を登録してエージェントを再公開する。
+
+このスクリプトは既存環境向けの experimental fallback。新規構築では
+Copilot Studio UI の Add trigger を使用する。
 """
 import json
 import os
@@ -22,6 +25,7 @@ from auth_helper import (
     flow_api_call,
     get_token,
 )
+from trigger_contract import build_external_trigger_yaml, validate_deployment_settings
 
 # ---------- 設定 ----------
 
@@ -132,6 +136,17 @@ def deploy_flow():
     print("Step 1: フローのデプロイ")
     print("=" * 60)
 
+    validate_deployment_settings(
+        BOT_ID,
+        BOT_SCHEMA,
+        ENV_ID,
+        {
+            "CONNREF_COPILOT": CONNREF_COPILOT,
+            "CONNREF_OUTLOOK": CONNREF_OUTLOOK,
+        },
+    )
+    clientdata = build_flow_definition()
+
     # べき等: 既存フロー検索
     existing = api_get(
         f"workflows?$filter=name eq '{FLOW_NAME}' and category eq 5"
@@ -147,9 +162,6 @@ def deploy_flow():
             pass
         api_delete(f"workflows({wf_id})")
         print("  既存フロー削除完了")
-
-    # フロー定義を構築
-    clientdata = build_flow_definition()
 
     workflow_body = {
         "name": FLOW_NAME,
@@ -255,6 +267,13 @@ def register_external_trigger(workflow_id, flow_api_id):
     print("Step 4: ExternalTriggerComponent の登録")
     print("=" * 60)
 
+    data_yaml = build_external_trigger_yaml(
+        workflow_id,
+        flow_api_id,
+        ENV_ID,
+        "Office 365 Outlook",
+    )
+
     # 既存の Office 365 Outlook トリガーを検索（べき等）
     existing = api_get(
         f"botcomponents?$filter=_parentbotid_value eq '{BOT_ID}' and componenttype eq 17"
@@ -272,18 +291,6 @@ def register_external_trigger(workflow_id, flow_api_id):
     trigger_guid = str(uuid.uuid4())
     prefix = "eml"
     schema = f"{BOT_SCHEMA}.ExternalTriggerComponent.{prefix}.{trigger_guid}"
-
-    # PVA YAML 形式（ダブル改行で構造行を区切る）
-    data_yaml = (
-        f"kind: ExternalTriggerConfiguration\n\n"
-        f"externalTriggerSource:\n"
-        f"  kind: WorkflowExternalTrigger\n"
-        f"  flowId: {workflow_id}\n\n"
-        f"extensionData:\n"
-        f"  flowName: {flow_api_id}\n"
-        f"  flowUrl: /providers/Microsoft.ProcessSimple/environments/{ENV_ID}/flows/{flow_api_id}\n"
-        f"  triggerConnectionType: Office 365 Outlook\n"
-    )
 
     body = {
         "name": "新しいメールが届いたとき (V3)",
@@ -311,8 +318,9 @@ def register_external_trigger(workflow_id, flow_api_id):
         print(f"  ✅ ExternalTriggerComponent 登録成功")
         print(f"     schema: {schema}")
     else:
-        print(f"  ❌ ExternalTriggerComponent 登録失敗: {r.status_code}")
-        print(f"  {r.text[:1000]}")
+        raise RuntimeError(
+            f"ExternalTriggerComponent 登録失敗: {r.status_code}: {r.text[:1000]}"
+        )
 
 
 def publish_bot():
