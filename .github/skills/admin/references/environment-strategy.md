@@ -217,6 +217,9 @@ VS Code の統合ブラウザ（`file:///`）またはプレビューで開け�
 
 グループ ルールを個別に触る場合は `set_environment_group_rules.py` を使う。
 ルール ID と API の一覧は [rule-catalog.md](rule-catalog.md) にある。
+ACP専用/混成モードの切り替えだけは影響範囲がグループ内の全環境に及ぶため、
+`set_group_acp_mode.py`でmember一覧とpolicy全体をplanに固定し、承認hash付きで適用する。
+read-back不一致は`failed-or-unverified`として停止し、rollbackにも新しい`--mode mixed` planの承認を必要とする。
 
 ## API で自動化できる範囲
 
