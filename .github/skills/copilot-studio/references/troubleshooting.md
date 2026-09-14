@@ -269,6 +269,28 @@ Q: どのように起動しますか？
 
 ## トラブルシューティング
 
+### 作成requestをabortしたのにagentが作成された
+
+作成UIは失敗した`POST /api/data/v9.2/bots`を再試行することがある。観測用routeで最初のrequestだけを
+abortして解除すると、後続retryが実行される。capture時は対象POSTをabortしたまま作成画面から離れ、
+その後にrouteを解除する。検証用agentが作成された場合はcomponent read-back後に削除する。
+
+恒久対策として通常の作成はUI captureを繰り返さず、`provision_agent.py`の固定contract、承認hash、
+schema重複チェックを通して実行する。
+
+### `DELETE /bots(id)`がcomponent依存で400になる
+
+provision済みagentはtopic/GPT componentから参照されるため、Dataverseの通常DELETEでは
+`RetrieveDependenciesForDeleteRequest`を案内する400になる。UIのDeleteは次のbound actionで
+依存componentとworkspaceをdeprovisionする。
+
+```text
+POST /api/data/v9.2/bots({bot-id})/Microsoft.Dynamics.CRM.PvaDeleteBot?tag=deprovisionbotondelete
+```
+
+削除を自動化する場合も、この観測済みactionを対象agentのname/schema read-back後に限定して使う。
+通常DELETEでcomponentを個別削除して依存関係を迂回しない。
+
 ### フロー有効化が失敗する
 
 ```

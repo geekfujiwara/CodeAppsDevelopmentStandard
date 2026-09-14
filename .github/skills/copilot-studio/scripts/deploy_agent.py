@@ -5,7 +5,7 @@ Copilot Studio エージェント設定スクリプト — テーマ非依存テ
   「テーマ定義」セクション（{...} プレースホルダー）を、設計フェーズで決めた内容に書き換えてから実行してください。
 ★ API ヘルパー、トピック削除、生成オーケストレーション有効化、PvaPublish のパターンは共通テンプレートとして再利用できます。
 
-Phase 3: UI で作成済みの Bot に対して構築設定を適用
+Phase 3: provision_agent.py で作成済みの Bot に対して構築設定を適用
   → カスタムトピック全削除 → 生成オーケストレーション有効化
   → GPT Instructions 設定 → 公開 → 説明の設定
   ★ ナレッジ・MCP Server はユーザーが UI で手動追加
@@ -17,18 +17,14 @@ Phase 3: UI で作成済みの Bot に対して構築設定を適用
     3. python set_agent_channels.py   … チャネル選択（Web / Teams / Copilot）→ 公開
 
 前提:
-  - Copilot Studio UI でエージェントを事前に作成済み
-  - BOT_ID を .env または引数で指定
-
-注意:
-  Dataverse bots テーブルに直接レコードを挿入しても PVA Bot Management Service に
-  プロビジョニングされないため、Bot の新規作成は Copilot Studio UI で行う。
-  API でできるのは既存 Bot の設定変更のみ。
+    - provision_agent.py plan/apply でエージェントを事前に作成済み
+    - BOT_ID を .env または引数で指定（省略時は AGENT_NAME で検索）
 
 使い方:
-  1. Copilot Studio UI でエージェントを作成
-  2. .env に BOT_ID=<作成した Bot のID> を追加
-  3. python .github/skills/copilot-studio/scripts/deploy_agent.py
+    1. python provision_agent.py plan ... で作成planを生成・承認
+    2. python provision_agent.py apply --expected-hash <sha256> で作成
+    3. .env に BOT_ID=<作成した Bot のID> を追加（または AGENT_NAME で検索）
+    4. python .github/skills/copilot-studio/scripts/deploy_agent.py
 """
 
 import json
@@ -53,7 +49,6 @@ load_dotenv()
 # ── 環境変数 ────────────────────────────────────────────────
 DATAVERSE_URL = _DV_URL
 SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "SampleSolution")
-SOLUTION_DISPLAY_NAME = os.environ.get("SOLUTION_DISPLAY_NAME", "")
 PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
 
 # ═════════════════════════════════════════════════════════════════
@@ -62,8 +57,8 @@ PREFIX = os.environ.get("PUBLISHER_PREFIX", "geek")
 #  以下の `{...}` はフォーマットを示すプレースホルダーで、特定テーマを意図しない。
 # ═════════════════════════════════════════════════════════════════
 
-BOT_NAME = "{エージェント名}"          # 例: "○○管理アシスタント"
-BOT_SCHEMA = f"{PREFIX}_Assistant"     # スキーマ名（prefix + PascalCase）
+BOT_NAME = os.getenv("AGENT_NAME", "{エージェント名}")
+BOT_SCHEMA = os.getenv("BOT_SCHEMA", f"{PREFIX}_Assistant")
 
 # ── API ヘルパー ─────────────────────────────────────────
 
@@ -307,22 +302,13 @@ def find_bot() -> str:
     # 見つからない場合
     print("  ❌ Bot が見つかりません。")
     print()
-    sol_label = f"{SOLUTION_DISPLAY_NAME}（スキーマ名: {SOLUTION_NAME}）" if SOLUTION_DISPLAY_NAME else SOLUTION_NAME
-    print("  Copilot Studio UI でエージェントを作成してください:")
-    print(f"    1. https://copilotstudio.microsoft.com/ にアクセス")
-    print(f"    2. 「+ 作成」をクリック")
-    print(f"    3. エージェント名: {BOT_NAME}")
-    print(f"    4. 「エージェント設定 (オプション)」を展開:")
-    print(f"       - 言語: 日本語 (日本)")
-    print(f"       - ソリューション: {sol_label}")
-    print(f"       - スキーマ名: {PREFIX}_assistant")
-    print(f"    5. 「作成」をクリック")
-    print(f"    6. 作成後のブラウザ URL をそのまま .env に貼り付け:")
-    print(f"       BOT_ID=https://copilotstudio.../bots/xxxxxxxx-xxxx-xxxx-.../overview")
-    print(f"       （GUID だけでも OK: BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）")
-    print(f"    7. 再実行: python .github/skills/copilot-studio/scripts/deploy_agent.py")
+    print("  承認付き provisioning を実行してください:")
+    print(f"    1. python provision_agent.py plan --name '{BOT_NAME}' --schema '{BOT_SCHEMA}' --solution '{SOLUTION_NAME}'")
+    print("    2. plan と表示された SHA-256 をレビュー")
+    print("    3. python provision_agent.py apply --expected-hash <sha256>")
+    print("    4. 出力された Bot ID を BOT_ID に設定して本スクリプトを再実行")
     print()
-    print("  ※ Dataverse bots テーブルへの直接挿入では PVA にプロビジョニングされません")
+    print("  ※ 観測済み Standard agent contract 以外の bots INSERT は使用しないでください")
     sys.exit(1)
 
 # ── Step 2: カスタムトピック全削除 ────────────────────────
