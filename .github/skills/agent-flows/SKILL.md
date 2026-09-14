@@ -81,7 +81,10 @@ python .github/skills/agent-flows/scripts/agent_flow.py publish --report-file .l
 python .github/skills/agent-flows/scripts/agent_flow.py publish --apply --expected-hash <approved-hash> --report-file .local/agent-flow/publish-result.json
 ```
 
-Dataverse の Active と Flow API の Started を照合する。画面でも Published を確認する。
+Dataverse の Active と Flow API の Started を照合する。Flow APIのresource IDはDataverse `workflowid`と
+一致するとは限らないため、`properties.workflowEntityId`が一致する1件をplanへ束縛する。
+Dataverse PATCHが明確なHTTP 400を返し、直後のworkflow read-backが完全に無変更の場合だけ、承認済みの
+Flow API resourceへ`/start` fallbackを1回実行する。画面でもPublishedを確認する。
 
 ## Step 4: 一度実行して出力を確認する
 

@@ -16,6 +16,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard/scripts")
 
 FLOW_SCOPE = "https://service.flow.microsoft.com/.default"
 SELECT = "name,clientdata,category,type,modernflowtype,statecode,statuscode"
+ETAG_PATTERN = re.compile(r'^W/"[^"\r\n]+"$')
+
+
+class ApiResponseError(ValueError):
+    def __init__(self, status_code):
+        self.status_code = status_code
+        super().__init__("API request failed: HTTP " + str(status_code))
 
 
 def digest(value):
@@ -161,11 +168,39 @@ class Api:
         headers.update(extra_headers or {})
         response = session.request(method, url, json=body, headers=headers, timeout=120, allow_redirects=False)
         if not 200 <= response.status_code < 300:
-            raise ValueError("API request failed: HTTP " + str(response.status_code))
+            raise ApiResponseError(response.status_code)
         return response.json() if response.content else {}
 
     def workflow(self, flow_id):
         return self.request("GET", f"workflows({flow_id})?$select={SELECT}")
+
+    def resolve_flow_api_id(self, workflow_id):
+        workflow_id = canonical_uuid(workflow_id)
+        url = self.flow.rstrip("/") + "?api-version=2016-11-01"
+        response = self.flow_session.get(url, timeout=120, allow_redirects=False)
+        if not 200 <= response.status_code < 300:
+            raise ApiResponseError(response.status_code)
+        payload = response.json()
+        if not isinstance(payload, dict) or not isinstance(payload.get("value"), list):
+            raise ValueError("Flow API collection response is invalid")
+        if payload.get("nextLink") or payload.get("@odata.nextLink"):
+            raise ValueError("Flow API collection is paginated; exact mapping is unverified")
+        matches = []
+        for item in payload["value"]:
+            if not isinstance(item, dict) or not isinstance(item.get("properties"), dict):
+                raise ValueError("Flow API resource shape is invalid")
+            properties = item["properties"]
+            if str(properties.get("workflowEntityId", "")).lower() == workflow_id:
+                matches.append(item)
+        if len(matches) != 1:
+            raise ValueError("Exactly one Flow API resource must match workflowEntityId")
+        if not isinstance(matches[0].get("name"), str):
+            raise ValueError("Flow API resource name is missing")
+        flow_api_id = canonical_uuid(matches[0]["name"])
+        state = matches[0].get("properties", {}).get("state")
+        if not isinstance(state, str) or state not in {"Started", "Stopped"}:
+            raise ValueError("Flow API resource state is invalid")
+        return flow_api_id, state
 
     def require_solution_component(self, component_id, component_type, solution):
         component_id = canonical_uuid(component_id)
@@ -239,8 +274,14 @@ def main():
         validate_workflow(actual, name, client, 0 if args.command == "publish" else 1)
         if client != build_client(client, name, message):
             raise ValueError("Configured smoke instructions differ from target")
-        return {"command": args.command, "environment": environment, "dataverse": DATAVERSE_URL,
+        plan = {"command": args.command, "environment": environment, "dataverse": DATAVERSE_URL,
                 "flowId": flow_id, "workflowHash": digest(actual)}
+        if args.command == "publish":
+            flow_api_id, flow_api_state = api.resolve_flow_api_id(flow_id)
+            if flow_api_state != "Stopped":
+                raise ValueError("Draft workflow must map to a Stopped Flow API resource")
+            plan["flowApiId"] = flow_api_id
+        return plan
 
     try:
         plan = snapshot()
@@ -285,15 +326,27 @@ def main():
             elif args.command == "publish":
                 api.require_solution_component(plan["flowId"], 29, solution)
                 before = api.workflow(plan["flowId"])
-                if digest(before) != plan["workflowHash"] or not before.get("@odata.etag"):
+                if digest(before) != plan["workflowHash"] or not isinstance(before.get("@odata.etag"), str) \
+                    or not ETAG_PATTERN.fullmatch(before["@odata.etag"]):
                     raise ValueError("Workflow changed or ETag missing before publish")
-                api.request("PATCH", "workflows(" + plan["flowId"] + ")", {"statecode": 1, "statuscode": 2},
-                            extra_headers={"If-Match": before["@odata.etag"]})
+                flow_api_id, flow_api_state = api.resolve_flow_api_id(plan["flowId"])
+                if flow_api_id != plan["flowApiId"] or flow_api_state != "Stopped":
+                    raise ValueError("Flow API mapping or state changed before publish")
+                activation = "dataverse"
+                try:
+                    api.request("PATCH", "workflows(" + plan["flowId"] + ")", {"statecode": 1, "statuscode": 2},
+                                extra_headers={"If-Match": before["@odata.etag"]})
+                except ApiResponseError as error:
+                    unchanged = api.workflow(plan["flowId"])
+                    if error.status_code != 400 or digest(unchanged) != digest(before):
+                        raise
+                    api.request("POST", plan["flowApiId"] + "/start", {}, flow=True)
+                    activation = "flow-api-fallback"
                 validate_workflow(api.workflow(plan["flowId"]), name, json.loads(before["clientdata"]), 1)
-                state = api.request("GET", plan["flowId"], flow=True)["properties"]["state"]
+                state = api.request("GET", plan["flowApiId"], flow=True)["properties"]["state"]
                 if state != "Started":
                     raise ValueError("Flow has not reached Started")
-                report["status"] = "published-verified"
+                report.update(status="published-verified", activation=activation)
             else:
                 api.request("POST", plan["flowId"] + "/triggers/manual/run", {}, flow=True)
                 report["status"] = "run-accepted"

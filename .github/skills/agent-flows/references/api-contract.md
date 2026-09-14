@@ -9,7 +9,9 @@ Validated in a new-UI-enabled environment on 2026-09-09:
 | Create Dataverse workflow in a solution | HTTP 204 and exact clientdata readback |
 | New UI discriminator | modernflowtype 0 opened classic fallback; 1 opened Start + Agent canvas |
 | Designer validation | Review: Ready to publish, no problems |
-| Publish through Dataverse | Active readback, Flow API Started, UI Published |
+| Publish through Dataverse | Active readback, mapped Flow API Started, UI Published |
+| UI activation capture | PATCH Dataverse workflow with statecode=1/statuscode=2 |
+| Flow API activation fallback | POST mapped `/flows/{flowApiId}/start`; Active/Started readback |
 | Management manual run | HTTP 200, a run and Agent action created |
 | Agent output | HTTP 442 runtime policy block; fixed JSON not yet verified |
 | New UI network contract capture | Not completed; do not claim network corroboration |
@@ -42,8 +44,9 @@ All Python authentication uses `standard/scripts/auth_helper.py`. No independent
 | Dataverse | POST `/api/data/v9.2/workflows`, header `MSCRM.SolutionUniqueName` |
 | Body fields | workflowid, name, category=5, type=1, modernflowtype=1, primaryentity=none, clientdata as JSON string |
 | Publish | PATCH `/workflows({id})`, statecode=1, statuscode=2 |
-| Flow management | `https://api.flow.microsoft.com/providers/Microsoft.ProcessSimple/environments/{env}/flows/{id}` |
+| Flow management | `https://api.flow.microsoft.com/providers/Microsoft.ProcessSimple/environments/{env}/flows/{flowApiId}` |
 | Management API version / scope | `2016-11-01` / `https://service.flow.microsoft.com/.default` |
+| Activation fallback | POST `.../flows/{flowApiId}/start`, empty JSON object |
 | Manual invocation | POST `.../triggers/manual/run`, empty JSON object, no trigger inputs |
 | Status | GET `.../runs`, `.../runs/{run}`, `.../runs/{run}/actions/Agent` |
 
@@ -56,6 +59,10 @@ Server resource IDs are not cloned. Node IDs are scoped to each separate flow an
 ## Safety And Limits
 
 - Create is separate from publish and run, each requires a fresh reviewed hash. Target-name collisions stop.
+- `flowApiId` is resolved from exactly one Flow API item whose `properties.workflowEntityId` matches the Dataverse workflow ID.
+	The IDs can differ. Pagination, no match, duplicate matches, unknown state, or mapping drift stop before a write.
+- Publish first uses the UI-observed Dataverse state PATCH. The unsupported Flow API `/start` fallback runs only after a definite
+	HTTP 400 and an exact unchanged workflow readback. Transport errors, other status codes, and changed state are not retried.
 - A second snapshot narrows stale-write risk; these APIs do not provide a transaction across workflows and references. Do not edit the template or target concurrently during apply.
 - The create source must be a trusted, reviewed minimal template. Structural checks are not a sandbox for arbitrary imported definitions.
 - No automatic retry on ambiguous writes. Preserve the pending report with allocated workflow ID and reconcile before attempting another write.

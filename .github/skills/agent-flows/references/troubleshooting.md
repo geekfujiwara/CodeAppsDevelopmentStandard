@@ -45,6 +45,18 @@ The report is saved as write-request-pending before a request. A failed response
 Read the allocated resource ID/name or run history before another action. Reports are not overwritten; no automatic POST retries.
 Existing flows are never deleted to achieve idempotency. Concurrent source edits require a fresh dry-run and reviewed hash.
 
+## Publish PATCH Returns HTTP 400
+
+The Power Automate UI activates a flow by PATCHing its Dataverse workflow to `statecode=1/statuscode=2`.
+Some valid definitions can return a definite HTTP 400 from that path. `agent_flow.py` then re-reads the complete approved
+workflow and continues only if it is still byte-for-byte unchanged. It resolves exactly one Flow API resource through
+`properties.workflowEntityId`, verifies the approved mapping is still Stopped, and calls `/start` once. Active and Started
+must both read back. A timeout, HTTP status other than 400, changed workflow, ambiguous mapping, or paginated collection
+remains failed-or-unverified and is never retried automatically.
+
+Do not substitute the Dataverse workflow ID in the Flow API path. Live verification found distinct IDs for the same flow.
+The Flow RP API is unsupported and subject to change, so this is a guarded fallback rather than the primary publish path.
+
 ## Accepted Run Is Not An Answer
 
 The management endpoint may return an empty HTTP 200 body. Use run history and explicit run ID, not the response alone.

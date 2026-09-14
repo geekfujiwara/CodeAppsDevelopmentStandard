@@ -8,11 +8,11 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from agent_flow import Api, build_client, classify_output, digest, main, require_approval, safe_output_url, validate_client, validate_workflow, workflow_body
+from agent_flow import Api, ApiResponseError, build_client, classify_output, digest, main, require_approval, safe_output_url, validate_client, validate_workflow, workflow_body
 
 
 def fixture():
@@ -69,15 +69,76 @@ class AgentFlowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, settings), patch.dict(sys.modules, {"auth_helper": auth}), patch("agent_flow.Api") as api_type, contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             api = api_type.return_value
             api.workflow.return_value = actual
+            api.resolve_flow_api_id.return_value = (identifier, "Stopped")
             path = Path(directory) / "plan.json"
             with patch.object(sys, "argv", ["agent_flow", "publish", "--report-file", str(path)]):
                 self.assertEqual(main(), 0)
             approved = json.loads(path.read_text())["expectedHash"]
-            api.request.side_effect = ValueError("HTTP 412")
+            api.request.side_effect = ApiResponseError(412)
             with patch.object(sys, "argv", ["agent_flow", "publish", "--apply", "--expected-hash", approved, "--report-file", str(Path(directory) / "result.json")]):
                 self.assertEqual(main(), 1)
             api.request.assert_called_once_with("PATCH", f"workflows({identifier})", {"statecode": 1, "statuscode": 2}, extra_headers={"If-Match": actual["@odata.etag"]})
             api.require_solution_component.assert_called_once_with(identifier, 29, "Sample")
+
+    def test_flow_api_id_requires_one_unpaginated_workflow_match(self):
+        workflow_id = str(uuid4())
+        flow_api_id = str(uuid4())
+        api = object.__new__(Api)
+        api.flow = "https://api.flow.microsoft.com/providers/Microsoft.ProcessSimple/environments/sample/flows/"
+        api.flow_session = Mock()
+        response = api.flow_session.get.return_value
+        response.status_code = 200
+        response.json.return_value = {"value": [
+            {"name": flow_api_id, "properties": {"workflowEntityId": workflow_id, "state": "Stopped"}},
+            {"name": str(uuid4()), "properties": {"workflowEntityId": str(uuid4()), "state": "Started"}},
+        ]}
+        self.assertEqual(api.resolve_flow_api_id(workflow_id), (flow_api_id, "Stopped"))
+        response.json.return_value["nextLink"] = "https://example.com/next"
+        with self.assertRaisesRegex(ValueError, "paginated"):
+            api.resolve_flow_api_id(workflow_id)
+        response.json.return_value = {"value": []}
+        with self.assertRaisesRegex(ValueError, "Exactly one"):
+            api.resolve_flow_api_id(workflow_id)
+        response.json.return_value = {"value": [
+            {"properties": {"workflowEntityId": workflow_id, "state": "Stopped"}},
+        ]}
+        with self.assertRaisesRegex(ValueError, "name"):
+            api.resolve_flow_api_id(workflow_id)
+        response.json.return_value = {"value": [
+            {"name": flow_api_id, "properties": {"workflowEntityId": workflow_id, "state": []}},
+        ]}
+        with self.assertRaisesRegex(ValueError, "state"):
+            api.resolve_flow_api_id(workflow_id)
+
+    def test_publish_falls_back_only_after_definite_unchanged_http_400(self):
+        identifier = str(uuid4())
+        flow_api_id = str(uuid4())
+        settings = {"ENV_ID": identifier, "AGENT_FLOW_ID": identifier, "AGENT_FLOW_NAME": "sample",
+                    "SOLUTION_NAME": "Sample", "AGENT_FLOW_EXPECTED_JSON": '{"ok":true}'}
+        message = 'Return only this exact JSON without markdown: {"ok": true}. Do not use tools, knowledge, web search, email, or human assistance.'
+        draft = dict(workflow_body(identifier, "sample", build_client(fixture(), "sample", message)), statecode=0)
+        draft["@odata.etag"] = 'W/"version"'
+        active = dict(draft, statecode=1, statuscode=2)
+        auth = types.ModuleType("auth_helper")
+        auth.DATAVERSE_URL = "https://example.com"
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, settings), patch.dict(sys.modules, {"auth_helper": auth}), patch("agent_flow.Api") as api_type, contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            api = api_type.return_value
+            api.workflow.side_effect = [draft, draft, draft, draft, draft, active]
+            api.resolve_flow_api_id.return_value = (flow_api_id, "Stopped")
+            plan_path = Path(directory) / "plan.json"
+            with patch.object(sys, "argv", ["agent_flow", "publish", "--report-file", str(plan_path)]):
+                self.assertEqual(main(), 0)
+            approved = json.loads(plan_path.read_text())["expectedHash"]
+            api.request.side_effect = [ApiResponseError(400), {}, {"properties": {"state": "Started"}}]
+            result_path = Path(directory) / "result.json"
+            with patch.object(sys, "argv", ["agent_flow", "publish", "--apply", "--expected-hash", approved, "--report-file", str(result_path)]):
+                self.assertEqual(main(), 0)
+            self.assertEqual(json.loads(result_path.read_text())["activation"], "flow-api-fallback")
+            self.assertEqual(api.request.call_args_list, [
+                call("PATCH", f"workflows({identifier})", {"statecode": 1, "statuscode": 2}, extra_headers={"If-Match": draft["@odata.etag"]}),
+                call("POST", flow_api_id + "/start", {}, flow=True),
+                call("GET", flow_api_id, flow=True),
+            ])
 
     def test_graph_runtime_mismatch_rejected(self):
         for mutation in ["model", "mapping", "tools", "edge", "web", "extra-action", "reference"]:
