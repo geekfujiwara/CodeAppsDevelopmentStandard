@@ -63,7 +63,7 @@ flowchart LR
     F["Agent 365 ブループリント<br/>agentBlueprintId"] --> G["agenticUser.json"]
     F -->|messaging endpoint| S
     G --> E
-    E --> H["M365 管理センターで手動アップロード<br/>Agent template"]
+    E --> H["M365 管理センターbrowser API<br/>二重承認でAgent template公開"]
     H --> I["agentUser インスタンス"]
     I -->|Teams / M365 Copilot チャット| S
 ```

@@ -29,7 +29,7 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 |---|---|
 | 正常系は自己ホスト | agentUser チャットが動くのは Agents SDK アプリを App Service で自己ホストする構成のみ |
 | Foundry は参考 | Foundry エージェントは正常系に含めない。頭脳として使うなら中間サービスで読替が要る |
-| SDK / REST のみ | Azure CLI・`a365` CLI・Agents SDK で完結。ポータルのブラウザ自動操作は行わない |
+| API 優先 | Azure CLI・`a365` CLI・Agents SDK を優先し、M365 管理センター限定の操作だけ承認済み private API plan をログイン済みブラウザで実行する |
 | テンプレート駆動 | コミットするのは `${VAR}` 入りテンプレートだけ。実値は `.env` / シークレットストアのみ |
 | 外部データはデータ | 取り込んだ文章はフェンスで囲って渡し、実害のある操作はコードで ID を検証する |
 | インスタンス単位 | 同意・写真・Dataverse 登録は**インスタンスごと**。作り直すたびにやり直す |
@@ -51,6 +51,7 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 | [assistant-agent-pattern.md](references/assistant-agent-pattern.md) | 秘書・同僚としての標準品質（承認後の実行 / 権限準拠検索 / 人格 / プレゼンス） |
 | [sample-implementation-cases.md](references/sample-implementation-cases.md) | **評価・運用のサンプル実装事例**（KPI ドリルダウン / 複数ターン評価 / 非同期ジョブ / Power Automate / Dataverse ミラー） |
 | [architecture.md](references/architecture.md) | 2 種類のブループリントの違い / manifest スキーマ / 公開経路 / 表示名・アイコンの変更 |
+| [agent-template-upload.md](references/agent-template-upload.md) | devPreview ZIP の M365 管理センター private API staging / publish 契約、二重承認、read-back |
 | [troubleshooting.md](references/troubleshooting.md) | 異常系（401 / AADSTS82001 / AADSTS65001 / カタログ公開の 409・403 など） |
 | [.env.example](references/.env.example) | 環境変数の一覧と取得元 |
 | [scaffold-decisions.example.json](references/scaffold-decisions.example.json) | **一括 scaffold の入力**。AskUserQuestion の回答をこの形へ書き出す（役割 / 機能ブロック / poc・full / リポジトリ可視性 / 管理担当者） |
@@ -137,13 +138,15 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 | スクリプト | 用途 | Step |
 |---|---|---|
 | [scaffold_ai_teammate.py](scripts/scaffold_ai_teammate.py) | 1 回の AskUserQuestion の回答（decisions JSON）から同僚エージェント + 評価Hub を同時 scaffold する | 0〜3 |
-| [deploy_ai_teammate.py](scripts/deploy_ai_teammate.py) | `--check`（検証のみ）→ `--execute`（Dataverse スキーマ作成・自己ホスト展開・評価Hub デプロイ）の 2 段階デプロイ。`pa app init` / 接続参照 / `add-data-source` / `npm run predeploy` を正しい順序で実行する。M365 管理センターの devPreview 公開だけは手動ゲートとして案内する | 6・9〜11 |
+| [deploy_ai_teammate.py](scripts/deploy_ai_teammate.py) | `--check`（検証のみ）→ `--execute`（Dataverse スキーマ作成・自己ホスト展開・評価Hub デプロイ）の 2 段階デプロイ。`pa app init` / 接続参照 / `add-data-source` / `npm run predeploy` を正しい順序で実行する。M365 管理センターの devPreview 公開は別の承認 plan として案内する | 6・9〜11 |
 | [setup_evaluation_dataverse.py](scripts/setup_evaluation_dataverse.py) | 評価Hub の 4 テーブル（`evalturn`/`evalrule`/`evalresult`/`evaljob`）を `PUBLISHER_PREFIX` で冪等作成・列補完する。`--check` は作成せず不足だけ列挙する | 3・6 |
 | [provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し `.env` へ書き戻す。`--check` でプラン・Always On のドリフト検出 | 6 |
 | [deploy_agent_webapp.py](scripts/deploy_agent_webapp.py) | ブループリント作成/シークレット ローテーション（App Service 設定へのみ注入・ログ非出力）・`dotnet publish`・`az webapp deploy`/`restart`・`a365 setup blueprint --endpoint-only` を実行する | 4・6 |
 | [provision_code_sandbox.py](scripts/provision_code_sandbox.py) | コード実行サンドボックス（Container Apps 動的セッション プール）を冪等に作成しロールを付与（B12 のときのみ `deploy_ai_teammate.py --check` の対象） | 8 |
 | [provision_image_model.py](scripts/provision_image_model.py) | 対象 Azure OpenAI アカウントで提供される画像モデル名・バージョンを確認してから冪等にデプロイする。`--check` は変更なし | 8 |
 | [build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + `agenticUser.json` を ZIP 化 | 9 |
+| [plan_agent_template_upload.py](scripts/plan_agent_template_upload.py) | devPreview ZIP の内容・SHA-256・対象 tenant・固定 endpoint を検証し staging approval plan を生成 | 10 |
+| [agent_template_browser_runner.mjs](scripts/agent_template_browser_runner.mjs) | ログイン済み M365 管理センターで tenant を照合し、承認済み staging と別承認の `FINALIZEPACKAGE`、read-back を実行 | 10 |
 | [publish_teams_app.py](scripts/publish_teams_app.py) | Graph で ZIP を組織カタログへ登録（**devPreview は Graph 側で拒否される**） | 10 |
 | [grant_agent_instance_consent.py](scripts/grant_agent_instance_consent.py) | インスタンス SP に Messaging Bot API の管理者同意を付与 | 11 |
 | [grant_agent_graph_scopes.py](scripts/grant_agent_graph_scopes.py) | インスタンス SP に Microsoft Graph の**委任**スコープを付与（既存の同意へマージ） | 11 |
@@ -399,18 +402,28 @@ python scripts/build_teams_package.py --require-template
 ### Step 10: M365 管理センターへ公開してインスタンスを作る
 
 **devPreview（Agent template）manifest は Microsoft Graph の `POST /appCatalogs/teamsApps` が
-明示的に拒否する**（`Please use M365 Admin Center.`）。スクリプトでは回避できないハード制約
-（→ [troubleshooting.md](references/troubleshooting.md) #16）。
+明示的に拒否する**（`Please use M365 Admin Center.`）。M365 管理センターの実測 private API を、
+ログイン済み VS Code 統合ブラウザから承認 plan 経由で使う
+（→ [agent-template-upload.md](references/agent-template-upload.md)）。
 
-事前に Step 0 で確認した `AI Administrator` が次を実施する。
+まず ZIP と対象 tenant を固定した staging plan を作る。plan と hash の確認だけでは変更されない。
 
-1. **Agents > All agents > Registry > Add agent** を開き、ZIP を選択して検証する。
-2. Agent template の名前、説明、アイコン、開発者情報を確認する。
-3. **Publish audience** と **Deploy audience** をユーザーまたはセキュリティ グループで指定する。
-4. security template を適用し、要求される agent permissions とリスクをレビューする。
-5. 内容を最終確認して **Finish deployment** を選ぶ。
-6. Registry の Agent template から agent instance を作成し、instance ID、service principal、UPN、
-  owner / sponsor を記録する。
+```powershell
+python scripts/plan_agent_template_upload.py `
+  --package "teams/$env:AGENT_NAME-teams-app.zip" `
+  --tenant-id $env:AZURE_TENANT_ID `
+  --output .mcp/agent-template-stage-plan.json
+```
+
+1. ZIP の SHA-256、manifest ID、version、blueprint ID、tenant ID と `PLAN_HASH` を確認して承認する。
+2. 同じcommandへ `--apply --expected-hash <PLAN_HASH>` を加え、`READY_FOR_BROWSER_STAGE` を確認する。
+3. `stageApprovedPackage()` をログイン済み統合ブラウザで実行する。runner はbrowser tenantを照合してZIPをstagingし、応答の `AppId` / `MosOperationId` を束縛した**別の finalize plan と hash**を出す。
+4. finalize plan の `AppId`、version、`MosOperationId`、公開範囲（現contractはAll users、Activate None）を確認し、二度目の明示承認を取る。
+5. `finalizeApprovedPackage()` を承認hash付きで実行する。runnerは `FINALIZEPACKAGE` 後に同じTitle ID/versionをread-backする。
+6. Registry の Agent template から agent instance を作成し、instance ID、service principal、UPN、owner / sponsor を記録する。
+
+staging承認はpublish承認を兼ねない。`FINALIZEPACKAGE` は全ユーザーへの公開なので、Step 0の承認が無い場合は実行しない。
+認証、MFA、step-up、consentは自動化せず、利用者がブラウザ上で完了する。
 
 **Add agent が表示されない場合は先へ進まない。** `AI Administrator` の割り当て、Agent 365 の
 利用資格、`devPreview` の場合は管理者自身の Microsoft Copilot ライセンスと Frontier 登録を確認する。

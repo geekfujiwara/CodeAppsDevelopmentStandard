@@ -16,7 +16,7 @@ flowchart LR
     F["Agent 365 ブループリント"] -->|messaging endpoint| S["App Service<br/>Agents SDK アプリ<br/>/api/messages"]
     F --> G["agenticUser.json"]
     G --> E["Teams manifest<br/>manifestVersion: devPreview"]
-    E -->|M365 管理センターで手動アップロード| T["Agent template"]
+    E -->|M365 管理センターbrowser API・二重承認| T["Agent template"]
     T --> N["Instance = agentUser SP"]
     N -->|Teams チャット| S
     S -->|返信: FMI トークン交換| N
