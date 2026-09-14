@@ -60,7 +60,8 @@ Tools > Add tool > Model Context Protocol (MCP) で対象サーバーを選ぶ�
 
 1. agent を reload し、他の未保存変更がないことを確認する。
 2. `mcp_tool_browser_runner.mjs` の `captureToolSave(page, capturePath, stageAndSave)` を使う。
-3. callback 内で Add tool から対象 MCP と接続を選び、Add、Save まで操作する。
+3. callback 内で Add tool から対象 MCP と接続を選び、Addする。tool編集dialogが開くbuildでは
+  MCP toolsのloading完了を待ってConfirmし、Saveがenabledになったことを確認してからSaveする。
 4. helper は対象 gateway PUT を捕捉して `route.abort()` する。サーバーは変更されない。
 5. Save 失敗表示は捕捉のために意図したものなので、agent を reload してローカル編集を破棄する。
 
@@ -149,6 +150,7 @@ reload 後に Tools 一覧でも全toolが表示されることを確認し、ag
 | read-back 0件 / 複数件 / connection reference 不一致 | 公開しない。UI で削除・再追加し、再捕捉する |
 | stale connection / OAuth error | UI で接続を修復し、新しい capture と hash を作る |
 | planner が `Only Invoker authMode is allowed` | UI で対象toolを削除し、利用者接続を選び直して `User` / Invoker でAddする。新しいcaptureとhashを作り、Maker modeをplan改変で回避しない |
+| Add後もSaveが`Fix errors to save` | tool編集dialogのMCP toolsがloading中、またはConfirm未完了の可能性がある。loading完了→Inputs確認→Confirmの順で完了させる。それでも無効ならtoolを外してagent本体のprovisioningを切り分ける |
 
 fallback の UI 手順は、Add tool > MCP > server > connection > Add > Save である。必要な画面に
 Confirm が表示される build では Confirm も実行する。API plan を手修正して schema drift を回避しては

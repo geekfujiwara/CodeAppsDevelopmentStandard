@@ -52,6 +52,10 @@ python scripts/connector_tool_verify.py `
 ツールカードの表示だけでは成功としない。最終応答が完了し、実データ由来の count または許可した
 metadata が返ることを確認する。送信、投稿、作成、更新、削除操作は検証に使わない。
 
+Previewの検証値はchat log全体の`innerText`だけで判定しない。citation番号が直前の数値へ連結され、
+例えばcount `7`とcitation `1`が`71`に見えることがある。回答本文の要素とcitation payloadを分離して
+確認し、両方が一致した値だけを実測結果として記録する。
+
 ## OAuth / consent
 
 既存の有効な Invoker connection が選択された実機検証では、追加時・Preview 実行時とも consent card は
