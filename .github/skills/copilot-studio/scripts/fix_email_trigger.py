@@ -1,8 +1,10 @@
 """
-3つの問題を修正:
+既存環境向けの experimental repair script。3つの問題を修正:
 1. フローを Flow API 経由で有効化
 2. 正しい Flow API ID を取得して ExternalTriggerComponent を更新
 3. エージェントを再公開
+
+新規構築では Copilot Studio UI の Add trigger を使用する。
 """
 import json
 import sys
@@ -22,6 +24,7 @@ from auth_helper import (
     flow_api_call,
     get_token,
 )
+from trigger_contract import build_external_trigger_yaml
 import requests
 from dotenv import load_dotenv
 load_dotenv()
@@ -200,6 +203,13 @@ def step4_fix_external_trigger(flow_api_id):
     print("Step 4: ExternalTriggerComponent の修正")
     print("=" * 60)
 
+    data_yaml = build_external_trigger_yaml(
+        WF_ID,
+        flow_api_id,
+        ENV_ID,
+        "Office 365 Outlook",
+    )
+
     # 既存の Outlook トリガーを削除
     existing = api_get(
         f"botcomponents?$filter=_parentbotid_value eq '{BOT_ID}' and componenttype eq 17"
@@ -216,20 +226,6 @@ def step4_fix_external_trigger(flow_api_id):
     trigger_guid = str(uuid.uuid4())
     prefix = "eml"
     schema = f"{BOT_SCHEMA}.ExternalTriggerComponent.{prefix}.{trigger_guid}"
-
-    # 既存の動作しているトリガーと同じ YAML フォーマットに合わせる
-    # kind: の後はシングル改行、flowId: の後はダブル改行
-    data_yaml = (
-        "kind: ExternalTriggerConfiguration\n"
-        "externalTriggerSource:\n"
-        "  kind: WorkflowExternalTrigger\n"
-        f"  flowId: {WF_ID}\n"
-        "\n"
-        "extensionData:\n"
-        f"  flowName: {flow_api_id}\n"
-        f"  flowUrl: /providers/Microsoft.ProcessSimple/environments/{ENV_ID}/flows/{flow_api_id}\n"
-        "  triggerConnectionType: Office 365 Outlook\n"
-    )
 
     print(f"  YAML データ:\n{data_yaml}")
 
@@ -258,8 +254,7 @@ def step4_fix_external_trigger(flow_api_id):
         print(f"  ✅ ExternalTriggerComponent 再登録成功")
         print(f"     schema: {schema}")
     else:
-        print(f"  ❌ 登録失敗: {r.status_code}")
-        print(f"  {r.text[:1000]}")
+        raise RuntimeError(f"登録失敗: {r.status_code}: {r.text[:1000]}")
 
 
 def step5_publish_bot():
@@ -318,7 +313,7 @@ def main():
     # Step 3: 正しい Flow API ID を取得
     correct_flow_api_id = step3_get_correct_flow_api_id()
     if not correct_flow_api_id:
-        correct_flow_api_id = flow_api_id or WF_ID
+        raise RuntimeError("Flow API ID を確認できないため trigger 登録を中止します")
 
     # Step 4: ExternalTriggerComponent を修正
     step4_fix_external_trigger(correct_flow_api_id)
