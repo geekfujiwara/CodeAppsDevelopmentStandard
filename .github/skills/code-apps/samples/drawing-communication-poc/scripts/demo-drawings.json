@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "generator": "scripts/generate-demo-drawings.mjs",
+  "drawings": [
+    {
+      "hash": "76153eff83a6291c",
+      "drawing": {
+        "schemaVersion": 1,
+        "id": "ex-0001",
+        "templateId": "surface-laptop-exterior",
+        "revision": 1,
+        "sheet": {
+          "size": "A3",
+          "widthMm": 420,
+          "heightMm": 297
+        },
+        "titleBlock": {
+          "drawingNumber": "EX-0001",
+          "title": "ノート PC 外観図（三面図）",
+          "project": "設計レビュー PoC",
+          "designer": "設計担当",
+          "checker": "",
+          "scale": "NTS",
+          "date": "2026-01-05",
+          "note": "寸法は mm。公差は別紙による。"
+        },
+        "parameters": {
+          "bodyWidth": 287,
+          "bodyDepth": 223,
+          "closedHeight": 14.5,
+          "displayBezel": 8,
+          "lidAngle": 118,
+          "keyboardWidth": 252,
+          "keyboardDepth": 106,
+          "touchpadWidth": 115,
+          "touchpadDepth": 76,
+          "portCount": 3
+        },
+        "annotations": []
+      }
+    },
+    {
+      "hash": "805b60b3bda32326",
+      "drawing": {
+        "schemaVersion": 1,
+        "id": "ga-0001",
+        "templateId": "horizontal-pump-assembly",
+        "revision": 1,
+        "sheet": {
+          "size": "A3",
+          "widthMm": 420,
+          "heightMm": 297
+        },
+        "titleBlock": {
+          "drawingNumber": "GA-0001",
+          "title": "横形ポンプ総組立図",
+          "project": "設計レビュー PoC",
+          "designer": "設計担当",
+          "checker": "",
+          "scale": "NTS",
+          "date": "2026-01-06",
+          "note": "寸法は mm。公差は別紙による。"
+        },
+        "parameters": {
+          "baseLength": 1400,
+          "baseWidth": 560,
+          "baseHeight": 150,
+          "shaftCenterHeight": 280,
+          "casingDiameter": 380,
+          "suctionDN": 150,
+          "dischargeDN": 100,
+          "couplingGap": 120,
+          "motorLength": 520,
+          "motorDiameter": 320
+        },
+        "annotations": []
+      }
+    },
+    {
+      "hash": "533c6cf6b2f10897",
+      "drawing": {
+        "schemaVersion": 1,
+        "id": "ly-0001",
+        "templateId": "generic-equipment-layout",
+        "revision": 1,
+        "sheet": {
+          "size": "A3",
+          "widthMm": 420,
+          "heightMm": 297
+        },
+        "titleBlock": {
+          "drawingNumber": "LY-0001",
+          "title": "汎用機器配置図",
+          "project": "設計レビュー PoC",
+          "designer": "設計担当",
+          "checker": "",
+          "scale": "NTS",
+          "date": "2026-01-07",
+          "note": "寸法は mm。公差は別紙による。"
+        },
+        "parameters": {
+          "roomWidth": 16000,
+          "roomDepth": 9000,
+          "gridPitch": 3000,
+          "columns": 4,
+          "rows": 2,
+          "machineWidth": 2200,
+          "machineDepth": 1400,
+          "aisleWidth": 1500,
+          "clearance": 700
+        },
+        "annotations": []
+      }
+    }
+  ]
+}
