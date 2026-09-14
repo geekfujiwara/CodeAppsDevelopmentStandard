@@ -156,18 +156,88 @@ export async function captureMcpSave(page, capturePath, stageAndSave, timeoutMs 
   await context.route(matcher, handler);
   try {
     await stageAndSave();
-    return await Promise.race([
+    const result = await Promise.race([
       captured,
       new Promise((_, reject) => setTimeout(
         () => reject(new Error("Timed out waiting for tool save request")), timeoutMs,
       )),
     ]);
+    await page.reload();
+    return result;
   } finally {
     await context.unroute(matcher, handler);
   }
 }
 
 export const captureToolSave = captureMcpSave;
+
+export function validateMcpConfirmObservation(observation) {
+  if (observation?.dialogCount !== 1
+      || observation.inputsCount < 1
+      || observation.confirmCount !== 1
+      || observation.confirmDisabled) {
+    throw new Error("MCP Confirm dialog is not ready");
+  }
+  if (observation.gatewayWrites !== 0) {
+    throw new Error("MCP Confirm unexpectedly sent a gateway write");
+  }
+  if (observation.dialogCountAfter !== 0 || observation.saveCount !== 1
+      || observation.saveDisabled) {
+    throw new Error("MCP Confirm did not enable the agent Save action");
+  }
+  return observation;
+}
+
+export async function confirmMcpToolDialog(page, settleMs = 500) {
+  const dialog = page.getByRole("dialog");
+  const confirm = dialog.getByRole("button", { name: "Confirm", exact: true });
+  const observation = {
+    dialogCount: await dialog.count(),
+    inputsCount: await dialog.getByText("Inputs", { exact: true }).count(),
+    confirmCount: await confirm.count(),
+    confirmDisabled: true,
+    gatewayWrites: 0,
+    dialogCountAfter: null,
+    saveCount: null,
+    saveDisabled: true,
+  };
+  if (observation.confirmCount === 1) observation.confirmDisabled = await confirm.isDisabled();
+  if (observation.dialogCount !== 1 || observation.inputsCount < 1
+      || observation.confirmCount !== 1 || observation.confirmDisabled) {
+    return validateMcpConfirmObservation(observation);
+  }
+
+  const context = page.context();
+  const matcher = (url) => GATEWAY_PATH.test(new URL(url).pathname);
+  let routeError = null;
+  const handler = async (route) => {
+    try {
+      const request = route.request();
+      if (["DELETE", "PATCH", "POST", "PUT"].includes(request.method())) {
+        observation.gatewayWrites += 1;
+        await route.abort("aborted");
+        return;
+      }
+      await route.continue();
+    } catch (error) {
+      routeError = error;
+    }
+  };
+  await context.route(matcher, handler);
+  try {
+    await confirm.click();
+    await page.waitForTimeout(settleMs);
+  } finally {
+    await context.unroute(matcher, handler);
+  }
+  if (routeError) throw routeError;
+
+  observation.dialogCountAfter = await dialog.count();
+  const save = page.getByRole("button", { name: /^Save(?:$| \()/ });
+  observation.saveCount = await save.count();
+  if (observation.saveCount === 1) observation.saveDisabled = await save.isDisabled();
+  return validateMcpConfirmObservation(observation);
+}
 
 function inheritedHeaders(request) {
   const headers = {};

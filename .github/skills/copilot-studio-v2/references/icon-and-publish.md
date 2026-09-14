@@ -50,9 +50,9 @@ sess.post(f"{API}/bots({bot_id})/Microsoft.Dynamics.CRM.PvaPublish", json={})
 - **公開状態の確認は `pac copilot list`（Published / Active / Provisioned）が正**。
   cliagent では `bots.publishedon` が None のままになることがあるため、これで判断しない。
 
-## MCP を含むエージェントは公開後に「確認(Confirm)」
+## MCP tool dialog の「確認(Confirm)」
 
-MCP サーバーを含む場合、公開後に Copilot Studio UI で MCP サーバーの
-**「確認(Confirm)」が一度必要**になることがある（再公開だけでは解消しないことがある）。
-これを **正常系の最終ステップ**として組み込む。詳細は
-[mcp-servers.md](mcp-servers.md) を参照。
+MCP tool編集dialogにConfirmが表示された場合は、Inputsの読み込み完了後にConfirmし、通常Saveしてから
+公開する。Confirmクリック自体に独立したnetwork requestはなく、editor内でSaveをenabledにする遷移として
+観測されている。公開後に未Confirm状態が見つかった場合も、同じdialogでConfirm、Save、再公開する。
+詳細は [mcp-servers.md](mcp-servers.md) を参照。

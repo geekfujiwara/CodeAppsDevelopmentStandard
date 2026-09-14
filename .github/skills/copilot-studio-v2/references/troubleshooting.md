@@ -15,8 +15,8 @@
 | `Teams channel must be enabled`（set_app_details.py が 404 / ErrorCode 7513） | 作成直後でプロビジョニングが完了しておらず Teams チャネルがまだ張られていない（`deploy_agent.py` の一括実行で頻発）／または Teams + Microsoft 365 チャネルが未有効 | まず `pac copilot list` が **Published / Active / Provisioned** になるのを待って `python set_app_details.py` を単体で再実行する（UI 操作なしで通ることが多い）。それでも 404 なら Copilot Studio UI の「チャネル」で Teams + Microsoft 365 を有効化してから再実行する |
 | API 作成した bot が `synchronizationstatus=Provisioning` のまま、editor の Save が `Fix errors to save`、`pac copilot list` に存在しない | Dataverse の `/bots` POST は成功したが、Copilot component の backend provisioning が開始・完了していない | bot configuration の必須キーだけを確認し、欠落がなければその record への tool 追加を中止する。既存 agent を変更せず、対象環境の UI から専用 v2 agent を新規作成する。`pac copilot list` に現れる実体を検証対象にする |
 | 公開時 `1 missing connection reference` | MCP サーバー追加後に接続参照が正しくバインドされていない | 対象 MCP サーバーを UI から削除→再追加→再公開（references/mcp-servers.md） |
-| 公開後も MCP がエラー | UI の「確認(Confirm)」未実施 | UI で MCP サーバーを **Confirm**（再公開だけでは消えないことがある） |
-| **UI の Confirm を押しても接続できない** | 接続参照バインドが古い状態で残っている（新 UI で頻発） | UI で対象 MCP サーバーを削除→再追加 → 再公開 → UI で再 Confirm（references/mcp-servers.md） |
+| 公開後も MCP がエラー | tool編集dialogの「確認(Confirm)」内容を通常Saveする前に公開した | Inputs読み込み完了 → **Confirm** → agentのSave → 再公開（Confirm自体は独立APIではない） |
+| **UI の Confirm を押しても接続できない** | Confirm後のSave未実施、または接続参照バインドが古い状態で残っている | まずagentをSaveして再公開する。解消しなければ対象MCPを削除→再追加→Confirm→Save→再公開（references/mcp-servers.md） |
 | MCP capture が timeout | Save request の host/path が観測済み契約から変わった、または Save 前に監視を開始していない | API を推測せず停止。統合ブラウザで通信を再観測し、portal build と sanitized method/path/schema を記録する |
 | planner が `Unexpected Copilot Studio gateway URL` | gateway host/path/query の drift、または別環境の capture | 対象環境・bot を確認して再捕捉。allowlist を実測なしで緩めない |
 | planner が `Capture contains unrelated changes` | MCP 以外の未保存変更が Save body に混入 | agent を reload し、MCP 追加だけを行って再捕捉する |

@@ -9,6 +9,10 @@ botcomponent を Dataverse Web API へ直接 INSERT してはいけない。UI �
 > private/unsupported API。Microsoft の公開契約ではない。host/path/schema が変わったら
 > fail closed とし、再捕捉するまで UI 操作へ戻す。
 
+同じbuildでMCP tool編集dialogのConfirmも実機観測した。Confirmクリック自体はnetwork requestを
+送らず、dialogを閉じてagentのSaveをenabledにするeditor内の遷移である。独立したConfirm APIや
+公開後専用の永続化endpointは観測されていない。確定内容は後続の通常Save change-setで保存する。
+
 ## 観測済み契約
 
 | 工程 | method / path | 成功条件 |
@@ -61,9 +65,11 @@ Tools > Add tool > Model Context Protocol (MCP) で対象サーバーを選ぶ�
 1. agent を reload し、他の未保存変更がないことを確認する。
 2. `mcp_tool_browser_runner.mjs` の `captureToolSave(page, capturePath, stageAndSave)` を使う。
 3. callback 内で Add tool から対象 MCP と接続を選び、Addする。tool編集dialogが開くbuildでは
-  MCP toolsのloading完了を待ってConfirmし、Saveがenabledになったことを確認してからSaveする。
-4. helper は対象 gateway PUT を捕捉して `route.abort()` する。サーバーは変更されない。
-5. Save 失敗表示は捕捉のために意図したものなので、agent を reload してローカル編集を破棄する。
+  MCP toolsのloading完了を待ち、`confirmMcpToolDialog(page)`でInputs、Confirm、dialog close、
+  Save enabledを検証してからSaveする。Confirm中にgateway writeが発生した場合はcontract driftとして
+  abortする。
+4. helper は対象 gateway PUT を捕捉して `route.abort()` し、routeを維持したままagentをreloadする。
+  サーバーは変更されず、ローカル編集とUIの自動retryも破棄される。
 
 helper が保存するのは method、URL、request JSON body だけである。`Authorization`、Cookie、CSRF、
 session header、response business data は取得・記録・返却しない。
@@ -152,8 +158,9 @@ reload 後に Tools 一覧でも全toolが表示されることを確認し、ag
 | planner が `Only Invoker authMode is allowed` | UI で対象toolを削除し、利用者接続を選び直して `User` / Invoker でAddする。新しいcaptureとhashを作り、Maker modeをplan改変で回避しない |
 | Add後もSaveが`Fix errors to save` | tool編集dialogのMCP toolsがloading中、またはConfirm未完了の可能性がある。loading完了→Inputs確認→Confirmの順で完了させる。それでも無効ならtoolを外してagent本体のprovisioningを切り分ける |
 
-fallback の UI 手順は、Add tool > MCP > server > connection > Add > Save である。必要な画面に
-Confirm が表示される build では Confirm も実行する。API plan を手修正して schema drift を回避しては
+fallback の UI 手順は、Add tool > MCP > server > connection > Add > Confirm > Save である。
+Confirmはtool編集dialog内の入力確定であり、公開後の独立工程ではない。公開後に同じdialogへConfirmが
+再表示される場合は、Confirmして通常Save、再公開する。API plan を手修正して schema drift を回避しては
 ならない。
 
 ## セキュリティ規約

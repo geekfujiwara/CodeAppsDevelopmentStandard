@@ -7,8 +7,8 @@ PvaPublish アクションを呼ぶ。プロビジョニング直後は一時的
 ★公開状態の確認は `pac copilot list`（Published / Active / Provisioned）が正。
   cliagent では bots.publishedon が None のままになることがある。
 
-★MCP サーバーを含むエージェントは、公開後に Copilot Studio UI で MCP サーバーの
-  「確認(Confirm)」が一度必要（正常系の一部）。再公開だけではエラーが消えないことがある。
+★MCP tool編集dialogに「確認(Confirm)」が表示された場合は、Inputs読み込み完了後に
+    Confirmして通常Saveしてから公開する。Confirm自体は独立APIではない。
   詳細は references/mcp-servers.md を参照。
 
 .env パラメータ:
@@ -67,7 +67,7 @@ def main() -> None:
     print(f"公開: bot={bot_id}")
     publish(sess, bot_id)
     print("確認: pac copilot list（Published / Active / Provisioned）")
-    print("※ MCP を含む場合は UI で MCP サーバーの「確認(Confirm)」が一度必要なことがあります。")
+    print("※ MCP tool dialog が未Confirmなら、Confirm → Save → 再公開してください。")
 
 
 if __name__ == "__main__":

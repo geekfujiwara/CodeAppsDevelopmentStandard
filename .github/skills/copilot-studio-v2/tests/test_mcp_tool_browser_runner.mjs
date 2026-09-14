@@ -5,8 +5,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   canonicalHash,
+  confirmMcpToolDialog,
   loadInitialToolApprovals,
   loadApprovedPlan,
+  validateMcpConfirmObservation,
   validateInitialToolApprovals,
   validatePlan,
   verifyReadBack,
@@ -109,6 +111,73 @@ test("checks approval hash before browser execution", async () => {
   const path = join(tmpdir(), `mcp-plan-${process.pid}.json`);
   await writeFile(path, JSON.stringify(value), "utf8");
   await assert.rejects(loadApprovedPlan(path, "wrong"), /approval hash/);
+});
+
+test("accepts the observed local-only MCP Confirm transition", () => {
+  const observation = {
+    dialogCount: 1,
+    inputsCount: 2,
+    confirmCount: 1,
+    confirmDisabled: false,
+    gatewayWrites: 0,
+    dialogCountAfter: 0,
+    saveCount: 1,
+    saveDisabled: false,
+  };
+  assert.equal(validateMcpConfirmObservation(observation), observation);
+});
+
+test("rejects MCP Confirm gateway writes and incomplete transitions", () => {
+  const observed = {
+    dialogCount: 1,
+    inputsCount: 1,
+    confirmCount: 1,
+    confirmDisabled: false,
+    gatewayWrites: 0,
+    dialogCountAfter: 0,
+    saveCount: 1,
+    saveDisabled: false,
+  };
+  assert.throws(
+    () => validateMcpConfirmObservation({ ...observed, gatewayWrites: 1 }),
+    /unexpectedly sent a gateway write/,
+  );
+  assert.throws(
+    () => validateMcpConfirmObservation({ ...observed, saveDisabled: true }),
+    /did not enable/,
+  );
+});
+
+test("confirms through the observed dialog and removes the exact route", async () => {
+  let dialogCount = 1;
+  let registered = null;
+  let removed = null;
+  const confirm = {
+    count: async () => 1,
+    isDisabled: async () => false,
+    click: async () => { dialogCount = 0; },
+  };
+  const dialog = {
+    count: async () => dialogCount,
+    getByText: () => ({ count: async () => 2 }),
+    getByRole: () => confirm,
+  };
+  const save = { count: async () => 1, isDisabled: async () => false };
+  const context = {
+    route: async (matcher, handler) => { registered = { matcher, handler }; },
+    unroute: async (matcher, handler) => { removed = { matcher, handler }; },
+  };
+  const page = {
+    context: () => context,
+    getByRole: (role) => role === "dialog" ? dialog : save,
+    waitForTimeout: async () => {},
+  };
+
+  const result = await confirmMcpToolDialog(page, 0);
+  assert.equal(result.gatewayWrites, 0);
+  assert.equal(result.saveDisabled, false);
+  assert.equal(registered.matcher, removed.matcher);
+  assert.equal(registered.handler, removed.handler);
 });
 
 test("requires exactly one matching read-back row", () => {
