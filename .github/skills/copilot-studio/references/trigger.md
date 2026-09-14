@@ -25,11 +25,11 @@ Copilot Studio エージェントに **Power Automate フロー経由の外部�
 ❌ API でトリガーフロー（Power Automate）を事前作成 → うまくいかない。接続認証・フローID不一致等の問題が頻発
 ❌ ExternalTriggerComponent を API で登録 → Copilot Studio UI でアイコンが表示されない等の問題が発生
 ❌ フローの有効化を API で実行 → ConnectionAuthorizationFailed で失敗する
-❌ ツール・ナレッジを API で追加 → API では追加不可
+❌ MCP用contractをconnector tool・ナレッジへ流用 → payload discriminatorが異なる
 
 ✅ トリガーの追加は Copilot Studio UI でユーザーが手動実行（UI がフローを自動生成・管理）
 ✅ フローの接続認証・有効化は Power Automate UI でユーザーが手動実行
-✅ ツール・ナレッジも Copilot Studio UI でユーザーが手動追加
+✅ MCP toolは承認付きprivate APIで追加。connector tool・ナレッジは個別contractの実測までUI fallback
 ✅ エージェント公開は Copilot Studio UI または PvaPublish API で実行
 ```
 
@@ -69,7 +69,8 @@ UI がフロー作成・ExternalTriggerComponent 登録・接続参照をすべ�
 | ------------------------ | ----------------- | ----------------------------------------------------- |
 | フローの接続認証・有効化 | Power Automate UI | フローを開く → 接続を認証 → 保存 → オンにする         |
 | トリガーの追加           | Copilot Studio UI | エージェント → トリガー → 追加 → 作成したフローを選択 |
-| ツールの追加             | Copilot Studio UI | エージェント → ツール → コネクタ/MCP Server を追加    |
+| MCP toolの追加           | 承認付きprivate API | `standard_tool_plan.py` + browser runner             |
+| connector toolの追加     | Copilot Studio UI | 個別contractの実測まではUI fallback                  |
 | ナレッジの追加           | Copilot Studio UI | エージェント → ナレッジ → データソースを追加          |
 | エージェントの公開       | Copilot Studio UI | 公開ボタンをクリック                                  |
 

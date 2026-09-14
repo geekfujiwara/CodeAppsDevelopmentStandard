@@ -60,6 +60,7 @@ Copilot Studio エージェントを **生成オーケストレーション（Ge
 | [外部公開 手動認証（SSO）](references/webchat-sdk-manual-auth.md) | Entra ID サインイン必須＋**ユーザー権限で Dataverse アクセス（RLS/OBO）**。2 アプリ登録・FIC（シークレットレス）・OAuth カードの silent トークン交換 |
 | [外部公開 iframe（レガシー・非推奨）](references/external-web-embed.md) | iframe で埋め込む簡易版。UI カスタマイズ不可のため**標準では使わない**。動作確認・PoC 用のみ |
 | [外部トリガー](references/trigger.md) | メール受信・Teams メッセージ・スケジュール等のトリガー追加 |
+| [Standard MCP tool](references/standard-mcp-tools.md) | UI観測済みprivate APIによる承認付きMCP追加とread-back |
 | [トリガーパターン](references/trigger-patterns.md) | トリガーの設定パターン集 |
 | [トラブルシューティング](references/troubleshooting.md) | トリガー関連を中心とした異常系・トラブルシューティング |
 | [ニュース配信エージェント](references/market-research-report.md) | RSS + Web検索 + Work IQ MCP によるニュース収集・配信エージェント構築 |
@@ -321,7 +322,7 @@ if ai_idx >= 0:
 6. **Step 5-6**: エージェント公開 + 説明設定（`deploy_agent.py` はここまで）
 7. **Step 7**: セキュリティ（認証モード）設定 → 公開（`set_agent_security.py`）
 8. **Step 8**: チャネル選択（Web/Teams/Copilot）→ 公開（`set_agent_channels.py`）
-9. **Step 9**: ナレッジ・ツール・トリガーの手動追加案内
+9. **Step 9**: Standard MCP toolを承認付きprivate APIで追加。connector tool・ナレッジ・トリガーは各contractに従う
 
 > **⚠️ 「公開」処理は 3 スクリプトに分離する（一体化禁止）**
 >

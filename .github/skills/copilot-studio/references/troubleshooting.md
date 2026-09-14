@@ -1,5 +1,23 @@
 # Copilot Studio トリガー トラブルシューティング・設計ガイド
 
+## MCP Addをabortした後にtoolが作成された
+
+**症状**: gateway PUTをabortして失敗表示になった後、routeを解除するとtoolが作成された。
+
+**原因**: Add UIが同一PUTを自動retryする。Add buttonがdisabledの間にclickを開始した場合は、loading完了後に
+遅延送信されることもある。最初のrequestだけをabortしても副作用を防げない。
+
+**恒久対策済み**: `standard_tool_browser_runner.mjs`の`captureStandardToolSave()`はCancel/Leave callbackが
+完了するまでrouteを維持する。`releaseApprovedToolSave()`はUIが生成したfresh requestを再検証し、hash不一致時は
+retryをabortしたまま取消を完了する。Addがenabledになる前にclickしない。
+
+## 同じMCP追加なのにapproval hashが毎回変わる
+
+**原因**: `changeToken`と新規`ConnectionReference.id`はruntime生成値で、同じ操作でも変化する。
+
+**恒久対策済み**: Python/Nodeの`canonical_hash` / `canonicalHash`はこの2値だけをplaceholderへ正規化する。
+実値の非空/GUID検証は維持し、それ以外のtarget・connector・operation・connection・payload driftは拒否する。
+
 ## フロー後処理パターン
 
 ### ExecuteCopilot の応答は利用できない（重要）
