@@ -187,3 +187,30 @@ Copilot Analytics 用テーブルもカスタムテーブルであり、プレ�
 `validate_skill.py`は`.git`、`.venv`、`venv`、`__pycache__`、`node_modules`を走査対象から除外する。
 スキル自身の`SKILL.md`、`references/`、`scripts/`、templates/samplesのソースは引き続き走査する。
 除外追加時は、依存物内の検出を無視するtestと、source内の同じ値を検出するtestを対で追加する。
+
+## 19. Private API captureをabortしたのにresourceが作成される
+
+### 原因
+
+UIが失敗したwrite requestを自動retryすることがある。最初のrequestをabortした直後にrouteを解除すると、
+同じ操作のretryだけがserverへ到達する。最初のrequestが失敗した表示だけでは副作用なしを証明できない。
+
+### 対策
+
+対象method/pathのrouteを維持したまま作成画面をcancelまたは離脱し、その後にrouteを解除する。
+capture後は一意name/schema/IDで不存在をread-backする。作成されていた場合は検証resourceとして記録し、
+製品のmanaged delete actionで削除後、404または0件を確認する。
+
+## 20. 単純なDataverse INSERTが失敗したため「API不可」と判断してしまう
+
+### 原因
+
+UI作成requestにはtemplate、完全なconfiguration、discriminator、既定認証値、solution header、icon等が含まれ、
+その組み合わせがserver-side provisioningを起動する場合がある。name/schemaだけのINSERT失敗は、UI contractの
+再現失敗であってAPI経路が存在しない証拠ではない。
+
+### 対策
+
+UIの正常requestをcaptureし、field単位で比較する。観測contractをstrict allowlistとしてplan化し、
+hash承認後にapplyする。HTTP成功後も子componentとruntime状態をread-backする。
+詳細は[private API 自動化標準](private-api-automation.md)を参照。

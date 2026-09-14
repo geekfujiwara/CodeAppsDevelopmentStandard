@@ -43,7 +43,8 @@ triggers:
 
 > 前提ツール: Git、GitHub CLI（`gh`、認証済み）、Python 3。
 > 異常系・詰まりどころは [references/troubleshooting.md](references/troubleshooting.md)、
-> PR の更新/新規判断とマージ順は [references/pr-strategy.md](references/pr-strategy.md) を参照。
+> PR の更新/新規判断とマージ順は [references/pr-strategy.md](references/pr-strategy.md)、
+> ポータル操作の private API 化は [references/private-api-automation.md](references/private-api-automation.md) を参照。
 
 ## スキル同梱スクリプト（再利用）
 
@@ -139,6 +140,10 @@ python .github/skills/update-skills/scripts/validate_skill.py --all
    （→ [ブラウザ自動化方針](../standard/references/browser-automation.md)）。手動 UI 操作は最終手段とし、
    その場合も画面パスとセレクタの目印を明記する。
 3. **CLI 化**: 繰り返す操作は `scripts/` に追加し、本文からはスクリプト呼び出しで参照する。
+4. **private API 化**: 公式API/CLIがないポータル操作は、統合ブラウザで正常なUI requestを観測し、
+   [private API 自動化標準](references/private-api-automation.md)に従ってcapture → plan → hash承認 → apply →
+   read-backまで実装する。HTTP成功だけで完了とせず、非同期に生成される子componentやruntime状態まで検証する。
+   観測時にwrite requestをabortする場合は、UIの自動retryを止めるまでrouteを解除しない。
 
 ### Step 5: PR 戦略を決める（更新 / 新規 + マージ順）
 
@@ -201,6 +206,7 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 - [ ] 会社名・個別 PJ 名・実 GUID/URL/メール/シークレットが無い（`validate_skill.py` が ✅）
 - [ ] 手順の番号は**整数の Step で連番**（飛び・重複なし）
 - [ ] 公式仕様は **Learn MCP** で検証、ブラウザ操作は **VS Code 統合ブラウザ**で自動化
+- [ ] private API はUIの正常requestを観測し、対象固定・全件事前検証・hash承認・read-back・cleanupを実装
 - [ ] ブラウザ起動前に `AskUserQuestion` で Edge プロファイルを確認し、回答前は操作しない
 - [ ] 既存オープン PR を確認（`manage_skill_pr.py`）→ 関連あれば**更新**、無関係なら**新規＋マージ順提示**
 - [ ] push 前に秘匿情報スキャン済み
@@ -210,5 +216,6 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 
 - [スキルカタログ README](../README.md)
 - [サンプルパッケージングガイド（セキュリティ・再利用性・README生成）](references/sample-packaging.md)
+- [private API 自動化標準](references/private-api-automation.md)
 - [PR 戦略（更新/新規・マージ順）](references/pr-strategy.md)
 - [異常系・トラブルシュート](references/troubleshooting.md)
