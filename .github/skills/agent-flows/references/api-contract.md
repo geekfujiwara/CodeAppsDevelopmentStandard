@@ -13,7 +13,9 @@ Validated in a new-UI-enabled environment on 2026-09-09:
 | UI activation capture | PATCH Dataverse workflow with statecode=1/statuscode=2 |
 | Flow API activation fallback | POST mapped `/flows/{flowApiId}/start`; Active/Started readback |
 | Management manual run | HTTP 200, a run and Agent action created |
-| Agent output | HTTP 442 runtime policy block; fixed JSON not yet verified |
+| Existing-Agent discovery | ListAgents returned `agents`; target `agentId` was bot schema name |
+| Direct existing-Agent invoke | HTTP 202 accepted; no immediate transcript, output unverified |
+| Inline Agent output | Prior HTTP 442 and later empty Completed result; fixed JSON not verified |
 | New UI network contract capture | Not completed; do not claim network corroboration |
 
 Configuration and inherited ACP allowed the connector while runtime still returned an older policy refresh.
