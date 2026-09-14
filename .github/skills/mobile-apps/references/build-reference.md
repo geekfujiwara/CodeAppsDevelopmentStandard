@@ -13,7 +13,11 @@
 
 ## 認証
 
-Wrap の環境別 URL:
+2026-09-14にWrap UIで観測した登録処理はprivate endpointではなく、Microsoft Graph v1.0の
+`POST /applications`だった。`register_wrap_application.py`はUIと同じpublic-client redirect URI、
+multi-tenant audience、resource/scope集合を固定contractとしてplanに含める。
+
+UI fallbackの環境別 URL:
 
 ```text
 https://make.powerapps.com/environments/{ENVIRONMENT_ID}/wraps#create-app-registration

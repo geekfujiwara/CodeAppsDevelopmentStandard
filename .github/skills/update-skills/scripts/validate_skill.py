@@ -54,6 +54,20 @@ ALLOWLIST = {
     "37f7f235-527c-4136-accd-4a02d197296e",  # Microsoft Graph openid 委任スコープ ID（固定）
     "14dad69e-099b-42c9-810b-d002981feec1",  # Microsoft Graph profile 委任スコープ ID（固定）
     "78ce3f0f-a1ce-49c2-8cde-64b5c0896db4",  # Dynamics CRM user_impersonation 委任スコープ ID（固定）
+    "fe053c5f-3692-4f14-aef2-ee34fc081cae",  # Power Apps Wrap UI が要求する第一者 resource app ID（固定）
+    "6c3012bf-22c1-4bb5-959b-dff738314144",  # Power Apps Wrap UI が要求する委任スコープ ID（固定）
+    "e1fe6dd8-ba31-4d61-89e7-88639da4683d",  # Microsoft Graph User.Read 委任スコープ ID（固定）
+    "475226c6-020e-4fb2-8a90-7a972cbfc1d4",  # Power Apps Wrap UI が要求する第一者 resource app ID（固定）
+    "0eb56b90-a7b5-43b5-9402-8137a8083e90",  # Power Apps Wrap UI が要求する委任スコープ ID（固定）
+    "00000009-0000-0000-c000-000000000000",  # Power BI Service 第一者 app ID（固定）
+    "2448370f-f988-42cd-909c-6528efd67c1a",  # Power Apps Wrap UI が要求する委任スコープ ID（固定）
+    "8578e004-a5c6-46e7-913e-12f58912df43",  # Power Apps Wrap UI が要求する第一者 resource app ID（固定）
+    "5991ee89-0511-4700-b3be-d42ef2e7d61d",  # Power Apps Wrap UI が要求する委任スコープ ID（固定）
+    "5322d31f-39c1-4756-9c92-ae069c366b70",  # Power Apps Wrap UI が要求する委任スコープ ID（固定）
+    "41e78a9d-569c-4929-ad5e-5ab23eeb83f4",  # Power Apps Wrap UI が要求する委任スコープ ID（固定）
+    "d0ac573f-48ce-4693-88c1-8fa719eb8b45",  # Power Apps Wrap UI が要求する委任スコープ ID（固定）
+    "5d973cb3-b843-4baf-bc35-646ccb9181ce",  # Power Apps Wrap UI が要求する委任スコープ ID（固定）
+    "f0d8fd94-fdad-465b-b174-c37a1470196b",  # Power Apps Wrap UI が要求する委任スコープ ID（固定）
     "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",  # Azure 組み込みロール Storage Blob Data Owner のロール定義 ID（固定）
     "9cee029c-6210-4654-90bb-17e6e9d36617",  # Power Platform CLI のパブリック クライアント ID（固定）
     "14d82eec-204b-4c2f-b7e8-296a70dab67e",  # Microsoft Graph PowerShell のパブリック クライアント ID（固定）

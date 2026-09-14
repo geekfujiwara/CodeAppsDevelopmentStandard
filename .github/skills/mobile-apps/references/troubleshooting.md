@@ -15,10 +15,14 @@ npx --yes --package @microsoft/power-apps-cli@1.0.1 pa app init --help
 
 ## Wrap sign-in が失敗する
 
+- `register_wrap_application.py`のapply reportが`created-verified`か確認する
 - Wrap で作成した Application (client) ID か確認する
 - `auth.config.json` の tenant ID が選択環境と同じか確認する
 - redirect URI／API permission を独自追加していないか確認する
 - client secret や token を設定ファイルに入れない
+
+検証用registrationの削除はreport内のobject ID、client ID、display nameを再取得して一致確認する
+`cleanup`を使う。Entra管理画面で名前だけを見て削除しない。
 
 ## camera／location module が見つからない
 
