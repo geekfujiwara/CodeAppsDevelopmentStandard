@@ -7,7 +7,23 @@
     <RootNamespace>${AGENT_NAMESPACE}</RootNamespace>
     <AssemblyName>${AGENT_NAMESPACE}</AssemblyName>
     <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- GEEK:BLOCK:RTCOPILOT:START -->
+    <!-- BearerTokenProvider (BYOK) is still marked experimental in the Copilot SDK. -->
+    <NoWarn>$(NoWarn);GHCP001</NoWarn>
+    <!-- GEEK:BLOCK:RTCOPILOT:END -->
   </PropertyGroup>
+
+  <!-- GEEK:BLOCK:RTCOPILOT:START -->
+  <!--
+    The Copilot SDK downloads the runtime for one RID only, chosen from RuntimeIdentifier.
+    Release builds are what gets published to the Linux App Service, so they must target linux-x64;
+    Debug keeps the host RID so the agent still runs locally.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+  <!-- GEEK:BLOCK:RTCOPILOT:END -->
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Agents.Hosting.AspNetCore" Version="1.*" />
@@ -17,7 +33,7 @@
     <PackageReference Include="Azure.Identity" Version="1.*" />
     <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.*" />
     <!-- GEEK:BLOCK:RTCOPILOT:START -->
-    <PackageReference Include="GitHub.Copilot.SDK" Version="0.*" />
+    <PackageReference Include="GitHub.Copilot.SDK" Version="1.*" />
     <!-- GEEK:BLOCK:RTCOPILOT:END -->
   </ItemGroup>
 

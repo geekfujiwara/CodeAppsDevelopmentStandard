@@ -10,7 +10,8 @@
 // アプリ設定（__ が階層区切り）:
 //   Sandbox__Enabled        = true
 //   Sandbox__Endpoint       = ARM が返す poolManagementEndpoint（手で組み立てない）
-//   Sandbox__ApiVersion     = 2025-02-02-preview
+//   Sandbox__ApiVersion     = 2024-02-02-preview（ARM の api-version とは別軸。新しい値ほど良いとは限らず、
+//                             合っていないとプールは Succeeded のまま /code/execute だけが 401 になる）
 //   Sandbox__TimeoutSeconds = 300
 
 using System.Net.Http.Headers;
@@ -36,7 +37,7 @@ public sealed class CodeSandbox(
 
     private string? Endpoint => configuration["Sandbox:Endpoint"]?.TrimEnd('/');
 
-    private string ApiVersion => configuration["Sandbox:ApiVersion"] ?? "2025-02-02-preview";
+    private string ApiVersion => configuration["Sandbox:ApiVersion"] ?? "2024-02-02-preview";
 
     public bool IsConfigured => !string.IsNullOrEmpty(Endpoint);
 

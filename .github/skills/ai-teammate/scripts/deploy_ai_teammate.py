@@ -262,10 +262,21 @@ def check_settings_consistency(target: Path, env: dict[str, str]) -> list[str]:
         config = settings.get(section)
         if not isinstance(config, dict) or not config.get("Enabled"):
             continue
+        # The source file on disk is the authority, not scaffold-plan.json: a project that was
+        # hand-edited (or scaffolded before the plan file existed) still has to be caught here.
+        # This is the failure that costs a user a whole turn — the prompt promises the capability,
+        # the settings claim it is on, and the tool was never registered, so the agent writes code
+        # it cannot run and returns nothing.
+        if not (target / source_file).is_file():
+            problems.append(
+                f"appsettings {section}.Enabled is true but {source_file} is missing "
+                f"(={block} was never scaffolded); set Enabled to false or re-scaffold with {block}"
+            )
+            continue
         if blocks and block not in blocks:
             problems.append(
-                f"appsettings {section}.Enabled is true but {block} was not scaffolded "
-                f"(no {source_file}); set Enabled to false or re-scaffold with {block}"
+                f"appsettings {section}.Enabled is true but {block} is not in scaffold-plan.json; "
+                f"re-scaffold with {block} so its tools are registered"
             )
             continue
         value = str(config.get(endpoint_key, ""))

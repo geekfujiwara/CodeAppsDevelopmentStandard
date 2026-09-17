@@ -109,7 +109,7 @@ public static string SessionId(string? key) =>
 同じ会話 → 同じセッション → `/mnt/data` と変数が続く。
 別の会話 → 別のセッション → 互いのファイルは見えない。この対応付けが**そのまま情報の境界**になる。
 
-## 5. REST の形（実測・`api-version=2025-02-02-preview`）
+## 5. REST の形（実測・`api-version=2024-02-02-preview`）
 
 ```http
 POST {endpoint}/executions?api-version={ver}&identifier={sid}

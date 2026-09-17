@@ -442,11 +442,55 @@ $scope = ((@($Scopes | ForEach-Object { "$Resource/$_" })) + 'offline_access') -
 - エンドポイントを手で組み立てている。ARM が返す `properties.poolManagementEndpoint` を**そのまま**使う。
 
   ```bash
-  az rest --method GET --url "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.App/sessionPools/<pool>?api-version=2025-02-02-preview" --query properties.poolManagementEndpoint
+  az rest --method GET --url "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.App/sessionPools/<pool>?api-version=2026-01-01" --query properties.poolManagementEndpoint
   ```
 
   リージョン表記やホスト名は環境によって変わる。形が分かるからといって文字列連結で作らない。
 - `identifier` クエリ文字列が抜けている場合も 404 になる。全リクエストに付ける。
+
+## 26.1 プール作成が `InvalidSessionPoolConfiguration` で 400 になる（B12）
+
+```
+Unexpected value: 'dynamicPoolConfiguration.lifecycleConfiguration.cooldownPeriodInSeconds'.
+'Must not be null and be >= 300 and be <= 3600.'
+```
+
+- `dynamicPoolConfiguration` の形が変わった。`executionType` / `cooldownPeriodInSeconds` を
+  直下に置く古い形は受け付けられない。`lifecycleConfiguration` の下に入れる。
+
+  ```jsonc
+  "dynamicPoolConfiguration": {
+    "lifecycleConfiguration": {
+      "lifecycleType": "Timed",          // 'OnContainerExit' | 'Timed'
+      "cooldownPeriodInSeconds": 300     // Timed のときに使う。300〜3600
+    }
+  }
+  ```
+
+- エラー文が「その値は想定外」と「300〜3600 にしろ」を 1 文で言うため、範囲の問題だと読み違えやすい。
+  範囲を変えても直らない。**プロパティの位置**が原因。
+- `scripts/provision_code_sandbox.py` は現行スキーマで組み立てるので、手で `az rest` を叩かない。
+
+## 26.2 プールは Succeeded なのに `/code/execute` だけが 401 になる（B12）
+
+- **ARM の `api-version` とセッション実行の `api-version` は別軸**。ARM 側を新しくしたついでに
+  `Sandbox__ApiVersion` も新しくすると、プールは健全なまま実行だけが 401 で落ちる。
+  401 なので認証・ロールの問題に見えるが、ロールは正しく付いている。
+- 実測（同一プール・同一トークン）:
+
+  | api-version | `/code/execute` |
+  |---|---|
+  | `2024-02-02-preview` | 200 |
+  | `2024-10-02-preview` / `2025-02-02-preview` / `2025-07-01` / `2026-01-01` | 401 |
+
+- 判別方法: ロールを持つ ID で 1 行だけ実行してみる。ロール不足なら 403、バージョン違いなら 401 になる。
+
+  ```bash
+  python scripts/provision_code_sandbox.py --check --smoke-test
+  ```
+
+  `--smoke-test` は実際に `print()` を 1 回通すので、**利用者の最初の依頼より先に**この違いを検出できる。
+  呼び出し元自身がプールに対する Executor ロールを持っている必要がある。
 
 ## 27. サンドボックスの中で `pip install` が必ず失敗する（B12）
 
