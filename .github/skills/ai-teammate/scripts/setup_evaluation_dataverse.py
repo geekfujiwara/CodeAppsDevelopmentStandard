@@ -73,7 +73,7 @@ def _resolve_auth_helper_dir() -> str:
 
 
 sys.path.insert(0, _resolve_auth_helper_dir())
-from auth_helper import api_get, api_post, retry_metadata  # noqa: E402
+from auth_helper import api_get, api_patch, api_post, retry_metadata  # noqa: E402
 
 
 def load_dotenv(path: Path) -> dict[str, str]:
@@ -143,15 +143,41 @@ def build_column_body(col: dict) -> dict:
 
 
 def build_tables(prefix: str) -> list[dict]:
-    """Table/column definitions for the four evaluation-hub tables, matching the ``F`` / ``RF`` /
-    ``XF`` / ``JF`` column maps the evaluation-app TypeScript reads (src/lib/eval-*.ts)."""
+    """Table/column definitions for the evaluation-hub tables, matching the ``F`` / ``RF`` /
+    ``XF`` / ``JF`` column maps the evaluation-app TypeScript reads (src/lib/eval-*.ts).
+
+    Agent identity lives in ``<prefix>_agentkey``, never in the publisher prefix: one hub holds
+    many teammates, and the prefix belongs to the solution. The key is a plain string rather than
+    a lookup on purpose - a teammate must be able to log its turns before anyone has registered
+    it in the master table, otherwise telemetry disappears exactly when onboarding goes wrong."""
     return [
+        {
+            "logical": f"{prefix}_evalagent",
+            "display": "AI チームメイト",
+            "plural": "AI チームメイト",
+            "description": "評価 Hub が管理する AI チームメイトのマスタ",
+            "columns": [
+                {"logical": f"{prefix}_agentkey", "display": "Agent Key", "type": "String", "maxLength": 100},
+                {"logical": f"{prefix}_role", "display": "Role", "type": "String", "maxLength": 200},
+                {"logical": f"{prefix}_description", "display": "Description", "type": "Memo", "maxLength": 4000},
+                {"logical": f"{prefix}_managerkey", "display": "Manager Key", "type": "String", "maxLength": 100},
+                {"logical": f"{prefix}_upn", "display": "UPN", "type": "String", "maxLength": 200},
+                {"logical": f"{prefix}_agenticuserid", "display": "Agentic User Id", "type": "String", "maxLength": 100},
+                {"logical": f"{prefix}_webappname", "display": "Web App Name", "type": "String", "maxLength": 200},
+                {"logical": f"{prefix}_endpoint", "display": "Endpoint", "type": "String", "maxLength": 500},
+                {"logical": f"{prefix}_photourl", "display": "Photo Url", "type": "String", "maxLength": 500},
+                {"logical": f"{prefix}_skills", "display": "Skills", "type": "Memo", "maxLength": 100_000},
+                {"logical": f"{prefix}_status", "display": "Status", "type": "Picklist", "options": [(1, "稼働中"), (2, "停止中"), (3, "構築中"), (4, "廃止")]},
+                {"logical": f"{prefix}_sortorder", "display": "Sort Order", "type": "Integer", "minValue": 0, "maxValue": 100_000},
+            ],
+        },
         {
             "logical": f"{prefix}_evalturn",
             "display": "評価ターン",
             "plural": "評価ターン",
             "description": "AI チームメイトが処理した 1 会話ターンのミラー（評価対象）",
             "columns": [
+                {"logical": f"{prefix}_agentkey", "display": "Agent Key", "type": "String", "maxLength": 100},
                 {"logical": f"{prefix}_runid", "display": "Run Id", "type": "String", "maxLength": 100},
                 {"logical": f"{prefix}_evaluatedon", "display": "Evaluated On", "type": "DateTime"},
                 {"logical": f"{prefix}_occurredon", "display": "Occurred On", "type": "DateTime"},
@@ -196,6 +222,7 @@ def build_tables(prefix: str) -> list[dict]:
             "plural": "評価結果",
             "description": "1 (ターン, ルール) 組ごとの採点結果",
             "columns": [
+                {"logical": f"{prefix}_agentkey", "display": "Agent Key", "type": "String", "maxLength": 100},
                 {"logical": f"{prefix}_turnname", "display": "Turn Name", "type": "String", "maxLength": 200},
                 {"logical": f"{prefix}_rulekey", "display": "Rule Key", "type": "String", "maxLength": 100},
                 {"logical": f"{prefix}_rulename", "display": "Rule Name", "type": "String", "maxLength": 200},
@@ -213,6 +240,7 @@ def build_tables(prefix: str) -> list[dict]:
             "plural": "評価ジョブ",
             "description": "評価実行の待ち行列と進捗",
             "columns": [
+                {"logical": f"{prefix}_agentkeys", "display": "Agent Keys", "type": "String", "maxLength": 2000},
                 {"logical": f"{prefix}_status", "display": "Status", "type": "Picklist", "options": [(1, "待機中"), (2, "実行中"), (3, "完了"), (4, "失敗"), (5, "キャンセル")]},
                 {"logical": f"{prefix}_scope", "display": "Scope", "type": "Picklist", "options": [(1, "未評価のみ"), (2, "全件"), (3, "期間指定")]},
                 {"logical": f"{prefix}_rulekeys", "display": "Rule Keys", "type": "String", "maxLength": 2000},
@@ -364,7 +392,41 @@ def run_check(prefix: str, solution_name: str) -> int:
     return 0
 
 
-def run_execute(prefix: str, solution_name: str) -> int:
+def register_agent(prefix: str, env: dict[str, str]) -> None:
+    """Upsert this teammate's master row so the hub can name it, place it on the org chart and
+    filter by it. Keyed on the agent key, never on the publisher prefix."""
+    key = (env.get("AGENT_NAME") or "").strip()
+    if not key:
+        print("WARN: AGENT_NAME is not set; skipping master registration.", file=sys.stderr)
+        return
+
+    record = {
+        f"{prefix}_name": (env.get("AGENT_DISPLAY_NAME") or key).strip(),
+        f"{prefix}_agentkey": key,
+        f"{prefix}_role": (env.get("AGENT_ROLE") or "").strip(),
+        f"{prefix}_managerkey": (env.get("AGENT_MANAGER_KEY") or "").strip(),
+        f"{prefix}_agenticuserid": (env.get("AGENTIC_USER_ID") or "").strip(),
+        f"{prefix}_webappname": (env.get("AGENT_WEBAPP_NAME") or "").strip(),
+        f"{prefix}_status": 1,
+    }
+    record = {name: value for name, value in record.items() if value != ""}
+
+    entity_set = f"{prefix}_evalagents"
+    query = f"{entity_set}?$select={prefix}_evalagentid&$filter={prefix}_agentkey eq '{key}'"
+    rows = api_get(query).get("value", [])
+    if rows:
+        # Display name and role are edited in the hub, so a redeploy must not overwrite them.
+        volatile = {name: value for name, value in record.items() if name.endswith(("_webappname", "_agenticuserid"))}
+        if volatile:
+            api_patch(f"{entity_set}({rows[0][f'{prefix}_evalagentid']})", volatile)
+        print(f"OK: teammate '{key}' is already registered.")
+        return
+
+    api_post(entity_set, record)
+    print(f"OK: registered teammate '{key}' in {entity_set}.")
+
+
+def run_execute(prefix: str, solution_name: str, env: dict[str, str]) -> int:
     solution_id = get_solution_id(solution_name)
     if solution_id is None:
         print(f"NG: solution '{solution_name}' does not exist. Create it first (dataverse skill).", file=sys.stderr)
@@ -388,6 +450,7 @@ def run_execute(prefix: str, solution_name: str) -> int:
 
     publish_all()
     print(f"OK: {len(tables)} evaluation-hub tables verified/created in solution '{solution_name}'.")
+    register_agent(prefix, env)
     return 0
 
 
@@ -412,7 +475,7 @@ def main() -> int:
 
     if args.check:
         return run_check(prefix, solution_name)
-    return run_execute(prefix, solution_name)
+    return run_execute(prefix, solution_name, env)
 
 
 if __name__ == "__main__":

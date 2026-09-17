@@ -18,6 +18,7 @@ public sealed class EvaluationDataverse
     private readonly ILogger<EvaluationDataverse> _logger;
     private readonly string _api;
     private readonly string _scope;
+    private readonly string _agentKey;
 
     public EvaluationDataverse(
         IConfiguration configuration,
@@ -33,6 +34,9 @@ public sealed class EvaluationDataverse
         Enabled = configuration.GetValue("Evaluation:SyncToDataverse", true) && org.Length > 0;
         _api = $"{org}/api/data/v9.2";
         _scope = $"{org}/.default";
+        // Which teammate wrote this row. The hub holds many of them, so identity cannot come from
+        // the publisher prefix - that belongs to the solution, not to any one agent.
+        _agentKey = configuration["Agent:Key"] ?? "";
 
         if (Enabled)
         {
@@ -62,6 +66,7 @@ public sealed class EvaluationDataverse
             var record = new Dictionary<string, object?>
             {
                 ["${PUBLISHER_PREFIX}_name"] = row.RowId,
+                ["${PUBLISHER_PREFIX}_agentkey"] = _agentKey,
                 ["${PUBLISHER_PREFIX}_occurredon"] = row.OccurredOn,
                 ["${PUBLISHER_PREFIX}_actor"] = row.Actor ?? "",
                 ["${PUBLISHER_PREFIX}_source"] = row.Source ?? "",

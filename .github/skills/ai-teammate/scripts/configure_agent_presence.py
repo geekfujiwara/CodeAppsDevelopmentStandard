@@ -40,12 +40,15 @@ def load_env(path: Path) -> None:
 
 
 def az(*args: str) -> str:
+    # az emits UTF-8, but text=True decodes with the console locale: on a Japanese Windows host
+    # that is cp932 and any non-ASCII display name in the response aborts the run.
     result = subprocess.run(
-        ["az", *args], capture_output=True, text=True, shell=(os.name == "nt")
+        ["az", *args], capture_output=True, text=True,
+        encoding="utf-8", errors="replace", shell=(os.name == "nt"),
     )
     if result.returncode != 0:
-        raise RuntimeError(f"az {' '.join(args)} failed:\n{result.stderr.strip()}")
-    return result.stdout.strip()
+        raise RuntimeError(f"az {' '.join(args)} failed:\n{(result.stderr or '').strip()}")
+    return (result.stdout or "").strip()
 
 
 def az_json(*args: str):

@@ -58,13 +58,15 @@ REQUIRED_ENV = (
 SECRET_KEY_HINTS = ("SECRET", "PASSWORD", "TOKEN", "KEY")
 
 # Feature blocks whose appsettings section points at something that has to be provisioned first:
-# block -> (section, key that must be resolved, the C# file the block scaffolds).
+# block -> (section, key that must be resolved or None, the C# file the block scaffolds).
 FEATURE_SECTIONS = {
+    "B7": ("Presence", None, "PresenceWorker.cs"),
+    "B10": ("WebSearch", None, "WebSearchTools.cs"),
     "B12": ("Sandbox", "Endpoint", "CodeSandbox.cs"),
     "B17": ("ImageGeneration", "Deployment", "ImageGenerationTools.cs"),
 }
 # `<prefix>_evalturn` and friends, as compiled into the agent's Dataverse calls.
-PREFIXED_TABLE_PATTERN = re.compile(r"\b([a-z][a-z0-9_]*?)_eval(?:turn|rule|result|job)s?\b")
+PREFIXED_TABLE_PATTERN = re.compile(r"\b([a-z][a-z0-9_]*?)_eval(?:turn|rule|result|job|agent)s?\b")
 
 
 @dataclass(frozen=True)
@@ -279,8 +281,8 @@ def check_settings_consistency(target: Path, env: dict[str, str]) -> list[str]:
                 f"re-scaffold with {block} so its tools are registered"
             )
             continue
-        value = str(config.get(endpoint_key, ""))
-        if "${" in value or not value:
+        value = str(config.get(endpoint_key, "")) if endpoint_key else ""
+        if endpoint_key and ("${" in value or not value):
             problems.append(
                 f"appsettings {section}.Enabled is true but {section}.{endpoint_key} is unresolved "
                 f"({value or 'empty'}); provision it first or set Enabled to false"
