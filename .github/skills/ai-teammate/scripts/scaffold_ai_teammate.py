@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -552,7 +553,28 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--plan", action="store_true", help="Print the resolved plan without writing files")
     parser.add_argument("--deploy", action="store_true", help="Validate deployment values after scaffolding")
     parser.add_argument("--force", action="store_true", help="Merge into a non-empty target")
+    parser.add_argument(
+        "--no-skills", action="store_true",
+        help="Do not install the default Agent Skills bundle into the scaffolded agent.",
+    )
     return parser.parse_args()
+
+
+def install_skills(target: Path, env: dict[str, str]) -> None:
+    """A teammate with no skills still answers, just without any of the procedures its role
+    implies, so the default is to start complete rather than to start empty. Skipped silently
+    when the release cannot be reached: scaffolding offline is still useful."""
+    script = Path(__file__).resolve().parent / "install_agent_skills.py"
+    command = [sys.executable, str(script), "--target", str(target), "--env", str(target / ".env")]
+    result = subprocess.run(command, capture_output=True, text=True, env={**os.environ, **env})
+    if result.returncode == 0:
+        print(result.stdout.strip())
+    else:
+        print(
+            f"WARN: skills were not installed ({result.stderr.strip() or 'unknown error'}).\n"
+            f"      Run: python scripts/install_agent_skills.py --target {target}",
+            file=sys.stderr,
+        )
 
 
 def main() -> int:
@@ -567,11 +589,8 @@ def main() -> int:
             return 0
         scaffold(plan, env, args.force)
         print(f"OK: scaffolded {plan.agent_name} at {plan.target} (runtime={plan.runtime})")
-        if "B12" in plan.blocks:
-            print(
-                "Next: python scripts/provision_code_sandbox.py --write .env"
-                " (B12 needs SANDBOX_ENDPOINT before the agent can run code)"
-            )
+        if not args.no_skills:
+            install_skills(plan.target, env)
         print("Next: run python scripts/deploy_ai_teammate.py --check")
         return 0
     except (OSError, ValueError, json.JSONDecodeError) as error:

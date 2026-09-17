@@ -43,6 +43,36 @@ public sealed class CopilotRuntime(
             ? configured
             : ["bash", "edit", "write"];
 
+    /// <summary>
+    /// Skill folders shipped with the agent. Host discovery stays off, so this is the only way a
+    /// SKILL.md reaches the runtime: an agent must not inherit whatever sits on its host.
+    /// Returns empty when the folder has no skills, which keeps <c>EnableSkills</c> honest.
+    /// </summary>
+    public string[] SkillDirectories
+    {
+        get
+        {
+            if (!configuration.GetValue("Skills:Enabled", true))
+            {
+                return [];
+            }
+
+            string configured = configuration["Skills:Directory"] is { Length: > 0 } value
+                ? value
+                : Path.Combine(AppContext.BaseDirectory, "skills");
+            string resolved = Path.IsPathRooted(configured)
+                ? configured
+                : Path.Combine(AppContext.BaseDirectory, configured);
+            if (!Directory.Exists(resolved) || !Directory.EnumerateFiles(resolved, "SKILL.md", SearchOption.AllDirectories).Any())
+            {
+                logger.LogWarning("Skills are enabled but {Directory} holds no SKILL.md; running without skills", resolved);
+                return [];
+            }
+
+            return [resolved];
+        }
+    }
+
     public ProviderConfig CreateProvider() => new()
     {
         Type = "openai",

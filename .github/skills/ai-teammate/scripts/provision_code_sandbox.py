@@ -30,10 +30,13 @@ from pathlib import Path
 
 ARM = "https://management.azure.com"
 API_VERSION = "2026-01-01"
-# dynamicsessions.io のコード実行は ARM とは別のバージョン軸。ARM 側の値を流用すると
-# プールは Succeeded なのに /code/execute だけが 401 で落ちる（実測：2024-10-02-preview /
-# 2025-02-02-preview / 2025-07-01 / 2026-01-01 はいずれも 401、通るのは 2024-02-02-preview のみ）。
-DATA_API_VERSION = "2024-02-02-preview"
+# dynamicsessions.io のコード実行は ARM とは別のバージョン軸。さらに **ルートと api-version は対**で、
+# 新しい方が良いとは限らない（実測）:
+#   /executions   … 2024-10-02-preview / 2025-02-02-preview のみ 200。応答は {status, result:{stdout}}
+#   /code/execute … 2024-02-02-preview のみ 200。応答は {properties:{status, stdout}}
+# CodeSandbox.cs は /executions を使うのでこちらに揃える。
+DATA_API_VERSION = "2025-02-02-preview"
+EXECUTIONS_ROUTE = "executions"
 SANDBOX_SCOPE = "https://dynamicsessions.io/.default"
 EXECUTOR_ROLE = "Azure ContainerApps Session Executor"
 CONTAINER_TYPES = ("PythonLTS",)
@@ -184,22 +187,21 @@ def assert_role_granted(principal_id: str, scope: str) -> None:
 
 
 def smoke_test(endpoint: str) -> str:
-    """Execute one line of Python. A healthy pool can still reject the data-plane api-version,
-    and that failure would otherwise appear only when a user asks the agent for a document."""
+    """Execute one line of Python over the exact route and api-version CodeSandbox.cs uses.
+    Probing a different route proves nothing: the two routes accept disjoint api-versions, so a
+    green smoke test on the wrong one would certify a combination the agent never calls."""
     import urllib.error
     import urllib.request
 
     token = az("account", "get-access-token", "--scope", SANDBOX_SCOPE, "--query", "accessToken", "-o", "tsv")
     url = (
-        f"{endpoint.rstrip('/')}/code/execute"
+        f"{endpoint.rstrip('/')}/{EXECUTIONS_ROUTE}"
         f"?api-version={DATA_API_VERSION}&identifier=provisioning-smoke-test"
     )
     payload = json.dumps({
-        "properties": {
-            "codeInputType": "inline",
-            "executionType": "synchronous",
-            "code": "print('sandbox ok')",
-        }
+        "codeInputType": "inline",
+        "executionType": "synchronous",
+        "code": "print('sandbox ok')",
     }).encode("utf-8")
     request = urllib.request.Request(
         url, data=payload, method="POST",
@@ -213,14 +215,13 @@ def smoke_test(endpoint: str) -> str:
         hint = (
             " The caller must hold the executor role on the pool; the agent identity having it is not enough."
             if exc.code == 403 else
-            f" api-version={DATA_API_VERSION} may no longer be accepted by this pool."
+            f" api-version={DATA_API_VERSION} is not accepted on /{EXECUTIONS_ROUTE} by this pool."
             if exc.code == 401 else ""
         )
         raise SystemExit(f"Sandbox smoke test failed: HTTP {exc.code}.{hint} {detail}")
-    status = body.get("properties", {}).get("status")
-    if status != "Success":
-        raise SystemExit(f"Sandbox smoke test returned status {status}: {json.dumps(body)}")
-    return (body["properties"].get("stdout") or "").strip()
+    if body.get("status") != "Succeeded":
+        raise SystemExit(f"Sandbox smoke test returned status {body.get('status')}: {json.dumps(body)}")
+    return (body.get("result", {}).get("stdout") or "").strip()
 
 
 def main() -> int:

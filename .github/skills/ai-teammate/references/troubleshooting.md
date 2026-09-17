@@ -471,26 +471,29 @@ Unexpected value: 'dynamicPoolConfiguration.lifecycleConfiguration.cooldownPerio
   範囲を変えても直らない。**プロパティの位置**が原因。
 - `scripts/provision_code_sandbox.py` は現行スキーマで組み立てるので、手で `az rest` を叩かない。
 
-## 26.2 プールは Succeeded なのに `/code/execute` だけが 401 になる（B12）
+## 26.2 プールは Succeeded なのに実行だけが 401 になる（B12）
 
-- **ARM の `api-version` とセッション実行の `api-version` は別軸**。ARM 側を新しくしたついでに
-  `Sandbox__ApiVersion` も新しくすると、プールは健全なまま実行だけが 401 で落ちる。
-  401 なので認証・ロールの問題に見えるが、ロールは正しく付いている。
+- **ルートと `api-version` は対**で、しかも ARM の `api-version` とも別軸。新しい値ほど良いとは限らない。
+  ロールは正しく付いているので認証の問題に見えるが、原因は組み合わせ。
 - 実測（同一プール・同一トークン）:
 
-  | api-version | `/code/execute` |
-  |---|---|
-  | `2024-02-02-preview` | 200 |
-  | `2024-10-02-preview` / `2025-02-02-preview` / `2025-07-01` / `2026-01-01` | 401 |
+  | ルート | 通る `api-version` | 応答の形 |
+  |---|---|---|
+  | `/executions` | `2024-10-02-preview` / `2025-02-02-preview` | `{ status, result: { stdout, stderr, executionTimeInMilliseconds } }` |
+  | `/code/execute` | `2024-02-02-preview` | `{ properties: { status, stdout, stderr } }` |
 
-- 判別方法: ロールを持つ ID で 1 行だけ実行してみる。ロール不足なら 403、バージョン違いなら 401 になる。
+  `/executions` に `2024-02-02-preview` や `2025-07-01` / `2026-01-01` を付けると 401。
+  `CodeSandbox.cs` は `/executions` を使うので `2025-02-02-preview` に揃える。
+- **疎通確認は製品コードと同じルートで行う**。片方のルートで緑になっても、
+  api-version の受け付け範囲が重ならないので、エージェントが実際に叩く組み合わせは何も検証できていない。
+  `provision_code_sandbox.py --check --smoke-test` は `CodeSandbox.cs` と同じ `/executions` を叩く。
 
   ```bash
   python scripts/provision_code_sandbox.py --check --smoke-test
   ```
 
-  `--smoke-test` は実際に `print()` を 1 回通すので、**利用者の最初の依頼より先に**この違いを検出できる。
-  呼び出し元自身がプールに対する Executor ロールを持っている必要がある。
+  呼び出し元自身がプールに対する Executor ロールを持っている必要がある（ロール不足なら 403、
+  組み合わせ違いなら 401 なので、ステータス コードで切り分けられる）。
 
 ## 27. サンドボックスの中で `pip install` が必ず失敗する（B12）
 

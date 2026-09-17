@@ -448,6 +448,25 @@ def build_pre_connection_steps(target: Path, env: dict[str, str], skill_root: Pa
             (sys.executable, str(skill_root / "scripts" / "provision_selfhost.py"), "--write", str(env_path)),
             target,
         ),
+    ]
+    if "B12" in blocks:
+        # Must run after provision_selfhost.py (it writes AGENT_IDENTITY_PRINCIPAL_ID) and before
+        # the publish: an agent whose prompt promises documents but whose sandbox is missing fails
+        # silently at the user's first request instead of here.
+        steps.append(Step(
+            "provision_code_sandbox.py",
+            (sys.executable, str(skill_root / "scripts" / "provision_code_sandbox.py"),
+             "--write-settings", "--env", str(env_path)),
+            target,
+        ))
+    # Skills are part of the app payload, so they must be on disk before the publish packs it.
+    steps.append(Step(
+        "install_agent_skills.py",
+        (sys.executable, str(skill_root / "scripts" / "install_agent_skills.py"),
+         "--target", str(target), "--env", str(env_path)),
+        target,
+    ))
+    steps += [
         Step(
             "deploy_agent_webapp.py",
             (sys.executable, str(skill_root / "scripts" / "deploy_agent_webapp.py"), "--target", str(target), "--env", str(env_path)),

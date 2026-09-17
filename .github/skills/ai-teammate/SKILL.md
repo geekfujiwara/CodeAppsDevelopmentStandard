@@ -160,7 +160,8 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 | [setup_evaluation_dataverse.py](scripts/setup_evaluation_dataverse.py) | 評価Hub の 4 テーブル（`evalturn`/`evalrule`/`evalresult`/`evaljob`）を `PUBLISHER_PREFIX` で冪等作成・列補完する。`--check` は作成せず不足だけ列挙する | 3・6 |
 | [provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し `.env` へ書き戻す。`--check` でプラン・Always On のドリフト検出 | 6 |
 | [deploy_agent_webapp.py](scripts/deploy_agent_webapp.py) | ブループリント作成/シークレット ローテーション（App Service 設定へのみ注入・ログ非出力）・`dotnet publish`・`az webapp deploy`/`restart`・`a365 setup blueprint --endpoint-only` を実行する | 4・6 |
-| [provision_code_sandbox.py](scripts/provision_code_sandbox.py) | コード実行サンドボックス（Container Apps 動的セッション プール）を冪等に作成しロールを付与（B12 のときのみ `deploy_ai_teammate.py --check` の対象） | 8 |
+| [provision_code_sandbox.py](scripts/provision_code_sandbox.py) | コード実行サンドボックス（Container Apps 動的セッション プール）を冪等に作成しロールを付与。B12 のとき `deploy_ai_teammate.py --execute` が発行前に自動実行する | 6・8 |
+| [install_agent_skills.py](scripts/install_agent_skills.py) | 既定の Agent Skills を GitHub リリースから `skills/` へ展開する。`scaffold_ai_teammate.py` が自動実行し、`--check` でドリフト検出 | 3・6 |
 | [check_copilot_sdk_env.py](scripts/check_copilot_sdk_env.py) | Copilot SDK ランタイムの前提チェック（.NET SDK / 作業ディレクトリがリポジトリ外か / `BaseDirectory` 書込可否 / BYOK エンドポイント形式 / Entra トークン取得）。**ローカルとデプロイ先の両方で実行する** | 3・6 |
 | [provision_image_model.py](scripts/provision_image_model.py) | 対象 Azure OpenAI アカウントで提供される画像モデル名・バージョンを確認してから冪等にデプロイする。`--check` は変更なし | 8 |
 | [build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + `agenticUser.json` を ZIP 化 | 9 |

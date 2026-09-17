@@ -39,6 +39,9 @@
 
   <ItemGroup>
     <Content Include="prompts\**" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="skills\**" Exclude="skills\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The Web SDK already globs *.json into Content, so those must be updated, not included. -->
+    <Content Update="skills\**\*.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="sandbox\**" CopyToOutputDirectory="PreserveNewest" Condition="Exists('sandbox')" />
   </ItemGroup>
 

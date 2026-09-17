@@ -301,8 +301,10 @@ public sealed class AgentBrain(
                 // Built-in shell / editing tools would run on the agent host itself.
                 ExcludedTools = copilot.ExcludedTools,
                 Tools = tools,
-                // Nothing on the host is part of the agent's job: no skills, no repo instructions.
-                EnableSkills = false,
+                // Skills ship with the agent and are loaded from its own folder. Host config and
+                // repo instructions stay off: only what we deployed is part of the agent's job.
+                SkillDirectories = copilot.SkillDirectories,
+                EnableSkills = copilot.SkillDirectories.Length > 0,
                 EnableConfigDiscovery = false,
                 SkipCustomInstructions = true,
                 SystemMessage = new SystemMessageConfig
