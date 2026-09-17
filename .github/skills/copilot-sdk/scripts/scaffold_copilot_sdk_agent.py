@@ -124,6 +124,15 @@ def render(agent: str, tfm: str, sdk_version: str, workspace_root: str) -> dict[
             f"    <TargetFramework>{tfm}</TargetFramework>",
             "    <Nullable>enable</Nullable>",
             "    <ImplicitUsings>enable</ImplicitUsings>",
+            "    <!-- SDK の公開 API は実験的属性付きで出荷されている -->",
+            "    <NoWarn>$(NoWarn);GHCP001</NoWarn>",
+            "  </PropertyGroup>",
+            "",
+            "  <!-- copilot-runtime はビルド時に RID 1 つ分だけ取得される。未指定だとビルド機の",
+            "       RID になり、Linux ホストへ発行しても実行ファイルが入らない。 -->",
+            "  <PropertyGroup Condition=\"'$(Configuration)' == 'Release'\">",
+            "    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>",
+            "    <SelfContained>false</SelfContained>",
             "  </PropertyGroup>",
             "",
             "  <ItemGroup>",
@@ -165,6 +174,8 @@ def render(agent: str, tfm: str, sdk_version: str, workspace_root: str) -> dict[
 PROGRAM_CS = '''using Azure.Core;
 using Azure.Identity;
 using GitHub.Copilot;
+// PermissionDecision は RPC 側の名前空間にある。ProviderConfig は両方に存在するため修飾する。
+using GitHub.Copilot.Rpc;
 
 // エージェントの作業領域はソース リポジトリの外に置く（組み込みファイル操作ツールの書き込み先）。
 string agentName = Env("COPILOT_AGENT_NAME");
@@ -172,6 +183,8 @@ string workingDirectory = Path.Combine(Env("COPILOT_WORKSPACE_ROOT"), agentName)
 string baseDirectory = Environment.GetEnvironmentVariable("COPILOT_BASE_DIR") is { Length: > 0 } configured
     ? configured
     : Path.Combine(workingDirectory, ".copilot");
+// ホストの永続ストレージ上では初回起動時にどちらも存在しない。
+Directory.CreateDirectory(workingDirectory);
 Directory.CreateDirectory(baseDirectory);
 
 // AZURE_TOKEN_CREDENTIALS / AZURE_CLIENT_ID で資格情報を固定する（ホストでは ManagedIdentityCredential）。
@@ -189,7 +202,7 @@ await using CopilotSession session = await client.CreateSessionAsync(new Session
 {
     // BYOK ではモデル（Azure ではデプロイ名）の指定が必須。
     Model = Env("COPILOT_MODEL"),
-    Provider = new ProviderConfig
+    Provider = new GitHub.Copilot.ProviderConfig
     {
         Type = "openai",
         BaseUrl = $"{foundryUrl}/openai/v1/",

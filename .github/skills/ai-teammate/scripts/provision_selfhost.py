@@ -31,6 +31,7 @@ import sys
 from pathlib import Path
 
 BOT_API_VERSION = "2022-09-15"
+INSIGHTS_API_VERSION = "2020-02-02"
 ARM = "https://management.azure.com"
 
 # Free and Shared plans unload the app after ~20 minutes without a request, which kills every
@@ -93,6 +94,30 @@ def assert_plan_tier(*selector: str) -> str:
     return sku
 
 
+def ensure_observability(rg: str, sub: str, name: str, location: str, app_name: str) -> None:
+    """Create Application Insights and inject its connection string.
+
+    ``Program.cs`` calls ``UseAzureMonitor()``, which throws
+    ``InvalidOperationException: A connection string was not found`` while the DI container is
+    built. The container then aborts with exit code 134 during startup and the site never serves
+    ``/api/messages``, so the exporter's backing resource is part of provisioning, not an option.
+    """
+    workspace = az_json("monitor", "log-analytics", "workspace", "create",
+                        "-g", rg, "-n", f"{name}-logs", "-l", location)
+    component = arm_put(
+        f"/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Insights/components/{name}-insights",
+        INSIGHTS_API_VERSION,
+        {
+            "location": location,
+            "kind": "web",
+            "properties": {"Application_Type": "web", "WorkspaceResourceId": workspace["id"]},
+        },
+    )
+    connection = component["properties"]["ConnectionString"]
+    az("webapp", "config", "appsettings", "set", "-g", rg, "-n", app_name,
+       "--settings", f"APPLICATIONINSIGHTS_CONNECTION_STRING={connection}", "-o", "none")
+
+
 def verify_hosting(rg: str, app_name: str) -> None:
     """Read the plan tier and Always On back and refuse to report success without them.
 
@@ -108,6 +133,14 @@ def verify_hosting(rg: str, app_name: str) -> None:
             f"    az webapp config set -g {rg} -n {app_name} --always-on true\n"
             "    If it keeps coming back, a governance automation is resetting it:"
             " see troubleshooting #47."
+        )
+    settings = az_json("webapp", "config", "appsettings", "list", "-g", rg, "-n", app_name) or []
+    if not next((s["value"] for s in settings if s["name"] == "APPLICATIONINSIGHTS_CONNECTION_STRING"), ""):
+        raise RuntimeError(
+            f"web app {app_name} has no APPLICATIONINSIGHTS_CONNECTION_STRING: UseAzureMonitor() "
+            "throws while the DI container is built and the container aborts with exit code 134 "
+            "during startup.\n"
+            "    Re-run this script without --check to create Application Insights and set it."
         )
     print(f"      hosting check: {app_name} on {sku}, always on")
 
@@ -152,6 +185,9 @@ def main() -> int:
 
     app_name = f"{name}-agent"
     plan_name = f"{name}-plan"
+    # Bot registration names are globally unique across all Azure tenants, so an agent may already
+    # have been registered under a fallback name. The recorded name wins.
+    bot_name = os.environ.get("AZURE_BOT_NAME") or name
 
     if args.check:
         try:
@@ -163,11 +199,11 @@ def main() -> int:
         return 0
 
     try:
-        print(f"[1/3] user-assigned managed identity: {name}")
+        print(f"[1/4] user-assigned managed identity: {name}")
         uami = az_json("identity", "create", "-g", rg, "-n", name, "-l", args.location)
         uami_client_id, uami_resource_id = uami["clientId"], uami["id"]
 
-        print(f"[2/3] app service: {app_name} ({args.location}, {args.sku})")
+        print(f"[2/4] app service: {app_name} ({args.location}, {args.sku})")
         az("appservice", "plan", "create", "-g", rg, "-n", plan_name,
            "-l", args.location, "--is-linux", "--sku", args.sku, "-o", "none")
         assert_plan_tier("-g", rg, "-n", plan_name)
@@ -187,14 +223,17 @@ def main() -> int:
         az("webapp", "identity", "assign", "-g", rg, "-n", app_name,
            "--identities", uami_resource_id, "-o", "none")
 
-        print(f"[3/3] azure bot: {name} -> {endpoint}")
-        bot_id = f"/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.BotService/botServices/{name}"
+        print(f"[3/4] application insights: {name}-insights")
+        ensure_observability(rg, sub, name, args.location, app_name)
+
+        print(f"[4/4] azure bot: {bot_name} -> {endpoint}")
+        bot_id = f"/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.BotService/botServices/{bot_name}"
         arm_put(bot_id, BOT_API_VERSION, {
             "location": "global",
             "kind": "azurebot",
             "sku": {"name": "F0"},
             "properties": {
-                "displayName": name,
+                "displayName": bot_name,
                 "endpoint": endpoint,
                 "msaAppType": "UserAssignedMSI",
                 "msaAppId": uami_client_id,
@@ -214,7 +253,7 @@ def main() -> int:
         return 1
 
     result = {
-        "AZURE_BOT_NAME": name,
+        "AZURE_BOT_NAME": bot_name,
         "AZURE_BOT_MSA_APP_ID": uami_client_id,
         "AGENT_WEBAPP_NAME": app_name,
         "AGENT_MESSAGING_ENDPOINT": endpoint,

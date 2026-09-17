@@ -47,7 +47,7 @@ COMPONENT_TYPE_ENTITY = 1
 
 # Seconds to wait for Dataverse metadata to propagate after a create/add-column call. Overridden
 # to 0 by unit tests (via ``_sleep``) so the mocked-Dataverse test suite runs instantly.
-TABLE_SETTLE_SECONDS = 10
+TABLE_SETTLE_SECONDS = 30
 COLUMN_SETTLE_SECONDS = 5
 
 
@@ -239,10 +239,13 @@ def get_solution_id(solution_name: str) -> str | None:
 
 def existing_tables(prefix: str) -> dict[str, str]:
     """Returns {logical_name: MetadataId} for tables under this prefix that already exist."""
-    rows = api_get(
-        f"EntityDefinitions?$select=LogicalName,MetadataId&$filter=startswith(LogicalName,'{prefix}_eval')"
-    ).get("value", [])
-    return {row["LogicalName"]: row["MetadataId"] for row in rows}
+    # EntityDefinitions rejects startswith() with 501, so the prefix is matched client side.
+    rows = api_get("EntityDefinitions?$select=LogicalName,MetadataId").get("value", [])
+    return {
+        row["LogicalName"]: row["MetadataId"]
+        for row in rows
+        if row["LogicalName"].startswith(f"{prefix}_eval")
+    }
 
 
 def foreign_tables(prefix: str, wanted: set[str], solution_id: str) -> list[str]:

@@ -343,6 +343,22 @@ def render_tree(
     return unresolved
 
 
+def copy_teams_templates(skill_root: Path, target: Path) -> None:
+    """Place the two Teams app templates ``build_teams_package.py`` reads by default.
+
+    They are copied verbatim, tokens included: ``build_teams_package.py`` renders
+    ``${INSTANCE_IDENTITY_CLIENT_ID}`` and friends from ``.env`` at build time. Without them the
+    package build fails at the very end of the workflow, after Azure and Agent 365 are already
+    provisioned.
+    """
+    destination = target / "teams"
+    destination.mkdir(parents=True, exist_ok=True)
+    for name in ("manifest.template.json", "agenticUser.template.json"):
+        source = skill_root / "references" / "templates" / name
+        if source.is_file() and not (destination / name).exists():
+            shutil.copy2(source, destination / name)
+
+
 def copy_alm_scaffold(skill_root: Path, target: Path) -> None:
     """Full implementation mode: bring in the shared ALM scaffold (pre-commit gate, CI workflow).
 
@@ -448,6 +464,7 @@ def scaffold(plan: ScaffoldPlan, env: dict[str, str], force: bool) -> None:
         skill_root / "templates" / "evaluation-app", plan.target / "evaluation-app", variables,
         substitute_tokens=False,
     )
+    copy_teams_templates(skill_root, plan.target)
 
     if plan.implementation_mode == "full":
         copy_alm_scaffold(skill_root, plan.target)

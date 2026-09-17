@@ -135,6 +135,11 @@ BYOK ではモデル名の指定が必須で、未指定だと "Model not specif
 | `OverridesBuiltInTool = true` | `edit_file` など組み込みと同名のツールを差し替える場合に必須 |
 | `Defer` | `Auto` でツール検索経由の遅延読込を許可。常時読込は `Never` |
 
+`DefineTool` は引数の型からスキーマを起こすため、**実行時までツールの定義が決まらない場合**
+（MCP のツール一覧をそのまま転送する等）には使えない。その場合は `AIFunction` を継承した型を
+`SessionConfig.Tools`（`ICollection<AIFunctionDeclaration>`）へ登録し、`JsonSchema` を自分で渡す。
+上表のオプションは `AdditionalProperties` のキー（`skip_permission` など）で同じように指定できる。
+
 組み込みのシェル / 編集ツールを使わせない場合は、セッションの `ExcludedTools` で明示的に無効化する。
 
 ## Step 5: MCP とスキルを接続する

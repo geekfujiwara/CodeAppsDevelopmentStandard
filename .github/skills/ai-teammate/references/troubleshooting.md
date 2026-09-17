@@ -22,6 +22,9 @@
 - 原因: `.env` に manifest の `${VAR}` に対応する値が無い、または空。
 - 対処: `references/.env.example` と突き合わせて不足分を追加する。
   空文字も「未設定」として扱われる。
+- 自己ホスト方式で `INSTANCE_IDENTITY_CLIENT_ID` が不足する場合: Foundry のインスタンス ID は
+  存在しないので、**ブループリントの appId（`A365_AGENT_BLUEPRINT_ID` と同じ値）** を入れる。
+  manifest の `id` / `botId` はこの appId であり、Azure Bot の msaAppId（UAMI の clientId）ではない。
 
 ## 4. outline アイコンが真っ白な四角になる
 
@@ -1203,3 +1206,89 @@ Windows PowerShell 5.1 へフォールバックする場合、`Set-Content -Enco
 - 恒久対策済み: Evaluation App の `scripts/pre-deploy-check.mjs` が CLI の major version と deploy
   script を毎回検証し、`test_deploy_ai_teammate.py::test_template_uses_current_pa_cli` がテンプレートの
   回帰を検出する。
+
+## 58. 評価 Hub のテーブルがソリューションの外に作られる（検証済 2026-09-17）
+
+- 症状: `setup_evaluation_dataverse.py` は成功するのに、`LumiTeammate` のようなソリューションを開くと
+  テーブルが 1 件も入っていない。既定のソリューションに素で作られている。
+- 原因: 作成要求のソリューション指定ヘッダー名が誤っていた。Dataverse が見るのは
+  **`MSCRM.SolutionUniqueName`** で、`MSCRM.SolutionName` は**無視される**（エラーにならない）。
+- 対処: `standard` スキルの `auth_helper.py` が正しいヘッダー名を送る版になっていることを確認する。
+  既に外に作られたテーブルは `AddSolutionComponent`（`ComponentType: 1`）で後から取り込める。
+
+## 59. `EntityDefinitions?$filter=startswith(LogicalName,'...')` が 501 で返る（検証済 2026-09-17）
+
+- 原因: メタデータ エンドポイントは `startswith()` を実装していない。`$filter` 自体が使えるのは
+  `eq` など限られた演算子だけで、未対応の関数は `501 Not Implemented` になる。
+- 対処: `LogicalName,MetadataId` だけを `$select` して取得し、**プレフィックス一致はクライアント側**で
+  行う。恒久対策済み: `setup_evaluation_dataverse.py::existing_tables`。
+
+## 60. テーブル作成直後の列追加だけが 400 で失敗する（検証済 2026-09-17）
+
+- 症状: `lumi_evalturn` を作った直後の 1 本目の列追加が 400。少し待って再実行すると通る。
+- 原因: テーブル作成はメタデータの伝播が非同期で、作成レスポンスが返った時点では子メタデータの
+  書き込み先がまだ整合していない。
+- 対処: 作成後の待機を伸ばす。恒久対策済み: `setup_evaluation_dataverse.py` の
+  `TABLE_SETTLE_SECONDS`（10 秒では足りず 30 秒）。
+
+## 61. `provision_selfhost.py` が Bot 作成で失敗する（名前が既に使われている）
+
+- 原因: Azure Bot の登録名は**全 Azure テナントでグローバルに一意**。`AGENT_NAME` がありふれた語だと、
+  他テナントが先に取得している。
+- 対処: `.env` の `AZURE_BOT_NAME` に別名（例 `<agent>-teammate`）を入れて再実行する。
+  恒久対策済み: `provision_selfhost.py` は `AZURE_BOT_NAME` があればそれを Bot 名として使い、
+  `.env` にも同じ名前を書き戻す（App Service 名やエージェント名は変えない）。
+
+## 62. デプロイは成功するのに App Service が 503 / コンテナーが exit code 134 で落ちる（検証済 2026-09-17）
+
+- 症状: `az webapp deploy` は成功。`/health` が 503。ログに
+  `InvalidOperationException: A connection string was not found` と
+  `Container ... didn't respond to HTTP pings`、終了コード 134。
+- 原因: `Program.cs` の `UseAzureMonitor()` は **DI コンテナー構築時に接続文字列を要求**する。
+  未設定だと起動処理の途中で例外になり、`/api/messages` を一度も公開しないまま落ちる。
+  Teams からは「無反応」に見えるだけで、Bot 側にエラーは出ない。
+- 対処: Application Insights を作成し、`APPLICATIONINSIGHTS_CONNECTION_STRING` を App Service の
+  アプリ設定に入れて再起動する。恒久対策済み: `provision_selfhost.py::ensure_observability` が
+  Log Analytics + Application Insights を作成して設定し、`verify_hosting` が
+  `--check` を含む毎回の実行で未設定を検出する。
+
+## 63. `a365 setup blueprint --endpoint-only` が `Configuration file not found.` で止まる（検証済 2026-09-17）
+
+- 原因: `-n/--agent-name` で構成ファイルを省略できるのは**フル セットアップだけ**。
+  `--endpoint-only` は `a365.config.json` を読みに行き、続けて
+  `agentIdentityDisplayName is required.` も要求する。Azure と Agent 365 のプロビジョニングが
+  すべて終わった**最後**に失敗するため、手戻りが大きい。
+- 対処: `agentName` / `agentIdentityDisplayName` / `tenantId` / `messagingEndpoint` を持つ
+  `a365.config.json` を用意する。恒久対策済み: `deploy_agent_webapp.py::ensure_a365_config` が
+  エンドポイント登録の前に毎回生成・更新する。
+
+## 64. `a365 setup blueprint` が `appsettings.json` にクライアント シークレットを平文で書き込む（検証済 2026-09-17）
+
+- 症状: `a365` を実行するたびに `Connections:ServiceConnection:Settings:ClientSecret` と
+  `Agent365Observability:ClientSecret` に**平文のシークレット**が入り、さらに
+  `TokenValidation.Enabled` が `false` に書き換えられる。気付かずコミットすると資格情報が漏れ、
+  トークン検証が無効なままデプロイされると署名のない受信要求を受け付ける。
+- 対処: `a365` を実行した直後に必ず除去する。恒久対策済み:
+  `deploy_agent_webapp.py::scrub_appsettings` がブループリント作成後とエンドポイント登録後の
+  両方で `ClientSecret` を再帰的に削除し、`TokenValidation.Enabled` を `true` に戻す。
+  シークレットは App Service のアプリ設定（ファイル設定を上書きする）にのみ置く。
+- 既に平文の値を書き出してしまった場合は、`az ad app credential reset --append` で更新した後、
+  Entra ID 側で**古い資格情報を削除**する。
+
+## 65. `build_teams_package.py` が `teams/manifest.template.json` が無いと言って失敗する
+
+- 原因: scaffold 直後の `teams/` にテンプレートが置かれていなかった。
+- 対処: 恒久対策済み: `scaffold_ai_teammate.py::copy_teams_templates` が
+  `references/templates/` の `manifest.template.json` と `agenticUser.template.json` を
+  `teams/` へコピーする（トークンは `build_teams_package.py` が `.env` から解決するのでそのまま）。
+  既存プロジェクトでは同 2 ファイルを手動でコピーすれば足りる。
+
+## 66. 日本語表示名のエージェントで Python スクリプトが `UnicodeEncodeError: 'cp932'` で落ちる
+
+- 原因: 日本語 Windows のコンソール既定エンコードは cp932。表示名や進捗行に含まれる文字を
+  出力できず、処理の途中で例外になる（`deploy_ai_teammate.py --execute` では Azure リソースを
+  作り終えた後に落ちる）。
+- 対処: 恒久対策済み: `deploy_ai_teammate.py` は `main()` の先頭で stdout/stderr を UTF-8 に
+  再構成する。他のスクリプトを実行する場合は
+  `$env:PYTHONIOENCODING='utf-8'; $env:PYTHONUTF8='1'` を付けて実行する。
+
