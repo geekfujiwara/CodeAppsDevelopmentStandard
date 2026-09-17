@@ -109,6 +109,17 @@ B12 を入れるなら **B13 と B14**、相手からファイルを渡される
 > モデルはそれを知らずに OOXML を手組みし始め、ターン丸々を使って何も渡せない。
 > 受け取り時に `deploy_ai_teammate.py --check` がこの不整合（`Sandbox.Enabled` だけが true）を落とす。
 
+> **「有効だが実体が無い」は B12 に限らない。** `--check` は特定ブロックを名指しせず、
+> scaffold 側の `BLOCK_SETTINGS` / `BLOCK_FILES` から検査対象を導出するので、
+> ブロックを増やしても検査が追従する。落とすのは次の 4 形態。
+>
+> | 形態 | 症状 |
+> |---|---|
+> | セクションが有効／C# ファイルが無い | ツールが存在せず、依頼に無言で失敗する |
+> | ファイルはあるが `Program.cs` に未登録 | DI に入らず、ツールがモデルに届かない |
+> | 有効／`${...}` が未解決（`Sandbox.Endpoint` 等） | 実行時に初めて落ちる |
+> | `Skills.Enabled=true` ／ `skills/` が空 | 役割どおりの手順を持たないまま答える |
+
 **制約もこの場で先に伝える**（同 §5）。とくに「メールは push されないのでポーリングになる」
 「エージェントはメールを既読にできない」「他人の予定表は直接読めない」
 「共有リンクは一度渡すと取り消せない」の 4 点は、後から言うと要件が崩れる。
@@ -135,6 +146,8 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 - **選ばなかった機能ブロックの設定セクションは `appsettings.json` から消える**。
   `Sandbox.Enabled=true` と `${SANDBOX_ENDPOINT}` だけが残ると、コードを実行できないのに
   実行できるつもりのエージェントになり、依頼を受けて何も返さない。
+- **Agent Skills は scaffold 時に既定で導入される**ので、`Skills.Enabled=true` と空の `skills/` が
+  同居することはない（`--no-skills` で抑止した場合は `--check` が落とす）。
 - **Code Apps の「AI チームメイト評価Hub」は常に同時 scaffold される**（`evaluation-app/` 配下）。
   無効化はできない。
 - 選ばなかった機能ブロックの C# ファイルと DI 登録は自動的に除かれる（`full` は全部入りで生成される）。

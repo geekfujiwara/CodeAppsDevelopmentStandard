@@ -57,14 +57,26 @@ REQUIRED_ENV = (
 
 SECRET_KEY_HINTS = ("SECRET", "PASSWORD", "TOKEN", "KEY")
 
-# Feature blocks whose appsettings section points at something that has to be provisioned first:
-# block -> (section, key that must be resolved or None, the C# file the block scaffolds).
-FEATURE_SECTIONS = {
-    "B7": ("Presence", None, "PresenceWorker.cs"),
-    "B10": ("WebSearch", None, "WebSearchTools.cs"),
-    "B12": ("Sandbox", "Endpoint", "CodeSandbox.cs"),
-    "B17": ("ImageGeneration", "Deployment", "ImageGenerationTools.cs"),
-}
+# Sections whose Enabled flag also needs a value that only provisioning can supply.
+PROVISIONED_KEYS = {"Sandbox": "Endpoint", "ImageGeneration": "Deployment"}
+
+
+def feature_sections() -> dict[str, tuple[str, str | None, tuple[str, ...]]]:
+    """block -> (settings section, key that must be resolved or None, files the block scaffolds).
+
+    Derived from the scaffolder's own catalog rather than restated here. A hand-kept copy silently
+    stops covering whichever block was added last, which is exactly the failure this check exists
+    to catch: settings claim a capability, no code implements it, and the agent answers nothing.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import scaffold_ai_teammate as catalog
+
+    return {
+        block: (section, PROVISIONED_KEYS.get(section), catalog.BLOCK_FILES.get(block, ()))
+        for block, section in catalog.BLOCK_SETTINGS.items()
+    }
+
+
 # `<prefix>_evalturn` and friends, as compiled into the agent's Dataverse calls.
 PREFIXED_TABLE_PATTERN = re.compile(r"\b([a-z][a-z0-9_]*?)_eval(?:turn|rule|result|job|agent)s?\b")
 
@@ -260,19 +272,29 @@ def check_settings_consistency(target: Path, env: dict[str, str]) -> list[str]:
         return [f"appsettings.json is not readable: {error}"]
 
     blocks = _scaffold_blocks(target)
-    for block, (section, endpoint_key, source_file) in FEATURE_SECTIONS.items():
+    program = (target / "Program.cs").read_text(encoding="utf-8") if (target / "Program.cs").is_file() else ""
+    for block, (section, endpoint_key, source_files) in feature_sections().items():
         config = settings.get(section)
         if not isinstance(config, dict) or not config.get("Enabled"):
             continue
-        # The source file on disk is the authority, not scaffold-plan.json: a project that was
+        # The source files on disk are the authority, not scaffold-plan.json: a project that was
         # hand-edited (or scaffolded before the plan file existed) still has to be caught here.
         # This is the failure that costs a user a whole turn — the prompt promises the capability,
         # the settings claim it is on, and the tool was never registered, so the agent writes code
         # it cannot run and returns nothing.
-        if not (target / source_file).is_file():
+        missing = [name for name in source_files if not (target / name).is_file()]
+        if missing:
             problems.append(
-                f"appsettings {section}.Enabled is true but {source_file} is missing "
+                f"appsettings {section}.Enabled is true but {', '.join(missing)} is missing "
                 f"(={block} was never scaffolded); set Enabled to false or re-scaffold with {block}"
+            )
+            continue
+        # A file that was copied in but never wired up is just as silent as a missing one.
+        unwired = [name for name in source_files if program and name[:-3] not in program]
+        if unwired:
+            problems.append(
+                f"appsettings {section}.Enabled is true and {', '.join(unwired)} exists but is not "
+                f"registered in Program.cs; the tools would never reach the agent"
             )
             continue
         if blocks and block not in blocks:
@@ -286,6 +308,17 @@ def check_settings_consistency(target: Path, env: dict[str, str]) -> list[str]:
             problems.append(
                 f"appsettings {section}.Enabled is true but {section}.{endpoint_key} is unresolved "
                 f"({value or 'empty'}); provision it first or set Enabled to false"
+            )
+
+    # Skills are data rather than a code block, so they miss the loop above and fail the same way:
+    # the runtime turns skills off when the folder is empty, and the agent just loses the procedure.
+    skills = settings.get("Skills")
+    if isinstance(skills, dict) and skills.get("Enabled"):
+        folder = target / str(skills.get("Directory") or "skills")
+        if not any(folder.glob("*/SKILL.md")):
+            problems.append(
+                f"appsettings Skills.Enabled is true but {folder.name}/ holds no SKILL.md; "
+                "run install_agent_skills.py or set Enabled to false"
             )
 
     prefix = env.get("PUBLISHER_PREFIX", "").strip()
