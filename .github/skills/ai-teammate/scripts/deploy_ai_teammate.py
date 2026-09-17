@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -55,6 +56,15 @@ REQUIRED_ENV = (
 )
 
 SECRET_KEY_HINTS = ("SECRET", "PASSWORD", "TOKEN", "KEY")
+
+# Feature blocks whose appsettings section points at something that has to be provisioned first:
+# block -> (section, key that must be resolved, the C# file the block scaffolds).
+FEATURE_SECTIONS = {
+    "B12": ("Sandbox", "Endpoint", "CodeSandbox.cs"),
+    "B17": ("ImageGeneration", "Deployment", "ImageGenerationTools.cs"),
+}
+# `<prefix>_evalturn` and friends, as compiled into the agent's Dataverse calls.
+PREFIXED_TABLE_PATTERN = re.compile(r"\b([a-z][a-z0-9_]*?)_eval(?:turn|rule|result|job)s?\b")
 
 
 @dataclass(frozen=True)
@@ -227,6 +237,68 @@ def check_existing_scripts(skill_root: Path, env_path: Path, target: Path, env: 
     return problems
 
 
+def check_settings_consistency(target: Path, env: dict[str, str]) -> list[str]:
+    """Catches the two silent mismatches that produce an agent which looks healthy and is not.
+
+    1. A feature is switched on in ``appsettings.json`` but its endpoint is still an unsubstituted
+       ``${VAR}``, or its C# file was never scaffolded. Nothing throws: the tool simply never
+       reaches the model, so the agent accepts the work and returns nothing.
+    2. ``PUBLISHER_PREFIX`` drifted after scaffolding. The prefix is compiled into the agent's
+       Dataverse logical names, so changing ``.env`` afterwards splits the evaluation data across
+       two table families — the hub keeps reading the new tables while the agent writes the old.
+    """
+    settings_path = target / "appsettings.json"
+    if not settings_path.is_file():
+        return ["appsettings.json not found; run scaffold_ai_teammate.py first"]
+
+    problems: list[str] = []
+    try:
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as error:
+        return [f"appsettings.json is not readable: {error}"]
+
+    blocks = _scaffold_blocks(target)
+    for block, (section, endpoint_key, source_file) in FEATURE_SECTIONS.items():
+        config = settings.get(section)
+        if not isinstance(config, dict) or not config.get("Enabled"):
+            continue
+        if blocks and block not in blocks:
+            problems.append(
+                f"appsettings {section}.Enabled is true but {block} was not scaffolded "
+                f"(no {source_file}); set Enabled to false or re-scaffold with {block}"
+            )
+            continue
+        value = str(config.get(endpoint_key, ""))
+        if "${" in value or not value:
+            problems.append(
+                f"appsettings {section}.Enabled is true but {section}.{endpoint_key} is unresolved "
+                f"({value or 'empty'}); provision it first or set Enabled to false"
+            )
+
+    prefix = env.get("PUBLISHER_PREFIX", "").strip()
+    if prefix:
+        compiled = sorted({
+            match.group(1)
+            for path in target.glob("Evaluation*.cs")
+            for match in PREFIXED_TABLE_PATTERN.finditer(path.read_text(encoding="utf-8"))
+        })
+        drifted = [found for found in compiled if found != prefix]
+        if drifted:
+            problems.append(
+                f"PUBLISHER_PREFIX is {prefix!r} but the agent's C# uses {', '.join(drifted)}_eval*; "
+                "re-scaffold or migrate the rows — the evaluation hub would read empty tables"
+            )
+        app_env = target / "evaluation-app" / ".env"
+        if app_env.is_file():
+            app_prefix = load_dotenv(app_env).get("VITE_PUBLISHER_PREFIX", "").strip()
+            if app_prefix and app_prefix != prefix:
+                problems.append(
+                    f"evaluation-app/.env VITE_PUBLISHER_PREFIX={app_prefix!r} does not match "
+                    f"PUBLISHER_PREFIX={prefix!r}; the hub would query tables nobody writes"
+                )
+    return problems
+
+
 def check_evaluation_dataverse(skill_root: Path, env_path: Path, env: dict[str, str]) -> tuple[list[str], list[str]]:
     """Runs `setup_evaluation_dataverse.py --check`. Returns (problems, planned) — "not created
     yet" is not a problem (it is exactly what `--execute` will do first), so it is reported
@@ -310,6 +382,7 @@ def run_check(target: Path, env: dict[str, str]) -> int:
     problems += [f"env check: {p}" for p in check_env(env)]
     problems += [f"agent build: {p}" for p in check_agent_build(target, env)]
     problems += [f"evaluation app: {p}" for p in check_evaluation_app(target, env)]
+    problems += [f"settings consistency: {p}" for p in check_settings_consistency(target, env)]
     problems += [f"existing scripts: {p}" for p in check_existing_scripts(skill_root, env_path, target, env)]
 
     dv_problems, dv_planned = check_evaluation_dataverse(skill_root, env_path, env)

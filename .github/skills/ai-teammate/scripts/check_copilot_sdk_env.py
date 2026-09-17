@@ -1,13 +1,13 @@
 """Copilot SDK エージェントの前提チェック（非対話）。
 
-SKILL.md Step 1 / Step 3 で使用する。ローカルとデプロイ先の両方で実行し、
+references/copilot-sdk-runtime.md §2 / SKILL.md Step 3・Step 6 で使用する。ローカルとデプロイ先の両方で実行し、
 「ランタイムが起動でき、モデルへ 1 往復できる」前提が揃っているかを機械的に検証する。
 
-検証項目（troubleshooting.md の番号と対応）:
+検証項目（copilot-sdk-troubleshooting.md の番号と対応）:
   1. .NET SDK のメジャー バージョン                      → #11
   2. 作業ディレクトリがソース リポジトリの外にあるか      → #3
   3. セッション状態の保存先が書き込み可能か              → #2
-  4. BYOK エンドポイントの形式（/openai/v1/ 終端）        → #5
+  4. BYOK エンドポイントの形式（リソース URL のみ）        → #5
   5. モデル（デプロイ名）の指定                          → #4
   6. Entra トークンの取得可否（Managed Identity / CLI）  → #6
   7. GitHub トークンの種別と渡し先                       → #7
@@ -93,7 +93,7 @@ def run(args: list[str]) -> subprocess.CompletedProcess:
 def check_dotnet_sdk(required_major: int) -> None:
     exe = shutil.which("dotnet")
     if not exe:
-        err("dotnet が見つかりません。.NET SDK を導入してください（troubleshooting #11）")
+        err("dotnet が見つかりません。.NET SDK を導入してください（copilot-sdk-troubleshooting #11）")
         return
     res = run([exe, "--list-sdks"])
     if res.returncode != 0:
@@ -107,13 +107,13 @@ def check_dotnet_sdk(required_major: int) -> None:
     if not majors:
         err("インストール済みの .NET SDK を判定できませんでした")
     elif max(majors) < required_major:
-        err(f".NET SDK {required_major} 以上が必要（検出: {sorted(majors)}）（troubleshooting #11）")
+        err(f".NET SDK {required_major} 以上が必要（検出: {sorted(majors)}）（copilot-sdk-troubleshooting #11）")
     else:
         ok(f".NET SDK: {sorted(majors)}（必要 {required_major}+）")
 
 
 def check_workspace_isolation(working_dir: Path, repo_root: Path | None) -> None:
-    """エージェントの作業ディレクトリがソース リポジトリの外にあることを検証する（troubleshooting #3）。
+    """エージェントの作業ディレクトリがソース リポジトリの外にあることを検証する（copilot-sdk-troubleshooting #3）。
 
     組み込みのファイル操作ツールはこのディレクトリへ書き込むため、リポジトリ配下だと
     ソースを破壊しうる。パス包含と .git の有無の両面で検査する。
@@ -122,58 +122,58 @@ def check_workspace_isolation(working_dir: Path, repo_root: Path | None) -> None
     if repo_root is not None:
         rr = repo_root.expanduser().resolve()
         if wd == rr or rr in wd.parents:
-            err(f"作業ディレクトリがリポジトリ配下です: {wd}（リポジトリ: {rr}）（troubleshooting #3）")
+            err(f"作業ディレクトリがリポジトリ配下です: {wd}（リポジトリ: {rr}）（copilot-sdk-troubleshooting #3）")
             return
     for candidate in [wd, *wd.parents]:
         if (candidate / ".git").exists():
-            err(f"作業ディレクトリが Git 作業ツリー内です: {wd}（.git: {candidate}）（troubleshooting #3）")
+            err(f"作業ディレクトリが Git 作業ツリー内です: {wd}（.git: {candidate}）（copilot-sdk-troubleshooting #3）")
             return
     ok(f"作業ディレクトリはリポジトリ外: {wd}")
 
 
 def check_base_directory(base_dir: Path) -> None:
-    """セッション状態の保存先に実際に書き込めるかを検証する（troubleshooting #2）。"""
+    """セッション状態の保存先に実際に書き込めるかを検証する（copilot-sdk-troubleshooting #2）。"""
     bd = base_dir.expanduser()
     try:
         bd.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(dir=bd, prefix=".writetest_", delete=True):
             pass
     except OSError as exc:
-        err(f"セッション保存先に書き込めません: {bd}（{exc}）（troubleshooting #2）")
+        err(f"セッション保存先に書き込めません: {bd}（{exc}）（copilot-sdk-troubleshooting #2）")
         return
     ok(f"セッション保存先は書き込み可能: {bd.resolve()}")
 
 
 def check_byok_endpoint(url: str) -> None:
     if not url:
-        err("FOUNDRY_RESOURCE_URL が未設定です（BYOK では必須）")
+        err("AZURE_OPENAI_ENDPOINT が未設定です（BYOK では必須）")
         return
     if "<" in url or ">" in url:
-        err(f"FOUNDRY_RESOURCE_URL がプレースホルダーのままです: {url}")
+        err(f"AZURE_OPENAI_ENDPOINT がプレースホルダーのままです: {url}")
         return
     if "/openai" in url.lower():
-        err(f"FOUNDRY_RESOURCE_URL にパスが含まれています（ベース URL の /openai/v1/ はコード側で付与するため二重になります）: "
-            f"{url}（troubleshooting #5）")
+        err(f"AZURE_OPENAI_ENDPOINT にパスが含まれています（ベース URL の /openai/v1/ は CopilotRuntime.cs が付与するため二重になります）: "
+            f"{url}（copilot-sdk-troubleshooting #5）")
         return
     if not BYOK_URL_RE.match(url):
-        err(f"FOUNDRY_RESOURCE_URL の形式が不正です（https://<resource-name>.openai.azure.com 形式）: "
-            f"{url}（troubleshooting #5）")
+        err(f"AZURE_OPENAI_ENDPOINT の形式が不正です（https://<resource-name>.openai.azure.com 形式）: "
+            f"{url}（copilot-sdk-troubleshooting #5）")
         return
     ok(f"BYOK リソース URL: {url}（ベース URL は {url.rstrip('/')}/openai/v1/）")
 
 
 def check_model(route: str, model: str) -> None:
     if route == "byok" and not model:
-        err("COPILOT_MODEL（Azure ではデプロイ名）が未設定です。BYOK では必須（troubleshooting #4）")
+        err("AZURE_OPENAI_DEPLOYMENT（Azure ではデプロイ名）が未設定です。BYOK では必須（copilot-sdk-troubleshooting #4）")
         return
     if not model:
-        warn("COPILOT_MODEL が未設定です（既定モデルに委ねる場合のみ可）")
+        warn("AZURE_OPENAI_DEPLOYMENT が未設定です（既定モデルに委ねる場合のみ可）")
         return
-    ok(f"モデル: {model}")
+    ok(f"モデル（デプロイ名）: {model}")
 
 
 def check_entra_token() -> None:
-    """Managed Identity / 開発者資格情報でトークンが取得できるかを検証する（troubleshooting #6）。"""
+    """Managed Identity / 開発者資格情報でトークンが取得できるかを検証する（copilot-sdk-troubleshooting #6）。"""
     az = shutil.which("az") or shutil.which("az.cmd")
     if not az:
         warn("Azure CLI が無いためトークン取得の事前検証をスキップしました（デプロイ先で必ず疎通確認する）")
@@ -182,7 +182,7 @@ def check_entra_token() -> None:
     if res.returncode != 0:
         err(f"Entra トークンを取得できません（scope: {AI_RESOURCE}/.default）: "
             f"{(res.stderr or res.stdout).strip().splitlines()[-1] if (res.stderr or res.stdout).strip() else ''}"
-            "（troubleshooting #6）")
+            "（copilot-sdk-troubleshooting #6）")
         return
     try:
         json.loads(res.stdout)
@@ -201,7 +201,7 @@ def check_entra_token() -> None:
 
 
 def check_github_token(route: str) -> None:
-    """トークン種別と渡し先の整合を検証する（troubleshooting #7）。
+    """トークン種別と渡し先の整合を検証する（copilot-sdk-troubleshooting #7）。
 
     GitHub App のインストール トークン（ghs_ 接頭辞）は SDK のトークン オプションでは 403 になるため、
     必ず環境変数としてランタイムへ渡す必要がある。
@@ -220,7 +220,7 @@ def check_github_token(route: str) -> None:
     ok(f"GitHub トークン: 設定済み（種別: {kind}・値は出力しません）")
     if token.startswith("ghs_"):
         warn("インストール トークンは SDK のトークン オプションではなく**環境変数**で渡すこと。"
-             "有効期限が短いため更新とランタイム再起動の仕組みも用意する（troubleshooting #7）")
+             "有効期限が短いため更新とランタイム再起動の仕組みも用意する（copilot-sdk-troubleshooting #7）")
 
 
 # --- エントリ ポイント ---------------------------------------------------------
@@ -229,10 +229,10 @@ def check_github_token(route: str) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Copilot SDK エージェントの前提チェック")
     ap.add_argument("--route", choices=["byok", "github"], help="モデル経路（既定: .env COPILOT_ROUTE または byok）")
-    ap.add_argument("--agent-name", help="エージェント名（既定: .env COPILOT_AGENT_NAME）")
+    ap.add_argument("--agent-name", help="エージェント名（既定: .env AGENT_NAME）")
     ap.add_argument("--workspace-root", help="エージェント作業領域のルート（既定: .env COPILOT_WORKSPACE_ROOT）")
-    ap.add_argument("--working-dir", help="作業ディレクトリ（既定: <workspace-root>/<agent-name>）")
-    ap.add_argument("--base-dir", help="セッション保存先（既定: <working-dir>/.copilot）")
+    ap.add_argument("--working-dir", help="作業ディレクトリ（既定: .env COPILOT_WORK_DIR または <workspace-root>/<agent-name>）")
+    ap.add_argument("--base-dir", help="セッション保存先（既定: .env COPILOT_STATE_DIR または <working-dir>/.copilot）")
     ap.add_argument("--repo-root", help="ソース リポジトリのルート（既定: カレント ディレクトリ）")
     args = ap.parse_args()
 
@@ -240,17 +240,19 @@ def main() -> int:
     load_env(here)
 
     route = args.route or os.environ.get("COPILOT_ROUTE", "byok")
-    agent = args.agent_name or os.environ.get("COPILOT_AGENT_NAME", "")
+    agent = args.agent_name or os.environ.get("AGENT_NAME", "")
     ws_root = args.workspace_root or os.environ.get("COPILOT_WORKSPACE_ROOT", "")
     repo_root = Path(args.repo_root) if args.repo_root else here
 
-    print(f"=== Copilot SDK 前提チェック（経路: {route}）===")
+    print(f"=== Copilot SDK ランタイム 前提チェック（経路: {route}）===")
 
     required_major = int(os.environ.get("DOTNET_SDK_MAJOR", DEFAULT_DOTNET_MAJOR))
     check_dotnet_sdk(required_major)
 
     if args.working_dir:
         working_dir = Path(args.working_dir)
+    elif os.environ.get("COPILOT_WORK_DIR"):
+        working_dir = Path(os.environ["COPILOT_WORK_DIR"])
     elif ws_root and agent:
         working_dir = Path(ws_root) / agent
     else:
@@ -258,16 +260,16 @@ def main() -> int:
     if working_dir.parts:
         check_workspace_isolation(working_dir, repo_root)
         base_dir = Path(args.base_dir) if args.base_dir else Path(
-            os.environ.get("COPILOT_BASE_DIR") or (working_dir / ".copilot"))
+            os.environ.get("COPILOT_STATE_DIR") or (working_dir / ".copilot"))
         check_base_directory(base_dir)
     else:
-        err("作業ディレクトリを決定できません。COPILOT_WORKSPACE_ROOT と COPILOT_AGENT_NAME、"
-            "または --working-dir を指定してください（troubleshooting #3）")
+        err("作業ディレクトリを決定できません。COPILOT_WORK_DIR、または --working-dir を"
+            "指定してください（copilot-sdk-troubleshooting #3）")
 
-    check_model(route, os.environ.get("COPILOT_MODEL", ""))
+    check_model(route, os.environ.get("AZURE_OPENAI_DEPLOYMENT", ""))
 
     if route == "byok":
-        check_byok_endpoint(os.environ.get("FOUNDRY_RESOURCE_URL", ""))
+        check_byok_endpoint(os.environ.get("AZURE_OPENAI_ENDPOINT", ""))
         check_entra_token()
     check_github_token(route)
 

@@ -156,7 +156,12 @@ public class Agent : AgentApplication
         catch (Exception ex)
         {
             _logger.LogError(ex, "Chat completion failed");
-            reply = $"申し訳ありません。応答の生成に失敗しました。({ex.GetType().Name}: {ex.Message})";
+            // A turn that ran out of wall clock is not a bug the user can act on: tell them how to
+            // split the work instead of showing them the exception type.
+            reply = ex is TimeoutException
+                ? "申し訳ありません。時間がかかりすぎたため、途中で打ち切りました。"
+                    + "お手数ですが、作業を分けて（例：まず構成だけ、次に資料作成）もう一度お申し付けください。"
+                : $"申し訳ありません。応答の生成に失敗しました。({ex.GetType().Name}: {ex.Message})";
             history.RemoveAt(history.Count - 1);
             if (progress is not null)
             {

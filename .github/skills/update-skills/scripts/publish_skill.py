@@ -9,6 +9,7 @@ PR 先リポジトリを一時 clone し、対象スキルディレクトリと�
 使い方:
   python publish_skill.py --skill copilot-studio-v2
   python publish_skill.py --skill copilot-studio-v2 --extra .github/skills/README.md --extra .github/agents/Foo.agent.md
+  python publish_skill.py --skill ai-teammate --remove .github/skills/copilot-sdk   # スキル統合時の旧フォルダ削除
   python publish_skill.py --skill copilot-studio-v2 --dry-run     # push/PR せず検証まで
 
 設定（引数 > .env > 既定）:
@@ -111,6 +112,7 @@ def main() -> int:
     ap.add_argument("--branch", help="作業ブランチ名（既定: skill/<skill>）")
     ap.add_argument("--skills-dir", help="スキル配置ディレクトリ（既定: SKILLS_DIR または .github/skills）")
     ap.add_argument("--extra", action="append", default=[], help="同時に反映する集約ファイル（リポジトリルート相対。複数可）")
+    ap.add_argument("--remove", action="append", default=[], help="PR 先で削除するファイル / ディレクトリ（リポジトリ ルート相対。スキル統合で旧フォルダを畳むときに使う。複数可）")
     ap.add_argument("--title", help="PR タイトル（既定: 自動生成）")
     ap.add_argument("--body", help="PR 本文（既定: 自動生成）")
     ap.add_argument("--dry-run", action="store_true", help="push / PR を行わず検証まで")
@@ -179,6 +181,22 @@ def main() -> int:
         dstf.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(srcf, dstf)
         print(f"   + {extra}")
+
+    # スキルを統合したとき、新しいスキルのコピーだけでは旧フォルダが PR 先に残る。
+    # 残るとエージェントは両方を読める状態で、古い手順を正常系として拾ってしまう。
+    for target in args.remove:
+        rel = Path(target)
+        if rel.is_absolute() or ".." in rel.parts:
+            sys.exit(f"--remove はリポジトリ ルート相対のパスを指定してください: {target}")
+        victim = clone / rel
+        if victim.is_dir():
+            shutil.rmtree(victim)
+            print(f"   - {target}/")
+        elif victim.exists():
+            victim.unlink()
+            print(f"   - {target}")
+        else:
+            print(f"   . {target}（PR 先に存在しないためスキップ）")
 
     # 5) clone 側で再検証（push 前スキャン）
     print("[5/6] clone 側で再検証")

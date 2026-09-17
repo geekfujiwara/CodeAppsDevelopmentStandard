@@ -29,7 +29,7 @@
 //
 // アプリ設定（__ が階層区切り）:
 //   Agent__Progress__Enabled          = true
-//   Agent__Progress__FirstNoteSeconds = 25
+//   Agent__Progress__FirstNoteSeconds = 20
 //   Agent__Progress__IntervalSeconds  = 45
 //   Agent__Progress__TypingSeconds    = 5
 //
@@ -41,7 +41,11 @@ using Microsoft.Agents.Core.Models;
 
 public sealed class AgentProgress : IAsyncDisposable
 {
-    private const int MaxNotes = 8;
+    private const int MaxNotes = 20;
+    private const string DefaultLabel = "作業を進めています";
+
+    /// <summary>How long a tool's label stays accurate once that tool has returned.</summary>
+    private static readonly TimeSpan LabelLifetime = TimeSpan.FromMinutes(2);
 
     // First match wins, so the specific tools are listed before the generic word fragments.
     private static readonly (string Match, string Label)[] Labels =
@@ -51,7 +55,6 @@ public sealed class AgentProgress : IAsyncDisposable
         ("deliver_file", "できたファイルをお渡しする準備をしています"),
         ("design_guide", "資料のデザインを確認しています"),
         ("workspace", "作業環境の中を確認しています"),
-        ("skill", "作業手順書を読んでいます"),
         ("teams_chat", "Teams のやり取りを確認しています"),
         ("schedule", "定期実行の設定を確認しています"),
         ("search", "Web で調べています"),
@@ -73,10 +76,13 @@ public sealed class AgentProgress : IAsyncDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _stop = new();
     private readonly DateTimeOffset _started = DateTimeOffset.UtcNow;
+    private readonly object _notesLock = new();
 
     private Task? _heartbeat;
     private DateTimeOffset _lastNote = DateTimeOffset.MinValue;
+    private DateTimeOffset _labelAt = DateTimeOffset.MinValue;
     private int _notes;
+    private string _label = DefaultLabel;
 
     private AgentProgress(
         Func<IActivity, CancellationToken, Task> send,
@@ -122,19 +128,15 @@ public sealed class AgentProgress : IAsyncDisposable
             return;
         }
 
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        if (now - _started < _firstNote || now - _lastNote < _interval || _notes >= MaxNotes)
+        // Kept even when no note is due: a single long tool call is exactly when the heartbeat
+        // below has to speak, and this is the only place that knows what is running.
+        lock (_notesLock)
         {
-            return;
+            _label = Label(tools);
+            _labelAt = DateTimeOffset.UtcNow;
         }
 
-        _lastNote = now;
-        string label = Label(tools);
-        string note = _notes++ == 0
-            ? $"{label}。もう少しお待ちください。"
-            : $"{label}（{Elapsed(now - _started)}）";
-
-        await SendAsync(MessageFactory.Text(note), cancellationToken);
+        await NoteAsync(cancellationToken);
     }
 
     public IReadOnlyList<LocalTool> CreateTools() =>
@@ -222,12 +224,39 @@ public sealed class AgentProgress : IAsyncDisposable
             while (!linked.IsCancellationRequested)
             {
                 await SendAsync(new Activity { Type = ActivityTypes.Typing }, linked.Token);
+                await NoteAsync(linked.Token);
                 await Task.Delay(_typingInterval, linked.Token);
             }
         }
         catch (OperationCanceledException)
         {
         }
+    }
+
+    /// <summary>Sends the periodic "still working on it" line once the interval has passed.</summary>
+    private async Task NoteAsync(CancellationToken cancellationToken)
+    {
+        string note;
+
+        // The tool loop and the heartbeat both get here, so the decision has to be taken once.
+        lock (_notesLock)
+        {
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            if (now - _started < _firstNote || now - _lastNote < _interval || _notes >= MaxNotes)
+            {
+                return;
+            }
+
+            _lastNote = now;
+
+            // The agent moves on to work this class cannot see, so a stale tool label would lie.
+            string label = now - _labelAt < LabelLifetime ? _label : DefaultLabel;
+            note = _notes++ == 0
+                ? $"{label}。もう少しお待ちください。"
+                : $"{label}（{Elapsed(now - _started)}）";
+        }
+
+        await SendAsync(MessageFactory.Text(note), cancellationToken);
     }
 
     /// <summary>A dropped progress update must never take the turn down with it.</summary>

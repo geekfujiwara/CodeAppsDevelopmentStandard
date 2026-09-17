@@ -16,11 +16,22 @@
     <PackageReference Include="Azure.AI.OpenAI" Version="2.*" />
     <PackageReference Include="Azure.Identity" Version="1.*" />
     <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.*" />
+    <!-- GEEK:BLOCK:RTCOPILOT:START -->
+    <PackageReference Include="GitHub.Copilot.SDK" Version="0.*" />
+    <!-- GEEK:BLOCK:RTCOPILOT:END -->
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="prompts\**" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="sandbox\**" CopyToOutputDirectory="PreserveNewest" Condition="Exists('sandbox')" />
+  </ItemGroup>
+
+  <!-- Scratch or validation projects nested under this folder would otherwise be swept into the
+       default globs and fail the build with CS0579 (duplicate AssemblyInfo attributes). -->
+  <ItemGroup>
+    <Compile Remove="pe-check\**;evaluation-app\**;publish\**" />
+    <Content Remove="pe-check\**;evaluation-app\**;publish\**" />
+    <None Remove="pe-check\**;evaluation-app\**;publish\**" />
   </ItemGroup>
 
 </Project>

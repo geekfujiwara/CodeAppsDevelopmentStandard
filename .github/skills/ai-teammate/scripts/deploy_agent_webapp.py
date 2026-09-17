@@ -28,6 +28,8 @@ import os
 import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 REQUIRED_ENV = ("AGENT_NAME", "AZURE_RESOURCE_GROUP")
@@ -166,8 +168,47 @@ def publish_and_deploy(target: Path, resource_group: str, app_name: str) -> None
         "az", "webapp", "deploy", "-g", resource_group, "-n", app_name,
         "--src-path", str(zip_path), "--type", "zip", "--track-status", "false", "--timeout", "600000",
     ], target)
+    verify_deployed_prompt(target, app_name)
     print(f"  az webapp restart -> {app_name}")
     _run(["az", "webapp", "restart", "-g", resource_group, "-n", app_name], target)
+
+
+def verify_deployed_prompt(target: Path, app_name: str) -> None:
+    """Reads the deployed system prompt back and compares its size with the local one.
+
+    ``az webapp deploy`` can return a 502 from the deployment endpoint while leaving the previous
+    content in place. The command looks like it worked, the site keeps answering, and the agent
+    quietly runs yesterday's prompt. Kudu accepts the same ARM bearer token the CLI already has,
+    so one read-back turns that into a visible warning.
+    """
+    local = target / "prompts" / "system.md"
+    if not local.is_file():
+        return
+    expected = len(local.read_bytes())
+    token = _run(
+        ["az", "account", "get-access-token", "--resource", "https://management.azure.com",
+         "--query", "accessToken", "-o", "tsv"],
+        target, capture=True,
+    ).stdout.strip()
+    body = json.dumps({"command": "wc -c < /home/site/wwwroot/prompts/system.md", "dir": "/home"})
+    request = urllib.request.Request(
+        f"https://{app_name}.scm.azurewebsites.net/api/command",
+        data=body.encode("utf-8"),
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            deployed = int(json.loads(response.read().decode("utf-8")).get("Output", "0").strip())
+    except (urllib.error.URLError, ValueError, KeyError) as error:
+        print(f"  WARNING: could not read the deployed prompt back ({error}); verify manually")
+        return
+    if deployed != expected:
+        raise SystemExit(
+            f"Deployment did not take: prompts/system.md is {deployed} bytes on {app_name} but "
+            f"{expected} bytes locally. Re-run the deploy before restarting."
+        )
+    print(f"  read-back OK: prompts/system.md {deployed} bytes")
 
 
 def rotate_and_inject_secret(resource_group: str, app_name: str, blueprint_id: str, agent_name: str, target: Path) -> None:

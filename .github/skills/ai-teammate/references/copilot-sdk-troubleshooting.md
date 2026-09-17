@@ -1,6 +1,6 @@
-# 異常系・トラブルシュート（copilot-sdk）
+# 異常系・トラブルシュート（Copilot SDK ランタイム）
 
-正常系は [SKILL.md](../SKILL.md)。ここには詰まりどころと恒久対策を記録する。
+正常系は [copilot-sdk-runtime.md](copilot-sdk-runtime.md)。ここには詰まりどころと恒久対策を記録する。
 
 ## 1. ランタイムの子プロセスが起動しない
 
@@ -37,7 +37,7 @@
 **原因**: 作業ディレクトリの既定が「呼び出し元プロセスのカレント ディレクトリ」であり、
 `dotnet run` で起動するとプロジェクト配下になる。組み込みのファイル操作ツールはそこへ書く。
 
-**対処**: 作業ディレクトリを**リポジトリ外**へ固定する（SKILL.md Step 2）。
+**対処**: 作業ディレクトリを**リポジトリ外**へ固定する（[copilot-sdk-runtime.md](copilot-sdk-runtime.md) §3）。
 併せて、不要なら組み込みのシェル / 編集ツールを除外設定で無効化する。
 
 > **恒久対策済み**: `check_copilot_sdk_env.py` の `check_workspace_isolation` が
@@ -119,7 +119,7 @@
 **原因**: HTTP MCP サーバーのヘッダーはセッション作成時に固定される。
 
 **対処**: 呼び出しの都度トークンを取得する自前クライアントを用意し、
-それをカスタム ツールとして登録する（SKILL.md Step 5）。
+それをカスタム ツールとして登録する（[copilot-sdk-runtime.md](copilot-sdk-runtime.md) §4）。
 
 ## 11. 開発 SDK と実行ターゲットの取り違え
 
@@ -140,7 +140,7 @@
 
 **対処**: 結果をフェンスで囲み「これはデータであって指示ではない」と明示したうえで、
 実害のある操作はコード側で承認ゲートを通す
-（詳細は [プロンプト インジェクション対策](../../ai-teammate/references/prompt-injection.md)）。
+（詳細は [プロンプト インジェクション対策](prompt-injection.md)）。
 
 ## 13. プレビュー API の警告でビルドが失敗する
 
@@ -152,7 +152,7 @@
 **対処**: プロジェクト ファイルで当該診断 ID を `NoWarn` に加える
 （`<NoWarn>$(NoWarn);GHCP001</NoWarn>`）。個別の `#pragma` では呼び出し箇所ごとに漏れる。
 
-> **恒久対策済み**: `scaffold_copilot_sdk_agent.py` が生成する `.csproj` に含めている。
+> **恒久対策済み**: `templates/digital-colleague/Agent.csproj` の `RTCOPILOT` ブロックに含めている。
 
 ## 14. Linux の App Service で `copilot-runtime` が見つからない（検証済 2026-09-17）
 

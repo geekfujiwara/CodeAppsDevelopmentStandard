@@ -45,6 +45,9 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 | [feature-blocks.md](references/feature-blocks.md) | **機能ブロックの実装レシピ**（B2/B6/B9〜B17 のコピー・アプリ設定・DI 登録）。**Step 8 で読む** |
 | [image-generation.md](references/image-generation.md) | **画像生成（B17）**。モデル可用性の事前検証、UAMI 認証、OneDrive 保存、台帳連携。**Step 8 で読む** |
 | [agent-brain.md](references/agent-brain.md) | 中身の作り込み（Azure OpenAI / 会話履歴 / プロンプト外部化 / Dataverse MCP / Work IQ / 再デプロイ） |
+| [copilot-sdk-runtime.md](references/copilot-sdk-runtime.md) | **頭脳の実装方式（B3）の 2 択**。GitHub Copilot SDK ランタイム（BYOK + Managed Identity・既定）と自前 Chat Completions ループの違い、作業ディレクトリ分離、承認ゲート。**Step 0 で読む** |
+| [licensing-and-data-boundary.md](references/licensing-and-data-boundary.md) | Copilot SDK のライセンス・費用分解・データ境界（経路 A / 経路 B の課金帰属） |
+| [migration-from-custom-loop.md](references/migration-from-custom-loop.md) | 既存の自前ツールループから Copilot SDK ランタイムへ載せ替えるときの対応表 |
 | [prompt-injection.md](references/prompt-injection.md) | **外部データを読むなら必須**。フェンス / 許可リスト / 検知 / 同意の強制の 4 層。**Step 8 で読む** |
 | [usage-accounting.md](references/usage-accounting.md) | **誰が・何に・いくら使ったか**の計測（B15）。Azure ポータルでは出せない内訳。**Step 8 で読む** |
 | [incoming-files.md](references/incoming-files.md) | **送られたファイルを受け取る**（B16）。取得経路と `supportsFiles`。**Step 8 で読む** |
@@ -53,6 +56,7 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 | [architecture.md](references/architecture.md) | 2 種類のブループリントの違い / manifest スキーマ / 公開経路 / 表示名・アイコンの変更 |
 | [agent-template-upload.md](references/agent-template-upload.md) | devPreview ZIP の M365 管理センター private API staging / publish 契約、二重承認、read-back |
 | [troubleshooting.md](references/troubleshooting.md) | 異常系（401 / AADSTS82001 / AADSTS65001 / カタログ公開の 409・403 など） |
+| [copilot-sdk-troubleshooting.md](references/copilot-sdk-troubleshooting.md) | 異常系（Copilot SDK ランタイム: 子プロセス起動 / BYOK エンドポイント / MCP ツール名 / 承認など） |
 | [.env.example](references/.env.example) | 環境変数の一覧と取得元 |
 | [scaffold-decisions.example.json](references/scaffold-decisions.example.json) | **一括 scaffold の入力**。AskUserQuestion の回答をこの形へ書き出す（役割 / 機能ブロック / poc・full / リポジトリ可視性 / 管理担当者） |
 | [`templates/digital-colleague/`](templates/digital-colleague/) | scaffold される Agents SDK プロジェクトの原本（B1〜B17。`scaffold_ai_teammate.py` が読む） |
@@ -62,7 +66,7 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 
 ## 事前確認（会話の最初に 1 回だけ）
 
-本スキルの利用が確定したら、**1 回の AskUserQuestion で次の 7 点をまとめて確認する**。
+本スキルの利用が確定したら、**1 回の AskUserQuestion で次の 8 点をまとめて確認する**。
 以降の Step で同じ内容を聞き直さない。
 
 | # | 質問 | 選択肢 / 記入例 |
@@ -74,6 +78,7 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 | 5 | 各管理操作の担当者とロールは誰か | Agent Registry: `AI Administrator`、blueprint 作成: `Agent ID Developer`、インスタンス同意: `Privileged Role Administrator`、ライセンス割当: `License Administrator`。`Global Administrator` は代替に限定する |
 | 6 | 「〇〇を行ってくれる同僚エージェント」の具体的な業務内容は？ | [digital-colleague-design.md](references/digital-colleague-design.md) §2 の役割カタログ（R1〜R6）を選択肢として提示する（複数可・自由記述可） |
 | 7 | エージェント名、表示名、owner / sponsor、公開・テスト対象、アイコンは？ | kebab-case 名、Teams 表示名、ユーザーまたはセキュリティ グループを確認する。希望が無ければ名称を 3 案提案する。アイコンは正方形・背景透過 PNG。**商標・著作権に触れる名称やキャラクターは使わない** |
+| 8 | 頭脳（B3）の実装方式はどちらにするか | **(a) GitHub Copilot SDK ランタイム（BYOK + Managed Identity・既定）** — 計画・ツール反復・コンテキスト圧縮をランタイムに任せる<br>(b) 自前 Chat Completions ループ — 反復回数を自分で抑える。子プロセスを起動できないホスト向け<br>→ 判断材料は [copilot-sdk-runtime.md](references/copilot-sdk-runtime.md) |
 
 質問 1 の回答が**テナントのアプリカタログへの公開の承認を兼ねる**。
 (a) は課金もカタログ公開も発生せず、(b) は Azure Bot / App Service の課金だけが発生する。
@@ -93,11 +98,16 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 | M365 Agent Registry への追加・公開・配布 | `AI Administrator` | `Global Administrator` は緊急時の代替のみ |
 | インスタンスへのテナント全体 OAuth 同意 | `Privileged Role Administrator` | `Global Administrator` は代替。インスタンス再作成ごとに必要 |
 
-**質問 3 の回答から、依頼者が言っていない機能ブロックを自分から提案する。**
+**質問 6 の回答から、依頼者が言っていない機能ブロックを自分から提案する。**
 依頼者は「Web 検索が欲しい」「定期実行を付けて」とは言わない。
 社外の情報が出てきたら **B10**、繰り返しの仕事が見えたら **B11**、ファイルが出てきたら **B12**、
 B12 を入れるなら **B13 と B14**、相手からファイルを渡されるなら **B16** をその場で提案し、可否を取る
 （提案条件と言い回しは [digital-colleague-design.md](references/digital-colleague-design.md) §4）。
+
+> **資料を作らせるなら B12 は必須。** 「資料をまとめて」「PowerPoint にして」は
+> 依頼者から見れば普通の依頼だが、B12 が無いとエージェントはコードを**書けるが実行できない**。
+> モデルはそれを知らずに OOXML を手組みし始め、ターン丸々を使って何も渡せない。
+> 受け取り時に `deploy_ai_teammate.py --check` がこの不整合（`Sandbox.Enabled` だけが true）を落とす。
 
 **制約もこの場で先に伝える**（同 §5）。とくに「メールは push されないのでポーリングになる」
 「エージェントはメールを既読にできない」「他人の予定表は直接読めない」
@@ -107,8 +117,9 @@ B12 を入れるなら **B13 と B14**、相手からファイルを渡される
 
 **1 回の AskUserQuestion で集めた回答は、利用者に手入力させず、エージェントが
 [references/scaffold-decisions.example.json](references/scaffold-decisions.example.json) の
-スキーマに沿った JSON へ自分で書き出す。** 役割 / 機能ブロック / poc・full / GitHub リポジトリ
-（full のときは private を既定）/ 公開範囲 / 管理担当者をこの 1 ファイルにまとめ、
+スキーマに沿った JSON へ自分で書き出す。** 役割 / 機能ブロック / **頭脳の実装方式（`runtime`）** /
+poc・full / GitHub リポジトリ（full のときは private を既定）/ 公開範囲 / 管理担当者を
+この 1 ファイルにまとめ、
 [scripts/scaffold_ai_teammate.py](scripts/scaffold_ai_teammate.py) に渡すと、Step 0〜3 が一度に終わる。
 
 ```powershell
@@ -117,6 +128,13 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 
 - 役割ベースの構成可能テンプレート（`preset: "role"` + `roles` / `blocks`）と、
   Meena 互換の全部入り（`preset: "full"` → B1〜B17 すべて）の両方に対応する。
+- **頭脳（B3）は `runtime` で選ぶ**。`"copilot-sdk"`（既定）なら `CopilotRuntime.cs` と
+  Copilot ランタイム版 `AgentBrain.cs`、`"agents-sdk"` なら Chat Completions 版 `AgentBrain.cs` が
+  生成され、`Agent.csproj` のパッケージ参照と `appsettings.json` の `Copilot` セクションも揃う
+  （→ [copilot-sdk-runtime.md](references/copilot-sdk-runtime.md)）。
+- **選ばなかった機能ブロックの設定セクションは `appsettings.json` から消える**。
+  `Sandbox.Enabled=true` と `${SANDBOX_ENDPOINT}` だけが残ると、コードを実行できないのに
+  実行できるつもりのエージェントになり、依頼を受けて何も返さない。
 - **Code Apps の「AI チームメイト評価Hub」は常に同時 scaffold される**（`evaluation-app/` 配下）。
   無効化はできない。
 - 選ばなかった機能ブロックの C# ファイルと DI 登録は自動的に除かれる（`full` は全部入りで生成される）。
@@ -143,6 +161,7 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 | [provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し `.env` へ書き戻す。`--check` でプラン・Always On のドリフト検出 | 6 |
 | [deploy_agent_webapp.py](scripts/deploy_agent_webapp.py) | ブループリント作成/シークレット ローテーション（App Service 設定へのみ注入・ログ非出力）・`dotnet publish`・`az webapp deploy`/`restart`・`a365 setup blueprint --endpoint-only` を実行する | 4・6 |
 | [provision_code_sandbox.py](scripts/provision_code_sandbox.py) | コード実行サンドボックス（Container Apps 動的セッション プール）を冪等に作成しロールを付与（B12 のときのみ `deploy_ai_teammate.py --check` の対象） | 8 |
+| [check_copilot_sdk_env.py](scripts/check_copilot_sdk_env.py) | Copilot SDK ランタイムの前提チェック（.NET SDK / 作業ディレクトリがリポジトリ外か / `BaseDirectory` 書込可否 / BYOK エンドポイント形式 / Entra トークン取得）。**ローカルとデプロイ先の両方で実行する** | 3・6 |
 | [provision_image_model.py](scripts/provision_image_model.py) | 対象 Azure OpenAI アカウントで提供される画像モデル名・バージョンを確認してから冪等にデプロイする。`--check` は変更なし | 8 |
 | [build_teams_package.py](scripts/build_teams_package.py) | Teams manifest + アイコン + `agenticUser.json` を ZIP 化 | 9 |
 | [plan_agent_template_upload.py](scripts/plan_agent_template_upload.py) | devPreview ZIP の内容・SHA-256・対象 tenant・固定 endpoint を検証し staging approval plan を生成 | 10 |
@@ -192,6 +211,14 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 [references/digital-colleague-design.md](references/digital-colleague-design.md) に従い、
 **役割**（§2 の R1〜R6）・**機能ブロック**（§3・§4。全部は入れない）・
 **段階**（§7 の L1〜L5）の 3 つを確定する。決まったブロックが以降の実施範囲を決める。
+
+あわせて **頭脳（B3）の実装方式**をここで決める（→ [copilot-sdk-runtime.md](references/copilot-sdk-runtime.md)）。
+`AgentBrain.cs` が丸ごと入れ替わるため、**作り込んだ後の変更は書き直しになる**。
+
+| `runtime` | ツール ループ | 選ぶ基準 |
+|---|---|---|
+| `copilot-sdk`（既定） | GitHub Copilot SDK ランタイム（BYOK + Managed Identity） | 調べもの・資料作成など、手順が事前に決まらない仕事 |
+| `agents-sdk` | アプリ内の Chat Completions ループ | 手順が決まっている・子プロセスを起動できないホスト |
 
 | ブロック | 実施する Step |
 |---|---|
@@ -248,7 +275,8 @@ python .github/skills/ai-teammate/scripts/scaffold_ai_teammate.py `
 
 - `--target .` は空のリポジトリ ルート、または `--force` を付けて既存リポジトリへマージする。
 - 生成される主なもの: `Agent.csproj` / `Program.cs` / `Agent.cs` / `AgentBrain.cs` などの
-  Agents SDK プロジェクト一式（選んだ機能ブロックの分だけ）、`prompts/system.md`、
+  Agents SDK プロジェクト一式（選んだ機能ブロックと `runtime` の分だけ。
+  `runtime: "copilot-sdk"` なら `CopilotRuntime.cs` も）、`prompts/system.md`、
   `evaluation-app/`（AI チームメイト評価Hub。Code Apps。常に生成）、`scaffold-plan.json`（確定した構成の記録）。
 - `.gitignore` は[汎用化と秘匿化](#汎用化と秘匿化)の一覧を満たすこと。
   本格実装（`implementationMode: "full"`）のリポジトリ雛形・hook・CI 定義は
@@ -279,7 +307,8 @@ src/<agent-name>-agent/
 ├── <agent-name>.csproj   # Microsoft.Agents.Hosting.AspNetCore / Authentication.Msal
 ├── Program.cs            # AddAgent / AddAgentAspNetAuthentication / MapAgentApplicationEndpoints
 ├── <Agent>.cs            # AgentApplication 派生
-├── AgentBrain.cs         # LLM / ツール呼び出し
+├── AgentBrain.cs         # LLM / ツール呼び出し（runtime で中身が変わる）
+├── CopilotRuntime.cs     # runtime: "copilot-sdk" のときだけ
 └── appsettings.json      # シークレットは書かない
 ```
 
@@ -337,6 +366,17 @@ a365 setup blueprint -n <agent-name> --endpoint-only --messaging-endpoint $env:A
 - エンドポイントは**自前 App Service の `/api/messages`**。ここに Foundry の URL を入れない。
 - プランを後から下げるとこの前提が黙って崩れる。受け取り時と不具合調査の入口で
   `python scripts/provision_selfhost.py --check` を通す。
+- `runtime: "copilot-sdk"` の場合は、**デプロイ先でも**ランタイムの前提を実測する。
+  子プロセスの起動可否・書込可能パス・送信先の許可はローカルでは再現しない。
+
+  ```powershell
+  python .github/skills/ai-teammate/scripts/check_copilot_sdk_env.py --route byok
+  ```
+
+> **応答中のターンがあるときは deploy / restart しない。** コンテナが入れ替わると、
+> 実行中のターンは例外も残さず消え、依頼者には**何も返らない**（チャネルは再送しない）。
+> 資料作成のような長いターンほど当たりやすい。App Insights に
+> `Application started` が出た時刻と、依頼者が黙って待たされた時刻が一致したらこれ。
 
 ### Step 7: 人格と初期品質を入れる
 
@@ -542,7 +582,7 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 **設計**
 
 - [ ] Step 0 で役割・機能ブロック・段階を確定し、制約（メールは push されない / 既読にできない / 他人の予定表は直接読めない / 共有リンクは取り消せない）を依頼者へ共有している
-- [ ] 事前確認の 7 点を 1 回で確認し、以降の Step で聞き直していない
+- [ ] 事前確認の 8 点を 1 回で確認し、以降の Step で聞き直していない
 - [ ] Agent Registry、blueprint、ライセンス、OAuth 同意の各担当者と最小権限を記録している
 
 **秘匿化**
