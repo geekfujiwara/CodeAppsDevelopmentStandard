@@ -453,7 +453,10 @@ def run_check(target: Path, env: dict[str, str]) -> int:
 
 
 def _evaluation_app_display_name(env: dict[str, str]) -> str:
-    return env.get("EVALUATION_APP_DISPLAY_NAME") or f"{env.get('AGENT_DISPLAY_NAME', 'AI teammate')} 評価Hub"
+    # One hub per environment, not per teammate: agents are separated by `<prefix>_agentkey` inside
+    # it. Naming it after the agent produced a second app on every new teammate, splitting the
+    # review history across apps that each showed only part of it.
+    return env.get("EVALUATION_APP_DISPLAY_NAME") or "AI チームメイト評価Hub"
 
 
 def build_pre_connection_steps(target: Path, env: dict[str, str], skill_root: Path) -> list[Step]:
