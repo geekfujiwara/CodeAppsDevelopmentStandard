@@ -166,6 +166,12 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
   - 「フィードバック」ページ … チームメイトが利用者の代わりに Dataverse MCP で書く
     `<prefix>_aiteammatefeedback` を表示する。書いたのはエージェントなので `createdby` は使えず、
     依頼者は `<prefix>_requester`（systemuser への Lookup）と氏名・メールのテキストで持つ。
+  - 「AIチームメイトの設計」の各ページ（Agent Brain 設定 / セキュリティ設定）… 画面上部の
+    チームメイト切替（`AgentSwitcher`）で誰の設計を見るかを選び、選択は URL の `?agent=` に入る。
+    セルフホストの実装は全員で共通なので既定では共通の写しを見せ、実装が分かれるチームメイトだけ
+    `AGENT_BRAIN_OVERRIDES` / `AGENT_SECURITY_OVERRIDES` にエージェントキーで差分を書く。
+    設計ドキュメントは `src/data/design-specs/<エージェントキー>.md` を置けばそちらが優先される。
+    共通の写しを見ているときは画面にその旨を出す（誰の設計か分からないまま読ませない）。
 
 > **自動テストは Code App から直接エージェントを呼ばない。** チームメイトの messaging endpoint は
 > そのエージェント宛に署名された Bot Framework の通信しか受け付けないので、アプリから叩くことはできない。

@@ -15,6 +15,14 @@ export type AgentResourceGroup = {
   resources: AgentResource[]
 }
 
+export type AgentProfile = {
+  displayName: string
+  systemPromptFile: string
+  defaultSystemPrompt: string
+  defaultGreeting: string
+  notes: string[]
+}
+
 export const AGENT_RESOURCE_GROUPS: AgentResourceGroup[] = [
   {
     title: "推論エンジン",
@@ -152,7 +160,7 @@ export const AGENT_RESOURCE_GROUPS: AgentResourceGroup[] = [
   },
 ]
 
-export const AGENT_PROFILE = {
+export const AGENT_PROFILE: AgentProfile = {
   displayName: "このエージェント",
   systemPromptFile: "agent プロジェクト/prompts/system.md",
   defaultSystemPrompt:
@@ -162,4 +170,21 @@ export const AGENT_PROFILE = {
     "実運用のシステムプロンプトは prompts/system.md から読み込まれ、コードを変えずに調整できる。",
     "ファイルが見つからない場合のみ、上記の既定文言（Agent:SystemPrompt 設定または DefaultSystemPrompt 定数）にフォールバックする。",
   ],
+}
+
+// セルフホストの実装はチームメイト間で共通なので、既定では上の写しをそのまま見せる。
+// 実装や設定が分かれているチームメイトだけ、エージェントキーで差分を書く。
+export const AGENT_BRAIN_OVERRIDES: Record<
+  string,
+  { profile?: Partial<AgentProfile>; resourceGroups?: AgentResourceGroup[] }
+> = {}
+
+export function getAgentBrain(agentKey: string) {
+  const override = AGENT_BRAIN_OVERRIDES[agentKey]
+  return {
+    profile: { ...AGENT_PROFILE, ...override?.profile },
+    resourceGroups: override?.resourceGroups ?? AGENT_RESOURCE_GROUPS,
+    // 個別の写しが無く共通構成を見せているか（画面に注記を出すため）
+    isShared: !override,
+  }
 }
