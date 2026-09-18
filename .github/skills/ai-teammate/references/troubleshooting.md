@@ -1497,4 +1497,30 @@ python scripts/query_agent_logs.py --kql "AppExceptions | take 5"
 - 既定の一覧は **MSAL のトークン ログを除外**する。除外しないと画面が埋まって何も見えない。
 - ワークスペースの GUID は Application Insights の `WorkspaceResourceId` → `customerId` と辿る。
 
+## 72. Autopilot の発行が `Resource app '...' does not exist in the tenant` で落ちる（検証済 2026-09-18）
+
+**症状**: `POST /agents/{name}/microsoft365/publish` が次で失敗する。
+インフラ・イメージ ビルド・agent version 作成はすべて成功しているのに、最後の発行だけが落ちる。
+
+```json
+{ "error": { "code": "dependency_error",
+  "message": "Resource app '<app-id>' does not exist in the tenant." } }
+```
+
+**原因**: `optionalPermissionScopes` に書いた `resourceAppId` の servicePrincipal が
+そのテナントに無い。公式サンプルは Azure DevOps MCP（`2a72489c-aab2-4b65-b93a-a91edccf33b8`）を
+無条件に要求するが、ADO を使っていないテナントには存在しない。
+Agent 365 の MCP 第一者アプリ（`ea9ffc3e-8a23-4a7d-836d-234d7c7565c1`）は全テナントにあるので落ちない。
+
+**対処**: 存在しない resource app を要求しない。
+
+**恒久対策済み**: [scripts/publish_foundry_autopilot.py](../scripts/publish_foundry_autopilot.py) の
+`build_permission_scopes()` が、発行の**たびに** Graph の `servicePrincipals?$filter=appId eq '...'` を
+引いて存在しない resourceAppId を除外する（`--check` でも同じ検査が動く）。
+ADO のスコープは `AZURE_DEVOPS_ORGANIZATION` が設定されているときだけ候補に入る。
+
+**関連**: 同じ発行を同じ `appVersion` で再送すると `UserError: version already exists` になる。
+イメージを差し替えたら新しい agent version を作り、`AGENT_APP_VERSION` も上げる
+（[foundry-autopilot.md](foundry-autopilot.md) §7）。
+
 

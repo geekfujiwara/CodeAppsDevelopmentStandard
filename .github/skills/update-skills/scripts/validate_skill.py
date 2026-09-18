@@ -88,6 +88,8 @@ ALLOWLIST = {
     "5a807f24-c9de-44ee-a3a7-329e88a00ffc",  # Messaging Bot API Application の appId（全テナント共通）
     "fdcc1f02-fc51-4226-8753-f668596af7f7",  # Work IQ 第一者アプリの appId（全テナント共通）
     "6f9230af-2a98-4952-b205-9ede4f9ef548",  # Microsoft Graph sitePage の Text web part 種別 ID（全テナント共通・固定）
+    "ea9ffc3e-8a23-4a7d-836d-234d7c7565c1",  # Agent 365 MCP サーバーの第一者 resource app ID（全テナント共通）
+    "2a72489c-aab2-4b65-b93a-a91edccf33b8",  # Azure DevOps MCP の第一者 resource app ID（全テナント共通）
 }
 
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")

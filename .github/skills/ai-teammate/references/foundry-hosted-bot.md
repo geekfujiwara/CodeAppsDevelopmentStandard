@@ -1,11 +1,17 @@
-# Foundry ホスト方式（参考情報。実装には使わない）
+# Foundry `activityprotocol` 直結方式（参考情報。実装には使わない）
 
-> **このスキルの実装フローでは Foundry ホスト方式を使わない。**
+> **Foundry ホストで agentUser を持たせたい場合は
+> [foundry-autopilot.md](foundry-autopilot.md) を読む。**
+> Foundry hosted agent を **Autopilot** として発行する経路（`digital_worker_type: m365` +
+> `publishAsAutopilot: true`）なら、hire したインスタンスごとに agent user アカウントが払い出される。
+> 本ファイルの 401 / 502 は**それとは別の旧経路**（`activityprotocol` を Azure Bot に直結する）の話。
+>
+> **この旧経路は実装フローで使わない。**
 > Foundry の `activityprotocol` を Agent 365 の agentUser エンドポイントに指定すると、
 > Agent 365 が送るトークンが **401 で拒否され、Teams で話しかけても応答が返ってこない**（無反応）。
 > 受理する audience を変更する手段が無く、回避策も存在しない
 > （[troubleshooting.md](troubleshooting.md) #17）。
-> デジタルな同僚を作るなら [SKILL.md](../SKILL.md) の自己ホスト フロー
+> 自前の実装を作り込むなら [SKILL.md](../SKILL.md) の自己ホスト フロー
 > （[self-hosted-agent.md](self-hosted-agent.md)）を使う。
 >
 > 本ファイルは「なぜ動かないのか」「どこまでならできるのか」を残すための**参考情報**であり、
@@ -21,7 +27,7 @@ Azure Bot のメッセージング エンドポイントにする方式。
 | 目的 | 現状 |
 |---|---|
 | Teams に通常 bot として直接チャットさせる | 可能。下記の Bot Service + Foundry `activityprotocol` + `BotServiceRbac` PATCH が必要 |
-| Agent 365 の agentUser としてチャットさせる | 不可。Agent 365 の `aud` / `azp` を Foundry `activityprotocol` 側が受理できない |
+| Agent 365 の agentUser としてチャットさせる | **この経路では**不可。Agent 365 の `aud` / `azp` を Foundry `activityprotocol` 側が受理できない。→ [foundry-autopilot.md](foundry-autopilot.md) の Autopilot 経路を使う |
 | Foundry エージェントを agentUser の頭脳として使う | 自己ホスト App Service を置き、Agent 365 activity を受けて Foundry `activityprotocol` / Agents API へ読替する中間サービスが必要 |
 
 つまり、SKILL.md の正常系でデプロイする対象は **Agents SDK アプリ（App Service）**であり、
@@ -78,4 +84,10 @@ Foundry-Features: AgentEndpoints=V1Preview
 `POST {FOUNDRY_PROJECT_ENDPOINT}/agents/{name}/microsoft365/publish?api-version=v1`
 （ポータルの "Publish to Teams and M365 Copilot" の REST 相当）は毎回
 `502 upstream_dependency_failed` で失敗する。RBAC は原因ではない（呼び出し元は
-サブスクリプション Owner）。回避策は無く、自己ホスト方式を使う。
+サブスクリプション Owner）。
+
+> **解消済みの経路あり。** エージェントを `digital_worker_type: m365` +
+> `Foundry-Features: DigitalWorker=V1Preview` で作ってから
+> `api-version=2025-11-15-preview` の `microsoft365/publish` を呼ぶと成功する。
+> 手順は [foundry-autopilot.md](foundry-autopilot.md)。
+> 自前実装を作り込む場合は自己ホスト方式を使う。

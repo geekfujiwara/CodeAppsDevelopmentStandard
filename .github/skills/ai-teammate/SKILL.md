@@ -1,6 +1,6 @@
 ---
 name: ai-teammate
-description: "AI チームメイト。Microsoft Agent SDK アプリを App Service で自己ホストし、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して、Teams / Microsoft 365 Copilot に agentUser として公開する。自分のメールアドレスと予定表を持ち、自分の権限で働く『デジタルな同僚』を、役割カタログと機能ブロック（メール応対 / Dataverse の権限準拠検索 / Web 検索 / 定期実行 / コード実行 / 経過連絡 / 成果物の共有と同意 / Teams プレゼンス）の組み合わせで設計・実装する。Foundry ホスト方式は agentUser チャットが 401 で成立せず無応答になるため正常系では使わず、references の参考情報として隔離する。CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。"
+description: "AI チームメイト。自分のメールアドレスと予定表を持ち、自分の権限で働く『デジタルな同僚』を、役割カタログと機能ブロック（メール応対 / Dataverse の権限準拠検索 / Web 検索 / 定期実行 / コード実行 / 経過連絡 / 成果物の共有と同意 / Teams プレゼンス）の組み合わせで設計・実装する。既定は Microsoft Agent SDK アプリを App Service で自己ホストし、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に agentUser として公開する。M365 標準ツール中心で速く立ち上げたい場合は Foundry hosted agent を Autopilot として発行する経路も選べる（インスタンスごとに agent user アカウントが払い出される）。旧来の activityprotocol 直結方式は 401 で成立しないため references に隔離する。CI/CD・レビューゲートなどの ALM は alm スキルに委譲する。"
 category: automation
 triggers:
   - "Agent 365"
@@ -16,19 +16,23 @@ triggers:
 Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 **同僚エージェント（agentUser）**として実際に会話できる状態にする。
 
-> **Foundry ホスト方式は使わない。** Foundry の `activityprotocol` を Agent 365 の agentUser
-> エンドポイントに指定すると Agent 365 のトークンが 401 で拒否され、**Teams で話しかけても応答が
-> 返ってこない**（無反応）。受理 audience を変える手段が無く、回避策も無い。
+> **agentUser を持たせる経路は 2 つある。** 既定は本 SKILL.md の**自己ホスト**。
+> M365 の標準ツール（メール / 予定表 / Teams / Office）中心で速く立ち上げたいなら、
+> Foundry hosted agent を **Autopilot** として発行する経路も選べる（hire したインスタンスごとに
+> agent user アカウントが払い出される。Frontier preview が前提）
+> → [references/foundry-autopilot.md](references/foundry-autopilot.md)。
+>
+> **旧来の「Foundry の `activityprotocol` を Azure Bot に直結する方式」は使わない。**
+> Agent 365 のトークンが 401 で拒否され、**Teams で話しかけても応答が返ってこない**（無反応）。
 > 参考情報としてのみ [references/foundry-hosted-bot.md](references/foundry-hosted-bot.md) に隔離する。
-> 実装で作るのは常に**自前 App Service の `/api/messages`**。
 
 本 SKILL.md には**正常系フローだけ**を置く。手順の中身・分岐・異常系はすべて `references/`、
 再現可能な操作は `scripts/` にある。
 
 | 原則 | 内容 |
 |---|---|
-| 正常系は自己ホスト | agentUser チャットが動くのは Agents SDK アプリを App Service で自己ホストする構成のみ |
-| Foundry は参考 | Foundry エージェントは正常系に含めない。頭脳として使うなら中間サービスで読替が要る |
+| 既定は自己ホスト | 機能ブロックを作り込むなら Agents SDK アプリを App Service で自己ホストする。Autopilot は M365 標準ツールで足りるときの近道 |
+| activityprotocol 直結は不可 | Foundry の `activityprotocol` を Azure Bot のエンドポイントにする旧方式は agentUser チャットが動かない |
 | API 優先 | Azure CLI・`a365` CLI・Agents SDK を優先し、M365 管理センター限定の操作だけ承認済み private API plan をログイン済みブラウザで実行する |
 | テンプレート駆動 | コミットするのは `${VAR}` 入りテンプレートだけ。実値は `.env` / シークレットストアのみ |
 | 外部データはデータ | 取り込んだ文章はフェンスで囲って渡し、実害のある操作はコードで ID を検証する |
@@ -42,6 +46,7 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 |---|---|
 | [digital-colleague-design.md](references/digital-colleague-design.md) | **何を作るかを決める**（役割カタログ R1〜R6 / 機能ブロック B1〜B17 / 提案条件 / 制約 / 段階導入）。**Step 0 で読む** |
 | [self-hosted-agent.md](references/self-hosted-agent.md) | 自己ホストの完全手順（Azure Bot / App Service / `appsettings.json` / ログの読み方） |
+| [foundry-autopilot.md](references/foundry-autopilot.md) | **もう 1 つの経路**。Foundry hosted agent を Autopilot として発行し、インスタンスごとに agent user アカウントを払い出す（前提 / API 契約 / 承認・採用） |
 | [feature-blocks.md](references/feature-blocks.md) | **機能ブロックの実装レシピ**（B2/B6/B9〜B17 のコピー・アプリ設定・DI 登録）。**Step 8 で読む** |
 | [image-generation.md](references/image-generation.md) | **画像生成（B17）**。モデル可用性の事前検証、UAMI 認証、OneDrive 保存、台帳連携。**Step 8 で読む** |
 | [agent-brain.md](references/agent-brain.md) | 中身の作り込み（Azure OpenAI / 会話履歴 / プロンプト外部化 / Dataverse MCP / Work IQ / 再デプロイ） |
@@ -62,7 +67,7 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 | [`templates/digital-colleague/`](templates/digital-colleague/) | scaffold される Agents SDK プロジェクトの原本（B1〜B17。`scaffold_ai_teammate.py` が読む） |
 | [`templates/evaluation-app/`](templates/evaluation-app/) | scaffold される AI チームメイト評価Hub（Code Apps）の原本 |
 | [`alm`](../alm/SKILL.md) | 秘匿化ゲート・CI/CD・リリース記録 |
-| 参考のみ | [foundry-hosted-bot.md](references/foundry-hosted-bot.md)（Foundry ホスト方式）/ [poc-quickstart.md](references/poc-quickstart.md)（共有エージェントの簡易ルート）/ [team-pattern.md](references/team-pattern.md)（複数体構成）/ [a365-cli.md](references/a365-cli.md) |
+| 参考のみ | [foundry-hosted-bot.md](references/foundry-hosted-bot.md)（activityprotocol 直結の旧方式）/ [poc-quickstart.md](references/poc-quickstart.md)（共有エージェントの簡易ルート）/ [team-pattern.md](references/team-pattern.md)（複数体構成）/ [a365-cli.md](references/a365-cli.md) |
 
 ## 事前確認（会話の最初に 1 回だけ）
 
