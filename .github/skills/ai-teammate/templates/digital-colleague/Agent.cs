@@ -138,6 +138,13 @@ public class Agent : AgentApplication
             turn.Text += "\n\n" + await _files.StageAsync(conversationId, attached, cancellationToken);
             turn.Images = [.. attached.Where(file => file.IsImage)];
         }
+        else if (IncomingFiles.LooksAttached(turnContext.Activity))
+        {
+            // Silence here is the worst answer: the agent would reach for whatever file it handled
+            // last and discuss that one instead of saying the new one never arrived.
+            turn.Text += "\n\n（この発言にはファイルが添付されていましたが、取得できませんでした。"
+                + "以前のファイルの話と混同せず、もう一度送ってもらうよう伝えてください。）";
+        }
         // GEEK:BLOCK:B16:END
 
         history.Add(turn);
