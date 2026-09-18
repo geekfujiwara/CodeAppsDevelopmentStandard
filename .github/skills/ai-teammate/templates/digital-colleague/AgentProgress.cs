@@ -8,7 +8,8 @@
 //
 // アプリ設定（__ が階層区切り）:
 //   Agent__Progress__Enabled          = true
-//   Agent__Progress__FirstNoteSeconds = 20
+//   Agent__Progress__NudgeSeconds     = 15
+//   Agent__Progress__FirstNoteSeconds = 45
 //   Agent__Progress__IntervalSeconds  = 45
 //   Agent__Progress__TypingSeconds    = 5
 
@@ -49,6 +50,7 @@ public sealed class AgentProgress : IAsyncDisposable
     private readonly TimeSpan _firstNote;
     private readonly TimeSpan _interval;
     private readonly TimeSpan _typingInterval;
+    private readonly TimeSpan _nudgeAfter;
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _stop = new();
@@ -58,17 +60,20 @@ public sealed class AgentProgress : IAsyncDisposable
     private Task? _heartbeat;
     private DateTimeOffset _lastNote = DateTimeOffset.MinValue;
     private DateTimeOffset _labelAt = DateTimeOffset.MinValue;
+    private DateTimeOffset _nudgedAt = DateTimeOffset.MinValue;
     private int _notes;
     private string _label = DefaultLabel;
 
     private AgentProgress(
         Func<IActivity, CancellationToken, Task> send,
+        TimeSpan nudgeAfter,
         TimeSpan firstNote,
         TimeSpan interval,
         TimeSpan typingInterval,
         ILogger logger)
     {
         _send = send;
+        _nudgeAfter = nudgeAfter;
         _firstNote = firstNote;
         _interval = interval;
         _typingInterval = typingInterval;
@@ -85,7 +90,8 @@ public sealed class AgentProgress : IAsyncDisposable
 
         return new AgentProgress(
             (activity, cancellationToken) => turnContext.SendActivityAsync(activity, cancellationToken),
-            TimeSpan.FromSeconds(configuration.GetValue("Agent:Progress:FirstNoteSeconds", 25)),
+            TimeSpan.FromSeconds(configuration.GetValue("Agent:Progress:NudgeSeconds", 15)),
+            TimeSpan.FromSeconds(configuration.GetValue("Agent:Progress:FirstNoteSeconds", 45)),
             TimeSpan.FromSeconds(configuration.GetValue("Agent:Progress:IntervalSeconds", 45)),
             TimeSpan.FromSeconds(configuration.GetValue("Agent:Progress:TypingSeconds", 5)),
             logger);
@@ -114,6 +120,29 @@ public sealed class AgentProgress : IAsyncDisposable
         }
 
         await NoteAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Appended to a tool result so the agent narrates in its own words. Without it the only thing
+    /// the waiting person hears is the generated line below, which says nothing about the work.
+    /// </summary>
+    public string? Nudge()
+    {
+        lock (_notesLock)
+        {
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            if (now - _started < _nudgeAfter || now - _lastNote < _interval
+                || now - _nudgedAt < _interval || _notes >= MaxNotes)
+            {
+                return null;
+            }
+
+            _nudgedAt = now;
+            return $"\n\n（システム: 着手から {(int)(now - _started).TotalSeconds} 秒。相手を待たせているので、"
+                + "次の作業に移る前に report_progress を 1 回呼ぶこと。"
+                + "何を確認して何が分かったか、次に何をするかを具体的な名前を挙げて 1〜2 文で書く。"
+                + "「作業を進めています」「もう少しお待ちください」のような中身の無い文は送らない。）";
+        }
     }
 
     public IReadOnlyList<LocalTool> CreateTools() =>

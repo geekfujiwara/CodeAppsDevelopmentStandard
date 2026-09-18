@@ -420,7 +420,8 @@ public sealed class AgentBrain(
             logger.LogWarning("Possible prompt injection in {Tool} output: {Phrase}", name, suspicious);
         }
 
-        return payload;
+        // Outside the fence: this is our instruction to the agent, not part of the tool's output.
+        return progress?.Nudge() is { } nudge ? payload + nudge : payload;
     }
 
     /// <summary>

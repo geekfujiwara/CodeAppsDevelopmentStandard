@@ -340,6 +340,12 @@ public sealed class AgentBrain(
                             "Possible prompt injection in {Tool} output: {Phrase}", call.FunctionName, suspicious);
                     }
 
+                    // Outside the fence: our instruction to the agent, not part of the tool's output.
+                    if (progress?.Nudge() is { } nudge)
+                    {
+                        payload += nudge;
+                    }
+
                     messages.Add(new ToolChatMessage(call.Id, payload));
                 }
             }
