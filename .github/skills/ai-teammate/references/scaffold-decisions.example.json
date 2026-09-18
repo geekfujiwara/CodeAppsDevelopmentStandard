@@ -7,6 +7,8 @@
   "personality": "親しみやすく温かい態度で、社内の仕事を前のめりに手伝います",
   "implementationMode": "full",
   "preset": "role",
+  "runtime": "copilot-sdk",
+  "hosting": "self-hosted",
   "roles": ["R1"],
   "blocks": ["B9", "B10"],
   "entryPoints": {

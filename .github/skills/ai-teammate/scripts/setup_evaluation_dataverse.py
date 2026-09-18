@@ -379,20 +379,29 @@ def get_solution_id(solution_name: str) -> str | None:
     return values[0]["solutionid"] if values else None
 
 
-def existing_tables(prefix: str) -> dict[str, str]:
-    """Returns {logical_name: MetadataId} for tables under this prefix that already exist."""
-    # EntityDefinitions rejects startswith() with 501, so the prefix is matched client side.
+def existing_tables(prefix: str, wanted: set[str] | None = None) -> dict[str, str]:
+    """Returns {logical_name: MetadataId} for the hub tables that already exist.
+
+    *wanted* is matched exactly. Matching a name prefix instead would miss the tables that do not
+    start with ``<prefix>_eval`` (``<prefix>_skill``, ``<prefix>_aiteammatefeedback``), which would
+    make them look uncreated on every run and hide a collision with someone else's table.
+    """
+    # EntityDefinitions rejects startswith() with 501, so the match is done client side.
     rows = api_get("EntityDefinitions?$select=LogicalName,MetadataId").get("value", [])
+    if wanted is not None:
+        return {
+            row["LogicalName"]: row["MetadataId"] for row in rows if row["LogicalName"] in wanted
+        }
     return {
         row["LogicalName"]: row["MetadataId"]
         for row in rows
-        if row["LogicalName"].startswith(f"{prefix}_eval")
+        if row["LogicalName"].startswith(f"{prefix}_")
     }
 
 
 def foreign_tables(prefix: str, wanted: set[str], solution_id: str) -> list[str]:
     """Tables that already exist under this prefix but do not belong to *solution_id*."""
-    found = existing_tables(prefix)
+    found = existing_tables(prefix, wanted)
     hit = {name: metadata_id for name, metadata_id in found.items() if name in wanted}
     if not hit:
         return []
@@ -414,7 +423,7 @@ def existing_columns(logical: str) -> set[str]:
 
 
 def missing_columns(tbl: dict, prefix: str) -> list[dict]:
-    if tbl["logical"] not in existing_tables(prefix):
+    if tbl["logical"] not in existing_tables(prefix, {tbl["logical"]}):
         return list(tbl["columns"])
     present = existing_columns(tbl["logical"])
     return [col for col in tbl["columns"] if col["logical"] not in present]
@@ -492,7 +501,7 @@ def run_check(prefix: str, solution_name: str) -> int:
             print(f"  - {name}", file=sys.stderr)
         return 1
 
-    found = existing_tables(prefix)
+    found = existing_tables(prefix, wanted)
     not_created: list[str] = []
     for tbl in tables:
         if tbl["logical"] not in found:
@@ -563,7 +572,7 @@ def run_execute(prefix: str, solution_name: str, env: dict[str, str]) -> int:
         return 1
 
     for tbl in tables:
-        if tbl["logical"] not in existing_tables(prefix):
+        if tbl["logical"] not in existing_tables(prefix, {tbl["logical"]}):
             create_table(tbl, solution_name, prefix)
         to_add = missing_columns(tbl, prefix)
         if to_add:

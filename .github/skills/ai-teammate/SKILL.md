@@ -46,7 +46,10 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 |---|---|
 | [digital-colleague-design.md](references/digital-colleague-design.md) | **何を作るかを決める**（役割カタログ R1〜R6 / 機能ブロック B1〜B17 / 提案条件 / 制約 / 段階導入）。**Step 0 で読む** |
 | [self-hosted-agent.md](references/self-hosted-agent.md) | 自己ホストの完全手順（Azure Bot / App Service / `appsettings.json` / ログの読み方） |
-| [foundry-autopilot.md](references/foundry-autopilot.md) | **もう 1 つの経路**。Foundry hosted agent を Autopilot として発行し、インスタンスごとに agent user アカウントを払い出す（前提 / API 契約 / 承認・採用） |
+| [foundry-autopilot.md](references/foundry-autopilot.md) | **ホスティングの第 3 の選択肢**。Foundry hosted agent を Autopilot として発行し、インスタンスごとに agent user アカウントを払い出す（前提 / API 契約 / 承認・採用）。`hosting: "foundry-autopilot"` の本体 |
+| [regression-tests.md](references/regression-tests.md) | **デプロイのたびに自動で流す回帰テスト**（不変条件の層 + 振る舞いの層 / キュー経由の理由 / ケースの書き方 / CI 組み込み）。**Step 13 で読む** |
+| [foundry-evaluation.md](references/foundry-evaluation.md) | **Foundry 標準の Evaluations にスコアを出す**（継続評価ルール / hosted agent 向けトレース評価 / 評価器と判定モデル / 費用）。**Step 13 で読む** |
+| [cowork-skills.md](references/cowork-skills.md) | **Agent Skills を持たせる**（配布元 / 同梱する理由 / ホスティング別の置き場所 / 評価ハブへの同期）。**Step 3 で読む** |
 | [feature-blocks.md](references/feature-blocks.md) | **機能ブロックの実装レシピ**（B2/B6/B9〜B17 のコピー・アプリ設定・DI 登録）。**Step 8 で読む** |
 | [image-generation.md](references/image-generation.md) | **画像生成（B17）**。モデル可用性の事前検証、UAMI 認証、OneDrive 保存、台帳連携。**Step 8 で読む** |
 | [agent-brain.md](references/agent-brain.md) | 中身の作り込み（Azure OpenAI / 会話履歴 / プロンプト外部化 / Dataverse MCP / Work IQ / 再デプロイ） |
@@ -65,13 +68,15 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 | [.env.example](references/.env.example) | 環境変数の一覧と取得元 |
 | [scaffold-decisions.example.json](references/scaffold-decisions.example.json) | **一括 scaffold の入力**。AskUserQuestion の回答をこの形へ書き出す（役割 / 機能ブロック / poc・full / リポジトリ可視性 / 管理担当者） |
 | [`templates/digital-colleague/`](templates/digital-colleague/) | scaffold される Agents SDK プロジェクトの原本（B1〜B17。`scaffold_ai_teammate.py` が読む） |
+| [`templates/foundry-autopilot/`](templates/foundry-autopilot/) | `hosting: "foundry-autopilot"` のときに公式クイックスタートへ重ねるオーバーレイの原本（頭脳 / スキル同期 / テスト ワーカー / 画像生成） |
+| [`templates/regression/`](templates/regression/) | 回帰テストのケース定義（`suite.json`）。scaffold 時に機能ブロックで絞られる |
 | [`templates/evaluation-app/`](templates/evaluation-app/) | scaffold される AI チームメイト評価Hub（Code Apps）の原本 |
 | [`alm`](../alm/SKILL.md) | 秘匿化ゲート・CI/CD・リリース記録 |
 | 参考のみ | [foundry-hosted-bot.md](references/foundry-hosted-bot.md)（activityprotocol 直結の旧方式）/ [poc-quickstart.md](references/poc-quickstart.md)（共有エージェントの簡易ルート）/ [team-pattern.md](references/team-pattern.md)（複数体構成）/ [a365-cli.md](references/a365-cli.md) |
 
 ## 事前確認（会話の最初に 1 回だけ）
 
-本スキルの利用が確定したら、**1 回の AskUserQuestion で次の 8 点をまとめて確認する**。
+本スキルの利用が確定したら、**1 回の AskUserQuestion で次の 9 点をまとめて確認する**。
 以降の Step で同じ内容を聞き直さない。
 
 | # | 質問 | 選択肢 / 記入例 |
@@ -84,6 +89,7 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 | 6 | 「〇〇を行ってくれる同僚エージェント」の具体的な業務内容は？ | [digital-colleague-design.md](references/digital-colleague-design.md) §2 の役割カタログ（R1〜R6）を選択肢として提示する（複数可・自由記述可） |
 | 7 | エージェント名、表示名、owner / sponsor、公開・テスト対象、アイコンは？ | kebab-case 名、Teams 表示名、ユーザーまたはセキュリティ グループを確認する。希望が無ければ名称を 3 案提案する。アイコンは正方形・背景透過 PNG。**商標・著作権に触れる名称やキャラクターは使わない** |
 | 8 | 頭脳（B3）の実装方式はどちらにするか | **(a) GitHub Copilot SDK ランタイム（BYOK + Managed Identity・既定）** — 計画・ツール反復・コンテキスト圧縮をランタイムに任せる<br>(b) 自前 Chat Completions ループ — 反復回数を自分で抑える。子プロセスを起動できないホスト向け<br>→ 判断材料は [copilot-sdk-runtime.md](references/copilot-sdk-runtime.md) |
+| 9 | どこでホストするか | **(a) 自己ホスト（既定）** — App Service + Azure Bot を自分で持つ。C# / .NET。頭脳は (a)(b) どちらも選べる<br>(b) **Foundry Autopilot** — Foundry がホスティングを持つ。Python。Bot 登録も App Service も不要だが **頭脳は Copilot SDK に固定**される<br>→ 判断材料は [foundry-autopilot.md](references/foundry-autopilot.md) |
 
 質問 1 の回答が**テナントのアプリカタログへの公開の承認を兼ねる**。
 (a) は課金もカタログ公開も発生せず、(b) は Azure Bot / App Service の課金だけが発生する。
@@ -148,6 +154,17 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
   Copilot ランタイム版 `AgentBrain.cs`、`"agents-sdk"` なら Chat Completions 版 `AgentBrain.cs` が
   生成され、`Agent.csproj` のパッケージ参照と `appsettings.json` の `Copilot` セクションも揃う
   （→ [copilot-sdk-runtime.md](references/copilot-sdk-runtime.md)）。
+- **ホスティングは `hosting` で選ぶ**。`runtime` とは**別の軸**であることに注意する。
+
+  | `hosting` | 生成されるもの | `runtime` |
+  |---|---|---|
+  | `"self-hosted"`（既定） | C# の Agents SDK プロジェクト + App Service / Azure Bot | `copilot-sdk` / `agents-sdk` |
+  | `"foundry-autopilot"` | Microsoft 公式クイックスタート（Python）を取得し、本スキルのオーバーレイを重ねる | **`copilot-sdk` に固定** |
+
+  `foundry-autopilot` で `runtime` を明示的に `agents-sdk` にすると scaffold はエラーで止まる。
+  矛盾した設定を黙って直すと、意図しない頭脳で動くエージェントが出来上がる。
+- **回帰テストのケースは `regression/suite.json` へ出力される**。選ばなかった機能ブロックの
+  ケースは `requiresBlocks` を見て除外される（→ [regression-tests.md](references/regression-tests.md)）。
 - **選ばなかった機能ブロックの設定セクションは `appsettings.json` から消える**。
   `Sandbox.Enabled=true` と `${SANDBOX_ENDPOINT}` だけが残ると、コードを実行できないのに
   実行できるつもりのエージェントになり、依頼を受けて何も返さない。
@@ -220,6 +237,10 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 | [set_agent_user_photo.py](scripts/set_agent_user_photo.py) | エージェンティック ユーザーにプロフィール写真を設定 | 12 |
 | [configure_agent_presence.py](scripts/configure_agent_presence.py) | UAMI に Graph プレゼンス権限を冪等付与し設定値を確認 | 12 |
 | [query_agent_logs.py](scripts/query_agent_logs.py) | Application Insights の `AppTraces` を `az rest` で読む（`az monitor` 系は**ワークスペース ベースで失敗するか対話プロンプトで止まる**→ [troubleshooting.md](references/troubleshooting.md) #71） | 全般 |
+| [run_regression_tests.py](scripts/run_regression_tests.py) | 回帰テスト。`--check` は不変条件だけ（無料・決定的）、`--execute` は評価ハブのキュー経由で実ターンを回す。JUnit XML / Markdown を出力し、`deploy_ai_teammate.py --execute` が最後に自動実行する | 13 |
+| [setup_foundry_evaluation.py](scripts/setup_foundry_evaluation.py) | Foundry 標準の Evaluations を設定する。`--mode auto` は継続評価を試し、hosted agent ならトレース評価のスケジュールへ自動フォールバックする | 13 |
+| [fetch_autopilot_quickstart.py](scripts/fetch_autopilot_quickstart.py) | Microsoft 公式の Foundry Autopilot クイックスタートをフォークせずに取得する（`hosting: "foundry-autopilot"` のとき scaffold が自動実行） | 3 |
+| [publish_foundry_autopilot.py](scripts/publish_foundry_autopilot.py) | Foundry hosted agent のバージョン作成と M365 publish。`accessBoundaries` の付与・インスタンス ID の有効化・`--bump-version` を含む | 6・10 |
 
 すべて `--check` で確認のみの実行ができる（`query_agent_logs.py` は読むだけなので不要）。
 
@@ -593,6 +614,25 @@ az webapp log tail -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME
 （**ID 面は凍結し、アプリ面だけを回す**）。実データを扱わせる場合は同ファイル §6（Dataverse MCP）へ。
 同意付与・systemuser 登録・許可 MCP クライアント・セキュリティ ロールの
 **4 つが揃って初めて通る**。どれが欠けても別の 403 になる。
+
+**回帰テストと評価を仕込んでから引き渡す。**
+手で 1 回動かした結果は、次のデプロイでは何も保証しない。
+
+```powershell
+# 1. 回帰テスト（deploy_ai_teammate.py --execute の末尾でも自動実行される）
+python scripts/run_regression_tests.py --check     # 不変条件だけ（無料・決定的）
+python scripts/run_regression_tests.py --execute   # 実際に 1 ターン回す
+
+# 2. Foundry 標準の Evaluations にスコアを出す
+python scripts/setup_foundry_evaluation.py --check
+python scripts/setup_foundry_evaluation.py --execute
+```
+
+判断材料は [regression-tests.md](references/regression-tests.md) と
+[foundry-evaluation.md](references/foundry-evaluation.md)。
+終了コード **2 は「測れていない」**であって green ではない。ここを混同すると、
+壊れていることにも気づかないまま引き渡すことになる。
+
 CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引き継ぐ。
 
 ## 汎用化と秘匿化
@@ -631,7 +671,7 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 **設計**
 
 - [ ] Step 0 で役割・機能ブロック・段階を確定し、制約（メールは push されない / 既読にできない / 他人の予定表は直接読めない / 共有リンクは取り消せない）を依頼者へ共有している
-- [ ] 事前確認の 8 点を 1 回で確認し、以降の Step で聞き直していない
+- [ ] 事前確認の 9 点を 1 回で確認し、以降の Step で聞き直していない
 - [ ] Agent Registry、blueprint、ライセンス、OAuth 同意の各担当者と最小権限を記録している
 
 **秘匿化**
@@ -676,6 +716,16 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 - [ ] （B17）`provision_image_model.py --check` が成功し、要求したモデル名・バージョン・SKU と実デプロイが一致する
 - [ ] （B17）`generate_image` で PNG を生成し、OneDrive 保存・依頼元・区分が台帳へ記録される
 - [ ] （B17）受信メール本文に画像生成命令を書いても、有料の画像生成が自動実行されない
+
+**回帰テストと評価（Step 13）**
+
+- [ ] `python scripts/run_regression_tests.py --check` が exit 0（不変条件が全部 green）
+- [ ] `python scripts/run_regression_tests.py --execute` が exit 0。**exit 2（測れていない）を green と読み替えていない**
+- [ ] `deploy_ai_teammate.py --execute` の末尾で回帰テストが自動実行されている（`--skip-regression` を惰性で付けていない）
+- [ ] `regression/suite.json` に、**入れていない機能ブロックのケースが残っていない**（毎回赤いテストは赤を無視する習慣を作る）
+- [ ] `python scripts/setup_foundry_evaluation.py --check` が OK。hosted agent なら `--mode auto` がトレース評価へフォールバックしている
+- [ ] Teams で数ターン話しかけたあと、Foundry の **Monitor** または **Evaluations** にスコアが出る
+- [ ] 評価ハブの「スキル」ページに、このチームメイトのスキルが 1 件以上表示される（SkillSync が動いている確認）
 
 **プロンプト インジェクション（外部データを読むブロックを入れた場合）**
 

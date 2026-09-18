@@ -8,9 +8,10 @@ self-hosted route in self-hosted-agent.md, but the container runs on Foundry.
 Performs, in order:
   1. Preflight (--check): env vars, Agent 365 license seats, resource-app existence.
   2. POST  /agents/{name}/versions          (digital_worker_type=m365) + poll until active.
-  3. Grant "Foundry User" to the instance identity on the project scope.
-  4. PATCH /agents/{name}                   (authorization_schemes=[BotServiceRbac]).
-  5. POST  /agents/{name}/microsoft365/publish (publishAsAutopilot=true).
+  3. Enable the instance identity service principal (created disabled - troubleshooting #75).
+  4. Grant "Foundry User" to the instance identity on the project scope.
+  5. PATCH /agents/{name}                   (authorization_schemes=[BotServiceRbac]).
+  6. POST  /agents/{name}/microsoft365/publish (publishAsAutopilot=true + accessBoundaries).
 
 Approval in the M365 admin center and hiring in Teams stay manual - see
 references/foundry-autopilot.md section 6.
@@ -19,6 +20,7 @@ Usage:
     python scripts/publish_foundry_autopilot.py --check      # preflight only, no writes
     python scripts/publish_foundry_autopilot.py              # dry-run: print request bodies
     python scripts/publish_foundry_autopilot.py --execute    # create version + patch + publish
+    python scripts/publish_foundry_autopilot.py --execute --bump-version   # republish an update
 """
 from __future__ import annotations
 
@@ -74,6 +76,18 @@ A365_MCP_DEFAULT_SCOPES = [
 # Optional: only present in tenants that actually use Azure DevOps.
 ADO_MCP_RESOURCE_APP_ID = "2a72489c-aab2-4b65-b93a-a91edccf33b8"
 ADO_MCP_SCOPES = ["Ado.Mcp.Tools"]
+
+# Without these the runtime rejects *every* inbound activity with
+# "Autopilot activity authorization currently supports only access boundaries ending with
+# '.developers'" and Teams stays silent. The four values are the full 1:1 + group matrix; Foundry
+# decides who counts as a developer from the sender's Azure role assignments on the project
+# (Microsoft.CognitiveServices/accounts/AIServices/agents/write). See troubleshooting.md #74.
+AUTOPILOT_ACCESS_BOUNDARIES = [
+    "read.1on1.developers",
+    "write.1on1.developers",
+    "read.group.developers",
+    "write.group.developers",
+]
 
 AGENT_DISPLAY_NAME_MAX = 32
 POLL_INTERVAL_SECONDS = 10
@@ -240,12 +254,13 @@ def agent_endpoint(with_auth_scheme: bool = False) -> dict:
     return endpoint
 
 
-def build_publish_body(display_name: str, scopes: list[dict]) -> dict:
+def build_publish_body(display_name: str, scopes: list[dict], app_version: str) -> dict:
     return {
         "agentDisplayName": display_name,
         "publishAsAutopilot": True,
         "publishScope": os.environ.get("AUTOPILOT_PUBLISH_SCOPE", "Tenant"),
-        "appVersion": os.environ.get("TEAMS_APP_VERSION", "1.0.0"),
+        "appVersion": app_version,
+        "accessBoundaries": list(AUTOPILOT_ACCESS_BOUNDARIES),
         "canRespondWithoutMention": True,
         "shortDescription": os.environ.get("AGENT_DESCRIPTION_SHORT", f"{display_name} (Foundry Autopilot)"),
         "fullDescription": os.environ.get("AGENT_DESCRIPTION_FULL", f"{display_name} - AI teammate."),
@@ -255,6 +270,64 @@ def build_publish_body(display_name: str, scopes: list[dict]) -> dict:
         "termsOfUseUrl": require("DEVELOPER_TERMS_URL"),
         "optionalPermissionScopes": scopes,
     }
+
+
+def bump_patch(version: str) -> str:
+    parts = (version or "1.0.0").split(".")
+    while len(parts) < 3:
+        parts.append("0")
+    try:
+        parts[2] = str(int(parts[2]) + 1)
+    except ValueError:
+        raise PreflightError(f"TEAMS_APP_VERSION '{version}' を解釈できません（x.y.z 形式にしてください）")
+    return ".".join(parts[:3])
+
+
+def write_env_value(env_path: Path, key: str, value: str) -> None:
+    """Persist the published version so the next republish starts from the right number."""
+    if not env_path.is_file():
+        return
+    lines = env_path.read_text(encoding="utf-8").splitlines()
+    for index, line in enumerate(lines):
+        if line.strip().startswith(f"{key}="):
+            lines[index] = f"{key}={value}"
+            break
+    else:
+        lines.append(f"{key}={value}")
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def enable_instance_identity(app_id: str) -> None:
+    """Foundry creates the per-agent AgentIdentity principal disabled, so every token request
+    fails with AADSTS7000112 until it is enabled. See troubleshooting.md #75."""
+    token = auth_helper.get_token(GRAPH_SCOPE)
+    headers = {"Authorization": f"Bearer {token}"}
+    lookup = requests.get(
+        f"https://graph.microsoft.com/beta/servicePrincipals(appId='{app_id}')"
+        "?$select=id,accountEnabled,displayName",
+        headers=headers,
+        timeout=60,
+    )
+    if not lookup.ok:
+        print(f"  ! agent identity SP ({app_id}) を取得できませんでした: {lookup.status_code}")
+        return
+    principal = lookup.json()
+    if principal.get("accountEnabled"):
+        print(f"  OK agent identity SP は有効です（{principal.get('displayName')}）")
+        return
+    patch = requests.patch(
+        f"https://graph.microsoft.com/beta/servicePrincipals/{principal['id']}",
+        headers={**headers, "Content-Type": "application/json"},
+        json={"accountEnabled": True},
+        timeout=60,
+    )
+    if patch.status_code in (200, 204):
+        print(f"  OK agent identity SP を有効化しました（{principal.get('displayName')}）")
+    else:
+        raise SystemExit(
+            "agent identity SP を有効化できませんでした"
+            f"（{patch.status_code} {patch.text}）。Application Administrator 相当の権限が要ります"
+        )
 
 
 def wait_until_active(base: str, agent_name: str, version: str, api_version: str) -> dict:
@@ -317,14 +390,24 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--check", action="store_true", help="事前チェックだけ行い、何も変更しない")
     parser.add_argument("--execute", action="store_true", help="実際に agent version 作成・PATCH・発行を行う")
+    parser.add_argument(
+        "--bump-version",
+        action="store_true",
+        help="TEAMS_APP_VERSION の patch を +1 して発行する（再発行時は必須。同じバージョンは拒否される）",
+    )
     parser.add_argument("--env", type=Path, help=".env のパス（既定はリポジトリ ルート）")
     args = parser.parse_args()
 
-    load_env(args.env or find_repo_env() or Path(".env"))
+    env_path = args.env or find_repo_env() or Path(".env")
+    load_env(env_path)
 
     try:
         display_name = os.environ.get("AGENT_DISPLAY_NAME") or require("AGENT_NAME")
         scopes = preflight(display_name)
+        app_version = os.environ.get("TEAMS_APP_VERSION", "1.0.0")
+        if args.bump_version:
+            app_version = bump_patch(app_version)
+            print(f"  OK appVersion を {app_version} へ上げます")
     except PreflightError as exc:
         print(f"事前チェックに失敗しました: {exc}", file=sys.stderr)
         return 1
@@ -336,7 +419,7 @@ def main() -> int:
     agent_name = require("AGENT_NAME")
     api_version = os.environ.get("FOUNDRY_API_VERSION", "2025-11-15-preview")
     version_body = build_version_body()
-    publish_body = build_publish_body(display_name, scopes)
+    publish_body = build_publish_body(display_name, scopes, app_version)
 
     if not args.execute:
         print("\n== dry-run（--execute で実行）==")
@@ -355,7 +438,13 @@ def main() -> int:
     if created.get("status") != "active":
         created = wait_until_active(base, agent_name, version, api_version)
 
-    grant_foundry_user(created["instance_identity"]["principal_id"])
+    identity = created.get("instance_identity") or {}
+    print("\n== agent identity を確認します ==")
+    if identity.get("client_id"):
+        enable_instance_identity(identity["client_id"])
+    else:
+        print("  ! instance_identity.client_id が返っていません。AADSTS7000112 が出たら troubleshooting.md #75")
+    grant_foundry_user(identity["principal_id"])
 
     print("\n== BotServiceRbac を設定します ==")
     foundry_request(
@@ -370,11 +459,14 @@ def main() -> int:
         "POST", f"{base}/agents/{agent_name}/microsoft365/publish?api-version={api_version}", publish_body
     )
     print(f"  teamsAppId={published.get('teamsAppId')} titleId={published.get('titleId')}")
+    write_env_value(env_path, "TEAMS_APP_VERSION", app_version)
 
     print(
         "\n次は管理者の操作です:\n"
         "  1. M365 管理センター → エージェント → すべてのエージェント → 要求 で承認（管理者の同意を付与）\n"
         "  2. Teams → アプリ → Agents for your team → インスタンスを作成（上司を指定）\n"
+        "     再発行のときは既存インスタンスを作り直す（旧インスタンスは旧 blueprint を持ち続ける）\n"
+        "  3. python scripts/run_regression_tests.py --execute で回帰テスト\n"
         "  詳細: references/foundry-autopilot.md §6"
     )
     return 0

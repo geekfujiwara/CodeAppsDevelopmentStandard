@@ -1,0 +1,72 @@
+# ${AGENT_DISPLAY_NAME} — Foundry Autopilot 版 AI チームメイト
+
+Azure AI Foundry が**ホスティングまで面倒を見る** AI チームメイトです。App Service も Bot 登録も
+自分で用意しません。Foundry のエージェント定義を M365 に publish すると、Agent 365 側で
+agentUser（自分のメールアドレスと予定表を持つ ID）が払い出され、Teams / M365 Copilot から
+同僚として呼べるようになります。
+
+頭脳は **GitHub Copilot SDK**（`runtime=copilot-sdk` に固定）で、モデルは**このテナント自身の
+Foundry デプロイ**を BYOK で使います。追加のモデル クォータも API キーも登場しません。
+
+## このディレクトリの構成
+
+| 出所 | 内容 |
+| --- | --- |
+| Microsoft 公式クイックスタート（`fetch_autopilot_quickstart.py` が取得） | `host_agent_server.py` / `agent_interface.py` / `infra/` / `scripts/` |
+| このスキルのオーバーレイ | `teammate_agent.py` / `copilot_brain.py` / `skill_sync.py` / `test_worker.py` / `image_tools.py` / `onedrive.py` / `dataverse.py` / `main.py` / `ToolingManifest.json` |
+
+公式サンプルは**フォークせずそのまま**置いてあります。差分はオーバーレイ側だけにあるので、
+上流の修正を取り込みたくなったら `fetch_autopilot_quickstart.py --force` を流し直せます。
+唯一置き換えている上流ファイルは `main.py`（`create_and_run_host()` に渡すクラスを差し替えるだけ）です。
+
+## 動かすまで
+
+```powershell
+# 1. Azure 側（Foundry アカウント / プロジェクト / ACR / Toolbox）を作る
+azd up
+
+# 2. コンテナをビルドして ACR に置き、エージェント定義のバージョンを作る
+./scripts/build-docker-image-acr.ps1
+python ../../.github/skills/ai-teammate/scripts/publish_foundry_autopilot.py --check
+python ../../.github/skills/ai-teammate/scripts/publish_foundry_autopilot.py --execute
+
+# 3. 承認後、インスタンスを作って Teams に配布
+python ../../.github/skills/ai-teammate/scripts/create_instance.py --execute
+python ../../.github/skills/ai-teammate/scripts/publish_teams_app.py --execute
+
+# 4. 回帰テスト（デプロイの最後に自動で走ります。単体で流すとき）
+python ../../.github/skills/ai-teammate/scripts/run_regression_tests.py --check
+python ../../.github/skills/ai-teammate/scripts/run_regression_tests.py --execute
+```
+
+> **publish をやり直すときは `--bump-version` を付けてください。** 同じ `appVersion` の再送は
+> `UserError: version already exists` で落ちます。また `accessBoundaries` を変更した場合は、
+> 再承認したうえで**インスタンスを作り直さないと**古い境界のまま動きます。
+
+## 設定（環境変数）
+
+| 変数 | 役割 |
+| --- | --- |
+| `FOUNDRY_PROJECT_ENDPOINT` | Foundry プロジェクトのエンドポイント（`AZURE_AI_PROJECT_ENDPOINT` でも可） |
+| `ModelDeployment` | 頭脳に使うモデル デプロイ名 |
+| `TOOLBOX_ENDPOINT` | Foundry Toolbox（Web 検索・コード実行）の MCP エンドポイント |
+| `DATAVERSE_URL` | 評価ハブと Dataverse MCP の接続先。未設定ならどちらも自動で無効 |
+| `PUBLISHER_PREFIX` | 評価ハブのテーブル接頭辞 |
+| `AGENT_NAME` | 評価ハブ上でこのチームメイトを識別するキー |
+| `IMAGE_MODEL_DEPLOYMENT` | 画像生成（B17）を有効にする。未設定なら `generate_image` ツールは登録されない |
+| `AZURE_DEVOPS_ORGANIZATION` | Azure DevOps MCP を有効にする |
+| `SKILLS_SYNC_MINUTES` | スキルを評価ハブへ同期する間隔（既定 30 分） |
+
+`AGENT_*` / `FOUNDRY_*` および `APPLICATIONINSIGHTS_CONNECTION_STRING` は**プラットフォーム予約**で、
+コンテナ環境変数として渡すと `invalid_payload` で publish が失敗します。App Insights の接続文字列は
+Foundry 側が自動で注入します。
+
+## スキル
+
+`skills/` 以下の `*/SKILL.md` が Copilot SDK に読み込まれます（`enable_skills=True`）。
+ホスト側のスキル探索は**無効**のままにしてあります。エージェントが、たまたま同居していた
+SKILL.md を勝手に取り込むべきではないからです。
+
+スキルの取得と更新は `install_agent_skills.py` が行い、`skill_sync.py` が
+`<prefix>_skill` テーブルへ書き出すので、評価アプリの「スキル」ページから
+どのチームメイトが何を知っているか見えます。

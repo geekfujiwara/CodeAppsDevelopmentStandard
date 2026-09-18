@@ -21,6 +21,11 @@ REQUIRED_BLOCKS = ("B15",)
 #   agents-sdk  … in-process Chat Completions loop against Azure OpenAI
 RUNTIMES = ("copilot-sdk", "agents-sdk")
 RUNTIME_MARKERS = {"copilot-sdk": "RTCOPILOT", "agents-sdk": "RTAGENTS"}
+# Where the container runs. This is a different axis from the brain: self-hosted keeps the
+# Agents SDK app on App Service (both runtimes available), foundry-autopilot puts a Python
+# container on Foundry and publishes it as an M365 Autopilot, which only has a Copilot SDK brain.
+HOSTINGS = ("self-hosted", "foundry-autopilot")
+HOSTING_RUNTIME_LOCK = {"foundry-autopilot": "copilot-sdk"}
 ROLE_BLOCKS = {
     "R1": ("B1", "B2", "B3", "B4", "B6", "B8", "B15"),
     "R2": ("B2", "B3", "B4", "B5", "B6", "B8", "B10", "B15"),
@@ -117,6 +122,7 @@ class ScaffoldPlan:
     implementation_mode: str
     preset: str
     runtime: str
+    hosting: str
     blocks: tuple[str, ...]
     evaluation_app: bool
     target: Path
@@ -131,6 +137,7 @@ class ScaffoldPlan:
             "implementationMode": self.implementation_mode,
             "preset": self.preset,
             "runtime": self.runtime,
+            "hosting": self.hosting,
             "blocks": list(self.blocks),
             "evaluationApp": self.evaluation_app,
             "target": str(self.target),
@@ -252,6 +259,14 @@ def build_plan(decisions: dict[str, object], target: Path) -> ScaffoldPlan:
     runtime = str(decisions.get("runtime", "copilot-sdk"))
     if runtime not in RUNTIMES:
         raise ValueError(f"runtime must be one of: {', '.join(RUNTIMES)}")
+    hosting = str(decisions.get("hosting", "self-hosted"))
+    if hosting not in HOSTINGS:
+        raise ValueError(f"hosting must be one of: {', '.join(HOSTINGS)}")
+    locked_runtime = HOSTING_RUNTIME_LOCK.get(hosting)
+    if locked_runtime and runtime != locked_runtime:
+        if "runtime" in decisions:
+            raise ValueError(f"hosting={hosting} only supports runtime={locked_runtime}")
+        runtime = locked_runtime
     namespace = str(decisions.get("namespace") or normalize_namespace(agent_name))
     if not NAMESPACE_PATTERN.fullmatch(namespace) or ".." in namespace:
         raise ValueError("namespace must be a valid C# identifier (letters, digits, underscore)")
@@ -266,6 +281,7 @@ def build_plan(decisions: dict[str, object], target: Path) -> ScaffoldPlan:
         implementation_mode=implementation_mode,
         preset=preset,
         runtime=runtime,
+        hosting=hosting,
         blocks=resolve_blocks(decisions),
         evaluation_app=True,
         target=target.resolve(),
@@ -494,6 +510,116 @@ def prune_settings(plan: ScaffoldPlan) -> None:
     )
 
 
+OVERLAY_MARKER = "# --- ai-teammate overlay ---"
+
+OVERLAY_REQUIREMENTS = f"""
+{OVERLAY_MARKER}
+# GitHub Copilot SDK — the agentic loop (planning, tool iteration, context compaction).
+# Reaches this tenant's own Foundry deployment through its BYOK Azure provider, so no
+# extra model quota and no API key are involved.
+github-copilot-sdk>=1.0.13
+"""
+
+OVERLAY_DOCKERFILE = f"""
+{OVERLAY_MARKER}
+# Download the Copilot runtime at build time. Left to the first turn it would run inside the
+# request, pushing the user's first reply past the activity timeout, and it would need outbound
+# access from a container that may well be locked down.
+ENV COPILOT_CLI_EXTRACT_DIR=/opt/copilot-runtime
+RUN python -m copilot download-runtime
+"""
+
+
+def append_once(path: Path, addition: str) -> None:
+    """Append *addition* unless the overlay marker is already there (re-running must be safe)."""
+    if not path.is_file():
+        return
+    content = path.read_text(encoding="utf-8")
+    if OVERLAY_MARKER in content:
+        return
+    separator = "" if content.endswith("\n") else "\n"
+    path.write_text(content + separator + addition, encoding="utf-8", newline="\n")
+
+
+def fetch_quickstart(target: Path, force: bool) -> None:
+    """Download the Microsoft Foundry Autopilot quickstart into *target*.
+
+    The upstream sample is never forked: it is fetched as-is so that later upstream fixes can be
+    taken by re-running this step. Everything this skill adds lives in the overlay instead.
+    """
+    script = Path(__file__).resolve().parent / "fetch_autopilot_quickstart.py"
+    command = [sys.executable, str(script), "--target", str(target)]
+    if force:
+        command.append("--force")
+    # The child prints Japanese; a cp932 console would otherwise make stdout come back as None.
+    result = subprocess.run(
+        command, capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
+    if result.returncode != 0:
+        raise ValueError(
+            "Could not fetch the Foundry Autopilot quickstart: "
+            + ((result.stderr or "").strip() or (result.stdout or "").strip() or "unknown error")
+        )
+    print((result.stdout or "").strip())
+
+
+def resolve_package_dir(target: Path) -> Path:
+    """Find the quickstart's Python package directory (its name changes between releases)."""
+    candidates = sorted(target.glob("src/*/agent_interface.py"))
+    if not candidates:
+        raise ValueError(
+            f"Could not locate the quickstart package under {target / 'src'} "
+            "(expected src/<package>/agent_interface.py)"
+        )
+    return candidates[0].parent
+
+
+def scaffold_foundry_autopilot(
+    skill_root: Path, plan: ScaffoldPlan, variables: dict[str, str], force: bool
+) -> set[str]:
+    """Fetch the quickstart, then lay this skill's overlay on top of it."""
+    fetch_quickstart(plan.target, force)
+    package_dir = resolve_package_dir(plan.target)
+    template_root = skill_root / "templates" / "foundry-autopilot"
+
+    unresolved = render_tree(template_root / "__PKG__", package_dir, variables)
+    unresolved |= render_tree(template_root / "prompts", package_dir / "prompts", variables)
+    append_once(package_dir / "requirements.txt", OVERLAY_REQUIREMENTS)
+    append_once(package_dir / "foundry-infra" / "Dockerfile", OVERLAY_DOCKERFILE)
+    # The quickstart ships its own README; keep both rather than silently replacing theirs.
+    readme = template_root / "README.md"
+    content = TOKEN_PATTERN.sub(
+        lambda match: variables.get(match.group(1), match.group(0)),
+        readme.read_text(encoding="utf-8"),
+    )
+    (plan.target / "README-teammate.md").write_text(content, encoding="utf-8", newline="\n")
+    unresolved.update(match.group(1) for match in TOKEN_PATTERN.finditer(content))
+    return unresolved
+
+
+def copy_regression_suite(skill_root: Path, plan: ScaffoldPlan) -> None:
+    """Write the behaviour suite, keeping only cases whose feature blocks were scaffolded.
+
+    Shipping a case for a block the agent does not have would fail on every run and train the
+    team to ignore red, which is worse than having no test at all.
+    """
+    source = skill_root / "templates" / "regression" / "suite.json"
+    if not source.is_file():
+        return
+    suite = json.loads(source.read_text(encoding="utf-8"))
+    selected = set(plan.blocks)
+    suite["cases"] = [
+        case
+        for case in suite.get("cases", [])
+        if set(case.get("requiresBlocks") or []) <= selected
+    ]
+    destination = plan.target / "regression"
+    destination.mkdir(parents=True, exist_ok=True)
+    (destination / "suite.json").write_text(
+        json.dumps(suite, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
+
+
 def scaffold(plan: ScaffoldPlan, env: dict[str, str], force: bool) -> None:
     skill_root = Path(__file__).resolve().parents[1]
     if plan.target.resolve() == skill_root.resolve() or skill_root in plan.target.resolve().parents:
@@ -511,27 +637,33 @@ def scaffold(plan: ScaffoldPlan, env: dict[str, str], force: bool) -> None:
         "AGENT_ROLE": plan.role,
         "AGENT_PERSONALITY": plan.personality,
         "IMPLEMENTATION_MODE": plan.implementation_mode,
+        "AGENT_HOSTING": plan.hosting,
         "FEATURE_BLOCKS": ",".join(plan.blocks),
     }
 
     unresolved: set[str] = set()
-    # The runtime marker rides along with the feature blocks so the existing GEEK:BLOCK machinery
-    # can gate runtime-specific package references and DI registrations in shared files.
-    render_blocks = plan.blocks + (RUNTIME_MARKERS[plan.runtime],)
-    unresolved |= render_tree(
-        skill_root / "templates" / "digital-colleague", plan.target, variables,
-        blocks=render_blocks, gate_files=True, fixed_prefix="geek", exclude_dirs=("runtimes",),
-    )
-    unresolved |= render_tree(
-        skill_root / "templates" / "digital-colleague" / "runtimes" / plan.runtime,
-        plan.target, variables, blocks=render_blocks, gate_files=True, fixed_prefix="geek",
-    )
+    if plan.hosting == "foundry-autopilot":
+        unresolved |= scaffold_foundry_autopilot(skill_root, plan, variables, force)
+    else:
+        # The runtime marker rides along with the feature blocks so the existing GEEK:BLOCK
+        # machinery can gate runtime-specific package references and DI registrations.
+        render_blocks = plan.blocks + (RUNTIME_MARKERS[plan.runtime],)
+        unresolved |= render_tree(
+            skill_root / "templates" / "digital-colleague", plan.target, variables,
+            blocks=render_blocks, gate_files=True, fixed_prefix="geek", exclude_dirs=("runtimes",),
+        )
+        unresolved |= render_tree(
+            skill_root / "templates" / "digital-colleague" / "runtimes" / plan.runtime,
+            plan.target, variables, blocks=render_blocks, gate_files=True, fixed_prefix="geek",
+        )
+        copy_teams_templates(skill_root, plan.target)
+        prune_settings(plan)
+
     unresolved |= render_tree(
         skill_root / "templates" / "evaluation-app", plan.target / "evaluation-app", variables,
         substitute_tokens=False,
     )
-    copy_teams_templates(skill_root, plan.target)
-    prune_settings(plan)
+    copy_regression_suite(skill_root, plan)
 
     if plan.implementation_mode == "full":
         copy_alm_scaffold(skill_root, plan.target)
@@ -562,18 +694,41 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def install_skills(target: Path, env: dict[str, str]) -> None:
+def skills_root(plan: ScaffoldPlan) -> Path:
+    """Where ``skills/`` has to sit so the running agent can actually read it.
+
+    The self-hosted agent reads them from the app root; the Foundry-hosted one only ships the
+    Python package into its container image, so skills placed at the repository root would be
+    left behind at build time and the agent would come up knowing nothing.
+    """
+    if plan.hosting != "foundry-autopilot":
+        return plan.target
+    try:
+        return resolve_package_dir(plan.target)
+    except ValueError:
+        return plan.target
+
+
+def install_skills(target: Path, env: dict[str, str], env_file: Path | None = None) -> None:
     """A teammate with no skills still answers, just without any of the procedures its role
     implies, so the default is to start complete rather than to start empty. Skipped silently
     when the release cannot be reached: scaffolding offline is still useful."""
     script = Path(__file__).resolve().parent / "install_agent_skills.py"
-    command = [sys.executable, str(script), "--target", str(target), "--env", str(target / ".env")]
-    result = subprocess.run(command, capture_output=True, text=True, env={**os.environ, **env})
+    env_path = env_file or (target / ".env")
+    command = [sys.executable, str(script), "--target", str(target), "--env", str(env_path)]
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, **env},
+    )
     if result.returncode == 0:
-        print(result.stdout.strip())
+        print((result.stdout or "").strip())
     else:
         print(
-            f"WARN: skills were not installed ({result.stderr.strip() or 'unknown error'}).\n"
+            f"WARN: skills were not installed ({(result.stderr or '').strip() or 'unknown error'}).\n"
             f"      Run: python scripts/install_agent_skills.py --target {target}",
             file=sys.stderr,
         )
@@ -590,9 +745,12 @@ def main() -> int:
             print(json.dumps(plan.as_dict(), ensure_ascii=False, indent=2))
             return 0
         scaffold(plan, env, args.force)
-        print(f"OK: scaffolded {plan.agent_name} at {plan.target} (runtime={plan.runtime})")
+        print(
+            f"OK: scaffolded {plan.agent_name} at {plan.target} "
+            f"(hosting={plan.hosting}, runtime={plan.runtime})"
+        )
         if not args.no_skills:
-            install_skills(plan.target, env)
+            install_skills(skills_root(plan), env, env_file=plan.target / ".env")
         print("Next: run python scripts/deploy_ai_teammate.py --check")
         return 0
     except (OSError, ValueError, json.JSONDecodeError) as error:

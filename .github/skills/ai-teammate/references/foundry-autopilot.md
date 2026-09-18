@@ -113,6 +113,10 @@ POST {FOUNDRY_PROJECT_ENDPOINT}/agents/{AGENT_NAME}/microsoft365/publish?api-ver
   "publishScope": "Tenant",
   "appVersion": "1.0.0",
   "canRespondWithoutMention": true,
+  "accessBoundaries": [
+    "read.1on1.developers", "write.1on1.developers",
+    "read.group.developers", "write.group.developers"
+  ],
   "shortDescription": "...", "fullDescription": "...",
   "developerName": "...", "developerWebsiteUrl": "...",
   "privacyUrl": "...", "termsOfUseUrl": "...",
@@ -123,7 +127,21 @@ POST {FOUNDRY_PROJECT_ENDPOINT}/agents/{AGENT_NAME}/microsoft365/publish?api-ver
 `publishAsAutopilot: true` が **agentUser を持つ「デジタルな同僚」**にするフラグ。
 これを省くと、アカウントを持たない通常の共有エージェントとして発行される。
 
+> **`accessBoundaries` は実質必須**。省くと publish 自体は 200 を返すのに、Teams から話しかけても
+> 無応答になり、コンテナー ログに
+> `Autopilot activity authorization currently supports only access boundaries ending with '.developers'`
+> が出る。公式クイックスタートの `publish-digital-worker.ps1` はこの項目を送っていないので、
+> そのまま使うと必ず踏む（→ [troubleshooting.md](troubleshooting.md) #74）。
+
 応答の `teamsAppId` / `titleId` を控える。成功しても**まだ誰も使えない**（承認待ち）。
+
+### 3-4. インスタンス ID のサービス プリンシパルを有効化する
+
+エージェント インスタンスごとに作られる `AgentIdentity` の SP は **`accountEnabled=false` で作成される**。
+そのままだと初回ターンのトークン取得が `AADSTS7000112: ... is disabled` で落ちる
+（→ [troubleshooting.md](troubleshooting.md) #75）。
+[publish_foundry_autopilot.py](../scripts/publish_foundry_autopilot.py) は発行の一部として
+`PATCH /beta/servicePrincipals/{id} {"accountEnabled": true}` を自動で行う。
 
 ## 4. `optionalPermissionScopes` に何を書くか
 
@@ -223,7 +241,52 @@ RUN python -m copilot download-runtime
 差し替え後は**新しい agent version を作るだけ**でよい。`agent_endpoint.version_selector` は
 既定で `@latest` に 100% 流すので、再発行（`microsoft365/publish`）は要らない。
 
-## 9. 参考
+## 9. scaffold で一気に用意する（`hosting: "foundry-autopilot"`）
+
+§8 の差し替えを手で行う必要はない。`decisions.json` に `"hosting": "foundry-autopilot"` を入れると
+[scaffold_ai_teammate.py](../scripts/scaffold_ai_teammate.py) が次を順に行う。
+
+1. [fetch_autopilot_quickstart.py](../scripts/fetch_autopilot_quickstart.py) が Microsoft 公式の
+   クイックスタートを**フォークせずに**取得する
+2. [`templates/foundry-autopilot/`](../templates/foundry-autopilot/) のオーバーレイを重ねる
+3. `requirements.txt` に `github-copilot-sdk`、`Dockerfile` にランタイムの事前取得を追記する
+4. Agent Skills をコンテナーに入る場所（`src/<パッケージ>/skills/`）へ導入する
+5. `regression/suite.json` を機能ブロックで絞って書き出す
+
+**上流のファイルで置き換えるのは `main.py` だけ**である。
+`create_and_run_host()` に渡すクラスを差し替える 1 行の違いなので、
+上流が更新されたら `fetch_autopilot_quickstart.py --force` を流し直せば追随できる。
+`agent.py` や `host_agent_server.py` にアンカーを打って書き換える方式は採らない——
+上流が 1 行変わるたびに壊れるからである。
+
+| オーバーレイ | 役割 |
+|---|---|
+| `teammate_agent.py` | `AgentInterface` の実装。MCP の組み立て・委任トークン・頭脳の呼び出し |
+| `copilot_brain.py` | Copilot SDK セッション（スキル・カスタム ツール・トークン失効での作り直し） |
+| `skill_sync.py` | 同梱スキルを評価ハブの `<prefix>_skill` へ同期（→ [cowork-skills.md](cowork-skills.md)） |
+| `test_worker.py` | 評価ハブのキューから回帰テストを実行（→ [regression-tests.md](regression-tests.md)） |
+| `image_tools.py` / `onedrive.py` | 画像生成（B17）と OneDrive 保存（→ [image-generation.md](image-generation.md)） |
+
+`hosting: "foundry-autopilot"` は **`runtime` を `copilot-sdk` に固定する**。
+`agents-sdk` を明示すると scaffold はエラーで止まる。意図しない頭脳で動くエージェントが
+黙って出来上がるより、そこで止めたほうがよい。
+
+## 10. 評価と回帰テスト
+
+hosted agent は `kind=hosted` なので、Foundry の**継続評価ルールは使えない**
+（→ [troubleshooting.md](troubleshooting.md) #76）。トレースを対象にした日次のスケジュール評価に
+切り替えれば、同じように Monitor / Evaluations にスコアが出る。
+
+```powershell
+python scripts/setup_foundry_evaluation.py --check
+python scripts/setup_foundry_evaluation.py --execute   # --mode auto が自動で切り替える
+python scripts/run_regression_tests.py --execute
+```
+
+詳細は [foundry-evaluation.md](foundry-evaluation.md) と
+[regression-tests.md](regression-tests.md)。
+
+## 11. 参考
 
 - Learn: `azure/foundry/agents/concepts/autopilot-overview`
 - Learn: `azure/foundry/agents/concepts/agent-365-integration`

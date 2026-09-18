@@ -65,6 +65,69 @@ def base_decisions(**overrides: object) -> dict[str, object]:
     return decisions
 
 
+class HostingTests(unittest.TestCase):
+    def test_default_hosting_is_self_hosted(self) -> None:
+        plan = scaffold_ai_teammate.build_plan(base_decisions(), Path("unused"))
+        self.assertEqual(plan.hosting, "self-hosted")
+        self.assertEqual(plan.as_dict()["hosting"], "self-hosted")
+
+    def test_unknown_hosting_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            scaffold_ai_teammate.build_plan(base_decisions(hosting="lambda"), Path("unused"))
+
+    def test_foundry_autopilot_forces_copilot_sdk_runtime(self) -> None:
+        plan = scaffold_ai_teammate.build_plan(
+            base_decisions(hosting="foundry-autopilot"), Path("unused")
+        )
+        self.assertEqual(plan.runtime, "copilot-sdk")
+
+    def test_foundry_autopilot_rejects_an_explicit_conflicting_runtime(self) -> None:
+        # Silently "fixing" this would ship an agent whose brain is not the one that was asked for.
+        with self.assertRaises(ValueError):
+            scaffold_ai_teammate.build_plan(
+                base_decisions(hosting="foundry-autopilot", runtime="agents-sdk"), Path("unused")
+            )
+
+    def test_self_hosted_still_accepts_both_runtimes(self) -> None:
+        for runtime in scaffold_ai_teammate.RUNTIMES:
+            plan = scaffold_ai_teammate.build_plan(
+                base_decisions(runtime=runtime), Path("unused")
+            )
+            self.assertEqual(plan.runtime, runtime)
+
+
+class RegressionSuiteTests(unittest.TestCase):
+    def suite_cases(self) -> list[dict]:
+        path = SKILL_ROOT / "templates" / "regression" / "suite.json"
+        return json.loads(path.read_text(encoding="utf-8"))["cases"]
+
+    def test_every_case_has_a_prompt_and_a_name(self) -> None:
+        for case in self.suite_cases():
+            self.assertTrue(case.get("name"), "a case without a name cannot be reported")
+            self.assertTrue(case.get("prompt"), f"{case.get('name')} has no prompt")
+
+    def test_required_blocks_are_known(self) -> None:
+        for case in self.suite_cases():
+            for block in case.get("requiresBlocks") or []:
+                self.assertIn(block, scaffold_ai_teammate.ALL_BLOCKS)
+
+    def test_cases_for_unselected_blocks_are_dropped(self) -> None:
+        # A case for a block the agent does not have fails on every run, which trains the team
+        # to ignore red. That is worse than having no test.
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "app"
+            target.mkdir()
+            plan = scaffold_ai_teammate.build_plan(
+                base_decisions(preset="role", blocks=["B1"]), target
+            )
+            scaffold_ai_teammate.copy_regression_suite(SKILL_ROOT, plan)
+            written = json.loads((target / "regression" / "suite.json").read_text(encoding="utf-8"))
+            selected = set(plan.blocks)
+        self.assertTrue(written["cases"], "filtering must not empty the suite entirely")
+        for case in written["cases"]:
+            self.assertTrue(set(case.get("requiresBlocks") or []) <= selected)
+
+
 class ResolveBlocksTests(unittest.TestCase):
     def test_full_preset_includes_all_blocks(self) -> None:
         plan = scaffold_ai_teammate.build_plan(

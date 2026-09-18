@@ -1,0 +1,54 @@
+{
+	"mcpServers": [
+		{
+			"mcpServerName": "mcp_WordServer",
+			"url": "https://agent365.svc.cloud.microsoft/agents/servers/mcp_WordServer",
+			"scope": "McpServers.Word.All",
+			"audience": "ea9ffc3e-8a23-4a7d-836d-234d7c7565c1"
+		},
+		{
+			"mcpServerName": "mcp_MailTools",
+			"url": "https://agent365.svc.cloud.microsoft/agents/servers/mcp_MailTools",
+			"scope": "McpServers.Mail.All",
+			"audience": "ea9ffc3e-8a23-4a7d-836d-234d7c7565c1"
+		},
+		{
+			"mcpServerName": "mcp_ODSPRemoteServer",
+			"url": "https://agent365.svc.cloud.microsoft/agents/servers/mcp_ODSPRemoteServer",
+			"scope": "McpServers.OneDriveSharepoint.All",
+			"audience": "ea9ffc3e-8a23-4a7d-836d-234d7c7565c1"
+		},
+		{
+			"mcpServerName": "mcp_TeamsServer",
+			"url": "https://agent365.svc.cloud.microsoft/agents/servers/mcp_TeamsServer",
+			"scope": "McpServers.Teams.All",
+			"audience": "ea9ffc3e-8a23-4a7d-836d-234d7c7565c1"
+		},
+		{
+			"mcpServerName": "mcp_ExcelServer",
+			"url": "https://agent365.svc.cloud.microsoft/agents/servers/mcp_ExcelServer",
+			"scope": "McpServers.Excel.All",
+			"audience": "ea9ffc3e-8a23-4a7d-836d-234d7c7565c1"
+		},
+		{
+			"mcpServerName": "mcp_CalendarTools",
+			"url": "https://agent365.svc.cloud.microsoft/agents/servers/mcp_CalendarTools",
+			"scope": "McpServers.Calendar.All",
+			"audience": "ea9ffc3e-8a23-4a7d-836d-234d7c7565c1"
+		},
+		{
+			"mcpServerName": "dataverse",
+			"url": "{DATAVERSE_URL}/api/mcp/v1.0",
+			"scope": "user_impersonation",
+			"tokenScope": "{DATAVERSE_URL}/.default",
+			"comment": "利用者の権限で Dataverse を検索する。DATAVERSE_URL 未設定時は自動で無効化される"
+		},
+		{
+			"mcpServerName": "azure-devops",
+			"url": "https://mcp.dev.azure.com/{AZURE_DEVOPS_ORGANIZATION}",
+			"scope": "Ado.Mcp.Tools",
+			"audience": "2a72489c-aab2-4b65-b93a-a91edccf33b8",
+			"tokenScope": "https://mcp.dev.azure.com/.default"
+		}
+	]
+}
