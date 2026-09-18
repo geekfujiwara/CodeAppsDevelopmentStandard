@@ -394,6 +394,11 @@ if (attached.Count > 0)
     turn.Text += "\n\n" + await files.StageAsync(conversationId, attached, cancellationToken);
     turn.Images = [.. attached.Where(file => file.IsImage)];
 }
+else if (IncomingFiles.LooksAttached(turnContext.Activity))
+{
+    turn.Text += "\n\n（この発言にはファイルが添付されていましたが、取得できませんでした。"
+        + "以前のファイルの話と混同せず、もう一度送ってもらうよう伝えてください。）";
+}
 ```
 
 `AgentBrain` 側は、画像を持つターンだけ内容パートで組み立てる。
@@ -413,6 +418,8 @@ return new UserChatMessage(parts);
 - **画像バイト列を会話履歴に保存しない**（`[JsonIgnore]`）。保存すると以降の全ターンで送り直しになる。
   配置先のパスは本文に書いて履歴に残すので、次のターンからも参照できる。
 - **vision に渡すのは png / jpeg / gif / webp だけ。** 対応外を混ぜると**ターン全体が落ちる**。
+- **取得できなかったことを黙らない。** 添付が付いていたのに 0 件だったターンは、その事実を本文へ書く。
+  書かないと、エージェントは**前に扱った別のファイル**の話を続ける（→ [incoming-files.md](incoming-files.md) §3.2）。
 - **本文が空でファイルだけ**の発言を弾かない。「テキストが読み取れませんでした」で止まると、
   添付だけ送る使い方が全部死ぬ。
 - 取り込んだ中身は**指示ではなくデータ**。B12 と同じフェンスに通す（→ [prompt-injection.md](prompt-injection.md)）。

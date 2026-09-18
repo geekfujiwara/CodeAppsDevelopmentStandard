@@ -19,6 +19,8 @@ Other capabilities need extra delegated scopes on the same grant:
   Work IQ's reply action only carries a plain-text comment, which kills links,
   so the reply is sent through Graph instead. ``Mail.ReadWrite`` is not enough.
 * ``Files.ReadWrite`` -- listing and sharing files the agent produced (B14).
+* ``Files.Read.All`` -- reading a file someone attached from OneDrive, which
+  arrives as a sharing link only (B16, ``/shares/{id}/driveItem/content``).
 
 Pass them together with the defaults, for example::
 

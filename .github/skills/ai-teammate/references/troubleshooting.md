@@ -1439,4 +1439,62 @@ if (ImageAttachments(images) is { Count: > 0 } attachments)
 `report_progress` が 1 回も呼ばれないターンがあれば、催促がフェンスの外に出ているかを疑う
 （中に入っていると、無害化されて読み飛ばされる）。
 
+## 70. 添付したファイルを読まず、前に扱った別のファイルの話を続ける（B16・検証済 2026-09-18）
+
+**症状**: Teams でファイルを添付して「これ見て」と頼むと、**まったく関係のないファイル**
+（何日か前に扱ったもの）について答える。読めなかったとも言わないので、
+利用者からは「読んでくれないし、返事も意味不明」に見える。
+
+**原因**: 添付が**警告ログすら残さず捨てられている**。
+`application/vnd.microsoft.teams.file.download.info` の `content` は
+オブジェクトのことも **JSON 文字列**のこともあり、文字列で来たものを
+`JsonSerializer.SerializeToElement()` に通すと `ValueKind` は `String` になるので、
+`TryGetProperty("downloadUrl")` が何も無かったかのように失敗する。
+そこで `null` を返すと、添付は無かったことになる。
+
+**添付が消えたターンほど饒舌になる**のがこの不具合の質の悪さで、
+履歴に残る「最後に見たファイル」を今のファイルだと思い込んで答える。
+
+**見分け方**: ログに
+`Turn from msteams/personal: 2 attachment(s) [text/html, application/vnd.microsoft.teams.file.download.info]`
+が出ているのに、`Received ...` も警告も出ない。
+
+```
+python scripts/query_agent_logs.py --minutes 60 --contains "Turn from"
+python scripts/query_agent_logs.py --minutes 60 --contains "Received "
+```
+
+**対処**（[incoming-files.md](incoming-files.md) §3.2）:
+
+1. ペイロードを**正規化してから読む**（文字列なら `JsonDocument.Parse` し直す）。
+2. プロパティ名を**大文字小文字を無視して**探す。
+3. `downloadUrl` が無ければ `contentUrl` から Graph の共有 API
+   （`/shares/u!{base64url}/driveItem/content`）で取りに行く。
+4. それでも取れないときは**ペイロードごと警告ログに出す**。
+5. **取得できなかった事実をモデルに伝える**（`IncomingFiles.LooksAttached()`）。
+   黙って落とすと、前のファイルの話が始まる。
+
+## 71. Application Insights のログが CLI から引けない（検証済 2026-09-18）
+
+**症状**: エージェントの挙動を調べたいのにログが読めない。
+
+| 試したこと | 結果 |
+|---|---|
+| `az monitor app-insights query` | `BadArgumentError`。**ワークスペース ベース**のリソースでは通らない（今のポータルが作るのはこれだけ） |
+| `az monitor log-analytics query` | `log-analytics` 拡張の**インストール確認で止まる**。自動実行だと無言でハングする |
+| `az webapp log download` | 取れるが**中身が古い**ことがある（`_default_docker.log` が数百バイトのまま） |
+
+**対処**: Log Analytics の REST API を `az rest` で直接叩く。
+[scripts/query_agent_logs.py](../scripts/query_agent_logs.py) がこれをやる。
+
+```
+python scripts/query_agent_logs.py --minutes 30
+python scripts/query_agent_logs.py --contains "Received " --rows 20
+python scripts/query_agent_logs.py --kql "AppExceptions | take 5"
+```
+
+- トレースは `traces` ではなく **`AppTraces`** テーブルに入る（ワークスペース側の名前）。
+- 既定の一覧は **MSAL のトークン ログを除外**する。除外しないと画面が埋まって何も見えない。
+- ワークスペースの GUID は Application Insights の `WorkspaceResourceId` → `customerId` と辿る。
+
 

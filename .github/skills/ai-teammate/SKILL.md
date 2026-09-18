@@ -214,8 +214,9 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 | [grant_agent_graph_scopes.py](scripts/grant_agent_graph_scopes.py) | インスタンス SP に Microsoft Graph の**委任**スコープを付与（既存の同意へマージ） | 11 |
 | [set_agent_user_photo.py](scripts/set_agent_user_photo.py) | エージェンティック ユーザーにプロフィール写真を設定 | 12 |
 | [configure_agent_presence.py](scripts/configure_agent_presence.py) | UAMI に Graph プレゼンス権限を冪等付与し設定値を確認 | 12 |
+| [query_agent_logs.py](scripts/query_agent_logs.py) | Application Insights の `AppTraces` を `az rest` で読む（`az monitor` 系は**ワークスペース ベースで失敗するか対話プロンプトで止まる**→ [troubleshooting.md](references/troubleshooting.md) #71） | 全般 |
 
-すべて `--check` で確認のみの実行ができる。
+すべて `--check` で確認のみの実行ができる（`query_agent_logs.py` は読むだけなので不要）。
 
 > `discover_foundry_context.py` / `create_blueprint.py` / `create_instance.py` / `deploy.py` は
 > **Foundry 連携の参考スクリプト**で、正常系では使わない

@@ -170,6 +170,7 @@ Copilot ランタイム側で**この添付を載せ忘れても、取得・作�
 |---|---|
 | **個人チャットのみ** | Teams のファイル API は `personal` スコープだけ。チャネル・グループ チャットでは届かない |
 | **貼り付け画像は Graph 経由** | 委任スコープ **`Chat.Read`** が要る（`grant_agent_graph_scopes.py` の既定に含まれる）。無いと画像だけ落ちる |
+| **共有リンクのファイルも Graph 経由** | §3.2 の `/shares` 経路には **`Files.Read.All`（または `Sites.Read.All`）** が要る。無いと `403` |
 | **ソブリン クラウド非対応** | GCC High / DoD / 21Vianet ではファイルの送受信そのものが未対応 |
 | **メールの添付は別経路** | B6 の受信トレイ監視は Graph の `/messages/{id}/attachments` から取る。ここでは扱わない |
 | **作業環境の中身は残らない** | B12 と同じ。会話ごとに分かれ、最終利用から数分で破棄される |
@@ -183,7 +184,8 @@ Copilot ランタイム側で**この添付を載せ忘れても、取得・作�
 3. 続けて「この画像の左上 200x200 を切り出して」と頼む。
    `run_python` が `/mnt/data/<ファイル名>` を開けること。
 4. ログに `Turn from <channel>/<type>: <n> attachment(s)` と
-   `Received <name> (<type>, <n> bytes)` が両方出ること。
+   `Received <name> (<type>, <n> bytes)` が両方出ること
+   （`python scripts/query_agent_logs.py --minutes 30 --contains "Received "`）。
    前者が `0 attachment(s)` なら Teams が配信していない（§2）。前者だけ出て後者が出ないなら取得で落ちている。
    **`[...file.download.info]` が並んでいるのに `Received` も警告も出ないなら §3.2**（黙って捨てている）。
    両方出るのに「見えません」と返るならランタイムへの受け渡し漏れ（→ [troubleshooting.md](troubleshooting.md) #68）。
