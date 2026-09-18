@@ -154,12 +154,18 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
   「AI チームメイト評価Hub」で固定し、誰の行かは `<prefix>_agentkey` で区別する。
   チームメイトごとに別 Hub を作ると、評価履歴がアプリ単位に分断されて互いに見えなくなる。
   - 「組織図」ページ … `<prefix>_evalagent` の上長キーでチームメイトの階層を表示する。
+    最上位には `.env` の `VITE_ORG_OWNER_*` で指定した**人間のオーナー**を置き、各チームメイトの
+    `AGENT_MANAGER_KEY` を `VITE_ORG_OWNER_KEY` に合わせるとその下に並ぶ。オーナーは Dataverse の
+    マスター行を持たない（人間を `evalagent` に入れるとチームメイトの絞り込みに混ざる）。
   - 「自動テスト」ページ … 同じ依頼を複数のチームメイトへ同時に投げ、所要時間・応答・
     自動採点・手動評価・改善方針プロンプト・GitHub Issue 起票までを 1 画面で回す。
   - 「スキル」ページ … 各チームメイトの `SkillSync` が自分の `skills/` 配下の SKILL.md を
     `<prefix>_skill` へ写しているものを表示する。**スキルはエージェントのファイルとしてしか
     存在しない**ので、この同期が無いと Code App からは永遠に見えない（`<prefix>_skills` が
     無いままだと `Resource not found for the segment` で落ちる）。
+  - 「フィードバック」ページ … チームメイトが利用者の代わりに Dataverse MCP で書く
+    `<prefix>_aiteammatefeedback` を表示する。書いたのはエージェントなので `createdby` は使えず、
+    依頼者は `<prefix>_requester`（systemuser への Lookup）と氏名・メールのテキストで持つ。
 
 > **自動テストは Code App から直接エージェントを呼ばない。** チームメイトの messaging endpoint は
 > そのエージェント宛に署名された Bot Framework の通信しか受け付けないので、アプリから叩くことはできない。
@@ -186,8 +192,8 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 |---|---|---|
 | [scaffold_ai_teammate.py](scripts/scaffold_ai_teammate.py) | 1 回の AskUserQuestion の回答（decisions JSON）から同僚エージェント + 評価Hub を同時 scaffold する | 0〜3 |
 | [deploy_ai_teammate.py](scripts/deploy_ai_teammate.py) | `--check`（検証のみ）→ `--execute`（Dataverse スキーマ作成・自己ホスト展開・評価Hub デプロイ）の 2 段階デプロイ。`pa app init` / 接続参照 / `add-data-source` / `npm run predeploy` を正しい順序で実行する。M365 管理センターの devPreview 公開は別の承認 plan として案内する | 6・9〜11 |
-| [setup_evaluation_dataverse.py](scripts/setup_evaluation_dataverse.py) | 評価Hub の 8 テーブル（`evalagent`/`evalturn`/`evalrule`/`evalresult`/`evaljob`/`evaltestrun`/`evaltestresult`/`skill`）を `PUBLISHER_PREFIX` で冪等作成・列補完し、自分のチームメイト行を登録する。`--check` は作成せず不足だけ列挙する | 3・6 |
-| [setup_agent_dataverse_user.py](scripts/setup_agent_dataverse_user.py) | エージェントの **マネージド ID** に Dataverse のアプリケーション ユーザーと専用ロール（上記 8 テーブルの Global 権限だけ）を冪等に与える。これが無いと常駐ワーカーの Dataverse 呼び出しが全部 403 になる | 3・6 |
+| [setup_evaluation_dataverse.py](scripts/setup_evaluation_dataverse.py) | 評価Hub の 9 テーブル（`evalagent`/`evalturn`/`evalrule`/`evalresult`/`evaljob`/`evaltestrun`/`evaltestresult`/`skill`/`aiteammatefeedback`）を `PUBLISHER_PREFIX` で冪等作成・列補完し、自分のチームメイト行を登録する。`--check` は作成せず不足だけ列挙する | 3・6 |
+| [setup_agent_dataverse_user.py](scripts/setup_agent_dataverse_user.py) | エージェントの **マネージド ID** に Dataverse のアプリケーション ユーザーと専用ロール（上記 9 テーブルの Global 権限だけ）を冪等に与える。これが無いと常駐ワーカーの Dataverse 呼び出しが全部 403 になる。**テーブルを追加したら必ず再実行する** | 3・6 |
 | [provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し `.env` へ書き戻す。`--check` でプラン・Always On のドリフト検出 | 6 |
 | [deploy_agent_webapp.py](scripts/deploy_agent_webapp.py) | ブループリント作成/シークレット ローテーション（App Service 設定へのみ注入・ログ非出力）・`dotnet publish`・`az webapp deploy`/`restart`・`a365 setup blueprint --endpoint-only` を実行する | 4・6 |
 | [provision_code_sandbox.py](scripts/provision_code_sandbox.py) | コード実行サンドボックス（Container Apps 動的セッション プール）を冪等に作成しロールを付与。B12 のとき `deploy_ai_teammate.py --execute` が発行前に自動実行する | 6・8 |

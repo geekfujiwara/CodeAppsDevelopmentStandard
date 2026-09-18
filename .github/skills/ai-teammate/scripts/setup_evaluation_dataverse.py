@@ -13,6 +13,7 @@ tables through ``AF`` / ``F`` / ``RF`` / ``XF`` / ``JF`` / ``TF`` column maps, a
   - ``<prefix>_evaltestrun``    — one automated test (same prompt, several teammates)
   - ``<prefix>_evaltestresult`` — one teammate's answer, timing, and score within a test
   - ``<prefix>_skill``      (entity set ``<prefix>_skills``)    — copy of each teammate's SKILL.md files
+  - ``<prefix>_aiteammatefeedback`` — improvement requests the teammate files on a user's behalf
 
 This script creates any that are missing and adds any column any of them is missing
 (existing columns/tables are left alone — safe to rerun). It never touches a table it did not
@@ -145,6 +146,36 @@ def build_column_body(col: dict) -> dict:
     else:
         raise ValueError(f"Unknown column type: {col_type}")
     return base
+
+
+def build_lookup_body(table_logical: str, col: dict) -> dict:
+    """A lookup is a relationship, not an attribute, so it goes to RelationshipDefinitions."""
+    return {
+        "@odata.type": "#Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
+        "SchemaName": f"{table_logical}_{col['logical'].split('_', 1)[-1]}",
+        "ReferencedEntity": col["target"],
+        "ReferencingEntity": table_logical,
+        "Lookup": {
+            "@odata.type": "#Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+            "SchemaName": col["logical"],
+            "DisplayName": label_jp(col["display"]),
+            "RequiredLevel": {"Value": "None"},
+        },
+        "AssociatedMenuConfiguration": {
+            "Behavior": "DoNotDisplay",
+            "Group": "Details",
+            "Label": label_jp(col["display"]),
+            "Order": 10000,
+        },
+        "CascadeConfiguration": {
+            "Assign": "NoCascade",
+            "Delete": "RemoveLink",
+            "Merge": "NoCascade",
+            "Reparent": "NoCascade",
+            "Share": "NoCascade",
+            "Unshare": "NoCascade",
+        },
+    }
 
 
 def build_tables(prefix: str) -> list[dict]:
@@ -319,6 +350,25 @@ def build_tables(prefix: str) -> list[dict]:
                 {"logical": f"{prefix}_syncedon", "display": "Synced On", "type": "DateTime"},
             ],
         },
+        {
+            "logical": f"{prefix}_aiteammatefeedback",
+            "display": "AI チームメイトへの要望",
+            "plural": "AI チームメイトへの要望",
+            # Written by the teammate itself through the Dataverse MCP create_record, so createdon
+            # is the agent - who actually asked is kept in the requester lookup and the text pair.
+            "description": "利用者からの改善要望・不具合報告",
+            "columns": [
+                {"logical": f"{prefix}_summary", "display": "Summary", "type": "Memo", "maxLength": 4000},
+                {"logical": f"{prefix}_requirements", "display": "Requirements", "type": "Memo", "maxLength": 100_000},
+                {"logical": f"{prefix}_purpose", "display": "Purpose", "type": "Picklist", "options": [(1, "改善要望"), (2, "新機能提案"), (3, "不具合報告"), (4, "使い方の相談"), (5, "その他")]},
+                {"logical": f"{prefix}_category", "display": "Category", "type": "Picklist", "options": [(1, "メール対応"), (2, "予定調整"), (3, "Teamsチャット"), (4, "資料作成"), (5, "Web検索"), (6, "Dataverse照会"), (7, "その他")]},
+                {"logical": f"{prefix}_status", "display": "Status", "type": "Picklist", "options": [(1, "新規受付"), (2, "検討中"), (3, "対応予定"), (4, "対応中"), (5, "対応済み"), (6, "却下")]},
+                {"logical": f"{prefix}_requestedbyname", "display": "Requested By Name", "type": "String", "maxLength": 200},
+                {"logical": f"{prefix}_requestedbyemail", "display": "Requested By Email", "type": "String", "maxLength": 200},
+                {"logical": f"{prefix}_requester", "display": "Requester", "type": "Lookup", "target": "systemuser"},
+                {"logical": f"{prefix}_githubissueurl", "display": "GitHub Issue Url", "type": "String", "maxLength": 500},
+            ],
+        },
     ]
 
 
@@ -409,7 +459,14 @@ def add_columns(tbl: dict, columns: list[dict], solution_name: str) -> None:
     logical = tbl["logical"]
     for col in columns:
         def _add(c=col) -> None:
-            api_post(f"EntityDefinitions(LogicalName='{logical}')/Attributes", build_column_body(c), solution=solution_name)
+            if c["type"] == "Lookup":
+                api_post("RelationshipDefinitions", build_lookup_body(logical, c), solution=solution_name)
+            else:
+                api_post(
+                    f"EntityDefinitions(LogicalName='{logical}')/Attributes",
+                    build_column_body(c),
+                    solution=solution_name,
+                )
             print(f"    + column '{c['logical']}' added")
 
         retry_metadata(_add, f"column {col['logical']}")

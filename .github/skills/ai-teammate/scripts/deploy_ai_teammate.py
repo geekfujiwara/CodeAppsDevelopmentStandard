@@ -585,6 +585,14 @@ def write_evaluation_app_env(target: Path, env: dict[str, str]) -> None:
         f"VITE_CODEAPPS_DOCUMENT_TITLE={_evaluation_app_display_name(env)}",
         "VITE_CODEAPPS_THEME_STORAGE_KEY=code-app-theme",
     ]
+    # Optional VITE_ settings (GitHub repo, org-chart owner, ...) live in the target .env so a
+    # redeploy does not silently drop what the operator configured for the hub.
+    written = {line.split("=", 1)[0] for line in lines if "=" in line}
+    lines += [
+        f"{key}={value}"
+        for key, value in env.items()
+        if key.startswith("VITE_") and key not in written
+    ]
     app_env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

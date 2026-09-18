@@ -22,6 +22,15 @@ export const CODEAPPS_THEME_STORAGE_KEY = import.meta.env.VITE_CODEAPPS_THEME_ST
 // 自動テストの結果から Issue を起票する先（owner/repo）。未設定なら起票ボタンは出さず、URL 手入力だけ残る。
 export const GITHUB_REPO = import.meta.env.VITE_GITHUB_REPO?.trim() || ""
 
+// 組織図の最上位に置く人間のオーナー。チームメイトのマスター行の「上長キー」をこのキーに合わせると
+// その人の下にぶら下がる。名前が空なら人間の行は出さず、従来どおりチームメイトだけの木になる。
+export const ORG_OWNER = {
+  key: import.meta.env.VITE_ORG_OWNER_KEY?.trim() || "owner",
+  name: import.meta.env.VITE_ORG_OWNER_NAME?.trim() || "",
+  role: import.meta.env.VITE_ORG_OWNER_ROLE?.trim() || "",
+  upn: import.meta.env.VITE_ORG_OWNER_UPN?.trim() || "",
+} as const
+
 export type NavItem = { key: string; label: string; path: string }
 export type NavSection = { title: string; items: NavItem[] }
 

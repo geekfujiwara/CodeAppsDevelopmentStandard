@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
-import { Bot, ChevronDown, ChevronRight, Mail, Search, Server } from "lucide-react"
+import { Bot, ChevronDown, ChevronRight, Mail, Search, Server, UserRound } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { LoadingSkeletonList } from "@/components/loading-skeleton"
 import { UpdateNote } from "@/components/update-note"
+import { ORG_OWNER } from "@/config"
 import {
   buildOrgTree,
   listEvalAgents,
@@ -83,6 +84,33 @@ function AgentCard({ agent }: { agent: EvalAgent }) {
   )
 }
 
+function OwnerCard() {
+  return (
+    <div className="min-w-[16rem] rounded-lg border bg-card p-3 shadow-sm">
+      <div className="flex items-start gap-2">
+        <span className="mt-0.5 rounded-md bg-muted p-1.5">
+          <UserRound className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate font-medium">{ORG_OWNER.name}</span>
+            <Badge variant="outline">オーナー</Badge>
+          </div>
+          {ORG_OWNER.role && (
+            <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{ORG_OWNER.role}</p>
+          )}
+          {ORG_OWNER.upn && (
+            <p className="mt-2 flex items-center gap-1 truncate text-xs text-muted-foreground">
+              <Mail className="size-3 shrink-0" />
+              <span className="truncate">{ORG_OWNER.upn}</span>
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function OrgBranch({ node, depth }: { node: OrgNode; depth: number }) {
   const [open, setOpen] = useState(true)
   const hasReports = node.reports.length > 0
@@ -149,8 +177,9 @@ export default function OrgChart() {
 
       <UpdateNote>
         <p>
-          並びは各チームメイトのマスター行が持つ「上長キー」で決まります。上長が未設定・廃止・循環している場合は
-          最上位として表示されます。マスター行はデプロイのたびに自動登録され、表示名と役割はこの画面側の編集が優先されます。
+          最上位はこのチームのオーナー（人間）で、その下に AI チームメイトが並びます。チームメイト同士の並びは
+          マスター行が持つ「上長キー」で決まり、上長が未設定・廃止・循環している場合はオーナー直下に表示されます。
+          マスター行はデプロイのたびに自動登録され、表示名と役割はこの画面側の編集が優先されます。
         </p>
       </UpdateNote>
 
@@ -176,9 +205,22 @@ export default function OrgChart() {
         </p>
       ) : (
         <ul className="space-y-2">
-          {roots.map((node) => (
-            <OrgBranch key={node.agent.id} node={node} depth={0} />
-          ))}
+          {ORG_OWNER.name ? (
+            <li className="relative pl-6">
+              <span className="absolute left-0 top-6 h-px w-4 bg-border" aria-hidden />
+              <div className="flex items-start gap-1 py-1">
+                <span className="mt-3 size-5" aria-hidden />
+                <OwnerCard />
+              </div>
+              <ul className="relative ml-2 border-l">
+                {roots.map((node) => (
+                  <OrgBranch key={node.agent.id} node={node} depth={1} />
+                ))}
+              </ul>
+            </li>
+          ) : (
+            roots.map((node) => <OrgBranch key={node.agent.id} node={node} depth={0} />)
+          )}
         </ul>
       )}
     </div>
