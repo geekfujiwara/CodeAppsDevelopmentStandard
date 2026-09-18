@@ -271,7 +271,7 @@ REST の形・取り込み経路・落とし穴は [code-sandbox.md](code-sandbo
 Copy-Item .github/skills/ai-teammate/references/templates/AgentProgress.template.cs src/<agent-name>-agent/AgentProgress.cs
 
 az webapp config appsettings set -g $env:AZURE_RESOURCE_GROUP -n $env:AGENT_WEBAPP_NAME --settings `
-  Agent__Progress__Enabled=true Agent__Progress__FirstNoteSeconds=25 `
+  Agent__Progress__Enabled=true Agent__Progress__NudgeSeconds=15 Agent__Progress__FirstNoteSeconds=45 `
   Agent__Progress__IntervalSeconds=45 Agent__Progress__TypingSeconds=5
 ```
 
