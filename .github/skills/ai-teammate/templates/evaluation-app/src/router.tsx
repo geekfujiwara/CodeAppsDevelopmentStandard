@@ -3,8 +3,10 @@ import { lazy, Suspense } from "react"
 import Layout from "@/pages/_layout"
 
 const Dashboard = lazy(() => import("@/pages/dashboard"))
+const OrgChart = lazy(() => import("@/pages/org-chart"))
 const Turns    = lazy(() => import("@/pages/turns"))
 const TurnDetail = lazy(() => import("@/pages/turn-detail"))
+const AutoTest = lazy(() => import("@/pages/auto-test"))
 const MergeTurns = lazy(() => import("@/pages/merge"))
 const Trend    = lazy(() => import("@/pages/trend"))
 const Rules    = lazy(() => import("@/pages/rules"))
@@ -30,8 +32,10 @@ export const router = createHashRouter([
       { index: true, element: <Navigate to="/dashboard" replace /> },
       // 業務ページを追加したら、config.ts の NAV_SECTIONS と同じ path でここにも登録する
       { path: "dashboard", element: <Suspense fallback={null}><Dashboard /></Suspense> },
+      { path: "org-chart", element: <Suspense fallback={null}><OrgChart /></Suspense> },
       { path: "turns", element: <Suspense fallback={null}><Turns /></Suspense> },
       { path: "turns/:id", element: <Suspense fallback={null}><TurnDetail /></Suspense> },
+      { path: "auto-test", element: <Suspense fallback={null}><AutoTest /></Suspense> },
       { path: "merge", element: <Suspense fallback={null}><MergeTurns /></Suspense> },
       { path: "trend", element: <Suspense fallback={null}><Trend /></Suspense> },
       { path: "rules", element: <Suspense fallback={null}><Rules /></Suspense> },

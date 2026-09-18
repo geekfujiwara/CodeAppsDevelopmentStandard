@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """Idempotently create/verify the Dataverse schema behind the AI teammate evaluation hub.
 
-The evaluation-app Code App (``templates/evaluation-app/src/lib/eval-*.ts``) reads/writes four
-tables through ``F`` / ``RF`` / ``XF`` / ``JF`` column maps, all prefixed with ``PUBLISHER_PREFIX``:
+The evaluation-app Code App (``templates/evaluation-app/src/lib/eval-*.ts``) reads/writes these
+tables through ``AF`` / ``F`` / ``RF`` / ``XF`` / ``JF`` / ``TF`` column maps, all prefixed with
+``PUBLISHER_PREFIX``:
 
+  - ``<prefix>_evalagent``  (entity set ``<prefix>_evalagents``) — one row per AI teammate
   - ``<prefix>_evalturn``   (entity set ``<prefix>_evalturns``)  — one row per mirrored conversation turn
   - ``<prefix>_evalrule``   (entity set ``<prefix>_evalrules``)  — scoring rules (built-in + custom)
   - ``<prefix>_evalresult`` (entity set ``<prefix>_evalresults``) — one row per (turn, rule) score
   - ``<prefix>_evaljob``    (entity set ``<prefix>_evaljob``s)   — evaluation run queue/status
+  - ``<prefix>_evaltestrun``    — one automated test (same prompt, several teammates)
+  - ``<prefix>_evaltestresult`` — one teammate's answer, timing, and score within a test
 
-This script creates any of the four that are missing and adds any column any of them is missing
+This script creates any that are missing and adds any column any of them is missing
 (existing columns/tables are left alone — safe to rerun). It never touches a table it did not
 create if that table already belongs to a different solution (see ``_foreign_tables``).
 
@@ -253,6 +257,48 @@ def build_tables(prefix: str) -> list[dict]:
                 {"logical": f"{prefix}_targetcount", "display": "Target Count", "type": "Integer", "minValue": 0, "maxValue": 1_000_000},
                 {"logical": f"{prefix}_donecount", "display": "Done Count", "type": "Integer", "minValue": 0, "maxValue": 1_000_000},
                 {"logical": f"{prefix}_message", "display": "Message", "type": "Memo", "maxLength": 4000},
+            ],
+        },
+        {
+            "logical": f"{prefix}_evaltestrun",
+            "display": "自動テスト",
+            "plural": "自動テスト",
+            "description": "同じ依頼を複数の AI チームメイトに投げて比べるテスト",
+            "columns": [
+                {"logical": f"{prefix}_agentkeys", "display": "Agent Keys", "type": "String", "maxLength": 2000},
+                {"logical": f"{prefix}_prompt", "display": "Prompt", "type": "Memo", "maxLength": 100_000},
+                {"logical": f"{prefix}_rulekeys", "display": "Rule Keys", "type": "String", "maxLength": 2000},
+                {"logical": f"{prefix}_status", "display": "Status", "type": "Picklist", "options": [(1, "待機中"), (2, "実行中"), (3, "完了"), (4, "失敗"), (5, "キャンセル")]},
+                {"logical": f"{prefix}_requestedby", "display": "Requested By", "type": "String", "maxLength": 200},
+                {"logical": f"{prefix}_requestedon", "display": "Requested On", "type": "DateTime"},
+                {"logical": f"{prefix}_completedon", "display": "Completed On", "type": "DateTime"},
+                {"logical": f"{prefix}_targetcount", "display": "Target Count", "type": "Integer", "minValue": 0, "maxValue": 1000},
+                {"logical": f"{prefix}_donecount", "display": "Done Count", "type": "Integer", "minValue": 0, "maxValue": 1000},
+                {"logical": f"{prefix}_note", "display": "Note", "type": "Memo", "maxLength": 4000},
+            ],
+        },
+        {
+            "logical": f"{prefix}_evaltestresult",
+            "display": "自動テスト結果",
+            "plural": "自動テスト結果",
+            "description": "自動テストの 1 チームメイト分の応答と評価",
+            "columns": [
+                {"logical": f"{prefix}_runname", "display": "Run Name", "type": "String", "maxLength": 200},
+                {"logical": f"{prefix}_agentkey", "display": "Agent Key", "type": "String", "maxLength": 100},
+                {"logical": f"{prefix}_prompt", "display": "Prompt", "type": "Memo", "maxLength": 100_000},
+                {"logical": f"{prefix}_status", "display": "Status", "type": "Picklist", "options": [(1, "待機中"), (2, "実行中"), (3, "完了"), (4, "失敗"), (5, "キャンセル")]},
+                {"logical": f"{prefix}_response", "display": "Response", "type": "Memo", "maxLength": 1_048_576},
+                {"logical": f"{prefix}_toolcalls", "display": "Tool Calls", "type": "Memo", "maxLength": 1_048_576},
+                {"logical": f"{prefix}_durationms", "display": "Duration Ms", "type": "Integer", "minValue": 0, "maxValue": 2_000_000_000},
+                {"logical": f"{prefix}_startedon", "display": "Started On", "type": "DateTime"},
+                {"logical": f"{prefix}_completedon", "display": "Completed On", "type": "DateTime"},
+                {"logical": f"{prefix}_error", "display": "Error", "type": "Memo", "maxLength": 4000},
+                {"logical": f"{prefix}_turnname", "display": "Turn Name", "type": "String", "maxLength": 200},
+                {"logical": f"{prefix}_autoscore", "display": "Auto Score", "type": "Decimal", "precision": 2, "minValue": 0, "maxValue": 5},
+                {"logical": f"{prefix}_autosummary", "display": "Auto Summary", "type": "Memo", "maxLength": 100_000},
+                {"logical": f"{prefix}_humanverdict", "display": "Human Verdict", "type": "Picklist", "options": [(1, "OK"), (2, "NG")]},
+                {"logical": f"{prefix}_humancomment", "display": "Human Comment", "type": "Memo", "maxLength": 4000},
+                {"logical": f"{prefix}_issueurl", "display": "Issue Url", "type": "String", "maxLength": 500},
             ],
         },
     ]

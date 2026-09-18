@@ -23,6 +23,7 @@ import {
   VERDICT_OK,
   type EvalTurn,
 } from "@/lib/eval-turns"
+import { EVAL_AGENTS_KEY, listEvalAgents } from "@/lib/eval-agents"
 
 const VIEWS = [
   { key: "all", label: "すべて", match: () => true },
@@ -46,6 +47,17 @@ export default function Turns() {
   const view: ViewKey = VIEWS.some((item) => item.key === requested)
     ? (requested as ViewKey)
     : "all"
+  // 組織図から「このチームメイトの評価ターン」で飛んでこられるよう、絞り込みは URL に置く。
+  const agentKey = searchParams.get("agent") ?? ""
+
+  // タブとチームメイト絞り込みは同じクエリ文字列に同居するので、片方を変えても他方を落とさない。
+  const setParams = (next: Record<string, string>) => {
+    const merged: Record<string, string> = { view, agent: agentKey, ...next }
+    const cleaned = Object.fromEntries(
+      Object.entries(merged).filter(([key, value]) => value && !(key === "view" && value === "all")),
+    )
+    setSearchParams(cleaned, { replace: true })
+  }
 
   // Every keystroke would otherwise be a Dataverse round trip.
   useEffect(() => {
@@ -53,7 +65,7 @@ export default function Turns() {
     return () => clearTimeout(timer)
   }, [search])
 
-  const filter = useMemo(() => ({ search: term, actor }), [term, actor])
+  const filter = useMemo(() => ({ search: term, actor, agentKey }), [term, actor, agentKey])
   const { data, isLoading, isFetching, isError, error } = useQuery({
     queryKey: turnsQueryKey(filter),
     queryFn: () => listEvalTurns(filter),
@@ -63,6 +75,12 @@ export default function Turns() {
   const { data: actors } = useQuery({
     queryKey: TURN_ACTORS_KEY,
     queryFn: listTurnActors,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const { data: agents } = useQuery({
+    queryKey: EVAL_AGENTS_KEY,
+    queryFn: listEvalAgents,
     staleTime: 5 * 60 * 1000,
   })
 
@@ -220,14 +238,27 @@ export default function Turns() {
             searchPlaceholder="相手を検索..."
           />
         </div>
+        <div className="w-full sm:w-[240px]">
+          <Combobox
+            options={[
+              { value: "all", label: "すべてのチームメイト" },
+              ...(agents ?? []).map((agent) => ({
+                value: agent.agentKey,
+                label: agent.name || agent.agentKey,
+              })),
+            ]}
+            value={agentKey || "all"}
+            onValueChange={(value) => setParams(value === "all" ? {} : { agent: value })}
+            placeholder="チームメイトで絞り込む"
+            searchPlaceholder="チームメイトを検索..."
+          />
+        </div>
       </div>
 
       <div className="min-w-0 overflow-x-auto">
         <Tabs
           value={view}
-          onValueChange={(next) =>
-            setSearchParams(next === "all" ? {} : { view: next }, { replace: true })
-          }
+          onValueChange={(next) => setParams(next === "all" ? {} : { view: next })}
         >
           <TabsList>
             {VIEWS.map((item) => (

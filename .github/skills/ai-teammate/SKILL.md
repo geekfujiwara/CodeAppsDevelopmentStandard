@@ -150,6 +150,18 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
   同居することはない（`--no-skills` で抑止した場合は `--check` が落とす）。
 - **Code Apps の「AI チームメイト評価Hub」は常に同時 scaffold される**（`evaluation-app/` 配下）。
   無効化はできない。
+- **評価Hub は環境に 1 つを全チームメイトで共用する**。名前はチームメイト名に寄せず
+  「AI チームメイト評価Hub」で固定し、誰の行かは `<prefix>_agentkey` で区別する。
+  チームメイトごとに別 Hub を作ると、評価履歴がアプリ単位に分断されて互いに見えなくなる。
+  - 「組織図」ページ … `<prefix>_evalagent` の上長キーでチームメイトの階層を表示する。
+  - 「自動テスト」ページ … 同じ依頼を複数のチームメイトへ同時に投げ、所要時間・応答・
+    自動採点・手動評価・改善方針プロンプト・GitHub Issue 起票までを 1 画面で回す。
+
+> **自動テストは Code App から直接エージェントを呼ばない。** チームメイトの messaging endpoint は
+> そのエージェント宛に署名された Bot Framework の通信しか受け付けないので、アプリから叩くことはできない。
+> 依頼は `<prefix>_evaltestresult` の行として積み、各チームメイトの `TestWorker` が
+> **自分の `agentkey` の行だけ**を拾って応答と所要時間を書き戻す。止まっているチームメイトの行は
+> 「待機中」のまま残るだけなので、動いている相手の比較結果は失われない。
 - 選ばなかった機能ブロックの C# ファイルと DI 登録は自動的に除かれる（`full` は全部入りで生成される）。
 - `target` が空でない場合は既定で失敗する（`--force` で明示的に上書きする）。
 - `${VAR}` が `.env` に無く未解決のまま残る場合はエラーで停止する
@@ -170,7 +182,7 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 |---|---|---|
 | [scaffold_ai_teammate.py](scripts/scaffold_ai_teammate.py) | 1 回の AskUserQuestion の回答（decisions JSON）から同僚エージェント + 評価Hub を同時 scaffold する | 0〜3 |
 | [deploy_ai_teammate.py](scripts/deploy_ai_teammate.py) | `--check`（検証のみ）→ `--execute`（Dataverse スキーマ作成・自己ホスト展開・評価Hub デプロイ）の 2 段階デプロイ。`pa app init` / 接続参照 / `add-data-source` / `npm run predeploy` を正しい順序で実行する。M365 管理センターの devPreview 公開は別の承認 plan として案内する | 6・9〜11 |
-| [setup_evaluation_dataverse.py](scripts/setup_evaluation_dataverse.py) | 評価Hub の 4 テーブル（`evalturn`/`evalrule`/`evalresult`/`evaljob`）を `PUBLISHER_PREFIX` で冪等作成・列補完する。`--check` は作成せず不足だけ列挙する | 3・6 |
+| [setup_evaluation_dataverse.py](scripts/setup_evaluation_dataverse.py) | 評価Hub の 7 テーブル（`evalagent`/`evalturn`/`evalrule`/`evalresult`/`evaljob`/`evaltestrun`/`evaltestresult`）を `PUBLISHER_PREFIX` で冪等作成・列補完し、自分のチームメイト行を登録する。`--check` は作成せず不足だけ列挙する | 3・6 |
 | [provision_selfhost.py](scripts/provision_selfhost.py) | UAMI + Azure Bot（Teams チャネル）+ App Service を冪等に作成し `.env` へ書き戻す。`--check` でプラン・Always On のドリフト検出 | 6 |
 | [deploy_agent_webapp.py](scripts/deploy_agent_webapp.py) | ブループリント作成/シークレット ローテーション（App Service 設定へのみ注入・ログ非出力）・`dotnet publish`・`az webapp deploy`/`restart`・`a365 setup blueprint --endpoint-only` を実行する | 4・6 |
 | [provision_code_sandbox.py](scripts/provision_code_sandbox.py) | コード実行サンドボックス（Container Apps 動的セッション プール）を冪等に作成しロールを付与。B12 のとき `deploy_ai_teammate.py --execute` が発行前に自動実行する | 6・8 |

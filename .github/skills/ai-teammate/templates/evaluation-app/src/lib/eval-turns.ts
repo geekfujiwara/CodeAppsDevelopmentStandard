@@ -11,6 +11,7 @@ export const EVAL_TURNS_KEY = ["eval-turns"]
 export const F = {
   id: `${p}_evalturnid`,
   name: `${p}_name`,
+  agentKey: `${p}_agentkey`,
   runId: `${p}_runid`,
   evaluatedOn: `${p}_evaluatedon`,
   occurredOn: `${p}_occurredon`,
@@ -38,6 +39,8 @@ export const VERDICT_NG = 2
 export type EvalTurn = {
   id: string
   name: string
+  /** どの AI チームメイトのターンか。列を足す前に記録された行は空 */
+  agentKey: string
   runId: string
   evaluatedOn: string
   occurredOn: string
@@ -171,6 +174,7 @@ function toEvalTurn(row: DataverseRow): EvalTurn {
   return {
     id: str(row, F.id),
     name: str(row, F.name),
+    agentKey: str(row, F.agentKey),
     runId,
     evaluatedOn: str(row, F.evaluatedOn),
     occurredOn: str(row, F.occurredOn),
@@ -203,18 +207,27 @@ export async function getEvalTurn(id: string): Promise<EvalTurn> {
   return toEvalTurn(row)
 }
 
-export type TurnFilter = { search: string; actor: string; includeMerged?: boolean }
+export type TurnFilter = { search: string; actor: string; agentKey?: string; includeMerged?: boolean }
 
 export const EMPTY_TURN_FILTER: TurnFilter = { search: "", actor: "" }
 
 export function turnsQueryKey(filter: TurnFilter = EMPTY_TURN_FILTER) {
-  return [...EVAL_TURNS_KEY, filter.search, filter.actor, filter.includeMerged === true]
+  return [
+    ...EVAL_TURNS_KEY,
+    filter.search,
+    filter.actor,
+    filter.agentKey ?? "",
+    filter.includeMerged === true,
+  ]
 }
 
-function buildFilter({ search, actor, includeMerged }: TurnFilter): string | undefined {
+function buildFilter({ search, actor, agentKey, includeMerged }: TurnFilter): string | undefined {
   const clauses: string[] = []
   if (actor) {
     clauses.push(`${F.actor} eq '${quote(actor)}'`)
+  }
+  if (agentKey) {
+    clauses.push(`${F.agentKey} eq '${quote(agentKey)}'`)
   }
   if (!includeMerged) {
     // 統合された元ターンは、統合先の 1 行として見せるので一覧には出さない。

@@ -53,6 +53,8 @@ builder.Services.AddSingleton<EvaluationDataverse>();
 builder.Services.AddSingleton<EvaluationLog>();
 builder.Services.AddSingleton<EvaluationRunner>();
 builder.Services.AddHostedService<EvaluationWorker>();
+builder.Services.AddSingleton<TestRunner>();
+builder.Services.AddHostedService<TestWorker>();
 
 // GEEK:BLOCK:B6:START
 builder.Services.AddSingleton<MailTools>();

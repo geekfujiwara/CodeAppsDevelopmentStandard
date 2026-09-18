@@ -253,7 +253,7 @@ public sealed class AgentProgress : IAsyncDisposable
             string label = now - _labelAt < LabelLifetime ? _label : DefaultLabel;
             note = _notes++ == 0
                 ? $"{label}。もう少しお待ちください。"
-                : $"{label}（{Elapsed(now - _started)}）";
+                : $"{label}。";
         }
 
         await SendAsync(MessageFactory.Text(note), cancellationToken);
@@ -303,11 +303,6 @@ public sealed class AgentProgress : IAsyncDisposable
 
         return "調べものを進めています";
     }
-
-    private static string Elapsed(TimeSpan span) =>
-        span.TotalMinutes < 1
-            ? $"{(int)span.TotalSeconds} 秒経過"
-            : $"{(int)span.TotalMinutes} 分経過";
 
     private static JsonElement Schema(string json) => JsonDocument.Parse(json).RootElement.Clone();
 }

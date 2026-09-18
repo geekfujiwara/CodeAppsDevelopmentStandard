@@ -48,9 +48,10 @@ PUBLISHER_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 # Anything not listed here (Agent.cs, AgentBrain.cs, AgentPrompt.cs, ConversationMemory.cs,
 # Audience.cs, AgentHealth.cs, AgentProgress.cs, AgenticIdentity.cs, MessageHtml.cs,
 # ReplyImages.cs, UntrustedContent.cs, McpClient.cs, AspNetExtensions.cs, Evaluation*.cs,
-# Agent.csproj, appsettings.template.json, prompts/system.template.md) is base infrastructure
-# and is always scaffolded, because either every block needs it (B3 the brain, B15 usage,
-# B13 progress, B2 identity) or removing it would require rewriting the turn handler by hand.
+# Test{Runner,Worker}.cs, Agent.csproj, appsettings.template.json, prompts/system.template.md)
+# is base infrastructure and is always scaffolded, because either every block needs it (B3 the
+# brain, B15 usage, B13 progress, B2 identity) or removing it would require rewriting the turn
+# handler by hand.
 BLOCK_FILES = {
     "B6": ("MailboxWorker.cs", "MailTools.cs"),
     "B7": ("PresenceWorker.cs",),
