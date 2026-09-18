@@ -95,6 +95,17 @@ URL の末尾は `/views/original` で拡張子も無い。
 - **モデルが見られる形式だけを vision に回す**（png / jpeg / gif / webp）。
   それ以外を混ぜると**ターン全体が API エラーで落ちる**。対象外の形式は作業環境への配置だけ行う。
 
+### 「見せる」経路はランタイムごとに違う
+
+| 頭脳 | 画像の渡し方 |
+|---|---|
+| 自前ループ（agents-sdk） | ユーザー メッセージを content parts にして `image_url` に data URL を入れる |
+| Copilot ランタイム（copilot-sdk） | `MessageOptions.Attachments` に `AttachmentBlob { Data = Base64, MimeType, DisplayName }` を載せる |
+
+Copilot ランタイム側で**この添付を載せ忘れても、取得・作業環境への配置・ログはすべて成功する**。
+表に出るのは「画像は見えません」という返答だけなので、**B16 を入れたら必ず実際に画像を送って
+中身を説明させる**（→ SKILL.md の受け入れチェック）。
+
 ## 5. 受け取ったファイルは第三者の文章と同じ扱い
 
 添付は依頼者本人が送ってくるが、**中身を書いた人は依頼者とは限らない**

@@ -281,6 +281,7 @@ public sealed class AgentBrain(
         }
 
         string question = index >= 0 ? history[index].Text : string.Empty;
+        IReadOnlyList<IncomingFile> images = index >= 0 ? history[index].Images : [];
         string earlier = HistoryBlock(history.Take(Math.Max(index, 0)).ToList());
 
         List<AIFunctionDeclaration> tools =
@@ -340,8 +341,14 @@ public sealed class AgentBrain(
                 },
             }, cancellationToken);
 
+            var message = new MessageOptions { Prompt = question };
+            if (ImageAttachments(images) is { Count: > 0 } attachments)
+            {
+                message.Attachments = attachments;
+            }
+
             AssistantMessageEvent? response = await session.SendAndWaitAsync(
-                new MessageOptions { Prompt = question },
+                message,
                 TurnTimeout,
                 cancellationToken);
 
@@ -415,6 +422,21 @@ public sealed class AgentBrain(
 
         return payload;
     }
+
+    /// <summary>
+    /// The runtime looks at an image only when it rides on the message itself as a base64 blob:
+    /// describing the file in the prompt leaves the model answering about a picture it never saw.
+    /// </summary>
+    private static List<Attachment> ImageAttachments(IReadOnlyList<IncomingFile> images) =>
+    [
+        .. images.Select(image => new AttachmentBlob
+        {
+            Data = Convert.ToBase64String(image.Bytes),
+            MimeType = image.ContentType,
+            DisplayName = image.Name,
+            ByteLength = image.Bytes.Length,
+        }),
+    ];
 
     /// <summary>Earlier turns travel as context: the runtime session lives for one turn only.</summary>
     private static string HistoryBlock(IReadOnlyList<ChatTurn> history)
