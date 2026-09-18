@@ -12,6 +12,7 @@ tables through ``AF`` / ``F`` / ``RF`` / ``XF`` / ``JF`` / ``TF`` column maps, a
   - ``<prefix>_evaljob``    (entity set ``<prefix>_evaljob``s)   — evaluation run queue/status
   - ``<prefix>_evaltestrun``    — one automated test (same prompt, several teammates)
   - ``<prefix>_evaltestresult`` — one teammate's answer, timing, and score within a test
+  - ``<prefix>_skill``      (entity set ``<prefix>_skills``)    — copy of each teammate's SKILL.md files
 
 This script creates any that are missing and adds any column any of them is missing
 (existing columns/tables are left alone — safe to rerun). It never touches a table it did not
@@ -299,6 +300,23 @@ def build_tables(prefix: str) -> list[dict]:
                 {"logical": f"{prefix}_humanverdict", "display": "Human Verdict", "type": "Picklist", "options": [(1, "OK"), (2, "NG")]},
                 {"logical": f"{prefix}_humancomment", "display": "Human Comment", "type": "Memo", "maxLength": 4000},
                 {"logical": f"{prefix}_issueurl", "display": "Issue Url", "type": "String", "maxLength": 500},
+            ],
+        },
+        {
+            "logical": f"{prefix}_skill",
+            "display": "スキル",
+            "plural": "スキル",
+            # The SKILL.md files live on the agent host, which the Code App cannot read, so each
+            # teammate's SkillSync pushes a copy here for the hub to show.
+            "description": "AI チームメイトが読んでいるスキルの写し",
+            "columns": [
+                {"logical": f"{prefix}_agentkey", "display": "Agent Key", "type": "String", "maxLength": 100},
+                {"logical": f"{prefix}_skillkey", "display": "Skill Key", "type": "String", "maxLength": 200},
+                {"logical": f"{prefix}_title", "display": "Title", "type": "String", "maxLength": 200},
+                {"logical": f"{prefix}_summary", "display": "Summary", "type": "Memo", "maxLength": 4000},
+                {"logical": f"{prefix}_body", "display": "Body", "type": "Memo", "maxLength": 1_048_576},
+                {"logical": f"{prefix}_builtin", "display": "Built In", "type": "Boolean"},
+                {"logical": f"{prefix}_syncedon", "display": "Synced On", "type": "DateTime"},
             ],
         },
     ]

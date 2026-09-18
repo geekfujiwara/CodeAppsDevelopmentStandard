@@ -59,7 +59,7 @@ public sealed class TestRunner
         string deployment = configuration["Evaluation:JudgeDeployment"] ?? "gpt-4.1-mini";
         _api = $"{org}/api/data/v9.2";
         _scope = $"{org}/.default";
-        _prefix = configuration["Evaluation:TablePrefix"] ?? "lumi";
+        _prefix = configuration["Evaluation:TablePrefix"] ?? "geek";
         _agentKey = configuration["Agent:Key"] ?? "";
         _staleMinutes = Math.Max(5, configuration.GetValue("Evaluation:StaleMinutes", 15));
 

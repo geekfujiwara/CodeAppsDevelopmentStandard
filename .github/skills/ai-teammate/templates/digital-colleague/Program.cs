@@ -55,6 +55,7 @@ builder.Services.AddSingleton<EvaluationRunner>();
 builder.Services.AddHostedService<EvaluationWorker>();
 builder.Services.AddSingleton<TestRunner>();
 builder.Services.AddHostedService<TestWorker>();
+builder.Services.AddHostedService<SkillSync>();
 
 // GEEK:BLOCK:B6:START
 builder.Services.AddSingleton<MailTools>();

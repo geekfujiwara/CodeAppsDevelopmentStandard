@@ -1339,3 +1339,23 @@ Windows PowerShell 5.1 へフォールバックする場合、`Set-Content -Enco
   再構成する。他のスクリプトを実行する場合は
   `$env:PYTHONIOENCODING='utf-8'; $env:PYTHONUTF8='1'` を付けて実行する。
 
+## 67. 評価Hub にターンが 1 件も届かない／App Service が再起動を繰り返す（検証済 2026-09-18）
+
+- 症状: Teams では普通に答えるのに、評価Hub のターン・評価ジョブ・自動テスト・スキルが
+  どれも空のまま。ログには
+  `ThrowCrmSecurityException: The user with id ... has not been assigned any roles.` と、
+  その直後に `The HostOptions.BackgroundServiceExceptionBehavior is configured to StopHost.` が出る。
+- 原因: 常駐ワーカー（`EvaluationDataverse` / `EvaluationRunner` / `TestRunner` / `SkillSync`）は
+  **アプリのマネージド ID** で Dataverse を呼ぶ。この ID に Dataverse の
+  **アプリケーション ユーザーが無い**と全呼び出しが 403 になる。さらに
+  `BackgroundService` の未処理例外は既定でホストごと止めるため、403 が再起動ループに化ける。
+  Hub にデータが見えている場合でも、それは Code App が**サインインしたユーザーの権限**で
+  書いた行なので、エージェントが書けている証拠にはならない（`createdby` を見ると分かる）。
+- 対処: `python scripts/setup_agent_dataverse_user.py`（`--check` で確認）。
+  `AZURE_CLIENT_ID` のアプリケーション ユーザーと、Hub の 8 テーブルだけに Global 権限を持つ
+  専用ロールを冪等に作る。`deploy_ai_teammate.py --execute` では `provision_selfhost.py` の
+  直後に自動実行される。
+- 注意: ロール割り当ては Dataverse 側のセキュリティ キャッシュに数分かかる。付与直後の
+  再起動では 403 のままのことがあるので、数分おいてから再起動して確認する。
+
+

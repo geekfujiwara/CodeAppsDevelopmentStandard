@@ -486,6 +486,13 @@ def build_pre_connection_steps(target: Path, env: dict[str, str], skill_root: Pa
             (sys.executable, str(skill_root / "scripts" / "provision_selfhost.py"), "--write", str(env_path)),
             target,
         ),
+        # After provision_selfhost.py, which writes AZURE_CLIENT_ID: without an application user the
+        # agent's background workers get 403 on every Dataverse call and the host can stop outright.
+        Step(
+            "setup_agent_dataverse_user.py",
+            (sys.executable, str(skill_root / "scripts" / "setup_agent_dataverse_user.py"), "--env", str(env_path)),
+            target,
+        ),
     ]
     if "B12" in blocks:
         # Must run after provision_selfhost.py (it writes AGENT_IDENTITY_PRINCIPAL_ID) and before
