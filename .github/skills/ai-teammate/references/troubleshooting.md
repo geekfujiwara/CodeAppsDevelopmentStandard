@@ -1523,4 +1523,23 @@ ADO のスコープは `AZURE_DEVOPS_ORGANIZATION` が設定されていると�
 イメージを差し替えたら新しい agent version を作り、`AGENT_APP_VERSION` も上げる
 （[foundry-autopilot.md](foundry-autopilot.md) §7）。
 
+## 73. hosted agent の環境変数が `is reserved for platform use` で 400 になる（検証済 2026-09-18）
+
+**症状**: agent version の作成が次で落ちる。値ではなく**名前**が拒否されている。
+
+```json
+{ "error": { "code": "invalid_payload",
+  "message": "Environment variable 'AGENT_BRAIN' is reserved for platform use.
+              All FOUNDRY_* and AGENT_* variables are reserved per container-image-spec." } }
+```
+
+**原因**: hosted agent のコンテナーでは **`AGENT_` と `FOUNDRY_` で始まる環境変数名が
+プラットフォーム予約**。自前のフラグにこの接頭辞を付けると `definition.environment_variables`
+ごと拒否される。
+
+**対処**: 接頭辞を変える（例: 頭脳の切り替えフラグなら `TEAMMATE_BRAIN`）。
+
+**注意**: コンテナーの中で `FOUNDRY_PROJECT_ENDPOINT` などを**読む**のは問題ない
+（プラットフォームが注入する）。禁じられているのは agent version 作成時に**自分で渡す**こと。
+
 
