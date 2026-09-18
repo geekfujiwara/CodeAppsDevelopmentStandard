@@ -29,7 +29,15 @@ import tempfile
 from pathlib import Path
 
 ARM = "https://management.azure.com"
-API_VERSION = "2025-02-02-preview"
+API_VERSION = "2026-01-01"
+# dynamicsessions.io のコード実行は ARM とは別のバージョン軸。さらに **ルートと api-version は対**で、
+# 新しい方が良いとは限らない（実測）:
+#   /executions   … 2024-10-02-preview / 2025-02-02-preview のみ 200。応答は {status, result:{stdout}}
+#   /code/execute … 2024-02-02-preview のみ 200。応答は {properties:{status, stdout}}
+# CodeSandbox.cs は /executions を使うのでこちらに揃える。
+DATA_API_VERSION = "2025-02-02-preview"
+EXECUTIONS_ROUTE = "executions"
+SANDBOX_SCOPE = "https://dynamicsessions.io/.default"
 EXECUTOR_ROLE = "Azure ContainerApps Session Executor"
 CONTAINER_TYPES = ("PythonLTS",)
 MAX_SESSIONS_RANGE = (1, 600)
@@ -113,8 +121,10 @@ def create_pool(
             "containerType": container_type,
             "scaleConfiguration": {"maxConcurrentSessions": max_sessions},
             "dynamicPoolConfiguration": {
-                "executionType": "Timed",
-                "cooldownPeriodInSeconds": cooldown,
+                "lifecycleConfiguration": {
+                    "lifecycleType": "Timed",
+                    "cooldownPeriodInSeconds": cooldown,
+                },
             },
             "sessionNetworkConfiguration": {
                 "status": "EgressEnabled" if egress else "EgressDisabled"
@@ -176,6 +186,44 @@ def assert_role_granted(principal_id: str, scope: str) -> None:
         )
 
 
+def smoke_test(endpoint: str) -> str:
+    """Execute one line of Python over the exact route and api-version CodeSandbox.cs uses.
+    Probing a different route proves nothing: the two routes accept disjoint api-versions, so a
+    green smoke test on the wrong one would certify a combination the agent never calls."""
+    import urllib.error
+    import urllib.request
+
+    token = az("account", "get-access-token", "--scope", SANDBOX_SCOPE, "--query", "accessToken", "-o", "tsv")
+    url = (
+        f"{endpoint.rstrip('/')}/{EXECUTIONS_ROUTE}"
+        f"?api-version={DATA_API_VERSION}&identifier=provisioning-smoke-test"
+    )
+    payload = json.dumps({
+        "codeInputType": "inline",
+        "executionType": "synchronous",
+        "code": "print('sandbox ok')",
+    }).encode("utf-8")
+    request = urllib.request.Request(
+        url, data=payload, method="POST",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace").strip()
+        hint = (
+            " The caller must hold the executor role on the pool; the agent identity having it is not enough."
+            if exc.code == 403 else
+            f" api-version={DATA_API_VERSION} is not accepted on /{EXECUTIONS_ROUTE} by this pool."
+            if exc.code == 401 else ""
+        )
+        raise SystemExit(f"Sandbox smoke test failed: HTTP {exc.code}.{hint} {detail}")
+    if body.get("status") != "Succeeded":
+        raise SystemExit(f"Sandbox smoke test returned status {body.get('status')}: {json.dumps(body)}")
+    return (body.get("result", {}).get("stdout") or "").strip()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--subscription")
@@ -193,6 +241,10 @@ def main() -> int:
     parser.add_argument("--webapp")
     parser.add_argument("--write-settings", action="store_true")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument(
+        "--smoke-test", action="store_true",
+        help="Run one inline execution against the pool. The caller needs the executor role.",
+    )
     parser.add_argument("--env", default=".env")
     args = parser.parse_args()
 
@@ -221,6 +273,9 @@ def main() -> int:
             print(f"endpoint  : {endpoint}")
             print(f"egress    : {network}")
             print(f"role      : {EXECUTOR_ROLE} granted to {principal_id}")
+            print(f"api       : {DATA_API_VERSION} (data plane)")
+            if args.smoke_test:
+                print(f"execute   : {smoke_test(endpoint)}")
             return 0
 
         location = args.location or az_json(
@@ -259,7 +314,7 @@ def main() -> int:
                 "webapp", "config", "appsettings", "set",
                 "--resource-group", resource_group, "--name", webapp,
                 "--settings", "Sandbox__Enabled=true",
-                f"Sandbox__Endpoint={endpoint}", f"Sandbox__ApiVersion={API_VERSION}",
+                f"Sandbox__Endpoint={endpoint}", f"Sandbox__ApiVersion={DATA_API_VERSION}",
                 "--output", "none",
             )
             print(f"Configured Web App: {webapp}")
@@ -267,7 +322,7 @@ def main() -> int:
             print("Set these app settings on the agent:")
             print("  Sandbox__Enabled=true")
             print(f"  Sandbox__Endpoint={endpoint}")
-            print(f"  Sandbox__ApiVersion={API_VERSION}")
+            print(f"  Sandbox__ApiVersion={DATA_API_VERSION}")
         return 0
     except RuntimeError as exc:
         print(exc, file=sys.stderr)

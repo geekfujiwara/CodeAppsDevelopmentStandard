@@ -22,6 +22,9 @@
 - 原因: `.env` に manifest の `${VAR}` に対応する値が無い、または空。
 - 対処: `references/.env.example` と突き合わせて不足分を追加する。
   空文字も「未設定」として扱われる。
+- 自己ホスト方式で `INSTANCE_IDENTITY_CLIENT_ID` が不足する場合: Foundry のインスタンス ID は
+  存在しないので、**ブループリントの appId（`A365_AGENT_BLUEPRINT_ID` と同じ値）** を入れる。
+  manifest の `id` / `botId` はこの appId であり、Azure Bot の msaAppId（UAMI の clientId）ではない。
 
 ## 4. outline アイコンが真っ白な四角になる
 
@@ -439,11 +442,58 @@ $scope = ((@($Scopes | ForEach-Object { "$Resource/$_" })) + 'offline_access') -
 - エンドポイントを手で組み立てている。ARM が返す `properties.poolManagementEndpoint` を**そのまま**使う。
 
   ```bash
-  az rest --method GET --url "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.App/sessionPools/<pool>?api-version=2025-02-02-preview" --query properties.poolManagementEndpoint
+  az rest --method GET --url "https://management.azure.com/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.App/sessionPools/<pool>?api-version=2026-01-01" --query properties.poolManagementEndpoint
   ```
 
   リージョン表記やホスト名は環境によって変わる。形が分かるからといって文字列連結で作らない。
 - `identifier` クエリ文字列が抜けている場合も 404 になる。全リクエストに付ける。
+
+## 26.1 プール作成が `InvalidSessionPoolConfiguration` で 400 になる（B12）
+
+```
+Unexpected value: 'dynamicPoolConfiguration.lifecycleConfiguration.cooldownPeriodInSeconds'.
+'Must not be null and be >= 300 and be <= 3600.'
+```
+
+- `dynamicPoolConfiguration` の形が変わった。`executionType` / `cooldownPeriodInSeconds` を
+  直下に置く古い形は受け付けられない。`lifecycleConfiguration` の下に入れる。
+
+  ```jsonc
+  "dynamicPoolConfiguration": {
+    "lifecycleConfiguration": {
+      "lifecycleType": "Timed",          // 'OnContainerExit' | 'Timed'
+      "cooldownPeriodInSeconds": 300     // Timed のときに使う。300〜3600
+    }
+  }
+  ```
+
+- エラー文が「その値は想定外」と「300〜3600 にしろ」を 1 文で言うため、範囲の問題だと読み違えやすい。
+  範囲を変えても直らない。**プロパティの位置**が原因。
+- `scripts/provision_code_sandbox.py` は現行スキーマで組み立てるので、手で `az rest` を叩かない。
+
+## 26.2 プールは Succeeded なのに実行だけが 401 になる（B12）
+
+- **ルートと `api-version` は対**で、しかも ARM の `api-version` とも別軸。新しい値ほど良いとは限らない。
+  ロールは正しく付いているので認証の問題に見えるが、原因は組み合わせ。
+- 実測（同一プール・同一トークン）:
+
+  | ルート | 通る `api-version` | 応答の形 |
+  |---|---|---|
+  | `/executions` | `2024-10-02-preview` / `2025-02-02-preview` | `{ status, result: { stdout, stderr, executionTimeInMilliseconds } }` |
+  | `/code/execute` | `2024-02-02-preview` | `{ properties: { status, stdout, stderr } }` |
+
+  `/executions` に `2024-02-02-preview` や `2025-07-01` / `2026-01-01` を付けると 401。
+  `CodeSandbox.cs` は `/executions` を使うので `2025-02-02-preview` に揃える。
+- **疎通確認は製品コードと同じルートで行う**。片方のルートで緑になっても、
+  api-version の受け付け範囲が重ならないので、エージェントが実際に叩く組み合わせは何も検証できていない。
+  `provision_code_sandbox.py --check --smoke-test` は `CodeSandbox.cs` と同じ `/executions` を叩く。
+
+  ```bash
+  python scripts/provision_code_sandbox.py --check --smoke-test
+  ```
+
+  呼び出し元自身がプールに対する Executor ロールを持っている必要がある（ロール不足なら 403、
+  組み合わせ違いなら 401 なので、ステータス コードで切り分けられる）。
 
 ## 27. サンドボックスの中で `pip install` が必ず失敗する（B12）
 
@@ -1203,3 +1253,248 @@ Windows PowerShell 5.1 へフォールバックする場合、`Set-Content -Enco
 - 恒久対策済み: Evaluation App の `scripts/pre-deploy-check.mjs` が CLI の major version と deploy
   script を毎回検証し、`test_deploy_ai_teammate.py::test_template_uses_current_pa_cli` がテンプレートの
   回帰を検出する。
+
+## 58. 評価 Hub のテーブルがソリューションの外に作られる（検証済 2026-09-17）
+
+- 症状: `setup_evaluation_dataverse.py` は成功するのに、`LumiTeammate` のようなソリューションを開くと
+  テーブルが 1 件も入っていない。既定のソリューションに素で作られている。
+- 原因: 作成要求のソリューション指定ヘッダー名が誤っていた。Dataverse が見るのは
+  **`MSCRM.SolutionUniqueName`** で、`MSCRM.SolutionName` は**無視される**（エラーにならない）。
+- 対処: `standard` スキルの `auth_helper.py` が正しいヘッダー名を送る版になっていることを確認する。
+  既に外に作られたテーブルは `AddSolutionComponent`（`ComponentType: 1`）で後から取り込める。
+
+## 59. `EntityDefinitions?$filter=startswith(LogicalName,'...')` が 501 で返る（検証済 2026-09-17）
+
+- 原因: メタデータ エンドポイントは `startswith()` を実装していない。`$filter` 自体が使えるのは
+  `eq` など限られた演算子だけで、未対応の関数は `501 Not Implemented` になる。
+- 対処: `LogicalName,MetadataId` だけを `$select` して取得し、**プレフィックス一致はクライアント側**で
+  行う。恒久対策済み: `setup_evaluation_dataverse.py::existing_tables`。
+
+## 60. テーブル作成直後の列追加だけが 400 で失敗する（検証済 2026-09-17）
+
+- 症状: `lumi_evalturn` を作った直後の 1 本目の列追加が 400。少し待って再実行すると通る。
+- 原因: テーブル作成はメタデータの伝播が非同期で、作成レスポンスが返った時点では子メタデータの
+  書き込み先がまだ整合していない。
+- 対処: 作成後の待機を伸ばす。恒久対策済み: `setup_evaluation_dataverse.py` の
+  `TABLE_SETTLE_SECONDS`（10 秒では足りず 30 秒）。
+
+## 61. `provision_selfhost.py` が Bot 作成で失敗する（名前が既に使われている）
+
+- 原因: Azure Bot の登録名は**全 Azure テナントでグローバルに一意**。`AGENT_NAME` がありふれた語だと、
+  他テナントが先に取得している。
+- 対処: `.env` の `AZURE_BOT_NAME` に別名（例 `<agent>-teammate`）を入れて再実行する。
+  恒久対策済み: `provision_selfhost.py` は `AZURE_BOT_NAME` があればそれを Bot 名として使い、
+  `.env` にも同じ名前を書き戻す（App Service 名やエージェント名は変えない）。
+
+## 62. デプロイは成功するのに App Service が 503 / コンテナーが exit code 134 で落ちる（検証済 2026-09-17）
+
+- 症状: `az webapp deploy` は成功。`/health` が 503。ログに
+  `InvalidOperationException: A connection string was not found` と
+  `Container ... didn't respond to HTTP pings`、終了コード 134。
+- 原因: `Program.cs` の `UseAzureMonitor()` は **DI コンテナー構築時に接続文字列を要求**する。
+  未設定だと起動処理の途中で例外になり、`/api/messages` を一度も公開しないまま落ちる。
+  Teams からは「無反応」に見えるだけで、Bot 側にエラーは出ない。
+- 対処: Application Insights を作成し、`APPLICATIONINSIGHTS_CONNECTION_STRING` を App Service の
+  アプリ設定に入れて再起動する。恒久対策済み: `provision_selfhost.py::ensure_observability` が
+  Log Analytics + Application Insights を作成して設定し、`verify_hosting` が
+  `--check` を含む毎回の実行で未設定を検出する。
+
+## 63. `a365 setup blueprint --endpoint-only` が `Configuration file not found.` で止まる（検証済 2026-09-17）
+
+- 原因: `-n/--agent-name` で構成ファイルを省略できるのは**フル セットアップだけ**。
+  `--endpoint-only` は `a365.config.json` を読みに行き、続けて
+  `agentIdentityDisplayName is required.` も要求する。Azure と Agent 365 のプロビジョニングが
+  すべて終わった**最後**に失敗するため、手戻りが大きい。
+- 対処: `agentName` / `agentIdentityDisplayName` / `tenantId` / `messagingEndpoint` を持つ
+  `a365.config.json` を用意する。恒久対策済み: `deploy_agent_webapp.py::ensure_a365_config` が
+  エンドポイント登録の前に毎回生成・更新する。
+
+## 64. `a365 setup blueprint` が `appsettings.json` にクライアント シークレットを平文で書き込む（検証済 2026-09-17）
+
+- 症状: `a365` を実行するたびに `Connections:ServiceConnection:Settings:ClientSecret` と
+  `Agent365Observability:ClientSecret` に**平文のシークレット**が入り、さらに
+  `TokenValidation.Enabled` が `false` に書き換えられる。気付かずコミットすると資格情報が漏れ、
+  トークン検証が無効なままデプロイされると署名のない受信要求を受け付ける。
+- 対処: `a365` を実行した直後に必ず除去する。恒久対策済み:
+  `deploy_agent_webapp.py::scrub_appsettings` がブループリント作成後とエンドポイント登録後の
+  両方で `ClientSecret` を再帰的に削除し、`TokenValidation.Enabled` を `true` に戻す。
+  シークレットは App Service のアプリ設定（ファイル設定を上書きする）にのみ置く。
+- 既に平文の値を書き出してしまった場合は、`az ad app credential reset --append` で更新した後、
+  Entra ID 側で**古い資格情報を削除**する。
+
+## 65. `build_teams_package.py` が `teams/manifest.template.json` が無いと言って失敗する
+
+- 原因: scaffold 直後の `teams/` にテンプレートが置かれていなかった。
+- 対処: 恒久対策済み: `scaffold_ai_teammate.py::copy_teams_templates` が
+  `references/templates/` の `manifest.template.json` と `agenticUser.template.json` を
+  `teams/` へコピーする（トークンは `build_teams_package.py` が `.env` から解決するのでそのまま）。
+  既存プロジェクトでは同 2 ファイルを手動でコピーすれば足りる。
+
+## 66. 日本語表示名のエージェントで Python スクリプトが `UnicodeEncodeError: 'cp932'` で落ちる
+
+- 原因: 日本語 Windows のコンソール既定エンコードは cp932。表示名や進捗行に含まれる文字を
+  出力できず、処理の途中で例外になる（`deploy_ai_teammate.py --execute` では Azure リソースを
+  作り終えた後に落ちる）。
+- 対処: 恒久対策済み: `deploy_ai_teammate.py` は `main()` の先頭で stdout/stderr を UTF-8 に
+  再構成する。他のスクリプトを実行する場合は
+  `$env:PYTHONIOENCODING='utf-8'; $env:PYTHONUTF8='1'` を付けて実行する。
+
+## 67. 評価Hub にターンが 1 件も届かない／App Service が再起動を繰り返す（検証済 2026-09-18）
+
+- 症状: Teams では普通に答えるのに、評価Hub のターン・評価ジョブ・自動テスト・スキルが
+  どれも空のまま。ログには
+  `ThrowCrmSecurityException: The user with id ... has not been assigned any roles.` と、
+  その直後に `The HostOptions.BackgroundServiceExceptionBehavior is configured to StopHost.` が出る。
+- 原因: 常駐ワーカー（`EvaluationDataverse` / `EvaluationRunner` / `TestRunner` / `SkillSync`）は
+  **アプリのマネージド ID** で Dataverse を呼ぶ。この ID に Dataverse の
+  **アプリケーション ユーザーが無い**と全呼び出しが 403 になる。さらに
+  `BackgroundService` の未処理例外は既定でホストごと止めるため、403 が再起動ループに化ける。
+  Hub にデータが見えている場合でも、それは Code App が**サインインしたユーザーの権限**で
+  書いた行なので、エージェントが書けている証拠にはならない（`createdby` を見ると分かる）。
+- 対処: `python scripts/setup_agent_dataverse_user.py`（`--check` で確認）。
+  `AZURE_CLIENT_ID` のアプリケーション ユーザーと、Hub の 8 テーブルだけに Global 権限を持つ
+  専用ロールを冪等に作る。`deploy_ai_teammate.py --execute` では `provision_selfhost.py` の
+  直後に自動実行される。
+- 注意: ロール割り当ては Dataverse 側のセキュリティ キャッシュに数分かかる。付与直後の
+  再起動では 403 のままのことがあるので、数分おいてから再起動して確認する。
+
+## 68. 画像を送っても「何が写っているか分かりません」と返る（B16・Copilot ランタイム・検証済 2026-09-18）
+
+**症状**: #46 と #49 を直した後でも、Teams で画像を送ると
+「画像本体をこちらで開けていないため、何が写っているか判定できません」と返る。
+**例外もエラー ログも出ず、取得も作業環境への配置も成功している。**
+
+**原因**: Copilot ランタイム（copilot-sdk）では、**画像はメッセージそのものに base64 で載せないと
+モデルに届かない**。本文で「画像を添付しました」と説明しても、モデルは見たことのない絵について
+答えるだけになる。`AgentBrain` が `IncomingFile.Images` を
+`MessageOptions.Attachments` に載せ忘れていると、この症状だけが出る
+（→ [incoming-files.md](incoming-files.md) §4「『見せる』経路はランタイムごとに違う」）。
+
+**先に切り分ける**: 「届いていない」と「届いたが見せていない」は**返答が同じ**なので、
+ターンの先頭で活動そのものの棚卸しをログに出す。
+
+```csharp
+_logger.LogInformation(
+    "Turn from {Channel}/{ConversationType}: {Count} attachment(s) [{Types}], text {Length} chars",
+    turnContext.Activity.ChannelId,
+    turnContext.Activity.Conversation?.ConversationType,
+    turnContext.Activity.Attachments?.Count ?? 0,
+    string.Join(", ", (turnContext.Activity.Attachments ?? []).Select(a => a.ContentType)),
+    turnContext.Activity.Text?.Length ?? 0);
+```
+
+| ログ | 原因 |
+|---|---|
+| `0 attachment(s)` | Teams が配信していない → #46（`supportsFiles`）・個人チャット以外 |
+| 添付はあるが `Received ...` が出ない | 取得で落ちている → #49 |
+| `Received ...` は出るのに「見えません」 | **本項**。ランタイムへの受け渡し漏れ |
+
+**対処**: 当該ターンの `Images` を拾って添付に載せる（`templates/.../copilot-sdk/AgentBrain.cs` の
+`ImageAttachments`）。履歴の画像ではなく**いま聞かれているターンの画像**を渡すこと。
+
+```csharp
+IReadOnlyList<IncomingFile> images = index >= 0 ? history[index].Images : [];
+
+var message = new MessageOptions { Prompt = question };
+if (ImageAttachments(images) is { Count: > 0 } attachments)
+{
+    message.Attachments = attachments;
+}
+```
+
+**再テストの落とし穴**: 直し終えてすぐ試すと **App Service の再起動中**で、
+今度は「何も反応がない」になる。コードを疑う前に `/health` の `uptimeSeconds` を見る。
+`0` なら、いま自分のリクエストで起きたところ（→ #44）。
+
+## 69. 長いターンで「作業を進めています」しか言わない（B13・検証済 2026-09-18）
+
+**症状**: 数分かかる仕事の間、チャットに出るのが
+「作業を進めています。もう少しお待ちください。」だけ。何をしているのか分からず、
+同じ文が繰り返される。別のエージェントは具体的に実況するのに、こちらだけ定型文になる。
+
+**原因**: 話しているのが**エージェントではなく自動の状況通知**（AgentProgress の生成文）。
+`report_progress` は用意されているが、モデルは**呼ばなくても仕事を完了できる**ので呼ばない。
+その結果、中身のある 3 層目が抜け落ち、ツール名から組み立てた 2 層目だけが残る。
+
+**対処**: 呼ばせる側に寄せる。プロンプトの指示だけでは安定しない。
+
+1. **ツール結果に催促を添える**（`AgentProgress.Nudge()`）。無言が続いているときだけ、
+   ツールの戻り値の**フェンスの外**に 1 行足す。ツールの出力に混ぜると、
+   取り込んだ文章の中の指示と区別できなくなる（→ [prompt-injection.md](prompt-injection.md)）。
+
+   ```csharp
+   return progress?.Nudge() is { } nudge ? payload + nudge : payload;
+   ```
+
+2. **自動通知を後ろへ下げる**（`FirstNoteSeconds` を 45 秒に）。先に定型文が出ると、
+   エージェントが自分の言葉で言う前に「もう伝えた」状態になる。催促（既定 15 秒）が先、
+   定型文はあくまで**モデルが黙り続けたときの保険**、という順番にする。
+   **コードの既定値だけ直しても効かない。** `appsettings.json`（と App Service のアプリ設定）に
+   古い値が残っていると、そちらが勝つ。直したのに何も変わらないときは、まずここを見る。
+
+3. **プロンプトで「中身のある文」を定義する**。「経過を伝える」だけでは定型文が返ってくるので、
+   固有名詞・件数・次の行動を必ず入れること、入っていない文は送らないことまで書く。
+
+**確認**: 3 分かかる依頼を投げ、届いた経過連絡に**固有名詞か件数が入っている**こと。
+`report_progress` が 1 回も呼ばれないターンがあれば、催促がフェンスの外に出ているかを疑う
+（中に入っていると、無害化されて読み飛ばされる）。
+
+## 70. 添付したファイルを読まず、前に扱った別のファイルの話を続ける（B16・検証済 2026-09-18）
+
+**症状**: Teams でファイルを添付して「これ見て」と頼むと、**まったく関係のないファイル**
+（何日か前に扱ったもの）について答える。読めなかったとも言わないので、
+利用者からは「読んでくれないし、返事も意味不明」に見える。
+
+**原因**: 添付が**警告ログすら残さず捨てられている**。
+`application/vnd.microsoft.teams.file.download.info` の `content` は
+オブジェクトのことも **JSON 文字列**のこともあり、文字列で来たものを
+`JsonSerializer.SerializeToElement()` に通すと `ValueKind` は `String` になるので、
+`TryGetProperty("downloadUrl")` が何も無かったかのように失敗する。
+そこで `null` を返すと、添付は無かったことになる。
+
+**添付が消えたターンほど饒舌になる**のがこの不具合の質の悪さで、
+履歴に残る「最後に見たファイル」を今のファイルだと思い込んで答える。
+
+**見分け方**: ログに
+`Turn from msteams/personal: 2 attachment(s) [text/html, application/vnd.microsoft.teams.file.download.info]`
+が出ているのに、`Received ...` も警告も出ない。
+
+```
+python scripts/query_agent_logs.py --minutes 60 --contains "Turn from"
+python scripts/query_agent_logs.py --minutes 60 --contains "Received "
+```
+
+**対処**（[incoming-files.md](incoming-files.md) §3.2）:
+
+1. ペイロードを**正規化してから読む**（文字列なら `JsonDocument.Parse` し直す）。
+2. プロパティ名を**大文字小文字を無視して**探す。
+3. `downloadUrl` が無ければ `contentUrl` から Graph の共有 API
+   （`/shares/u!{base64url}/driveItem/content`）で取りに行く。
+4. それでも取れないときは**ペイロードごと警告ログに出す**。
+5. **取得できなかった事実をモデルに伝える**（`IncomingFiles.LooksAttached()`）。
+   黙って落とすと、前のファイルの話が始まる。
+
+## 71. Application Insights のログが CLI から引けない（検証済 2026-09-18）
+
+**症状**: エージェントの挙動を調べたいのにログが読めない。
+
+| 試したこと | 結果 |
+|---|---|
+| `az monitor app-insights query` | `BadArgumentError`。**ワークスペース ベース**のリソースでは通らない（今のポータルが作るのはこれだけ） |
+| `az monitor log-analytics query` | `log-analytics` 拡張の**インストール確認で止まる**。自動実行だと無言でハングする |
+| `az webapp log download` | 取れるが**中身が古い**ことがある（`_default_docker.log` が数百バイトのまま） |
+
+**対処**: Log Analytics の REST API を `az rest` で直接叩く。
+[scripts/query_agent_logs.py](../scripts/query_agent_logs.py) がこれをやる。
+
+```
+python scripts/query_agent_logs.py --minutes 30
+python scripts/query_agent_logs.py --contains "Received " --rows 20
+python scripts/query_agent_logs.py --kql "AppExceptions | take 5"
+```
+
+- トレースは `traces` ではなく **`AppTraces`** テーブルに入る（ワークスペース側の名前）。
+- 既定の一覧は **MSAL のトークン ログを除外**する。除外しないと画面が埋まって何も見えない。
+- ワークスペースの GUID は Application Insights の `WorkspaceResourceId` → `customerId` と辿る。
+
+

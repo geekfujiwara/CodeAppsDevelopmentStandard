@@ -551,7 +551,9 @@ def api_post(path: str, body: dict, scope: str | None = None, *, solution: str =
     url = f"{DATAVERSE_URL}/api/data/v9.2/{path.lstrip('/')}"
     session = get_session(scope)
     if solution:
-        session.headers["MSCRM.SolutionName"] = solution
+        # Dataverse reads MSCRM.SolutionUniqueName. A wrong header name is silently ignored and the
+        # component lands in the default solution instead, with a 2xx response either way.
+        session.headers["MSCRM.SolutionUniqueName"] = solution
     resp = session.post(url, json=body)
     resp.raise_for_status()
     odata_id = resp.headers.get("OData-EntityId", "")

@@ -80,6 +80,16 @@ public class Agent : AgentApplication
         _identities.Observe(turnContext.Activity);
 
         // GEEK:BLOCK:B16:START
+        // An attachment that never arrived and one that arrived but could not be read produce the
+        // same reply（「送ってください」）, so the activity's own inventory is logged before reading it.
+        _logger.LogInformation(
+            "Turn from {Channel}/{ConversationType}: {Count} attachment(s) [{Types}], text {Length} chars",
+            turnContext.Activity.ChannelId,
+            turnContext.Activity.Conversation?.ConversationType,
+            turnContext.Activity.Attachments?.Count ?? 0,
+            string.Join(", ", (turnContext.Activity.Attachments ?? []).Select(a => a.ContentType)),
+            turnContext.Activity.Text?.Length ?? 0);
+
         IReadOnlyList<IncomingFile> attached = await _files.CollectAsync(turnContext, cancellationToken);
         // GEEK:BLOCK:B16:END
 
@@ -128,6 +138,13 @@ public class Agent : AgentApplication
             turn.Text += "\n\n" + await _files.StageAsync(conversationId, attached, cancellationToken);
             turn.Images = [.. attached.Where(file => file.IsImage)];
         }
+        else if (IncomingFiles.LooksAttached(turnContext.Activity))
+        {
+            // Silence here is the worst answer: the agent would reach for whatever file it handled
+            // last and discuss that one instead of saying the new one never arrived.
+            turn.Text += "\n\n（この発言にはファイルが添付されていましたが、取得できませんでした。"
+                + "以前のファイルの話と混同せず、もう一度送ってもらうよう伝えてください。）";
+        }
         // GEEK:BLOCK:B16:END
 
         history.Add(turn);
@@ -156,7 +173,12 @@ public class Agent : AgentApplication
         catch (Exception ex)
         {
             _logger.LogError(ex, "Chat completion failed");
-            reply = $"申し訳ありません。応答の生成に失敗しました。({ex.GetType().Name}: {ex.Message})";
+            // A turn that ran out of wall clock is not a bug the user can act on: tell them how to
+            // split the work instead of showing them the exception type.
+            reply = ex is TimeoutException
+                ? "申し訳ありません。時間がかかりすぎたため、途中で打ち切りました。"
+                    + "お手数ですが、作業を分けて（例：まず構成だけ、次に資料作成）もう一度お申し付けください。"
+                : $"申し訳ありません。応答の生成に失敗しました。({ex.GetType().Name}: {ex.Message})";
             history.RemoveAt(history.Count - 1);
             if (progress is not null)
             {

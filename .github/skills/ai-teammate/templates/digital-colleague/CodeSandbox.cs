@@ -10,7 +10,8 @@
 // アプリ設定（__ が階層区切り）:
 //   Sandbox__Enabled        = true
 //   Sandbox__Endpoint       = ARM が返す poolManagementEndpoint（手で組み立てない）
-//   Sandbox__ApiVersion     = 2025-02-02-preview
+//   Sandbox__ApiVersion     = 2025-02-02-preview（ARM の api-version とは別軸。さらにルートと対で、
+//                             /executions は 2024-10-02-preview / 2025-02-02-preview のみ受け付ける）
 //   Sandbox__TimeoutSeconds = 300
 
 using System.Net.Http.Headers;

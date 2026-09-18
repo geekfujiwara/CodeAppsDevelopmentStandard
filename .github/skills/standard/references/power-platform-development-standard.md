@@ -170,15 +170,17 @@ PUBLISHER_PREFIX=geek
 
 | コンポーネント              | ソリューション紐づけ方法                                          |
 | --------------------------- | ----------------------------------------------------------------- |
-| Dataverse テーブル          | API ヘッダー `MSCRM.SolutionName` + `AddSolutionComponent` で検証 |
+| Dataverse テーブル          | API ヘッダー `MSCRM.SolutionUniqueName` + `AddSolutionComponent` で検証 |
 | Code Apps                   | `npx pa app push`（環境 ID で自動紐づけ）                     |
 | Power Automate フロー       | API ヘッダー `MSCRM.SolutionUniqueName`                           |
 | 接続参照                    | API ヘッダー `MSCRM.SolutionUniqueName`                           |
 | Copilot Studio エージェント | UI 作成時に「ソリューション」を選択                               |
 
-> **重要**: `MSCRM.SolutionName` ヘッダーだけではテーブルがソリューションに含まれないケースがある。
-> `setup_dataverse.py` は最終ステップで `AddSolutionComponent` API を呼び出し、
-> 全テーブルがソリューションに含まれていることを検証・補完する。
+> **重要**: ヘッダー名は `MSCRM.SolutionUniqueName`。`MSCRM.SolutionName` は**エラーにならず無視され**、
+> テーブルが既定のソリューションに作られる（`auth_helper.py` の `api_post` は前者を送る）。
+> ヘッダーが正しくても含まれないケースがあるため、`setup_dataverse.py` は最終ステップで
+> `AddSolutionComponent` API を呼び出し、全テーブルがソリューションに含まれていることを検証・補完する。
+> 既に外に作られたテーブルは `AddSolutionComponent`（`ComponentType: 1`）で後から取り込める。
 
 > **各フェーズ用の詳細スキル** を `.github/skills/` に配置しています。
 > 各スキルにもこの「一つのソリューション内に開発」原則を明記しています。

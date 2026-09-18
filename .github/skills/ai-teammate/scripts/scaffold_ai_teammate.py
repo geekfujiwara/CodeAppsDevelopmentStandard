@@ -8,12 +8,19 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 ALL_BLOCKS = tuple(f"B{number}" for number in range(1, 18))
 REQUIRED_BLOCKS = ("B15",)
+# The brain (B3) ships in two interchangeable shapes. Both are Agents SDK apps on the same
+# App Service and differ only in who runs the tool loop, so the choice is a template swap:
+#   copilot-sdk … GitHub Copilot SDK runtime, BYOK against the tenant's own Azure AI resource
+#   agents-sdk  … in-process Chat Completions loop against Azure OpenAI
+RUNTIMES = ("copilot-sdk", "agents-sdk")
+RUNTIME_MARKERS = {"copilot-sdk": "RTCOPILOT", "agents-sdk": "RTAGENTS"}
 ROLE_BLOCKS = {
     "R1": ("B1", "B2", "B3", "B4", "B6", "B8", "B15"),
     "R2": ("B2", "B3", "B4", "B5", "B6", "B8", "B10", "B15"),
@@ -41,9 +48,11 @@ PUBLISHER_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 # Anything not listed here (Agent.cs, AgentBrain.cs, AgentPrompt.cs, ConversationMemory.cs,
 # Audience.cs, AgentHealth.cs, AgentProgress.cs, AgenticIdentity.cs, MessageHtml.cs,
 # ReplyImages.cs, UntrustedContent.cs, McpClient.cs, AspNetExtensions.cs, Evaluation*.cs,
-# Agent.csproj, appsettings.template.json, prompts/system.template.md) is base infrastructure
-# and is always scaffolded, because either every block needs it (B3 the brain, B15 usage,
-# B13 progress, B2 identity) or removing it would require rewriting the turn handler by hand.
+# Test{Runner,Worker}.cs, SkillSync.cs, Agent.csproj, appsettings.template.json,
+# prompts/system.template.md)
+# is base infrastructure and is always scaffolded, because either every block needs it (B3 the
+# brain, B15 usage, B13 progress, B2 identity) or removing it would require rewriting the turn
+# handler by hand.
 BLOCK_FILES = {
     "B6": ("MailboxWorker.cs", "MailTools.cs"),
     "B7": ("PresenceWorker.cs",),
@@ -57,6 +66,19 @@ BLOCK_FILES = {
 }
 FILE_TO_BLOCK = {
     filename: block for block, filenames in BLOCK_FILES.items() for filename in filenames
+}
+# appsettings.json sections that only mean something when their block was scaffolded. Leaving a
+# section behind is not harmless: `"Sandbox": { "Enabled": true, "Endpoint": "${SANDBOX_ENDPOINT}" }`
+# without B12's files produces an agent that believes it can run code and silently cannot.
+BLOCK_SETTINGS = {
+    "B6": "Mailbox",
+    "B7": "Presence",
+    "B9": "TeamsChat",
+    "B10": "WebSearch",
+    "B11": "Schedule",
+    "B12": "Sandbox",
+    "B14": "Documents",
+    "B17": "ImageGeneration",
 }
 # Hard requirements per digital-colleague-design.md §3 ("依存" column). Expanded transitively.
 BLOCK_DEPENDENCIES = {
@@ -94,6 +116,7 @@ class ScaffoldPlan:
     personality: str
     implementation_mode: str
     preset: str
+    runtime: str
     blocks: tuple[str, ...]
     evaluation_app: bool
     target: Path
@@ -107,6 +130,7 @@ class ScaffoldPlan:
             "personality": self.personality,
             "implementationMode": self.implementation_mode,
             "preset": self.preset,
+            "runtime": self.runtime,
             "blocks": list(self.blocks),
             "evaluationApp": self.evaluation_app,
             "target": str(self.target),
@@ -225,6 +249,9 @@ def build_plan(decisions: dict[str, object], target: Path) -> ScaffoldPlan:
     preset = str(decisions.get("preset", "role"))
     if preset not in {"role", "full"}:
         raise ValueError("preset must be role or full")
+    runtime = str(decisions.get("runtime", "copilot-sdk"))
+    if runtime not in RUNTIMES:
+        raise ValueError(f"runtime must be one of: {', '.join(RUNTIMES)}")
     namespace = str(decisions.get("namespace") or normalize_namespace(agent_name))
     if not NAMESPACE_PATTERN.fullmatch(namespace) or ".." in namespace:
         raise ValueError("namespace must be a valid C# identifier (letters, digits, underscore)")
@@ -238,6 +265,7 @@ def build_plan(decisions: dict[str, object], target: Path) -> ScaffoldPlan:
         personality=personality,
         implementation_mode=implementation_mode,
         preset=preset,
+        runtime=runtime,
         blocks=resolve_blocks(decisions),
         evaluation_app=True,
         target=target.resolve(),
@@ -286,6 +314,7 @@ def render_tree(
     gate_files: bool = False,
     substitute_tokens: bool = True,
     fixed_prefix: str | None = None,
+    exclude_dirs: tuple[str, ...] = (),
 ) -> set[str]:
     """Renders *source* into *destination*, returning the set of ${VAR} names left unresolved.
 
@@ -307,6 +336,8 @@ def render_tree(
 
     for source_path in source.rglob("*"):
         relative = source_path.relative_to(source)
+        if exclude_dirs and relative.parts and relative.parts[0] in exclude_dirs:
+            continue
         if gate_files and source_path.is_file():
             required_block = FILE_TO_BLOCK.get(source_path.name)
             if required_block is not None and required_block not in selected_blocks:
@@ -341,6 +372,22 @@ def render_tree(
         output_path.write_text(content, encoding="utf-8", newline="\n")
 
     return unresolved
+
+
+def copy_teams_templates(skill_root: Path, target: Path) -> None:
+    """Place the two Teams app templates ``build_teams_package.py`` reads by default.
+
+    They are copied verbatim, tokens included: ``build_teams_package.py`` renders
+    ``${INSTANCE_IDENTITY_CLIENT_ID}`` and friends from ``.env`` at build time. Without them the
+    package build fails at the very end of the workflow, after Azure and Agent 365 are already
+    provisioned.
+    """
+    destination = target / "teams"
+    destination.mkdir(parents=True, exist_ok=True)
+    for name in ("manifest.template.json", "agenticUser.template.json"):
+        source = skill_root / "references" / "templates" / name
+        if source.is_file() and not (destination / name).exists():
+            shutil.copy2(source, destination / name)
 
 
 def copy_alm_scaffold(skill_root: Path, target: Path) -> None:
@@ -419,6 +466,34 @@ def copy_alm_scaffold(skill_root: Path, target: Path) -> None:
 
 
 
+def prune_settings(plan: ScaffoldPlan) -> None:
+    """Drops appsettings sections whose feature block (or runtime) was not scaffolded.
+
+    A section left behind is worse than a missing one. ``Sandbox.Enabled=true`` with an
+    unsubstituted ``${SANDBOX_ENDPOINT}`` and no ``CodeSandbox.cs`` yields an agent that accepts
+    "make me a deck", writes the script, and never runs it: nothing errors, the turn just ends
+    empty. The same holds for ``Copilot`` when the in-process Chat Completions brain was chosen.
+    """
+    settings_path = plan.target / "appsettings.json"
+    if not settings_path.is_file():
+        return
+
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    selected = set(plan.blocks)
+    for block, section in BLOCK_SETTINGS.items():
+        if block not in selected:
+            settings.pop(section, None)
+    if plan.runtime != "copilot-sdk":
+        settings.pop("Copilot", None)
+    agent = settings.get("Agent")
+    if isinstance(agent, dict) and "B13" not in selected:
+        agent.pop("Progress", None)
+
+    settings_path.write_text(
+        json.dumps(settings, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
+
+
 def scaffold(plan: ScaffoldPlan, env: dict[str, str], force: bool) -> None:
     skill_root = Path(__file__).resolve().parents[1]
     if plan.target.resolve() == skill_root.resolve() or skill_root in plan.target.resolve().parents:
@@ -440,14 +515,23 @@ def scaffold(plan: ScaffoldPlan, env: dict[str, str], force: bool) -> None:
     }
 
     unresolved: set[str] = set()
+    # The runtime marker rides along with the feature blocks so the existing GEEK:BLOCK machinery
+    # can gate runtime-specific package references and DI registrations in shared files.
+    render_blocks = plan.blocks + (RUNTIME_MARKERS[plan.runtime],)
     unresolved |= render_tree(
         skill_root / "templates" / "digital-colleague", plan.target, variables,
-        blocks=plan.blocks, gate_files=True, fixed_prefix="geek",
+        blocks=render_blocks, gate_files=True, fixed_prefix="geek", exclude_dirs=("runtimes",),
+    )
+    unresolved |= render_tree(
+        skill_root / "templates" / "digital-colleague" / "runtimes" / plan.runtime,
+        plan.target, variables, blocks=render_blocks, gate_files=True, fixed_prefix="geek",
     )
     unresolved |= render_tree(
         skill_root / "templates" / "evaluation-app", plan.target / "evaluation-app", variables,
         substitute_tokens=False,
     )
+    copy_teams_templates(skill_root, plan.target)
+    prune_settings(plan)
 
     if plan.implementation_mode == "full":
         copy_alm_scaffold(skill_root, plan.target)
@@ -471,7 +555,28 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--plan", action="store_true", help="Print the resolved plan without writing files")
     parser.add_argument("--deploy", action="store_true", help="Validate deployment values after scaffolding")
     parser.add_argument("--force", action="store_true", help="Merge into a non-empty target")
+    parser.add_argument(
+        "--no-skills", action="store_true",
+        help="Do not install the default Agent Skills bundle into the scaffolded agent.",
+    )
     return parser.parse_args()
+
+
+def install_skills(target: Path, env: dict[str, str]) -> None:
+    """A teammate with no skills still answers, just without any of the procedures its role
+    implies, so the default is to start complete rather than to start empty. Skipped silently
+    when the release cannot be reached: scaffolding offline is still useful."""
+    script = Path(__file__).resolve().parent / "install_agent_skills.py"
+    command = [sys.executable, str(script), "--target", str(target), "--env", str(target / ".env")]
+    result = subprocess.run(command, capture_output=True, text=True, env={**os.environ, **env})
+    if result.returncode == 0:
+        print(result.stdout.strip())
+    else:
+        print(
+            f"WARN: skills were not installed ({result.stderr.strip() or 'unknown error'}).\n"
+            f"      Run: python scripts/install_agent_skills.py --target {target}",
+            file=sys.stderr,
+        )
 
 
 def main() -> int:
@@ -485,7 +590,9 @@ def main() -> int:
             print(json.dumps(plan.as_dict(), ensure_ascii=False, indent=2))
             return 0
         scaffold(plan, env, args.force)
-        print(f"OK: scaffolded {plan.agent_name} at {plan.target}")
+        print(f"OK: scaffolded {plan.agent_name} at {plan.target} (runtime={plan.runtime})")
+        if not args.no_skills:
+            install_skills(plan.target, env)
         print("Next: run python scripts/deploy_ai_teammate.py --check")
         return 0
     except (OSError, ValueError, json.JSONDecodeError) as error:

@@ -76,6 +76,45 @@ URL の末尾は `/views/original` で拡張子も無い。
 「画像が見えません」と答える。バイト列の先頭を見て実際の形式を判定し、
 拡張子付きの名前を付け直す。
 
+## 3.2 ファイル添付の中身は、いつも同じ形で来るとは限らない
+
+`file.download.info` の `content` は、**オブジェクトのこともあれば JSON 文字列のこともある**。
+文字列で来たものを `JsonSerializer.SerializeToElement()` に通すと `ValueKind` は
+`String` になり、`TryGetProperty("downloadUrl")` は**何も無かったかのように失敗する**。
+
+これを「取得先が無い」とみなして `null` を返すと、添付は**警告ログすら残さず消える**。
+残るのは `Turn from msteams/personal: 2 attachment(s) [text/html,
+application/vnd.microsoft.teams.file.download.info]` という行だけで、
+`Received ...` は永久に出ない。
+
+```
+利用者: これ見て [Lumi 6.png]
+エージェント: （先週扱った別のファイルの話を、さも今の添付であるかのように続ける）
+```
+
+**添付が消えたターンほど、エージェントは饒舌になる。** 履歴に残っている
+「最後に見たファイル」を今のファイルだと思い込んで答えるからで、
+利用者からは「読んでくれないし、返事も意味不明」に見える。
+
+対策は 3 つとも入れる。
+
+| 対策 | 理由 |
+|---|---|
+| ペイロードを**正規化してから読む**（文字列なら `JsonDocument.Parse` し直す） | 形の違いで落ちない |
+| プロパティ名を**大文字小文字を無視して**探す | 経路によって `downloadUrl` / `DownloadUrl` が混在する |
+| 取得先が見つからないときは**ペイロードごと警告ログに出す** | 次は推測でなくログで分かる |
+
+`downloadUrl` がどうしても無いときは、`contentUrl`（OneDrive / SharePoint の共有リンク）から
+Graph の共有 API で取りに行く。エージェント自身がチャット参加者として読む。
+
+```
+GET /shares/u!{base64url(contentUrl)}/driveItem/content
+```
+
+そして**取得できなかった事実は、モデルに伝える**。黙って落とすと上の会話になるので、
+「添付があったが取得できなかった。前のファイルと混同せず、送り直してもらうこと」を
+その発言の本文に添える（テンプレートの `IncomingFiles.LooksAttached()`）。
+
 ## 4. 画像は「見せる」と「置く」の両方をやる
 
 片方だけでは仕事にならない。
@@ -94,6 +133,17 @@ URL の末尾は `/views/original` で拡張子も無い。
   「`/mnt/data/bg.jpg` にある」という事実は残るので、次のターンから参照できる。
 - **モデルが見られる形式だけを vision に回す**（png / jpeg / gif / webp）。
   それ以外を混ぜると**ターン全体が API エラーで落ちる**。対象外の形式は作業環境への配置だけ行う。
+
+### 「見せる」経路はランタイムごとに違う
+
+| 頭脳 | 画像の渡し方 |
+|---|---|
+| 自前ループ（agents-sdk） | ユーザー メッセージを content parts にして `image_url` に data URL を入れる |
+| Copilot ランタイム（copilot-sdk） | `MessageOptions.Attachments` に `AttachmentBlob { Data = Base64, MimeType, DisplayName }` を載せる |
+
+Copilot ランタイム側で**この添付を載せ忘れても、取得・作業環境への配置・ログはすべて成功する**。
+表に出るのは「画像は見えません」という返答だけなので、**B16 を入れたら必ず実際に画像を送って
+中身を説明させる**（→ SKILL.md の受け入れチェック）。
 
 ## 5. 受け取ったファイルは第三者の文章と同じ扱い
 
@@ -120,6 +170,7 @@ URL の末尾は `/views/original` で拡張子も無い。
 |---|---|
 | **個人チャットのみ** | Teams のファイル API は `personal` スコープだけ。チャネル・グループ チャットでは届かない |
 | **貼り付け画像は Graph 経由** | 委任スコープ **`Chat.Read`** が要る（`grant_agent_graph_scopes.py` の既定に含まれる）。無いと画像だけ落ちる |
+| **共有リンクのファイルも Graph 経由** | §3.2 の `/shares` 経路には **`Files.Read.All`（または `Sites.Read.All`）** が要る。無いと `403` |
 | **ソブリン クラウド非対応** | GCC High / DoD / 21Vianet ではファイルの送受信そのものが未対応 |
 | **メールの添付は別経路** | B6 の受信トレイ監視は Graph の `/messages/{id}/attachments` から取る。ここでは扱わない |
 | **作業環境の中身は残らない** | B12 と同じ。会話ごとに分かれ、最終利用から数分で破棄される |
@@ -132,7 +183,15 @@ URL の末尾は `/views/original` で拡張子も無い。
    §3 の経路が別なので、1 が通っても 2 が落ちることがある。
 3. 続けて「この画像の左上 200x200 を切り出して」と頼む。
    `run_python` が `/mnt/data/<ファイル名>` を開けること。
-4. ログに `Received <name> (<type>, <n> bytes)` が出ること。
+4. ログに `Turn from <channel>/<type>: <n> attachment(s)` と
+   `Received <name> (<type>, <n> bytes)` が両方出ること
+   （`python scripts/query_agent_logs.py --minutes 30 --contains "Received "`）。
+   前者が `0 attachment(s)` なら Teams が配信していない（§2）。前者だけ出て後者が出ないなら取得で落ちている。
+   **`[...file.download.info]` が並んでいるのに `Received` も警告も出ないなら §3.2**（黙って捨てている）。
+   両方出るのに「見えません」と返るならランタイムへの受け渡し漏れ（→ [troubleshooting.md](troubleshooting.md) #68）。
    **`<type>` が `image/*` や `application/octet-stream` のままなら失敗**（§3.1）。
 5. **本文なしでファイルだけ**送る。「テキストが読み取れませんでした」で止まらないこと。
 6. 対応外の形式（例: `.bmp`）を送る。ターンが落ちず、作業環境には置かれること。
+
+デプロイ直後は App Service が再起動中で**無反応**になる。試す前に `/health` の
+`uptimeSeconds` が 0 より大きいことを確かめる。

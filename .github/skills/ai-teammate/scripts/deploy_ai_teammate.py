@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -55,6 +56,29 @@ REQUIRED_ENV = (
 )
 
 SECRET_KEY_HINTS = ("SECRET", "PASSWORD", "TOKEN", "KEY")
+
+# Sections whose Enabled flag also needs a value that only provisioning can supply.
+PROVISIONED_KEYS = {"Sandbox": "Endpoint", "ImageGeneration": "Deployment"}
+
+
+def feature_sections() -> dict[str, tuple[str, str | None, tuple[str, ...]]]:
+    """block -> (settings section, key that must be resolved or None, files the block scaffolds).
+
+    Derived from the scaffolder's own catalog rather than restated here. A hand-kept copy silently
+    stops covering whichever block was added last, which is exactly the failure this check exists
+    to catch: settings claim a capability, no code implements it, and the agent answers nothing.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import scaffold_ai_teammate as catalog
+
+    return {
+        block: (section, PROVISIONED_KEYS.get(section), catalog.BLOCK_FILES.get(block, ()))
+        for block, section in catalog.BLOCK_SETTINGS.items()
+    }
+
+
+# `<prefix>_evalturn` and friends, as compiled into the agent's Dataverse calls.
+PREFIXED_TABLE_PATTERN = re.compile(r"\b([a-z][a-z0-9_]*?)_eval(?:turn|rule|result|job|agent)s?\b")
 
 
 @dataclass(frozen=True)
@@ -227,6 +251,100 @@ def check_existing_scripts(skill_root: Path, env_path: Path, target: Path, env: 
     return problems
 
 
+def check_settings_consistency(target: Path, env: dict[str, str]) -> list[str]:
+    """Catches the two silent mismatches that produce an agent which looks healthy and is not.
+
+    1. A feature is switched on in ``appsettings.json`` but its endpoint is still an unsubstituted
+       ``${VAR}``, or its C# file was never scaffolded. Nothing throws: the tool simply never
+       reaches the model, so the agent accepts the work and returns nothing.
+    2. ``PUBLISHER_PREFIX`` drifted after scaffolding. The prefix is compiled into the agent's
+       Dataverse logical names, so changing ``.env`` afterwards splits the evaluation data across
+       two table families — the hub keeps reading the new tables while the agent writes the old.
+    """
+    settings_path = target / "appsettings.json"
+    if not settings_path.is_file():
+        return ["appsettings.json not found; run scaffold_ai_teammate.py first"]
+
+    problems: list[str] = []
+    try:
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as error:
+        return [f"appsettings.json is not readable: {error}"]
+
+    blocks = _scaffold_blocks(target)
+    program = (target / "Program.cs").read_text(encoding="utf-8") if (target / "Program.cs").is_file() else ""
+    for block, (section, endpoint_key, source_files) in feature_sections().items():
+        config = settings.get(section)
+        if not isinstance(config, dict) or not config.get("Enabled"):
+            continue
+        # The source files on disk are the authority, not scaffold-plan.json: a project that was
+        # hand-edited (or scaffolded before the plan file existed) still has to be caught here.
+        # This is the failure that costs a user a whole turn — the prompt promises the capability,
+        # the settings claim it is on, and the tool was never registered, so the agent writes code
+        # it cannot run and returns nothing.
+        missing = [name for name in source_files if not (target / name).is_file()]
+        if missing:
+            problems.append(
+                f"appsettings {section}.Enabled is true but {', '.join(missing)} is missing "
+                f"(={block} was never scaffolded); set Enabled to false or re-scaffold with {block}"
+            )
+            continue
+        # A file that was copied in but never wired up is just as silent as a missing one.
+        unwired = [name for name in source_files if program and name[:-3] not in program]
+        if unwired:
+            problems.append(
+                f"appsettings {section}.Enabled is true and {', '.join(unwired)} exists but is not "
+                f"registered in Program.cs; the tools would never reach the agent"
+            )
+            continue
+        if blocks and block not in blocks:
+            problems.append(
+                f"appsettings {section}.Enabled is true but {block} is not in scaffold-plan.json; "
+                f"re-scaffold with {block} so its tools are registered"
+            )
+            continue
+        value = str(config.get(endpoint_key, "")) if endpoint_key else ""
+        if endpoint_key and ("${" in value or not value):
+            problems.append(
+                f"appsettings {section}.Enabled is true but {section}.{endpoint_key} is unresolved "
+                f"({value or 'empty'}); provision it first or set Enabled to false"
+            )
+
+    # Skills are data rather than a code block, so they miss the loop above and fail the same way:
+    # the runtime turns skills off when the folder is empty, and the agent just loses the procedure.
+    skills = settings.get("Skills")
+    if isinstance(skills, dict) and skills.get("Enabled"):
+        folder = target / str(skills.get("Directory") or "skills")
+        if not any(folder.glob("*/SKILL.md")):
+            problems.append(
+                f"appsettings Skills.Enabled is true but {folder.name}/ holds no SKILL.md; "
+                "run install_agent_skills.py or set Enabled to false"
+            )
+
+    prefix = env.get("PUBLISHER_PREFIX", "").strip()
+    if prefix:
+        compiled = sorted({
+            match.group(1)
+            for path in target.glob("Evaluation*.cs")
+            for match in PREFIXED_TABLE_PATTERN.finditer(path.read_text(encoding="utf-8"))
+        })
+        drifted = [found for found in compiled if found != prefix]
+        if drifted:
+            problems.append(
+                f"PUBLISHER_PREFIX is {prefix!r} but the agent's C# uses {', '.join(drifted)}_eval*; "
+                "re-scaffold or migrate the rows — the evaluation hub would read empty tables"
+            )
+        app_env = target / "evaluation-app" / ".env"
+        if app_env.is_file():
+            app_prefix = load_dotenv(app_env).get("VITE_PUBLISHER_PREFIX", "").strip()
+            if app_prefix and app_prefix != prefix:
+                problems.append(
+                    f"evaluation-app/.env VITE_PUBLISHER_PREFIX={app_prefix!r} does not match "
+                    f"PUBLISHER_PREFIX={prefix!r}; the hub would query tables nobody writes"
+                )
+    return problems
+
+
 def check_evaluation_dataverse(skill_root: Path, env_path: Path, env: dict[str, str]) -> tuple[list[str], list[str]]:
     """Runs `setup_evaluation_dataverse.py --check`. Returns (problems, planned) — "not created
     yet" is not a problem (it is exactly what `--execute` will do first), so it is reported
@@ -310,6 +428,7 @@ def run_check(target: Path, env: dict[str, str]) -> int:
     problems += [f"env check: {p}" for p in check_env(env)]
     problems += [f"agent build: {p}" for p in check_agent_build(target, env)]
     problems += [f"evaluation app: {p}" for p in check_evaluation_app(target, env)]
+    problems += [f"settings consistency: {p}" for p in check_settings_consistency(target, env)]
     problems += [f"existing scripts: {p}" for p in check_existing_scripts(skill_root, env_path, target, env)]
 
     dv_problems, dv_planned = check_evaluation_dataverse(skill_root, env_path, env)
@@ -334,7 +453,10 @@ def run_check(target: Path, env: dict[str, str]) -> int:
 
 
 def _evaluation_app_display_name(env: dict[str, str]) -> str:
-    return env.get("EVALUATION_APP_DISPLAY_NAME") or f"{env.get('AGENT_DISPLAY_NAME', 'AI teammate')} 評価Hub"
+    # One hub per environment, not per teammate: agents are separated by `<prefix>_agentkey` inside
+    # it. Naming it after the agent produced a second app on every new teammate, splitting the
+    # review history across apps that each showed only part of it.
+    return env.get("EVALUATION_APP_DISPLAY_NAME") or "AI チームメイト評価Hub"
 
 
 def build_pre_connection_steps(target: Path, env: dict[str, str], skill_root: Path) -> list[Step]:
@@ -364,6 +486,32 @@ def build_pre_connection_steps(target: Path, env: dict[str, str], skill_root: Pa
             (sys.executable, str(skill_root / "scripts" / "provision_selfhost.py"), "--write", str(env_path)),
             target,
         ),
+        # After provision_selfhost.py, which writes AZURE_CLIENT_ID: without an application user the
+        # agent's background workers get 403 on every Dataverse call and the host can stop outright.
+        Step(
+            "setup_agent_dataverse_user.py",
+            (sys.executable, str(skill_root / "scripts" / "setup_agent_dataverse_user.py"), "--env", str(env_path)),
+            target,
+        ),
+    ]
+    if "B12" in blocks:
+        # Must run after provision_selfhost.py (it writes AGENT_IDENTITY_PRINCIPAL_ID) and before
+        # the publish: an agent whose prompt promises documents but whose sandbox is missing fails
+        # silently at the user's first request instead of here.
+        steps.append(Step(
+            "provision_code_sandbox.py",
+            (sys.executable, str(skill_root / "scripts" / "provision_code_sandbox.py"),
+             "--write-settings", "--env", str(env_path)),
+            target,
+        ))
+    # Skills are part of the app payload, so they must be on disk before the publish packs it.
+    steps.append(Step(
+        "install_agent_skills.py",
+        (sys.executable, str(skill_root / "scripts" / "install_agent_skills.py"),
+         "--target", str(target), "--env", str(env_path)),
+        target,
+    ))
+    steps += [
         Step(
             "deploy_agent_webapp.py",
             (sys.executable, str(skill_root / "scripts" / "deploy_agent_webapp.py"), "--target", str(target), "--env", str(env_path)),
@@ -425,11 +573,25 @@ def write_evaluation_app_env(target: Path, env: dict[str, str]) -> None:
     lines = [
         "# Generated by deploy_ai_teammate.py --execute from the target .env's non-secret values.",
         "# Do not hand-edit; do not copy the target .env here (it is git-ignored either way).",
+        # pre-deploy-check.mjs refuses to deploy unless these four are real values.
+        f"DATAVERSE_URL={env.get('DATAVERSE_URL', '')}",
+        f"TENANT_ID={env.get('TENANT_ID', '')}",
+        f"ENV_ID={env.get('ENV_ID', '')}",
+        f"SOLUTION_NAME={env.get('SOLUTION_NAME', '')}",
+        f"PUBLISHER_PREFIX={env.get('PUBLISHER_PREFIX', '')}",
         f"VITE_PUBLISHER_PREFIX={env.get('PUBLISHER_PREFIX', '')}",
         f"VITE_CODEAPPS_APP_NAME={_evaluation_app_display_name(env)}",
         "VITE_CODEAPPS_APP_SUBTITLE=",
         f"VITE_CODEAPPS_DOCUMENT_TITLE={_evaluation_app_display_name(env)}",
         "VITE_CODEAPPS_THEME_STORAGE_KEY=code-app-theme",
+    ]
+    # Optional VITE_ settings (GitHub repo, org-chart owner, ...) live in the target .env so a
+    # redeploy does not silently drop what the operator configured for the hub.
+    written = {line.split("=", 1)[0] for line in lines if "=" in line}
+    lines += [
+        f"{key}={value}"
+        for key, value in env.items()
+        if key.startswith("VITE_") and key not in written
     ]
     app_env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -494,6 +656,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    # The status lines below contain the agent's display name, which is routinely non-ASCII. On a
+    # Japanese Windows console stdout defaults to cp932 and a single such line aborts the whole
+    # deployment with UnicodeEncodeError, halfway through creating Azure resources.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     args = parse_args()
     if args.check == args.execute:
         print("ERROR: pass exactly one of --check or --execute", file=sys.stderr)

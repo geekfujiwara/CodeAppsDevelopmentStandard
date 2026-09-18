@@ -61,6 +61,16 @@ public sealed class IncomingFiles(
     private static readonly Regex AttachmentPath =
         new(@"/v3/attachments/[^/]+/views/", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    /// <summary>
+    /// Whether the message carried something other than its own body, so a turn that collected
+    /// nothing can be told apart from a turn that never had a file.
+    /// </summary>
+    public static bool LooksAttached(IActivity activity) =>
+        (activity.Attachments ?? []).Any(attachment =>
+            attachment.ContentType is { Length: > 0 } type
+            && !type.StartsWith("text/", StringComparison.OrdinalIgnoreCase)
+            && !type.StartsWith("application/vnd.microsoft.card.", StringComparison.OrdinalIgnoreCase));
+
     public async Task<IReadOnlyList<IncomingFile>> CollectAsync(
         ITurnContext turnContext, CancellationToken cancellationToken)
     {
@@ -173,17 +183,29 @@ public sealed class IncomingFiles(
 
         if (type.Equals(TeamsFileInfo, StringComparison.OrdinalIgnoreCase))
         {
-            JsonElement info = JsonSerializer.SerializeToElement(attachment.Content);
-            if (ReadString(info, "downloadUrl") is not { Length: > 0 } downloadUrl)
+            JsonElement info = AsObject(attachment.Content);
+            if (ReadString(info, "downloadUrl") is { Length: > 0 } downloadUrl)
             {
+                string named = SafeName(attachment.Name, downloadUrl);
+                return new IncomingFile(
+                    named,
+                    TypeOf(named, ReadString(info, "fileType")),
+                    await DownloadAsync(turnContext, downloadUrl, cancellationToken));
+            }
+
+            // Files picked from OneDrive arrive as a link only, so the bytes come through Graph.
+            if (attachment.ContentUrl is not { Length: > 0 } shared)
+            {
+                logger.LogWarning("Teams file {Name} carried no download URL: {Payload}",
+                    attachment.Name, Truncate(info.ToString(), 400));
                 return null;
             }
 
-            string name = SafeName(attachment.Name, downloadUrl);
+            string name = SafeName(attachment.Name, shared);
             return new IncomingFile(
                 name,
                 TypeOf(name, ReadString(info, "fileType")),
-                await DownloadAsync(turnContext, downloadUrl, cancellationToken));
+                await SharedFileAsync(shared, cancellationToken));
         }
 
         if (attachment.ContentUrl is not { Length: > 0 } contentUrl)
@@ -252,6 +274,33 @@ public sealed class IncomingFiles(
         }
 
         return images;
+    }
+
+    /// <summary>
+    /// A file picked from OneDrive is not uploaded into the chat: the message carries only a
+    /// sharing link, and the bytes are read as the agent's own user through the sharing API.
+    /// </summary>
+    private async Task<byte[]> SharedFileAsync(string shareUrl, CancellationToken cancellationToken)
+    {
+        string? token = await tokens.GetTokenAsync(GraphScope, cancellationToken)
+            ?? throw new InvalidOperationException("共有ファイルを読むためのトークンを取得できませんでした。");
+
+        string id = "u!" + Convert.ToBase64String(Encoding.UTF8.GetBytes(shareUrl))
+            .TrimEnd('=').Replace('/', '_').Replace('+', '-');
+
+        using HttpClient http = httpClientFactory.CreateClient();
+        http.Timeout = TimeSpan.FromSeconds(90);
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using HttpResponseMessage response = await http.GetAsync(
+            $"https://graph.microsoft.com/v1.0/shares/{id}/driveItem/content", cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"共有ファイルの取得に失敗しました（{(int)response.StatusCode}）。");
+        }
+
+        return await ReadAsync(response, cancellationToken);
     }
 
     /// <summary>
@@ -398,10 +447,44 @@ public sealed class IncomingFiles(
             ? Uri.UnescapeDataString(last)
             : "file.bin";
 
-    private static string? ReadString(JsonElement element, string name) =>
-        element.ValueKind == JsonValueKind.Object
-        && element.TryGetProperty(name, out JsonElement value)
-        && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
+    private static string? ReadString(JsonElement element, string name)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        foreach (JsonProperty property in element.EnumerateObject())
+        {
+            if (property.NameEquals(name) || string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return property.Value.ValueKind == JsonValueKind.String ? property.Value.GetString() : null;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The attachment payload arrives as an object from some channels and as raw JSON text
+    /// from others; read as text it looks empty and the file is dropped without a trace.</summary>
+    private static JsonElement AsObject(object? content)
+    {
+        JsonElement element = JsonSerializer.SerializeToElement(content);
+        if (element.ValueKind != JsonValueKind.String || element.GetString() is not { Length: > 0 } text)
+        {
+            return element;
+        }
+
+        try
+        {
+            return JsonDocument.Parse(text).RootElement.Clone();
+        }
+        catch (JsonException)
+        {
+            return element;
+        }
+    }
+
+    private static string Truncate(string value, int limit) =>
+        value.Length <= limit ? value : value[..limit] + "…";
 }

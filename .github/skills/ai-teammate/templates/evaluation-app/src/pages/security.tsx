@@ -2,34 +2,49 @@ import { ShieldAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { AgentSwitcher, useSelectedAgent } from "@/components/agent-switcher"
 import { UpdateNote } from "@/components/update-note"
-import {
-  DATA_ACCESS_RULES,
-  DEFENSE_LAYERS,
-  ENFORCED_CHECKS,
-  ERROR_BEHAVIOR,
-  INFORMATION_SHARING_RULES,
-  OPERATION_RESTRICTIONS,
-  TRUSTED_TOOLS,
-  UNTRUSTED_SOURCES,
-} from "@/data/agent-security"
+import { getAgentSecurity } from "@/data/agent-security"
 
 export default function Security() {
+  const { agents, agent, agentKey, setAgentKey } = useSelectedAgent()
+  const {
+    defenseLayers,
+    trustedTools,
+    untrustedSources,
+    enforcedChecks,
+    operationRestrictions,
+    dataAccessRules,
+    informationSharingRules,
+    errorBehavior,
+    isShared,
+  } = getAgentSecurity(agentKey)
+
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold">セキュリティ設定</h2>
         <p className="text-sm text-muted-foreground">
-          プロンプト インジェクション対策、操作制限、データアクセス範囲など、「このエージェント」の安全性に関わる設計をまとめた参照ページです。
+          プロンプト インジェクション対策、操作制限、データアクセス範囲など、選んだ AI チームメイトの安全性に関わる設計をまとめた参照ページです。
         </p>
       </div>
+
+      <AgentSwitcher agents={agents} agent={agent} onChange={setAgentKey} />
 
       <UpdateNote>
         <p>
           <code className="font-mono">agent プロジェクト/UntrustedContent.cs</code> や設計仕様（安全性とガードレール章）を変更したら、
-          <code className="font-mono">meena-eval-app/src/data/agent-security.ts</code> を合わせて編集し、再デプロイしてください。
+          <code className="font-mono">evaluation-app/src/data/agent-security.ts</code> を合わせて編集し、再デプロイしてください。
+          チームメイトごとにガードレールが違う場合は、同じファイルの{" "}
+          <code className="font-mono">AGENT_SECURITY_OVERRIDES</code> にエージェントキーで差分を登録します。
         </p>
       </UpdateNote>
+
+      {isShared && (
+        <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          {agent?.name || "このチームメイト"} 専用の写しが登録されていないため、セルフホストの共通設計を表示しています。
+        </p>
+      )}
 
       <Card>
         <CardHeader>
@@ -43,7 +58,7 @@ export default function Security() {
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
-          {DEFENSE_LAYERS.map((layer) => (
+          {defenseLayers.map((layer) => (
             <div key={layer.layer} className="rounded-lg border p-3">
               <p className="font-medium">{layer.layer}</p>
               <p className="mt-1 text-sm text-muted-foreground">{layer.action}</p>
@@ -64,7 +79,7 @@ export default function Security() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-1">
-              {TRUSTED_TOOLS.map((tool) => (
+              {trustedTools.map((tool) => (
                 <Badge key={tool} variant="secondary" className="font-mono text-[10px] font-normal">
                   {tool}
                 </Badge>
@@ -81,7 +96,7 @@ export default function Security() {
             </p>
           </CardHeader>
           <CardContent className="space-y-2">
-            {UNTRUSTED_SOURCES.map((item) => (
+            {untrustedSources.map((item) => (
               <div key={item.source} className="rounded-lg border p-3">
                 <p className="font-medium">{item.source}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p>
@@ -107,7 +122,7 @@ export default function Security() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {ENFORCED_CHECKS.map((row) => (
+              {enforcedChecks.map((row) => (
                 <TableRow key={row.operation}>
                   <TableCell className="font-medium">{row.operation}</TableCell>
                   <TableCell className="text-muted-foreground">{row.check}</TableCell>
@@ -125,7 +140,7 @@ export default function Security() {
           </CardHeader>
           <CardContent>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              {OPERATION_RESTRICTIONS.map((rule) => (
+              {operationRestrictions.map((rule) => (
                 <li key={rule}>{rule}</li>
               ))}
             </ul>
@@ -138,7 +153,7 @@ export default function Security() {
           </CardHeader>
           <CardContent>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              {ERROR_BEHAVIOR.map((rule) => (
+              {errorBehavior.map((rule) => (
                 <li key={rule}>{rule}</li>
               ))}
             </ul>
@@ -163,7 +178,7 @@ export default function Security() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {DATA_ACCESS_RULES.map((row) => (
+              {dataAccessRules.map((row) => (
                 <TableRow key={row.data}>
                   <TableCell className="font-medium">{row.data}</TableCell>
                   <TableCell>{row.access}</TableCell>
@@ -181,7 +196,7 @@ export default function Security() {
         </CardHeader>
         <CardContent>
           <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-            {INFORMATION_SHARING_RULES.map((rule) => (
+            {informationSharingRules.map((rule) => (
               <li key={rule}>{rule}</li>
             ))}
           </ul>

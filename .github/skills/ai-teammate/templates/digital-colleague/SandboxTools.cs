@@ -36,6 +36,7 @@ public sealed class SandboxTools(
     ILogger<SandboxTools> logger)
 {
     private const string DesignKitFolder = "designkit";
+    private const string SkillsFolder = "skills";
     private const int MaxOutputLength = 6000;
     private const int MaxImportBytes = 40 * 1024 * 1024;
 
@@ -52,6 +53,8 @@ public sealed class SandboxTools(
     };
 
     private readonly ConcurrentDictionary<string, byte> _provisioned = new();
+    private readonly ConcurrentDictionary<string, byte> _skillsProvisioned = new();
+    private readonly Lazy<byte[]> _skillKit = new(BuildFolderZip(environment, SkillsFolder), LazyThreadSafetyMode.ExecutionAndPublication);
     private readonly Lazy<byte[]> _designKit = new(BuildDesignKit(environment), LazyThreadSafetyMode.ExecutionAndPublication);
     private readonly Lazy<string> _designGuide = new(ReadDesignGuide(environment), LazyThreadSafetyMode.ExecutionAndPublication);
 
@@ -164,6 +167,15 @@ public sealed class SandboxTools(
 
         string session = CodeSandbox.SessionId(sessionKey);
         var prelude = new StringBuilder();
+
+        // A skill's SKILL.md is read on the host, but the scripts it tells the model to run can
+        // only execute here. Staging the tree keeps those relative paths meaningful.
+        if (await ProvisionSkillsAsync(session, cancellationToken))
+        {
+            prelude.AppendLine("import os, zipfile");
+            prelude.AppendLine($"if not os.path.isdir('/mnt/data/{SkillsFolder}'):");
+            prelude.AppendLine($"    zipfile.ZipFile('/mnt/data/{SkillsFolder}.zip').extractall('/mnt/data/{SkillsFolder}')");
+        }
 
         if (arguments.TryGetProperty("design_kit", out JsonElement kit) && kit.ValueKind == JsonValueKind.True)
         {
@@ -376,9 +388,56 @@ public sealed class SandboxTools(
         return failure;
     }
 
+    /// <summary>Uploads the shipped skill tree once per session. Returns false when the agent has
+    /// no skills installed, which is a normal configuration rather than an error.</summary>
+    private async Task<bool> ProvisionSkillsAsync(string session, CancellationToken cancellationToken)
+    {
+        byte[] bundle = _skillKit.Value;
+        if (bundle.Length == 0)
+        {
+            return false;
+        }
+
+        if (_skillsProvisioned.ContainsKey(session))
+        {
+            return true;
+        }
+
+        string? failure = await sandbox.UploadAsync(session, $"{SkillsFolder}.zip", bundle, cancellationToken);
+        if (failure is not null)
+        {
+            logger.LogWarning("Could not stage skills into the sandbox: {Failure}", failure);
+            return false;
+        }
+
+        _skillsProvisioned[session] = 1;
+        return true;
+    }
+
     private static Func<byte[]> BuildDesignKit(IWebHostEnvironment environment) => () =>
     {
         string folder = Path.Combine(environment.ContentRootPath, "sandbox", DesignKitFolder);
+        if (!Directory.Exists(folder))
+        {
+            return [];
+        }
+
+        using var buffer = new MemoryStream();
+        using (var archive = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (string file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+            {
+                string relative = Path.GetRelativePath(folder, file).Replace('\\', '/');
+                archive.CreateEntryFromFile(file, relative, CompressionLevel.Fastest);
+            }
+        }
+
+        return buffer.ToArray();
+    };
+
+    private static Func<byte[]> BuildFolderZip(IWebHostEnvironment environment, string folderName) => () =>
+    {
+        string folder = Path.Combine(environment.ContentRootPath, folderName);
         if (!Directory.Exists(folder))
         {
             return [];

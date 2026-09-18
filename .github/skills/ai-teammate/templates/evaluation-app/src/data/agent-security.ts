@@ -103,3 +103,33 @@ export const ERROR_BEHAVIOR = [
   "API 名や内部パスを並べず、その場で使える代替案を一つ提示する。",
   "ツールで取得できなかった事実を、取得済みのように表現しない。",
 ]
+
+export type AgentSecurity = {
+  defenseLayers: DefenseLayer[]
+  trustedTools: readonly string[]
+  untrustedSources: UntrustedSource[]
+  enforcedChecks: EnforcedCheck[]
+  operationRestrictions: readonly string[]
+  dataAccessRules: DataAccessRule[]
+  informationSharingRules: readonly string[]
+  errorBehavior: readonly string[]
+}
+
+const SHARED_SECURITY: AgentSecurity = {
+  defenseLayers: DEFENSE_LAYERS,
+  trustedTools: TRUSTED_TOOLS,
+  untrustedSources: UNTRUSTED_SOURCES,
+  enforcedChecks: ENFORCED_CHECKS,
+  operationRestrictions: OPERATION_RESTRICTIONS,
+  dataAccessRules: DATA_ACCESS_RULES,
+  informationSharingRules: INFORMATION_SHARING_RULES,
+  errorBehavior: ERROR_BEHAVIOR,
+}
+
+// ガードレールはセルフホストの実装側で共通。別実装のチームメイトだけ差分を書く。
+export const AGENT_SECURITY_OVERRIDES: Record<string, Partial<AgentSecurity>> = {}
+
+export function getAgentSecurity(agentKey: string) {
+  const override = AGENT_SECURITY_OVERRIDES[agentKey]
+  return { ...SHARED_SECURITY, ...override, isShared: !override }
+}

@@ -28,6 +28,8 @@ import os
 import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 REQUIRED_ENV = ("AGENT_NAME", "AZURE_RESOURCE_GROUP")
@@ -84,11 +86,65 @@ def ensure_blueprint(agent_name: str, cwd: Path) -> str:
     if not config_path.is_file():
         print("  a365 setup blueprint --no-endpoint (output withheld: contains a client secret)")
         _run(["a365", "setup", "blueprint", "-n", agent_name, "--no-endpoint"], cwd, capture=True)
+        scrub_appsettings(cwd)
     data = json.loads(config_path.read_text(encoding="utf-8"))
     blueprint_id = data.get("agentBlueprintId")
     if not blueprint_id:
         raise SystemExit(f"{config_path} has no agentBlueprintId")
     return blueprint_id
+
+
+def ensure_a365_config(agent_name: str, display_name: str, tenant_id: str, endpoint: str, cwd: Path) -> None:
+    """Writes the input config `--endpoint-only` requires.
+
+    `-n/--agent-name` only removes the config requirement for a *full* setup. `--endpoint-only`
+    still reads `a365.config.json` and fails with `Configuration file not found.` (and then with
+    `agentIdentityDisplayName is required.`) without it, after the deploy has already happened.
+    """
+    path = cwd / "a365.config.json"
+    config = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    config.setdefault("agentName", agent_name)
+    config.setdefault("agentIdentityDisplayName", display_name or agent_name)
+    if tenant_id:
+        config.setdefault("tenantId", tenant_id)
+    config["messagingEndpoint"] = endpoint
+    path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _strip_client_secrets(node) -> int:
+    count = 0
+    if isinstance(node, dict):
+        for key in [key for key in node if key == "ClientSecret"]:
+            del node[key]
+            count += 1
+        for value in node.values():
+            count += _strip_client_secrets(value)
+    elif isinstance(node, list):
+        for item in node:
+            count += _strip_client_secrets(item)
+    return count
+
+
+def scrub_appsettings(cwd: Path) -> None:
+    """Undo the two changes `a365 setup blueprint` makes to appsettings.json on every run.
+
+    The CLI stamps the blueprint client secret into the file **in plain text** and flips
+    `TokenValidation.Enabled` to false. The App Service already gets the secret as an app setting
+    (which overrides the file), so leaving it on disk only risks committing a live credential, and
+    an agent deployed with token validation off accepts unsigned inbound requests.
+    """
+    path = cwd / "appsettings.json"
+    if not path.is_file():
+        return
+    data = json.loads(path.read_text(encoding="utf-8"))
+    removed = _strip_client_secrets(data)
+    validation = data.get("TokenValidation")
+    restored = isinstance(validation, dict) and validation.get("Enabled") is False
+    if restored:
+        validation["Enabled"] = True
+    if removed or restored:
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(f"  scrubbed appsettings.json (secrets removed: {removed}, token validation restored: {restored})")
 
 
 def publish_and_deploy(target: Path, resource_group: str, app_name: str) -> None:
@@ -112,8 +168,47 @@ def publish_and_deploy(target: Path, resource_group: str, app_name: str) -> None
         "az", "webapp", "deploy", "-g", resource_group, "-n", app_name,
         "--src-path", str(zip_path), "--type", "zip", "--track-status", "false", "--timeout", "600000",
     ], target)
+    verify_deployed_prompt(target, app_name)
     print(f"  az webapp restart -> {app_name}")
     _run(["az", "webapp", "restart", "-g", resource_group, "-n", app_name], target)
+
+
+def verify_deployed_prompt(target: Path, app_name: str) -> None:
+    """Reads the deployed system prompt back and compares its size with the local one.
+
+    ``az webapp deploy`` can return a 502 from the deployment endpoint while leaving the previous
+    content in place. The command looks like it worked, the site keeps answering, and the agent
+    quietly runs yesterday's prompt. Kudu accepts the same ARM bearer token the CLI already has,
+    so one read-back turns that into a visible warning.
+    """
+    local = target / "prompts" / "system.md"
+    if not local.is_file():
+        return
+    expected = len(local.read_bytes())
+    token = _run(
+        ["az", "account", "get-access-token", "--resource", "https://management.azure.com",
+         "--query", "accessToken", "-o", "tsv"],
+        target, capture=True,
+    ).stdout.strip()
+    body = json.dumps({"command": "wc -c < /home/site/wwwroot/prompts/system.md", "dir": "/home"})
+    request = urllib.request.Request(
+        f"https://{app_name}.scm.azurewebsites.net/api/command",
+        data=body.encode("utf-8"),
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            deployed = int(json.loads(response.read().decode("utf-8")).get("Output", "0").strip())
+    except (urllib.error.URLError, ValueError, KeyError) as error:
+        print(f"  WARNING: could not read the deployed prompt back ({error}); verify manually")
+        return
+    if deployed != expected:
+        raise SystemExit(
+            f"Deployment did not take: prompts/system.md is {deployed} bytes on {app_name} but "
+            f"{expected} bytes locally. Re-run the deploy before restarting."
+        )
+    print(f"  read-back OK: prompts/system.md {deployed} bytes")
 
 
 def rotate_and_inject_secret(resource_group: str, app_name: str, blueprint_id: str, agent_name: str, target: Path) -> None:
@@ -143,6 +238,7 @@ def rotate_and_inject_secret(resource_group: str, app_name: str, blueprint_id: s
 def register_endpoint(agent_name: str, endpoint: str, cwd: Path) -> None:
     print(f"  a365 setup blueprint --endpoint-only --messaging-endpoint {endpoint}")
     _run(["a365", "setup", "blueprint", "-n", agent_name, "--endpoint-only", "--messaging-endpoint", endpoint], cwd)
+    scrub_appsettings(cwd)
 
 
 def main() -> int:
@@ -169,6 +265,9 @@ def main() -> int:
     blueprint_id = ensure_blueprint(agent_name, target)
     if env.get("A365_AGENT_BLUEPRINT_ID") != blueprint_id:
         update_env(env_path, {"A365_AGENT_BLUEPRINT_ID": blueprint_id})
+    ensure_a365_config(
+        agent_name, env.get("AGENT_DISPLAY_NAME", ""), env.get("AZURE_TENANT_ID", ""), endpoint, target
+    )
 
     print("[2/4] publish + deploy")
     publish_and_deploy(target, resource_group, app_name)

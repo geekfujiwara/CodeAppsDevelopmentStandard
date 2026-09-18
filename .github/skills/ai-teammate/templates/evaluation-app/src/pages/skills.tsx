@@ -3,11 +3,13 @@ import { useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { BookOpen, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Combobox } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { LoadingSkeletonList } from "@/components/loading-skeleton"
 import { Markdown } from "@/components/markdown"
 import { UpdateNote } from "@/components/update-note"
 import { formatDateTime } from "@/lib/date-format"
+import { EVAL_AGENTS_KEY, listEvalAgents } from "@/lib/eval-agents"
 import { listSkills, SKILLS_KEY, type Skill } from "@/lib/eval-skills"
 
 export default function Skills() {
@@ -15,6 +17,7 @@ export default function Skills() {
   // 評価ターンのツール呼び出しから ?name= で飛んでこられるよう、選択は URL に置く。
   const [searchParams, setSearchParams] = useSearchParams()
   const openName = searchParams.get("name")
+  const agentKey = searchParams.get("agent") ?? ""
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: SKILLS_KEY,
@@ -22,21 +25,36 @@ export default function Skills() {
     staleTime: 5 * 60 * 1000,
   })
 
+  const { data: agents } = useQuery({
+    queryKey: EVAL_AGENTS_KEY,
+    queryFn: listEvalAgents,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const setParams = (next: { name?: string; agent?: string }) => {
+    const merged = { name: openName ?? "", agent: agentKey, ...next }
+    setSearchParams(
+      Object.fromEntries(Object.entries(merged).filter(([, value]) => value)),
+      { replace: true },
+    )
+  }
+
   const skills = useMemo(() => data ?? [], [data])
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase()
-    if (!term) return skills
-    return skills.filter((skill) =>
-      [skill.name, skill.title, skill.summary, skill.body].some((field) =>
+    return skills.filter((skill) => {
+      if (agentKey && skill.agentKey !== agentKey) return false
+      if (!term) return true
+      return [skill.skillKey, skill.name, skill.title, skill.summary, skill.body].some((field) =>
         field.toLowerCase().includes(term),
-      ),
-    )
-  }, [skills, search])
+      )
+    })
+  }, [skills, search, agentKey])
 
   // 選んだスキルが絞り込みで消えたら、先頭に落とす。
-  const current: Skill | undefined =
-    visible.find((skill) => skill.name === openName) ?? visible[0]
-  const missing = Boolean(openName) && !skills.some((skill) => skill.name === openName)
+  const matches = (skill: Skill) => skill.skillKey === openName || skill.name === openName
+  const current: Skill | undefined = visible.find(matches) ?? visible[0]
+  const missing = Boolean(openName) && !skills.some(matches)
 
   return (
     <div className="space-y-4">
@@ -56,6 +74,22 @@ export default function Skills() {
           この画面へ反映されます。
         </p>
       </UpdateNote>
+
+      <div className="w-full sm:w-[240px]">
+        <Combobox
+          options={[
+            { value: "all", label: "すべてのチームメイト" },
+            ...(agents ?? []).map((agent) => ({
+              value: agent.agentKey,
+              label: agent.name || agent.agentKey,
+            })),
+          ]}
+          value={agentKey || "all"}
+          onValueChange={(value) => setParams({ agent: value === "all" ? "" : value })}
+          placeholder="チームメイトで絞り込む"
+          searchPlaceholder="チームメイトを検索..."
+        />
+      </div>
 
       {missing && !isLoading && !isError && (
         <p className="rounded-md border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-sm">
@@ -96,9 +130,9 @@ export default function Skills() {
                 <li key={skill.id}>
                   <button
                     type="button"
-                    onClick={() => setSearchParams({ name: skill.name }, { replace: true })}
+                    onClick={() => setParams({ name: skill.skillKey || skill.name })}
                     className={`block w-full rounded-md px-2 py-2 text-left text-xs ${
-                      skill.name === current?.name ? "bg-primary/10 font-medium" : "hover:bg-muted"
+                      skill.id === current?.id ? "bg-primary/10 font-medium" : "hover:bg-muted"
                     }`}
                   >
                     <div className="flex min-w-0 items-center gap-1.5">

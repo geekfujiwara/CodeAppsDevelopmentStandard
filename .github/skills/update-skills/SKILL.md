@@ -55,7 +55,7 @@ triggers:
 | [scripts/validate_skill.py](scripts/validate_skill.py) | 構成検証: フォルダ名＝`name` 一致 / Step 番号が整数連番 / `references`・`scripts` の有無 / 秘匿情報スキャン（Step 3・7） |
 | [scripts/scan_sample.py](scripts/scan_sample.py) | Code Apps サンプルの公開前検証: 実値・秘匿情報・テーブル名直書き・`.gitignore` を検査（Step 1） |
 | [scripts/manage_skill_pr.py](scripts/manage_skill_pr.py) | リモートのオープン PR を走査し、対象スキルに触れる PR を検出して「更新 or 新規」とマージ順を提示（Step 5） |
-| [scripts/publish_skill.py](scripts/publish_skill.py) | 公開を一括自動化: PR 先リポジトリを一時 clone → ブランチ → スキル＋集約ファイルをコピー → 検証 → commit → push → PR 作成/更新（Step 6）。`--dry-run` 対応 |
+| [scripts/publish_skill.py](scripts/publish_skill.py) | 公開を一括自動化: PR 先リポジトリを一時 clone → ブランチ → スキル＋集約ファイルをコピー → 検証 → commit → push → PR 作成/更新（Step 6）。スキル統合時は `--remove` で旧フォルダを削除。`--dry-run` 対応 |
 
 ## 標準フォルダ構成
 
@@ -178,6 +178,15 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 
 - 既存の同名ブランチ/PR があれば**更新**（新規 PR を作らない）。
 - commit 用の git identity は `gh` のログインユーザーから自動解決する。
+- **スキルを統合したときは `--remove` で旧フォルダも消す**。新しいスキルをコピーするだけでは
+  PR 先に旧スキルが残り、エージェントが両方を読める状態になる。
+  内容が矛盾していてもエラーにはならず、古い手順を正常系として拾ってしまう。
+
+  ```powershell
+  python .github/skills/update-skills/scripts/publish_skill.py --skill ai-teammate `
+    --remove .github/skills/copilot-sdk `
+    --extra .github/skills/README.md --extra .github/agents/<Agent>.agent.md
+  ```
 
 **手動で行う場合**:
 

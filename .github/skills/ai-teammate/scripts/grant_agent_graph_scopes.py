@@ -19,6 +19,8 @@ Other capabilities need extra delegated scopes on the same grant:
   Work IQ's reply action only carries a plain-text comment, which kills links,
   so the reply is sent through Graph instead. ``Mail.ReadWrite`` is not enough.
 * ``Files.ReadWrite`` -- listing and sharing files the agent produced (B14).
+* ``Files.Read.All`` -- reading a file someone attached from OneDrive, which
+  arrives as a sharing link only (B16, ``/shares/{id}/driveItem/content``).
 
 Pass them together with the defaults, for example::
 
@@ -70,11 +72,16 @@ def load_env(path: Path) -> None:
 def az(*args: str) -> str:
     """Run an az command and return stdout, raising with stderr on failure."""
     result = subprocess.run(
-        ["az", *args], capture_output=True, text=True, shell=(os.name == "nt")
+        ["az", *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        shell=(os.name == "nt"),
     )
     if result.returncode != 0:
-        raise RuntimeError(f"az {' '.join(args)} failed:\n{result.stderr.strip()}")
-    return result.stdout.strip()
+        raise RuntimeError(f"az {' '.join(args)} failed:\n{(result.stderr or '').strip()}")
+    return (result.stdout or "").strip()
 
 
 def az_json(*args: str):

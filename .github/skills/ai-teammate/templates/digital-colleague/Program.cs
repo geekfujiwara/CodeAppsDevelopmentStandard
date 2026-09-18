@@ -31,6 +31,10 @@ builder.Services.AddSingleton(sp =>
     return new AzureOpenAIClient(new Uri(cfg["Endpoint"]!), credential)
         .GetChatClient(cfg["Deployment"]!);
 });
+// GEEK:BLOCK:RTCOPILOT:START
+// B3: the brain runs on the Copilot runtime, with inference kept on our own resource (BYOK).
+builder.Services.AddSingleton<CopilotRuntime>();
+// GEEK:BLOCK:RTCOPILOT:END
 builder.Services.AddSingleton(sp =>
     AgentPrompt.Load(builder.Configuration, sp.GetRequiredService<IWebHostEnvironment>()));
 builder.Services.AddSingleton<McpClient>();
@@ -49,6 +53,9 @@ builder.Services.AddSingleton<EvaluationDataverse>();
 builder.Services.AddSingleton<EvaluationLog>();
 builder.Services.AddSingleton<EvaluationRunner>();
 builder.Services.AddHostedService<EvaluationWorker>();
+builder.Services.AddSingleton<TestRunner>();
+builder.Services.AddHostedService<TestWorker>();
+builder.Services.AddHostedService<SkillSync>();
 
 // GEEK:BLOCK:B6:START
 builder.Services.AddSingleton<MailTools>();

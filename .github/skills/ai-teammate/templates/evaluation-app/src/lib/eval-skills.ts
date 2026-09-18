@@ -11,6 +11,8 @@ export const SKILLS_KEY = ["skills"]
 export const SF = {
   id: `${p}_skillid`,
   name: `${p}_name`,
+  agentKey: `${p}_agentkey`,
+  skillKey: `${p}_skillkey`,
   title: `${p}_title`,
   summary: `${p}_summary`,
   body: `${p}_body`,
@@ -21,6 +23,8 @@ export const SF = {
 export type Skill = {
   id: string
   name: string
+  agentKey: string
+  skillKey: string
   title: string
   summary: string
   body: string
@@ -32,6 +36,8 @@ function toSkill(row: DataverseRow): Skill {
   return {
     id: str(row, SF.id),
     name: str(row, SF.name),
+    agentKey: str(row, SF.agentKey),
+    skillKey: str(row, SF.skillKey),
     title: str(row, SF.title),
     summary: str(row, SF.summary),
     body: str(row, SF.body),
@@ -44,7 +50,7 @@ export async function listSkills(): Promise<Skill[]> {
   const rows = await DataverseService.ListRecords(SKILL_ENTITY_SET, {
     select: Object.values(SF),
     orderBy: `${SF.name} asc`,
-    top: 200,
+    top: 500,
   })
   return rows.map(toSkill)
 }
