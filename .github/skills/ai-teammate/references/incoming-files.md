@@ -143,7 +143,13 @@ Copilot ランタイム側で**この添付を載せ忘れても、取得・作�
    §3 の経路が別なので、1 が通っても 2 が落ちることがある。
 3. 続けて「この画像の左上 200x200 を切り出して」と頼む。
    `run_python` が `/mnt/data/<ファイル名>` を開けること。
-4. ログに `Received <name> (<type>, <n> bytes)` が出ること。
+4. ログに `Turn from <channel>/<type>: <n> attachment(s)` と
+   `Received <name> (<type>, <n> bytes)` が両方出ること。
+   前者が `0 attachment(s)` なら Teams が配信していない（§2）。前者だけ出て後者が出ないなら取得で落ちている。
+   両方出るのに「見えません」と返るならランタイムへの受け渡し漏れ（→ [troubleshooting.md](troubleshooting.md) #68）。
    **`<type>` が `image/*` や `application/octet-stream` のままなら失敗**（§3.1）。
 5. **本文なしでファイルだけ**送る。「テキストが読み取れませんでした」で止まらないこと。
 6. 対応外の形式（例: `.bmp`）を送る。ターンが落ちず、作業環境には置かれること。
+
+デプロイ直後は App Service が再起動中で**無反応**になる。試す前に `/health` の
+`uptimeSeconds` が 0 より大きいことを確かめる。

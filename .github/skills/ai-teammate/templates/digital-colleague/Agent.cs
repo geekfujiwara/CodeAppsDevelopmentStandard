@@ -80,6 +80,16 @@ public class Agent : AgentApplication
         _identities.Observe(turnContext.Activity);
 
         // GEEK:BLOCK:B16:START
+        // An attachment that never arrived and one that arrived but could not be read produce the
+        // same reply（「送ってください」）, so the activity's own inventory is logged before reading it.
+        _logger.LogInformation(
+            "Turn from {Channel}/{ConversationType}: {Count} attachment(s) [{Types}], text {Length} chars",
+            turnContext.Activity.ChannelId,
+            turnContext.Activity.Conversation?.ConversationType,
+            turnContext.Activity.Attachments?.Count ?? 0,
+            string.Join(", ", (turnContext.Activity.Attachments ?? []).Select(a => a.ContentType)),
+            turnContext.Activity.Text?.Length ?? 0);
+
         IReadOnlyList<IncomingFile> attached = await _files.CollectAsync(turnContext, cancellationToken);
         // GEEK:BLOCK:B16:END
 

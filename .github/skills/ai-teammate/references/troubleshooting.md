@@ -1358,4 +1358,52 @@ Windows PowerShell 5.1 へフォールバックする場合、`Set-Content -Enco
 - 注意: ロール割り当ては Dataverse 側のセキュリティ キャッシュに数分かかる。付与直後の
   再起動では 403 のままのことがあるので、数分おいてから再起動して確認する。
 
+## 68. 画像を送っても「何が写っているか分かりません」と返る（B16・Copilot ランタイム・検証済 2026-09-18）
+
+**症状**: #46 と #49 を直した後でも、Teams で画像を送ると
+「画像本体をこちらで開けていないため、何が写っているか判定できません」と返る。
+**例外もエラー ログも出ず、取得も作業環境への配置も成功している。**
+
+**原因**: Copilot ランタイム（copilot-sdk）では、**画像はメッセージそのものに base64 で載せないと
+モデルに届かない**。本文で「画像を添付しました」と説明しても、モデルは見たことのない絵について
+答えるだけになる。`AgentBrain` が `IncomingFile.Images` を
+`MessageOptions.Attachments` に載せ忘れていると、この症状だけが出る
+（→ [incoming-files.md](incoming-files.md) §4「『見せる』経路はランタイムごとに違う」）。
+
+**先に切り分ける**: 「届いていない」と「届いたが見せていない」は**返答が同じ**なので、
+ターンの先頭で活動そのものの棚卸しをログに出す。
+
+```csharp
+_logger.LogInformation(
+    "Turn from {Channel}/{ConversationType}: {Count} attachment(s) [{Types}], text {Length} chars",
+    turnContext.Activity.ChannelId,
+    turnContext.Activity.Conversation?.ConversationType,
+    turnContext.Activity.Attachments?.Count ?? 0,
+    string.Join(", ", (turnContext.Activity.Attachments ?? []).Select(a => a.ContentType)),
+    turnContext.Activity.Text?.Length ?? 0);
+```
+
+| ログ | 原因 |
+|---|---|
+| `0 attachment(s)` | Teams が配信していない → #46（`supportsFiles`）・個人チャット以外 |
+| 添付はあるが `Received ...` が出ない | 取得で落ちている → #49 |
+| `Received ...` は出るのに「見えません」 | **本項**。ランタイムへの受け渡し漏れ |
+
+**対処**: 当該ターンの `Images` を拾って添付に載せる（`templates/.../copilot-sdk/AgentBrain.cs` の
+`ImageAttachments`）。履歴の画像ではなく**いま聞かれているターンの画像**を渡すこと。
+
+```csharp
+IReadOnlyList<IncomingFile> images = index >= 0 ? history[index].Images : [];
+
+var message = new MessageOptions { Prompt = question };
+if (ImageAttachments(images) is { Count: > 0 } attachments)
+{
+    message.Attachments = attachments;
+}
+```
+
+**再テストの落とし穴**: 直し終えてすぐ試すと **App Service の再起動中**で、
+今度は「何も反応がない」になる。コードを疑う前に `/health` の `uptimeSeconds` を見る。
+`0` なら、いま自分のリクエストで起きたところ（→ #44）。
+
 
