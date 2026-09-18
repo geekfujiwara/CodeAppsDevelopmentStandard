@@ -596,7 +596,31 @@ def write_evaluation_app_env(target: Path, env: dict[str, str]) -> None:
     app_env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def run_execute(target: Path, env: dict[str, str]) -> int:
+def run_regression(target: Path, env: dict[str, str], skill_root: Path) -> bool:
+    """Run the regression suite against what was just deployed.
+
+    A deployment that succeeds and an agent that answers correctly are two different things, and
+    the gap only shows up when someone happens to try. Running the suite here means a broken
+    teammate is caught by the person who deployed it, not by a colleague in Teams.
+    """
+    script = skill_root / "scripts" / "run_regression_tests.py"
+    reports = target / "regression"
+    reports.mkdir(parents=True, exist_ok=True)
+    command = [
+        sys.executable, str(script),
+        "--target", str(target),
+        "--env", str(target / ".env"),
+        "--execute",
+        "--junit", str(reports / "regression-results.xml"),
+        "--markdown", str(reports / "regression-results.md"),
+    ]
+    print("--- regression tests ---")
+    ok, output = run(command, target, "regression tests", env)
+    print(output)
+    return ok
+
+
+def run_execute(target: Path, env: dict[str, str], skip_regression: bool = False) -> int:
     checked_at = read_checkpoint(target)
     if checked_at is None or (time.time() - checked_at) > CHECKPOINT_MAX_AGE_SECONDS:
         print(
@@ -632,6 +656,14 @@ def run_execute(target: Path, env: dict[str, str]) -> int:
             return 2
 
     agent_name = env.get("AGENT_NAME", "")
+    regression_ok = True
+    if skip_regression:
+        print()
+        print("NOTE: regression tests were skipped (--skip-regression).")
+        print("      Run: python scripts/run_regression_tests.py --execute")
+    else:
+        regression_ok = run_regression(target, env, skill_root)
+
     print()
     print("Everything up to Teams packaging is done and the agent/evaluation hub are deployed.")
     print("The remaining M365 Agent template publish is a separate approval-bound operation:")
@@ -643,6 +675,14 @@ def run_execute(target: Path, env: dict[str, str]) -> int:
     print("  Review and approve the staging hash, then use the logged-in VS Code browser runner.")
     print("  Publishing requires a second approval for the generated FINALIZEPACKAGE plan.")
     print("  See references/agent-template-upload.md. Authentication and MFA remain manual.")
+    if not regression_ok:
+        print()
+        print(
+            "ERROR: the deployment finished but the regression suite failed. "
+            "See regression/regression-results.md before handing the teammate to anyone.",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
@@ -652,6 +692,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--env", type=Path, default=None, help="Defaults to <target>/.env")
     parser.add_argument("--check", action="store_true", help="Stage 1: validate only, no changes")
     parser.add_argument("--execute", action="store_true", help="Stage 2: run the deployment")
+    parser.add_argument(
+        "--skip-regression", action="store_true",
+        help="Do not run the regression suite after a successful deployment",
+    )
     return parser.parse_args()
 
 
@@ -674,7 +718,7 @@ def main() -> int:
 
     if args.check:
         return run_check(target, env)
-    return run_execute(target, env)
+    return run_execute(target, env, skip_regression=args.skip_regression)
 
 
 if __name__ == "__main__":

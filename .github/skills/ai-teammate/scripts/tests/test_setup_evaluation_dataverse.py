@@ -103,6 +103,12 @@ class FakeDataverse:
         if path == "PublishAllXml":
             return None
 
+        if path == "RelationshipDefinitions":
+            # A lookup is a relationship, not an attribute; it lands on the referencing table.
+            lookup = body["Lookup"]
+            self.tables[body["ReferencingEntity"]]["columns"].add(lookup["SchemaName"])
+            return None
+
         raise AssertionError(f"unexpected api_post path: {path}")
 
 
@@ -114,17 +120,46 @@ def install_fake(fake: FakeDataverse) -> None:
 
 
 class BuildTablesTests(unittest.TestCase):
-    def test_four_tables_with_expected_logical_names(self) -> None:
+    def test_nine_tables_with_expected_logical_names(self) -> None:
         tables = sed.build_tables("acme")
         names = {t["logical"] for t in tables}
-        self.assertEqual(names, {"acme_evalturn", "acme_evalrule", "acme_evalresult", "acme_evaljob"})
+        self.assertEqual(
+            names,
+            {
+                "acme_evalagent", "acme_evalturn", "acme_evalrule", "acme_evalresult",
+                "acme_evaljob", "acme_evaltestrun", "acme_evaltestresult", "acme_skill",
+                "acme_aiteammatefeedback",
+            },
+        )
+
+    def test_skill_columns_cover_the_evaluation_app_field_map(self) -> None:
+        # Mirrors templates/evaluation-app/src/lib/eval-skills.ts. Without these the "skills"
+        # page renders empty and nobody can tell which teammate knows which procedure.
+        expected_suffixes = {
+            "skillkey", "agentkey", "title", "summary", "body", "builtin", "syncedon",
+        }
+        tables = sed.build_tables("acme")
+        skill = next(t for t in tables if t["logical"] == "acme_skill")
+        actual_suffixes = {c["logical"].removeprefix("acme_") for c in skill["columns"]}
+        self.assertEqual(actual_suffixes, expected_suffixes)
+
+    def test_evaltestresult_carries_what_the_regression_runner_reads(self) -> None:
+        # run_regression_tests.py polls these columns; a rename here silently breaks the gate.
+        tables = sed.build_tables("acme")
+        result = next(t for t in tables if t["logical"] == "acme_evaltestresult")
+        suffixes = {c["logical"].removeprefix("acme_") for c in result["columns"]}
+        for required in (
+            "runname", "agentkey", "prompt", "status", "response", "toolcalls",
+            "durationms", "autoscore", "error",
+        ):
+            self.assertIn(required, suffixes)
 
     def test_evalturn_columns_cover_ts_field_map(self) -> None:
         # Mirrors templates/evaluation-app/src/lib/eval-turns.ts's `F` map (minus id/name, which
         # Dataverse creates implicitly as <logical>id / <prefix>_name).
         expected_suffixes = {
-            "runid", "evaluatedon", "occurredon", "actor", "source", "query", "response",
-            "toolcalls", "toolcount", "toolcallaccuracy", "taskadherence",
+            "agentkey", "runid", "evaluatedon", "occurredon", "actor", "source", "query",
+            "response", "toolcalls", "toolcount", "toolcallaccuracy", "taskadherence",
             "toolcallaccuracyreason", "taskadherencereason", "humancomment", "humanverdict",
             "mergedinto", "mergedfrom", "turncount", "conversation",
         }
@@ -135,8 +170,8 @@ class BuildTablesTests(unittest.TestCase):
 
     def test_evaljob_columns_cover_ts_field_map(self) -> None:
         expected_suffixes = {
-            "status", "scope", "rulekeys", "fromdate", "todate", "requestedby", "requestedon",
-            "startedon", "completedon", "targetcount", "donecount", "message",
+            "agentkeys", "status", "scope", "rulekeys", "fromdate", "todate", "requestedby",
+            "requestedon", "startedon", "completedon", "targetcount", "donecount", "message",
         }
         tables = sed.build_tables("acme")
         evaljob = next(t for t in tables if t["logical"] == "acme_evaljob")
@@ -215,14 +250,14 @@ class RunExecuteTests(unittest.TestCase):
         fake.add_solution("EvalSolution")
         install_fake(fake)
 
-        self.assertEqual(sed.run_execute("acme", "EvalSolution"), 0)
+        self.assertEqual(sed.run_execute("acme", "EvalSolution", {}), 0)
         for tbl in sed.build_tables("acme"):
             info = fake.tables[tbl["logical"]]
             for col in tbl["columns"]:
                 self.assertIn(col["logical"], info["columns"])
 
         # Rerunning must not fail and must not error on "already exists" columns/tables.
-        self.assertEqual(sed.run_execute("acme", "EvalSolution"), 0)
+        self.assertEqual(sed.run_execute("acme", "EvalSolution", {}), 0)
 
     def test_foreign_table_collision_blocks_execute(self) -> None:
         fake = FakeDataverse()
@@ -230,7 +265,7 @@ class RunExecuteTests(unittest.TestCase):
         other_sid = fake.add_solution("OtherSolution")
         fake.seed_table("acme_evalturn", {"acme_evalturnid", "acme_name"}, other_sid)
         install_fake(fake)
-        self.assertEqual(sed.run_execute("acme", "EvalSolution"), 1)
+        self.assertEqual(sed.run_execute("acme", "EvalSolution", {}), 1)
         # Nothing else should have been created for the colliding table.
         self.assertNotIn("acme_evalrule", fake.tables)
 

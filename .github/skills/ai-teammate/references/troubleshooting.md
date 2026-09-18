@@ -1497,4 +1497,254 @@ python scripts/query_agent_logs.py --kql "AppExceptions | take 5"
 - 既定の一覧は **MSAL のトークン ログを除外**する。除外しないと画面が埋まって何も見えない。
 - ワークスペースの GUID は Application Insights の `WorkspaceResourceId` → `customerId` と辿る。
 
+## 72. Autopilot の発行が `Resource app '...' does not exist in the tenant` で落ちる（検証済 2026-09-18）
+
+**症状**: `POST /agents/{name}/microsoft365/publish` が次で失敗する。
+インフラ・イメージ ビルド・agent version 作成はすべて成功しているのに、最後の発行だけが落ちる。
+
+```json
+{ "error": { "code": "dependency_error",
+  "message": "Resource app '<app-id>' does not exist in the tenant." } }
+```
+
+**原因**: `optionalPermissionScopes` に書いた `resourceAppId` の servicePrincipal が
+そのテナントに無い。公式サンプルは Azure DevOps MCP（`2a72489c-aab2-4b65-b93a-a91edccf33b8`）を
+無条件に要求するが、ADO を使っていないテナントには存在しない。
+Agent 365 の MCP 第一者アプリ（`ea9ffc3e-8a23-4a7d-836d-234d7c7565c1`）は全テナントにあるので落ちない。
+
+**対処**: 存在しない resource app を要求しない。
+
+**恒久対策済み**: [scripts/publish_foundry_autopilot.py](../scripts/publish_foundry_autopilot.py) の
+`build_permission_scopes()` が、発行の**たびに** Graph の `servicePrincipals?$filter=appId eq '...'` を
+引いて存在しない resourceAppId を除外する（`--check` でも同じ検査が動く）。
+ADO のスコープは `AZURE_DEVOPS_ORGANIZATION` が設定されているときだけ候補に入る。
+
+**関連**: 同じ発行を同じ `appVersion` で再送すると `UserError: version already exists` になる。
+イメージを差し替えたら新しい agent version を作り、`AGENT_APP_VERSION` も上げる
+（[foundry-autopilot.md](foundry-autopilot.md) §7）。
+
+## 73. hosted agent の環境変数が `is reserved for platform use` で 400 になる（検証済 2026-09-18）
+
+**症状**: agent version の作成が次で落ちる。値ではなく**名前**が拒否されている。
+
+```json
+{ "error": { "code": "invalid_payload",
+  "message": "Environment variable 'AGENT_BRAIN' is reserved for platform use.
+              All FOUNDRY_* and AGENT_* variables are reserved per container-image-spec." } }
+```
+
+**原因**: hosted agent のコンテナーでは **`AGENT_` と `FOUNDRY_` で始まる環境変数名が
+プラットフォーム予約**。自前のフラグにこの接頭辞を付けると `definition.environment_variables`
+ごと拒否される。
+
+**対処**: 接頭辞を変える（例: 頭脳の切り替えフラグなら `TEAMMATE_BRAIN`）。
+
+**注意**: コンテナーの中で `FOUNDRY_PROJECT_ENDPOINT` などを**読む**のは問題ない
+（プラットフォームが注入する）。禁じられているのは agent version 作成時に**自分で渡す**こと。
+
+## 74. Autopilot の発行が `access boundaries ending with '.developers'` で拒否される（検証済 2026-09-19）
+
+**症状**: `/microsoft365/publish` は成功するのに、Teams から話しかけると無応答になり、
+コンテナー ログに次が出る。
+
+```
+Autopilot activity authorization currently supports only access boundaries ending with '.developers'
+```
+
+**原因**: publish 要求の本文に `accessBoundaries` が**無い**。Microsoft 公式クイックスタートの
+`publish-digital-worker.ps1` がこの項目を送っていないため、そのまま使うと必ず踏む
+（上流 issue: microsoft-foundry/foundry-samples#988）。
+
+**対処**: publish 本文に次の 4 値を入れる。
+
+```json
+"accessBoundaries": [
+  "read.1on1.developers", "write.1on1.developers",
+  "read.group.developers", "write.group.developers"
+]
+```
+
+[publish_foundry_autopilot.py](../scripts/publish_foundry_autopilot.py) は既定でこれを送る。
+
+**すでに発行済みの場合は 4 手続き必要**。値を足すだけでは直らない。
+
+1. `appVersion` をインクリメントする（`--bump-version`。同じ版の再送は
+   `UserError: version already exists` で落ちる）
+2. 再 publish する
+3. 更新されたブループリントを**再承認**する
+4. **インスタンスを作り直す**（既存インスタンスは古い境界のまま動き続ける）
+
+**判定の仕組み**: 「送信者が developer か」は Foundry プロジェクトに対する送信者の
+Azure ロール割り当て（`Microsoft.CognitiveServices/accounts/AIServices/agents/write`）で決まる。
+クライアント側のコードや manifest では変えられないので、コードを探しても見つからない。
+
+## 75. 初回ターンが `AADSTS7000112: ... is disabled` で落ちる（検証済 2026-09-19）
+
+**症状**: インスタンス作成は成功するのに、最初のターンでトークン取得が失敗する。
+
+```
+AADSTS7000112: Application 'xxxxxxxx-...'(AgentIdentity) is disabled.
+```
+
+**原因**: エージェント インスタンスごとに作られる `AgentIdentity` のサービス プリンシパル
+（`servicePrincipalType: ServiceIdentity` / `@odata.type: #microsoft.graph.agentIdentity`）が
+**`accountEnabled=false` で作成される**。
+
+**対処**: 有効化する（PATCH は 204 を返す）。
+
+```powershell
+python scripts/publish_foundry_autopilot.py --execute   # 発行の一部として自動で有効化する
+```
+
+手で行う場合は Graph の `beta/servicePrincipals(appId='<instance-client-id>')` を
+`$select=id,accountEnabled` で引き、返った object id に対して
+`{"accountEnabled": true}` を PATCH する。
+
+## 76. 継続評価ルールが `is of kind 'hosted', which is not supported` で作れない（検証済 2026-09-19）
+
+**症状**: `evaluation_rules.create_or_update()` が 400 で落ちる。
+
+```
+The agent 'xxx' is of kind 'hosted', which is not supported for evaluation rules.
+Hosted and external agents are not supported.
+```
+
+**原因**: 継続評価ルール（`ContinuousEvaluationRuleAction`）は **prompt agent 専用**で、
+Foundry Autopilot のような hosted agent には使えない。
+
+**対処**: トレースを対象にした**スケジュール評価**に切り替える。hosted agent でも
+App Insights にトレースは出ているので、そちらを日次で評価すれば
+Foundry の Evaluations / Monitor にスコアが出る。
+
+```python
+eval_run = {
+    "eval_id": eval_id,
+    "data_source": {
+        "type": "azure_ai_trace_data_source_preview",
+        "trace_source": {
+            "type": "agent_filter",
+            "agent_name": agent_name,
+            "start_time": int((now - timedelta(days=1)).timestamp()),  # epoch 秒
+            "end_time": int(now.timestamp()),
+            "max_traces": 50,
+        },
+    },
+}
+```
+
+[setup_foundry_evaluation.py](../scripts/setup_foundry_evaluation.py) は `--mode auto` で
+継続評価を試し、この拒否を検出したらスケジュール評価へ自動でフォールバックする。
+
+**あわせて踏みやすい 2 点**:
+
+- `start_time` / `end_time` は **epoch 秒の整数**。ISO-8601 文字列を渡すと
+  `Error converting value ... to type 'Int64'` になる。
+- モデル判定の評価器（`builtin.task_adherence` など）は
+  `initialization_parameters.deployment_name` が**必須**。安全性の評価器
+  （`builtin.violence` など）は Content Safety 側で動くので**渡してはいけない**。
+
+
+## 74. Autopilot の発行が `access boundaries ending with '.developers'` で拒否される（検証済 2026-09-19）
+
+**症状**: `/microsoft365/publish` は成功するのに、Teams から話しかけると無応答になり、
+コンテナー ログに次が出る。
+
+```
+Autopilot activity authorization currently supports only access boundaries ending with '.developers'
+```
+
+**原因**: publish 要求の本文に `accessBoundaries` が**無い**。Microsoft 公式クイックスタートの
+`publish-digital-worker.ps1` がこの項目を送っていないため、そのまま使うと必ず踏む
+（上流 issue: microsoft-foundry/foundry-samples#988）。
+
+**対処**: publish 本文に次の 4 値を入れる。
+
+```json
+"accessBoundaries": [
+  "read.1on1.developers", "write.1on1.developers",
+  "read.group.developers", "write.group.developers"
+]
+```
+
+[publish_foundry_autopilot.py](../scripts/publish_foundry_autopilot.py) は既定でこれを送る。
+
+**すでに発行済みの場合は 4 手続き必要**。値を足すだけでは直らない。
+
+1. `appVersion` をインクリメントする（`--bump-version`。同じ版の再送は
+   `UserError: version already exists` で落ちる）
+2. 再 publish する
+3. 更新されたブループリントを**再承認**する
+4. **インスタンスを作り直す**（既存インスタンスは古い境界のまま動き続ける）
+
+**判定の仕組み**: 「送信者が developer か」は Foundry プロジェクトに対する送信者の
+Azure ロール割り当て（`Microsoft.CognitiveServices/accounts/AIServices/agents/write`）で決まる。
+クライアント側のコードや manifest では変えられないので、コードを探しても見つからない。
+
+## 75. 初回ターンが `AADSTS7000112: ... is disabled` で落ちる（検証済 2026-09-19）
+
+**症状**: インスタンス作成は成功するのに、最初のターンでトークン取得が失敗する。
+
+```
+AADSTS7000112: Application 'xxxxxxxx-...'(AgentIdentity) is disabled.
+```
+
+**原因**: エージェント インスタンスごとに作られる `AgentIdentity` のサービス プリンシパル
+（`servicePrincipalType: ServiceIdentity` / `@odata.type: #microsoft.graph.agentIdentity`）が
+**`accountEnabled=false` で作成される**。
+
+**対処**: 有効化する。
+
+```powershell
+# 確認
+az rest --method GET --url "https://graph.microsoft.com/beta/servicePrincipals(appId='<instance-client-id>')?`$select=id,accountEnabled,displayName"
+
+# 有効化（204 が返る）
+az rest --method PATCH --url "https://graph.microsoft.com/beta/servicePrincipals/<sp-object-id>" --body '{\"accountEnabled\": true}'
+```
+
+[publish_foundry_autopilot.py](../scripts/publish_foundry_autopilot.py) が発行の一部として
+自動で行うので、通常はこの手順を手で踏む必要はない。
+
+## 76. 継続評価ルールが `is of kind 'hosted', which is not supported` で作れない（検証済 2026-09-19）
+
+**症状**: `evaluation_rules.create_or_update()` が 400 で落ちる。
+
+```
+The agent 'xxx' is of kind 'hosted', which is not supported for evaluation rules.
+Hosted and external agents are not supported.
+```
+
+**原因**: 継続評価ルール（`ContinuousEvaluationRuleAction`）は **prompt agent 専用**で、
+Foundry Autopilot のような hosted agent には使えない。
+
+**対処**: トレースを対象にした**スケジュール評価**に切り替える。hosted agent でも
+App Insights にトレースは出ているので、そちらを日次で評価すれば
+Foundry の Evaluations / Monitor にスコアが出る。
+
+```python
+eval_run = {
+    "eval_id": eval_id,
+    "data_source": {
+        "type": "azure_ai_trace_data_source_preview",
+        "trace_source": {
+            "type": "agent_filter",
+            "agent_name": agent_name,
+            "start_time": int((now - timedelta(days=1)).timestamp()),  # epoch 秒
+            "end_time": int(now.timestamp()),
+            "max_traces": 50,
+        },
+    },
+}
+```
+
+[setup_foundry_evaluation.py](../scripts/setup_foundry_evaluation.py) は `--mode auto` で
+継続評価を試し、この拒否を検出したらスケジュール評価へ自動でフォールバックする。
+
+**あわせて踏みやすい 2 点**:
+
+- `start_time` / `end_time` は **epoch 秒の整数**。ISO-8601 文字列を渡すと
+  `Error converting value ... to type 'Int64'` になる。
+- モデル判定の評価器（`builtin.task_adherence` など）は
+  `initialization_parameters.deployment_name` が**必須**。安全性の評価器
+  （`builtin.violence` など）は Content Safety 側で動くので**渡してはいけない**。
 

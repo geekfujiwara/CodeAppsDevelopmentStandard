@@ -75,3 +75,26 @@ ImageGeneration__TimeoutSeconds=300
 5. 正方形・横長・透過背景を各1回生成し、OneDrive 保存と台帳記録を確認する。
 6. メール本文に画像生成命令を書いても自動生成されないことを確認する。
 7. 生成物を別の利用者へ共有し、B14 の区分・同意判定が維持されることを確認する。
+
+## Foundry Autopilot（`hosting: "foundry-autopilot"`）の場合
+
+C# ではなく Python のオーバーレイ（`image_tools.py` / `onedrive.py`）が同じ役割を果たす。
+違いは 3 点だけで、判断基準（課金・同意・インジェクション対策）は上と同じである。
+
+| 論点 | 自己ホスト（C#） | Foundry Autopilot（Python） |
+|---|---|---|
+| ツール登録 | DI に `ImageGenerationTools` を登録 | `copilot.define_tool` で作り、Copilot SDK の `tools=[...]` と `ToolSet().add_custom(...)` に渡す |
+| 認証 | UAMI + `Cognitive Services OpenAI User` | エージェント インスタンスのマネージド ID（`https://ai.azure.com/.default`）。キーは存在しない |
+| 有効化 | `appsettings.json` の `ImageGeneration.Enabled` | `IMAGE_MODEL_DEPLOYMENT` が空なら `generate_image` ツール自体が**登録されない** |
+
+「設定だけ有効で実体が無い」を作らないために、Python 側は**環境変数が無ければツールを生やさない**。
+有効に見えるのに実行できないツールは、依頼を受けて黙って何も返さないエージェントを生む。
+
+保存先は Agent 365 の OneDrive/SharePoint MCP ではなく Microsoft Graph の
+`/me/drive`（エージェント自身のドライブ）で、共有リンクは `scope: organization` に固定している。
+匿名リンクは一度渡すと取り消せない。
+
+```powershell
+# 画像モデルの可用性は自己ホストと同じスクリプトで確認する
+python scripts/provision_image_model.py --check
+```
