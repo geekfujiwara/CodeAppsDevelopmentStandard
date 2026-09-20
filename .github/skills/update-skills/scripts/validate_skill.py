@@ -6,6 +6,7 @@
   3. Step 見出し（## / ### Step N）が整数で連番になっている（飛び・重複なし）。
   4. references/ と scripts/ の有無（無ければ警告）。
   5. 秘匿情報スキャン（実 GUID / *.crm*.dynamics.com / 実メール / クライアントシークレット様）。
+  6. templates/<name>/scaffold.json があれば、使っている ${VAR} が宣言されているか。
 
 依存なし（標準ライブラリのみ）。どのリポジトリでも動く。
 
@@ -20,6 +21,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -110,6 +112,12 @@ NON_EMAIL_RE = re.compile(r"@(odata|microsoft|xmlns)\.", re.IGNORECASE)
 CRM_PLACEHOLDER = re.compile(r"https://(<org>|\{org\}|yourorg|\{[^}]+\})\.crm", re.IGNORECASE)
 IGNORED_SCAN_DIRS = {".git", ".venv", "__pycache__", "node_modules", "venv"}
 
+# scaffold_from_template.py と同じ規約。UPPER_SNAKE だけを変数と見なす
+SCAFFOLD_MANIFEST = "scaffold.json"
+TEMPLATE_TOKEN_RE = re.compile(r"\$\{([A-Z][A-Z0-9_]*)\}")
+PATH_TOKEN_RE = re.compile(r"__([A-Z][A-Z0-9_]*)__")
+TEMPLATE_BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".zip", ".pdf", ".woff", ".woff2"}
+
 
 def load_env(start: Path) -> None:
     """リポジトリルートの .env を環境変数へ読み込む（既存値は上書きしない）。"""
@@ -167,6 +175,60 @@ def scan_secrets(path: Path, rep: Report) -> None:
                 rep.warn(f"{rel}:{i}: 実メールアドレスらしき値 {em}（admin@example.com 等に置換）")
 
 
+def validate_templates(skill_dir: Path, rep: Report) -> None:
+    """`templates/<name>/scaffold.json` を持つテンプレートだけを検査する。
+
+    マニフェストを置いた＝汎用スキャフォルダーで配る宣言、と見なす。置いていない
+    テンプレートまで走査すると、TypeScript のテンプレートリテラル `${count}` を
+    未宣言の変数として拾い、誤検出だらけになって誰も見なくなる。
+    """
+    templates = skill_dir / "templates"
+    if not templates.is_dir():
+        return
+    env_example = skill_dir / "references" / ".env.example"
+    env_keys = set()
+    if env_example.is_file():
+        for line in env_example.read_text(encoding="utf-8", errors="ignore").splitlines():
+            stripped = line.strip().lstrip("#").strip()
+            if "=" in stripped:
+                env_keys.add(stripped.split("=", 1)[0].strip())
+
+    for manifest_path in sorted(templates.rglob(SCAFFOLD_MANIFEST)):
+        template = manifest_path.parent
+        label = template.relative_to(skill_dir).as_posix()
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            rep.err(f"{label}/{SCAFFOLD_MANIFEST}: JSON として読めない（{error}）")
+            continue
+        declared = {str(v) for v in manifest.get("variables", [])}
+        declared |= {str(v) for v in manifest.get("optionalVariables", [])}
+        # 呼び出し側が組み立てる値（パッケージ名など）は .env には現れない
+        derived = {str(v) for v in manifest.get("derivedVariables", [])}
+        declared |= derived
+
+        used: set[str] = set()
+        for path in template.rglob("*"):
+            relative = path.relative_to(template)
+            if not path.is_file() or any(part in IGNORED_SCAN_DIRS for part in relative.parts):
+                continue
+            used.update(PATH_TOKEN_RE.findall(relative.as_posix()))
+            if path.suffix.lower() in TEMPLATE_BINARY_SUFFIXES:
+                continue
+            try:
+                used.update(TEMPLATE_TOKEN_RE.findall(path.read_text(encoding="utf-8")))
+            except (UnicodeDecodeError, OSError):
+                continue
+
+        for name in sorted(used - declared):
+            rep.err(f"{label}: 変数 ${{{name}}} が {SCAFFOLD_MANIFEST} で宣言されていない")
+        for name in sorted(declared - used):
+            rep.warn(f"{label}: {SCAFFOLD_MANIFEST} の {name} はテンプレートで使われていない")
+        if env_keys:
+            for name in sorted(declared - derived - env_keys):
+                rep.warn(f"{label}: {name} が references/.env.example に無い（値の取得元が書かれていない）")
+
+
 def validate_skill(skill_dir: Path) -> Report:
     rep = Report(skill_dir.name)
     folder = skill_dir.name
@@ -208,6 +270,8 @@ def validate_skill(skill_dir: Path) -> Report:
         rep.warn("references/ が無い（参考情報・異常系の置き場）")
     if not (skill_dir / "scripts").is_dir():
         rep.warn("scripts/ が無い（利用スクリプトの置き場）")
+
+    validate_templates(skill_dir, rep)
 
     # 秘匿情報スキャン（テキスト系ファイルのみ）
     exts = {".md", ".py", ".ps1", ".json", ".jsonc", ".ts", ".tsx", ".env", ".example"}
