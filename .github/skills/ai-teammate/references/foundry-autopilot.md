@@ -164,6 +164,15 @@ Agent 365 の MCP サーバーは**単一の resource app**（`ea9ffc3e-8a23-4a7
 
 ## 5. スクリプトで実行する
 
+画像生成（B17）を使うなら、**発行より前に**画像モデルのデプロイメントを作る。
+コンテナは `IMAGE_MODEL_DEPLOYMENT` を見てツールを登録するかどうかを決めるので、
+後から作っても既存のバージョンには効かない（作り直しになる）。
+
+```powershell
+# 画像生成を使うときだけ。.env の IMAGE_MODEL_DEPLOYMENT と同じ名前で作られる
+python .github/skills/ai-teammate/scripts/provision_image_model.py --execute
+```
+
 ```powershell
 # 前提だけ確認（Azure リソースも M365 も変更しない）
 python .github/skills/ai-teammate/scripts/publish_foundry_autopilot.py --check
@@ -174,6 +183,16 @@ python .github/skills/ai-teammate/scripts/publish_foundry_autopilot.py --execute
 # 送信するボディだけ見たい（既定は dry-run）
 python .github/skills/ai-teammate/scripts/publish_foundry_autopilot.py
 ```
+
+`--check` は `IMAGE_MODEL_DEPLOYMENT` が指すデプロイメントの実在と
+`provisioningState` まで見る。無ければ発行を止める。ここで止めないと、
+発行は成功したのに Teams で「画像は作れません」と返るだけの状態になり、
+原因がログにも出ない（→ [troubleshooting.md](troubleshooting.md) #78）。
+
+`--execute` は `IMAGE_MODEL_DEPLOYMENT` がある場合、
+コンテナの環境変数へ渡したうえで、インスタンス ID に `Foundry User` を
+**プロジェクトとアカウントの両方**へ付与する。画像 API はアカウントが提供しているため、
+プロジェクト スコープだけでは 401 になる。
 
 必要な値は [.env.example](.env.example) の `=== Foundry Autopilot ===` 節を参照。
 

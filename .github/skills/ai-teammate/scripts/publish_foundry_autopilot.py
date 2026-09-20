@@ -6,10 +6,11 @@ An Autopilot blueprint gives every hired instance its **own Entra agent user acc
 self-hosted route in self-hosted-agent.md, but the container runs on Foundry.
 
 Performs, in order:
-  1. Preflight (--check): env vars, Agent 365 license seats, resource-app existence.
+  1. Preflight (--check): env vars, Agent 365 license seats, resource-app existence,
+     and - when IMAGE_MODEL_DEPLOYMENT is set - that the image deployment really exists.
   2. POST  /agents/{name}/versions          (digital_worker_type=m365) + poll until active.
   3. Enable the instance identity service principal (created disabled - troubleshooting #75).
-  4. Grant "Foundry User" to the instance identity on the project scope.
+  4. Grant "Foundry User" on the project, plus the account when image generation is on.
   5. PATCH /agents/{name}                   (authorization_schemes=[BotServiceRbac]).
   6. POST  /agents/{name}/microsoft365/publish (publishAsAutopilot=true + accessBoundaries).
 
@@ -178,6 +179,46 @@ def agent365_seats() -> tuple[int, int] | None:
     return None
 
 
+def image_model_deployment() -> str:
+    return (os.environ.get("IMAGE_MODEL_DEPLOYMENT") or "").strip()
+
+
+def assert_image_deployment_exists() -> None:
+    """Fail before publishing when IMAGE_MODEL_DEPLOYMENT names a deployment that is not there.
+
+    Without this the agent starts, finds no deployment behind the name and silently answers
+    that it cannot draw - the failure surfaces only in Teams (→ troubleshooting.md #78).
+    """
+    deployment = image_model_deployment()
+    if not deployment:
+        print("  - IMAGE_MODEL_DEPLOYMENT 未設定のため画像生成（B17）は無効のまま発行します")
+        return
+
+    url = (
+        f"{ARM_BASE}{account_scope()}/deployments/{deployment}"
+        "?api-version=2023-05-01"
+    )
+    resp = requests.get(
+        url,
+        headers={"Authorization": f"Bearer {auth_helper.get_token(ARM_SCOPE)}"},
+        timeout=60,
+    )
+    if resp.status_code == 404:
+        raise PreflightError(
+            f"IMAGE_MODEL_DEPLOYMENT='{deployment}' が {require('AZURE_AI_ACCOUNT')} に存在しません。"
+            "先に scripts/provision_image_model.py --execute で作成してください"
+        )
+    if not resp.ok:
+        raise PreflightError(f"画像モデルのデプロイメントを確認できませんでした: {resp.status_code} {resp.text}")
+
+    props = resp.json().get("properties") or {}
+    state = props.get("provisioningState")
+    if state != "Succeeded":
+        raise PreflightError(f"画像モデル '{deployment}' の provisioningState が {state} です（Succeeded を待ってください）")
+    model = (props.get("model") or {}).get("name", "?")
+    print(f"  OK 画像モデル '{deployment}'（{model}）")
+
+
 def preflight(display_name: str) -> list[dict]:
     print("== 事前チェック ==")
     for name in ("FOUNDRY_PROJECT_ENDPOINT", "AGENT_NAME", "AZURE_SUBSCRIPTION_ID", "AZURE_RESOURCE_GROUP"):
@@ -201,6 +242,7 @@ def preflight(display_name: str) -> list[dict]:
 
     scopes = build_permission_scopes()
     print(f"  OK 要求する resource app: {len(scopes)} 件")
+    assert_image_deployment_exists()
     return scopes
 
 
@@ -227,6 +269,9 @@ def build_version_body() -> dict:
     toolbox = (os.environ.get("FOUNDRY_TOOLBOX_ENDPOINT") or "").strip()
     if toolbox:
         env_vars["TOOLBOX_ENDPOINT"] = toolbox
+    image_deployment = image_model_deployment()
+    if image_deployment:
+        env_vars["IMAGE_MODEL_DEPLOYMENT"] = image_deployment
 
     image = f"{require('ACR_LOGIN_SERVER')}/{require('AGENT_IMAGE_NAME')}:{os.environ.get('AGENT_IMAGE_TAG', 'latest')}"
     return {
@@ -388,7 +433,7 @@ def account_scope() -> str:
 
 def grant_instance_roles(principal_id: str) -> None:
     grant_role(principal_id, "Foundry User", f"{account_scope()}/projects/{require('AZURE_AI_PROJECT')}")
-    if os.environ.get("IMAGE_MODEL_DEPLOYMENT", "").strip():
+    if image_model_deployment():
         # The grant above lands on the project, but the image API is served by the account
         # itself - a parent of that scope. Verified 2026-09-20: the narrower "Cognitive
         # Services OpenAI User" is not enough on a kind=AIServices account.

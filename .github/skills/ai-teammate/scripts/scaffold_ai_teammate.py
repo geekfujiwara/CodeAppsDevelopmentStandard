@@ -783,6 +783,25 @@ def install_skills(target: Path, env: dict[str, str], env_file: Path | None = No
         )
 
 
+def print_next_steps(plan: ScaffoldPlan, env: dict[str, str]) -> None:
+    """Spell out what still has to happen outside the scaffold, in the order it has to happen.
+
+    Image generation is the one block whose runtime dependency (the model deployment) lives in
+    Azure rather than in the generated tree, so leaving it implicit produced an agent that
+    quietly answered "I cannot draw" (→ references/troubleshooting.md #78).
+    """
+    print("Next:")
+    if "B17" in plan.blocks:
+        deployment = (env.get("IMAGE_MODEL_DEPLOYMENT") or "").strip()
+        if deployment:
+            print(f"  1. python scripts/provision_image_model.py --execute   # deployment '{deployment}'")
+        else:
+            print("  1. .env に IMAGE_MODEL_DEPLOYMENT を設定し、python scripts/provision_image_model.py --execute")
+        print("  2. python scripts/deploy_ai_teammate.py --check")
+    else:
+        print("  1. python scripts/deploy_ai_teammate.py --check")
+
+
 def main() -> int:
     args = parse_args()
     try:
@@ -800,7 +819,7 @@ def main() -> int:
         )
         if not args.no_skills:
             install_skills(skills_root(plan), env, env_file=plan.target / ".env")
-        print("Next: run python scripts/deploy_ai_teammate.py --check")
+        print_next_steps(plan, env)
         return 0
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"ERROR: {error}", file=sys.stderr)

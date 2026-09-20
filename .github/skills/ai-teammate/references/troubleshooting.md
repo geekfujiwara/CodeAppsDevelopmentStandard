@@ -1721,17 +1721,21 @@ eval_run = {
 2. **画像モデルが無い**。Foundry アカウントに画像モデルのデプロイが必要。
 
    ```powershell
-   az cognitiveservices account list-models -g <rg> -n <account> `
-       --query "[?contains(name,'image')].{name:name, version:version}" -o table
-   az cognitiveservices account deployment create -g <rg> -n <account> `
-       --deployment-name gpt-image-2 --model-name gpt-image-2 --model-version 2026-04-21 `
-       --model-format OpenAI --sku-name GlobalStandard --sku-capacity 1
+   python .github/skills/ai-teammate/scripts/provision_image_model.py --execute
    ```
+
+   **恒久対策済み**: `publish_foundry_autopilot.py` の `assert_image_deployment_exists()` が
+   `--check` / `--execute` の両方で実在と `provisioningState` を検証し、無ければ発行を止める。
+   ここで止めないと、発行は成功したのに Teams で断られるだけの状態になり、
+   ログにも原因が出ない。
 
 3. **`IMAGE_MODEL_DEPLOYMENT` が hosted agent の環境変数に入っていない**。未設定だと
    `generate_image` ツールは**登録自体されない**（モデルは存在しない能力を宣言しない）。
-   `agent-creation-script.ps1` の `$runtimeEnvironmentVariables` に足す。`IMAGE_` は
-   予約接頭辞ではないのでそのまま使える（#73 と違う点）。
+   `IMAGE_` は予約接頭辞ではないのでそのまま使える（#73 と違う点）。
+
+   **恒久対策済み**: `publish_foundry_autopilot.py` の `build_version_body()` が
+   `IMAGE_MODEL_DEPLOYMENT` を `environment_variables` へ渡す。ロール付与だけ足して
+   環境変数を忘れると、権限は正しいのにツールが生えないという一番分かりにくい状態になる。
 
 4. **エンドポイントを間違えている**。画像生成は**アカウント直下**にあり、
    `/api/projects/<project>` の下には無い。
