@@ -1,6 +1,6 @@
 ---
 name: update-skills
-description: "スキル（SKILL.md）を新規作成または更新し、リモートリポジトリへ PR を作成・更新する。SKILL.md は正常系、references に参考情報と異常系、scripts に利用スクリプトを置き、すべて汎用化してパラメータを .env.example に外出しする（実値は .env）。会社・個別プロジェクト情報を排除して秘匿化し、Step 番号は整数で統一。最後に番号整合・自動化観点（Learn は MCP で検証、ブラウザ操作は VS Code 統合ブラウザ）をレビューし、既存のオープン PR があればそれを更新してコンフリクトを避け、無関係なら新規 PR を作成しつつマージ順を提示する。"
+description: "スキル（SKILL.md）を新規作成または更新し、リモートリポジトリへ PR を作成・更新する。SKILL.md は正常系、references に参考情報と異常系、scripts に利用スクリプトを置き、すべて汎用化してパラメータを .env.example に外出しする（実値は .env）。毎回同じ形のプロジェクトを作るスキルには templates/ を同梱し、汎用スキャフォルダー（scaffold_from_template.py）でテンプレートから生成して開始できるようにする。会社・個別プロジェクト情報を排除して秘匿化し、Step 番号は整数で統一。最後に番号整合・自動化観点（Learn は MCP で検証、ブラウザ操作は VS Code 統合ブラウザ）をレビューし、既存のオープン PR があればそれを更新してコンフリクトを避け、無関係なら新規 PR を作成しつつマージ順を提示する。"
 category: architecture
 triggers:
   - "スキル作成"
@@ -22,6 +22,10 @@ triggers:
   - "サンプル化"
   - "公開用に仕上げ"
   - "サンプル公開"
+  - "スキャフォルド"
+  - "scaffold"
+  - "テンプレートから作る"
+  - "テンプレート同梱"
 ---
 
 # スキル作成・更新 & PR 作成スキル
@@ -36,13 +40,14 @@ triggers:
 |---|---|
 | 役割分離 | `SKILL.md` = **正常系**のみ。参考情報・**異常系**は `references/`、利用スクリプトは `scripts/` |
 | 汎用化 | テナント・組織・テーマに依存しない。パラメータは `references/.env.example` に定義し、**実値は `.env`** から読む |
-| 秘匿化 | 会社名・個別プロジェクト名・実 GUID・URL・メール・シークレットを排除（→ Step 3 のスキャン） |
+| 秘匿化 | 会社名・個別プロジェクト名・実 GUID・URL・メール・シークレットを排除（→ Step 4 のスキャン） |
 | シンプル | 本文は短く。冗長な説明は `references/` に逃がす。手順の番号は**整数の Step** で統一 |
-| 自動化優先 | 公式仕様は **Microsoft Learn MCP** で検証、ブラウザ操作は **VS Code 統合ブラウザ**で自動化（→ Step 4） |
+| 自動化優先 | 公式仕様は **Microsoft Learn MCP** で検証、ブラウザ操作は **VS Code 統合ブラウザ**で自動化（→ Step 5） |
 | 再発防止 | 作業中にバグ・落とし穴を見つけて直したら `references/troubleshooting.md` への記録だけで終わらせず、**同じ入力パターンで二度と起きないよう `scripts/` 本体に恒久的な事前チェック（アサーション/事前検証）を追加**し、正常系（成功する実行）でも毎回そのチェックが動く状態にする（→ Step 1 の 6） |
 
 > 前提ツール: Git、GitHub CLI（`gh`、認証済み）、Python 3。
 > 異常系・詰まりどころは [references/troubleshooting.md](references/troubleshooting.md)、
+> テンプレート同梱とスキャフォールドは [references/scaffolding.md](references/scaffolding.md)、
 > PR の更新/新規判断とマージ順は [references/pr-strategy.md](references/pr-strategy.md)、
 > ポータル操作の private API 化は [references/private-api-automation.md](references/private-api-automation.md) を参照。
 
@@ -52,10 +57,11 @@ triggers:
 
 | スクリプト | 用途 |
 |---|---|
-| [scripts/validate_skill.py](scripts/validate_skill.py) | 構成検証: フォルダ名＝`name` 一致 / Step 番号が整数連番 / `references`・`scripts` の有無 / 秘匿情報スキャン（Step 3・7） |
+| [scripts/validate_skill.py](scripts/validate_skill.py) | 構成検証: フォルダ名＝`name` 一致 / Step 番号が整数連番 / `references`・`scripts` の有無 / テンプレート変数の宣言 / 秘匿情報スキャン（Step 4・8） |
+| [scripts/scaffold_from_template.py](scripts/scaffold_from_template.py) | 汎用スキャフォルダー: `templates/` から作業ツリーを生成。`${VAR}`/`__VAR__` 置換、機能ブロック、未解決変数で停止（Step 3） |
 | [scripts/scan_sample.py](scripts/scan_sample.py) | Code Apps サンプルの公開前検証: 実値・秘匿情報・テーブル名直書き・`.gitignore` を検査（Step 1） |
-| [scripts/manage_skill_pr.py](scripts/manage_skill_pr.py) | リモートのオープン PR を走査し、対象スキルに触れる PR を検出して「更新 or 新規」とマージ順を提示（Step 5） |
-| [scripts/publish_skill.py](scripts/publish_skill.py) | 公開を一括自動化: PR 先リポジトリを一時 clone → ブランチ → スキル＋集約ファイルをコピー → 検証 → commit → push → PR 作成/更新（Step 6）。スキル統合時は `--remove` で旧フォルダを削除。`--dry-run` 対応 |
+| [scripts/manage_skill_pr.py](scripts/manage_skill_pr.py) | リモートのオープン PR を走査し、対象スキルに触れる PR を検出して「更新 or 新規」とマージ順を提示（Step 6） |
+| [scripts/publish_skill.py](scripts/publish_skill.py) | 公開を一括自動化: PR 先リポジトリを一時 clone → ブランチ → スキル＋集約ファイルをコピー → 検証 → commit → push → PR 作成/更新（Step 7）。スキル統合時は `--remove` で旧フォルダを削除。`--dry-run` 対応 |
 
 ## 標準フォルダ構成
 
@@ -69,7 +75,7 @@ triggers:
 └── scripts/                  # 利用したスクリプト（すべて汎用化）
     └── <verb>_<noun>.py
 ```
-
+テンプレートから始められるようにする場合は `templates/<template-name>/` を追加する（→ Step 3）。
 ## ワークフロー（正常系）
 
 ### Step 0: 対象を決める（新規 / 更新）
@@ -112,7 +118,36 @@ triggers:
 
 > 詳細な置換パターンは [サンプルパッケージングガイド](references/sample-packaging.md) のセキュリティスキャン節も参照。
 
-### Step 3: 構成・秘匿情報を検証する
+### Step 3: テンプレートを同梱してスキャフォールドできるようにする（任意）
+
+そのスキルが「毎回ほぼ同じ形のプロジェクトを作る」なら、手順を読ませるのではなく
+**テンプレートから生成して始められる**ようにする。スキル固有のスキャフォールダーは書かない。
+
+1. `templates/<template-name>/` に生成物の素を置く。中身の `${VAR}` とパス名の `__VAR__` が
+   置換対象（UPPER_SNAKE のみ）。Step 2 で汎用化した値をそのまま使う。
+2. `templates/<template-name>/scaffold.json` に変数・機能ブロック・次の手順を宣言する。
+   マニフェストを置くと `validate_skill.py` の**未宣言変数チェックが有効**になる。
+3. `SKILL.md` には生成コマンド 1 行だけ書く（テンプレートの中身は説明しない）。
+
+```powershell
+# 生成計画の確認 → 問題なければ --dry-run を外す
+python .github/skills/update-skills/scripts/scaffold_from_template.py `
+  --template .github/skills/<skill-name>/templates/<template-name> `
+  --target <出力先> --var PKG=<package_name> --dry-run
+
+# テンプレートが使う変数の一覧（宣言漏れの確認）
+python .github/skills/update-skills/scripts/scaffold_from_template.py `
+  --template .github/skills/<skill-name>/templates/<template-name> --list-variables
+```
+
+**生成ツリーの外にある依存**（Azure リソース、モデル デプロイ等）は `scaffold.json` の
+`nextSteps` に書いたうえで、**デプロイ/発行スクリプト側に実在確認のプリフライトを足す**。
+手順の読み飛ばしを前提にしないと、「エラーは出ないが機能だけ無い」成果物が出来上がる。
+
+> 規約の詳細（マニフェストのキー・ブロックマーカー・未解決変数の扱い）は
+> [references/scaffolding.md](references/scaffolding.md)。
+
+### Step 4: 構成・秘匿情報を検証する
 
 `validate_skill.py` で機械的に検証する（手作業でのチェックを残さない）。
 
@@ -126,7 +161,7 @@ python .github/skills/update-skills/scripts/validate_skill.py --all
 
 検出された問題（番号飛び・フォルダ名不一致・実 GUID/URL/メール残存など）を**すべて解消**してから次へ進む。
 
-### Step 4: 自動化レビュー（Learn 検証 / Playwright）
+### Step 5: 自動化レビュー（Learn 検証 / Playwright）
 
 手順が「人手前提」になっていないか見直し、可能な限り自動化に置き換える。
 
@@ -145,7 +180,7 @@ python .github/skills/update-skills/scripts/validate_skill.py --all
    read-backまで実装する。HTTP成功だけで完了とせず、非同期に生成される子componentやruntime状態まで検証する。
    観測時にwrite requestをabortする場合は、UIの自動retryを止めるまでrouteを解除しない。
 
-### Step 5: PR 戦略を決める（更新 / 新規 + マージ順）
+### Step 6: PR 戦略を決める（更新 / 新規 + マージ順）
 
 コンフリクトを避けるため、**まず既存のオープン PR を調べる**。
 
@@ -160,7 +195,7 @@ python .github/skills/update-skills/scripts/manage_skill_pr.py --skill <skill-na
 - **無関係な変更（別スキル・別ファイル）** → **新規 PR で OK**。ただし依存関係に応じた**マージ順を提示**する。
 - 迷ったら、ベースに近い（小さく独立した）PR を先にマージする順序を提案する。
 
-### Step 6: PR を作成 / 既存 PR を更新する
+### Step 7: PR を作成 / 既存 PR を更新する
 
 > **前提（作業ディレクトリ ≠ PR 先リポジトリ）**: スキルを編集している場所が PR 先リポジトリの作業ツリー
 > とは限らない（git 管理外のワークスペースで編集していることがある）。その場合は **PR 先リポジトリ
@@ -195,12 +230,12 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 3. **push 前に再度 `validate_skill.py` を実行**し、秘匿情報が混入していないことを確認する。
 4. コミット → `gh pr create`（新規）または既存ブランチへ `git push`（更新）。
    既存 PR 更新時は新しい PR を作らない。
-5. 新規 PR の場合は、本文に **Step 5 で決めたマージ順**を記載する。
+5. 新規 PR の場合は、本文に **Step 6 で決めたマージ順**を記載する。
 
 > シークレット（`.env` の値・クライアントシークレット等）は**絶対にコミット・出力しない**。
 > push 前スキャンで 1 件でもヒットしたら中止して修正する。
 
-### Step 7: 最終レビュー
+### Step 8: 最終レビュー
 
 [検証チェックリスト](#検証チェックリスト) を上から確認する。特に **Step 番号が整数連番**であること、
 **Learn/Playwright で自動化されているか**、**オープン PR との整合（更新優先・マージ順提示）**を最終確認する。
@@ -214,6 +249,7 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 - [ ] パラメータは `references/.env.example` に定義、実値は `.env`（`.gitignore` 済み）
 - [ ] 会社名・個別 PJ 名・実 GUID/URL/メール/シークレットが無い（`validate_skill.py` が ✅）
 - [ ] 手順の番号は**整数の Step で連番**（飛び・重複なし）
+- [ ] `templates/` を同梱したなら `scaffold.json` で変数を宣言し、`--dry-run` で生成を確認した
 - [ ] 公式仕様は **Learn MCP** で検証、ブラウザ操作は **VS Code 統合ブラウザ**で自動化
 - [ ] private API はUIの正常requestを観測し、対象固定・全件事前検証・hash承認・read-back・cleanupを実装
 - [ ] ブラウザ起動前に `AskUserQuestion` で Edge プロファイルを確認し、回答前は操作しない
@@ -225,6 +261,7 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 
 - [スキルカタログ README](../README.md)
 - [サンプルパッケージングガイド（セキュリティ・再利用性・README生成）](references/sample-packaging.md)
+- [テンプレート同梱とスキャフォールド](references/scaffolding.md)
 - [private API 自動化標準](references/private-api-automation.md)
 - [PR 戦略（更新/新規・マージ順）](references/pr-strategy.md)
 - [異常系・トラブルシュート](references/troubleshooting.md)

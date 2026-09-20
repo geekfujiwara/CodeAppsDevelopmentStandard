@@ -214,3 +214,39 @@ UI作成requestにはtemplate、完全なconfiguration、discriminator、既定�
 UIの正常requestをcaptureし、field単位で比較する。観測contractをstrict allowlistとしてplan化し、
 hash承認後にapplyする。HTTP成功後も子componentとruntime状態をread-backする。
 詳細は[private API 自動化標準](private-api-automation.md)を参照。
+
+## 21. スキャフォールドしたのに動かない / テンプレート変数が生のまま残る
+
+### 原因
+
+テンプレートの `${VAR}` が `.env` にも `--var` にも無く、置換されないまま書き出されていた。
+生成物は一見そろっているのに動かず、原因がテンプレート由来だと分からなくなる。
+
+似た失敗として、テンプレート内の依存が**生成ツリーの外**（Azure リソース、モデル デプロイ等）に
+あるケースがある。ファイルはすべて揃うので成功に見えるが、機能だけが無い状態で発行される。
+
+### 対策
+
+- `scaffold_from_template.py` は未解決の `${UPPER_SNAKE}` が 1 つでも残ると**1 ファイルも書かずに
+  終了する**（終了コード 3）。**恒久対策済み**: `build_plan()` の未解決トークン収集。
+- 生成ツリーの外にある依存は `scaffold.json` の `nextSteps` に書き、さらに**発行スクリプト側に
+  実在確認のプリフライト**を足す（例: `assert_image_deployment_exists()`）。
+- 事前に `--list-variables` と `--dry-run` で、必要な変数と生成計画を確認する。
+
+## 22. テンプレート変数チェックが TypeScript のテンプレートリテラルを誤検出する
+
+### 原因
+
+`templates/` 配下を無条件に走査して `${...}` を変数と見なすと、TypeScript の `` `${count}` `` や
+シェルの `${1}` まで「未宣言の変数」として大量に拾う。実測では既存 3 スキルのテンプレートで
+数百件がヒットし、真の検出が埋もれる（→ #14 と同じ構図）。
+
+### 対策
+
+`validate_skill.py` の `validate_templates()` は 2 段で絞っている。
+
+- 走査対象は `templates/<name>/scaffold.json` を**置いたテンプレートだけ**（共通スキャフォールダーで
+  配る宣言をしたもの）。マニフェストが無いテンプレートは対象外。
+- 置換対象の記法は **UPPER_SNAKE_CASE のみ**（`${AGENT_NAME}` / `__PKG__`）。
+
+この 2 条件で、全スキル一括検証（`--all`）の誤検出は 0 件になっている。
