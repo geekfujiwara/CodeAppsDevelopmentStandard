@@ -69,10 +69,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--env", default=".env")
     parser.add_argument("--resource-group", help="Defaults to AZURE_OPENAI_RESOURCE_GROUP or AZURE_RESOURCE_GROUP.")
-    parser.add_argument("--account", help="Defaults to AZURE_OPENAI_ACCOUNT.")
+    parser.add_argument("--account", help="Defaults to AZURE_OPENAI_ACCOUNT or AZURE_AI_ACCOUNT.")
     parser.add_argument("--model", help="Defaults to IMAGE_GENERATION_MODEL.")
     parser.add_argument("--model-version", help="Exact version. Defaults to the newest offered version.")
-    parser.add_argument("--deployment", help="Defaults to IMAGE_GENERATION_DEPLOYMENT or the model name.")
+    parser.add_argument(
+        "--deployment",
+        help="Defaults to IMAGE_GENERATION_DEPLOYMENT, IMAGE_MODEL_DEPLOYMENT, or the model name.",
+    )
     parser.add_argument("--sku", help="Defaults to IMAGE_GENERATION_SKU or GlobalStandard.")
     parser.add_argument("--capacity", type=int, help="Defaults to IMAGE_GENERATION_CAPACITY or 1.")
     parser.add_argument("--check", action="store_true", help="Verify only; never create or update a deployment.")
@@ -87,9 +90,14 @@ def main() -> int:
         or os.environ.get("AZURE_OPENAI_RESOURCE_GROUP")
         or os.environ.get("AZURE_RESOURCE_GROUP")
     )
-    account = args.account or os.environ.get("AZURE_OPENAI_ACCOUNT")
+    account = args.account or os.environ.get("AZURE_OPENAI_ACCOUNT") or os.environ.get("AZURE_AI_ACCOUNT")
     model = args.model or os.environ.get("IMAGE_GENERATION_MODEL")
-    deployment = args.deployment or os.environ.get("IMAGE_GENERATION_DEPLOYMENT") or model
+    deployment = (
+        args.deployment
+        or os.environ.get("IMAGE_GENERATION_DEPLOYMENT")
+        or os.environ.get("IMAGE_MODEL_DEPLOYMENT")
+        or model
+    )
     sku = args.sku or os.environ.get("IMAGE_GENERATION_SKU") or "GlobalStandard"
     capacity = args.capacity or int(os.environ.get("IMAGE_GENERATION_CAPACITY", "1"))
     if not all((resource_group, account, model, deployment)):
