@@ -255,8 +255,11 @@ Application Insights 等へ転送する場合は custom sink と CSP の `connec
 #   ★同期②: pa app add flow は Power Automate Phase 5（フロー実装）完了後に実行
 # 詳細は standard §8「開発フロー全体図」を参照。
 cp -n .github/skills/standard/references/gitignore-template .gitignore   # .gitignore がなければコピー
-# scaffold の取得元は templates/generic-base のみ（samples/geek-* は業務ページ実装の参照専用）
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills/code-apps/templates/generic-base .
+# 共通スキャフォールダーで生成計画を確認し、同じコマンドから --dry-run を外して生成する
+python .github/skills/update-skills/scripts/scaffold_from_template.py \
+  --template .github/skills/code-apps/templates/generic-base --target {TARGET_DIR} --dry-run
+python .github/skills/update-skills/scripts/scaffold_from_template.py \
+  --template .github/skills/code-apps/templates/generic-base --target {TARGET_DIR}
 npm install --no-audit --no-fund
 
 # 既存プロジェクトを更新するときは SDK / CLI とも latest を候補にし、build と CLI help を再検証する
@@ -567,9 +570,27 @@ SDK 生成サービスは Lookup 名フィールド（`createdbyname` 等）を�
 
 → 詳細: **[使い方ガイドパターン](references/onboarding-guide-pattern.md)**
 
-### scaffold 時に含めないファイル
+### scaffold できるテンプレート
 
-scaffold の取得元は **[templates/generic-base](templates/generic-base/)** のみとする。
+`templates/*/scaffold.json` を持つ全テンプレートは、`update-skills` の共通スキャフォールダーで取得する。
+まず `--dry-run` でコピー対象と `Next` を確認し、問題なければ外して実行する。
+
+```powershell
+python .github/skills/update-skills/scripts/scaffold_from_template.py `
+  --template .github/skills/code-apps/templates/<template-name> `
+  --target <出力先> --dry-run
+```
+
+| テンプレート | 種別 | 開始方法 |
+|---|---|---|
+| [templates/generic-base](templates/generic-base/) | 完全なベース | 新規プロジェクトの出力先へ生成する |
+| [templates/account-link-admin](templates/account-link-admin/) | アドオン | 空の作業ディレクトリへ生成し、README に従ってホストへ統合する |
+| [templates/drawing-communication](templates/drawing-communication/) | アドオン | 空の作業ディレクトリへ生成・単体検証後、必要なモジュールをホストへ統合する |
+| [templates/modular-plant](templates/modular-plant/) | アドオン | 空の作業ディレクトリへ生成・単体検証後、必要なモジュールをホストへ統合する |
+
+アドオンをホストのルートへ `--force` で直接重ねると `README.md` や `package.json` を上書きし得るため、
+必ず独立した出力先へ生成してから統合する。
+
 `samples/geek-*` は**業務ページ実装の参照専用**で、scaffold 元にはしない
 （業務固有のページ・型・サービス、および `samples/geek-sales` の `CommandPalette` / `QuickActivityFab` のような
 テーマ固有コンポーネントが混入するため）。
@@ -580,12 +601,14 @@ scaffold の取得元は **[templates/generic-base](templates/generic-base/)** �
 
 ### アドオンテンプレート（generic-base に重ねる差分）
 
-`templates/` には scaffold 元の `generic-base` に加えて、**特定業務の画面だけを差分ファイルとして重ねるアドオン**を置く。
-scaffold 元は `generic-base` のまま変えず、`src/` を上書きコピーしてから README の手順どおりルートとナビを追加する。
+`templates/` には完全な `generic-base` に加えて、**特定業務の画面だけを差分ファイルとして重ねるアドオン**を置く。
+アドオンは独立した作業ディレクトリへ scaffold し、README の手順どおり必要なファイル、依存、ルート、ナビを統合する。
 
 | アドオン | 用途 | 使う場面 |
 |---|---|---|
 | [templates/account-link-admin](templates/account-link-admin/) | `contact` に `account`（取引先企業）を割り当てる管理画面 | Power Pages で **Account アクセス**を選んだとき（[power-pages スキル](../power-pages/SKILL.md) Step 4-G）。必須 |
+| [templates/drawing-communication](templates/drawing-communication/) | 図面の注釈・改訂・非同期会話 | 図面レビュー機能を既存 Code Apps に追加するとき |
+| [templates/modular-plant](templates/modular-plant/) | JSON 駆動の設備配置・接続・候補生成 | プラント概念設計を既存 Code Apps に追加するとき |
 
 ### SDK に触れる面を 1 ファイルに閉じる
 

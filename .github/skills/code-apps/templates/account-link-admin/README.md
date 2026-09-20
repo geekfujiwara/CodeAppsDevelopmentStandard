@@ -6,6 +6,17 @@ Power Pages の **Account アクセス**（[power-pages スキル](../../../powe
 **これは単体プロジェクトではなく、[generic-base](../generic-base/) の上に重ねる差分ファイル一式**。
 ポータル利用者に取引先企業を選ばせるのは権限昇格になるため、紐づけは必ずこの管理画面（社内向け Code App）で行う。
 
+## 取得
+
+空の作業ディレクトリへ scaffold し、生成された `src/` を導入手順に従ってホストアプリへ統合します。
+
+```powershell
+python .github/skills/update-skills/scripts/scaffold_from_template.py `
+  --template .github/skills/code-apps/templates/account-link-admin `
+  --target <作業ディレクトリ> --dry-run
+# 計画確認後、--dry-run を外して実行
+```
+
 ## 含まれるファイル
 
 | ファイル | 役割 |

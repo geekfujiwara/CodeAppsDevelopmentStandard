@@ -1,0 +1,10 @@
+{
+  "description": "Power Apps Code Apps の React + Vite 汎用ベース",
+  "preserveUndeclaredVariables": true,
+  "nextSteps": [
+    "Copy-Item .env.example .env",
+    "npm install --no-audit --no-fund",
+    "npx pa app init --environment-id {ENVIRONMENT_ID} --display-name \"AppName\" --app-type CodeApp",
+    "npm run predeploy"
+  ]
+}

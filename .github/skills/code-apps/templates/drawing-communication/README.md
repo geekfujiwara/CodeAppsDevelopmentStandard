@@ -1,10 +1,21 @@
 # Drawing Communication Addon（図面コミュニケーション アドオン）
 
-既存の Code Apps プロジェクトへ組み込む **アドオン** です。scaffold（プロジェクトの雛形）ではありません。
+既存の Code Apps プロジェクトへ組み込む **アドオン** です。共通スキャフォールダーで取得できますが、単体の完成アプリではありません。
 新規アプリは [generic-base](../generic-base/README.md) で初期化し、そこへ以下のモジュールを取り込みます。
 環境 ID・組織 URL・接続定義・生成済みサービス・業務レコードは含みません。
 
 実際に組み込んだ動作例は [samples/drawing-communication-poc](../../samples/drawing-communication-poc/README.md) を参照してください。
+
+## 取得
+
+ホストアプリの `package.json` や README を上書きしないよう、空の作業ディレクトリへ生成します。
+
+```powershell
+python .github/skills/update-skills/scripts/scaffold_from_template.py `
+   --template .github/skills/code-apps/templates/drawing-communication `
+   --target <作業ディレクトリ> --dry-run
+# 計画確認後、--dry-run を外して実行
+```
 
 ## 含まれるもの
 

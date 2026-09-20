@@ -1,0 +1,14 @@
+{
+  "description": "JSON 駆動のプラント概念配置と候補生成を追加する Code Apps アドオン",
+  "preserveUndeclaredVariables": true,
+  "nextSteps": [
+    "README.md の前提を確認する",
+    "npm install --no-audit --no-fund",
+    "python -m pip install -r agent-skill/requirements.txt",
+    "npm run generate",
+    "npm run typecheck",
+    "npm test",
+    "npm run test:skill",
+    "検証後、必要な src/ と agent-skill/ をホストプロジェクトへ統合する"
+  ]
+}

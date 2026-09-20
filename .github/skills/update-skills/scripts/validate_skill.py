@@ -109,8 +109,9 @@ EMAIL_ALLOW = ("example.com", "example.org", "contoso.com", "noreply.github.com"
 # 例: parentbotid@odata.bind / value@odata.type / @microsoft.foo
 NON_EMAIL_RE = re.compile(r"@(odata|microsoft|xmlns)\.", re.IGNORECASE)
 # プレースホルダー的な組織名（<org> / {org} / yourorg）は許容
-CRM_PLACEHOLDER = re.compile(r"https://(<org>|\{org\}|yourorg|\{[^}]+\})\.crm", re.IGNORECASE)
-IGNORED_SCAN_DIRS = {".git", ".venv", "__pycache__", "node_modules", "venv"}
+CRM_PLACEHOLDER = re.compile(r"https://(<org>|\{org\}|yourorg|example|\{[^}]+\})\.crm", re.IGNORECASE)
+IGNORED_SCAN_DIRS = {".git", ".power", ".venv", "_scratch", "__pycache__", "coverage", "dist", "node_modules", "venv"}
+IGNORED_SCAN_FILES = {"power.config.json"}
 
 # scaffold_from_template.py と同じ規約。UPPER_SNAKE だけを変数と見なす
 SCAFFOLD_MANIFEST = "scaffold.json"
@@ -175,6 +176,15 @@ def scan_secrets(path: Path, rep: Report) -> None:
                 rep.warn(f"{rel}:{i}: 実メールアドレスらしき値 {em}（admin@example.com 等に置換）")
 
 
+def is_ignored_scan_path(relative: Path) -> bool:
+    parts = relative.parts
+    return (
+        any(part in IGNORED_SCAN_DIRS for part in parts)
+        or relative.name in IGNORED_SCAN_FILES
+        or any(parts[index:index + 2] == ("src", "generated") for index in range(len(parts) - 1))
+    )
+
+
 def validate_templates(skill_dir: Path, rep: Report) -> None:
     """`templates/<name>/scaffold.json` を持つテンプレートだけを検査する。
 
@@ -208,11 +218,14 @@ def validate_templates(skill_dir: Path, rep: Report) -> None:
         declared |= derived
 
         used: set[str] = set()
+        path_used: set[str] = set()
         for path in template.rglob("*"):
             relative = path.relative_to(template)
-            if not path.is_file() or any(part in IGNORED_SCAN_DIRS for part in relative.parts):
+            if not path.is_file() or is_ignored_scan_path(relative):
                 continue
-            used.update(PATH_TOKEN_RE.findall(relative.as_posix()))
+            path_variables = set(PATH_TOKEN_RE.findall(relative.as_posix()))
+            path_used.update(path_variables)
+            used.update(path_variables)
             if path.suffix.lower() in TEMPLATE_BINARY_SUFFIXES:
                 continue
             try:
@@ -220,7 +233,10 @@ def validate_templates(skill_dir: Path, rep: Report) -> None:
             except (UnicodeDecodeError, OSError):
                 continue
 
-        for name in sorted(used - declared):
+        undeclared = path_used - declared
+        if not manifest.get("preserveUndeclaredVariables", False):
+            undeclared |= used - declared
+        for name in sorted(undeclared):
             rep.err(f"{label}: 変数 ${{{name}}} が {SCAFFOLD_MANIFEST} で宣言されていない")
         for name in sorted(declared - used):
             rep.warn(f"{label}: {SCAFFOLD_MANIFEST} の {name} はテンプレートで使われていない")
@@ -276,7 +292,7 @@ def validate_skill(skill_dir: Path) -> Report:
     # 秘匿情報スキャン（テキスト系ファイルのみ）
     exts = {".md", ".py", ".ps1", ".json", ".jsonc", ".ts", ".tsx", ".env", ".example"}
     for p in skill_dir.rglob("*"):
-        if any(part in IGNORED_SCAN_DIRS for part in p.relative_to(skill_dir).parts):
+        if is_ignored_scan_path(p.relative_to(skill_dir)):
             continue
         if p.is_file() and (p.suffix in exts or p.name == ".env.example"):
             scan_secrets(p, rep)

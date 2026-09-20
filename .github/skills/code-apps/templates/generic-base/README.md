@@ -7,7 +7,9 @@ Power Apps Code Apps の **scaffold 唯一の取得元**です。
 ## 取得
 
 ```bash
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills/code-apps/templates/generic-base .
+python .github/skills/update-skills/scripts/scaffold_from_template.py \
+  --template .github/skills/code-apps/templates/generic-base --target {TARGET_DIR} --dry-run
+# 計画確認後、--dry-run を外して実行
 ```
 
 ## 含まれるもの

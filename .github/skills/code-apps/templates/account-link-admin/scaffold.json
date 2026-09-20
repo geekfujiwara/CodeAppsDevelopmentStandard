@@ -1,0 +1,9 @@
+{
+  "description": "Power Pages の Account アクセス向け取引先紐づけ管理画面アドオン",
+  "preserveUndeclaredVariables": true,
+  "nextSteps": [
+    "README.md の前提を確認する",
+    "生成した src/ を generic-base から作成した Code Apps プロジェクトへ統合する",
+    "Dataverse データソース、ルート、ナビゲーションを README.md の手順で追加する"
+  ]
+}
