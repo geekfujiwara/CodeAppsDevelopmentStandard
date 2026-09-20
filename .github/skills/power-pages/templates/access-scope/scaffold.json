@@ -1,0 +1,9 @@
+{
+  "description": "Power Pages の Account アクセス向け取引先表示・紐づけ依頼アドオン",
+  "preserveUndeclaredVariables": true,
+  "nextSteps": [
+    "生成した use-account-access.ts を既存プロジェクトの src/hooks/ へ統合する",
+    "生成した AccountProfileSection.tsx を既存プロジェクトの src/components/ へ統合する",
+    "VITE_PUBLISHER_PREFIX を設定し、Power Pages スキルの Account アクセス構成手順を実行する"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Power Pages 向け React + TypeScript + Vite の企業ポータル雛形",
+  "variables": ["PAGES_SITE_NAME"],
+  "nextSteps": [
+    "Copy-Item .env.example .env",
+    "npm install --no-audit --no-fund",
+    "npm run build",
+    "Power Pages スキルの初回デプロイ手順に従って upload、activate、relink、restart を実行する"
+  ]
+}
