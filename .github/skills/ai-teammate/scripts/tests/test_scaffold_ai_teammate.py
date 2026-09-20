@@ -128,6 +128,59 @@ class RegressionSuiteTests(unittest.TestCase):
             self.assertTrue(set(case.get("requiresBlocks") or []) <= selected)
 
 
+class AcknowledgementPatchTests(unittest.TestCase):
+    """The one upstream file this skill edits, so the anchor needs a guard."""
+
+    UPSTREAM = (
+        "class Host:\n"
+        "    async def on_message(self, context):\n"
+        "        async def inner():\n"
+        "            async def deeper():\n"
+        "                if is_email_activity(context.activity):\n"
+        "                    return\n"
+        "\n"
+        "                # Multi-message pattern: immediate ack, typing indicator loop,\n"
+        "                # then the final LLM response.\n"
+        "                if not is_wpx_comment_activity(context.activity):\n"
+        '                    await context.send_activity("Working on your request...")\n'
+        '                await context.send_activity(Activity(type="typing"))\n'
+        "\n"
+        "                async def _typing_loop() -> None:\n"
+        "                    pass\n"
+    )
+
+    def patch(self, source: str) -> tuple[bool, str]:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "host_agent_server.py"
+            path.write_text(source, encoding="utf-8")
+            applied = scaffold_ai_teammate.patch_acknowledgement(path)
+            return applied, path.read_text(encoding="utf-8")
+
+    def test_fixed_english_line_is_replaced_by_the_hook(self) -> None:
+        applied, patched = self.patch(self.UPSTREAM)
+        self.assertTrue(applied)
+        self.assertNotIn("Working on your request", patched)
+        self.assertIn('getattr(self.agent_instance, "acknowledge", None)', patched)
+        compile(patched, "host_agent_server.py", "exec")
+
+    def test_typing_indicator_goes_first(self) -> None:
+        # Writing the acknowledgement costs a model call; the chat must show life before then.
+        _, patched = self.patch(self.UPSTREAM)
+        self.assertLess(
+            patched.index('Activity(type="typing")'), patched.index("acknowledge")
+        )
+
+    def test_rerunning_the_scaffold_does_not_patch_twice(self) -> None:
+        _, patched = self.patch(self.UPSTREAM)
+        applied_again, twice = self.patch(patched)
+        self.assertTrue(applied_again)
+        self.assertEqual(patched, twice)
+
+    def test_a_changed_upstream_reports_failure_instead_of_silently_passing(self) -> None:
+        applied, _ = self.patch("async def on_message(context):\n    return None\n")
+        self.assertFalse(applied)
+
+
 class ResolveBlocksTests(unittest.TestCase):
     def test_full_preset_includes_all_blocks(self) -> None:
         plan = scaffold_ai_teammate.build_plan(

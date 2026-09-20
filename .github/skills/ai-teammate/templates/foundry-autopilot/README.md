@@ -17,7 +17,9 @@ Foundry デプロイ**を BYOK で使います。追加のモデル クォータ
 
 公式サンプルは**フォークせずそのまま**置いてあります。差分はオーバーレイ側だけにあるので、
 上流の修正を取り込みたくなったら `fetch_autopilot_quickstart.py --force` を流し直せます。
-唯一置き換えている上流ファイルは `main.py`（`create_and_run_host()` に渡すクラスを差し替えるだけ）です。
+置き換えている上流ファイルは `main.py`（`create_and_run_host()` に渡すクラスを差し替えるだけ）、
+書き換えているのは `host_agent_server.py` の冒頭あいさつ 1 箇所だけです
+（英語固定の `"Working on your request..."` → 相手の言語で具体的な 1 文）。
 
 ## 動かすまで
 
@@ -53,7 +55,7 @@ python ../../.github/skills/ai-teammate/scripts/run_regression_tests.py --execut
 | `DATAVERSE_URL` | 評価ハブと Dataverse MCP の接続先。未設定ならどちらも自動で無効 |
 | `PUBLISHER_PREFIX` | 評価ハブのテーブル接頭辞 |
 | `AGENT_NAME` | 評価ハブ上でこのチームメイトを識別するキー |
-| `IMAGE_MODEL_DEPLOYMENT` | 画像生成（B17）を有効にする。未設定なら `generate_image` ツールは登録されない |
+| `IMAGE_MODEL_DEPLOYMENT` | 画像生成（B17）を有効にする。未設定なら `generate_image` ツールは登録されない。既定クォータは 1 リクエスト/分 |
 | `AZURE_DEVOPS_ORGANIZATION` | Azure DevOps MCP を有効にする |
 | `SKILLS_SYNC_MINUTES` | スキルを評価ハブへ同期する間隔（既定 30 分） |
 

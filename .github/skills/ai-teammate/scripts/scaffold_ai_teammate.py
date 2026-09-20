@@ -541,6 +541,49 @@ def append_once(path: Path, addition: str) -> None:
     path.write_text(content + separator + addition, encoding="utf-8", newline="\n")
 
 
+# The quickstart opens every turn with a hardcoded English line. That answers a Japanese user in
+# English and says nothing about what the agent is about to do, so it is the one upstream file
+# this skill edits. The edit is deliberately tiny: it hands the job to an optional
+# ``acknowledge()`` hook, so an upstream agent without the hook still behaves.
+ACK_ANCHOR = re.compile(
+    r"^(?P<indent>[ \t]+)if not is_wpx_comment_activity\(context\.activity\):\n"
+    r"[ \t]+await context\.send_activity\(\"Working on your request\.\.\.\"\)\n"
+    r"[ \t]+await context\.send_activity\(Activity\(type=\"typing\"\)\)\n",
+    re.MULTILINE,
+)
+
+
+def patch_acknowledgement(path: Path) -> bool:
+    """Replace the fixed English opener with a concrete, same-language one.
+
+    The typing indicator moves *ahead* of the acknowledgement because writing that line costs a
+    model call of several seconds; the user should see life in the chat before then.
+    """
+    if not path.is_file():
+        return False
+    content = path.read_text(encoding="utf-8")
+    if "acknowledge" in content:
+        return True  # already patched
+
+    def _replacement(match: re.Match[str]) -> str:
+        indent = match.group("indent")
+        body = (
+            'await context.send_activity(Activity(type="typing"))\n'
+            "if not is_wpx_comment_activity(context.activity):\n"
+            '    acknowledge = getattr(self.agent_instance, "acknowledge", None)\n'
+            "    ack = await acknowledge(user_message, context) if acknowledge else None\n"
+            "    if ack:\n"
+            "        await context.send_activity(ack)\n"
+        )
+        return "".join(f"{indent}{line}\n" for line in body.splitlines())
+
+    patched, count = ACK_ANCHOR.subn(_replacement, content, count=1)
+    if count == 0:
+        return False
+    path.write_text(patched, encoding="utf-8", newline="\n")
+    return True
+
+
 def fetch_quickstart(target: Path, force: bool) -> None:
     """Download the Microsoft Foundry Autopilot quickstart into *target*.
 
@@ -586,6 +629,12 @@ def scaffold_foundry_autopilot(
     unresolved |= render_tree(template_root / "prompts", package_dir / "prompts", variables)
     append_once(package_dir / "requirements.txt", OVERLAY_REQUIREMENTS)
     append_once(package_dir / "foundry-infra" / "Dockerfile", OVERLAY_DOCKERFILE)
+    if not patch_acknowledgement(package_dir / "host_agent_server.py"):
+        print(
+            "  ! host_agent_server.py の定型あいさつを差し替えられませんでした。"
+            '上流が変わった可能性があります。"Working on your request..." を手で '
+            "acknowledge() 呼び出しに置き換えてください（→ references/progress-updates.md §7）。"
+        )
     # The quickstart ships its own README; keep both rather than silently replacing theirs.
     readme = template_root / "README.md"
     content = TOKEN_PATTERN.sub(
