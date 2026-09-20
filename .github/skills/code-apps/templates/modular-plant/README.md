@@ -2,6 +2,17 @@
 
 JSON-driven concept-layout core for an existing Code Apps project. This is an **addon, not a replacement scaffold or a finished UI**. Initialize new apps with `../generic-base`; integrate the selected modules into that app. No environment IDs, SDK-generated services, credentials, live records or deployed table mappings are included.
 
+## Scaffold the Addon
+
+Generate into an empty staging directory so the addon's `package.json` and README do not overwrite the host app.
+
+```powershell
+python .github/skills/update-skills/scripts/scaffold_from_template.py `
+	--template .github/skills/code-apps/templates/modular-plant `
+	--target <staging-directory> --dry-run
+# Remove --dry-run after reviewing the plan.
+```
+
 ## Included
 
 | Asset | Purpose |

@@ -76,6 +76,7 @@ class Manifest:
     variables: list[str] = field(default_factory=list)
     optional_variables: list[str] = field(default_factory=list)
     derived_variables: list[str] = field(default_factory=list)
+    preserve_undeclared_variables: bool = False
     block_files: dict[str, list[str]] = field(default_factory=dict)
     next_steps: list[str] = field(default_factory=list)
 
@@ -93,6 +94,7 @@ class Manifest:
             variables=[str(v) for v in raw.get("variables", [])],
             optional_variables=[str(v) for v in raw.get("optionalVariables", [])],
             derived_variables=[str(v) for v in raw.get("derivedVariables", [])],
+            preserve_undeclared_variables=bool(raw.get("preserveUndeclaredVariables", False)),
             block_files={str(k): [str(f) for f in v] for k, v in (raw.get("blockFiles") or {}).items()},
             next_steps=[str(s) for s in raw.get("nextSteps", [])],
         )
@@ -222,11 +224,15 @@ def build_plan(template: Path, target: Path, variables: dict[str, str], blocks: 
         destination_relative = render_path(relative, variables)
         plan.writes.append((path, target / destination_relative))
 
-        # 置換後に残っているトークンは、定義上どれも解決できなかったものである。
+        # パスの __VAR__ は常に scaffold 専用。本文は TypeScript の `${CONSTANT}` と
+        # 共存できるよう、明示 opt-in 時だけ未宣言トークンを実行時コードとして保持する。
         missing = set(PATH_TOKEN_RE.findall(str(destination_relative)))
         if path.suffix.lower() not in BINARY_SUFFIXES:
             rendered = substitute(strip_blocks(path.read_text(encoding="utf-8"), blocks), variables)
-            missing |= set(TOKEN_RE.findall(rendered))
+            content_missing = set(TOKEN_RE.findall(rendered))
+            if manifest.preserve_undeclared_variables:
+                content_missing &= manifest.declared()
+            missing |= content_missing
         if missing:
             plan.unresolved[str(relative)] = sorted(missing)
     return plan

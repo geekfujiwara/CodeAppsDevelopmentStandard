@@ -49,6 +49,7 @@
   "variables": ["AGENT_DISPLAY_NAME", "AGENT_ROLE"],
   "optionalVariables": ["IMAGE_MODEL_DEPLOYMENT"],
   "derivedVariables": ["PKG"],
+  "preserveUndeclaredVariables": false,
   "blockFiles": { "B17": ["image_tools.py"] },
   "nextSteps": ["python scripts/provision_image_model.py --execute"]
 }
@@ -59,6 +60,7 @@
 | `variables` | `.env` から取る必須の値。`references/.env.example` にも定義する |
 | `optionalVariables` | 無くても生成できる値（機能ブロックの有効化など） |
 | `derivedVariables` | 呼び出し側が組み立てて `--var` で渡す値（パッケージ名など）。`.env` には現れない |
+| `preserveUndeclaredVariables` | `true` のとき未宣言の `${UPPER_SNAKE}` を実行時コードとして保持する。TypeScript 等で大文字定数のテンプレートリテラルを含む場合だけ使う |
 | `blockFiles` | ファイル名 → 機能ブロック。選ばれていないブロックのファイルは生成しない |
 | `nextSteps` | 生成直後に人が実行する手順。**生成物の外にある依存**をここに書く（→ 6 節） |
 
@@ -77,8 +79,12 @@ from .image_tools import build_image_tool
 
 ## 5. 未解決の変数は必ず失敗させる
 
-置換されずに残った `${UPPER_SNAKE}` があると、スキャフォールダーは**1 ファイルも書かずに終了する**
+置換されずに残った宣言済み `${UPPER_SNAKE}` があると、スキャフォールダーは**1 ファイルも書かずに終了する**
 （終了コード 3、残った変数名を全部並べる）。
+
+既定では未宣言トークンも typo として停止する。TypeScript の `` `${MAX_ITEMS}` `` のような実行時式と
+共存するテンプレートだけ `preserveUndeclaredVariables: true` を明示する。パスの `__VAR__` はこの設定に関係なく
+必ず宣言が必要で、未解決なら停止する。
 
 未解決のまま書き出すと、生成物は「そのまま動かないコード」になり、原因がテンプレート由来だと
 分からなくなる。壊れた成果物を渡すより、生成前に止める方が安い。

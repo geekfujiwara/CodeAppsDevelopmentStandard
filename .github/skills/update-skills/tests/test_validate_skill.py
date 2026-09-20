@@ -38,6 +38,21 @@ class ValidateSkillTests(unittest.TestCase):
         (dependency / "README.md").write_text(REAL_GUID, encoding="utf-8")
         self.assertEqual(validate_skill(self.skill).errors, [])
 
+    def test_ignores_code_apps_generated_environment_files(self):
+        generated = self.skill / "samples" / "demo" / "src" / "generated"
+        generated.mkdir(parents=True)
+        (generated / "model.ts").write_text(REAL_GUID, encoding="utf-8")
+        (self.skill / "samples" / "demo" / "power.config.json").write_text(REAL_GUID, encoding="utf-8")
+
+        self.assertEqual(validate_skill(self.skill).errors, [])
+
+    def test_allows_explicit_example_dataverse_url(self):
+        (self.skill / "scripts" / "sample.py").write_text(
+            "URL = 'https://example.crm.dynamics.com/'\n", encoding="utf-8"
+        )
+
+        self.assertEqual(validate_skill(self.skill).errors, [])
+
     def test_still_scans_source_files(self):
         (self.skill / "scripts" / "sample.py").write_text(REAL_GUID, encoding="utf-8")
         report = validate_skill(self.skill)
@@ -75,6 +90,21 @@ class TemplateManifestTests(unittest.TestCase):
         (self.template / "__PKG__" / "app.py").write_text("X = '${AGENT_NAME}'\n", encoding="utf-8")
 
         self.assertEqual(validate_skill(self.skill).errors, [])
+
+    def test_preserved_undeclared_content_variable_passes(self):
+        self.write_manifest(preserveUndeclaredVariables=True)
+        (self.template / "app.ts").write_text("const value = `${MAX_ITEMS} items`;\n", encoding="utf-8")
+
+        self.assertEqual(validate_skill(self.skill).errors, [])
+
+    def test_preserved_undeclared_path_variable_still_fails(self):
+        self.write_manifest(preserveUndeclaredVariables=True)
+        (self.template / "__PKG__").mkdir()
+        (self.template / "__PKG__" / "app.ts").write_text("export {}\n", encoding="utf-8")
+
+        errors = validate_skill(self.skill).errors
+        self.assertEqual(len(errors), 1)
+        self.assertIn("PKG", errors[0])
 
     def test_template_without_manifest_is_not_scanned(self):
         (self.template / "app.ts").write_text("const s = `${count}`;\n", encoding="utf-8")

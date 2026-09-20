@@ -1,0 +1,13 @@
+{
+  "description": "図面レビュー、注釈、改訂、非同期会話の Code Apps アドオン",
+  "preserveUndeclaredVariables": true,
+  "nextSteps": [
+    "README.md の前提を確認する",
+    "npm install --no-audit --no-fund",
+    "python -m pip install -r agent-skill/requirements.txt",
+    "npm run typecheck",
+    "npm test",
+    "npm run test:skill",
+    "検証後、必要な src/ と agent-skill/ をホストプロジェクトへ統合する"
+  ]
+}

@@ -50,6 +50,15 @@ class ScaffoldFromTemplateTests(unittest.TestCase):
         self.assertEqual(code, 3)
         self.assertFalse(self.target.exists())
 
+    def test_preserves_undeclared_uppercase_runtime_template_literal_when_enabled(self):
+        self.write_manifest(preserveUndeclaredVariables=True)
+        (self.template / "app.ts").write_text("const value = `${MAX_ITEMS} items`;\n", encoding="utf-8")
+
+        code = self.run_scaffold()
+
+        self.assertEqual(code, 0)
+        self.assertEqual((self.target / "app.ts").read_text(encoding="utf-8"), "const value = `${MAX_ITEMS} items`;\n")
+
     def test_ignores_typescript_template_literals(self):
         (self.template / "app.ts").write_text("const s = `${count} items`;\n", encoding="utf-8")
 
