@@ -256,16 +256,23 @@ RUN python -m copilot download-runtime
 **上流のファイルで置き換えるのは `main.py` だけ**である。
 `create_and_run_host()` に渡すクラスを差し替える 1 行の違いなので、
 上流が更新されたら `fetch_autopilot_quickstart.py --force` を流し直せば追随できる。
-`agent.py` や `host_agent_server.py` にアンカーを打って書き換える方式は採らない——
-上流が 1 行変わるたびに壊れるからである。
+`agent.py` に アンカーを打って書き換える方式は採らない——上流が 1 行変わるたびに壊れるからである。
+
+**例外は `host_agent_server.py` の 1 箇所だけ**。上流は毎ターンの冒頭に英語固定の
+`"Working on your request..."` を送る。日本語で話しかけた相手に英語で返り、しかも
+何をしようとしているのかが分からないので、ここだけは差し替える。
+書き換えは**オプションの `acknowledge()` フックを呼ぶ形**にとどめ、フックを持たない
+エージェントでもそのまま動くようにしてある（→ [progress-updates.md](progress-updates.md) §7）。
+アンカーが見つからなければ scaffold は警告を出すだけで止まらない。
 
 | オーバーレイ | 役割 |
 |---|---|
-| `teammate_agent.py` | `AgentInterface` の実装。MCP の組み立て・委任トークン・頭脳の呼び出し |
-| `copilot_brain.py` | Copilot SDK セッション（スキル・カスタム ツール・トークン失効での作り直し） |
+| `teammate_agent.py` | `AgentInterface` の実装。MCP の組み立て・委任トークン・頭脳の呼び出し・`acknowledge()` |
+| `copilot_brain.py` | Copilot SDK セッション（スキル・カスタム ツール・進捗通知・トークン失効での作り直し） |
 | `skill_sync.py` | 同梱スキルを評価ハブの `<prefix>_skill` へ同期（→ [cowork-skills.md](cowork-skills.md)） |
 | `test_worker.py` | 評価ハブのキューから回帰テストを実行（→ [regression-tests.md](regression-tests.md)） |
-| `image_tools.py` / `onedrive.py` | 画像生成（B17）と OneDrive 保存（→ [image-generation.md](image-generation.md)） |
+| `image_tools.py` | 画像生成（B17）。生成した画像を会話へ直接投稿する（→ [image-generation.md](image-generation.md)） |
+| `onedrive.py` | 成果物を自分の OneDrive へ保存する（B14 の配布経路） |
 
 `hosting: "foundry-autopilot"` は **`runtime` を `copilot-sdk` に固定する**。
 `agents-sdk` を明示すると scaffold はエラーで止まる。意図しない頭脳で動くエージェントが

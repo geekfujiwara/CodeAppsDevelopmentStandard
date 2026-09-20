@@ -344,28 +344,20 @@ def wait_until_active(base: str, agent_name: str, version: str, api_version: str
     raise SystemExit("agent version が時間内に active になりませんでした")
 
 
-def grant_foundry_user(principal_id: str) -> None:
-    """Assign the built-in 'Foundry User' role to the instance identity on the project scope."""
-    subscription = require("AZURE_SUBSCRIPTION_ID")
-    resource_group = require("AZURE_RESOURCE_GROUP")
-    account = require("AZURE_AI_ACCOUNT")
-    project = require("AZURE_AI_PROJECT")
-    scope = (
-        f"/subscriptions/{subscription}/resourceGroups/{resource_group}"
-        f"/providers/Microsoft.CognitiveServices/accounts/{account}/projects/{project}"
-    )
+def grant_role(principal_id: str, role_name: str, scope: str) -> None:
+    """Assign a built-in role to the instance identity at *scope*."""
     token = auth_helper.get_token(ARM_SCOPE)
     headers = {"Authorization": f"Bearer {token}"}
     roles = requests.get(
         f"{ARM_BASE}{scope}/providers/Microsoft.Authorization/roleDefinitions"
-        "?api-version=2022-04-01&$filter=roleName eq 'Foundry User'",
+        f"?api-version=2022-04-01&$filter=roleName eq '{role_name}'",
         headers=headers,
         timeout=60,
     )
     roles.raise_for_status()
     definitions = roles.json().get("value", [])
     if not definitions:
-        raise SystemExit("'Foundry User' ロール定義が見つかりませんでした")
+        raise SystemExit(f"'{role_name}' ロール定義が見つかりませんでした")
 
     import uuid
 
@@ -379,11 +371,28 @@ def grant_foundry_user(principal_id: str) -> None:
         timeout=60,
     )
     if resp.status_code in (200, 201):
-        print("  OK Foundry User ロールを付与しました")
+        print(f"  OK {role_name} ロールを付与しました")
     elif resp.status_code == 409 or "RoleAssignmentExists" in resp.text:
-        print("  OK Foundry User ロールは付与済みです")
+        print(f"  OK {role_name} ロールは付与済みです")
     else:
         raise SystemExit(f"ロール付与に失敗しました: {resp.status_code} {resp.text}")
+
+
+def account_scope() -> str:
+    return (
+        f"/subscriptions/{require('AZURE_SUBSCRIPTION_ID')}"
+        f"/resourceGroups/{require('AZURE_RESOURCE_GROUP')}"
+        f"/providers/Microsoft.CognitiveServices/accounts/{require('AZURE_AI_ACCOUNT')}"
+    )
+
+
+def grant_instance_roles(principal_id: str) -> None:
+    grant_role(principal_id, "Foundry User", f"{account_scope()}/projects/{require('AZURE_AI_PROJECT')}")
+    if os.environ.get("IMAGE_MODEL_DEPLOYMENT", "").strip():
+        # The grant above lands on the project, but the image API is served by the account
+        # itself - a parent of that scope. Verified 2026-09-20: the narrower "Cognitive
+        # Services OpenAI User" is not enough on a kind=AIServices account.
+        grant_role(principal_id, "Foundry User", account_scope())
 
 
 def main() -> int:
@@ -444,7 +453,7 @@ def main() -> int:
         enable_instance_identity(identity["client_id"])
     else:
         print("  ! instance_identity.client_id が返っていません。AADSTS7000112 が出たら troubleshooting.md #75")
-    grant_foundry_user(identity["principal_id"])
+    grant_instance_roles(identity["principal_id"])
 
     print("\n== BotServiceRbac を設定します ==")
     foundry_request(

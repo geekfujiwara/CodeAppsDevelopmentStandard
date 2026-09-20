@@ -1644,107 +1644,140 @@ eval_run = {
   （`builtin.violence` など）は Content Safety 側で動くので**渡してはいけない**。
 
 
-## 74. Autopilot の発行が `access boundaries ending with '.developers'` で拒否される（検証済 2026-09-19）
+## 77. 再デプロイのたびに `access_boundaries` が消えて Teams が無応答になる（検証済 2026-09-20）
 
-**症状**: `/microsoft365/publish` は成功するのに、Teams から話しかけると無応答になり、
-コンテナー ログに次が出る。
+**症状**: 一度は動いていた Autopilot が、コンテナーを更新して新しい agent version を
+作っただけで無応答になる。GET し直すと `agent_endpoint.protocol_configuration.activity`
+から `access_boundaries` が消えている（#74 の状態に逆戻りしている）。
 
-```
-Autopilot activity authorization currently supports only access boundaries ending with '.developers'
-```
-
-**原因**: publish 要求の本文に `accessBoundaries` が**無い**。Microsoft 公式クイックスタートの
-`publish-digital-worker.ps1` がこの項目を送っていないため、そのまま使うと必ず踏む
-（上流 issue: microsoft-foundry/foundry-samples#988）。
-
-**対処**: publish 本文に次の 4 値を入れる。
-
-```json
-"accessBoundaries": [
-  "read.1on1.developers", "write.1on1.developers",
-  "read.group.developers", "write.group.developers"
-]
-```
-
-[publish_foundry_autopilot.py](../scripts/publish_foundry_autopilot.py) は既定でこれを送る。
-
-**すでに発行済みの場合は 4 手続き必要**。値を足すだけでは直らない。
-
-1. `appVersion` をインクリメントする（`--bump-version`。同じ版の再送は
-   `UserError: version already exists` で落ちる）
-2. 再 publish する
-3. 更新されたブループリントを**再承認**する
-4. **インスタンスを作り直す**（既存インスタンスは古い境界のまま動き続ける）
-
-**判定の仕組み**: 「送信者が developer か」は Foundry プロジェクトに対する送信者の
-Azure ロール割り当て（`Microsoft.CognitiveServices/accounts/AIServices/agents/write`）で決まる。
-クライアント側のコードや manifest では変えられないので、コードを探しても見つからない。
-
-## 75. 初回ターンが `AADSTS7000112: ... is disabled` で落ちる（検証済 2026-09-19）
-
-**症状**: インスタンス作成は成功するのに、最初のターンでトークン取得が失敗する。
+**原因**: Microsoft 公式クイックスタートの `agent-creation-script.ps1` は、version 作成の
+あとに `authorization_schemes` を付けるため `PATCH /agents/{name}` を投げる。この PATCH は
+`agent_endpoint` を**丸ごと差し替える**ので、本文に含めなかった `access_boundaries` が
+消える。しかも `access_boundaries` は PATCH では戻せない。
 
 ```
-AADSTS7000112: Application 'xxxxxxxx-...'(AgentIdentity) is disabled.
+400 bad_request: 'access_boundaries' is not patchable via this endpoint.
 ```
 
-**原因**: エージェント インスタンスごとに作られる `AgentIdentity` のサービス プリンシパル
-（`servicePrincipalType: ServiceIdentity` / `@odata.type: #microsoft.graph.agentIdentity`）が
-**`accountEnabled=false` で作成される**。
+**対処**: 2 つセットで行う。
 
-**対処**: 有効化する。
+1. **PATCH を条件付きにする**。`authorization_schemes` は version ではなく **agent** に
+   付く設定なので、一度入れば再デプロイで入れ直す必要はない。既に入っていたら PATCH を
+   丸ごと飛ばす。
 
-```powershell
-# 確認
-az rest --method GET --url "https://graph.microsoft.com/beta/servicePrincipals(appId='<instance-client-id>')?`$select=id,accountEnabled,displayName"
+   ```powershell
+   $currentAgent = Invoke-RestMethod -Uri $patchUrl -Method Get -Headers $headers
+   $hasRbac = @($currentAgent.agent_endpoint.authorization_schemes).Where({ $_.type -eq "BotServiceRbac" }).Count -gt 0
+   if (-not $hasRbac) { <# ここではじめて PATCH #> }
+   ```
 
-# 有効化（204 が返る）
-az rest --method PATCH --url "https://graph.microsoft.com/beta/servicePrincipals/<sp-object-id>" --body '{\"accountEnabled\": true}'
-```
+2. **消してしまったら再発行で戻す**。`accessBoundaries` を入れて
+   `POST /agents/{name}/microsoft365/publish` を呼び直す。`appVersion` は前回と同じ値だと
+   `version already exists` になるので patch を +1 する。
 
-[publish_foundry_autopilot.py](../scripts/publish_foundry_autopilot.py) が発行の一部として
-自動で行うので、通常はこの手順を手で踏む必要はない。
+`run_regression_tests.py --check` の `access_boundaries が 4 つ揃っている` が
+この退行をそのまま検出するので、再デプロイ後は必ず流す。
 
-## 76. 継続評価ルールが `is of kind 'hosted', which is not supported` で作れない（検証済 2026-09-19）
 
-**症状**: `evaluation_rules.create_or_update()` が 400 で落ちる。
+## 78. 画像生成が `generate_image` ごと出てこない / 401 / 429 になる（検証済 2026-09-20）
 
-```
-The agent 'xxx' is of kind 'hosted', which is not supported for evaluation rules.
-Hosted and external agents are not supported.
-```
+**症状**: 画像を頼んでも「この環境では画像生成機能の利用権限がありません」と返り、
+代わりにプロンプト案だけを提示してくる。あるいはツール呼び出しの形跡すら無い。
 
-**原因**: 継続評価ルール（`ContinuousEvaluationRuleAction`）は **prompt agent 専用**で、
-Foundry Autopilot のような hosted agent には使えない。
+**原因と対処**: 上から順に潰す。
 
-**対処**: トレースを対象にした**スケジュール評価**に切り替える。hosted agent でも
-App Insights にトレースは出ているので、そちらを日次で評価すれば
-Foundry の Evaluations / Monitor にスコアが出る。
+1. **権限の付与先が画像 API に届いていない**（一番多い）。
+   ツールは呼ばれているのにここで落ちるので、ログを先に見ると一発で分かる。
 
-```python
-eval_run = {
-    "eval_id": eval_id,
-    "data_source": {
-        "type": "azure_ai_trace_data_source_preview",
-        "trace_source": {
-            "type": "agent_filter",
-            "agent_name": agent_name,
-            "start_time": int((now - timedelta(days=1)).timestamp()),  # epoch 秒
-            "end_time": int(now.timestamp()),
-            "max_traces": 50,
-        },
-    },
-}
-```
+   ```
+   Image generation failed: 401 {"error":{"code":"PermissionDenied","message":
+   "The principal `<instance-principal-id>` lacks the required data action
+   `Microsoft.CognitiveServices/accounts/OpenAI/images/generations/action` ..."}}
+   ```
 
-[setup_foundry_evaluation.py](../scripts/setup_foundry_evaluation.py) は `--mode auto` で
-継続評価を試し、この拒否を検出したらスケジュール評価へ自動でフォールバックする。
+   **ロールの中身ではなくスコープの問題である。** `Foundry User` の dataActions は
+   `Microsoft.CognitiveServices/*` なので画像生成も含んでいる。ところがこのロールは
+   **プロジェクト スコープ**（`.../accounts/<account>/projects/<project>`）に付くのに対し、
+   画像 API は**アカウント**（その親）が提供している。子への割り当ては親に効かない。
+   頭脳（チャット）はプロジェクト配下のエンドポイントを使うので、そちらだけ通る。
 
-**あわせて踏みやすい 2 点**:
+   **アカウント スコープに `Foundry User` を付ける。** より狭い
+   `Cognitive Services OpenAI User` では足りない（検証済）。それを付けるとエラーが
+   データ アクションの名指しから `Principal does not have access to API/Operation.` へ
+   変わるだけで 401 は続く。アカウントが `kind=AIServices` のとき、`/openai/v1/` は
+   OpenAI 名前空間の dataAction だけでは通らない。
 
-- `start_time` / `end_time` は **epoch 秒の整数**。ISO-8601 文字列を渡すと
-  `Error converting value ... to type 'Int64'` になる。
-- モデル判定の評価器（`builtin.task_adherence` など）は
-  `initialization_parameters.deployment_name` が**必須**。安全性の評価器
-  （`builtin.violence` など）は Content Safety 側で動くので**渡してはいけない**。
+   ```powershell
+   $acct = "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>"
+   az role assignment create --assignee-object-id (az ad sp show --id <instance-client-id> --query id -o tsv) `
+       --assignee-principal-type ServicePrincipal `
+       --role "Foundry User" --scope $acct
+   ```
 
+   [publish_foundry_autopilot.py](../scripts/publish_foundry_autopilot.py) は
+   `IMAGE_MODEL_DEPLOYMENT` が設定されていれば発行時にこれを自動で付ける。
+   データ プレーンの RBAC は反映に数分かかる。
+
+2. **画像モデルが無い**。Foundry アカウントに画像モデルのデプロイが必要。
+
+   ```powershell
+   az cognitiveservices account list-models -g <rg> -n <account> `
+       --query "[?contains(name,'image')].{name:name, version:version}" -o table
+   az cognitiveservices account deployment create -g <rg> -n <account> `
+       --deployment-name gpt-image-2 --model-name gpt-image-2 --model-version 2026-04-21 `
+       --model-format OpenAI --sku-name GlobalStandard --sku-capacity 1
+   ```
+
+3. **`IMAGE_MODEL_DEPLOYMENT` が hosted agent の環境変数に入っていない**。未設定だと
+   `generate_image` ツールは**登録自体されない**（モデルは存在しない能力を宣言しない）。
+   `agent-creation-script.ps1` の `$runtimeEnvironmentVariables` に足す。`IMAGE_` は
+   予約接頭辞ではないのでそのまま使える（#73 と違う点）。
+
+4. **エンドポイントを間違えている**。画像生成は**アカウント直下**にあり、
+   `/api/projects/<project>` の下には無い。
+
+   ```
+   OK: https://<account>.services.ai.azure.com/openai/v1/images/generations
+   NG: https://<account>.services.ai.azure.com/api/projects/<project>/openai/v1/images/generations
+   ```
+
+5. **429 Too Many Requests**。`gpt-image-2` の既定クォータは eastus2 で 2 単位＝
+   capacity 1 ＝ **1 リクエスト/分**しかない。連続生成は必ず詰まる。
+
+   ```powershell
+   az cognitiveservices usage list -l <location> -o json |
+       ConvertFrom-Json | Where-Object { $_.name.value -match 'image' } |
+       Select-Object @{n='name';e={$_.name.value}}, currentValue, limit
+   ```
+
+   クォータを上げられない場合は、ツール側で 429 を「1 分後に再試行してほしい」という
+   文面に変換して返し、同一ターンでの再呼び出しを止める。
+
+6. **一度直したのに、その会話だけ断り続ける**。権限を直した後もモデルが
+   「権限がないため生成できません」と返し、ログを見ると**リクエストが 1 件も出ていない**
+   （`rows: 0`）。ツールを呼ばずに断っている。
+
+   原因は会話履歴である。前のターンで自分が「権限がないので作れません」と言っており、
+   セッションを再開するたびにモデルはそれを確定した事実として読む。修正の確認は
+   **新しい会話**で行う。
+
+   再発を防ぐため、ツールの失敗時の戻り文に原因を書かない。書くと、その説明が
+   そのまま会話に残って次のターンの前提になる。
+
+   ```python
+   # NG: 失敗の理由が会話履歴に残り、以後ずっと「画像は作れない」の根拠にされる
+   return f"Image generation failed ({response.status}): {detail}"
+
+   # OK: 一時的な事象として扱わせ、能力の否定をさせない（原因は logger 側にだけ残す）
+   return (
+       f"The image service returned a temporary error ({response.status}). "
+       "Tell the user the picture could not be drawn just now and offer to try again. "
+       "Never say that image generation is unavailable, unsupported or blocked by "
+       "permissions - it is a working feature."
+   )
+   ```
+
+**Teams にインラインで出すときのサイズ**: Teams が描画できる base64 インライン画像は
+おおむね 1 MB まで。`output_format: "jpeg"` と `output_compression: 60` を付けると
+1024x1024 / `quality: "low"` で約 220 KB に収まる（PNG 既定のままだと超えることがある）。
+実測は `low` で約 16 秒。

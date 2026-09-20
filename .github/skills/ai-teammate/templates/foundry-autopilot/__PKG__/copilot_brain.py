@@ -16,7 +16,7 @@ import hashlib
 import json
 import logging
 import uuid
-from typing import Any, Sequence
+from typing import Any, Awaitable, Callable, Sequence
 
 from copilot import CopilotClient, PermissionHandler, ProviderConfig, SessionEventType, ToolSet
 
@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 # so long Teams / M365 Copilot conversation ids are hashed instead of passed through.
 _SESSION_ID_PREFIX = "conv-"
 _TURN_TIMEOUT_SECONDS = 600
+
+ProgressSink = Callable[[str], Awaitable[None]]
 
 
 class CopilotBrain:
@@ -74,6 +76,8 @@ class CopilotBrain:
         message: str,
         bearer_token: str,
         mcp_servers: dict[str, dict[str, Any]],
+        tools: Sequence[Any] = (),
+        on_progress: ProgressSink | None = None,
     ) -> str:
         async with self._lock:
             session = await self._session_for(
@@ -81,11 +85,13 @@ class CopilotBrain:
                 instructions=instructions,
                 bearer_token=bearer_token,
                 mcp_servers=mcp_servers,
+                tools=tools,
             )
             self.last_tool_calls = []
             try:
                 return await asyncio.wait_for(
-                    self._run_turn(session, message), timeout=self._turn_timeout_seconds
+                    self._run_turn(session, message, on_progress),
+                    timeout=self._turn_timeout_seconds,
                 )
             except asyncio.TimeoutError:
                 logger.warning("Copilot SDK turn timed out; dropping the session")
@@ -102,14 +108,18 @@ class CopilotBrain:
         instructions: str,
         bearer_token: str,
         mcp_servers: dict[str, dict[str, Any]],
+        tools: Sequence[Any] = (),
     ):
         if self._client is None:
             self._client = CopilotClient()
             await self._client.start()
             logger.info("Copilot SDK runtime started")
 
+        # Tools built per turn (they capture the conversation) come first; tools handed to the
+        # constructor are the ones that need no turn context.
+        custom_tools = [*tools, *self._custom_tools]
         available = ToolSet().add_builtin("*").add_mcp("*")
-        for tool in self._custom_tools:
+        for tool in custom_tools:
             available = available.add_custom(getattr(tool, "name", ""))
 
         options: dict[str, Any] = dict(
@@ -126,13 +136,18 @@ class CopilotBrain:
             on_permission_request=PermissionHandler.approve_all,
             streaming=False,
         )
-        if self._custom_tools:
-            options["tools"] = self._custom_tools
+        if custom_tools:
+            options["tools"] = custom_tools
         if self._skill_directories:
             options["enable_skills"] = True
             options["skill_directories"] = self._skill_directories
 
-        fingerprint = _fingerprint(bearer_token, instructions, mcp_servers)
+        fingerprint = _fingerprint(
+            bearer_token,
+            instructions,
+            mcp_servers,
+            [getattr(tool, "name", "") for tool in custom_tools],
+        )
         cached = self._sessions.get(conversation_id)
         if cached is not None and cached[1] == fingerprint:
             return cached[0]
@@ -160,9 +175,10 @@ class CopilotBrain:
         except Exception:  # noqa: BLE001 - best effort
             pass
 
-    async def _run_turn(self, session, message: str) -> str:
+    async def _run_turn(self, session, message: str, on_progress: ProgressSink | None = None) -> str:
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue = asyncio.Queue()
+        reporter = _ProgressReporter(on_progress)
 
         def _on_event(event):
             # The SDK raises events from its reader thread.
@@ -176,10 +192,14 @@ class CopilotBrain:
                 event = await queue.get()
                 if event.type == SessionEventType.ASSISTANT_MESSAGE:
                     answer = getattr(event.data, "content", "") or answer
+                elif event.type == SessionEventType.ASSISTANT_INTENT:
+                    # The model's own words about what it is doing - better than any template.
+                    await reporter.send(getattr(event.data, "intent", "") or "")
                 elif event.type == SessionEventType.TOOL_EXECUTION_START:
                     name = getattr(event.data, "tool_name", "") or "(unknown)"
                     self.last_tool_calls.append(name)
                     logger.info("Copilot SDK tool: %s", name)
+                    await reporter.send(_describe_tool_call(event.data))
                 elif event.type in (SessionEventType.SESSION_IDLE, SessionEventType.ASSISTANT_IDLE):
                     break
                 elif event.type == SessionEventType.SESSION_ERROR:
@@ -192,6 +212,72 @@ class CopilotBrain:
             except Exception:  # noqa: BLE001 - best effort
                 pass
         return answer.strip()
+
+
+class _ProgressReporter:
+    """Forwards live session events to the conversation without ever breaking the turn."""
+
+    MAX_UPDATES = 12
+
+    def __init__(self, sink: ProgressSink | None) -> None:
+        self._sink = sink
+        self._sent: set[str] = set()
+
+    async def send(self, text: str) -> None:
+        text = (text or "").strip()
+        if not self._sink or not text or text in self._sent:
+            return
+        if len(self._sent) >= self.MAX_UPDATES:
+            return
+        self._sent.add(text)
+        try:
+            await self._sink(text)
+        except Exception:  # noqa: BLE001 - a failed progress note must not fail the turn
+            logger.debug("Progress update could not be delivered", exc_info=True)
+
+
+# One concrete value out of the arguments turns "searching" into "searching for what".
+# "prompt" is deliberately absent: it is the model's own long English rewrite, which would
+# show up in the wrong language and drown the line.
+_DETAIL_KEYS = (
+    "query",
+    "command",
+    "search_query",
+    "subject",
+    "question",
+    "path",
+    "file_path",
+    "url",
+    "name",
+)
+
+
+def _describe_tool_call(data: Any) -> str:
+    tool = getattr(data, "mcp_tool_name", "") or getattr(data, "tool_name", "") or "tool"
+    server = getattr(data, "mcp_server_name", "") or ""
+    label = f"{_friendly_server(server)}: {tool}" if server else tool
+
+    arguments = getattr(data, "arguments", None)
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except Exception:  # noqa: BLE001 - not every runtime sends JSON
+            arguments = None
+    detail = ""
+    if isinstance(arguments, dict):
+        for key in _DETAIL_KEYS:
+            value = arguments.get(key)
+            if isinstance(value, str) and value.strip():
+                detail = value.strip()
+                break
+    if len(detail) > 140:
+        detail = detail[:137] + "..."
+    return f"🔧 {label} — {detail}" if detail else f"🔧 {label}"
+
+
+def _friendly_server(server: str) -> str:
+    """``mcp_MailToolsServer`` -> ``MailTools``. Internal names are not user-facing."""
+    return server.removeprefix("mcp_").removesuffix("Server") or server
 
 
 def mcp_servers_from_responses_tools(tools: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -218,6 +304,13 @@ def _session_id(conversation_id: str) -> str:
     return f"{_SESSION_ID_PREFIX}{hashlib.sha256(conversation_id.encode('utf-8')).hexdigest()[:32]}"
 
 
-def _fingerprint(bearer_token: str, instructions: str, mcp_servers: dict[str, dict[str, Any]]) -> str:
-    payload = json.dumps([bearer_token, instructions, mcp_servers], sort_keys=True, default=str)
+def _fingerprint(
+    bearer_token: str,
+    instructions: str,
+    mcp_servers: dict[str, dict[str, Any]],
+    tool_names: list[str],
+) -> str:
+    payload = json.dumps(
+        [bearer_token, instructions, mcp_servers, sorted(tool_names)], sort_keys=True, default=str
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()

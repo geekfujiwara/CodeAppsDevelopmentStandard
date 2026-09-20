@@ -98,3 +98,36 @@ C# ではなく Python のオーバーレイ（`image_tools.py` / `onedrive.py`�
 # 画像モデルの可用性は自己ホストと同じスクリプトで確認する
 python scripts/provision_image_model.py --check
 ```
+
+### 実測値（2026-09-20・`gpt-image-2` / eastus2）
+
+| 論点 | 値 |
+|---|---|
+| エンドポイント | `https://<account>.services.ai.azure.com/openai/v1/images/generations`（**アカウント直下**。`/api/projects/<project>` の下には無い） |
+| 必要なロール | エージェント インスタンスの ID に **`Foundry User` をアカウント スコープ**で別途付与する。既定の `Foundry User` は**プロジェクト スコープ**に付くので親であるアカウントには届かない。`Cognitive Services OpenAI User` をアカウント スコープに付けるだけでは**足りない**（`kind=AIServices` では 401 `Principal does not have access to API/Operation.` のまま） |
+| 既定クォータ | 2 単位＝capacity 1 ＝ **1 リクエスト/分**。連続生成は 429 になる |
+| 生成時間 | `quality: "low"` / 1024x1024 で約 16 秒 |
+| データ量 | `output_format: "jpeg"` + `output_compression: 60` で約 220 KB |
+
+Teams にインラインで返す場合は base64 の data URI を `Attachment.content_url` に入れる。
+Teams が描画できるのはおおむね 1 MB までなので、PNG 既定ではなく JPEG に圧縮して送る。
+OneDrive にも残したい要件がある場合だけ Graph 保存を足す。リンクだけを返す設計は、
+チャットの流れで「今すぐ見たい」という一番多い使い方に一手増やしてしまう。
+
+```python
+await context.send_activity(
+    Activity(
+        type="message",
+        attachments=[
+            Attachment(
+                content_type="image/jpeg",
+                content_url=f"data:image/jpeg;base64,{base64.b64encode(data).decode()}",
+                name=prompt[:60],
+            )
+        ],
+    )
+)
+```
+
+429 はツールの中で「1 分後に再試行してほしい」という**文面**に変換して返す。
+HTTP エラーをそのまま返すと、モデルは同じターンで何度も呼び直してさらに詰まらせる。
