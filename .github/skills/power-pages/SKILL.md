@@ -331,8 +331,32 @@ Vite のデフォルト出力（`index-{hash}.js`）はカバーされるが、�
 | [samples/portal/](samples/portal/) | **参照用サンプル** | 動作済みサイトの実体（`.powerpages-site` の web-templates / page-templates を含む） | 実装の答え合わせ・生成物の構造確認。**コピー元にはしない** |
 
 > `templates/` = コピーして使うもの、`samples/` = 読んで参考にするもの。
-> プロジェクト雛形はフォルダごとコピーし、部分テンプレートは該当ファイルだけを既存の
-> `src/hooks/` や `src/components/` に配置する。
+> プロジェクト雛形は共通スキャフォルダーで生成し、部分テンプレートは空のステージング先へ
+> 生成してから該当ファイルだけを既存の `src/hooks/` や `src/components/` に配置する。
+
+### テンプレートから開始する
+
+生成計画を確認し、問題がなければ `--dry-run` を外して実行する。
+
+```powershell
+# React + TypeScript + Vite の既定プロジェクト
+python .github/skills/update-skills/scripts/scaffold_from_template.py `
+  --template .github/skills/power-pages/templates/corporate-lp `
+  --target portal --var PAGES_SITE_NAME="My Site" --dry-run
+
+# 配線確認用の最小 Code Site
+python .github/skills/update-skills/scripts/scaffold_from_template.py `
+  --template .github/skills/power-pages/templates/minimal-code-site `
+  --target portal-smoke --var PAGES_SITE_NAME="My Smoke Site" --dry-run
+
+# Account アクセス用アドオン（空のステージング先へ生成する）
+python .github/skills/update-skills/scripts/scaffold_from_template.py `
+  --template .github/skills/power-pages/templates/access-scope `
+  --target .scaffold/access-scope --dry-run
+```
+
+> `access-scope` を既存プロジェクト直下へ `--force` で生成しない。生成後に必要な2ファイルを
+> ホストプロジェクトへ統合する。
 
 ---
 

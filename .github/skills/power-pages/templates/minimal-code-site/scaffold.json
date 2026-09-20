@@ -1,0 +1,7 @@
+{
+  "description": "Power Pages Code Site の配線確認用最小 HTML/CSS/JavaScript 雛形",
+  "variables": ["PAGES_SITE_NAME"],
+  "nextSteps": [
+    "Power Pages スキルの初回デプロイ手順に従って upload、activate、relink、restart を実行する"
+  ]
+}
