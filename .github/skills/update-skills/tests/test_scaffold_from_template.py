@@ -98,6 +98,33 @@ class ScaffoldFromTemplateTests(unittest.TestCase):
         self.assertEqual(self.run_scaffold("--dry-run"), 0)
         self.assertFalse(self.target.exists())
 
+    def test_extends_layers_base_and_overrides_same_path(self):
+        base = self.root / "base"
+        base.mkdir()
+        (base / "scaffold.json").write_text(json.dumps({"nextSteps": ["base-step"]}), encoding="utf-8")
+        (base / "shared.txt").write_text("base\n", encoding="utf-8")
+        (base / "only-base.txt").write_text("base\n", encoding="utf-8")
+        self.write_manifest(extends="../base", variables=["AGENT_NAME"])
+        (self.template / "shared.txt").write_text("${AGENT_NAME}\n", encoding="utf-8")
+
+        self.assertEqual(self.run_scaffold("--var", "AGENT_NAME=child"), 0)
+        self.assertEqual((self.target / "shared.txt").read_text(encoding="utf-8"), "child\n")
+        self.assertEqual((self.target / "only-base.txt").read_text(encoding="utf-8"), "base\n")
+
+    def test_extends_cycle_is_rejected(self):
+        self.write_manifest(extends=".")
+        (self.template / "app.py").write_text("run()\n", encoding="utf-8")
+
+        self.assertEqual(self.run_scaffold(), 2)
+
+    def test_target_with_only_repository_metadata_is_treated_as_empty(self):
+        (self.template / "app.py").write_text("run()\n", encoding="utf-8")
+        (self.target / ".github" / "skills").mkdir(parents=True)
+        (self.target / ".git").mkdir()
+
+        self.assertEqual(self.run_scaffold(), 0)
+        self.assertTrue((self.target / "app.py").exists())
+
     def test_template_variables_collects_path_and_content_tokens(self):
         (self.template / "__PKG__" / "app.py").write_text("X = '${AGENT_NAME}'\n", encoding="utf-8")
 

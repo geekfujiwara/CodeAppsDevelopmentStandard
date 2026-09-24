@@ -34,6 +34,11 @@ import os
 import sys
 from pathlib import Path
 
+try:
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+except Exception:
+    pass
+
 from dotenv import load_dotenv
 
 # --- auth_helper（standard スキル）を import パスに追加 ---
@@ -214,7 +219,7 @@ def main() -> None:
     print("=" * 72)
     print("次のコマンドでデータソースを接続参照バインドできます:")
     print(
-        f"  npx pa app add data-source --connector {args.api_id} "
+        f"  npx --no pa app add data-source --connector {args.api_id} "
         f"--connection-ref {logical_name} --solution-id {solution_id} "
         f"--org-url {os.getenv('DATAVERSE_URL', '{DATAVERSE_URL}')} --non-interactive"
     )

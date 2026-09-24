@@ -1,0 +1,10 @@
+{
+  "description": "営業支援 CRM 用 Cowork プラグイン（予定表・メール・チャットからの活動登録、目標達成プラン、マネージャーの障害レビュー）+ Dataverse MCP コネクタ",
+  "variables": ["PUBLISHER_PREFIX", "COWORK_DEVELOPER_NAME", "COWORK_DEVELOPER_URL", "COWORK_PRIVACY_URL", "COWORK_TERMS_URL"],
+  "derivedVariables": ["DATAVERSE_ORIGIN", "COWORK_PLUGIN_ID"],
+  "nextSteps": [
+    "python .github/skills/cowork/scripts/diagnose_cowork_connector.py  # アプリ登録・同意・allowedmcpclients を確認",
+    "pwsh .github/skills/cowork/scripts/build_agent_package.ps1 -PluginRoot <出力先> -OutputName sales-crm",
+    "python .github/skills/cowork/scripts/manage_agent_package_graph.py deploy --package <出力先>/dist/sales-crm.zip --requires-review  # dry-run で PLAN_HASH を確認"
+  ]
+}

@@ -14,6 +14,7 @@
 
     {
       "description": "Foundry Autopilot のオーバーレイ",
+      "extends": "../generic-base",
       "variables": ["AGENT_NAME", "AGENT_NAMESPACE"],
       "optionalVariables": ["IMAGE_MODEL_DEPLOYMENT"],
       "derivedVariables": ["PKG"],
@@ -23,6 +24,11 @@
 
 `variables` / `optionalVariables` は `.env` から取る値、`derivedVariables` は
 呼び出し側が組み立てて `--var` で渡す値（パッケージ名など）。
+`extends` はベース テンプレートへの相対パス。ベースを先に展開し、同じパスのファイルは
+継承側で上書きする（宣言・ブロックは合算、`nextSteps` は継承側を優先）。
+
+生成先に `.git` / `.github` / `.vscode` / `.env` しか無い場合は空とみなす
+（スキルを取得した作業ルートへ直接生成できるようにするため）。
 
 値は `--env`（既定 `.env`）と `--var K=V` から解決する。`--var` が優先。
 プロセスの環境変数は、マニフェストで宣言された名前だけ見る。
@@ -64,6 +70,7 @@ BLOCK_RE = re.compile(r"SCAFFOLD:BLOCK:([A-Z][A-Z0-9]*):(START|END)")
 BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".zip", ".pdf", ".woff", ".woff2"}
 SKIP_NAMES = {MANIFEST_NAME, ".DS_Store"}
 SKIP_DIRS = {"__pycache__", "node_modules", ".git"}
+TARGET_METADATA_NAMES = {".git", ".github", ".vscode", ".env", ".DS_Store"}
 
 
 class ScaffoldError(Exception):
@@ -73,6 +80,7 @@ class ScaffoldError(Exception):
 @dataclass
 class Manifest:
     description: str = ""
+    extends: str = ""
     variables: list[str] = field(default_factory=list)
     optional_variables: list[str] = field(default_factory=list)
     derived_variables: list[str] = field(default_factory=list)
@@ -91,6 +99,7 @@ class Manifest:
             raise ScaffoldError(f"{path} を解析できません: {error}") from error
         return cls(
             description=str(raw.get("description", "")),
+            extends=str(raw.get("extends", "")),
             variables=[str(v) for v in raw.get("variables", [])],
             optional_variables=[str(v) for v in raw.get("optionalVariables", [])],
             derived_variables=[str(v) for v in raw.get("derivedVariables", [])],
@@ -104,6 +113,52 @@ class Manifest:
 
     def file_to_block(self) -> dict[str, str]:
         return {name: block for block, names in self.block_files.items() for name in names}
+
+    @classmethod
+    def merge(cls, chain: list[Path]) -> "Manifest":
+        """ベース → 継承側の順で宣言を合算する。"""
+        merged = cls()
+        for template in chain:
+            current = cls.load(template)
+            merged.description = current.description or merged.description
+            merged.variables += [v for v in current.variables if v not in merged.variables]
+            merged.optional_variables += [v for v in current.optional_variables if v not in merged.optional_variables]
+            merged.derived_variables += [v for v in current.derived_variables if v not in merged.derived_variables]
+            merged.preserve_undeclared_variables |= current.preserve_undeclared_variables
+            for block, names in current.block_files.items():
+                merged.block_files.setdefault(block, []).extend(names)
+            if current.next_steps:
+                merged.next_steps = current.next_steps
+        return merged
+
+
+def resolve_chain(template: Path) -> list[Path]:
+    """`extends` をたどり、ベースから順に並べたテンプレート列を返す。"""
+    chain: list[Path] = []
+    current = template.resolve()
+    while True:
+        if current in chain:
+            raise ScaffoldError(f"extends が循環しています: {current}")
+        chain.append(current)
+        parent = Manifest.load(current).extends
+        if not parent:
+            return list(reversed(chain))
+        current = (current / parent).resolve()
+        if not current.is_dir():
+            raise ScaffoldError(f"extends のベース テンプレートが見つかりません: {current}")
+
+
+def layered_files(chain: list[Path]) -> list[tuple[Path, Path]]:
+    """(ソース, テンプレート内の相対パス)。後ろのテンプレートが同じパスを上書きする。"""
+    files: dict[Path, Path] = {}
+    for template in chain:
+        for path in iter_template_files(template):
+            files[path.relative_to(template)] = path
+    return [(source, relative) for relative, source in sorted(files.items())]
+
+
+def is_effectively_empty(target: Path) -> bool:
+    return not target.exists() or all(entry.name in TARGET_METADATA_NAMES for entry in target.iterdir())
 
 
 def load_env(path: Path) -> dict[str, str]:
@@ -191,8 +246,7 @@ def iter_template_files(template: Path) -> list[Path]:
 def template_variables(template: Path) -> set[str]:
     """テンプレートが実際に使っている変数名（本文とパス名の両方）。"""
     found: set[str] = set()
-    for path in iter_template_files(template):
-        relative = path.relative_to(template)
+    for path, relative in layered_files(resolve_chain(template)):
         found.update(PATH_TOKEN_RE.findall(str(relative)))
         if path.suffix.lower() in BINARY_SUFFIXES:
             continue
@@ -211,12 +265,12 @@ class Plan:
 
 
 def build_plan(template: Path, target: Path, variables: dict[str, str], blocks: set[str]) -> Plan:
-    manifest = Manifest.load(template)
+    chain = resolve_chain(template)
+    manifest = Manifest.merge(chain)
     gate = manifest.file_to_block()
     plan = Plan()
 
-    for path in iter_template_files(template):
-        relative = path.relative_to(template)
+    for path, relative in layered_files(chain):
         required = gate.get(path.name)
         if required and required not in blocks:
             plan.skipped_blocks.append(relative)
@@ -269,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        manifest = Manifest.load(template)
+        manifest = Manifest.merge(resolve_chain(template))
         used = template_variables(template)
         if args.list_variables:
             declared = manifest.declared()
@@ -291,7 +345,7 @@ def main(argv: list[str] | None = None) -> int:
             print("ERROR: --target を指定してください", file=sys.stderr)
             return 2
         target = Path(args.target)
-        if target.exists() and any(target.iterdir()) and not args.force:
+        if not is_effectively_empty(target) and not args.force:
             print(f"ERROR: 生成先が空ではありません: {target}（意図的に重ねるなら --force）", file=sys.stderr)
             return 2
 

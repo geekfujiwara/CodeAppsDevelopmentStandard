@@ -49,7 +49,7 @@ ipconfig /flushdns
 # それでも 6.6.0.14 なら一時的に IPv4 公開 DNS を併用 / VPN・プロキシを切り替え
 # 復旧後にリトライ（Entra 設定 PATCH は冪等なので再実行で問題なし）
 ```
-> Dataverse 側で同様の問題が出た際は hosts に IP を固定して回避した（例: `13.87.216.130 usdevgeek01.crm.dynamics.com`）。
+> Dataverse 側で同様の問題が出た際は hosts に IP を固定して回避した（例: `<解決済み IP> <org>.crm.dynamics.com`）。
 > graph 側も復旧待ち or 別ネットワークで実施するのが確実。
 
 ## 6. allowedmcpclient で Cowork 未許可 → 403 / ツールが出ない
@@ -360,5 +360,127 @@ public client として許可していない。scope や auth cache の不具合
 payload と `PLAN_HASH` を検証し、`READY_FOR_BROWSER_API` になった plan だけをログイン済み VS Code
 統合ブラウザの同一 session から OAuth CRUD API へ送信する。GET で読み戻して一致を確認する。
 401/403/404 または schema 不一致の場合だけ、Developer Portal のフォーム操作へ切り替える。
+
+## 26. Graph の組織カタログ作成が成功応答を返すのに実体が残らない
+
+**症状**: `manage_agent_package_graph.py deploy --apply` が `APPLIED` と Teams app id を返すが、
+`GET /appCatalogs/teamsApps/{id}` は 404、`list`（`distributionMethod eq 'organization'`）にも
+Agent Registry（管理センター）にも表示されない。1 時間待っても変わらない。
+
+**原因**: `agentSkills` / `agentConnectors`（Cowork プラグイン）を含むパッケージは、Graph の受付後に
+バックエンド側で取り込まれず破棄されることがある（エラーは返らない）。
+
+**対処**: 作成後 5 分以内に `list` と Registry 検索で読み戻す。どちらにも無ければ、**同じ ZIP**を
+SKILL.md Step 8 の管理センター private API（`stageCustomApp` → finalize → allow → deploy）で登録する。
+新規の Cowork プラグインは最初から private API で登録するのが正常系。
+ウィザード内の `input[type=file]` へ `setInputFiles()` で ZIP を渡すと OS ダイアログなしで検証まで進む。
+同じ manifest ID で Graph の残骸は残らないため、重複登録にはならない。
+
+## 27. 統合ブラウザの非表示タブで click / request event が機能しない
+
+**症状**: 管理センターで `click` が `waiting for element to be visible, enabled and stable` でタイムアウトする。
+`page.waitForRequest` + `reload` でセッションヘッダーを取ろうとしても request event が届かない。
+
+**原因**: VS Code 統合ブラウザのタブが前面にないと描画フレームが進まず、Playwright の安定判定が完了しない。
+また SPA はキャッシュ済みデータで描画し、reload しても `/fd/addins/api/` を呼ばないことがある。
+
+**対処**:
+
+- クリックは `locator.evaluate(el => el.click())`（DOM クリック）で行う。入力は `fill` / `type` で問題ない。
+- セッションヘッダーは admin の `m365_portal_browser_runner.mjs` の `captureSessionHeaders()` が
+  reload 失敗時にページ内の fetch / XHR をフックし、`#/agents/overview` ⇔ 元のルートの遷移で発生する API 呼び出しから取得する。
+  値はブラウザ/Node のメモリ内だけで扱い、出力しない。
+- 在庫 API `/fd/addins/api/agents` の並び替えキーは `sortBy=LastUpdatedDate&sortOrder=Desc`
+  （`lastModified` 等は 0 件または 400）。`name` 昇順/降順も可。
+
+## 28. Cowork で Connect を自動クリックしても OAuth 画面が開かない
+
+**症状**: Customize → Plugins でプラグインのトグルを ON にすると **Connect** ボタンになるが、
+ブラウザ自動化でクリックしても何も起きない（ポップアップが開かない）。
+
+**原因**: OAuth 同意はポップアップで開き、ユーザー操作起点でないクリックはポップアップブロックの対象になる。
+
+**対処**: Connect は**ユーザー自身がクリック**してサインイン・同意する。同意後、Cowork でトリガー語を入力して
+`describe` → `read_query` が実行されることを確認する。
+
+## 29. `create_record` が Lookup 指定で失敗し、何度も承認を求められる
+
+**症状**: 書き込みの承認後に `Couldn't complete 'Create_record'` が続き、形式を変えながら再試行するたびに
+承認ダイアログが出る。実測で返ったエラーは次のとおり。
+
+| 渡した形式 | エラー |
+|---|---|
+| `"<lookup>@odata.bind": "/<entityset>(<GUID>)"` | 列 `<lookup>@odata.bind` が存在しない |
+| `"<lookup>": "<GUID>"` | Lookup の値を JSON として読めない |
+| `"<lookup>": "{\"logicalName\":...,\"id\":...}"` | `relatedTable` が必須 |
+| `"<lookup>": "{\"relatedTable\":...,\"id\":...}"` | 有効な `recordId` が必須 |
+| `update_record` で `id` を指定 | `id` は認識されない |
+
+**原因**: Dataverse MCP の書き込みツールは Web API の `@odata.bind` を受け付けない。スキルが Web API の書式を指示していると
+モデルが試行錯誤し、失敗のたびに承認が発生する。
+
+**対処**: スキル本文と `dataverse-mcp-tools.json` に正しい形式を書く。
+
+```json
+{
+  "tablename": "<prefix>_crmactivity",
+  "item": {
+    "<prefix>_name": "...",
+    "<prefix>_opportunityid": "{\"relatedTable\":\"<prefix>_crmopportunity\",\"recordId\":\"<GUID>\"}",
+    "<prefix>_accountid": "{\"relatedTable\":\"account\",\"recordId\":\"<GUID>\"}"
+  }
+}
+```
+
+`update_record` は `tablename` / `recordId` / `item`。承認ダイアログでは `item` の内容を確認してから Approve する
+（形式違いの再試行が連続する場合は Cancel してスキルを直す）。
+
+## 30. 更新版のアップロードが「already been deployed」で拒否される
+
+**症状**: 同じ manifest `id` で `version` を上げた zip を、Agents → All agents → **Add agent** または
+Agents → Tools → **Upload** でアップロードすると、検証時に
+「The agent you are uploading has already been deployed.」/「The tool you're uploading has already been deployed.」
+で止まり Next に進めない。
+
+**原因**: 管理センターのアップロードウィザードは新規登録専用。ウィザードで登録したプラグインは
+Graph の `appCatalogs/teamsApps` にも現れないため、`appDefinitions` による更新も使えない。
+
+**対処**:
+
+- Graph で登録・読み戻しできたプラグインは `manage_agent_package_graph.py deploy` で更新できる。
+- ウィザードで登録したプラグインは、private API の `uploadCustomApp`（`ActionType=UPDATEAPP`, `ProductId=<titleId>`）→
+  `agent-update-app`（`POST /fd/addins/api/apps`, `Command=UPDATEAPP`）で更新できる（SKILL.md Step 10）。
+  公開対象と利用者の Connect は維持される。使えない場合だけ Tools → Plugins で **Uninstall** → **Tools → Upload** で登録し直す。
+- Cowork プラグインは All agents（Registry）の一覧・検索には出ない。在庫の確認は Tools → Plugins で行う。
+
+## 31. 事前インストール（DEPLOY）が `OperationId is null or empty` で Failed になる
+
+**症状**: 新規登録で finalize（`FINALIZEPACKAGE`）と allow（`ALLOW`）は `Success` なのに、`POST /fd/addins/api/apps` の
+`DEPLOY` だけ `deploymentRequestStatus` が `Failed`。`errorReason` は
+`Invalid Argument OperationId is null or empty and status code = BadRequest`。
+
+**原因**: 管理センターのウィザードが送る DEPLOY の workload には `MosOperationId` が含まれない（成功応答は返るが
+非同期処理で失敗する）。同じ body をそのまま再送すると同じ理由で失敗する。
+
+**対処**: `build_cowork_publish_payloads.py` が生成する `3-deploy.json` は、ステージで得た `MosOperationId` を workload に含める。
+送信後は必ず `appsManagementStatus[].status` を poll し、HTTP 200 だけで完了としない。
+
+## 32. 管理センターの request を `page.route()` で捕捉・中断できない
+
+**症状**: private API の観測のため `page.route('**/fd/addins/api/**', ...)` で write request を abort しようとしても、
+ハンドラが呼ばれずに request がそのまま送信される（ウィザードが実際に登録まで完了する）。
+
+**原因**: VS Code 統合ブラウザでは管理センターの fetch / XHR が Playwright の route / request event に届かないことがある。
+
+**対処**: 観測はページ内で `window.fetch` / `XMLHttpRequest.prototype.open/send` をフックして method / path / body の
+キー名を記録する（ヘッダー値・トークンは記録しない）。**write を止める手段にはならない**ため、観測は
+使い捨ての検証用プラグイン（別 manifest ID・公開対象は検証ユーザーだけ）で行う。
+
+## 33. 検証用プラグインを削除できない
+
+**症状**: Agents → Tools → Plugins の詳細パネルには **Uninstall** と **Block** しかなく、削除操作がない。
+
+**対処**: 検証が終わったプラグインは **Uninstall**（利用者から外す）→ **Block**（再インストールを止める）で片付ける。
+名前に「Test」等を含めて本番プラグインと区別し、操作前に詳細パネルの名前が対象と一致することを確認する。
 
 

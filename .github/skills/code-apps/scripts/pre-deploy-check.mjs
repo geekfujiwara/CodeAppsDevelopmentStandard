@@ -99,7 +99,9 @@ if (fs.existsSync(configTs) && fs.existsSync(routerPath)) {
   }
 
   // ルーターにあるがナビに無いパス → 隠しページ（warning のみ）
-  const hiddenRoutes = routePaths.filter(p => !navPaths.includes(p) && p !== "*" && p !== "");
+  // 親パスがナビにある詳細ルート（opportunities/:id 等）は一覧から到達できるため除外する
+  const isDetailOfNav = (p) => p.includes("/:") && navPaths.includes(p.split("/:")[0]);
+  const hiddenRoutes = routePaths.filter(p => !navPaths.includes(p) && !isDetailOfNav(p) && p !== "*" && p !== "");
   if (hiddenRoutes.length > 0) {
     console.warn(`⚠ ルーター (router.tsx) にナビから到達できないページがあります: ${hiddenRoutes.join(", ")}`);
     console.warn(`  → 意図的な隠しページでなければ config.ts にナビを追加してください。`);
@@ -381,6 +383,25 @@ if (fs.existsSync(pkgPath) && fs.existsSync(cliPkgPath)) {
           }
         }
       }
+    }
+  }
+}
+
+// 12. npx pa はローカルに pa が無いと npm 上の無関係なパッケージ "pa" を取得して実行する
+if (fs.existsSync(pkgPath)) {
+  let scripts = {};
+  try {
+    scripts = JSON.parse(fs.readFileSync(pkgPath, "utf-8")).scripts ?? {};
+  } catch {
+    scripts = {};
+  }
+  const localPa = fs.existsSync(path.join(root, "node_modules", ".bin", process.platform === "win32" ? "pa.cmd" : "pa"));
+  for (const [name, body] of Object.entries(scripts)) {
+    if (/\bnpx\s+(?:-y\s+|--yes\s+)?pa\b/.test(String(body)) && !localPa) {
+      errors.push(
+        `package.json の scripts.${name} が "npx pa" を呼びますが、ローカルに pa がありません（npm 上の別パッケージ "pa" が実行されます）。\n` +
+        `     → npm install -D @microsoft/power-apps-cli@latest を実行し、scripts では "pa app push" を直接呼んでください。`
+      );
     }
   }
 }

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.28/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.28",
+  "version": "1.0.0",
+  "id": "${COWORK_PLUGIN_ID}",
+  "developer": {
+    "name": "${COWORK_DEVELOPER_NAME}",
+    "websiteUrl": "${COWORK_DEVELOPER_URL}",
+    "privacyUrl": "${COWORK_PRIVACY_URL}",
+    "termsOfUseUrl": "${COWORK_TERMS_URL}"
+  },
+  "name": {
+    "short": "Sales CRM",
+    "full": "Sales CRM — 予定表・メール・チャットから営業報告と目標達成を支援"
+  },
+  "description": {
+    "short": "予定表・メール・Teams から営業活動を CRM に登録し、目標達成プランとチームの障害レビューを作成",
+    "full": "Sales CRM は、Outlook の予定表・メール・Teams チャットから営業活動を抽出して Dataverse CRM の活動と商談に反映し、目標までのギャップから優先商談ごとの打ち手・日程調整・メール下書きを提案します。マネージャー向けには、チームの達成状況と障害（期限超過・停滞・次アクション未設定）を整理し、1on1 アジェンダと支援メッセージを作成します。CRM への書き込みとメール送信・予定作成は必ず利用者の確認後に行います。"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#0F766E",
+  "agentSkills": [
+    { "folder": "./skills/sales-activity-sync" },
+    { "folder": "./skills/target-gap-planner" },
+    { "folder": "./skills/manager-blocker-review" }
+  ],
+  "agentConnectors": [
+    {
+      "id": "dataverse-mcp",
+      "displayName": "Dataverse MCP",
+      "description": "営業 CRM（商談・リード・営業活動・売上目標・会計期間・取引先）の Dataverse テーブルを読み書きする。",
+      "toolSource": {
+        "remoteMcpServer": {
+          "mcpServerUrl": "${DATAVERSE_ORIGIN}/api/mcp",
+          "mcpToolDescription": { "file": "dataverse-mcp-tools.json" },
+          "authorization": {
+            "type": "OAuthPluginVault",
+            "referenceId": "__COWORK_OAUTH_REGISTRATION_ID__"
+          }
+        }
+      }
+    }
+  ]
+}

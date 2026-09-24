@@ -7,6 +7,9 @@
 3. 観測済み private API（ログイン済み VS Code 統合ブラウザ session から direct fetch）
 4. API を実行できない場合だけ VS Code 統合ブラウザでフォーム操作
 
+`agentSkills` / `agentConnectors` を持つ Cowork プラグインの**新規登録・公開・更新は 3（private API）を正常系**にする
+（Graph の作成応答は成功でも実体が残らないことがある。troubleshooting #26）。
+
 ## ライフサイクル対応表
 
 | 工程 | 正常系 | 備考 |
@@ -15,7 +18,9 @@
 | package/validate | `atk package` | manifest と package の事前検証 |
 | 個人テスト | `atk install --file-path ... --scope Personal` | `TitleId` / `AppId` を保存 |
 | 組織カタログ一覧 | `manage_agent_package_graph.py list` | Graph v1.0 |
-| 組織カタログ新規/更新 | `manage_agent_package_graph.py deploy` | manifest ID を維持し version を増加 |
+| プラグイン新規登録・公開 | `stageCustomApp(DEPLOY)` → `agent-publish`(FINALIZEPACKAGE) → `agent-allow` → `agent-lifecycle`(DEPLOY) | private API、admin browser session。payload は `build_cowork_publish_payloads.py --mode new` |
+| プラグイン更新 | `stageCustomApp(UPDATEAPP)` → `agent-update-app` | private API。公開対象と Connect を維持。payload は `--mode update` |
+| Graph 登録済みプラグインの更新 | `manage_agent_package_graph.py deploy` | Graph で読み戻せるものだけ。新規登録には使わない（troubleshooting #26） |
 | OAuth client registration | `GET/POST/PATCH/DELETE /v1.0/oauthconfigurations` | private API、portal Bearer session |
 | Agent Registry の Install/Uninstall | `POST /fd/addins/api/apps` | private API、admin browser session |
 | Agent Registry の Publish/Finalize | `POST /fd/addins/api/v2/actionableApps` | private API、admin browser session |

@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+tsconfig.tsbuildinfo
+node_modules/.tmp/
+
+# Environment / secrets（.env.example だけをコミットする）
+.env
+.env.local
+.env.*.local
+
+# Authentication cache (auth_helper.py)
+.auth_record.json
+*token-cache*
+
+# SDK generated（npx --no pa app init / add data-source で再生成）
+.power/
+src/generated/
+power.config.json
+
+# Cowork plugin build output
+cowork/*/dist/
+cowork/*/manifest.built.json
+
+# Python / OS / editor
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+*.log

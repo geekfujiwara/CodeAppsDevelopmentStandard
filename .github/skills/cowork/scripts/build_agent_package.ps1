@@ -73,6 +73,14 @@ if ([string]::IsNullOrWhiteSpace($tenantId)) {
 # --- referenceId を Base64("<tenantId>##<regId>") 形式にエンコード ---
 # 教訓（troubleshooting.md #23）: OAuthPluginVault の referenceId は SSO 方式と同じく
 # Base64("<tenantId>##<registrationId>") 形式が必要（「生の ID のまま」では認証に失敗する）。
+# .env に既にエンコード済みの値が入っていると二重エンコードで壊れるため、デコードして生の ID に戻す。
+try {
+    $decoded = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($regId))
+    if ($decoded -match "^$([regex]::Escape($tenantId))##(.+)$") {
+        Write-Warning "COWORK_OAUTH_REGISTRATION_ID はエンコード済みの値でした。生の registration ID として扱います。"
+        $regId = $Matches[1]
+    }
+} catch [FormatException] { }
 $rawReferenceId = "$tenantId##$regId"
 $encodedReferenceId = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($rawReferenceId))
 

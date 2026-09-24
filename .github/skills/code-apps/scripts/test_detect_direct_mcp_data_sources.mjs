@@ -16,6 +16,26 @@ test("allows Dataverse and Copilot Studio generated services", async () => {
   }
 })
 
+test("allows the Dataverse connector's bundled MCP operations but detects other MCP data sources", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "codeapp-connections-"))
+  try {
+    const appSchemas = path.join(root, ".power", "schemas", "appschemas")
+    const dataverseSchema = path.join(root, ".power", "schemas", "commondataserviceforapps")
+    await mkdir(appSchemas, { recursive: true })
+    await mkdir(dataverseSchema, { recursive: true })
+    await writeFile(path.join(dataverseSchema, "commondataserviceforapps.Schema.json"), JSON.stringify({ path: "/{connectionId}/api/mcp" }))
+    const dataverseOnly = `export const dataSourcesInfo = {\n  "commondataserviceforapps": {\n    "apis": { "Invoke": { "path": "/{connectionId}/api/mcp" } }\n  }\n}\n`
+    await writeFile(path.join(appSchemas, "dataSourcesInfo.ts"), dataverseOnly)
+    assert.deepEqual(findDirectMcpDataSources(root), [])
+
+    const withCustomMcp = dataverseOnly.replace(/\n}\n$/, `,\n  "drawingmcp": {\n    "apis": { "InvokeServer": { "path": "/{connectionId}/api/mcp" } }\n  }\n}\n`)
+    await writeFile(path.join(appSchemas, "dataSourcesInfo.ts"), withCustomMcp)
+    assert.deepEqual(findDirectMcpDataSources(root), [path.join(".power", "schemas", "appschemas", "dataSourcesInfo.ts")])
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test("detects MCP schema and generated TypeScript or JavaScript InvokeServer services", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "codeapp-connections-"))
   try {
