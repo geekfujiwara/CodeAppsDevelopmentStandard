@@ -30,6 +30,26 @@ _TURN_TIMEOUT_SECONDS = 600
 ProgressSink = Callable[[str], Awaitable[None]]
 
 
+class BrainError(RuntimeError):
+    """A turn that failed for a known reason.
+
+    The raw SDK payload never reaches the conversation: pasted into the chat it
+    becomes history the model reads back later as proof the feature is broken.
+    """
+
+    def __init__(self, kind: str, detail: Any) -> None:
+        super().__init__(kind)
+        self.kind = kind
+        self.detail = detail
+
+
+def _classify_session_error(detail: Any) -> str:
+    values = detail if isinstance(detail, dict) else {}
+    if values.get("error_type") == "rate_limit" or values.get("status_code") == 429:
+        return "rate_limit"
+    return "unknown"
+
+
 class CopilotBrain:
     """Runs one turn through the Copilot SDK against the Foundry model."""
 
@@ -203,9 +223,9 @@ class CopilotBrain:
                 elif event.type in (SessionEventType.SESSION_IDLE, SessionEventType.ASSISTANT_IDLE):
                     break
                 elif event.type == SessionEventType.SESSION_ERROR:
-                    raise RuntimeError(
-                        f"Copilot SDK session error: {getattr(event.data, '__dict__', event.data)}"
-                    )
+                    detail = getattr(event.data, "__dict__", event.data)
+                    logger.error("Copilot SDK session error: %s", detail)
+                    raise BrainError(_classify_session_error(detail), detail)
         finally:
             try:
                 unsubscribe()

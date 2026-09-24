@@ -22,6 +22,7 @@ Usage:
     python scripts/publish_foundry_autopilot.py              # dry-run: print request bodies
     python scripts/publish_foundry_autopilot.py --execute    # create version + patch + publish
     python scripts/publish_foundry_autopilot.py --execute --bump-version   # republish an update
+    python scripts/publish_foundry_autopilot.py --execute --container-only # ship a code fix only
 """
 from __future__ import annotations
 
@@ -221,7 +222,16 @@ def assert_image_deployment_exists() -> None:
 
 def preflight(display_name: str) -> list[dict]:
     print("== 事前チェック ==")
-    for name in ("FOUNDRY_PROJECT_ENDPOINT", "AGENT_NAME", "AZURE_SUBSCRIPTION_ID", "AZURE_RESOURCE_GROUP"):
+    # AZURE_AI_ACCOUNT / AZURE_AI_PROJECT are needed only after the version exists,
+    # so leaving them out fails halfway through and leaves an ungranted version behind.
+    for name in (
+        "FOUNDRY_PROJECT_ENDPOINT",
+        "AGENT_NAME",
+        "AZURE_SUBSCRIPTION_ID",
+        "AZURE_RESOURCE_GROUP",
+        "AZURE_AI_ACCOUNT",
+        "AZURE_AI_PROJECT",
+    ):
         require(name)
     print("  OK 必須の環境変数")
 
@@ -269,6 +279,14 @@ def build_version_body() -> dict:
     toolbox = (os.environ.get("FOUNDRY_TOOLBOX_ENDPOINT") or "").strip()
     if toolbox:
         env_vars["TOOLBOX_ENDPOINT"] = toolbox
+    # Each version carries its own environment. Omitting this silently drops the
+    # container back to the 'responses' brain on the next republish.
+    brain = (os.environ.get("TEAMMATE_BRAIN") or "").strip()
+    if brain:
+        env_vars["TEAMMATE_BRAIN"] = brain
+    default_tz = (os.environ.get("DEFAULT_TIMEZONE") or "").strip()
+    if default_tz:
+        env_vars["DEFAULT_TIMEZONE"] = default_tz
     image_deployment = image_model_deployment()
     if image_deployment:
         env_vars["IMAGE_MODEL_DEPLOYMENT"] = image_deployment
@@ -449,6 +467,11 @@ def main() -> int:
         action="store_true",
         help="TEAMS_APP_VERSION の patch を +1 して発行する（再発行時は必須。同じバージョンは拒否される）",
     )
+    parser.add_argument(
+        "--container-only",
+        action="store_true",
+        help="コード修正を反映するだけの再デプロイ。version だけ作って M365 への再発行はしない",
+    )
     parser.add_argument("--env", type=Path, help=".env のパス（既定はリポジトリ ルート）")
     args = parser.parse_args()
 
@@ -473,14 +496,16 @@ def main() -> int:
     agent_name = require("AGENT_NAME")
     api_version = os.environ.get("FOUNDRY_API_VERSION", "2025-11-15-preview")
     version_body = build_version_body()
-    publish_body = build_publish_body(display_name, scopes, app_version)
+    # --container-only never publishes, so it must not demand the developer metadata.
+    publish_body = None if args.container_only else build_publish_body(display_name, scopes, app_version)
 
     if not args.execute:
         print("\n== dry-run（--execute で実行）==")
         print("POST /agents/{name}/versions:")
         print(json.dumps(version_body, ensure_ascii=False, indent=2))
-        print("POST /agents/{name}/microsoft365/publish:")
-        print(json.dumps(publish_body, ensure_ascii=False, indent=2))
+        if publish_body is not None:
+            print("POST /agents/{name}/microsoft365/publish:")
+            print(json.dumps(publish_body, ensure_ascii=False, indent=2))
         return 0
 
     print("\n== agent version を作成します ==")
@@ -500,13 +525,27 @@ def main() -> int:
         print("  ! instance_identity.client_id が返っていません。AADSTS7000112 が出たら troubleshooting.md #75")
     grant_instance_roles(identity["principal_id"])
 
-    print("\n== BotServiceRbac を設定します ==")
-    foundry_request(
-        "PATCH",
-        f"{base}/agents/{agent_name}?api-version={api_version}",
-        {"agent_endpoint": agent_endpoint(with_auth_scheme=True)},
-    )
-    print("  OK")
+    print("\n== BotServiceRbac を確認します ==")
+    # authorization_schemes is an agent-level setting, so it survives new versions.
+    # PATCH replaces agent_endpoint wholesale and access_boundaries cannot be
+    # patched back, so an unconditional PATCH silences Teams (troubleshooting #77).
+    current = foundry_request("GET", f"{base}/agents/{agent_name}?api-version={api_version}")
+    schemes = (current.get("agent_endpoint") or {}).get("authorization_schemes") or []
+    if any(scheme.get("type") == "BotServiceRbac" for scheme in schemes):
+        print("  OK 既に設定済みなので PATCH をスキップします")
+    else:
+        foundry_request(
+            "PATCH",
+            f"{base}/agents/{agent_name}?api-version={api_version}",
+            {"agent_endpoint": agent_endpoint(with_auth_scheme=True)},
+        )
+        print("  OK")
+
+    if args.container_only:
+        print("\n--container-only なので M365 への再発行は行いません。")
+        print("トラフィックは @latest を見ているので、この時点で新しいコンテナーが使われます。")
+        print("確認は必ず**新しい会話**で行うこと（前の断り文が履歴に残るため）。")
+        return 0
 
     print("\n== Autopilot として M365 に発行します ==")
     published = foundry_request(

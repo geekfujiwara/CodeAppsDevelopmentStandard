@@ -240,7 +240,7 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 | [run_regression_tests.py](scripts/run_regression_tests.py) | 回帰テスト。`--check` は不変条件だけ（無料・決定的）、`--execute` は評価ハブのキュー経由で実ターンを回す。JUnit XML / Markdown を出力し、`deploy_ai_teammate.py --execute` が最後に自動実行する | 13 |
 | [setup_foundry_evaluation.py](scripts/setup_foundry_evaluation.py) | Foundry 標準の Evaluations を設定する。`--mode auto` は継続評価を試し、hosted agent ならトレース評価のスケジュールへ自動フォールバックする | 13 |
 | [fetch_autopilot_quickstart.py](scripts/fetch_autopilot_quickstart.py) | Microsoft 公式の Foundry Autopilot クイックスタートをフォークせずに取得する（`hosting: "foundry-autopilot"` のとき scaffold が自動実行） | 3 |
-| [publish_foundry_autopilot.py](scripts/publish_foundry_autopilot.py) | Foundry hosted agent のバージョン作成と M365 publish。`accessBoundaries` の付与・インスタンス ID の有効化・`--bump-version` を含む。`IMAGE_MODEL_DEPLOYMENT` があればコンテナへ渡し、実在を検証し、アカウント スコープのロールも付ける | 6・10 |
+| [publish_foundry_autopilot.py](scripts/publish_foundry_autopilot.py) | Foundry hosted agent のバージョン作成と M365 publish。`accessBoundaries` の付与・インスタンス ID の有効化・`--bump-version` を含む。`IMAGE_MODEL_DEPLOYMENT` があればコンテナへ渡し、実在を検証し、アカウント スコープのロールも付ける。コード修正だけを反映するときは `--container-only`（再発行も再承認も不要） | 6・10 |
 
 すべて `--check` で確認のみの実行ができる（`query_agent_logs.py` は読むだけなので不要）。
 

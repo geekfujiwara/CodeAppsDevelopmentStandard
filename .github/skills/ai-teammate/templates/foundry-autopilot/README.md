@@ -21,6 +21,11 @@ Foundry デプロイ**を BYOK で使います。追加のモデル クォータ
 書き換えているのは `host_agent_server.py` の冒頭あいさつ 1 箇所だけです
 （英語固定の `"Working on your request..."` → 相手の言語で具体的な 1 文）。
 
+> **自己ホスト版（`digital-colleague/`）との機能差**: B11 定期実行・B6 メール巡回・B14 共有台帳・
+> B15 利用実績・Teams プレゼンスは入っていません。hosted agent のコンテナーは最後のターンから
+> 約 15 分で停止するため、常駐ワーカー型の機能はそのままでは動きません（`SkillSync` / `TestWorker`
+> も起きている間だけ動きます）。代替案は troubleshooting.md #82。
+
 ## 動かすまで
 
 ```powershell
@@ -58,6 +63,10 @@ python ../../.github/skills/ai-teammate/scripts/run_regression_tests.py --execut
 | `IMAGE_MODEL_DEPLOYMENT` | 画像生成（B17）を有効にする。未設定なら `generate_image` ツールは登録されない。既定クォータは 1 リクエスト/分 |
 | `AZURE_DEVOPS_ORGANIZATION` | Azure DevOps MCP を有効にする |
 | `SKILLS_SYNC_MINUTES` | スキルを評価ハブへ同期する間隔（既定 30 分） |
+| `DEFAULT_TIMEZONE` | Activity が `localTimezone` を送ってこないときに使う IANA 名（例 `Asia/Tokyo`）。未設定だと UTC のまま答えてしまう |
+
+`python:3.12-slim` には `/usr/share/zoneinfo` が入っていないので、`requirements.txt` に
+`tzdata` を足してください。無いと `ZoneInfo("Asia/Tokyo")` が失敗して UTC に落ちます。
 
 `AGENT_*` / `FOUNDRY_*` および `APPLICATIONINSIGHTS_CONNECTION_STRING` は**プラットフォーム予約**で、
 コンテナ環境変数として渡すと `invalid_payload` で publish が失敗します。App Insights の接続文字列は
