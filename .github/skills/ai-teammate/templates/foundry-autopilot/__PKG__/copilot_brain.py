@@ -15,6 +15,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 import uuid
 from typing import Any, Awaitable, Callable, Sequence
 
@@ -104,6 +105,7 @@ class CopilotBrain:
         tools: Sequence[Any] = (),
         on_progress: ProgressSink | None = None,
         channel: str = "",
+        attachments: list[dict[str, Any]] | None = None,
     ) -> str:
         async with self._lock:
             self._fence = UntrustedContent()
@@ -118,7 +120,9 @@ class CopilotBrain:
             self.last_tool_calls = []
             try:
                 return await asyncio.wait_for(
-                    self._run_turn(session, f"{self._fence.briefing}\n\n{message}", on_progress),
+                    self._run_turn(
+                        session, f"{self._fence.briefing}\n\n{message}", on_progress, attachments
+                    ),
                     timeout=self._turn_timeout_seconds,
                 )
             except asyncio.TimeoutError:
@@ -222,7 +226,13 @@ class CopilotBrain:
         logger.info("Fenced output of %s", tool_name)
         return {"modifiedResult": self._fence.wrap_tool_result(tool_name, data.get("toolResult"))}
 
-    async def _run_turn(self, session, message: str, on_progress: ProgressSink | None = None) -> str:
+    async def _run_turn(
+        self,
+        session,
+        message: str,
+        on_progress: ProgressSink | None = None,
+        attachments: list[dict[str, Any]] | None = None,
+    ) -> str:
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue = asyncio.Queue()
         reporter = _ProgressReporter(on_progress)
@@ -234,7 +244,7 @@ class CopilotBrain:
         unsubscribe = session.on(_on_event)
         answer = ""
         try:
-            await session.send(message)
+            await session.send(message, attachments=attachments or None)
             while True:
                 event = await queue.get()
                 if event.type == SessionEventType.ASSISTANT_MESSAGE:
@@ -283,26 +293,54 @@ class _ProgressReporter:
             logger.debug("Progress update could not be delivered", exc_info=True)
 
 
-# One concrete value out of the arguments turns "searching" into "searching for what".
-# "prompt" is deliberately absent: it is the model's own long English rewrite, which would
-# show up in the wrong language and drown the line.
-_DETAIL_KEYS = (
-    "query",
-    "command",
-    "search_query",
-    "subject",
-    "question",
-    "path",
-    "file_path",
-    "url",
-    "name",
+#: What the colleague is doing, in words. Raw tool names ("CalendarTools: FindMeetingTimes")
+#: read as a debug log to the person on the other side of the chat.
+#: server keyword -> ((tool keywords, activity), ...), then the fallback for that server.
+_SERVER_ACTIVITIES: dict[str, tuple[tuple[tuple[str, ...], str], ...]] = {
+    "calendar": (
+        (("meetingtime", "findmeeting", "freebusy", "availability"), "予定表で空いている時間を探しています"),
+        (("create", "update", "cancel", "delete", "accept", "decline"), "予定を登録しています"),
+        ((), "予定表を確認しています"),
+    ),
+    "mail": (
+        (("send", "reply", "forward"), "メールを送っています"),
+        ((), "メールを確認しています"),
+    ),
+    "teams": (
+        (("send", "post", "create", "reply"), "Teams でメッセージを送っています"),
+        ((), "Teams のチャットを確認しています"),
+    ),
+    "word": (((), "Word 文書を扱っています"),),
+    "excel": (((), "Excel ブックを扱っています"),),
+    "odsp": (
+        (("share", "invite", "link", "permission"), "共有リンクを作っています"),
+        (("create", "upload", "write"), "ファイルを保存しています"),
+        ((), "ファイルを探しています"),
+    ),
+}
+_TOOL_ACTIVITIES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("web_search", "bing"), "Web で調べています"),
+    (("code_interpreter", "python", "powershell", "bash", "shell"), "計算しています"),
+    (("generate_image",), "画像を描いています"),
+    (("view", "read", "glob", "grep"), "受け取った内容を読んでいます"),
 )
+_JAPANESE = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff]")
+
+
+def _activity(server: str, tool: str) -> str:
+    for key, rules in _SERVER_ACTIVITIES.items():
+        if key in server:
+            return next(text for keys, text in rules if not keys or any(k in tool for k in keys))
+    return next((text for keys, text in _TOOL_ACTIVITIES if any(k in tool for k in keys)), "")
 
 
 def _describe_tool_call(data: Any) -> str:
-    tool = getattr(data, "mcp_tool_name", "") or getattr(data, "tool_name", "") or "tool"
-    server = getattr(data, "mcp_server_name", "") or ""
-    label = f"{_friendly_server(server)}: {tool}" if server else tool
+    """One natural sentence, or nothing when there is no good way to say it."""
+    server = (getattr(data, "mcp_server_name", "") or "").lower()
+    tool = (getattr(data, "mcp_tool_name", "") or getattr(data, "tool_name", "") or "").lower()
+    activity = _activity(server, tool)
+    if not activity:
+        return ""
 
     arguments = getattr(data, "arguments", None)
     if isinstance(arguments, str):
@@ -310,21 +348,11 @@ def _describe_tool_call(data: Any) -> str:
             arguments = json.loads(arguments)
         except Exception:  # noqa: BLE001 - not every runtime sends JSON
             arguments = None
-    detail = ""
-    if isinstance(arguments, dict):
-        for key in _DETAIL_KEYS:
-            value = arguments.get(key)
-            if isinstance(value, str) and value.strip():
-                detail = value.strip()
-                break
-    if len(detail) > 140:
-        detail = detail[:137] + "..."
-    return f"🔧 {label} — {detail}" if detail else f"🔧 {label}"
-
-
-def _friendly_server(server: str) -> str:
-    """``mcp_MailToolsServer`` -> ``MailTools``. Internal names are not user-facing."""
-    return server.removeprefix("mcp_").removesuffix("Server") or server
+    query = arguments.get("query") if isinstance(arguments, dict) else None
+    # English rewrites of the request would show up in the wrong language.
+    if activity == "Web で調べています" and isinstance(query, str) and _JAPANESE.search(query):
+        return f"Web で「{query.strip()[:60]}」を調べています。"
+    return f"{activity}。"
 
 
 def mcp_servers_from_responses_tools(tools: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:

@@ -30,6 +30,7 @@ from microsoft_agents.hosting.core import Authorization, TurnContext
 
 from .agent_interface import AgentInterface
 from .copilot_brain import CopilotBrain, mcp_servers_from_responses_tools
+from .incoming_files import IncomingFiles, describe as describe_files
 
 logger = logging.getLogger(__name__)
 
@@ -228,6 +229,13 @@ class TeammateAgent(AgentInterface):
         )
         provider_token = await self._credential.get_token(FOUNDRY_SCOPE)
         assert self._brain is not None
+
+        async def graph_token(scope: str) -> Optional[str]:
+            return await self._acquire_mcp_token(auth, auth_handler_name, context, scope=scope)
+
+        files = await IncomingFiles().collect(getattr(context, "activity", None), graph_token)
+        if files:
+            message = f"{describe_files(files)}\n\n{message}"
         return await self._brain.ask(
             conversation_id=conversation_id,
             instructions=instructions,
@@ -237,6 +245,7 @@ class TeammateAgent(AgentInterface):
             tools=self._build_custom_tools(context),
             on_progress=lambda text: context.send_activity(text),
             channel=getattr(getattr(context, "activity", None), "channel_id", "") or "",
+            attachments=[item for f in files for item in f.sdk_attachments()],
         )
 
     ACK_INSTRUCTIONS = (

@@ -584,6 +584,74 @@ def patch_acknowledgement(path: Path) -> bool:
     return True
 
 
+# Upstream drops a turn whose text is empty, which is exactly what a file sent without a caption
+# looks like (B16), and pastes the raw exception into the chat, where the model later reads it
+# back as proof that a feature is broken (troubleshooting #80).
+EMPTY_TEXT_ANCHOR = re.compile(
+    r"^(?P<indent>[ \t]+)if not user_message\.strip\(\) or user_message\.strip\(\) == \"/help\":\n"
+    r"[ \t]+return\n",
+    re.MULTILINE,
+)
+ERROR_TEXT_ANCHOR = re.compile(
+    r"^(?P<indent>[ \t]+)except Exception as ex:\n"
+    r"[ \t]+logger\.exception\(\"Error processing message\"\)\n"
+    r"[ \t]+if is_email_activity\(context\.activity\):\n"
+    r"[ \t]+return\n"
+    r"[ \t]+session_id = .*\n"
+    r"[ \t]+await context\.send_activity\(\n"
+    r"(?:[ \t]+.*\n)*?"
+    r"[ \t]+\)\n",
+    re.MULTILINE,
+)
+
+
+def patch_turn_handling(path: Path) -> bool:
+    """Let attachment-only turns through and keep exception text out of the chat."""
+    if not path.is_file():
+        return False
+    content = path.read_text(encoding="utf-8")
+    if "has_files(" in content:
+        return True  # already patched
+
+    def _empty(match: re.Match[str]) -> str:
+        indent = match.group("indent")
+        body = (
+            'if user_message.strip() == "/help":\n'
+            "    return\n"
+            "if not user_message.strip():\n"
+            "    if not has_files(context.activity):\n"
+            "        return\n"
+            '    user_message = "添付したファイルを確認してください。"\n'
+        )
+        return "".join(f"{indent}{line}\n" for line in body.splitlines())
+
+    def _error(match: re.Match[str]) -> str:
+        indent = match.group("indent")
+        body = (
+            "except Exception:\n"
+            '    logger.exception("Error processing message")\n'
+            "    if is_email_activity(context.activity):\n"
+            "        return\n"
+            "    await context.send_activity(\n"
+            '        "今回の処理を最後まで実行できませんでした。もう一度お試しください。"\n'
+            "    )\n"
+        )
+        return "".join(f"{indent}{line}\n" for line in body.splitlines())
+
+    patched, empty_count = EMPTY_TEXT_ANCHOR.subn(_empty, content, count=1)
+    patched, error_count = ERROR_TEXT_ANCHOR.subn(_error, patched, count=1)
+    if not (empty_count and error_count):
+        return False
+    patched = patched.replace(
+        "from .agent_interface import AgentInterface, check_agent_inheritance\n",
+        "from .agent_interface import AgentInterface, check_agent_inheritance\n"
+        "from .incoming_files import has_files\n",
+        1,
+    )
+    path.write_text(patched, encoding="utf-8", newline="\n")
+    return True
+
+
 def fetch_quickstart(target: Path, force: bool) -> None:
     """Download the Microsoft Foundry Autopilot quickstart into *target*.
 
@@ -634,6 +702,11 @@ def scaffold_foundry_autopilot(
             "  ! host_agent_server.py の定型あいさつを差し替えられませんでした。"
             '上流が変わった可能性があります。"Working on your request..." を手で '
             "acknowledge() 呼び出しに置き換えてください（→ references/progress-updates.md §7）。"
+        )
+    if not patch_turn_handling(package_dir / "host_agent_server.py"):
+        print(
+            "  ! host_agent_server.py の空メッセージ判定・例外表示を差し替えられませんでした。"
+            "添付だけの発言が無視され、例外の中身がチャットに出ます（→ troubleshooting.md #84）。"
         )
     # The quickstart ships its own README; keep both rather than silently replacing theirs.
     readme = template_root / "README.md"

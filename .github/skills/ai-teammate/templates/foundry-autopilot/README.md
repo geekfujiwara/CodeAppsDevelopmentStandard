@@ -69,6 +69,14 @@ python ../../.github/skills/ai-teammate/scripts/run_regression_tests.py --execut
 | `SKILLS_SYNC_MINUTES` | スキルを評価ハブへ同期する間隔（既定 30 分） |
 | `DEFAULT_TIMEZONE` | Activity が `localTimezone` を送ってこないときに使う IANA 名（例 `Asia/Tokyo`）。未設定だと UTC のまま答えてしまう |
 
+添付の受け取り（B16）には、インスタンスへの Graph 委任が要ります。貼り付け画像は `Chat.Read`、
+クリップで添付したファイルは `Files.Read.All` です（troubleshooting.md #84）。
+
+```powershell
+python ../../.github/skills/ai-teammate/scripts/grant_agent_graph_scopes.py --instance-id <instance appId> `
+  --scopes "User.Read Chat.Read Files.Read.All Files.ReadWrite"
+```
+
 `python:3.12-slim` には `/usr/share/zoneinfo` が入っていないので、`requirements.txt` に
 `tzdata` を足してください。無いと `ZoneInfo("Asia/Tokyo")` が失敗して UTC に落ちます。
 
