@@ -77,6 +77,14 @@ class GuardTests(unittest.TestCase):
     def test_teams_channel_can_message_others(self):
         self.assertIsNone(uc.guard_tool_use("mcp_TeamsServer-SendChatMessage", {}, channel="msteams"))
 
+    def test_mail_channel_cannot_share_a_delivered_file(self):
+        args = {"path": "/home/x.csv", "share_with": ["someone@contoso.com"]}
+        self.assertIsNotNone(uc.guard_tool_use("deliver_file", args, channel="agents:email"))
+        self.assertIsNone(uc.guard_tool_use("deliver_file", {"path": "/home/x.csv"}, channel="agents:email"))
+
+    def test_delivered_file_result_is_trusted(self):
+        self.assertTrue(uc.is_trusted("deliver_file"))
+
 
 if __name__ == "__main__":
     unittest.main()

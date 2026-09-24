@@ -13,7 +13,7 @@ Foundry デプロイ**を BYOK で使います。追加のモデル クォータ
 | 出所 | 内容 |
 | --- | --- |
 | Microsoft 公式クイックスタート（`fetch_autopilot_quickstart.py` が取得） | `host_agent_server.py` / `agent_interface.py` / `infra/` / `scripts/` |
-| このスキルのオーバーレイ | `teammate_agent.py` / `copilot_brain.py` / `skill_sync.py` / `test_worker.py` / `image_tools.py` / `onedrive.py` / `dataverse.py` / `main.py` / `ToolingManifest.json` |
+| このスキルのオーバーレイ | `teammate_agent.py` / `copilot_brain.py` / `skill_sync.py` / `test_worker.py` / `image_tools.py` / `file_delivery.py` / `incoming_files.py` / `untrusted_content.py` / `dataverse.py` / `main.py` / `ToolingManifest.json` |
 
 公式サンプルは**フォークせずそのまま**置いてあります。差分はオーバーレイ側だけにあるので、
 上流の修正を取り込みたくなったら `fetch_autopilot_quickstart.py --force` を流し直せます。
@@ -21,8 +21,8 @@ Foundry デプロイ**を BYOK で使います。追加のモデル クォータ
 書き換えているのは `host_agent_server.py` の冒頭あいさつ 1 箇所だけです
 （英語固定の `"Working on your request..."` → 相手の言語で具体的な 1 文）。
 
-> **自己ホスト版（`digital-colleague/`）との機能差**: B11 定期実行・B6 メール巡回・B14 共有台帳・
-> B15 利用実績・Teams プレゼンスは入っていません。hosted agent のコンテナーは最後のターンから
+> **自己ホスト版（`digital-colleague/`）との機能差**: B11 定期実行・B6 メール巡回・B15 利用実績・
+> Teams プレゼンスは入っていません。B14 は配布（`deliver_file`）だけで、共有の台帳はありません。hosted agent のコンテナーは最後のターンから
 > 約 15 分で停止するため、常駐ワーカー型の機能はそのままでは動きません（`SkillSync` / `TestWorker`
 > も起きている間だけ動きます）。代替案は troubleshooting.md #82。
 

@@ -25,6 +25,7 @@ MARKER = "EXTERNAL_DATA"
 TRUSTED_TOOLS = frozenset(
     {
         "generate_image",
+        "deliver_file",
         "skill",
         "report_intent",
         "update_todo",
@@ -134,4 +135,6 @@ def guard_tool_use(tool_name: str, args: Any, *, channel: str) -> str | None:
             "メール経由の依頼では、共有と Teams への送信は行わない。"
             "必要なら、依頼者本人に Teams で頼んでもらうようメールの返信で案内すること。"
         )
+    if channel in _EMAIL_CHANNELS and name == "deliver_file" and isinstance(args, dict) and args.get("share_with"):
+        return "メール経由の依頼では、特定の人への共有は行わない。組織内リンクだけを返信で伝えること。"
     return None

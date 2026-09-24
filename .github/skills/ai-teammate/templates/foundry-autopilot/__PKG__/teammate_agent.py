@@ -242,7 +242,7 @@ class TeammateAgent(AgentInterface):
             message=message,
             bearer_token=provider_token.token,
             mcp_servers=mcp_servers_from_responses_tools(tools),
-            tools=self._build_custom_tools(context),
+            tools=self._build_custom_tools(context, auth, auth_handler_name),
             on_progress=lambda text: context.send_activity(text),
             channel=getattr(getattr(context, "activity", None), "channel_id", "") or "",
             attachments=[item for f in files for item in f.sdk_attachments()],
@@ -373,11 +373,24 @@ class TeammateAgent(AgentInterface):
             logger.info("No app-only token for scope %s; that server will be unauthenticated", scope)
             return None
 
-    def _build_custom_tools(self, context: TurnContext | None) -> list[Any]:
+    def _build_custom_tools(
+        self,
+        context: TurnContext | None,
+        auth: Authorization | None = None,
+        auth_handler_name: Optional[str] = None,
+    ) -> list[Any]:
         """Tools that need the live conversation, so they are rebuilt every turn."""
-        deployment = os.getenv("IMAGE_MODEL_DEPLOYMENT", "").strip()
-        if not deployment or context is None:
+        if context is None:
             return []
+        from .file_delivery import build_delivery_tool
+
+        async def graph_token(scope: str) -> Optional[str]:
+            return await self._acquire_mcp_token(auth, auth_handler_name, context, scope=scope)
+
+        tools: list[Any] = [build_delivery_tool(graph_token=graph_token)]
+        deployment = os.getenv("IMAGE_MODEL_DEPLOYMENT", "").strip()
+        if not deployment:
+            return tools
         from .image_tools import build_image_tool
 
         async def token_provider() -> str:
@@ -405,4 +418,4 @@ class TeammateAgent(AgentInterface):
             token_provider=token_provider,
             on_image=send_image,
         )
-        return [tool] if tool is not None else []
+        return tools + ([tool] if tool is not None else [])
