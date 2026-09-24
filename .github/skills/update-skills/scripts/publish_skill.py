@@ -230,6 +230,14 @@ def main() -> int:
         # （直前で「オープン PR なし」と確認済みのブランチなので安全）。
         run(["git", "push", "-u", "-f", "origin", branch], cwd=clone)
     if exists:
+        # Commits accumulate on an open PR; without this the description keeps the first round only.
+        edit = ["pr", "edit", branch, "--repo", repo]
+        if args.title:
+            edit += ["--title", args.title]
+        if args.body:
+            edit += ["--body", args.body]
+        if len(edit) > 5:
+            gh(edit)
         pr = gh(["pr", "view", branch, "--repo", repo, "--json", "url", "--jq", ".url"], check=False)
         print("既存 PR を更新しました:", pr.stdout.strip() or f"(branch {branch})")
     else:

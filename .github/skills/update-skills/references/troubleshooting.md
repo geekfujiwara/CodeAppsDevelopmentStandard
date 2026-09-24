@@ -250,3 +250,33 @@ hash承認後にapplyする。HTTP成功後も子componentとruntime状態をrea
 - 置換対象の記法は **UPPER_SNAKE_CASE のみ**（`${AGENT_NAME}` / `__PKG__`）。
 
 この 2 条件で、全スキル一括検証（`--all`）の誤検出は 0 件になっている。
+
+## 23. 既存 PR にコミットを積んだのに、PR の説明が最初のままになっている
+
+**症状**: `publish_skill.py --branch <既存ブランチ> --title ... --body ...` を流すとコミットは push されるが、
+PR の本文は初回のまま。レビュー担当者は古い説明を読んでいる。
+
+**原因**: 既存 PR のときは push だけして、`--title` / `--body` を捨てていた。
+
+**対処**: 既存 PR でも `gh pr edit` で反映するよう修正済み。**本文はファイルで渡す**
+（PowerShell の here-string にそのまま絵文字を書くと、cp932 のコンソールで `?` に化けてから送られる）。
+
+```powershell
+$body = Get-Content "$env:TEMP\pr_body.md" -Encoding utf8 -Raw
+python .github/skills/update-skills/scripts/publish_skill.py --skill <s> --repo <owner/repo> --branch <br> --title "<t>" --body $body
+```
+
+## 24. 手元が main より古いまま公開して、他の PR の変更を巻き戻しかける
+
+**症状**: `publish_skill.py` の差分に、自分が触っていないファイルの変更が大量に出る。
+
+**原因**: `publish_skill.py` は手元のスキル フォルダーで clone 側を上書きする。手元が main より古いと、
+その間に他の PR でマージされた変更を**古い内容で上書きする差分**になる。
+
+**対処**: 公開前に main を取得して、対象外のスキルを揃える。対象スキルは main と手元の差分が
+自分の変更だけであることを確認してから出す。
+
+```powershell
+git clone --depth 1 https://github.com/<owner>/<repo>.git $env:TEMP\main_sync
+git diff --no-index --name-status .github/skills/<s> $env:TEMP\main_sync/.github/skills/<s>
+```

@@ -240,6 +240,10 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 [検証チェックリスト](#検証チェックリスト) を上から確認する。特に **Step 番号が整数連番**であること、
 **Learn/Playwright で自動化されているか**、**オープン PR との整合（更新優先・マージ順提示）**を最終確認する。
 
+レビュー結果を利用者に返すときは、**使ったツールの記録（「Searched for regex …」「Read skill …」）を並べない**。
+何を確かめて、どうだったかを文章で書き、根拠はファイルへのリンクと確認した事実で示す。
+実測していない改善案は「仮説」「未検証」と書き分ける。
+
 ## 検証チェックリスト
 
 - [ ] フォルダ名 ＝ frontmatter `name`（kebab-case）／`category`・`triggers` あり
@@ -254,6 +258,8 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
 - [ ] private API はUIの正常requestを観測し、対象固定・全件事前検証・hash承認・read-back・cleanupを実装
 - [ ] ブラウザ起動前に `AskUserQuestion` で Edge プロファイルを確認し、回答前は操作しない
 - [ ] 既存オープン PR を確認（`manage_skill_pr.py`）→ 関連あれば**更新**、無関係なら**新規＋マージ順提示**
+- [ ] 既存 PR にコミットを積んだら、`--title` / `--body` も渡して**本文を最新にした**
+- [ ] 公開前に手元を main に揃えた（古い手元から出すと、他の PR で入った変更を巻き戻す）
 - [ ] push 前に秘匿情報スキャン済み
 - [ ] 今回修正したバグに対応する**恒久的な事前チェックが `scripts/` に追加**され、正常系の実行でも動作する
 
