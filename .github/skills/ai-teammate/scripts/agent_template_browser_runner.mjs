@@ -197,18 +197,77 @@ export async function loadApprovedFinalizePlan(planPath, expectedHash) {
   return plan;
 }
 
+function pickSessionHeaders(headers) {
+  return Object.fromEntries(
+    Object.entries(headers || {}).filter(([name]) => SESSION_HEADER_NAMES.has(name.toLowerCase())),
+  );
+}
+
+// Same two-stage capture as admin/scripts/m365_portal_browser_runner.mjs: a hidden tab gets no
+// request events and may serve the reload from cache, so fall back to hooking the page's own calls.
 async function sessionHeaders(page, timeoutMs) {
-  const seed = page.waitForRequest(
-    (request) => request.url().startsWith(`${ORIGIN}/fd/addins/api/`) && request.method() === "GET",
-    { timeout: timeoutMs },
-  );
-  await page.reload({ waitUntil: "domcontentloaded", timeout: timeoutMs });
-  const headers = await (await seed).allHeaders();
-  const selected = Object.fromEntries(
-    Object.entries(headers).filter(([name]) => SESSION_HEADER_NAMES.has(name.toLowerCase())),
-  );
-  if (!selected.ajaxsessionkey) throw new Error("browser session header was not observed");
-  return selected;
+  try {
+    const seed = page.waitForRequest(
+      (request) => request.url().startsWith(`${ORIGIN}/fd/addins/api/`) && request.method() === "GET",
+      { timeout: timeoutMs },
+    );
+    await page.reload({ waitUntil: "domcontentloaded", timeout: timeoutMs });
+    const headers = pickSessionHeaders(await (await seed).allHeaders());
+    if (headers.ajaxsessionkey) return headers;
+  } catch {
+    // fall through to the in-page hook
+  }
+  await page.evaluate((headerNames) => {
+    window.__m365SeedHeaders = null;
+    if (window.__m365SeedHooked) return;
+    window.__m365SeedHooked = true;
+    const keep = (url, entries) => {
+      if (window.__m365SeedHeaders || !String(url).includes("/fd/addins/api/")) return;
+      const picked = {};
+      for (const [name, value] of entries) if (headerNames.includes(name.toLowerCase())) picked[name] = value;
+      if (picked.ajaxsessionkey) window.__m365SeedHeaders = picked;
+    };
+    const originalFetch = window.fetch;
+    window.fetch = function (input, init) {
+      try {
+        const source = (init && init.headers) || (input instanceof Request ? input.headers : undefined);
+        keep(input instanceof Request ? input.url : input, new Headers(source).entries());
+      } catch {
+        // ignore header inspection errors
+      }
+      return originalFetch.apply(this, arguments);
+    };
+    const { open, setRequestHeader, send } = XMLHttpRequest.prototype;
+    XMLHttpRequest.prototype.open = function (method, url) {
+      this.__m365Url = url;
+      this.__m365Headers = [];
+      return open.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
+      (this.__m365Headers ||= []).push([name, value]);
+      return setRequestHeader.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function () {
+      try {
+        keep(this.__m365Url, this.__m365Headers || []);
+      } catch {
+        // ignore header inspection errors
+      }
+      return send.apply(this, arguments);
+    };
+  }, [...SESSION_HEADER_NAMES]);
+  const deadline = Date.now() + timeoutMs;
+  const originalHash = await page.evaluate(() => location.hash);
+  const hops = ["#/agents/overview", originalHash && originalHash !== "#/agents/overview" ? originalHash : "#/agents/all"];
+  for (let hop = 0; Date.now() < deadline; hop += 1) {
+    await page.evaluate((hash) => {
+      location.hash = hash;
+    }, hops[hop % hops.length]);
+    await page.waitForTimeout(3_000);
+    const headers = await page.evaluate(() => window.__m365SeedHeaders);
+    if (headers?.ajaxsessionkey) return pickSessionHeaders(headers);
+  }
+  throw new Error("browser session header was not observed");
 }
 
 async function browserRequest(page, headers, request) {

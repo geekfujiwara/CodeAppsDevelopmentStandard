@@ -104,8 +104,10 @@ flowchart LR
    **`TEAMS_APP_VERSION` を上げる**。`AGENT_NAME` と `INSTANCE_IDENTITY_CLIENT_ID` は変えない
    （変えると別アプリ扱いになり、同意やインスタンスを作り直す羽目になる）。
 2. `python scripts/build_teams_package.py --require-template` でパッケージを作り直す。
-3. M365 管理センターの **Agents > All agents > Registry** で Agent template を
-  **同じアプリの新しいバージョンとして**差し替え、権限と対象を確認して **Finish deployment** する。
+3. Agent template を**同じアプリの新しいバージョンとして**差し替える。新規アップロードと公開は
+   SKILL.md Step 10 の承認付き private API で行えるが、**既存テンプレートの更新はまだ API 化されていない**
+   （ランナーは `isDeployed=false` のときだけ公開する）。更新は M365 管理センターの
+   **Agents > All agents > Registry** で差し替え、権限と対象を確認して **Finish deployment** する。
 4. 既存インスタンスの表示名はテンプレート更新だけでは追従しないことがある。
    管理センターのインスタンス詳細で表示名を直すか、作り直す。
    **作り直した場合は SKILL.md Step 11 の同意付与と Step 12 のプロフィール写真をやり直す**
@@ -122,19 +124,27 @@ flowchart LR
 
 詳細は [troubleshooting.md](troubleshooting.md) #17〜#19、手順は [self-hosted-agent.md](self-hosted-agent.md)（SKILL.md Step 6）。
 
-## 5. バージョニングと配信
+## 6. バージョニングと配信
 
 - 挙動・プロンプトだけの変更なら **Agents SDK アプリを App Service へ再デプロイ**すればよく、
   Teams アプリの再登録は不要。
 - **Teams アプリ manifest の内容（名前・説明・アイコン・スコープ）を変えた場合は
-  `python scripts/build_teams_package.py` で ZIP を再ビルドし、M365 管理センターで
-  Agent template を更新する必要がある**。この際 `version` を必ず上げる。
+  `python scripts/build_teams_package.py` で ZIP を再ビルドし、Agent template を更新する必要がある**
+  （手順は §5）。この際 `version` を必ず上げる。
+- Foundry Autopilot 版はコードを変えただけなら `publish_foundry_autopilot.py --container-only --recycle-sessions`。
+  既存チャットのセッションは作成時の version に固定されるので、作り直さないと古いコードのまま動く
+  （troubleshooting.md #83）。
 - Foundry エージェントを別途使う場合の `deploy.py` / `agents.create_version` は、参考構成または
   中間サービスの背後で使う頭脳の更新であり、Agent 365 の messaging endpoint そのものではない。
 
-## 6. なぜポータル自動操作をしないか
+## 7. ポータル操作の扱い
 
-- Foundry のエージェント操作は `azure-ai-projects` SDK で完結する。
-- SDK の操作グループに無い API（ブループリント）も、認証済みクライアントの
-  `AIProjectClient.send_request(HttpRequest(...))` で REST を直接叩ける。
-- ブラウザ自動化は壊れやすく CI で再現できないため、最終手段としても採用しない。
+- Foundry のエージェント操作は `azure-ai-projects` SDK と REST で完結する。
+  SDK の操作グループに無い API（ブループリント）も、認証済みクライアントの
+  `AIProjectClient.send_request(HttpRequest(...))` で直接呼べる。
+- M365 管理センターにしか無い操作（Agent template のアップロード・公開）は、**画面をクリックして進める
+  自動操作はしない**。UI が送る正規のリクエストを観測し、対象を固定した計画を利用者が承認してから、
+  サインイン済みのブラウザー セッションでその API を呼ぶ（SKILL.md Step 10、
+  [update-skills の private API 自動化標準](../../update-skills/references/private-api-automation.md)）。
+- まだ API 化していない操作（既存テンプレートの更新、利用者の絞り込み、インスタンス作成）は、
+  実測するまで管理センターの手順として残す。推測で API 化しない。
