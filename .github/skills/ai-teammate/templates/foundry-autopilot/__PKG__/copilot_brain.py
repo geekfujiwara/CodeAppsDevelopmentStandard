@@ -312,6 +312,7 @@ _SERVER_ACTIVITIES: dict[str, tuple[tuple[tuple[str, ...], str], ...]] = {
     ),
     "word": (((), "Word 文書を扱っています"),),
     "excel": (((), "Excel ブックを扱っています"),),
+    "dataverse": (((), "社内データを調べています"),),
     "odsp": (
         (("share", "invite", "link", "permission"), "共有リンクを作っています"),
         (("create", "upload", "write"), "ファイルを保存しています"),

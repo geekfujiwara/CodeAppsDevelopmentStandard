@@ -107,6 +107,8 @@ class UntrustedContent:
 
 _SHARE_TOOL = re.compile(r"share|createlink|permission|invite", re.IGNORECASE)
 _OUTBOUND_TOOL = re.compile(r"teams.*(send|post|create|reply)|share|createlink|invite", re.IGNORECASE)
+# Deleting rows or changing schema is never a teammate's job, whatever its role allows.
+_DATAVERSE_DESTRUCTIVE = re.compile(r"^dataverse-(delete_\w*|\w*_table|\w*_skill|\w*_file\w*)$", re.IGNORECASE)
 _EMAIL_CHANNELS = frozenset({"email", "agents:email"})
 
 
@@ -127,6 +129,8 @@ def guard_tool_use(tool_name: str, args: Any, *, channel: str) -> str | None:
     Enforced in code because L1-L3 depend on the model complying.
     """
     name = tool_name or ""
+    if _DATAVERSE_DESTRUCTIVE.match(name):
+        return "レコードの削除やテーブル・スキルの変更は行わない。必要なら担当者に依頼するよう案内すること。"
     if _SHARE_TOOL.search(name) and any(v.lower() == "anonymous" for v in _string_values(args)):
         return "匿名リンクは取り消せないので作らない。組織内（organization）の範囲で作り直すこと。"
     if channel in _EMAIL_CHANNELS and _OUTBOUND_TOOL.search(name):

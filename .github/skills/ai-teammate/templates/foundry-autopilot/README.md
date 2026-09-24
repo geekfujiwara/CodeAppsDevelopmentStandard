@@ -77,6 +77,17 @@ python ../../.github/skills/ai-teammate/scripts/grant_agent_graph_scopes.py --in
   --scopes "User.Read Chat.Read Files.Read.All Files.ReadWrite"
 ```
 
+社内データの検索（Dataverse MCP）は `DATAVERSE_URL` を渡したうえで、エージェント自身を環境につなぎます。
+読めるのは**エージェントに付けたロールの範囲**で、話しかけた人の権限ではありません（troubleshooting.md #85）。
+
+```powershell
+python ../../.github/skills/ai-teammate/scripts/grant_agent_graph_scopes.py --instance-id <instance appId> `
+  --resource-app-id 00000007-0000-0000-c000-000000000000 --scopes "mcp.tools user_impersonation"
+python ../../.github/skills/ai-teammate/scripts/connect_agent_dataverse.py --env-id <environment id> `
+  --agent-user-id <agentUser oid> --instance-app-id <instance appId> `
+  --role-name "${AGENT_DISPLAY_NAME} Reader" --client-unique-name <prefix>_<agent> --read-prefix <table prefix>
+```
+
 `python:3.12-slim` には `/usr/share/zoneinfo` が入っていないので、`requirements.txt` に
 `tzdata` を足してください。無いと `ZoneInfo("Asia/Tokyo")` が失敗して UTC に落ちます。
 

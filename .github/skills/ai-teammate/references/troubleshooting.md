@@ -2136,3 +2136,44 @@ Graph で利用者として投稿すれば、Teams を開かずに両方を再�
 
 また、ファイル添付の `contentType` は Teams の封筒の型（`file.download.info`）で、中身の型ではない。
 拡張子から推定し直さないと、CSV が `application/vnd.microsoft.teams.file.download.info` としてモデルに渡る。
+
+## 85. Foundry Autopilot 版を Dataverse MCP につなぐ（F4・検証済 2026-09-25）
+
+**前提の理解**: Autopilot の MCP トークンは `auth.exchange_token(...)` で取る**エージェンティック ユーザー**の
+委任トークン。Dataverse で何が読めるかは**話しかけてきた人ではなく、エージェント自身のロール**で決まる。
+「依頼者の権限で検索」にはならないので、エージェントに付けるロールがそのまま情報の公開範囲になる。
+
+**手順**（どれか 1 つでも欠けると別々のエラーになる。agent-brain.md §6-2）:
+
+```powershell
+# 1. インスタンスに Dataverse の委任を同意付与
+python .github/skills/ai-teammate/scripts/grant_agent_graph_scopes.py --instance-id <instance appId> `
+  --resource-app-id 00000007-0000-0000-c000-000000000000 --scopes "mcp.tools user_impersonation"
+
+# 2〜4. 環境へのユーザー追加・許可 MCP クライアント登録・読み取り専用ロール
+python .github/skills/ai-teammate/scripts/connect_agent_dataverse.py --check `
+  --env-id <environment id> --agent-user-id <agentUser oid> --instance-app-id <instance appId> `
+  --role-name "<Agent> Reader" --client-unique-name <prefix>_<agent> --read-prefix <table prefix>
+# 問題なければ --check を外して実行
+```
+
+`connect_agent_dataverse.py` が作るロールは**検索（`prvReadDVTableSearch`）と、指定した接頭辞の
+アンマネージド テーブルの読み取り（組織全体）だけ**。`System Customizer` は付けない
+（検証済みの組み合わせとして紹介されがちだが、カスタマイズ権限まで渡すことになる）。
+`Basic User` と `Agent 365 Tools Role` は併せて割り当てる。
+
+**コンテナー側**: `DATAVERSE_URL` を version の環境変数に渡す（`publish_foundry_autopilot.py` が転送する）。
+未設定なら Dataverse の MCP サーバーは読み込まれない。
+
+**詰まりどころ**:
+
+| 症状 | 原因 |
+|---|---|
+| MCP の初期化で失敗する | URL を `{DATAVERSE_URL}/api/mcp/v1.0` にしていた。正しくは **`/api/mcp`**（テンプレートを修正済み） |
+| 「その表は見つかりませんでした」と言うのに、実在する | Dataverse 検索のインデックスに入っていないテーブルは `search` に出ない。「無い」と答える前にテーブル一覧から表示名で探すようプロンプトに書く |
+| 削除やテーブル変更を試みる | ロールで防げても、`on_pre_tool_use` で `delete_*` / `*_table` / `*_skill` / ファイル系を拒否する（L4） |
+
+実測: 「AICoE の課題は何件？」→ `search` → `describe` → `read_query` で
+「AICoE Issue（課題・リスク・タスク）」テーブルから 3 件を回答。最初のツール呼び出しまで 1 分前後かかる
+（MCP サーバー 7 つ分の初期化が毎ターン走るため）。
+

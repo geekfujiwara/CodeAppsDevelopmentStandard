@@ -287,6 +287,11 @@ def build_version_body() -> dict:
     default_tz = (os.environ.get("DEFAULT_TIMEZONE") or "").strip()
     if default_tz:
         env_vars["DEFAULT_TIMEZONE"] = default_tz
+    # Optional feature switches; each one is off in the container unless forwarded here.
+    for name in ("DATAVERSE_URL", "PUBLISHER_PREFIX"):
+        value = (os.environ.get(name) or "").strip()
+        if value:
+            env_vars[name] = value
     image_deployment = image_model_deployment()
     if image_deployment:
         env_vars["IMAGE_MODEL_DEPLOYMENT"] = image_deployment

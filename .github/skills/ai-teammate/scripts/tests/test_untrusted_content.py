@@ -77,6 +77,16 @@ class GuardTests(unittest.TestCase):
     def test_teams_channel_can_message_others(self):
         self.assertIsNone(uc.guard_tool_use("mcp_TeamsServer-SendChatMessage", {}, channel="msteams"))
 
+    def test_dataverse_destructive_tools_are_refused(self):
+        for tool in ("dataverse-delete_record", "dataverse-create_table", "dataverse-upsert_skill"):
+            with self.subTest(tool=tool):
+                self.assertIsNotNone(uc.guard_tool_use(tool, {}, channel="msteams"))
+
+    def test_dataverse_reads_are_allowed(self):
+        for tool in ("dataverse-search", "dataverse-describe", "dataverse-read_query", "dataverse-list_tables"):
+            with self.subTest(tool=tool):
+                self.assertIsNone(uc.guard_tool_use(tool, {}, channel="msteams"))
+
     def test_mail_channel_cannot_share_a_delivered_file(self):
         args = {"path": "/home/x.csv", "share_with": ["someone@contoso.com"]}
         self.assertIsNotNone(uc.guard_tool_use("deliver_file", args, channel="agents:email"))
