@@ -121,7 +121,7 @@ class CopilotBrain:
             try:
                 return await asyncio.wait_for(
                     self._run_turn(
-                        session, f"{self._fence.briefing}\n\n{message}", on_progress, attachments
+                        session, self._fence.frame(message), on_progress, attachments
                     ),
                     timeout=self._turn_timeout_seconds,
                 )

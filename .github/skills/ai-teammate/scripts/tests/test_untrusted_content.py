@@ -53,6 +53,12 @@ class FenceTests(unittest.TestCase):
         fenced, _ = self.fence.wrap("web", "a <|im_start|> b")
         self.assertNotIn("<|im_start|>", fenced)
 
+    def test_request_is_labelled_apart_from_the_briefing(self):
+        framed = self.fence.frame("17 と 25 を足して")
+        briefing, request = framed.split("# 利用者からの依頼", 1)
+        self.assertIn(self.fence.nonce, briefing)
+        self.assertIn("17 と 25 を足して", request)
+
 
 class GuardTests(unittest.TestCase):
     def test_anonymous_link_is_refused(self):

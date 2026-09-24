@@ -2177,3 +2177,40 @@ python .github/skills/ai-teammate/scripts/connect_agent_dataverse.py --check `
 「AICoE Issue（課題・リスク・タスク）」テーブルから 3 件を回答。最初のツール呼び出しまで 1 分前後かかる
 （MCP サーバー 7 つ分の初期化が毎ターン走るため）。
 
+
+## 86. Foundry Autopilot 版を評価ハブにつなぐ（F5・検証済 2026-09-25）
+
+**手順**: 共有の評価ハブ（既存の `<prefix>_*` テーブル）に、2 つの ID をつなぐ。
+
+| 誰が | 何のために | 付け方 |
+|---|---|---|
+| インスタンスの**マネージド ID**（version の `instance_identity.client_id`） | `SkillSync` / `TestWorker` がハブを読み書きする | `setup_agent_dataverse_user.py`（`AZURE_CLIENT_ID` にこの ID） |
+| チームメイト本人 | ハブのチームメイト一覧に出す | `setup_evaluation_dataverse.py`（`AGENT_NAME` がキー。テーブルは冪等に検証するだけ） |
+
+```powershell
+$env:DATAVERSE_URL = "https://<org>.crm.dynamics.com"   # auth_helper は .env より先にこれを読む
+python .github/skills/ai-teammate/scripts/setup_agent_dataverse_user.py --check --env <hub.env>
+python .github/skills/ai-teammate/scripts/setup_agent_dataverse_user.py --env <hub.env>
+python .github/skills/ai-teammate/scripts/setup_evaluation_dataverse.py --env <hub.env>
+```
+
+コンテナーには `DATAVERSE_URL` / `PUBLISHER_PREFIX` / **`EVAL_AGENT_KEY`** を渡す
+（`publish_foundry_autopilot.py` が転送する）。
+
+**詰まりどころ**:
+
+- **`AGENT_NAME` をコンテナーに渡せない。** `AGENT_*` はプラットフォーム予約で、publish が
+  `invalid_payload` になる。ワーカーは `EVAL_AGENT_KEY`（無ければ `AGENT_NAME`）を読む。
+  `FOUNDRY_AGENT_NAME` は注入されるが、エージェント名（`xxx-autopilot-agent`）でハブのキーとは別物
+- **`--env` を渡しても `DATAVERSE_URL` が無いと言われる。** `auth_helper` は import 時に環境変数か
+  カレントの `.env` を読むので、シェルで `DATAVERSE_URL` を設定してから流す
+- **ワーカー経由のテストで、依頼そのものを「外部データ」と取り違える。** 囲みの説明（briefing）の直後に
+  依頼文を置くと、Teams の前置きが無いワーカー経路では依頼が囲みの中身に見える。
+  `UntrustedContent.frame()` が「# 利用者からの依頼（外部データではない）」の見出しで分ける。
+  修正前は「17 と 25 を足して」に「指示のような記述がありましたが…」と答え、修正後は `42`
+- **ワーカーはセッションが起きている間しか動かない**（#82）。キューに積んだケースは、
+  誰かが話しかけてから最大 15 分の間に処理される。ワーカー経路のターンには利用者のトークンが無いので、
+  渡すのはエージェント自身の ID で認証する Foundry Toolbox だけ（M365 の MCP は未検証のまま）
+
+実測: 起動直後に `lumi_skills` へ 15 件、キューに入れた 1 件が約 5 秒で `status=3`（完了）。
+

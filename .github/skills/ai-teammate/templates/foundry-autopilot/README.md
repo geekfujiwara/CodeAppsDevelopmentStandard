@@ -63,7 +63,7 @@ python ../../.github/skills/ai-teammate/scripts/run_regression_tests.py --execut
 | `TOOLBOX_ENDPOINT` | Foundry Toolbox（Web 検索・コード実行）の MCP エンドポイント |
 | `DATAVERSE_URL` | 評価ハブと Dataverse MCP の接続先。未設定ならどちらも自動で無効 |
 | `PUBLISHER_PREFIX` | 評価ハブのテーブル接頭辞 |
-| `AGENT_NAME` | 評価ハブ上でこのチームメイトを識別するキー |
+| `EVAL_AGENT_KEY` | 評価ハブ上でこのチームメイトを識別するキー。`AGENT_*` は予約済みで渡せないのでこの名前にする（troubleshooting.md #86） |
 | `IMAGE_MODEL_DEPLOYMENT` | 画像生成（B17）を有効にする。未設定なら `generate_image` ツールは登録されない。既定クォータは 1 リクエスト/分 |
 | `AZURE_DEVOPS_ORGANIZATION` | Azure DevOps MCP を有効にする |
 | `SKILLS_SYNC_MINUTES` | スキルを評価ハブへ同期する間隔（既定 30 分） |

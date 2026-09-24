@@ -19,7 +19,7 @@ import os
 import time
 from datetime import datetime, timezone
 
-from .dataverse import Dataverse, odata_literal
+from .dataverse import Dataverse, eval_agent_key, odata_literal
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class TestWorker:
     ) -> None:
         self._run_turn = run_turn
         self._prefix = (prefix or os.getenv("PUBLISHER_PREFIX", "")).strip()
-        self._agent_key = (agent_key or os.getenv("AGENT_NAME", "")).strip()
+        self._agent_key = (agent_key or eval_agent_key()).strip()
         self._poll = poll_seconds or int(os.getenv("EVAL_POLL_SECONDS", DEFAULT_POLL_SECONDS))
         self._dataverse = Dataverse()
         self._task: asyncio.Task | None = None
@@ -50,7 +50,7 @@ class TestWorker:
 
     def start(self) -> None:
         if not self.enabled:
-            logger.info("TestWorker disabled (needs DATAVERSE_URL, PUBLISHER_PREFIX, AGENT_NAME)")
+            logger.info("TestWorker disabled (needs DATAVERSE_URL, PUBLISHER_PREFIX, EVAL_AGENT_KEY)")
             return
         self._task = asyncio.create_task(self._loop())
 
