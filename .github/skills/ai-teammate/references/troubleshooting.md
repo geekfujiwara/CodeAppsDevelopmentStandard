@@ -1683,14 +1683,16 @@ eval_run = {
 `--container-only` を追加した。コード修正だけを反映したいときはこれを使う。
 
 ```powershell
+$tag = Get-Date -Format yyyyMMddHHmmss   # 同じタグだと version が作られない（#83）
 cd autopilot/src/hello_world_a365_agent
-az acr build --registry <acr> --image <image>:latest --file foundry-infra/Dockerfile .
+az acr build --registry <acr> --image "<image>:$tag" --file foundry-infra/Dockerfile .
 cd ../../..
-python .github/skills/ai-teammate/scripts/publish_foundry_autopilot.py --execute --container-only
+$env:AGENT_IMAGE_TAG = $tag
+python .github/skills/ai-teammate/scripts/publish_foundry_autopilot.py --execute --container-only --recycle-sessions
 ```
 
-トラフィックは `version_selector` の `@latest` を見ているので、version を作った時点で
-新しいコンテナーに切り替わる。M365 への再発行（`appVersion` の +1 と再承認）は不要。
+M365 への再発行（`appVersion` の +1 と再承認）は不要。ただし**既存のチャットは作成時の
+version に固定されたセッションで動き続ける**ので、`--recycle-sessions` で作り直す（#83）。
 
 **version 作成そのものは `access_boundaries` を消さない**（実測: version 6 → 7 で
 前後の `agent_endpoint` が完全一致）。消すのは常に PATCH の側である。
@@ -2024,4 +2026,53 @@ AppTraces | where TimeGenerated > ago(4d)
 | 自己ホスト（C# `digital-colleague`）へ移す | Always On | エージェント自身 | B11 は実装・検証済み |
 
 どの方式でも、**スケジュールはコンテナーのローカルに置かない**（停止で消える）。
+
+
+## 83. 再デプロイしたのに古いコードのまま動き続ける（検証済 2026-09-24）
+
+**症状**: コンテナーを更新して `publish_foundry_autopilot.py --execute` が成功し、新しい
+version も `active` なのに、Teams での振る舞いが変わらない。ログを見ると、新しいコードで
+足したログ行（例: `User timezone ...`）が**一度も出ていない**。
+
+```kql
+AppTraces | where TimeGenerated > ago(4d)
+| where Message has_any ('Foundry agent ready','User timezone')
+| summarize n=count(), t0=min(TimeGenerated), t1=max(TimeGenerated) by Msg=substring(Message,0,200)
+```
+
+**原因**: 3 つが重なる。どれか 1 つでも残っていると新しいコードは動かない。
+
+1. **セッションは作成時の version に固定される**（一番効く）。hosted agent は会話ごとに
+   VM 分離のセッションを持ち、`$HOME` を保存したまま休止・再開する。
+   [Learn](https://learn.microsoft.com/azure/foundry/agents/how-to/manage-hosted-sessions) の通り
+   「Each session is bound to a single version at creation time」なので、同じ Teams チャットは
+   version を何回作っても**最初の version のまま**動く。`@latest` は新しいセッションにしか効かない。
+
+   ```powershell
+   # どの version に固定されているか
+   az rest --method GET --resource https://ai.azure.com `
+     --url "$base/agents/$name/endpoint/sessions?api-version=v1"
+   # → "version_indicator": {"type": "version_ref", "agent_version": "6"}
+   ```
+
+   **古いセッションを削除する**と、次のメッセージで同じ ID のセッションが最新 version で作り直される。
+   Teams 側のチャット履歴は消えない（消えるのはセッションの `$HOME`＝ SDK の会話メモリと一時ファイル）。
+   `publish_foundry_autopilot.py --container-only --recycle-sessions` がこれを行う。
+   付けなければ、残っているセッションの件数と固定先の version を表示するだけにとどめる。
+
+2. **同じ定義は重複排除される**。イメージを `:latest` のまま作り直しても version の本文が
+   前回と同じなので、POST は**既存の version 番号を返すだけ**で新しい version を作らない。
+   ビルドごとに一意のタグ（例: `yyyyMMddHHmmss`）を `AGENT_IMAGE_TAG` に渡す。
+   スクリプトは返ってきた番号が既存以下なら失敗で止める。
+
+3. **`metadata.enableVnextExperience` を付けていない**。quickstart の
+   `agent-creation-script.ps1` は `metadata = @{ enableVnextExperience = "true" }` を送っている。
+   付けずに作った version は、作成直後に `active` になる（プロビジョニングしていない）。
+   付けると `creating` を経て `active` になる。スクリプトは常に付ける。
+
+**確認の手順**: デプロイ後に必ず新しいコードが出すログ行を 1 つ決めておき、Teams から 1 通送って
+その行が出ることを見る。会話の見た目だけで判断しない。
+
+**副作用**: セッションを作り直すと SDK の会話メモリも消える。直前の会話の続きは引き継がれない。
+逆に言えば、以前の断り文（#78-6）が残った会話をリセットする手段にもなる。
 

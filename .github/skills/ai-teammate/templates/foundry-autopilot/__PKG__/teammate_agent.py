@@ -236,6 +236,7 @@ class TeammateAgent(AgentInterface):
             mcp_servers=mcp_servers_from_responses_tools(tools),
             tools=self._build_custom_tools(context),
             on_progress=lambda text: context.send_activity(text),
+            channel=getattr(getattr(context, "activity", None), "channel_id", "") or "",
         )
 
     ACK_INSTRUCTIONS = (

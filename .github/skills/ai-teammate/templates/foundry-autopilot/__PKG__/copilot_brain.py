@@ -20,6 +20,8 @@ from typing import Any, Awaitable, Callable, Sequence
 
 from copilot import CopilotClient, PermissionHandler, ProviderConfig, SessionEventType, ToolSet
 
+from .untrusted_content import UntrustedContent, guard_tool_use, is_trusted
+
 logger = logging.getLogger(__name__)
 
 # The SDK session id doubles as the provider prompt_cache_key, which is capped at 64 characters,
@@ -73,6 +75,9 @@ class CopilotBrain:
         # which would otherwise deadlock waiting for idle.
         self._lock = asyncio.Lock()
         self.last_tool_calls: list[str] = []
+        # Read by the hooks at call time, so a new fence per turn needs no new session.
+        self._fence = UntrustedContent()
+        self._channel = ""
 
     async def close(self) -> None:
         for session, _ in self._sessions.values():
@@ -98,8 +103,11 @@ class CopilotBrain:
         mcp_servers: dict[str, dict[str, Any]],
         tools: Sequence[Any] = (),
         on_progress: ProgressSink | None = None,
+        channel: str = "",
     ) -> str:
         async with self._lock:
+            self._fence = UntrustedContent()
+            self._channel = channel
             session = await self._session_for(
                 conversation_id=conversation_id,
                 instructions=instructions,
@@ -110,7 +118,7 @@ class CopilotBrain:
             self.last_tool_calls = []
             try:
                 return await asyncio.wait_for(
-                    self._run_turn(session, message, on_progress),
+                    self._run_turn(session, f"{self._fence.briefing}\n\n{message}", on_progress),
                     timeout=self._turn_timeout_seconds,
                 )
             except asyncio.TimeoutError:
@@ -154,6 +162,10 @@ class CopilotBrain:
             available_tools=available,
             system_message={"mode": "replace", "content": instructions},
             on_permission_request=PermissionHandler.approve_all,
+            hooks={
+                "on_pre_tool_use": self._pre_tool_use,
+                "on_post_tool_use": self._post_tool_use,
+            },
             streaming=False,
         )
         if custom_tools:
@@ -194,6 +206,21 @@ class CopilotBrain:
             await entry[0].abort()
         except Exception:  # noqa: BLE001 - best effort
             pass
+
+    async def _pre_tool_use(self, data: dict[str, Any], _invocation: Any) -> dict[str, Any] | None:
+        tool_name = data.get("toolName", "")
+        reason = guard_tool_use(tool_name, data.get("toolArgs"), channel=self._channel)
+        if reason is None:
+            return None
+        logger.warning("Tool call %s refused by guard (channel=%s)", tool_name, self._channel)
+        return {"permissionDecision": "deny", "permissionDecisionReason": reason}
+
+    async def _post_tool_use(self, data: dict[str, Any], _invocation: Any) -> dict[str, Any] | None:
+        tool_name = data.get("toolName", "")
+        if is_trusted(tool_name):
+            return None
+        logger.info("Fenced output of %s", tool_name)
+        return {"modifiedResult": self._fence.wrap_tool_result(tool_name, data.get("toolResult"))}
 
     async def _run_turn(self, session, message: str, on_progress: ProgressSink | None = None) -> str:
         loop = asyncio.get_running_loop()

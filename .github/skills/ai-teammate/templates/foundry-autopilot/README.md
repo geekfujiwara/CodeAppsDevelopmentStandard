@@ -49,6 +49,10 @@ python ../../.github/skills/ai-teammate/scripts/run_regression_tests.py --execut
 > **publish をやり直すときは `--bump-version` を付けてください。** 同じ `appVersion` の再送は
 > `UserError: version already exists` で落ちます。また `accessBoundaries` を変更した場合は、
 > 再承認したうえで**インスタンスを作り直さないと**古い境界のまま動きます。
+>
+> **コードだけ直したときは `--container-only --recycle-sessions`。** イメージのタグはビルドごとに
+> 一意にし（`AGENT_IMAGE_TAG`）、既存チャットのセッションを作り直さないと古いコードのまま動きます
+> （セッションは作成時の version に固定されるため。troubleshooting.md #83）。
 
 ## 設定（環境変数）
 

@@ -301,6 +301,9 @@ def build_version_body() -> dict:
             "container_protocol_versions": [{"protocol": "activity_protocol", "version": "v1"}],
             "environment_variables": env_vars,
         },
+        # Without this flag the version is created but the M365 endpoint keeps serving the
+        # last vNext version, so a redeploy silently runs old code (troubleshooting #83).
+        "metadata": {"enableVnextExperience": "true"},
         "description": os.environ.get("AGENT_DESCRIPTION", "Foundry autopilot."),
         "agent_endpoint": agent_endpoint(),
         "digital_worker_type": "m365",
@@ -393,6 +396,41 @@ def enable_instance_identity(app_id: str) -> None:
         )
 
 
+def latest_version_number(base: str, agent_name: str, api_version: str) -> int | None:
+    try:
+        listed = foundry_request("GET", f"{base}/agents/{agent_name}/versions?api-version={api_version}")
+    except SystemExit:
+        return None  # first publish: the agent does not exist yet
+    items = listed.get("data") or listed.get("value") or []
+    numbers = [int(item["version"]) for item in items if str(item.get("version", "")).isdigit()]
+    return max(numbers) if numbers else None
+
+
+def recycle_stale_sessions(base: str, agent_name: str, version: str, *, delete: bool) -> None:
+    """Sessions are bound to the version they were created on, so existing chats keep old code."""
+    url = f"{base}/agents/{agent_name}/endpoint/sessions"
+    listed = foundry_request("GET", f"{url}?api-version=v1")
+    stale = [
+        s for s in listed.get("data") or listed.get("value") or []
+        if s.get("status") != "deleted"
+        and str((s.get("version_indicator") or {}).get("agent_version")) != str(version)
+    ]
+    print(f"\n== セッション: 古い version に固定されたもの {len(stale)} 件 ==")
+    for session in stale:
+        pinned = (session.get("version_indicator") or {}).get("agent_version")
+        session_id = session["agent_session_id"]
+        if delete:
+            foundry_request("DELETE", f"{url}/{session_id}?api-version=v1")
+            print(f"  削除 {session_id[:12]}…（version {pinned}）")
+        else:
+            print(f"  残存 {session_id[:12]}…（version {pinned}）")
+    if stale and not delete:
+        print(
+            "  ! このままだと既存のチャットは古いコードで動き続けます。"
+            "--recycle-sessions で削除してください（troubleshooting.md #83）。"
+        )
+
+
 def wait_until_active(base: str, agent_name: str, version: str, api_version: str) -> dict:
     url = f"{base}/agents/{agent_name}/versions/{version}?api-version={api_version}"
     for attempt in range(POLL_MAX_ATTEMPTS):
@@ -472,6 +510,11 @@ def main() -> int:
         action="store_true",
         help="コード修正を反映するだけの再デプロイ。version だけ作って M365 への再発行はしない",
     )
+    parser.add_argument(
+        "--recycle-sessions",
+        action="store_true",
+        help="古い version に固定されたセッションを削除する（$HOME の作業状態は消える）",
+    )
     parser.add_argument("--env", type=Path, help=".env のパス（既定はリポジトリ ルート）")
     args = parser.parse_args()
 
@@ -509,11 +552,20 @@ def main() -> int:
         return 0
 
     print("\n== agent version を作成します ==")
+    previous = latest_version_number(base, agent_name, api_version)
     created = foundry_request(
         "POST", f"{base}/agents/{agent_name}/versions?api-version={api_version}", version_body
     )
     version = created["version"]
     print(f"  version={version} blueprint={created.get('blueprint_reference', {}).get('blueprint_id')}")
+    if previous is not None and int(version) <= previous:
+        # An identical body is deduplicated, so a rebuilt image behind the same tag never runs.
+        print(
+            f"  NG 定義が前回と同一なので新しい version が作られませんでした（既存 {previous}）。\n"
+            "     イメージを更新したなら AGENT_IMAGE_TAG をビルドごとに一意にしてください（troubleshooting.md #83）。",
+            file=sys.stderr,
+        )
+        return 1
     if created.get("status") != "active":
         created = wait_until_active(base, agent_name, version, api_version)
 
@@ -543,8 +595,7 @@ def main() -> int:
 
     if args.container_only:
         print("\n--container-only なので M365 への再発行は行いません。")
-        print("トラフィックは @latest を見ているので、この時点で新しいコンテナーが使われます。")
-        print("確認は必ず**新しい会話**で行うこと（前の断り文が履歴に残るため）。")
+        recycle_stale_sessions(base, agent_name, version, delete=args.recycle_sessions)
         return 0
 
     print("\n== Autopilot として M365 に発行します ==")
