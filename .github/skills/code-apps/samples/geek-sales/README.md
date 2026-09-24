@@ -5,7 +5,8 @@ Code Apps サンプル実装。Power Automate AI フロー連携と Copilot Stud
 機能フラグで段階的に有効化できます。
 
 > **新規テーマの雛形には使わない。**
-> 新しいテーマは `.github/` を取得後、**@GeekPowerCode** に scaffold を依頼すること。
+> 営業支援を空のディレクトリから始める場合は [templates/sales-crm](../../templates/sales-crm/README.md) を scaffold すること。
+> その他の新しいテーマは `.github/` を取得後、**@GeekPowerCode** に scaffold を依頼すること。
 
 ---
 

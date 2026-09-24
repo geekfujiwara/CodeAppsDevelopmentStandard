@@ -75,8 +75,14 @@ python .github/skills/admin/scripts/manage_m365_users.py account `
 | Publish / Finalize | `POST /fd/addins/api/v2/actionableApps` | `Apps[].Command` は `APPROVE` / `FINALIZEPACKAGE`。`AppId`, `Workload`, version/etag を送る |
 | Agent 利用要求の承認 | `POST /fd/addins/api/agentActions/approve?workload=SharedAgent` | `{ "requestIds": ["<request-id>"] }` |
 | Entra permission Grant / Revoke | `POST /fd/addins/api/v2/AgentPermission/update` | `ActiveDirectoryAppId`, `PermissionRequestData[]` |
-| Deployment status | `GET /fd/addins/api/deploymentRequestStatus/{requestId}` | `POST` が返す `appManagementRequestID` を完了まで poll |
+| Deployment status | `GET /fd/addins/api/deploymentRequestStatus/{requestId}` | `POST` が返す `appManagementRequestID` を完了まで poll。状態は `appsManagementStatus[].status`（`Success` 等） |
 | Agent details read-back | `GET /fd/addins/api/availableAgents/details/{id}` | `assignedUsersAndGroups`, `isDeployed`, permissions/status を照合 |
+| Cowork プラグイン新規（ステージ） | `POST /fd/addins/api/apps/uploadCustomApp?workloads=MetaOS` | multipart: `AppFile`, `Locale`, `ContentMarket`, `WorkloadType=MetaOS`, `ActionType=DEPLOY`（`ProductId` なし）。runner の `stageCustomApp()` |
+| Cowork プラグイン新規（確定） | `POST /fd/addins/api/v2/actionableApps`（`agent-publish`） | `Apps[0]` = `AppId=<titleId>`, `Command=FINALIZEPACKAGE`, `Workload=MetaOS`, `Version`, `MosOperationId` |
+| Cowork プラグイン新規（公開対象） | `POST /fd/addins/api/availableAgents`（`agent-allow`） | `WorkloadManagementList[0]` = `ProductID`/`AppsourceAssetID`/`TitleID`=`<titleId>`, `Command=ALLOW`, `Workload=SharedAgent`。`UserAssignmentDetails` |
+| Cowork プラグイン新規（事前インストール） | `POST /fd/addins/api/apps`（`agent-lifecycle`） | `Command=DEPLOY`, `Workload=MetaOS`, **`MosOperationId` 必須**（無いと非同期で `OperationId is null or empty`） |
+| Cowork プラグイン更新（ステージ） | `POST /fd/addins/api/apps/uploadCustomApp?workloads=MetaOS` | multipart: `AppFile`, `ProductId=<titleId>`, `Locale`, `ContentMarket`, `WorkloadType=MetaOS`, `ActionType=UPDATEAPP`。応答 `appDetail` の `mosOperationId` / `latestVersion` を次に使う（`ActionType=DEPLOY` は既存 ID で 500「already been deployed」） |
+| Cowork プラグイン更新（確定） | `POST /fd/addins/api/apps`（`agent-update-app`） | `WorkloadManagementList[0]` = `ProductID`/`TitleID`=`<titleId>`, `Command=UPDATEAPP`, `Version=<latestVersion>`, `AppType=LOB`, `Workload=MetaOS`, `MosOperationId`。`SendEmailToUsers=false`、割り当ては送らない（既存の公開対象・Connect を維持） |
 
 ```powershell
 python .github/skills/admin/scripts/manage_m365_portal_api.py frontier-access `
@@ -96,7 +102,11 @@ python .github/skills/admin/scripts/manage_m365_portal_api.py agent-permission-u
 このAPIはHTTP `200`（全件成功）または`207`（項目別結果）を返す。`agentActions/approve` は利用要求の
 承認であり、Entra permission のGrantではないため代用しない。
 
-実測状況は区別する。Install/Uninstallはwrite、poll、details read-backまで成功済み。Publish/Finalizeと
+実測状況は区別する。Install/Uninstallはwrite、poll、details read-backまで成功済み。Cowork プラグインの新規登録
+（`stageCustomApp(DEPLOY)` → `agent-publish` FINALIZEPACKAGE → `agent-allow` → `agent-lifecycle` DEPLOY）は使い捨ての検証用
+プラグインで private API だけで実行し、各 `appsManagementStatus[].status=Success` まで実測済み。Cowork プラグイン更新
+（`uploadCustomApp` + `agent-update-app`）は write、poll（`UpdateApp` / `Success`）、Cowork 側の Version 表示まで成功済み
+（管理センターの Tools 詳細パネルの Version は反映が遅れる）。Publish/Finalizeと
 Entra permission更新はportal bundleからendpoint/body/response contractを捕捉しplan/runner契約テストまで
 完了しているが、成功するmutationは未実測。検証専用packageのGraph登録はcached tokenに`AppCatalog.*`
 scopeがなくHTTP `403`でwrite前に停止した。既存agentを代用せず、disposable agentまたは管理者指定の

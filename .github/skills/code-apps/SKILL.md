@@ -137,7 +137,7 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
         ② 画面設計（design-pattern）→ ユーザー承認
           │
 [§2 初回デプロイ]
-        ③ テンプレート scaffold + npm install（Dataverse 構築 Phase 2 と並行して即着手／VS Code では Code Apps サブエージェントとして起動）
+        ③ テンプレート scaffold + npm install（業務テンプレートがあれば templates/sales-crm 等から生成。Dataverse 構築 Phase 2 と並行して即着手／VS Code では Code Apps サブエージェントとして起動）
         ④ ソリューション + 接続参照を用意（setup_connection_reference.py）★init より前
         ⑤ npx pa app init（power.config.json 生成）
         ⑥ vite.config.ts 必須設定の確認 / .env 設定
@@ -260,6 +260,9 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py \
   --template .github/skills/code-apps/templates/generic-base --target {TARGET_DIR} --dry-run
 python .github/skills/update-skills/scripts/scaffold_from_template.py \
   --template .github/skills/code-apps/templates/generic-base --target {TARGET_DIR}
+# 業務テンプレートから始める場合は --template を差し替える（generic-base を extends 済み。例: 営業支援 CRM）
+#   --template .github/skills/code-apps/templates/sales-crm
+# 対象ディレクトリは空（.git / .github / .vscode / .env だけなら空とみなす）であること
 npm install --no-audit --no-fund
 
 # 既存プロジェクトを更新するときは SDK / CLI とも latest を候補にし、build と CLI help を再検証する
@@ -584,6 +587,7 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 | テンプレート | 種別 | 開始方法 |
 |---|---|---|
 | [templates/generic-base](templates/generic-base/) | 完全なベース | 新規プロジェクトの出力先へ生成する |
+| [templates/sales-crm](templates/sales-crm/README.md) | 完全な業務テンプレート（generic-base を `extends`） | 営業支援 CRM（マネージャー ダッシュボード・営業ホーム・CRUD・Outlook/Teams/Cowork 連携）を空のディレクトリから生成する |
 | [templates/account-link-admin](templates/account-link-admin/) | アドオン | 空の作業ディレクトリへ生成し、README に従ってホストへ統合する |
 | [templates/drawing-communication](templates/drawing-communication/) | アドオン | 空の作業ディレクトリへ生成・単体検証後、必要なモジュールをホストへ統合する |
 | [templates/modular-plant](templates/modular-plant/) | アドオン | 空の作業ディレクトリへ生成・単体検証後、必要なモジュールをホストへ統合する |
@@ -593,7 +597,16 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 
 `samples/geek-*` は**業務ページ実装の参照専用**で、scaffold 元にはしない
 （業務固有のページ・型・サービス、および `samples/geek-sales` の `CommandPalette` / `QuickActivityFab` のような
-テーマ固有コンポーネントが混入するため）。
+テーマ固有コンポーネントが混入するため）。営業支援を始める場合は `templates/sales-crm` を使う。
+
+> **業務テンプレートはデータソース追加前にビルドできること**: 初回 push（Step 5）は add data-source（Step 6）より前に
+> build するため、生成サービスを静的 import すると空のディレクトリからの初回デプロイが型エラーで止まる。
+> `templates/sales-crm/src/lib/dataverse-client.ts` のように `import.meta.glob("../generated/services/MicrosoftDataverseService.ts")`
+> で遅延解決し、未追加時は画面に追加手順を出す。
+
+> **`npx pa` は `--no` を付ける**: ローカルに `pa`（`@microsoft/power-apps-cli` v1 以降の bin）が無い状態で `npx pa` を実行すると、
+> npm 上の**無関係なパッケージ `pa`** を取得して実行する（依存未導入・旧 CLI 0.x のままで起きる）。手動実行は `npx --no pa ...`、
+> npm scripts では `pa app push` を直接呼ぶ。`npm run predeploy` のチェック 12 がこの状態を検出する。
 
 外部 API 呼び出しを含むデモページ（`design-examples.tsx` / `use-learn-catalog.ts` / `learn-client.ts` 等）は CSP 違反になるため、業務テーマに不要なものは最初から生成しない。標準コンポーネント（`form-modal.tsx` / `list-table.tsx` / `inline-edit-table.tsx` / `sidebar*.tsx` / `ui/` 等）は残す。
 

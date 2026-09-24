@@ -20,23 +20,38 @@ HERE = Path(__file__).resolve().parent
 STANDARD_SCRIPTS = (HERE / ".." / ".." / "standard" / "scripts").resolve()
 sys.path.insert(0, str(STANDARD_SCRIPTS))
 
-from auth_helper import get_session  # noqa: E402
+from auth_helper import get_session, get_token  # noqa: E402
 
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 GRAPH_SCOPE = "https://graph.microsoft.com/.default"
+# 既定クライアントには AppCatalog.* が無い。Graph PowerShell の公開クライアントなら委任スコープを個別に要求できる
+GRAPH_POWERSHELL_CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e"
+APP_CATALOG_SCOPE = "https://graph.microsoft.com/AppCatalog.ReadWrite.All"
 TIMEOUT = 180
+_CLIENT: dict[str, str | None] = {"client_id": None, "scope": GRAPH_SCOPE}
+
+
+def graph_session():
+    if not _CLIENT["client_id"]:
+        return get_session(scope=GRAPH_SCOPE)
+    import requests
+
+    session = requests.Session()
+    token = get_token(scope=_CLIENT["scope"], client_id=_CLIENT["client_id"])
+    session.headers["Authorization"] = f"Bearer {token}"
+    return session
 
 
 def graph_get(path: str) -> dict[str, Any]:
-    response = get_session(scope=GRAPH_SCOPE).get(f"{GRAPH_BASE}{path}", timeout=TIMEOUT)
+    response = graph_session().get(f"{GRAPH_BASE}{path}", timeout=TIMEOUT)
     if response.status_code >= 400:
         raise RuntimeError(f"GET {path} failed: HTTP {response.status_code} {response.text}")
     return response.json()
 
 
 def graph_binary_post(path: str, package: bytes) -> dict[str, Any] | None:
-    session = get_session(scope=GRAPH_SCOPE)
+    session = graph_session()
     response = session.post(
         f"{GRAPH_BASE}{path}",
         data=package,
@@ -49,9 +64,10 @@ def graph_binary_post(path: str, package: bytes) -> dict[str, Any] | None:
 
 
 def app_catalog() -> list[dict[str, Any]]:
+    # appCatalogs/teamsApps は $top を受け付けない（HTTP 400）。ページングは @odata.nextLink に任せる
     path = (
         "/appCatalogs/teamsApps?$filter=distributionMethod eq 'organization'"
-        "&$expand=appDefinitions&$top=100"
+        "&$expand=appDefinitions"
     )
     values: list[dict[str, Any]] = []
     while path:
@@ -147,6 +163,8 @@ def deploy(args: argparse.Namespace) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--graph-powershell", action="store_true",
+                        help="Graph PowerShell 公開クライアントで AppCatalog.ReadWrite.All を要求する（既定トークンが 403 のとき）")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     list_parser = subparsers.add_parser("list", help="組織アプリカタログを一覧")
@@ -164,6 +182,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
+    if args.graph_powershell:
+        _CLIENT.update(client_id=GRAPH_POWERSHELL_CLIENT_ID, scope=APP_CATALOG_SCOPE)
     args.handler(args)
 
 

@@ -63,6 +63,22 @@ CONTRACTS = {
         "required": {"Apps"},
         "allowed": {"Apps"},
     },
+    # アップロード済みプラグインの新版を確定する。先に uploadCustomApp(ActionType=UPDATEAPP) で MosOperationId を得る
+    "agent-update-app": {
+        "method": "POST",
+        "path": "/fd/addins/api/apps",
+        "readBack": "/fd/addins/api/agents",
+        "required": {"Locale", "ContentMarket", "WorkloadManagementList", "SendEmailToUsers"},
+        "allowed": {"Locale", "ContentMarket", "WorkloadManagementList", "SendEmailToUsers"},
+    },
+    # 新規登録したプラグインを「インストールできる利用者」に公開する（Command=ALLOW, Workload=SharedAgent）
+    "agent-allow": {
+        "method": "POST",
+        "path": "/fd/addins/api/availableAgents",
+        "readBack": "/fd/addins/api/agents",
+        "required": {"Locale", "ContentMarket", "WorkloadManagementList", "UserAssignmentDetails", "SendEmailToUsers"},
+        "allowed": {"Locale", "ContentMarket", "WorkloadManagementList", "UserAssignmentDetails", "SendEmailToUsers"},
+    },
     "agent-request-approve": {
         "method": "POST",
         "path": "/fd/addins/api/agentActions/approve",
@@ -115,6 +131,27 @@ def load_payload(path: str) -> dict[str, Any]:
     return value
 
 
+def validate_assignments(assignments: Any) -> None:
+    if not isinstance(assignments, dict):
+        raise SystemExit("UserAssignmentDetails は JSON object で指定してください。")
+    unknown_assignments = sorted(set(assignments) - ASSIGNMENT_FIELDS)
+    if unknown_assignments:
+        raise SystemExit(f"未確認の UserAssignmentDetails field です: {', '.join(unknown_assignments)}")
+    if set(assignments) != ASSIGNMENT_FIELDS:
+        raise SystemExit("UserAssignmentDetails の field が不足しています。")
+    if not isinstance(assignments["Members"], list):
+        raise SystemExit("Members は配列で指定してください。")
+    for member in assignments["Members"]:
+        if not isinstance(member, dict) or set(member) != {"Id", "Type"}:
+            raise SystemExit("Members の各要素には Id と Type が必要です。")
+        if member["Type"] not in {"User", "Group"}:
+            raise SystemExit("Member Type は User または Group で指定してください。")
+    if not isinstance(assignments["DeployToEveryone"], bool):
+        raise SystemExit("DeployToEveryone は boolean で指定してください。")
+    if assignments["UserAssignmentCategory"] not in {"None", "Everyone", "SpecificUsers", "NoOne"}:
+        raise SystemExit("未確認の UserAssignmentCategory です。")
+
+
 def validate_payload(operation: str, payload: dict[str, Any]) -> None:
     contract = CONTRACTS[operation]
     unknown = sorted(set(payload) - contract["allowed"])
@@ -143,25 +180,7 @@ def validate_payload(operation: str, payload: dict[str, Any]) -> None:
                 raise SystemExit("未確認の lifecycle Command です。")
             if not workload.get("ProductID") and not workload.get("AppsourceAssetID"):
                 raise SystemExit("workload には ProductID または AppsourceAssetID が必要です。")
-        assignments = payload["UserAssignmentDetails"]
-        if not isinstance(assignments, dict):
-            raise SystemExit("UserAssignmentDetails は JSON object で指定してください。")
-        unknown_assignments = sorted(set(assignments) - ASSIGNMENT_FIELDS)
-        if unknown_assignments:
-            raise SystemExit(f"未確認の UserAssignmentDetails field です: {', '.join(unknown_assignments)}")
-        if set(assignments) != ASSIGNMENT_FIELDS:
-            raise SystemExit("UserAssignmentDetails の field が不足しています。")
-        if not isinstance(assignments["Members"], list):
-            raise SystemExit("Members は配列で指定してください。")
-        for member in assignments["Members"]:
-            if not isinstance(member, dict) or set(member) != {"Id", "Type"}:
-                raise SystemExit("Members の各要素には Id と Type が必要です。")
-            if member["Type"] not in {"User", "Group"}:
-                raise SystemExit("Member Type は User または Group で指定してください。")
-        if not isinstance(assignments["DeployToEveryone"], bool):
-            raise SystemExit("DeployToEveryone は boolean で指定してください。")
-        if assignments["UserAssignmentCategory"] not in {"None", "Everyone", "SpecificUsers", "NoOne"}:
-            raise SystemExit("未確認の UserAssignmentCategory です。")
+        validate_assignments(payload["UserAssignmentDetails"])
         if payload["DeploymentRolloutType"] not in {"None", "FullRollout", "TestRollout"}:
             raise SystemExit("未確認の DeploymentRolloutType です。")
         if not isinstance(payload["SendEmailToUsers"], bool):
@@ -180,6 +199,36 @@ def validate_payload(operation: str, payload: dict[str, Any]) -> None:
                 raise SystemExit("publish app には AppId と Workload が必要です。")
             if app.get("Command") not in PUBLISH_COMMANDS:
                 raise SystemExit("未確認の publish Command です。")
+    if operation == "agent-update-app":
+        workloads = payload["WorkloadManagementList"]
+        if not isinstance(workloads, list) or len(workloads) != 1 or not isinstance(workloads[0], dict):
+            raise SystemExit("WorkloadManagementList は要素 1 つの配列で指定してください。")
+        workload = workloads[0]
+        unknown_workload = sorted(set(workload) - WORKLOAD_FIELDS)
+        if unknown_workload:
+            raise SystemExit(f"未確認の workload field です: {', '.join(unknown_workload)}")
+        if workload.get("Command") != "UPDATEAPP":
+            raise SystemExit("agent-update-app の Command は UPDATEAPP だけです。")
+        for key in ("ProductID", "TitleID", "MosOperationId", "Version", "Workload"):
+            if not isinstance(workload.get(key), str) or not workload[key].strip():
+                raise SystemExit(f"{key} は空でない文字列で指定してください。")
+        if payload["SendEmailToUsers"] is not False:
+            raise SystemExit("agent-update-app では SendEmailToUsers=false のみ許可します。")
+    if operation == "agent-allow":
+        workloads = payload["WorkloadManagementList"]
+        if not isinstance(workloads, list) or len(workloads) != 1 or not isinstance(workloads[0], dict):
+            raise SystemExit("WorkloadManagementList は要素 1 つの配列で指定してください。")
+        workload = workloads[0]
+        unknown_workload = sorted(set(workload) - WORKLOAD_FIELDS)
+        if unknown_workload:
+            raise SystemExit(f"未確認の workload field です: {', '.join(unknown_workload)}")
+        if workload.get("Command") != "ALLOW" or workload.get("Workload") != "SharedAgent":
+            raise SystemExit("agent-allow は Command=ALLOW / Workload=SharedAgent だけです。")
+        if not workload.get("ProductID"):
+            raise SystemExit("workload には ProductID が必要です。")
+        validate_assignments(payload["UserAssignmentDetails"])
+        if not isinstance(payload["SendEmailToUsers"], bool):
+            raise SystemExit("SendEmailToUsers は boolean で指定してください。")
     if operation == "agent-request-approve":
         request_ids = payload["requestIds"]
         if not isinstance(request_ids, list) or not request_ids:

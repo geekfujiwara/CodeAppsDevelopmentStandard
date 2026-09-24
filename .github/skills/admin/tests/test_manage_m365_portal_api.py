@@ -149,6 +149,29 @@ class ManageM365PortalApiTests(unittest.TestCase):
     def test_hash_is_order_independent(self):
         self.assertEqual(MODULE.canonical_hash({"a": 1, "b": 2}), MODULE.canonical_hash({"b": 2, "a": 1}))
 
+    ASSIGN = {"Members": [{"Id": "00000000-0000-0000-0000-000000000001", "Type": "User"}],
+              "DeployToEveryone": False, "UserAssignmentCategory": "SpecificUsers"}
+
+    def test_agent_allow_requires_allow_shared_agent(self):
+        payload = {
+            "Locale": "en", "ContentMarket": "en", "SendEmailToUsers": False, "UserAssignmentDetails": self.ASSIGN,
+            "WorkloadManagementList": [{"ProductID": "T_x", "Command": "ALLOW", "Workload": "SharedAgent"}],
+        }
+        MODULE.validate_payload("agent-allow", payload)
+        payload["WorkloadManagementList"][0]["Command"] = "DEPLOY"
+        with self.assertRaises(SystemExit):
+            MODULE.validate_payload("agent-allow", payload)
+
+    def test_agent_update_app_rejects_assignment_and_email(self):
+        item = {"ProductID": "T_x", "TitleID": "T_x", "Command": "UPDATEAPP", "MosOperationId": "op",
+                "Version": "1.0.1", "Workload": "MetaOS"}
+        payload = {"Locale": "en", "ContentMarket": "en", "SendEmailToUsers": False, "WorkloadManagementList": [item]}
+        MODULE.validate_payload("agent-update-app", payload)
+        with self.assertRaises(SystemExit):
+            MODULE.validate_payload("agent-update-app", {**payload, "UserAssignmentDetails": self.ASSIGN})
+        with self.assertRaises(SystemExit):
+            MODULE.validate_payload("agent-update-app", {**payload, "SendEmailToUsers": True})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -33,6 +33,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    sys.stderr.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+except Exception:
+    pass
+
 HERE = Path(__file__).resolve().parent
 for candidate in [
     HERE / ".." / ".." / "standard" / "scripts",

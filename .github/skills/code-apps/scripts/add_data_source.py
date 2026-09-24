@@ -72,17 +72,21 @@ CONNECTOR_KEYS = ("connectorId", "apiId", "apiName", "connector", "connectorName
 DISPLAY_KEYS = ("displayName", "connectionDisplayName", "name")
 
 
-def _npx() -> str:
+def _pa_command() -> list[str]:
+    """プロジェクトの pa を優先する。`npx pa` は未導入時に npm 上の無関係な `pa` を取得するため --no を付ける。"""
+    local = Path.cwd() / "node_modules" / ".bin" / ("pa.cmd" if os.name == "nt" else "pa")
+    if local.is_file():
+        return [str(local)]
     npx = shutil.which("npx")
     if not npx:
         sys.exit("NG: npx が見つかりません。Node.js 22 以上をインストールしてください。")
-    return npx
+    return [npx, "--no", "pa"]
 
 
 def _run_cli(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
     """CLI を標準入力を閉じて実行する（プロンプトが出ても待ち続けない）。"""
-    command = [_npx(), "pa", *args]
-    print(f"$ npx pa {' '.join(args)}")
+    command = [*_pa_command(), *args]
+    print(f"$ pa {' '.join(args)}")
     try:
         return subprocess.run(
             command,
@@ -216,7 +220,7 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--connector", help="コネクタの通称またはコネクタ ID（例: sharepoint / shared_sql）")
-    parser.add_argument("--connection-ref", default=os.getenv("CONNECTION_REFERENCE_LOGICAL_NAME", ""))
+    parser.add_argument("--connection-ref", default=None, help="接続参照の論理名（Dataverse の場合のみ .env の CONNECTION_REFERENCE_LOGICAL_NAME が既定値）")
     parser.add_argument("--connection-id", default="")
     parser.add_argument("--solution-id", default=os.getenv("SOLUTION_ID", ""))
     parser.add_argument("--org-url", default="")
@@ -259,6 +263,11 @@ def main() -> int:
                 f"候補は `npx pa connection list-{'datasets' if name == 'dataset' else 'tables'}` で確認できます。"
             )
 
+    if args.connection_ref is None:
+        # .env の接続参照は setup_connection_reference.py が作る Dataverse 用。他コネクタへ流用すると誤バインドになる
+        dataverse = connector_id == "shared_commondataserviceforapps"
+        args.connection_ref = os.getenv("CONNECTION_REFERENCE_LOGICAL_NAME", "") if dataverse else ""
+
     if args.connection_ref:
         if not args.solution_id:
             sys.exit("NG: --connection-ref には --solution-id（または .env の SOLUTION_ID）が必要です。")
@@ -273,7 +282,7 @@ def main() -> int:
 
     command = build_command(args, connector_id, binding)
     if args.dry_run:
-        print(f"\n[dry-run] npx pa {' '.join(command)}")
+        print(f"\n[dry-run] pa {' '.join(command)}")
         return 0
 
     result = _run_cli(command, args.timeout)
