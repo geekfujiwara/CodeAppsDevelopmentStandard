@@ -272,11 +272,21 @@ def schedules_enabled() -> bool:
 
 
 def container_protocols() -> list[dict]:
-    protocols = [{"protocol": "activity_protocol", "version": "v1"}]
+    version = (os.environ.get("ACTIVITY_PROTOCOL_VERSION") or "").strip() or "v1"
+    protocols = [{"protocol": "activity_protocol", "version": version}]
     # The schedule timer (B11) reaches the container through the Invocations route.
     if schedules_enabled():
         protocols.append({"protocol": "invocations", "version": "v1"})
     return protocols
+
+
+def detect_activity_protocol_version(project_root: Path) -> str:
+    """The gateway posts v1 to /api/messages and 2.0.0 to /activity/messages; a mismatch is a 404
+    from the container on every chat (troubleshooting.md #93)."""
+    for host in sorted(project_root.glob("src/*/host_agent_server.py")):
+        if '"/activity/messages"' in host.read_text(encoding="utf-8"):
+            return "2.0.0"
+    return "v1"
 
 
 def build_version_body() -> dict:
@@ -611,6 +621,9 @@ def main() -> int:
 
     env_path = args.env or find_repo_env() or Path(".env")
     load_env(env_path)
+    if not (os.environ.get("ACTIVITY_PROTOCOL_VERSION") or "").strip():
+        os.environ["ACTIVITY_PROTOCOL_VERSION"] = detect_activity_protocol_version(env_path.resolve().parent)
+    print(f"  activity_protocol={os.environ['ACTIVITY_PROTOCOL_VERSION']}")
 
     try:
         display_name = os.environ.get("AGENT_DISPLAY_NAME") or require("AGENT_NAME")

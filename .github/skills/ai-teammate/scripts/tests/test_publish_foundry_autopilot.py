@@ -51,6 +51,31 @@ class VersionBodyTests(unittest.TestCase):
         self.assertNotIn("IMAGE_MODEL_DEPLOYMENT", env_vars)
 
 
+class ActivityProtocolVersionTests(unittest.TestCase):
+    """The declared version decides which container path the gateway posts to (troubleshooting #93)."""
+
+    def detect(self, host_source: str) -> str:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as root:
+            package = Path(root) / "src" / "agent"
+            package.mkdir(parents=True)
+            (package / "host_agent_server.py").write_text(host_source, encoding="utf-8")
+            return publish.detect_activity_protocol_version(Path(root))
+
+    def test_activity_messages_route_means_2_0_0(self) -> None:
+        self.assertEqual(self.detect('app.router.add_post("/activity/messages", entry_point)'), "2.0.0")
+
+    def test_api_messages_route_means_v1(self) -> None:
+        self.assertEqual(self.detect('app.router.add_post("/api/messages", entry_point)'), "v1")
+
+    def test_version_body_uses_the_chosen_version(self) -> None:
+        with patch.dict(publish.os.environ, {**BASE_ENV, "ACTIVITY_PROTOCOL_VERSION": "2.0.0"}, clear=True):
+            protocols = publish.build_version_body()["definition"]["container_protocol_versions"]
+
+        self.assertEqual(protocols[0], {"protocol": "activity_protocol", "version": "2.0.0"})
+
+
 class AutopilotPublishBodyTests(unittest.TestCase):
     """A publish without the agent user template lands as an ordinary agent (troubleshooting #91)."""
 

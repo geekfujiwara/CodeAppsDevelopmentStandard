@@ -2343,4 +2343,41 @@ Agent template の行（表示名の行）は別物なので、template 側の�
    その間に再デプロイを重ねない。
 
 この行は Not shared なので、放っておいても利用者には見えない。隠す目的で Block しない。
+採用するとインスタンスごとに別のエージェント ID（`<表示名> (AI teammate)`）が作られるが、コンテナが
+モデル・state store・Dataverse へのトークンを取るのは引き続きこの `AGENT_NAME` の ID
+（ログの `ManagedIdentityCredential will use ... client_id: <この ID>`）なので、インスタンスがあっても不要にはならない。
+
+## 93. 採用後、Teams で話しかけると `Sandbox forwarding failed. StatusCode=404`（検証済 2026-09-26）
+
+**症状**: Teams の返信に次が出る。セッションは作られ、コンテナのアクセス ログには
+`"POST /api/messages HTTP/1.1" 404 ... "Microsoft-SkypeBotApi (Microsoft-BotFramework/3.0)"` が残る。
+
+```
+Error from user container for agent '<AGENT_NAME>': Sandbox forwarding failed. StatusCode=404, SessionId=...
+```
+
+**原因**: 上流のクイックスタートが Activity の受け口を `/api/messages` から **`/activity/messages`** に変え、
+`container_protocol_versions` も `activity_protocol` **`2.0.0`** にした。ゲートウェイは宣言された版で転送先を決める
+（`v1` → `/api/messages`、`2.0.0` → `/activity/messages`）。版だけ古いまま新しいコードを載せると全チャットが 404 になる。
+
+**対処**: `publish_foundry_autopilot.py` は `src/*/host_agent_server.py` に `"/activity/messages"` があれば
+`2.0.0`、無ければ `v1` を宣言する（`.env` の `ACTIVITY_PROTOCOL_VERSION` で上書き可）。
+`deploy.ps1` を流して新しい version を作れば直る。実行ログの `activity_protocol=` で宣言した版を確認できる。
+
+## 94. 採用直後に `BotServiceRbac activity request not authorized ... objectId ab3be6b7-...` が 1 回だけ出る（検証済 2026-09-26）
+
+**症状**: インスタンスを作った直後、最初に話しかけたときに Teams に次のエラーが出る。
+
+```
+Error from user container for agent '<AGENT_NAME>': BotServiceRbac activity request not authorized.
+User with objectId ab3be6b7-f5df-413d-ac2d-abf1e3fd9c0b in tenant <tenant> is missing permission(s):
+Microsoft.CognitiveServices/accounts/AIServices/agents/write
+```
+
+**原因**: `ab3be6b7-f5df-413d-ac2d-abf1e3fd9c0b` は利用者ではなく、Microsoft の第一者アプリ
+**Microsoft Teams Graph Service** の appId（`servicePrincipals(appId='...')` で引ける。オブジェクトとしては引けない）。
+チャットを作った直後にこのサービスが送るアクティビティが、`BotServiceRbac`（送信者に Foundry の権限を求める）で弾かれる。
+
+**対処**: 不要。同じ利用者の 2 通目以降は利用者本人として届き、通った（Kai で実測）。このアプリにロールを与えない。
+続けて利用者のメッセージも同じエラーになる場合だけ、その利用者のロール（[foundry-autopilot.md](foundry-autopilot.md) §6-1）を確認する。
 

@@ -68,7 +68,7 @@ Foundry-Features: DigitalWorker=V1Preview
     "kind": "hosted",
     "image": "{ACR_LOGIN_SERVER}/{IMAGE_NAME}:{IMAGE_TAG}",
     "cpu": "2", "memory": "4Gi",
-    "container_protocol_versions": [{ "protocol": "activity_protocol", "version": "v1" }],
+    "container_protocol_versions": [{ "protocol": "activity_protocol", "version": "2.0.0" }],
     "environment_variables": { "ModelDeployment": "{AZURE_OPENAI_DEPLOYMENT}", "...": "..." }
   },
   "agent_endpoint": {
@@ -80,6 +80,8 @@ Foundry-Features: DigitalWorker=V1Preview
 ```
 
 応答の `status` が `active` になるまでポーリングする（通常 30 秒以内）。
+`activity_protocol` の版はコンテナの受け口に合わせる（`/activity/messages` なら `2.0.0`、`/api/messages` なら `v1`。
+食い違うと全チャットが 404 → [troubleshooting.md](troubleshooting.md) #93）。スクリプトは自動で判定する。
 併せて返る値を控える。
 
 | 応答フィールド | 用途 |
@@ -238,6 +240,7 @@ python .github/skills/ai-teammate/scripts/publish_foundry_autopilot.py
    - 払い出しの確認は Graph の `$search="displayName:<名前>"`（`ConsistencyLevel: eventual`）で `users` に
      agent user が現れるかを見る。以降の Step（スコープ付与・写真）はその UPN で進める。
 3. **確認**: Teams で会話 → 払い出されたメールアドレス宛にメール送信 → 返信が来ることを見る。
+   最初の 1 通だけ `BotServiceRbac ... objectId ab3be6b7-...` が出ることがあるが、Teams の第一者サービス由来で対処不要（#94）。
 
 ### 6-1. 利用者を追加する（API）
 
