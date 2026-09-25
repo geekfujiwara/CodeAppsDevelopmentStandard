@@ -773,6 +773,8 @@ def runtime_settings(plan: "ScaffoldPlan", decisions: dict[str, object]) -> dict
         "AGENT_NAME": plan.agent_name,
         "AGENT_DISPLAY_NAME": plan.display_name,
         "EMAIL_CHANNEL_ENABLED": "true" if decisions.get("emailEnabled") else "false",
+        # Reacting like a colleague is on unless the owner turned it off.
+        "REACTIONS_ENABLED": "false" if decisions.get("reactionsEnabled") is False else "true",
         "SCHEDULE_ENABLED": "true" if "B11" in plan.blocks else "false",
         "EVAL_AGENT_KEY": plan.agent_name,
     }

@@ -314,7 +314,7 @@ def build_version_body() -> dict:
         "DATAVERSE_URL", "PUBLISHER_PREFIX", "EVAL_AGENT_KEY",
         "USAGE_WORKSPACE_ID", "USAGE_ALL_VISIBLE", "USAGE_ADMIN_IDS",
         "USAGE_PRICE_INPUT_PER_1M", "USAGE_PRICE_OUTPUT_PER_1M", "USAGE_PRICE_CACHED_PER_1M",
-        "SCHEDULE_ENABLED", "EMAIL_CHANNEL_ENABLED",
+        "SCHEDULE_ENABLED", "EMAIL_CHANNEL_ENABLED", "REACTIONS_ENABLED",
     ):
         value = (os.environ.get(name) or "").strip()
         if value:

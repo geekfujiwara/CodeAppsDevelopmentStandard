@@ -30,6 +30,7 @@ TRUSTED_TOOLS = frozenset(
         "create_schedule",
         "list_schedules",
         "delete_schedule",
+        "react_to_message",
         "skill",
         "report_intent",
         "update_todo",

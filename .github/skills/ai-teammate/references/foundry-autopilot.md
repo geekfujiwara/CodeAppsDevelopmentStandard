@@ -245,7 +245,7 @@ python .github/skills/ai-teammate/scripts/publish_foundry_autopilot.py
    ```powershell
    $s = ".github/skills/ai-teammate/scripts"
    # 委任スコープ（Graph と Dataverse MCP）
-   python $s/grant_agent_graph_scopes.py --instance-id <インスタンス appId> --scopes "User.Read Chat.Read Files.Read.All Files.ReadWrite"
+   python $s/grant_agent_graph_scopes.py --instance-id <インスタンス appId> --scopes "User.Read Chat.Read ChatMessage.Send Files.Read.All Files.ReadWrite"
    python $s/grant_agent_graph_scopes.py --instance-id <インスタンス appId> --resource-app-id 00000007-0000-0000-c000-000000000000 --scopes "mcp.tools user_impersonation"
    # agent user を Dataverse へ追加・MCP クライアント登録・ロール割り当て
    python $s/connect_agent_dataverse.py --env-id <環境 ID> --agent-user-id <agent user id> --instance-app-id <インスタンス appId> `
@@ -263,6 +263,9 @@ python .github/skills/ai-teammate/scripts/publish_foundry_autopilot.py
 
    - Dataverse のロールは既定で読み取り専用。所有者が広い権限を決めたときだけ `--role-name` / `--read-prefix` の代わりに
      `--existing-role "System Customizer"` のように既存ロールを割り当てる。
+   - `ChatMessage.Send` は Teams のリアクション（`REACTIONS_ENABLED=true`、既定で有効）に使う。届いた時点で 👀、
+     内容に応じて `react_to_message` で 👍 / ❤️ / 🎉 などを 1 つ付ける。Graph の `chatMessage: setReaction` は委任のみなので
+     agent user として付く。スコープが無いと付かないだけで、返事は届く（ログに `No Graph token for reactions`）。
    - `setup_agent_dataverse_user.py` は `.env` の `AGENT_IDENTITY_CLIENT_ID`（発行スクリプトが書く）と `SOLUTION_NAME` を読む。
      これが無いと SkillSync / TestWorker が `SkillSync failed; retrying` を出し続ける。
    - `setup_evaluation_dataverse.py` は `AGENTIC_USER_ID` と `AGENT_ROLE` があればマスター行に載せる。

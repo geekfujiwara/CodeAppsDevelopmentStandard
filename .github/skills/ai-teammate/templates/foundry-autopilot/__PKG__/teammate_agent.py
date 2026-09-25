@@ -45,6 +45,8 @@ SKILLS_DIRNAME = "skills"
 # The opening line is written by a model call of its own, so it must stay cheap and bounded.
 _ACK_MAX_OUTPUT_TOKENS = 200
 _ACK_TIMEOUT_SECONDS = 8
+# asyncio keeps only weak references to tasks; this holds the fire-and-forget ones until done.
+_BACKGROUND: set[asyncio.Task] = set()
 PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 # The quickstart manifest still uses the lowercase legacy token.
 PLACEHOLDER_ALIASES = {"organization": "AZURE_DEVOPS_ORGANIZATION"}
@@ -261,6 +263,14 @@ class TeammateAgent(AgentInterface):
 
         async def graph_token(scope: str) -> Optional[str]:
             return await self._acquire_mcp_token(auth, auth_handler_name, context, scope=scope)
+
+        from . import reactions
+
+        if reactions.enabled():
+            # Fire and forget: the read receipt must not hold up the answer.
+            task = asyncio.create_task(reactions.mark_read(activity, graph_token))
+            _BACKGROUND.add(task)
+            task.add_done_callback(_BACKGROUND.discard)
 
         files = await IncomingFiles().collect(getattr(context, "activity", None), graph_token)
         if files:
@@ -496,6 +506,12 @@ class TeammateAgent(AgentInterface):
             return await self._acquire_mcp_token(auth, auth_handler_name, context, scope=scope)
 
         tools: list[Any] = [build_delivery_tool(graph_token=graph_token)]
+        from . import reactions
+
+        if reactions.enabled() and not scheduled:
+            reaction_tool = reactions.build_reaction_tool(activity=context.activity, graph_token=graph_token)
+            if reaction_tool is not None:
+                tools.append(reaction_tool)
         # A scheduled run must not be able to schedule more runs of itself.
         if self.schedule_client is not None and not scheduled:
             from .schedules import build_schedule_tools
