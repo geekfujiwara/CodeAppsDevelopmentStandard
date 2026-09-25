@@ -114,6 +114,9 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 - E の生成は `IMAGE_MODEL_DEPLOYMENT` を使う（`generate_profile_image.py`）。実在の人物・既存キャラクターは描かない。
 - 定期実行（B11）は常に含め、scaffold が `SCHEDULE_ENABLED=true` を `.env` に書く。発行後に
   `provision_schedule_trigger.py --execute` で Logic App を作る（→ [troubleshooting.md](references/troubleshooting.md) #88）。
+- 発行後の承認は、管理センターの Requests に出る**表示名の行（Agent template）の Publish ウィザード**で行う
+  （Activate の対象 → ポリシー → Grant admin consent → Publish）。その後 Teams の Agents for your team から採用する
+  （→ [foundry-autopilot.md](references/foundry-autopilot.md) §6）。Registry の `AGENT_NAME` の行は削除しない。
 
 > **Agent 365 と Frontier を混同しない。** Agent 365 は GA の製品・ライセンス条件、Frontier は
 > opt-in のプレビュー制度である。本スキルでは (c)/(d) の `devPreview` manifest を使う場合だけ

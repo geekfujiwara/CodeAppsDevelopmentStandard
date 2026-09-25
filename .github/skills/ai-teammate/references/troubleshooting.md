@@ -2314,5 +2314,8 @@ Teams の **Agents for your team** にも出ないので採用（hire）でき�
 **対処**: `publish_foundry_autopilot.py` は version 作成の応答から `blueprint.client_id` を取り、
 この 2 つを必ず付けて発行する。付けずに発行してしまったら `--bump-version` で発行し直す。
 管理センターの要求一覧で「This agent template has N instances」と出れば Agent template になっている。
-Registry に並ぶ `<agent name>`（通常のエージェント）は Foundry が自動で登録するもので、Agent template とは別の行。
+承認はその行の Publish ウィザードで行う（→ [foundry-autopilot.md](foundry-autopilot.md) §6）。
+Registry に並ぶ `<agent name>`（通常のエージェント）は Foundry が自動で登録する行で、template の裏にある
+同じ Foundry エージェントを指す。「古い登録」に見えても Foundry のエージェントは削除しない（template が止まる）。
+利用者に見せたくなければ Registry 側で Block する。
 

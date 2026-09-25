@@ -120,13 +120,20 @@ POST {FOUNDRY_PROJECT_ENDPOINT}/agents/{AGENT_NAME}/microsoft365/publish?api-ver
   "shortDescription": "...", "fullDescription": "...",
   "developerName": "...", "developerWebsiteUrl": "...",
   "privacyUrl": "...", "termsOfUseUrl": "...",
-  "optionalPermissionScopes": [ { "resourceAppId": "...", "scopes": ["..."] } ]
+  "optionalPermissionScopes": [ { "resourceAppId": "...", "scopes": ["..."] } ],
+  "useAgenticUserTemplate": true,
+  "agenticUserTemplate": {
+    "Id": "digitalWorkerTemplate", "File": "agenticUserTemplateManifest.json",
+    "SchemaVersion": "0.1.0-preview",
+    "AgentIdentityBlueprintId": "<3-1 の応答の blueprint.client_id>",
+    "CommunicationProtocol": "activityProtocol"
+  }
 }
 ```
 
-`publishAsAutopilot: true` が **agentUser を持つ「デジタルな同僚」**にするフラグ。
-これを省くと、アカウントを持たない通常の共有エージェントとして発行される。
-
+`publishAsAutopilot: true` と **`useAgenticUserTemplate` / `agenticUserTemplate`** が
+**agentUser を持つ「デジタルな同僚」（Agent template）**にする指定。
+後者が無いと発行は 200 になるのに Agent template にならず、採用できない（→ [troubleshooting.md](troubleshooting.md) #91）。
 > **`accessBoundaries` は実質必須**。省くと publish 自体は 200 を返すのに、Teams から話しかけても
 > 無応答になり、コンテナー ログに
 > `Autopilot activity authorization currently supports only access boundaries ending with '.developers'`
@@ -198,12 +205,28 @@ python .github/skills/ai-teammate/scripts/publish_foundry_autopilot.py
 
 ## 6. 承認と採用（UI 操作）
 
-1. **承認**: M365 管理センター → **エージェント** → **すべてのエージェント** → **要求**
-   （`https://admin.cloud.microsoft/#/agents/all/requested`）。
-   対象 blueprint（状態 `Pending activate`）→ **要求を承認してアクティブ化**。
-   ウィザードで 公開範囲（誰が hire できるか）→ ポリシー テンプレートの適用 →
-   **管理者の同意を付与**（§4 のスコープ）→ 完了。
-   - 実行ロール: `Global Administrator` または `AI Administrator`。
+1. **承認と公開**: M365 管理センター → **エージェント** → **すべてのエージェント** → **Requests**
+   （`https://admin.cloud.microsoft/#/agents/all/requested`）。対象は表示名の行で、
+   「This agent template has 0 instances」・状態 `Pending activate`・Request type `Publish` になっている。
+   行を開いて **Publish** ウィザードを進める（検証済 2026-09-25）。
+
+   | 画面 | 操作 |
+   |---|---|
+   | Publish to users | ホスト（Copilot / Teams）と公開対象を確認。**Activate**（誰が採用できるか）は `All users` か対象のユーザー / グループ |
+   | Apply template | ポリシー テンプレートを選ぶ（既定の Microsoft ポリシーでよい）。残りライセンス数もここで見える |
+   | Accept permissions | §4 の MCP スコープを確認して **Grant admin consent** |
+   | Review and finish | **Publish** |
+
+   - 実行ロール: `Global Administrator` または `AI Administrator`。テナント全体に効く操作なので、
+     公開対象と同意の範囲は事前確認の質問 5 の担当者に確認してから進める。
+   - 統合ブラウザーで操作するときは、最初に AskUserQuestion で使う Edge プロファイルを確認する。
+     背面のタブのままではクリックが届かないので、画面を前面に出してから操作する。
+   - **読み戻し**: 管理センターのセッションで `GET /fd/addins/api/agents` を読み、`titleId` が発行応答と同じ行が
+     `isDigitalWorker=true`・`isActivated=true`・`publishedStatus=Active`・`allowedUsersCategory`（`Everyone` など）に
+     なっていれば完了。後から公開対象だけ変えるときは §6-1 の API。
+   - **Registry には同じエージェントが 2 行並ぶ。** 表示名の行（Agent template）と、Foundry が自動で登録する
+     `AGENT_NAME` の行（通常のエージェント、Not shared）。後者は template の裏にある Foundry エージェントそのものなので
+     **Foundry のエージェントを削除してはいけない**（template も止まる）。利用者に見せたくなければ Registry で Block する。
 2. **採用（hire）**: Teams → **アプリ** → **Agents for your team** → 対象 → **インスタンスを作成**。
    名前（32 文字以内）・エイリアス・ドメイン・**上司（manager）**を指定する。
    数分で agent user アカウントが払い出され、本人から DM が届く。組織図にも並ぶ。

@@ -405,6 +405,18 @@ def build_publish_body(display_name: str, scopes: list[dict], app_version: str, 
     return body
 
 
+def assert_autopilot_body(body: dict) -> None:
+    """Refuse to send a publish that would land as an ordinary agent (troubleshooting #91)."""
+    template = body.get("agenticUserTemplate") or {}
+    blueprint = str(template.get("AgentIdentityBlueprintId") or "")
+    if not (body.get("publishAsAutopilot") and body.get("useAgenticUserTemplate") and blueprint
+            and not blueprint.startswith("<")):
+        raise SystemExit(
+            "発行ボディに Autopilot の指定（useAgenticUserTemplate / agenticUserTemplate の blueprint）が"
+            "ありません。このまま送ると Agent template にならず採用できません（troubleshooting.md #91）"
+        )
+
+
 def bump_patch(version: str) -> str:
     parts = (version or "1.0.0").split(".")
     while len(parts) < 3:
@@ -691,6 +703,7 @@ def main() -> int:
         print("  NG version に blueprint.client_id が無いので Autopilot として発行できません", file=sys.stderr)
         return 1
     publish_body = build_publish_body(display_name, scopes, app_version, blueprint_client_id)
+    assert_autopilot_body(publish_body)
     published = foundry_request(
         "POST", f"{base}/agents/{agent_name}/microsoft365/publish?api-version={api_version}", publish_body
     )
@@ -699,8 +712,10 @@ def main() -> int:
 
     print(
         "\n次は管理者の操作です:\n"
-        "  1. M365 管理センター → エージェント → すべてのエージェント → 要求 で承認（管理者の同意を付与）\n"
+        "  1. M365 管理センター → エージェント → すべてのエージェント → Requests → 表示名の行（Agent template、Pending activate）\n"
+        "     → Publish ウィザード: Activate の対象（All users など）→ ポリシー → Grant admin consent → Publish\n"
         "  2. Teams → アプリ → Agents for your team → インスタンスを作成（上司を指定）\n"
+        "     Registry の AGENT_NAME の行は Foundry の自動登録。削除しない（見せたくなければ Block）\n"
         "     再発行のときは既存インスタンスを作り直す（旧インスタンスは旧 blueprint を持ち続ける）\n"
         "  3. python scripts/run_regression_tests.py --execute で回帰テスト\n"
         "  詳細: references/foundry-autopilot.md §6"
