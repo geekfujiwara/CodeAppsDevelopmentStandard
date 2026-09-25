@@ -20,7 +20,7 @@ except Exception:  # pydantic / httpx missing in the test environment
     LOADED = False
 
 
-def activity(channel="msteams", kind="message", conversation_type="personal", chat="19:a_b@unq.gbl.spaces", mid="1700"):
+def activity(channel="msteams", kind="message", conversation_type="personal", chat="19:chat-under-test", mid="1700"):
     conversation = types.SimpleNamespace(id=chat, conversation_type=conversation_type)
     return types.SimpleNamespace(channel_id=channel, type=kind, conversation=conversation, id=mid)
 
@@ -28,7 +28,7 @@ def activity(channel="msteams", kind="message", conversation_type="personal", ch
 @unittest.skipUnless(LOADED, "pydantic / httpx not installed")
 class ReactionTargetTests(unittest.TestCase):
     def test_a_teams_chat_message_is_a_target(self) -> None:
-        self.assertEqual(reactions.target(activity()), ("19:a_b@unq.gbl.spaces", "1700"))
+        self.assertEqual(reactions.target(activity()), ("19:chat-under-test", "1700"))
 
     def test_mail_scheduled_events_and_channel_posts_are_not(self) -> None:
         self.assertIsNone(reactions.target(activity(channel="agents:email")))
