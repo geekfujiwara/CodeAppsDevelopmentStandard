@@ -226,10 +226,17 @@ python .github/skills/ai-teammate/scripts/publish_foundry_autopilot.py
      なっていれば完了。後から公開対象だけ変えるときは §6-1 の API。
    - **Registry には同じエージェントが 2 行並ぶ。** 表示名の行（Agent template）と、Foundry が自動で登録する
      `AGENT_NAME` の行（通常のエージェント、Not shared）。後者は template の裏にある Foundry エージェントそのものなので
-     **Foundry のエージェントを削除してはいけない**（template も止まる）。利用者に見せたくなければ Registry で Block する。
+     **Foundry のエージェントを削除してはいけない**（template も止まる）。**Block もしない**。この行はコンテナが使う
+     エージェント ID そのもので、Block すると ID が無効になりトークンが取れなくなる（→ [troubleshooting.md](troubleshooting.md) #92）。
+     Not shared のままなら利用者には見えない。
 2. **採用（hire）**: Teams → **アプリ** → **Agents for your team** → 対象 → **インスタンスを作成**。
    名前（32 文字以内）・エイリアス・ドメイン・**上司（manager）**を指定する。
    数分で agent user アカウントが払い出され、本人から DM が届く。組織図にも並ぶ。
+   - 名前・エイリアス・上司は先に AskUserQuestion で確かめる（既定: `AGENT_DISPLAY_NAME`・その小文字・発行した本人）。
+   - **採用はユーザーが Teams デスクトップで行う。** 統合ブラウザーでは Teams web が
+     「Classic Teams is no longer available」になり、Microsoft 365 Copilot web もサインインで止まるため自動化できない。
+   - 払い出しの確認は Graph の `$search="displayName:<名前>"`（`ConsistencyLevel: eventual`）で `users` に
+     agent user が現れるかを見る。以降の Step（スコープ付与・写真）はその UPN で進める。
 3. **確認**: Teams で会話 → 払い出されたメールアドレス宛にメール送信 → 返信が来ることを見る。
 
 ### 6-1. 利用者を追加する（API）

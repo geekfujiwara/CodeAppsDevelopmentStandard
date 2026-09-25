@@ -2317,5 +2317,30 @@ Teams の **Agents for your team** にも出ないので採用（hire）でき�
 承認はその行の Publish ウィザードで行う（→ [foundry-autopilot.md](foundry-autopilot.md) §6）。
 Registry に並ぶ `<agent name>`（通常のエージェント）は Foundry が自動で登録する行で、template の裏にある
 同じ Foundry エージェントを指す。「古い登録」に見えても Foundry のエージェントは削除しない（template が止まる）。
-利用者に見せたくなければ Registry 側で Block する。
+この行は Not shared なので利用者には見えない。**Block もしない**（#92）。
+
+## 92. Registry で `AGENT_NAME` の行を Block したら、チャットも定期実行も動かなくなった（検証済 2026-09-25）
+
+**症状**: 直後からコンテナのログに次のエラーが並び、モデル呼び出し・state store・Activity 送信がすべて失敗する。
+
+```
+ManagedIdentityCredential.get_token failed: (bad_request) Failed to acquire agent identity token due to a client
+configuration error. Check the Entra ID application registration, Conditional Access policies, ...
+```
+
+**原因**: Registry の `AGENT_NAME` 行（Foundry が自動で登録する通常のエージェント）は、コンテナが使う
+**エージェント ID（`<account>-<project>-<AGENT_NAME>-AgentIdentity`）**そのもの。Block すると Entra の
+このサービス プリンシパルが `accountEnabled=false` になり、トークンが取れなくなる。
+Agent template の行（表示名の行）は別物なので、template 側の公開状態は変わらない。
+
+**対処**:
+
+1. Block を解除する（Registry → `AGENT_NAME` の行 → Unblock）。
+2. `deploy.ps1`（`publish_foundry_autopilot.py --execute`）を 1 回流す。`enable_instance_identity()` が
+   `accountEnabled=true` に戻す。Graph で直接 `PATCH servicePrincipals/{id} {"accountEnabled": true}` でもよい。
+3. Graph で `accountEnabled` が `true` か、ログに `get_token failed` が出なくなったかを確かめる。
+   有効化してから数分は Entra 側に反映されず `AADSTS7000112 ... is disabled` が続く（実測 5 分弱）。
+   その間に再デプロイを重ねない。
+
+この行は Not shared なので、放っておいても利用者には見えない。隠す目的で Block しない。
 
