@@ -38,8 +38,8 @@
 		},
 		{
 			"mcpServerName": "dataverse",
-			"url": "{DATAVERSE_URL}/api/mcp/v1.0",
-			"scope": "user_impersonation",
+			"url": "{DATAVERSE_URL}/api/mcp",
+			"scope": "mcp.tools",
 			"tokenScope": "{DATAVERSE_URL}/.default",
 			"comment": "利用者の権限で Dataverse を検索する。DATAVERSE_URL 未設定時は自動で無効化される"
 		},

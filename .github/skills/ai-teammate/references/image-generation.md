@@ -78,7 +78,7 @@ ImageGeneration__TimeoutSeconds=300
 
 ## Foundry Autopilot（`hosting: "foundry-autopilot"`）の場合
 
-C# ではなく Python のオーバーレイ（`image_tools.py` / `onedrive.py`）が同じ役割を果たす。
+C# ではなく Python のオーバーレイ（`image_tools.py` / `file_delivery.py`）が同じ役割を果たす。
 違いは 3 点だけで、判断基準（課金・同意・インジェクション対策）は上と同じである。
 
 | 論点 | 自己ホスト（C#） | Foundry Autopilot（Python） |

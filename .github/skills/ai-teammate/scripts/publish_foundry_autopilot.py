@@ -22,6 +22,7 @@ Usage:
     python scripts/publish_foundry_autopilot.py              # dry-run: print request bodies
     python scripts/publish_foundry_autopilot.py --execute    # create version + patch + publish
     python scripts/publish_foundry_autopilot.py --execute --bump-version   # republish an update
+    python scripts/publish_foundry_autopilot.py --execute --container-only # ship a code fix only
 """
 from __future__ import annotations
 
@@ -221,7 +222,16 @@ def assert_image_deployment_exists() -> None:
 
 def preflight(display_name: str) -> list[dict]:
     print("== 事前チェック ==")
-    for name in ("FOUNDRY_PROJECT_ENDPOINT", "AGENT_NAME", "AZURE_SUBSCRIPTION_ID", "AZURE_RESOURCE_GROUP"):
+    # AZURE_AI_ACCOUNT / AZURE_AI_PROJECT are needed only after the version exists,
+    # so leaving them out fails halfway through and leaves an ungranted version behind.
+    for name in (
+        "FOUNDRY_PROJECT_ENDPOINT",
+        "AGENT_NAME",
+        "AZURE_SUBSCRIPTION_ID",
+        "AZURE_RESOURCE_GROUP",
+        "AZURE_AI_ACCOUNT",
+        "AZURE_AI_PROJECT",
+    ):
         require(name)
     print("  OK 必須の環境変数")
 
@@ -269,6 +279,23 @@ def build_version_body() -> dict:
     toolbox = (os.environ.get("FOUNDRY_TOOLBOX_ENDPOINT") or "").strip()
     if toolbox:
         env_vars["TOOLBOX_ENDPOINT"] = toolbox
+    # Each version carries its own environment. Omitting this silently drops the
+    # container back to the 'responses' brain on the next republish.
+    brain = (os.environ.get("TEAMMATE_BRAIN") or "").strip()
+    if brain:
+        env_vars["TEAMMATE_BRAIN"] = brain
+    default_tz = (os.environ.get("DEFAULT_TIMEZONE") or "").strip()
+    if default_tz:
+        env_vars["DEFAULT_TIMEZONE"] = default_tz
+    # Optional feature switches; each one is off in the container unless forwarded here.
+    for name in (
+        "DATAVERSE_URL", "PUBLISHER_PREFIX", "EVAL_AGENT_KEY",
+        "USAGE_WORKSPACE_ID", "USAGE_ALL_VISIBLE", "USAGE_ADMIN_IDS",
+        "USAGE_PRICE_INPUT_PER_1M", "USAGE_PRICE_OUTPUT_PER_1M", "USAGE_PRICE_CACHED_PER_1M",
+    ):
+        value = (os.environ.get(name) or "").strip()
+        if value:
+            env_vars[name] = value
     image_deployment = image_model_deployment()
     if image_deployment:
         env_vars["IMAGE_MODEL_DEPLOYMENT"] = image_deployment
@@ -283,6 +310,9 @@ def build_version_body() -> dict:
             "container_protocol_versions": [{"protocol": "activity_protocol", "version": "v1"}],
             "environment_variables": env_vars,
         },
+        # Without this flag the version is created but the M365 endpoint keeps serving the
+        # last vNext version, so a redeploy silently runs old code (troubleshooting #83).
+        "metadata": {"enableVnextExperience": "true"},
         "description": os.environ.get("AGENT_DESCRIPTION", "Foundry autopilot."),
         "agent_endpoint": agent_endpoint(),
         "digital_worker_type": "m365",
@@ -375,6 +405,41 @@ def enable_instance_identity(app_id: str) -> None:
         )
 
 
+def latest_version_number(base: str, agent_name: str, api_version: str) -> int | None:
+    try:
+        listed = foundry_request("GET", f"{base}/agents/{agent_name}/versions?api-version={api_version}")
+    except SystemExit:
+        return None  # first publish: the agent does not exist yet
+    items = listed.get("data") or listed.get("value") or []
+    numbers = [int(item["version"]) for item in items if str(item.get("version", "")).isdigit()]
+    return max(numbers) if numbers else None
+
+
+def recycle_stale_sessions(base: str, agent_name: str, version: str, *, delete: bool) -> None:
+    """Sessions are bound to the version they were created on, so existing chats keep old code."""
+    url = f"{base}/agents/{agent_name}/endpoint/sessions"
+    listed = foundry_request("GET", f"{url}?api-version=v1")
+    stale = [
+        s for s in listed.get("data") or listed.get("value") or []
+        if s.get("status") != "deleted"
+        and str((s.get("version_indicator") or {}).get("agent_version")) != str(version)
+    ]
+    print(f"\n== セッション: 古い version に固定されたもの {len(stale)} 件 ==")
+    for session in stale:
+        pinned = (session.get("version_indicator") or {}).get("agent_version")
+        session_id = session["agent_session_id"]
+        if delete:
+            foundry_request("DELETE", f"{url}/{session_id}?api-version=v1")
+            print(f"  削除 {session_id[:12]}…（version {pinned}）")
+        else:
+            print(f"  残存 {session_id[:12]}…（version {pinned}）")
+    if stale and not delete:
+        print(
+            "  ! このままだと既存のチャットは古いコードで動き続けます。"
+            "--recycle-sessions で削除してください（troubleshooting.md #83）。"
+        )
+
+
 def wait_until_active(base: str, agent_name: str, version: str, api_version: str) -> dict:
     url = f"{base}/agents/{agent_name}/versions/{version}?api-version={api_version}"
     for attempt in range(POLL_MAX_ATTEMPTS):
@@ -449,6 +514,16 @@ def main() -> int:
         action="store_true",
         help="TEAMS_APP_VERSION の patch を +1 して発行する（再発行時は必須。同じバージョンは拒否される）",
     )
+    parser.add_argument(
+        "--container-only",
+        action="store_true",
+        help="コード修正を反映するだけの再デプロイ。version だけ作って M365 への再発行はしない",
+    )
+    parser.add_argument(
+        "--recycle-sessions",
+        action="store_true",
+        help="古い version に固定されたセッションを削除する（$HOME の作業状態は消える）",
+    )
     parser.add_argument("--env", type=Path, help=".env のパス（既定はリポジトリ ルート）")
     args = parser.parse_args()
 
@@ -473,22 +548,33 @@ def main() -> int:
     agent_name = require("AGENT_NAME")
     api_version = os.environ.get("FOUNDRY_API_VERSION", "2025-11-15-preview")
     version_body = build_version_body()
-    publish_body = build_publish_body(display_name, scopes, app_version)
+    # --container-only never publishes, so it must not demand the developer metadata.
+    publish_body = None if args.container_only else build_publish_body(display_name, scopes, app_version)
 
     if not args.execute:
         print("\n== dry-run（--execute で実行）==")
         print("POST /agents/{name}/versions:")
         print(json.dumps(version_body, ensure_ascii=False, indent=2))
-        print("POST /agents/{name}/microsoft365/publish:")
-        print(json.dumps(publish_body, ensure_ascii=False, indent=2))
+        if publish_body is not None:
+            print("POST /agents/{name}/microsoft365/publish:")
+            print(json.dumps(publish_body, ensure_ascii=False, indent=2))
         return 0
 
     print("\n== agent version を作成します ==")
+    previous = latest_version_number(base, agent_name, api_version)
     created = foundry_request(
         "POST", f"{base}/agents/{agent_name}/versions?api-version={api_version}", version_body
     )
     version = created["version"]
     print(f"  version={version} blueprint={created.get('blueprint_reference', {}).get('blueprint_id')}")
+    if previous is not None and int(version) <= previous:
+        # An identical body is deduplicated, so a rebuilt image behind the same tag never runs.
+        print(
+            f"  NG 定義が前回と同一なので新しい version が作られませんでした（既存 {previous}）。\n"
+            "     イメージを更新したなら AGENT_IMAGE_TAG をビルドごとに一意にしてください（troubleshooting.md #83）。",
+            file=sys.stderr,
+        )
+        return 1
     if created.get("status") != "active":
         created = wait_until_active(base, agent_name, version, api_version)
 
@@ -500,13 +586,26 @@ def main() -> int:
         print("  ! instance_identity.client_id が返っていません。AADSTS7000112 が出たら troubleshooting.md #75")
     grant_instance_roles(identity["principal_id"])
 
-    print("\n== BotServiceRbac を設定します ==")
-    foundry_request(
-        "PATCH",
-        f"{base}/agents/{agent_name}?api-version={api_version}",
-        {"agent_endpoint": agent_endpoint(with_auth_scheme=True)},
-    )
-    print("  OK")
+    print("\n== BotServiceRbac を確認します ==")
+    # authorization_schemes is an agent-level setting, so it survives new versions.
+    # PATCH replaces agent_endpoint wholesale and access_boundaries cannot be
+    # patched back, so an unconditional PATCH silences Teams (troubleshooting #77).
+    current = foundry_request("GET", f"{base}/agents/{agent_name}?api-version={api_version}")
+    schemes = (current.get("agent_endpoint") or {}).get("authorization_schemes") or []
+    if any(scheme.get("type") == "BotServiceRbac" for scheme in schemes):
+        print("  OK 既に設定済みなので PATCH をスキップします")
+    else:
+        foundry_request(
+            "PATCH",
+            f"{base}/agents/{agent_name}?api-version={api_version}",
+            {"agent_endpoint": agent_endpoint(with_auth_scheme=True)},
+        )
+        print("  OK")
+
+    if args.container_only:
+        print("\n--container-only なので M365 への再発行は行いません。")
+        recycle_stale_sessions(base, agent_name, version, delete=args.recycle_sessions)
+        return 0
 
     print("\n== Autopilot として M365 に発行します ==")
     published = foundry_request(

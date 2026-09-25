@@ -82,3 +82,12 @@ class Dataverse:
 def odata_literal(value: str) -> str:
     """Escape a string for an OData $filter literal (single quotes are doubled)."""
     return quote(value.replace("'", "''"), safe="")
+
+
+def eval_agent_key() -> str:
+    """This teammate's key in the evaluation hub.
+
+    ``AGENT_*`` is reserved on Foundry hosted agents and rejected at publish, so the hosted
+    container reads ``EVAL_AGENT_KEY``; ``AGENT_NAME`` still works for local runs.
+    """
+    return (os.getenv("EVAL_AGENT_KEY") or os.getenv("AGENT_NAME") or "").strip()

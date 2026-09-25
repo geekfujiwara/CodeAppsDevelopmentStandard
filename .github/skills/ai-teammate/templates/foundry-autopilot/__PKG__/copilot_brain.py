@@ -15,10 +15,13 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 import uuid
 from typing import Any, Awaitable, Callable, Sequence
 
 from copilot import CopilotClient, PermissionHandler, ProviderConfig, SessionEventType, ToolSet
+
+from .untrusted_content import UntrustedContent, guard_tool_use, is_trusted
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +31,26 @@ _SESSION_ID_PREFIX = "conv-"
 _TURN_TIMEOUT_SECONDS = 600
 
 ProgressSink = Callable[[str], Awaitable[None]]
+
+
+class BrainError(RuntimeError):
+    """A turn that failed for a known reason.
+
+    The raw SDK payload never reaches the conversation: pasted into the chat it
+    becomes history the model reads back later as proof the feature is broken.
+    """
+
+    def __init__(self, kind: str, detail: Any) -> None:
+        super().__init__(kind)
+        self.kind = kind
+        self.detail = detail
+
+
+def _classify_session_error(detail: Any) -> str:
+    values = detail if isinstance(detail, dict) else {}
+    if values.get("error_type") == "rate_limit" or values.get("status_code") == 429:
+        return "rate_limit"
+    return "unknown"
 
 
 class CopilotBrain:
@@ -53,6 +76,11 @@ class CopilotBrain:
         # which would otherwise deadlock waiting for idle.
         self._lock = asyncio.Lock()
         self.last_tool_calls: list[str] = []
+        # Summed per turn from assistant.usage; one turn makes several model calls.
+        self.last_usage: dict[str, Any] = {}
+        # Read by the hooks at call time, so a new fence per turn needs no new session.
+        self._fence = UntrustedContent()
+        self._channel = ""
 
     async def close(self) -> None:
         for session, _ in self._sessions.values():
@@ -78,8 +106,12 @@ class CopilotBrain:
         mcp_servers: dict[str, dict[str, Any]],
         tools: Sequence[Any] = (),
         on_progress: ProgressSink | None = None,
+        channel: str = "",
+        attachments: list[dict[str, Any]] | None = None,
     ) -> str:
         async with self._lock:
+            self._fence = UntrustedContent()
+            self._channel = channel
             session = await self._session_for(
                 conversation_id=conversation_id,
                 instructions=instructions,
@@ -88,9 +120,12 @@ class CopilotBrain:
                 tools=tools,
             )
             self.last_tool_calls = []
+            self.last_usage = {}
             try:
                 return await asyncio.wait_for(
-                    self._run_turn(session, message, on_progress),
+                    self._run_turn(
+                        session, self._fence.frame(message), on_progress, attachments
+                    ),
                     timeout=self._turn_timeout_seconds,
                 )
             except asyncio.TimeoutError:
@@ -134,6 +169,10 @@ class CopilotBrain:
             available_tools=available,
             system_message={"mode": "replace", "content": instructions},
             on_permission_request=PermissionHandler.approve_all,
+            hooks={
+                "on_pre_tool_use": self._pre_tool_use,
+                "on_post_tool_use": self._post_tool_use,
+            },
             streaming=False,
         )
         if custom_tools:
@@ -175,7 +214,28 @@ class CopilotBrain:
         except Exception:  # noqa: BLE001 - best effort
             pass
 
-    async def _run_turn(self, session, message: str, on_progress: ProgressSink | None = None) -> str:
+    async def _pre_tool_use(self, data: dict[str, Any], _invocation: Any) -> dict[str, Any] | None:
+        tool_name = data.get("toolName", "")
+        reason = guard_tool_use(tool_name, data.get("toolArgs"), channel=self._channel)
+        if reason is None:
+            return None
+        logger.warning("Tool call %s refused by guard (channel=%s)", tool_name, self._channel)
+        return {"permissionDecision": "deny", "permissionDecisionReason": reason}
+
+    async def _post_tool_use(self, data: dict[str, Any], _invocation: Any) -> dict[str, Any] | None:
+        tool_name = data.get("toolName", "")
+        if is_trusted(tool_name):
+            return None
+        logger.info("Fenced output of %s", tool_name)
+        return {"modifiedResult": self._fence.wrap_tool_result(tool_name, data.get("toolResult"))}
+
+    async def _run_turn(
+        self,
+        session,
+        message: str,
+        on_progress: ProgressSink | None = None,
+        attachments: list[dict[str, Any]] | None = None,
+    ) -> str:
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue = asyncio.Queue()
         reporter = _ProgressReporter(on_progress)
@@ -187,7 +247,7 @@ class CopilotBrain:
         unsubscribe = session.on(_on_event)
         answer = ""
         try:
-            await session.send(message)
+            await session.send(message, attachments=attachments or None)
             while True:
                 event = await queue.get()
                 if event.type == SessionEventType.ASSISTANT_MESSAGE:
@@ -200,12 +260,14 @@ class CopilotBrain:
                     self.last_tool_calls.append(name)
                     logger.info("Copilot SDK tool: %s", name)
                     await reporter.send(_describe_tool_call(event.data))
+                elif event.type == SessionEventType.ASSISTANT_USAGE:
+                    _add_usage(self.last_usage, event.data)
                 elif event.type in (SessionEventType.SESSION_IDLE, SessionEventType.ASSISTANT_IDLE):
                     break
                 elif event.type == SessionEventType.SESSION_ERROR:
-                    raise RuntimeError(
-                        f"Copilot SDK session error: {getattr(event.data, '__dict__', event.data)}"
-                    )
+                    detail = getattr(event.data, "__dict__", event.data)
+                    logger.error("Copilot SDK session error: %s", detail)
+                    raise BrainError(_classify_session_error(detail), detail)
         finally:
             try:
                 unsubscribe()
@@ -236,26 +298,56 @@ class _ProgressReporter:
             logger.debug("Progress update could not be delivered", exc_info=True)
 
 
-# One concrete value out of the arguments turns "searching" into "searching for what".
-# "prompt" is deliberately absent: it is the model's own long English rewrite, which would
-# show up in the wrong language and drown the line.
-_DETAIL_KEYS = (
-    "query",
-    "command",
-    "search_query",
-    "subject",
-    "question",
-    "path",
-    "file_path",
-    "url",
-    "name",
+#: What the colleague is doing, in words. Raw tool names ("CalendarTools: FindMeetingTimes")
+#: read as a debug log to the person on the other side of the chat.
+#: server keyword -> ((tool keywords, activity), ...), then the fallback for that server.
+_SERVER_ACTIVITIES: dict[str, tuple[tuple[tuple[str, ...], str], ...]] = {
+    "calendar": (
+        (("meetingtime", "findmeeting", "freebusy", "availability"), "予定表で空いている時間を探しています"),
+        (("create", "update", "cancel", "delete", "accept", "decline"), "予定を登録しています"),
+        ((), "予定表を確認しています"),
+    ),
+    "mail": (
+        (("send", "reply", "forward"), "メールを送っています"),
+        ((), "メールを確認しています"),
+    ),
+    "teams": (
+        (("send", "post", "create", "reply"), "Teams でメッセージを送っています"),
+        ((), "Teams のチャットを確認しています"),
+    ),
+    "word": (((), "Word 文書を扱っています"),),
+    "excel": (((), "Excel ブックを扱っています"),),
+    "dataverse": (((), "社内データを調べています"),),
+    "odsp": (
+        (("share", "invite", "link", "permission"), "共有リンクを作っています"),
+        (("create", "upload", "write"), "ファイルを保存しています"),
+        ((), "ファイルを探しています"),
+    ),
+}
+_TOOL_ACTIVITIES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("web_search", "bing"), "Web で調べています"),
+    (("code_interpreter", "python", "powershell", "bash", "shell"), "計算しています"),
+    (("generate_image",), "画像を描いています"),
+    (("usage_report",), "利用実績を集計しています"),
+    (("view", "read", "glob", "grep"), "受け取った内容を読んでいます"),
 )
+_JAPANESE = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff]")
+
+
+def _activity(server: str, tool: str) -> str:
+    for key, rules in _SERVER_ACTIVITIES.items():
+        if key in server:
+            return next(text for keys, text in rules if not keys or any(k in tool for k in keys))
+    return next((text for keys, text in _TOOL_ACTIVITIES if any(k in tool for k in keys)), "")
 
 
 def _describe_tool_call(data: Any) -> str:
-    tool = getattr(data, "mcp_tool_name", "") or getattr(data, "tool_name", "") or "tool"
-    server = getattr(data, "mcp_server_name", "") or ""
-    label = f"{_friendly_server(server)}: {tool}" if server else tool
+    """One natural sentence, or nothing when there is no good way to say it."""
+    server = (getattr(data, "mcp_server_name", "") or "").lower()
+    tool = (getattr(data, "mcp_tool_name", "") or getattr(data, "tool_name", "") or "").lower()
+    activity = _activity(server, tool)
+    if not activity:
+        return ""
 
     arguments = getattr(data, "arguments", None)
     if isinstance(arguments, str):
@@ -263,21 +355,18 @@ def _describe_tool_call(data: Any) -> str:
             arguments = json.loads(arguments)
         except Exception:  # noqa: BLE001 - not every runtime sends JSON
             arguments = None
-    detail = ""
-    if isinstance(arguments, dict):
-        for key in _DETAIL_KEYS:
-            value = arguments.get(key)
-            if isinstance(value, str) and value.strip():
-                detail = value.strip()
-                break
-    if len(detail) > 140:
-        detail = detail[:137] + "..."
-    return f"🔧 {label} — {detail}" if detail else f"🔧 {label}"
+    query = arguments.get("query") if isinstance(arguments, dict) else None
+    # English rewrites of the request would show up in the wrong language.
+    if activity == "Web で調べています" and isinstance(query, str) and _JAPANESE.search(query):
+        return f"Web で「{query.strip()[:60]}」を調べています。"
+    return f"{activity}。"
 
 
-def _friendly_server(server: str) -> str:
-    """``mcp_MailToolsServer`` -> ``MailTools``. Internal names are not user-facing."""
-    return server.removeprefix("mcp_").removesuffix("Server") or server
+def _add_usage(total: dict[str, Any], data: Any) -> None:
+    total["calls"] = total.get("calls", 0) + 1
+    total["model"] = getattr(data, "model", "") or total.get("model", "")
+    for key in ("input_tokens", "output_tokens", "cache_read_tokens"):
+        total[key] = total.get(key, 0) + int(getattr(data, key, 0) or 0)
 
 
 def mcp_servers_from_responses_tools(tools: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:

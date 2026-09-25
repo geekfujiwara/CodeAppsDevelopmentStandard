@@ -291,7 +291,9 @@ RUN python -m copilot download-runtime
 | `skill_sync.py` | 同梱スキルを評価ハブの `<prefix>_skill` へ同期（→ [cowork-skills.md](cowork-skills.md)） |
 | `test_worker.py` | 評価ハブのキューから回帰テストを実行（→ [regression-tests.md](regression-tests.md)） |
 | `image_tools.py` | 画像生成（B17）。生成した画像を会話へ直接投稿する（→ [image-generation.md](image-generation.md)） |
-| `onedrive.py` | 成果物を自分の OneDrive へ保存する（B14 の配布経路） |
+| `file_delivery.py` | `deliver_file` ツール（B14）。成果物を自分の OneDrive に保存し、組織内リンクを返す。特定の人への共有は同じテナントのドメインだけ |
+| `incoming_files.py` | 添付の受け取り（B16）。貼り付け画像とクリップのファイルを Graph で取得（→ troubleshooting.md #84） |
+| `untrusted_content.py` | ツール結果のフェンスと実害操作のガード（→ [prompt-injection.md](prompt-injection.md)） |
 
 `hosting: "foundry-autopilot"` は **`runtime` を `copilot-sdk` に固定する**。
 `agents-sdk` を明示すると scaffold はエラーで止まる。意図しない頭脳で動くエージェントが

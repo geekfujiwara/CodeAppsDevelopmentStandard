@@ -18,8 +18,11 @@ import json
 import logging
 import os
 import re
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 from azure.ai.projects.aio import AIProjectClient
 from azure.identity.aio import DefaultAzureCredential, ManagedIdentityCredential
@@ -28,6 +31,8 @@ from microsoft_agents.hosting.core import Authorization, TurnContext
 
 from .agent_interface import AgentInterface
 from .copilot_brain import CopilotBrain, mcp_servers_from_responses_tools
+from .incoming_files import IncomingFiles, describe as describe_files
+from .usage import build_usage_tool, record_turn
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +48,49 @@ _ACK_TIMEOUT_SECONDS = 8
 PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 # The quickstart manifest still uses the lowercase legacy token.
 PLACEHOLDER_ALIASES = {"organization": "AZURE_DEVOPS_ORGANIZATION"}
+# Japanese has no word boundaries, so \b only guards the ASCII alternatives.
+# Without the Japanese side, 「チャットで聞いて」 never reaches the Teams tool.
+_TEAMS_ACTION = (
+    r"(?:\b(?:send|post|forward|message|notify|ping|ask|reach out)\b"
+    r"|送信|送っ|送る|投稿|連絡|伝え|聞い|訊い|確認|打診|誘っ)"
+)
+_TEAMS_TARGET = (
+    r"(?:\b(?:teams|chat|channel|dm)\b"
+    r"|チャット|チャネル|チャンネル|メッセージ|メンション|スレッド)"
+)
+
+
+def is_outbound_teams_request(message: str) -> bool:
+    """True when the turn asks to reach someone else, not to answer here.
+
+    Scheduling depends on this: proposing times is useless if the teammate
+    cannot ask the other person whether the slot works.
+    """
+    return bool(
+        re.search(rf"{_TEAMS_ACTION}.{{0,80}}{_TEAMS_TARGET}", message, re.IGNORECASE)
+        or re.search(rf"{_TEAMS_TARGET}.{{0,80}}{_TEAMS_ACTION}", message, re.IGNORECASE)
+    )
+
+
+def user_clock(context: TurnContext) -> tuple[str, str]:
+    """The caller's IANA zone and the current time in it, for the prompt.
+
+    Without a clock the model echoes the UTC strings the calendar tools return.
+    """
+    activity = getattr(context, "activity", None)
+    name = (getattr(activity, "local_timezone", "") or "").strip()
+    source = "activity"
+    if not name:
+        # Not every channel sends localTimezone, and UTC answers read as wrong.
+        name = (os.getenv("DEFAULT_TIMEZONE") or "").strip()
+        source = "DEFAULT_TIMEZONE"
+    try:
+        zone = ZoneInfo(name) if name else timezone.utc
+    except Exception:  # noqa: BLE001 - an unknown zone must not fail the turn
+        logger.warning("Unknown local timezone %r from %s", name, source)
+        name, zone = "", timezone.utc
+    logger.info("User timezone %r (from %s)", name or "UTC", source)
+    return name or "UTC", datetime.now(zone).strftime("%Y-%m-%d (%a) %H:%M")
 
 
 def _resolve_placeholders(server: dict[str, Any]) -> dict[str, Any] | None:
@@ -173,18 +221,46 @@ class TeammateAgent(AgentInterface):
     ) -> str:
         conversation_id = getattr(getattr(context, "activity", None), "conversation", None)
         conversation_id = getattr(conversation_id, "id", "") or ""
-        tools = await self._build_mcp_tools(auth, auth_handler_name, context, include_teams=False)
+        include_teams = is_outbound_teams_request(message)
+        zone_name, current_time = user_clock(context)
+        instructions = self._instructions.replace("{user_timezone}", zone_name).replace(
+            "{current_time}", current_time
+        )
+        tools = await self._build_mcp_tools(
+            auth, auth_handler_name, context, include_teams=include_teams
+        )
         provider_token = await self._credential.get_token(FOUNDRY_SCOPE)
         assert self._brain is not None
-        return await self._brain.ask(
+
+        async def graph_token(scope: str) -> Optional[str]:
+            return await self._acquire_mcp_token(auth, auth_handler_name, context, scope=scope)
+
+        files = await IncomingFiles().collect(getattr(context, "activity", None), graph_token)
+        if files:
+            message = f"{describe_files(files)}\n\n{message}"
+        activity = getattr(context, "activity", None)
+        started = time.monotonic()
+        answer = await self._brain.ask(
             conversation_id=conversation_id,
-            instructions=self._instructions,
+            instructions=instructions,
             message=message,
             bearer_token=provider_token.token,
             mcp_servers=mcp_servers_from_responses_tools(tools),
-            tools=self._build_custom_tools(context),
+            tools=self._build_custom_tools(context, auth, auth_handler_name),
             on_progress=lambda text: context.send_activity(text),
+            channel=getattr(activity, "channel_id", "") or "",
+            attachments=[item for f in files for item in f.sdk_attachments()],
         )
+        caller = getattr(activity, "from_property", None)
+        record_turn(
+            user_id=getattr(caller, "aad_object_id", "") or "",
+            user_name=getattr(caller, "name", "") or "",
+            channel=getattr(activity, "channel_id", "") or "",
+            usage=self._brain.last_usage,
+            tool_calls=self._brain.last_tool_calls,
+            duration_ms=int((time.monotonic() - started) * 1000),
+        )
+        return answer
 
     ACK_INSTRUCTIONS = (
         "You announce what an AI teammate is about to do, just before it starts.\n"
@@ -311,11 +387,37 @@ class TeammateAgent(AgentInterface):
             logger.info("No app-only token for scope %s; that server will be unauthenticated", scope)
             return None
 
-    def _build_custom_tools(self, context: TurnContext | None) -> list[Any]:
+    def _build_custom_tools(
+        self,
+        context: TurnContext | None,
+        auth: Authorization | None = None,
+        auth_handler_name: Optional[str] = None,
+    ) -> list[Any]:
         """Tools that need the live conversation, so they are rebuilt every turn."""
-        deployment = os.getenv("IMAGE_MODEL_DEPLOYMENT", "").strip()
-        if not deployment or context is None:
+        if context is None:
             return []
+        from .file_delivery import build_delivery_tool
+
+        async def graph_token(scope: str) -> Optional[str]:
+            return await self._acquire_mcp_token(auth, auth_handler_name, context, scope=scope)
+
+        tools: list[Any] = [build_delivery_tool(graph_token=graph_token)]
+
+        async def own_token(scope: str) -> str:
+            return (await self._credential.get_token(scope)).token
+
+        caller_id = getattr(getattr(context.activity, "from_property", None), "aad_object_id", "") or ""
+        admins = {s.strip() for s in (os.getenv("USAGE_ADMIN_IDS") or "").split(",") if s.strip()}
+        usage_tool = build_usage_tool(
+            token_provider=own_token,
+            user_id=caller_id,
+            allow_all=(os.getenv("USAGE_ALL_VISIBLE") or "").lower() == "true" or caller_id in admins,
+        )
+        if usage_tool is not None:
+            tools.append(usage_tool)
+        deployment = os.getenv("IMAGE_MODEL_DEPLOYMENT", "").strip()
+        if not deployment:
+            return tools
         from .image_tools import build_image_tool
 
         async def token_provider() -> str:
@@ -343,4 +445,4 @@ class TeammateAgent(AgentInterface):
             token_provider=token_provider,
             on_image=send_image,
         )
-        return [tool] if tool is not None else []
+        return tools + ([tool] if tool is not None else [])

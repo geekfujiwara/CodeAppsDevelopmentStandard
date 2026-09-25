@@ -233,14 +233,15 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 | [agent_template_browser_runner.mjs](scripts/agent_template_browser_runner.mjs) | ログイン済み M365 管理センターで tenant を照合し、承認済み staging と別承認の `FINALIZEPACKAGE`、read-back を実行 | 10 |
 | [publish_teams_app.py](scripts/publish_teams_app.py) | Graph で ZIP を組織カタログへ登録（**devPreview は Graph 側で拒否される**） | 10 |
 | [grant_agent_instance_consent.py](scripts/grant_agent_instance_consent.py) | インスタンス SP に Messaging Bot API の管理者同意を付与 | 11 |
-| [grant_agent_graph_scopes.py](scripts/grant_agent_graph_scopes.py) | インスタンス SP に Microsoft Graph の**委任**スコープを付与（既存の同意へマージ） | 11 |
+| [grant_agent_graph_scopes.py](scripts/grant_agent_graph_scopes.py) | インスタンス SP に Microsoft Graph の**委任**スコープを付与（既存の同意へマージ）。`--resource-app-id` で Dataverse など他のリソースにも使える | 11 |
+| [connect_agent_dataverse.py](scripts/connect_agent_dataverse.py) | エージェンティック ユーザーを Dataverse 環境に追加し、許可 MCP クライアントに登録し、**読み取り専用ロール**（検索＋指定接頭辞のテーブルの Read）を作って割り当てる。`--check` あり（troubleshooting.md #85） | 11 |
 | [set_agent_user_photo.py](scripts/set_agent_user_photo.py) | エージェンティック ユーザーにプロフィール写真を設定 | 12 |
 | [configure_agent_presence.py](scripts/configure_agent_presence.py) | UAMI に Graph プレゼンス権限を冪等付与し設定値を確認 | 12 |
 | [query_agent_logs.py](scripts/query_agent_logs.py) | Application Insights の `AppTraces` を `az rest` で読む（`az monitor` 系は**ワークスペース ベースで失敗するか対話プロンプトで止まる**→ [troubleshooting.md](references/troubleshooting.md) #71） | 全般 |
 | [run_regression_tests.py](scripts/run_regression_tests.py) | 回帰テスト。`--check` は不変条件だけ（無料・決定的）、`--execute` は評価ハブのキュー経由で実ターンを回す。JUnit XML / Markdown を出力し、`deploy_ai_teammate.py --execute` が最後に自動実行する | 13 |
 | [setup_foundry_evaluation.py](scripts/setup_foundry_evaluation.py) | Foundry 標準の Evaluations を設定する。`--mode auto` は継続評価を試し、hosted agent ならトレース評価のスケジュールへ自動フォールバックする | 13 |
 | [fetch_autopilot_quickstart.py](scripts/fetch_autopilot_quickstart.py) | Microsoft 公式の Foundry Autopilot クイックスタートをフォークせずに取得する（`hosting: "foundry-autopilot"` のとき scaffold が自動実行） | 3 |
-| [publish_foundry_autopilot.py](scripts/publish_foundry_autopilot.py) | Foundry hosted agent のバージョン作成と M365 publish。`accessBoundaries` の付与・インスタンス ID の有効化・`--bump-version` を含む。`IMAGE_MODEL_DEPLOYMENT` があればコンテナへ渡し、実在を検証し、アカウント スコープのロールも付ける | 6・10 |
+| [publish_foundry_autopilot.py](scripts/publish_foundry_autopilot.py) | Foundry hosted agent のバージョン作成と M365 publish。`accessBoundaries` の付与・インスタンス ID の有効化・`--bump-version` を含む。`IMAGE_MODEL_DEPLOYMENT` があればコンテナへ渡し、実在を検証し、アカウント スコープのロールも付ける。コード修正だけを反映するときは `--container-only`（再発行も再承認も不要） | 6・10 |
 
 すべて `--check` で確認のみの実行ができる（`query_agent_logs.py` は読むだけなので不要）。
 

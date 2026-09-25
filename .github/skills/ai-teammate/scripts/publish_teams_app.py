@@ -136,10 +136,10 @@ def main() -> int:
             "サポートしておらず、次のエラーで必ず拒否されます:\n"
             '  400 BadRequest: "Agentic apps are not supported for uploading from Teams/Teams '
             'Admin Center. Please use M365 Admin Center."\n'
-            "この Graph API では公開できません。M365 管理センター"
-            "（https://admin.cloud.microsoft/?#/agents/all または Integrated apps）から"
-            f"手動でこの ZIP をアップロードしてください: {package}\n"
-            "（詳細: references/troubleshooting.md の該当項目を参照）"
+            "この Graph API では公開できません。SKILL.md Step 10 の承認付き private API"
+            "（plan_agent_template_upload.py → agent_template_browser_runner.mjs）で"
+            f"この ZIP をアップロードしてください: {package}\n"
+            "（詳細: references/agent-template-upload.md）"
         )
     external_id = read_manifest_id(manifest, package)
     body = package.read_bytes()

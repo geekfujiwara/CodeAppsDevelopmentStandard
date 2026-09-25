@@ -16,7 +16,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .dataverse import Dataverse, odata_literal
+from .dataverse import Dataverse, eval_agent_key, odata_literal
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class SkillSync:
     ) -> None:
         self._directories = directories
         self._prefix = (prefix or os.getenv("PUBLISHER_PREFIX", "")).strip()
-        self._agent_key = (agent_key or os.getenv("AGENT_NAME", "")).strip()
+        self._agent_key = (agent_key or eval_agent_key()).strip()
         self._interval = (interval_minutes or int(os.getenv("SKILLS_SYNC_MINUTES", "30"))) * 60
         self._dataverse = Dataverse()
         self._task: asyncio.Task | None = None
@@ -71,7 +71,7 @@ class SkillSync:
 
     def start(self) -> None:
         if not self.enabled:
-            logger.info("SkillSync disabled (needs DATAVERSE_URL, PUBLISHER_PREFIX, AGENT_NAME)")
+            logger.info("SkillSync disabled (needs DATAVERSE_URL, PUBLISHER_PREFIX, EVAL_AGENT_KEY)")
             return
         self._task = asyncio.create_task(self._loop())
 

@@ -157,6 +157,10 @@ def main() -> int:
     group.add_argument("--instance-name", help="Agent instance display name, e.g. 'Contoso Agent A'.")
     parser.add_argument("--scopes", default=DEFAULT_SCOPES,
                         help=f"Space-separated delegated Graph scopes. Default: '{DEFAULT_SCOPES}'.")
+    parser.add_argument(
+        "--resource-app-id", default=GRAPH_APP_ID,
+        help="Resource appId. Default Microsoft Graph; Dataverse is 00000007-0000-0000-c000-000000000000.",
+    )
     parser.add_argument("--check", action="store_true", help="Only report the current grant state.")
     parser.add_argument("--env", default=".env")
     args = parser.parse_args()
@@ -173,7 +177,7 @@ def main() -> int:
     try:
         instance = resolve_instance_sp(instance_id, args.instance_name)
         resource = az_json(
-            "ad", "sp", "show", "--id", GRAPH_APP_ID,
+            "ad", "sp", "show", "--id", args.resource_app_id,
             "--query", "{id:id,displayName:displayName}",
         )
         assert_scopes_published(resource["id"], wanted)
@@ -183,7 +187,7 @@ def main() -> int:
 
     client_id, resource_id = instance["id"], resource["id"]
     print(f"instance : {instance['displayName']} ({instance['appId']})")
-    print(f"resource : {resource['displayName']} ({GRAPH_APP_ID})")
+    print(f"resource : {resource['displayName']} ({args.resource_app_id})")
     print(f"scopes   : {' '.join(wanted)}")
 
     grants = (graph_get(f"{GRAPH}/servicePrincipals/{client_id}/oauth2PermissionGrants") or {}).get("value", [])

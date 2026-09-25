@@ -123,7 +123,7 @@ Copilot SDK ランタイムでは、§2 のようにタイマーで推測しな�
 | イベント | 中身 | 出す文 |
 |---|---|---|
 | `ASSISTANT_INTENT` | `data.intent`（モデル自身が書いた、いまの活動や計画の説明） | そのまま送る |
-| `TOOL_EXECUTION_START` | `tool_name` / `mcp_server_name` / `arguments` | 「🔧 Mail: list_messages — from:kenji is:unread」 |
+| `TOOL_EXECUTION_START` | `tool_name` / `mcp_server_name` / `arguments` | 「予定表で空いている時間を探しています。」 |
 
 ```python
 from copilot.generated.session_events import SessionEventType  # copilot.session_events ではない
@@ -134,9 +134,13 @@ elif event.type == SessionEventType.TOOL_EXECUTION_START:
     await reporter.send(_describe_tool_call(event.data))
 ```
 
-- `arguments` から `query` / `prompt` / `subject` / `path` などの**具体値を 1 つ**拾って添える。
-  引数が無いツールはラベルだけにする（拾えないときに空の「—」を出さない）
-- MCP サーバー名は `mcp_MailToolsServer` → `MailTools` に均す。内部名をそのまま出さない
+- **ツール名をそのまま見せない。** 「🔧 CalendarTools: FindMeetingTimes」は、チャットの向こうの人には
+  デバッグ ログにしか見えない（検証済 2026-09-24、利用者から指摘）。サーバーとツール名の動詞から
+  **同僚が口にする一文**に言い換える（例: 「予定表で空いている時間を探しています。」
+  「Teams でメッセージを送っています。」）
+- 言い換えられないツール（`skill`・`task_complete` など内部の手続き）は**何も出さない**
+- 具体値は、相手の言語で書かれているときだけ添える（Web 検索の日本語クエリなど）。
+  モデルが英語に書き換えたクエリは、違う言語で割り込むだけなので出さない
 - 同じ文は 2 回送らない（同一ツールの連続呼び出しでうるさくなる）
 - 1 ターンの上限を決める（12 程度）。例外は握りつぶす。**経過連絡の失敗でターンを落とさない**
 
