@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import {
+  assertTemplateActivationReadBack,
   canonicalHash,
   captureSessionHeaders,
   runApprovedPlan,
@@ -190,4 +191,46 @@ test("stage request allows DEPLOY without productId and UPDATEAPP with a titleId
   assert.throws(() => validateStageRequest({ zipPath: "C:/tmp/plugin.zip", actionType: "UPDATEAPP" }), /titleId/);
   assert.throws(() => validateStageRequest({ zipPath: "C:/tmp/plugin.zip", actionType: "DELETE" }), /DEPLOY or UPDATEAPP/);
   assert.throws(() => validateStageRequest({ zipPath: "C:/tmp/plugin.json", actionType: "DEPLOY" }), /\.zip/);
+});
+
+const TITLE = "T_00000000-0000-4000-8000-000000000001";
+const MEMBER = { id: "00000000-0000-0000-0000-000000000001", type: "User" };
+const activatePlan = {
+  origin: "https://admin.cloud.microsoft",
+  operation: "agent-template-activate",
+  method: "POST",
+  path: `/fd/addins/api/v2/agenticapps/${TITLE}/allowUsers`,
+  query: { workloads: "SharedAgent", overwrite: "true" },
+  payload: { members: [MEMBER], userAssignmentCategory: "SpecificUsers" },
+  readBack: `/fd/addins/api/availableAgents/details/${TITLE}`,
+};
+
+test("template activation accepts the observed allowUsers contract", () => {
+  assert.equal(validatePlan(activatePlan), activatePlan);
+});
+
+test("template activation rejects mismatched read-back, missing overwrite and empty SpecificUsers", () => {
+  assert.throws(
+    () => validatePlan({ ...activatePlan, readBack: "/fd/addins/api/availableAgents/details/T_00000000-0000-0000-0000-000000000000" }),
+    /same titleId/,
+  );
+  assert.throws(() => validatePlan({ ...activatePlan, query: { workloads: "SharedAgent" } }), /overwrite=true/);
+  assert.throws(
+    () => validatePlan({ ...activatePlan, payload: { members: [], userAssignmentCategory: "SpecificUsers" } }),
+    /at least one member/,
+  );
+  assert.throws(
+    () => validatePlan({ ...activatePlan, path: "/fd/addins/api/v2/agenticapps/../apps/allowUsers" }),
+    /write contract mismatch/,
+  );
+});
+
+test("template activation read-back must match the approved member set", () => {
+  const body = { appDetail: { allowedOnboardingUsersCategory: "SpecificUsers", allowedOnboardingUsersAndGroups: [{ id: MEMBER.id.toUpperCase(), type: "User" }] } };
+  assert.equal(assertTemplateActivationReadBack(activatePlan, body), true);
+  assert.equal(assertTemplateActivationReadBack(activatePlan, JSON.stringify(body)), true);
+  assert.throws(
+    () => assertTemplateActivationReadBack(activatePlan, { appDetail: { ...body.appDetail, allowedOnboardingUsersAndGroups: [] } }),
+    /members mismatch/,
+  );
 });

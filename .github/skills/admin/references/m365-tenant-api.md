@@ -83,6 +83,7 @@ python .github/skills/admin/scripts/manage_m365_users.py account `
 | Cowork プラグイン新規（事前インストール） | `POST /fd/addins/api/apps`（`agent-lifecycle`） | `Command=DEPLOY`, `Workload=MetaOS`, **`MosOperationId` 必須**（無いと非同期で `OperationId is null or empty`） |
 | Cowork プラグイン更新（ステージ） | `POST /fd/addins/api/apps/uploadCustomApp?workloads=MetaOS` | multipart: `AppFile`, `ProductId=<titleId>`, `Locale`, `ContentMarket`, `WorkloadType=MetaOS`, `ActionType=UPDATEAPP`。応答 `appDetail` の `mosOperationId` / `latestVersion` を次に使う（`ActionType=DEPLOY` は既存 ID で 500「already been deployed」） |
 | Cowork プラグイン更新（確定） | `POST /fd/addins/api/apps`（`agent-update-app`） | `WorkloadManagementList[0]` = `ProductID`/`TitleID`=`<titleId>`, `Command=UPDATEAPP`, `Version=<latestVersion>`, `AppType=LOB`, `Workload=MetaOS`, `MosOperationId`。`SendEmailToUsers=false`、割り当ては送らない（既存の公開対象・Connect を維持） |
+| Agent template の「Activated for」（インスタンス作成者） | `POST /fd/addins/api/v2/agenticapps/{titleId}/allowUsers?workloads=SharedAgent&overwrite=true`（`agent-template-activate`） | `{"members":[{"id":"<Entra object id>","type":"User"\|"Group"}],"userAssignmentCategory":"SpecificUsers"\|"Everyone"}`。**`overwrite=true` は全置換**なので既存 members を含めて送る。読みは `GET /fd/addins/api/availableAgents/details/{titleId}?workload=SharedAgent&extendedProperties=AllowedUsersAndGroups` の `appDetail.allowedOnboardingUsersAndGroups` / `allowedOnboardingUsersCategory` |
 
 ```powershell
 python .github/skills/admin/scripts/manage_m365_portal_api.py frontier-access `
@@ -95,6 +96,11 @@ python .github/skills/admin/scripts/manage_m365_portal_api.py agent-request-appr
   --payload-file request-approval-plan.json --workload SharedAgent
 python .github/skills/admin/scripts/manage_m365_portal_api.py agent-permission-update `
   --payload-file permission-update-plan.json
+
+# Agent template のインスタンス作成者。先に runner の readTemplateActivation(page, titleId) で現状を読み、
+# 既存 members に追加分を足した全件を payload にする（overwrite=true のため）
+python .github/skills/admin/scripts/manage_m365_portal_api.py agent-template-activate `
+  --title-id T_<GUID> --payload-file template-activate-plan.json
 ```
 
 `PermissionRequestData[]` の各要素は portal bundle の request builder と同じ
@@ -102,7 +108,11 @@ python .github/skills/admin/scripts/manage_m365_portal_api.py agent-permission-u
 このAPIはHTTP `200`（全件成功）または`207`（項目別結果）を返す。`agentActions/approve` は利用要求の
 承認であり、Entra permission のGrantではないため代用しない。
 
-実測状況は区別する。Install/Uninstallはwrite、poll、details read-backまで成功済み。Cowork プラグインの新規登録
+実測状況は区別する。Install/Uninstallはwrite、poll、details read-backまで成功済み。Agent template の
+`allowUsers`（Activated for）は 2026-09-25 に Foundry Autopilot の template で UI 保存を捕捉し、write 後の details
+読み戻しで追加したユーザーが `allowedOnboardingUsersAndGroups` に入ることを確認済み（応答に requestId は無く同期反映）。
+template では「Available to」「Shared with」は適用外で、利用者が hire できるかどうかは「Activated for」だけが決める。
+Cowork プラグインの新規登録
 （`stageCustomApp(DEPLOY)` → `agent-publish` FINALIZEPACKAGE → `agent-allow` → `agent-lifecycle` DEPLOY）は使い捨ての検証用
 プラグインで private API だけで実行し、各 `appsManagementStatus[].status=Success` まで実測済み。Cowork プラグイン更新
 （`uploadCustomApp` + `agent-update-app`）は write、poll（`UpdateApp` / `Success`）、Cowork 側の Version 表示まで成功済み

@@ -12,7 +12,9 @@ const CONTRACTS = new Map([
   ["agent-request-approve", { method: "POST", path: "/fd/addins/api/agentActions/approve" }],
   ["agent-permission-update", { method: "POST", path: "/fd/addins/api/v2/AgentPermission/update" }],
   ["agent-request-approve-v1", { method: "POST", path: "/fd/addins/api/v1/agentactions/approve" }],
+  ["agent-template-activate", { method: "POST", pathPattern: /^\/fd\/addins\/api\/v2\/agenticapps\/(T_[0-9a-f-]{36})\/allowUsers$/i }],
 ]);
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const READ_PATHS = [
   /^\/admin\/api\/settings\/company\/frontier\/access$/,
   /^\/fd\/addins\/api\/agents(?:\/.*)?$/,
@@ -62,7 +64,8 @@ export function validatePlan(plan) {
   const contract = CONTRACTS.get(plan.operation);
   if (!contract) throw new Error("operation is not allowlisted");
   if (plan.origin !== ORIGIN) throw new Error("origin is not allowlisted");
-  if (plan.method !== contract.method || plan.path !== contract.path) throw new Error("write contract mismatch");
+  const pathMatches = contract.pathPattern ? contract.pathPattern.test(plan.path) : plan.path === contract.path;
+  if (plan.method !== contract.method || !pathMatches) throw new Error("write contract mismatch");
   assertRelativePath(plan.path, "path");
   assertRelativePath(plan.readBack, "readBack");
   if (!READ_PATHS.some((pattern) => pattern.test(plan.readBack))) throw new Error("readBack is not allowlisted");
@@ -111,7 +114,74 @@ export function validatePlan(plan) {
       }
     }
   }
+  if (plan.operation === "agent-template-activate") {
+    const titleId = plan.path.match(contract.pathPattern)[1];
+    if (plan.readBack !== `/fd/addins/api/availableAgents/details/${titleId}`) {
+      throw new Error("template activation must read back the same titleId");
+    }
+    if (plan.query?.workloads !== "SharedAgent" || plan.query?.overwrite !== "true") {
+      throw new Error("template activation requires workloads=SharedAgent&overwrite=true");
+    }
+    const { members, userAssignmentCategory } = plan.payload;
+    if (Object.keys(plan.payload).sort().join(",") !== "members,userAssignmentCategory") {
+      throw new Error("template activation payload fields do not match the observed contract");
+    }
+    if (!["SpecificUsers", "Everyone"].includes(userAssignmentCategory) || !Array.isArray(members)) {
+      throw new Error("template activation payload is invalid");
+    }
+    if (userAssignmentCategory === "SpecificUsers" && members.length === 0) {
+      throw new Error("SpecificUsers requires at least one member");
+    }
+    for (const member of members) {
+      if (!member || Object.keys(member).sort().join(",") !== "id,type" || !["User", "Group"].includes(member.type) || !GUID.test(member.id)) {
+        throw new Error("template activation member is invalid");
+      }
+    }
+  }
   return plan;
+}
+
+// 現在の「Activated for」を読む。overwrite=true の全置換なので、plan 作成前に必ず現状の members を取得して足し引きする。
+export async function readTemplateActivation(page, titleId, options = {}) {
+  if (!/^T_[0-9a-f-]{36}$/i.test(titleId || "")) throw new Error("titleId must be T_<GUID>");
+  if (new URL(page.url()).origin !== ORIGIN) throw new Error("browser is not on the approved origin");
+  const headers = await captureSessionHeaders(page, options);
+  if (!headers.ajaxsessionkey) throw new Error("browser session header was not observed");
+  return page.evaluate(async ({ id, session }) => {
+    const response = await fetch(
+      `/fd/addins/api/availableAgents/details/${id}?workload=SharedAgent&extendedProperties=AllowedUsersAndGroups`,
+      { credentials: "include", cache: "no-store", headers: { Accept: "application/json", ...session } },
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status} from availableAgents/details`);
+    let body = JSON.parse(await response.text());
+    if (typeof body === "string") body = JSON.parse(body);
+    const detail = body?.appDetail;
+    if (!detail) throw new Error("details schema mismatch");
+    return {
+      titleId: id,
+      isActivated: detail.isActivated ?? null,
+      userAssignmentCategory: detail.allowedOnboardingUsersCategory ?? null,
+      members: (detail.allowedOnboardingUsersAndGroups || []).map((m) => ({ id: m.id, type: m.type, email: m.emailId ?? null })),
+    };
+  }, { id: titleId, session: headers });
+}
+
+export function assertTemplateActivationReadBack(plan, readBackBody) {
+  let body = readBackBody;
+  if (typeof body === "string") body = JSON.parse(body);
+  const detail = body?.appDetail;
+  if (!detail) throw new Error("read-back schema mismatch");
+  if (detail.allowedOnboardingUsersCategory !== plan.payload.userAssignmentCategory) {
+    throw new Error("read-back category mismatch");
+  }
+  if (plan.payload.userAssignmentCategory === "SpecificUsers") {
+    const actual = new Set((detail.allowedOnboardingUsersAndGroups || []).map((m) => String(m.id).toLowerCase()));
+    const expected = plan.payload.members.map((m) => m.id.toLowerCase());
+    if (actual.size !== expected.length || expected.some((id) => !actual.has(id))) {
+      throw new Error("read-back members mismatch");
+    }
+  }
+  return true;
 }
 
 export async function loadApprovedPlan(planPath, expectedHash) {
@@ -286,7 +356,7 @@ export async function executeApprovedPlan(page, plan, options = {}) {
   const sessionHeaders = await captureSessionHeaders(page, options);
   if (!sessionHeaders.ajaxsessionkey) throw new Error("browser session header was not observed");
 
-  return page.evaluate(
+  const result = await page.evaluate(
     async ({ approvedPlan, headers, pollIntervalMs, maxPolls }) => {
       const requestJson = async (path, init = {}) => {
         const response = await fetch(path, {
@@ -343,6 +413,7 @@ export async function executeApprovedPlan(page, plan, options = {}) {
       }
 
       const readBack = await requestJson(withQuery(approvedPlan.readBack, approvedPlan.readBackQuery));
+      if (typeof readBack.body === "string") readBack.body = JSON.parse(readBack.body);
       if (!readBack.body || typeof readBack.body !== "object") throw new Error("read-back schema mismatch");
       return {
         writeStatus: write.status,
@@ -351,6 +422,7 @@ export async function executeApprovedPlan(page, plan, options = {}) {
         polls,
         readBackStatus: readBack.status,
         readBackKeys: Object.keys(readBack.body).sort(),
+        readBackBody: approvedPlan.operation === "agent-template-activate" ? readBack.body : undefined,
       };
     },
     {
@@ -360,4 +432,10 @@ export async function executeApprovedPlan(page, plan, options = {}) {
       maxPolls: options.maxPolls ?? 30,
     },
   );
+  if (plan.operation === "agent-template-activate") {
+    assertTemplateActivationReadBack(plan, result.readBackBody);
+    result.readBackMembersVerified = true;
+  }
+  delete result.readBackBody;
+  return result;
 }

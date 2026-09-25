@@ -369,3 +369,16 @@ VS Code の統合ブラウザで `file:///...` として開くと、上記エラ
 **対処**: 承認ゲートは**チャットで取る**。レポートを開いたらそのターンをチャットの応答で終了し、
 確認してほしい点を箇条書きで示してユーザーの返答を待つ。長時間動くコマンドも同じターンに続けない。
 スキル同梱スクリプトはすべて非対話で、`--apply` を付けるまで dry-run（SKILL.md「ワークフロー（正常系）」冒頭の注記）。
+
+## 19. Agent template に利用者を追加したら既存の利用者が消えた / 追加しても Teams で hire できない
+
+**症状**: (a) `allowUsers` に追加するユーザーだけを送ったら、既存の利用者が「Activated for」から外れた。
+(b) 「Available to」「Shared with」に追加しても、Teams の **Agents for your team** からインスタンスを作れない。
+
+**原因**: (a) `POST /fd/addins/api/v2/agenticapps/{titleId}/allowUsers` は `overwrite=true` 付きの**全置換**。
+(b) Agent template（Autopilot 等）では「Available to」「Shared with」は適用外で、hire の可否は「Activated for」
+（`appDetail.allowedOnboardingUsersAndGroups`）だけで決まる。
+
+**対処**: runner の `readTemplateActivation(page, titleId)` で現状を読み、既存の members に追加分を足した全件を
+`agent-template-activate` の payload にする。恒久対策済み: planner `validate_payload`（SpecificUsers で空の members と
+重複 id を拒否）、runner `assertTemplateActivationReadBack`（書き込み後に members が plan と完全一致しなければ失敗）。

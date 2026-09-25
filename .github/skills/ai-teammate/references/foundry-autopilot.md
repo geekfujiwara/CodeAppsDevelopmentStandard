@@ -209,6 +209,17 @@ python .github/skills/ai-teammate/scripts/publish_foundry_autopilot.py
    数分で agent user アカウントが払い出され、本人から DM が届く。組織図にも並ぶ。
 3. **確認**: Teams で会話 → 払い出されたメールアドレス宛にメール送信 → 返信が来ることを見る。
 
+### 6-1. 利用者を追加する（API）
+
+別のユーザーが Teams から Autopilot を使えるようにするには **2 つとも**必要。
+
+| 要素 | 理由 | 方法 |
+|---|---|---|
+| template の「Activated for」に追加 | 追加されていないと Teams の **Agents for your team** からインスタンスを作れない。template では「Available to」「Shared with」は適用外 | admin の `agent-template-activate`（`POST /fd/addins/api/v2/agenticapps/{titleId}/allowUsers?overwrite=true`。全置換なので既存 members を含める）→ [m365-tenant-api.md](../../admin/references/m365-tenant-api.md) |
+| Foundry プロジェクトに `Foundry User` | `.developers` 境界の判定。無いと話しかけても無応答（troubleshooting #74） | `az role assignment create --role "Foundry User" --scope <project>` |
+
+`titleId`（`T_<GUID>`）は管理センターの詳細 URL `agentdetails/T_...` または `GET /fd/addins/api/agents` から取る。
+
 ## 7. 再発行（バージョンを上げる）
 
 同じ `appVersion` で `microsoft365/publish` を再送すると
