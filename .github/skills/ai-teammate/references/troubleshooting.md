@@ -2379,5 +2379,48 @@ Microsoft.CognitiveServices/accounts/AIServices/agents/write
 チャットを作った直後にこのサービスが送るアクティビティが、`BotServiceRbac`（送信者に Foundry の権限を求める）で弾かれる。
 
 **対処**: 不要。同じ利用者の 2 通目以降は利用者本人として届き、通った（Kai で実測）。このアプリにロールを与えない。
+
+## 95. `--env <チームメイトの .env>` を渡したのに「スコープが未指定です。DATAVERSE_URL を .env に設定するか…」（検証済 2026-09-26）
+
+**症状**: 作業フォルダ（スキルのリポジトリ）に `.env` が無い状態で、`setup_agent_dataverse_user.py` /
+`setup_evaluation_dataverse.py` / `run_regression_tests.py` に別フォルダのチームメイトの `.env` を渡すと、
+Dataverse の呼び出しが `ValueError` で落ちる。回帰テストでは「評価Hub: evalagent に自分の行がある」が FAIL になる。
+
+**原因**: `auth_helper` は**読み込んだ瞬間に**カレント フォルダの `.env` から `DATAVERSE_URL` を読んで固定する。
+後から `--env` を読んでも `auth_helper` の値は空のまま。
+
+**対処（恒久対策済み）**: 3 本とも `--env` の `DATAVERSE_URL` を `auth_helper` に反映してから呼ぶ。
+あわせて `run_regression_tests.py` の skills 検査は `src/<パッケージ>/skills/`（Foundry Autopilot の配置）も見る。
+scaffold はチームメイトの `.env` に `DATAVERSE_URL` / `PUBLISHER_PREFIX` / `SOLUTION_NAME` を書き、
+発行スクリプトは `AGENT_IDENTITY_CLIENT_ID` を書く。
+
+## 96. Foundry Autopilot の回帰テストが「実行中」のまま終わらない（検証済 2026-09-26）
+
+**症状**: `run_regression_tests.py --execute` が待ち続けてタイムアウトする。評価ハブの行は 1 件だけ
+`status=2`（実行中）になり、残りは `1`（待機）のまま動かない。
+
+**原因**: Foundry Autopilot のコンテナはセッションごとに起動し、会話か定期実行（B11）のタイマーが来たときしか動かない。
+TestWorker はそのコンテナの中で回るが、タイマーの tick セッションは仕事を終えると自分を止める（`stop_own_session`）。
+行を「実行中」にした直後にセッションが止まり、そのケースは二度と完了しない。
+
+**対処（恒久対策済み）**: tick は止まる前に `TestWorker.drain_all()` で待機中のケースを全部片付ける（上限 10 分）。
+TestWorker の巡回と `drain_all()` はロックで排他し、同じ行を二重に拾わない。回帰テストは
+`--execute` で行を積んでから `provision_schedule_trigger.py --tick-now` でコンテナを起こす。
+途中で止まった古い行は `status=4`（失敗）にして閉じてから流し直す。
+
+## 97. Foundry Autopilot の回帰テストが全ケース「自動採点が行われていません」「status=失敗 unknown」（検証済 2026-09-26）
+
+**症状**: #96 を直すと全ケースが完了するが、振る舞いテストが全部 FAIL になる。
+
+| 詳細 | 原因 | 対処（恒久対策済み） |
+|---|---|---|
+| `自動採点が行われていません（minScore=3 を要求）` | App Service 版の `TestRunner.cs` は評価ハブのルール（`<prefix>_evalrules`）で採点するが、Foundry 版の `test_worker.py` は採点していなかった | `TestWorker(judge=...)` がルールごとに 0〜5 で採点し、平均を `autoscore`、内訳を `autosummary` に書く。判定モデルは同じデプロイ（`EVAL_JUDGE_DEPLOYMENT` で変更可） |
+| `status=失敗 unknown`（インジェクションのケース） | Azure OpenAI のコンテンツ フィルターが 400 で止めた。防げているのに、頭脳が「不明なエラー」として投げていた | `copilot_brain.py` が `content_filter` に分類し、「安全フィルターに止められたので処理していない」と答える（利用者にも同じ文が返る） |
+| `ツール 'run_python' が呼ばれていません` | Foundry のコード実行は `foundry_toolbox-code_interpreter` という名前 | `expectTools` に `a\|b` で別名を並べられる（`run_python\|code_interpreter`） |
+| `ツール 'generate_image' が呼ばれていません` | `IMAGE_MODEL_DEPLOYMENT` が無いとツール自体が登録されない（B17 を scaffold しても発行時に無効） | ケースの `requiresEnv` に書いた値が `.env` に無ければ SKIP |
+| 画像ケースだけ、設定があっても呼ばれない | テストのターンには会話が無いので、会話に依存するカスタム ツールをまとめて外していた | 自分の ID だけで動くツール（画像生成）は `_headless_tools()` でテストのターンにも渡す |
+| 自動採点が 1〜2 点（「ツールを使った形跡がない」） | 判定モデルには依頼と応答しか渡しておらず、実際に呼ばれたツールが見えなかった | 判定プロンプトに実行記録（呼ばれたツール名）を載せる |
+| インジェクションのケースだけ `採点できませんでした (... content_filter ...)` | 依頼文そのものが脱獄文なので、判定モデルへの問い合わせもフィルターに止められる | フィルターに止められたら依頼本文を伏せて採点し直す |
+| 「スキルの手順に従う」だけ 1 点（「裏付けなしに一覧を断定」） | スキルはセッションに読み込み済みでツールを呼ばずに答えられるが、判定モデルはそれを知らない | 判定プロンプトに「最初から持っている情報」（組み込みスキル名）を載せる（`TestWorker(facts=...)`） |
 続けて利用者のメッセージも同じエラーになる場合だけ、その利用者のロール（[foundry-autopilot.md](foundry-autopilot.md) §6-1）を確認する。
 

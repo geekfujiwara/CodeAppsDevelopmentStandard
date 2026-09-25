@@ -50,7 +50,18 @@ def _classify_session_error(detail: Any) -> str:
     values = detail if isinstance(detail, dict) else {}
     if values.get("error_type") == "rate_limit" or values.get("status_code") == 429:
         return "rate_limit"
+    message = str(values.get("message") or "")
+    if values.get("status_code") == 400 and ("content management policy" in message or "content_filter" in message):
+        return "content_filter"
     return "unknown"
+
+
+# Azure OpenAI's filter refused the turn (for example a mail carrying a jailbreak). Nothing was
+# executed, so saying so plainly is the correct answer rather than an error (troubleshooting #97).
+CONTENT_FILTER_REPLY = (
+    "この依頼に含まれる文章が安全フィルターに止められたため、処理しませんでした。"
+    "他の人への指示や命令のような文が入っていると起きます。必要な部分だけを渡してもらえれば続けます。"
+)
 
 
 class CopilotBrain:
@@ -134,6 +145,11 @@ class CopilotBrain:
             except asyncio.TimeoutError:
                 logger.warning("Copilot SDK turn timed out; dropping the session")
                 await self._drop(conversation_id)
+                raise
+            except BrainError as exc:
+                await self._drop(conversation_id)
+                if exc.kind == "content_filter":
+                    return CONTENT_FILTER_REPLY
                 raise
             except Exception:
                 await self._drop(conversation_id)

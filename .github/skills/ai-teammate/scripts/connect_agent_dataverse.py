@@ -13,13 +13,15 @@ each one fails with a different error when missing (references/agent-brain.md §
 This script does 2-4. The role it creates is read-only: Dataverse search plus organization-wide
 Read on the tables whose logical name starts with one of ``--read-prefix``. Nothing is written,
 deleted or customised through it, which keeps one compromised teammate from becoming a
-tenant-wide problem.
+tenant-wide problem. ``--existing-role`` assigns a role that already exists (for example
+``System Customizer``) instead; use it only when the owner has decided on the wider access.
 
 Usage:
     python scripts/connect_agent_dataverse.py --check \
         --env-id <environment id> --agent-user-id <agentUser oid> --instance-app-id <appId> \
         --role-name "Auri Reader" --read-prefix geek --client-unique-name geek_auri
     python scripts/connect_agent_dataverse.py ...same arguments without --check...
+    python scripts/connect_agent_dataverse.py ... --client-unique-name geek_kai --existing-role "System Customizer"
 
 Exit codes: 0 = everything in place, 1 = error, 3 = --check found something missing.
 """
@@ -56,7 +58,15 @@ class Dataverse:
     def get_all(self, query: str) -> list[dict]:
         rows, url = [], f"{self.api}/{query}"
         while url:
-            response = requests.get(url, headers=self.headers, timeout=120)
+            for attempt in range(3):
+                try:
+                    response = requests.get(url, headers=self.headers, timeout=120)
+                    break
+                except requests.ConnectionError:
+                    # Dataverse occasionally resets the TLS handshake; every step here is idempotent.
+                    if attempt == 2:
+                        raise
+                    time.sleep(3 * (attempt + 1))
             response.raise_for_status()
             body = response.json()
             rows += body.get("value", [])
@@ -138,10 +148,16 @@ def main() -> int:
     parser.add_argument("--instance-app-id", required=True, help="Agent instance appId (MCP client)")
     parser.add_argument("--client-name", default="", help="Display name in allowedmcpclient (default: role name)")
     parser.add_argument("--client-unique-name", required=True, help="allowedmcpclient uniquename, e.g. <prefix>_<agent>")
-    parser.add_argument("--role-name", required=True, help="Read-only role to create or reuse")
-    parser.add_argument("--read-prefix", action="append", required=True, help="Table prefix to allow Read on. Repeatable.")
+    parser.add_argument("--role-name", default="", help="Read-only role to create or reuse")
+    parser.add_argument("--read-prefix", action="append", default=[], help="Table prefix to allow Read on. Repeatable.")
+    parser.add_argument("--existing-role", default="", help="Assign this existing role instead of creating a read-only one")
     parser.add_argument("--check", action="store_true", help="Report only; change nothing")
     args = parser.parse_args()
+    if args.existing_role and (args.role_name or args.read_prefix):
+        parser.error("--existing-role cannot be combined with --role-name / --read-prefix")
+    if not args.existing_role and not (args.role_name and args.read_prefix):
+        parser.error("either --existing-role or both --role-name and --read-prefix are required")
+    role_name = args.existing_role or args.role_name
 
     try:
         url = environment_url(args.env_id)
@@ -180,21 +196,22 @@ def main() -> int:
             print("  + allowed MCP client enabled")
         else:
             dv.post("allowedmcpclients", {
-                "name": args.client_name or args.role_name, "uniquename": args.client_unique_name,
+                "name": args.client_name or role_name, "uniquename": args.client_unique_name,
                 "applicationid": args.instance_app_id, "isenabled": True,
             })
             print("  + allowed MCP client registered")
 
         root_bu = dv.get_all("businessunits?$select=businessunitid&$filter=_parentbusinessunitid_value eq null")[0]["businessunitid"]
-        role_id, count = ensure_read_role(dv, args.role_name, args.read_prefix, root_bu, args.check)
-        if args.check:
-            print(f"  {'OK' if role_id else 'MISSING'} role '{args.role_name}' ({count} privilege(s) wanted)")
-            missing |= role_id is None
+        if not args.existing_role:
+            role_id, count = ensure_read_role(dv, args.role_name, args.read_prefix, root_bu, args.check)
+            if args.check:
+                print(f"  {'OK' if role_id else 'MISSING'} role '{args.role_name}' ({count} privilege(s) wanted)")
+                missing |= role_id is None
 
         if user:
             assigned = {r["name"] for r in dv.get_all(
                 f"systemusers({user['systemuserid']})/systemuserroles_association?$select=name")}
-            names = [*BASE_ROLES, args.role_name]
+            names = [*BASE_ROLES, role_name]
             for name in names:
                 if name in assigned:
                     continue

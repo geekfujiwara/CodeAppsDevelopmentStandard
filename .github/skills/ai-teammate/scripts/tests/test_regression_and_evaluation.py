@@ -46,6 +46,19 @@ class CaseEvaluationTests(unittest.TestCase):
     def evaluate(self, case: dict, **row_values):
         return regression.evaluate_case(PREFIX, case, row(**row_values), 3.0)
 
+    def test_skills_inside_the_container_package_are_found(self) -> None:
+        # Foundry Autopilot keeps skills in src/<package>/skills (troubleshooting #95).
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as root:
+            skill = Path(root) / "src" / "agent_pkg" / "skills" / "daily-brief"
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text("---\nname: daily-brief\n---\n", encoding="utf-8")
+            suite = regression.Suite()
+            regression.check_skills(Path(root), {}, suite)
+
+        self.assertTrue(all(result.passed for result in suite.results))
+
     def test_a_case_with_no_assertions_passes(self) -> None:
         passed, _ = self.evaluate({"name": "smoke"}, response="なんでも")
         self.assertTrue(passed)
@@ -69,6 +82,12 @@ class CaseEvaluationTests(unittest.TestCase):
         case = {"name": "c", "expectTools": ["search"]}
         self.assertTrue(self.evaluate(case, toolcalls="search, fetch")[0])
         self.assertFalse(self.evaluate(case, toolcalls="fetch")[0])
+
+    def test_expect_tools_accepts_any_listed_alternative(self) -> None:
+        case = {"name": "c", "expectTools": ["run_python|code_interpreter"]}
+        self.assertTrue(self.evaluate(case, toolcalls="foundry_toolbox-code_interpreter")[0])
+        self.assertTrue(self.evaluate(case, toolcalls="run_python")[0])
+        self.assertFalse(self.evaluate(case, toolcalls="web_search")[0])
 
     def test_min_score_uses_the_case_value_over_the_default(self) -> None:
         case = {"name": "c", "minScore": 4.5}

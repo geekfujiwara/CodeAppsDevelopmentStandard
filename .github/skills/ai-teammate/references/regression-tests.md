@@ -75,9 +75,10 @@ python scripts/run_regression_tests.py --execute
 |---|---|
 | `expectContains` | 応答にこの文字列がすべて含まれるか |
 | `expectNotContains` | 応答にこの文字列が 1 つも含まれないか |
-| `expectTools` | このツール名がすべて呼ばれたか |
-| `minScore` | `_autoscore`（0〜5）がこの値以上か |
+| `expectTools` | このツール名がすべて呼ばれたか（部分一致。ホストで名前が違うものは `run_python\|code_interpreter` のように `\|` で別名を並べる） |
+| `minScore` | `_autoscore`（0〜5）がこの値以上か。採点はチームメイトの TestWorker が評価ハブのルールで行う |
 | `maxDurationMs` | 所要時間の上限 |
+| `requiresEnv` | ここに書いた設定がチームメイトの `.env` に無ければ SKIP（scaffold はしたが発行時に無効な機能） |
 
 判定はすべて**任意**で、書いたものだけが検査される。文言の完全一致は書かない。
 生成 AI の出力は毎回変わるので、完全一致は「壊れていないのに赤い」を量産する。

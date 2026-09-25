@@ -681,6 +681,8 @@ def main() -> int:
     print("\n== agent identity を確認します ==")
     if identity.get("client_id"):
         enable_instance_identity(identity["client_id"])
+        # setup_agent_dataverse_user.py gives this identity its evaluation-hub application user.
+        write_env_value(env_path, "AGENT_IDENTITY_CLIENT_ID", identity["client_id"])
     else:
         print("  ! instance_identity.client_id が返っていません。AADSTS7000112 が出たら troubleshooting.md #75")
     grant_instance_roles(identity["principal_id"])

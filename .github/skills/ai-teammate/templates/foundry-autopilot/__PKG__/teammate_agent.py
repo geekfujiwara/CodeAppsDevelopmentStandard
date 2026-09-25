@@ -206,7 +206,9 @@ class TeammateAgent(AgentInterface):
 
         self._skill_sync = SkillSync(directories=self._skill_dirs)
         self._skill_sync.start()
-        self._test_worker = TestWorker(run_turn=self._run_headless_turn)
+        self._test_worker = TestWorker(
+            run_turn=self._run_headless_turn, judge=self._judge_text, facts=self._judge_facts()
+        )
         self._test_worker.start()
         from . import schedules
 
@@ -353,6 +355,19 @@ class TeammateAgent(AgentInterface):
             return None
         return (response.output_text or "").strip() or None
 
+    def _judge_facts(self) -> str:
+        names = sorted({p.parent.name for d in self._skill_dirs for p in d.glob("*/SKILL.md")})
+        return f"組み込みスキル（セッションに読み込み済み）: {', '.join(names)}" if names else ""
+
+    async def _judge_text(self, prompt: str) -> str:
+        """Grade a regression answer with the same deployment (EVAL_JUDGE_DEPLOYMENT overrides it)."""
+        response = await self._openai_client.responses.create(
+            model=os.getenv("EVAL_JUDGE_DEPLOYMENT") or self._deployment,
+            input=prompt,
+            store=False,
+        )
+        return response.output_text or ""
+
     async def _run_headless_turn(self, *, conversation_id: str, message: str):
         """Turn without a signed-in caller, used by the evaluation / regression worker."""
         tools = await self._build_mcp_tools(None, None, None, include_teams=False)
@@ -364,8 +379,30 @@ class TeammateAgent(AgentInterface):
             message=message,
             bearer_token=provider_token.token,
             mcp_servers=mcp_servers_from_responses_tools(tools),
+            tools=self._headless_tools(),
         )
         return answer, list(self._brain.last_tool_calls)
+
+    def _headless_tools(self) -> list[Any]:
+        """Tools that run on the agent's own identity, so a test turn can exercise them too."""
+        deployment = os.getenv("IMAGE_MODEL_DEPLOYMENT", "").strip()
+        if not deployment:
+            return []
+        from .image_tools import build_image_tool
+
+        async def token_provider() -> str:
+            return (await self._credential.get_token(FOUNDRY_SCOPE)).token
+
+        async def keep_image(data: bytes, content_type: str, prompt: str) -> None:
+            logger.info("Test turn generated an image (%s, %d bytes)", content_type, len(data))
+
+        tool = build_image_tool(
+            project_endpoint=self._project_endpoint,
+            deployment=deployment,
+            token_provider=token_provider,
+            on_image=keep_image,
+        )
+        return [tool] if tool is not None else []
 
     async def _build_mcp_tools(
         self,

@@ -59,6 +59,7 @@ def _resolve_auth_helper_dir() -> str:
 
 
 sys.path.insert(0, _resolve_auth_helper_dir())
+import auth_helper  # noqa: E402
 from auth_helper import api_get, api_post, get_session  # noqa: E402
 
 STATUS_WAITING, STATUS_RUNNING, STATUS_DONE, STATUS_FAILED, STATUS_CANCELLED = 1, 2, 3, 4, 5
@@ -143,7 +144,9 @@ def http_status(url: str, timeout: int = 30) -> int:
 
 
 def check_skills(target: Path, env: dict[str, str], suite: Suite) -> None:
-    skills_dir = target / "skills"
+    # Foundry Autopilot bundles skills inside the container package (src/<package>/skills).
+    candidates = [target / "skills", *sorted(target.glob("src/*/skills"))]
+    skills_dir = next((d for d in candidates if d.is_dir() and any(d.glob("*/SKILL.md"))), candidates[0])
     settings = target / "appsettings.json"
     enabled = True
     if settings.is_file():
@@ -395,7 +398,8 @@ def evaluate_case(prefix: str, case: dict, row: dict, default_min_score: float) 
     if expected_tools:
         tool_calls = (row.get(f"{prefix}_toolcalls") or "").lower()
         for tool in expected_tools:
-            if tool.lower() not in tool_calls:
+            # "a|b": the same capability is named differently per host (run_python vs code_interpreter).
+            if not any(option.strip().lower() in tool_calls for option in tool.split("|")):
                 problems.append(f"ツール '{tool}' が呼ばれていません")
 
     # A case that asked to be scored but came back unscored has not been verified, so it must
@@ -419,12 +423,19 @@ def evaluate_case(prefix: str, case: dict, row: dict, default_min_score: float) 
     return not problems, "; ".join(problems)
 
 
-def run_behaviour(prefix: str, agent_key: str, cases: list[dict], args, suite: Suite) -> None:
+def run_behaviour(
+    prefix: str, agent_key: str, cases: list[dict], args, suite: Suite, env: dict[str, str] | None = None
+) -> None:
     run_name = args.run_name or f"regression-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
     print(f"\n== 回帰テスト（run={run_name}, {len(cases)} ケース）==")
 
     queued: list[tuple[dict, str]] = []
     for case in cases:
+        # A block can be scaffolded yet switched off at deploy time (B17 without an image model).
+        missing = [key for key in case.get("requiresEnv", []) if not (env or {}).get(key, "").strip()]
+        if missing:
+            suite.add(case["name"], "behaviour", True, f"{', '.join(missing)} が未設定", skipped=True)
+            continue
         try:
             queued.append((case, enqueue(prefix, agent_key, run_name, case)))
         except Exception as exc:  # noqa: BLE001
@@ -508,7 +519,11 @@ def main() -> int:
         print("--execute には PUBLISHER_PREFIX が必要です（評価ハブ経由で実行するため）", file=sys.stderr)
         return 2
 
-    os.environ.setdefault("DATAVERSE_URL", env.get("DATAVERSE_URL", ""))
+    # auth_helper read DATAVERSE_URL at import from the current directory, not from --env.
+    dataverse_url = env.get("DATAVERSE_URL", "").strip().rstrip("/")
+    if dataverse_url and not auth_helper.DATAVERSE_URL:
+        auth_helper.DATAVERSE_URL = dataverse_url
+        auth_helper._DEFAULT_SCOPE = f"{dataverse_url}/.default"
     suite = Suite()
 
     print(f"== 不変条件（hosting={hosting}）==")
@@ -526,7 +541,7 @@ def main() -> int:
 
     if args.execute:
         suite_path = args.suite or target / "regression" / "suite.json"
-        run_behaviour(prefix, agent_key, load_suite_file(suite_path), args, suite)
+        run_behaviour(prefix, agent_key, load_suite_file(suite_path), args, suite, env)
 
     if args.junit:
         write_junit(args.junit, suite)

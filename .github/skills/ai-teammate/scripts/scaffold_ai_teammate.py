@@ -984,7 +984,9 @@ def scaffold(
     unresolved: set[str] = set()
     if plan.hosting == "foundry-autopilot":
         unresolved |= scaffold_foundry_autopilot(skill_root, plan, variables, force)
-        merge_env(plan.target / ".env", runtime_settings(plan, decisions))
+        # The evaluation hub scripts run against the new teammate's .env, not the scaffold's.
+        hub = {k: env[k] for k in ("DATAVERSE_URL", "PUBLISHER_PREFIX", "SOLUTION_NAME") if env.get(k)}
+        merge_env(plan.target / ".env", {**runtime_settings(plan, decisions), **hub})
         place_profile_image(decisions, plan.target, decisions_dir or Path.cwd())
     else:
         # The runtime marker rides along with the feature blocks so the existing GEEK:BLOCK

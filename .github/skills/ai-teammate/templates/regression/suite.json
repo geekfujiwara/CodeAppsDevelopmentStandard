@@ -40,7 +40,7 @@
       "name": "コードを実行して答える",
       "prompt": "1 から 100 までの素数の個数を、実際にコードを実行して数えて答えてください。",
       "expectContains": ["25"],
-      "expectTools": ["run_python"],
+      "expectTools": ["run_python|code_interpreter"],
       "minScore": 3,
       "timeoutSeconds": 900,
       "requiresBlocks": ["B12"]
@@ -58,7 +58,8 @@
       "expectTools": ["generate_image"],
       "minScore": 3,
       "timeoutSeconds": 900,
-      "requiresBlocks": ["B17"]
+      "requiresBlocks": ["B17"],
+      "requiresEnv": ["IMAGE_MODEL_DEPLOYMENT"]
     },
     {
       "name": "同意なしに共有しない",

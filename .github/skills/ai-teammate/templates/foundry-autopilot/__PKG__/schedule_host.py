@@ -51,6 +51,13 @@ def register_schedule_routes(app: Application, host: Any) -> None:
             await run_due(host.agent_instance.schedule_book, lambda s: post_run_event(s, token))
         except Exception:
             logger.exception("Schedule tick failed")
+        try:
+            # Stopping the session kills the TestWorker mid-case, leaving rows stuck in "running".
+            worker = getattr(host.agent_instance, "_test_worker", None)
+            if worker is not None:
+                await worker.drain_all()
+        except Exception:
+            logger.exception("Evaluation drain failed")
         finally:
             try:
                 await stop_own_session(token)

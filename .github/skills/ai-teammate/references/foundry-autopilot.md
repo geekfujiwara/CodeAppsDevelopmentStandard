@@ -239,7 +239,34 @@ python .github/skills/ai-teammate/scripts/publish_foundry_autopilot.py
      「Classic Teams is no longer available」になり、Microsoft 365 Copilot web もサインインで止まるため自動化できない。
    - 払い出しの確認は Graph の `$search="displayName:<名前>"`（`ConsistencyLevel: eventual`）で `users` に
      agent user が現れるかを見る。以降の Step（スコープ付与・写真）はその UPN で進める。
-3. **確認**: Teams で会話 → 払い出されたメールアドレス宛にメール送信 → 返信が来ることを見る。
+3. **採用後の設定**（インスタンスごと。作り直したらやり直す）。値は Graph で引いた agent user（`id` / UPN）と
+   インスタンスの ID（`<表示名> (AI teammate)` の appId）を使う。
+
+   ```powershell
+   $s = ".github/skills/ai-teammate/scripts"
+   # 委任スコープ（Graph と Dataverse MCP）
+   python $s/grant_agent_graph_scopes.py --instance-id <インスタンス appId> --scopes "User.Read Chat.Read Files.Read.All Files.ReadWrite"
+   python $s/grant_agent_graph_scopes.py --instance-id <インスタンス appId> --resource-app-id 00000007-0000-0000-c000-000000000000 --scopes "mcp.tools user_impersonation"
+   # agent user を Dataverse へ追加・MCP クライアント登録・ロール割り当て
+   python $s/connect_agent_dataverse.py --env-id <環境 ID> --agent-user-id <agent user id> --instance-app-id <インスタンス appId> `
+     --client-unique-name <prefix>_<agent> --role-name "<名前> Reader" --read-prefix <prefix>
+   # 評価ハブ: コンテナのエージェント ID にアプリケーション ユーザー、マスター行を登録
+   python $s/setup_agent_dataverse_user.py --env <チームメイトの .env>
+   python $s/setup_evaluation_dataverse.py --env <チームメイトの .env>
+   # 顔写真（scaffold が置いた assets/profile.png）
+   python $s/set_agent_user_photo.py --upn <agent user UPN> --icon <チームメイト>/assets/profile.png
+   # 不変条件 → 振る舞い（振る舞いは行を積んでから tick でコンテナを起こす。troubleshooting.md #96）
+   python $s/run_regression_tests.py --target <チームメイト> --env <チームメイトの .env> --check
+   python $s/run_regression_tests.py --target <チームメイト> --env <チームメイトの .env> --execute   # 別ターミナル
+   python $s/provision_schedule_trigger.py --env <チームメイトの .env> --tick-now
+   ```
+
+   - Dataverse のロールは既定で読み取り専用。所有者が広い権限を決めたときだけ `--role-name` / `--read-prefix` の代わりに
+     `--existing-role "System Customizer"` のように既存ロールを割り当てる。
+   - `setup_agent_dataverse_user.py` は `.env` の `AGENT_IDENTITY_CLIENT_ID`（発行スクリプトが書く）と `SOLUTION_NAME` を読む。
+     これが無いと SkillSync / TestWorker が `SkillSync failed; retrying` を出し続ける。
+   - `setup_evaluation_dataverse.py` は `AGENTIC_USER_ID` と `AGENT_ROLE` があればマスター行に載せる。
+4. **確認**: Teams で会話 → 払い出されたメールアドレス宛にメール送信 → 返信が来ることを見る。
    最初の 1 通だけ `BotServiceRbac ... objectId ab3be6b7-...` が出ることがあるが、Teams の第一者サービス由来で対処不要（#94）。
 
 ### 6-1. 利用者を追加する（API）
