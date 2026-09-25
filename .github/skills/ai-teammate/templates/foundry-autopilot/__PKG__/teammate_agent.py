@@ -60,6 +60,11 @@ _TEAMS_TARGET = (
 )
 
 
+def email_enabled() -> bool:
+    """Whether mail sent to the teammate's own address is answered (an AskUserQuestion decision)."""
+    return (os.getenv("EMAIL_CHANNEL_ENABLED") or "").strip().lower() == "true"
+
+
 def is_outbound_teams_request(message: str) -> bool:
     """True when the turn asks to reach someone else, not to answer here.
 
@@ -150,6 +155,8 @@ class TeammateAgent(AgentInterface):
         self._brain: CopilotBrain | None = None
         self._skill_sync = None
         self._test_worker = None
+        self.schedule_book = None
+        self.schedule_client = None
 
         logger.info(
             "Teammate ready (deployment=%s, mcp_servers=%d, toolbox=%s, skills=%d)",
@@ -201,12 +208,23 @@ class TeammateAgent(AgentInterface):
         self._skill_sync.start()
         self._test_worker = TestWorker(run_turn=self._run_headless_turn)
         self._test_worker.start()
-        logger.info("Agent initialized")
+        from . import schedules
+
+        if schedules.enabled():
+            async def foundry_token(scope: str) -> str:
+                return (await self._credential.get_token(scope)).token
+
+            # The book is used only inside Invocations sessions; chat turns go through the client.
+            self.schedule_book = schedules.ScheduleBook.from_env(self._credential)
+            self.schedule_client = schedules.RemoteSchedules(foundry_token)
+        logger.info("Agent initialized (schedules=%s, email=%s)", bool(self.schedule_book), email_enabled())
 
     async def cleanup(self) -> None:
         for component in (self._skill_sync, self._test_worker):
             if component is not None:
                 await component.stop()
+        if self.schedule_book is not None:
+            await self.schedule_book.close()
         if self._brain is not None:
             await self._brain.close()
         await self._project_client.close()
@@ -218,9 +236,16 @@ class TeammateAgent(AgentInterface):
         auth: Authorization,
         auth_handler_name: Optional[str],
         context: TurnContext,
+        *,
+        external: tuple[tuple[str, str], ...] = (),
     ) -> str:
         conversation_id = getattr(getattr(context, "activity", None), "conversation", None)
         conversation_id = getattr(conversation_id, "id", "") or ""
+        activity = getattr(context, "activity", None)
+        channel = getattr(activity, "channel_id", "") or ""
+        if str(channel).startswith(("email", "agents:email")) and not email_enabled():
+            logger.info("Email request ignored (EMAIL_CHANNEL_ENABLED is not true)")
+            return ""
         include_teams = is_outbound_teams_request(message)
         zone_name, current_time = user_clock(context)
         instructions = self._instructions.replace("{user_timezone}", zone_name).replace(
@@ -238,7 +263,8 @@ class TeammateAgent(AgentInterface):
         files = await IncomingFiles().collect(getattr(context, "activity", None), graph_token)
         if files:
             message = f"{describe_files(files)}\n\n{message}"
-        activity = getattr(context, "activity", None)
+        # A scheduled run arrives as an event; nobody is watching it happen.
+        scheduled = getattr(activity, "type", "") == "event"
         started = time.monotonic()
         answer = await self._brain.ask(
             conversation_id=conversation_id,
@@ -246,10 +272,11 @@ class TeammateAgent(AgentInterface):
             message=message,
             bearer_token=provider_token.token,
             mcp_servers=mcp_servers_from_responses_tools(tools),
-            tools=self._build_custom_tools(context, auth, auth_handler_name),
-            on_progress=lambda text: context.send_activity(text),
+            tools=self._build_custom_tools(context, auth, auth_handler_name, scheduled=scheduled),
+            on_progress=None if scheduled else (lambda text: context.send_activity(text)),
             channel=getattr(activity, "channel_id", "") or "",
             attachments=[item for f in files for item in f.sdk_attachments()],
+            external=external,
         )
         caller = getattr(activity, "from_property", None)
         record_turn(
@@ -261,6 +288,34 @@ class TeammateAgent(AgentInterface):
             duration_ms=int((time.monotonic() - started) * 1000),
         )
         return answer
+
+    async def handle_agent_notification_activity(
+        self,
+        notification_activity: Any,
+        auth: Authorization,
+        auth_handler_name: Optional[str],
+        context: TurnContext,
+    ) -> str:
+        """Mail sent to the teammate's own address. An empty reply means nothing is sent back."""
+        from .email_channel_compat import is_email_notification
+
+        if not is_email_notification(notification_activity):
+            return ""
+        if not email_enabled():
+            logger.info("Email notification ignored (EMAIL_CHANNEL_ENABLED is not true)")
+            return ""
+        sender = getattr(notification_activity, "from_property", None) or getattr(notification_activity, "from", None)
+        dump = getattr(notification_activity, "model_dump_json", None)
+        body = dump(indent=2) if callable(dump) else str(notification_activity)
+        message = (
+            "あなた宛てにメールが届きました。内容を確認し、返信の本文を丁寧な HTML で返してください。"
+            "返した本文がそのまま差出人への返信になります。"
+            f"\n差出人: {getattr(sender, 'id', '') or getattr(sender, 'name', '') or '(不明)'}"
+        )
+        # The mail itself is external data: fenced with this turn's nonce, never read as the request.
+        return await self.process_user_message(
+            message, auth, auth_handler_name, context, external=(("email", body),)
+        )
 
     ACK_INSTRUCTIONS = (
         "You announce what an AI teammate is about to do, just before it starts.\n"
@@ -392,6 +447,8 @@ class TeammateAgent(AgentInterface):
         context: TurnContext | None,
         auth: Authorization | None = None,
         auth_handler_name: Optional[str] = None,
+        *,
+        scheduled: bool = False,
     ) -> list[Any]:
         """Tools that need the live conversation, so they are rebuilt every turn."""
         if context is None:
@@ -402,6 +459,23 @@ class TeammateAgent(AgentInterface):
             return await self._acquire_mcp_token(auth, auth_handler_name, context, scope=scope)
 
         tools: list[Any] = [build_delivery_tool(graph_token=graph_token)]
+        # A scheduled run must not be able to schedule more runs of itself.
+        if self.schedule_client is not None and not scheduled:
+            from .schedules import build_schedule_tools
+
+            caller = getattr(context.activity, "from_property", None)
+            reference = None
+            if str(getattr(context.activity, "channel_id", "") or "").startswith("msteams"):
+                reference = context.activity.get_conversation_reference().model_dump(
+                    mode="json", by_alias=True, exclude_none=True
+                )
+            tools += build_schedule_tools(
+                book=self.schedule_client,
+                owner_id=getattr(caller, "aad_object_id", "") or "",
+                owner_name=getattr(caller, "name", "") or "",
+                zone_name=user_clock(context)[0],
+                reference=reference,
+            )
 
         async def own_token(scope: str) -> str:
             return (await self._credential.get_token(scope)).token

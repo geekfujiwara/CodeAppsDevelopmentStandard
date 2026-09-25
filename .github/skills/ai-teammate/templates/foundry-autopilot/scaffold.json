@@ -3,7 +3,10 @@
   "variables": [
     "AGENT_DISPLAY_NAME",
     "AGENT_ROLE",
-    "AGENT_PERSONALITY"
+    "AGENT_PERSONALITY",
+    "EMAIL_POLICY",
+    "SHARING_POLICY",
+    "SENSITIVE_DATA_POLICY"
   ],
   "derivedVariables": [
     "PKG"

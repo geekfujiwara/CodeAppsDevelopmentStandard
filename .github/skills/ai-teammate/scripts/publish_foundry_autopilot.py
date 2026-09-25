@@ -267,6 +267,18 @@ def foundry_request(method: str, url: str, body: dict | None = None) -> dict:
     return resp.json() if resp.content else {}
 
 
+def schedules_enabled() -> bool:
+    return (os.environ.get("SCHEDULE_ENABLED") or "").strip().lower() == "true"
+
+
+def container_protocols() -> list[dict]:
+    protocols = [{"protocol": "activity_protocol", "version": "v1"}]
+    # The schedule timer (B11) reaches the container through the Invocations route.
+    if schedules_enabled():
+        protocols.append({"protocol": "invocations", "version": "v1"})
+    return protocols
+
+
 def build_version_body() -> dict:
     deployment = (os.environ.get("AUTOPILOT_MODEL_DEPLOYMENT") or "").strip() or require("AZURE_OPENAI_DEPLOYMENT")
     env_vars = {"ModelDeployment": deployment}
@@ -292,6 +304,7 @@ def build_version_body() -> dict:
         "DATAVERSE_URL", "PUBLISHER_PREFIX", "EVAL_AGENT_KEY",
         "USAGE_WORKSPACE_ID", "USAGE_ALL_VISIBLE", "USAGE_ADMIN_IDS",
         "USAGE_PRICE_INPUT_PER_1M", "USAGE_PRICE_OUTPUT_PER_1M", "USAGE_PRICE_CACHED_PER_1M",
+        "SCHEDULE_ENABLED", "EMAIL_CHANNEL_ENABLED",
     ):
         value = (os.environ.get(name) or "").strip()
         if value:
@@ -307,7 +320,7 @@ def build_version_body() -> dict:
             "image": image,
             "cpu": os.environ.get("AUTOPILOT_CONTAINER_CPU", "2"),
             "memory": os.environ.get("AUTOPILOT_CONTAINER_MEMORY", "4Gi"),
-            "container_protocol_versions": [{"protocol": "activity_protocol", "version": "v1"}],
+            "container_protocol_versions": container_protocols(),
             "environment_variables": env_vars,
         },
         # Without this flag the version is created but the M365 endpoint keeps serving the
@@ -320,17 +333,50 @@ def build_version_body() -> dict:
 
 
 def agent_endpoint(with_auth_scheme: bool = False) -> dict:
-    endpoint: dict = {
-        "protocols": ["activity"],
-        "protocol_configuration": {"activity": {"enable_m365_public_endpoint": True}},
-    }
+    protocols = ["activity"]
+    config: dict = {"activity": {"enable_m365_public_endpoint": True}}
+    schemes = [{"type": "BotServiceRbac"}]
+    if schedules_enabled():
+        protocols.append("invocations")
+        config["invocations"] = {}
+        # The Logic App timer calls Invocations with its managed identity, not through Bot Service.
+        schemes.append({"type": "Entra"})
+    endpoint: dict = {"protocols": protocols, "protocol_configuration": config}
     if with_auth_scheme:
-        endpoint["authorization_schemes"] = [{"type": "BotServiceRbac"}]
+        endpoint["authorization_schemes"] = schemes
     return endpoint
 
 
-def build_publish_body(display_name: str, scopes: list[dict], app_version: str) -> dict:
-    return {
+def ensure_invocations(base: str, agent_name: str, api_version: str, *, publishing: bool) -> None:
+    """Expose Invocations for the schedule timer (B11) on an agent that was published without it.
+
+    The PATCH replaces protocol_configuration wholesale, and access_boundaries cannot be patched
+    back, so it only runs right before a publish, which puts the boundaries back and keeps
+    Invocations (verified 2026-09-25, troubleshooting #88).
+    """
+    current = foundry_request("GET", f"{base}/agents/{agent_name}?api-version={api_version}")
+    endpoint = current.get("agent_endpoint") or {}
+    has_route = "invocations" in (endpoint.get("protocol_configuration") or {})
+    has_entra = any(s.get("type") == "Entra" for s in endpoint.get("authorization_schemes") or [])
+    if has_route and has_entra:
+        print("  OK Invocations は公開済みです")
+        return
+    if not publishing:
+        print(
+            "  ! Invocations がまだ公開されていません。--container-only を外して --bump-version で"
+            "一度発行してください（PATCH だけでは Teams が無応答になる。troubleshooting.md #88）。"
+        )
+        return
+    foundry_request(
+        "PATCH",
+        f"{base}/agents/{agent_name}?api-version={api_version}",
+        {"agent_endpoint": agent_endpoint(with_auth_scheme=True)},
+    )
+    print("  OK Invocations を公開しました（続く発行で access_boundaries が戻ります）")
+
+
+def build_publish_body(display_name: str, scopes: list[dict], app_version: str, blueprint_client_id: str = "") -> dict:
+    body = {
         "agentDisplayName": display_name,
         "publishAsAutopilot": True,
         "publishScope": os.environ.get("AUTOPILOT_PUBLISH_SCOPE", "Tenant"),
@@ -345,6 +391,18 @@ def build_publish_body(display_name: str, scopes: list[dict], app_version: str) 
         "termsOfUseUrl": require("DEVELOPER_TERMS_URL"),
         "optionalPermissionScopes": scopes,
     }
+    if blueprint_client_id:
+        # Without the agent user template the publish succeeds but lands as an ordinary agent:
+        # nothing appears under "Agents for your team" and no instance can be hired.
+        body["useAgenticUserTemplate"] = True
+        body["agenticUserTemplate"] = {
+            "Id": "digitalWorkerTemplate",
+            "File": "agenticUserTemplateManifest.json",
+            "SchemaVersion": "0.1.0-preview",
+            "AgentIdentityBlueprintId": blueprint_client_id,
+            "CommunicationProtocol": "activityProtocol",
+        }
+    return body
 
 
 def bump_patch(version: str) -> str:
@@ -415,12 +473,24 @@ def latest_version_number(base: str, agent_name: str, api_version: str) -> int |
     return max(numbers) if numbers else None
 
 
+def list_sessions(base: str, agent_name: str) -> list[dict]:
+    """Every session; the API pages at 20 by default, so a single GET misses the newest ones."""
+    url = f"{base}/agents/{agent_name}/endpoint/sessions?api-version=v1&limit=100"
+    sessions: list[dict] = []
+    after = ""
+    while True:
+        page = foundry_request("GET", url + (f"&after={after}" if after else ""))
+        sessions += page.get("data") or page.get("value") or []
+        after = page.get("last_id") or ""
+        if not page.get("has_more") or not after:
+            return sessions
+
+
 def recycle_stale_sessions(base: str, agent_name: str, version: str, *, delete: bool) -> None:
     """Sessions are bound to the version they were created on, so existing chats keep old code."""
     url = f"{base}/agents/{agent_name}/endpoint/sessions"
-    listed = foundry_request("GET", f"{url}?api-version=v1")
     stale = [
-        s for s in listed.get("data") or listed.get("value") or []
+        s for s in list_sessions(base, agent_name)
         if s.get("status") != "deleted"
         and str((s.get("version_indicator") or {}).get("agent_version")) != str(version)
     ]
@@ -549,7 +619,11 @@ def main() -> int:
     api_version = os.environ.get("FOUNDRY_API_VERSION", "2025-11-15-preview")
     version_body = build_version_body()
     # --container-only never publishes, so it must not demand the developer metadata.
-    publish_body = None if args.container_only else build_publish_body(display_name, scopes, app_version)
+    # The blueprint id is only known once the version exists; dry-run shows a placeholder.
+    publish_body = (
+        None if args.container_only
+        else build_publish_body(display_name, scopes, app_version, "<blueprint client id of the new version>")
+    )
 
     if not args.execute:
         print("\n== dry-run（--execute で実行）==")
@@ -602,12 +676,21 @@ def main() -> int:
         )
         print("  OK")
 
+    if schedules_enabled():
+        print("\n== 定期実行の受け口（Invocations）を確認します ==")
+        ensure_invocations(base, agent_name, api_version, publishing=not args.container_only)
+
     if args.container_only:
         print("\n--container-only なので M365 への再発行は行いません。")
         recycle_stale_sessions(base, agent_name, version, delete=args.recycle_sessions)
         return 0
 
     print("\n== Autopilot として M365 に発行します ==")
+    blueprint_client_id = (created.get("blueprint") or {}).get("client_id") or ""
+    if not blueprint_client_id:
+        print("  NG version に blueprint.client_id が無いので Autopilot として発行できません", file=sys.stderr)
+        return 1
+    publish_body = build_publish_body(display_name, scopes, app_version, blueprint_client_id)
     published = foundry_request(
         "POST", f"{base}/agents/{agent_name}/microsoft365/publish?api-version={api_version}", publish_body
     )
@@ -622,6 +705,8 @@ def main() -> int:
         "  3. python scripts/run_regression_tests.py --execute で回帰テスト\n"
         "  詳細: references/foundry-autopilot.md §6"
     )
+    if schedules_enabled():
+        print("  定期実行: python scripts/provision_schedule_trigger.py --execute でタイマー（Logic App）を作成")
     return 0
 
 

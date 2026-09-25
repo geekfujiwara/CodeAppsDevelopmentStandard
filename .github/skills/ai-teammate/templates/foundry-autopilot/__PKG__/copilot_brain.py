@@ -108,6 +108,7 @@ class CopilotBrain:
         on_progress: ProgressSink | None = None,
         channel: str = "",
         attachments: list[dict[str, Any]] | None = None,
+        external: Sequence[tuple[str, str]] = (),
     ) -> str:
         async with self._lock:
             self._fence = UntrustedContent()
@@ -121,11 +122,13 @@ class CopilotBrain:
             )
             self.last_tool_calls = []
             self.last_usage = {}
+            prompt = self._fence.frame(message)
+            # Text from outside (a mail body) goes after the request, inside this turn's fence.
+            for source, text in external:
+                prompt += "\n\n" + self._fence.wrap(source, text)[0]
             try:
                 return await asyncio.wait_for(
-                    self._run_turn(
-                        session, self._fence.frame(message), on_progress, attachments
-                    ),
+                    self._run_turn(session, prompt, on_progress, attachments),
                     timeout=self._turn_timeout_seconds,
                 )
             except asyncio.TimeoutError:
@@ -329,6 +332,9 @@ _TOOL_ACTIVITIES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("code_interpreter", "python", "powershell", "bash", "shell"), "計算しています"),
     (("generate_image",), "画像を描いています"),
     (("usage_report",), "利用実績を集計しています"),
+    (("create_schedule",), "定期実行を登録しています"),
+    (("list_schedules",), "登録済みの定期実行を確認しています"),
+    (("delete_schedule",), "定期実行を取り消しています"),
     (("view", "read", "glob", "grep"), "受け取った内容を読んでいます"),
 )
 _JAPANESE = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff]")

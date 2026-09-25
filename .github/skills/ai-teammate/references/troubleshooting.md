@@ -2027,6 +2027,9 @@ AppTraces | where TimeGenerated > ago(4d)
 
 どの方式でも、**スケジュールはコンテナーのローカルに置かない**（停止で消える）。
 
+**解決済み（2026-09-25）**: `foundry-autopilot` に B11 を実装した。Azure だけで完結し、起こす役は
+Logic App、保存先は Foundry の state store。構成と詰まりどころは #88。
+
 
 ## 83. 再デプロイしたのに古いコードのまま動き続ける（検証済 2026-09-24）
 
@@ -2213,4 +2216,103 @@ python .github/skills/ai-teammate/scripts/setup_evaluation_dataverse.py --env <h
   渡すのはエージェント自身の ID で認証する Foundry Toolbox だけ（M365 の MCP は未検証のまま）
 
 実測: 起動直後に `lumi_skills` へ 15 件、キューに入れた 1 件が約 5 秒で `status=3`（完了）。
+
+## 87. Foundry Autopilot 版の利用実績を出す（B15・検証済 2026-09-25）
+
+**やること**: 毎ターン `Usage turn` のトレースを App Insights に書き（呼び出し元・トークン数・推定金額）、
+`usage_report` ツールが Log Analytics のクエリ API で読み戻す。コンテナーには何も保存しない。
+
+1. エージェントの instance identity に、App Insights の裏の Log Analytics ワークスペースで **Log Analytics Reader**
+2. `USAGE_WORKSPACE_ID`（ワークスペースの customerId）と `USAGE_PRICE_{INPUT,OUTPUT,CACHED}_PER_1M` を渡す
+   （単価は Azure の公開価格 API で確かめる。記録する金額は定価ベースの推定で、請求書とは一致しない）
+3. 全員分を見せるなら `USAGE_ALL_VISIBLE=true`、管理者だけなら `USAGE_ADMIN_IDS`（oid のカンマ区切り）
+
+**分かったこと**: 天気を一行聞くだけで入力約 5.3 万トークン（約 $0.15）。大半は MCP サーバーのツール定義で、
+つなぐ MCP サーバーを減らすのがいちばん効く節約になる。
+
+## 88. Foundry Autopilot 版の定期実行（B11・検証済 2026-09-25）
+
+**構成**（Azure だけで完結）:
+
+```mermaid
+sequenceDiagram
+  participant T as Teams チャット（Activity セッション）
+  participant A as schedule-admin（Invocations）
+  participant L as Logic App（MI・定期）
+  participant K as schedule-tick（Invocations）
+  T->>A: create/list/delete（agent 自身の ID）
+  A->>A: Foundry state store に保存
+  L->>K: {"type":"schedule_tick"}
+  K->>K: 期限が来たものを確保＋使い捨てトークン
+  K->>T: Activity ルートへ schedule_run イベント（agent 自身の ID）
+  T->>A: redeem（トークンを消費）
+  T->>T: 通常のターンとして実行し、同じチャットに投稿
+```
+
+用意するもの: `.env` に `SCHEDULE_ENABLED=true`、`publish_foundry_autopilot.py` で Invocations を公開し、
+`provision_schedule_trigger.py --execute` で Logic App（既定 15 分ごと、`SCHEDULE_TICK_MINUTES`）を作る。
+
+**そのままでは動かない点と、その理由**（すべて実測）:
+
+| 試したこと | 結果 | 教訓 |
+|---|---|---|
+| コンテナー内タイマー・SDK の `manage_schedule` | 最後のターンから約 15 分で停止して発火しない | 起こす役は外に置く |
+| チャットのセッションから state store に書く | tick 側からは別のストアに見える（同名で GET 404 → POST 201 が両方で起きる） | ストアに触るのは Invocations セッションだけにする |
+| Invocations セッションから `continue_conversation` | `AADSTS7002142 ... requested agent identity is '<instance>'` | Invocations のサンドボックスは既定の agent identity に縛られ、チームメイト（インスタンス）として投稿できない。回避しない |
+| tick から Teams のセッション id を指定して Invocations | `403 session_not_accessible` | セッションは呼び出し元ごとに分離される |
+| 同じセッション id を人間と Logic App で共用 | 後から来た方が `403 session_not_accessible` | 手動 tick は `schedule-tick-manual` を使う（`--tick-now`） |
+| 保存先を Storage Table（キーレス）に | テナントポリシーで `publicNetworkAccess=Disabled` になり、hosted コンテナーから届かない | ポリシーは曲げず、Foundry の機能で閉じる |
+
+**決め手**: Activity ルート（`/endpoint/protocols/activityprotocol`）は `BotServiceRbac` のもとで
+**Foundry ロールを持つ Entra の呼び出し元**も受け付ける。条件は `from.aadObjectId` が呼び出し元の oid であることと、
+`recipient` に実際の Teams と同じ形（`8:orgid:<agentUser>`、`agenticAppId`、`agenticAppBlueprintId`）を入れること。
+こうして生まれたセッションはインスタンスに縛られるので、通常の返信と同じ経路でチャットに投稿できる。
+
+```
+403 BotServiceRbac authorization requires a valid Entra caller object id. Activity.From.AadObjectId was missing ...
+400 BlueprintId from activity <id> does not match the blueprintId from agent summary ...   ← recipient の形が違う
+```
+
+**安全のために入れてあるもの**: イベントに載せるのは予定の id と **15 分で切れる使い捨てトークン**だけで、
+中身は redeem でストアから取り直す。会話 id が保存時と違うイベント、再送されたイベントは何もしない。
+定期実行のターンでは定期実行ツールを渡さない（自分を増やせない）。一人 10 件まで。
+
+**費用**: tick のたびにセッションが起き、処理後に自分で `:stop` する（待機 15 分分の課金を避ける）。
+実行時刻の誤差は最大 `SCHEDULE_TICK_MINUTES`。
+
+**制約**: 結果を届けられるのは予定を登録した Teams の会話だけ。メールからの登録は断る。
+
+## 89. エンドポイントに Invocations を足したら Teams が無応答になった（検証済 2026-09-25）
+
+**原因**: `PATCH /agents/{name}` は `application/merge-patch+json` でも `protocol_configuration` を**丸ごと差し替える**。
+`{"invocations": {}}` だけ送ると `activity` が消える。`activity` を含めて送り直しても
+`access_boundaries` は PATCH できない（#77）。
+
+**対処**: `activity`（`enable_m365_public_endpoint` だけ）と `invocations` を両方入れて PATCH し、
+**続けて `microsoft365/publish` を `appVersion` +1 で呼ぶ**。発行は `access_boundaries` を戻し、`invocations` は残す。
+`publish_foundry_autopilot.py` は `SCHEDULE_ENABLED=true` のとき、発行の直前にだけこの PATCH を打つ
+（`--container-only` では打たず、`--bump-version` での発行を案内する）。新規のエージェントは最初の発行で入る。
+
+## 90. `--recycle-sessions` したのに古い version のセッションが残る（検証済 2026-09-25）
+
+**原因**: セッション一覧 API は既定 20 件でページを切る（`has_more` / `last_id`）。先頭ページには
+削除済みの古いセッションが並ぶので、最初の 1 回だけ読むと「古いセッション 0 件」になる。
+残ったチャットは古いコードのまま動き、新しい機能（たとえば `schedule_run` の受け口）が
+`No route found for activity type: event` になる。
+
+**対処**: `limit=100` と `after=<last_id>` で最後まで読む（`publish_foundry_autopilot.py` の `list_sessions` で修正済み）。
+
+## 91. 発行したのに Agent template にならず、通常のエージェントとして並ぶ（検証済 2026-09-25）
+
+**症状**: `publishAsAutopilot: true` で発行は 200 になるが、管理センターで Agent template として扱われず、
+Teams の **Agents for your team** にも出ないので採用（hire）できない。
+
+**原因**: Learn の現行の発行契約では、Autopilot には `publishAsAutopilot` / `publishScope` に加えて
+**`useAgenticUserTemplate: true` と `agenticUserTemplate`**（`AgentIdentityBlueprintId` に新しい version の
+`blueprint.client_id`）が要る。公式クイックスタートの `publish-digital-worker.ps1` はまだ送っていない。
+
+**対処**: `publish_foundry_autopilot.py` は version 作成の応答から `blueprint.client_id` を取り、
+この 2 つを必ず付けて発行する。付けずに発行してしまったら `--bump-version` で発行し直す。
+管理センターの要求一覧で「This agent template has N instances」と出れば Agent template になっている。
+Registry に並ぶ `<agent name>`（通常のエージェント）は Foundry が自動で登録するもので、Agent template とは別の行。
 
