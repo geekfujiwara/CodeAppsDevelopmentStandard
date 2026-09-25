@@ -1,0 +1,23 @@
+[
+  {
+    "id": "manual-fz101",
+    "title": "Polar-X4 over-temperature response",
+    "content": "For freezer FZ-101, verify the door seal, inspect the condenser airflow, and dispatch P1 maintenance when three readings exceed -15 C and an open work order exists.",
+    "freezer_id": "FZ-101",
+    "priority": "P1"
+  },
+  {
+    "id": "manual-fz201",
+    "title": "Polar-X4 closed work order guidance",
+    "content": "For freezer FZ-201, do not dispatch maintenance when the related work order is Closed unless a new anomaly is confirmed.",
+    "freezer_id": "FZ-201",
+    "priority": "P2"
+  },
+  {
+    "id": "manual-fz301",
+    "title": "Arctic-A1 monitoring guidance",
+    "content": "For freezer FZ-301, keep monitoring and schedule a P2 inspection when readings stay warmer than -15 C without an open work order.",
+    "freezer_id": "FZ-301",
+    "priority": "P2"
+  }
+]

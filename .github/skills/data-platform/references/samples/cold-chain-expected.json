@@ -1,0 +1,17 @@
+{
+  "question": "Which high-criticality freezers had at least three readings warmer than -15 C during the latest 24-hour period in the dataset and also have an open work order? Return the store, freezer, anomaly count, maximum temperature, work order, and priority.",
+  "columns": ["store_name", "freezer_id", "anomaly_count", "maximum_temperature_c", "work_order_id", "priority"],
+  "rows": [
+    ["Tokyo Central", "FZ-101", 3, -13.0, "WO-9001", "P1"]
+  ],
+  "metricView": {
+    "freezerId": "FZ-101",
+    "anomalyCount": 3,
+    "maximumTemperatureC": -13.0
+  },
+  "knowledge": {
+    "query": "What maintenance actions should be taken for freezer FZ-101 and what priority applies?",
+    "mustContain": ["FZ-101", "P1"],
+    "referenceDocKey": "manual-fz101"
+  }
+}

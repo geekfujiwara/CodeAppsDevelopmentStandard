@@ -1,0 +1,5 @@
+freezer_id,store_id,model,criticality
+FZ-101,ST-01,Polar-X4,High
+FZ-102,ST-01,Polar-X2,Medium
+FZ-201,ST-02,Polar-X4,High
+FZ-301,ST-03,Arctic-A1,High

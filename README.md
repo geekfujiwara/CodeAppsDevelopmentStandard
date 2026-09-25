@@ -548,7 +548,7 @@ python .github/skills/admin/scripts/check_development_environment.py --environme
 .
 ├── .github/
 │   ├── agents/                      # Copilot カスタムエージェント定義
-│   └── skills/                      # 製品単位で統合された 22 スキル
+│   └── skills/                      # 製品単位で統合された 24 スキル
 │       ├── architecture/            # アーキテクチャ設計
 │       ├── standard/                # 共通基盤（認証・アイコン・メールテンプレート）
 │       ├── admin/                   # 環境チェック・DLP 事前チェック・ガバナンス設定
@@ -556,6 +556,8 @@ python .github/skills/admin/scripts/check_development_environment.py --environme
 │       ├── alm/                     # テンプレート化・pre-commit ゲート・CI/CD デプロイ
 │       ├── azure/                   # Azure リファレンスアーキテクチャ・セキュアデプロイ
 │       ├── dataverse/               # テーブル設計・構築・セキュリティロール
+│       ├── data-platform/           # Fabric / Databricks / Foundry IQ の構築・検証・MCP 引き渡し
+│       ├── data-migration/          # 既存データのマッピング・投入・照合
 │       ├── code-apps/               # Code Apps 開発（UI 設計・CSP・メール送信含む）
 │       ├── mobile-apps/             # Native Mobile Code Apps 開発（Private Preview）
 │       ├── power-pages/             # Power Pages コードサイト開発・デプロイ

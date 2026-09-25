@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "capacityName": {"type": "string", "metadata": {"description": "英小文字と数字のみ（3-63 文字）"}},
+    "location": {"type": "string"},
+    "skuName": {"type": "string", "defaultValue": "F2"},
+    "administrator": {"type": "string", "metadata": {"description": "capacity 管理者の UPN"}},
+    "tags": {"type": "object", "defaultValue": {}}
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Fabric/capacities",
+      "apiVersion": "2023-11-01",
+      "name": "[parameters('capacityName')]",
+      "location": "[parameters('location')]",
+      "sku": {"name": "[parameters('skuName')]", "tier": "Fabric"},
+      "properties": {"administration": {"members": ["[parameters('administrator')]"]}},
+      "tags": "[parameters('tags')]"
+    }
+  ],
+  "outputs": {
+    "capacityId": {"type": "string", "value": "[resourceId('Microsoft.Fabric/capacities', parameters('capacityName'))]"}
+  }
+}

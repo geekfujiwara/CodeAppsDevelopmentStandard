@@ -1,0 +1,41 @@
+{
+  "version": "2026-09-25",
+  "thresholds": {
+    "largeVolumeGb": 1000,
+    "dataverseComfortGb": 100
+  },
+  "systemOfRecord": {
+    "dataverse": {
+      "signals": {"transactionalCrud": 3, "rowLevelSecurity": 2, "powerPlatformApps": 3, "auditTrail": 1},
+      "skill": "dataverse"
+    },
+    "azure-sql": {
+      "signals": {"transactionalCrud": 2, "existingSqlApp": 5, "externalUsers": 1},
+      "skill": "azure"
+    }
+  },
+  "analytics": {
+    "fabric": {
+      "signals": {"powerBi": 3, "oneLake": 3, "existingFabric": 4, "saasPreferred": 2, "entityRelationshipModel": 1, "dataverseAnalytics": 2},
+      "skill": "data-platform"
+    },
+    "databricks": {
+      "signals": {"streaming": 3, "ml": 3, "sparkEngineering": 3, "existingDatabricks": 4, "largeVolume": 2},
+      "skill": "data-platform"
+    }
+  },
+  "semantic": {
+    "fabric-ontology": {"when": {"entityRelationshipModel": true}, "requiresAnalytics": "fabric", "skill": "data-platform"},
+    "databricks-metric-view": {"when": {"governedMetrics": true}, "requiresAnalytics": "databricks", "skill": "data-platform"}
+  },
+  "knowledge": {
+    "foundry-iq": {"when": {"documents": true, "citations": true}, "skill": "data-platform"}
+  },
+  "mcp": {
+    "dataverse": {"endpoint": "https://{org}.crm.dynamics.com/api/mcp", "audience": "https://{org}.crm.dynamics.com/.default", "clientSkills": ["cowork", "copilot-studio-v2"]},
+    "fabric-ontology": {"endpoint": "https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/{workspaceId}/items/{ontologyId}/ontologyEndpoint", "audience": "https://api.fabric.microsoft.com/.default", "clientSkills": ["cowork", "copilot-studio", "ai-teammate"]},
+    "databricks-genie": {"endpoint": "https://{databricksHost}/api/2.0/mcp/genie/{genieSpaceId}", "audience": "azure-databricks", "clientSkills": ["copilot-studio", "ai-teammate"]},
+    "databricks-sql": {"endpoint": "https://{databricksHost}/api/2.0/mcp/sql", "audience": "azure-databricks", "clientSkills": ["copilot-studio", "ai-teammate"]},
+    "foundry-iq": {"endpoint": "https://{searchService}.search.windows.net/knowledgebases/{knowledgeBase}/mcp?api-version=2026-08-01-preview", "audience": "https://search.azure.com/.default", "clientSkills": ["copilot-studio", "ai-teammate"]}
+  }
+}

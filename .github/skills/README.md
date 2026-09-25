@@ -113,7 +113,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 
 ---
 
-## スキル一覧（23 スキル）
+## スキル一覧（25 スキル）
 
 ### architecture — アーキテクチャ・基盤
 
@@ -133,6 +133,8 @@ triggers:                      # スキル発動条件キーワード（必須�
 | スキル | 説明 |
 |--------|------|
 | [dataverse](dataverse/SKILL.md) | Dataverse のテーブル設計・構築・デモデータ投入・権限設定を一括で実施する。 |
+| [data-platform](data-platform/SKILL.md) | architecture で選定した Microsoft Fabric / Azure Databricks / Foundry IQ を、事前確認 → hash 承認 → デプロイ → セマンティック層 → runtime 検証 → 計算停止まで API で構築し、MCP 接続情報を Cowork / Copilot Studio / Foundry へ渡す。基盤選定の判定スクリプトも所有する。 |
+| [data-migration](data-migration/SKILL.md) | CSV / JSON を Dataverse / Databricks / Fabric Lakehouse へ移行する。プロファイル → マッピング契約 → 検証と hash 承認 → 冪等な投入 → 件数・キー・列値の照合を行う。 |
 
 ### ui — UI / フロントエンド
 
@@ -176,6 +178,8 @@ VS Code では 3 トラックをサブエージェントに割り当てて並行
 ── ここで設計承認 → 以下 3 トラックを並行実行（VS Code サブエージェント）──
 Track A（データ基盤オーナー）:
   3. dataverse          → テーブル設計・構築・セキュリティロール設定
+  3a. data-platform     → Fabric / Databricks / Foundry IQ の構築・検証（architecture §6.6 で選定した場合）
+  3b. data-migration    → 既存データのスキーマ変換・投入・照合
   5. power-automate     → フロー作成
   7. ai-builder         → AI プロンプト追加（Power Automate から呼ぶ場合）
 Track B（設計承認と同時に着手）:
