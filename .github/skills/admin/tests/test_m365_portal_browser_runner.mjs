@@ -8,10 +8,13 @@ import {
   assertTemplateActivationReadBack,
   canonicalHash,
   captureSessionHeaders,
+  pageOrigin,
   runApprovedPlan,
   validatePlan,
   validateStageRequest,
 } from "../scripts/m365_portal_browser_runner.mjs";
+import { toSandboxBody } from "../scripts/build_browser_bundle.mjs";
+import { readFile } from "node:fs/promises";
 
 const lifecyclePlan = {
   origin: "https://admin.cloud.microsoft",
@@ -233,4 +236,23 @@ test("template activation read-back must match the approved member set", () => {
     () => assertTemplateActivationReadBack(activatePlan, { appDetail: { ...body.appDetail, allowedOnboardingUsersAndGroups: [] } }),
     /members mismatch/,
   );
+});
+
+test("pageOrigin works without the URL global", () => {
+  assert.equal(pageOrigin({ url: () => "https://ADMIN.cloud.microsoft/?#/agents/all" }), "https://admin.cloud.microsoft");
+  assert.equal(pageOrigin({ url: () => "about:blank" }), "null");
+});
+
+test("sandbox bundle evaluates with only page and no URL/import/require", async () => {
+  const source = await readFile(new URL("../scripts/m365_portal_browser_runner.mjs", import.meta.url), "utf8");
+  const runner = new Function("URL", "require", toSandboxBody(source))(undefined, undefined);
+  assert.equal(runner.validatePlan(activatePlan), activatePlan);
+  const page = new Proxy({}, { get: () => () => "https://evil.example/" });
+  await assert.rejects(runner.executeApprovedPlan(page, activatePlan), /approved origin/);
+  assert.throws(() => runner.canonicalHash(activatePlan), /Node-only/);
+});
+
+test("sandbox bundle rejects unexpected runner imports and Node-side URL use", () => {
+  assert.throws(() => toSandboxBody('import x from "node:http";\nexport function validatePlan(){}\nexport async function executeApprovedPlan(){}'), /unexpected runner import/);
+  assert.throws(() => toSandboxBody("export function validatePlan(){}\nexport async function executeApprovedPlan(){}\nnew URL(page.url())"), /pageOrigin/);
 });

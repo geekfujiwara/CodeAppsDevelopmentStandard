@@ -53,6 +53,12 @@ export function canonicalHash(plan) {
   return createHash("sha256").update(canonicalJson(plan), "utf8").digest("hex");
 }
 
+// 統合ブラウザのツール sandbox には URL グローバルが無いため文字列で origin を取る。
+export function pageOrigin(page) {
+  const match = String(page.url()).match(/^(https?:\/\/[^/?#]+)/i);
+  return match ? match[1].toLowerCase() : "null";
+}
+
 function assertRelativePath(path, label) {
   if (typeof path !== "string" || !path.startsWith("/") || path.startsWith("//")) {
     throw new Error(`${label} must be an origin-relative path`);
@@ -144,7 +150,7 @@ export function validatePlan(plan) {
 // 現在の「Activated for」を読む。overwrite=true の全置換なので、plan 作成前に必ず現状の members を取得して足し引きする。
 export async function readTemplateActivation(page, titleId, options = {}) {
   if (!/^T_[0-9a-f-]{36}$/i.test(titleId || "")) throw new Error("titleId must be T_<GUID>");
-  if (new URL(page.url()).origin !== ORIGIN) throw new Error("browser is not on the approved origin");
+  if (pageOrigin(page) !== ORIGIN) throw new Error("browser is not on the approved origin");
   const headers = await captureSessionHeaders(page, options);
   if (!headers.ajaxsessionkey) throw new Error("browser session header was not observed");
   return page.evaluate(async ({ id, session }) => {
@@ -286,8 +292,7 @@ export function validateStageRequest({ zipPath, actionType, productId } = {}) {
 // Cowork プラグイン ZIP を検証・ステージする（公開はまだ行わない）。戻り値は後続 plan の作成に必要な ID だけ。
 export async function stageCustomApp(page, request, options = {}) {
   validateStageRequest(request);
-  const pageOrigin = new URL(page.url()).origin;
-  if (pageOrigin !== ORIGIN) throw new Error("browser is not on the approved origin");
+  if (pageOrigin(page) !== ORIGIN) throw new Error("browser is not on the approved origin");
   const headers = await captureSessionHeaders(page, options);
   if (!headers.ajaxsessionkey) throw new Error("browser session header was not observed");
   await page.evaluate(() => {
@@ -350,8 +355,7 @@ export async function stageCustomApp(page, request, options = {}) {
 
 export async function executeApprovedPlan(page, plan, options = {}) {
   validatePlan(plan);
-  const pageOrigin = new URL(page.url()).origin;
-  if (pageOrigin !== ORIGIN) throw new Error("browser is not on the approved origin");
+  if (pageOrigin(page) !== ORIGIN) throw new Error("browser is not on the approved origin");
 
   const sessionHeaders = await captureSessionHeaders(page, options);
   if (!sessionHeaders.ajaxsessionkey) throw new Error("browser session header was not observed");

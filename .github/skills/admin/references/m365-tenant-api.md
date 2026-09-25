@@ -111,6 +111,8 @@ python .github/skills/admin/scripts/manage_m365_portal_api.py agent-template-act
 実測状況は区別する。Install/Uninstallはwrite、poll、details read-backまで成功済み。Agent template の
 `allowUsers`（Activated for）は 2026-09-25 に Foundry Autopilot の template で UI 保存を捕捉し、write 後の details
 読み戻しで追加したユーザーが `allowedOnboardingUsersAndGroups` に入ることを確認済み（応答に requestId は無く同期反映）。
+同日、planner → hash 承認 → `build_browser_bundle.mjs` → runner `executeApprovedPlan` の経路でも write 200・
+read-back 200・`readBackMembersVerified=true` を 2 回実測した（同一 members の冪等送信）。
 template では「Available to」「Shared with」は適用外で、利用者が hire できるかどうかは「Activated for」だけが決める。
 Cowork プラグインの新規登録
 （`stageCustomApp(DEPLOY)` → `agent-publish` FINALIZEPACKAGE → `agent-allow` → `agent-lifecycle` DEPLOY）は使い捨ての検証用
@@ -123,7 +125,22 @@ scopeがなくHTTP `403`でwrite前に停止した。既存agentを代用せず�
 検証専用agentを用意してから実測する。この条件を満たすまでは「完全なAPI-only」と判定しない。
 
 `READY_FOR_BROWSER_API` のplanだけを、VS Code統合ブラウザの`page`とともに
-`runApprovedPlan(page, planPath, expectedHash)`へ渡す。この一括入口はplan fileのhash検証後にだけ送信する。runnerは
+`runApprovedPlan(page, planPath, expectedHash)`へ渡す。この一括入口はplan fileのhash検証後にだけ送信する。
+
+統合ブラウザのツール sandbox は `page` しか持たず（`import` / `require` / `URL` なし）、管理センターの CSP は
+`addScriptTag` を拒否する。その場合は次の手順で同じ runner を実行する（2026-09-25 に `agent-template-activate` で実測成功）。
+
+```powershell
+# 承認済み plan を hash 検証して配信フォルダへ置き、PLAN_FILE_SHA256 を控える
+node .github/skills/admin/scripts/build_browser_bundle.mjs <serve-dir> <plan.json> <PLAN_HASH>
+# 配信フォルダだけを 127.0.0.1 で公開（作業後に停止する）
+python -m http.server 8765 --bind 127.0.0.1 --directory <serve-dir>
+```
+
+ツール側では `page.context().newPage()` で `http://127.0.0.1:8765/` を開いて `runner.js` と `plan.json` を読み、
+`crypto.subtle` で `plan.json` の SHA-256 が `PLAN_FILE_SHA256` と一致することを確かめてから
+`const R = new Function(runnerSource)()` → `R.executeApprovedPlan(page, R.validatePlan(plan))` を実行する。
+`page.request` は `Storage.getCookies` 未対応で失敗するので使わない。runnerは
 VS Code 統合ブラウザの
 同一 session GET から `ajaxsessionkey` と `x-admin*` / `x-ms-mac*` headers をメモリ内だけで継承する。
 値をログや戻り値へ出さずに direct `fetch` し、deployment poll と `readBack` を実行する。

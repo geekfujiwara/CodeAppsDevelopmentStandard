@@ -382,3 +382,15 @@ VS Code の統合ブラウザで `file:///...` として開くと、上記エラ
 **対処**: runner の `readTemplateActivation(page, titleId)` で現状を読み、既存の members に追加分を足した全件を
 `agent-template-activate` の payload にする。恒久対策済み: planner `validate_payload`（SpecificUsers で空の members と
 重複 id を拒否）、runner `assertTemplateActivationReadBack`（書き込み後に members が plan と完全一致しなければ失敗）。
+
+## 20. 統合ブラウザから runner を実行できない（`dynamic import callback` / `URL is not defined` / CSP）
+
+**症状**: ブラウザ ツールのコード実行で `await import(runner)` が `A dynamic import callback was not specified`、
+ソースを評価すると `ReferenceError: URL is not defined`、`addScriptTag` は CSP 違反、`page.request.get` は
+`Storage.getCookies: Method not found` で失敗する。
+
+**原因**: ツール sandbox には `page` しか無く（`import` / `require` / `URL` / `fetch` なし）、管理センターは nonce 付き CSP。
+
+**対処**: [m365-tenant-api.md](m365-tenant-api.md) の「ツール sandbox」手順（`build_browser_bundle.mjs` + 127.0.0.1 配信 +
+`new Function`）。恒久対策済み: runner の Node 側は `URL` を使わず `pageOrigin(page)` で origin を判定し、
+`toSandboxBody` が予期しない import と `new URL(page` の再混入を生成時に拒否する（契約テストあり）。
