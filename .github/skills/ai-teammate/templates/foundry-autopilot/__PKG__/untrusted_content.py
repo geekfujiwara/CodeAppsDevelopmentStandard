@@ -26,6 +26,7 @@ TRUSTED_TOOLS = frozenset(
     {
         "generate_image",
         "deliver_file",
+        "usage_report",
         "skill",
         "report_intent",
         "update_todo",

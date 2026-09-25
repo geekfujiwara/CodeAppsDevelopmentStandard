@@ -288,7 +288,11 @@ def build_version_body() -> dict:
     if default_tz:
         env_vars["DEFAULT_TIMEZONE"] = default_tz
     # Optional feature switches; each one is off in the container unless forwarded here.
-    for name in ("DATAVERSE_URL", "PUBLISHER_PREFIX", "EVAL_AGENT_KEY"):
+    for name in (
+        "DATAVERSE_URL", "PUBLISHER_PREFIX", "EVAL_AGENT_KEY",
+        "USAGE_WORKSPACE_ID", "USAGE_ALL_VISIBLE", "USAGE_ADMIN_IDS",
+        "USAGE_PRICE_INPUT_PER_1M", "USAGE_PRICE_OUTPUT_PER_1M", "USAGE_PRICE_CACHED_PER_1M",
+    ):
         value = (os.environ.get(name) or "").strip()
         if value:
             env_vars[name] = value

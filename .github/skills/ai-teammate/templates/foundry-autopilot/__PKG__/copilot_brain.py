@@ -76,6 +76,8 @@ class CopilotBrain:
         # which would otherwise deadlock waiting for idle.
         self._lock = asyncio.Lock()
         self.last_tool_calls: list[str] = []
+        # Summed per turn from assistant.usage; one turn makes several model calls.
+        self.last_usage: dict[str, Any] = {}
         # Read by the hooks at call time, so a new fence per turn needs no new session.
         self._fence = UntrustedContent()
         self._channel = ""
@@ -118,6 +120,7 @@ class CopilotBrain:
                 tools=tools,
             )
             self.last_tool_calls = []
+            self.last_usage = {}
             try:
                 return await asyncio.wait_for(
                     self._run_turn(
@@ -257,6 +260,8 @@ class CopilotBrain:
                     self.last_tool_calls.append(name)
                     logger.info("Copilot SDK tool: %s", name)
                     await reporter.send(_describe_tool_call(event.data))
+                elif event.type == SessionEventType.ASSISTANT_USAGE:
+                    _add_usage(self.last_usage, event.data)
                 elif event.type in (SessionEventType.SESSION_IDLE, SessionEventType.ASSISTANT_IDLE):
                     break
                 elif event.type == SessionEventType.SESSION_ERROR:
@@ -323,6 +328,7 @@ _TOOL_ACTIVITIES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("web_search", "bing"), "Web で調べています"),
     (("code_interpreter", "python", "powershell", "bash", "shell"), "計算しています"),
     (("generate_image",), "画像を描いています"),
+    (("usage_report",), "利用実績を集計しています"),
     (("view", "read", "glob", "grep"), "受け取った内容を読んでいます"),
 )
 _JAPANESE = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff]")
@@ -354,6 +360,13 @@ def _describe_tool_call(data: Any) -> str:
     if activity == "Web で調べています" and isinstance(query, str) and _JAPANESE.search(query):
         return f"Web で「{query.strip()[:60]}」を調べています。"
     return f"{activity}。"
+
+
+def _add_usage(total: dict[str, Any], data: Any) -> None:
+    total["calls"] = total.get("calls", 0) + 1
+    total["model"] = getattr(data, "model", "") or total.get("model", "")
+    for key in ("input_tokens", "output_tokens", "cache_read_tokens"):
+        total[key] = total.get(key, 0) + int(getattr(data, key, 0) or 0)
 
 
 def mcp_servers_from_responses_tools(tools: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:

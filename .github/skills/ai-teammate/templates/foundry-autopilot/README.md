@@ -68,6 +68,7 @@ python ../../.github/skills/ai-teammate/scripts/run_regression_tests.py --execut
 | `AZURE_DEVOPS_ORGANIZATION` | Azure DevOps MCP を有効にする |
 | `SKILLS_SYNC_MINUTES` | スキルを評価ハブへ同期する間隔（既定 30 分） |
 | `DEFAULT_TIMEZONE` | Activity が `localTimezone` を送ってこないときに使う IANA 名（例 `Asia/Tokyo`）。未設定だと UTC のまま答えてしまう |
+| `USAGE_WORKSPACE_ID` / `USAGE_PRICE_*_PER_1M` / `USAGE_ALL_VISIBLE` / `USAGE_ADMIN_IDS` | 利用実績（B15）。記録は常に App Insights へ。集計ツールは workspace id を設定したときだけ（troubleshooting.md #87） |
 
 添付の受け取り（B16）には、インスタンスへの Graph 委任が要ります。貼り付け画像は `Chat.Read`、
 クリップで添付したファイルは `Files.Read.All` です（troubleshooting.md #84）。

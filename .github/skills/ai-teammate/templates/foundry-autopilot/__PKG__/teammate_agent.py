@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -31,6 +32,7 @@ from microsoft_agents.hosting.core import Authorization, TurnContext
 from .agent_interface import AgentInterface
 from .copilot_brain import CopilotBrain, mcp_servers_from_responses_tools
 from .incoming_files import IncomingFiles, describe as describe_files
+from .usage import build_usage_tool, record_turn
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +238,9 @@ class TeammateAgent(AgentInterface):
         files = await IncomingFiles().collect(getattr(context, "activity", None), graph_token)
         if files:
             message = f"{describe_files(files)}\n\n{message}"
-        return await self._brain.ask(
+        activity = getattr(context, "activity", None)
+        started = time.monotonic()
+        answer = await self._brain.ask(
             conversation_id=conversation_id,
             instructions=instructions,
             message=message,
@@ -244,9 +248,19 @@ class TeammateAgent(AgentInterface):
             mcp_servers=mcp_servers_from_responses_tools(tools),
             tools=self._build_custom_tools(context, auth, auth_handler_name),
             on_progress=lambda text: context.send_activity(text),
-            channel=getattr(getattr(context, "activity", None), "channel_id", "") or "",
+            channel=getattr(activity, "channel_id", "") or "",
             attachments=[item for f in files for item in f.sdk_attachments()],
         )
+        caller = getattr(activity, "from_property", None)
+        record_turn(
+            user_id=getattr(caller, "aad_object_id", "") or "",
+            user_name=getattr(caller, "name", "") or "",
+            channel=getattr(activity, "channel_id", "") or "",
+            usage=self._brain.last_usage,
+            tool_calls=self._brain.last_tool_calls,
+            duration_ms=int((time.monotonic() - started) * 1000),
+        )
+        return answer
 
     ACK_INSTRUCTIONS = (
         "You announce what an AI teammate is about to do, just before it starts.\n"
@@ -388,6 +402,19 @@ class TeammateAgent(AgentInterface):
             return await self._acquire_mcp_token(auth, auth_handler_name, context, scope=scope)
 
         tools: list[Any] = [build_delivery_tool(graph_token=graph_token)]
+
+        async def own_token(scope: str) -> str:
+            return (await self._credential.get_token(scope)).token
+
+        caller_id = getattr(getattr(context.activity, "from_property", None), "aad_object_id", "") or ""
+        admins = {s.strip() for s in (os.getenv("USAGE_ADMIN_IDS") or "").split(",") if s.strip()}
+        usage_tool = build_usage_tool(
+            token_provider=own_token,
+            user_id=caller_id,
+            allow_all=(os.getenv("USAGE_ALL_VISIBLE") or "").lower() == "true" or caller_id in admins,
+        )
+        if usage_tool is not None:
+            tools.append(usage_tool)
         deployment = os.getenv("IMAGE_MODEL_DEPLOYMENT", "").strip()
         if not deployment:
             return tools
