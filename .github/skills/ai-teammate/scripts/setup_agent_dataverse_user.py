@@ -35,6 +35,22 @@ import sys
 import time
 from pathlib import Path
 
+
+def _dataverse_url_from_env_arg() -> None:
+    # auth_helper reads DATAVERSE_URL once at import, so the --env file must be applied before it.
+    argv = sys.argv[1:]
+    path = next((argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "--env"), None)
+    path = path or next((a.split("=", 1)[1] for a in argv if a.startswith("--env=")), None)
+    if not path or not Path(path).is_file() or os.environ.get("DATAVERSE_URL"):
+        return
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        key, _, value = line.strip().partition("=")
+        if key.strip() == "DATAVERSE_URL" and value.strip():
+            os.environ["DATAVERSE_URL"] = value.strip()
+
+
+_dataverse_url_from_env_arg()
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
 from auth_helper import DATAVERSE_URL, api_get, api_post  # noqa: E402
 
@@ -164,12 +180,16 @@ def main() -> int:
     args = parser.parse_args()
 
     env = load_env(Path(args.env))
-    client_id = env.get("AZURE_CLIENT_ID", "").strip()
+    # Foundry Autopilot records the container's agent identity as AGENT_IDENTITY_CLIENT_ID.
+    client_id = (env.get("AZURE_CLIENT_ID", "") or env.get("AGENT_IDENTITY_CLIENT_ID", "")).strip()
     prefix = env.get("PUBLISHER_PREFIX", "").strip()
     solution_name = env.get("SOLUTION_NAME", "").strip()
     display_name = env.get("AGENT_DISPLAY_NAME", "").strip() or env.get("AGENT_NAME", "").strip() or "Teammate"
     if not client_id or not prefix or not solution_name:
-        print("FATAL: .env needs AZURE_CLIENT_ID, PUBLISHER_PREFIX and SOLUTION_NAME.")
+        print("FATAL: .env needs AZURE_CLIENT_ID (or AGENT_IDENTITY_CLIENT_ID), PUBLISHER_PREFIX and SOLUTION_NAME.")
+        return 1
+    if not DATAVERSE_URL:
+        print("FATAL: DATAVERSE_URL is not set in the --env file or the environment.")
         return 1
 
     logical_names = [table["logical"] for table in build_tables(prefix)]

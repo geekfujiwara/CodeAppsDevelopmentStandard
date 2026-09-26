@@ -50,7 +50,18 @@ def _classify_session_error(detail: Any) -> str:
     values = detail if isinstance(detail, dict) else {}
     if values.get("error_type") == "rate_limit" or values.get("status_code") == 429:
         return "rate_limit"
+    message = str(values.get("message") or "")
+    if values.get("status_code") == 400 and ("content management policy" in message or "content_filter" in message):
+        return "content_filter"
     return "unknown"
+
+
+# Azure OpenAI's filter refused the turn (for example a mail carrying a jailbreak). Nothing was
+# executed, so saying so plainly is the correct answer rather than an error (troubleshooting #97).
+CONTENT_FILTER_REPLY = (
+    "この依頼に含まれる文章が安全フィルターに止められたため、処理しませんでした。"
+    "他の人への指示や命令のような文が入っていると起きます。必要な部分だけを渡してもらえれば続けます。"
+)
 
 
 class CopilotBrain:
@@ -108,6 +119,7 @@ class CopilotBrain:
         on_progress: ProgressSink | None = None,
         channel: str = "",
         attachments: list[dict[str, Any]] | None = None,
+        external: Sequence[tuple[str, str]] = (),
     ) -> str:
         async with self._lock:
             self._fence = UntrustedContent()
@@ -121,16 +133,23 @@ class CopilotBrain:
             )
             self.last_tool_calls = []
             self.last_usage = {}
+            prompt = self._fence.frame(message)
+            # Text from outside (a mail body) goes after the request, inside this turn's fence.
+            for source, text in external:
+                prompt += "\n\n" + self._fence.wrap(source, text)[0]
             try:
                 return await asyncio.wait_for(
-                    self._run_turn(
-                        session, self._fence.frame(message), on_progress, attachments
-                    ),
+                    self._run_turn(session, prompt, on_progress, attachments),
                     timeout=self._turn_timeout_seconds,
                 )
             except asyncio.TimeoutError:
                 logger.warning("Copilot SDK turn timed out; dropping the session")
                 await self._drop(conversation_id)
+                raise
+            except BrainError as exc:
+                await self._drop(conversation_id)
+                if exc.kind == "content_filter":
+                    return CONTENT_FILTER_REPLY
                 raise
             except Exception:
                 await self._drop(conversation_id)
@@ -329,6 +348,9 @@ _TOOL_ACTIVITIES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("code_interpreter", "python", "powershell", "bash", "shell"), "計算しています"),
     (("generate_image",), "画像を描いています"),
     (("usage_report",), "利用実績を集計しています"),
+    (("create_schedule",), "定期実行を登録しています"),
+    (("list_schedules",), "登録済みの定期実行を確認しています"),
+    (("delete_schedule",), "定期実行を取り消しています"),
     (("view", "read", "glob", "grep"), "受け取った内容を読んでいます"),
 )
 _JAPANESE = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff]")

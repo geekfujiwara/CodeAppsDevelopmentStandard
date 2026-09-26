@@ -51,7 +51,53 @@ class VersionBodyTests(unittest.TestCase):
         self.assertNotIn("IMAGE_MODEL_DEPLOYMENT", env_vars)
 
 
-class ImageDeploymentPreflightTests(unittest.TestCase):
+class ActivityProtocolVersionTests(unittest.TestCase):
+    """The declared version decides which container path the gateway posts to (troubleshooting #93)."""
+
+    def detect(self, host_source: str) -> str:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as root:
+            package = Path(root) / "src" / "agent"
+            package.mkdir(parents=True)
+            (package / "host_agent_server.py").write_text(host_source, encoding="utf-8")
+            return publish.detect_activity_protocol_version(Path(root))
+
+    def test_activity_messages_route_means_2_0_0(self) -> None:
+        self.assertEqual(self.detect('app.router.add_post("/activity/messages", entry_point)'), "2.0.0")
+
+    def test_api_messages_route_means_v1(self) -> None:
+        self.assertEqual(self.detect('app.router.add_post("/api/messages", entry_point)'), "v1")
+
+    def test_version_body_uses_the_chosen_version(self) -> None:
+        with patch.dict(publish.os.environ, {**BASE_ENV, "ACTIVITY_PROTOCOL_VERSION": "2.0.0"}, clear=True):
+            protocols = publish.build_version_body()["definition"]["container_protocol_versions"]
+
+        self.assertEqual(protocols[0], {"protocol": "activity_protocol", "version": "2.0.0"})
+
+
+class AutopilotPublishBodyTests(unittest.TestCase):
+    """A publish without the agent user template lands as an ordinary agent (troubleshooting #91)."""
+
+    PUBLISH_ENV = {
+        "DEVELOPER_NAME": "Team", "DEVELOPER_WEBSITE_URL": "https://example.com",
+        "DEVELOPER_PRIVACY_URL": "https://example.com/p", "DEVELOPER_TERMS_URL": "https://example.com/t",
+    }
+
+    def body(self, blueprint: str) -> dict:
+        with patch.dict(publish.os.environ, self.PUBLISH_ENV, clear=True):
+            return publish.build_publish_body("Kai", [], "1.0.0", blueprint)
+
+    def test_template_carries_the_version_blueprint(self) -> None:
+        body = self.body("blueprint-client-id")
+        self.assertTrue(body["useAgenticUserTemplate"])
+        self.assertEqual(body["agenticUserTemplate"]["AgentIdentityBlueprintId"], "blueprint-client-id")
+        publish.assert_autopilot_body(body)
+
+    def test_missing_or_placeholder_blueprint_is_refused(self) -> None:
+        for blueprint in ("", "<blueprint client id of the new version>"):
+            with self.assertRaises(SystemExit):
+                publish.assert_autopilot_body(self.body(blueprint))
     """A missing deployment must stop the publish, not surface as a refusal in Teams."""
 
     def run_check(self, status: int, payload: dict | None = None) -> None:

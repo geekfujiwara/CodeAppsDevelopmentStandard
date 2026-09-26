@@ -94,6 +94,30 @@ Teams アプリパッケージを通じて、Teams / Microsoft 365 Copilot の
 質問 1 の回答が**テナントのアプリカタログへの公開の承認を兼ねる**。
 (a) は課金もカタログ公開も発生せず、(b) は Azure Bot / App Service の課金だけが発生する。
 
+### Foundry Autopilot を選んだときに追加で聞く 5 点
+
+質問 9 が (b) のときは、**全機能（B1〜B17 のうち Autopilot で動くものすべて）を scaffold する前提で**、
+機能の取捨選択ではなく、安全に動かすための判断だけを同じ AskUserQuestion で聞く。
+回答は decisions JSON の対応するキーへ書き、プロンプトとコンテナー設定に反映される。
+
+| # | 質問 | decisions のキー | 反映先 |
+|---|---|---|---|
+| A | どんなルール・判断基準なら共有してよいか（本人 / 同じ部署 / 他部署 / 社外） | `sharingPolicy`（箇条書きの配列） | `prompts/system.md` の「共有と同意」 |
+| B | どんなデータは、他の人に共有する前に必ず確認を取るべきか | `sensitiveData`（配列） | 同上（共有前に内容を示して明示的な確認を取る） |
+| C | 外部からの入口としてメールを有効にするか | `emailEnabled`（true / false） | `EMAIL_CHANNEL_ENABLED`。false なら自分宛てメールに返信しない |
+| D | 話し方などのキャラクター設定（一人称・敬語の度合い・口癖・避けること） | `personality` | プロンプト冒頭 |
+| E | プロフィール画像（手元の画像 / 説明から生成 / 後で） | `profileImage`（`{"mode":"file","path"}` / `{"mode":"generate","prompt"}` / `"none"`） | `assets/profile.png` → 採用後に `set_agent_user_photo.py` |
+
+- A・B は選択肢に既定案（本人は自由・社内は同意制・社外不可 / 個人情報・未発表数値・社外秘）を出し、
+  自由記述で足してもらう。無回答なら既定案が入る。匿名リンク禁止・社外共有禁止はコード側でも強制される。
+- C を有効にすると、届いたメールは外部データとして囲い、メール経路では共有・Teams 送信をコードで止める。
+- E の生成は `IMAGE_MODEL_DEPLOYMENT` を使う（`generate_profile_image.py`）。実在の人物・既存キャラクターは描かない。
+- 定期実行（B11）は常に含め、scaffold が `SCHEDULE_ENABLED=true` を `.env` に書く。発行後に
+  `provision_schedule_trigger.py --execute` で Logic App を作る（→ [troubleshooting.md](references/troubleshooting.md) #88）。
+- 発行後の承認は、管理センターの Requests に出る**表示名の行（Agent template）の Publish ウィザード**で行う
+  （Activate の対象 → ポリシー → Grant admin consent → Publish）。その後 Teams の Agents for your team から採用する
+  （→ [foundry-autopilot.md](references/foundry-autopilot.md) §6）。Registry の `AGENT_NAME` の行は削除しない。
+
 > **Agent 365 と Frontier を混同しない。** Agent 365 は GA の製品・ライセンス条件、Frontier は
 > opt-in のプレビュー制度である。本スキルでは (c)/(d) の `devPreview` manifest を使う場合だけ
 > Frontier を必須とし、対象ユーザー単位で登録状況を確認する。
@@ -241,7 +265,10 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 | [run_regression_tests.py](scripts/run_regression_tests.py) | 回帰テスト。`--check` は不変条件だけ（無料・決定的）、`--execute` は評価ハブのキュー経由で実ターンを回す。JUnit XML / Markdown を出力し、`deploy_ai_teammate.py --execute` が最後に自動実行する | 13 |
 | [setup_foundry_evaluation.py](scripts/setup_foundry_evaluation.py) | Foundry 標準の Evaluations を設定する。`--mode auto` は継続評価を試し、hosted agent ならトレース評価のスケジュールへ自動フォールバックする | 13 |
 | [fetch_autopilot_quickstart.py](scripts/fetch_autopilot_quickstart.py) | Microsoft 公式の Foundry Autopilot クイックスタートをフォークせずに取得する（`hosting: "foundry-autopilot"` のとき scaffold が自動実行） | 3 |
-| [publish_foundry_autopilot.py](scripts/publish_foundry_autopilot.py) | Foundry hosted agent のバージョン作成と M365 publish。`accessBoundaries` の付与・インスタンス ID の有効化・`--bump-version` を含む。`IMAGE_MODEL_DEPLOYMENT` があればコンテナへ渡し、実在を検証し、アカウント スコープのロールも付ける。コード修正だけを反映するときは `--container-only`（再発行も再承認も不要） | 6・10 |
+| [publish_foundry_autopilot.py](scripts/publish_foundry_autopilot.py) | Foundry hosted agent のバージョン作成と M365 publish。`accessBoundaries` の付与・インスタンス ID の有効化・`--bump-version` を含む。`IMAGE_MODEL_DEPLOYMENT` があればコンテナへ渡し、実在を検証し、アカウント スコープのロールも付ける。コード修正だけを反映するときは `--container-only`（再発行も再承認も不要）。`SCHEDULE_ENABLED=true` なら Invocations を公開する（troubleshooting.md #89） | 6・10 |
+| [provision_schedule_trigger.py](scripts/provision_schedule_trigger.py) | Foundry Autopilot の定期実行（B11）を起こす Logic App（システム割り当て MI・`Foundry Agent Consumer`・既定 15 分ごと）を作る。`--tick-now` で 1 回だけ起こす（troubleshooting.md #88） | 10 |
+| [setup_autopilot_instance.py](scripts/setup_autopilot_instance.py) | Foundry Autopilot の**採用後の設定を 1 本で**行う（委任スコープ〔リアクションの `ChatMessage.Send` 含む〕・Dataverse 接続・評価ハブのアプリケーション ユーザーとマスター行・顔写真）。既定は計画表示、`--execute` で適用（foundry-autopilot.md §6） | 11 |
+| [generate_profile_image.py](scripts/generate_profile_image.py) | AskUserQuestion で「説明から生成」を選んだプロフィール画像を、テナントの画像モデルで描いて `assets/profile.png` に書く | 12 |
 
 すべて `--check` で確認のみの実行ができる（`query_agent_logs.py` は読むだけなので不要）。
 

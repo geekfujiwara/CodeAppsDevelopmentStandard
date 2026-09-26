@@ -59,6 +59,7 @@ def _resolve_auth_helper_dir() -> str:
 
 
 sys.path.insert(0, _resolve_auth_helper_dir())
+import auth_helper  # noqa: E402
 from auth_helper import api_get, api_post, get_session  # noqa: E402
 
 STATUS_WAITING, STATUS_RUNNING, STATUS_DONE, STATUS_FAILED, STATUS_CANCELLED = 1, 2, 3, 4, 5
@@ -143,7 +144,9 @@ def http_status(url: str, timeout: int = 30) -> int:
 
 
 def check_skills(target: Path, env: dict[str, str], suite: Suite) -> None:
-    skills_dir = target / "skills"
+    # Foundry Autopilot bundles skills inside the container package (src/<package>/skills).
+    candidates = [target / "skills", *sorted(target.glob("src/*/skills"))]
+    skills_dir = next((d for d in candidates if d.is_dir() and any(d.glob("*/SKILL.md"))), candidates[0])
     settings = target / "appsettings.json"
     enabled = True
     if settings.is_file():
@@ -292,6 +295,122 @@ def check_foundry_autopilot(env: dict[str, str], suite: Suite) -> None:
         enabled,
         "" if enabled else "accountEnabled=false です（全トークン要求が AADSTS7000112 になります）",
     )
+    check_autopilot_switches(endpoint, agent_name, api_version, env, suite)
+    check_instance_grants(env, suite)
+
+
+# Scaffolded features that only work when a setting reaches the container (troubleshooting #98).
+CONTAINER_SWITCHES = {
+    "REACTIONS_ENABLED": ("true", "Teams のリアクション"),
+}
+# Delegated scopes the instance needs after hire; without them the feature silently does nothing.
+INSTANCE_SCOPES = {
+    "00000003-0000-0000-c000-000000000000": ("ChatMessage.Send", "Chat.Read", "User.Read"),
+    "00000007-0000-0000-c000-000000000000": ("mcp.tools",),
+}
+
+
+def check_autopilot_switches(endpoint: str, agent_name: str, api_version: str, env: dict[str, str], suite: Suite) -> None:
+    listed = get_session(FOUNDRY_SCOPE).get(
+        f"{endpoint}/agents/{agent_name}/versions?api-version={api_version}",
+        headers={"Foundry-Features": "DigitalWorker=V1Preview"},
+        timeout=60,
+    )
+    items = listed.json().get("data", []) if listed.ok else []
+    items = [item for item in items if str(item.get("version", "")).isdigit()]
+    if not items:
+        suite.add("autopilot: 最新 version の環境変数", "invariant", True, "version を取得できません", skipped=True)
+        return
+    latest = max(items, key=lambda item: int(item["version"]))
+    values = (latest.get("definition") or {}).get("environment_variables") or {}
+    for name, (wanted, label) in CONTAINER_SWITCHES.items():
+        if (env.get(name) or "").strip().lower() == "false":
+            suite.add(f"autopilot: {label}", "invariant", True, f"{name}=false（無効にしている）", skipped=True)
+            continue
+        actual = (values.get(name) or "").strip().lower()
+        suite.add(
+            f"autopilot: {label}（{name}）がコンテナに渡っている",
+            "invariant",
+            actual == wanted,
+            "" if actual == wanted else f"version {latest['version']} の値: {actual or '(未設定)'}。.env に {name}={wanted} を置いて deploy.ps1",
+        )
+    sync = (values.get("EVAL_SYNC_TO_DATAVERSE") or "true").strip().lower() != "false"
+    ready = bool(values.get("DATAVERSE_URL") and values.get("PUBLISHER_PREFIX") and values.get("EVAL_AGENT_KEY"))
+    suite.add(
+        "autopilot: 会話ターンを評価Hub へ送る設定",
+        "invariant",
+        sync and ready,
+        "" if sync and ready else "DATAVERSE_URL / PUBLISHER_PREFIX / EVAL_AGENT_KEY のどれかがコンテナに無いか、EVAL_SYNC_TO_DATAVERSE=false",
+    )
+
+
+def check_instance_grants(env: dict[str, str], suite: Suite) -> None:
+    app_id = (env.get("AGENT_INSTANCE_APP_ID") or "").strip()
+    if not app_id:
+        suite.add("autopilot: インスタンスの委任スコープ", "invariant", True,
+                  "AGENT_INSTANCE_APP_ID 未設定（採用前、または setup_autopilot_instance.py 未実行）", skipped=True)
+        return
+    graph = get_session(GRAPH_SCOPE)
+    principal = graph.get(f"https://graph.microsoft.com/v1.0/servicePrincipals(appId='{app_id}')?$select=id", timeout=60)
+    if not principal.ok:
+        suite.add("autopilot: インスタンスの委任スコープ", "invariant", False, f"インスタンス {app_id} が見つかりません")
+        return
+    grants = graph.get(
+        f"https://graph.microsoft.com/v1.0/servicePrincipals/{principal.json()['id']}/oauth2PermissionGrants", timeout=60
+    ).json().get("value", [])
+    granted: set[str] = set()
+    for grant in grants:
+        resource = graph.get(
+            f"https://graph.microsoft.com/v1.0/servicePrincipals/{grant['resourceId']}?$select=appId", timeout=60
+        ).json().get("appId", "")
+        granted |= {f"{resource}:{scope}" for scope in (grant.get("scope") or "").split()}
+    missing = [f"{scope}" for resource, scopes in INSTANCE_SCOPES.items() for scope in scopes if f"{resource}:{scope}" not in granted]
+    suite.add(
+        "autopilot: インスタンスの委任スコープ（リアクション・チャット・Dataverse MCP）",
+        "invariant",
+        not missing,
+        f"不足: {', '.join(missing)}（setup_autopilot_instance.py を再実行）" if missing else "",
+    )
+
+
+def check_hub_turns(env: dict[str, str], prefix: str, agent_key: str, suite: Suite) -> None:
+    """Someone chatted with the teammate, so the hub must hold at least one of its turns."""
+    endpoint = (env.get("FOUNDRY_PROJECT_ENDPOINT", "") or "").strip().rstrip("/")
+    agent_name = env.get("AGENT_NAME", "").strip()
+    sessions = get_session(FOUNDRY_SCOPE).get(
+        f"{endpoint}/agents/{agent_name}/endpoint/sessions?api-version=v1&limit=100", timeout=60
+    )
+    chats = [s for s in (sessions.json().get("data", []) if sessions.ok else [])
+             if not str(s.get("agent_session_id", "")).startswith("schedule-")]
+    if not chats:
+        suite.add("評価Hub: 会話ターンが届いている", "invariant", True, "まだ会話がありません", skipped=True)
+        return
+    try:
+        turns = api_get(f"{prefix}_evalturns?$select={prefix}_name&$filter={prefix}_agentkey eq '{agent_key}'&$top=1").get("value", [])
+    except Exception as exc:  # noqa: BLE001
+        suite.add("評価Hub: 会話ターンが届いている", "invariant", False, str(exc)[:200])
+        return
+    suite.add(
+        "評価Hub: 会話ターンが届いている",
+        "invariant",
+        bool(turns),
+        "" if turns else f"会話 {len(chats)} 件に対して {prefix}_evalturns が 0 件（eval_turns.py が無いか書き込み権限なし。troubleshooting #98）",
+    )
+
+
+def check_prompt_policies(target: Path, suite: Suite) -> None:
+    """Behaviour the owner asked for lives in the prompt; a rewrite that drops it must fail."""
+    prompts = sorted(target.glob("src/*/prompts/system.md"))
+    if not prompts:
+        suite.add("prompt: system.md", "invariant", True, skipped=True)
+        return
+    text = prompts[0].read_text(encoding="utf-8")
+    for label, needles in (
+        ("prompt: リアクションの指示", ("react_to_message",)),
+        ("prompt: 社内は Teams・社外はメール・AI は空きを問わない日程調整", ("社外の人", "AI エージェント", "Teams チャット")),
+    ):
+        missing = [n for n in needles if n not in text]
+        suite.add(label, "invariant", not missing, f"見つからない語: {', '.join(missing)}" if missing else "")
 
 
 def check_evaluation_hub(prefix: str, agent_key: str, suite: Suite) -> None:
@@ -385,7 +504,8 @@ def evaluate_case(prefix: str, case: dict, row: dict, default_min_score: float) 
     problems: list[str] = []
 
     for phrase in case.get("expectContains", []):
-        if phrase.lower() not in response.lower():
+        # "a|b": the same meaning can be phrased several ways.
+        if not any(option.strip().lower() in response.lower() for option in phrase.split("|")):
             problems.append(f"応答に '{phrase}' がありません")
     for phrase in case.get("expectNotContains", []):
         if phrase.lower() in response.lower():
@@ -395,7 +515,8 @@ def evaluate_case(prefix: str, case: dict, row: dict, default_min_score: float) 
     if expected_tools:
         tool_calls = (row.get(f"{prefix}_toolcalls") or "").lower()
         for tool in expected_tools:
-            if tool.lower() not in tool_calls:
+            # "a|b": the same capability is named differently per host (run_python vs code_interpreter).
+            if not any(option.strip().lower() in tool_calls for option in tool.split("|")):
                 problems.append(f"ツール '{tool}' が呼ばれていません")
 
     # A case that asked to be scored but came back unscored has not been verified, so it must
@@ -419,12 +540,19 @@ def evaluate_case(prefix: str, case: dict, row: dict, default_min_score: float) 
     return not problems, "; ".join(problems)
 
 
-def run_behaviour(prefix: str, agent_key: str, cases: list[dict], args, suite: Suite) -> None:
+def run_behaviour(
+    prefix: str, agent_key: str, cases: list[dict], args, suite: Suite, env: dict[str, str] | None = None
+) -> None:
     run_name = args.run_name or f"regression-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
     print(f"\n== 回帰テスト（run={run_name}, {len(cases)} ケース）==")
 
     queued: list[tuple[dict, str]] = []
     for case in cases:
+        # A block can be scaffolded yet switched off at deploy time (B17 without an image model).
+        missing = [key for key in case.get("requiresEnv", []) if not (env or {}).get(key, "").strip()]
+        if missing:
+            suite.add(case["name"], "behaviour", True, f"{', '.join(missing)} が未設定", skipped=True)
+            continue
         try:
             queued.append((case, enqueue(prefix, agent_key, run_name, case)))
         except Exception as exc:  # noqa: BLE001
@@ -508,7 +636,11 @@ def main() -> int:
         print("--execute には PUBLISHER_PREFIX が必要です（評価ハブ経由で実行するため）", file=sys.stderr)
         return 2
 
-    os.environ.setdefault("DATAVERSE_URL", env.get("DATAVERSE_URL", ""))
+    # auth_helper read DATAVERSE_URL at import from the current directory, not from --env.
+    dataverse_url = env.get("DATAVERSE_URL", "").strip().rstrip("/")
+    if dataverse_url and not auth_helper.DATAVERSE_URL:
+        auth_helper.DATAVERSE_URL = dataverse_url
+        auth_helper._DEFAULT_SCOPE = f"{dataverse_url}/.default"
     suite = Suite()
 
     print(f"== 不変条件（hosting={hosting}）==")
@@ -516,17 +648,20 @@ def main() -> int:
     check_settings_blocks(target, plan, suite)
     if hosting == "foundry-autopilot":
         check_foundry_autopilot(env, suite)
+        check_prompt_policies(target, suite)
     else:
         check_self_hosted(env, suite)
     if prefix:
         check_evaluation_hub(prefix, agent_key, suite)
+        if hosting == "foundry-autopilot":
+            check_hub_turns(env, prefix, agent_key, suite)
     else:
         suite.add("評価ハブにチームメイトが登録されている", "invariant", False,
                   "PUBLISHER_PREFIX 未設定のため未検査", skipped=True)
 
     if args.execute:
         suite_path = args.suite or target / "regression" / "suite.json"
-        run_behaviour(prefix, agent_key, load_suite_file(suite_path), args, suite)
+        run_behaviour(prefix, agent_key, load_suite_file(suite_path), args, suite, env)
 
     if args.junit:
         write_junit(args.junit, suite)

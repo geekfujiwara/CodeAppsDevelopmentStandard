@@ -68,7 +68,7 @@ Foundry-Features: DigitalWorker=V1Preview
     "kind": "hosted",
     "image": "{ACR_LOGIN_SERVER}/{IMAGE_NAME}:{IMAGE_TAG}",
     "cpu": "2", "memory": "4Gi",
-    "container_protocol_versions": [{ "protocol": "activity_protocol", "version": "v1" }],
+    "container_protocol_versions": [{ "protocol": "activity_protocol", "version": "2.0.0" }],
     "environment_variables": { "ModelDeployment": "{AZURE_OPENAI_DEPLOYMENT}", "...": "..." }
   },
   "agent_endpoint": {
@@ -80,6 +80,8 @@ Foundry-Features: DigitalWorker=V1Preview
 ```
 
 応答の `status` が `active` になるまでポーリングする（通常 30 秒以内）。
+`activity_protocol` の版はコンテナの受け口に合わせる（`/activity/messages` なら `2.0.0`、`/api/messages` なら `v1`。
+食い違うと全チャットが 404 → [troubleshooting.md](troubleshooting.md) #93）。スクリプトは自動で判定する。
 併せて返る値を控える。
 
 | 応答フィールド | 用途 |
@@ -120,13 +122,20 @@ POST {FOUNDRY_PROJECT_ENDPOINT}/agents/{AGENT_NAME}/microsoft365/publish?api-ver
   "shortDescription": "...", "fullDescription": "...",
   "developerName": "...", "developerWebsiteUrl": "...",
   "privacyUrl": "...", "termsOfUseUrl": "...",
-  "optionalPermissionScopes": [ { "resourceAppId": "...", "scopes": ["..."] } ]
+  "optionalPermissionScopes": [ { "resourceAppId": "...", "scopes": ["..."] } ],
+  "useAgenticUserTemplate": true,
+  "agenticUserTemplate": {
+    "Id": "digitalWorkerTemplate", "File": "agenticUserTemplateManifest.json",
+    "SchemaVersion": "0.1.0-preview",
+    "AgentIdentityBlueprintId": "<3-1 の応答の blueprint.client_id>",
+    "CommunicationProtocol": "activityProtocol"
+  }
 }
 ```
 
-`publishAsAutopilot: true` が **agentUser を持つ「デジタルな同僚」**にするフラグ。
-これを省くと、アカウントを持たない通常の共有エージェントとして発行される。
-
+`publishAsAutopilot: true` と **`useAgenticUserTemplate` / `agenticUserTemplate`** が
+**agentUser を持つ「デジタルな同僚」（Agent template）**にする指定。
+後者が無いと発行は 200 になるのに Agent template にならず、採用できない（→ [troubleshooting.md](troubleshooting.md) #91）。
 > **`accessBoundaries` は実質必須**。省くと publish 自体は 200 を返すのに、Teams から話しかけても
 > 無応答になり、コンテナー ログに
 > `Autopilot activity authorization currently supports only access boundaries ending with '.developers'`
@@ -198,16 +207,81 @@ python .github/skills/ai-teammate/scripts/publish_foundry_autopilot.py
 
 ## 6. 承認と採用（UI 操作）
 
-1. **承認**: M365 管理センター → **エージェント** → **すべてのエージェント** → **要求**
-   （`https://admin.cloud.microsoft/#/agents/all/requested`）。
-   対象 blueprint（状態 `Pending activate`）→ **要求を承認してアクティブ化**。
-   ウィザードで 公開範囲（誰が hire できるか）→ ポリシー テンプレートの適用 →
-   **管理者の同意を付与**（§4 のスコープ）→ 完了。
-   - 実行ロール: `Global Administrator` または `AI Administrator`。
+1. **承認と公開**: M365 管理センター → **エージェント** → **すべてのエージェント** → **Requests**
+   （`https://admin.cloud.microsoft/#/agents/all/requested`）。対象は表示名の行で、
+   「This agent template has 0 instances」・状態 `Pending activate`・Request type `Publish` になっている。
+   行を開いて **Publish** ウィザードを進める（検証済 2026-09-25）。
+
+   | 画面 | 操作 |
+   |---|---|
+   | Publish to users | ホスト（Copilot / Teams）と公開対象を確認。**Activate**（誰が採用できるか）は `All users` か対象のユーザー / グループ |
+   | Apply template | ポリシー テンプレートを選ぶ（既定の Microsoft ポリシーでよい）。残りライセンス数もここで見える |
+   | Accept permissions | §4 の MCP スコープを確認して **Grant admin consent** |
+   | Review and finish | **Publish** |
+
+   - 実行ロール: `Global Administrator` または `AI Administrator`。テナント全体に効く操作なので、
+     公開対象と同意の範囲は事前確認の質問 5 の担当者に確認してから進める。
+   - 統合ブラウザーで操作するときは、最初に AskUserQuestion で使う Edge プロファイルを確認する。
+     背面のタブのままではクリックが届かないので、画面を前面に出してから操作する。
+   - **読み戻し**: 管理センターのセッションで `GET /fd/addins/api/agents` を読み、`titleId` が発行応答と同じ行が
+     `isDigitalWorker=true`・`isActivated=true`・`publishedStatus=Active`・`allowedUsersCategory`（`Everyone` など）に
+     なっていれば完了。後から公開対象だけ変えるときは §6-1 の API。
+   - **Registry には同じエージェントが 2 行並ぶ。** 表示名の行（Agent template）と、Foundry が自動で登録する
+     `AGENT_NAME` の行（通常のエージェント、Not shared）。後者は template の裏にある Foundry エージェントそのものなので
+     **Foundry のエージェントを削除してはいけない**（template も止まる）。**Block もしない**。この行はコンテナが使う
+     エージェント ID そのもので、Block すると ID が無効になりトークンが取れなくなる（→ [troubleshooting.md](troubleshooting.md) #92）。
+     Not shared のままなら利用者には見えない。
 2. **採用（hire）**: Teams → **アプリ** → **Agents for your team** → 対象 → **インスタンスを作成**。
    名前（32 文字以内）・エイリアス・ドメイン・**上司（manager）**を指定する。
    数分で agent user アカウントが払い出され、本人から DM が届く。組織図にも並ぶ。
-3. **確認**: Teams で会話 → 払い出されたメールアドレス宛にメール送信 → 返信が来ることを見る。
+   - 名前・エイリアス・上司は先に AskUserQuestion で確かめる（既定: `AGENT_DISPLAY_NAME`・その小文字・発行した本人）。
+   - **採用はユーザーが Teams デスクトップで行う。** 統合ブラウザーでは Teams web が
+     「Classic Teams is no longer available」になり、Microsoft 365 Copilot web もサインインで止まるため自動化できない。
+   - 払い出しの確認は Graph の `$search="displayName:<名前>"`（`ConsistencyLevel: eventual`）で `users` に
+     agent user が現れるかを見る。以降の Step（スコープ付与・写真）はその UPN で進める。
+3. **採用後の設定**（インスタンスごと。作り直したらやり直す）。1 本のスクリプトで全部行う。
+
+   ```powershell
+   $s = ".github/skills/ai-teammate/scripts"
+   python $s/setup_autopilot_instance.py --env <チームメイトの .env>            # 計画だけ表示
+   python $s/setup_autopilot_instance.py --env <チームメイトの .env> --execute
+   # Teams で 1 通話しかけてから、不変条件 → 振る舞い（振る舞いは行を積んでから tick で起こす。#96）
+   python $s/run_regression_tests.py --target <チームメイト> --env <チームメイトの .env> --check
+   python $s/run_regression_tests.py --target <チームメイト> --env <チームメイトの .env> --execute   # 別ターミナル
+   python $s/provision_schedule_trigger.py --env <チームメイトの .env> --tick-now
+   ```
+
+   `setup_autopilot_instance.py` は採用された agent user を Graph で探し、`.env` に `AGENTIC_USER_ID` / `AGENT_UPN` /
+   `AGENT_INSTANCE_APP_ID` を書いてから、次を順に流す（どれも冪等）。
+
+   | 手順 | スクリプト | 無いと |
+   |---|---|---|
+   | 委任スコープ（Graph: `User.Read Chat.Read ChatMessage.Send Files.Read.All Files.ReadWrite` / Dataverse: `mcp.tools user_impersonation`） | `grant_agent_graph_scopes.py` | リアクションが付かない・貼り付け画像が読めない・Dataverse MCP が 401 |
+   | agent user を Dataverse へ、MCP クライアント登録、ロール | `connect_agent_dataverse.py` | Dataverse の検索が使えない |
+   | コンテナの ID に評価ハブのアプリケーション ユーザー | `setup_agent_dataverse_user.py` | 会話ターン・スキル・回帰テストがハブに届かない |
+   | ハブのマスター行 | `setup_evaluation_dataverse.py` | ハブの一覧・組織図に出ない |
+   | 顔写真（`assets/profile.png`） | `set_agent_user_photo.py` | 既定のアイコンのまま |
+
+   - Dataverse のロールは既定で読み取り専用（`DATAVERSE_READ_PREFIX`、既定は `PUBLISHER_PREFIX`）。所有者が広い権限を決めたときだけ
+     `.env` に `DATAVERSE_EXISTING_ROLE=System Customizer` のように既存ロールを書く。
+   - `ChatMessage.Send` は Teams のリアクション（`REACTIONS_ENABLED=true`、既定で有効）に使う。届いた時点で 👀、
+     内容に応じて `react_to_message` で 👍 / ❤️ / 🎉 などを 1 つ付ける。Graph の `chatMessage: setReaction` は委任のみなので
+     agent user として付く。スコープが無いと付かないだけで、返事は届く（ログに `No Graph token for reactions`）。
+   - 会話ターンは `eval_turns.py` が毎ターン評価ハブの `<prefix>_evalturns` へ書く（#98）。回帰テストの
+     「評価Hub: 会話ターンが届いている」は、会話が 1 件でもあるのに行が 0 件なら FAIL にする。
+4. **確認**: Teams で会話 → 払い出されたメールアドレス宛にメール送信 → 返信が来ることを見る。
+   最初の 1 通だけ `BotServiceRbac ... objectId ab3be6b7-...` が出ることがあるが、Teams の第一者サービス由来で対処不要（#94）。
+
+### 6-1. 利用者を追加する（API）
+
+別のユーザーが Teams から Autopilot を使えるようにするには **2 つとも**必要。
+
+| 要素 | 理由 | 方法 |
+|---|---|---|
+| template の「Activated for」に追加 | 追加されていないと Teams の **Agents for your team** からインスタンスを作れない。template では「Available to」「Shared with」は適用外 | admin の `agent-template-activate`（`POST /fd/addins/api/v2/agenticapps/{titleId}/allowUsers?overwrite=true`。全置換なので既存 members を含める）→ [m365-tenant-api.md](../../admin/references/m365-tenant-api.md) |
+| Foundry プロジェクトに `Foundry User` | `.developers` 境界の判定。無いと話しかけても無応答（troubleshooting #74） | `az role assignment create --role "Foundry User" --scope <project>` |
+
+`titleId`（`T_<GUID>`）は管理センターの詳細 URL `agentdetails/T_...` または `GET /fd/addins/api/agents` から取る。
 
 ### 6-1. 利用者を追加する（API）
 

@@ -79,6 +79,7 @@ def _resolve_auth_helper_dir() -> str:
 
 
 sys.path.insert(0, _resolve_auth_helper_dir())
+import auth_helper  # noqa: E402
 from auth_helper import api_get, api_patch, api_post, retry_metadata  # noqa: E402
 
 
@@ -593,6 +594,11 @@ def main() -> int:
     args = parser.parse_args()
 
     env = {**load_dotenv(args.env), **os.environ}
+    # auth_helper read DATAVERSE_URL at import from the current directory, not from --env.
+    dataverse_url = (env.get("DATAVERSE_URL") or "").strip().rstrip("/")
+    if dataverse_url and not auth_helper.DATAVERSE_URL:
+        auth_helper.DATAVERSE_URL = dataverse_url
+        auth_helper._DEFAULT_SCOPE = f"{dataverse_url}/.default"
     prefix = args.publisher_prefix or env.get("PUBLISHER_PREFIX", "")
     solution_name = args.solution_name or env.get("SOLUTION_NAME", "")
 

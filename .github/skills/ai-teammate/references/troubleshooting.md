@@ -2027,6 +2027,9 @@ AppTraces | where TimeGenerated > ago(4d)
 
 どの方式でも、**スケジュールはコンテナーのローカルに置かない**（停止で消える）。
 
+**解決済み（2026-09-25）**: `foundry-autopilot` に B11 を実装した。Azure だけで完結し、起こす役は
+Logic App、保存先は Foundry の state store。構成と詰まりどころは #88。
+
 
 ## 83. 再デプロイしたのに古いコードのまま動き続ける（検証済 2026-09-24）
 
@@ -2213,4 +2216,239 @@ python .github/skills/ai-teammate/scripts/setup_evaluation_dataverse.py --env <h
   渡すのはエージェント自身の ID で認証する Foundry Toolbox だけ（M365 の MCP は未検証のまま）
 
 実測: 起動直後に `lumi_skills` へ 15 件、キューに入れた 1 件が約 5 秒で `status=3`（完了）。
+
+## 87. Foundry Autopilot 版の利用実績を出す（B15・検証済 2026-09-25）
+
+**やること**: 毎ターン `Usage turn` のトレースを App Insights に書き（呼び出し元・トークン数・推定金額）、
+`usage_report` ツールが Log Analytics のクエリ API で読み戻す。コンテナーには何も保存しない。
+
+1. エージェントの instance identity に、App Insights の裏の Log Analytics ワークスペースで **Log Analytics Reader**
+2. `USAGE_WORKSPACE_ID`（ワークスペースの customerId）と `USAGE_PRICE_{INPUT,OUTPUT,CACHED}_PER_1M` を渡す
+   （単価は Azure の公開価格 API で確かめる。記録する金額は定価ベースの推定で、請求書とは一致しない）
+3. 全員分を見せるなら `USAGE_ALL_VISIBLE=true`、管理者だけなら `USAGE_ADMIN_IDS`（oid のカンマ区切り）
+
+**分かったこと**: 天気を一行聞くだけで入力約 5.3 万トークン（約 $0.15）。大半は MCP サーバーのツール定義で、
+つなぐ MCP サーバーを減らすのがいちばん効く節約になる。
+
+## 88. Foundry Autopilot 版の定期実行（B11・検証済 2026-09-25）
+
+**構成**（Azure だけで完結）:
+
+```mermaid
+sequenceDiagram
+  participant T as Teams チャット（Activity セッション）
+  participant A as schedule-admin（Invocations）
+  participant L as Logic App（MI・定期）
+  participant K as schedule-tick（Invocations）
+  T->>A: create/list/delete（agent 自身の ID）
+  A->>A: Foundry state store に保存
+  L->>K: {"type":"schedule_tick"}
+  K->>K: 期限が来たものを確保＋使い捨てトークン
+  K->>T: Activity ルートへ schedule_run イベント（agent 自身の ID）
+  T->>A: redeem（トークンを消費）
+  T->>T: 通常のターンとして実行し、同じチャットに投稿
+```
+
+用意するもの: `.env` に `SCHEDULE_ENABLED=true`、`publish_foundry_autopilot.py` で Invocations を公開し、
+`provision_schedule_trigger.py --execute` で Logic App（既定 15 分ごと、`SCHEDULE_TICK_MINUTES`）を作る。
+
+**そのままでは動かない点と、その理由**（すべて実測）:
+
+| 試したこと | 結果 | 教訓 |
+|---|---|---|
+| コンテナー内タイマー・SDK の `manage_schedule` | 最後のターンから約 15 分で停止して発火しない | 起こす役は外に置く |
+| チャットのセッションから state store に書く | tick 側からは別のストアに見える（同名で GET 404 → POST 201 が両方で起きる） | ストアに触るのは Invocations セッションだけにする |
+| Invocations セッションから `continue_conversation` | `AADSTS7002142 ... requested agent identity is '<instance>'` | Invocations のサンドボックスは既定の agent identity に縛られ、チームメイト（インスタンス）として投稿できない。回避しない |
+| tick から Teams のセッション id を指定して Invocations | `403 session_not_accessible` | セッションは呼び出し元ごとに分離される |
+| 同じセッション id を人間と Logic App で共用 | 後から来た方が `403 session_not_accessible` | 手動 tick は `schedule-tick-manual` を使う（`--tick-now`） |
+| 保存先を Storage Table（キーレス）に | テナントポリシーで `publicNetworkAccess=Disabled` になり、hosted コンテナーから届かない | ポリシーは曲げず、Foundry の機能で閉じる |
+
+**決め手**: Activity ルート（`/endpoint/protocols/activityprotocol`）は `BotServiceRbac` のもとで
+**Foundry ロールを持つ Entra の呼び出し元**も受け付ける。条件は `from.aadObjectId` が呼び出し元の oid であることと、
+`recipient` に実際の Teams と同じ形（`8:orgid:<agentUser>`、`agenticAppId`、`agenticAppBlueprintId`）を入れること。
+こうして生まれたセッションはインスタンスに縛られるので、通常の返信と同じ経路でチャットに投稿できる。
+
+```
+403 BotServiceRbac authorization requires a valid Entra caller object id. Activity.From.AadObjectId was missing ...
+400 BlueprintId from activity <id> does not match the blueprintId from agent summary ...   ← recipient の形が違う
+```
+
+**安全のために入れてあるもの**: イベントに載せるのは予定の id と **15 分で切れる使い捨てトークン**だけで、
+中身は redeem でストアから取り直す。会話 id が保存時と違うイベント、再送されたイベントは何もしない。
+定期実行のターンでは定期実行ツールを渡さない（自分を増やせない）。一人 10 件まで。
+
+**費用**: tick のたびにセッションが起き、処理後に自分で `:stop` する（待機 15 分分の課金を避ける）。
+実行時刻の誤差は最大 `SCHEDULE_TICK_MINUTES`。
+
+**制約**: 結果を届けられるのは予定を登録した Teams の会話だけ。メールからの登録は断る。
+
+## 89. エンドポイントに Invocations を足したら Teams が無応答になった（検証済 2026-09-25）
+
+**原因**: `PATCH /agents/{name}` は `application/merge-patch+json` でも `protocol_configuration` を**丸ごと差し替える**。
+`{"invocations": {}}` だけ送ると `activity` が消える。`activity` を含めて送り直しても
+`access_boundaries` は PATCH できない（#77）。
+
+**対処**: `activity`（`enable_m365_public_endpoint` だけ）と `invocations` を両方入れて PATCH し、
+**続けて `microsoft365/publish` を `appVersion` +1 で呼ぶ**。発行は `access_boundaries` を戻し、`invocations` は残す。
+`publish_foundry_autopilot.py` は `SCHEDULE_ENABLED=true` のとき、発行の直前にだけこの PATCH を打つ
+（`--container-only` では打たず、`--bump-version` での発行を案内する）。新規のエージェントは最初の発行で入る。
+
+## 90. `--recycle-sessions` したのに古い version のセッションが残る（検証済 2026-09-25）
+
+**原因**: セッション一覧 API は既定 20 件でページを切る（`has_more` / `last_id`）。先頭ページには
+削除済みの古いセッションが並ぶので、最初の 1 回だけ読むと「古いセッション 0 件」になる。
+残ったチャットは古いコードのまま動き、新しい機能（たとえば `schedule_run` の受け口）が
+`No route found for activity type: event` になる。
+
+**対処**: `limit=100` と `after=<last_id>` で最後まで読む（`publish_foundry_autopilot.py` の `list_sessions` で修正済み）。
+
+## 91. 発行したのに Agent template にならず、通常のエージェントとして並ぶ（検証済 2026-09-25）
+
+**症状**: `publishAsAutopilot: true` で発行は 200 になるが、管理センターで Agent template として扱われず、
+Teams の **Agents for your team** にも出ないので採用（hire）できない。
+
+**原因**: Learn の現行の発行契約では、Autopilot には `publishAsAutopilot` / `publishScope` に加えて
+**`useAgenticUserTemplate: true` と `agenticUserTemplate`**（`AgentIdentityBlueprintId` に新しい version の
+`blueprint.client_id`）が要る。公式クイックスタートの `publish-digital-worker.ps1` はまだ送っていない。
+
+**対処**: `publish_foundry_autopilot.py` は version 作成の応答から `blueprint.client_id` を取り、
+この 2 つを必ず付けて発行する。付けずに発行してしまったら `--bump-version` で発行し直す。
+管理センターの要求一覧で「This agent template has N instances」と出れば Agent template になっている。
+承認はその行の Publish ウィザードで行う（→ [foundry-autopilot.md](foundry-autopilot.md) §6）。
+Registry に並ぶ `<agent name>`（通常のエージェント）は Foundry が自動で登録する行で、template の裏にある
+同じ Foundry エージェントを指す。「古い登録」に見えても Foundry のエージェントは削除しない（template が止まる）。
+この行は Not shared なので利用者には見えない。**Block もしない**（#92）。
+
+## 92. Registry で `AGENT_NAME` の行を Block したら、チャットも定期実行も動かなくなった（検証済 2026-09-25）
+
+**症状**: 直後からコンテナのログに次のエラーが並び、モデル呼び出し・state store・Activity 送信がすべて失敗する。
+
+```
+ManagedIdentityCredential.get_token failed: (bad_request) Failed to acquire agent identity token due to a client
+configuration error. Check the Entra ID application registration, Conditional Access policies, ...
+```
+
+**原因**: Registry の `AGENT_NAME` 行（Foundry が自動で登録する通常のエージェント）は、コンテナが使う
+**エージェント ID（`<account>-<project>-<AGENT_NAME>-AgentIdentity`）**そのもの。Block すると Entra の
+このサービス プリンシパルが `accountEnabled=false` になり、トークンが取れなくなる。
+Agent template の行（表示名の行）は別物なので、template 側の公開状態は変わらない。
+
+**対処**:
+
+1. Block を解除する（Registry → `AGENT_NAME` の行 → Unblock）。
+2. `deploy.ps1`（`publish_foundry_autopilot.py --execute`）を 1 回流す。`enable_instance_identity()` が
+   `accountEnabled=true` に戻す。Graph で直接 `PATCH servicePrincipals/{id} {"accountEnabled": true}` でもよい。
+3. Graph で `accountEnabled` が `true` か、ログに `get_token failed` が出なくなったかを確かめる。
+   有効化してから数分は Entra 側に反映されず `AADSTS7000112 ... is disabled` が続く（実測 5 分弱）。
+   その間に再デプロイを重ねない。
+
+この行は Not shared なので、放っておいても利用者には見えない。隠す目的で Block しない。
+採用するとインスタンスごとに別のエージェント ID（`<表示名> (AI teammate)`）が作られるが、コンテナが
+モデル・state store・Dataverse へのトークンを取るのは引き続きこの `AGENT_NAME` の ID
+（ログの `ManagedIdentityCredential will use ... client_id: <この ID>`）なので、インスタンスがあっても不要にはならない。
+
+## 93. 採用後、Teams で話しかけると `Sandbox forwarding failed. StatusCode=404`（検証済 2026-09-26）
+
+**症状**: Teams の返信に次が出る。セッションは作られ、コンテナのアクセス ログには
+`"POST /api/messages HTTP/1.1" 404 ... "Microsoft-SkypeBotApi (Microsoft-BotFramework/3.0)"` が残る。
+
+```
+Error from user container for agent '<AGENT_NAME>': Sandbox forwarding failed. StatusCode=404, SessionId=...
+```
+
+**原因**: 上流のクイックスタートが Activity の受け口を `/api/messages` から **`/activity/messages`** に変え、
+`container_protocol_versions` も `activity_protocol` **`2.0.0`** にした。ゲートウェイは宣言された版で転送先を決める
+（`v1` → `/api/messages`、`2.0.0` → `/activity/messages`）。版だけ古いまま新しいコードを載せると全チャットが 404 になる。
+
+**対処**: `publish_foundry_autopilot.py` は `src/*/host_agent_server.py` に `"/activity/messages"` があれば
+`2.0.0`、無ければ `v1` を宣言する（`.env` の `ACTIVITY_PROTOCOL_VERSION` で上書き可）。
+`deploy.ps1` を流して新しい version を作れば直る。実行ログの `activity_protocol=` で宣言した版を確認できる。
+
+## 94. 採用直後に `BotServiceRbac activity request not authorized ... objectId ab3be6b7-...` が 1 回だけ出る（検証済 2026-09-26）
+
+**症状**: インスタンスを作った直後、最初に話しかけたときに Teams に次のエラーが出る。
+
+```
+Error from user container for agent '<AGENT_NAME>': BotServiceRbac activity request not authorized.
+User with objectId ab3be6b7-f5df-413d-ac2d-abf1e3fd9c0b in tenant <tenant> is missing permission(s):
+Microsoft.CognitiveServices/accounts/AIServices/agents/write
+```
+
+**原因**: `ab3be6b7-f5df-413d-ac2d-abf1e3fd9c0b` は利用者ではなく、Microsoft の第一者アプリ
+**Microsoft Teams Graph Service** の appId（`servicePrincipals(appId='...')` で引ける。オブジェクトとしては引けない）。
+チャットを作った直後にこのサービスが送るアクティビティが、`BotServiceRbac`（送信者に Foundry の権限を求める）で弾かれる。
+
+**対処**: 不要。同じ利用者の 2 通目以降は利用者本人として届き、通った（Kai で実測）。このアプリにロールを与えない。
+
+## 95. `--env <チームメイトの .env>` を渡したのに「スコープが未指定です。DATAVERSE_URL を .env に設定するか…」（検証済 2026-09-26）
+
+**症状**: 作業フォルダ（スキルのリポジトリ）に `.env` が無い状態で、`setup_agent_dataverse_user.py` /
+`setup_evaluation_dataverse.py` / `run_regression_tests.py` に別フォルダのチームメイトの `.env` を渡すと、
+Dataverse の呼び出しが `ValueError` で落ちる。回帰テストでは「評価Hub: evalagent に自分の行がある」が FAIL になる。
+
+**原因**: `auth_helper` は**読み込んだ瞬間に**カレント フォルダの `.env` から `DATAVERSE_URL` を読んで固定する。
+後から `--env` を読んでも `auth_helper` の値は空のまま。
+
+**対処（恒久対策済み）**: 3 本とも `--env` の `DATAVERSE_URL` を `auth_helper` に反映してから呼ぶ。
+あわせて `run_regression_tests.py` の skills 検査は `src/<パッケージ>/skills/`（Foundry Autopilot の配置）も見る。
+scaffold はチームメイトの `.env` に `DATAVERSE_URL` / `PUBLISHER_PREFIX` / `SOLUTION_NAME` を書き、
+発行スクリプトは `AGENT_IDENTITY_CLIENT_ID` を書く。
+
+## 96. Foundry Autopilot の回帰テストが「実行中」のまま終わらない（検証済 2026-09-26）
+
+**症状**: `run_regression_tests.py --execute` が待ち続けてタイムアウトする。評価ハブの行は 1 件だけ
+`status=2`（実行中）になり、残りは `1`（待機）のまま動かない。
+
+**原因**: Foundry Autopilot のコンテナはセッションごとに起動し、会話か定期実行（B11）のタイマーが来たときしか動かない。
+TestWorker はそのコンテナの中で回るが、タイマーの tick セッションは仕事を終えると自分を止める（`stop_own_session`）。
+行を「実行中」にした直後にセッションが止まり、そのケースは二度と完了しない。
+
+**対処（恒久対策済み）**: tick は止まる前に `TestWorker.drain_all()` で待機中のケースを全部片付ける（上限 10 分）。
+TestWorker の巡回と `drain_all()` はロックで排他し、同じ行を二重に拾わない。回帰テストは
+`--execute` で行を積んでから `provision_schedule_trigger.py --tick-now` でコンテナを起こす。
+途中で止まった古い行は `status=4`（失敗）にして閉じてから流し直す。
+
+## 97. Foundry Autopilot の回帰テストが全ケース「自動採点が行われていません」「status=失敗 unknown」（検証済 2026-09-26）
+
+**症状**: #96 を直すと全ケースが完了するが、振る舞いテストが全部 FAIL になる。
+
+| 詳細 | 原因 | 対処（恒久対策済み） |
+|---|---|---|
+| `自動採点が行われていません（minScore=3 を要求）` | App Service 版の `TestRunner.cs` は評価ハブのルール（`<prefix>_evalrules`）で採点するが、Foundry 版の `test_worker.py` は採点していなかった | `TestWorker(judge=...)` がルールごとに 0〜5 で採点し、平均を `autoscore`、内訳を `autosummary` に書く。判定モデルは同じデプロイ（`EVAL_JUDGE_DEPLOYMENT` で変更可） |
+| `status=失敗 unknown`（インジェクションのケース） | Azure OpenAI のコンテンツ フィルターが 400 で止めた。防げているのに、頭脳が「不明なエラー」として投げていた | `copilot_brain.py` が `content_filter` に分類し、「安全フィルターに止められたので処理していない」と答える（利用者にも同じ文が返る） |
+| `ツール 'run_python' が呼ばれていません` | Foundry のコード実行は `foundry_toolbox-code_interpreter` という名前 | `expectTools` に `a\|b` で別名を並べられる（`run_python\|code_interpreter`） |
+| `ツール 'generate_image' が呼ばれていません` | `IMAGE_MODEL_DEPLOYMENT` が無いとツール自体が登録されない（B17 を scaffold しても発行時に無効） | ケースの `requiresEnv` に書いた値が `.env` に無ければ SKIP |
+| 画像ケースだけ、設定があっても呼ばれない | テストのターンには会話が無いので、会話に依存するカスタム ツールをまとめて外していた | 自分の ID だけで動くツール（画像生成）は `_headless_tools()` でテストのターンにも渡す |
+| 自動採点が 1〜2 点（「ツールを使った形跡がない」） | 判定モデルには依頼と応答しか渡しておらず、実際に呼ばれたツールが見えなかった | 判定プロンプトに実行記録（呼ばれたツール名）を載せる |
+| インジェクションのケースだけ `採点できませんでした (... content_filter ...)` | 依頼文そのものが脱獄文なので、判定モデルへの問い合わせもフィルターに止められる | フィルターに止められたら依頼本文を伏せて採点し直す |
+| 「スキルの手順に従う」だけ 1 点（「裏付けなしに一覧を断定」） | スキルはセッションに読み込み済みでツールを呼ばずに答えられるが、判定モデルはそれを知らない | 判定プロンプトに「最初から持っている情報」（組み込みスキル名）を載せる（`TestWorker(facts=...)`） |
+
+## 98. Foundry Autopilot のチームメイトの会話が評価Hub の「会話ターン」に出てこない（検証済 2026-09-26）
+
+**症状**: Teams で話しかけて返事も来るのに、評価Hub（Code Apps）の会話ターン一覧にそのチームメイトの行が 1 件も無い。
+自己ホスト（App Service）のチームメイトの行は出ている。
+
+**原因**: ハブは `<prefix>_evalturns` を読む。自己ホスト版は `EvaluationDataverse.cs` が毎ターン 1 行書くが、
+Foundry Autopilot のテンプレートにはこれに当たる処理が無かった。
+
+**対処（恒久対策済み）**: `eval_turns.py` の `TurnMirror` が、Teams・メール・定期実行の各ターンのあとに
+自己ホスト版と同じ形の行（`turn-<UTC 時刻>`、`agentkey`、`source` = chat / mailbox / schedule、ツール呼び出し）を
+エージェント自身の ID で書く。返事を遅らせないよう非同期で、失敗してもターンは落とさない。
+書き込みには評価ハブのアプリケーション ユーザー（`setup_agent_dataverse_user.py`）が要る。
+`EVAL_SYNC_TO_DATAVERSE=false` で止められる。回帰テストのターンは書かない（ハブの「自動テスト」側に残る）。
+採用後の設定は `setup_autopilot_instance.py` が 1 本で行い、回帰テストの「評価Hub: 会話ターンが届いている」は
+会話セッションがあるのに行が 0 件なら FAIL にする。自己ホストでない既存のチームメイト（Auri 等）にも `eval_turns.py` を足す。
+
+## 99. 雑談にも「〇〇を確認します」という前置きが 1 行返ってくる（検証済 2026-09-26）
+
+**症状**: 「こんにちは。調子はどうだい？」に対して、返事の前に
+「まず、このチャットの話題『こんにちは。調子はどうだい？』を確認します。」が別メッセージで届く。
+
+**原因**: ターンの冒頭に着手を伝える `acknowledge()` が、どんなメッセージにも 1 文を作らせていた。
+何もしないで答えられる挨拶でも「何をするか」を言わされ、相手の文をそのまま引用して埋めていた。
+
+**対処（恒久対策済み）**: 判定用の指示で、雑談・挨拶・お礼・道具を使わずに答えられる質問には `NONE` を返させ、
+`clean_acknowledgement()` が `NONE` を「送らない」に変える。相手の文の引用も禁止した。
+回帰テストは前置きもテストのターンに含めて記録し、「雑談に前置きを付けない」ケースで検査する。
+続けて利用者のメッセージも同じエラーになる場合だけ、その利用者のロール（[foundry-autopilot.md](foundry-autopilot.md) §6-1）を確認する。
 
