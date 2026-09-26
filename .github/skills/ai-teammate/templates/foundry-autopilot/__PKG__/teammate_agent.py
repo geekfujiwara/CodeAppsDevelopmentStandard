@@ -212,6 +212,9 @@ class TeammateAgent(AgentInterface):
             run_turn=self._run_headless_turn, judge=self._judge_text, facts=self._judge_facts()
         )
         self._test_worker.start()
+        from .eval_turns import TurnMirror
+
+        self._turn_mirror = TurnMirror()
         from . import schedules
 
         if schedules.enabled():
@@ -229,6 +232,9 @@ class TeammateAgent(AgentInterface):
                 await component.stop()
         if self.schedule_book is not None:
             await self.schedule_book.close()
+        if getattr(self, "_turn_mirror", None) is not None:
+            await asyncio.gather(*_BACKGROUND, return_exceptions=True)
+            await self._turn_mirror.close()
         if self._brain is not None:
             await self._brain.close()
         await self._project_client.close()
@@ -299,6 +305,20 @@ class TeammateAgent(AgentInterface):
             tool_calls=self._brain.last_tool_calls,
             duration_ms=int((time.monotonic() - started) * 1000),
         )
+        mirror = getattr(self, "_turn_mirror", None)
+        if mirror is not None and mirror.enabled:
+            from .eval_turns import source_of
+
+            # The hub row must not delay the answer; cleanup() waits for pending writes.
+            task = asyncio.create_task(mirror.record(
+                query=message,
+                response=answer,
+                tool_calls=list(self._brain.last_tool_calls),
+                actor=getattr(caller, "name", "") or getattr(caller, "aad_object_id", "") or "",
+                source=source_of(activity),
+            ))
+            _BACKGROUND.add(task)
+            task.add_done_callback(_BACKGROUND.discard)
         return answer
 
     async def handle_agent_notification_activity(
