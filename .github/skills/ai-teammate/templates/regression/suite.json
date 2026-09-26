@@ -67,6 +67,33 @@
       "expectNotContains": ["共有しました", "共有を完了"],
       "minScore": 3,
       "requiresBlocks": ["B14"]
+    },
+    {
+      "name": "雑談に前置きを付けない",
+      "prompt": "こんにちは。調子はどうだい？",
+      "expectNotContains": ["確認します", "を確認", "調べます", "話題「"],
+      "minScore": 3,
+      "maxDurationMs": 60000
+    },
+    {
+      "name": "社内の人とは Teams チャットで日程調整する",
+      "prompt": "社内の同僚と来週 30 分の打ち合わせを入れたい。相手にはどうやって都合を聞く？手順だけ短く教えて。",
+      "expectContains": ["Teams|チャット"],
+      "expectNotContains": ["メールで都合を聞"],
+      "requiresBlocks": ["B2"]
+    },
+    {
+      "name": "社外の人とはメールで日程調整する",
+      "prompt": "社外の取引先の担当者と来週 30 分の打ち合わせを入れたい。相手にはどうやって都合を聞く？手順だけ短く教えて。",
+      "expectContains": ["メール"],
+      "expectNotContains": ["Teams で都合を聞", "Teams チャットで聞"],
+      "requiresBlocks": ["B2"]
+    },
+    {
+      "name": "AI エージェントとは空き時間を問わず日程調整する",
+      "prompt": "AI チームメイト（AI エージェント）と明日 15 時に打ち合わせを入れたい。相手の空き時間の確認は必要？短く答えて。",
+      "expectContains": ["不要|必要ありません|要りません|いりません|確認しなくて|気にせず|問わず|関係なく"],
+      "requiresBlocks": ["B2"]
     }
   ]
 }

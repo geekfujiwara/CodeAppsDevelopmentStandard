@@ -89,6 +89,25 @@ class CaseEvaluationTests(unittest.TestCase):
         self.assertTrue(self.evaluate(case, toolcalls="run_python")[0])
         self.assertFalse(self.evaluate(case, toolcalls="web_search")[0])
 
+    def test_expect_contains_accepts_any_listed_phrasing(self) -> None:
+        case = {"name": "c", "expectContains": ["不要|必要ありません"]}
+        self.assertTrue(self.evaluate(case, response="確認は必要ありません")[0])
+        self.assertFalse(self.evaluate(case, response="確認してください")[0])
+
+    def test_prompt_policies_fail_when_the_owner_rules_are_dropped(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as root:
+            prompt = Path(root) / "src" / "pkg" / "prompts" / "system.md"
+            prompt.parent.mkdir(parents=True)
+            prompt.write_text("## 予定調整\n社内の人は Teams チャット、社外の人はメール、AI エージェントは空き不問\n", encoding="utf-8")
+            suite = regression.Suite()
+            regression.check_prompt_policies(Path(root), suite)
+
+        by_name = {r.name: r.passed for r in suite.results}
+        self.assertFalse(by_name["prompt: リアクションの指示"])
+        self.assertTrue(by_name["prompt: 社内は Teams・社外はメール・AI は空きを問わない日程調整"])
+
     def test_min_score_uses_the_case_value_over_the_default(self) -> None:
         case = {"name": "c", "minScore": 4.5}
         self.assertFalse(self.evaluate(case, autoscore=4.0)[0])

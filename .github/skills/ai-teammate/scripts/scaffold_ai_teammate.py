@@ -1104,8 +1104,11 @@ def print_next_steps(plan: ScaffoldPlan, env: dict[str, str]) -> None:
         photo = plan.target / "assets" / "profile.png"
         if prompt_file.is_file():
             steps.append(f"python {scripts / 'generate_profile_image.py'} --env {env_file} --prompt-file {prompt_file} --out {photo}")
-        if prompt_file.is_file() or photo.is_file():
-            steps.append(f"python {scripts / 'set_agent_user_photo.py'} --upn <agent user UPN> --icon {photo}   # 採用後")
+        steps += [
+            f"python {scripts / 'setup_autopilot_instance.py'} --env {env_file} --execute   # 採用後: スコープ・Dataverse・評価Hub・写真",
+            f"python {scripts / 'run_regression_tests.py'} --target {plan.target} --env {env_file} --check   # Teams で 1 通話しかけてから",
+            f"python {scripts / 'run_regression_tests.py'} --target {plan.target} --env {env_file} --execute   # 別ターミナルで --tick-now",
+        ]
         for number, step in enumerate(steps, start=1):
             print(f"  {number}. {step}")
         return

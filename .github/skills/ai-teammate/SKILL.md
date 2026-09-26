@@ -267,6 +267,7 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 | [fetch_autopilot_quickstart.py](scripts/fetch_autopilot_quickstart.py) | Microsoft 公式の Foundry Autopilot クイックスタートをフォークせずに取得する（`hosting: "foundry-autopilot"` のとき scaffold が自動実行） | 3 |
 | [publish_foundry_autopilot.py](scripts/publish_foundry_autopilot.py) | Foundry hosted agent のバージョン作成と M365 publish。`accessBoundaries` の付与・インスタンス ID の有効化・`--bump-version` を含む。`IMAGE_MODEL_DEPLOYMENT` があればコンテナへ渡し、実在を検証し、アカウント スコープのロールも付ける。コード修正だけを反映するときは `--container-only`（再発行も再承認も不要）。`SCHEDULE_ENABLED=true` なら Invocations を公開する（troubleshooting.md #89） | 6・10 |
 | [provision_schedule_trigger.py](scripts/provision_schedule_trigger.py) | Foundry Autopilot の定期実行（B11）を起こす Logic App（システム割り当て MI・`Foundry Agent Consumer`・既定 15 分ごと）を作る。`--tick-now` で 1 回だけ起こす（troubleshooting.md #88） | 10 |
+| [setup_autopilot_instance.py](scripts/setup_autopilot_instance.py) | Foundry Autopilot の**採用後の設定を 1 本で**行う（委任スコープ〔リアクションの `ChatMessage.Send` 含む〕・Dataverse 接続・評価ハブのアプリケーション ユーザーとマスター行・顔写真）。既定は計画表示、`--execute` で適用（foundry-autopilot.md §6） | 11 |
 | [generate_profile_image.py](scripts/generate_profile_image.py) | AskUserQuestion で「説明から生成」を選んだプロフィール画像を、テナントの画像モデルで描いて `assets/profile.png` に書く | 12 |
 
 すべて `--check` で確認のみの実行ができる（`query_agent_logs.py` は読むだけなので不要）。
