@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "1.0",
+  "databricks": {
+    "schema": "cold_chain",
+    "comments": {
+      "tables": {
+        "telemetry": "Temperature and humidity readings produced by store freezers.",
+        "work_orders": "Maintenance work orders. Open and In Progress are active statuses."
+      },
+      "columns": {
+        "telemetry.temperature_c": "Temperature in degrees Celsius. A reading warmer than -15 C is over-temperature."
+      }
+    },
+    "views": [
+      {
+        "name": "telemetry_enriched",
+        "sql": "SELECT t.event_id, t.freezer_id, t.event_time, t.temperature_c, t.humidity_pct, f.criticality, s.store_name FROM {schema}.telemetry t JOIN {schema}.freezers f ON t.freezer_id = f.freezer_id JOIN {schema}.stores s ON f.store_id = s.store_id"
+      }
+    ],
+    "metricView": {
+      "name": "freezer_health_metrics",
+      "source": "telemetry_enriched",
+      "comment": "Governed cold-chain health metrics for Genie",
+      "fields": [
+        {"name": "Freezer ID", "expr": "source.freezer_id"},
+        {"name": "Event Time", "expr": "source.event_time"},
+        {"name": "Criticality", "expr": "source.criticality"},
+        {"name": "Store Name", "expr": "source.store_name"}
+      ],
+      "measures": [
+        {"name": "Reading Count", "expr": "COUNT(1)"},
+        {"name": "Over-temperature Reading Count", "expr": "COUNT_IF(source.temperature_c > -15)"},
+        {"name": "Maximum Temperature C", "expr": "MAX(source.temperature_c)"}
+      ]
+    },
+    "genie": {
+      "title": "Cold Chain Maintenance",
+      "description": "Freezer anomaly and maintenance prioritization",
+      "tables": ["stores", "freezers", "telemetry", "work_orders"],
+      "metricViews": ["freezer_health_metrics"],
+      "sampleQuestions": [
+        "Which high-criticality freezers had at least three readings warmer than -15 C during the latest 24-hour period in the dataset and also have an open work order? Return the store, freezer, anomaly count, maximum temperature, work order, and priority."
+      ]
+    },
+    "checks": {
+      "metricViewSql": "SELECT `Freezer ID` AS freezer_id, MEASURE(`Over-temperature Reading Count`) AS anomaly_count, MEASURE(`Maximum Temperature C`) AS maximum_temperature_c FROM {schema}.freezer_health_metrics WHERE `Freezer ID` = :freezer_id GROUP BY ALL",
+      "groundTruthSql": "WITH bounds AS (SELECT MAX(event_time) AS latest_event_time FROM {schema}.telemetry), anomalies AS (SELECT freezer_id, COUNT_IF(temperature_c > -15) AS anomaly_count, MAX(temperature_c) AS maximum_temperature_c FROM {schema}.telemetry CROSS JOIN bounds WHERE event_time > latest_event_time - INTERVAL 24 HOURS AND event_time <= latest_event_time GROUP BY freezer_id) SELECT s.store_name, f.freezer_id, a.anomaly_count, a.maximum_temperature_c, w.work_order_id, w.priority FROM anomalies a JOIN {schema}.freezers f ON a.freezer_id = f.freezer_id JOIN {schema}.stores s ON f.store_id = s.store_id JOIN {schema}.work_orders w ON w.freezer_id = f.freezer_id WHERE f.criticality = 'High' AND a.anomaly_count >= 3 AND w.status IN ('Open', 'In Progress') ORDER BY f.freezer_id"
+    }
+  },
+  "foundry": {
+    "index": {
+      "name": "cold-chain-manuals",
+      "documents": "cold-chain-manuals.json",
+      "fields": [
+        {"name": "id", "type": "Edm.String", "key": true, "filterable": true},
+        {"name": "title", "type": "Edm.String", "searchable": true},
+        {"name": "content", "type": "Edm.String", "searchable": true},
+        {"name": "freezer_id", "type": "Edm.String", "searchable": true, "filterable": true},
+        {"name": "priority", "type": "Edm.String", "filterable": true}
+      ],
+      "semantic": {"titleField": "title", "contentFields": ["content"], "keywordFields": ["freezer_id"]}
+    },
+    "knowledgeSource": {"name": "ks-cold-chain-manuals", "description": "Cold-chain maintenance manuals"},
+    "fabricOntologySource": {"name": "ks-fabric-ontology", "description": "Fabric IQ ontology for stores, freezers, telemetry, and work orders"},
+    "knowledgeBase": {
+      "name": "kb-cold-chain",
+      "description": "Cold-chain maintenance knowledge base",
+      "outputMode": "answerSynthesis",
+      "reasoning": "low",
+      "retrievalInstructions": "Use the manuals for maintenance guidance and the ontology for business entities.",
+      "answerInstructions": "Ground the answer in retrieved content. Include the freezer identifier, the priority, and citations."
+    }
+  }
+}

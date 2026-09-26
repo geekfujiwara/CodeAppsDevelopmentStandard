@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspaceName": {"type": "string"},
+    "location": {"type": "string"},
+    "managedResourceGroupName": {"type": "string", "metadata": {"description": "Databricks が作成する。事前作成しないこと"}},
+    "tags": {"type": "object", "defaultValue": {}}
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Databricks/workspaces",
+      "apiVersion": "2024-05-01",
+      "name": "[parameters('workspaceName')]",
+      "location": "[parameters('location')]",
+      "sku": {"name": "premium"},
+      "properties": {
+        "managedResourceGroupId": "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('managedResourceGroupName'))]"
+      },
+      "tags": "[parameters('tags')]"
+    }
+  ],
+  "outputs": {
+    "workspaceUrl": {"type": "string", "value": "[reference(resourceId('Microsoft.Databricks/workspaces', parameters('workspaceName')), '2024-05-01').workspaceUrl]"},
+    "workspaceId": {"type": "string", "value": "[reference(resourceId('Microsoft.Databricks/workspaces', parameters('workspaceName')), '2024-05-01').workspaceId]"}
+  }
+}

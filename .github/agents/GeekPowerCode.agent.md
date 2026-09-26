@@ -82,6 +82,8 @@ python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --
 |---|---|
 | 環境チェック・DLP・ガバナンス（管理） | .github/skills/admin/SKILL.md |
 | Dataverse | .github/skills/dataverse/SKILL.md |
+| データ基盤（Fabric / Databricks / Foundry IQ の構築・検証・MCP 引き渡し） | .github/skills/data-platform/SKILL.md |
+| データ移行（マッピング・投入・照合） | .github/skills/data-migration/SKILL.md |
 | Web Code Apps（React/Vite） | .github/skills/code-apps/SKILL.md |
 | Native Mobile Code Apps（Expo/React Native、Private Preview） | .github/skills/mobile-apps/SKILL.md |
 | Power Automate | .github/skills/power-automate/SKILL.md |

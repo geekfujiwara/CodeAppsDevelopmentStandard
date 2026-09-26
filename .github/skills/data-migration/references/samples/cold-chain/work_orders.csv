@@ -1,0 +1,4 @@
+work_order_id,freezer_id,status,priority,opened_at
+WO-9001,FZ-101,Open,P1,2026-09-24T10:30:00Z
+WO-9002,FZ-201,Closed,P2,2026-09-23T08:00:00Z
+WO-9003,FZ-301,Closed,P2,2026-09-22T09:00:00Z

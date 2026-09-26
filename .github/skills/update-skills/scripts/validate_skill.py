@@ -71,6 +71,10 @@ ALLOWLIST = {
     "5d973cb3-b843-4baf-bc35-646ccb9181ce",  # Power Apps Wrap UI が要求する委任スコープ ID（固定）
     "f0d8fd94-fdad-465b-b174-c37a1470196b",  # Power Apps Wrap UI が要求する委任スコープ ID（固定）
     "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",  # Azure 組み込みロール Storage Blob Data Owner のロール定義 ID（固定）
+    "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d",  # Azure Databricks 第一者 resource app ID（全テナント共通）
+    "a97b65f3-24c7-4388-baec-2e87135dc908",  # Azure 組み込みロール Cognitive Services User のロール定義 ID（固定）
+    "8ebe5a00-799e-43f5-93ac-243d3dce84a7",  # Azure 組み込みロール Search Index Data Contributor のロール定義 ID（固定）
+    "7ca78c08-252a-4471-8644-bb5ff32d4ba0",  # Azure 組み込みロール Search Service Contributor のロール定義 ID（固定）
     "9cee029c-6210-4654-90bb-17e6e9d36617",  # Power Platform CLI のパブリック クライアント ID（固定）
     "14d82eec-204b-4c2f-b7e8-296a70dab67e",  # Microsoft Graph PowerShell のパブリック クライアント ID（固定）
     "04b07795-8ddb-461a-bbee-02f9e1bf7b46",  # Azure CLI のパブリック クライアント ID（固定）

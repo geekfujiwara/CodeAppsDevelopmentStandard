@@ -16,6 +16,11 @@ triggers:
   - "自前 MCP Server"
   - "基幹データをエージェントに繋ぐ"
   - "Dataverse に無いデータ"
+  - "データ基盤の選定"
+  - "Dataverse か Fabric か"
+  - "Fabric か Databricks か"
+  - "Foundry IQ を使うべきか"
+  - "データをどう持つか"
   - "データ入力の接点"
   - "統合パターン"
   - "設計判断"
@@ -64,6 +69,7 @@ triggers:
 | **必要な操作** | 登録・検索・承認・通知・レポートのうち何が必要ですか？ |
 | **外部連携** | Teams / Outlook / SharePoint / 既存システムとつなぎたいですか？ |
 | **Dataverse 外のデータ** | 参照したいデータは **既存の基幹 DB・ファイルサーバー・業務 API** にありますか？（→ あるなら §6.5：自前 MCP Server） |
+| **データの量と使い方** | 件数・増え方・履歴分析・Power BI・機械学習・文書（手順書）の引用は必要ですか？（→ 必要なら §6.6：データ基盤の使い分け） |
 | **AI・自動化** | チャットで問い合わせできると便利ですか？自動通知は必要ですか？ |
 | **人としての同僚** | ツールとしての AI でよいですか？それとも**自分のメールアドレスや予定表を持ち、メンバーとして働く存在**が欲しいですか？（→ 後者なら §7） |
 
@@ -550,6 +556,31 @@ Dataverse も併用する場合は、`agentConnectors` に Dataverse MCP を**�
 
 ---
 
+## 6.6 データ基盤を使い分ける判断ポイント（Dataverse / Fabric / Databricks / Foundry IQ）
+
+データ基盤は **system of record / analytics / semantic / knowledge の 4 役割ごとに**決める。
+1 製品にすべてを寄せない。判定表・典型構成・MCP 接続は [データ基盤の選定ガイド](references/data-platform-selection.md) を参照。
+
+| 役割 | 第一候補の判断 |
+|---|---|
+| system of record | 画面から 1 件ずつ登録・更新し、行レベル権限と監査が要る → **Dataverse** |
+| analytics | Power BI / OneLake / SaaS 運用 → **Fabric**。ストリーミング / Spark / ML / 既存 Databricks → **Databricks** |
+| semantic | エンティティと関係を明示的にモデル化 → **Fabric IQ Ontology**。統制 SQL 指標を自然言語で → **Databricks metric view + Genie** |
+| knowledge | 文書を引用付きで回答 → **Foundry IQ**（データストアではなく knowledge layer） |
+
+1. §0 のヒアリング結果を `spec/data-requirements.json` にまとめ、判定スクリプトで契約を出力する。
+
+   ```powershell
+   python .github/skills/data-platform/scripts/recommend_platform.py --requirements spec/data-requirements.json --out spec/data-platform.json
+   ```
+
+2. 出力の `needsDecision` が空でなければ、候補と理由を示して AskUserQuestion で確定する。
+3. Dataverse は [dataverse スキル](../dataverse/SKILL.md)、Fabric / Databricks / Foundry IQ は
+   [data-platform スキル](../data-platform/SKILL.md)、データ投入は [data-migration スキル](../data-migration/SKILL.md) に渡す。
+4. 有償の容量（Fabric capacity、Databricks SQL warehouse、AI Search）は構成図と見積もりに**停止方法と常時課金の有無**を併記する。
+
+---
+
 ## 7. Agent 365 / AI チームメイトを使う判断ポイント（★ 実装レベルを必ず確認）
 
 **使う**: 独自モデル・独自ツールのエージェントを Teams / M365 Copilot に公開したい／
@@ -718,6 +749,7 @@ AskUserQuestion で次のように尋ねる:
 - [ ] **Dataverse にデータを貯める構成か？** → YES なら入力接点として **Copilot Studio v2 スキル + Dataverse MCP**（自然言語登録）を第一候補に含める（Code Apps は閲覧・分析・複雑操作を担当）
 - [ ] **自然言語対話が必要か？** → YES ならまず §2.1.1 で分岐。**ユーザーが能動的にチャットで話しかけて実行**するなら **Copilot Studio v2 スキル + Dataverse MCP**を第一候補（M365 Copilot 統合が必須かつ会社環境で Cowork の利用が許可されている場合のみ Cowork も検討）。Copilot Studio v1 は **①自律起動 / ②アプリ組込** の 2 ケースに限る
 - [ ] **エージェントに読ませたいデータが Dataverse の外にあるか？**（既存の基幹 DB / ファイルサーバー / 業務 API） → YES なら **自前 MCP Server（Azure Functions）** を構成に含め、公開先（Copilot Studio v2 / Cowork / 両方）を AskUserQuestion で確定する。Server の実装は共通で、登録方法だけが変わる（§6.5）
+- [ ] **Dataverse 以外のデータ基盤が要るか？**（大量データ・分析・Power BI・機械学習・オントロジー・文書の引用） → YES なら §6.6 で 4 役割ごとに基盤を決め、`recommend_platform.py` の契約を `data-platform` / `data-migration` に渡す
 - [ ] **エージェント自身のメールアドレス・予定表・権限が要るか？**（デジタルな同僚・予定調整・メール一次対応） → YES なら **Agent 365**。他のコンポーネントでは実現できない（§7）
 - [ ] **その業務に社外の情報が含まれるか？**（相手企業・業界動向・製品仕様・ニュース・URL 閲覧） → YES なら**聞かれる前に Web 検索を提案**する。既定は **Grounding with Bing**（追加リソース・招待なし）、画像/動画検索が要件なら Web IQ を併用（§7）
 - [ ] **その業務に繰り返しの仕事が含まれるか？**（毎朝の要約・週次レポート・滞留チェック） → YES なら**聞かれる前に定期実行を提案**する。頻度は質問せず 1 案（例: 平日 8:00 / Teams チャット）を出して可否を取る（§7）
