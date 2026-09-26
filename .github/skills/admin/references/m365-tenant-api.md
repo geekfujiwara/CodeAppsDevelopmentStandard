@@ -83,6 +83,7 @@ python .github/skills/admin/scripts/manage_m365_users.py account `
 | Cowork プラグイン新規（事前インストール） | `POST /fd/addins/api/apps`（`agent-lifecycle`） | `Command=DEPLOY`, `Workload=MetaOS`, **`MosOperationId` 必須**（無いと非同期で `OperationId is null or empty`） |
 | Cowork プラグイン更新（ステージ） | `POST /fd/addins/api/apps/uploadCustomApp?workloads=MetaOS` | multipart: `AppFile`, `ProductId=<titleId>`, `Locale`, `ContentMarket`, `WorkloadType=MetaOS`, `ActionType=UPDATEAPP`。応答 `appDetail` の `mosOperationId` / `latestVersion` を次に使う（`ActionType=DEPLOY` は既存 ID で 500「already been deployed」） |
 | Cowork プラグイン更新（確定） | `POST /fd/addins/api/apps`（`agent-update-app`） | `WorkloadManagementList[0]` = `ProductID`/`TitleID`=`<titleId>`, `Command=UPDATEAPP`, `Version=<latestVersion>`, `AppType=LOB`, `Workload=MetaOS`, `MosOperationId`。`SendEmailToUsers=false`、割り当ては送らない（既存の公開対象・Connect を維持） |
+| Agent template の「Activated for」（インスタンス作成者） | `POST /fd/addins/api/v2/agenticapps/{titleId}/allowUsers?workloads=SharedAgent&overwrite=true`（`agent-template-activate`） | `{"members":[{"id":"<Entra object id>","type":"User"\|"Group"}],"userAssignmentCategory":"SpecificUsers"\|"Everyone"}`。**`overwrite=true` は全置換**なので既存 members を含めて送る。読みは `GET /fd/addins/api/availableAgents/details/{titleId}?workload=SharedAgent&extendedProperties=AllowedUsersAndGroups` の `appDetail.allowedOnboardingUsersAndGroups` / `allowedOnboardingUsersCategory` |
 
 ```powershell
 python .github/skills/admin/scripts/manage_m365_portal_api.py frontier-access `
@@ -95,6 +96,11 @@ python .github/skills/admin/scripts/manage_m365_portal_api.py agent-request-appr
   --payload-file request-approval-plan.json --workload SharedAgent
 python .github/skills/admin/scripts/manage_m365_portal_api.py agent-permission-update `
   --payload-file permission-update-plan.json
+
+# Agent template のインスタンス作成者。先に runner の readTemplateActivation(page, titleId) で現状を読み、
+# 既存 members に追加分を足した全件を payload にする（overwrite=true のため）
+python .github/skills/admin/scripts/manage_m365_portal_api.py agent-template-activate `
+  --title-id T_<GUID> --payload-file template-activate-plan.json
 ```
 
 `PermissionRequestData[]` の各要素は portal bundle の request builder と同じ
@@ -102,7 +108,13 @@ python .github/skills/admin/scripts/manage_m365_portal_api.py agent-permission-u
 このAPIはHTTP `200`（全件成功）または`207`（項目別結果）を返す。`agentActions/approve` は利用要求の
 承認であり、Entra permission のGrantではないため代用しない。
 
-実測状況は区別する。Install/Uninstallはwrite、poll、details read-backまで成功済み。Cowork プラグインの新規登録
+実測状況は区別する。Install/Uninstallはwrite、poll、details read-backまで成功済み。Agent template の
+`allowUsers`（Activated for）は 2026-09-25 に Foundry Autopilot の template で UI 保存を捕捉し、write 後の details
+読み戻しで追加したユーザーが `allowedOnboardingUsersAndGroups` に入ることを確認済み（応答に requestId は無く同期反映）。
+同日、planner → hash 承認 → `build_browser_bundle.mjs` → runner `executeApprovedPlan` の経路でも write 200・
+read-back 200・`readBackMembersVerified=true` を 2 回実測した（同一 members の冪等送信）。
+template では「Available to」「Shared with」は適用外で、利用者が hire できるかどうかは「Activated for」だけが決める。
+Cowork プラグインの新規登録
 （`stageCustomApp(DEPLOY)` → `agent-publish` FINALIZEPACKAGE → `agent-allow` → `agent-lifecycle` DEPLOY）は使い捨ての検証用
 プラグインで private API だけで実行し、各 `appsManagementStatus[].status=Success` まで実測済み。Cowork プラグイン更新
 （`uploadCustomApp` + `agent-update-app`）は write、poll（`UpdateApp` / `Success`）、Cowork 側の Version 表示まで成功済み
@@ -113,7 +125,22 @@ scopeがなくHTTP `403`でwrite前に停止した。既存agentを代用せず�
 検証専用agentを用意してから実測する。この条件を満たすまでは「完全なAPI-only」と判定しない。
 
 `READY_FOR_BROWSER_API` のplanだけを、VS Code統合ブラウザの`page`とともに
-`runApprovedPlan(page, planPath, expectedHash)`へ渡す。この一括入口はplan fileのhash検証後にだけ送信する。runnerは
+`runApprovedPlan(page, planPath, expectedHash)`へ渡す。この一括入口はplan fileのhash検証後にだけ送信する。
+
+統合ブラウザのツール sandbox は `page` しか持たず（`import` / `require` / `URL` なし）、管理センターの CSP は
+`addScriptTag` を拒否する。その場合は次の手順で同じ runner を実行する（2026-09-25 に `agent-template-activate` で実測成功）。
+
+```powershell
+# 承認済み plan を hash 検証して配信フォルダへ置き、PLAN_FILE_SHA256 を控える
+node .github/skills/admin/scripts/build_browser_bundle.mjs <serve-dir> <plan.json> <PLAN_HASH>
+# 配信フォルダだけを 127.0.0.1 で公開（作業後に停止する）
+python -m http.server 8765 --bind 127.0.0.1 --directory <serve-dir>
+```
+
+ツール側では `page.context().newPage()` で `http://127.0.0.1:8765/` を開いて `runner.js` と `plan.json` を読み、
+`crypto.subtle` で `plan.json` の SHA-256 が `PLAN_FILE_SHA256` と一致することを確かめてから
+`const R = new Function(runnerSource)()` → `R.executeApprovedPlan(page, R.validatePlan(plan))` を実行する。
+`page.request` は `Storage.getCookies` 未対応で失敗するので使わない。runnerは
 VS Code 統合ブラウザの
 同一 session GET から `ajaxsessionkey` と `x-admin*` / `x-ms-mac*` headers をメモリ内だけで継承する。
 値をログや戻り値へ出さずに direct `fetch` し、deployment poll と `readBack` を実行する。

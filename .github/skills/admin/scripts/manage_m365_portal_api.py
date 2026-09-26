@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -93,7 +94,18 @@ CONTRACTS = {
         "required": {"ActiveDirectoryAppId", "PermissionRequestData"},
         "allowed": {"ActiveDirectoryAppId", "PermissionRequestData"},
     },
+    # Agent template（Autopilot 等）の「Activated for」= インスタンスを作成できる利用者。overwrite=true で全置換
+    "agent-template-activate": {
+        "method": "POST",
+        "path": "/fd/addins/api/v2/agenticapps/{titleId}/allowUsers",
+        "readBack": "/fd/addins/api/availableAgents/details/{titleId}",
+        "required": {"members", "userAssignmentCategory"},
+        "allowed": {"members", "userAssignmentCategory"},
+    },
 }
+
+TITLE_ID_RE = re.compile(r"^T_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
+GUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
 
 LIFECYCLE_COMMANDS = {"DEPLOY", "UPDATE", "UNDEPLOY", "ADDINTOMOSUPDATE", "ADDINMOSMERGE"}
 WORKLOAD_FIELDS = {
@@ -251,13 +263,36 @@ def validate_payload(operation: str, payload: dict[str, Any]) -> None:
             for key in ("ResourceId", "Scope", "AppId"):
                 if not isinstance(request[key], str) or not request[key].strip():
                     raise SystemExit(f"{key} は空でない文字列で指定してください。")
+    if operation == "agent-template-activate":
+        category = payload["userAssignmentCategory"]
+        members = payload["members"]
+        if category not in {"SpecificUsers", "Everyone"}:
+            raise SystemExit("userAssignmentCategory は SpecificUsers または Everyone で指定してください。")
+        if not isinstance(members, list):
+            raise SystemExit("members は配列で指定してください。")
+        if category == "SpecificUsers" and not members:
+            raise SystemExit("SpecificUsers では members を 1 件以上指定してください（全置換のため空にすると誰も作成できなくなる）。")
+        seen: set[str] = set()
+        for member in members:
+            if not isinstance(member, dict) or set(member) != {"id", "type"}:
+                raise SystemExit("members の各要素は id と type だけを持つ object にしてください。")
+            if member["type"] not in {"User", "Group"}:
+                raise SystemExit("member type は User または Group で指定してください。")
+            if not isinstance(member["id"], str) or not GUID_RE.match(member["id"]):
+                raise SystemExit("member id は Entra オブジェクト ID（GUID）で指定してください。")
+            if member["id"].lower() in seen:
+                raise SystemExit("members に重複した id があります。")
+            seen.add(member["id"].lower())
 
 
 def build_plan(args: argparse.Namespace) -> dict[str, Any]:
     payload = load_payload(args.payload_file)
     validate_payload(args.operation, payload)
     contract = CONTRACTS[args.operation]
+    path = contract["path"]
+    read_back = contract["readBack"]
     query: dict[str, str] = {}
+    read_back_query: dict[str, str] = {}
     if args.operation == "agent-availability":
         if not args.bot_id or not args.environment_id:
             raise SystemExit("agent-availability では --bot-id と --environment-id が必須です。")
@@ -266,15 +301,26 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
         if not args.workload:
             raise SystemExit("agent-request-approve では --workload が必須です。")
         query = {"workload": args.workload}
-    return {
+    if args.operation == "agent-template-activate":
+        title_id = getattr(args, "title_id", None) or ""
+        if not TITLE_ID_RE.match(title_id):
+            raise SystemExit("agent-template-activate では --title-id（T_<GUID>）が必須です。")
+        path = path.format(titleId=title_id)
+        read_back = read_back.format(titleId=title_id)
+        query = {"workloads": "SharedAgent", "overwrite": "true"}
+        read_back_query = {"workload": "SharedAgent", "extendedProperties": "AllowedUsersAndGroups"}
+    plan = {
         "origin": "https://admin.cloud.microsoft",
         "operation": args.operation,
         "method": contract["method"],
-        "path": contract["path"],
+        "path": path,
         "query": query,
         "payload": payload,
-        "readBack": contract["readBack"],
+        "readBack": read_back,
     }
+    if read_back_query:
+        plan["readBackQuery"] = read_back_query
+    return plan
 
 
 def main() -> None:
@@ -284,6 +330,7 @@ def main() -> None:
     parser.add_argument("--bot-id")
     parser.add_argument("--environment-id")
     parser.add_argument("--workload")
+    parser.add_argument("--title-id", help="agent-template-activate の対象 titleId（T_<GUID>）")
     parser.add_argument("--expected-hash")
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()

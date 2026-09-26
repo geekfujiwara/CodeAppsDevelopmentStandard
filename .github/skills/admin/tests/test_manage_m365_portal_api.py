@@ -172,6 +172,43 @@ class ManageM365PortalApiTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             MODULE.validate_payload("agent-update-app", {**payload, "SendEmailToUsers": True})
 
+    TITLE = "T_00000000-0000-4000-8000-000000000001"
+    MEMBER = {"id": "00000000-0000-0000-0000-000000000001", "type": "User"}
+
+    def test_template_activate_embeds_title_id(self):
+        args = argparse.Namespace(
+            operation="agent-template-activate",
+            payload_file=self.payload_file({"members": [self.MEMBER], "userAssignmentCategory": "SpecificUsers"}),
+            bot_id=None, environment_id=None, workload=None, title_id=self.TITLE,
+        )
+        plan = MODULE.build_plan(args)
+        self.assertEqual(f"/fd/addins/api/v2/agenticapps/{self.TITLE}/allowUsers", plan["path"])
+        self.assertEqual({"workloads": "SharedAgent", "overwrite": "true"}, plan["query"])
+        self.assertEqual(f"/fd/addins/api/availableAgents/details/{self.TITLE}", plan["readBack"])
+
+    def test_template_activate_requires_title_id(self):
+        args = argparse.Namespace(
+            operation="agent-template-activate",
+            payload_file=self.payload_file({"members": [self.MEMBER], "userAssignmentCategory": "SpecificUsers"}),
+            bot_id=None, environment_id=None, workload=None, title_id="../apps",
+        )
+        with self.assertRaises(SystemExit):
+            MODULE.build_plan(args)
+
+    def test_template_activate_rejects_empty_specific_and_bad_member(self):
+        with self.assertRaises(SystemExit):
+            MODULE.validate_payload("agent-template-activate", {"members": [], "userAssignmentCategory": "SpecificUsers"})
+        with self.assertRaises(SystemExit):
+            MODULE.validate_payload(
+                "agent-template-activate",
+                {"members": [{"id": "user@example.com", "type": "User"}], "userAssignmentCategory": "SpecificUsers"},
+            )
+        with self.assertRaises(SystemExit):
+            MODULE.validate_payload(
+                "agent-template-activate", {"members": [self.MEMBER, self.MEMBER], "userAssignmentCategory": "SpecificUsers"}
+            )
+        MODULE.validate_payload("agent-template-activate", {"members": [], "userAssignmentCategory": "Everyone"})
+
 
 if __name__ == "__main__":
     unittest.main()
