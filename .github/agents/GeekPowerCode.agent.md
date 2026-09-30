@@ -86,6 +86,7 @@ python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --
 | データ移行（マッピング・投入・照合） | .github/skills/data-migration/SKILL.md |
 | Web Code Apps（React/Vite） | .github/skills/code-apps/SKILL.md |
 | Native Mobile Code Apps（Expo/React Native、Private Preview） | .github/skills/mobile-apps/SKILL.md |
+| Copilot Managed Runtime アプリ（ms CLI / @microsoft/managed-apps、Public Preview） | .github/skills/managed-runtime/SKILL.md |
 | Power Automate | .github/skills/power-automate/SKILL.md |
 | Copilot Studio (v1/旧) | .github/skills/copilot-studio/SKILL.md |
 | Copilot Studio v2 (新アーキ/自動構築) | .github/skills/copilot-studio-v2/SKILL.md |

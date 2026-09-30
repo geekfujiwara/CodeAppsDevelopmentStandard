@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。構成が確定したら、実装着手前に admin スキルで環境チェック（既定環境ではないか・マネージド環境・Code Apps / MCP の有効化・セキュリティ ロール）と DLP 事前チェック（使用コネクタがブロックされていないか・Business / Non-business が混在しないか）を実行して結果をユーザーに提示する。Agent 365 の AI チームメイトを採用する場合はライト実装（PoC）と本格実装（private リポジトリ + CI/CD + Agent Evals）を AskUserQuestion で選ばせ、Git ホスティング（GitHub / Azure DevOps Repos / その他）も確定してから実装へ進む。外部の文章を読むエージェントではプロンプト インジェクション対策を設計段階で工数に含める。"
+description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Copilot Managed Runtime / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。社内向け画面は利用者のライセンス（Power Apps Premium か、Copilot Credits の従量課金か）と利用頻度をヒアリングし、Code Apps と Copilot Managed Runtime を使い分ける。構成が確定したら、実装着手前に admin スキルで環境チェック（既定環境ではないか・マネージド環境・Code Apps / MCP の有効化・セキュリティ ロール）と DLP 事前チェック（使用コネクタがブロックされていないか・Business / Non-business が混在しないか）を実行して結果をユーザーに提示する。Agent 365 の AI チームメイトを採用する場合はライト実装（PoC）と本格実装（private リポジトリ + CI/CD + Agent Evals）を AskUserQuestion で選ばせ、Git ホスティング（GitHub / Azure DevOps Repos / その他）も確定してから実装へ進む。外部の文章を読むエージェントではプロンプト インジェクション対策を設計段階で工数に含める。"
 category: architecture
 triggers:
   - "アーキテクチャ設計"
@@ -9,6 +9,14 @@ triggers:
   - "技術選定"
   - "Copilot Studio vs Power Automate"
   - "Code Apps vs Canvas Apps"
+  - "Managed Runtime"
+  - "Copilot Managed Runtime"
+  - "managed-apps"
+  - "Code Apps vs Managed Runtime"
+  - "ライセンスで選ぶ"
+  - "Power Apps Premium を持っていない"
+  - "Copilot Credits で払いたい"
+  - "従量課金で使いたい"
   - "AI Builder"
   - "Cowork プラグイン"
   - "Copilot Studio スキル"
@@ -66,6 +74,7 @@ triggers:
 | **解決したい課題** | 今どんな問題・不便がありますか？ |
 | **現状の管理方法** | 今は Excel・メール・紙などで管理していますか？ |
 | **利用者・規模** | 誰が使いますか？社内のみですか？何人くらいですか？ |
+| **利用者のライセンスと頻度** | 使う人は Power Apps Premium を持っていますか？持っていない人は毎日使いますか、それとも月に数回ですか？（→ §5「ライセンスで使い分ける」） |
 | **必要な操作** | 登録・検索・承認・通知・レポートのうち何が必要ですか？ |
 | **外部連携** | Teams / Outlook / SharePoint / 既存システムとつなぎたいですか？ |
 | **Dataverse 外のデータ** | 参照したいデータは **既存の基幹 DB・ファイルサーバー・業務 API** にありますか？（→ あるなら §6.5：自前 MCP Server） |
@@ -100,7 +109,8 @@ Power Pages では認証方式と table permission をそれぞれ別条件と�
 | --------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | **Copilot Studio**    | 自然言語対話、ナレッジ検索、LLM による推論・要約、ツール呼び出しの自律的オーケストレーション | 確定的なフロー制御、大量データの一括処理、トランザクション保証 |
 | **Power Automate**    | イベント駆動の自動化、確定的なワークフロー、コネクタ経由の外部連携、条件分岐・ループ         | 自然言語対話、あいまいな入力の解釈、自律的判断                 |
-| **Code Apps**         | React/Vite のリッチ Web UI、複雑なデータ操作画面、カスタムビジュアル                          | ノーコードでの素早いプロトタイプ、モバイルネイティブ           |
+| **Code Apps**         | React/Vite のリッチ Web UI、複雑なデータ操作画面、カスタムビジュアル。利用者は Power Apps Premium 等が必要                          | ノーコードでの素早いプロトタイプ、モバイルネイティブ、Copilot Credits での支払い           |
+| **Copilot Managed Runtime** | M365 内部 LOB アプリ、Git commit 単位の build / preview / deploy、M365 管理面への集約。**利用者は Power Apps Premium か Copilot Credits の従量課金で使える**（Public Preview） | GA 必須、Azure B2B guest、Dataverse Solution / Power Platform Pipelines 中心の ALM |
 | **Native Mobile Code Apps** | Expo/React Native、camera／barcode／location 等の端末機能、Wrap（Private Preview） | 本番利用、store 配布、未検証の offline runtime |
 | **Canvas Apps**       | （常に対象外 — パフォーマンス・カスタマイズ性・エンタープライズ運用の観点で不採用）           | —                                                                |
 | **Model-Driven Apps** | Dataverse 標準 UI、フォーム/ビュー/ダッシュボードの自動生成、ビジネスルール統合              | カスタムビジュアル、外部 JS ライブラリ、ノーコード開発者       |
@@ -111,6 +121,12 @@ Power Pages では認証方式と table permission をそれぞれ別条件と�
 | **Copilot Cowork プラグイン** | M365 Copilot 上での自然言語登録・照会（Dataverse MCP / **自前 MCP Server** 経由）。M365 Copilot との統合が必須要件の場合に採用。**会社環境で Cowork の利用が許可されている場合のみ推奨** | 環境制約が多い（Entra App 登録・Teams 開発者ポータル・M365 管理センター公開・Teams Admin / Global Admin 権限が必要）。環境が揃わない場合は Copilot Studio v2 + Dataverse MCP を優先 |
 | **自前 MCP Server（Azure Functions）** | **Dataverse に無いデータ**（既存の基幹 DB / ファイルサーバー / 業務 API）をエージェントに公開する。Private Endpoint の内側にあるデータをキーレス（Entra JWT + Managed Identity）で提供。**Copilot Studio / Cowork の両方から同じ Server を使い回せる** | ノーコードでの構築。Azure の基盤（VNet / Private Endpoint / 監視）と運用が別途必要。Dataverse の行レベルセキュリティは傣かない（自前で設計する） |
 | **Agent 365 / AI チームメイト** | カスタムエンジンエージェントをコードファーストでバージョン管理し、Teams / M365 Copilot へ公開。インストールごとの専用 Entra Agent ID。**エージェント自身のメールアドレス・予定表・権限を持つ「デジタルな同僚」**（★ §7: 採用時はライト/本格を必ず確認） | ノーコードでの素早い構築、Code Apps / Web への埋め込み、Dataverse 標準 UI |
+
+> **Code Apps と Copilot Managed Runtime の選定**:
+> [比較リファレンス](references/managed-runtime-vs-code-apps.md)を参照する。
+> 現時点では Code Apps は GA、Copilot Managed Runtime は Public Preview である。
+> `@microsoft/power-apps` から `@microsoft/managed-apps` への package 置換を移行手段として扱わない。
+> Managed Runtime を採用した場合の実装は [`managed-runtime` スキル](../managed-runtime/SKILL.md) で行う。
 
 ---
 
@@ -327,7 +343,11 @@ Q: 対象ユーザーは？
 
         ├─ YES → Model-Driven Apps
         │
-        └─ NO（新規の独自 UI）→ Code Apps（UI の複雑さに関わらず一択。Canvas Apps は常に対象外）
+        └─ NO（新規の独自 UI）→ Q: 使う人のライセンスと頻度は？（下の「ライセンスで使い分ける」）
+              ├─ ほとんどが Power Apps Premium を持つ／ゲストが使う／GA が必須 → Code Apps（既定）
+              └─ Premium を持たない人が中心で、使うのはたまに
+                    → Copilot Managed Runtime（Copilot Credits の従量課金）を選択肢として提示
+                       （Public Preview の承認が必要。承認がなければ Code Apps）
 ```
 
 ### 外部ユーザー向け UI: 既定は Azure、Power Pages はユーザー宣言時のみ
@@ -357,11 +377,54 @@ Power Pages を選ぶ条件（ユーザー宣言 + 以下が該当）:
 > Code Apps / Canvas / MDA の機能比較マトリクス（11 項目、Canvas は参考情報）は
 > [コンポーネント選定 詳細](references/component-selection-details.md#3-ui-code-apps-vs-canvas-apps-vs-model-driven-apps機能比較) を参照。
 
+### 内部ユーザー向け: ライセンスで Code Apps と Copilot Managed Runtime を使い分ける
+
+社内向けの新規画面は、**使う人が持っているライセンス**と**使う頻度**で適した基盤が変わる。
+§0 のヒアリングで必ず確認し、構成案と見積もりに「誰がどのライセンスで使うか」を書く。
+
+| 観点 | Code Apps | Copilot Managed Runtime |
+|---|---|---|
+| 使う人に必要なもの | Power Apps Premium、Power Apps の従量課金（Azure サブスクリプション経由）、App Pass、自動割り当てのいずれか | Power Apps Premium、**または Copilot Credits**（Managed Application Copilot Credits） |
+| Copilot Credits で払えるか | 払えない | 払える。アプリの起動ごとと API 呼び出しごとに消費する（API 呼び出しは 1 回 0.1 クレジット） |
+| Premium を持つ人 | 追加費用なし | クレジットを消費しない。ただし Work IQ API など別課金のサービスと、Premium の API 要求上限を超えた分は消費する |
+| 費用の管理場所 | ライセンス割り当てと Power Platform の従量課金プラン | Microsoft 365 管理センター → Copilot → Cost management（使う人ごとの支出ポリシー） |
+| 製品の状態 | GA | Public Preview |
+
+| 使う人の状況 | 提案 |
+|---|---|
+| ほとんどが Power Apps Premium を持っている | **Code Apps**（追加費用なし、GA） |
+| Premium を持たない人が多く、使うのは月に数回・繁忙期だけなど不定期 | **Copilot Managed Runtime を選択肢として提示**。ライセンスを買わずに、使った分だけクレジットで払える |
+| Premium を持たない人が毎日繰り返し使う | **両方を見積もって比較**する。クレジットは起動と API 呼び出しの回数に比例するため、Premium や Power Apps の従量課金の方が安くなることがある |
+| Cowork や Copilot Studio のためにクレジットを購入済み | Managed Runtime の実行費用を同じクレジットでまかなえる。選択肢として提示する |
+| ゲスト（社外の人）が使う、または GA が必須 | **Code Apps**（Managed Runtime はゲスト非対応で Preview） |
+
+AskUserQuestion の例（専門用語を避け、1 回で聞く）:
+
+> このアプリを使う人の契約について教えてください。
+> - **使う人のほとんどが Power Apps Premium を持っている** → Code Apps で作ります（追加費用はかかりません）
+> - **Premium を持っていない人が多く、使うのはたまに** → 使った分だけ Copilot クレジットで払える Copilot Managed Runtime も選べます（プレビュー版です）
+> - **分からない** → 管理者に確認できるまで Code Apps を前提に進めます
+
+Copilot Managed Runtime を選んだら、次も構成案と見積もりに書く。
+
+1. **クレジット消費の見積もり**: 使う人の数 × 月の起動回数 と、1 回の利用あたりの API 呼び出し回数 × 0.1 から見積もる。
+   起動 1 回あたりの消費量と単価は [Copilot Credits ライセンス ガイド](https://aka.ms/CopilotCredits/LicensingGuide) で確認し、推測の数字を書かない。
+2. **管理者の設定**: M365 管理センターで従量課金を有効にし、**アプリを使う人**を実行用の支出ポリシーの対象に入れる。
+   作るときの課金設定とは別に必要。
+3. **不足時の動き**: Preview 中は、クレジットが足りない人は警告の後、20 操作または 5 分で使えなくなる。
+4. **作る側の費用**: Cowork で作る → Microsoft 365 Copilot ライセンス＋クレジット。
+   Copilot Studio で作る → 環境単位のクレジット（作成・テストの段階から課金）。
+   CLI / SDK で作る → Learn の作成課金表には記載がない。ただし開発者がローカルで動かすときも、使う人と同じライセンス要件がかかる。
+
+実装は [`managed-runtime` スキル](../managed-runtime/SKILL.md)、根拠と比較は
+[比較リファレンスのライセンス節](references/managed-runtime-vs-code-apps.md#6-ライセンスで使い分ける)を参照。
+
 ### このプロジェクトの標準: Code Apps（Canvas Apps は常に対象外）
 
 本プロジェクトでは **Code Apps（TypeScript + React + Tailwind CSS）** を標準とする。
 **Canvas Apps は常に対象外**とする（パフォーマンス・カスタマイズ性・エンタープライズ運用の観点で不向きなため）。
-内部ユーザー向けの新規画面は、UI の複雑さに関わらず常に Code Apps を提案する。
+内部ユーザー向けの新規画面は、UI の複雑さに関わらず Code Apps を既定として提案する。
+ただし使う人が Power Apps Premium を持たず利用が不定期な場合は、上記のとおり Copilot Managed Runtime を選択肢として並べる。
 
 camera、barcode、location 等の端末ネイティブ機能が必須なら、Web Code Apps と Native のどちらかを確認する。
 Native を選ぶ場合だけ [`mobile-apps`](../mobile-apps/SKILL.md) を使い、Private Preview／本番利用禁止への
@@ -755,6 +818,7 @@ AskUserQuestion で次のように尋ねる:
 - [ ] **その業務に繰り返しの仕事が含まれるか？**（毎朝の要約・週次レポート・滞留チェック） → YES なら**聞かれる前に定期実行を提案**する。頻度は質問せず 1 案（例: 平日 8:00 / Teams チャット）を出して可否を取る（§7）
 - [ ] **イベント駆動の自動処理が必要か？** → YES なら Power Automate を含む構成
 - [ ] **データ操作 UI が必要か？** → YES で外部ユーザー向けなら既定 Azure（Power Pages 宣言時のみ Power Pages）、内部ユーザー向けなら Code Apps / Model-Driven Apps を含む構成（Canvas Apps は常に対象外）
+- [ ] **社内向け画面を使う人のライセンスと頻度を確認したか？** → ほとんどが Power Apps Premium を持つなら Code Apps。Premium を持たない人が中心で利用が不定期なら、Copilot Credits の従量課金で使える Copilot Managed Runtime を選択肢として提示し、クレジット消費の見積もりと管理者の支出ポリシー設定を構成案に書く（§5）
 - [ ] **標準ビュー/フォームで十分か？** → YES なら Model-Driven Apps が最速。カスタム UI なら Code Apps
 - [ ] **名前付きの複数 AI エージェント（AI 社員 / AI チーム）を作りたいか？** → YES なら **`ai-teammate` スキル（エージェントテンプレート）を第一候補**にし、実装レベル（ライト/本格）を確認してから着手する
 - [ ] **通知・リマインド等で Power Automate フロー内に、チャット UI を使わずイベント駆動で AI 処理を組み込みたいか？** → YES なら AI Builder を含む構成。それ以外の社内汎用業務は原則 Copilot Studio v2 + Dataverse MCP

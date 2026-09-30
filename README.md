@@ -176,6 +176,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 |---|---|---|
 | GitHub Copilot（VS Code / Claude Code でのエージェント開発） | **GitHub Copilot Pro 以上**（Pro / Pro+ / Business / Enterprise） | [GitHub Copilot のプラン](https://github.com/features/copilot/plans) |
 | Code Apps（コードファースト開発） | **Power Apps Premium** または **Dynamics 365 Enterprise / Customer Engagement**。無料利用は **Power Apps 開発者プランの開発者環境** を使用 | [Power Apps の価格](https://www.microsoft.com/ja-jp/power-platform/products/power-apps/pricing) |
+| Copilot Managed Runtime アプリ（Public Preview） | 使う人ごとに **Power Apps Premium** または **Copilot Credits の従量課金**（起動ごと・API 呼び出しごと）。クレジットで払う場合は、管理者が M365 管理センターで従量課金を有効にし、使う人を実行用の支出ポリシーに入れる | [Copilot Managed Runtime の SDK 概要](https://learn.microsoft.com/en-us/microsoft-365/managed-apps/developer/?view=o365-worldwide)、[Copilot Credits ライセンス ガイド](https://aka.ms/CopilotCredits/LicensingGuide) |
 | Cowork プラグインの開発（会社環境で利用が許可されている場合のみ推奨） | **Microsoft 365 Copilot** ライセンスに加えて、**Azure サブスクリプションの準備**、**Copilot Credits の有効化**、**テナントでの有効化設定** が必要 | [Copilot Credits ライセンス ガイド](https://aka.ms/CopilotCredits/LicensingGuide) |
 | Copilot Studio の利用 | **Microsoft 365 Copilot** ライセンスに加えて、**Azure サブスクリプション**・**リソース グループ**の準備と、**Copilot Credits の環境割り当て** が必要 | [Copilot Studio のライセンス](https://aka.ms/MCSLicJP) |
 
@@ -560,6 +561,7 @@ python .github/skills/admin/scripts/check_development_environment.py --environme
 │       ├── data-migration/          # 既存データのマッピング・投入・照合
 │       ├── code-apps/               # Code Apps 開発（UI 設計・CSP・メール送信含む）
 │       ├── mobile-apps/             # Native Mobile Code Apps 開発（Private Preview）
+│       ├── managed-runtime/         # Copilot Managed Runtime アプリ開発（Public Preview）
 │       ├── power-pages/             # Power Pages コードサイト開発・デプロイ
 │       ├── generative-page/         # Generative Pages 開発
 │       ├── model-driven-app/        # モデル駆動型アプリ構築
@@ -601,6 +603,7 @@ python .github/skills/admin/scripts/check_development_environment.py --environme
 ## 主要ドキュメント
 
 - [.github/skills/standard/references/power-platform-development-standard.md](./.github/skills/standard/references/power-platform-development-standard.md)
+- [Microsoft Copilot Managed Runtime と Power Apps Code Apps の比較](./.github/skills/architecture/references/managed-runtime-vs-code-apps.md)
 - [.github/skills/dataverse/references/dataverse-guide.md](./.github/skills/dataverse/references/dataverse-guide.md)
 - [.github/skills/code-apps/references/connector-reference.md](./.github/skills/code-apps/references/connector-reference.md)
 - [.github/skills/code-apps/references/advanced-patterns.md](./.github/skills/code-apps/references/advanced-patterns.md)

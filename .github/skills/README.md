@@ -119,7 +119,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 
 | スキル | 説明 |
 |--------|------|
-| [architecture](architecture/SKILL.md) | Power Platform 全体の構成方針を設計し、最適なコンポーネント構成を決定する。Agent 365 採用時はライト実装 / 本格実装と Git ホスティングを確定する。 |
+| [architecture](architecture/SKILL.md) | Power Platform 全体の構成方針を設計し、最適なコンポーネント構成を決定する。社内向け画面は使う人のライセンス（Power Apps Premium か Copilot Credits の従量課金か）で Code Apps と Copilot Managed Runtime を使い分ける。Agent 365 採用時はライト実装 / 本格実装と Git ホスティングを確定する。 |
 | [standard](standard/SKILL.md) | 共通認証・環境変数・ソリューション運用など、全スキル共通の開発基盤を提供する。 |
 | [admin](admin/SKILL.md) | テナント / 環境ガバナンスを確認・設定する。開発着手前の環境チェック（既定環境 / マネージド環境 / Dataverse・Code Apps・MCP の有効化 / セキュリティ ロール）と DLP 事前チェックを非対話スクリプトで実行する。 |
 | [update-skills](update-skills/SKILL.md) | スキル（SKILL.md/references/scripts）を作成・更新し、汎用化・秘匿化した上でリモートへ PR を作成・更新する。 |
@@ -142,9 +142,24 @@ triggers:                      # スキル発動条件キーワード（必須�
 |--------|------|
 | [code-apps](code-apps/SKILL.md) | Code Apps を TypeScript/React ベースで開発し、UI 設計からデプロイまで対応する。 |
 | [mobile-apps](mobile-apps/SKILL.md) | Native Mobile Code Apps（Private Preview）を Expo/React Native で開発し、端末機能、実機 preview、Wrap まで対応する。本番利用は禁止。 |
+| [managed-runtime](managed-runtime/SKILL.md) | Copilot Managed Runtime（Public Preview）のアプリを ms CLI と @microsoft/managed-apps SDK で作成する。使う人は Power Apps Premium か Copilot Credits の従量課金で利用できる。リポジトリ方式を作成前に確定し、ローカル開発・コネクタ・preview・live・共有・CI まで対応する。 |
 | [power-pages](power-pages/SKILL.md) | Power Pages コードサイトを pac pages CLI で開発・ビルド・デプロイし、参照可能範囲（Self / Account）に応じたテーブル権限まで構成する。 |
 | [generative-page](generative-page/SKILL.md) | Generative Pages（genux）を開発・デバッグし、モデル駆動型アプリへデプロイする。 |
 | [model-driven-app](model-driven-app/SKILL.md) | モデル駆動型アプリを作成・構成し、公開まで実行する。 |
+
+#### 社内向けアプリの基盤をライセンスで選ぶ
+
+社内向けの新規画面は `code-apps` を既定とし、使う人のライセンスと利用頻度で `managed-runtime` も選択肢に入れる。
+判断は [architecture スキル](architecture/SKILL.md) のヒアリングで行う。
+
+| 使う人の状況 | 選ぶスキル | 支払い方法 |
+|---|---|---|
+| ほとんどが Power Apps Premium を持っている | [code-apps](code-apps/SKILL.md) | Power Apps Premium / Power Apps の従量課金 / App Pass（追加費用なし） |
+| Premium を持たない人が中心で、使うのは不定期 | [managed-runtime](managed-runtime/SKILL.md)（Public Preview） | Copilot Credits の従量課金（起動ごと・API 呼び出しごと）。Premium を持つ人はクレジットを消費しない |
+| Premium を持たない人が毎日使う | 両方を見積もって比較 | クレジットは回数に比例するため、Premium や Power Apps の従量課金が安い場合がある |
+| ゲストが使う、または GA が必須 | [code-apps](code-apps/SKILL.md) | — |
+
+詳細な比較と見積もり方は [Code Apps と Copilot Managed Runtime の比較](architecture/references/managed-runtime-vs-code-apps.md#6-ライセンスで使い分ける)。
 
 ### automation — 自動化
 
@@ -185,6 +200,7 @@ Track A（データ基盤オーナー）:
 Track B（設計承認と同時に着手）:
   4. code-apps          → Code Apps UI 設計・開発・デプロイ
       OR mobile-apps     → Native Mobile Code Apps 開発（Private Preview 承認済みの場合のみ）
+     OR managed-runtime → Copilot Managed Runtime アプリ開発（Public Preview 承認済みの場合のみ）
      OR power-pages     → Power Pages コードサイト開発・デプロイ（Step 4 で参照可能範囲を確定）
      OR generative-page → Generative Pages 開発
      OR model-driven-app → モデル駆動型アプリ構築
