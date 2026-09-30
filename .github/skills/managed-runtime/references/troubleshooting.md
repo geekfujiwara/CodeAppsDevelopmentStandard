@@ -97,3 +97,10 @@ Git リポジトリが入れ子になる。兄弟フォルダーに作る。
 Power Apps Premium を持たない利用者は、Managed Application Copilot Credits を消費する
 （起動ごと、API 呼び出しは 1 回 0.1 credit）。不足時は警告の後、20 操作または 5 分で利用が止まる。
 ローカル実行（`ms app dev`）にもライセンスが適用される。
+
+確認すること:
+
+- 管理者が M365 管理センター → Copilot → Cost management で従量課金を有効にしているか。
+- その利用者が**実行用**の支出ポリシーの対象に入っているか。作成用（Cowork / Copilot Studio）の課金設定とは別。
+- 利用者単位・ポリシー単位の上限に達していないか。
+- Power Apps Premium を持つ利用者でも、Work IQ API など別課金のサービスはクレジットを消費する。

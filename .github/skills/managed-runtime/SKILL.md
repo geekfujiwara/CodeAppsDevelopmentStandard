@@ -34,8 +34,9 @@ SDK（`@microsoft/managed-apps`）で最初から作る。手順は Microsoft Le
 
 | 要件 | 選ぶもの |
 |---|---|
-| GA 必須、Azure B2B ゲスト、Dataverse ソリューション / Power Platform Pipelines 中心 | [`code-apps`](../code-apps/SKILL.md) |
+| GA 必須、Azure B2B ゲスト、Dataverse ソリューション / Power Platform Pipelines 中心、使う人のほとんどが Power Apps Premium を持つ | [`code-apps`](../code-apps/SKILL.md) |
 | Microsoft 365 の社内業務アプリ、Git のコミット単位で preview / live / rollback、M365 管理センターで一元管理 | 本スキル |
+| Power Apps Premium を持たない人が中心で利用が不定期。Copilot Credits の従量課金で払いたい | 本スキル |
 
 `@microsoft/power-apps` を `@microsoft/managed-apps` に置き換えるだけの移行はしない。
 判断材料は [比較リファレンス](../architecture/references/managed-runtime-vs-code-apps.md)。
@@ -57,9 +58,14 @@ SDK（`@microsoft/managed-apps`）で最初から作る。手順は Microsoft Le
 AskUserQuestion で次を確認し、承認がなければ `code-apps` を提案して止まる。
 
 1. Public Preview であること。
-2. 利用者（ローカル実行する開発者を含む）は Power Apps Premium か Managed Application Copilot Credits が必要。
-3. アプリは組織内向け。組織内共有リンクはゲストに使えない。
-4. 既定 CSP は外部通信を遮断する。外部 API はコネクタ経由で呼ぶ。
+2. 使う人ごとの支払い方法。Power Apps Premium を持つ人はクレジットを消費しない。持たない人は
+   Managed Application Copilot Credits で払う（起動ごとと API 呼び出しごと。API 呼び出しは 1 回 0.1 クレジット）。
+   ローカル実行する開発者にも同じ要件がかかる。
+3. クレジットで払う人がいる場合は、管理者が M365 管理センター → Copilot → Cost management で従量課金を有効にし、
+   **使う人**を実行用の支出ポリシーに入れる。作るときの課金設定とは別。見積もり方は
+   [比較リファレンスのライセンス節](../architecture/references/managed-runtime-vs-code-apps.md#6-ライセンスで使い分ける)。
+4. アプリは組織内向け。組織内共有リンクはゲストに使えない。
+5. 既定 CSP は外部通信を遮断する。外部 API はコネクタ経由で呼ぶ。
 
 ### Step 1: 開発前提を確認する
 

@@ -49,7 +49,7 @@ Microsoft 管理ホストで実行し、Entra ID 認証と Power Platform connec
 | 管理 | Microsoft 365 admin center の app inventory、usage、operational health | Power Platform admin center、maker portal、Power Platform Monitor |
 | 認証・ガバナンス | Entra ID、Conditional Access、DLP、ACP、sharing limits、環境単位 CSP | Entra ID、Conditional Access、DLP、app quarantine、tenant isolation、sharing limits |
 | 共有 | user / group へ `play` / `edit`。組織内リンクは guest / external user 非対応 | Power Apps の共有モデル。Azure B2B guest access 対応 |
-| 利用資格 | Power Apps Premium または Managed Application Copilot Credits | Power Apps Premium、Pay-as-you-go、App Pass、Auto-claim |
+| 利用資格 | Power Apps Premium または Managed Application Copilot Credits（従量課金。→ [ライセンスで使い分ける](#6-ライセンスで使い分ける)） | Power Apps Premium、Pay-as-you-go、App Pass、Auto-claim（Copilot Credits は不可） |
 | 向いている ALM | Git commit、PR、hosted preview、明示的 live promotion | Dataverse Solution、connection reference、Power Platform Pipelines |
 
 ## 共通点
@@ -210,6 +210,47 @@ Copilot Managed Runtime は Public Preview である。Microsoft の公式リポ
 API、template、tooling が GA までに変わる可能性を明記している。
 Code Apps は GA のため、GA 必須の本番案件では現時点の標準選択とする。
 
+### 6. ライセンスで使い分ける
+
+両者の大きな違いの一つは、**使う人の支払い方法**である。Code Apps は Power Apps のライセンス系統でしか使えないが、
+Copilot Managed Runtime は Power Apps Premium を持たない人でも **Copilot Credits の従量課金**で使える。
+
+#### 使う人（実行時）
+
+| 項目 | Code Apps | Copilot Managed Runtime |
+|---|---|---|
+| 使えるライセンス | Power Apps Premium / Power Apps の従量課金（Azure サブスクリプション経由）/ App Pass / 自動割り当て | Power Apps Premium / Managed Application Copilot Credits |
+| Copilot Credits | 使えない | 起動ごとと API 呼び出しごとに消費。API 呼び出しは 1 回 0.1 クレジット |
+| Premium を持つ人 | 追加費用なし | クレジットを消費しない。例外は Work IQ API など別課金のサービスと、Premium の API 要求上限を超えた分 |
+| 費用の管理 | ライセンス割り当て、Power Platform の従量課金プラン | M365 管理センター → Copilot → Cost management。使う人ごとの支出ポリシーと上限 |
+| 不足時 | ライセンスが無い人は起動できない | Preview 中は警告の後、20 操作または 5 分で使えなくなる |
+| ローカル実行 | — | 開発者が `ms app dev` で動かすときも同じライセンス要件がかかる |
+
+#### 作る人（作成時）
+
+| 作成方法 | 作成時の課金 | 管理場所 |
+|---|---|---|
+| Copilot Cowork | Microsoft 365 Copilot ライセンスが必要。作成の利用分はクレジットで別途課金（作る人ごと） | M365 管理センター |
+| Copilot Studio | 既存の Copilot Studio の課金でクレジット消費（環境ごと）。作成・テスト・評価の段階から課金 | Power Platform 管理センター |
+| CLI / SDK | Learn の作成課金表に記載なし | — |
+
+作る側の課金設定と、使う側（実行時）の支出ポリシーは**別々に設定する**。
+Copilot Studio で作ったアプリでも、実行時のクレジットは環境単位ではなく、M365 管理センターで使う人ごとに管理する。
+
+#### 使い分けの目安
+
+| 使う人の状況 | 目安 |
+|---|---|
+| ほとんどが Power Apps Premium を持っている | Code Apps（追加費用なし、GA） |
+| Premium を持たない人が多く、使うのは不定期 | Copilot Managed Runtime が有力。ライセンスを買わず、使った分だけ払える |
+| Premium を持たない人が毎日繰り返し使う | 両方を見積もる。クレジットは起動と API 呼び出しの回数に比例するため、Premium や Power Apps の従量課金が安い場合がある |
+| Cowork / Copilot Studio 用にクレジットを購入済み | 同じクレジットで実行費用をまかなえる |
+| ゲストが使う、または GA が必須 | Code Apps |
+
+クレジット消費の見積もりは「使う人の数 × 月の起動回数 × 起動 1 回の消費量」と
+「API 呼び出し回数 × 0.1」の合計で考える。起動 1 回の消費量とクレジット単価は Learn の該当ページに記載がないため、
+[Copilot Credits ライセンス ガイド](https://aka.ms/CopilotCredits/LicensingGuide) で確認する。推測の数字を見積もりに書かない。
+
 ## 選定基準
 
 ### Copilot Managed Runtime を検討する
@@ -219,10 +260,12 @@ Code Apps は GA のため、GA 必須の本番案件では現時点の標準選
 - Git commit、PR review、hosted preview、commit SHA rollback を ALM の中心にしたい。
 - M365 admin center で tenant-wide inventory / usage / health を管理したい。
 - Public Preview の変更リスクを受容できる PoC または評価案件である。
+- 使う人の多くが Power Apps Premium を持たず、利用が不定期で、Copilot Credits の従量課金で払いたい。
 
 ### Power Apps Code Apps を優先する
 
 - GA が必須である。
+- 使う人のほとんどが Power Apps Premium を持っている。
 - Dataverse Solution、connection reference、Power Platform Pipelines が ALM の中心である。
 - Power Platform admin center / maker portal を運用の中心にする。
 - Azure B2B guest を含む共有が必要である。
@@ -232,9 +275,11 @@ Code Apps は GA のため、GA 必須の本番案件では現時点の標準選
 
 1. GA 必須、または Azure B2B guest 必須なら **Code Apps**。
 2. Dataverse Solution / Power Platform Pipelines を優先するなら **Code Apps**。
-3. M365 全体の app inventory と複数作成面の統合を優先するなら **Copilot Managed Runtime** を評価する。
-4. Git commit 単位の preview / live / rollback を優先するなら **Copilot Managed Runtime** を評価する。
-5. 判断できない場合は、現在 GA の **Code Apps** を標準とし、Managed Runtime は限定 PoC に留める。
+3. 使う人のほとんどが Power Apps Premium を持つなら **Code Apps**。持たない人が中心で利用が不定期なら
+   **Copilot Managed Runtime**（Copilot Credits の従量課金）を評価する。
+4. M365 全体の app inventory と複数作成面の統合を優先するなら **Copilot Managed Runtime** を評価する。
+5. Git commit 単位の preview / live / rollback を優先するなら **Copilot Managed Runtime** を評価する。
+6. 判断できない場合は、現在 GA の **Code Apps** を標準とし、Managed Runtime は限定 PoC に留める。
 
 ## 移行・共存時のガードレール
 
@@ -279,6 +324,8 @@ Code Apps は GA のため、GA 必須の本番案件では現時点の標準選
 - [Content Security Policy](https://learn.microsoft.com/en-us/microsoft-365/managed-apps/developer/content-security-policy?view=o365-worldwide)
 - [Monitoring](https://learn.microsoft.com/en-us/microsoft-365/managed-apps/developer/monitor-apps?view=o365-worldwide)
 - [M365 admin overview](https://learn.microsoft.com/en-us/microsoft-365/admin/manage/apps/?view=o365-worldwide)
+- [Copilot Credits の従量課金とコスト管理](https://learn.microsoft.com/en-us/microsoft-365/copilot/usage-based-billing-overview-copilot-credits)
+- [Copilot Credits ライセンス ガイド](https://aka.ms/CopilotCredits/LicensingGuide)
 - [公式 GitHub repository](https://github.com/microsoft/managed-apps)
 
 ### Power Apps Code Apps
