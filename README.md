@@ -560,6 +560,7 @@ python .github/skills/admin/scripts/check_development_environment.py --environme
 │       ├── data-migration/          # 既存データのマッピング・投入・照合
 │       ├── code-apps/               # Code Apps 開発（UI 設計・CSP・メール送信含む）
 │       ├── mobile-apps/             # Native Mobile Code Apps 開発（Private Preview）
+│       ├── managed-runtime/         # Copilot Managed Runtime アプリ開発（Public Preview）
 │       ├── power-pages/             # Power Pages コードサイト開発・デプロイ
 │       ├── generative-page/         # Generative Pages 開発
 │       ├── model-driven-app/        # モデル駆動型アプリ構築
@@ -601,6 +602,7 @@ python .github/skills/admin/scripts/check_development_environment.py --environme
 ## 主要ドキュメント
 
 - [.github/skills/standard/references/power-platform-development-standard.md](./.github/skills/standard/references/power-platform-development-standard.md)
+- [Microsoft Copilot Managed Runtime と Power Apps Code Apps の比較](./.github/skills/architecture/references/managed-runtime-vs-code-apps.md)
 - [.github/skills/dataverse/references/dataverse-guide.md](./.github/skills/dataverse/references/dataverse-guide.md)
 - [.github/skills/code-apps/references/connector-reference.md](./.github/skills/code-apps/references/connector-reference.md)
 - [.github/skills/code-apps/references/advanced-patterns.md](./.github/skills/code-apps/references/advanced-patterns.md)

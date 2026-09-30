@@ -1,0 +1,53 @@
+name: Deploy Copilot Managed Runtime app
+
+# 外部成果物デプロイ（ms app create --repo none で作成したアプリ）用。
+# 前提: 管理者が Allow external artifact deployment を有効化し、
+#       リポジトリ シークレット PP_SP_CLIENT_ID / PP_SP_CLIENT_SECRET / PP_SP_TENANT_ID を登録済み。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-managed-app
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Install app dependencies
+        working-directory: ${MANAGED_APP_WORKDIR}
+        run: npm install
+
+      - name: Install ms CLI
+        uses: microsoft/Managed-Apps/github-actions/install-ms-cli@${MANAGED_APPS_ACTIONS_REF}
+
+      - name: Pack app
+        uses: microsoft/Managed-Apps/github-actions/ms-app-pack@${MANAGED_APPS_ACTIONS_REF}
+        with:
+          working-directory: '${MANAGED_APP_WORKDIR}'
+          app-id: ${{ secrets.PP_SP_CLIENT_ID }}
+          client-secret: ${{ secrets.PP_SP_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.PP_SP_TENANT_ID }}
+
+      - name: Deploy app
+        uses: microsoft/Managed-Apps/github-actions/ms-app-deploy@${MANAGED_APPS_ACTIONS_REF}
+        with:
+          working-directory: '${MANAGED_APP_WORKDIR}'
+          app-id: ${{ secrets.PP_SP_CLIENT_ID }}
+          client-secret: ${{ secrets.PP_SP_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.PP_SP_TENANT_ID }}

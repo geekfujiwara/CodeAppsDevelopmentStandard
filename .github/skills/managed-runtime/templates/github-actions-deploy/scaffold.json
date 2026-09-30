@@ -1,0 +1,14 @@
+{
+  "description": "外部成果物デプロイ（repoType: none）用の GitHub Actions ワークフロー。既存アプリのリポジトリ ルートへ重ねる",
+  "variables": [
+    "MANAGED_APP_WORKDIR",
+    "MANAGED_APPS_ACTIONS_REF"
+  ],
+  "nextSteps": [
+    "管理者に Allow external artifact deployment の有効化を依頼する（既定は無効）",
+    "サービス プリンシパルを登録し、アプリの環境へ権限を付与する（references/github-actions.md）",
+    "リポジトリ シークレット PP_SP_CLIENT_ID / PP_SP_CLIENT_SECRET / PP_SP_TENANT_ID を登録する",
+    "GitHub の Environment 'production' に承認者を設定する",
+    "git add .github/workflows/deploy-managed-app.yml && git commit && git push"
+  ]
+}

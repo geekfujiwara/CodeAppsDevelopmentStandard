@@ -142,6 +142,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 |--------|------|
 | [code-apps](code-apps/SKILL.md) | Code Apps を TypeScript/React ベースで開発し、UI 設計からデプロイまで対応する。 |
 | [mobile-apps](mobile-apps/SKILL.md) | Native Mobile Code Apps（Private Preview）を Expo/React Native で開発し、端末機能、実機 preview、Wrap まで対応する。本番利用は禁止。 |
+| [managed-runtime](managed-runtime/SKILL.md) | Copilot Managed Runtime（Public Preview）のアプリを ms CLI と @microsoft/managed-apps SDK で作成する。リポジトリ方式を作成前に確定し、ローカル開発・コネクタ・preview・live・共有・CI まで対応する。 |
 | [power-pages](power-pages/SKILL.md) | Power Pages コードサイトを pac pages CLI で開発・ビルド・デプロイし、参照可能範囲（Self / Account）に応じたテーブル権限まで構成する。 |
 | [generative-page](generative-page/SKILL.md) | Generative Pages（genux）を開発・デバッグし、モデル駆動型アプリへデプロイする。 |
 | [model-driven-app](model-driven-app/SKILL.md) | モデル駆動型アプリを作成・構成し、公開まで実行する。 |
@@ -185,6 +186,7 @@ Track A（データ基盤オーナー）:
 Track B（設計承認と同時に着手）:
   4. code-apps          → Code Apps UI 設計・開発・デプロイ
       OR mobile-apps     → Native Mobile Code Apps 開発（Private Preview 承認済みの場合のみ）
+     OR managed-runtime → Copilot Managed Runtime アプリ開発（Public Preview 承認済みの場合のみ）
      OR power-pages     → Power Pages コードサイト開発・デプロイ（Step 4 で参照可能範囲を確定）
      OR generative-page → Generative Pages 開発
      OR model-driven-app → モデル駆動型アプリ構築

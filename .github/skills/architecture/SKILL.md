@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。構成が確定したら、実装着手前に admin スキルで環境チェック（既定環境ではないか・マネージド環境・Code Apps / MCP の有効化・セキュリティ ロール）と DLP 事前チェック（使用コネクタがブロックされていないか・Business / Non-business が混在しないか）を実行して結果をユーザーに提示する。Agent 365 の AI チームメイトを採用する場合はライト実装（PoC）と本格実装（private リポジトリ + CI/CD + Agent Evals）を AskUserQuestion で選ばせ、Git ホスティング（GitHub / Azure DevOps Repos / その他）も確定してから実装へ進む。外部の文章を読むエージェントではプロンプト インジェクション対策を設計段階で工数に含める。"
+description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Copilot Managed Runtime / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。構成が確定したら、実装着手前に admin スキルで環境チェック（既定環境ではないか・マネージド環境・Code Apps / MCP の有効化・セキュリティ ロール）と DLP 事前チェック（使用コネクタがブロックされていないか・Business / Non-business が混在しないか）を実行して結果をユーザーに提示する。Agent 365 の AI チームメイトを採用する場合はライト実装（PoC）と本格実装（private リポジトリ + CI/CD + Agent Evals）を AskUserQuestion で選ばせ、Git ホスティング（GitHub / Azure DevOps Repos / その他）も確定してから実装へ進む。外部の文章を読むエージェントではプロンプト インジェクション対策を設計段階で工数に含める。"
 category: architecture
 triggers:
   - "アーキテクチャ設計"
@@ -9,6 +9,10 @@ triggers:
   - "技術選定"
   - "Copilot Studio vs Power Automate"
   - "Code Apps vs Canvas Apps"
+  - "Managed Runtime"
+  - "Copilot Managed Runtime"
+  - "managed-apps"
+  - "Code Apps vs Managed Runtime"
   - "AI Builder"
   - "Cowork プラグイン"
   - "Copilot Studio スキル"
@@ -101,6 +105,7 @@ Power Pages では認証方式と table permission をそれぞれ別条件と�
 | **Copilot Studio**    | 自然言語対話、ナレッジ検索、LLM による推論・要約、ツール呼び出しの自律的オーケストレーション | 確定的なフロー制御、大量データの一括処理、トランザクション保証 |
 | **Power Automate**    | イベント駆動の自動化、確定的なワークフロー、コネクタ経由の外部連携、条件分岐・ループ         | 自然言語対話、あいまいな入力の解釈、自律的判断                 |
 | **Code Apps**         | React/Vite のリッチ Web UI、複雑なデータ操作画面、カスタムビジュアル                          | ノーコードでの素早いプロトタイプ、モバイルネイティブ           |
+| **Copilot Managed Runtime** | M365 内部 LOB アプリ、Git commit 単位の build / preview / deploy、M365 管理面への集約（Public Preview） | GA 必須、Azure B2B guest、Dataverse Solution / Power Platform Pipelines 中心の ALM |
 | **Native Mobile Code Apps** | Expo/React Native、camera／barcode／location 等の端末機能、Wrap（Private Preview） | 本番利用、store 配布、未検証の offline runtime |
 | **Canvas Apps**       | （常に対象外 — パフォーマンス・カスタマイズ性・エンタープライズ運用の観点で不採用）           | —                                                                |
 | **Model-Driven Apps** | Dataverse 標準 UI、フォーム/ビュー/ダッシュボードの自動生成、ビジネスルール統合              | カスタムビジュアル、外部 JS ライブラリ、ノーコード開発者       |
@@ -111,6 +116,12 @@ Power Pages では認証方式と table permission をそれぞれ別条件と�
 | **Copilot Cowork プラグイン** | M365 Copilot 上での自然言語登録・照会（Dataverse MCP / **自前 MCP Server** 経由）。M365 Copilot との統合が必須要件の場合に採用。**会社環境で Cowork の利用が許可されている場合のみ推奨** | 環境制約が多い（Entra App 登録・Teams 開発者ポータル・M365 管理センター公開・Teams Admin / Global Admin 権限が必要）。環境が揃わない場合は Copilot Studio v2 + Dataverse MCP を優先 |
 | **自前 MCP Server（Azure Functions）** | **Dataverse に無いデータ**（既存の基幹 DB / ファイルサーバー / 業務 API）をエージェントに公開する。Private Endpoint の内側にあるデータをキーレス（Entra JWT + Managed Identity）で提供。**Copilot Studio / Cowork の両方から同じ Server を使い回せる** | ノーコードでの構築。Azure の基盤（VNet / Private Endpoint / 監視）と運用が別途必要。Dataverse の行レベルセキュリティは傣かない（自前で設計する） |
 | **Agent 365 / AI チームメイト** | カスタムエンジンエージェントをコードファーストでバージョン管理し、Teams / M365 Copilot へ公開。インストールごとの専用 Entra Agent ID。**エージェント自身のメールアドレス・予定表・権限を持つ「デジタルな同僚」**（★ §7: 採用時はライト/本格を必ず確認） | ノーコードでの素早い構築、Code Apps / Web への埋め込み、Dataverse 標準 UI |
+
+> **Code Apps と Copilot Managed Runtime の選定**:
+> [比較リファレンス](references/managed-runtime-vs-code-apps.md)を参照する。
+> 現時点では Code Apps は GA、Copilot Managed Runtime は Public Preview である。
+> `@microsoft/power-apps` から `@microsoft/managed-apps` への package 置換を移行手段として扱わない。
+> Managed Runtime を採用した場合の実装は [`managed-runtime` スキル](../managed-runtime/SKILL.md) で行う。
 
 ---
 
