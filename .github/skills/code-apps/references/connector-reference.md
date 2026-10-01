@@ -1,5 +1,8 @@
 # コネクタ設定 詳細リファレンス
 
+> 自前の API（Entra ID で保護）をカスタム コネクタにして呼ぶ場合は [custom-connector スキル](../../custom-connector/SKILL.md)。
+> OAuth の接続作成・接続参照のバインド・API 側の認可（コネクタのトークンは `scp=User.Read`）まで扱う。
+
 Power Apps Code Apps でサポートされるコネクタの設定方法と使用例を記載します。
 
 ---
@@ -161,6 +164,32 @@ await SharePointService.PostItem("{site-url}", "{list-id}", {
   Status: "Draft",
 });
 ```
+
+### ファイルを保存する（操作として追加する）
+
+リストを指定して追加（`--table`）すると、生成されるのはリストの CRUD だけで、ファイル作成などの操作は入らない。
+操作は **`--as action`** で別に追加する（`SharePointService` が生成される）。
+
+```bash
+python .github/skills/code-apps/scripts/add_data_source.py --connector sharepoint --as action \
+  --connection-ref {CR_LOGICAL_NAME} --solution-id {SOLUTION_ID}
+```
+
+```typescript
+// 実測（2026-10）の 2 つの約束:
+// 1. 本文（format: binary）は base64 文字列で渡す。SDK が Uint8Array に戻して application/octet-stream で送る
+// 2. dataset（サイト URL）はコネクタが二重エンコードで受ける。SDK はパス引数を 1 回しかエンコードしないため、
+//    先に 1 回 encodeURIComponent して渡す（そのままだと 400 "Route did not match"）
+const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1)
+const result = await SharePointService.CreateFile(
+  encodeURIComponent("{site-url}"),
+  "/{library-url-name}/{folder}/{subfolder}",   // 無いフォルダーは作られる
+  "{file-name}.webm",
+  base64,
+)
+```
+
+保存したファイルの読み戻しは Graph（sharepoint スキル）で確認できる。録音 600 KB で約 2 秒、バイト数が一致した。
 
 ---
 

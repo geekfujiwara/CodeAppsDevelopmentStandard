@@ -2589,3 +2589,41 @@ AudioWorklet にする（[デバイス・メディア](device-media.md) §3・§
 
 **恒久対策済み**: `scripts/run_headless_media_test.ps1` がブラウザの CSP 違反を毎回数えて警告する。
 停止に耐えるかは [ホスト再現テスト](host-emulation-testing.md) Step 4 で確認する。
+
+## 57. SharePoint のファイル作成が 400 `Route did not match`／ファイル作成のメソッドが生成されない（検証済 2026-10-02）
+
+### 症状
+
+- リストを指定してデータソースを追加すると、`<List>Service` の CRUD しか生成されず、`CreateFile` が無い
+- `SharePointService.CreateFile(siteUrl, …)` が 400 `Route did not match` になる
+
+### 原因
+
+- テーブル（リスト）として追加したデータソースには、コネクタの操作が含まれない。両方に対応するコネクタは `--as table` / `--as action` を選ぶ
+- SharePoint コネクタのランタイムは、パスの dataset（サイト URL）を**二重エンコード**で受ける。SDK はパス引数を 1 回しかエンコードしない
+  （ランタイムに直接送って確認: 1 回 → 400、2 回 → 200）
+
+### 対処
+
+`add_data_source.py --connector sharepoint --as action` で操作を追加し、dataset は `encodeURIComponent(siteUrl)` を渡す。
+本文（`format: binary`）は base64 文字列で渡す（SDK がバイナリに戻す）。例は [コネクタ リファレンス](connector-reference.md#ファイルを保存する操作として追加する)。
+
+**恒久対策済み**: `add_data_source.py` に `--as` を追加し、`--as action` と `--dataset` / `--table` の同時指定を実行前に止める（`validate_kind()`）。
+
+## 58. ホスト再現テストで Dataverse の読み込みが終わらない（画面が「読み込み中」のまま）（検証済 2026-10-02）
+
+### 症状
+
+ホスト再現環境（`serve_host_emulation.mjs`）やローカルで開くと、`ListRecordsWithOrganization` などの Promise が
+解決も拒否もされず、画面が読み込み中のまま止まる。エラーも出ない。
+
+### 原因
+
+コネクタの呼び出しは Power Apps のホストとの通信で実行される。ホストが無いと応答が返らない。
+本番でもホストとの通信が詰まると同じ状態になる。
+
+### 対処
+
+コネクタ呼び出しは**タイムアウト付き**で待ち、失敗として画面に出す（例: 一覧 20 秒、作成 30 秒、ファイル 120 秒）。
+ホスト再現テストでは、テスト用ビルドだけで有効な環境変数（例: `VITE_DEV_LOCAL_CORPUS=1`）で同梱データに切り替える
+（[ホスト再現テスト](host-emulation-testing.md) Step 1）。

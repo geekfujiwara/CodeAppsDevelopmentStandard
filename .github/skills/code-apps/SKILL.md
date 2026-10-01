@@ -431,6 +431,9 @@ npx pa app remove data-source --connector <shared_mcp_connector_id> --force --no
 # SharePoint（接続は環境内に 1 つなら自動選択）
 python .github/skills/code-apps/scripts/add_data_source.py --connector sharepoint `
   --dataset "{SITE_URL}" --table "{LIST_ID}"
+# ファイル作成などの操作はテーブルとは別に --as action で追加する（troubleshooting #57）
+python .github/skills/code-apps/scripts/add_data_source.py --connector sharepoint --as action `
+  --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} --solution-id {SOLUTION_ID}
 
 # Dataverse（ALM 標準: 接続参照バインド。--org-url は .env の DATAVERSE_URL を既定値にする）
 python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse `
@@ -749,6 +752,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [toggle_table_lang.py](scripts/toggle_table_lang.py) | 旧方式の `pac code add-data-source` 向けにテーブル表示名を一時的に英語化 |
 | [serve_host_emulation.mjs](scripts/serve_host_emulation.mjs) | Power Apps ホスト（別オリジン iframe + `allow` 属性 + 既定 CSP）をローカルで再現してビルド成果物を配信する |
 | [run_headless_media_test.ps1](scripts/run_headless_media_test.ps1) | ヘッドレス Edge に疑似マイク（WAV）を流し、Console ログを抽出する。終了時に残存プロセスを 0 にする |
+| [capture_host_screens.ps1](scripts/capture_host_screens.ps1) | ヘッドレス Edge の仮想時間でタイマー駆動のデモを早送りし、途中・最後の画面を撮る（統合ブラウザが使えない環境の画面確認） |
 
 ### 環境変数
 

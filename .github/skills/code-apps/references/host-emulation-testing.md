@@ -73,6 +73,21 @@ if (jankAt > 0) setTimeout(() => { const until = performance.now() + Number(impo
 複数の構成（ライブラリ設定・取り込み方式）を同じ停止条件で順に試し、表で比較する。結果の例は
 [デバイス・メディア](device-media.md) §4。
 
+### Step 5: 画面を撮って目で確かめる
+
+ログだけでは、レイアウト崩れ・ハイライトの位置・カードの並びは分からない。試験用ビルドで自動開始したデモ
+（台本再生など、タイマーで進むもの）を、ヘッドレス Edge の**仮想時間**で早送りして撮る。統合ブラウザが使えない環境でも撮れる。
+
+```powershell
+# 途中（9.5 秒時点）と最後を撮る。画像は .screens/（Git 除外）に出る
+powershell -ExecutionPolicy Bypass -File .github/skills/code-apps/scripts/capture_host_screens.ps1 -Url "http://localhost:4173/#/<route>" -Name mid -Budgets 9500
+powershell -ExecutionPolicy Bypass -File .github/skills/code-apps/scripts/capture_host_screens.ps1 -Url "http://localhost:4173/#/<route>" -Name final -Budgets 60000
+```
+
+- コネクタ呼び出しはホストが無いと応答しないため、試験用ビルドではテスト専用の環境変数で同梱データに切り替え、
+  本番コードのコネクタ呼び出しにはタイムアウトを付けておく（[troubleshooting](troubleshooting.md) #58）
+- マイクを使う経路は Step 3 のログで判定し、画面の確認はタイマー駆動のデモで行う（疑似マイクは仮想時間で早送りできない）
+
 ## 落とし穴（実測）
 
 | 症状 | 原因 | 対処 |
