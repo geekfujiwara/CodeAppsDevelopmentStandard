@@ -1,5 +1,8 @@
 # コネクタ設定 詳細リファレンス
 
+> 自前の API（Entra ID で保護）をカスタム コネクタにして呼ぶ場合は [custom-connector スキル](../../custom-connector/SKILL.md)。
+> OAuth の接続作成・接続参照のバインド・API 側の認可（コネクタのトークンは `scp=User.Read`）まで扱う。
+
 Power Apps Code Apps でサポートされるコネクタの設定方法と使用例を記載します。
 
 ---
