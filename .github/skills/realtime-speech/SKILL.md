@@ -51,8 +51,8 @@ Code Apps ─(カスタム コネクタ)─▶ トークン発行 Function（Man
 ## Step 1: Speech リソースと権限を用意する
 
 1. Speech リソース（`kind=SpeechServices`）を**カスタム サブドメイン付き**で作る。キー認証が無効でもよい（Entra ID で認証する）
-2. 開発者とトークン発行 Function の Managed Identity に、Speech リソースの範囲で **Foundry User** を付ける
-   （理由と、通らなかったロールは [認証とロール](references/auth.md)）。反映には数分かかる
+2. 開発者とトークン発行 Function の Managed Identity に **Foundry User** を付ける。Managed Identity は**リソース グループの範囲**で付ける
+   （リソース範囲だけでは発行できなかった実測と、通らなかったロールは [認証とロール](references/auth.md)）。反映には数分かかる
 
 ## Step 2: 端末で往復検証する
 
@@ -77,8 +77,11 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
   --template .github/skills/realtime-speech/templates/speech-token-broker --target <出力先> --dry-run
 ```
 
-生成後は `scaffold.json` の手順（ビルド → `deploy_mcp_function.py` → `deploy_token_connector.py`）で進める。
-コネクタの接続は**利用者本人**が作成する。
+生成後は `scaffold.json` の手順（ビルド → `deploy_mcp_function.py`）で Function をデプロイし、
+コネクタと接続は [custom-connector スキル](../custom-connector/SKILL.md) の Step 1〜6 で作る
+（`deploy_connector.py --connector-dir <出力先>/connector` → `create_connection.py`）。
+接続は**利用者本人**のサインインで作る。Function はコネクタのトークン（`scp=User.Read`、`appid`=API アプリ）を
+信頼クライアントとして受け付ける（`authorizeClaims()`）。
 
 ## Step 4: Code Apps の CSP を設定する
 

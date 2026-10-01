@@ -15,25 +15,33 @@
 
 ## Managed Identity のロール（トークン発行 Function）
 
-STS トークンの発行（`issueToken`）を Managed Identity から呼んだ結果。
+STS トークンの発行（`issueToken`）を Managed Identity から呼んだ結果（2026-10、同じ Speech リソース）。
 
-| ロール（Speech リソースの範囲） | 結果 |
+| ロールと範囲 | 結果 |
 |---|---|
-| Cognitive Services Speech User | **401**（`lacks the required data action .../SpeechServices/issuetoken/action`） |
-| `SpeechServices/issuetoken/action` だけを持つカスタム ロール | **401**（`Principal does not have access to API/Operation`） |
-| Cognitive Services User | 200 |
-| **Foundry User（標準）** | 200 |
+| Cognitive Services Speech User（リソース） | **401**（`lacks the required data action .../SpeechServices/issuetoken/action`） |
+| `SpeechServices/issuetoken/action` だけのカスタム ロール（リソース） | **401**（`Principal does not have access to API/Operation`） |
+| Cognitive Services User（リソース） | 200 |
+| Foundry User（**リソース**）のみ | **401**（`Principal does not have access to API/Operation`）。付与から 3 時間以上たっても変わらなかった |
+| **Foundry User（リソース グループ）を追加（標準）** | 200（追加から約 2 分） |
 
-- 標準は **Foundry User** とする（`dataActions: Microsoft.CognitiveServices/*`）
-- 付与・削除の反映には数分かかった（実測 2〜6 分）。反映前の 401 を設定ミスと取り違えない
-- 付与したら、不要になったロールとカスタム ロールは削除する
+- 標準は **Foundry User** とし、Function の Managed Identity には**リソース グループの範囲**で付ける
+- Foundry User と Cognitive Services User の `dataActions` は同一（`Microsoft.CognitiveServices/*`）。
+  リソース範囲の Foundry User だけが効かなかった理由は**未確認**（範囲の違いか、付与の追加で状態が更新されたのかを切り分けていない）
+- 利用者アカウントはサブスクリプション範囲の Foundry User で発行できた
+- ロールの付与・削除の反映には数分かかる。削除の反映は遅れることがあり、**削除直後に成功しても、そのロールが不要だとは限らない**
+  （実測: Cognitive Services User を外した直後は成功が続き、のちに 401 になった）。判断は付与・削除から 10 分以上あけて行う
+- 不要になったロールとカスタム ロールは削除する
 
 ## Function が受け付けるトークン
 
 | 検証 | 失敗時 |
 |---|---|
 | 署名（JWKS、RS256）、audience（`api://<id>` と `<id>` の両方）、発行元（v1 / v2）、`exp` | 401 |
-| `scp` に公開スコープ（例 `Speech.Token`） | 401（アプリ専用トークンを拒否） |
-| `oid` | 401 |
+| 委任トークン（`scp` と `oid` がある） | 401（アプリ専用トークンを拒否） |
+| `scp` に公開スコープ（例 `Speech.Token`）、**または** `appid`/`azp` が `TRUSTED_CLIENT_IDS`（既定は API アプリ自身） | 401 |
 
-テスト時は Azure CLI を事前承認しておけば、`az account get-access-token --scope api://<id>/<scope>` で取得できる。
+カスタム コネクタが送るトークンは実測で `ver=1.0`、`aud`=`appid`=API アプリ自身、`scp=User.Read`。
+コネクタは API アプリ自身をクライアントにして取るため、`scp` に公開スコープが入らない（[custom-connector の異常系](../../custom-connector/references/troubleshooting.md) #2）。
+
+テスト時は Azure CLI を事前承認しておけば、`az account get-access-token --scope api://<id>/<scope>` で取得できる（こちらは `scp` に公開スコープが入る）。

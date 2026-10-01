@@ -5,8 +5,9 @@
     "Copy-Item local.settings.sample.json local.settings.json",
     "npm install --no-audit --no-fund",
     "npm run build; npm test",
-    "Function App の設定: ENTRA_TENANT_ID / API_AUDIENCE / REQUIRED_SCOPE / SPEECH_ENDPOINT / SPEECH_REGION",
+    "Function App の設定: ENTRA_TENANT_ID / API_AUDIENCE / REQUIRED_SCOPE / SPEECH_ENDPOINT / SPEECH_REGION（TRUSTED_CLIENT_IDS は任意）",
     "python .github/skills/mcp-server/scripts/deploy_mcp_function.py --project <この出力先> --app <function-app> --route speech/token",
-    "python .github/skills/realtime-speech/scripts/deploy_token_connector.py --connector-dir <この出力先>/connector --environment <env-id> --function-host <app>.azurewebsites.net --tenant-id <tenant-id> --solution <solution>"
+    "python .github/skills/custom-connector/scripts/deploy_connector.py --connector-dir <この出力先>/connector --secret-file .secrets/<name>.json --var FUNCTION_HOST=<app>.azurewebsites.net --var CONNECTOR_TITLE=\"<表示名>\" --var PUBLISHER=\"<発行元>\"",
+    "python .github/skills/custom-connector/scripts/create_connection.py plan --connector <shared_...> --display-name \"<表示名>\" --connection-reference <論理名>"
   ]
 }

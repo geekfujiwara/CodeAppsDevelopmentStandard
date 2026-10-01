@@ -42,7 +42,7 @@ CSP で止まった場合は `Refused to connect … Content Security Policy` �
 
 **原因**: Managed Identity のロールが足りない、または付与の反映待ち。
 
-**対処**: Speech リソースの範囲で Foundry User を付け、数分待つ（[認証とロール](auth.md)）。
+**対処**: Managed Identity にリソース グループの範囲で Foundry User を付け、数分待つ。リソース範囲だけでは 401 のままだった（[認証とロール](auth.md)）。
 
 ## 7. `get_speech_token.ps1` が「カスタム サブドメインが未設定です」で止まる
 
@@ -67,3 +67,14 @@ CSP で止まった場合は `Refused to connect … Content Security Policy` �
 **原因**: 多くは話し始めるまでの無音を含めて測っている。話し始めから最初の途中結果までは約 1.5 秒が実測値。
 
 **対処**: `発話開始を検知` の offset を差し引いて評価する（[遅延と精度](latency-accuracy.md)）。
+
+## 11. コネクタ経由だけ 401（Function のログに `missing scope ... untrusted client`）
+
+**原因**: カスタム コネクタは API アプリ自身をクライアントにして v1 トークンを取り、`scp` が `User.Read` になる。
+
+**対処**: `TRUSTED_CLIENT_IDS`（既定は API アプリ自身）を確認する。**恒久対策済み** — テンプレートの `authorizeClaims()` が
+信頼クライアントの委任トークンを許可し、拒否時に `ver` / `aud` / `scp` / `appid` をログに出す。
+
+## 12. アプリを初めて開くと「Allow &lt;アプリ&gt; to access your data?」が出る
+
+正常。カスタム コネクタを使うアプリでは、利用者・アプリごとに 1 回出る。接続が「Connection Complete」と表示されていれば Allow する。

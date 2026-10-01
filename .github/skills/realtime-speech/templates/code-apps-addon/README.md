@@ -51,5 +51,6 @@ const ready = session.brokerAvailable === true
 |---|---|
 | マイク・AudioContext・WebSocket・確定・録音（手動トークン、Power Apps 実機） | 検証済み |
 | Worker タイマー無効 + 同一オリジン AudioWorklet（ホスト再現環境、メインスレッド停止試験） | 検証済み |
-| AudioWorklet の読み込み（Power Apps 実機） | 未検証 |
-| トークン発行コネクタの生成サービスの検出（`findTokenBroker`） | 未検証（コネクタの接続作成待ち） |
+| AudioWorklet の読み込み（Power Apps 実機、CSP 違反 0 件） | 検証済み |
+| トークン発行コネクタ経由のトークン取得（Power Apps 実機、生成サービス `<Title>Service.GetSpeechToken`） | 検証済み（約 0.8 秒） |
+| 長時間稼働中のトークン差し替え | 未検証 |
