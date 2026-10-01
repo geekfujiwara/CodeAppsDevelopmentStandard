@@ -55,6 +55,16 @@
 
 - **`your app will not start`（functionapp create 時）**
   - バックエンドストレージが private のため、作成時に `--vnet` / `--subnet` を**同時指定**する必要がある。
+  - `--allow-shared-key-access false` だけを指定して作ったストレージでも、テナントのポリシーで `publicNetworkAccess=Disabled` に
+    なることがある。作成後に `az storage account show --query publicNetworkAccess` で確認する。
+  - Flex Consumption の稼働には、ストレージの **blob と queue** の Private Endpoint（と Private DNS ゾーン）で足りた（検証済 2026-10）。
+    サブネットは `Microsoft.App/environments` に委任する。
+
+- **Managed Identity でのトークン発行が 401 `PermissionDenied`**
+  - ロールの付与・変更は反映に数分かかる（実測 2〜6 分）。反映を待ってから再試行する。
+  - ロール名から推測せず `dataActions` を確認する。例: Azure AI Speech の `issueToken` は
+    「Cognitive Services Speech User」では拒否され、発行操作の dataAction だけを持つカスタム ロールでも
+    `Principal does not have access to API/Operation` で拒否された（検証済 2026-10）。
 
 - **企業ネットワークからの zip デプロイが接続リセット (10054)**
   - 大容量 POST が企業プロキシで切られる。**CI(GitHub Actions 等)からデプロイ**する。

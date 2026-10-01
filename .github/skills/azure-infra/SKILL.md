@@ -52,6 +52,7 @@ Policy、MFA、Private DNS のいずれかが不明なら Step 4 の構築へ進
 | セキュアな Web × ストレージ | 公衆アクセス禁止ストレージのコンテンツを Web で安全配信 | [references/secure-website.md](references/secure-website.md) |
 | Microsoft Foundry エージェント | Web 組み込みエージェント / 知識グラウンディング(Work IQ・Foundry IQ・Fabric IQ) / AI Gateway ガバナンス | [references/foundry-agent.md](references/foundry-agent.md) |
 | MCP Server（Azure Functions） | 社内データを Copilot Studio エージェントへ公開する自前 MCP Server | [mcp-server スキル](../mcp-server/SKILL.md) |
+| 短期トークン発行（トークン ブローカー） | ブラウザから Azure サービスへ直結する（WebSocket 等）ための短期トークンを、Managed Identity で発行してカスタム コネクタ経由で渡す | [references/token-broker.md](references/token-broker.md) |
 
 > 新しいリファレンスは `references/<topic>.md` として追加し、この表と参考リンクに1行足す。
 

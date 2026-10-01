@@ -341,6 +341,14 @@ az login --tenant <tenant-id> --scope "https://management.core.windows.net//.def
 
 ---
 
+### `configure_connector_oauth.py` が「--secret-out が Git ignore されていません」で止まる（Git リポジトリ外）
+
+**原因**: 除外判定に `git check-ignore` を使うため、Git リポジトリ外では `.gitignore` に書いてあっても判定できず、
+旧実装は「除外されていない」と誤って表示していた。
+
+**対処**: 作業フォルダーで `git init` し、`.gitignore` に `.secrets/` を追加してから実行する。
+恒久対策済み — `preflight_secret_output()` が終了コード 128（判定不能）を区別し、この手順を表示する。
+
 ## データアクセス
 
 ### Azure Files への REST 呼び出しが 403 になる

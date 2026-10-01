@@ -42,6 +42,12 @@ def preflight_secret_output(path: Path, rotate_secret: bool) -> str | None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    if ignored.returncode == 128:
+        # 0 = 除外されている / 1 = 除外されていない / 128 = Git リポジトリ外など判定できない
+        raise SystemExit(
+            "Git リポジトリ外のため、--secret-out が .gitignore で除外されているか判定できません。"
+            "作業フォルダーで `git init` してから .gitignore に保存先（例: .secrets/）を追加してください"
+        )
     if ignored.returncode != 0:
         raise SystemExit(f"--secret-out が Git ignore されていません: {path}")
     old_key_id = None
