@@ -43,11 +43,13 @@ Flex Consumption + システム割り当て Managed Identity。共有キー禁�
 
 ### Step 3: Managed Identity にデータ ロールを付ける
 
-対象サービスの**トークン発行操作**を含むデータ ロールを、サービス リソースの範囲で付ける。
+対象サービスの**トークン発行操作**を含むデータ ロールを付ける。
 ロール名だけで判断せず、`az role definition list --name "<role>" --query "[0].permissions[0].dataActions"` で中身を確認する。
 
 - 付与・変更の反映には数分かかる（実測 2〜6 分）。反映前は発行が 401 になる。待ってから再試行する
-- 発行操作の dataAction だけを持つカスタム ロールでは足りない場合がある（Speech の実例は realtime-speech を参照）
+- **削除の反映も遅れる**。ロールを外した直後に成功しても、そのロールが不要だとは限らない。判断は 10 分以上あけて行う
+- 範囲によって効かないことがあった（Speech の実例: リソース範囲の Foundry User だけでは 401 のまま、リソース グループ範囲を追加して 200。
+  [realtime-speech の認証とロール](../../realtime-speech/references/auth.md)）
 
 ### Step 4: Function を実装する
 
@@ -55,8 +57,9 @@ Flex Consumption + システム割り当て Managed Identity。共有キー禁�
 
 | 検証 | 理由 |
 |---|---|
-| `scp` に公開したスコープがあること | アプリ専用トークン（`scp` なし）を拒否し、利用者の委任トークンだけを通す |
-| `oid` があること | 誰に発行したかをログに残す（トークンの値はログに出さない） |
+| 委任トークン（`scp` と `oid` がある）であること | アプリ専用トークンを拒否し、利用者の委任トークンだけを通す |
+| `scp` に公開スコープがある、**または** `appid`/`azp` が信頼するクライアント（既定は API アプリ自身） | カスタム コネクタは API アプリ自身をクライアントにした v1 トークンを送り、`scp` が `User.Read` になる（実測）。`scp` だけで判定するとコネクタ経由が 401 になる |
+| 拒否時は `ver` / `aud` / `scp` / `appid` だけをログに出す | トークンの値を出さずに、どのクライアントが何を送ったかを判別できる |
 | 応答に `Cache-Control: no-store` | 中継や端末にトークンを残さない |
 | 発行済みトークンを寿命の手前までキャッシュし、同時要求は 1 本にまとめる | 発行 API の呼び出し回数と遅延を減らす（実測: キャッシュ応答 73 ms） |
 | 応答に残り秒数（`expiresInSeconds`）を含める | 端末の時計がずれていても、クライアントが更新時刻を正しく計算できる |
@@ -70,27 +73,20 @@ python .github/skills/mcp-server/scripts/deploy_mcp_function.py --project <path>
 `deploy_mcp_function.py` はルートを POST で確認するため、ルートは GET と POST の両方を受け付ける。
 認証なしで 401、`az account get-access-token --scope api://<api-app-id>/<scope>` のトークンで 200 を確認する。
 
-### Step 6: カスタム コネクタを作る
+### Step 6: カスタム コネクタと接続を作る
 
-1. OAuth クライアントとシークレットを用意する（保存先は `.gitignore` 済みの `.secrets/`。**Git リポジトリ内で実行**する）:
-   `python .github/skills/mcp-server/scripts/configure_connector_oauth.py --audience api://<api-app-id> --scope <scope> --secret-out .secrets/<name>.json`
-2. OpenAPI（`securityDefinitions` は `oauth2` / `accessCode`）と `apiProperties.json`（`identityProvider: aad`、`scopes` に `offline_access`）を
-   `pac connector create --solution-unique-name <solution>` で作成する。シークレットは一時ファイルにだけ差し込む
-3. コネクタ固有のリダイレクト URI を追加する:
-   `python .github/skills/mcp-server/scripts/add_connector_redirect_uri.py --audience api://<api-app-id> --redirect-uri https://global.consent.azure-apim.net/redirect/<connector-internal-id から shared_ を除いた値>`
-4. DLP でホストを分類する（未分類だとツールがブロック扱いになる場合がある）:
-   `python .github/skills/admin/scripts/set_dlp_custom_connector.py --policy <policy> --host <app>.azurewebsites.net --classification General`
+[custom-connector スキル](../../custom-connector/SKILL.md) の手順で、Entra の OAuth 設定（Graph `User.Read` を含む）→ コネクタ作成
+（コネクタ固有のリダイレクト URI も自動登録）→ DLP 分類 → 接続参照 → 接続の作成（plan → 承認 → apply、または所有者による手動作成）まで進める。
 
 ### Step 7: Code Apps に追加する
 
-1. 利用者本人がコネクタの接続を作成する（OAuth の同意は代行できない）
-2. `setup_connection_reference.py --api-id <shared_...> --connection-id <id>` で接続参照を作る
-3. `pa app add data-source --connector <shared_...> --connection-ref <logical-name> --solution-id <id>`
-4. 生成サービスは遅延読み込みにし、未追加でもビルドできるようにする（[code-apps の業務テンプレートの方式](../../code-apps/SKILL.md)）
+1. `pa app add data-source --connector <shared_...> --connection-ref <logical-name> --solution-id <id>`
+2. 生成サービスは遅延読み込みにし、未追加でもビルドできるようにする（[code-apps の業務テンプレートの方式](../../code-apps/SKILL.md)）
+3. 初回起動時にプレイヤーが出す「Allow &lt;アプリ&gt; to access your data?」で Allow する（利用者・アプリごとに 1 回）
 
 ## 検証状況（2026-10）
 
 | 項目 | 状況 |
 |---|---|
-| Step 1〜6（Function の 401 / 200、キャッシュ、発行トークンでのサービス利用） | 検証済み |
-| Step 7（Code Apps からコネクタ経由で取得） | **未検証**（利用者による接続作成待ち） |
+| Step 1〜6（Function の 401 / 200、キャッシュ、発行トークンでのサービス利用、接続の作成） | 検証済み |
+| Step 7（Power Apps 実機の Code Apps からコネクタ経由で取得） | 検証済み（約 0.8 秒） |

@@ -349,6 +349,20 @@ az login --tenant <tenant-id> --scope "https://management.core.windows.net//.def
 **対処**: 作業フォルダーで `git init` し、`.gitignore` に `.secrets/` を追加してから実行する。
 恒久対策済み — `preflight_secret_output()` が終了コード 128（判定不能）を区別し、この手順を表示する。
 
+### コネクタの同意が AADSTS90008（application is misconfigured）で失敗する
+
+**原因**: アプリが Microsoft Graph の `User.Read`（Sign in and read user profile）を要求していない。
+ポータルで作ったアプリには既定で付くが、`az ad app create` や Graph API で作ったアプリには付かない。
+
+**対処**: `User.Read` を追加して**数分待つ**（追加直後は同じエラーが続いた）。
+恒久対策済み — `configure_connector_oauth.py` の `ensure_graph_user_read()` が毎回確認して追加する。
+
+### 同意画面のスコープ名が用途と違う（「MCP サーバーへのアクセス」と出る）
+
+**原因**: `configure_entra_api.py` がスコープの表示名を固定していた。
+
+**対処**: `.env` に `MCP_API_SCOPE_LABEL` / `MCP_API_SCOPE_DESCRIPTION` を設定して再実行する。既存スコープは id と value を変えずに表示名だけ更新する。恒久対策済み。
+
 ## データアクセス
 
 ### Azure Files への REST 呼び出しが 403 になる

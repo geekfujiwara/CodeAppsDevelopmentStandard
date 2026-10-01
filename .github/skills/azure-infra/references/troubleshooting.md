@@ -65,6 +65,8 @@
   - ロール名から推測せず `dataActions` を確認する。例: Azure AI Speech の `issueToken` は
     「Cognitive Services Speech User」では拒否され、発行操作の dataAction だけを持つカスタム ロールでも
     `Principal does not have access to API/Operation` で拒否された（検証済 2026-10）。
+  - 同じ `dataActions` のロールでも範囲で結果が変わった（リソース範囲の Foundry User のみ → 401、リソース グループ範囲を追加 → 200）。理由は未確認。
+  - 削除の反映も遅れる。ロールを外した直後の成功で「不要」と判断しない（10 分以上あける）。
 
 - **企業ネットワークからの zip デプロイが接続リセット (10054)**
   - 大容量 POST が企業プロキシで切られる。**CI(GitHub Actions 等)からデプロイ**する。

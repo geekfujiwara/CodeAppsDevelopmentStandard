@@ -5,6 +5,7 @@
 1. リダイレクト URI ``https://global.consent.azure-apim.net/redirect``（OpenAPI インポート方式の共通値）
 2. クライアントシークレット
 3. 自分自身のスコープへの ``requiredResourceAccess``（同意を成立させるため）
+4. Microsoft Graph の ``User.Read``（無いと同意が AADSTS90008 で失敗する。CLI / API で作ったアプリには付かない）
 
 オンボーディングウィザードが生成するパス付き Redirect URI は、コネクタ作成後に
 ``add_connector_redirect_uri.py`` で追加する。
@@ -112,6 +113,37 @@ def ensure_self_permission(app: dict, scope_name: str) -> str:
     return scope["id"]
 
 
+GRAPH_APP_ID = "00000003-0000-0000-c000-000000000000"
+
+
+def ensure_graph_user_read(app: dict) -> None:
+    """Microsoft Graph の User.Read（サインインとプロファイル読み取り）を要求に含める。
+
+    コネクタの同意は v1 の認可エンドポイントを使い、アプリが Graph の User.Read を要求していないと
+    AADSTS90008（application is misconfigured）で失敗する。ポータルで作ったアプリには既定で付くが、
+    `az ad app create` や Graph API で作ったアプリには付かない。
+    """
+    required = app.setdefault("requiredResourceAccess", [])
+    graph = graph_get(f"/servicePrincipals?$filter=appId eq '{GRAPH_APP_ID}'&$select=oauth2PermissionScopes")["value"]
+    if not graph:
+        raise SystemExit("Microsoft Graph のサービス プリンシパルが見つかりません")
+    user_read = next((s for s in graph[0]["oauth2PermissionScopes"] if s["value"] == "User.Read"), None)
+    if not user_read:
+        raise SystemExit("Microsoft Graph の User.Read スコープが見つかりません")
+
+    entry = next((r for r in required if r["resourceAppId"] == GRAPH_APP_ID), None)
+    if entry and any(a["id"] == user_read["id"] for a in entry.get("resourceAccess", [])):
+        print("[skip] Microsoft Graph User.Read は設定済み")
+        return
+    access = {"id": user_read["id"], "type": "Scope"}
+    if entry:
+        entry["resourceAccess"].append(access)
+    else:
+        required.append({"resourceAppId": GRAPH_APP_ID, "resourceAccess": [access]})
+    graph_patch(f"/applications/{app['id']}", {"requiredResourceAccess": required})
+    print("[app] Microsoft Graph User.Read（サインインとプロファイル読み取り）を追加（AADSTS90008 対策）")
+
+
 def create_secret(app: dict, display_name: str) -> dict:
     return graph_post(
         f"/applications/{app['id']}/addPassword",
@@ -156,6 +188,7 @@ def main() -> int:
     app = find_application(args.audience)
     ensure_redirect_uri(app)
     ensure_self_permission(app, args.scope)
+    ensure_graph_user_read(app)
     secret = create_secret(app, args.secret_name)
 
     try:
