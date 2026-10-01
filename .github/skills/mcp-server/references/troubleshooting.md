@@ -363,6 +363,14 @@ az login --tenant <tenant-id> --scope "https://management.core.windows.net//.def
 
 **対処**: `.env` に `MCP_API_SCOPE_LABEL` / `MCP_API_SCOPE_DESCRIPTION` を設定して再実行する。既存スコープは id と value を変えずに表示名だけ更新する。恒久対策済み。
 
+### カスタム コネクタの接続を作るたびに同意が求められる（on-behalf-of が使えない）
+
+**原因**: API アプリのスコープに **Azure API Connections**（`fe053c5f-3692-4f14-aef2-ee34fc081cae`）が事前承認されていない。
+on-behalf-of 接続（custom-connector スキル）はこのクライアントが利用者の代わりにトークンを取るため、事前承認が無いと同意が要る。
+
+**対処**: `configure_connector_oauth.py` を再実行する。恒久対策済み — `ensure_obo_preauthorization()` が
+テナントにサービス プリンシパルが無ければ作り、スコープの事前承認に追加する（済みなら `[skip]`）。不要なら `--no-obo`。
+
 ## データアクセス
 
 ### Azure Files への REST 呼び出しが 403 になる

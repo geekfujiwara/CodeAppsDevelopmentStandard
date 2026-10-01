@@ -6,6 +6,7 @@
 2. クライアントシークレット
 3. 自分自身のスコープへの ``requiredResourceAccess``（同意を成立させるため）
 4. Microsoft Graph の ``User.Read``（無いと同意が AADSTS90008 で失敗する。CLI / API で作ったアプリには付かない）
+5. 「Azure API Connections」を公開スコープの事前承認クライアントに追加（on-behalf-of 接続を同意なしで作るため。``--no-obo`` で省略）
 
 オンボーディングウィザードが生成するパス付き Redirect URI は、コネクタ作成後に
 ``add_connector_redirect_uri.py`` で追加する。
@@ -114,6 +115,33 @@ def ensure_self_permission(app: dict, scope_name: str) -> str:
 
 
 GRAPH_APP_ID = "00000003-0000-0000-c000-000000000000"
+# on-behalf-of ログインでユーザーのトークンを中継する Microsoft のファースト パーティ アプリ「Azure API Connections」
+AZURE_API_CONNECTIONS_APP_ID = "fe053c5f-3692-4f14-aef2-ee34fc081cae"
+
+
+def ensure_obo_preauthorization(app: dict, scope_name: str) -> None:
+    """Azure API Connections を、公開スコープの事前承認クライアントに加える（OBO 接続を同意なしで作るため）。
+
+    テナントにサービス プリンシパルが無ければ作る（Learn: Configure OBO authentication for custom connectors）。
+    """
+    if not graph_get(f"/servicePrincipals?$filter=appId eq '{AZURE_API_CONNECTIONS_APP_ID}'&$select=id")["value"]:
+        graph_post("/servicePrincipals", {"appId": AZURE_API_CONNECTIONS_APP_ID})
+        print("[app] Azure API Connections のサービス プリンシパルを作成")
+    api = app.get("api") or {}
+    scope = next((s for s in api.get("oauth2PermissionScopes", []) if s["value"] == scope_name), None)
+    if not scope:
+        raise SystemExit(f"スコープ {scope_name} が公開されていません。configure_entra_api.py を先に実行してください")
+    pre = api.get("preAuthorizedApplications") or []
+    entry = next((p for p in pre if p["appId"] == AZURE_API_CONNECTIONS_APP_ID), None)
+    if entry and scope["id"] in entry.get("delegatedPermissionIds", []):
+        print("[skip] Azure API Connections は事前承認済み")
+        return
+    if entry:
+        entry["delegatedPermissionIds"] = sorted({*entry.get("delegatedPermissionIds", []), scope["id"]})
+    else:
+        pre.append({"appId": AZURE_API_CONNECTIONS_APP_ID, "delegatedPermissionIds": [scope["id"]]})
+    graph_patch(f"/applications/{app['id']}", {"api": {"preAuthorizedApplications": pre}})
+    print(f"[app] Azure API Connections をスコープ {scope_name} の事前承認クライアントに追加（on-behalf-of 接続用）")
 
 
 def ensure_graph_user_read(app: dict) -> None:
@@ -176,6 +204,7 @@ def main() -> int:
     parser.add_argument("--secret-out", default=".secrets/connector-oauth.json")
     parser.add_argument("--secret-name", default="power-platform-custom-connector")
     parser.add_argument("--rotate-secret", action="store_true", help="既存ファイルを置換して新しい secret を発行する")
+    parser.add_argument("--no-obo", action="store_true", help="Azure API Connections の事前承認（on-behalf-of 接続用）を行わない")
     args = parser.parse_args()
 
     if not args.audience:
@@ -189,6 +218,8 @@ def main() -> int:
     ensure_redirect_uri(app)
     ensure_self_permission(app, args.scope)
     ensure_graph_user_read(app)
+    if not args.no_obo:
+        ensure_obo_preauthorization(find_application(args.audience), args.scope)
     secret = create_secret(app, args.secret_name)
 
     try:
