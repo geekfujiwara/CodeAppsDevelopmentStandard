@@ -87,6 +87,8 @@ powershell -ExecutionPolicy Bypass -File .github/skills/code-apps/scripts/captur
 - コネクタ呼び出しはホストが無いと応答しないため、試験用ビルドではテスト専用の環境変数で同梱データに切り替え、
   本番コードのコネクタ呼び出しにはタイムアウトを付けておく（[troubleshooting](troubleshooting.md) #58）
 - マイクを使う経路は Step 3 のログで判定し、画面の確認はタイマー駆動のデモで行う（疑似マイクは仮想時間で早送りできない）
+- `motion` の `AnimatePresence` の出入りのアニメーションは仮想時間では進まない。表示がアニメーションの完了に依存しない作りにする（[troubleshooting](troubleshooting.md) #59）
+- 撮影の前にサーバーの起動を確認する（ビルドと同時に起動すると、出力が無くて終了する）
 
 ## 落とし穴（実測）
 
