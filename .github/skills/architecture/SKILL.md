@@ -816,6 +816,7 @@ AskUserQuestion で次のように尋ねる:
 - [ ] **エージェント自身のメールアドレス・予定表・権限が要るか？**（デジタルな同僚・予定調整・メール一次対応） → YES なら **Agent 365**。他のコンポーネントでは実現できない（§7）
 - [ ] **その業務に社外の情報が含まれるか？**（相手企業・業界動向・製品仕様・ニュース・URL 閲覧） → YES なら**聞かれる前に Web 検索を提案**する。既定は **Grounding with Bing**（追加リソース・招待なし）、画像/動画検索が要件なら Web IQ を併用（§7）
 - [ ] **その業務に繰り返しの仕事が含まれるか？**（毎朝の要約・週次レポート・滞留チェック） → YES なら**聞かれる前に定期実行を提案**する。頻度は質問せず 1 案（例: 平日 8:00 / Teams チャット）を出して可否を取る（§7）
+- [ ] **話している内容をその場で文字にする（会議・窓口・総会の文字起こし、録音）か？** → YES なら **realtime-speech** を含める。ブラウザから Azure AI Speech へ直結し、短期トークンはカスタム コネクタ経由の Function で渡す。環境の CSP に `connect-src wss://<region>.stt.speech.microsoft.com` の追加承認が要る
 - [ ] **イベント駆動の自動処理が必要か？** → YES なら Power Automate を含む構成
 - [ ] **データ操作 UI が必要か？** → YES で外部ユーザー向けなら既定 Azure（Power Pages 宣言時のみ Power Pages）、内部ユーザー向けなら Code Apps / Model-Driven Apps を含む構成（Canvas Apps は常に対象外）
 - [ ] **社内向け画面を使う人のライセンスと頻度を確認したか？** → ほとんどが Power Apps Premium を持つなら Code Apps。Premium を持たない人が中心で利用が不定期なら、Copilot Credits の従量課金で使える Copilot Managed Runtime を選択肢として提示し、クレジット消費の見積もりと管理者の支出ポリシー設定を構成案に書く（§5）

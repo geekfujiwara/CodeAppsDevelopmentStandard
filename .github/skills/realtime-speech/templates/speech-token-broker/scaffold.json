@@ -1,0 +1,12 @@
+{
+  "description": "Code Apps 向けに Azure AI Speech の短期トークンを発行する Azure Functions（Entra ID JWT 検証 + Managed Identity）とカスタム コネクタ定義",
+  "preserveUndeclaredVariables": false,
+  "nextSteps": [
+    "Copy-Item local.settings.sample.json local.settings.json",
+    "npm install --no-audit --no-fund",
+    "npm run build; npm test",
+    "Function App の設定: ENTRA_TENANT_ID / API_AUDIENCE / REQUIRED_SCOPE / SPEECH_ENDPOINT / SPEECH_REGION",
+    "python .github/skills/mcp-server/scripts/deploy_mcp_function.py --project <この出力先> --app <function-app> --route speech/token",
+    "python .github/skills/realtime-speech/scripts/deploy_token_connector.py --connector-dir <この出力先>/connector --environment <env-id> --function-host <app>.azurewebsites.net --tenant-id <tenant-id> --solution <solution>"
+  ]
+}

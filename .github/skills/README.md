@@ -113,7 +113,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 
 ---
 
-## スキル一覧（25 スキル）
+## スキル一覧（26 スキル）
 
 ### architecture — アーキテクチャ・基盤
 
@@ -178,6 +178,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 |--------|------|
 | [ai-builder](ai-builder/SKILL.md) | AI Builder の AI プロンプトを作成し、エージェントのツールとして組み込む。 |
 | [spec-builder](spec-builder/SKILL.md) | PDF・PowerPoint・Excel・画像等の一次情報から、Power Platform 開発向けの要件定義書（仕様書）一式を作成する。 |
+| [realtime-speech](realtime-speech/SKILL.md) | Code Apps などのブラウザ アプリで、Azure AI Speech のストリーミング文字起こしと録音を実装する。短期トークンは Managed Identity の Function からカスタム コネクタ経由で受け取り、CSP・iframe・メインスレッドの制約に合わせた音声経路と 3 段階の検証を提供する。 |
 
 ## 推奨開発フロー
 

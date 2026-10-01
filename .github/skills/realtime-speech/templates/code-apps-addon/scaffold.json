@@ -1,0 +1,12 @@
+{
+  "description": "Code Apps でマイク・録音・Azure AI Speech のストリーミング文字起こしを 1 つの開始／停止で扱うアドオン（同一オリジン AudioWorklet、Worker タイマー無効、トークン発行コネクタ連携、Console へのログ集約）",
+  "preserveUndeclaredVariables": false,
+  "nextSteps": [
+    "README.md の前提（CSP の connect-src、トークン発行コネクタ）を確認する",
+    "生成した public/ と src/ をホストの Code Apps プロジェクトへ統合する",
+    "ホストで npm install microsoft-cognitiveservices-speech-sdk --no-audit --no-fund",
+    "ホストの main.tsx で installDebugLogging({ tag: \"APP\" }) を 1 回呼ぶ",
+    "npm run build; npm run lint",
+    "ホスト再現テスト（code-apps/references/host-emulation-testing.md）で CSP 違反 0 件と停止耐性を確認する"
+  ]
+}
