@@ -34,16 +34,38 @@ const recorder = new MediaRecorder(media, { mimeType: "audio/webm;codecs=opus", 
 recorder.start(1000)                                   // 1 秒ごとに chunk（停止時に Blob へ結合）
 ```
 
-PCM 変換（16 kHz / 16 bit / mono）は ScriptProcessor で行う。`destination` に接続しないと Chrome では
-`onaudioprocess` が発火しない（出力は無音のまま）。
+PCM 変換（16 kHz / 16 bit / mono）は **同一オリジンの静的ファイルとして配信する AudioWorklet** で受ける。
+オーディオ スレッドで動くため、メインスレッドが止まっても音声が欠けない（port のメッセージはキューに残る）。
+`blob:` URL の Worklet は `script-src` でブロックされるが、`public/` に置いたファイルは `'self'` として読み込める。
+
+```js
+// public/pcm-capture-worklet.js — 2048 フレーム（約 43 ms）ごとにメインスレッドへ転送する
+class PcmCapture extends AudioWorkletProcessor {
+  constructor() { super(); this.buf = new Float32Array(2048); this.len = 0 }
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0]
+    if (!ch) return true
+    for (let i = 0; i < ch.length;) {
+      const n = Math.min(ch.length - i, this.buf.length - this.len)
+      this.buf.set(ch.subarray(i, i + n), this.len); this.len += n; i += n
+      if (this.len === this.buf.length) { this.port.postMessage(this.buf, [this.buf.buffer]); this.buf = new Float32Array(2048); this.len = 0 }
+    }
+    return true
+  }
+}
+registerProcessor("pcm-capture", PcmCapture)
+```
 
 ```ts
-const source = ctx.createMediaStreamSource(media)
-const node = ctx.createScriptProcessor(4096, 1, 1)
-node.onaudioprocess = (e) => onPcm(downsampleToPcm16(e.inputBuffer.getChannelData(0), ctx.sampleRate))
-source.connect(node)
-node.connect(ctx.destination)
+await ctx.audioWorklet.addModule(new URL("pcm-capture-worklet.js", document.baseURI).href)
+const node = new AudioWorkletNode(ctx, "pcm-capture", { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1 })
+node.port.onmessage = (e: MessageEvent<Float32Array>) => onPcm(downsampleToPcm16(e.data, ctx.sampleRate))
+ctx.createMediaStreamSource(media).connect(node)
+node.connect(ctx.destination) // 出力は無音。グラフから外れて処理が止まらないよう接続しておく
 ```
+
+`addModule` が失敗したら ScriptProcessor（`createScriptProcessor(4096, 1, 1)`、`destination` への接続が必須）に
+切り替え、どちらで動いているかをログに出す。
 
 録音の再生は `data:` URL にする（`blob:` は既定 CSP の `media-src` でブロックされる）。
 
@@ -62,13 +84,33 @@ AudioWorklet** を作ることがある。Code Apps では次の 2 点で音声�
 §2 の自前経路で PCM を作り、SDK には **Push ストリーム**で渡す（例: Azure AI Speech の
 `AudioInputStream.createPushStream` + `AudioConfig.fromStreamInput(pushStream)`）。実機でこの切り替えにより解消した。
 
-## 4. CPU 負荷で認識精度が落ちる
+### Azure AI Speech SDK の Worker タイマーを無効にする（必須）
 
-ScriptProcessor はメインスレッドで動く。CPU が詰まると音声が欠けて認識結果が崩れる
-（実測: 残留したヘッドレス ブラウザで CPU 約 50% の状態では文字起こしが崩れ、停止後は正確に戻った）。
+Speech SDK（JavaScript）は音声送信の待ち合わせに **`data:` URL の Worker** でタイマーを作る（`common/Timeout.js`）。
+Code Apps の既定 CSP は `data:` の Worker を許可しないため、送信が詰まって待ち合わせが必要になった瞬間に
+タイマーが一度も発火せず、**送信ループが止まって文字起こしが無言で止まる**（エラーも `canceled` も出ない）。
+最初の 5 秒は待ち合わせが無く、その後も音声がリアルタイムに届く間は待ち合わせが発生しないので、
+短い試験では気付きにくい。画面のアニメーションなどでメインスレッドが一瞬止まると発生する。
 
-- 会場・本番端末では他アプリを閉じ、送信音声の秒数（送信バイト ÷ 32000）が経過時間と一致するかを監視する
-- 改善案（**未検証**）: Worklet を `blob:` ではなく同一オリジンの静的ファイルとして配信し、UI スレッドから切り離す
+```ts
+speechConfig.setProperty(sdk.PropertyId.WebWorkerLoadType, "off") // window.setTimeout を使わせる
+```
+
+`worker-src` に `data:` を足して回避しない（環境全体の CSP を緩め、`data:` Worker による迂回を許すことになる）。
+
+## 4. メインスレッドの停止に強くする（検証結果）
+
+ホスト再現環境で、送信開始 8 秒後にメインスレッドを 0.8 秒止めて比較した（[ホスト再現テスト](host-emulation-testing.md) §4）。
+
+| 構成 | CSP 違反 | 停止後の認識 | 停止中の文 | 停止後の文 |
+|---|---|---|---|---|
+| SDK 既定（Worker タイマー）+ ScriptProcessor | 1 | **止まる**（停止まで結果なし） | 崩れる | 失われる |
+| Worker タイマー無効 + ScriptProcessor | 0 | 続く | 崩れる（例: 「40ヒッヒッヒ」） | 正しい |
+| **Worker タイマー無効 + 同一オリジン AudioWorklet** | 0 | 続く | **正しい** | 正しい |
+
+最下段を標準とする。実機（Power Apps ホスト）での Worklet 読み込みは別途確認する。
+CPU 全体が高負荷な端末では Worklet でも遅延が増えるため、会場の端末では他アプリを閉じ、
+送信音声の秒数（送信バイト ÷ 32000）が経過時間と一致するかを監視する。
 
 ## 5. 前提が欠けたら開始させない
 

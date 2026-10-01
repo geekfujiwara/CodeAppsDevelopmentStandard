@@ -46,9 +46,16 @@ if ($remaining -gt 0) { Write-Warning "ヘッドレス Edge が $remaining プ�
 $log = Join-Path $userData "chrome_debug.log"
 if (-not (Test-Path $log)) { throw "ログがありません: $log" }
 $prefix = [regex]::Escape($LogPrefix)
-Get-Content $log -Encoding utf8 |
-  Where-Object { $_ -match 'CONSOLE' -and $_ -match $prefix } |
+$consoleLines = @(Get-Content $log -Encoding utf8 | Where-Object { $_ -match 'CONSOLE' })
+$consoleLines |
+  Where-Object { $_ -match $prefix } |
   ForEach-Object { ($_ -replace '^.*?CONSOLE:\d+\] ', '') -replace ', source: http.*$', '' } |
   Set-Content $OutFile -Encoding utf8
+# アプリのログ接頭辞に関係なく、ブラウザ自身が出す CSP 違反を必ず数える（接頭辞で絞ると見落とす）
+$cspLines = @($consoleLines | Where-Object { $_ -match 'Content Security Policy' } |
+  ForEach-Object { (($_ -replace '^.*?CONSOLE:\d+\] ', '') -replace ', source: .*$', '') -replace "(data|blob):[^'`"\s]{24,}", '$1:…' } |
+  ForEach-Object { $_.Substring(0, [Math]::Min(220, $_.Length)) } |
+  Select-Object -Unique)
 Remove-Item $userData -Recurse -Force -ErrorAction SilentlyContinue
-Write-Output "抽出: $OutFile（$((Get-Content $OutFile).Count) 行） / 残存プロセス: $remaining"
+Write-Output "抽出: $OutFile（$((Get-Content $OutFile).Count) 行） / 残存プロセス: $remaining / CSP 違反: $($cspLines.Count)"
+foreach ($line in $cspLines) { Write-Warning "CSP 違反: $line" }

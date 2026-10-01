@@ -2567,3 +2567,25 @@ CPU を使い、次の試験の音声処理（メインスレッドの ScriptPro
 親（`--type` の無いブラウザー プロセス）から止め、残存が 0 になるまで繰り返す。
 
 **恒久対策済み**: `scripts/run_headless_media_test.ps1` が親から順に停止し、残存数を毎回表示する（残れば警告）。
+
+## 56. 文字起こしが途中から無言で止まる（エラーも `canceled` も出ない）（検証済 2026-10-01）
+
+### 症状
+
+Azure AI Speech SDK のストリーミング認識が、開始から数秒以上たったあとで突然止まる。途中結果も確定も来なくなるが、
+エラーやキャンセルのイベントは出ない。停止ボタンを押すと、止まった時点の文だけが確定として出る。
+Console には `Creating a worker from 'data:…' violates the following Content Security Policy directive` が 1 回だけ出る。
+
+### 原因
+
+SDK は送信の待ち合わせに `data:` URL の Worker タイマーを使う。Code Apps の既定 CSP で Worker の読み込みが拒否され、
+待ち合わせのタイマーが永久に発火しないため、送信ループがそこで止まる。待ち合わせは送信開始 5 秒以降に
+チャンクがまとめて届いたとき（メインスレッドの一時停止など）にだけ発生するため、短い試験では再現しない。
+
+### 対処
+
+`speechConfig.setProperty(sdk.PropertyId.WebWorkerLoadType, "off")` を設定する。音声の取り込みは同一オリジンの
+AudioWorklet にする（[デバイス・メディア](device-media.md) §3・§4）。`worker-src data:` は追加しない。
+
+**恒久対策済み**: `scripts/run_headless_media_test.ps1` がブラウザの CSP 違反を毎回数えて警告する。
+停止に耐えるかは [ホスト再現テスト](host-emulation-testing.md) Step 4 で確認する。

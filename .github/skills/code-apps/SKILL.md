@@ -512,7 +512,9 @@ python .github/skills/code-apps/scripts/configure_code_app_csp.py `
 ### マイク・録音・音声ストリーミング
 
 マイクは使えるが、`AudioContext` はクリック ハンドラ内（`await` より前）で開始する。1 本の `MediaStream` を録音と PCM 変換で共有し、
-音声系 SDK にはマイクを直接渡さず Push ストリームで PCM を渡す。録音の再生は `data:` URL、WebSocket は `connect-src` に `wss://` を追加する。
+PCM 変換は `public/` に置いた同一オリジンの AudioWorklet で行う。音声系 SDK にはマイクを直接渡さず Push ストリームで PCM を渡し、
+`data:` Worker を使う SDK 機能は無効にする（Azure AI Speech は `WebWorkerLoadType=off`。放置すると文字起こしが無言で止まる）。
+録音の再生は `data:` URL、WebSocket は `connect-src` に `wss://` を追加する。
 ホストの条件はローカルで再現して試験できる（別オリジン iframe + 既定 CSP + 疑似マイク）。
 
 → 詳細: **[デバイス・メディア](references/device-media.md)** / **[ホスト再現テスト](references/host-emulation-testing.md)**

@@ -239,7 +239,8 @@ async function copyToClipboard(text: string): Promise<boolean> {
 | やりたいこと | 既定 CSP での挙動 | 対処 |
 |---|---|---|
 | 録音した `Blob` を `URL.createObjectURL` で `<audio>` 再生 | `media-src 'self' data:` に `blob:` が無いためブロック | `FileReader.readAsDataURL` で `data:` URL にする（CSP 変更不要）か、`media-src` に `blob:` を追加 |
-| `audioWorklet.addModule(blob:…)` | `script-src` に `blob:` が無いため失敗 | ScriptProcessor 等の代替経路を使う。SDK が内部で blob Worklet を作る場合は、SDK にマイクを直接渡さず自前の音声経路から PCM を渡す（[デバイス・メディア](device-media.md)） |
+| `audioWorklet.addModule(blob:…)` | `script-src` に `blob:` が無いため失敗 | Worklet を `public/` の静的ファイルにして `new URL("x.js", document.baseURI)` で読み込む（`'self'` として許可される）。SDK が内部で blob Worklet を作る場合は、SDK にマイクを直接渡さず自前の音声経路から PCM を渡す（[デバイス・メディア](device-media.md)） |
+| `new Worker("data:…")`（例: Azure AI Speech SDK のタイマー） | `worker-src`（既定は `default-src 'self'`）でブロック。**例外は出ず、Worker からの応答が来ないだけ** | ライブラリの設定で Worker を使わせない（Speech SDK は `PropertyId.WebWorkerLoadType = "off"`）。`worker-src data:` は足さない |
 
 マイク（`getUserMedia`）と `AudioContext` の可否は CSP ではなくホストの Permissions-Policy とユーザー操作で決まる。
 → [デバイス・メディア](device-media.md)

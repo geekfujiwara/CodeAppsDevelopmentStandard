@@ -54,6 +54,25 @@ powershell -File .github/skills/code-apps/scripts/run_headless_media_test.ps1 -W
 抽出したログで、**どの段階まで進んだか**を判定する（例: マイク取得 → AudioContext running →
 WebSocket 接続確立 → 発話検知 → 途中結果 → 確定 → 記録保存）。ログの規約は [デバイス・メディア](device-media.md) §6。
 
+スクリプトは、アプリのログ接頭辞に関係なく**ブラウザ自身が出す CSP 違反を数えて警告する**。
+接頭辞やキーワードでログを絞ると、停止時に一度だけ出る違反（例: `data:` Worker）を見落とすため、
+違反の件数は毎回 0 であることを確認する。
+
+### Step 4: メインスレッドの停止に耐えるかを試す
+
+短い正常系の試験では、送信の待ち合わせやバッファのあふれが起きず、問題が表に出ない。
+試験用ビルドでだけ有効なフックで、送信開始後（5 秒以降）にメインスレッドを意図的に止め、
+**停止後も確定文が出続けるか**と**停止中に話した文が崩れないか**を確認する。
+
+```ts
+// 試験用ビルドでだけ有効（VITE_DEV_JANK_AT_MS / VITE_DEV_JANK_MS）
+const jankAt = Number(import.meta.env.VITE_DEV_JANK_AT_MS ?? 0)
+if (jankAt > 0) setTimeout(() => { const until = performance.now() + Number(import.meta.env.VITE_DEV_JANK_MS ?? 800); while (performance.now() < until) {} }, jankAt)
+```
+
+複数の構成（ライブラリ設定・取り込み方式）を同じ停止条件で順に試し、表で比較する。結果の例は
+[デバイス・メディア](device-media.md) §4。
+
 ## 落とし穴（実測）
 
 | 症状 | 原因 | 対処 |
