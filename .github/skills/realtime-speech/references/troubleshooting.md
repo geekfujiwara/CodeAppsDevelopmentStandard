@@ -42,7 +42,7 @@ CSP で止まった場合は `Refused to connect … Content Security Policy` �
 
 **原因**: Managed Identity のロールが足りない、または付与の反映待ち。
 
-**対処**: Managed Identity にリソース グループの範囲で Foundry User を付け、数分待つ。リソース範囲だけでは 401 のままだった（[認証とロール](auth.md)）。
+**対処**: Managed Identity にリソース グループの範囲で Foundry User を付ける（実測で数秒〜2 分で反映）。リソース範囲で付けた場合は反映に 10 分以上かかることがあるので、15 分以上待ってから判断する（[認証とロール](auth.md)）。
 
 ## 7. `get_speech_token.ps1` が「カスタム サブドメインが未設定です」で止まる
 

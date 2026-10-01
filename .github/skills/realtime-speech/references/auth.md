@@ -25,9 +25,18 @@ STS トークンの発行（`issueToken`）を Managed Identity から呼んだ�
 | Foundry User（**リソース**）のみ | **401**（`Principal does not have access to API/Operation`）。付与から 3 時間以上たっても変わらなかった |
 | **Foundry User（リソース グループ）を追加（標準）** | 200（追加から約 2 分） |
 
-- 標準は **Foundry User** とし、Function の Managed Identity には**リソース グループの範囲**で付ける
-- Foundry User と Cognitive Services User の `dataActions` は同一（`Microsoft.CognitiveServices/*`）。
-  リソース範囲の Foundry User だけが効かなかった理由は**未確認**（範囲の違いか、付与の追加で状態が更新されたのかを切り分けていない）
+切り分けのため、新しいサービス プリンシパルで範囲だけを変えて発行を繰り返した（2026-10、同じ Speech リソース、5 秒間隔）。
+
+| 範囲 | 200 になるまで |
+|---|---|
+| Foundry User（リソース グループ） | 約 2 秒（最初の試行から 200） |
+| Foundry User（リソース） | **約 12 分**（それまで 401 `Principal does not have access to API/Operation`） |
+
+- 標準は **Foundry User** とし、Function の Managed Identity には**リソース グループの範囲**で付ける。
+  最小権限にしたい場合は Speech リソースを専用のリソース グループに置く
+- **リソース範囲でも効く**。ただし反映に 10 分以上かかることがある。リソース範囲で付けたら 15 分以上待ってから判断する。
+  前述の Managed Identity が 3 時間以上 401 のままだった理由は再現できず**未確認**
+- Foundry User と Cognitive Services User の `dataActions` は同一（`Microsoft.CognitiveServices/*`）
 - 利用者アカウントはサブスクリプション範囲の Foundry User で発行できた
 - ロールの付与・削除の反映には数分かかる。削除の反映は遅れることがあり、**削除直後に成功しても、そのロールが不要だとは限らない**
   （実測: Cognitive Services User を外した直後は成功が続き、のちに 401 になった）。判断は付与・削除から 10 分以上あけて行う

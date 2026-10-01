@@ -12,13 +12,13 @@
           "properties": {
             "IsFirstParty": "False",
             "AzureActiveDirectoryResourceId": "{{API_APP_ID}}",
-            "IsOnbehalfofLoginSupported": false
+            "IsOnbehalfofLoginSupported": true
           },
           "customParameters": {
             "loginUri": { "value": "https://login.microsoftonline.com" },
             "tenantId": { "value": "{{TENANT_ID}}" },
             "resourceUri": { "value": "{{API_APP_ID}}" },
-            "enableOnbehalfOfLogin": { "value": "false" }
+            "enableOnbehalfOfLogin": { "value": "true" }
           }
         }
       }
