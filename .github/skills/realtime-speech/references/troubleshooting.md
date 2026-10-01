@@ -78,3 +78,24 @@ CSP で止まった場合は `Refused to connect … Content Security Policy` �
 ## 12. アプリを初めて開くと「Allow &lt;アプリ&gt; to access your data?」が出る
 
 正常。カスタム コネクタを使うアプリでは、利用者・アプリごとに 1 回出る。接続が「Connection Complete」と表示されていれば Allow する。
+
+## 13. 試験用の WAV で数字しか認識されない（英語の数字が混じる）
+
+**症状**: `System.Speech` で作った WAV を認識すると、「0123。」「Four five point five percent」のように数字だけが出る。
+
+**原因**: `PromptBuilder.StartVoice("Microsoft Ichiro")` が Windows の新しい音声（OneCore）を選べず、既定の英語の音声で日本語を読んでいた（漢字・かなは読み飛ばされる）。エラーは出ない。
+
+**対処**: 行ごとに `SpeechSynthesizer.SelectVoice(<名前>)` で切り替えて `Speak()` する。間は `PromptBuilder.AppendBreak` だけの読み上げで作る。
+**恒久対策済み** — `scripts/synthesize_script_wav.ps1`。
+
+## 14. Windows PowerShell 5 で `.ps1` が構文エラーになる（日本語のコメント・文字列を含む）
+
+**原因**: BOM の無い UTF-8 を Windows PowerShell 5 は Shift_JIS として読む。
+
+**対処**: スクリプトは BOM 付き UTF-8 で保存する（本スキルの `.ps1` は BOM 付き）。
+
+## 15. 連続録音で、区切った後の録音が前の発言者の分を含む／長さが合わない
+
+**原因**: `MediaRecorder` の WebM を時刻で切ろうとした、または認識の `offset` と別の時計（`Date.now()` など）で切った。
+
+**対処**: 認識器に送る PCM と同じバッファから、認識結果の `offset` で切り出す（[連続録音の区切り](continuous-segmentation.md)、`pcm-segmenter.ts`）。

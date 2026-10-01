@@ -15,6 +15,9 @@ triggers:
   - "stt.speech.microsoft.com"
   - "WebWorkerLoadType"
   - "文字起こしが止まる"
+  - "連続録音"
+  - "話者ごとに区切る"
+  - "株主番号"
 ---
 
 # リアルタイム音声文字起こしスキル
@@ -34,7 +37,7 @@ Code Apps ─(カスタム コネクタ)─▶ トークン発行 Function（Man
 | 音声は自前で PCM にして Push ストリームで渡す | SDK にマイクを直接渡すと、Code Apps では音声が SDK に届かない |
 
 リファレンス: [認証とロール](references/auth.md) / [遅延と精度](references/latency-accuracy.md) /
-[異常系](references/troubleshooting.md) / [パラメータ](references/.env.example)
+[連続録音の区切り](references/continuous-segmentation.md) / [異常系](references/troubleshooting.md) / [パラメータ](references/.env.example)
 
 ## Step 0: 事前確認（会話の最初に 1 回だけ）
 
@@ -105,13 +108,21 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 - 開始は**ボタンのクリック**から呼ぶ（`AudioContext` の開始にユーザー操作が要る）
 - 前提（トークン発行コネクタ）が欠けているときは開始ボタンを無効にし、理由を表示する
 - 認識器は必ず `createRecognizer()` で作る（`WebWorkerLoadType=off` を設定する。外すと文字起こしが無言で止まる）
+- 録音を止めずに続け、発言者ごとに区切って保存する場合は、認識器に送る PCM を `pcm-segmenter.ts` に溜め、
+  区切りのフレーズの `offset` で切り出す（[連続録音の区切り](references/continuous-segmentation.md)）
 
 ## Step 6: ホスト再現テストで確認する
 
 [code-apps のホスト再現テスト](../code-apps/references/host-emulation-testing.md) で、Step 2 の WAV を疑似マイクにして動かす。
+複数の話者・長い台本で試すときは、台本を Windows の読み上げで WAV にする（クラウド不要）。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .github/skills/realtime-speech/scripts/synthesize_script_wav.ps1 -Script <台本.json> -Out .mcp/tts/script.wav
+```
 
 1. 正常系: 確定文と記録の保存まで進み、**CSP 違反が 0 件**
 2. 停止耐性: 送信開始 5 秒以降にメインスレッドを 0.8 秒止めても、停止中・停止後の文が正しく確定する
+3. 連続録音の場合: 区切りの順番と、切り出した録音の長さが区切りの `offset` の差と一致する
 
 ## Step 7: 実機で確認する
 
