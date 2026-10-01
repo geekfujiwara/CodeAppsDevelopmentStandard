@@ -2495,3 +2495,75 @@ npm run deploy
 
 
 
+
+## 52. カスタムコネクタの接続参照が `isn't a valid connection reference logical name` で拒否される（検証済 2026-10-01）
+
+### 症状
+
+`setup_connection_reference.py --api-id <カスタムコネクタの API ID>` で作った接続参照を
+`pa app add data-source --connection-ref` に渡すと、論理名が無効だとして失敗する。
+
+### 原因
+
+カスタムコネクタの API ID はハイフンを含む（例: `shared_<prefix>-5f<name>-20...-5f<hash>`）。
+旧実装は API ID をそのまま論理名に埋め込んでいたため、`pa` CLI の規則（英字で始まり英数字と `_` のみ）に反した。
+
+### 対処
+
+論理名を英数字だけに正規化して作り直す。無効な名前の接続参照は削除する。
+
+**恒久対策済み**: `scripts/setup_connection_reference.py` の `build_logical_name()` が英数字以外を除去し、
+`assert_valid_logical_name()` が新規作成・流用の両方で検証する。無効な名前の既存接続参照は流用しない。
+
+## 53. `pa app add data-source --connection-ref` が `Failed to resolve connection ID for reference` で失敗する（検証済 2026-10-01）
+
+### 症状
+
+接続を作る前に接続参照だけを用意し、データソースを追加しようとすると失敗する。
+
+### 原因
+
+`pa app add data-source` はコネクタ定義の取得に、接続参照へ**バインド済みの接続**を使う。
+OAuth のカスタムコネクタの接続は利用者本人のサインインでしか作れないため、先に用意できていない。
+
+### 対処
+
+利用者本人がコネクタの接続を作成 → `pac connection list` で接続 ID を確認 →
+`setup_connection_reference.py --connection-id <id>`（または既存接続参照へバインド）→ データソースを追加する。
+
+**恒久対策済み**: `setup_connection_reference.py` が未バインドの接続参照を検出すると、この失敗と次の手順を表示する。
+
+## 54. マイクを SDK に渡しても音声認識の結果が出ない（エラーも出ない）（検証済 2026-10-01）
+
+### 症状
+
+音声系 SDK にマイク（`MediaStream` や既定マイク）を渡して認識を開始すると、Code Apps 上でだけ途中結果も確定結果も来ない。
+同じコードは単体のブラウザ タブでは動く。
+
+### 原因
+
+SDK が内部で作る `AudioContext` がユーザー操作として扱われず開始しない、または内部の `blob:` AudioWorklet が
+`script-src` でブロックされ、音声が SDK に届いていない。
+
+### 対処
+
+クリック ハンドラ内で自前の `AudioContext` を開始し、自前で PCM に変換して SDK の Push ストリームへ書き込む。
+→ [デバイス・メディア](device-media.md) §2・§3、ローカル再現は [ホスト再現テスト](host-emulation-testing.md)。
+
+## 55. ヘッドレス試験で認識結果が崩れる・ブラウザ プロセスが残る（検証済 2026-10-01）
+
+### 症状
+
+疑似マイクの自動試験で、前回は正確だった文字起こしが崩れる（同じ語の繰り返しなど）。
+タスク マネージャーにヘッドレス Edge が残っている。
+
+### 原因
+
+Edge は子プロセスを先に止めると親のブラウザー プロセスが作り直す。残ったプロセスが疑似マイクを再生し続けて
+CPU を使い、次の試験の音声処理（メインスレッドの ScriptProcessor）が乱れた。
+
+### 対処
+
+親（`--type` の無いブラウザー プロセス）から止め、残存が 0 になるまで繰り返す。
+
+**恒久対策済み**: `scripts/run_headless_media_test.ps1` が親から順に停止し、残存数を毎回表示する（残れば警告）。

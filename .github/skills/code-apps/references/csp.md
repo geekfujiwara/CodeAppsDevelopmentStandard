@@ -218,6 +218,31 @@ async function copyToClipboard(text: string): Promise<boolean> {
 }
 ```
 
+### 7. WebSocket によるストリーミング（Azure AI Speech 等）
+
+**症状**: ストリーミング文字起こしなどの WebSocket が開かない
+
+**必要な設定**:
+| ディレクティブ | 追加するソース |
+|---|---|
+| `connect-src` | `wss://<region>.stt.speech.microsoft.com` のように **`wss://` を含むオリジン** |
+
+- `connect-src` の既定は `'none'` のため、追加した値で**置換**される（他の外部 API も使うなら全部並べる）。
+- Console のメッセージで CSP と認証を切り分ける。
+  `Refused to connect … violates … Content Security Policy` → CSP 不足。
+  `WebSocket connection to 'wss://…' failed:` だけ → CSP は通過しており、相手側（未認証など）で拒否されている。
+- コネクタ（カスタムコネクタを含む）の呼び出しは postMessage 経由なので CSP の追加は不要。
+  ブラウザから直接つなぐ WebSocket だけを `connect-src` に足す。
+
+### 8. 音声・メディア（録音の再生 / Web Audio）
+
+| やりたいこと | 既定 CSP での挙動 | 対処 |
+|---|---|---|
+| 録音した `Blob` を `URL.createObjectURL` で `<audio>` 再生 | `media-src 'self' data:` に `blob:` が無いためブロック | `FileReader.readAsDataURL` で `data:` URL にする（CSP 変更不要）か、`media-src` に `blob:` を追加 |
+| `audioWorklet.addModule(blob:…)` | `script-src` に `blob:` が無いため失敗 | ScriptProcessor 等の代替経路を使う。SDK が内部で blob Worklet を作る場合は、SDK にマイクを直接渡さず自前の音声経路から PCM を渡す（[デバイス・メディア](device-media.md)） |
+
+マイク（`getUserMedia`）と `AudioContext` の可否は CSP ではなくホストの Permissions-Policy とユーザー操作で決まる。
+→ [デバイス・メディア](device-media.md)
 ## 設定方法
 
 ### 方法 A: Power Platform 管理センター（GUI — 推奨）

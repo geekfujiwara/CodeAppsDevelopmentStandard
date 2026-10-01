@@ -509,6 +509,14 @@ python .github/skills/code-apps/scripts/configure_code_app_csp.py `
 
 → 詳細: **[CSP 構成](references/csp.md)**
 
+### マイク・録音・音声ストリーミング
+
+マイクは使えるが、`AudioContext` はクリック ハンドラ内（`await` より前）で開始する。1 本の `MediaStream` を録音と PCM 変換で共有し、
+音声系 SDK にはマイクを直接渡さず Push ストリームで PCM を渡す。録音の再生は `data:` URL、WebSocket は `connect-src` に `wss://` を追加する。
+ホストの条件はローカルで再現して試験できる（別オリジン iframe + 既定 CSP + 疑似マイク）。
+
+→ 詳細: **[デバイス・メディア](references/device-media.md)** / **[ホスト再現テスト](references/host-emulation-testing.md)**
+
 ### ログインユーザーの systemuserid 取得
 
 SDK `getContext().user.objectId`（Entra AAD Object ID）を取得し、`systemuser` テーブルの
@@ -704,7 +712,9 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [モックデータ開発パターン](references/mock-data-pattern.md) | 開発限定の `createMockDataExecutor` 導入・本番バンドル混入防止・SDK 1.2.7 の取得専用制約 |
 | [Lookup 名前解決](references/lookup-resolution.md) | クライアントサイド名前解決・OData FormattedValue パターン・所有者（Owner）列の表示 |
 | [日本語サニタイズ](references/japanese-sanitize.md) | 旧ネイティブ add-data-source 方式の日本語 DisplayName 回避 |
-| [CSP 構成](references/csp.md) | iframe 埋め込み・外部 API 接続時の CSP 設定・CSP 安全な SDK メソッド一覧 |
+| [CSP 構成](references/csp.md) | iframe 埋め込み・外部 API・WebSocket 接続・録音の再生時の CSP 設定・CSP 安全な SDK メソッド一覧 |
+| [デバイス・メディア](references/device-media.md) | マイク・`AudioContext`・録音・PCM 変換の正常系、SDK にマイクを直接渡さない理由、CPU 負荷、前提欠落時の開始抑止、Console へのログ集約 |
+| [ホスト再現テスト](references/host-emulation-testing.md) | 別オリジン iframe + Code Apps 既定 CSP + 疑似マイクをローカルで再現し、ヘッドレス Edge の Console ログで判定する |
 | [テレメトリ / 可観測性パターン](references/telemetry-pattern.md) | `initializeLogger` / `Metric` 判別共用体・`sessionLoadSummary` SLI・PII サニタイズ規約・Application Insights 連携時の CSP |
 | [ユーザー識別](references/user-identity.md) | ログインユーザーの systemuserid 取得パターン（CSP 安全） |
 | [ディープリンク](references/deep-link.md) | MDA / Power Automate から特定ページへパラメータ付き遷移 |
@@ -735,6 +745,8 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [sync_dataverse_client.py](scripts/sync_dataverse_client.py) | [templates/dataverse-client.ts](templates/dataverse-client.ts) を `samples/` 配下の全コピーへ反映（SDK の破壊的変更への追従はこの 1 ファイルを直して配布） |
 | [scaffold_from_cache.ps1](scripts/scaffold_from_cache.ps1) | キャッシュからのテンプレート scaffold |
 | [toggle_table_lang.py](scripts/toggle_table_lang.py) | 旧方式の `pac code add-data-source` 向けにテーブル表示名を一時的に英語化 |
+| [serve_host_emulation.mjs](scripts/serve_host_emulation.mjs) | Power Apps ホスト（別オリジン iframe + `allow` 属性 + 既定 CSP）をローカルで再現してビルド成果物を配信する |
+| [run_headless_media_test.ps1](scripts/run_headless_media_test.ps1) | ヘッドレス Edge に疑似マイク（WAV）を流し、Console ログを抽出する。終了時に残存プロセスを 0 にする |
 
 ### 環境変数
 
