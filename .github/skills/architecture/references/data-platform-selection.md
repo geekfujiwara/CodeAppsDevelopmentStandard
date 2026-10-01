@@ -18,7 +18,7 @@
 | こんなとき | 選ぶもの |
 |---|---|
 | 申請・案件・台帳など、画面から 1 件ずつ登録・更新する。行レベル権限・監査が要る | **Dataverse**（[dataverse スキル](../../dataverse/SKILL.md)） |
-| 既存アプリが SQL Server 互換 DB を前提にしている / Power Platform 外のアプリが主 | **Azure SQL**（[azure スキル](../../azure/SKILL.md)） |
+| 既存アプリが SQL Server 互換 DB を前提にしている / Power Platform 外のアプリが主 | **Azure SQL**（[azure-infra スキル](../../azure-infra/SKILL.md)） |
 | Power BI・OneLake・Microsoft 365 と一体で分析したい。SaaS で運用負荷を下げたい | **Microsoft Fabric** |
 | ストリーミング、Spark によるデータエンジニアリング、機械学習、既存 Databricks 資産がある | **Azure Databricks** |
 | 業務エンティティと関係（店舗―設備―センサー―作業指示）を明示的にモデル化し、グラフで辿りたい | **Fabric IQ Ontology** |

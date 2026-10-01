@@ -100,6 +100,6 @@ python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --
 | Cowork / MCP クライアント登録 | .github/skills/cowork/SKILL.md |
 | AI チームメイト（Agent 365 / agentUser での Teams 公開。1 回の AskUserQuestion → `scaffold_ai_teammate.py` で同僚エージェント + 評価Hub を同時 scaffold。頭脳は Copilot SDK ランタイム / 自前ループのどちらでも可） | .github/skills/ai-teammate/SKILL.md |
 | スキル作成・更新 | .github/skills/update-skills/SKILL.md |
-| Azure リファレンスアーキテクチャ（セキュア構成） | .github/skills/azure/SKILL.md |
+| Azure リファレンスアーキテクチャ（セキュア構成） | .github/skills/azure-infra/SKILL.md |
 | MCP Server 開発（Azure Functions / Copilot Studio 連携） | .github/skills/mcp-server/SKILL.md |
 | SharePoint（Graph API・AAD アプリ登録不要） | .github/skills/sharepoint/SKILL.md |

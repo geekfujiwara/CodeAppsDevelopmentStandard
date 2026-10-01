@@ -23,7 +23,7 @@ Copilot Studio のエージェントから **社内の業務データ（DB・フ
 **自前 MCP Server** を Azure Functions 上に構築する。
 
 > **役割分離**: VNet / Private Endpoint / Managed Identity といった **Azure 基盤の構成**は
-> [azure スキル](../azure/SKILL.md) に委譲する。本スキルは **MCP プロトコル層・Entra 認可・データ投入・
+> [azure-infra スキル](../azure-infra/SKILL.md) に委譲する。本スキルは **MCP プロトコル層・Entra 認可・データ投入・
 > Copilot Studio 登録** を担当する。
 
 ## 設計原則
@@ -92,7 +92,7 @@ python .github/skills/mcp-server/scripts/configure_entra_api.py
 
 ### Step 3: Azure 基盤を構築する
 
-[azure スキル](../azure/SKILL.md) の手順で以下を構築する。本スキル固有の要件のみ以下に示す。
+[azure-infra スキル](../azure-infra/SKILL.md) の手順で以下を構築する。本スキル固有の要件のみ以下に示す。
 
 | リソース | 本スキル固有の要件 |
 |---|---|
@@ -311,7 +311,7 @@ python .github/skills/mcp-server/scripts/verify_mcp_server.py
 
 ## 参考リンク
 
-- [Azure リファレンスアーキテクチャ](../azure/SKILL.md)
+- [Azure 基盤リファレンス（azure-infra）](../azure-infra/SKILL.md)
 - [共通認証（auth_helper / azure_helper）](../standard/references/auth-patterns.md)
 - [Copilot Studio v2](../copilot-studio-v2/SKILL.md)
 - [異常系・トラブルシュート](references/troubleshooting.md)

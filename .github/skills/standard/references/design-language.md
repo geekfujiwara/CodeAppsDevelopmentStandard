@@ -71,6 +71,6 @@ shadcn/ui 流の **CSS 変数**で定義する。役割ベースのトークン�
 |---|---|
 | 内部業務アプリ（React / shadcn/ui + Tailwind v4） | [code-apps デザインパターン](../../code-apps/references/design-pattern.md) / [テンプレート](../../code-apps/references/design-templates.md) |
 | 外部公開サイト / ポータル | [power-pages デザインパターン](../../power-pages/references/design-pattern.md) / [テンプレート](../../power-pages/references/design-templates.md) |
-| Azure 上の Web フロント | [azure スキル](../../azure/SKILL.md)（本ファイルを配色の単一ソースとして参照 + Azure 固有適応） |
+| Azure 上の Web フロント | [azure-infra スキル](../../azure-infra/SKILL.md)（本ファイルを配色の単一ソースとして参照 + Azure 固有適応） |
 
 > 新しい実装パターンは各プラットフォームスキルに追加し、本ファイルの UX 選定マップに1行足す。
