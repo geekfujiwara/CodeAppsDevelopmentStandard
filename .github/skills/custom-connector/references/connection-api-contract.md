@@ -11,7 +11,9 @@ Power Automate の接続画面（`make.powerautomate.com`）が送る要求を�
 |---|---|
 | 接続の作成（PUT）と削除（DELETE） | 画面操作時の要求を捕捉（write 要求だけ、authorization は記録しない） |
 | `getConsentLink` / `confirmConsentCode` | 画面のポップアップが統合ブラウザでブロックされ要求が出なかったため、画面の JavaScript の要求組み立てコードを読んで確認 |
+| `createoboconnection` | 画面の JavaScript で、コネクタが on-behalf-of を有効にしているときの作成経路を確認し、実際に要求して `Connected` を読み戻した |
 | ホスト、`api-version`、同意の 2 つの戻り方 | 上記の contract で実際に要求し、応答と状態を読み戻して確認 |
+| on-behalf-of の前提条件 | Microsoft Learn（カスタム コネクタの Entra ID 認証: on-behalf-of ログイン）と実測 |
 
 ## ホストと認証
 
@@ -35,6 +37,48 @@ Power Automate の接続画面（`make.powerautomate.com`）が送る要求を�
 | 削除 | `DELETE /{name}?api-version=1` | — | 200 |
 
 画面の UI は表示名を空にすると本文に `displayName` を入れない。入れた場合はその表示名で作成された。
+
+## on-behalf-of の接続作成（正常系）
+
+コネクタの `oAuthSettings` が `properties.IsOnbehalfofLoginSupported: true` と
+`customParameters.enableOnbehalfOfLogin.value: "true"` の両方を持つとき、ブラウザを使わずに作成できる。
+
+| 項目 | 値 |
+|---|---|
+| 要求 | `POST {host}/connectivity/connectors/{connector}/createoboconnection?api-version=1` |
+| 本文 | `{"connectionDefinition":{"properties":{"environment":{"name":"{env}"},"connectionParameters":{},"displayName":"…","consentInfo":{"redirectUrl":"https://global.consent.azure-apim.net/redirect"}}},"skipTestConnection":true}` |
+| 応答 | 201。`name` は**サーバーが生成**（`shared-<コネクタ名の先頭>-<GUID>`）。作成直後から `Connected` |
+| 所有者 | トークンを取ったサインイン ユーザー。API には、そのユーザーの `oid` と `appid`=API アプリ自身の委任トークンが届く |
+| 前提 | API アプリのスコープに **Azure API Connections**（`fe053c5f-3692-4f14-aef2-ee34fc081cae`）が事前承認されている。無いと利用者ごとの同意が要る |
+
+判定は `create_connection.py` の `supports_obo()`、作成は `_apply_obo()`。
+
+### コネクタ定義の同期（ランタイム側）
+
+`pac connector create / update` は Dataverse の `connectors` 行を更新し、その内容が PowerApps RP
+（`https://api.powerapps.com/providers/Microsoft.PowerApps/apis/{connector}?api-version=2016-11-01&$filter=environment eq '{env}'`）へ同期される。
+接続作成はこの RP 側の定義を使う。
+
+| 観測 | 内容 |
+|---|---|
+| 正常 | 更新直後に RP の `changedTime` が Dataverse の `modifiedon` に追いつき、`IsFirstParty` が `"True"` に変わる |
+| 同じ API アプリで 2 つ目の OBO コネクタ | Dataverse には保存されるが RP に同期されない（`changedTime` が止まる。エラーは返らない）。1 つ目のコネクタを削除すると、次の更新で同期された |
+| 接続の有無 | 既存の接続を消しても同期されなかった（原因ではない） |
+| RP への直接 PATCH | `connectionParameters` だけの PATCH は 500。使わない |
+
+`deploy_connector.py` は更新前に同じリソースの OBO コネクタを検索し、更新後に RP の on-behalf-of フラグを読み戻す。
+
+## 接続経由の操作呼び出し（確認用）
+
+Code Apps を介さずに、接続 → API の認可までを確かめる。
+
+| 項目 | 値 |
+|---|---|
+| ランタイム URL | RP のコネクタ定義の `properties.runtimeUrls[0]`（`…/apim/<connector>` まで） |
+| 要求 | `{runtimeUrl}/{connectionName}{operation path}`。`basePath` は含めない |
+| トークン | `https://apihub.azure.com/.default`（既定クライアント） |
+
+`create_connection.py invoke` はステータス・所要時間・応答の形（型と長さ）だけを表示し、値は出さない。
 
 ## 同意の 2 つの戻り方
 

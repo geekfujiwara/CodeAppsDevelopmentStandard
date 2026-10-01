@@ -6,11 +6,13 @@
 import base64
 import copy
 import importlib.util
+import json
 import sys
 import unittest
 from pathlib import Path
 
-SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+SKILL = Path(__file__).resolve().parents[1]
+SCRIPTS = SKILL / "scripts"
 
 
 def _load(name: str):
@@ -28,6 +30,7 @@ dc = _load("deploy_connector")
 ENV = "-".join(["0" * 8, "1" * 4, "2" * 4, "3" * 4, "4" * 10 + "55"])
 PLAN = {
     "contractVersion": cc.CONTRACT_VERSION,
+    "mode": "consent",
     "environment": ENV,
     "host": "https://000000001111222233334444444444.55.environment.api.powerplatform.com",
     "connector": "shared_new-5fexample-20api-5f0123456789abcdef",
@@ -144,6 +147,65 @@ class DeployConnectorTest(unittest.TestCase):
         props["properties"]["connectionParameters"]["token"]["oAuthSettings"]["identityProvider"] = "oauth2generic"
         with self.assertRaises(SystemExit):
             dc.inject_secret(props, {"clientSecret": "s"})
+
+
+class OboTest(unittest.TestCase):
+    def _props(self, supported, enabled):
+        return {"connectionParameters": {"token": {"type": "oauthSetting", "oAuthSettings": {
+            "properties": {"IsOnbehalfofLoginSupported": supported},
+            "customParameters": {"enableOnbehalfOfLogin": {"value": enabled}},
+        }}}}
+
+    def test_supports_obo_requires_both_flags(self):
+        # 実測: サーバーは IsOnbehalfofLoginSupported を真偽値、enableOnbehalfOfLogin を文字列で返す
+        self.assertTrue(cc.supports_obo(self._props(True, "true")))
+        self.assertFalse(cc.supports_obo(self._props(True, "false")))
+        self.assertFalse(cc.supports_obo(self._props(False, "true")))
+        self.assertFalse(cc.supports_obo({"connectionParameters": {}}))
+
+    def test_obo_plan_has_no_client_connection_name(self):
+        cc.validate_plan({**PLAN, "mode": "obo", "connectionName": None})
+        with self.assertRaises(ValueError):
+            cc.validate_plan({**PLAN, "mode": "obo"})
+
+    def test_consent_plan_requires_connection_name(self):
+        with self.assertRaises(ValueError):
+            cc.validate_plan({**PLAN, "mode": "consent", "connectionName": None})
+
+    def test_rejects_unknown_mode(self):
+        with self.assertRaises(ValueError):
+            cc.validate_plan({**PLAN, "mode": "silent"})
+
+
+class OboConflictTest(unittest.TestCase):
+    RESOURCE = "-".join(["a" * 8, "b" * 4, "c" * 4, "d" * 4, "e" * 12])
+
+    def _row(self, cid, enabled, resource=RESOURCE):
+        params = {"token": {"oAuthSettings": {
+            "properties": {"IsOnbehalfofLoginSupported": True, "AzureActiveDirectoryResourceId": resource},
+            "customParameters": {"resourceUri": {"value": resource}, "enableOnbehalfOfLogin": {"value": "true" if enabled else "false"}},
+        }}}
+        return {"connectorid": cid, "displayname": f"c-{cid}", "connectionparameters": json.dumps(params)}
+
+    def test_obo_settings_reads_rendered_template(self):
+        props = json.loads((SKILL / "templates" / "oauth-api" / "connector" / "apiProperties.json").read_text(encoding="utf-8"))
+        enabled, resource = dc.obo_settings(props)
+        self.assertTrue(enabled)
+        self.assertEqual(resource, "{{API_APP_ID}}")
+
+    def test_detects_other_obo_connector_for_same_resource(self):
+        rows = [self._row("a", True), self._row("b", False), self._row("c", True, resource="other")]
+        self.assertEqual(dc.find_obo_conflicts(rows, self.RESOURCE, "own"), ["c-a（connectorid=a）"])
+
+    def test_ignores_own_connector(self):
+        self.assertEqual(dc.find_obo_conflicts([self._row("OWN", True)], self.RESOURCE, "own"), [])
+
+
+class DescribeShapeTest(unittest.TestCase):
+    def test_hides_values(self):
+        shape = cc.describe_shape({"token": "secret-value", "n": 1, "items": [1, 2], "nested": {"a": "xy"}})
+        self.assertEqual(shape, {"token": "str(12)", "n": "int", "items": "list[2]", "nested": {"a": "str(2)"}})
+        self.assertNotIn("secret-value", str(shape))
 
 
 if __name__ == "__main__":

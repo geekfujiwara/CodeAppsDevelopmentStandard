@@ -4,6 +4,8 @@
 - クライアント シークレットは一時ディレクトリのファイルにだけ差し込み、表示しない
 - 作成後に Dataverse の connectors から connectorinternalid（shared_...）を読み、
   Entra アプリへ `https://global.consent.azure-apim.net/redirect/<shared_ を除いた ID>` を追加する
+- on-behalf-of を有効にする定義では、同じリソースで OBO を有効にした別コネクタが無いことを事前に確認し、
+  更新後はランタイム側（PowerApps RP）に OBO フラグが反映されたことを読み戻す
 
 OAuth 設定ファイルは mcp-server の configure_connector_oauth.py が出力する JSON
 （clientId / clientSecret / scope / resourceUri）。テンプレートで使える値:
@@ -25,6 +27,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 SKILLS = Path(__file__).resolve().parents[2]
@@ -66,6 +69,68 @@ def inject_secret(properties: dict, credential: dict) -> dict:
         raise SystemExit("このスクリプトは identityProvider=aad（Entra ID）のコネクタ専用です")
     settings["clientSecret"] = credential["clientSecret"]
     return properties
+
+
+def obo_settings(properties: dict) -> tuple[bool, str | None]:
+    """apiProperties（properties 直下でも外側でも可）から (OBO 有効か, リソース アプリ ID) を返す。"""
+    body = properties.get("properties", properties)
+    for param in (body.get("connectionParameters") or {}).values():
+        settings = (param or {}).get("oAuthSettings") or {}
+        if not settings:
+            continue
+        supported = (settings.get("properties") or {}).get("IsOnbehalfofLoginSupported") is True
+        custom = settings.get("customParameters") or {}
+        enabled = str((custom.get("enableOnbehalfOfLogin") or {}).get("value", "")).lower() == "true"
+        resource = (custom.get("resourceUri") or {}).get("value") or (settings.get("properties") or {}).get("AzureActiveDirectoryResourceId")
+        return supported and enabled, resource
+    return False, None
+
+
+def find_obo_conflicts(rows: list[dict], resource: str, own_connector_id: str | None) -> list[str]:
+    """同じリソースで OBO を有効にしている別コネクタの表示名を返す。
+
+    同一環境で同じリソース アプリに OBO を有効にできるコネクタは 1 つだけで、2 つ目の更新は
+    Dataverse には保存されるがランタイム（PowerApps RP）へ同期されず、エラーも返らない。
+    """
+    conflicts = []
+    for row in rows:
+        if own_connector_id and row.get("connectorid", "").lower() == own_connector_id.lower():
+            continue
+        try:
+            params = json.loads(row.get("connectionparameters") or "{}")
+        except json.JSONDecodeError:
+            continue
+        enabled, other = obo_settings({"connectionParameters": params})
+        if enabled and other and other.lower() == resource.lower():
+            conflicts.append(f"{row.get('displayname')}（connectorid={row.get('connectorid')}）")
+    return conflicts
+
+
+def _obo_conflicts(resource: str, own_connector_id: str | None) -> list[str]:
+    sys.path.insert(0, str(SKILLS / "standard" / "scripts"))
+    from auth_helper import api_get  # noqa: PLC0415
+
+    rows = api_get(f"connectors?$select=connectorid,displayname,connectionparameters&$filter=contains(connectionparameters,'{resource}')").get("value", [])
+    return find_obo_conflicts(rows, resource, own_connector_id)
+
+
+def _verify_runtime_sync(environment: str, internal_id: str, expected_obo: bool, timeout: int = 90) -> None:
+    """Dataverse に保存された定義がランタイム側（PowerApps RP）に届いたかを OBO フラグで読み戻す。"""
+    spec = importlib.util.spec_from_file_location("create_connection", Path(__file__).with_name("create_connection.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    deadline = time.time() + timeout
+    while True:
+        actual = module.supports_obo(module.connector_properties(environment, internal_id))
+        if actual == expected_obo:
+            print(f"[sync] ランタイム側に反映済み（on-behalf-of={'有効' if actual else '無効'}）")
+            return
+        if time.time() >= deadline:
+            raise SystemExit(
+                f"[sync] {timeout} 秒待ってもランタイム側の on-behalf-of が {actual} のままです（期待値 {expected_obo}）。"
+                " 同じリソースで OBO を有効にした別コネクタが無いか確認する（references/troubleshooting.md）"
+            )
+        time.sleep(10)
 
 
 def _run(command: list[str]) -> str:
@@ -133,6 +198,15 @@ def main() -> int:
         properties = inject_secret(json.loads(render((args.connector_dir / "apiProperties.json").read_text(encoding="utf-8"), values)), credential)
         properties_file = root / "apiProperties.json"
         properties_file.write_text(json.dumps(properties, ensure_ascii=False, indent=2), encoding="utf-8")
+        expected_obo, resource = obo_settings(properties)
+        if expected_obo and resource:
+            conflicts = _obo_conflicts(resource, args.connector_id)
+            if conflicts:
+                raise SystemExit(
+                    "同じリソースで on-behalf-of を有効にしたコネクタが既にあります。更新はランタイムに同期されません:\n  "
+                    + "\n  ".join(conflicts)
+                    + "\n不要なら削除し、必要ならそちらを使う（references/troubleshooting.md）"
+                )
 
         command = [pac, "connector"]
         if args.connector_id:
@@ -150,6 +224,7 @@ def main() -> int:
     row = _connector_row(connector_id)
     internal_id = row["connectorinternalid"]
     print(f"[connector] {'更新' if args.connector_id else '作成'}: {row.get('displayname')} / connectorid={connector_id} / {internal_id}（clientSecret は表示しません）")
+    _verify_runtime_sync(args.environment, internal_id, expected_obo)
 
     if not args.skip_redirect:
         audience = credential.get("resourceUri") or f"api://{credential['clientId']}"

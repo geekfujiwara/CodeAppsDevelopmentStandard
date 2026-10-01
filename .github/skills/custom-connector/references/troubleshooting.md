@@ -54,3 +54,37 @@
 ## 8. `plan` が「Git リポジトリ外のため…判定できません」で止まる
 
 **対処**: 作業フォルダーで `git init` し、`.gitignore` に `.mcp/` と `.secrets/` を追加する。
+
+## 9. on-behalf-of を有効にしたのに plan が `mode: consent` になる
+
+**症状**: `deploy_connector.py` は成功し、Dataverse の `connectors.connectionparameters` も `enableOnbehalfOfLogin: "true"` なのに、
+RP（`api.powerapps.com` の `apis/{connector}`）は `"false"` のまま。RP の `changedTime` が更新前の時刻で止まっている。
+
+**原因**: 同じ環境で、同じ API アプリ（リソース）に on-behalf-of を有効にした別のコネクタがある（検証用の複製など）。
+2 つ目の更新は Dataverse には保存されるが RP に同期されず、エラーも返らない。
+
+**対処**: 不要なほうのコネクタの接続を消し、Dataverse の `connectors(<connectorid>)` を削除してから、もう一度 `deploy_connector.py` で更新する。
+**恒久対策済み** — `deploy_connector.py` の `find_obo_conflicts()`（更新前に止める）と `_verify_runtime_sync()`（更新後に RP を読み戻す）。
+
+## 10. 接続のスクリプトがデバイス コード認証で止まる
+
+**原因**: `TENANT_ID` が未設定で、`auth_helper` がテナント別のキャッシュ（`auth_record_<tenant>_<client>.json`）を見つけられない。
+
+**対処**: プロジェクトの `.env` に `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` を書く。シェルごとに環境変数で渡すと付け忘れる。
+
+## ブラウザで接続を作る方法（on-behalf-of を使えない場合）
+
+他社 API など、API アプリに Azure API Connections を事前承認できない場合だけ使う。plan が `mode: consent` を選ぶ（`--mode consent` で明示も可）。
+
+**同意（apply）**: apply は接続を作成し、`http://127.0.0.1:53682/start` を表示して待つ。**接続の所有者本人のブラウザ**で開き、
+アカウントを選んで（初回は同意画面で Accept）、「Confirmation required」で作成者が本人であることを確かめてチェック → Allow access。
+`Connected` を読み戻して接続参照にバインドする。失敗したら作成した接続を削除する。
+
+**利用者が自分で作る（manual）**: URL を渡し、作成を API で確認する。
+
+```powershell
+python .github/skills/custom-connector/scripts/create_connection.py manual --connector <shared_…> --connection-reference <論理名>
+```
+
+表示された URL を所有者が **Microsoft Edge** で開き、「作成」→ サインインする（統合ブラウザはポップアップが開かない。#3）。
+新しい接続が `Connected` になったらバインドまで進む。
