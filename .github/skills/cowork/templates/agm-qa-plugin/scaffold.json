@@ -1,0 +1,50 @@
+{
+  "description": "株主総会 Q&A アシスト用 Cowork プラグイン（想定問答の作成・リハーサル台本の作成・想定問答の点検）+ Dataverse MCP コネクタ",
+  "variables": ["PUBLISHER_PREFIX", "COWORK_DEVELOPER_NAME", "COWORK_DEVELOPER_URL", "COWORK_PRIVACY_URL", "COWORK_TERMS_URL", "DATAVERSE_ORIGIN", "COWORK_PLUGIN_ID"],
+  "optionalVariables": ["COWORK_AUTHOR_UPN"],
+  "questions": [
+    {
+      "variable": "DATAVERSE_ORIGIN",
+      "question": "株主総会 Q&A アシストの Dataverse の URL は？（末尾のスラッシュなし。例: https://<org>.crm.dynamics.com）",
+      "detect": ".env の DATAVERSE_URL（末尾の / を取る）"
+    },
+    {
+      "variable": "PUBLISHER_PREFIX",
+      "question": "テーブルの接頭辞は？（アプリと同じ。例: geek_agmqa の geek）",
+      "detect": ".env の PUBLISHER_PREFIX"
+    },
+    {
+      "variable": "COWORK_PLUGIN_ID",
+      "question": "プラグインの ID（GUID）は？ 版を上げても変えない値です。新しく作るなら推奨の値を使います",
+      "detect": "python -c \"import uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, '<DATAVERSE_ORIGIN>/agm-qa-plugin'))\""
+    },
+    {
+      "variable": "COWORK_DEVELOPER_NAME",
+      "question": "プラグインの発行元（会社・部署名）は？（Cowork のプラグイン一覧に出ます）"
+    },
+    {
+      "variable": "COWORK_DEVELOPER_URL",
+      "question": "発行元の Web サイトの URL は？"
+    },
+    {
+      "variable": "COWORK_PRIVACY_URL",
+      "question": "プライバシーに関する説明の URL は？（社内の規程のページなど）"
+    },
+    {
+      "variable": "COWORK_TERMS_URL",
+      "question": "利用規約の URL は？（社内の規程のページなど）"
+    },
+    {
+      "variable": "COWORK_AUTHOR_UPN",
+      "question": "Cowork で想定問答・台本を作る人（ロール「AGM 想定問答作成者」を割り当てる人）のユーザー名は？（後で割り当てるなら空）"
+    }
+  ],
+  "nextSteps": [
+    "PERMISSIONS.md で担当者と権限を確認する（cowork スキル references/permissions.md）",
+    "python scripts/setup_security_roles.py --assign-author <UPN>  # アプリのプロジェクトで。ロール「AGM 想定問答作成者」",
+    "python .github/skills/cowork/scripts/setup_entra_oauth_graph.py → register_mcp_client.py → diagnose_cowork_connector.py（cowork スキル Step 3〜4）",
+    "OAuth client registration（Step 5）→ .env の COWORK_OAUTH_REGISTRATION_ID",
+    "pwsh .github/skills/cowork/scripts/build_agent_package.ps1 -PluginRoot <出力先> -OutputName agm-qa-author",
+    "管理センター private API で登録・公開（Step 8）→ Cowork の Customize → Plugins で有効化して Connect"
+  ]
+}
