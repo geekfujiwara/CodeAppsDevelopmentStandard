@@ -92,6 +92,10 @@ python .github/skills/code-apps/scripts/configure_code_app_csp.py `
 - 関係グラフは工事を中心に作業、日報、KY、ヒヤリハット、ナレッジ、重機稼働を接続します。
 - 関係グラフで移動した位置は探索用であり、Dataverse へ保存しません。
 
+## UI design
+
+アプリシェルは固定サイドバーを使わず、ナビゲーションと本文が同じ CSS Grid 内で幅を分けます。Power Apps iframe 内でも本文が横へはみ出しません。濃紺メニューの文字色、地図カード、工事ワークスペースの余白はクラスで明示しており、production CSS を `npm run test:layout` で検査できます。
+
 ## Cowork
 
 `cowork/construction-cockpit` に 5 つのスキルと Dataverse MCP connector 定義を含みます。メール、チャット、会議文字起こしを信頼されない入力として扱い、作成・更新は利用者の確認後だけ行います。
@@ -108,7 +112,7 @@ python .github/skills/code-apps/scripts/configure_code_app_csp.py `
 | ガント | `src/components/project-gantt-flow.tsx` |
 | 関係グラフ | `src/components/project-relationship-flow.tsx` |
 | 地図 | `src/components/google-map-embed.tsx`, `src/pages/site-map.tsx` |
-| Project Orbit デザイン | `styles/index.pcss` |
+| Construction OS デザイン | `styles/index.pcss`、`src/pages/_layout.tsx`、`src/components/sidebar.tsx` |
 | Cowork | `cowork/construction-cockpit` |
 
 ## セキュリティ

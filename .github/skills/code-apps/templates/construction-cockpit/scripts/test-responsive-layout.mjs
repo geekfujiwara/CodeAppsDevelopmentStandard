@@ -6,6 +6,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8")
 const layout = read("src/pages/_layout.tsx")
 const sidebar = read("src/components/sidebar.tsx")
+const siteMap = read("src/pages/site-map.tsx")
+const project = read("src/pages/project-detail.tsx")
 const styles = read("styles/index.pcss")
 const cssFile = fs.readdirSync(path.join(root, "dist", "assets")).find((name) => /^index-.*\.css$/.test(name))
 
@@ -13,16 +15,18 @@ if (!cssFile) throw new Error("Production CSS bundle was not found. Run npm run 
 
 const bundle = read(path.join("dist", "assets", cssFile))
 const assertions = [
-  [layout.includes("md:w-[calc(100%-14rem)]"), "expanded content width subtracts the 14rem sidebar"],
-  [layout.includes("2xl:w-[calc(100%-16rem)]"), "wide content width subtracts the 16rem sidebar"],
-  [layout.includes("md:w-[calc(100%-4rem)]"), "collapsed content width subtracts the 4rem sidebar"],
-  [layout.includes("md:flex-none"), "desktop content does not combine flex growth with a sidebar margin"],
-  [sidebar.includes('"w-56 2xl:w-64"'), "sidebar width matches the content-width contract"],
-  [styles.includes("grid-cols-[minmax(0,1fr)_auto]"), "hero uses a non-overlapping grid"],
+  [layout.includes("md:grid-cols-[15rem_minmax(0,1fr)]"), "expanded sidebar participates in the application grid"],
+  [layout.includes("md:grid-cols-[4.5rem_minmax(0,1fr)]"), "collapsed sidebar participates in the application grid"],
+  [sidebar.includes("text-slate-200"), "inactive menu items have an explicit readable color"],
+  [sidebar.includes("bg-slate-950"), "navigation background is explicit"],
+  [!sidebar.includes("fixed left-0"), "desktop navigation is not removed from document flow"],
+  [siteMap.includes("space-y-5 p-5 sm:p-6"), "map cards have explicit responsive padding"],
+  [project.includes("p-5 shadow-sm"), "workspace cards have explicit padding"],
+  [!siteMap.includes("orbit-") && !project.includes("orbit-"), "rebuilt pages do not depend on the previous Orbit CSS"],
+  [!styles.includes(".orbit-"), "global styles do not retain the previous Orbit component layer"],
   [styles.includes("overflow-x-hidden"), "document prevents host-level horizontal scrolling"],
-  [bundle.includes("calc(100% - 14rem)"), "compiled CSS contains the host-width calculation"],
-  [bundle.includes("calc(100% - 16rem)"), "compiled CSS contains the wide host-width calculation"],
-  [bundle.includes("grid-template-columns:minmax(0,1fr) auto"), "compiled CSS contains the hero grid"],
+  [bundle.includes("grid-template-columns:15rem minmax(0,1fr)"), "compiled CSS contains the expanded grid"],
+  [bundle.includes("grid-template-columns:4.5rem minmax(0,1fr)"), "compiled CSS contains the collapsed grid"],
   [bundle.includes("overflow-x:hidden"), "compiled CSS contains the horizontal overflow guard"],
 ]
 
