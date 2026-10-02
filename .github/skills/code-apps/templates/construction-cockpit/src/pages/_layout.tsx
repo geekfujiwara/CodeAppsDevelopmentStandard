@@ -47,10 +47,10 @@ function LayoutContent({ showHeader = true }: LayoutProps) {
       {/* ヘッダー */}
       {showHeader && (
         <header className="sticky top-0 z-30 w-full border-b border-border bg-[var(--header-bg)] backdrop-blur supports-[backdrop-filter]:bg-[var(--header-bg)]/80 shadow-sm">
-          <div className="px-4 flex items-center justify-between h-16">
+          <div className="flex h-16 min-w-0 items-center justify-between gap-2 px-3 sm:px-4">
             {/* 左側: メニューボタンとアプリ名 */}
-            <div className="flex items-center gap-3">
-              <label className="hidden items-center gap-2 text-sm font-medium md:flex">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <label className="hidden shrink-0 items-center gap-2 text-sm font-medium lg:flex">
                 <span>今の現場</span>
                 <select
                   className="h-11 min-w-52 rounded-md border border-input bg-background px-3 text-sm"
@@ -75,18 +75,18 @@ function LayoutContent({ showHeader = true }: LayoutProps) {
               >
                 <Menu className="h-5 w-5" />
               </Button>
-              <div>
-                <h1 className="text-lg font-bold text-primary">
+              <div className="min-w-0">
+                <h1 className="truncate text-base font-bold text-primary sm:text-lg">
                   {CODEAPPS_APP_NAME}
                 </h1>
-                <p className="text-xs text-muted-foreground hidden sm:block">
+                <p className="hidden truncate text-xs text-muted-foreground sm:block">
                   {CODEAPPS_APP_SUBTITLE}
                 </p>
               </div>
             </div>
 
             {/* 右側: 更新ボタン＋テーマ切替 */}
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-3">
               <Button
                 variant="ghost"
                 size="icon"
@@ -108,9 +108,15 @@ function LayoutContent({ showHeader = true }: LayoutProps) {
         <Sidebar />
 
         {/* メインコンテンツエリア */}
-        <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 relative z-0 ${isCollapsed ? 'md:ml-16' : 'md:ml-64'}`}>
+        <div
+          className={`relative z-0 flex min-w-0 flex-1 flex-col transition-[margin,width] duration-300 md:flex-none ${
+            isCollapsed
+              ? "md:ml-16 md:w-[calc(100%-4rem)]"
+              : "md:ml-56 md:w-[calc(100%-14rem)] 2xl:ml-64 2xl:w-[calc(100%-16rem)]"
+          }`}
+        >
           <main className="flex-1 flex flex-col min-w-0 overflow-visible">
-            <div className="flex-1 min-w-0 p-6 max-w-full">
+            <div className="flex-1 min-w-0 max-w-full p-3 sm:p-4 lg:p-5 2xl:p-6">
               <Outlet />
             </div>
           </main>

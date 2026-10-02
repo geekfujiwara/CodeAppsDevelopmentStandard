@@ -166,14 +166,16 @@
 }
 
 @layer base {
-  html, body, #root { 
-    height: 100%; 
+  html, body, #root {
+    width: 100%;
+    min-width: 0;
+    height: 100%;
   }
   * {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply overflow-x-hidden bg-background text-foreground;
     background-image:
       radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--primary) 10%, transparent) 0, transparent 25rem),
       linear-gradient(color-mix(in srgb, var(--border) 18%, transparent) 1px, transparent 1px),
@@ -187,7 +189,7 @@
     }
 
     .orbit-hero {
-      @apply flex min-w-0 flex-wrap items-end justify-between gap-5 overflow-hidden rounded-3xl border p-6;
+      @apply grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-5 overflow-hidden rounded-3xl border p-4 sm:p-5 lg:p-6 max-lg:grid-cols-1;
       background:
         linear-gradient(120deg, color-mix(in srgb, var(--card) 94%, transparent), color-mix(in srgb, var(--primary) 10%, var(--card))),
         radial-gradient(circle at 85% 20%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 18rem);
@@ -209,7 +211,7 @@
 
     .orbit-panel,
     .orbit-map-section {
-      @apply rounded-3xl border bg-card/85 p-5 backdrop-blur;
+      @apply rounded-3xl border bg-card/85 p-4 backdrop-blur sm:p-5;
       box-shadow: 0 18px 55px rgba(15, 23, 42, 0.08);
     }
 
@@ -245,7 +247,7 @@
     }
 
     .orbit-map-section {
-      @apply p-6;
+      @apply p-4 sm:p-5 lg:p-6;
     }
 
     .orbit-map-card {
