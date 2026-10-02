@@ -47,6 +47,13 @@
 
 ## デプロイ (Functions Flex Consumption)
 
+- **アプリ設定の日本語（JSON の表示名など）が化ける・`az functionapp config appsettings set` が引用符やカンマで壊す**
+  - 原因: 日本語 Windows の az は設定ファイル（`--settings @file`）や出力を cp932 で扱い、成功で返る。`az.cmd` 経由だと
+    コマンドラインの JSON の引用符・カンマも cmd に解釈される。
+  - 対処: 値を `json.dumps(..., ensure_ascii=True)` で ASCII（`\uXXXX`）にしてファイルで渡し、Function 側で JSON として読む。
+    az は `PYTHONIOENCODING=utf-8` / `PYTHONUTF8=1` で呼ぶ。**適用後に読み戻して一致を確かめる**
+    （恒久対策済み: code-apps の `templates/agm-qa-assist/scripts/configure_azure.py`）。
+
 - **`Key based authentication is not permitted on this storage account`**（デプロイ時）
   - 原因: 共有キー禁止環境で、deployment ストレージ認証がキーベースのまま。
   - 対処: **作成時に** `--deployment-storage-auth-type SystemAssignedIdentity` を指定する。
