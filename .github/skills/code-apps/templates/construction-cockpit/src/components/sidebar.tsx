@@ -1,157 +1,110 @@
-import { useState, useEffect } from "react";
-import { NavLink } from "react-router-dom";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
-import { useSidebarContext } from "./sidebar-layout";
-import { NAV_SECTIONS, ICON_MAP } from "@/config";
-import { LayoutDashboard } from "lucide-react";
+import { NavLink } from "react-router-dom"
+import { HardHat, LayoutDashboard, X } from "lucide-react"
+import { NAV_SECTIONS, ICON_MAP } from "@/config"
+import { cn } from "@/lib/utils"
 
-export function Sidebar() {
-  const { isCollapsed, isMobileOpen, closeMobile } = useSidebarContext();
-  const [isMobile, setIsMobile] = useState(false);
+type SidebarProps = {
+  collapsed: boolean
+  mobileOpen: boolean
+  onCloseMobile: () => void
+}
 
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
+function Navigation({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  return (
+    <nav className="flex-1 overflow-y-auto px-3 py-5" aria-label="メインメニュー">
+      {NAV_SECTIONS.map((section) => (
+        <section key={section.title} className="mb-7">
+          {!collapsed && (
+            <h2 className="mb-2 px-3 text-[0.68rem] font-bold uppercase tracking-[0.18em] text-slate-400">
+              {section.title}
+            </h2>
+          )}
+          <div className="space-y-1.5">
+            {section.items.map((item) => {
+              const Icon = ICON_MAP[item.key] ?? LayoutDashboard
+              const path = item.path.startsWith("/") ? item.path : `/${item.path}`
+              return (
+                <NavLink
+                  key={item.key}
+                  to={path}
+                  title={collapsed ? item.label : undefined}
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex min-h-11 items-center rounded-xl border text-sm font-semibold transition-colors",
+                      collapsed ? "justify-center px-2" : "gap-3 px-3",
+                      isActive
+                        ? "border-cyan-300/40 bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-950/20"
+                        : "border-transparent text-slate-200 hover:border-slate-700 hover:bg-slate-800 hover:text-white",
+                    )
+                  }
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span className="min-w-0 truncate">{item.label}</span>}
+                </NavLink>
+              )
+            })}
+          </div>
+        </section>
+      ))}
+    </nav>
+  )
+}
 
-  useEffect(() => {
-    if (!isMobile) {
-      closeMobile();
-    }
-  }, [isMobile, closeMobile]);
-
-  const positionClasses = "top-16 h-[calc(100vh-4rem)]";
-
-  const navItems = NAV_SECTIONS.map((section) => ({
-    title: section.title,
-    items: section.items.map((item) => ({
-      icon: ICON_MAP[item.key] ?? LayoutDashboard,
-      label: item.label,
-      path: item.path,
-    })),
-  }));
-
+function SidebarBody({ collapsed, onClose }: { collapsed: boolean; onClose?: () => void }) {
   return (
     <>
-      {/* モバイル用オーバーレイ */}
-      {isMobileOpen && (
-        <div
-          className="fixed inset-x-0 bottom-0 top-16 h-[calc(100vh-4rem)] bg-black/50 z-40 md:hidden"
-          onClick={closeMobile}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* サイドバー */}
-      <aside
-        className={cn(
-          "fixed left-0 bg-[var(--menu-bg)] border-r border-border shadow-lg z-40 transition-all duration-300 ease-in-out flex flex-col overflow-visible",
-          isCollapsed ? "w-16" : "w-56 2xl:w-64",
-          // モバイルでは完全に隠す/表示
-          "max-md:transition-transform",
-          isMobileOpen ? "max-md:translate-x-0" : "max-md:-translate-x-full",
-          positionClasses,
+      <div className={cn("flex h-20 items-center border-b border-slate-800 px-4", collapsed ? "justify-center" : "gap-3")}>
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-cyan-400 text-slate-950">
+          <HardHat className="h-6 w-6" />
+        </div>
+        {!collapsed && (
+          <div className="min-w-0">
+            <p className="truncate text-sm font-black text-white">現場コックピット</p>
+            <p className="truncate text-xs text-slate-400">Construction OS</p>
+          </div>
         )}
-      >
-        {/* ナビゲーション */}
-        {/* flex-1 だけでは Radix ScrollArea の高さが確定せずスクロールしないため h-0 を併用する */}
-        <ScrollArea className="flex-1 h-0">
-          <nav
-            className={cn(
-              "space-y-6 overflow-visible",
-              isCollapsed ? "p-1" : "p-2",
-            )}
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-auto grid h-10 w-10 place-items-center rounded-xl text-slate-300 hover:bg-slate-800 hover:text-white"
+            aria-label="メニューを閉じる"
           >
-            {navItems.map((section, idx) => (
-              <div key={idx} className="space-y-1">
-                {/* カテゴリー区切り線（折りたたみ時のみ表示） */}
-                {isCollapsed && idx > 0 && (
-                  <div className="mx-2 my-2 border-t border-border" />
-                )}
-
-                {/* カテゴリーラベル */}
-                <div
-                  className={cn(
-                    "px-3 py-2 transition-all duration-300",
-                    isCollapsed
-                      ? "opacity-0 h-0 overflow-hidden"
-                      : "opacity-100",
-                  )}
-                >
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    {section.title}
-                  </h3>
-                </div>
-
-                {/* ナビゲーションアイテム */}
-                {section.items.map((item) => {
-                  const normalizedPath = item.path
-                    ? item.path === "/" || item.path.startsWith("/")
-                      ? item.path
-                      : `/${item.path}`
-                    : undefined;
-
-                  const baseClasses = cn(
-                    "flex items-center rounded-lg transition-all duration-200 group relative",
-                    isCollapsed
-                      ? "mx-2 px-2 py-2.5 justify-center"
-                      : "mx-0 px-3 py-2.5 gap-3",
-                  );
-
-                  const labelNode = (
-                    <span
-                      className={cn(
-                        "font-medium transition-all duration-300 whitespace-nowrap",
-                        isCollapsed
-                          ? "opacity-0 w-0 overflow-hidden"
-                          : "opacity-100",
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                  );
-
-                  const tooltipNode = isCollapsed ? (
-                    <div className="fixed left-[4.5rem] px-3 py-1.5 bg-popover text-popover-foreground text-sm rounded-md shadow-lg border border-border opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-[200]">
-                      {item.label}
-                    </div>
-                  ) : null;
-
-                  if (!normalizedPath) return null;
-
-                  return (
-                    <NavLink
-                      key={normalizedPath}
-                      to={normalizedPath}
-                      end={normalizedPath === "/"}
-                      className={({ isActive }) =>
-                        cn(
-                          baseClasses,
-                          "cursor-pointer",
-                          isActive
-                            ? "bg-primary text-primary-foreground shadow-sm"
-                            : "hover:bg-[var(--accent-hover)]",
-                        )
-                      }
-                      title={isCollapsed ? item.label : undefined}
-                      onClick={() => {
-                        if (isMobile) closeMobile();
-                      }}
-                    >
-                      <item.icon className="h-5 w-5 shrink-0" />
-                      {labelNode}
-                      {tooltipNode}
-                    </NavLink>
-                  );
-                })}
-              </div>
-            ))}
-          </nav>
-        </ScrollArea>
-      </aside>
+            <X className="h-5 w-5" />
+          </button>
+        )}
+      </div>
+      <Navigation collapsed={collapsed} onNavigate={onClose} />
+      {!collapsed && (
+        <div className="border-t border-slate-800 p-4 text-xs leading-5 text-slate-400">
+          工程・安全・日報・重機を一つの画面で管理
+        </div>
+      )}
     </>
-  );
+  )
+}
+
+export function Sidebar({ collapsed, mobileOpen, onCloseMobile }: SidebarProps) {
+  return (
+    <>
+      <aside className="sticky top-0 hidden h-dvh min-h-0 flex-col overflow-hidden bg-slate-950 md:flex">
+        <SidebarBody collapsed={collapsed} />
+      </aside>
+
+      {mobileOpen && (
+        <div className="fixed inset-0 z-[200] md:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+            onClick={onCloseMobile}
+            aria-label="メニューを閉じる"
+          />
+          <aside className="relative flex h-full w-[min(20rem,88vw)] flex-col overflow-hidden bg-slate-950 shadow-2xl">
+            <SidebarBody collapsed={false} onClose={onCloseMobile} />
+          </aside>
+        </div>
+      )}
+    </>
+  )
 }
