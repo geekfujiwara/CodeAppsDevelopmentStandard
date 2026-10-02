@@ -858,3 +858,19 @@ api_patch(f"organizations({org['organizationid']})",
 
 
 
+
+
+## 24. `setup_dataverse.py` が最初の検証で `501 Not Implemented` になる（`EntityDefinitions` の `startswith`）
+
+### 症状
+
+テーブル作成前の「既存テーブルとの衝突チェック」で `EntityDefinitions?$filter=startswith(LogicalName,'<prefix>_')` が 501 を返し、何も作られずに止まる。
+
+### 原因
+
+メタデータ API（`EntityDefinitions`）は `startswith` / `contains` などの関数フィルターに対応していない。
+
+### 対処
+
+対象テーブルの論理名ごとに `EntityDefinitions(LogicalName='<name>')` を引き、404 を「存在しない＝衝突なし」として扱う。
+**恒久対策済み** — `scripts/setup_dataverse.py` の `validate_no_foreign_tables()`。

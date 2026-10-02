@@ -88,3 +88,15 @@
 対策: エラー原因を解消して同じスクリプトを再実行する
   最初に ReplacePrivilegesRole が再実行されるため、最終的に定義どおりの権限へ収束する
 ```
+
+## プロジェクトの scripts/ に複写した deploy_security_role.py が auth_helper を見つけられない（検証済 2026-10-02）
+
+- **症状**: `ModuleNotFoundError: No module named 'auth_helper'`。
+- **原因**: スキルの場所からの相対パス（`../../standard/scripts`）で探していたため、プロジェクト直下の `scripts/` に複写すると外れる。
+- **恒久対策済み**: `_find_standard_scripts()` がスキル内の相対位置と、上位フォルダーの `.github/skills/standard/scripts` を順に探す。
+
+## テーブル固有の権限が効かず、既定（"*"）の権限が付く（検証済 2026-10-02）
+
+- **症状**: 閲覧専用のつもりのロールで、特定テーブルの深さが既定のままになる。
+- **原因**: `table_privileges` のキーを LogicalName（小文字）で書いたが、照合が SchemaName だけだった。綴り違いも同じく黙って既定に落ちる。
+- **恒久対策済み**: `set_role_privileges()` は SchemaName と LogicalName の両方で照合し、`validate_table_keys()` が実在しないキーを実行前に止める（`test_deploy_security_role.py`）。

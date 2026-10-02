@@ -39,7 +39,20 @@ except AttributeError:
 
 _this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _this_dir)
-sys.path.insert(0, os.path.join(_this_dir, "..", "..", "standard", "scripts"))
+def _find_standard_scripts(start):
+    """auth_helper のある standard/scripts を探す。スキルの中でも、プロジェクトの scripts/ に複写しても動くようにする"""
+    candidates = [os.path.join(start, "..", "..", "standard", "scripts")]
+    d = os.path.abspath(start)
+    for _ in range(6):
+        candidates.append(os.path.join(d, ".github", "skills", "standard", "scripts"))
+        d = os.path.dirname(d)
+    for c in candidates:
+        if os.path.exists(os.path.join(c, "auth_helper.py")):
+            return os.path.abspath(c)
+    raise SystemExit("auth_helper.py が見つかりません（.github/skills/standard/scripts を確認してください）")
+
+
+sys.path.insert(0, _find_standard_scripts(_this_dir))
 
 import requests
 from dotenv import load_dotenv
@@ -50,7 +63,7 @@ load_dotenv()
 # ── 環境変数 ──────────────────────────────────────────────
 DATAVERSE_URL = os.environ["DATAVERSE_URL"].rstrip("/")
 SOLUTION_NAME = os.environ.get("SOLUTION_NAME", "")
-PREFIX = os.environ.get("PUBLISHER_PREFIX", "")
+PREFIX = os.environ.get("PUBLISHER_PREFIX") or os.environ.get("VITE_PUBLISHER_PREFIX", "")
 APP_MODULE_ID = os.environ.get("APP_MODULE_ID", "")
 
 API = f"{DATAVERSE_URL}/api/data/v9.2"
@@ -417,7 +430,8 @@ def set_role_privileges(role_id, role_def, tables, priv_map):
         schema = table["schema_name"]
 
         # テーブル固有の権限定義があればそれを使用、なければデフォルト
-        specific = table_privs.get(schema, default_privs)
+        # テーブル固有の権限定義（SchemaName / LogicalName のどちらで書いてもよい）があればそれを使用、なければデフォルト
+        specific = table_privs.get(schema) or table_privs.get(table.get("logical_name", "")) or default_privs
 
         table_priv_ids = priv_map.get(schema, {})
 
@@ -535,9 +549,37 @@ def associate_with_app(role_ids):
 
 # ── メイン ────────────────────────────────────────────────
 
-def main():
-    validate_role_definitions(ROLE_DEFINITIONS)
+def validate_table_keys(role_definitions, tables):
+    """テーブル固有の定義が実在するテーブルを指しているか（綴り違いは黙って既定の権限になり、権限が漏れる）"""
+    names = {t["schema_name"] for t in tables} | {t.get("logical_name", "") for t in tables}
+    for role_def in role_definitions:
+        unknown = [k for k in role_def.get("table_privileges", {}) if k != "*" and k not in names]
+        if unknown:
+            raise ValueError(f"ロール '{role_def['name']}' のテーブル名がソリューションにありません: {unknown}（候補: {sorted(names)}）")
 
+
+def assign_role(user_query, role_name, role_ids):
+    """利用者（UPN の一部）にロールを割り当てる（既にあれば何もしない）"""
+    role_id = next(rid for rid, name in role_ids if name == role_name)
+    users = api_get("systemusers", {"$select": "systemuserid,fullname,domainname", "$filter": f"contains(domainname,'{user_query}') and isdisabled eq false"}).get("value", [])
+    if len(users) != 1:
+        raise RuntimeError(f"利用者 '{user_query}' を 1 人に絞れません（{len(users)} 人）")
+    user = users[0]
+    current = api_get(f"systemusers({user['systemuserid']})/systemuserroles_association", {"$select": "roleid"}).get("value", [])
+    if any(r["roleid"] == role_id for r in current):
+        print(f"  ⏭️  {user['fullname']} には '{role_name}' が割り当て済み")
+        return
+    r = requests.post(f"{API}/systemusers({user['systemuserid']})/systemuserroles_association/$ref", headers=get_headers(False), json={"@odata.id": f"{API}/roles({role_id})"})
+    r.raise_for_status()
+    print(f"  ✅ {user['fullname']} に '{role_name}' を割り当てました")
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="カスタム セキュリティ ロールを作成・更新し、必要なら利用者へ割り当てる")
+    parser.add_argument("--assign", action="append", default=[], metavar="ROLE_NAME=UPN_PART", help="ロールを利用者に割り当てる（例: --assign \"閲覧者=user01@\"）。複数可")
+    args = parser.parse_args()
+    validate_role_definitions(ROLE_DEFINITIONS)
     print("=" * 60)
     print("  カスタムセキュリティロール デプロイ")
     print(f"  ソリューション: {SOLUTION_NAME}")
@@ -552,6 +594,8 @@ def main():
     if not tables:
         print("\n⚠️ ソリューション内にテーブルが見つかりません。先に setup_dataverse.py を実行してください。")
         sys.exit(1)
+
+    validate_table_keys(ROLE_DEFINITIONS, tables)
 
     # Step 3: 権限 ID 取得
     priv_map = get_table_privileges(tables)
@@ -570,6 +614,10 @@ def main():
     # Step 7: モデル駆動型アプリ関連付け
     associate_with_app(role_ids)
 
+    # Step 8: 利用者への割り当て（指定があれば）
+    for spec in args.assign:
+        role_name, _, user_query = spec.partition("=")
+        assign_role(user_query.strip(), role_name.strip(), role_ids)
     # 結果表示
     print("\n" + "=" * 60)
     print("  ✅ カスタムセキュリティロールのデプロイ完了")

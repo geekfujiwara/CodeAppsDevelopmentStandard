@@ -30,6 +30,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import requests
 from dotenv import load_dotenv
 
 # 進捗ログをリアルタイム表示するため stdout/stderr を行バッファに切り替え。
@@ -722,11 +723,17 @@ def validate_no_foreign_tables() -> None:
     テーブルに列を追記してしまうため、ソリューション未所属の既存テーブルを検出したら中断する。
     再実行時は自ソリューションのテーブルなので素通りし、べき等性は保たれる。
     """
-    wanted = {t["logical"] for t in TABLES}
-    existing = api_get(
-        f"EntityDefinitions?$select=LogicalName,MetadataId&$filter=startswith(LogicalName,'{PREFIX}_')"
-    ).get("value", [])
-    hit = {e["LogicalName"]: e["MetadataId"] for e in existing if e["LogicalName"] in wanted}
+    # EntityDefinitions は startswith 等の関数フィルターに対応しておらず 501（Not Implemented）になる。
+    # 対象のテーブルを論理名で 1 件ずつ引き、404 は「存在しない＝衝突なし」として扱う
+    hit: dict[str, str] = {}
+    for logical in sorted({t["logical"] for t in TABLES}):
+        try:
+            found = api_get(f"EntityDefinitions(LogicalName='{logical}')?$select=LogicalName,MetadataId")
+        except requests.exceptions.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404:
+                continue
+            raise
+        hit[found["LogicalName"]] = found["MetadataId"]
     if not hit:
         return
 
