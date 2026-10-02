@@ -309,3 +309,32 @@ APP_MODULE_ID={app-module-id}    # 未設定時はアプリ関連付けをスキ
 | AppendTo | 追加先           | 他レコードの Lookup 先になる                       |
 | Assign   | 割り当て         | レコードの所有者変更                               |
 | Share    | 共有             | レコードを他ユーザー/チームに共有                  |
+
+## レコード単位の共有（GrantAccess）を Code Apps から行う（検証済 2026-10-02）
+
+「特定の人にだけ、このレコードを読ませる」（例: 担当者が配信する画面状態を幹部だけが読む）は、ロールの深さを **ユーザー（Basic）** にして、
+レコードを **GrantAccess** で共有する。共有されていないレコードはロールがあっても見えない。
+
+| ロール | 対象テーブル | 権限 |
+|---|---|---|
+| 共有する側（担当者） | 共有するテーブル | 作成・読み取り・書き込み・**共有（Share）** |
+| 共有される側（閲覧者） | 共有するテーブル | **読み取り（Basic）** だけ |
+
+テーブルは **ユーザー所有（UserOwned）** にする（組織所有のテーブルは共有できない）。
+
+Code Apps からは Dataverse コネクタの `PerformUnboundActionWithOrganization` に、Web API と同じ本文を渡せば通る（コネクタは本文をそのまま中継する）。
+
+```ts
+await MicrosoftDataverseService.PerformUnboundActionWithOrganization(orgUrl, "GrantAccess", {
+  Target: { "@odata.type": "Microsoft.Dynamics.CRM.<logical_name>", "<logical_name>id": recordId },
+  PrincipalAccess: { Principal: { "@odata.type": "Microsoft.Dynamics.CRM.systemuser", systemuserid: userId }, AccessMask: "ReadAccess" },
+})
+await MicrosoftDataverseService.PerformUnboundActionWithOrganization(orgUrl, "RevokeAccess", {
+  Target: { ... }, Revokee: { "@odata.type": "Microsoft.Dynamics.CRM.systemuser", systemuserid: userId },
+})
+```
+
+- 実測: コネクタ経由で 204（約 3.6 秒）。共有の確認は Web API の `RetrieveSharedPrincipalsAndAccess(Target=@t)?@t={"@odata.id":"<entityset>(<id>)"}`。
+- 共有先の利用者は `systemusers?$filter=isdisabled eq false and accessmode eq 0 and applicationid eq null and contains(fullname,'…')` で探す（アプリ用ユーザーを除く）。
+- システム管理者など広いロールを持つ人は共有に関係なくすべて読める。制限の確認は、広いロールを持たない利用者で行う。
+- ロールの割り当ては `deploy_security_role.py --assign "<ロール名>=<UPN の一部>"`。

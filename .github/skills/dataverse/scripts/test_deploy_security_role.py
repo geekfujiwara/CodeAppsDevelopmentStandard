@@ -20,6 +20,7 @@ def load_test_targets(api_post):
             target_nodes.append(node)
         if isinstance(node, ast.FunctionDef) and node.name in {
             "validate_role_definitions",
+            "validate_table_keys",
             "set_role_privileges",
         }:
             target_nodes.append(node)
@@ -53,6 +54,30 @@ class DeploySecurityRoleTests(unittest.TestCase):
                 "table_privileges": {"sample_Feature": {"Read": "Global"}},
             }
         ])
+
+    def test_unknown_table_key_is_rejected(self):
+        # 綴り違いのテーブル名は黙って既定（"*"）の権限になるため、実行前に止める
+        with self.assertRaises(ValueError):
+            self.targets["validate_table_keys"](
+                [{"name": "Viewer", "table_privileges": {"*": {}, "sample_feture": {"Read": "Basic"}}}],
+                [{"schema_name": "sample_Feature", "logical_name": "sample_feature"}],
+            )
+        self.targets["validate_table_keys"](
+            [{"name": "Viewer", "table_privileges": {"*": {}, "sample_feature": {"Read": "Basic"}}}],
+            [{"schema_name": "sample_Feature", "logical_name": "sample_feature"}],
+        )
+
+    def test_logical_name_key_overrides_default(self):
+        self.targets["set_role_privileges"](
+            "role-id",
+            {
+                "name": "Viewer",
+                "table_privileges": {"*": {"Read": "Global"}, "sample_feature": {"Read": "Basic"}},
+            },
+            [{"schema_name": "sample_Feature", "logical_name": "sample_feature"}],
+            {"sample_Feature": {"Read": "read-id"}},
+        )
+        self.assertEqual({"Privileges": [{"PrivilegeId": "read-id", "Depth": "Basic"}]}, self.calls[0][1])
 
     def test_legacy_extra_privileges_key_is_rejected(self):
         with self.assertRaises(ValueError):
