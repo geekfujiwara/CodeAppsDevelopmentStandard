@@ -1,5 +1,6 @@
 ﻿# ホスト再現（Code Apps 既定 CSP）で配信中のアプリを、ヘッドレス Edge の仮想時間で進めて画面を撮る（ローカル検証専用）。
 # --virtual-time-budget の間はタイマーが早送りされるため、自動開始したデモ（台本再生など）の途中や最後の画面を数秒で撮れる。
+# ネットワークのストリーム応答（生成 API など）は仮想時間では進まない。その画面は capture_host_screens_realtime.mjs で撮る。
 # 使い方（-Budgets は 1 回に 1 つ。途中と最後を撮るときは 2 回呼ぶ）:
 #   powershell -ExecutionPolicy Bypass -File .github/skills/code-apps/scripts/capture_host_screens.ps1 -Url "http://localhost:4173/#/<route>" -Name final -Budgets 60000
 param(

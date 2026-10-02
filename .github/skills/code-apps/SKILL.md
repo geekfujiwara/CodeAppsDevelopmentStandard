@@ -753,6 +753,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [serve_host_emulation.mjs](scripts/serve_host_emulation.mjs) | Power Apps ホスト（別オリジン iframe + `allow` 属性 + 既定 CSP）をローカルで再現してビルド成果物を配信する |
 | [run_headless_media_test.ps1](scripts/run_headless_media_test.ps1) | ヘッドレス Edge に疑似マイク（WAV）を流し、Console ログを抽出する。終了時に残存プロセスを 0 にする |
 | [capture_host_screens.ps1](scripts/capture_host_screens.ps1) | ヘッドレス Edge の仮想時間でタイマー駆動のデモを早送りし、途中・最後の画面を撮る（統合ブラウザが使えない環境の画面確認） |
+| [capture_host_screens_realtime.mjs](scripts/capture_host_screens_realtime.mjs) | 実時間で待って撮る（DevTools プロトコル）。生成 API のストリームなど、仮想時間で進まない画面用 |
 
 ### 環境変数
 

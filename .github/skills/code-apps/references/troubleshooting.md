@@ -2643,3 +2643,21 @@ AudioWorklet にする（[デバイス・メディア](device-media.md) §3・§
 - 表示・非表示をアニメーションの完了に依存させない。入るアニメーションは CSS（tw-animate-css の `animate-in fade-in-0 slide-in-from-bottom-3`）にし、
   `motion` は並び替えの `layout` だけに使う
 - 一覧を丸ごと入れ替える場面（発言者が替わったなど）は、親（`LayoutGroup` など）の `key` を替えて作り直す
+## 60. コネクタ経由で生成 AI の応答をストリームで受け取れない（検証済 2026-10-02）
+
+### 症状
+
+カスタム コネクタの操作で Server-Sent Events を返す API を呼ぶと、全文がそろってからまとめて返る（途中経過が出ない）。
+
+### 原因
+
+コネクタのランタイムは応答をまとめて返す。ストリームを中継しない。
+
+### 対処
+
+コネクタでは短期チケットだけを取り、ストリーム API はブラウザから `fetch` で直接呼ぶ（azure-infra の [トークン ブローカー](../../azure-infra/references/token-broker.md) の応用）。
+次の 3 つがそろわないと動かない。
+
+1. Code Apps の CSP の `connect-src` に API のオリジン（`configure_code_app_csp.py --directive Connect-Src --source https://<host> --apply`、`--assert` で確認）
+2. API 側の CORS に Code Apps のオリジン（`https://<env>.environment.api.powerplatformusercontent.com`）。事前確認（OPTIONS）の 204 を確かめる
+3. ホスト再現テストでは、チケットをビルドに埋め込まず同じオリジンのファイルから読む（15 分で失効し、ビルドに数分かかると試験の途中で切れる）
