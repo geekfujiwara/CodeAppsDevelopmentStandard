@@ -608,7 +608,7 @@ Dataverse も併用する場合は、`agentConnectors` に Dataverse MCP を**�
 
 | 項目 | 備考 |
 |---|---|
-| Azure 基盤（VNet / Private Endpoint / Managed Identity / 監視） | [azure スキル](../azure/SKILL.md)。テナントのガバナンス次第で増減 |
+| Azure 基盤（VNet / Private Endpoint / Managed Identity / 監視） | [azure-infra スキル](../azure-infra/SKILL.md)。テナントのガバナンス次第で増減 |
 | MCP Server 実装（ツール定義 → 実装 → デプロイ → 実測検証） | データソース 1 つあたり。ツール数に比例 |
 | Entra 認可（スコープ公開・事前承認・コネクタ用 OAuth） | 管理者同意の調整リードタイムを含める |
 | 登録（カスタムコネクタ or Cowork パッケージ） | 公開先の数だけ |

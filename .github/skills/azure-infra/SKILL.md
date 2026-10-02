@@ -1,6 +1,6 @@
 ---
-name: azure
-description: "Azure 上のリファレンスアーキテクチャを選定し、テナントのセキュリティガバナンスに準拠した構成で構築・デプロイ・検証する。組織ポリシー（公衆ネットワークアクセス禁止・共有キー禁止・MFA 必須等）の下でも動作する構成を、Private Link / Managed Identity / VNet 統合を用いて実装する。"
+name: azure-infra
+description: "Azure の基盤（ネットワーク・ID・ストレージ・コンピュート・デプロイ）をリファレンスアーキテクチャから選定し、テナントのセキュリティガバナンスに準拠した構成で構築・デプロイ・検証する。組織ポリシー（公衆ネットワークアクセス禁止・共有キー禁止・MFA 必須等）の下でも動作する構成を、Private Link / Managed Identity / VNet 統合を用いて実装する。"
 category: architecture
 triggers:
   - "Azure 構築"
@@ -17,12 +17,15 @@ triggers:
   - "Azure ガバナンス準拠"
 ---
 
-# Azure リファレンスアーキテクチャ スキル
+# Azure 基盤（azure-infra）スキル
 
 Azure 開発を、**テナントのセキュリティガバナンスに準拠**したまま進めるためのスキル。
 要件から適切なリファレンスアーキテクチャを選定し、構築・デプロイ・検証・クリーンアップまでを一貫して行う。
 
 > **原則**: 組織ポリシー（Azure Policy / Conditional Access）と戦わず、**準拠する構成**を採る。
+>
+> **担当範囲**: 基盤（VNet / Private Endpoint / Managed Identity / RBAC / デプロイ経路）を扱う。
+> Azure の個別サービスを使うアプリ側の実装（MCP Server、データ基盤、音声認識など）は各専門スキルが持ち、基盤部分だけをこのスキルに委譲する。
 > `publicNetworkAccess=Disabled` でも Private Link は常に到達可能——これを土台にする。
 
 ## Step 0: 事前確認（会話の最初に 1 回だけ）
