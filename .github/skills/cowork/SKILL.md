@@ -109,6 +109,7 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
 | [scripts/build_cowork_publish_payloads.py](scripts/build_cowork_publish_payloads.py) | `stageCustomApp()` の結果から新規公開（finalize / allow / deploy）または更新（UPDATEAPP）の plan payload を生成（Step 8 / 10） |
 | [scripts/manage_oauth_registration_api.py](scripts/manage_oauth_registration_api.py) | Developer Portal OAuth registration の CRUD（Step 5）。plan → hash 承認 → CLI から送信 → 読み戻し → `.env` に生の ID。重複は事前に止める。`--transport browser` で統合ブラウザ用の plan だけを出す |
 | [scripts/install_agent_package_personal.py](scripts/install_agent_package_personal.py) | 作成者が自分だけにインストール／アンインストールする（Step 8 の前の個人テスト）。ZIP の事前検証 → plan → hash 承認 → launchInfo で照合 |
+| [tools/cowork-studio](tools/cowork-studio/README.md) | 上のスクリプトを 1 画面で操作する Windows アプリ（インストール不要の exe）。manifest の編集とカード プレビュー、7 工程のタイムライン、計画の承認、書き出しキュー。`build.ps1` で作る |
 | [../admin/scripts/manage_m365_portal_api.py](../admin/scripts/manage_m365_portal_api.py) | Agent Registry の Finalize / Allow / Install / Update / Permission plan を検証（Step 8 / 10） |
 | [../admin/scripts/m365_portal_browser_runner.mjs](../admin/scripts/m365_portal_browser_runner.mjs) | `stageCustomApp()` で ZIP をステージし、承認済み plan を browser session API で実行して poll と read-back を検証（Step 8 / 10） |
 
