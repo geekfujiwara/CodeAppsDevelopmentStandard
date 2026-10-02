@@ -84,6 +84,26 @@ python .github/skills/mcp-server/scripts/deploy_mcp_function.py --project <path>
 2. 生成サービスは遅延読み込みにし、未追加でもビルドできるようにする（[code-apps の業務テンプレートの方式](../../code-apps/SKILL.md)）
 3. 初回起動時にプレイヤーが出す「Allow &lt;アプリ&gt; to access your data?」で Allow する（利用者・アプリごとに 1 回）
 
+## 応用: 生成 AI の応答をブラウザへストリームで返す（チケット方式）
+
+カスタム コネクタは応答をまとめて返すため、Server-Sent Events（SSE）を中継できない。
+同じ Function に「チケット発行（コネクタ経由）」と「ストリーム API（ブラウザから直接）」を足す。
+
+```
+Code Apps ──コネクタ（利用者の委任トークン）──▶ GET /answer/ticket … 15 分有効の署名付きチケット + 呼び出し先
+Code Apps ──fetch（Authorization: Ticket …）──▶ POST /answer/stream … text/event-stream
+                                                    └─ Managed Identity ─▶ Azure OpenAI（Foundry）stream: true
+```
+
+| 項目 | 内容（実測 2026-10） |
+|---|---|
+| チケット | `base64url(JSON).base64url(HMAC-SHA256)`。`oid` / 宛先 / 期限を検証。署名鍵はアプリ設定 `TICKET_SECRET`（32 バイト以上、Git に置かない） |
+| ストリーム | Node の Functions v4 で `app.setup({ enableHttpStream: true })`、`ReadableStream` を `body` に返す。`Content-Type: text/event-stream` |
+| ブラウザ側 | `fetch` の `body.getReader()` で `data:` 行を読む。Code Apps の CSP の `connect-src` に Function のオリジンを追加し、Function App の CORS に Code Apps のオリジン（`https://<env>.environment.api.powerplatformusercontent.com`）を入れる |
+| 認証情報 | Azure 上では `ManagedIdentityCredential` を直接使い、トークンを期限前まで使い回す。`DefaultAzureCredential` は候補を順に試すため、初回の最初の差分が 14 秒かかった（直接にして 0 ms） |
+| モデル | gpt-5.4-mini（DataZoneStandard / APAC）。v1 API（`/openai/v1/chat/completions`）で `reasoning_effort: "none"`、`max_completion_tokens`（GPT-5 系は `temperature` 不可）。最初の差分 サーバー 0.8〜1.0 秒、完了 約 1.9 秒。gpt-5.4-nano・gpt-5.6-luna・gpt-4.1-mini より速く、根拠に無い数値は 0 |
+| 入力 | 本文の上限（質問 2,000 字、根拠 5 + 6 件、各 3,000 字）で切り詰める。利用者の発言・検索語はフェンスで囲み、閉じタグを除いてから渡す。ログには本文を出さない |
+| 出力の検査 | 生成文の数値が渡した根拠に無ければ画面で「要確認」にする（クライアント側） |
 ## 検証状況（2026-10）
 
 | 項目 | 状況 |
