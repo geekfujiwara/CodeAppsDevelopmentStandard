@@ -1,0 +1,8 @@
+{
+  "description": "Entra ID（OAuth 認可コード）で保護された API のカスタム コネクタ定義。{{NAME}} は deploy_connector.py がデプロイ時に置き換える",
+  "preserveUndeclaredVariables": false,
+  "nextSteps": [
+    "connector/apiDefinition.swagger.json の paths と definitions を API に合わせて書き換える（operationId が Code Apps のメソッド名になる）",
+    "python .github/skills/custom-connector/scripts/deploy_connector.py --connector-dir <この出力先>/connector --secret-file .secrets/<name>.json --var API_HOST=<host> --var CONNECTOR_TITLE=\"<表示名>\" --var PUBLISHER=\"<発行元>\""
+  ]
+}

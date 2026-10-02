@@ -1,0 +1,46 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "{{CONNECTOR_TITLE}}",
+    "description": "Entra ID で保護された API を呼び出すカスタム コネクタ。操作は paths に追加する。",
+    "version": "1.0"
+  },
+  "host": "{{API_HOST}}",
+  "basePath": "/api",
+  "schemes": ["https"],
+  "consumes": ["application/json"],
+  "produces": ["application/json"],
+  "paths": {
+    "/example": {
+      "get": {
+        "operationId": "GetExample",
+        "summary": "例: 値を取得",
+        "description": "サインインした利用者として API を呼び出す。operationId が Code Apps の生成サービスのメソッド名になる。",
+        "parameters": [],
+        "responses": {
+          "200": { "description": "成功", "schema": { "$ref": "#/definitions/Example" } },
+          "401": { "description": "未認証" }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "Example": {
+      "type": "object",
+      "properties": {
+        "value": { "type": "string", "description": "値" }
+      }
+    }
+  },
+  "securityDefinitions": {
+    "oauth2-auth": {
+      "type": "oauth2",
+      "flow": "accessCode",
+      "authorizationUrl": "https://login.microsoftonline.com/common/oauth2/authorize",
+      "tokenUrl": "https://login.windows.net/common/oauth2/authorize",
+      "scopes": { "{{API_SCOPE}}": "{{API_SCOPE}}" }
+    }
+  },
+  "security": [{ "oauth2-auth": ["{{API_SCOPE}}"] }],
+  "tags": []
+}
