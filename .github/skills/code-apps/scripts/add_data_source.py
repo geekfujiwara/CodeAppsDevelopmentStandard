@@ -17,6 +17,8 @@
       --connection-ref {CR_LOGICAL_NAME} --solution-id {SOLUTION_ID}
   python .github/skills/code-apps/scripts/add_data_source.py --connector sql \
       --dataset {server},{database} --table {table}
+  python .github/skills/code-apps/scripts/add_data_source.py --connector sharepoint --as action \
+      --connection-ref {CR_LOGICAL_NAME} --solution-id {SOLUTION_ID}   # ファイル作成などの操作
   python .github/skills/code-apps/scripts/add_data_source.py --list-connectors
   python .github/skills/code-apps/scripts/add_data_source.py --connector teams --dry-run
 
@@ -211,7 +213,15 @@ def build_command(args: argparse.Namespace, connector_id: str, binding: list[str
         command += ["--table", args.table]
     if args.procedure:
         command += ["--procedure", args.procedure]
+    if args.as_kind:
+        command += ["--as", args.as_kind]
     return command + ["--non-interactive"]
+
+
+def validate_kind(as_kind: str, dataset: str, table: str) -> None:
+    """--as action はコネクタの操作（ファイル作成など）を追加する。dataset / table を渡すと CLI が拒否する。"""
+    if as_kind == "action" and (dataset or table):
+        raise SystemExit("NG: --as action では --dataset / --table を指定しない（操作の引数として実行時に渡す）。")
 
 
 def main() -> int:
@@ -227,6 +237,8 @@ def main() -> int:
     parser.add_argument("--dataset", default="", help="データセット（SharePoint はサイト URL、SQL は server,database）")
     parser.add_argument("--table", default="", help="テーブル / リスト")
     parser.add_argument("--procedure", default="", help="SQL ストアドプロシージャ")
+    parser.add_argument("--as", dest="as_kind", choices=("table", "action"), default="",
+                        help="table（リストの CRUD）か action（ファイル作成などコネクタの操作）。両方に対応するコネクタで使う")
     parser.add_argument("--environment-id", default=os.getenv("ENV_ID", ""), help="接続・コネクタ一覧の検索対象環境")
     parser.add_argument("--timeout", type=int, default=600, help="CLI 1 回あたりの上限秒数（既定 600）")
     parser.add_argument("--dry-run", action="store_true", help="実行せずコマンドだけ表示する")
@@ -256,8 +268,9 @@ def main() -> int:
         args.org_url = os.getenv("DATAVERSE_URL", "")
         if not args.org_url:
             sys.exit("NG: このコネクタには --org-url（または .env の DATAVERSE_URL）が必要です。")
+    validate_kind(args.as_kind, args.dataset, args.table)
     for name, value in (("dataset", args.dataset), ("table", args.table)):
-        if name in requires and not value:
+        if name in requires and not value and args.as_kind != "action":
             sys.exit(
                 f"NG: このコネクタには --{name} が必要です。"
                 f"候補は `npx pa connection list-{'datasets' if name == 'dataset' else 'tables'}` で確認できます。"

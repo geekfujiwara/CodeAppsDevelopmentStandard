@@ -2495,3 +2495,207 @@ npm run deploy
 
 
 
+
+## 52. カスタムコネクタの接続参照が `isn't a valid connection reference logical name` で拒否される（検証済 2026-10-01）
+
+### 症状
+
+`setup_connection_reference.py --api-id <カスタムコネクタの API ID>` で作った接続参照を
+`pa app add data-source --connection-ref` に渡すと、論理名が無効だとして失敗する。
+
+### 原因
+
+カスタムコネクタの API ID はハイフンを含む（例: `shared_<prefix>-5f<name>-20...-5f<hash>`）。
+旧実装は API ID をそのまま論理名に埋め込んでいたため、`pa` CLI の規則（英字で始まり英数字と `_` のみ）に反した。
+
+### 対処
+
+論理名を英数字だけに正規化して作り直す。無効な名前の接続参照は削除する。
+
+**恒久対策済み**: `scripts/setup_connection_reference.py` の `build_logical_name()` が英数字以外を除去し、
+`assert_valid_logical_name()` が新規作成・流用の両方で検証する。無効な名前の既存接続参照は流用しない。
+
+## 53. `pa app add data-source --connection-ref` が `Failed to resolve connection ID for reference` で失敗する（検証済 2026-10-01）
+
+### 症状
+
+接続を作る前に接続参照だけを用意し、データソースを追加しようとすると失敗する。
+
+### 原因
+
+`pa app add data-source` はコネクタ定義の取得に、接続参照へ**バインド済みの接続**を使う。
+OAuth のカスタムコネクタの接続は利用者本人のサインインでしか作れないため、先に用意できていない。
+
+### 対処
+
+利用者本人がコネクタの接続を作成 → `pac connection list` で接続 ID を確認 →
+`setup_connection_reference.py --connection-id <id>`（または既存接続参照へバインド）→ データソースを追加する。
+
+**恒久対策済み**: `setup_connection_reference.py` が未バインドの接続参照を検出すると、この失敗と次の手順を表示する。
+
+## 54. マイクを SDK に渡しても音声認識の結果が出ない（エラーも出ない）（検証済 2026-10-01）
+
+### 症状
+
+音声系 SDK にマイク（`MediaStream` や既定マイク）を渡して認識を開始すると、Code Apps 上でだけ途中結果も確定結果も来ない。
+同じコードは単体のブラウザ タブでは動く。
+
+### 原因
+
+SDK が内部で作る `AudioContext` がユーザー操作として扱われず開始しない、または内部の `blob:` AudioWorklet が
+`script-src` でブロックされ、音声が SDK に届いていない。
+
+### 対処
+
+クリック ハンドラ内で自前の `AudioContext` を開始し、自前で PCM に変換して SDK の Push ストリームへ書き込む。
+→ [デバイス・メディア](device-media.md) §2・§3、ローカル再現は [ホスト再現テスト](host-emulation-testing.md)。
+
+## 55. ヘッドレス試験で認識結果が崩れる・ブラウザ プロセスが残る（検証済 2026-10-01）
+
+### 症状
+
+疑似マイクの自動試験で、前回は正確だった文字起こしが崩れる（同じ語の繰り返しなど）。
+タスク マネージャーにヘッドレス Edge が残っている。
+
+### 原因
+
+Edge は子プロセスを先に止めると親のブラウザー プロセスが作り直す。残ったプロセスが疑似マイクを再生し続けて
+CPU を使い、次の試験の音声処理（メインスレッドの ScriptProcessor）が乱れた。
+
+### 対処
+
+親（`--type` の無いブラウザー プロセス）から止め、残存が 0 になるまで繰り返す。
+
+**恒久対策済み**: `scripts/run_headless_media_test.ps1` が親から順に停止し、残存数を毎回表示する（残れば警告）。
+
+## 56. 文字起こしが途中から無言で止まる（エラーも `canceled` も出ない）（検証済 2026-10-01）
+
+### 症状
+
+Azure AI Speech SDK のストリーミング認識が、開始から数秒以上たったあとで突然止まる。途中結果も確定も来なくなるが、
+エラーやキャンセルのイベントは出ない。停止ボタンを押すと、止まった時点の文だけが確定として出る。
+Console には `Creating a worker from 'data:…' violates the following Content Security Policy directive` が 1 回だけ出る。
+
+### 原因
+
+SDK は送信の待ち合わせに `data:` URL の Worker タイマーを使う。Code Apps の既定 CSP で Worker の読み込みが拒否され、
+待ち合わせのタイマーが永久に発火しないため、送信ループがそこで止まる。待ち合わせは送信開始 5 秒以降に
+チャンクがまとめて届いたとき（メインスレッドの一時停止など）にだけ発生するため、短い試験では再現しない。
+
+### 対処
+
+`speechConfig.setProperty(sdk.PropertyId.WebWorkerLoadType, "off")` を設定する。音声の取り込みは同一オリジンの
+AudioWorklet にする（[デバイス・メディア](device-media.md) §3・§4）。`worker-src data:` は追加しない。
+
+**恒久対策済み**: `scripts/run_headless_media_test.ps1` がブラウザの CSP 違反を毎回数えて警告する。
+停止に耐えるかは [ホスト再現テスト](host-emulation-testing.md) Step 4 で確認する。
+
+## 57. SharePoint のファイル作成が 400 `Route did not match`／ファイル作成のメソッドが生成されない（検証済 2026-10-02）
+
+### 症状
+
+- リストを指定してデータソースを追加すると、`<List>Service` の CRUD しか生成されず、`CreateFile` が無い
+- `SharePointService.CreateFile(siteUrl, …)` が 400 `Route did not match` になる
+
+### 原因
+
+- テーブル（リスト）として追加したデータソースには、コネクタの操作が含まれない。両方に対応するコネクタは `--as table` / `--as action` を選ぶ
+- SharePoint コネクタのランタイムは、パスの dataset（サイト URL）を**二重エンコード**で受ける。SDK はパス引数を 1 回しかエンコードしない
+  （ランタイムに直接送って確認: 1 回 → 400、2 回 → 200）
+
+### 対処
+
+`add_data_source.py --connector sharepoint --as action` で操作を追加し、dataset は `encodeURIComponent(siteUrl)` を渡す。
+本文（`format: binary`）は base64 文字列で渡す（SDK がバイナリに戻す）。例は [コネクタ リファレンス](connector-reference.md#ファイルを保存する操作として追加する)。
+
+**恒久対策済み**: `add_data_source.py` に `--as` を追加し、`--as action` と `--dataset` / `--table` の同時指定を実行前に止める（`validate_kind()`）。
+
+## 58. ホスト再現テストで Dataverse の読み込みが終わらない（画面が「読み込み中」のまま）（検証済 2026-10-02）
+
+### 症状
+
+ホスト再現環境（`serve_host_emulation.mjs`）やローカルで開くと、`ListRecordsWithOrganization` などの Promise が
+解決も拒否もされず、画面が読み込み中のまま止まる。エラーも出ない。
+
+### 原因
+
+コネクタの呼び出しは Power Apps のホストとの通信で実行される。ホストが無いと応答が返らない。
+本番でもホストとの通信が詰まると同じ状態になる。
+
+### 対処
+
+コネクタ呼び出しは**タイムアウト付き**で待ち、失敗として画面に出す（例: 一覧 20 秒、作成 30 秒、ファイル 120 秒）。
+ホスト再現テストでは、テスト用ビルドだけで有効な環境変数（例: `VITE_DEV_LOCAL_CORPUS=1`）で同梱データに切り替える
+（[ホスト再現テスト](host-emulation-testing.md) Step 1）。
+## 59. 画面の撮影で、前の内容のカードが残り、新しいカードが見えない（motion の AnimatePresence）（検証済 2026-10-02）
+
+### 症状
+
+`capture_host_screens.ps1`（ヘッドレス Edge の仮想時間）で撮ると、一覧を入れ替えた後も前の項目が残り、新しい項目は枠線や線の位置だけあって中身が見えない。
+
+### 原因
+
+`AnimatePresence` の出る・入るアニメーション（`initial` / `exit`）が仮想時間の撮影では進まず、
+出る項目は消えないまま、入る項目は `opacity: 0` のまま止まる。実機でも、アニメーションが完了しないと前の内容が残る作りになる。
+
+### 対処
+
+- 表示・非表示をアニメーションの完了に依存させない。入るアニメーションは CSS（tw-animate-css の `animate-in fade-in-0 slide-in-from-bottom-3`）にし、
+  `motion` は並び替えの `layout` だけに使う
+- 一覧を丸ごと入れ替える場面（発言者が替わったなど）は、親（`LayoutGroup` など）の `key` を替えて作り直す
+## 60. コネクタ経由で生成 AI の応答をストリームで受け取れない（検証済 2026-10-02）
+
+### 症状
+
+カスタム コネクタの操作で Server-Sent Events を返す API を呼ぶと、全文がそろってからまとめて返る（途中経過が出ない）。
+
+### 原因
+
+コネクタのランタイムは応答をまとめて返す。ストリームを中継しない。
+
+### 対処
+
+コネクタでは短期チケットだけを取り、ストリーム API はブラウザから `fetch` で直接呼ぶ（azure-infra の [トークン ブローカー](../../azure-infra/references/token-broker.md) の応用）。
+次の 3 つがそろわないと動かない。
+
+1. Code Apps の CSP の `connect-src` に API のオリジン（`configure_code_app_csp.py --directive Connect-Src --source https://<host> --apply`、`--assert` で確認）
+2. API 側の CORS に Code Apps のオリジン（`https://<env>.environment.api.powerplatformusercontent.com`）。事前確認（OPTIONS）の 204 を確かめる
+3. ホスト再現テストでは、チケットをビルドに埋め込まず同じオリジンのファイルから読む（15 分で失効し、ビルドに数分かかると試験の途中で切れる）
+## 61. ホスト再現テストで、`getContext()` を待つ処理が終わらない（検証済 2026-10-02）
+
+### 症状
+
+テスト用ビルドをローカルで配信すると、ログインユーザーを使う処理（自分の配信かどうかの判定など）が始まらない。エラーも出ない。
+
+### 原因
+
+`getContext()` は Power Apps のホストからの応答を待つ。ホストの外では応答が来ず、Promise が解決しない。
+
+### 対処
+
+`getContext()` は時間切れ（数秒）と競争させ、取れなければ「不明」として先へ進める。不明のときは、自分を前提にした自動の切り替え（自動で別画面へ移るなど）はしない。
+
+```ts
+const user = await Promise.race([
+  getContext().then((c) => ({ objectId: c.user?.objectId ?? "" })),
+  new Promise<{ objectId: string }>((r) => setTimeout(() => r({ objectId: "" }), 4000)),
+])
+```
+
+## 62. ヘッドレスの E2E で、React の入力欄に値を入れても反映されない（検証済 2026-10-02）
+
+### 症状
+
+DevTools プロトコルで `el.value = "…"` を入れて Enter を送っても、制御された入力欄（`value` + `onChange`）の state が変わらない。
+
+### 対処
+
+`HTMLInputElement.prototype` の `value` の setter で入れてから `input` イベントを送る（React が変更として拾う）。Enter は `keydown` を `bubbles: true` で送る。
+
+```js
+const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set
+setter.call(el, "0360"); el.dispatchEvent(new Event("input", { bubbles: true }))
+el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+```
+
+非表示のタブ（台本タブを開いている間の記録の表など）の中の要素は描画されないため、先にタブを切り替えてから探す。

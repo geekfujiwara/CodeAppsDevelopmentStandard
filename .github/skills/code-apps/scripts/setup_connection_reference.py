@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -65,6 +66,26 @@ from auth_helper import api_get, api_post  # noqa: E402
 
 # 接続参照のソリューション コンポーネント種別（10029 は CustomAPIResponseProperty なので誤り）
 COMPONENT_TYPE_CONNECTION_REFERENCE = 10132
+
+# `pa app add data-source --connection-ref` が受け付ける論理名（英字で始まり英数字とアンダースコアのみ）。
+# カスタムコネクタの API ID はハイフンを含む（例: shared_xxx-5fmy-20api-5f…）ため、そのまま使うと拒否される。
+LOGICAL_NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+
+
+def build_logical_name(prefix: str, solution_name: str, api_id: str) -> str:
+    solution_slug = re.sub(r"[^a-z0-9]", "", solution_name.lower())
+    api_slug = re.sub(r"[^a-z0-9]", "", api_id.replace("shared_", "").lower())[:16]
+    name = f"{prefix}_connref_{solution_slug}_{api_slug}"
+    assert_valid_logical_name(name)
+    return name
+
+
+def assert_valid_logical_name(name: str) -> None:
+    if not LOGICAL_NAME_PATTERN.match(name):
+        raise SystemExit(
+            f"接続参照の論理名 '{name}' は pa CLI で使えません（英字で始まり英数字と _ のみ）。"
+            " --force-create で作り直すか、論理名を修正してください。"
+        )
 
 
 def connector_id(api_id: str) -> str:
@@ -122,7 +143,7 @@ def add_to_solution(component_id: str, solution_name: str) -> None:
 def create_connection_reference(
     api_id: str, solution_name: str, prefix: str, connection_id: str
 ) -> dict:
-    logical_name = f"{prefix}_connref_{solution_name.lower()}_{api_id.replace('shared_', '')[:16]}"
+    logical_name = build_logical_name(prefix, solution_name, api_id)
     body = {
         "connectionreferencedisplayname": f"{api_id} ({solution_name})",
         "connectionreferencelogicalname": logical_name,
@@ -199,7 +220,11 @@ def main() -> None:
         if cr:
             print(f"  = ソリューション内の既存 CR を流用: {cr['connectionreferencelogicalname']}")
         else:
-            candidates = list_connection_references(args.api_id)
+            # pa CLI で使えない論理名の既存 CR は流用しない
+            candidates = [
+                c for c in list_connection_references(args.api_id)
+                if LOGICAL_NAME_PATTERN.match(c["connectionreferencelogicalname"])
+            ]
             if candidates:
                 cr = candidates[0]
                 print(f"  > 環境内の既存 CR を流用: {cr['connectionreferencelogicalname']}")
@@ -212,6 +237,12 @@ def main() -> None:
         )
 
     logical_name = cr["connectionreferencelogicalname"]
+    assert_valid_logical_name(logical_name)
+    if not cr.get("connectionid"):
+        print(
+            "  ! この CR には接続がバインドされていません。`pa app add data-source --connection-ref` は"
+            " 'Failed to resolve connection ID' で失敗するため、先に接続を作成して --connection-id で再実行してください。"
+        )
     print()
     print("=" * 72)
     print(f"Logical Name : {logical_name}")
