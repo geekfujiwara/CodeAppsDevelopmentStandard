@@ -37,7 +37,7 @@ Code Apps ─(カスタム コネクタ)─▶ トークン発行 Function（Man
 | 音声は自前で PCM にして Push ストリームで渡す | SDK にマイクを直接渡すと、Code Apps では音声が SDK に届かない |
 
 リファレンス: [認証とロール](references/auth.md) / [遅延と精度](references/latency-accuracy.md) /
-[連続録音の区切り](references/continuous-segmentation.md) / [名乗りからの話者の特定](references/speaker-identification.md) / [異常系](references/troubleshooting.md) / [パラメータ](references/.env.example)
+[連続録音の区切り](references/continuous-segmentation.md) / [名乗りからの話者の特定](references/speaker-identification.md) / [MAI-Transcribe との組み合わせ](references/mai-transcribe.md) / [異常系](references/troubleshooting.md) / [パラメータ](references/.env.example)
 
 ## Step 0: 事前確認（会話の最初に 1 回だけ）
 
@@ -112,6 +112,8 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
   区切りのフレーズの `offset` で切り出す（[連続録音の区切り](references/continuous-segmentation.md)）
 - 話者が番号と名前を名乗る場合（株主番号・会員番号など）は、番号を固定の変換だけで決めない。名簿の候補をブラウザで絞り、
   生成 AI（構造化出力）に候補から選ばせ、確からしさ 0.8 以上だけ自動適用する（[話者の特定](references/speaker-identification.md)）
+- 精度を上げたい場合は、確定文ごとにその区間の録音を MAI-Transcribe で認識し直す（日本のリージョンは未提供のため東南アジア等。
+  置き換え／比較を選べるようにする。[MAI-Transcribe](references/mai-transcribe.md)）
 
 ## Step 6: ホスト再現テストで確認する
 
