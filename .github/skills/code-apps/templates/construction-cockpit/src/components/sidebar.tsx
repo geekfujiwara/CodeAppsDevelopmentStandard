@@ -49,7 +49,7 @@ export function Sidebar() {
       <aside
         className={cn(
           "fixed left-0 bg-[var(--menu-bg)] border-r border-border shadow-lg z-40 transition-all duration-300 ease-in-out flex flex-col overflow-visible",
-          isCollapsed ? "w-16" : "w-64",
+          isCollapsed ? "w-16" : "w-56 2xl:w-64",
           // モバイルでは完全に隠す/表示
           "max-md:transition-transform",
           isMobileOpen ? "max-md:translate-x-0" : "max-md:-translate-x-full",
