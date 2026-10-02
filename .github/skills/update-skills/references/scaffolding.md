@@ -58,12 +58,13 @@
 | キー | 意味 |
 |---|---|
 | `variables` | `.env` から取る必須の値。`references/.env.example` にも定義する |
-| `optionalVariables` | 無くても生成できる値（機能ブロックの有効化など） |
+| `optionalVariables` | 無くても生成できる値（機能ブロックの有効化など）。答えが無ければ空文字で置き換える |
 | `derivedVariables` | 呼び出し側が組み立てて `--var` で渡す値（パッケージ名など）。`.env` には現れない |
 | `preserveUndeclaredVariables` | `true` のとき未宣言の `${UPPER_SNAKE}` を実行時コードとして保持する。TypeScript 等で大文字定数のテンプレートリテラルを含む場合だけ使う |
 | `blockFiles` | ファイル名 → 機能ブロック。選ばれていないブロックのファイルは生成しない |
 | `nextSteps` | 生成直後に人が実行する手順。**生成物の外にある依存**をここに書く（→ 6 節） |
 | `extends` | ベース テンプレートへの相対パス（例: `../generic-base`）。ベースを先に展開し、同じパスのファイルは継承側が上書きする。変数宣言と `blockFiles` は合算、`nextSteps` は継承側を優先。業務テンプレートにベースをコピーして二重管理しないために使う |
+| `questions` | 変数ごとの質問（AskUserQuestion で聞く）。`variable` / `question` 必須、`choices` / `default` / `detect`（先に自動で調べる方法）/ `sameAs`（別の変数と同じ値。聞かない）は任意。継承側の同じ変数は上書き（→ 8 節） |
 
 > 生成先に `.git` / `.github` / `.vscode` / `.env` しか無い場合は空とみなす。スキルを取得した作業ルート（`--target .`）へ
 > `--force` なしで生成できる。それ以外のファイルがある場合は従来どおり停止する。
@@ -137,3 +138,22 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 ```
 
 `--dry-run` で生成計画を確認 → 問題なければ外して実行、を既定の流れにする。
+
+## 8. 変数を AskUserQuestion で聞いてから生成する（`questions`）
+
+環境ごとに違う値（環境 ID・プレフィックス・リソース名など）が多いテンプレートは、`scaffold.json` に `questions` を書き、
+エージェントが**1 問ずつ AskUserQuestion で聞いてから**生成する。手順を読ませて値を探させるより漏れが無い。
+
+```powershell
+# 1. まだ答えの無い質問（JSON）。detect があれば先に調べて choices に並べ、default は推奨として先頭に置く
+python .github/skills/update-skills/scripts/scaffold_from_template.py --template <dir> --questions --env answers.env
+# 2. 1 問ずつ聞いて answers.env に KEY=VALUE を追記 → 1. が [] になるまで繰り返す
+# 3. 生成し、答えをアプリの .env にも書く（既にあるキーは上書きしない）
+python .github/skills/update-skills/scripts/scaffold_from_template.py --template <dir> --target <out> --env answers.env --write-env <out>/.env
+```
+
+- 出す順は `questions` の順。質問の無い必須変数も、名前だけの質問として最後に出す（聞き漏らしを防ぐ）。
+- `sameAs` の変数（例: `VITE_DATAVERSE_URL` = `DATAVERSE_URL`）は聞かずに元の答えを使う。
+- 秘密（シークレット・キー）は質問にしない。生成後のスクリプトが作り、`.env` や Key Vault に入れる。
+- `validate_skill.py` は、質問が宣言済みの変数を指しているか・`question` が空でないか・`choices` が空でないかを検査し、
+  質問の無い必須変数を警告する。単体テストは `scripts/test_scaffold_questions.py`。
