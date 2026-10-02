@@ -13,7 +13,13 @@ Power Apps Code Apps, モデル駆動型アプリ, Generative page, Dataverse, P
 
 ## クイックスタート
 
-VS Code + GitHub Copilot が使える状態（[統合プロンプトで一気に準備する](#統合プロンプトで一気に準備する推奨)を参照）であれば、次のコマンドと 1 依頼だけで開発を始められます。
+VS Code + GitHub Copilot が使える状態（[統合プロンプトで一気に準備する](#統合プロンプトで一気に準備する推奨)を参照）であれば、GitHub Copilot / Claude Code のチャットを次のプロンプトから始めてください。そのままコピーして使えます。
+
+```text
+クイックスタートして
+```
+
+続けて、次のコマンドで開発標準をプロジェクトへ配置します。
 
 ```bash
 npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents
@@ -21,7 +27,7 @@ npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills
 cp .github/skills/standard/references/gitignore-template .gitignore
 ```
 
-続けて GitHub Copilot / Claude Code のチャットから **`@GeekPowerCode`** を呼び出し、作りたいテーマを伝えてください。`architecture` スキルがヒアリングを経て Code Apps を選定した場合にのみ、`code-apps` スキルが `.github/skills/code-apps/references/template-snapshot/` の `package.json` / `package-lock.json` をコピーして `npm install` を実行します（Code Apps 以外のソリューションでは `node_modules` は生成されません）。
+開発標準の配置後、GitHub Copilot / Claude Code のチャットから **`@GeekPowerCode`** を呼び出し、作りたいテーマを伝えてください。`architecture` スキルがヒアリングを経て Code Apps を選定した場合にのみ、`code-apps` スキルが `.github/skills/code-apps/references/template-snapshot/` の `package.json` / `package-lock.json` をコピーして `npm install` を実行します（Code Apps 以外のソリューションでは `node_modules` は生成されません）。
 
 > [!NOTE]
 > `.gitignore` がないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になります。必ずコピーしてください。
