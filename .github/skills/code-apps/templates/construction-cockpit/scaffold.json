@@ -1,0 +1,21 @@
+{
+  "description": "建設現場コックピット（Google Maps、React Flow ガント/関係グラフ、日報・KY・安全・ナレッジ・重機、Cowork 連携）。generic-base を継承する完全テンプレート",
+  "extends": "../generic-base",
+  "variables": [
+    "PUBLISHER_PREFIX",
+    "COWORK_PLUGIN_ID",
+    "DATAVERSE_ORIGIN"
+  ],
+  "preserveUndeclaredVariables": true,
+  "nextSteps": [
+    "Copy-Item .env.example .env  # PUBLISHER_PREFIX と VITE_* を入力",
+    "python scripts/setup_construction_dataverse.py  # plan。反映は --apply、デモは --apply --seed-demo",
+    "npm install --no-audit --no-fund",
+    "python .github/skills/code-apps/scripts/setup_connection_reference.py --write-env .env",
+    "npx --no pa app init --environment-id $env:ENV_ID --display-name \"Construction Cockpit\" --app-type CodeApp --non-interactive",
+    "npm run deploy -- --solution-id $env:SOLUTION_ID  # データソース追加前でもビルド可能",
+    "python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --connection-ref $env:CONNECTION_REFERENCE_LOGICAL_NAME --solution-id $env:SOLUTION_ID",
+    "npm run deploy",
+    "python .github/skills/code-apps/scripts/configure_code_app_csp.py --directive Frame-Src --source https://www.google.com --assert"
+  ]
+}

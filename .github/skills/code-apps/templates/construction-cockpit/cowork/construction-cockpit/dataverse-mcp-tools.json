@@ -1,0 +1,71 @@
+{
+  "tools": [
+    {
+      "name": "describe",
+      "description": "Dataverse のテーブル、列、Lookup、選択肢を確認する。クエリや書き込みの前に必ず使う。",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "query": { "type": "string" } },
+        "required": ["query"]
+      },
+      "annotations": { "readOnlyHint": true, "title": "スキーマ確認" }
+    },
+    {
+      "name": "search",
+      "description": "Dataverse のメタデータを検索する。",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "query": { "type": "string" } },
+        "required": ["query"]
+      },
+      "annotations": { "readOnlyHint": true, "title": "メタデータ検索" }
+    },
+    {
+      "name": "search_data",
+      "description": "Dataverse の業務レコードを条件検索する。",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "query": { "type": "string" } },
+        "required": ["query"]
+      },
+      "annotations": { "readOnlyHint": true, "title": "現場データ検索" }
+    },
+    {
+      "name": "read_query",
+      "description": "Dataverse SQL SELECT で現場データを取得・集計する。",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "query": { "type": "string" } },
+        "required": ["query"]
+      },
+      "annotations": { "readOnlyHint": true, "title": "現場データ照会" }
+    },
+    {
+      "name": "create_record",
+      "description": "利用者が確認した内容を Dataverse に新規登録する。Lookup は論理列名に {\"relatedTable\":\"<table>\",\"recordId\":\"<GUID>\"} の JSON 文字列を渡す。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tablename": { "type": "string" },
+          "item": { "type": "object" }
+        },
+        "required": ["tablename", "item"]
+      },
+      "annotations": { "readOnlyHint": false, "title": "現場レコード登録" }
+    },
+    {
+      "name": "update_record",
+      "description": "利用者が確認した変更だけを Dataverse に反映する。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tablename": { "type": "string" },
+          "recordId": { "type": "string" },
+          "item": { "type": "object" }
+        },
+        "required": ["tablename", "recordId", "item"]
+      },
+      "annotations": { "readOnlyHint": false, "title": "現場レコード更新" }
+    }
+  ]
+}

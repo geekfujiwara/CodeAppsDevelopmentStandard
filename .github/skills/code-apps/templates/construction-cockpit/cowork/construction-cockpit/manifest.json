@@ -1,0 +1,49 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.28/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.28",
+  "version": "1.0.0",
+  "id": "${COWORK_PLUGIN_ID}",
+  "developer": {
+    "name": "Construction Cockpit",
+    "websiteUrl": "https://www.microsoft.com/",
+    "privacyUrl": "https://privacy.microsoft.com/",
+    "termsOfUseUrl": "https://www.microsoft.com/servicesagreement"
+  },
+  "name": {
+    "short": "現場コックピット",
+    "full": "現場コックピット — Microsoft 365 と現場データをつなぐ業務支援"
+  },
+  "description": {
+    "short": "会議・メール・チャット・予定表と現場データを統合し、記録と次アクションを支援",
+    "full": "Teams 会議の録画・文字起こし、メール、チャット、予定表を利用者の権限で読み取り、Dataverse の工事、作業、日報、KY、ヒヤリハット、ナレッジ、重機稼働と照合します。根拠と不足情報を明示して日報や安全記録の下書き、現場横断サマリー、次アクションを提案し、利用者が確認した内容だけを現場コックピットへ登録または更新します。"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#EA580C",
+  "agentSkills": [
+    { "folder": "./skills/meeting-to-daily-report" },
+    { "folder": "./skills/m365-site-intake" },
+    { "folder": "./skills/safety-signal-review" },
+    { "folder": "./skills/construction-action-advisor" },
+    { "folder": "./skills/knowledge-capture" }
+  ],
+  "agentConnectors": [
+    {
+      "id": "dataverse-mcp",
+      "displayName": "現場コックピット Dataverse",
+      "description": "現場コックピットの工事、作業、日報、KY、ヒヤリハット、ナレッジ、重機稼働を利用者権限で読み書きする。",
+      "toolSource": {
+        "remoteMcpServer": {
+          "mcpServerUrl": "${DATAVERSE_ORIGIN}/api/mcp",
+          "mcpToolDescription": { "file": "dataverse-mcp-tools.json" },
+          "authorization": {
+            "type": "OAuthPluginVault",
+            "referenceId": "__COWORK_OAUTH_REGISTRATION_ID__"
+          }
+        }
+      }
+    }
+  ]
+}

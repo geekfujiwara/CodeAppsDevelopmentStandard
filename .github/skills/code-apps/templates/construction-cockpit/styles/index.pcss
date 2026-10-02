@@ -1,0 +1,321 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "Hiragino Sans",
+    "Yu Gothic UI",
+    Meiryo,
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --radius: 0.75rem;
+  --background: #f3f7f8;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #0891b2;
+  --primary-foreground: #ecfeff;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #0f172a;
+  --muted: #e8eef1;
+  --muted-foreground: #52616f;
+  --accent: #84cc16;
+  --accent-foreground: #1a2e05;
+  --accent-hover: #cffafe;
+  --destructive: #e11d48;
+  --border: #cbd5e1;
+  --input: #cbd5e1;
+  --ring: #06b6d4;
+  --chart-1: #06b6d4;
+  --chart-2: #84cc16;
+  --chart-3: #a78bfa;
+  --chart-4: #f59e0b;
+  --chart-5: #f43f5e;
+  --badge-beginner: #dbeafe;
+  --badge-beginner-foreground: #1e3a8a;
+  --badge-intermediate: #fef9c3;
+  --badge-intermediate-foreground: #713f12;
+  --badge-advanced: #fecdd3;
+  --badge-advanced-foreground: #881337;
+  --badge-administrator: #f3e8ff;
+  --badge-administrator-foreground: #6b21a8;
+  --badge-developer: #d1fae5;
+  --badge-developer-foreground: #065f46;
+  --sidebar: #0f172a;
+  --sidebar-foreground: #e2e8f0;
+  --sidebar-primary: #06b6d4;
+  --sidebar-primary-foreground: #083344;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #ecfeff;
+  --sidebar-border: #1e293b;
+  --sidebar-ring: #06b6d4;
+  --header-bg: #0f172a;
+  --menu-bg: #0f172a;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-hover: var(--accent-hover);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-badge-beginner: var(--badge-beginner);
+  --color-badge-beginner-foreground: var(--badge-beginner-foreground);
+  --color-badge-intermediate: var(--badge-intermediate);
+  --color-badge-intermediate-foreground: var(--badge-intermediate-foreground);
+  --color-badge-advanced: var(--badge-advanced);
+  --color-badge-advanced-foreground: var(--badge-advanced-foreground);
+  --color-badge-administrator: var(--badge-administrator);
+  --color-badge-administrator-foreground: var(--badge-administrator-foreground);
+  --color-badge-developer: var(--badge-developer);
+  --color-badge-developer-foreground: var(--badge-developer-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-header-bg: var(--header-bg);
+  --color-menu-bg: var(--menu-bg);
+}
+
+.dark {
+  --background: #070d18;
+  --foreground: #e2e8f0;
+  --card: #101827;
+  --card-foreground: #f8fafc;
+  --popover: #101827;
+  --popover-foreground: #f8fafc;
+  --primary: #22d3ee;
+  --primary-foreground: #083344;
+  --secondary: #1e293b;
+  --secondary-foreground: #e2e8f0;
+  --muted: #172033;
+  --muted-foreground: #94a3b8;
+  --accent: #a3e635;
+  --accent-foreground: #1a2e05;
+  --accent-hover: #164e63;
+  --destructive: #fb7185;
+  --border: #263449;
+  --input: #334155;
+  --ring: #22d3ee;
+  --chart-1: #22d3ee;
+  --chart-2: #a3e635;
+  --chart-3: #c4b5fd;
+  --chart-4: #fbbf24;
+  --chart-5: #fb7185;
+  --badge-beginner: #1e3a8a;
+  --badge-beginner-foreground: #dbeafe;
+  --badge-intermediate: #713f12;
+  --badge-intermediate-foreground: #fef9c3;
+  --badge-advanced: #881337;
+  --badge-advanced-foreground: #fecdd3;
+  --badge-administrator: #6b21a8;
+  --badge-administrator-foreground: #f3e8ff;
+  --badge-developer: #065f46;
+  --badge-developer-foreground: #d1fae5;
+  --sidebar: #070d18;
+  --sidebar-foreground: #e2e8f0;
+  --sidebar-primary: #22d3ee;
+  --sidebar-primary-foreground: #083344;
+  --sidebar-accent: #172033;
+  --sidebar-accent-foreground: #ecfeff;
+  --sidebar-border: #263449;
+  --sidebar-ring: #22d3ee;
+  --header-bg: #070d18;
+  --menu-bg: #070d18;
+}
+
+@layer base {
+  html, body, #root { 
+    height: 100%; 
+  }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--primary) 10%, transparent) 0, transparent 25rem),
+      linear-gradient(color-mix(in srgb, var(--border) 18%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--border) 18%, transparent) 1px, transparent 1px);
+    background-size: auto, 32px 32px, 32px 32px;
+  }
+
+  @layer components {
+    .orbit-shell {
+      @apply space-y-5;
+    }
+
+    .orbit-hero {
+      @apply flex min-w-0 flex-wrap items-end justify-between gap-5 overflow-hidden rounded-3xl border p-6;
+      background:
+        linear-gradient(120deg, color-mix(in srgb, var(--card) 94%, transparent), color-mix(in srgb, var(--primary) 10%, var(--card))),
+        radial-gradient(circle at 85% 20%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 18rem);
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+    }
+
+    .orbit-kicker {
+      @apply inline-flex rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-[0.68rem] font-black tracking-[0.2em] text-cyan-600 dark:text-cyan-300;
+    }
+
+    .orbit-kicker.is-lime {
+      @apply border-lime-400/40 bg-lime-400/10 text-lime-700 dark:text-lime-300;
+    }
+
+    .orbit-status,
+    .orbit-node-kind {
+      @apply inline-flex rounded-full bg-lime-400/15 px-3 py-1 text-[0.68rem] font-black tracking-[0.16em] text-lime-700 dark:text-lime-300;
+    }
+
+    .orbit-panel,
+    .orbit-map-section {
+      @apply rounded-3xl border bg-card/85 p-5 backdrop-blur;
+      box-shadow: 0 18px 55px rgba(15, 23, 42, 0.08);
+    }
+
+    .orbit-panel-label {
+      @apply text-[0.68rem] font-black tracking-[0.22em] text-muted-foreground;
+    }
+
+    .orbit-project-button {
+      @apply w-full rounded-2xl border border-transparent bg-muted/50 p-4 text-left text-sm font-bold transition;
+    }
+
+    .orbit-project-button:hover {
+      @apply border-primary/40 bg-primary/5;
+      transform: translateX(3px);
+    }
+
+    .orbit-project-button.is-active {
+      @apply border-primary bg-primary/10 text-primary;
+      box-shadow: inset 4px 0 0 var(--primary);
+    }
+
+    .orbit-metric {
+      @apply grid min-h-28 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 rounded-2xl border bg-card/85 p-4 backdrop-blur;
+      box-shadow: 0 12px 35px rgba(15, 23, 42, 0.07);
+    }
+
+    .orbit-metric > :last-child {
+      @apply col-span-2 mt-1;
+    }
+
+    .orbit-tabs {
+      @apply border bg-card/80 p-1;
+    }
+
+    .orbit-map-section {
+      @apply p-6;
+    }
+
+    .orbit-map-card {
+      @apply overflow-hidden rounded-2xl border bg-card transition;
+      box-shadow: 0 16px 45px rgba(15, 23, 42, 0.09);
+    }
+
+    .orbit-map-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 22px 60px rgba(6, 182, 212, 0.14);
+    }
+
+    .orbit-icon-link {
+      @apply grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition;
+    }
+
+    .orbit-icon-link:hover {
+      transform: rotate(8deg) scale(1.06);
+    }
+
+    .orbit-primary-link {
+      @apply inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-black text-primary-foreground shadow-lg transition;
+    }
+
+    .orbit-primary-link:hover {
+      transform: translateY(-2px);
+    }
+
+    .react-flow__controls {
+      @apply overflow-hidden rounded-xl border bg-card shadow-xl;
+    }
+
+    .react-flow__controls-button {
+      background: var(--card);
+      color: var(--card-foreground);
+      border-color: var(--border);
+    }
+
+    .react-flow__minimap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+  }
+  
+  /* クリック可能な要素にカーソルポインターを適用 */
+  a, button, [role="button"], [type="button"], [type="submit"], [type="reset"],
+  input[type="checkbox"], input[type="radio"], select, label[for],
+  summary, [tabindex]:not([tabindex="-1"]), [onclick] {
+    cursor: pointer;
+  }
+  
+  /* 無効な要素は通常のカーソル */
+  a[disabled], button[disabled], [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+  
+  /* スクロールバーを非表示にする */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari, Opera */
+  }
+  
+  /* アンカーリンクのスクロール位置調整（ヘッダーの高さ分） */
+  [id] {
+    scroll-margin-top: 6rem; /* ヘッダー高さ (64px) + 余白 (32px) = 96px = 6rem */
+  }
+}

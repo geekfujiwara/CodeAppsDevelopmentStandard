@@ -605,6 +605,7 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 |---|---|---|
 | [templates/generic-base](templates/generic-base/) | 完全なベース | 新規プロジェクトの出力先へ生成する |
 | [templates/sales-crm](templates/sales-crm/README.md) | 完全な業務テンプレート（generic-base を `extends`） | 営業支援 CRM（マネージャー ダッシュボード・営業ホーム・CRUD・Outlook/Teams/Cowork 連携）を空のディレクトリから生成する |
+| [templates/construction-cockpit](templates/construction-cockpit/README.md) | 完全な業務テンプレート（generic-base を `extends`） | Google Maps、React Flow ガント/関係グラフ、日報・KY・安全・ナレッジ・重機、Cowork を含む建設現場コックピットを生成する |
 | [templates/agm-qa-assist](templates/agm-qa-assist/README.md) | 完全な業務テンプレート（generic-base を `extends`・Azure Functions 同梱） | 株主総会 Q&A アシスト（連続の文字起こし・株主の AI 照合・想定問答の検索と根拠つき回答案・録音と記録・総会の集計・LIVE 共有）。**変数は `--questions` の順に AskUserQuestion で聞いてから生成**する |
 | [templates/account-link-admin](templates/account-link-admin/) | アドオン | 空の作業ディレクトリへ生成し、README に従ってホストへ統合する |
 | [templates/drawing-communication](templates/drawing-communication/) | アドオン | 空の作業ディレクトリへ生成・単体検証後、必要なモジュールをホストへ統合する |
