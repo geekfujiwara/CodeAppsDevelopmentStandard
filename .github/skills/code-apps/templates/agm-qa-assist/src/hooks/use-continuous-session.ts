@@ -9,7 +9,7 @@ import type { SessionState, SessionStats } from "@/hooks/use-transcription-sessi
 
 const log = createLogger("session")
 
-export type FinalLine = { id: number; text: string; offsetMs: number }
+export type FinalLine = { id: number; text: string; offsetMs: number; durationMs?: number }
 export type InterimLine = { text: string; offsetMs: number }
 export type AudioPiece = { dataUrl: string; type: string; durationSec: number }
 export type ContinuousStartOptions = { token?: string; region?: string; deviceId?: string }
@@ -113,7 +113,7 @@ export function useContinuousSession(recognizerOptions: RecognizerOptions = {}) 
         }
         recognizer.recognized = (_s, e) => {
           if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
-            const line = { id: linesRef.current.length + 1, text: e.result.text, offsetMs: Math.round(e.result.offset / 10000) }
+            const line = { id: linesRef.current.length + 1, text: e.result.text, offsetMs: Math.round(e.result.offset / 10000), durationMs: Math.round(e.result.duration / 10000) }
             linesRef.current = [...linesRef.current, line]
             setLines(linesRef.current)
             setInterim(null)
@@ -209,5 +209,8 @@ export function useContinuousSession(recognizerOptions: RecognizerOptions = {}) 
     log.info("停止しました", { lines: linesRef.current.length })
   }, [cleanup, state])
 
-  return { state, interim, lines, stats, brokerAvailable, start, stop, takeAudio }
+  /** 確定文の区間の録音（前後 200 ms を含む）。発言の区切りで解放済みなら null */
+  const sliceAudio = useCallback((fromMs: number, toMs: number) => segmenter.current.slice(Math.max(0, fromMs - 200), toMs + 200), [])
+
+  return { state, interim, lines, stats, brokerAvailable, start, stop, takeAudio, sliceAudio }
 }

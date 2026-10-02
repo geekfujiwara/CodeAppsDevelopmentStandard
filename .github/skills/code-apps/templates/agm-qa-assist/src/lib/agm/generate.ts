@@ -1,5 +1,6 @@
 import { AGMSpeechTokenBrokerService } from "./services"
 import { createLogger } from "@/lib/debug-log"
+import { currentSettings } from "./settings"
 import { errorText, withTimeout } from "./corpus"
 import type { IrDoc, QaDoc } from "./types"
 
@@ -92,7 +93,7 @@ export async function streamAnswer(input: GenerateInput, onDelta: (text: string)
     const res = await fetch(ticket.endpoint, {
       method: "POST",
       headers: { Authorization: `Ticket ${ticket.ticket}`, "Content-Type": "application/json" },
-      body: JSON.stringify(toContext(input)),
+      body: JSON.stringify({ ...toContext(input), options: currentSettings().answer }),
       signal,
     })
     if (res.status === 401 && attempt === 0) {

@@ -13,6 +13,8 @@ export const ENTITY = {
   question: `${PREFIX}_agmquestions`,
   shareholder: `${PREFIX}_agmshareholders`,
   live: `${PREFIX}_agmlives`,
+  script: `${PREFIX}_agmscripts`,
+  setting: `${PREFIX}_agmsettings`,
 }
 
 export const col = (name: string) => `${PREFIX}_${name}`

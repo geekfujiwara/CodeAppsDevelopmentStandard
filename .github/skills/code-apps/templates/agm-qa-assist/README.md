@@ -11,7 +11,10 @@
 | 記録 | 発言・質問・回答案を Dataverse、録音とまとめを SharePoint に保存。後から株主番号を直せる |
 | 総会・集計 | 総会ごとの KPI・グラフ・回答案の評価、Markdown / CSV でまとめて保存 |
 | LIVE 共有 | 担当者 1 人が操作し、幹部は読み取り専用で同じ画面を見る（Dataverse のレコード共有） |
-| リハーサル | 台本を Windows の音声で読み上げ／人が読む／文字だけ流す |
+| リハーサル | 台本（Dataverse・Cowork で作成可）を Windows の音声で読み上げ／人が読む／文字だけ流す |
+| 想定問答の追加・承認 | アプリから追加・編集。Cowork（[agm-qa-plugin](../../../cowork/templates/agm-qa-plugin/README.md)）で作った下書きを承認すると質疑応答の検索に使われる |
+| 文字起こしの比較 | Azure Speech（リアルタイム）の確定文ごとに MAI-Transcribe（既定 2）で認識し直し、置き換え／比較を選べる |
+| 設定 | 文字起こしの接続先・モデル、回答案と株主照合の AI モデル（デプロイ・推論の強さ・最大トークン）。「既定にする」で組織の既定、「この端末だけで試す」 |
 
 構成・モデル・権限は生成後の `spec/architecture.md`・`spec/security.md`、要件とテスト計画は `spec/requirements.md`・`spec/test-plan.md`。
 

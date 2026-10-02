@@ -2,6 +2,8 @@ import { useMemo, useState, type ReactNode } from "react"
 import { CheckCircle2, CircleDashed, ExternalLink, Loader2, Pencil, RotateCw, XCircle } from "lucide-react"
 import type { SaveSteps, StepState, TurnSummary } from "@/lib/agm/records"
 
+export type RecordsTab = "records" | "script" | "compare"
+
 export interface LocalRecord {
   key: string
   turnId?: string
@@ -66,9 +68,11 @@ function NumberCell({ value, turnId, onEdit }: { value: string; turnId?: string;
         <Pencil className="size-3 opacity-40 group-hover:opacity-100" aria-hidden />
       </button>
     )
-  const commit = () => {
+  // 入力欄の今の値で確定する（入力の直後に Enter を押すと、state の更新前の値で確定してしまうため）
+  const commit = (raw: string = draft) => {
+    if (!editing) return
     setEditing(false)
-    const next = draft.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0)).replace(/[^\d]/g, "")
+    const next = raw.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0)).replace(/[^\d]/g, "")
     if (next === value) return
     setBusy(true)
     void onEdit(turnId, next).finally(() => setBusy(false))
@@ -80,9 +84,9 @@ function NumberCell({ value, turnId, onEdit }: { value: string; turnId?: string;
       inputMode="numeric"
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
+      onBlur={(e) => commit(e.currentTarget.value)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") commit()
+        if (e.key === "Enter") commit(e.currentTarget.value)
         if (e.key === "Escape") setEditing(false)
       }}
       className="h-7 w-20 rounded border border-agm-accent bg-agm-bg px-1 font-mono text-sm outline-none"
@@ -101,6 +105,7 @@ export function RecordsPanel({  local,
   tab = "records",
   onTab,
   scriptView,
+  compareView,
   onEditNumber,
 }: {
   local: LocalRecord[]
@@ -109,10 +114,12 @@ export function RecordsPanel({  local,
   onReload: () => void
   reviewId?: string
   onReview: (turnId: string) => void
-  tab?: "records" | "script"
-  onTab?: (tab: "records" | "script") => void
+  tab?: RecordsTab
+  onTab?: (tab: RecordsTab) => void
   /** リハーサル台本（あれば「台本」タブを出す） */
   scriptView?: ReactNode
+  /** 文字起こしの比較（Azure Speech と MAI） */
+  compareView?: ReactNode
   /** 保存済みの発言の株主番号を直す（名簿を引き直して氏名も更新する） */
   onEditNumber?: (turnId: string, number: string) => Promise<void>
 }) {
@@ -138,6 +145,11 @@ export function RecordsPanel({  local,
               リハーサル台本
             </button>
           )}
+          {compareView && (
+            <button type="button" role="tab" aria-selected={tab === "compare"} onClick={() => onTab?.("compare")} className={`ml-1 rounded-full border px-2.5 py-0.5 text-xs ${tab === "compare" ? "border-agm-accent text-agm-accent" : "border-agm-line text-agm-muted"}`} data-testid="compare-tab">
+              文字起こしの比較
+            </button>
+          )}
         </div>
         <div className="agm-scroll flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
           <button type="button" onClick={() => setFilter(null)} className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs ${!filter ? "border-agm-accent text-agm-accent" : "border-agm-line text-agm-muted"}`}>
@@ -159,7 +171,7 @@ export function RecordsPanel({  local,
           <RotateCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
         </button>
       </header>
-      {tab === "script" && scriptView ? <div className="min-h-0 flex-1">{scriptView}</div> : (
+      {tab === "compare" && compareView ? <div className="min-h-0 flex-1">{compareView}</div> : tab === "script" && scriptView ? <div className="min-h-0 flex-1">{scriptView}</div> : (
       <div className="agm-scroll min-h-0 flex-1 overflow-y-auto" data-testid="records">
         <table className="w-full table-fixed text-sm">
           <thead className="sticky top-0 bg-agm-panel text-left text-[11px] text-agm-muted">

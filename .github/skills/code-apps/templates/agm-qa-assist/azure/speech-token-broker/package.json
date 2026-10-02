@@ -6,7 +6,7 @@
   "main": "dist/src/index.js",
   "scripts": {
     "build": "tsc",
-    "test": "node --test test/auth.test.cjs test/answer.test.cjs"
+    "test": "node --test test/auth.test.cjs test/answer.test.cjs test/settings.test.cjs"
   },
   "dependencies": {
     "@azure/functions": "^4.6.0",

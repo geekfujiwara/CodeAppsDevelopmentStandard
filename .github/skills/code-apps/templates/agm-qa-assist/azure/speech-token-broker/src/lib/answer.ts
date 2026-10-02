@@ -1,3 +1,4 @@
+import type { ModelOptions } from "./options"
 import { DefaultAzureCredential, ManagedIdentityCredential, type TokenCredential } from "@azure/identity"
 
 /** 生成の根拠として受け取る想定問答・IR 抜粋（ブラウザが検索した上位） */
@@ -124,9 +125,9 @@ export interface StreamTiming {
 }
 
 /** Azure OpenAI（Foundry）の chat completions をストリームで呼ぶ。Managed Identity（Foundry User）で認証する */
-export async function openChatStream(req: AnswerRequest, signal?: AbortSignal, timing?: StreamTiming): Promise<Response> {
+export async function openChatStream(req: AnswerRequest, signal?: AbortSignal, timing?: StreamTiming, options?: ModelOptions): Promise<Response> {
   const endpoint = (process.env.AOAI_ENDPOINT ?? "").replace(/\/+$/, "")
-  const deployment = process.env.AOAI_DEPLOYMENT ?? ""
+  const deployment = options?.deployment ?? process.env.AOAI_DEPLOYMENT ?? ""
   if (!endpoint || !deployment) throw new Error("AOAI_ENDPOINT / AOAI_DEPLOYMENT is not configured")
   const t0 = Date.now()
   const token = await accessToken()
@@ -134,7 +135,7 @@ export async function openChatStream(req: AnswerRequest, signal?: AbortSignal, t
   const res = await fetch(`${endpoint}/openai/v1/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(chatBody(deployment, buildMessages(req))),
+    body: JSON.stringify(chatBody(deployment, buildMessages(req), options?.reasoningEffort, options?.maxTokens)),
     signal,
   })
   if (timing) timing.headersMs = Date.now() - t0 - timing.tokenMs
@@ -146,10 +147,10 @@ export async function openChatStream(req: AnswerRequest, signal?: AbortSignal, t
  * chat completions（v1 API）の本文。GPT-5 系は推論モデルなので temperature を指定できず、上限は max_completion_tokens で渡す。
  * 推論の深さは既定で none（実測で最初の差分が最も早く、根拠の無い数値も出なかった）。
  */
-export function chatBody(deployment: string, messages: ReturnType<typeof buildMessages>, effort = process.env.AOAI_REASONING_EFFORT ?? "none") {
+export function chatBody(deployment: string, messages: ReturnType<typeof buildMessages>, effort = process.env.AOAI_REASONING_EFFORT ?? "none", maxTokens = 1200) {
   const base = { model: deployment, messages, stream: true, stream_options: { include_usage: true } }
-  if (/^gpt-4/i.test(deployment)) return { ...base, temperature: 0.2, max_tokens: 800 }
-  return { ...base, max_completion_tokens: 1200, ...(effort ? { reasoning_effort: effort } : {}) }
+  if (/^gpt-4/i.test(deployment)) return { ...base, temperature: 0.2, max_tokens: Math.min(maxTokens, 800) }
+  return { ...base, max_completion_tokens: maxTokens, ...(effort ? { reasoning_effort: effort } : {}) }
 }
 
 /** Azure OpenAI の SSE（data: {...}）から本文の差分と使用量を取り出す */

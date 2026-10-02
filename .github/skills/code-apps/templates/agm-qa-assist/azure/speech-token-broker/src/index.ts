@@ -5,3 +5,4 @@ app.setup({ enableHttpStream: true })
 
 import "./functions/speechToken"
 import "./functions/answer"
+import "./functions/settings"

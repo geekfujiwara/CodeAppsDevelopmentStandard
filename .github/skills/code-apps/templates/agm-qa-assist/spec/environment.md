@@ -15,6 +15,7 @@
 | Azure | サブスクリプション / リソース グループ / リージョン | ${AZURE_SUBSCRIPTION_ID} / ${AZURE_RESOURCE_GROUP} / ${AZURE_LOCATION} |
 | Azure | Speech | ${SPEECH_RESOURCE_NAME} |
 | Azure | Azure OpenAI / モデル | ${AOAI_RESOURCE_NAME} / ${AOAI_DEPLOYMENT} ${AOAI_MODEL_VERSION} |
+| Azure | MAI-Transcribe / 選べる AI モデル | ${MAI_SPEECH_RESOURCE_NAME} / ${AOAI_DEPLOYMENTS} |
 | Azure | Function App | ${FUNCTION_APP_NAME}（API: ${API_AUDIENCE}） |
 | ロール | オペレーター / 閲覧（幹部） | ${OPERATOR_UPN} / ${VIEWER_UPN} |
 

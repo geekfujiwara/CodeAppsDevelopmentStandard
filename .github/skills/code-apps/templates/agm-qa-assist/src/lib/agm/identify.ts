@@ -1,6 +1,7 @@
 import { createLogger } from "@/lib/debug-log"
 import { getAnswerTicket } from "./generate"
 import { withTimeout } from "./corpus"
+import { currentSettings } from "./settings"
 import type { Shareholder } from "./shareholders"
 import { rivalsOf, shortlist, type Candidate } from "./match"
 
@@ -32,7 +33,7 @@ export async function identifyShareholder(utterance: string, register: Sharehold
       fetch(endpoint, {
         method: "POST",
         headers: { Authorization: `Ticket ${ticket.ticket}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ utterance, candidates: candidates.map((c) => ({ number: c.shareholder.number, name: c.shareholder.name, kana: c.shareholder.kana })) }),
+        body: JSON.stringify({ utterance, candidates: candidates.map((c) => ({ number: c.shareholder.number, name: c.shareholder.name, kana: c.shareholder.kana })), options: currentSettings().identify }),
       }),
       15000,
       "株主の照合",

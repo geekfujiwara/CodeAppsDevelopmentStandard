@@ -71,8 +71,13 @@ export function toQa(row: Row): QaDoc {
     responder: str(row, col("responder")),
     sourceIds: list(str(row, col("sourceids"))),
     cautions: lines(str(row, col("cautions"))),
+    status: str(row, col("status")),
+    createdVia: str(row, col("createdvia")),
   }
 }
+
+/** 質疑応答の検索に使ってよい想定問答（承認済み。状態が空の既存データを含む） */
+export const isApproved = (q: QaDoc) => !q.status || q.status === "承認済み"
 
 export function toIr(row: Row): IrDoc {
   return {
@@ -93,7 +98,7 @@ export async function loadCorpus(): Promise<{ corpus: Corpus; source: CorpusSour
   try {
     if (import.meta.env.VITE_DEV_LOCAL_CORPUS === "1") throw new Error("テスト用ビルドのため同梱データを使います")
     const [qaRows, irRows] = await Promise.all([
-      listAll(ENTITY.qa, [`${ENTITY.qa.slice(0, -1)}id`, ...["name", "category", "question", "variants", "keywords", "answer", "answerpoints", "responder", "sourceids", "cautions"].map(col)], col("name")),
+      listAll(ENTITY.qa, [`${ENTITY.qa.slice(0, -1)}id`, ...["name", "category", "question", "variants", "keywords", "answer", "answerpoints", "responder", "sourceids", "cautions", "status", "createdvia"].map(col)], col("name")),
       listAll(ENTITY.ir, ["name", "doctitle", "doctype", "section", "page", "text"].map(col), col("name")),
     ])
     if (!qaRows.length) throw new Error("想定問答が 0 件です")

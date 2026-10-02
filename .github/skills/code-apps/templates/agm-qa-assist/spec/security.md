@@ -84,3 +84,16 @@
 - 録音・まとめは SharePoint のライブラリの権限で守る（閲覧者には付けない）。
 - 株主番号の後からの修正は、保存状態の列に「株主番号を修正（時刻）」を残す。番号の決め方（手入力・AI 照合・自動検出）と、聞き取った番号の原文も発言に残す。
 - テスト用のチケット・トークンはファイルに書いたら使い終わりに削除する（`dist-autotest`・`.mcp/answer-ticket.json`）。
+
+## 6. 追加分（Cowork・MAI-Transcribe・設定）
+
+| 項目 | 内容 |
+|---|---|
+| ロール「AGM 想定問答作成者」 | Cowork で想定問答・台本を作る人。想定問答と台本は作成（ユーザー）・読み取り（組織）・書き込み（自分のもの）、IR 抜粋は読み取り。名簿・記録・LIVE・設定は無し。`setup_security_roles.py --assign-author <UPN>` |
+| Cowork の OAuth クライアント | Entra アプリ（Dynamics CRM の `mcp.tools` の委任）。管理者の同意はクラウド アプリケーション管理者・アプリケーション管理者・AI 管理者のいずれか。Client ID を環境の許可 MCP クライアントに登録（System Administrator）。シークレットは `.env` だけ |
+| プラグインの公開 | AI 管理者（管理センターの Agents → Tools → Plugins） |
+| 承認 | 想定問答の承認（状態を承認済み）は AGM オペレーター。プラグインは下書きしか作らない |
+| MAI-Transcribe の所在 | 確定文の録音を東南アジアのリソースで認識する（保存はしない）。設定の画面に注意を表示。国外処理が認められない場合は「Azure Speech」のままにする |
+| Function の許可リスト | デプロイ（`AOAI_DEPLOYMENTS`）・文字起こしの接続先とモデル（`STT_ENDPOINTS`）はアプリ設定だけで決まる。要求の値が外れていれば 400。接続先の URL は `*.cognitiveservices.azure.com` に限る |
+| 設定の既定 | 設定テーブルへの書き込みは AGM オペレーターだけ（閲覧・作成者のロールには無い） |
+| マネージド ID | Foundry User（リソース グループの範囲）で MAI のリソースも呼べる（同じリソース グループに置く） |

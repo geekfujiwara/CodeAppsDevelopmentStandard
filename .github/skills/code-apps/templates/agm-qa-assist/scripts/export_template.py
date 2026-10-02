@@ -27,7 +27,7 @@ INCLUDE = [
     "src", "styles", "public", "tests", "data/demo",
     "scripts/setup_dataverse.py", "scripts/setup_security_roles.py", "scripts/configure_azure.py", "scripts/export_template.py",
     "scripts/test",
-    "spec/requirements.md", "spec/design.md", "spec/test-plan.md", "spec/architecture.md", "spec/security.md",
+    "spec/requirements.md", "spec/design.md", "spec/test-plan.md", "spec/architecture.md", "spec/security.md", "spec/eval/stt-compare.json",
     "azure/speech-token-broker",
 ]
 SKIP_DIRS = {"node_modules", "dist", "generated", "__pycache__", ".vite"}
@@ -37,7 +37,7 @@ TEXT_SUFFIXES = {".ts", ".tsx", ".js", ".mjs", ".cjs", ".json", ".md", ".py", ".
 # 実値 → 変数。値は .env から（無いものは使わない）
 VARIABLE_KEYS = [
     "AZURE_SUBSCRIPTION_ID", "TENANT_ID", "ENV_ID", "SOLUTION_ID", "DATAVERSE_URL", "VITE_DATAVERSE_URL", "VITE_AGM_SP_SITE_URL",
-    "FUNCTION_APP_NAME", "AOAI_RESOURCE_NAME", "SPEECH_RESOURCE_NAME", "AZURE_RESOURCE_GROUP", "API_AUDIENCE", "SOLUTION_NAME",
+    "FUNCTION_APP_NAME", "AOAI_RESOURCE_NAME", "SPEECH_RESOURCE_NAME", "MAI_SPEECH_RESOURCE_NAME", "AZURE_RESOURCE_GROUP", "API_AUDIENCE", "SOLUTION_NAME",
 ]
 # 人名・テスト用ユーザーなど（.env に無い固有名）
 LITERALS = {

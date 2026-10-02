@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { BookOpenText, ChevronDown, Library, Maximize2, Search, Sparkles, UserRound } from "lucide-react"
+import { BookOpenText, CheckCircle2, ChevronDown, Library, Maximize2, Pencil, Plus, Search, Sparkles, UserRound } from "lucide-react"
+import { QaEditor } from "./qa-editor"
+import { APPROVED, saveQa } from "@/lib/agm/qa-edit"
 import type { Engine } from "@/lib/agm/engine"
-import { errorText } from "@/lib/agm/corpus"
+import { errorText, isApproved } from "@/lib/agm/corpus"
 import { streamAnswer, type GenerateInput } from "@/lib/agm/generate"
 import type { Corpus, IrDoc, QaDoc } from "@/lib/agm/types"
 import { createLogger } from "@/lib/debug-log"
@@ -39,8 +41,27 @@ function useSingleGeneration() {
   return { gen, run, start }
 }
 
-export function QaLibrary({ corpus, engine, source, initialQuery }: { corpus: Corpus | null; engine: Engine | null; source: string; initialQuery?: string }) {
+export function QaLibrary({
+  corpus,
+  engine,
+  source,
+  initialQuery,
+  rowIds,
+  onSaved,
+}: {
+  corpus: Corpus | null
+  engine: Engine | null
+  source: string
+  initialQuery?: string
+  /** 問答コード → Dataverse の行 ID（編集・承認に使う） */
+  rowIds?: Map<string, string>
+  /** 追加・編集・承認したら呼ばれる（画面の想定問答を差し替える） */
+  onSaved?: (doc: QaDoc, rowId: string) => void
+}) {
   const [query, setQuery] = useState(initialQuery ?? "")
+  const [editing, setEditing] = useState<{ doc?: QaDoc } | null>(null)
+  const [draftsOnly, setDraftsOnly] = useState(false)
+  const [approving, setApproving] = useState(false)
   const [category, setCategory] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detailOpen, setDetailOpen] = useState(true)
@@ -54,8 +75,22 @@ export function QaLibrary({ corpus, engine, source, initialQuery }: { corpus: Co
     const list = query.trim()
       ? engine.searchQa(query, corpus.qa.length).map((h) => ({ doc: h.doc, score: h.score }))
       : corpus.qa.map((doc) => ({ doc, score: 0 }))
-    return { results: list.filter((r) => !category || r.doc.category === category), searchMs: performance.now() - t0 }
-  }, [corpus, engine, query, category])
+    return { results: list.filter((r) => (!category || r.doc.category === category) && (!draftsOnly || !isApproved(r.doc))), searchMs: performance.now() - t0 }
+  }, [corpus, engine, query, category, draftsOnly])
+  const draftCount = useMemo(() => (corpus?.qa ?? []).filter((q) => !isApproved(q)).length, [corpus])
+
+  const approve = async (doc: QaDoc) => {
+    setApproving(true)
+    try {
+      const next = { ...doc, status: APPROVED }
+      const id = await saveQa(next, rowIds?.get(doc.id))
+      onSaved?.(next, id)
+    } catch (e) {
+      log.error("承認できません", e)
+    } finally {
+      setApproving(false)
+    }
+  }
 
   const selected = corpus?.qa.find((q) => q.id === selectedId) ?? results[0]?.doc ?? null
 
@@ -132,6 +167,15 @@ export function QaLibrary({ corpus, engine, source, initialQuery }: { corpus: Co
           <p className="text-[11px] text-agm-muted">
             {results.length} 件{query.trim() ? `・検索 ${searchMs.toFixed(1)} ms（端末内）・上位 3 件を AI に渡します` : ""}
           </p>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setEditing({})} className="flex h-8 items-center gap-1 rounded-md bg-agm-accent px-2.5 text-xs font-semibold text-agm-bg" data-testid="qa-add">
+              <Plus className="size-3.5" aria-hidden />
+              想定問答を追加
+            </button>
+            <button type="button" onClick={() => setDraftsOnly((v) => !v)} className={`h-8 rounded-md border px-2.5 text-xs ${draftsOnly ? "border-agm-warn text-agm-warn" : "border-agm-line text-agm-muted"}`} data-testid="qa-drafts-only">
+              下書き {draftCount} 件{draftsOnly ? "だけ表示中" : ""}
+            </button>
+          </div>
         </header>
         <ol className="agm-scroll min-h-0 flex-1 space-y-1 overflow-y-auto p-2" data-testid="qa-results">
           {results.map((r) => {
@@ -151,6 +195,11 @@ export function QaLibrary({ corpus, engine, source, initialQuery }: { corpus: Co
                     <span className="font-mono">{r.doc.id}</span>
                     <span className="truncate">{r.doc.category}</span>
                     {rank && <SourceBadge rank={rank} cites={usage.links.uses.get(r.doc.id)?.count ?? 0} done={done} />}
+                    {!isApproved(r.doc) && (
+                      <span className="shrink-0 rounded bg-agm-warn/15 px-1 text-[10px] text-agm-warn" data-testid="qa-draft-badge">
+                        下書き{r.doc.createdVia ? `・${r.doc.createdVia}` : ""}
+                      </span>
+                    )}
                     {r.score > 0 && <span className="ml-auto shrink-0 tabular-nums">{r.score.toFixed(1)}</span>}
                   </span>
                   <span className="truncate text-sm">{r.doc.question}</span>
@@ -167,6 +216,19 @@ export function QaLibrary({ corpus, engine, source, initialQuery }: { corpus: Co
               <span className="font-mono">{selected.id}</span>
               <span className="truncate">{selected.question}</span>
             </button>
+            <div className="flex items-center gap-2 px-4 pb-1">
+              {!isApproved(selected) && <span className="text-xs text-agm-warn">下書き（質疑応答の検索には使われません）{selected.createdVia ? `・作成元 ${selected.createdVia}` : ""}</span>}
+              <button type="button" onClick={() => setEditing({ doc: selected })} className="ml-auto flex h-7 items-center gap-1 rounded-md border border-agm-line px-2 text-xs text-agm-muted hover:text-agm-ink" data-testid="qa-edit">
+                <Pencil className="size-3.5" aria-hidden />
+                編集
+              </button>
+              {!isApproved(selected) && (
+                <button type="button" disabled={approving} onClick={() => void approve(selected)} className="flex h-7 items-center gap-1 rounded-md bg-agm-ok/90 px-2 text-xs font-semibold text-agm-bg disabled:opacity-50" data-testid="qa-approve">
+                  <CheckCircle2 className="size-3.5" aria-hidden />
+                  承認する
+                </button>
+              )}
+            </div>
             {detailOpen && (
               <div className="agm-scroll min-h-0 flex-1 space-y-2.5 overflow-y-auto px-4 pb-3 text-sm" data-testid="qa-detail">
                 <p className="text-[11px] text-agm-muted">
@@ -252,6 +314,19 @@ export function QaLibrary({ corpus, engine, source, initialQuery }: { corpus: Co
           )}
         </div>
       </section>
+      <QaEditor
+        open={!!editing}
+        onOpenChange={(open) => !open && setEditing(null)}
+        doc={editing?.doc}
+        rowId={editing?.doc ? rowIds?.get(editing.doc.id) : undefined}
+        all={corpus?.qa ?? []}
+        ir={corpus?.ir ?? []}
+        onSaved={(doc, id) => {
+          onSaved?.(doc, id)
+          setSelectedId(doc.id)
+          setDetailOpen(true)
+        }}
+      />
     </div>
   )
 }

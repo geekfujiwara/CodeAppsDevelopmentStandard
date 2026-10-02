@@ -3,6 +3,7 @@ import { verifyRequest } from "../lib/auth"
 import { issueTicket, verifyTicket } from "../lib/ticket"
 import { openChatStream, parseOpenAiEvent, validateRequest, warmUp, type StreamTiming } from "../lib/answer"
 import { identifyShareholder, validateIdentifyRequest } from "../lib/identify"
+import { resolveModelOptions, type ModelOptions } from "../lib/options"
 
 warmUp()
 
@@ -38,13 +39,18 @@ export async function answerStream(request: HttpRequest, context: InvocationCont
     return { status: 401, headers: NO_STORE, jsonBody: { error: "unauthorized" } }
   }
   let parsed: ReturnType<typeof validateRequest>
+  let options: ReturnType<typeof resolveModelOptions> = { ok: false, reason: "body must be JSON" }
   try {
-    parsed = validateRequest(await request.json())
+    const json = (await request.json()) as { options?: unknown }
+    parsed = validateRequest(json)
+    options = resolveModelOptions(json?.options, "answer")
   } catch {
     parsed = { ok: false, reason: "body must be JSON" }
   }
   if (!parsed.ok) return { status: 400, headers: NO_STORE, jsonBody: { error: parsed.reason } }
+  if (!options.ok) return { status: 400, headers: NO_STORE, jsonBody: { error: options.reason } }
   const req = parsed.value
+  const opts: ModelOptions = options.value
   const t0 = Date.now()
   const encoder = new TextEncoder()
 
@@ -55,9 +61,9 @@ export async function answerStream(request: HttpRequest, context: InvocationCont
       let chars = 0
       let usage: unknown
       try {
-        send({ type: "start", model: process.env.AOAI_DEPLOYMENT })
+        send({ type: "start", model: opts.deployment, reasoningEffort: opts.reasoningEffort, maxTokens: opts.maxTokens })
         const timing: StreamTiming = { tokenMs: 0, headersMs: 0 }
-        const res = await openChatStream(req, undefined, timing)
+        const res = await openChatStream(req, undefined, timing, opts)
         send({ type: "meta", ...timing })
         const reader = res.body!.getReader()
         const decoder = new TextDecoder()
@@ -86,7 +92,7 @@ export async function answerStream(request: HttpRequest, context: InvocationCont
         send({ type: "error", message: "生成に失敗しました" })
       } finally {
         // 発言の本文は個人情報を含み得るためログに出さない
-        context.log(`answer-stream oid=${auth.claims.oid} mode=${req.mode} q=${req.question.length}ch qa=${req.qa.length} ir=${req.ir.length} out=${chars}ch first=${firstTokenMs}ms total=${Date.now() - t0}ms`)
+        context.log(`answer-stream oid=${auth.claims.oid} model=${opts.deployment}/${opts.reasoningEffort} mode=${req.mode} q=${req.question.length}ch qa=${req.qa.length} ir=${req.ir.length} out=${chars}ch first=${firstTokenMs}ms total=${Date.now() - t0}ms`)
         controller.close()
       }
     },
@@ -107,14 +113,18 @@ export async function identify(request: HttpRequest, context: InvocationContext)
     return { status: 401, headers: NO_STORE, jsonBody: { error: "unauthorized" } }
   }
   let parsed: ReturnType<typeof validateIdentifyRequest>
+  let options: ReturnType<typeof resolveModelOptions> = { ok: false, reason: "body must be JSON" }
   try {
-    parsed = validateIdentifyRequest(await request.json())
+    const json = (await request.json()) as { options?: unknown }
+    parsed = validateIdentifyRequest(json)
+    options = resolveModelOptions(json?.options, "identify")
   } catch {
     parsed = { ok: false, reason: "body must be JSON" }
   }
   if (!parsed.ok) return { status: 400, headers: NO_STORE, jsonBody: { error: parsed.reason } }
+  if (!options.ok) return { status: 400, headers: NO_STORE, jsonBody: { error: options.reason } }
   try {
-    const result = await identifyShareholder(parsed.value)
+    const result = await identifyShareholder(parsed.value, options.value)
     // 発言・名簿の内容は個人情報のためログに出さない
     context.log(`identify oid=${auth.claims.oid} candidates=${parsed.value.candidates.length} found=${result.number !== null} conf=${result.confidence.toFixed(2)} ms=${result.ms}`)
     return { status: 200, headers: NO_STORE, jsonBody: result }

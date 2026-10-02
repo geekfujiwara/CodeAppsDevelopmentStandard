@@ -1,9 +1,9 @@
-import { BarChart3, Library, Loader2, Mic, MonitorSpeaker, Radio, Scissors, Square, Theater, Tv } from "lucide-react"
+import { BarChart3, Library, Loader2, Mic, MonitorSpeaker, Radio, Scissors, Settings2, Square, Theater, Tv } from "lucide-react"
 import type { ReactNode } from "react"
 import type { SessionState, SessionStats } from "@/hooks/use-transcription-session"
 
 export type Mode = "live" | "rehearsal"
-export type View = "cockpit" | "library" | "meeting" | "watch"
+export type View = "cockpit" | "library" | "meeting" | "watch" | "settings"
 /** tts: Windows の音声で読み上げ（マイクで拾う） / human: 人が読み上げ / text: 文字だけ流す（音声・録音なし） */
 export type RehearsalStyle = "tts" | "human" | "text"
 
@@ -31,12 +31,13 @@ const STYLE_LABEL: Record<RehearsalStyle, string> = {
   text: "文字だけ流す（音声なし）",
 }
 
-const VIEW_LABEL: Record<View, string> = { cockpit: "質疑応答", library: "想定問答", meeting: "総会・集計", watch: "LIVE 視聴" }
+const VIEW_LABEL: Record<View, string> = { cockpit: "質疑応答", library: "想定問答", meeting: "総会・集計", watch: "LIVE 視聴", settings: "設定" }
 const VIEW_ICON: Record<View, ReactNode> = {
   cockpit: <MonitorSpeaker className="size-3.5" aria-hidden />,
   library: <Library className="size-3.5" aria-hidden />,
   meeting: <BarChart3 className="size-3.5" aria-hidden />,
   watch: <Tv className="size-3.5" aria-hidden />,
+  settings: <Settings2 className="size-3.5" aria-hidden />,
 }
 
 export function TopBar(props: {
@@ -78,7 +79,7 @@ export function TopBar(props: {
       </div>
 
       <div className="flex h-9 rounded-md border border-agm-line p-0.5" role="tablist" aria-label="画面">
-        {(["cockpit", "library", "meeting", ...(props.watchable ? ["watch"] : [])] as View[]).map((v) => (
+        {(["cockpit", "library", "meeting", ...(props.watchable ? ["watch"] : []), "settings"] as View[]).map((v) => (
           <button
             key={v}
             type="button"

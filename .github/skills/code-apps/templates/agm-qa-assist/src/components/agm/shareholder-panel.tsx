@@ -43,9 +43,11 @@ function NumberEditor({ value, onCommit, readOnly }: { value: string | null; onC
         {!readOnly && <Pencil className="size-3.5 text-agm-muted opacity-60 group-hover:opacity-100" aria-label="株主番号を編集" />}
       </button>
     )
-  const commit = () => {
+  // 入力欄の今の値で確定する（入力の直後に Enter を押すと、state の更新前の値で確定してしまうため）
+  const commit = (raw: string = draft) => {
+    if (!editing) return
     setEditing(false)
-    onCommit(draft.trim())
+    onCommit(raw.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0)).replace(/[^\d]/g, ""))
   }
   return (
     <input
@@ -53,9 +55,9 @@ function NumberEditor({ value, onCommit, readOnly }: { value: string | null; onC
       inputMode="numeric"
       value={draft}
       onChange={(e) => setDraft(e.target.value.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0)).replace(/[^\d]/g, ""))}
-      onBlur={commit}
+      onBlur={(e) => commit(e.currentTarget.value)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") commit()
+        if (e.key === "Enter") commit(e.currentTarget.value)
         if (e.key === "Escape") {
           setDraft(value ?? "")
           setEditing(false)

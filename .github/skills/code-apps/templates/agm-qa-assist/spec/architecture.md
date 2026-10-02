@@ -20,7 +20,7 @@
 |---|---|---|
 | 画面 | Power Apps **Code Apps**（React 19 / TypeScript / Tailwind / motion / recharts / React Flow） | 1 画面の質疑応答（① 文字起こし ② 質問カード ③ 回答案と根拠 ④ 記録）、想定問答、総会・集計、LIVE 視聴 |
 | 音声認識 | **Azure AI Speech**（`${SPEECH_RESOURCE_NAME}`, SpeechServices, japaneast） | 連続認識・途中結果。ブラウザから WebSocket で直結（Entra ID トークン、キー不使用） |
-| 中継 API | **Azure Functions**（`${FUNCTION_APP_NAME}`, Linux・Flex Consumption 相当、VNet 統合、ストレージは Private Endpoint） | `/speech/token`（Speech の Entra トークン）・`/answer/ticket`（生成用チケット）・`/answer/stream`（回答案の SSE）・`/shareholder/identify`（株主の照合） |
+| 中継 API | **Azure Functions**（`${FUNCTION_APP_NAME}`, Linux・Flex Consumption 相当、VNet 統合、ストレージは Private Endpoint） | `/speech/token`（Speech の Entra トークン）・`/answer/ticket`（生成用チケット）・`/answer/stream`（回答案の SSE）・`/shareholder/identify`（株主の照合）・`/transcribe`（MAI-Transcribe）・`/config`（設定の選択肢） |
 | 生成 AI | **Azure OpenAI**（`${AOAI_RESOURCE_NAME}`, AIServices, japaneast）デプロイ **gpt-5.4-mini**（DataZoneStandard / APAC） | 回答案・要約のストリーム生成、株主の照合（構造化出力） |
 | データ | **Dataverse**（7 テーブル） | 想定問答・IR 抜粋・株主名簿・総会・発言・質問・LIVE |
 | ファイル | **SharePoint**（ドキュメント ライブラリ `AGMRecordings`） | 録音（株主番号ごとのフォルダー）、総会のまとめ |
@@ -87,3 +87,14 @@
 - このアプリは開発標準の `code-apps/templates/agm-qa-assist` から scaffold できる（変数は AskUserQuestion で聞く）。
   テンプレートは `python scripts/export_template.py` で書き出し、`--check` で実値が残っていないかを確かめる。
 - Azure 側のこのアプリ固有の設定は `python scripts/configure_azure.py`（計画 → `--apply`、冪等）。
+## 8. 文字起こしのモデル（Azure Speech と MAI-Transcribe）・設定・Cowork
+
+| 項目 | 内容 |
+|---|---|
+| MAI-Transcribe | Fast Transcription API の `enhancedMode`（`/speechtotext/transcriptions:transcribe?api-version=2025-10-15`）で呼ぶファイル単位のモデル。日本のリージョンでは未提供のため、**東南アジア（southeastasia）の Foundry リソース**（AIServices・キー認証無効）を使う。Function がマネージド ID で呼ぶ（`/transcribe`） |
+| 使い方 | Azure Speech（リアルタイム）の確定文ごとに、その区間の録音（前後 200 ms）を MAI で認識し直す。方式は設定で「Azure Speech」「MAI-Transcribe（置き換え）」「比較（並べる）」。既定のモデルは **MAI-Transcribe-2**（1.5 も選べる） |
+| 実測 | 台本の音声で CER: Azure リアルタイム 2.4% / MAI-2（確定文ごと）1.6%。アプリ内で確定から MAI の結果まで中央値 1.6 秒 |
+| 設定 | 組織の既定は Dataverse の設定テーブル（`name=default` の JSON）、この端末だけの変更はブラウザに保存。選べる値は Function の `/config`（`AOAI_DEPLOYMENTS`・`STT_ENDPOINTS` の許可リスト。URL は返さない） |
+| AI モデル | 回答案と株主照合で、デプロイ（gpt-5.4-mini / gpt-4.1-mini）・推論の強さ・最大トークンを選べる。gpt-4.1-mini は Standard（東日本で処理） |
+| Cowork | プラグイン「株主総会 想定問答アシスタント」（`cowork/agm-qa-plugin`）が Dataverse MCP で想定問答・台本の**下書き**を作る。承認はアプリの想定問答の画面。検索に使うのは承認済みだけ |
+| 追加テーブル | リハーサル台本 `${PUBLISHER_PREFIX}_agmscript`（行の JSON）、アプリの設定 `${PUBLISHER_PREFIX}_agmsetting`。想定問答に状態・作成元の列 |

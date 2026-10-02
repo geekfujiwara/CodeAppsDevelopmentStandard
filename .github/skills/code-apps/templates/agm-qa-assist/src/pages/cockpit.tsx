@@ -17,23 +17,27 @@ import { SourceProvider } from "@/components/agm/source-context"
 import { identifyShareholder } from "@/lib/agm/identify"
 import { introName } from "@/lib/agm/match"
 import { ScriptPanel } from "@/components/agm/script-panel"
-import { RecordsPanel, type LocalRecord } from "@/components/agm/records-panel"
+import { RecordsPanel, type LocalRecord, type RecordsTab } from "@/components/agm/records-panel"
+import { SettingsView } from "@/components/agm/settings-view"
+import { SttComparePanel } from "@/components/agm/stt-compare-panel"
+import { useRefine } from "@/hooks/use-refine"
+import { loadSettings, useSettings } from "@/lib/agm/settings"
 import { useContinuousSession } from "@/hooks/use-continuous-session"
 import { useScriptReader, useTextRehearsal, type ScriptLine } from "@/hooks/use-rehearsal"
 import { analyzeOnce, useAgmAnalysis } from "@/hooks/use-agm-analysis"
 import type { SessionState } from "@/hooks/use-transcription-session"
 import { createLogger } from "@/lib/debug-log"
 import { MEETING_TITLE, missingConfig } from "@/lib/agm/config"
-import { errorText, loadCorpus, type CorpusSource } from "@/lib/agm/corpus"
+import { errorText, isApproved, loadCorpus, type CorpusSource } from "@/lib/agm/corpus"
+import { createEngine } from "@/lib/agm/engine"
 import type { Card } from "@/lib/agm/engine"
 import { listQuestionCodes, listTurns, saveTurn, setRecordingMeeting, updateTurnKeyInfo, type QuestionRecord, type SaveSteps, type TurnSummary } from "@/lib/agm/records"
 import { loadRegister, lookupShareholder, matchShareholders, nameMatches, numberVariants, type Shareholder, type ShareholderProfile } from "@/lib/agm/shareholders"
 import { answerStart, splitTurns, turnText, type Phrase, type Turn } from "@/lib/agm/turns"
 import type { Corpus, TranscriptView } from "@/lib/agm/types"
-import rehearsalScript from "../../data/demo/rehearsal-script.json"
+import { DEMO_SCRIPT, listScripts, storeScriptId, storedScriptId, type RehearsalScript } from "@/lib/agm/scripts"
 
 const log = createLogger("cockpit")
-const SCRIPT = (rehearsalScript as { lines: ScriptLine[] }).lines
 const NO_QA: Corpus["qa"] = []
 const NO_IR: Corpus["ir"] = []
 const EMPTY_TURN: Turn = { key: "t-empty", number: null, heard: null, spokenName: null, startOffsetMs: 0, phrases: [], cause: "start" }
@@ -97,30 +101,49 @@ export default function Cockpit() {
   const [local, setLocal] = useState<LocalRecord[]>([])
   const [saved, setSaved] = useState<TurnSummary[]>([])
   const [loadingTurns, setLoadingTurns] = useState(false)
-  const [bottomTab, setBottomTab] = useState<"records" | "script">("records")
+  const [bottomTab, setBottomTab] = useState<RecordsTab>("records")
   const [review, setReview] = useState<{ turn: TurnSummary; cards: Card[] } | null>(null)
   const [closing, setClosing] = useState(false)
   // テスト用ビルドだけ: VITE_DEV_LIBRARY_QUERY があれば想定問答の画面で検索した状態から始める
   const [view, setView] = useState<View>(import.meta.env.VITE_DEV_LIBRARY_QUERY ? "library" : "cockpit")
 
-  const phraseList = useMemo(() => (corpus ? ["株主番号", ...new Set(corpus.qa.flatMap((q) => q.keywords))].slice(0, 400) : ["株主番号"]), [corpus])
+  // 質疑応答の検索・キーワードに使うのは承認済みの想定問答だけ（Cowork・アプリで作った下書きは承認まで使わない）
+  const approvedCorpus = useMemo(() => (corpus ? { ...corpus, qa: corpus.qa.filter(isApproved) } : null), [corpus])
+  const libraryEngine = useMemo(() => (corpus ? createEngine(corpus) : null), [corpus])
+  const phraseList = useMemo(() => (approvedCorpus ? ["株主番号", ...new Set(approvedCorpus.qa.flatMap((q) => q.keywords))].slice(0, 400) : ["株主番号"]), [approvedCorpus])
   const recognizerOptions = useMemo(() => ({ phrases: phraseList }), [phraseList])
   const session = useContinuousSession(recognizerOptions)
   const text = useTextRehearsal()
   const reader = useScriptReader()
+  // リハーサル台本（Dataverse の台本 + 同梱のデモ台本）
+  const [scripts, setScripts] = useState<RehearsalScript[]>([DEMO_SCRIPT])
+  const [scriptId, setScriptId] = useState(storedScriptId)
+  useEffect(() => {
+    listScripts()
+      .then(setScripts)
+      .catch((error) => log.warn("台本を読み込めません（同梱のデモ台本を使います）", errorText(error)))
+  }, [])
+  const script = scripts.find((s) => s.id === scriptId) ?? DEMO_SCRIPT
+  const SCRIPT: ScriptLine[] = script.lines
 
   const textMode = mode === "rehearsal" && style === "text"
   const lines = textMode ? text.lines : session.lines
   const interim = textMode ? text.interim : session.interim
   const state: SessionState = closing ? "stopping" : textMode ? (text.running ? "running" : "idle") : session.state
 
+  // 文字起こしの方式（設定）。MAI / 比較では確定文ごとに MAI-Transcribe で認識し直す（文字だけのリハーサルは録音が無いので対象外）
+  const { settings } = useSettings()
+  useEffect(() => void loadSettings().catch((error) => log.warn("設定を読み込めません（初期値で動きます）", errorText(error))), [])
+  const engine = textMode ? "azure" : settings.stt.engine
+  const refined = useRefine(session.lines, engine, session.sliceAudio, phraseList, sessionStart)
+
   // 確定文と途中結果を、同じキー（p + 確定文の番号）で並べる。途中結果が確定してもキーは変わらない
   const phrases: Phrase[] = useMemo(
     () => [
-      ...lines.map((l) => ({ key: `p${l.id}`, text: l.text, offsetMs: l.offsetMs, final: true })),
+      ...lines.map((l) => ({ key: `p${l.id}`, text: engine === "mai" && refined[l.id]?.status === "done" && refined[l.id].text ? refined[l.id].text! : l.text, offsetMs: l.offsetMs, final: true })),
       ...(interim?.text ? [{ key: `p${lines.length + 1}`, text: interim.text, offsetMs: interim.offsetMs, final: false }] : []),
     ],
-    [lines, interim],
+    [lines, interim, engine, refined],
   )
   const turns = useMemo(() => splitTurns(phrases, manualCuts), [phrases, manualCuts])
   const current = turns[turns.length - 1] ?? EMPTY_TURN
@@ -132,7 +155,7 @@ export default function Cockpit() {
   const ansFrom = answerStart(liveView.text)
   // 株主番号が取れなくても質問の整理と回答案の生成は進める（議長の進行の言葉はエンジン側で質問にしない）
   const analysisView = useMemo(() => ({ text: liveView.text.slice(0, ansFrom), interimStart: Math.min(liveView.interimStart, ansFrom) }), [liveView, ansFrom])
-  const analysis = useAgmAnalysis(corpus, current.key, analysisView)
+  const analysis = useAgmAnalysis(approvedCorpus, current.key, analysisView)
   const generation = useGenerations(analysis.engine, corpus?.ir ?? [], analysis.cards, analysisView.interimStart, true, current.key)
 
   const overridesRef = useRef(overrides)
@@ -656,6 +679,8 @@ export default function Cockpit() {
     ...(!textMode && session.stats.firstPartialMs !== null ? [{ label: `最初の途中結果 ${session.stats.firstPartialMs} ms`, tone: "muted" as const }] : []),
     ...(missing.length ? [{ label: `保存先未設定: ${missing.join(", ")}`, tone: "danger" as const }] : []),
     ...(mode === "rehearsal" ? [{ label: textMode ? "リハーサル（録音しません）" : "リハーサル（録音・保存します）", tone: "warn" as const }] : []),
+    { label: engine === "azure" ? "文字起こし: Azure Speech" : `文字起こし: ${settings.stt.model}${engine === "compare" ? "（比較）" : "（確定文ごと）"}`, tone: engine === "azure" ? ("muted" as const) : ("warn" as const) },
+    { label: `回答案: ${settings.answer.deployment || "既定"}`, tone: "muted" as const },
   ]
 
   return (
@@ -702,6 +727,11 @@ export default function Cockpit() {
           </button>
         </div>
       )}
+      {view === "settings" && (
+        <div className="min-h-0 flex-1">
+          <SettingsView />
+        </div>
+      )}
       {view === "meeting" && (
         <div className="min-h-0 flex-1">
           <MeetingView current={meeting} onUseMeeting={selectMeeting} refreshKey={meetingRefresh} />
@@ -714,7 +744,18 @@ export default function Cockpit() {
       )}
       {view === "library" && (
         <div className="min-h-0 flex-1">
-          <QaLibrary corpus={corpus} engine={analysis.engine} initialQuery={import.meta.env.VITE_DEV_LIBRARY_QUERY} source={corpusInfo.source === "local-demo" ? "同梱データ" : "Dataverse"} />
+          <QaLibrary
+            corpus={corpus}
+            engine={libraryEngine}
+            initialQuery={import.meta.env.VITE_DEV_LIBRARY_QUERY}
+            source={corpusInfo.source === "local-demo" ? "同梱データ" : "Dataverse"}
+            rowIds={qaRowIds.current}
+            onSaved={(doc, rowId) => {
+              qaRowIds.current.set(doc.id, rowId)
+              setCorpus((c) => c && { ...c, qa: c.qa.some((q) => q.id === doc.id) ? c.qa.map((q) => (q.id === doc.id ? doc : q)) : [...c.qa, doc] })
+              log.info("想定問答を画面に反映しました", { id: doc.id, status: doc.status })
+            }}
+          />
         </div>
       )}
       <main className={`${view !== "cockpit" ? "hidden" : "grid"} min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,2.3fr)] grid-rows-[minmax(0,1fr)_minmax(0,0.34fr)] gap-3 p-3`}>
@@ -789,7 +830,34 @@ export default function Cockpit() {
             onReview={(id) => void openReview(id)}
             tab={bottomTab}
             onTab={setBottomTab}
-            scriptView={<ScriptPanel lines={SCRIPT} currentId={textMode ? text.currentId : reader.currentId} />}
+            scriptView={
+              <div className="flex h-full min-h-0 flex-col">
+                <label className="flex items-center gap-2 border-b border-agm-line px-4 py-1.5 text-xs text-agm-muted">
+                  台本
+                  <select
+                    value={script.id}
+                    disabled={state === "running"}
+                    onChange={(e) => {
+                      setScriptId(e.target.value)
+                      storeScriptId(e.target.value)
+                    }}
+                    className="h-7 min-w-0 max-w-md rounded border border-agm-line bg-agm-bg px-2 text-xs text-agm-ink"
+                    data-testid="script-select"
+                  >
+                    {scripts.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.title}（{s.lines.length} 行{s.createdVia && s.createdVia !== "同梱" ? `・${s.createdVia}` : ""}{s.status === "下書き" ? "・下書き" : ""}）
+                      </option>
+                    ))}
+                  </select>
+                  {script.note && <span className="truncate" title={script.note}>{script.note}</span>}
+                </label>
+                <div className="min-h-0 flex-1">
+                  <ScriptPanel lines={SCRIPT} currentId={textMode ? text.currentId : reader.currentId} />
+                </div>
+              </div>
+            }
+            compareView={<SttComparePanel lines={session.lines} refined={refined} engine={engine} model={settings.stt.model} />}
             onEditNumber={editSavedTurn}
           />
         </div>

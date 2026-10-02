@@ -9,6 +9,10 @@ export interface QaDoc {
   responder: string;
   sourceIds: string[];
   cautions: string[];
+  /** 下書き（Cowork・アプリで作成、承認待ち）/ 承認済み。空は承認済み（既存データ） */
+  status?: string;
+  /** 作成元（Cowork / アプリ / デモデータ など） */
+  createdVia?: string;
 }
 
 export interface IrDoc {

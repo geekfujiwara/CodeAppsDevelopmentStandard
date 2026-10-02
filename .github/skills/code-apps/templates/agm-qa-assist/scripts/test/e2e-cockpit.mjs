@@ -103,6 +103,15 @@ const setInput = (selector, value) => `(() => {
   setter.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event("input", { bubbles: true })); return true })()`
 const pressEnter = (selector) => `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false
   el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); return true })()`
+// React の制御された select / textarea に値を入れる
+const setSelect = (selector, value) => `(() => {
+  const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false
+  const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set
+  setter.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event("change", { bubbles: true })); return el.value })()`
+const setTextarea = (selector, value) => `(() => {
+  const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false
+  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set
+  setter.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event("input", { bubbles: true })); return true })()`
 const click = (selector) => `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; el.click(); return true })()`
 const text = (selector) => `document.querySelector(${JSON.stringify(selector)})?.textContent ?? ""`
 
@@ -254,12 +263,61 @@ try {
   check("meeting-export", exported, "まとめの作成（テスト用ビルドは保存なし）")
   await a.shot("07-meeting")
 
+  // 設定: 回答案のモデルを変えて「この端末だけで試す」→ 状態表示とチップ。MAI を選ぶと国外処理の注意。既定にする
+  await a.evaluate(click('[data-testid="view-settings"]'))
+  await a.waitFor(`!!document.querySelector('[data-testid="answer-deployment"] option[value="gpt-4.1-mini"]')`, 20000)
+  const pickedModel = await a.evaluate(setSelect('[data-testid="answer-deployment"]', "gpt-4.1-mini"))
+  await a.evaluate(click('[data-testid="settings-try-local"]'))
+  const localChip = await a.waitFor(`(() => { const s = document.querySelector('[data-testid="settings-answer"]')?.textContent ?? ""; const st = document.body.textContent; return s.includes("この端末だけ") && st.includes("回答案: gpt-4.1-mini") ? "ok" : null })()`, 5000)
+  check("settings-local", pickedModel === "gpt-4.1-mini" && localChip, `回答案のモデル ${pickedModel}・この端末だけ・状態表示`)
+  await a.evaluate(click('[data-testid="engine-mai"]'))
+  const residency = await a.waitFor(`document.querySelector('[data-testid="stt-residency"]')?.textContent`, 5000)
+  check("settings-residency", residency && residency.includes("southeastasia"), (residency ?? "国外処理の注意がありません").slice(0, 60))
+  await a.evaluate(click('[data-testid="engine-azure"]'))
+  await a.evaluate(click('[data-testid="settings-save-default"]'))
+  const saved = await a.waitFor(`document.querySelector('[data-testid="settings-message"]')?.textContent`, 8000)
+  const orgChip = await a.waitFor(`(() => (document.querySelector('[data-testid="settings-answer"]')?.textContent ?? "").includes("組織の既定") ? "ok" : null)()`, 5000)
+  check("settings-default", saved?.includes("組織の既定にしました") && orgChip, saved ?? "既定にできません")
+  const evalRows = await a.evaluate(`document.querySelectorAll('[data-testid="stt-eval"] tbody tr').length`)
+  check("settings-eval", evalRows >= 4, `比較の参考 ${evalRows} 行`)
+  await a.shot("09-settings")
+
+  // 想定問答を手動で追加（下書き）→ 一覧に「下書き」→ 承認すると外れる
+  await a.evaluate(click('[data-testid="view-library"]'))
+  await a.waitFor(`!!document.querySelector('[data-testid="qa-add"]')`, 5000)
+  const draftsBefore = await a.evaluate(text('[data-testid="qa-drafts-only"]'))
+  await a.evaluate(click('[data-testid="qa-add"]'))
+  await a.waitFor(`!!document.querySelector('[data-testid="qa-editor"]')`, 5000)
+  const newId = (await a.evaluate(`document.querySelector('[data-testid="qa-edit-id"]').value`)).trim()
+  await a.evaluate(setInput('[data-testid="qa-edit-category"]', "配当・株主還元"))
+  await a.evaluate(setTextarea('[data-testid="qa-edit-question"]', "記念配当を出す予定はありますか。"))
+  await a.evaluate(setTextarea('[data-testid="qa-edit-answer"]', "現時点で記念配当の予定はございません。年間配当は60円を予定しております。"))
+  await a.evaluate(setInput('[data-testid="qa-edit-responder"]', "取締役CFO"))
+  await a.evaluate(setInput('[data-testid="qa-edit-sources"]', "IR-003"))
+  await a.evaluate(setInput('[data-testid="qa-edit-keywords"]', "記念配当 配当"))
+  await sleep(300)
+  const issues = await a.evaluate(`document.querySelector('[data-testid="qa-edit-issues"]')?.textContent ?? ""`)
+  await a.evaluate(click('[data-testid="qa-edit-save-draft"]'))
+  const draftShown = await a.waitFor(`(() => { const t = document.querySelector('[data-testid="qa-drafts-only"]')?.textContent ?? ""; return t !== ${JSON.stringify(draftsBefore)} && !document.querySelector('[data-testid="qa-editor"]') ? t : null })()`, 5000)
+  check("qa-add-draft", newId && draftShown, `${newId} を下書きで追加（${draftsBefore} → ${draftShown}）${issues ? "・注意: " + issues.slice(0, 40) : ""}`)
+  await a.shot("10-qa-draft")
+  await a.evaluate(click('[data-testid="qa-approve"]'))
+  const approved = await a.waitFor(`(() => { const t = document.querySelector('[data-testid="qa-drafts-only"]')?.textContent ?? ""; return t === ${JSON.stringify(draftsBefore)} ? t : null })()`, 5000)
+  check("qa-approve", approved, `承認で下書きの件数が戻る（${approved}）`)
+  await a.evaluate(click('[data-testid="view-cockpit"]'))
+  await a.evaluate(`document.querySelector('[data-testid="script-tab"]')?.click()`)
+  const scriptOptions = await a.waitFor(`document.querySelectorAll('[data-testid="script-select"] option').length`, 5000)
+  check("script-select", scriptOptions >= 1, `台本 ${scriptOptions} 件`)
+  await a.evaluate(`document.querySelector('[data-testid="compare-tab"]')?.click()`)
+  const compare = await a.waitFor(`document.querySelector('[data-testid="records"]') ? null : document.body.textContent.includes("確定文ごとに Azure Speech と MAI") ? "ok" : null`, 5000)
+  check("compare-tab", compare, "比較タブ（文字だけのリハーサルでは対象外の案内）")
   // 想定問答の検索: AI 回答案のどの行が、どの検索結果を引用したかを線で結ぶ（React Flow）
   await a.evaluate(click('[data-testid="view-library"]'))
   await a.waitFor(`!!document.querySelector('[data-testid="qa-search"]')`, 5000)
   await a.evaluate(setInput('[data-testid="qa-search"]', "自社株買いは配当の代わりか"))
   const flowDone = await a.waitFor(`(() => { const s = document.querySelector('[data-testid="flow-answer"] [data-testid="generated"]')?.textContent ?? ""; return /完了 [\\d.]+ 秒/.test(s) ? s.slice(0, 40) : null })()`, 40000)
   check("library-generated", flowDone, flowDone ?? "回答案が完了しません")
+  check("library-model", flowDone && flowDone.includes("gpt-4.1-mini"), `既定にしたモデルで生成: ${flowDone}`)
   await sleep(800)
   const flow = await a.evaluate(`(() => ({
     qa: document.querySelectorAll('[data-testid="flow-qa"]').length,

@@ -6,13 +6,16 @@ Function App・ストレージ・ネットワークは azure-infra / mcp-server 
   1. Azure AI Speech（SpeechServices・カスタム サブドメイン付き）
   2. Azure OpenAI（AIServices・ローカル認証は無効）とモデルのデプロイ
   3. Function App のマネージド ID に Foundry User（リソース グループの範囲）
-  4. Function App のアプリ設定（Speech・生成・チケット）。TICKET_SECRET は無いときだけ作る
+  4. Function App のアプリ設定（Speech・生成・チケット・設定画面の許可リスト）。TICKET_SECRET は無いときだけ作る
   5. Function App の CORS に Code Apps のオリジン（環境 ID から組み立てる）
+  6. （任意）MAI-Transcribe を呼べるリージョンの Foundry リソース（MAI_SPEECH_RESOURCE_NAME / MAI_LOCATION）
 
 値は .env から読む（references の .env.example を参照）:
   AZURE_SUBSCRIPTION_ID / AZURE_RESOURCE_GROUP / AZURE_LOCATION / SPEECH_RESOURCE_NAME / AOAI_RESOURCE_NAME /
   AOAI_DEPLOYMENT / AOAI_MODEL_VERSION / AOAI_SKU / AOAI_CAPACITY / FUNCTION_APP_NAME / API_AUDIENCE / API_SCOPE /
   TENANT_ID / ENV_ID
+  任意: AOAI_DEPLOYMENTS（設定画面で選べるデプロイ。カンマ区切り。既存のものだけ）/ MAI_SPEECH_RESOURCE_NAME / MAI_LOCATION（既定 southeastasia）/
+        MAI_MODELS（既定 MAI-Transcribe-2,MAI-Transcribe-1.5。先頭が画面の既定）
 
 使い方:
   python scripts/configure_azure.py            # 計画を表示（何も変えない）
@@ -56,7 +59,8 @@ AZ = shutil.which("az") or shutil.which("az.cmd") or "az"
 
 def az(*args: str, check: bool = True) -> object:
     """az を JSON で呼ぶ。存在確認の失敗（ResourceNotFound）は None を返す"""
-    res = subprocess.run([AZ, *args, "-o", "json"], capture_output=True, text=True, encoding="utf-8")
+    # az（Python 製）の出力とファイルの読み取りは、Windows では既定で cp932 になり日本語が壊れる。UTF-8 を明示する
+    res = subprocess.run([AZ, *args, "-o", "json"], capture_output=True, text=True, encoding="utf-8", errors="replace", env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
     if res.returncode != 0:
         if not check or "NotFound" in res.stderr or "could not be found" in res.stderr or "was not found" in res.stderr:
             return None
@@ -117,6 +121,27 @@ def main() -> int:
             raise SystemExit("AOAI_MODEL_VERSION を .env に入れてください（az cognitiveservices model list で確認）")
         plan.append((f"モデル {deployment}（{model_version}・{sku}・{capacity}）をデプロイ", ["cognitiveservices", "account", "deployment", "create", "-g", rg, "-n", aoai, "--deployment-name", deployment, "--model-name", deployment, "--model-version", model_version, "--model-format", "OpenAI", "--sku-name", sku, "--sku-capacity", capacity, *common]))
 
+    # 2b. 設定画面で選べる追加のデプロイ（既存のものだけ許可リストに入れる）
+    names = {d.get("name") for d in deployments}  # type: ignore[union-attr]
+    extra = [n.strip() for n in os.environ.get("AOAI_DEPLOYMENTS", "").split(",") if n.strip() and n.strip() != deployment]
+    missing = [n for n in extra if n not in names]
+    if missing:
+        raise SystemExit(f"AOAI_DEPLOYMENTS のデプロイが {aoai} にありません: {missing}（先にデプロイするか一覧から外す）")
+    allowed_deployments = ",".join([deployment, *extra])
+
+    # 2c. MAI-Transcribe（日本のリージョンでは未提供。既定は東南アジア）
+    mai = os.environ.get("MAI_SPEECH_RESOURCE_NAME", "").strip()
+    mai_location = os.environ.get("MAI_LOCATION", "southeastasia").strip()
+    mai_models = [m.strip() for m in os.environ.get("MAI_MODELS", "MAI-Transcribe-2,MAI-Transcribe-1.5").split(",") if m.strip()]
+    if mai and not az("cognitiveservices", "account", "show", "-g", rg, "-n", mai, *common, check=False):
+        plan.append((f"MAI 用の Foundry リソース {mai} を作成（{mai_location}・AIServices・S0）", ["cognitiveservices", "account", "create", "-g", rg, "-n", mai, "--kind", "AIServices", "--sku", "S0", "-l", mai_location, "--custom-domain", mai, "--yes", *common]))
+        plan.append((f"{mai} のキー認証を無効化", ["resource", "update", "-g", rg, "-n", mai, "--resource-type", "Microsoft.CognitiveServices/accounts", "--set", "properties.disableLocalAuth=true", *common]))
+    stt = [{"id": "jpe", "label": f"Azure Speech 既定モデル（{speech_region}）", "endpoint": f"https://{speech}.cognitiveservices.azure.com", "region": speech_region, "models": ["fast"]}]
+    if mai:
+        stt.append({"id": "mai", "label": f"MAI-Transcribe（{mai_location}）", "endpoint": f"https://{mai}.cognitiveservices.azure.com", "region": mai_location, "models": mai_models})
+    # 日本語は \u エスケープにして ASCII だけにする（az が設定ファイルを cp932 で読んでも壊れない）
+    stt_json = json.dumps(stt, ensure_ascii=True, separators=(",", ":"))
+
     # 3. Function App の MI と Foundry User
     fa = az("functionapp", "show", "-g", rg, "-n", func, *common, check=False)
     if not fa:
@@ -140,13 +165,20 @@ def main() -> int:
         "AOAI_ENDPOINT": f"https://{aoai}.cognitiveservices.azure.com",
         "AOAI_DEPLOYMENT": deployment,
         "AOAI_REASONING_EFFORT": "none",
+        "AOAI_DEPLOYMENTS": allowed_deployments,
+        "STT_ENDPOINTS": stt_json,
     }
     changes = [f"{k}={v}" for k, v in wanted.items() if current.get(k) != v]
     if not current.get("TICKET_SECRET"):
         changes.append(f"TICKET_SECRET={secrets.token_urlsafe(48)}")
     if changes:
         shown = ", ".join(c.split("=")[0] for c in changes)
-        plan.append((f"{func} のアプリ設定を更新: {shown}", ["functionapp", "config", "appsettings", "set", "-g", rg, "-n", func, "--settings", *changes, *common]))
+        # 値に JSON（引用符・カンマ）を含むため、az.cmd（cmd 経由）に直接渡さずファイルで渡す
+        settings_file = ROOT / ".mcp" / "function-appsettings.json"
+        plan.append((f"{func} のアプリ設定を更新: {shown}", ["functionapp", "config", "appsettings", "set", "-g", rg, "-n", func, "--settings", f"@{settings_file}", *common]))
+        pending_settings = [{"name": c.split("=", 1)[0], "value": c.split("=", 1)[1], "slotSetting": False} for c in changes]
+    else:
+        pending_settings = []
 
     # 5. CORS
     cors = az("functionapp", "cors", "show", "-g", rg, "-n", func, *common) or {}
@@ -162,9 +194,17 @@ def main() -> int:
     if not args.apply:
         print("\n実行するには --apply を付けてください")
         return 0
-    for label, cmd in plan:
-        print(f"▶ {label}")
-        az(*cmd)
+    if pending_settings:
+        settings_file.parent.mkdir(parents=True, exist_ok=True)
+        settings_file.write_text(json.dumps(pending_settings, ensure_ascii=True), encoding="ascii")
+    try:
+        for label, cmd in plan:
+            print(f"▶ {label}")
+            az(*cmd)
+    finally:
+        # TICKET_SECRET を含みうるため、使い終わったら消す
+        if pending_settings:
+            settings_file.unlink(missing_ok=True)
     print("✅ 完了。Function をデプロイ（deploy_mcp_function.py）すると設定が反映されます")
     return 0
 

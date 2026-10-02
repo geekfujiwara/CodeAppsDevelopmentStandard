@@ -1,4 +1,5 @@
 import { accessToken } from "./answer"
+import type { ModelOptions } from "./options"
 
 /** 照合の候補（ブラウザが名簿から名前・フリガナ・番号の近さで選んだ上位） */
 export interface IdentifyCandidate {
@@ -79,9 +80,9 @@ export function sanitizeIdentify(raw: unknown, candidates: IdentifyCandidate[]):
   return { number, confidence: number ? confidence : Math.min(confidence, 0.5), reason: number || !r.number ? reason : `候補に無い番号を返したため除外（${String(r.number).slice(0, 12)}）` }
 }
 
-export async function identifyShareholder(req: IdentifyRequest): Promise<IdentifyResult & { ms: number; model: string }> {
+export async function identifyShareholder(req: IdentifyRequest, options?: ModelOptions): Promise<IdentifyResult & { ms: number; model: string }> {
   const endpoint = (process.env.AOAI_ENDPOINT ?? "").replace(/\/+$/, "")
-  const model = process.env.AOAI_DEPLOYMENT ?? ""
+  const model = options?.deployment ?? process.env.AOAI_DEPLOYMENT ?? ""
   if (!endpoint || !model) throw new Error("AOAI_ENDPOINT / AOAI_DEPLOYMENT is not configured")
   const t0 = Date.now()
   const res = await fetch(`${endpoint}/openai/v1/chat/completions`, {
@@ -91,8 +92,7 @@ export async function identifyShareholder(req: IdentifyRequest): Promise<Identif
       model,
       messages: buildIdentifyMessages(req),
       response_format: { type: "json_schema", json_schema: SCHEMA },
-      max_completion_tokens: 300,
-      ...(/^gpt-4/i.test(model) ? { temperature: 0 } : { reasoning_effort: process.env.AOAI_REASONING_EFFORT ?? "none" }),
+      ...(/^gpt-4/i.test(model) ? { temperature: 0, max_tokens: options?.maxTokens ?? 300 } : { max_completion_tokens: options?.maxTokens ?? 300, reasoning_effort: options?.reasoningEffort ?? process.env.AOAI_REASONING_EFFORT ?? "none" }),
     }),
   })
   if (!res.ok) throw new Error(`identify failed: ${res.status} ${(await res.text()).slice(0, 200)}`)

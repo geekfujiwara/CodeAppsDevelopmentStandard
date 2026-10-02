@@ -36,6 +36,23 @@ export class PcmSegmenter {
     return { blob: encodeWav(out, this.sampleRate), durationSec: length / this.sampleRate }
   }
 
+  /**
+   * fromMs〜toMs を WAV で返す（切り出し位置は動かさない）。発言の区切りで既に解放した区間は返せないため null。
+   * 確定文ごとに別のモデル（MAI-Transcribe など）で認識し直すときに使う。
+   */
+  slice(fromMs: number, toMs: number): Blob | null {
+    const from = Math.max(0, Math.round((fromMs / 1000) * this.sampleRate))
+    const to = Math.min(this.total, Math.round((toMs / 1000) * this.sampleRate))
+    if (to <= from || from < this.cut) return null
+    const out = new Int16Array(to - from)
+    for (const { start, data } of this.chunks) {
+      const a = Math.max(start, from)
+      const b = Math.min(start + data.length, to)
+      if (b > a) out.set(data.subarray(a - start, b - start), a - from)
+    }
+    return encodeWav(out, this.sampleRate)
+  }
+
   reset() {
     this.chunks = []
     this.cut = 0

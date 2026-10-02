@@ -136,6 +136,9 @@ TABLES = [
             {"logical": f"{PREFIX}_responder", "type": "String", "display": "Responder", "maxLength": 100},
             {"logical": f"{PREFIX}_sourceids", "type": "String", "display": "Source IDs", "maxLength": 500},
             {"logical": f"{PREFIX}_cautions", "type": "Memo", "display": "Cautions", "maxLength": 2000},
+            # 下書き（Cowork・アプリで作成、承認待ち）/ 承認済み。空は承認済みとして扱う（既存データ）
+            {"logical": f"{PREFIX}_status", "type": "String", "display": "Status", "maxLength": 20},
+            {"logical": f"{PREFIX}_createdvia", "type": "String", "display": "Created via", "maxLength": 50},
         ],
     },
     {
@@ -216,6 +219,25 @@ TABLES = [
             {"logical": f"{PREFIX}_viewers", "type": "Memo", "display": "Viewers", "maxLength": 4000},
         ],
     },
+    # ── リハーサル台本（Cowork・アプリで作成し、台本タブで選ぶ）───────
+    {
+        "logical": f"{PREFIX}_agmscript", "display": "AGM Rehearsal Script", "plural": "AGM Rehearsal Scripts",
+        "name_display": "Title", "description": "Rehearsal script lines for the Q&A session (JSON)",
+        "columns": [
+            {"logical": f"{PREFIX}_lines", "type": "Memo", "display": "Lines (JSON)", "maxLength": 200000},
+            {"logical": f"{PREFIX}_note", "type": "Memo", "display": "Note", "maxLength": 2000},
+            {"logical": f"{PREFIX}_status", "type": "String", "display": "Status", "maxLength": 20},
+            {"logical": f"{PREFIX}_createdvia", "type": "String", "display": "Created via", "maxLength": 50},
+        ],
+    },
+    # ── アプリの設定（組織の既定。name=default の 1 行）──────────
+    {
+        "logical": f"{PREFIX}_agmsetting", "display": "AGM Setting", "plural": "AGM Settings",
+        "name_display": "Key", "description": "Organization default settings for models and transcription (JSON)",
+        "columns": [
+            {"logical": f"{PREFIX}_value", "type": "Memo", "display": "Value (JSON)", "maxLength": 100000},
+        ],
+    },
 ]
 
 LOOKUPS = [
@@ -239,8 +261,19 @@ LOCALIZE_TABLES = [
     (f"{PREFIX}_agmturn", "株主発言", "株主発言"),
     (f"{PREFIX}_agmquestion", "株主質問", "株主質問"),
     (f"{PREFIX}_agmlive", "LIVE 共有", "LIVE 共有"),
+    (f"{PREFIX}_agmscript", "リハーサル台本", "リハーサル台本"),
+    (f"{PREFIX}_agmsetting", "アプリの設定", "アプリの設定"),
 ]
 LOCALIZE_COLUMNS = [
+    (f"{PREFIX}_agmqa", f"{PREFIX}_status", "状態（下書き / 承認済み）"),
+    (f"{PREFIX}_agmqa", f"{PREFIX}_createdvia", "作成元"),
+    (f"{PREFIX}_agmscript", f"{PREFIX}_name", "台本名"),
+    (f"{PREFIX}_agmscript", f"{PREFIX}_lines", "行（JSON）"),
+    (f"{PREFIX}_agmscript", f"{PREFIX}_note", "メモ"),
+    (f"{PREFIX}_agmscript", f"{PREFIX}_status", "状態"),
+    (f"{PREFIX}_agmscript", f"{PREFIX}_createdvia", "作成元"),
+    (f"{PREFIX}_agmsetting", f"{PREFIX}_name", "キー"),
+    (f"{PREFIX}_agmsetting", f"{PREFIX}_value", "値（JSON）"),
     (f"{PREFIX}_agmqa", f"{PREFIX}_name", "問答コード"),
     (f"{PREFIX}_agmqa", f"{PREFIX}_category", "分類"),
     (f"{PREFIX}_agmqa", f"{PREFIX}_question", "質問"),
@@ -1100,6 +1133,16 @@ def create_demo_data():
                 **({f"{PREFIX}_qaid@odata.bind": f"/{qa_set}({qa_ids[q['qaCode']]})"} if q["qaCode"] in qa_ids else {}),
             })
     print(f"  Past turns: {len(history['turns'])} ({history['meeting']['title']})")
+    # リハーサル台本（同梱のデモ台本を Dataverse にも置く。アプリの台本タブで選べる）
+    script = _json.loads((demo / "rehearsal-script.json").read_text(encoding="utf-8"))
+    upsert(f"{PREFIX}_agmscript", script.get("title", "デモ台本"), {
+        f"{PREFIX}_name": script.get("title", "デモ台本"),
+        f"{PREFIX}_lines": _json.dumps(script["lines"], ensure_ascii=False),
+        f"{PREFIX}_note": script.get("note", ""),
+        f"{PREFIX}_status": "承認済み",
+        f"{PREFIX}_createdvia": "デモデータ",
+    })
+    print(f"  Rehearsal script: {len(script['lines'])} lines")
 
 
 def ensure_solution_membership():

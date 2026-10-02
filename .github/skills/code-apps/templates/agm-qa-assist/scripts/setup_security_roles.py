@@ -90,6 +90,19 @@ ROLE_DEFINITIONS = [
             f"{PREFIX}_agmlive": {**_NONE, "Read": "Basic"},
         },
     },
+    {
+        # 想定問答・リハーサル台本を Cowork（Dataverse MCP）やアプリで作る担当（IR・総務）。
+        # 下書きを作り、自分が作ったものだけ直せる。承認（状態を承認済みにする）は AGM オペレーターが行う運用にする。
+        # 株主名簿・発言・質問・LIVE は読めない（個人情報を扱わない）
+        "name": "AGM 想定問答作成者",
+        "description": "株主総会 Q&A アシスト: 想定問答・リハーサル台本の下書き作成（Cowork / アプリ）。IR 抜粋の参照",
+        "table_privileges": {
+            "*": _NONE,
+            f"{PREFIX}_agmqa": {**_NONE, "Create": "Basic", "Read": "Global", "Write": "Basic"},
+            f"{PREFIX}_agmscript": {**_NONE, "Create": "Basic", "Read": "Global", "Write": "Basic"},
+            f"{PREFIX}_agmirexcerpt": _READ,
+        },
+    },
 ]
 # テーブル操作の Verb 一覧
 TABLE_VERBS = ["Create", "Read", "Write", "Delete", "Append", "AppendTo", "Assign", "Share"]
@@ -517,6 +530,7 @@ def main():
     parser = argparse.ArgumentParser(description="AGM のセキュリティ ロールを作成・更新し、必要なら利用者へ割り当てる")
     parser.add_argument("--assign-operator", action="append", default=[], help="AGM オペレーターを割り当てる利用者（UPN の一部）")
     parser.add_argument("--assign-viewer", action="append", default=[], help="AGM 閲覧（幹部）を割り当てる利用者（UPN の一部）")
+    parser.add_argument("--assign-author", action="append", default=[], help="AGM 想定問答作成者（Cowork で想定問答・台本を作る人）を割り当てる利用者（UPN の一部）")
     args = parser.parse_args()
     validate_role_definitions(ROLE_DEFINITIONS)
     print("=" * 60)
@@ -558,6 +572,8 @@ def main():
         assign_role(q, "AGM オペレーター", role_ids)
     for q in args.assign_viewer:
         assign_role(q, "AGM 閲覧（幹部）", role_ids)
+    for q in args.assign_author:
+        assign_role(q, "AGM 想定問答作成者", role_ids)
 
     # 結果表示
     print("\n" + "=" * 60)
