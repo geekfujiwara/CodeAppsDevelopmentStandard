@@ -133,6 +133,9 @@ def main() -> int:
     mai = os.environ.get("MAI_SPEECH_RESOURCE_NAME", "").strip()
     mai_location = os.environ.get("MAI_LOCATION", "southeastasia").strip()
     mai_models = [m.strip() for m in os.environ.get("MAI_MODELS", "MAI-Transcribe-2,MAI-Transcribe-1.5").split(",") if m.strip()]
+    if mai and mai_location.lower().startswith("japan"):
+        # japaneast は作成も呼び出しも成功するが、認識だけ "Enhanced mode with model is currently not supported yet." で失敗する
+        raise SystemExit(f"MAI_LOCATION={mai_location} では MAI-Transcribe が使えません（例: southeastasia / eastus / westus2）")
     if mai and not az("cognitiveservices", "account", "show", "-g", rg, "-n", mai, *common, check=False):
         plan.append((f"MAI 用の Foundry リソース {mai} を作成（{mai_location}・AIServices・S0）", ["cognitiveservices", "account", "create", "-g", rg, "-n", mai, "--kind", "AIServices", "--sku", "S0", "-l", mai_location, "--custom-domain", mai, "--yes", *common]))
         plan.append((f"{mai} のキー認証を無効化", ["resource", "update", "-g", rg, "-n", mai, "--resource-type", "Microsoft.CognitiveServices/accounts", "--set", "properties.disableLocalAuth=true", *common]))
@@ -205,6 +208,12 @@ def main() -> int:
         # TICKET_SECRET を含みうるため、使い終わったら消す
         if pending_settings:
             settings_file.unlink(missing_ok=True)
+    if pending_settings:
+        # 読み戻して一致を確かめる（az が設定ファイルを cp932 で読むと日本語が化けても成功で返る）
+        after = {s["name"]: s.get("value") for s in (az("functionapp", "config", "appsettings", "list", "-g", rg, "-n", func, *common) or [])}  # type: ignore[union-attr]
+        broken = [k for k, v in wanted.items() if after.get(k) != v]
+        if broken:
+            raise SystemExit(f"アプリ設定の読み戻しが一致しません: {', '.join(broken)}（値は ASCII のみ・ファイル渡しにしてください）")
     print("✅ 完了。Function をデプロイ（deploy_mcp_function.py）すると設定が反映されます")
     return 0
 

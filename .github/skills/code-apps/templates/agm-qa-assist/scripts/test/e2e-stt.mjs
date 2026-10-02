@@ -6,6 +6,7 @@ import { spawn, execFileSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { preflight } from "./_preflight.mjs"
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`)
@@ -17,6 +18,8 @@ const seconds = Number(arg("seconds", "90"))
 const engine = arg("engine", "compare")
 const outDir = resolve(arg("out", ".screens/e2e-stt"))
 mkdirSync(outDir, { recursive: true })
+// 疑似マイクの再生と再認識の時間ぶん、チケットが持つこと
+await preflight(url, { minSeconds: seconds + 120 })
 const port = 9300 + Math.floor(Math.random() * 500)
 const edge = `${process.env["ProgramFiles(x86)"]}\\Microsoft\\Edge\\Application\\msedge.exe`
 const killByProfile = (pattern) =>

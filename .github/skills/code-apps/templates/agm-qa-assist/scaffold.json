@@ -182,10 +182,11 @@
     }
   ],
   "nextSteps": [
-    "README.md の「開始の手順」を上から実行する（Step 1〜9）",
+    "README.md の「開始の手順」を上から実行する（Step 1〜10）",
     "npm install --no-audit --no-fund; npm run test",
     "python scripts/setup_dataverse.py --skip-localize",
     "python scripts/configure_azure.py（計画を確認）→ --apply",
-    "npm run deploy"
+    "npm run deploy",
+    "（任意）Cowork で想定問答・台本を作る: cowork スキルの templates/agm-qa-plugin を --questions で生成"
   ]
 }

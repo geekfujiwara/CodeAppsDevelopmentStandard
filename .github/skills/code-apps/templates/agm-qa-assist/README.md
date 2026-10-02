@@ -42,14 +42,15 @@
 | Step | 内容 | コマンド・参照 |
 |---|---|---|
 | 1 | 環境チェック（既定環境ではない・Code Apps・マネージド環境・DLP） | admin スキルの環境チェック |
-| 2 | 依存の導入と単体テスト | `npm install --no-audit --no-fund` → `npm run test`（40 件） |
-| 3 | Dataverse のテーブル（7 つ）を作る | `python scripts/setup_dataverse.py --skip-localize` |
+| 2 | 依存の導入と単体テスト | `npm install --no-audit --no-fund` → `npm run test`（48 件） |
+| 3 | Dataverse のテーブル（9 つ。台本・設定を含む）を作る | `python scripts/setup_dataverse.py --skip-localize` |
 | 4 | アプリの初期化・初回デプロイ・データソース | `npx --no pa app init ...` → `npm run deploy -- --solution-id $env:SOLUTION_ID` → `add_data_source.py --connector dataverse` と `--connector sharepoint --as action`（code-apps SKILL の §2） |
 | 5 | Azure の土台 | API のアプリ登録（mcp-server の `configure_entra_api.py`。スコープ `Speech.Token`）、Function App・ストレージ・ネットワーク（azure-infra）。`.env` に `API_AUDIENCE` を追記 |
-| 6 | このアプリ固有の Azure 設定 | `python scripts/configure_azure.py`（計画）→ `--apply`。Speech・Azure OpenAI とモデル・Foundry User・アプリ設定・CORS をそろえる（冪等） |
-| 7 | Function とコネクタ | `cd azure/speech-token-broker; npm install; npm run build; npm test` → `deploy_mcp_function.py --project azure/speech-token-broker --app $env:FUNCTION_APP_NAME --route speech/token --route answer/ticket --route shareholder/identify` → custom-connector スキル Step 1〜7（`connector/` を登録・OBO で接続・接続参照・Code Apps のデータソース）。`.env` に `AGM_SPEECH_CONNREF` / `AGM_SHAREPOINT_CONNREF` を追記 |
-| 8 | CSP と残りの Dataverse | `configure_code_app_csp.py --directive Connect-Src --source wss://<region>.stt.speech.microsoft.com --apply` と `https://<FUNCTION_APP_NAME>.azurewebsites.net` → `python scripts/setup_dataverse.py --localize-only`（日本語化・デモの想定問答 45 / IR 36 / 名簿 20）→ `python scripts/setup_security_roles.py --assign-operator <UPN> --assign-viewer <UPN>` |
-| 9 | デプロイと確認 | `npm run deploy` → `python scripts/test/verify_answer_stream.py`（チケット・CORS・ストリーム）→ `python scripts/test/fetch_answer_ticket.py --out .mcp/answer-ticket.json; node scripts/test/eval-identify.ts`（照合の評価セット）→ テスト用ビルドで `node scripts/test/e2e-cockpit.mjs`（spec/test-plan.md） |
+| 6 | このアプリ固有の Azure 設定 | `python scripts/configure_azure.py`（計画）→ `--apply`。Speech・Azure OpenAI とモデル（`AOAI_DEPLOYMENTS` は先にデプロイ）・MAI-Transcribe の Foundry リソース（`MAI_SPEECH_RESOURCE_NAME` が空なら作らない。日本のリージョンは止める）・Foundry User・アプリ設定（適用後に読み戻して確認）・CORS をそろえる（冪等） |
+| 7 | Function とコネクタ | `cd azure/speech-token-broker; npm install; npm run build; npm test` → `deploy_mcp_function.py --project azure/speech-token-broker --app $env:FUNCTION_APP_NAME --route speech/token --route answer/ticket --route shareholder/identify --route config --route transcribe` → custom-connector スキル Step 1〜7（`connector/` を登録・OBO で接続・接続参照・Code Apps のデータソース）。`.env` に `AGM_SPEECH_CONNREF` / `AGM_SHAREPOINT_CONNREF` を追記 |
+| 8 | CSP と残りの Dataverse | `configure_code_app_csp.py --directive Connect-Src --source wss://<region>.stt.speech.microsoft.com --apply` と `https://<FUNCTION_APP_NAME>.azurewebsites.net` → `python scripts/setup_dataverse.py --localize-only`（日本語化・デモの想定問答 45 / IR 36 / 名簿 20）→ `python scripts/setup_security_roles.py --assign-operator <UPN> --assign-viewer <UPN> [--assign-author <UPN>]` |
+| 9 | デプロイと確認 | `npm run deploy` → `python scripts/test/verify_answer_stream.py`（チケット・CORS・ストリーム）→ `python scripts/test/fetch_answer_ticket.py --out .mcp/answer-ticket.json; node scripts/test/eval-identify.ts`（照合の評価セット）→ テスト用ビルドを `serve_host_emulation.mjs --dist dist-autotest --connect-src "'self'" --connect-src https://<FUNCTION_APP_NAME>.azurewebsites.net`（`http://localhost:4173`）で配信して `node scripts/test/e2e-cockpit.mjs`、MAI を使うなら `node scripts/test/e2e-stt.mjs --wav <読み上げ WAV>`（どちらも最初にチケットの残りと CORS を確かめる。spec/test-plan.md） |
+| 10 | Cowork で想定問答・台本を作る（任意） | cowork スキルの [agm-qa-plugin](../../../cowork/templates/agm-qa-plugin/README.md) を `--questions` で生成 → 権限は PERMISSIONS.md。作った下書きはアプリの「想定問答」で承認すると検索に使われる |
 
 ## 置き換える場所
 
@@ -60,4 +61,4 @@
 ## テンプレートの更新
 
 元のプロジェクトで `python scripts/export_template.py` を実行すると、generic-base と違うファイルだけを書き出し、
-環境に固有の値（プレフィックス・リソース名・テナント等）を `${VAR}` に戻す。`--check` で実値が残っていないかを確認する。
+環境に固有の値（プレフィックス・リソース名・テナント等）を `${VAR}` に戻す。`--check` で実値が残っていないか、src の外を含む相対 import がすべてテンプレート内で解決できるかを確認する。

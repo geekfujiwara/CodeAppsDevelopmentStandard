@@ -2732,3 +2732,64 @@ scaffold 直後（データソース追加前）の `tsc` / `npm run build` が 
 
 `capture_host_screens_realtime.mjs` は起動前に同じ接頭辞（`agm-cdp-`）の一時プロファイルの Edge を止め、SIGINT / SIGTERM でも自分の Edge を止める。
 自前の E2E でも同じ処理を入れる。重さを感じたら `Get-CimInstance Win32_Process -Filter "Name='msedge.exe'"` の `--user-data-dir` を確認する。
+
+## 65. 入力欄で素早く Enter を押すと、1 つ前の値で確定される（検証済 2026-10-02）
+
+### 症状
+
+株主番号のその場編集で「0360」と打って Enter → 「036」で保存される。E2E（#62 の方法）でも再現する。
+
+### 原因
+
+`onKeyDown` の確定処理が state（`value`）を読んでいる。最後の `onChange` の再描画より先に Enter が処理されると、state はまだ 1 文字前。
+
+### 対処
+
+確定は `e.currentTarget.value`（入力欄の今の値）を使う。state は表示のためだけに使う。
+
+```tsx
+onKeyDown={(e) => { if (e.key === "Enter") commit(e.currentTarget.value) }}
+onBlur={(e) => commit(e.currentTarget.value)}
+```
+
+## 66. E2E で localStorage に設定を入れても、アプリが既定値で起動する（検証済 2026-10-02）
+
+### 症状
+
+「この端末だけの設定」（localStorage）を E2E から入れても反映されない。`about:blank` や別ページで入れた値・`Page.addScriptToEvaluateOnNewDocument` で入れた値が、起動時の読み込みに間に合わない。
+
+### 原因
+
+localStorage はオリジンごと。別ページではオリジンが違い、新規ドキュメント前のスクリプトは自動開始より後に評価されることがある。
+
+### 対処
+
+アプリの URL に一度移動 → `localStorage.setItem` → `Page.reload`（`ignoreCache: true`）。設定を読み込んでから自動開始する作りにしておく（`templates/agm-qa-assist/scripts/test/e2e-stt.mjs`）。
+
+## 67. E2E の途中で生成が 401 / Failed to fetch、設定画面が既定値のまま（チケット切れ・CSP・CORS のポート）（検証済 2026-10-02）
+
+### 症状
+
+- 長い E2E の後半で回答案・再認識が 401 になる
+- 別のポート（例: 4175）で配信すると、Function の `/config` が CORS で失敗し、設定画面の選択肢が既定値だけになる。エラーは画面に出ない
+- `serve_host_emulation.mjs --connect-src` に Function だけを渡すと、`CSP 違反: connect-src …/dev-ticket.json` で回答案の生成が `Failed to fetch` になり、生成を待つ E2E が終わらない
+
+### 原因
+
+- 開発用ビルドに同梱するチケット（`dev-ticket.json`）は 15 分で切れ、コネクタが無いので取り直せない
+- Function の CORS は環境のオリジンと決まったローカル ポート（4173 / 3000）だけを許可している
+- ホスト再現の配信は Code Apps の既定どおり `connect-src` を `'none'` + 指定値にする。テスト用ビルドだけが読むチケットは同じオリジンなので `'self'` が要る（本番には不要）
+
+### 対処（恒久対策済み）
+
+`templates/agm-qa-assist/scripts/test/_preflight.mjs` を E2E の最初に呼ぶ。チケットの残り時間（既定 300 秒、疑似マイクは再生時間 + 120 秒）、配信の CSP の `connect-src` に `'self'` と Function があるか、配信オリジンが CORS で許可されているか（OPTIONS）を確かめ、足りなければ直し方を出して止める。`e2e-cockpit.mjs` は `--max-minutes`（既定 12）で打ち切る。
+
+## 68. テンプレートの書き出しは成功するのに、生成後のビルドだけ落ちる（src の外の import）（検証済 2026-10-02）
+
+### 症状
+
+`src` から `../../../spec/eval/stt-compare.json` のように src の外を import していると、書き出しの INCLUDE に足し忘れても書き出しと `--check` は成功し、scaffold 後の `tsc` で初めて `Cannot find module` になる。
+
+### 対処（恒久対策済み）
+
+`templates/agm-qa-assist/scripts/export_template.py` が書き出し後と `--check` で、テンプレート内のすべての相対 import がテンプレートか `generic-base` の中で解決できるかを確かめ、解決できなければ終了コード 1。

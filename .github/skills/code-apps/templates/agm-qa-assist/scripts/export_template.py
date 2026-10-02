@@ -82,6 +82,28 @@ def norm(data: bytes) -> bytes:
     return data.replace(b"\r\n", b"\n")
 
 
+IMPORT_RE = re.compile(r"""(?:from\s+|import\s*\(\s*|import\s+)["'](\.{1,2}/[^"']+)["']""")
+RESOLVE_SUFFIXES = ["", ".ts", ".tsx", ".js", ".mjs", ".json", "/index.ts", "/index.tsx"]
+
+
+def missing_imports(out: Path) -> list[str]:
+    """テンプレート内の相対 import が、テンプレートか generic-base の中で解決できるかを確かめる。
+    src の外（例: spec/eval/*.json）を import していると、INCLUDE に足し忘れても書き出しは成功し、生成後のビルドで初めて落ちる。"""
+    misses: list[str] = []
+    for path in out.rglob("*"):
+        if not path.is_file() or path.suffix not in {".ts", ".tsx", ".mjs"} or "node_modules" in path.parts:
+            continue
+        rel_dir = path.parent.relative_to(out)
+        for spec in IMPORT_RE.findall(path.read_text(encoding="utf-8", errors="ignore")):
+            target = os.path.normpath(rel_dir / spec)
+            if target.startswith(".."):
+                misses.append(f"{path.relative_to(out).as_posix()}: {spec}（テンプレートの外）")
+                continue
+            if not any((root / (target + s)).exists() for root in (out, BASE) for s in RESOLVE_SUFFIXES):
+                misses.append(f"{path.relative_to(out).as_posix()}: {spec}")
+    return misses
+
+
 def iter_files() -> list[Path]:
     out: list[Path] = []
     for item in INCLUDE:
@@ -116,7 +138,9 @@ def main() -> int:
                 text = path.read_text(encoding="utf-8", errors="ignore")
                 hits += [f"{path.relative_to(args.out)}: {s}" for s in secrets if s in text]
         print("\n".join(hits) or "✅ 実値は残っていません")
-        return 1 if hits else 0
+        misses = missing_imports(args.out)
+        print("\n".join(f"✖ 解決できない import: {m}" for m in misses) or "✅ 相対 import はすべてテンプレート内で解決できます")
+        return 1 if hits or misses else 0
 
     if args.out.exists():
         # scaffold.json・README.md・spec/environment.md はテンプレート側で管理する（書き出しで消さない）
@@ -150,6 +174,10 @@ def main() -> int:
     sample = args.out / "azure/speech-token-broker/local.settings.sample.json"
     sample.write_text('{\n  "IsEncrypted": false,\n  "Values": {\n    "FUNCTIONS_WORKER_RUNTIME": "node",\n    "AzureWebJobsStorage": "UseDevelopmentStorage=true"\n  }\n}\n', encoding="utf-8")
     print(f"OK: {written} ファイルを書き出しました（generic-base と同じ {skipped} ファイルは省略）→ {args.out}")
+    misses = missing_imports(args.out)
+    if misses:
+        print("✖ 解決できない import（INCLUDE に足りないファイル）:\n  " + "\n  ".join(misses))
+        return 1
     return 0
 
 

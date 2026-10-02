@@ -6,6 +6,7 @@ import { spawn, execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { preflight } from "./_preflight.mjs"
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`)
@@ -13,6 +14,7 @@ const arg = (name, fallback) => {
 }
 const url = arg("url", "http://localhost:4173/")
 const outDir = resolve(arg("out", ".screens/e2e"))
+await preflight(url)
 const port = 9300 + Math.floor(Math.random() * 500)
 const edge = [`${process.env["ProgramFiles(x86)"]}\\Microsoft\\Edge\\Application\\msedge.exe`, `${process.env.ProgramFiles}\\Microsoft\\Edge\\Application\\msedge.exe`].find((p) => existsSync(p))
 mkdirSync(outDir, { recursive: true })
@@ -26,6 +28,14 @@ for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => {
   killByProfile(userData)
   process.exit(130)
 })
+// 待ちが終わらない場合（生成が失敗し続ける等）に止まったままにしない
+const maxMinutes = Number(arg("max-minutes", "12"))
+setTimeout(() => {
+  console.error(`✖ ${maxMinutes} 分で終わらなかったため止めました（${join(outDir, "logs.txt")} を確認）`)
+  writeFileSync(join(outDir, "logs.txt"), logs.join("\n"))
+  killByProfile(userData)
+  process.exit(3)
+}, maxMinutes * 60_000).unref()
 spawn(edge, ["--headless=new", `--user-data-dir=${userData}`, "--no-first-run", "--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows", "--disable-features=IntensiveWakeUpThrottling", `--remote-debugging-port=${port}`, "--window-size=1920,1080", "about:blank"], { stdio: "ignore", detached: true }).unref()
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const results = []
