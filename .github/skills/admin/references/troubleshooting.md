@@ -394,3 +394,12 @@ VS Code の統合ブラウザで `file:///...` として開くと、上記エラ
 **対処**: [m365-tenant-api.md](m365-tenant-api.md) の「ツール sandbox」手順（`build_browser_bundle.mjs` + 127.0.0.1 配信 +
 `new Function`）。恒久対策済み: runner の Node 側は `URL` を使わず `pageOrigin(page)` で origin を判定し、
 `toSandboxBody` が予期しない import と `new URL(page` の再混入を生成時に拒否する（契約テストあり）。
+
+## 21. `set_dlp_custom_connector.py --policy <表示名>` が「ポリシーが見つかりません」になる
+
+**症状**: `check_dlp.py` に表示されたポリシー名をそのまま渡しても見つからない。
+
+**原因**: ポリシーの表示名が前後に空白を含んでいた（実例: `"Tenant "`）。旧実装は完全一致で照合していた。
+
+**対処**: 恒久対策済み — `_resolve_policy()` が前後の空白を除き、大文字小文字を区別せずに照合する。
+見つからない場合は、存在するポリシーの表示名を `repr` で一覧表示する（空白が見える）。

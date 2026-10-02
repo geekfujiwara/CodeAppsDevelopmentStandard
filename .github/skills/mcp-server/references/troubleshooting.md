@@ -341,6 +341,42 @@ az login --tenant <tenant-id> --scope "https://management.core.windows.net//.def
 
 ---
 
+### `configure_connector_oauth.py` が「--secret-out が Git ignore されていません」で止まる（Git リポジトリ外）
+
+**原因**: 除外判定に `git check-ignore` を使うため、Git リポジトリ外では `.gitignore` に書いてあっても判定できず、
+旧実装は「除外されていない」と誤って表示していた。
+
+**対処**: 作業フォルダーで `git init` し、`.gitignore` に `.secrets/` を追加してから実行する。
+恒久対策済み — `preflight_secret_output()` が終了コード 128（判定不能）を区別し、この手順を表示する。
+
+### コネクタの同意が AADSTS90008（application is misconfigured）で失敗する
+
+**原因**: アプリが Microsoft Graph の `User.Read`（Sign in and read user profile）を要求していない。
+ポータルで作ったアプリには既定で付くが、`az ad app create` や Graph API で作ったアプリには付かない。
+
+**対処**: `User.Read` を追加して**数分待つ**（追加直後は同じエラーが続いた）。
+恒久対策済み — `configure_connector_oauth.py` の `ensure_graph_user_read()` が毎回確認して追加する。
+
+### 同意画面のスコープ名が用途と違う（「MCP サーバーへのアクセス」と出る）
+
+**原因**: `configure_entra_api.py` がスコープの表示名を固定していた。
+
+**対処**: `.env` に `MCP_API_SCOPE_LABEL` / `MCP_API_SCOPE_DESCRIPTION` を設定して再実行する。既存スコープは id と value を変えずに表示名だけ更新する。恒久対策済み。
+
+### カスタム コネクタの接続を作るたびに同意が求められる（on-behalf-of が使えない）
+
+**原因**: API アプリのスコープに **Azure API Connections**（`fe053c5f-3692-4f14-aef2-ee34fc081cae`）が事前承認されていない。
+on-behalf-of 接続（custom-connector スキル）はこのクライアントが利用者の代わりにトークンを取るため、事前承認が無いと同意が要る。
+
+**対処**: `configure_connector_oauth.py` を再実行する。恒久対策済み — `ensure_obo_preauthorization()` が
+テナントにサービス プリンシパルが無ければ作り、スコープの事前承認に追加する（済みなら `[skip]`）。不要なら `--no-obo`。
+
+### デプロイ後の確認で GET 専用のルートが「404 未デプロイ」になる
+
+**原因**: `deploy_mcp_function.py` の確認が POST だけでルートを叩いていた。Functions のホストはメソッドが合わないルートにも 404 を返す。
+
+**対処**: 恒久対策済み — `probe_status()` が POST と GET の両方で確認し、`verify_routes()` はデプロイ直後の再起動を見込んで 15 秒おきに 3 回まで試す。
+
 ## データアクセス
 
 ### Azure Files への REST 呼び出しが 403 になる

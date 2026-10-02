@@ -24,9 +24,15 @@ DEFAULT_PREAUTH_CLIENT_IDS = [
 ]
 
 
+def _scope_texts() -> tuple[str, str]:
+    # 同意画面に表示される。MCP 以外の API（トークン発行等）にも使うため、用途に合わせて .env で指定する
+    label = os.getenv("MCP_API_SCOPE_LABEL", "MCP サーバーへのアクセス")
+    description = os.getenv("MCP_API_SCOPE_DESCRIPTION", "MCP サーバーのツールを呼び出す権限")
+    return label, description
+
+
 def _new_scope(scope_value: str) -> dict:
-    label = "MCP サーバーへのアクセス"
-    description = "MCP サーバーのツールを呼び出す権限"
+    label, description = _scope_texts()
     return {
         "id": str(uuid.uuid4()),
         "value": scope_value,
@@ -60,6 +66,12 @@ def main() -> int:
         print(f"スコープ {scope_value} を追加します")
     else:
         print(f"スコープ {scope_value} は既に存在します")
+        label, description = _scope_texts()
+        if os.getenv("MCP_API_SCOPE_LABEL") and scope.get("userConsentDisplayName") != label:
+            # 表示文言だけを更新する（id と value は変えない）
+            scope.update({"adminConsentDisplayName": label, "adminConsentDescription": description,
+                          "userConsentDisplayName": label, "userConsentDescription": description})
+            print(f"スコープ {scope_value} の表示名を「{label}」に更新します")
 
     # スコープ登録と事前承認を同一 PATCH で送ると新規スコープ ID が未登録扱いになるため分割する
     graph_patch(

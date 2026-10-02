@@ -37,13 +37,16 @@ WILDCARD = "*"
 
 
 def _resolve_policy(identifier: str) -> dict:
+    # 表示名は前後に空白を含むことがある（実例: "Tenant "）。空白を除き大文字小文字を区別せずに照合する
+    wanted = identifier.strip().casefold()
     matches = [
         policy
         for policy in list_policies()
-        if identifier in (policy.get("name"), policy.get("displayName"))
+        if wanted in ((policy.get("name") or "").strip().casefold(), (policy.get("displayName") or "").strip().casefold())
     ]
     if not matches:
-        raise SystemExit(f"ポリシーが見つかりません: {identifier}")
+        names = ", ".join(repr(p.get("displayName")) for p in list_policies())
+        raise SystemExit(f"ポリシーが見つかりません: {identifier!r}（存在するポリシー: {names}）")
     if len(matches) > 1:
         raise SystemExit("同名のポリシーが複数あります。ポリシー名（GUID）で指定してください")
     return matches[0]

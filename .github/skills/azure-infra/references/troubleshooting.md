@@ -47,6 +47,13 @@
 
 ## デプロイ (Functions Flex Consumption)
 
+- **アプリ設定の日本語（JSON の表示名など）が化ける・`az functionapp config appsettings set` が引用符やカンマで壊す**
+  - 原因: 日本語 Windows の az は設定ファイル（`--settings @file`）や出力を cp932 で扱い、成功で返る。`az.cmd` 経由だと
+    コマンドラインの JSON の引用符・カンマも cmd に解釈される。
+  - 対処: 値を `json.dumps(..., ensure_ascii=True)` で ASCII（`\uXXXX`）にしてファイルで渡し、Function 側で JSON として読む。
+    az は `PYTHONIOENCODING=utf-8` / `PYTHONUTF8=1` で呼ぶ。**適用後に読み戻して一致を確かめる**
+    （恒久対策済み: code-apps の `templates/agm-qa-assist/scripts/configure_azure.py`）。
+
 - **`Key based authentication is not permitted on this storage account`**（デプロイ時）
   - 原因: 共有キー禁止環境で、deployment ストレージ認証がキーベースのまま。
   - 対処: **作成時に** `--deployment-storage-auth-type SystemAssignedIdentity` を指定する。
@@ -55,6 +62,19 @@
 
 - **`your app will not start`（functionapp create 時）**
   - バックエンドストレージが private のため、作成時に `--vnet` / `--subnet` を**同時指定**する必要がある。
+  - `--allow-shared-key-access false` だけを指定して作ったストレージでも、テナントのポリシーで `publicNetworkAccess=Disabled` に
+    なることがある。作成後に `az storage account show --query publicNetworkAccess` で確認する。
+  - Flex Consumption の稼働には、ストレージの **blob と queue** の Private Endpoint（と Private DNS ゾーン）で足りた（検証済 2026-10）。
+    サブネットは `Microsoft.App/environments` に委任する。
+
+- **Managed Identity でのトークン発行が 401 `PermissionDenied`**
+  - ロールの付与・変更は反映に数分かかる（実測 2〜6 分）。反映を待ってから再試行する。
+  - ロール名から推測せず `dataActions` を確認する。例: Azure AI Speech の `issueToken` は
+    「Cognitive Services Speech User」では拒否され、発行操作の dataAction だけを持つカスタム ロールでも
+    `Principal does not have access to API/Operation` で拒否された（検証済 2026-10）。
+  - 範囲で反映時間が大きく違った（新しいサービス プリンシパルで実測: リソース グループ範囲の Foundry User → 約 2 秒で 200、
+    リソース範囲 → 約 12 分 401 のあと 200）。リソース範囲で付けたら 15 分以上待ってから判断する。
+  - 削除の反映も遅れる。ロールを外した直後の成功で「不要」と判断しない（10 分以上あける）。
 
 - **企業ネットワークからの zip デプロイが接続リセット (10054)**
   - 大容量 POST が企業プロキシで切られる。**CI(GitHub Actions 等)からデプロイ**する。
