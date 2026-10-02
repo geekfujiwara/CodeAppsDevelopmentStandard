@@ -2661,3 +2661,41 @@ AudioWorklet にする（[デバイス・メディア](device-media.md) §3・§
 1. Code Apps の CSP の `connect-src` に API のオリジン（`configure_code_app_csp.py --directive Connect-Src --source https://<host> --apply`、`--assert` で確認）
 2. API 側の CORS に Code Apps のオリジン（`https://<env>.environment.api.powerplatformusercontent.com`）。事前確認（OPTIONS）の 204 を確かめる
 3. ホスト再現テストでは、チケットをビルドに埋め込まず同じオリジンのファイルから読む（15 分で失効し、ビルドに数分かかると試験の途中で切れる）
+## 61. ホスト再現テストで、`getContext()` を待つ処理が終わらない（検証済 2026-10-02）
+
+### 症状
+
+テスト用ビルドをローカルで配信すると、ログインユーザーを使う処理（自分の配信かどうかの判定など）が始まらない。エラーも出ない。
+
+### 原因
+
+`getContext()` は Power Apps のホストからの応答を待つ。ホストの外では応答が来ず、Promise が解決しない。
+
+### 対処
+
+`getContext()` は時間切れ（数秒）と競争させ、取れなければ「不明」として先へ進める。不明のときは、自分を前提にした自動の切り替え（自動で別画面へ移るなど）はしない。
+
+```ts
+const user = await Promise.race([
+  getContext().then((c) => ({ objectId: c.user?.objectId ?? "" })),
+  new Promise<{ objectId: string }>((r) => setTimeout(() => r({ objectId: "" }), 4000)),
+])
+```
+
+## 62. ヘッドレスの E2E で、React の入力欄に値を入れても反映されない（検証済 2026-10-02）
+
+### 症状
+
+DevTools プロトコルで `el.value = "…"` を入れて Enter を送っても、制御された入力欄（`value` + `onChange`）の state が変わらない。
+
+### 対処
+
+`HTMLInputElement.prototype` の `value` の setter で入れてから `input` イベントを送る（React が変更として拾う）。Enter は `keydown` を `bubbles: true` で送る。
+
+```js
+const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set
+setter.call(el, "0360"); el.dispatchEvent(new Event("input", { bubbles: true }))
+el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+```
+
+非表示のタブ（台本タブを開いている間の記録の表など）の中の要素は描画されないため、先にタブを切り替えてから探す。
