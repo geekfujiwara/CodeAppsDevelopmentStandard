@@ -1,0 +1,22 @@
+{
+  "name": "speech-token-broker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Code Apps 向けに Azure AI Speech の短期トークンを発行する Azure Functions（Entra ID JWT 検証 + Managed Identity）",
+  "main": "dist/src/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test test/auth.test.cjs test/answer.test.cjs"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.6.0",
+    "@azure/identity": "^4.10.0",
+    "jsonwebtoken": "^9.0.2",
+    "jwks-rsa": "^3.2.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/node": "^22.15.0",
+    "typescript": "~5.9.3"
+  }
+}

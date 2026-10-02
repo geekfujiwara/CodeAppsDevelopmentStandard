@@ -1,0 +1,267 @@
+{
+  "name": "株式会社みらいテクノロジーズ",
+  "fiscalYear": "2026年3月期",
+  "meetingTitle": "第42期 定時株主総会",
+  "meetingDate": "2026年6月24日",
+  "keyFigures": [
+    {
+      "key": "net_sales",
+      "label": "売上高",
+      "value": 1234,
+      "unit": "億円",
+      "display": "1,234億円"
+    },
+    {
+      "key": "operating_profit",
+      "label": "営業利益",
+      "value": 148,
+      "unit": "億円",
+      "display": "148億円"
+    },
+    {
+      "key": "operating_margin",
+      "label": "営業利益率",
+      "value": 12.0,
+      "unit": "%",
+      "display": "12.0%"
+    },
+    {
+      "key": "ordinary_profit",
+      "label": "経常利益",
+      "value": 152,
+      "unit": "億円",
+      "display": "152億円"
+    },
+    {
+      "key": "net_income",
+      "label": "親会社株主に帰属する当期純利益",
+      "value": 98,
+      "unit": "億円",
+      "display": "98億円"
+    },
+    {
+      "key": "roe",
+      "label": "ROE",
+      "value": 10.4,
+      "unit": "%",
+      "display": "10.4%"
+    },
+    {
+      "key": "dividend_interim",
+      "label": "1株当たり中間配当",
+      "value": 28,
+      "unit": "円",
+      "display": "中間28円"
+    },
+    {
+      "key": "dividend_yearend",
+      "label": "1株当たり期末配当",
+      "value": 32,
+      "unit": "円",
+      "display": "期末32円"
+    },
+    {
+      "key": "dividend_annual",
+      "label": "1株当たり年間配当",
+      "value": 60,
+      "unit": "円",
+      "display": "年間60円"
+    },
+    {
+      "key": "payout_ratio",
+      "label": "配当性向",
+      "value": 35.6,
+      "unit": "%",
+      "display": "35.6%"
+    },
+    {
+      "key": "total_return_ratio",
+      "label": "総還元性向",
+      "value": 52.1,
+      "unit": "%",
+      "display": "52.1%"
+    },
+    {
+      "key": "buyback_amount_limit",
+      "label": "自己株式取得の上限額",
+      "value": 20,
+      "unit": "億円",
+      "display": "20億円"
+    },
+    {
+      "key": "buyback_share_limit",
+      "label": "自己株式取得の上限株数",
+      "value": 120,
+      "unit": "万株",
+      "display": "120万株"
+    },
+    {
+      "key": "buyback_period",
+      "label": "自己株式取得期間",
+      "value": "2026年5月13日から2026年10月31日まで",
+      "unit": "",
+      "display": "2026年5月13日から2026年10月31日まで"
+    },
+    {
+      "key": "midterm_target_sales",
+      "label": "中期経営計画最終年度売上高目標",
+      "value": 1500,
+      "unit": "億円",
+      "display": "1,500億円"
+    },
+    {
+      "key": "midterm_target_op_margin",
+      "label": "中期経営計画最終年度営業利益率目標",
+      "value": 14.0,
+      "unit": "%",
+      "display": "14.0%"
+    },
+    {
+      "key": "midterm_target_roe",
+      "label": "中期経営計画最終年度ROE目標",
+      "value": 12.0,
+      "unit": "%",
+      "display": "12.0%"
+    },
+    {
+      "key": "r_and_d",
+      "label": "研究開発費",
+      "value": 86,
+      "unit": "億円",
+      "display": "86億円"
+    },
+    {
+      "key": "capex",
+      "label": "設備投資額",
+      "value": 92,
+      "unit": "億円",
+      "display": "92億円"
+    },
+    {
+      "key": "interest_bearing_debt",
+      "label": "有利子負債",
+      "value": 214,
+      "unit": "億円",
+      "display": "214億円"
+    },
+    {
+      "key": "equity_ratio",
+      "label": "自己資本比率",
+      "value": 56.8,
+      "unit": "%",
+      "display": "56.8%"
+    },
+    {
+      "key": "free_cash_flow",
+      "label": "フリーキャッシュフロー",
+      "value": 64,
+      "unit": "億円",
+      "display": "64億円"
+    },
+    {
+      "key": "cash_and_deposits",
+      "label": "現金及び預金",
+      "value": 176,
+      "unit": "億円",
+      "display": "176億円"
+    },
+    {
+      "key": "employees",
+      "label": "連結従業員数",
+      "value": 3842,
+      "unit": "名",
+      "display": "3,842名"
+    },
+    {
+      "key": "female_manager_ratio",
+      "label": "女性管理職比率",
+      "value": 18.5,
+      "unit": "%",
+      "display": "18.5%"
+    },
+    {
+      "key": "female_manager_target",
+      "label": "女性管理職比率目標",
+      "value": 25.0,
+      "unit": "%",
+      "display": "25.0%"
+    },
+    {
+      "key": "engagement_score",
+      "label": "従業員エンゲージメントスコア",
+      "value": 71,
+      "unit": "ポイント",
+      "display": "71ポイント"
+    },
+    {
+      "key": "training_hours",
+      "label": "1人当たり年間研修時間",
+      "value": 32,
+      "unit": "時間",
+      "display": "32時間"
+    },
+    {
+      "key": "co2_reduction_2030",
+      "label": "2030年度CO2削減目標",
+      "value": 46.0,
+      "unit": "%",
+      "display": "2030年度に46.0%削減"
+    },
+    {
+      "key": "co2_reduction_2026",
+      "label": "2026年3月期CO2削減実績",
+      "value": 18.2,
+      "unit": "%",
+      "display": "18.2%削減"
+    },
+    {
+      "key": "renewable_energy_ratio",
+      "label": "再生可能エネルギー比率",
+      "value": 38.0,
+      "unit": "%",
+      "display": "38.0%"
+    },
+    {
+      "key": "executive_compensation",
+      "label": "役員報酬総額",
+      "value": 3.84,
+      "unit": "億円",
+      "display": "3.84億円"
+    },
+    {
+      "key": "outside_director_ratio",
+      "label": "社外取締役比率",
+      "value": 45.5,
+      "unit": "%",
+      "display": "45.5%"
+    },
+    {
+      "key": "directors_count",
+      "label": "取締役候補者数",
+      "value": 11,
+      "unit": "名",
+      "display": "11名"
+    },
+    {
+      "key": "outside_directors_count",
+      "label": "社外取締役候補者数",
+      "value": 5,
+      "unit": "名",
+      "display": "5名"
+    },
+    {
+      "key": "board_meeting_attendance",
+      "label": "取締役会出席率",
+      "value": 98.7,
+      "unit": "%",
+      "display": "98.7%"
+    },
+    {
+      "key": "shareholder_benefit",
+      "label": "株主優待基準",
+      "value": 100,
+      "unit": "株",
+      "display": "100株以上"
+    }
+  ]
+}

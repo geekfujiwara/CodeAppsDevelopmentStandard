@@ -2699,3 +2699,36 @@ el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
 ```
 
 非表示のタブ（台本タブを開いている間の記録の表など）の中の要素は描画されないため、先にタブを切り替えてから探す。
+
+## 63. 業務テンプレートから生成した直後に、生成サービスの import で型エラーになる（検証済 2026-10-02）
+
+### 症状
+
+scaffold 直後（データソース追加前）の `tsc` / `npm run build` が `Cannot find module '@/generated/services/...'` で止まる。
+
+### 原因
+
+生成サービスは `npx pa app add data-source` で作られる。静的 import しているとデータソースが無い状態ではビルドできない。
+カスタム コネクタのサービス名は表示名から作られるため、環境ごとに変わることもある。
+
+### 対処
+
+`import.meta.glob("../../generated/services/*Service.ts")` で遅延解決するモジュールを 1 つ置き、各所はそこから import する。
+見つからなければ `{ success: false, error }` を返して画面に追加手順を出す。カスタム コネクタは**操作名**（例: `GetAnswerTicket`）を持つサービスを探す。
+`templates/agm-qa-assist/src/lib/agm/services.ts` が実装例（scaffold 直後に typecheck・lint・build・単体テストが通ることを確認済み）。
+
+## 64. ヘッドレス撮影・E2E を途中で止めると、Edge が残ってアプリを動かし続ける（検証済 2026-10-02）
+
+### 症状
+
+次の撮影や E2E が極端に遅くなる（ビルド 21 分、台本の再生が数倍遅い）、生成 AI のチケットが試験の途中で切れる、LIVE の遅れが数十秒になる。
+
+### 原因
+
+撮影スクリプトを外から止めると `finally` の後片付けが走らず、ヘッドレス Edge（一時プロファイル）が残る。
+残った Edge はアプリを動かし続ける（文字のリハーサル・LIVE の配信・回答案の生成）。2 つ残っていた。
+
+### 対処（恒久対策済み）
+
+`capture_host_screens_realtime.mjs` は起動前に同じ接頭辞（`agm-cdp-`）の一時プロファイルの Edge を止め、SIGINT / SIGTERM でも自分の Edge を止める。
+自前の E2E でも同じ処理を入れる。重さを感じたら `Get-CimInstance Win32_Process -Filter "Name='msedge.exe'"` の `--user-data-dir` を確認する。

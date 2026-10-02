@@ -1,0 +1,137 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "AGM Speech Token Broker",
+    "description": "Azure AI Speech の短期認可トークンと、回答案の生成（ストリーム）を呼ぶための短期チケットを発行する。",
+    "version": "1.0"
+  },
+  "host": "{{FUNCTION_HOST}}",
+  "basePath": "/api",
+  "schemes": [
+    "https"
+  ],
+  "consumes": [],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/speech/token": {
+      "get": {
+        "operationId": "GetSpeechToken",
+        "summary": "Speech トークンを取得",
+        "description": "サインインした利用者として Speech の短期トークンとリージョンを取得する。",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "発行されたトークン",
+            "schema": {
+              "$ref": "#/definitions/SpeechToken"
+            }
+          },
+          "401": {
+            "description": "未認証"
+          },
+          "502": {
+            "description": "Speech トークンを発行できない"
+          }
+        }
+      }
+    },
+    "/answer/ticket": {
+      "get": {
+        "operationId": "GetAnswerTicket",
+        "summary": "回答案生成のチケットを取得",
+        "description": "サインインした利用者として、回答案の生成 API（Server-Sent Events）を 15 分間呼べるチケットと呼び出し先を取得する。",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "発行されたチケット",
+            "schema": {
+              "$ref": "#/definitions/AnswerTicket"
+            }
+          },
+          "401": {
+            "description": "未認証"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "SpeechToken": {
+      "type": "object",
+      "required": [
+        "token",
+        "region",
+        "expiresAt",
+        "expiresInSeconds"
+      ],
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Speech の認可トークン"
+        },
+        "region": {
+          "type": "string",
+          "description": "Speech リソースのリージョン"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "失効時刻（UTC）"
+        },
+        "expiresInSeconds": {
+          "type": "integer",
+          "format": "int32",
+          "description": "失効までの秒数"
+        }
+      }
+    },
+    "AnswerTicket": {
+      "type": "object",
+      "required": [
+        "ticket",
+        "endpoint",
+        "expiresAt",
+        "expiresInSeconds"
+      ],
+      "properties": {
+        "ticket": {
+          "type": "string",
+          "description": "生成 API の Authorization に Ticket として付ける値"
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "生成 API（POST、text/event-stream）の URL"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expiresInSeconds": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    }
+  },
+  "securityDefinitions": {
+    "oauth2-auth": {
+      "type": "oauth2",
+      "flow": "accessCode",
+      "authorizationUrl": "https://login.microsoftonline.com/common/oauth2/authorize",
+      "tokenUrl": "https://login.windows.net/common/oauth2/authorize",
+      "scopes": {
+        "{{API_SCOPE}}": "Speech.Token"
+      }
+    }
+  },
+  "security": [
+    {
+      "oauth2-auth": [
+        "{{API_SCOPE}}"
+      ]
+    }
+  ],
+  "tags": []
+}
