@@ -50,6 +50,8 @@ Cowork から Dataverse を直接操作できるようにする。
 |---|---|
 | [自前 MCP Server をコネクタにする](references/custom-mcp-connector.md) | Dataverse 外のデータ（基幹 DB / ファイルサーバー / 業務 API）を Cowork から扱う場合の差分手順 |
 | [営業支援 CRM プラグイン テンプレート](templates/sales-crm-plugin/README.md) | 予定表・メール・チャットからの活動登録 / 目標達成プラン / マネージャーの障害レビュー。Code Apps の `templates/sales-crm` と同じ Dataverse を共有し、scaffold で生成する |
+| [株主総会 想定問答アシスタント テンプレート](templates/agm-qa-plugin/README.md) | IR 抜粋を根拠に想定問答とリハーサル台本を**下書き**で登録・想定問答の点検。Code Apps の `templates/agm-qa-assist` と同じ Dataverse。変数は `--questions` で AskUserQuestion |
+| [必要な権限の案内](references/permissions.md) | 作る・同意する・登録する・公開する・使う人ごとの最小の権限と、利用者の Dataverse ロールの作り方（scaffold 直後に担当者と確認） |
 | [異常系・トラブルシュート](references/troubleshooting.md) | 実際に踏んだ失敗と恒久対策 |
 
 ## パッケージ構成（Skills + remote connector）
@@ -78,6 +80,8 @@ Cowork から Dataverse を直接操作できるようにする。
 | 4 | 管理者同意と MCP クライアント許可の担当者は誰か | tenant-wide consent の担当者と、環境の `allowedmcpclients` を変更できる担当者を記録している |
 | 5 | Teams Developer Portal と M365 管理センターの担当者は誰か | OAuth registration ID を作成でき、`AI Administrator` がパッケージの追加・公開・配布を実行できる |
 | 6 | 公開対象と検証範囲はどこまでか | 最初は単一テストユーザーまたはセキュリティ グループ、1 skill + 1 connector で合意している |
+
+> 担当ごとの必要な権限は [references/permissions.md](references/permissions.md) を見せて確認する（同意できるロール: クラウド アプリケーション管理者・アプリケーション管理者・AI 管理者）。
 
 Frontier は Cowork を利用するためのプレビュー条件であり、Microsoft Copilot ライセンスとは別に確認する。
 `Global Administrator` を常用せず、Agent 管理は `AI Administrator`、全テナントへの高権限な

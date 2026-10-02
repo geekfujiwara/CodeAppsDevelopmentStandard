@@ -1,0 +1,40 @@
+{
+  "tools": [
+    {
+      "name": "describe",
+      "description": "Get details about Dataverse tables, columns, relationships, picklist values, records, skills, or apps. Use before querying to confirm logical and lookup column names.",
+      "inputSchema": { "type": "object", "properties": { "query": { "type": "string", "description": "Table name, record reference, or schema element to describe." } }, "required": ["query"] },
+      "annotations": { "readOnlyHint": true, "title": "Describe" }
+    },
+    {
+      "name": "search",
+      "description": "Search Dataverse metadata (table schemas, business skills, apps) by keyword.",
+      "inputSchema": { "type": "object", "properties": { "query": { "type": "string", "description": "Keywords to search in metadata." } }, "required": ["query"] },
+      "annotations": { "readOnlyHint": true, "title": "Search Metadata" }
+    },
+    {
+      "name": "search_data",
+      "description": "Search records within Dataverse tables using structured or unstructured conditions.",
+      "inputSchema": { "type": "object", "properties": { "query": { "type": "string", "description": "What records to find." } }, "required": ["query"] },
+      "annotations": { "readOnlyHint": true, "title": "Search Data" }
+    },
+    {
+      "name": "read_query",
+      "description": "Run a Dataverse SQL SELECT query with filters, joins, and aggregations.",
+      "inputSchema": { "type": "object", "properties": { "query": { "type": "string", "description": "Dataverse SQL SELECT statement." } }, "required": ["query"] },
+      "annotations": { "readOnlyHint": true, "title": "Read Query" }
+    },
+    {
+      "name": "create_record",
+      "description": "Create a record in a Dataverse table. Use only after the user confirmed the values. Lookup columns take a JSON string {\"relatedTable\":\"<table>\",\"recordId\":\"<GUID>\"} under the lookup column logical name (not @odata.bind).",
+      "inputSchema": { "type": "object", "properties": { "tablename": { "type": "string", "description": "Logical name of the table." }, "item": { "type": "object", "description": "Column values for the new record." } }, "required": ["tablename", "item"] },
+      "annotations": { "readOnlyHint": false, "title": "Create CRM Record" }
+    },
+    {
+      "name": "update_record",
+      "description": "Update a record in a Dataverse table. Use only after the user confirmed the change. Lookup columns use the same JSON string format as create_record.",
+      "inputSchema": { "type": "object", "properties": { "tablename": { "type": "string", "description": "Logical name of the table." }, "recordId": { "type": "string", "description": "GUID of the record to update." }, "item": { "type": "object", "description": "Column values to update." } }, "required": ["tablename", "recordId", "item"] },
+      "annotations": { "readOnlyHint": false, "title": "Update CRM Record" }
+    }
+  ]
+}
