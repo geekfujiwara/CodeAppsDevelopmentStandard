@@ -102,4 +102,5 @@ python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --
 | スキル作成・更新 | .github/skills/update-skills/SKILL.md |
 | Azure リファレンスアーキテクチャ（セキュア構成） | .github/skills/azure-infra/SKILL.md |
 | MCP Server 開発（Azure Functions / Copilot Studio 連携） | .github/skills/mcp-server/SKILL.md |
+| リアルタイム音声文字起こし・録音（Azure AI Speech / Code Apps） | .github/skills/realtime-speech/SKILL.md |
 | SharePoint（Graph API・AAD アプリ登録不要） | .github/skills/sharepoint/SKILL.md |

@@ -1,0 +1,54 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "{{CONNECTOR_TITLE}}",
+    "description": "Azure AI Speech の短期認可トークン（約 9 分）を発行する。Code Apps からブラウザで Speech SDK を使うために利用する。",
+    "version": "1.0"
+  },
+  "host": "{{FUNCTION_HOST}}",
+  "basePath": "/api",
+  "schemes": ["https"],
+  "consumes": [],
+  "produces": ["application/json"],
+  "paths": {
+    "/speech/token": {
+      "get": {
+        "operationId": "GetSpeechToken",
+        "summary": "Speech トークンを取得",
+        "description": "サインインした利用者として Speech の短期トークンとリージョンを取得する。",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "発行されたトークン",
+            "schema": { "$ref": "#/definitions/SpeechToken" }
+          },
+          "401": { "description": "未認証" },
+          "502": { "description": "Speech トークンを発行できない" }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "SpeechToken": {
+      "type": "object",
+      "required": ["token", "region", "expiresAt", "expiresInSeconds"],
+      "properties": {
+        "token": { "type": "string", "description": "Speech の認可トークン" },
+        "region": { "type": "string", "description": "Speech リソースのリージョン" },
+        "expiresAt": { "type": "string", "format": "date-time", "description": "失効時刻（UTC）" },
+        "expiresInSeconds": { "type": "integer", "format": "int32", "description": "失効までの秒数" }
+      }
+    }
+  },
+  "securityDefinitions": {
+    "oauth2-auth": {
+      "type": "oauth2",
+      "flow": "accessCode",
+      "authorizationUrl": "https://login.microsoftonline.com/common/oauth2/authorize",
+      "tokenUrl": "https://login.windows.net/common/oauth2/authorize",
+      "scopes": { "{{API_SCOPE}}": "Speech.Token" }
+    }
+  },
+  "security": [{ "oauth2-auth": ["{{API_SCOPE}}"] }],
+  "tags": []
+}
