@@ -371,6 +371,12 @@ on-behalf-of 接続（custom-connector スキル）はこのクライアント�
 **対処**: `configure_connector_oauth.py` を再実行する。恒久対策済み — `ensure_obo_preauthorization()` が
 テナントにサービス プリンシパルが無ければ作り、スコープの事前承認に追加する（済みなら `[skip]`）。不要なら `--no-obo`。
 
+### デプロイ後の確認で GET 専用のルートが「404 未デプロイ」になる
+
+**原因**: `deploy_mcp_function.py` の確認が POST だけでルートを叩いていた。Functions のホストはメソッドが合わないルートにも 404 を返す。
+
+**対処**: 恒久対策済み — `probe_status()` が POST と GET の両方で確認し、`verify_routes()` はデプロイ直後の再起動を見込んで 15 秒おきに 3 回まで試す。
+
 ## データアクセス
 
 ### Azure Files への REST 呼び出しが 403 になる

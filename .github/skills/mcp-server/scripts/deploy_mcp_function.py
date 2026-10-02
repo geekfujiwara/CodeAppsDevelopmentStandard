@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -154,19 +155,39 @@ def publish(func: str, project: Path, app: str) -> None:
     print("".join(log.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)[-15:]))
 
 
-def verify_routes(app: str, routes: list[str]) -> bool:
-    """ルートを HTTP プローブする。401 = 存在して認可が動いている、404 = 未デプロイ。"""
+def probe_status(url: str) -> int:
+    """POST（MCP の tools/list）と GET の両方で叩き、404 以外が返ればその値を返す。
+    Functions のホストはメソッドが合わないルートにも 404 を返すため、GET 専用のルートを POST だけで調べると未デプロイと誤判定する。"""
+    status = 404
+    for method in ("POST", "GET"):
+        kwargs = {"json": {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}} if method == "POST" else {}
+        status = requests.request(method, url, timeout=60, **kwargs).status_code
+        if status != 404:
+            return status
+    return status
+
+
+def verify_routes(app: str, routes: list[str], attempts: int = 3, wait_seconds: int = 15) -> bool:
+    """ルートを HTTP プローブする。401 = 存在して認可が動いている、404 = 未デプロイ。
+    デプロイ直後はホストの再起動中で 404 になることがあるため、少し待って数回試す。"""
     ok = True
     for route in routes:
         url = f"https://{app}.azurewebsites.net/api/{route}"
-        try:
-            status = requests.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, timeout=60).status_code
-        except requests.RequestException as exc:
-            print(f"[verify] {route}: 接続失敗 {exc}")
-            ok = False
-            continue
+        status = 404
+        for attempt in range(attempts):
+            try:
+                status = probe_status(url)
+            except requests.RequestException as exc:
+                print(f"[verify] {route}: 接続失敗 {exc}")
+                status = -1
+            if status not in (404, -1):
+                break
+            if attempt + 1 < attempts:
+                time.sleep(wait_seconds)
         if status == 404:
-            print(f"[verify] {route}: 404 未デプロイ")
+            print(f"[verify] {route}: 404 未デプロイ（POST / GET とも。{attempts} 回試行）")
+            ok = False
+        elif status == -1:
             ok = False
         else:
             print(f"[verify] {route}: {status} OK（ルート存在）")
