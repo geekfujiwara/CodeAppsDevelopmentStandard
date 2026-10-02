@@ -262,6 +262,10 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py \
   --template .github/skills/code-apps/templates/generic-base --target {TARGET_DIR}
 # 業務テンプレートから始める場合は --template を差し替える（generic-base を extends 済み。例: 営業支援 CRM）
 #   --template .github/skills/code-apps/templates/sales-crm
+#   --template .github/skills/code-apps/templates/agm-qa-assist   # 株主総会 Q&A アシスト
+# scaffold.json に questions があるテンプレートは、値を AskUserQuestion で 1 問ずつ聞いてから生成する:
+#   --questions --env <answers.env> で未回答の質問（JSON）を出す → 1 問ずつ聞いて answers.env に追記 → [] になるまで繰り返す
+#   → --env <answers.env> --write-env {TARGET_DIR}/.env で生成（答えが .env にも入る）
 # 対象ディレクトリは空（.git / .github / .vscode / .env だけなら空とみなす）であること
 npm install --no-audit --no-fund
 
@@ -601,6 +605,7 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 |---|---|---|
 | [templates/generic-base](templates/generic-base/) | 完全なベース | 新規プロジェクトの出力先へ生成する |
 | [templates/sales-crm](templates/sales-crm/README.md) | 完全な業務テンプレート（generic-base を `extends`） | 営業支援 CRM（マネージャー ダッシュボード・営業ホーム・CRUD・Outlook/Teams/Cowork 連携）を空のディレクトリから生成する |
+| [templates/agm-qa-assist](templates/agm-qa-assist/README.md) | 完全な業務テンプレート（generic-base を `extends`・Azure Functions 同梱） | 株主総会 Q&A アシスト（連続の文字起こし・株主の AI 照合・想定問答の検索と根拠つき回答案・録音と記録・総会の集計・LIVE 共有）。**変数は `--questions` の順に AskUserQuestion で聞いてから生成**する |
 | [templates/account-link-admin](templates/account-link-admin/) | アドオン | 空の作業ディレクトリへ生成し、README に従ってホストへ統合する |
 | [templates/drawing-communication](templates/drawing-communication/) | アドオン | 空の作業ディレクトリへ生成・単体検証後、必要なモジュールをホストへ統合する |
 | [templates/modular-plant](templates/modular-plant/) | アドオン | 空の作業ディレクトリへ生成・単体検証後、必要なモジュールをホストへ統合する |
@@ -723,6 +728,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [テレメトリ / 可観測性パターン](references/telemetry-pattern.md) | `initializeLogger` / `Metric` 判別共用体・`sessionLoadSummary` SLI・PII サニタイズ規約・Application Insights 連携時の CSP |
 | [ユーザー識別](references/user-identity.md) | ログインユーザーの systemuserid 取得パターン（CSP 安全） |
 | [LIVE 共有パターン](references/live-share-pattern.md) | 1 人が操作し、特定の人に読み取り専用で同じ画面を見せる（Dataverse レコード 1 件の状態 + GrantAccess・1.2 秒配信 / 1.5 秒取得） |
+| [根拠と生成文の行を線で結ぶ](references/source-flow-pattern.md) | React Flow で検索結果（根拠）と生成文の各行を引用の関係で結ぶ（行ごとの接続点・左右配置・ホバー強調・E2E での着地確認） |
 | [ディープリンク](references/deep-link.md) | MDA / Power Automate から特定ページへパラメータ付き遷移 |
 | [フロー連携](references/flow-integration.md) | Power Automate フロー呼び出し・Copilot Studio 応答パース・エラーハンドリング |
 | [Copilot Studio コネクタ](references/copilot-studio-connector.md) | Copilot Studio エージェント直接呼び出し・会話継続・レスポンス解析 |

@@ -1,0 +1,192 @@
+{
+  "description": "株主総会 Q&A アシスト（連続の文字起こし・株主の AI 照合・想定問答の検索と根拠つき回答案のストリーム生成・録音と記録・総会の集計と評価・幹部への LIVE 共有）。generic-base を継承する完全テンプレート",
+  "extends": "../generic-base",
+  "preserveUndeclaredVariables": true,
+  "variables": [
+    "VITE_CODEAPPS_APP_NAME",
+    "VITE_CODEAPPS_DOCUMENT_TITLE",
+    "VITE_AGM_MEETING_TITLE",
+    "VITE_AGM_MEETING_DATE",
+    "TENANT_ID",
+    "ENV_ID",
+    "DATAVERSE_URL",
+    "VITE_DATAVERSE_URL",
+    "PUBLISHER_PREFIX",
+    "VITE_PUBLISHER_PREFIX",
+    "SOLUTION_NAME",
+    "SOLUTION_DISPLAY_NAME",
+    "VITE_AGM_SP_SITE_URL",
+    "VITE_AGM_SP_LIBRARY",
+    "AZURE_SUBSCRIPTION_ID",
+    "AZURE_RESOURCE_GROUP",
+    "AZURE_LOCATION",
+    "SPEECH_RESOURCE_NAME",
+    "AOAI_RESOURCE_NAME",
+    "AOAI_DEPLOYMENT",
+    "FUNCTION_APP_NAME"
+  ],
+  "optionalVariables": [
+    "AOAI_MODEL_VERSION",
+    "API_AUDIENCE",
+    "SOLUTION_ID",
+    "OPERATOR_UPN",
+    "VIEWER_UPN",
+    "MAI_SPEECH_RESOURCE_NAME",
+    "AOAI_DEPLOYMENTS"
+  ],
+  "questions": [
+    {
+      "variable": "VITE_CODEAPPS_APP_NAME",
+      "question": "アプリの表示名を決めてください（Power Apps の一覧とヘッダーに出ます）",
+      "choices": [
+        "株主総会 Q&A アシスト"
+      ],
+      "default": "株主総会 Q&A アシスト"
+    },
+    {
+      "variable": "VITE_CODEAPPS_DOCUMENT_TITLE",
+      "question": "（アプリの表示名と同じ）",
+      "sameAs": "VITE_CODEAPPS_APP_NAME"
+    },
+    {
+      "variable": "VITE_AGM_MEETING_TITLE",
+      "question": "最初に記録する株主総会の名前は何ですか？（例: 第43期 定時株主総会。後から画面で総会を追加・切り替えできます）"
+    },
+    {
+      "variable": "VITE_AGM_MEETING_DATE",
+      "question": "その株主総会の開催日は？（YYYY-MM-DD）"
+    },
+    {
+      "variable": "TENANT_ID",
+      "question": "Entra ID のテナント ID は？",
+      "detect": "az account show --query tenantId -o tsv"
+    },
+    {
+      "variable": "ENV_ID",
+      "question": "作成先の Power Platform 環境はどれですか？（既定環境は使わない。Dataverse・Code Apps が有効な開発用の環境）",
+      "detect": "pac env list（候補を choices にして聞く）。admin スキルの環境チェックで Code Apps・マネージド環境の有効化も確認する"
+    },
+    {
+      "variable": "DATAVERSE_URL",
+      "question": "その環境の Dataverse の URL は？（https://<org>.crm.dynamics.com/）",
+      "detect": "pac env list の Environment URL（ENV_ID で選んだ行）"
+    },
+    {
+      "variable": "VITE_DATAVERSE_URL",
+      "question": "（DATAVERSE_URL と同じ）",
+      "sameAs": "DATAVERSE_URL"
+    },
+    {
+      "variable": "PUBLISHER_PREFIX",
+      "question": "テーブルの接頭辞（パブリッシャーのプレフィックス）はどれを使いますか？",
+      "detect": "dataverse スキル Step 0（既存のパブリッシャーを一覧して choices にする。新規は利用者の承認が必要）"
+    },
+    {
+      "variable": "VITE_PUBLISHER_PREFIX",
+      "question": "（PUBLISHER_PREFIX と同じ）",
+      "sameAs": "PUBLISHER_PREFIX"
+    },
+    {
+      "variable": "SOLUTION_NAME",
+      "question": "ソリューションの一意名は？（英数字。既存のソリューションに入れる場合はその名前）",
+      "choices": [
+        "AGMQAAssist"
+      ],
+      "default": "AGMQAAssist"
+    },
+    {
+      "variable": "SOLUTION_DISPLAY_NAME",
+      "question": "ソリューションの表示名は？",
+      "choices": [
+        "株主総会 Q&A アシスト"
+      ],
+      "default": "株主総会 Q&A アシスト"
+    },
+    {
+      "variable": "VITE_AGM_SP_SITE_URL",
+      "question": "録音と総会のまとめを保存する SharePoint サイトの URL は？（https://<tenant>.sharepoint.com/sites/<site>。閲覧する幹部には権限を付けないサイトかライブラリにする）"
+    },
+    {
+      "variable": "VITE_AGM_SP_LIBRARY",
+      "question": "保存先のドキュメント ライブラリの名前（URL 名）は？（無ければ作成します）",
+      "choices": [
+        "AGMRecordings"
+      ],
+      "default": "AGMRecordings"
+    },
+    {
+      "variable": "AZURE_SUBSCRIPTION_ID",
+      "question": "Azure のサブスクリプションはどれを使いますか？",
+      "detect": "az account list --query \"[].{name:name,id:id}\" -o table（choices にして聞く）"
+    },
+    {
+      "variable": "AZURE_RESOURCE_GROUP",
+      "question": "Azure のリソース グループ名は？（無ければ作成。Speech・Azure OpenAI・Function をまとめる）",
+      "choices": [
+        "rg-agm-qa"
+      ],
+      "default": "rg-agm-qa"
+    },
+    {
+      "variable": "AZURE_LOCATION",
+      "question": "Azure のリージョンは？（Speech の認識と Function を置く場所。会場から近い方が遅延が小さい）",
+      "choices": [
+        "japaneast",
+        "japanwest",
+        "eastus2"
+      ],
+      "default": "japaneast"
+    },
+    {
+      "variable": "SPEECH_RESOURCE_NAME",
+      "question": "Azure AI Speech のリソース名は？（世界で一意。カスタム サブドメインにも使う。既存を使うならその名前）"
+    },
+    {
+      "variable": "AOAI_RESOURCE_NAME",
+      "question": "Azure OpenAI（AIServices）のリソース名は？（世界で一意。既存を使うならその名前）"
+    },
+    {
+      "variable": "AOAI_DEPLOYMENT",
+      "question": "回答案の生成と株主の照合に使うモデルは？（gpt-5.4-mini: 最初の文字 0.8〜1.1 秒・照合 12/12 で検証済み）",
+      "choices": [
+        "gpt-5.4-mini",
+        "gpt-4.1-mini"
+      ],
+      "default": "gpt-5.4-mini"
+    },
+    {
+      "variable": "AOAI_MODEL_VERSION",
+      "question": "モデルのバージョンは？（新しくデプロイするときだけ必要）",
+      "detect": "az cognitiveservices model list -l <AZURE_LOCATION> --query \"[?model.name=='<AOAI_DEPLOYMENT>'].model.version\" -o tsv"
+    },
+    {
+      "variable": "MAI_SPEECH_RESOURCE_NAME",
+      "question": "MAI-Transcribe（Azure Speech と精度を比べる・置き換える文字起こし）を使いますか？ 使うなら Foundry リソースの名前を決めてください（日本のリージョンでは未提供のため東南アジアに作り、確定文の録音が国外で処理されます。使わないなら空）"
+    },
+    {
+      "variable": "AOAI_DEPLOYMENTS",
+      "question": "設定画面で選べる AI モデル（デプロイ名・カンマ区切り）は？（既にデプロイ済みのもの。例: gpt-5.4-mini,gpt-4.1-mini）",
+      "default": "gpt-5.4-mini"
+    },
+    {
+      "variable": "FUNCTION_APP_NAME",
+      "question": "トークン発行・生成・照合を中継する Function App の名前は？（世界で一意。azure-infra の手順で作成します）"
+    },
+    {
+      "variable": "OPERATOR_UPN",
+      "question": "文字起こしを操作する担当者（オペレーター）のユーザー名は？（ロール「AGM オペレーター」を割り当てる。後で割り当てるなら空）"
+    },
+    {
+      "variable": "VIEWER_UPN",
+      "question": "LIVE で画面を見る幹部のユーザー名は？（ロール「AGM 閲覧（幹部）」を割り当てる。システム管理者ではない人で確認する）"
+    }
+  ],
+  "nextSteps": [
+    "README.md の「開始の手順」を上から実行する（Step 1〜10）",
+    "npm install --no-audit --no-fund; npm run test",
+    "python scripts/setup_dataverse.py --skip-localize",
+    "python scripts/configure_azure.py（計画を確認）→ --apply",
+    "npm run deploy",
+    "（任意）Cowork で想定問答・台本を作る: cowork スキルの templates/agm-qa-plugin を --questions で生成"
+  ]
+}

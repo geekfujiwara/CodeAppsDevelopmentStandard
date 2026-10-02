@@ -21,7 +21,16 @@ const port = 9300 + Math.floor(Math.random() * 500)
 const edge = [`${process.env["ProgramFiles(x86)"]}\\Microsoft\\Edge\\Application\\msedge.exe`, `${process.env.ProgramFiles}\\Microsoft\\Edge\\Application\\msedge.exe`].find((p) => existsSync(p))
 if (!edge) throw new Error("Microsoft Edge が見つかりません")
 mkdirSync(outDir, { recursive: true })
+// 途中で止めた前回の撮影の Edge が残ると、アプリ（録音・生成・ポーリング）を動かし続けて端末が重くなり、次の撮影や E2E が遅れる。
+// 起動前に同じ接頭辞の一時プロファイルの Edge を止め、Ctrl+C でも自分の Edge を止める
+const killByProfile = (pattern) =>
+  execFileSync("powershell", ["-NoProfile", "-Command", `Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" | Where-Object { $_.CommandLine -like '*${pattern}*' } | Sort-Object { $_.CommandLine -match '--type=' } | ForEach-Object { try { [Diagnostics.Process]::GetProcessById([int]$_.ProcessId).Kill() } catch {} }`], { stdio: "ignore" })
+killByProfile("agm-cdp-")
 const userData = mkdtempSync(join(tmpdir(), "agm-cdp-"))
+for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => {
+  killByProfile(userData)
+  process.exit(130)
+})
 const child = spawn(edge, ["--headless=new", `--user-data-dir=${userData}`, "--no-first-run", `--remote-debugging-port=${port}`, `--window-size=${width},${height}`, "about:blank"], { stdio: "ignore", detached: true })
 child.unref()
 
@@ -44,7 +53,11 @@ function stopAll() {
   // 親（--type の無いブラウザー プロセス）から止め、残りも止める
   const ps = `Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" | Where-Object { $_.CommandLine -like '*${userData.replaceAll("'", "''")}*' } | Sort-Object { $_.CommandLine -match '--type=' } | ForEach-Object { try { [Diagnostics.Process]::GetProcessById([int]$_.ProcessId).Kill() } catch {} }`
   for (let i = 0; i < 3; i++) execFileSync("powershell", ["-NoProfile", "-Command", ps], { stdio: "ignore" })
-  rmSync(userData, { recursive: true, force: true })
+  try {
+    rmSync(userData, { recursive: true, force: true })
+  } catch {
+    // 終了直後はファイルがロックされていることがある（一時フォルダーなので残してよい）
+  }
 }
 
 try {

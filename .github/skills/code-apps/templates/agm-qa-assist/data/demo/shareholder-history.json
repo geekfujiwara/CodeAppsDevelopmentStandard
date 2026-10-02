@@ -1,0 +1,46 @@
+{
+  "meeting": { "title": "第41期 定時株主総会", "date": "2025-06-25" },
+  "turns": [
+    {
+      "code": "H41-0123",
+      "shareholderNumber": "0123",
+      "startedAt": "2025-06-25T01:12:00Z",
+      "durationSec": 74,
+      "transcript": "株主番号0123の青山です。年間配当が前の期より増えた理由と、配当性向の考え方を教えてください。",
+      "questions": [
+        { "seq": 1, "category": "配当・株主還元", "excerpt": "年間配当が前の期より増えた理由と、配当性向の考え方を教えてください。", "qaCode": "QA-001" }
+      ]
+    },
+    {
+      "code": "H41-1024",
+      "shareholderNumber": "1024",
+      "startedAt": "2025-06-25T01:20:00Z",
+      "durationSec": 92,
+      "transcript": "株主番号1024番の古賀です。社外取締役の構成と、取締役会の実効性評価の結果を伺いたいです。",
+      "questions": [
+        { "seq": 1, "category": "ガバナンス・役員", "excerpt": "社外取締役の構成と、取締役会の実効性評価の結果を伺いたいです。", "qaCode": "QA-015" }
+      ]
+    },
+    {
+      "code": "H41-1188",
+      "shareholderNumber": "1188",
+      "startedAt": "2025-06-25T01:31:00Z",
+      "durationSec": 65,
+      "transcript": "株主番号1188番の浜野です。CO2の削減目標はどの程度進んでいるのでしょうか。",
+      "questions": [
+        { "seq": 1, "category": "ESG・環境", "excerpt": "CO2の削減目標はどの程度進んでいるのでしょうか。", "qaCode": "QA-020" }
+      ]
+    },
+    {
+      "code": "H41-1601",
+      "shareholderNumber": "1601",
+      "startedAt": "2025-06-25T01:40:00Z",
+      "durationSec": 110,
+      "transcript": "株主番号1601番の三枝です。株価が低迷していますが、会社としてどう見ているのか。また自社株買いの予定はあるのか教えてください。",
+      "questions": [
+        { "seq": 1, "category": "株価・IR・情報開示", "excerpt": "株価が低迷していますが、会社としてどう見ているのか。", "qaCode": "QA-031" },
+        { "seq": 2, "category": "配当・株主還元", "excerpt": "また自社株買いの予定はあるのか教えてください。", "qaCode": "QA-004" }
+      ]
+    }
+  ]
+}
