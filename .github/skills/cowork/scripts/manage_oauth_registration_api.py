@@ -1,7 +1,9 @@
-"""Teams Developer Portal OAuth API の承認 plan を生成する。
+"""Teams Developer Portal の OAuth client registration を、承認 plan → 実行 → 読み戻しで管理する。
 
-非公開 API のため、portal build で観測済みの DTO だけを許可する。実行はログイン済み
-VS Code 統合ブラウザの同一セッションで行い、変更前にこの plan hash を承認する。
+非公開 API のため、portal build で観測済みの DTO だけを許可する。変更前に plan hash を承認する。
+既定（--transport cli）は auth_helper で Microsoft 365 Agents Toolkit の公開クライアント
+（Device Code。初回だけサインイン）のトークンを取り、https://dev.teams.microsoft.com/api/v1.0/oauthConfigurations を直接呼ぶ。
+--transport browser は従来どおり plan だけを出し、ログイン済み統合ブラウザの同一セッションから送る。
 """
 
 from __future__ import annotations
@@ -42,6 +44,72 @@ ALLOWED_FIELDS = {
     "tokenExchangeMethodType",
 }
 SECRET_KEYS = {"clientSecret", "accessToken", "refreshToken", "token"}
+# Developer Portal が事前承認している公開クライアント（Agents Toolkit）。PAC CLI / Graph PowerShell / Azure CLI 互換では
+# AADSTS65002 / AADSTS650057 / 401・403 になる。interactive（ループバック）は AADSTS70007 のため Device Code を使う
+TOOLKIT_CLIENT_ID = "7ea7c24c-b1f6-4a20-9d11-9ae12e9e7ac0"
+PORTAL_SCOPE = "https://dev.teams.microsoft.com/AppDefinitions.ReadWrite"
+CLI_BASE = "https://dev.teams.microsoft.com/api/v1.0/oauthConfigurations"
+# 読み戻しで一致を確かめる項目（秘密は返らないので含めない）
+READBACK_FIELDS = ("description", "applicableToApps", "targetAudience", "clientId", "identityProvider",
+                   "targetUrlsShouldStartWith", "isPKCEEnabled", "scopes", "authorizationEndpoint")
+
+
+def mask(value: str) -> str:
+    return f"…{value[-4:]}" if value else ""
+
+
+def portal_call(method: str, suffix: str = "", body: dict[str, Any] | None = None) -> Any:
+    import requests  # noqa: PLC0415
+    from auth_helper import get_token  # noqa: PLC0415
+
+    token = get_token(PORTAL_SCOPE, client_id=TOOLKIT_CLIENT_ID)
+    res = requests.request(method, CLI_BASE + suffix, json=body, timeout=60,
+                           headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+    if res.status_code >= 400:
+        text = res.text[:300]
+        if body and body.get("clientSecret"):
+            text = text.replace(body["clientSecret"], "<redacted>")
+        raise SystemExit(f"{method} oauthConfigurations{suffix} → {res.status_code}: {text}")
+    return res.json() if res.content else None
+
+
+def list_items() -> list[dict[str, Any]]:
+    data = portal_call("GET")
+    return data if isinstance(data, list) else (data or {}).get("value", [])
+
+
+def summarize(item: dict[str, Any]) -> dict[str, Any]:
+    return {"id": mask(str(item.get("oAuthConfigId", ""))), "description": item.get("description"),
+            "identityProvider": item.get("identityProvider"), "clientId": item.get("clientId"),
+            "targetUrlsShouldStartWith": item.get("targetUrlsShouldStartWith")}
+
+
+def verify_readback(expected: dict[str, Any], actual: dict[str, Any]) -> None:
+    diff = [key for key in READBACK_FIELDS if key in expected and actual.get(key) != expected[key]]
+    if diff:
+        raise SystemExit("読み戻しが plan と一致しません: " + ", ".join(diff))
+
+
+def raw_registration_id(config_id: str, tenant_id: str) -> str:
+    """API の oAuthConfigId は Base64("<tenantId>##<registrationId>")。.env には生の registration ID を保存する
+    （manifest の referenceId へのエンコードは build_agent_package.ps1 が行う）。"""
+    import base64  # noqa: PLC0415
+
+    try:
+        decoded = base64.b64decode(config_id, validate=True).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        return config_id
+    prefix = f"{tenant_id}##" if tenant_id else ""
+    if prefix and decoded.startswith(prefix):
+        return decoded[len(prefix):]
+    return decoded.split("##", 1)[1] if "##" in decoded else config_id
+
+
+def write_env(path: str, key: str, value: str) -> None:
+    env = Path(path)
+    lines = env.read_text(encoding="utf-8").splitlines() if env.exists() else []
+    lines = [line for line in lines if not line.startswith(f"{key}=")] + [f"{key}={value}"]
+    env.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def canonical_hash(value: dict[str, Any]) -> str:
@@ -117,16 +185,25 @@ def approved_apply(args: argparse.Namespace, plan: dict[str, Any], operation) ->
     if args.expected_hash != digest:
         raise SystemExit("承認済み plan hash が一致しません。")
     result = operation()
-    print("READY_FOR_BROWSER_API")
+    if getattr(args, "transport", "browser") == "browser":
+        print("READY_FOR_BROWSER_API")
     return result
 
 
 def list_registrations(args: argparse.Namespace) -> None:
+    if args.transport == "cli":
+        items = [i for i in list_items() if not args.identity_provider or i.get("identityProvider") == args.identity_provider]
+        print(json.dumps([summarize(i) for i in items], ensure_ascii=False, indent=2))
+        return
     suffix = f"?identityProvider={quote(args.identity_provider, safe='')}" if args.identity_provider else ""
     print(json.dumps({"method": "GET", "url": f"{api_base(args.region)}/v1.0/oauthconfigurations{suffix}"}, indent=2))
 
 
 def get_registration(args: argparse.Namespace) -> None:
+    if args.transport == "cli":
+        item = portal_call("GET", "/" + quote(args.registration_id, safe=""))
+        print(json.dumps({**redact(item), "oAuthConfigId": mask(str(item.get("oAuthConfigId", "")))}, ensure_ascii=False, indent=2))
+        return
     print(json.dumps({
         "method": "GET",
         "url": f"{api_base(args.region)}/v1.0/oauthconfigurations/{quote(args.registration_id, safe='')}",
@@ -165,13 +242,32 @@ def create_registration(args: argparse.Namespace) -> None:
     payload = create_payload(args)
     plan = {
         "operation": "create-oauth-registration",
+        "transport": args.transport,
         "region": args.region,
         "method": "POST",
         "path": "/v1.0/oauthconfigurations",
         "payload": {**redact(payload), "clientSecretSha256": hashlib.sha256(payload["clientSecret"].encode()).hexdigest()},
     }
+    if args.transport == "cli":
+        # 同じ clientId・Base URL の登録が既にあると、どちらが manifest の referenceId か分からなくなる
+        same = [i for i in list_items() if i.get("clientId") == payload["clientId"]
+                and i.get("targetUrlsShouldStartWith") == payload["targetUrlsShouldStartWith"]]
+        if same and not args.allow_duplicate:
+            ids = ", ".join(mask(str(i.get("oAuthConfigId"))) for i in same)
+            raise SystemExit(f"同じ clientId・Base URL の登録が既にあります（{ids}）。update で直すか、--allow-duplicate を付けてください。")
 
-    approved_apply(args, plan, lambda: None)
+    def run() -> None:
+        if args.transport != "cli":
+            return None
+        created = portal_call("POST", body=payload)
+        config_id = registration_id(created)
+        verify_readback(payload, portal_call("GET", "/" + quote(config_id, safe="")))
+        if args.write_env:
+            write_env(args.write_env, "COWORK_OAUTH_REGISTRATION_ID", raw_registration_id(config_id, os.getenv("TENANT_ID", "")))
+        print(f"✅ 作成して読み戻しが一致しました（ID {mask(config_id)}）" + (f"。{args.write_env} に保存" if args.write_env else ""))
+        return None
+
+    approved_apply(args, plan, run)
 
 
 def load_update_payload(path: str) -> dict[str, Any]:
@@ -194,13 +290,20 @@ def update_registration(args: argparse.Namespace) -> None:
         plan_payload["clientSecretSha256"] = hashlib.sha256(payload["clientSecret"].encode()).hexdigest()
     plan = {
         "operation": "update-oauth-registration",
+        "transport": args.transport,
         "region": args.region,
         "method": "PATCH",
         "path": f"/v1.0/oauthconfigurations/{config_id}",
         "payload": plan_payload,
     }
 
-    approved_apply(args, plan, lambda: None)
+    def run() -> None:
+        if args.transport == "cli":
+            portal_call("PATCH", "/" + config_id, body=payload)
+            verify_readback(payload, portal_call("GET", "/" + config_id))
+            print("✅ 更新して読み戻しが一致しました")
+
+    approved_apply(args, plan, run)
 
 
 def delete_registration(args: argparse.Namespace) -> None:
@@ -208,12 +311,20 @@ def delete_registration(args: argparse.Namespace) -> None:
     path = f"/v1.0/oauthconfigurations/{config_id}"
     plan = {
         "operation": "delete-oauth-registration",
+        "transport": args.transport,
         "region": args.region,
         "method": "DELETE",
         "path": path,
     }
 
-    approved_apply(args, plan, lambda: None)
+    def run() -> None:
+        if args.transport == "cli":
+            portal_call("DELETE", "/" + config_id)
+            if any(str(i.get("oAuthConfigId")) == args.registration_id for i in list_items()):
+                raise SystemExit("削除後も一覧に残っています")
+            print("✅ 削除して一覧から消えたことを確認しました")
+
+    approved_apply(args, plan, run)
 
 
 def add_common(parser: argparse.ArgumentParser) -> None:
@@ -222,6 +333,8 @@ def add_common(parser: argparse.ArgumentParser) -> None:
         choices=sorted(REGION_BASES),
         default=os.getenv("COWORK_PORTAL_REGION", "amer").lower(),
     )
+    parser.add_argument("--transport", choices=["cli", "browser"], default=os.getenv("COWORK_PORTAL_TRANSPORT", "cli"),
+                        help="cli: Agents Toolkit クライアントで直接呼ぶ（既定） / browser: 統合ブラウザから送る plan だけを出す")
 
 
 def add_apply(parser: argparse.ArgumentParser) -> None:
@@ -262,6 +375,8 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["PostRequestBody", "BasicAuthorizationHeader"],
         default="PostRequestBody",
     )
+    create_parser.add_argument("--write-env", help="作成した registration ID を書き込む .env（値は画面に出さない）")
+    create_parser.add_argument("--allow-duplicate", action="store_true")
     create_parser.set_defaults(handler=create_registration)
 
     update_parser = commands.add_parser("update", help="OAuth registration を PATCH")
@@ -280,6 +395,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    except AttributeError:
+        pass
     args = build_parser().parse_args()
     args.handler(args)
 

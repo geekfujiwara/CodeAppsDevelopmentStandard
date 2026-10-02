@@ -90,6 +90,7 @@ ALLOWLIST = {
     "270bd3db-d9af-4782-9025-509e298dec0a",  # Lookup フォームコントロール CLASSID（全環境固定）
     "04b07795-8ddb-461a-bbee-02f9e1bf7b46",  # Azure CLI の well-known パブリッククライアント ID（固定）
     "1950a258-227b-4e31-a9cf-717495945fc2",  # Azure PowerShell の well-known パブリッククライアント ID（固定）
+    "7ea7c24c-b1f6-4a20-9d11-9ae12e9e7ac0",  # Microsoft 365 Agents Toolkit の well-known パブリッククライアント ID（固定）
     "14d82eec-204b-4c2f-b7e8-296a70dab67e",  # Microsoft Graph PowerShell の well-known パブリッククライアント ID（固定）
     "5a807f24-c9de-44ee-a3a7-329e88a00ffc",  # Messaging Bot API Application の appId（全テナント共通）
     "fdcc1f02-fc51-4226-8753-f668596af7f7",  # Work IQ 第一者アプリの appId（全テナント共通）

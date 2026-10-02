@@ -107,7 +107,8 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
 | [scripts/build_agent_package.ps1](scripts/build_agent_package.ps1) | `.env` の `COWORK_OAUTH_REGISTRATION_ID`（引用符付きでも可）を manifest.json のプレースホルダーに注入し、必須ファイルを検証して .zip を生成（Step 7） |
 | [scripts/manage_agent_package_graph.py](scripts/manage_agent_package_graph.py) | Graph v1.0 で組織アプリを一覧し、Graph で管理している app package を更新（Step 8 代替） |
 | [scripts/build_cowork_publish_payloads.py](scripts/build_cowork_publish_payloads.py) | `stageCustomApp()` の結果から新規公開（finalize / allow / deploy）または更新（UPDATEAPP）の plan payload を生成（Step 8 / 10） |
-| [scripts/manage_oauth_registration_api.py](scripts/manage_oauth_registration_api.py) | Developer Portal OAuth private API の CRUD plan を検証（Step 5）。実送信はログイン済み統合ブラウザ session で行う |
+| [scripts/manage_oauth_registration_api.py](scripts/manage_oauth_registration_api.py) | Developer Portal OAuth registration の CRUD（Step 5）。plan → hash 承認 → CLI から送信 → 読み戻し → `.env` に生の ID。重複は事前に止める。`--transport browser` で統合ブラウザ用の plan だけを出す |
+| [scripts/install_agent_package_personal.py](scripts/install_agent_package_personal.py) | 作成者が自分だけにインストール／アンインストールする（Step 8 の前の個人テスト）。ZIP の事前検証 → plan → hash 承認 → launchInfo で照合 |
 | [../admin/scripts/manage_m365_portal_api.py](../admin/scripts/manage_m365_portal_api.py) | Agent Registry の Finalize / Allow / Install / Update / Permission plan を検証（Step 8 / 10） |
 | [../admin/scripts/m365_portal_browser_runner.mjs](../admin/scripts/m365_portal_browser_runner.mjs) | `stageCustomApp()` で ZIP をステージし、承認済み plan を browser session API で実行して poll と read-back を検証（Step 8 / 10） |
 
@@ -305,19 +306,21 @@ python .github/skills/cowork/scripts/register_mcp_client.py --app-id <CLIENT_ID>
 
 ### Step 5: OAuth client registration API → registrationId 取得
 
-正常系は Developer Portal private API の CRUD。CLI で payload と `PLAN_HASH` を検証し、承認後に
-ログイン済み VS Code 統合ブラウザから同一オリジン API を直接実行して GET で読み戻す。
-専用 portal client は Device Code flow を許可せず `AADSTS7000218` になるため、Bearer token や Cookie を
-CLI へ取り出さない。手順と endpoint は [portal-api-automation.md](references/portal-api-automation.md)を参照。
+正常系は Developer Portal private API の CRUD を **CLI から直接**送る。`auth_helper` で Microsoft 365 Agents Toolkit の
+公開クライアント（Developer Portal が事前承認済み）のトークンを取り、`/api/v1.0/oauthConfigurations` を呼ぶ。
+初回だけ Device Code のサインインが要り、以後はキャッシュで無操作になる。同じ clientId・Base URL の登録が既にあれば止まり、
+作成後は読み戻して plan と一致するかを確かめ、**生の registration ID** を `.env` に書く（画面には末尾だけ出す）。
+手順と endpoint は [portal-api-automation.md](references/portal-api-automation.md)を参照。
 
 ```powershell
 python .github/skills/cowork/scripts/manage_oauth_registration_api.py create `
-  --name "Dataverse MCP OAuth" --base-url $env:DATAVERSE_URL `
+  --name "Dataverse MCP OAuth (<plugin>)" --base-url $env:DATAVERSE_URL `
   --scopes "$env:DATAVERSE_URL/.default,offline_access"
-# 承認後、同じ引数に --expected-hash <APPROVED_HASH> --apply
+# 承認後、同じ引数に --write-env .env --expected-hash <APPROVED_HASH> --apply
 ```
 
-API が `401` / `403` / `404`、または観測済み schema と一致しない場合だけフォーム操作へ切り替える。
+CLI のトークンが取れない（Device Code が条件付きアクセスで禁止など）場合は `--transport browser` で plan を出し、
+ログイン済み VS Code 統合ブラウザから送る。API が `401` / `403` / `404`、または観測済み schema と一致しない場合だけフォーム操作へ切り替える。
 [ブラウザ自動化方針](../standard/references/browser-automation.md)に従い、使用する Edge プロファイルを確認する。
 
 [dev.teams.microsoft.com/tools](https://dev.teams.microsoft.com/tools) → Tools →
@@ -458,6 +461,16 @@ ZIP 検証: ルートに `manifest.json`（build 後、プレースホルダー�
 
 ### Step 8: 管理センター private API で新規登録・公開する
 
+> **組織への公開の前に、作成者が自分だけにインストールして確かめる**（管理者ロール不要・CLI だけで完結）。
+> `atk install --scope Personal` と同じ M365 Title サービスの API を、Step 5 と同じ Agents Toolkit クライアントで呼ぶ。
+> ZIP の事前検証（プレースホルダー残り・manifest の位置）→ plan → hash 承認 → upload → acquire → poll →
+> `launchInfo` でスキル数・コネクタ数・`blockStatus` を照合する。
+>
+> ```powershell
+> python .github/skills/cowork/scripts/install_agent_package_personal.py install --package <zip>
+> # 承認後、同じ引数に --expected-hash <APPROVED_HASH> --apply。外すときは uninstall --title-id <titleId>
+> ```
+
 **private API を正常系にする**（UI ウィザードと同じ request を、ログイン済み VS Code 統合ブラウザの同一 session から送る）。
 Graph の `appCatalogs/teamsApps` は `agentSkills` / `agentConnectors` を持つパッケージを成功応答のまま破棄することがある
 （troubleshooting #26）ため、新規登録には使わない。契約の詳細は [admin の M365 テナント管理 API](../admin/references/m365-tenant-api.md)。
@@ -545,7 +558,7 @@ API が401/403/404、schema不一致、read-back不一致の場合だけ、次�
 
 ### Step 9: Cowork で利用・初回同意
 
-1. Cowork でスキルのトリガー語（例: 「年間レビュー資料を作って」）を入力
+1. Cowork の **Customize → Plugins** でプラグインを有効にし、スキルのトリガー語（例: 「年間レビュー資料を作って」）を入力
 2. 初回は Dataverse MCP コネクタの **OAuth 同意**が走る（Enterprise Token Store 経由）
 3. 同意後、`read_query` 等が実行されデータ取得 → 資料生成
 

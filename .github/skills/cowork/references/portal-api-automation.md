@@ -16,12 +16,12 @@
 |---|---|---|
 | plugin import/export | `atk import openplugin` / `atk export openplugin` | Agents Toolkit CLI 1.1.12 以上 |
 | package/validate | `atk package` | manifest と package の事前検証 |
-| 個人テスト | `atk install --file-path ... --scope Personal` | `TitleId` / `AppId` を保存 |
+| 個人テスト | `install_agent_package_personal.py install`（`atk install --scope Personal` と同じ Title サービス API） | `titleId` を保存。外すときは `uninstall` |
 | 組織カタログ一覧 | `manage_agent_package_graph.py list` | Graph v1.0 |
 | プラグイン新規登録・公開 | `stageCustomApp(DEPLOY)` → `agent-publish`(FINALIZEPACKAGE) → `agent-allow` → `agent-lifecycle`(DEPLOY) | private API、admin browser session。payload は `build_cowork_publish_payloads.py --mode new` |
 | プラグイン更新 | `stageCustomApp(UPDATEAPP)` → `agent-update-app` | private API。公開対象と Connect を維持。payload は `--mode update` |
 | Graph 登録済みプラグインの更新 | `manage_agent_package_graph.py deploy` | Graph で読み戻せるものだけ。新規登録には使わない（troubleshooting #26） |
-| OAuth client registration | `GET/POST/PATCH/DELETE /v1.0/oauthconfigurations` | private API、portal Bearer session |
+| OAuth client registration | `GET/POST/PATCH/DELETE https://dev.teams.microsoft.com/api/v1.0/oauthConfigurations` | private API。Agents Toolkit クライアントのトークンで CLI から（`manage_oauth_registration_api.py`） |
 | Agent Registry の Install/Uninstall | `POST /fd/addins/api/apps` | private API、admin browser session |
 | Agent Registry の Publish/Finalize | `POST /fd/addins/api/v2/actionableApps` | private API、admin browser session |
 | Agent 利用要求の承認 | `POST /fd/addins/api/agentActions/approve` | private API、admin browser session |
@@ -60,8 +60,26 @@ HTTP status の一致を確認した。Developer Portal の build は画面と�
 | Agent tools | `GET https://admin.cloud.microsoft/admin/api/agentssettings/agenttools` | なし | `200` |
 
 OAuth registration の list/get/create/update/delete を確認済み。region は `cosmicprodamer` / `apac` / `emea`。
-専用 portal client の Device Code 認証は `AADSTS7000218` になるため、CLI へ token を移送せず、ログイン済み
-Developer Portal 内から direct API を実行する。package 登録・更新は引き続き Graph v1.0 を正常系とする。
+Developer Portal の専用 portal client の Device Code 認証は `AADSTS7000218` になる。CLI からは下表の Agents Toolkit クライアントを使う
+（統合ブラウザ内の direct API は `--transport browser` の代替経路）。package の組織公開は管理センターの private API を正常系とする。
+
+auth_helper のクライアントで Developer Portal 向けのトークンを取れるか（2026-10-03 実測）:
+
+| クライアント | 結果 |
+|---|---|
+| 既定（Azure CLI 互換） | トークンは出る（`scp=user_impersonation`）が、`/cosmicprodamer/v1.0/oauthconfigurations` は 401、`/api/v1.0/oauthConfigurations` は 403 |
+| PAC CLI `9cee029c-…` | `AADSTS65002`（Developer Portal が事前承認していない） |
+| Graph PowerShell `14d82eec-…` | `AADSTS650057`（Graph 以外のリソースは要求できない） |
+| **Agents Toolkit `7ea7c24c-…`**（スコープ `https://dev.teams.microsoft.com/AppDefinitions.ReadWrite`） | **Device Code で取得でき（`scp=AppDefinitions.ReadWrite Cards.ReadWrite`）、`/api/v1.0/oauthConfigurations` の一覧・作成・読み戻しが 200**。`/cosmicprodamer/...` は 403。`AUTH_MODE=interactive` は `AADSTS70007` |
+
+拒否されたクライアントで再試行しても結果は変わらない。OAuth registration は Agents Toolkit クライアントでの CLI 送信を正常系にする。
+同じクライアントで M365 Title サービス（`https://titles.prod.mos.microsoft.com/.default`、トークンは暗号化 JWE で中身は読めない）も
+サイレントに取れ、個人インストール（`/dev/v1/users/packages` → `/acquisitions` → `/status/{id}` → `/catalog/v1/users/titles/{titleId}/launchInfo`）
+と取り消し（`DELETE /catalog/v1/users/acquisitions/{titleId}`）が成功する（2026-10-03 実測）。
+管理センターの組織公開（`/fd/addins/api/...`）は管理センターの session（`ajaxsessionkey` 等）が要るため、引き続き統合ブラウザから送る。
+
+`oAuthConfigId` は `Base64("<tenantId>##<registrationId>")` の形で返る。`.env` の `COWORK_OAUTH_REGISTRATION_ID` には
+生の registration ID を保存する（`manage_oauth_registration_api.py --write-env` が変換する）。
 
 変更は `manage_oauth_registration_api.py` または admin の `manage_m365_portal_api.py` で dry-run し、
 `PLAN_HASH` 承認後に `--apply` で `READY_FOR_BROWSER_API` を得る。その plan だけを admin の

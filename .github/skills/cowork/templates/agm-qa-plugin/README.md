@@ -31,6 +31,8 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 ## 公開
 
 [cowork スキル](../../SKILL.md) の Step 3〜8（Entra OAuth アプリ → `allowedmcpclients` → OAuth client registration → ビルド → 管理センター private API）。
+OAuth client registration は CLI から作れる（`manage_oauth_registration_api.py create ... --write-env .env`）。組織に公開する前に、
+作成者が `install_agent_package_personal.py install` で自分だけに入れて、Cowork で下書きの作成を確かめる。
 既存の Cowork 用 OAuth 登録が同じ環境にあれば Step 3〜5 を再利用できる。
 
 ```powershell
