@@ -244,6 +244,20 @@ def validate_templates(skill_dir: Path, rep: Report) -> None:
             rep.err(f"{label}: 変数 ${{{name}}} が {SCAFFOLD_MANIFEST} で宣言されていない")
         for name in sorted(declared - used):
             rep.warn(f"{label}: {SCAFFOLD_MANIFEST} の {name} はテンプレートで使われていない")
+        # 質問（AskUserQuestion で聞く値）は宣言済みの変数だけを指す。選択肢は空にしない
+        questions = manifest.get("questions", [])
+        for question in questions:
+            variable = str(question.get("variable", ""))
+            if variable not in declared:
+                rep.err(f"{label}: questions の {variable or '(variable なし)'} が宣言されていない変数を指している")
+            if not str(question.get("question", "")).strip():
+                rep.err(f"{label}: questions の {variable} に question（聞く文）が無い")
+            if "choices" in question and not question.get("choices"):
+                rep.err(f"{label}: questions の {variable} の choices が空")
+        if questions:
+            asked = {str(q.get("variable", "")) for q in questions}
+            for name in sorted({str(v) for v in manifest.get("variables", [])} - asked):
+                rep.warn(f"{label}: 必須の {name} に質問が無い（名前だけで聞くことになる）")
         if env_keys:
             for name in sorted(declared - derived - env_keys):
                 rep.warn(f"{label}: {name} が references/.env.example に無い（値の取得元が書かれていない）")

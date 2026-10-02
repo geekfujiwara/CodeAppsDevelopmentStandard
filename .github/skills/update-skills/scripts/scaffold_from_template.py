@@ -19,7 +19,8 @@
       "optionalVariables": ["IMAGE_MODEL_DEPLOYMENT"],
       "derivedVariables": ["PKG"],
       "blockFiles": {"B17": ["image_tools.py"]},
-      "nextSteps": ["python scripts/provision_image_model.py --execute"]
+      "nextSteps": ["python scripts/provision_image_model.py --execute"],
+      "questions": [{"variable": "AGENT_NAME", "question": "エージェントの表示名は？", "default": "アシスタント"}]
     }
 
 `variables` / `optionalVariables` は `.env` から取る値、`derivedVariables` は
@@ -40,6 +41,8 @@
     python scaffold_from_template.py --template <dir> --target <dir> [--dry-run]
     python scaffold_from_template.py --template <dir> --target <dir> --blocks B1,B17 --force
     python scaffold_from_template.py --template <dir> --list-variables
+    python scaffold_from_template.py --template <dir> --questions [--env answers.env]   # 未回答の質問（JSON）
+    python scaffold_from_template.py --template <dir> --target <dir> --env answers.env --write-env <dir>/.env
 
 終了コード: 0 = 成功、2 = 入力エラー、3 = 未解決の変数が残った。
 """
@@ -87,6 +90,7 @@ class Manifest:
     preserve_undeclared_variables: bool = False
     block_files: dict[str, list[str]] = field(default_factory=dict)
     next_steps: list[str] = field(default_factory=list)
+    questions: list[dict] = field(default_factory=list)
 
     @classmethod
     def load(cls, template: Path) -> "Manifest":
@@ -106,6 +110,7 @@ class Manifest:
             preserve_undeclared_variables=bool(raw.get("preserveUndeclaredVariables", False)),
             block_files={str(k): [str(f) for f in v] for k, v in (raw.get("blockFiles") or {}).items()},
             next_steps=[str(s) for s in raw.get("nextSteps", [])],
+            questions=[dict(q) for q in raw.get("questions", []) if isinstance(q, dict) and q.get("variable")],
         )
 
     def declared(self) -> set[str]:
@@ -129,6 +134,8 @@ class Manifest:
                 merged.block_files.setdefault(block, []).extend(names)
             if current.next_steps:
                 merged.next_steps = current.next_steps
+            for question in current.questions:
+                merged.questions = [q for q in merged.questions if q["variable"] != question["variable"]] + [question]
         return merged
 
 
@@ -195,8 +202,44 @@ def resolve_variables(manifest: Manifest, env_path: Path, overrides: dict[str, s
         if name not in values and os.environ.get(name):
             values[name] = os.environ[name]
     values.update(overrides)
+    # 任意の変数は、答えが無ければ空にする（「無くても生成できる値」。未解決として止めない）
+    for name in manifest.optional_variables:
+        values.setdefault(name, "")
+    # 質問の sameAs: 同じ値を別名でも使う（例: VITE_DATAVERSE_URL = DATAVERSE_URL）。二度聞かない
+    for question in manifest.questions:
+        source = question.get("sameAs")
+        if source and not values.get(question["variable"]) and values.get(source):
+            values[question["variable"]] = values[source]
     return values
 
+
+def pending_questions(manifest: Manifest, values: dict[str, str]) -> list[dict]:
+    """値がまだ無い変数の質問。`questions` に無い必須変数も、名前だけの質問として必ず出す（聞き漏らしを防ぐ）。
+
+    返す各要素: variable / question / choices（任意）/ default（任意）/ detect（自動で調べる方法・任意）/ required。
+    sameAs を持つ質問は聞かない（元の変数の答えをそのまま使う）。
+    呼び出し側（エージェント）は 1 問ずつ AskUserQuestion で聞き、答えを --var か --env のファイルで渡す。
+    """
+    asked = {q["variable"]: q for q in manifest.questions}
+    order = [q["variable"] for q in manifest.questions] + [v for v in manifest.variables if v not in asked]
+    pending: list[dict] = []
+    for name in order:
+        if values.get(name) or (asked.get(name) or {}).get("sameAs"):
+            continue
+        question = dict(asked.get(name) or {"variable": name, "question": f"{name} の値を入力してください"})
+        question["required"] = name in manifest.variables
+        pending.append(question)
+    return pending
+
+
+def write_env(path: Path, manifest: Manifest, values: dict[str, str]) -> int:
+    existing = load_env(path)
+    lines = [f"{name}={values[name]}" for name in [*manifest.variables, *manifest.optional_variables] if values.get(name) and name not in existing]
+    if lines:
+        prefix = "" if not path.exists() or path.read_text(encoding="utf-8").endswith("\n") else "\n"
+        with path.open("a", encoding="utf-8", newline="\n") as fh:
+            fh.write(prefix + "\n".join(lines) + "\n")
+    return len(lines)
 
 def strip_blocks(content: str, selected: set[str]) -> str:
     """`SCAFFOLD:BLOCK:<ID>:START` .. `:END` のうち、選ばれていないブロックを落とす。"""
@@ -312,6 +355,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--force", action="store_true", help="空でない生成先へ重ねる")
     parser.add_argument("--dry-run", action="store_true", help="書き込まずに計画だけ出す")
     parser.add_argument("--list-variables", action="store_true", help="テンプレートが使う変数を一覧する")
+    parser.add_argument("--questions", action="store_true", help="まだ値が無い変数の質問を JSON で出す（AskUserQuestion で 1 問ずつ聞く）")
+    parser.add_argument("--write-env", help="生成後、宣言した変数の解決済みの値をこのファイルへ書く（既にあるキーは残す）")
     return parser.parse_args(argv)
 
 
@@ -339,6 +384,10 @@ def main(argv: list[str] | None = None) -> int:
                     marks.append("used but undeclared")
                 suffix = f"  ({', '.join(marks)})" if marks else ""
                 print(f"{name}{suffix}")
+            return 0
+
+        if args.questions:
+            print(json.dumps(pending_questions(manifest, resolve_variables(manifest, Path(args.env), parse_vars(args.var))), ensure_ascii=False, indent=2))
             return 0
 
         if not args.target:
@@ -369,6 +418,9 @@ def main(argv: list[str] | None = None) -> int:
     else:
         write_plan(template, target, variables, blocks, plan)
         print(f"OK: {len(plan.writes)} ファイルを {target} へ生成しました")
+        if args.write_env:
+            written = write_env(Path(args.write_env), manifest, variables)
+            print(f"OK: {written} 個の値を {args.write_env} へ書きました")
 
     for relative in plan.skipped_blocks:
         print(f"  - {relative}（選ばれていないブロックのため生成しません）")
