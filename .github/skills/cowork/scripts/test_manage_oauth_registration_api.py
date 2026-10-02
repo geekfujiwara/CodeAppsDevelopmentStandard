@@ -36,6 +36,19 @@ class ManageOauthRegistrationApiTests(unittest.TestCase):
             "nested",
         )
 
+    def test_raw_registration_id_unwraps_tenant_prefix(self):
+        import base64
+        tenant = "tenant-id-for-test"
+        reg = "registration-id-for-test"
+        wrapped = base64.b64encode(f"{tenant}##{reg}".encode()).decode()
+        self.assertEqual(MODULE.raw_registration_id(wrapped, tenant), reg)
+        self.assertEqual(MODULE.raw_registration_id(reg, tenant), reg)
+
+    def test_verify_readback_detects_mismatch(self):
+        with self.assertRaises(SystemExit):
+            MODULE.verify_readback({"clientId": "a", "scopes": ["x"]}, {"clientId": "a", "scopes": ["y"]})
+        MODULE.verify_readback({"clientId": "a", "clientSecret": "s"}, {"clientId": "a"})
+
     def test_region_and_hash_are_deterministic(self):
         self.assertTrue(MODULE.api_base("EMEA").endswith("cosmicprodemea"))
         first = MODULE.canonical_hash({"method": "POST", "path": "/example"})

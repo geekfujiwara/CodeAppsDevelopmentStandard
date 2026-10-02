@@ -1,7 +1,17 @@
 {
   "description": "株主総会 Q&A アシスト用 Cowork プラグイン（想定問答の作成・リハーサル台本の作成・想定問答の点検）+ Dataverse MCP コネクタ",
-  "variables": ["PUBLISHER_PREFIX", "COWORK_DEVELOPER_NAME", "COWORK_DEVELOPER_URL", "COWORK_PRIVACY_URL", "COWORK_TERMS_URL", "DATAVERSE_ORIGIN", "COWORK_PLUGIN_ID"],
-  "optionalVariables": ["COWORK_AUTHOR_UPN"],
+  "variables": [
+    "PUBLISHER_PREFIX",
+    "COWORK_DEVELOPER_NAME",
+    "COWORK_DEVELOPER_URL",
+    "COWORK_PRIVACY_URL",
+    "COWORK_TERMS_URL",
+    "DATAVERSE_ORIGIN",
+    "COWORK_PLUGIN_ID"
+  ],
+  "optionalVariables": [
+    "COWORK_AUTHOR_UPN"
+  ],
   "questions": [
     {
       "variable": "DATAVERSE_ORIGIN",
@@ -43,8 +53,9 @@
     "PERMISSIONS.md で担当者と権限を確認する（cowork スキル references/permissions.md）",
     "python scripts/setup_security_roles.py --assign-author <UPN>  # アプリのプロジェクトで。ロール「AGM 想定問答作成者」",
     "python .github/skills/cowork/scripts/setup_entra_oauth_graph.py → register_mcp_client.py → diagnose_cowork_connector.py（cowork スキル Step 3〜4）",
-    "OAuth client registration（Step 5）→ .env の COWORK_OAUTH_REGISTRATION_ID",
+    "python .github/skills/cowork/scripts/manage_oauth_registration_api.py create --name \"Dataverse MCP OAuth (AGM QA)\" --base-url $env:DATAVERSE_URL --scopes \"$env:DATAVERSE_URL/.default,offline_access\"（plan）→ --write-env .env --expected-hash <HASH> --apply（Step 5）",
     "pwsh .github/skills/cowork/scripts/build_agent_package.ps1 -PluginRoot <出力先> -OutputName agm-qa-author",
-    "管理センター private API で登録・公開（Step 8）→ Cowork の Customize → Plugins で有効化して Connect"
+    "python .github/skills/cowork/scripts/install_agent_package_personal.py install --package <出力先>/dist/agm-qa-author.zip（plan → --expected-hash <HASH> --apply）→ 自分の Cowork で確認",
+    "管理センター private API で組織に登録・公開（Step 8）→ 利用者が Cowork の Customize → Plugins で有効化して Connect"
   ]
 }

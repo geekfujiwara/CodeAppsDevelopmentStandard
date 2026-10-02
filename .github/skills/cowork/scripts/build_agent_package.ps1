@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Cowork プラグイン（M365 アプリパッケージ）の .zip を生成する汎用ビルドスクリプト。
 
@@ -126,5 +126,5 @@ Remove-Item $staging -Recurse -Force
 Remove-Item $builtManifest -Force
 
 Write-Host "[OK] パッケージ生成: $zip"
-Write-Host "     referenceId 注入済み (registrationId=$regId, tenantId=$tenantId, Base64エンコード済み)"
+Write-Host "     referenceId 注入済み (registrationId=…$($regId.Substring([Math]::Max(0,$regId.Length-4))), Base64エンコード済み)"
 Write-Host "     次: M365 管理センター -> エージェント -> Add agent -> Upload agent"

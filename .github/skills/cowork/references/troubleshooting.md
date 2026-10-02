@@ -484,3 +484,26 @@ Graph の `appCatalogs/teamsApps` にも現れないため、`appDefinitions` �
 名前に「Test」等を含めて本番プラグインと区別し、操作前に詳細パネルの名前が対象と一致することを確認する。
 
 
+
+## 34. OAuth registration を作るのにブラウザが要る（統合ブラウザが使えない）
+
+- 症状: 統合ブラウザのツールが使えない環境では、Developer Portal の session から API を送れない。
+  `auth_helper` の既定（Azure CLI 互換）クライアントのトークンは出るが 401 / 403、PAC CLI は `AADSTS65002`、
+  Graph PowerShell は `AADSTS650057`、専用 portal client は `AADSTS7000218`。
+- 対処（恒久対策済み）: `manage_oauth_registration_api.py` の既定 `--transport cli` が Agents Toolkit の公開クライアント
+  （`7ea7c24c-…`、Device Code。初回だけサインイン）で `https://dev.teams.microsoft.com/api/v1.0/oauthConfigurations` を呼ぶ。
+  `AUTH_MODE=interactive` は `AADSTS70007` になるので Device Code のまま使う。
+- 個人テストも同じクライアントで `install_agent_package_personal.py`（Title サービス）から行える。
+
+## 35. API の `oAuthConfigId` を `.env` にそのまま入れると、ビルドで警告が出る
+
+- 症状: `build_agent_package.ps1` が「エンコード済みの値でした」と警告する。
+- 原因: API は `oAuthConfigId` を `Base64("<tenantId>##<registrationId>")` で返す。画面の「OAuth client registration ID」は生の GUID。
+- 対処（恒久対策済み）: `manage_oauth_registration_api.py --write-env` が生の registration ID に戻して保存する。
+  ビルドは生の ID から referenceId を作る（二重エンコードしない）。
+
+## 36. 個人インストールを外したあと、launchInfo が 404 ではなく 403 を返す
+
+- 症状: `DELETE /catalog/v1/users/acquisitions/{titleId}` の後、`launchInfo` が `403 Forbidden`「title is not acquired」。
+- 対処（恒久対策済み）: `install_agent_package_personal.py` は 404 と「not acquired」の 403 を「インストールされていない」として扱う。
+  入れ直すと titleId は新しく払い出される。
