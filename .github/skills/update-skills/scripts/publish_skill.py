@@ -104,6 +104,30 @@ def open_pr_for_branch(repo: str, branch: str) -> str | None:
     return prs[0]["url"] if prs else None
 
 
+BUILD_DIRS = {"bin", "obj", "publish", "node_modules", "dist", "__pycache__", ".vite"}
+BUILD_SUFFIXES = {".dll", ".exe", ".pdb", ".so", ".dylib", ".pyc", ".nupkg"}
+
+
+def staged_problems(name_status: str, removes: list[str]) -> dict[str, list[str]]:
+    """`git diff --cached --name-status` から、--remove で指定していない削除と、ビルド出力らしい追加を拾う。"""
+    removed_prefixes = [r.strip("/").replace("\\", "/") for r in removes]
+    deleted: list[str] = []
+    build: list[str] = []
+    for line in name_status.splitlines():
+        parts = line.split("\t")
+        if len(parts) < 2:
+            continue
+        kind, path = parts[0], parts[-1]
+        if kind.startswith("D"):
+            if not any(path == p or path.startswith(p + "/") for p in removed_prefixes):
+                deleted.append(path)
+        elif kind[:1] in {"A", "M", "R", "C"}:
+            segments = path.split("/")
+            if any(s in BUILD_DIRS for s in segments[:-1]) or Path(path).suffix.lower() in BUILD_SUFFIXES:
+                build.append(path)
+    return {"deleted": deleted, "build": build}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="スキルを PR 先リポジトリへ公開する")
     ap.add_argument("--skill", required=True, help="公開するスキル名（フォルダ名）")
@@ -116,6 +140,8 @@ def main() -> int:
     ap.add_argument("--title", help="PR タイトル（既定: 自動生成）")
     ap.add_argument("--body", help="PR 本文（既定: 自動生成）")
     ap.add_argument("--dry-run", action="store_true", help="push / PR を行わず検証まで")
+    ap.add_argument("--allow-delete", action="store_true", help="--remove 以外の削除を許す（既定は削除があれば止める）")
+    ap.add_argument("--allow-build-output", action="store_true", help="bin / obj / dll / exe などのビルド出力の追加を許す")
     args = ap.parse_args()
 
     here = Path.cwd()
@@ -213,6 +239,22 @@ def main() -> int:
         shutil.rmtree(tmp, ignore_errors=True)
         return 0
     print(status)
+
+    # スキル フォルダは「消してからローカルをコピー」で反映するため、次の 2 つがそのまま PR に入る（実際に起きた）:
+    #   - ローカルに無いだけのファイル（PR 先で別の PR が追加したもの）の削除
+    #   - ローカルのビルド出力（.gitignore がローカルに無いと拾う）の追加
+    problems = staged_problems(run(["git", "diff", "--cached", "--name-status"], cwd=clone).stdout, args.remove)
+    if problems["deleted"] and not args.allow_delete:
+        shown = "\n   ".join(problems["deleted"][:20]) + ("\n   …" if len(problems["deleted"]) > 20 else "")
+        shutil.rmtree(tmp, ignore_errors=True)
+        sys.exit(f"PR 先のファイルを {len(problems['deleted'])} 件削除しようとしています（--remove で指定していない）:\n   {shown}\n"
+                 "PR 先で別の PR が追加したファイルの可能性があります。ローカルを PR 先の最新に合わせてから再実行してください。"
+                 "本当に削除するなら --remove で指定するか --allow-delete を付けます。")
+    if problems["build"] and not args.allow_build_output:
+        shown = "\n   ".join(problems["build"][:20]) + ("\n   …" if len(problems["build"]) > 20 else "")
+        shutil.rmtree(tmp, ignore_errors=True)
+        sys.exit(f"ビルド出力らしいファイルを {len(problems['build'])} 件追加しようとしています:\n   {shown}\n"
+                 "ローカルの .gitignore（bin/ obj/ など）を確認してください。意図した追加なら --allow-build-output を付けます。")
 
     title = args.title or f"skill({args.skill}): スキルを追加/更新"
     run(["git", "-c", f"user.name={name}", "-c", f"user.email={email}",
