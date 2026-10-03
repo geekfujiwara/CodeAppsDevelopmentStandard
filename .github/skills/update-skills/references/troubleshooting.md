@@ -280,3 +280,18 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <s> --repo 
 git clone --depth 1 https://github.com/<owner>/<repo>.git $env:TEMP\main_sync
 git diff --no-index --name-status .github/skills/<s> $env:TEMP\main_sync/.github/skills/<s>
 ```
+
+## 25. 公開したら、他の PR が追加したフォルダーが消え、手元のビルド出力が入った
+
+**症状**: `publish_skill.py` でマージした PR の差分に、PR 先にだけあったソース 24 件の削除と、`bin/` `obj/` `publish/` の dll・exe 289 件の追加が入っていた（#24 の確認を飛ばしてマージした）。
+
+**原因**: スキル フォルダーは「消してから手元をコピー」で反映する。手元に無いだけのファイルは削除になり、
+手元に `.gitignore` が無いフォルダーのビルド出力はそのまま追加される。
+
+**対処（恒久対策済み）**: `publish_skill.py` はコミット前に staged の差分を調べ、次のどちらかがあれば止める。
+
+- `--remove` で指定していない削除（意図した削除は `--remove` で指定するか `--allow-delete`）
+- ビルド出力らしい追加（`bin` / `obj` / `publish` / `node_modules` / `dist` 配下、`.dll` / `.exe` / `.pdb` など。意図したものは `--allow-build-output`）
+
+止まったら、手元を PR 先の最新に合わせる（#24）か、対象外のフォルダーを手元から外す。
+消えてしまった場合は、マージ前のコミットからそのフォルダーを `git checkout <sha> -- <path>` で戻す PR を出す。
