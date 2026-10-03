@@ -508,14 +508,12 @@ Graph の `appCatalogs/teamsApps` にも現れないため、`appDefinitions` �
 - 対処（恒久対策済み）: `install_agent_package_personal.py` は 404 と「not acquired」の 403 を「インストールされていない」として扱う。
   入れ直すと titleId は新しく払い出される。
 
-## 37. GUI から呼んだスクリプトが `--client-id` 必須などで止まる（CLI では動く）
+## 37. スクリプトが `--client-id` 必須などで止まる（.env に値はある）
 
 - 症状: `manage_oauth_registration_api.py create` が「the following arguments are required: --client-id」で終わる。
-- 原因: スクリプトは `.env` を自分では読まず、`COWORK_OAUTH_CLIENT_ID` / `COWORK_OAUTH_CLIENT_SECRET` を環境変数から読む。CLI では事前にシェルへ読み込んでいた。
-- 対処（恒久対策済み）: Cowork Studio はルートの `.env` を子プロセスの環境変数として渡す（出力に出た秘密の値は伏せる）。
+- 原因: スクリプトは `.env` を自分では読まず、`COWORK_OAUTH_CLIENT_ID` / `COWORK_OAUTH_CLIENT_SECRET` を環境変数から読む。
+- 対処: 実行前に `.env` の `COWORK_*` / `TENANT_ID` / `DATAVERSE_URL` をシェルの環境変数へ読み込む。秘密の値は画面に出さない。
 
-## 38. 独自テンプレートの TabControl の中身が UI Automation（読み上げ・自動テスト）に出ない
-
-- 症状: UI Automation で見えるのはタイトル バーだけで、タブの中のボタンが見つからない。
-- 原因: WPF は TabControl の選択中の中身を、テンプレート内の `PART_SelectedContentHost` という名前の ContentPresenter から公開する。名前が無いと中身が木から外れる。
-- 対処（恒久対策済み）: `tools/cowork-studio/App.xaml` の PanelTabs に `x:Name="PART_SelectedContentHost"` を付けた。`tests/test_ui.ps1` が毎回これを確かめる。
+  ```powershell
+  Get-Content .env | ? { $_ -match '^(COWORK_|TENANT_ID|DATAVERSE_URL)' } | % { $k, $v = $_.Split('=', 2); Set-Item "env:$k" $v.Trim().Trim("'", '"') }
+  ```
