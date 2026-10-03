@@ -99,7 +99,7 @@ def read_glb_json(path: Path) -> dict:
     return json.loads(data[20:20 + chunk_len])
 
 
-def check_glb(path: Path, *, material_keys: set[str] | None, key_prefixes: tuple[str, ...] = (), max_bytes: int) -> list[str]:
+def check_glb(path: Path, *, material_keys: set[str] | None, key_prefixes: tuple[str, ...] = (), max_bytes: int, allow_embedded_images: bool = False) -> list[str]:
     errors: list[str] = []
     size = path.stat().st_size
     if size > max_bytes:
@@ -112,7 +112,14 @@ def check_glb(path: Path, *, material_keys: set[str] | None, key_prefixes: tuple
         if "uri" in b:
             errors.append(f"[glb] {path.name}: 外部バッファ {b['uri'][:60]} を参照している（CSP で読めない。自己完結の GLB にする）")
     for im in j.get("images", []):
-        errors.append(f"[glb] {path.name}: 画像 {im.get('name') or im.get('uri', '')[:40]} を埋め込んでいる（blob: URL になり既定 CSP では表示されない。材質は共有ライブラリで差し替える）")
+        label = im.get("name") or im.get("uri", "")[:40]
+        if "uri" in im and not str(im["uri"]).startswith("data:"):
+            errors.append(f"[glb] {path.name}: 画像 {label} を外部ファイルとして参照している（CSP で読めない。GLB に埋め込む）")
+        elif not allow_embedded_images:
+            errors.append(f"[glb] {path.name}: 画像 {label} を埋め込んでいる（GLTFLoader は blob: URL で読むため既定 CSP では表示されない。"
+                          "材質を共有ライブラリで差し替えるか、createImageBitmap でデコードするローダーで読み --allow-embedded-images を付ける）")
+        elif im.get("mimeType") not in ("image/jpeg", "image/png"):
+            errors.append(f"[glb] {path.name}: 画像 {label} の形式 {im.get('mimeType')} は JPEG / PNG にする（KTX2 等は Worker が要る）")
     used = set(j.get("extensionsUsed", [])) | set(j.get("extensionsRequired", []))
     for ext in sorted(used & WORKER_EXTENSIONS):
         errors.append(f"[glb] {path.name}: 拡張 {ext} は Web Worker / 追加デコーダーが必要（既定 CSP で使えない）")
@@ -136,6 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--max-total-bytes", type=int, default=6_000_000)
     ap.add_argument("--max-glb-bytes", type=int, default=8_000_000)
     ap.add_argument("--min-rough", type=float, default=0.45)
+    ap.add_argument("--allow-embedded-images", action="store_true", help="埋め込み画像を許す（blob: URL を使わずにデコードするローダーで読む場合）")
     a = ap.parse_args(argv)
     if not a.materials and not a.glb:
         ap.error("--materials か --glb を指定する")
@@ -146,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[material] {a.materials}: {total:,} bytes")
     keys = set(k.strip() for k in a.material_keys.split(",")) if a.material_keys else None
     for g in a.glb:
-        errors += check_glb(g, material_keys=keys, key_prefixes=tuple(a.material_prefix), max_bytes=a.max_glb_bytes)
+        errors += check_glb(g, material_keys=keys, key_prefixes=tuple(a.material_prefix), max_bytes=a.max_glb_bytes, allow_embedded_images=a.allow_embedded_images)
         print(f"[glb] {g}: checked")
     for e in errors:
         print(f"  NG {e}")
