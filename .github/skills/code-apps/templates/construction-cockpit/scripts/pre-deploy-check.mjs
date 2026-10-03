@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { findDirectMcpDataSources } from "./detect-direct-mcp-data-sources.mjs";
+import { findCspHazards, cspAllowFromEnv } from "./detect-csp-hazards.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 // scripts/ の一つ上がプロジェクトルート
@@ -403,6 +404,21 @@ if (fs.existsSync(pkgPath)) {
         `     → npm install -D @microsoft/power-apps-cli@latest を実行し、scripts では "pa app push" を直接呼んでください。`
       );
     }
+  }
+}
+
+// 13. Code Apps の既定 CSP で黙って動かない書き方（fetch / three.js の FileLoader 系 / Worker / blob: URL）
+//     既定 CSP は connect-src 'none'。エラー画面にはならず、コンソールに CSP 違反が出てデータが来ないだけになる。
+//     環境に CSP を追加した場合は .env の CODE_APP_CSP_ALLOW（ルール ID か directive 名）で検出から外す
+{
+  const envForCsp = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf-8") : ""
+  const hazards = findCspHazards(root, { allow: cspAllowFromEnv(envForCsp) })
+  if (hazards.length > 0) {
+    errors.push(
+      `Code Apps の既定 CSP でブロックされる書き方が ${hazards.length} 件あります（エラーにならず動かないだけになる）:\n` +
+      hazards.slice(0, 10).map(h => `     ${h.file}:${h.line} [${h.directive}] ${h.text}\n       → ${h.hint}`).join("\n") +
+      `\n     → 環境に CSP を追加した場合は .env に CODE_APP_CSP_ALLOW=${[...new Set(hazards.map(h => h.directive))].join(",")} を書く（references/csp.md）`
+    )
   }
 }
 
