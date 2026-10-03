@@ -6,6 +6,7 @@ description: |
   Dataverse MCP コネクタ（describe / read_query / search_data / create_record / update_record）を使用する。
 license: MIT
 metadata:
+  author: "${COWORK_DEVELOPER_NAME}"
   version: "1.0"
 ---
 

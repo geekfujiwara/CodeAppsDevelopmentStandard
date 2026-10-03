@@ -30,7 +30,8 @@
     },
     {
       "variable": "COWORK_DEVELOPER_NAME",
-      "question": "プラグインの発行元（会社・部署名）は？（Cowork のプラグイン一覧に出ます）"
+      "question": "プラグインの作成者は？（manifest の developer.name と各スキルの metadata.author。既定は開発中のサインイン アカウントの表示名。32 文字まで。Cowork のプラグイン一覧に出ます）",
+      "detect": "python .github/skills/cowork/scripts/get_developer_account.py（開発中のサインイン アカウントの表示名。developerName を既定値にする）"
     },
     {
       "variable": "COWORK_DEVELOPER_URL",
@@ -54,6 +55,7 @@
     "python scripts/setup_security_roles.py --assign-author <UPN>  # アプリのプロジェクトで。ロール「AGM 想定問答作成者」",
     "python .github/skills/cowork/scripts/setup_entra_oauth_graph.py → register_mcp_client.py → diagnose_cowork_connector.py（cowork スキル Step 3〜4）",
     "python .github/skills/cowork/scripts/manage_oauth_registration_api.py create --name \"Dataverse MCP OAuth (AGM QA)\" --base-url $env:DATAVERSE_URL --scopes \"$env:DATAVERSE_URL/.default,offline_access\"（plan）→ --write-env .env --expected-hash <HASH> --apply（Step 5）",
+    "python .github/skills/cowork/scripts/get_developer_account.py --check-manifest <出力先>/manifest.json  # 作成者が開発中のアカウントか",
     "pwsh .github/skills/cowork/scripts/build_agent_package.ps1 -PluginRoot <出力先> -OutputName agm-qa-author",
     "python .github/skills/cowork/scripts/install_agent_package_personal.py install --package <出力先>/dist/agm-qa-author.zip（plan → --expected-hash <HASH> --apply）→ 自分の Cowork で確認",
     "管理センター private API で組織に登録・公開（Step 8）→ 利用者が Cowork の Customize → Plugins で有効化して Connect"
