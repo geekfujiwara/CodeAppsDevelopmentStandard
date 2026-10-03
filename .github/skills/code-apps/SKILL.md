@@ -108,7 +108,8 @@ UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の�
 
 > **3D モデル（建物・家具・設備）を扱う場合**: [3D 資産の共通利用](references/3d-asset-sharing.md) を参照。
 > 既定 CSP で読める資産の持ち方（画像は `img-src 'self'`、JSON は import、GLB の扱い）、素材ライブラリの色合わせ・ライセンス、
-> 契約検証（`scripts/validate_3d_assets.py`）とヘッドレス描画確認（`scripts/capture_3d.mjs`。ソフトウェア描画で黒くなる問題を含む）を再利用できる。
+> 契約検証（`scripts/validate_3d_assets.py`）とヘッドレス描画確認（`scripts/capture_3d.mjs`。ソフトウェア描画で黒くなる問題を含む）、
+> 実在の GLB（テクスチャ埋め込み）を既定 CSP の中で表示する方法（`?inline` + `createImageBitmap` のプラグイン）を再利用できる。
 
 > **図面レビューを非同期会話で回す場合**: [図面コミュニケーション アドオン](templates/drawing-communication/README.md) と
 > [PoC サンプル](samples/drawing-communication-poc/README.md) を参照。版付き図面 JSON と検証器、A3 の SVG 描画、

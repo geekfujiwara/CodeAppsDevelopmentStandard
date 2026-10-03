@@ -2854,3 +2854,47 @@ GLB の素材名（`wood` など）と建物側の素材ライブラリのキー
 
 共通利用する資産は素材名に名前空間の接頭辞（例: `furn_`）を付ける。`scripts/validate_3d_assets.py --material-prefix furn_` が接頭辞の無い素材を検出する。
 
+## 73. 同梱した GLB の家具が白い・テクスチャが無い（Console に `Couldn't load texture blob:`）（検証済 2026-10-04）
+
+### 症状
+
+ローカルではテクスチャ付きで表示される GLB が、Power Apps 上（既定 CSP）では形だけ白く表示される。画面にエラーは出ず、Console に `THREE.GLTFLoader: Couldn't load texture blob:...` が出る。`public/` に置いた GLB は読み込み自体が失敗する。
+
+### 原因
+
+- GLTFLoader は GLB に埋め込まれた画像を `URL.createObjectURL` で `blob:` URL にし、`<img>`（`img-src`）または ImageBitmapLoader（fetch = `connect-src`）で読む。既定 CSP は `img-src 'self' data:`・`connect-src 'none'` なので両方拒否される
+- `public/` の GLB を `GLTFLoader.load(url)` で読むと fetch になり `connect-src 'none'` で拒否される
+- ホスト再現（既定 CSP）で確認: `<img src=blob:>` と `fetch(blob:)` は拒否、`createImageBitmap(Blob)` は成功
+
+### 対処（恒久対策済み）
+
+GLB は `import.meta.glob("./models/*.glb", { query: "?inline" })` で base64 のモジュールにして動的 import し（`assetsInclude: ["**/*.glb"]`）、埋め込み画像は `createImageBitmap(Blob)` でデコードする GLTFLoader プラグインで読む（[3D 資産の共通利用](3d-asset-sharing.md) のコード）。同梱前に `scripts/validate_3d_assets.py --allow-embedded-images` で、外部 URI・KTX2 など CSP で読めない形式が無いことを確かめる。
+
+## 74. ソフトウェア描画の内見だけ天井が茶色い（GPU では正常）（検証済 2026-10-04）
+
+### 症状
+
+GPU の無い環境（VDI・ヘッドレス試験）で室内を見ると、天井が床と同じ茶色に染まる。GPU のある PC では白い。
+
+### 原因
+
+#69 の対策で環境マップを外すと、下向きの面（天井）は半球光の地面色だけで照らされる。地面色に床の色を使っていると、天井が床の色になる。
+
+### 対処（恒久対策済み）
+
+ソフトウェア描画のときだけ、半球光の地面色を白へ 65% 寄せる。`scripts/capture_3d.mjs` は既定（ソフトウェア描画）と `--gpu` の両方で撮り、片方だけで起きる差を見つける。
+
+## 75. TypeScript と Python で同じ式なのに寸法が 1mm ずれる（丸め）（検証済 2026-10-04）
+
+### 症状
+
+Three.js と Blender で同じ式から作った部材（段・開口など）の座標が、まれに 0.001 ずれる。材質ごとの頂点数を比べるテストは通る。
+
+### 原因
+
+JS の `Math.round` は四捨五入、Python の `round` は偶数丸め（`round(0.5) == 0`、`round(2.5) == 2`）。
+
+### 対処（恒久対策済み）
+
+Python 側は `math.floor(x * 1000 + 0.5) / 1000` で丸める。寸法を導く関数は、頂点数ではなく両方の出力（座標の配列）そのものを `npm test` で突き合わせる。
+

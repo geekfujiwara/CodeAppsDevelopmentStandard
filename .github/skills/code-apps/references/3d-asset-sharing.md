@@ -27,6 +27,14 @@ GLB を正本にすると、寸法の編集・数量計算・ルールに基づ�
 
 - [ ] 同じ入力から同じ部材ができることをテストで保証する（材質ごとの頂点数、部品の位置・回転）
 - [ ] 一致テストは `npm test` から Python を呼び、毎回動かす。目視で比べない
+- [ ] 頂点数の一致だけでは位置のずれを見逃す。寸法を導く関数（段・開口・配置など）は両方の出力そのもの（座標の配列）を突き合わせる
+- [ ] 丸めを揃える。JS の `Math.round` は四捨五入、Python の `round` は偶数丸め（`round(2.5) == 2`）。Python 側は `math.floor(x + 0.5)` を使う
+- [ ] 保存するのは配置（外形・向き・形状）だけにし、寸法は両側が同じ式で導く。導いた値を保存すると、元の値（階高など）を変えたときに整合が崩れる
+
+### 自動配置
+
+- [ ] 評価点（近い・壁沿い など）だけで選ぶと、通路を塞ぐ案が上位に来る。上位の候補から順に「置いた後も全部の部屋へ歩いて行けるか」を格子の到達判定で確かめ、最初に通ったものを採る
+- [ ] 置けない範囲（ドア・掃き出し窓の前、階段の上り口・上がり口、上の階の吹き抜け）を 1 つの関数で返し、家具の自動配置・手動配置・当たり判定が同じものを使う
 
 ### 材質ライブラリ
 
@@ -60,9 +68,37 @@ GLB を正本にすると、寸法の編集・数量計算・ルールに基づ�
 |---|---|---|
 | 同梱 JSON を読む | `fetch` は `connect-src 'none'` でブロック | ビルド時に `import x from "./x.json"` |
 | テクスチャを読む | `TextureLoader`（`<img>`）は可 | `img-src 'self'` の範囲で同梱する |
-| GLB を読む | `GLTFLoader.load(url)` は内部で fetch するので不可 | `File.arrayBuffer()` → `parseAsync` |
-| テクスチャ埋め込み GLB | 画像が `blob:` URL になり表示されない | 色だけの材質で書き出し、キーで共有材質に差し替える |
+| GLB を読む（利用者が選んだファイル） | `GLTFLoader.load(url)` は内部で fetch するので不可 | `File.arrayBuffer()` → `parseAsync` |
+| GLB を読む（アプリに同梱） | 同上。`public/` に置いても fetch できない | `import.meta.glob("./models/*.glb", { query: "?inline" })` で base64 のモジュールにし、使うときに動的 import（`script-src 'self'` で読める）。`vite.config` の `assetsInclude` に `**/*.glb` |
+| テクスチャ埋め込み GLB | GLTFLoader は埋め込み画像を `blob:` URL にして `<img>` / fetch で読む。`img-src` に `blob:` が無く `connect-src 'none'` なので両方拒否され、テクスチャなしの白い表示になる | ① 色だけの材質で書き出し、キーで共有材質に差し替える ② 埋め込み画像を `createImageBitmap(Blob)` でデコードする GLTFLoader プラグインを使う（URL を介さないので CSP の対象外。下のコード） |
 | Draco / KTX2 / meshopt | Web Worker が必要（`worker-src`） | 使わない（JPEG/WebP + 非圧縮）か、CSP を追加する |
+
+```ts
+// 埋め込み画像を blob: URL を介さずにテクスチャにする（既定 CSP で検証済み: <img src=blob:> と fetch(blob:) は拒否、createImageBitmap(Blob) は成功）
+class CspSafeTexturePlugin {
+  readonly name = "CSP_SAFE_EMBEDDED_TEXTURES"
+  private parser: GLTFParser
+  constructor(parser: GLTFParser) { this.parser = parser }
+  loadTexture(index: number): Promise<THREE.Texture> | null {
+    const json = this.parser.json
+    const def = json.textures?.[index]
+    const img = def?.source !== undefined ? json.images?.[def.source] : undefined
+    if (!img || img.bufferView === undefined) return null // 外部 URI は本体に任せる（同梱しない前提）
+    return this.parser.getDependency("bufferView", img.bufferView)
+      .then((buf: ArrayBuffer) => createImageBitmap(new Blob([buf], { type: img.mimeType }), { premultiplyAlpha: "none", colorSpaceConversion: "none" }))
+      .then(bitmap => {
+        const t = new THREE.Texture(bitmap)
+        t.flipY = false // glTF の UV 規約
+        t.wrapS = t.wrapT = THREE.RepeatWrapping // sampler があればそれに合わせる
+        t.needsUpdate = true
+        this.parser.associations.set(t, { textures: index }) // 色空間・UV の割り当てを本体に任せるため
+        return t
+      })
+  }
+}
+const loader = new GLTFLoader()
+loader.register(parser => new CspSafeTexturePlugin(parser))
+```
 
 `npm run predeploy` のチェック 13（`detect-csp-hazards.mjs`）がこれらの書き方を検出する。
 環境に CSP を追加した場合は `.env` の `CODE_APP_CSP_ALLOW`（`connect-src` などの directive 名か、ルール ID）で外す。
@@ -73,6 +109,7 @@ GLB を正本にすると、寸法の編集・数量計算・ルールに基づ�
 - [ ] GPU の無い環境（VDI・リモートデスクトップ・ヘッドレス試験）はソフトウェア描画（SwiftShader / WARP）になる。PMREM の環境マップを使うと、照明を受ける面がすべて黒くなる（エラーは出ない）。`WEBGL_debug_renderer_info` のレンダラー名で判定し、環境マップを外して半球光で補う
 - [ ] 後処理（AO 等）は切り替え可能にし、軽量モードを用意する
 - [ ] テクスチャの読み込みに失敗しても、手続き生成のテクスチャで表示を続ける
+- [ ] 環境マップを外したソフトウェア描画では、下向きの面（天井）が半球光の地面色だけで照らされ、床の色に染まる（茶色い天井）。ソフトウェア描画のときは地面色を白へ寄せる。撮影はソフトウェア描画と GPU（`--gpu`）の両方で行い、片方だけで起きる差を見つける
 
 ```ts
 // ソフトウェア描画の判定（初回参照時に 1 回だけ）
@@ -83,6 +120,14 @@ const software = /swiftshader|llvmpipe|software|microsoft basic render|warp/i.te
 scene.environment = software ? null : pmremTexture
 ```
 
+### 実在の 3D モデル（家具など）を取り込む
+
+- [ ] 取り込みは取得スクリプト + Blender（ヘッドレス）で行い、手で整えたファイルを正本にしない。整形の内容: 変換を頂点へ焼き込んで 1 メッシュにする／正面を規約の向き（例: +z）へ回す／底面の中心を原点にする／材質名を `furn_<種類>_<n>` にする／テクスチャを 512px 程度の JPEG にして埋め込む／Draco・KTX2 は使わない
+- [ ] manifest に寸法（w / d / h）・ライセンス・作者・出典 URL・バイト数・SHA-256 を残し、`--check` で同梱物と突き合わせる（差し替えに気付ける）
+- [ ] 読めない環境のために外形の箱（parts）を持たせ、当たり判定・自動配置は外形の寸法で行う
+- [ ] 手続き生成の家具を実物のモデルに置き換えるときは、外形が元より大きければ周り（壁・家具・ドア前・階段）と重ならないことを確かめる。壁付けの家具は背を壁に付けたまま奥行きの差だけ寄せる
+- [ ] 正面の向き・寸法・床からの浮き沈みは、Three.js の表示と Blender の `.blend` の外接箱の両方で確かめる
+
 ## 3. 検証
 
 ```powershell
@@ -90,6 +135,9 @@ scene.environment = software ? null : pmremTexture
 python .github/skills/code-apps/scripts/validate_3d_assets.py `
   --materials src/data/material-library.json --public public `
   --glb public/models/model.glb --material-keys exteriorWall,roof,floor --material-prefix furn_
+# テクスチャ埋め込みの GLB を createImageBitmap のローダーで読む場合
+python .github/skills/code-apps/scripts/validate_3d_assets.py --glb src/assets/models/sofa.glb `
+  --material-keys "" --material-prefix furn_ --allow-embedded-images --max-glb-bytes 1200000
 
 # 本番ビルドをヘッドレス Edge で描画し、3D の状態とスクリーンショットを取る（追加インストール不要）
 npx vite build; npx vite preview --port 4173
@@ -111,6 +159,9 @@ node .github/skills/code-apps/scripts/capture_3d.mjs --gpu --url "..." --out .to
 | 外壁・屋根が黄色や緑にかぶる | 写真の色相が残った素材を「色 ÷ 平均色」で塗った | 色テクスチャをグレー化して同梱（`tint: luminance`） |
 | 芝や地面が遠景で白っぽい | 素材の粗さが低い・法線が強い・既定の鏡面反射で空を映す | 粗さの下限を焼き込む、法線を弱める、鏡面反射を下げる、反射率係数で暗くする |
 | GLB を読み込むと元の色のまま／材質が差し替わらない | 制作側の材質名が部位キーになっていない | 書き出し時に材質名をキーにする。`validate_3d_assets.py --material-keys` で検出 |
-| GLB のテクスチャが表示されない | 埋め込み画像が `blob:` URL になり既定 CSP で拒否される | テクスチャを埋め込まず、共有ライブラリで差し替える |
+| GLB のテクスチャが表示されない（白い・単色）。Console に `Couldn't load texture blob:...` | 埋め込み画像が `blob:` URL になり、`img-src` / `connect-src` で拒否される | テクスチャを埋め込まず共有ライブラリで差し替えるか、`createImageBitmap` のプラグインで読む |
+| 同梱した GLB が読めない | `public/` の GLB を fetch している（`connect-src 'none'`） | `?inline` で base64 のモジュールにして動的 import |
+| 内見の天井だけ茶色い（GPU では正常） | ソフトウェア描画で環境マップを外したため、天井が床色の照り返しだけで照らされる | ソフトウェア描画では半球光の地面色を白へ寄せる |
+| 取り込んだ家具が横を向く・床に沈む・巨大 | 制作ツールごとに正面の向き・原点・単位が違う | 取り込み時に Blender で正面・原点・寸法をそろえ、manifest の寸法を `--check` で検査する |
 | データが来ない・画面は出る | `fetch` が `connect-src 'none'` で拒否されている | ビルド時 import か SDK 経由にする。predeploy チェック 13 で検出 |
 | ヘッドレス試験のスクリーンショットが真っ白 | 開発サーバーの初回コンパイルが待ち時間内に終わっていない | 本番ビルド（`vite build` → `vite preview`）を対象にする |

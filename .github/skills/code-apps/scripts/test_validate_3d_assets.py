@@ -67,6 +67,20 @@ class GlbTests(unittest.TestCase):
             for needle in ("外部バッファ", "埋め込んで", "KHR_draco_mesh_compression", "Material.001"):
                 self.assertIn(needle, text)
 
+    def test_embedded_images_only_with_csp_safe_loader(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = glb(Path(d) / "c.glb", {
+                "asset": {"version": "2.0"},
+                "images": [{"name": "albedo", "mimeType": "image/jpeg", "bufferView": 0}, {"name": "tex", "uri": "tex.png"}, {"name": "k", "mimeType": "image/ktx2", "bufferView": 1}],
+                "materials": [{"name": "furn_sofa_0"}],
+            })
+            strict = "\n".join(check_glb(p, material_keys=set(), key_prefixes=("furn_",), max_bytes=10_000))
+            self.assertIn("albedo", strict)
+            allowed = "\n".join(check_glb(p, material_keys=set(), key_prefixes=("furn_",), max_bytes=10_000, allow_embedded_images=True))
+            self.assertNotIn("albedo", allowed)
+            self.assertIn("外部ファイル", allowed)
+            self.assertIn("image/ktx2", allowed)
+
 
 if __name__ == "__main__":
     unittest.main()
