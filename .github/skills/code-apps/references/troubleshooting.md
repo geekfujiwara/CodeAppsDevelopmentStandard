@@ -2793,3 +2793,64 @@ localStorage はオリジンごと。別ページではオリジンが違い、�
 ### 対処（恒久対策済み）
 
 `templates/agm-qa-assist/scripts/export_template.py` が書き出し後と `--check` で、テンプレート内のすべての相対 import がテンプレートか `generic-base` の中で解決できるかを確かめ、解決できなければ終了コード 1。
+
+## 69. 3D 画面がヘッドレス / 仮想デスクトップでだけ真っ黒になる（ソフトウェア描画 + 環境マップ）（検証済 2026-10-04）
+
+### 症状
+
+GPU のある PC では正しく見えるのに、ヘッドレス Edge や GPU の無い仮想デスクトップでは、光が当たる面が黒くなる。エラーも警告も出ない。
+
+### 原因
+
+GPU が無いと Chromium は SwiftShader（ソフトウェア描画）で WebGL を動かす。three.js の `PMREMGenerator` で作った環境マップ（`scene.environment`）がこの経路で正しく作られず、反射の計算が黒になる。
+
+### 対処（恒久対策済み）
+
+`WEBGL_debug_renderer_info` で描画器名を取り、`SwiftShader` / `llvmpipe` / `Software` を含むときは環境マップを使わず、半球光を強めて補う。判定は描画器を作った後に評価する getter にする（クラスのフィールド初期化子は constructor 本体より前に動くため常に偽になる）。`scripts/capture_3d.mjs` は既定でソフトウェア描画、`--gpu` で GPU 経路を撮れるので、両方で確認する。詳細: [3D 資産の共通利用](3d-asset-sharing.md)。
+
+## 70. 写真素材に色を合わせると色かぶりする / 芝生が白っぽく光る（検証済 2026-10-04）
+
+### 症状
+
+- 利用者が選んだ外壁色を写真素材に掛けると、木目やレンガの元の色と混ざって緑や紫に寄る
+- 芝生が白く粉をふいたように見える
+
+### 原因
+
+- 色のある写真テクスチャに指定色をそのまま乗算すると、元の色相と二重に掛かる
+- 芝生は粗さが低い部分が残り、環境光の鏡面反射が強く出る。法線も強すぎる
+
+### 対処（恒久対策済み）
+
+- 塗装・金属・屋根などは取り込み時にテクスチャを無彩色（輝度だけ）にし、指定色を「線形色 ÷ テクスチャ平均」で掛ける（上限 4）。レンガ・木・タイル・芝生は元の色を残して比率だけ合わせる
+- 芝生は粗さの下限 0.8、法線の強さ 0.35、鏡面 0.1、明るさ 0.55 を素材ごとの値として manifest に持つ。three.js と Blender は同じ manifest と同じ式を使う
+- `scripts/validate_3d_assets.py` が、無彩色であるべき素材の彩度・粗さの範囲・光沢フラグの欠落を検出する
+
+## 71. three.js のローダーや fetch がエラーを出さずに何も表示しない（既定 CSP）（検証済 2026-10-04）
+
+### 症状
+
+`GLTFLoader.load` / `FileLoader` / `fetch('./data.json')` / Draco・KTX2 デコーダーを使った画面が Power Apps 上でだけ空になる。ローカルでは動く。
+
+### 原因
+
+Code Apps の既定 CSP は `connect-src 'none'`、`worker-src` なし、`img-src 'self' data:`（`blob:` なし）。ローダーは XHR / fetch / Worker / blob URL を使うため、すべて止まる。画像を `<img>` で読む `TextureLoader` だけは通る。
+
+### 対処（恒久対策済み）
+
+`npm run predeploy` のチェック 13（`scripts/detect-csp-hazards.mjs`）がデプロイ前に検出する。JSON は import でバンドルし、テクスチャは `public/` に置いて相対パスで読む。CSP を追加した環境では `.env` に `CODE_APP_CSP_ALLOW=connect-src` などを書いて外す。1 行だけ許すときは `// csp-ok: <理由>`。詳細: [CSP 構成](csp.md)。
+
+## 72. 家具の GLB と建物で素材名が衝突し、片方の色が変わる（検証済 2026-10-04）
+
+### 症状
+
+家具を置くと建物の床や壁の色が変わる、または Blender で家具が建物の素材で描かれる。
+
+### 原因
+
+GLB の素材名（`wood` など）と建物側の素材ライブラリのキーが同じで、名前で引くキャッシュや Blender の `bpy.data.materials` で同じものとして扱われる。
+
+### 対処（恒久対策済み）
+
+共通利用する資産は素材名に名前空間の接頭辞（例: `furn_`）を付ける。`scripts/validate_3d_assets.py --material-prefix furn_` が接頭辞の無い素材を検出する。
+
