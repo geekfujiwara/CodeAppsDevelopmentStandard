@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "hIcXAbMf52E=",
+  "success": true,
+  "projectFilePath": "C:\\dev\\stockholders-mtg\\.github\\skills\\cowork\\tools\\cowork-studio\\CoworkStudio.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\hfujiwara\\.nuget\\packages\\microsoft.net.illink.tasks\\8.0.31\\microsoft.net.illink.tasks.8.0.31.nupkg.sha512",
+    "C:\\Users\\hfujiwara\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\8.0.31\\microsoft.netcore.app.runtime.win-x64.8.0.31.nupkg.sha512",
+    "C:\\Users\\hfujiwara\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x64\\8.0.31\\microsoft.windowsdesktop.app.runtime.win-x64.8.0.31.nupkg.sha512",
+    "C:\\Users\\hfujiwara\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x64\\8.0.31\\microsoft.aspnetcore.app.runtime.win-x64.8.0.31.nupkg.sha512"
+  ],
+  "logs": []
+}

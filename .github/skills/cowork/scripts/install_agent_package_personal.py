@@ -56,6 +56,7 @@ def read_package(path: Path) -> dict[str, Any]:
     return {
         "manifestId": manifest.get("id"),
         "name": (manifest.get("name") or {}).get("short"),
+        "developerName": (manifest.get("developer") or {}).get("name"),
         "version": manifest.get("version"),
         "agentSkills": len(manifest.get("agentSkills") or []),
         "agentConnectors": len(manifest.get("agentConnectors") or []),
@@ -85,6 +86,7 @@ def summarize(info: dict[str, Any]) -> dict[str, Any]:
     elements = info.get("elementDefinitions") or {}
     return {
         "name": info.get("name"),
+        "developerName": info.get("developerName"),
         "version": info.get("version"),
         "scope": info.get("scope"),
         "blockStatus": info.get("blockStatus"),
@@ -139,7 +141,7 @@ def install(args: argparse.Namespace) -> None:
     if info is None:
         raise SystemExit(f"launchInfo を読み戻せません: {title_id}")
     got = summarize(info)
-    diff = [k for k in ("version", "agentSkills", "agentConnectors") if got[k] != meta[k]]
+    diff = [k for k in ("version", "developerName", "agentSkills", "agentConnectors") if got[k] != meta[k]]
     if diff or got["blockStatus"]:
         raise SystemExit(f"読み戻しがパッケージと一致しません: {diff} / blockStatus={got['blockStatus']}")
     print(json.dumps({"titleId": title_id, **got}, ensure_ascii=False, indent=2))

@@ -109,6 +109,7 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
 | [scripts/build_cowork_publish_payloads.py](scripts/build_cowork_publish_payloads.py) | `stageCustomApp()` の結果から新規公開（finalize / allow / deploy）または更新（UPDATEAPP）の plan payload を生成（Step 8 / 10） |
 | [scripts/manage_oauth_registration_api.py](scripts/manage_oauth_registration_api.py) | Developer Portal OAuth registration の CRUD（Step 5）。plan → hash 承認 → CLI から送信 → 読み戻し → `.env` に生の ID。重複は事前に止める。`--transport browser` で統合ブラウザ用の plan だけを出す |
 | [scripts/install_agent_package_personal.py](scripts/install_agent_package_personal.py) | 作成者が自分だけにインストール／アンインストールする（Step 8 の前の個人テスト）。ZIP の事前検証 → plan → hash 承認 → launchInfo で照合 |
+| [scripts/get_developer_account.py](scripts/get_developer_account.py) | プラグインの作成者（`developer.name` / `metadata.author`）にする開発中のサインイン アカウントを Graph `/me` で取得。`--write-env` で `COWORK_DEVELOPER_NAME` を書き、`--check-manifest` で manifest と照合（Step 2 / 6） |
 | [tools/cowork-studio](tools/cowork-studio/README.md) | 上のスクリプトを 1 画面で操作する Windows アプリ（インストール不要の exe）。manifest の編集とカード プレビュー、7 工程のタイムライン、計画の承認、書き出しキュー。`build.ps1` で作る |
 | [../admin/scripts/manage_m365_portal_api.py](../admin/scripts/manage_m365_portal_api.py) | Agent Registry の Finalize / Allow / Install / Update / Permission plan を検証（Step 8 / 10） |
 | [../admin/scripts/m365_portal_browser_runner.mjs](../admin/scripts/m365_portal_browser_runner.mjs) | `stageCustomApp()` で ZIP をステージし、承認済み plan を browser session API で実行して poll と read-back を検証（Step 8 / 10） |
@@ -182,10 +183,15 @@ description: |
   Dataverse MCP コネクタ（read_query / search_data / search / describe）を使用する。
 license: MIT
 metadata:
-  author: <作者>
+  author: <作成者>   # 開発中のサインイン アカウントの表示名（manifest の developer.name と同じ値）
   version: "1.0"
 ---
 ```
+
+> **作成者は開発中のサインイン アカウントにする**。`python .github/skills/cowork/scripts/get_developer_account.py` が
+> auth_helper のキャッシュで Graph の `/me` を読み、表示名（`developerName`。manifest の上限 32 文字に切り詰め）を返す。
+> この値を `COWORK_DEVELOPER_NAME` として manifest の `developer.name` と各スキルの `metadata.author` に入れる
+> （テンプレートでは質問の `detect` で既定値になる）。会社名・固定の文字列を入れない。
 
 本文は **ワークフロー**として書く（番号付き手順／使用ツール名を明示／出力フォーマットを定義）。
 本文は約 1,500〜2,000 語以内。詳細は `references/` に逃がす（コンパニオンファイルは最大20・各5MB）。
@@ -390,6 +396,8 @@ Save すると **OAuth client registration ID** が発行される。これを *
 }
 ```
 
+- **`developer.name` は開発中のサインイン アカウントの表示名**（Step 2 の `metadata.author` と同じ値。32 文字まで）。
+  ビルド前に `get_developer_account.py --check-manifest <plugin-root>/manifest.json` で一致を確かめる。
 - **`referenceId` はプレースホルダー `__COWORK_OAUTH_REGISTRATION_ID__` のまま source に残す**（Step 5 の
   実 registration ID を直接コミットしない）。実値は `.env` の `COWORK_OAUTH_REGISTRATION_ID` に置き、
   Step 7 のビルドスクリプトが zip 生成時に注入する。
@@ -599,6 +607,7 @@ API が401/403/404、schema不一致、read-back不一致の場合だけ、次�
 - [ ] **対象テーブルを `describe` で確認**し、テーブル名・列名・**FK 列名**を確定（推測でクエリを書かない）
 - [ ] 生成したスキル本文の最初の Step が「`describe` でスキーマ確認」になっている
 - [ ] フォルダ名 = SKILL.md `name`（kebab-case）
+- [ ] 作成者（manifest の `developer.name` と各スキルの `metadata.author`）が開発中のサインイン アカウント — `get_developer_account.py --check-manifest`
 - [ ] Entra: redirect URI×2 / Dynamics CRM **mcp.tools** / クライアントシークレット（.env）— `scripts/setup_entra_oauth.ps1`
 - [ ] Entra: **テナント管理者の事前同意（admin consent）**が付与済み（未同意だと Cowork 初回同意がサイレントに失敗 → troubleshooting #22）
 - [ ] Power Platform: Entra の **Client ID** を許可された MCP クライアントとして登録・有効化— `scripts/register_mcp_client.py`（`--check` で検証）
