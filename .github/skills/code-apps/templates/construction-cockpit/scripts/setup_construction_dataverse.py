@@ -1,4 +1,3 @@
-import argparse
 import os
 import sys
 import time
@@ -11,13 +10,7 @@ sys.path.insert(0, str(ROOT / ".github" / "skills" / "standard" / "scripts"))
 from auth_helper import api_get, api_post, api_patch, retry_metadata
 
 SOLUTION = os.environ["SOLUTION_NAME"]
-TEMPLATE_PREFIX = "${PUBLISHER_PREFIX}"
-PREFIX = os.environ.get("PUBLISHER_PREFIX", TEMPLATE_PREFIX)
-
-if PREFIX != TEMPLATE_PREFIX:
-    raise RuntimeError(
-        f"PUBLISHER_PREFIX must match the scaffold value '{TEMPLATE_PREFIX}', got '{PREFIX}'."
-    )
+PREFIX = os.environ.get("PUBLISHER_PREFIX", "gc")
 
 
 def label(text: str) -> dict:
@@ -64,6 +57,8 @@ TABLES = [
             {"logical": "${PUBLISHER_PREFIX}_progress", "display": "進捗率", "type": "Integer", "minValue": 0, "maxValue": 100},
             choice("${PUBLISHER_PREFIX}_status", "状態", [(100000000, "計画中"), (100000001, "施工中"), (100000002, "完了")]),
             {"logical": "${PUBLISHER_PREFIX}_sitemanager", "display": "現場代理人", "type": "String", "maxLength": 100},
+            {"logical": "${PUBLISHER_PREFIX}_modelurl", "display": "3D モデル URL", "type": "String", "maxLength": 1000},
+            {"logical": "${PUBLISHER_PREFIX}_modelcenter", "display": "3D 表示情報", "type": "String", "maxLength": 500},
         ],
     },
     {
@@ -74,7 +69,13 @@ TABLES = [
             {"logical": "${PUBLISHER_PREFIX}_plannedstart", "display": "予定開始日", "type": "DateTime", "format": "DateOnly"},
             {"logical": "${PUBLISHER_PREFIX}_plannedend", "display": "予定終了日", "type": "DateTime", "format": "DateOnly"},
             {"logical": "${PUBLISHER_PREFIX}_progress", "display": "進捗率", "type": "Integer", "minValue": 0, "maxValue": 100},
+            {"logical": "${PUBLISHER_PREFIX}_reportedprogress", "display": "報告進捗率", "type": "Integer", "minValue": 0, "maxValue": 100},
             choice("${PUBLISHER_PREFIX}_status", "状態", [(100000000, "未着手"), (100000001, "作業中"), (100000002, "完了")]),
+            choice("${PUBLISHER_PREFIX}_reviewstatus", "確認状態", [
+                (100000000, "下書き"), (100000001, "提出済"),
+                (100000002, "承認"), (100000003, "差戻し"),
+            ]),
+            {"logical": "${PUBLISHER_PREFIX}_reviewcomment", "display": "監督コメント", "type": "Memo", "maxLength": 4000},
         ],
     },
     {
@@ -93,6 +94,13 @@ TABLES = [
             {"logical": "${PUBLISHER_PREFIX}_remarks", "display": "特記事項", "type": "Memo", "maxLength": 10000},
             {"logical": "${PUBLISHER_PREFIX}_aidrafted", "display": "AI 下書き", "type": "Boolean"},
             choice("${PUBLISHER_PREFIX}_status", "状態", [(100000000, "下書き"), (100000001, "確定")]),
+            choice("${PUBLISHER_PREFIX}_reviewstatus", "確認状態", [
+                (100000000, "下書き"), (100000001, "提出済"),
+                (100000002, "承認"), (100000003, "差戻し"),
+            ]),
+            {"logical": "${PUBLISHER_PREFIX}_reviewcomment", "display": "監督コメント", "type": "Memo", "maxLength": 4000},
+            {"logical": "${PUBLISHER_PREFIX}_photourl", "display": "日報写真 URL", "type": "String", "maxLength": 1000},
+            {"logical": "${PUBLISHER_PREFIX}_photocaption", "display": "写真説明", "type": "String", "maxLength": 500},
         ],
     },
     {
@@ -366,7 +374,9 @@ def seed_data() -> None:
             "${PUBLISHER_PREFIX}_startdate": (today - timedelta(days=180 - index * 20)).isoformat(),
             "${PUBLISHER_PREFIX}_enddate": (today + timedelta(days=180 + index * 30)).isoformat(),
             "${PUBLISHER_PREFIX}_progress": progress, "${PUBLISHER_PREFIX}_status": status, "${PUBLISHER_PREFIX}_sitemanager": f"現場代理人 {index + 1}",
+            "${PUBLISHER_PREFIX}_modelcenter": f"zone-{index + 1}",
         })
+        api_patch(f"{entity_set('${PUBLISHER_PREFIX}_project')}({projects[name]})", {"${PUBLISHER_PREFIX}_modelcenter": f"zone-{index + 1}"})
 
     completed_project_rows = [
         ("桜台市民会館耐震改修", "P-2025-018", "架空市 建築保全課", 100000001, "東京都練馬区", 35.74, 139.65, 320, 45),
@@ -396,11 +406,17 @@ def seed_data() -> None:
             "${PUBLISHER_PREFIX}_plannedstart": (today - timedelta(days=40 - index * 4)).isoformat(),
             "${PUBLISHER_PREFIX}_plannedend": (today + timedelta(days=30 + index * 5)).isoformat(),
             "${PUBLISHER_PREFIX}_progress": progress,
+            "${PUBLISHER_PREFIX}_reportedprogress": min(100, progress + (5 if index % 2 == 0 else 0)),
             "${PUBLISHER_PREFIX}_status": 100000001 if progress else 100000000,
+            "${PUBLISHER_PREFIX}_reviewstatus": 100000001 if index < 3 else 100000002,
         }
         bind(data, "${PUBLISHER_PREFIX}_task", "${PUBLISHER_PREFIX}_project", "${PUBLISHER_PREFIX}_project", projects[project])
         bind(data, "${PUBLISHER_PREFIX}_task", "${PUBLISHER_PREFIX}_worktype", "${PUBLISHER_PREFIX}_worktype", worktypes[worktype])
         tasks[name] = ensure("${PUBLISHER_PREFIX}_task", name, data)
+        api_patch(f"{entity_set('${PUBLISHER_PREFIX}_task')}({tasks[name]})", {
+            "${PUBLISHER_PREFIX}_reportedprogress": data["${PUBLISHER_PREFIX}_reportedprogress"],
+            "${PUBLISHER_PREFIX}_reviewstatus": data["${PUBLISHER_PREFIX}_reviewstatus"],
+        })
 
     equipments = {}
     for name, kind, asset in [
@@ -423,9 +439,15 @@ def seed_data() -> None:
             "${PUBLISHER_PREFIX}_reportdate": (today - timedelta(days=2 if index < 3 else 1)).isoformat(),
             "${PUBLISHER_PREFIX}_weather": weather, "${PUBLISHER_PREFIX}_workers": workers, "${PUBLISHER_PREFIX}_workdetail": detail,
             "${PUBLISHER_PREFIX}_nextplan": "安全確認後に作業を継続", "${PUBLISHER_PREFIX}_remarks": "", "${PUBLISHER_PREFIX}_aidrafted": False, "${PUBLISHER_PREFIX}_status": status,
+            "${PUBLISHER_PREFIX}_reviewstatus": 100000001 if index in (0, 3) else 100000002,
+            "${PUBLISHER_PREFIX}_photocaption": f"{detail}の施工状況",
         }
         bind(data, "${PUBLISHER_PREFIX}_dailyreport", "${PUBLISHER_PREFIX}_project", "${PUBLISHER_PREFIX}_project", projects[project])
         reports[name] = ensure("${PUBLISHER_PREFIX}_dailyreport", name, data)
+        api_patch(f"{entity_set('${PUBLISHER_PREFIX}_dailyreport')}({reports[name]})", {
+            "${PUBLISHER_PREFIX}_reviewstatus": data["${PUBLISHER_PREFIX}_reviewstatus"],
+            "${PUBLISHER_PREFIX}_photocaption": data["${PUBLISHER_PREFIX}_photocaption"],
+        })
 
     ky_specs = [
         ("KY 青葉川 今日", "青葉川橋梁下部工事", "P2 橋脚 杭打ち", 100000004, 100000000, "強風時の吊り荷の振れ"),
@@ -507,27 +529,8 @@ def verify() -> None:
         print(f"{logical}: {len(rows)} rows")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Plan or provision the Construction Cockpit Dataverse schema.")
-    parser.add_argument("--apply", action="store_true", help="Create/update the schema and publish customizations.")
-    parser.add_argument("--seed-demo", action="store_true", help="Insert idempotent demonstration data (requires --apply).")
-    args = parser.parse_args()
-
-    if args.seed_demo and not args.apply:
-        parser.error("--seed-demo requires --apply")
-
-    if not args.apply:
-        print(f"PLAN solution={SOLUTION} publisherPrefix={PREFIX}")
-        for table in TABLES:
-            print(f"  table {table['logical']} ({len(table['columns'])} custom columns)")
-        print("No changes made. Re-run with --apply, optionally adding --seed-demo.")
-        return
-
+if __name__ == "__main__":
     create_schema()
-    if args.seed_demo:
-        seed_data()
+    seed_data()
     verify()
 
-
-if __name__ == "__main__":
-    main()

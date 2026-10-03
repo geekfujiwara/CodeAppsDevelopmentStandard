@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { Outlet } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { Outlet, useLocation } from "react-router-dom"
 import { Menu, PanelLeftClose, PanelLeftOpen, RefreshCw } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -8,7 +8,6 @@ import { ModeToggle } from "@/components/mode-toggle"
 import { Sidebar } from "@/components/sidebar"
 import { OnboardingGuide } from "@/components/onboarding-guide"
 import { CODEAPPS_APP_NAME, CODEAPPS_APP_SUBTITLE } from "@/config"
-import { useProject } from "@/state/project-state"
 
 type LayoutProps = { showHeader?: boolean }
 
@@ -17,7 +16,11 @@ export default function Layout({ showHeader = true }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const queryClient = useQueryClient()
-  const { projects, selectedProjectId, setSelectedProjectId, isLoading, error } = useProject()
+  const location = useLocation()
+
+  useEffect(() => {
+    if (/^\/projects\/[^/]+$/.test(location.pathname)) setCollapsed(true)
+  }, [location.pathname])
 
   const refreshAll = async () => {
     setRefreshing(true)
@@ -61,21 +64,7 @@ export default function Layout({ showHeader = true }: LayoutProps) {
                 <p className="hidden truncate text-xs text-slate-500 sm:block dark:text-slate-400">{CODEAPPS_APP_SUBTITLE}</p>
               </div>
 
-              <label className="ml-auto hidden min-w-0 items-center gap-2 lg:flex">
-                <span className="shrink-0 text-xs font-bold text-slate-500 dark:text-slate-400">今の現場</span>
-                <select
-                  className="h-10 w-56 min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                  value={selectedProjectId}
-                  onChange={(event) => setSelectedProjectId(event.target.value)}
-                  aria-label="今の現場を選択"
-                  disabled={isLoading || Boolean(error)}
-                >
-                  <option value="" disabled>{error ? "現場を取得できません" : "現場を選択してください"}</option>
-                  {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-                </select>
-              </label>
-
-              <div className="ml-auto flex shrink-0 items-center gap-1 lg:ml-0">
+              <div className="ml-auto flex shrink-0 items-center gap-1">
                 <OnboardingGuide />
                 <Button
                   variant="ghost"

@@ -13,6 +13,8 @@ export type Project = {
   progress: number
   status: number
   siteManager: string
+  modelUrl: string
+  modelCenter: string
 }
 
 export type WorkType = { id: string; name: string; code: string; category: number }
@@ -25,6 +27,9 @@ export type Task = {
   plannedEnd: string
   progress: number
   status: number
+  reportedProgress: number
+  reviewStatus: number
+  reviewComment: string
 }
 export type DailyReport = {
   id: string
@@ -38,6 +43,10 @@ export type DailyReport = {
   remarks: string
   aiDrafted: boolean
   status: number
+  reviewStatus: number
+  reviewComment: string
+  photoUrl: string
+  photoCaption: string
 }
 export type KyActivity = {
   id: string
@@ -85,18 +94,31 @@ export type EquipmentUsage = { id: string; name: string; reportId: string; equip
 const text = (row: DataverseRow, key: string) => String(row[key] ?? "")
 const number = (row: DataverseRow, key: string) => Number(row[key] ?? 0)
 const bool = (row: DataverseRow, key: string) => Boolean(row[key])
+const escapeOData = (value: string) => value.replaceAll("'", "''")
+
+const mapProject = (row: DataverseRow): Project => ({
+  id: text(row, "${PUBLISHER_PREFIX}_projectid"), name: text(row, "${PUBLISHER_PREFIX}_name"), projectNo: text(row, "${PUBLISHER_PREFIX}_projectno"),
+  client: text(row, "${PUBLISHER_PREFIX}_client"), address: text(row, "${PUBLISHER_PREFIX}_address"),
+  latitude: number(row, "${PUBLISHER_PREFIX}_latitude"), longitude: number(row, "${PUBLISHER_PREFIX}_longitude"),
+  startDate: text(row, "${PUBLISHER_PREFIX}_startdate"), endDate: text(row, "${PUBLISHER_PREFIX}_enddate"),
+  progress: number(row, "${PUBLISHER_PREFIX}_progress"), status: number(row, "${PUBLISHER_PREFIX}_status"),
+  siteManager: text(row, "${PUBLISHER_PREFIX}_sitemanager"), modelUrl: text(row, "${PUBLISHER_PREFIX}_modelurl"),
+  modelCenter: text(row, "${PUBLISHER_PREFIX}_modelcenter"),
+})
 
 export const ConstructionService = {
   async projects(): Promise<Project[]> {
     const rows = await DataverseService.list("${PUBLISHER_PREFIX}_project", undefined, undefined, "${PUBLISHER_PREFIX}_name asc")
-    return rows.map((row) => ({
-      id: text(row, "${PUBLISHER_PREFIX}_projectid"), name: text(row, "${PUBLISHER_PREFIX}_name"), projectNo: text(row, "${PUBLISHER_PREFIX}_projectno"),
-      client: text(row, "${PUBLISHER_PREFIX}_client"), address: text(row, "${PUBLISHER_PREFIX}_address"),
-      latitude: number(row, "${PUBLISHER_PREFIX}_latitude"), longitude: number(row, "${PUBLISHER_PREFIX}_longitude"),
-      startDate: text(row, "${PUBLISHER_PREFIX}_startdate"), endDate: text(row, "${PUBLISHER_PREFIX}_enddate"),
-      progress: number(row, "${PUBLISHER_PREFIX}_progress"), status: number(row, "${PUBLISHER_PREFIX}_status"),
-      siteManager: text(row, "${PUBLISHER_PREFIX}_sitemanager"),
-    }))
+    return rows.map(mapProject)
+  },
+  async searchProjects(query: string): Promise<Project[]> {
+    const keyword = escapeOData(query.trim())
+    if (!keyword) return this.projects()
+    const filter = [
+      `contains(${PUBLISHER_PREFIX}_name,'${keyword}')`, `contains(${PUBLISHER_PREFIX}_projectno,'${keyword}')`,
+      `contains(${PUBLISHER_PREFIX}_client,'${keyword}')`, `contains(${PUBLISHER_PREFIX}_address,'${keyword}')`,
+    ].join(" or ")
+    return (await DataverseService.list("${PUBLISHER_PREFIX}_project", undefined, filter, "${PUBLISHER_PREFIX}_name asc")).map(mapProject)
   },
   async workTypes(): Promise<WorkType[]> {
     return (await DataverseService.list("${PUBLISHER_PREFIX}_worktype")).map((row) => ({
@@ -110,6 +132,8 @@ export const ConstructionService = {
       projectId: text(row, "_${PUBLISHER_PREFIX}_project_value"), workTypeId: text(row, "_${PUBLISHER_PREFIX}_worktype_value"),
       plannedStart: text(row, "${PUBLISHER_PREFIX}_plannedstart"), plannedEnd: text(row, "${PUBLISHER_PREFIX}_plannedend"),
       progress: number(row, "${PUBLISHER_PREFIX}_progress"), status: number(row, "${PUBLISHER_PREFIX}_status"),
+      reportedProgress: number(row, "${PUBLISHER_PREFIX}_reportedprogress"), reviewStatus: number(row, "${PUBLISHER_PREFIX}_reviewstatus"),
+      reviewComment: text(row, "${PUBLISHER_PREFIX}_reviewcomment"),
     }))
   },
   async reports(): Promise<DailyReport[]> {
@@ -118,6 +142,8 @@ export const ConstructionService = {
       reportDate: text(row, "${PUBLISHER_PREFIX}_reportdate"), weather: number(row, "${PUBLISHER_PREFIX}_weather"), workers: number(row, "${PUBLISHER_PREFIX}_workers"),
       workDetail: text(row, "${PUBLISHER_PREFIX}_workdetail"), nextPlan: text(row, "${PUBLISHER_PREFIX}_nextplan"), remarks: text(row, "${PUBLISHER_PREFIX}_remarks"),
       aiDrafted: bool(row, "${PUBLISHER_PREFIX}_aidrafted"), status: number(row, "${PUBLISHER_PREFIX}_status"),
+      reviewStatus: number(row, "${PUBLISHER_PREFIX}_reviewstatus"), reviewComment: text(row, "${PUBLISHER_PREFIX}_reviewcomment"),
+      photoUrl: text(row, "${PUBLISHER_PREFIX}_photourl"), photoCaption: text(row, "${PUBLISHER_PREFIX}_photocaption"),
     }))
   },
   async kyActivities(): Promise<KyActivity[]> {
@@ -177,4 +203,11 @@ export const ConstructionService = {
   updateIncident(id: string, body: DataverseRow) {
     return DataverseService.update("${PUBLISHER_PREFIX}_incident", id, body)
   },
+  updateReport(id: string, body: DataverseRow) {
+    return DataverseService.update("${PUBLISHER_PREFIX}_dailyreport", id, body)
+  },
+  updateTask(id: string, body: DataverseRow) {
+    return DataverseService.update("${PUBLISHER_PREFIX}_task", id, body)
+  },
 }
+

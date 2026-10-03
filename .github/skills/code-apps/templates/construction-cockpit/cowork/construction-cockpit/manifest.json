@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.28/MicrosoftTeams.schema.json",
   "manifestVersion": "1.28",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "id": "${COWORK_PLUGIN_ID}",
   "developer": {
     "name": "Construction Cockpit",
@@ -27,7 +27,9 @@
     { "folder": "./skills/m365-site-intake" },
     { "folder": "./skills/safety-signal-review" },
     { "folder": "./skills/construction-action-advisor" },
-    { "folder": "./skills/knowledge-capture" }
+    { "folder": "./skills/knowledge-capture" },
+    { "folder": "./skills/field-record-assistant" },
+    { "folder": "./skills/guided-project-intake" }
   ],
   "agentConnectors": [
     {

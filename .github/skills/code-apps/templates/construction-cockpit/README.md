@@ -74,6 +74,16 @@ npm run deploy
 
 `src/lib/dataverse-client.ts` は生成サービスを遅延解決するため、Dataverse data source を追加する前でも初回 build と push ができます。
 
+## 工事ワークスペース
+
+- `/projects` は Google Maps を既定表示とし、日報写真・一覧へ切り替えられます。
+- 工事番号、名称、発注者、住所を Dataverse 側で検索します。
+- 工事を選択するとナビゲーションが折りたたまれ、Three.js の進捗モデル、React Flow 工程ガント、関連データの因果関係を表示します。
+- Cowork から提出された日報と工程進捗は、監督確認で承認または理由付き差戻しができます。
+- Cowork plugin は現場記録と新規工事登録を確認付きで支援します。本番 ZIP 生成には OAuth registration ID が必要です。
+
+要件と受け入れテストは `spec/requirements.md` を参照してください。
+
 ## Google Maps
 
 API キー不要の `output=embed` を使います。Code Apps の `frame-src` に次を許可してください。
