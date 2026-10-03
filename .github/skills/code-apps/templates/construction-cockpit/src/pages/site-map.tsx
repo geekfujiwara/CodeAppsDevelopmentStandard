@@ -3,12 +3,10 @@ import { useQuery } from "@tanstack/react-query"
 import { isAfter, parseISO, subYears } from "date-fns"
 import { Link } from "react-router-dom"
 import {
-  ArrowRight,
   ArrowUpRight,
   Building2,
   CheckCircle2,
   Gauge,
-  MapPinned,
   ShieldAlert,
 } from "lucide-react"
 import { ConstructionService, type Project } from "@/services/construction-service"
@@ -145,31 +143,6 @@ export default function SiteMap() {
 
   return (
     <div className="mx-auto min-w-0 max-w-[100rem] space-y-6">
-      <section className="overflow-hidden rounded-3xl bg-slate-950 text-white shadow-xl">
-        <div className="grid min-w-0 items-end gap-8 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:p-10">
-          <div className="min-w-0">
-            <div className="mb-5 flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1.5 text-xs font-bold text-cyan-200">
-                <MapPinned className="h-4 w-4" /> 現場ポートフォリオ
-              </span>
-              <span className="text-xs font-semibold text-slate-400">リアルタイム工事運営</span>
-            </div>
-            <h1 className="max-w-4xl text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
-              現場の状況を、<span className="text-cyan-300">地図から判断する。</span>
-            </h1>
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
-              施工中と直近完了の工事を、位置・工程・安全情報とともに俯瞰します。
-            </p>
-          </div>
-          <Link
-            to="/projects"
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-300"
-          >
-            工事ワークスペース <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </section>
-
       <section className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4">
         {metrics.map(([label, value, unit, Icon]) => (
           <article key={label} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-slate-900">

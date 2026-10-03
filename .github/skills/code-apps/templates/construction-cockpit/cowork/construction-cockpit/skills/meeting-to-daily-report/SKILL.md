@@ -25,8 +25,11 @@ metadata:
    - `${PUBLISHER_PREFIX}_remarks`
    - `${PUBLISHER_PREFIX}_aidrafted`: true
    - `${PUBLISHER_PREFIX}_status`: 下書き
+   - `${PUBLISHER_PREFIX}_reviewstatus`: 提出済
+   - `${PUBLISHER_PREFIX}_photourl` / `${PUBLISHER_PREFIX}_photocaption`: 利用者が明示した写真だけ
    - `${PUBLISHER_PREFIX}_project`: 対象工事 Lookup
 6. 数値や天候が不明なら推測せず「要確認」として利用者へ質問する。録画や文字起こしが無い場合は会議チャットとメールだけで作ったことを明記する。
 7. 「根拠」「日報下書き」「未確認事項」「登録後に推奨する次アクション」の順に表示する。根拠には件名・会議名・日時を付けるが、不要な個人情報や本文全文は複製しない。
-8. 利用者が内容と対象現場を明示確認した後だけ `create_record` を実行する。Lookup は `${PUBLISHER_PREFIX}_project` に `{"relatedTable":"${PUBLISHER_PREFIX}_project","recordId":"<GUID>"}` を JSON 文字列で渡す。
-9. 登録結果の ID と現場名を返す。メール送信、予定作成、チャット投稿は別の確認なしに実行しない。
+8. 利用者が内容と対象現場を明示確認した後だけ `create_record` を実行する。Lookup は `${PUBLISHER_PREFIX}_project` に `{"relatedTable":"${PUBLISHER_PREFIX}_project","recordId":"<GUID>"}` を JSON 文字列で渡す。Cowork からの報告を直接確定・承認しない。
+9. 登録結果の ID、現場名、「提出済」で監督確認待ちであることを返す。メール送信、予定作成、チャット投稿は別の確認なしに実行しない。
+
