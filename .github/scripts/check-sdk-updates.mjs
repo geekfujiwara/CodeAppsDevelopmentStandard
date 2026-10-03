@@ -14,12 +14,13 @@ export const NPM_SOURCES = [
   '@microsoft/power-apps-native-offline',
 ];
 
+// Canvas Apps は本リポジトリの方針上カバーしない（業務システムは Code Apps / Managed Runtime を利用する）ため、
+// 自動 Issue 作成の監視対象から除外する。
 export const UPSTREAM_SOURCES = [
   'plugins/code-apps',
   'plugins/mobile-apps',
   'plugins/power-automate',
   'plugins/power-pages',
-  'plugins/canvas-apps',
 ];
 
 const UPSTREAM_REPOSITORY = 'microsoft/power-platform-skills';
