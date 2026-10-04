@@ -8,6 +8,7 @@ const layout = read("src/pages/_layout.tsx")
 const sidebar = read("src/components/sidebar.tsx")
 const siteMap = read("src/pages/site-map.tsx")
 const project = read("src/pages/project-detail.tsx")
+const projectModel = read("src/components/project-model-3d.tsx")
 const styles = read("styles/index.pcss")
 const cssFile = fs.readdirSync(path.join(root, "dist", "assets")).find((name) => /^index-.*\.css$/.test(name))
 
@@ -28,6 +29,7 @@ const assertions = [
   [project.includes('value="photos"') && project.includes('value="list"'), "photo and list portfolio tabs are present"],
   [project.includes("searchProjects"), "portfolio uses Dataverse project search"],
   [project.includes("ProjectModel3d"), "workspace includes the Three.js model"],
+  [!projectModel.includes("Environment") && !projectModel.includes("raw.githack.com"), "Three.js model has no external HDR dependency"],
   [layout.includes("setCollapsed(true)"), "project detail automatically collapses navigation"],
   [project.includes('data-tour="review-queue"'), "supervisor review queue has a tutorial target"],
   [!siteMap.includes("orbit-") && !project.includes("orbit-"), "rebuilt pages do not depend on the previous Orbit CSS"],
