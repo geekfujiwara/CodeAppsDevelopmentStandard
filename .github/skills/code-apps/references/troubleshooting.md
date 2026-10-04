@@ -2898,3 +2898,19 @@ JS の `Math.round` は四捨五入、Python の `round` は偶数丸め（`roun
 
 Python 側は `math.floor(x * 1000 + 0.5) / 1000` で丸める。寸法を導く関数は、頂点数ではなく両方の出力（座標の配列）そのものを `npm test` で突き合わせる。
 
+## 76. Power Apps のプレイヤーでアプリが白紙のまま（アプリの枠が表示されない）（検証済 2026-10-05）
+
+### 症状
+
+`apps.powerapps.com/play/...` を開くと、上部のヘッダーだけが表示され、アプリの領域が白紙のまま。Console に `Refused to` などの CSP 違反は出ない。自動操作のブラウザ（VS Code 統合ブラウザ等）で起きた。
+
+### 切り分け
+
+- アプリを載せる iframe（`id="fullscreen-app-host"`）が `display: none`・0×0 のまま、frame の URL は `about:blank`。iframe の `src`（`https://<env>.environment.api.powerplatformusercontent.com/powerapps/appruntime/<appId>/.../index.html`）への要求は 200
+- iframe の **`src` を直接開くとアプリは正常に表示される**（同じビルド・同じ CSP ヘッダー）。アプリの不具合ではなく、プレイヤー側でアプリの枠を表示する段階で止まっている
+- 同じ Console に出る `React.createElement: type is invalid` は `content.powerapps.com` のプレイヤー自身の警告で、アプリとは無関係
+
+### 対処
+
+- 実機確認（3D・CSP・データ）は、iframe の `src` を直接開いて行う。`?debug3d` のような明示フラグのクエリも付けられる
+- プレイヤーの枠が出ない件は、別のブラウザ（利用者の通常の Edge）で再生して再現するかを確かめ、再現しなければブラウザ側の問題として扱う
