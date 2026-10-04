@@ -15,11 +15,14 @@ Power Apps Code Apps, モデル駆動型アプリ, Generative page, Dataverse, P
 
 VS Code + GitHub Copilot が使える状態（[統合プロンプトで一気に準備する](#統合プロンプトで一気に準備する推奨)を参照）であれば、GitHub Copilot / Claude Code のチャットを次のプロンプトから始めてください。そのままコピーして使えます。
 
+> [!NOTE]
+> ワークスペースとしてフォルダを作成し、エージェントに適切な実行権限を設定してください。
+
 ```text
 https://github.com/geekfujiwara/CodeAppsDevelopmentStandard クイックスタートして
 ```
 
-続けて、次のコマンドで開発標準をプロジェクトへ配置します。
+クイックスタートでは、次のコマンドで開発標準をプロジェクトへ配置します。
 
 ```bash
 npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents
