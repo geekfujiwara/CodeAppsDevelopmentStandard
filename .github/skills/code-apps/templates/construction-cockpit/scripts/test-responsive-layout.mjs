@@ -9,6 +9,12 @@ const sidebar = read("src/components/sidebar.tsx")
 const siteMap = read("src/pages/site-map.tsx")
 const project = read("src/pages/project-detail.tsx")
 const projectModel = read("src/components/project-model-3d.tsx")
+const models = read("src/lib/construction-models.ts")
+const gantt = read("src/components/project-gantt-flow.tsx")
+const photos = read("src/lib/site-photos.ts")
+const pages = ["ky-activity", "incidents", "daily-reports"].map((name) => read(`src/pages/${name}.tsx`))
+const photoDir = path.join(root, "src", "assets", "demo-photos")
+const photoCount = fs.existsSync(photoDir) ? fs.readdirSync(photoDir).filter((name) => name.endsWith(".svg")).length : 0
 const styles = read("styles/index.pcss")
 const cssFile = fs.readdirSync(path.join(root, "dist", "assets")).find((name) => /^index-.*\.css$/.test(name))
 
@@ -30,6 +36,11 @@ const assertions = [
   [project.includes("searchProjects"), "portfolio uses Dataverse project search"],
   [project.includes("ProjectModel3d"), "workspace includes the Three.js model"],
   [!projectModel.includes("Environment") && !projectModel.includes("raw.githack.com"), "Three.js model has no external HDR dependency"],
+  [!projectModel.includes("<Html") && !/useGLTF|useTexture|<Text\b/.test(projectModel), "Three.js model loads no external fonts, textures, or glTF"],
+  [["bridge()", "earthwork()", "tunnel()", "architecture(", "channel()", "road()"].every((name) => models.includes(name)), "3D scenes exist for all six construction model types"],
+  [gantt.includes("predecessorId") && gantt.includes("遅延が波及"), "gantt draws predecessor edges and delay propagation"],
+  [photos.includes("import.meta.glob") && photoCount >= 60, "demo site photos are bundled locally for the img-src 'self' CSP"],
+  [pages.every((page) => page.includes("<ProjectPicker")), "KY, incident, and report pages let users choose the project in-page"],
   [layout.includes("setCollapsed(true)"), "project detail automatically collapses navigation"],
   [project.includes('data-tour="review-queue"'), "supervisor review queue has a tutorial target"],
   [!siteMap.includes("orbit-") && !project.includes("orbit-"), "rebuilt pages do not depend on the previous Orbit CSS"],
