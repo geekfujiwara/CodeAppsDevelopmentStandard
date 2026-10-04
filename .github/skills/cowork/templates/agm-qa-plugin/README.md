@@ -33,6 +33,7 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 [cowork スキル](../../SKILL.md) の Step 3〜8（Entra OAuth アプリ → `allowedmcpclients` → OAuth client registration → ビルド → 管理センター private API）。
 OAuth client registration は CLI から作れる（`manage_oauth_registration_api.py create ... --write-env .env`）。組織に公開する前に、
 作成者が `install_agent_package_personal.py install` で自分だけに入れて、Cowork で下書きの作成を確かめる。
+その前に `rehearse_plugin.py` で 3 つのスキルを実データで通しで動かす（想定問答の下書き・既存との重複判定・台本の登録と JSON の形・点検の件数）。架空の会社「株式会社みらいテクノロジーズ」のデモデータでの記録例は、元のプロジェクトの `spec/eval/cowork-rehearsal/`。
 既存の Cowork 用 OAuth 登録が同じ環境にあれば Step 3〜5 を再利用できる。
 
 ```powershell

@@ -19,13 +19,15 @@ metadata:
 - 書き込み系のツールは呼ばない。
 - 数値の判定は、回答・要点の数値が `根拠 ID` の IR 抜粋の本文に**同じ表記で**あるか（全角半角・カンマは揃えて比べる）。
 - 推測で列名を書かない（Step 1 の `describe` を使う）。
+- 本文中の `_status` のような短い表記は `${PUBLISHER_PREFIX}_status` の略。クエリと登録では必ず正式な列名を使う。
+- `read_query` は `top` を省くと **20 行まで**しか返さない。全件が要るときは先に `SELECT COUNT(...) AS n` で件数を確かめ、`top` にその件数以上を指定する（返った行数が件数と合うか確かめる）。
 
 ## 対象テーブル（接頭辞 `${PUBLISHER_PREFIX}`）
 
 | テーブル | 主な列 |
 |---|---|
-| `${PUBLISHER_PREFIX}_agmqa` | `_name`, `_category`, `_question`, `_variants`, `_answer`, `_answerpoints`, `_responder`, `_sourceids`, `_cautions`, `_status`, `_createdvia` |
-| `${PUBLISHER_PREFIX}_agmirexcerpt` | `_name`, `_doctitle`, `_section`, `_page`, `_text` |
+| `${PUBLISHER_PREFIX}_agmqa` | `${PUBLISHER_PREFIX}_name`, `${PUBLISHER_PREFIX}_category`, `${PUBLISHER_PREFIX}_question`, `${PUBLISHER_PREFIX}_variants`, `${PUBLISHER_PREFIX}_answer`, `${PUBLISHER_PREFIX}_answerpoints`, `${PUBLISHER_PREFIX}_responder`, `${PUBLISHER_PREFIX}_sourceids`, `${PUBLISHER_PREFIX}_cautions`, `${PUBLISHER_PREFIX}_status`, `${PUBLISHER_PREFIX}_createdvia` |
+| `${PUBLISHER_PREFIX}_agmirexcerpt` | `${PUBLISHER_PREFIX}_name`, `${PUBLISHER_PREFIX}_doctitle`, `${PUBLISHER_PREFIX}_section`, `${PUBLISHER_PREFIX}_page`, `${PUBLISHER_PREFIX}_text` |
 
 ## ワークフロー
 

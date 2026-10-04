@@ -57,6 +57,7 @@
     "python .github/skills/cowork/scripts/manage_oauth_registration_api.py create --name \"Dataverse MCP OAuth (AGM QA)\" --base-url $env:DATAVERSE_URL --scopes \"$env:DATAVERSE_URL/.default,offline_access\"（plan）→ --write-env .env --expected-hash <HASH> --apply（Step 5）",
     "python .github/skills/cowork/scripts/get_developer_account.py --check-manifest <出力先>/manifest.json  # 作成者が開発中のアカウントか",
     "pwsh .github/skills/cowork/scripts/build_agent_package.ps1 -PluginRoot <出力先> -OutputName agm-qa-author",
+    "python .github/skills/cowork/scripts/rehearse_plugin.py run --plugin-root <出力先> --skill agm-qa-authoring --prompt \"配当について想定問答を 2 件作って\" --reply \"その内容で下書き登録して\"（初回は setup-client --apply。まず書き込みなし → よければ --allow-write。台本・点検のスキルも同様）",
     "python .github/skills/cowork/scripts/install_agent_package_personal.py install --package <出力先>/dist/agm-qa-author.zip（plan → --expected-hash <HASH> --apply）→ 自分の Cowork で確認",
     "管理センター private API で組織に登録・公開（Step 8）→ 利用者が Cowork の Customize → Plugins で有効化して Connect"
   ]

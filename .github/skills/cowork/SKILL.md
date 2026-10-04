@@ -109,6 +109,7 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
 | [scripts/build_cowork_publish_payloads.py](scripts/build_cowork_publish_payloads.py) | `stageCustomApp()` の結果から新規公開（finalize / allow / deploy）または更新（UPDATEAPP）の plan payload を生成（Step 8 / 10） |
 | [scripts/manage_oauth_registration_api.py](scripts/manage_oauth_registration_api.py) | Developer Portal OAuth registration の CRUD（Step 5）。plan → hash 承認 → CLI から送信 → 読み戻し → `.env` に生の ID。重複は事前に止める。`--transport browser` で統合ブラウザ用の plan だけを出す |
 | [scripts/install_agent_package_personal.py](scripts/install_agent_package_personal.py) | 作成者が自分だけにインストール／アンインストールする（Step 8 の前の個人テスト）。ZIP の事前検証 → plan → hash 承認 → launchInfo で照合 |
+| [scripts/rehearse_plugin.py](scripts/rehearse_plugin.py) | 公開前リハーサル。プラグインの SKILL.md と tools 定義を、実際の Dataverse MCP と Azure OpenAI で通しで動かし、会話とツール呼び出しを記録する（専用クライアントの `setup-client` / ツール名の差の `tools` / 依頼から登録までの `run`。既定は書き込みを送らない）（Step 7 の後） |
 | [scripts/get_developer_account.py](scripts/get_developer_account.py) | プラグインの作成者（`developer.name` / `metadata.author`）にする開発中のサインイン アカウントを Graph `/me` で取得。`--write-env` で `COWORK_DEVELOPER_NAME` を書き、`--check-manifest` で manifest と照合（Step 2 / 6） |
 | [../admin/scripts/manage_m365_portal_api.py](../admin/scripts/manage_m365_portal_api.py) | Agent Registry の Finalize / Allow / Install / Update / Permission plan を検証（Step 8 / 10） |
 | [../admin/scripts/m365_portal_browser_runner.mjs](../admin/scripts/m365_portal_browser_runner.mjs) | `stageCustomApp()` で ZIP をステージし、承認済み plan を browser session API で実行して poll と read-back を検証（Step 8 / 10） |
@@ -467,6 +468,23 @@ Compress-Archive -Path manifest.built.json, color.png, outline.png, dataverse-mc
 ZIP 検証: ルートに `manifest.json`（build 後、プレースホルダーが実 ID に置換済み）/ `dataverse-mcp-tools.json`、
 `skills/<skill-name>/SKILL.md` が含まれること。
 
+#### 公開前リハーサル（Step 7 の最後）
+
+Step 7 でビルドしたら、**公開する前に**スキルを実データで通しで動かす。Cowork の画面と違い、何度でも同じ依頼で試せ、会話・ツール呼び出しが残る。
+初回だけ専用の公開クライアントを作る（Cowork 本体のアプリとは別。mcp.tools の管理者同意と allowedmcpclients 登録まで行う）。
+
+```powershell
+python .github/skills/cowork/scripts/rehearse_plugin.py setup-client --name "<Plugin>-Rehearsal" --apply   # 初回だけ
+python .github/skills/cowork/scripts/rehearse_plugin.py tools --plugin-root <plugin-root>                 # ツール名の差
+# 依頼 → 提示 → 利用者の返事 → 登録。まず書き込みなしで、よければ --allow-write
+python .github/skills/cowork/scripts/rehearse_plugin.py run --plugin-root <plugin-root> --skill <skill> `
+  --prompt "<依頼>" --reply "<確認の返事>" --transcript spec/eval/cowork-rehearsal/<skill>.md
+```
+
+見るところ: 検索が 0 件で止まっていないか（`search_data` に頼らず `read_query` の LIKE）、提示してから登録しているか、
+承認済みの行を変えていないか、承認件数どおり登録したか、値（分類など）が既存と揃っているか、数値が根拠にあるか、
+JSON などの文字列が壊れていないか（[troubleshooting #38〜#45](references/troubleshooting.md)）。直したら版を上げてビルドし直す。
+
 ### Step 8: 管理センター private API で新規登録・公開する
 
 > **組織への公開の前に、作成者が自分だけにインストールして確かめる**（管理者ロール不要・CLI だけで完結）。
@@ -615,6 +633,7 @@ API が401/403/404、schema不一致、read-back不一致の場合だけ、次�
 - [ ] Teams ポータル **OAuth client registration**（SSO ではない）: Base URL は `/api/mcp` なし、scope は `.default offline_access`、Restrict by app = Any Teams app → registrationId を manifest に反映
 - [ ] manifest に `mcpToolDescription: { file: "dataverse-mcp-tools.json" }`（JSONツール定義）
 - [ ] ZIP ルートに manifest.json / dataverse-mcp-tools.json、skills/<name>/SKILL.md
+- [ ] 公開前リハーサル（`rehearse_plugin.py tools` と、各スキルの `run`）で、提示 → 承認 → 登録 → 読み戻しが意図どおり
 - [ ] 新規は `stageCustomApp(DEPLOY)` → `agent-publish`（FINALIZEPACKAGE）→ `agent-allow` → `agent-lifecycle`（DEPLOY）を PLAN_HASH 承認後に順に送り、各 `Success` を確認
 - [ ] 管理センター private API で登録・公開（API 不可のときだけ管理センター fallback）し、Tools → Plugins と Cowork で読み戻した
 - [ ] Agent Registry で Publish→Status=Available（Graph 登録成功とは別に確認）
