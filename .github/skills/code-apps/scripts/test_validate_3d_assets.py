@@ -81,6 +81,14 @@ class GlbTests(unittest.TestCase):
             self.assertIn("外部ファイル", allowed)
             self.assertIn("image/ktx2", allowed)
 
+    def test_blender_duplicate_suffix_only_when_requested(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = glb(Path(d) / "d.glb", {"asset": {"version": "2.0"}, "materials": [{"name": "floor.001"}, {"name": "floorX.001"}]})
+            self.assertIn("floor.001", "\n".join(check_glb(p, material_keys={"floor"}, max_bytes=10_000)))
+            errs = "\n".join(check_glb(p, material_keys={"floor"}, max_bytes=10_000, strip_blender_suffix=True))
+            self.assertNotIn("'floor'", errs)
+            self.assertIn("floorX", errs)
+
 
 if __name__ == "__main__":
     unittest.main()
