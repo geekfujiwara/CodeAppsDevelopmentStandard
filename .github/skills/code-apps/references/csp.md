@@ -317,6 +317,20 @@ iframe 埋め込み（地図等）を実装する場合の手順:
 
 1. Console で `Refused to connect` エラーを確認
 2. **`connect-src`** に API ドメインを追加
+3. 追加したら `.env` に `CODE_APP_CSP_ALLOW=connect-src` を書く（predeploy チェック 13 の除外）
+
+### エラーが出ないのに読み込みだけ失敗する（事前検出: predeploy チェック 13）
+
+既定 CSP では `fetch` / `XMLHttpRequest` / `WebSocket` / three.js の `GLTFLoader.load` などのファイル読み込み /
+`Worker` / Draco・KTX2 デコーダー / `blob:` URL の画像表示が、**画面上は何も起きないまま**失敗する。
+`npm run predeploy` のチェック 13（`scripts/detect-csp-hazards.mjs`）がこれらの書き方をデプロイ前に止める。
+
+| 状況 | 対処 |
+|---|---|
+| 静的な JSON / 設定を `fetch` している | `import data from './x.json'` でバンドルに含める |
+| GLB / テクスチャをローダーで読む | 画像は `img-src 'self'` で読める。GLB は [3D 資産の共通利用](3d-asset-sharing.md) を参照 |
+| 環境に CSP を追加済み（外部 API 等） | `.env` に `CODE_APP_CSP_ALLOW=connect-src`（directive 名かルール ID をカンマ区切り） |
+| 1 行だけ正当な理由がある | 行末に `// csp-ok: <理由>` |
 
 ### CSP 設定が反映されない
 

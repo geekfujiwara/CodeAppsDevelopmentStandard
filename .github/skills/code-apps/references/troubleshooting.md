@@ -2793,3 +2793,108 @@ localStorage はオリジンごと。別ページではオリジンが違い、�
 ### 対処（恒久対策済み）
 
 `templates/agm-qa-assist/scripts/export_template.py` が書き出し後と `--check` で、テンプレート内のすべての相対 import がテンプレートか `generic-base` の中で解決できるかを確かめ、解決できなければ終了コード 1。
+
+## 69. 3D 画面がヘッドレス / 仮想デスクトップでだけ真っ黒になる（ソフトウェア描画 + 環境マップ）（検証済 2026-10-04）
+
+### 症状
+
+GPU のある PC では正しく見えるのに、ヘッドレス Edge や GPU の無い仮想デスクトップでは、光が当たる面が黒くなる。エラーも警告も出ない。
+
+### 原因
+
+GPU が無いと Chromium は SwiftShader（ソフトウェア描画）で WebGL を動かす。three.js の `PMREMGenerator` で作った環境マップ（`scene.environment`）がこの経路で正しく作られず、反射の計算が黒になる。
+
+### 対処（恒久対策済み）
+
+`WEBGL_debug_renderer_info` で描画器名を取り、`SwiftShader` / `llvmpipe` / `Software` を含むときは環境マップを使わず、半球光を強めて補う。判定は描画器を作った後に評価する getter にする（クラスのフィールド初期化子は constructor 本体より前に動くため常に偽になる）。`scripts/capture_3d.mjs` は既定でソフトウェア描画、`--gpu` で GPU 経路を撮れるので、両方で確認する。詳細: [3D 資産の共通利用](3d-asset-sharing.md)。
+
+## 70. 写真素材に色を合わせると色かぶりする / 芝生が白っぽく光る（検証済 2026-10-04）
+
+### 症状
+
+- 利用者が選んだ外壁色を写真素材に掛けると、木目やレンガの元の色と混ざって緑や紫に寄る
+- 芝生が白く粉をふいたように見える
+
+### 原因
+
+- 色のある写真テクスチャに指定色をそのまま乗算すると、元の色相と二重に掛かる
+- 芝生は粗さが低い部分が残り、環境光の鏡面反射が強く出る。法線も強すぎる
+
+### 対処（恒久対策済み）
+
+- 塗装・金属・屋根などは取り込み時にテクスチャを無彩色（輝度だけ）にし、指定色を「線形色 ÷ テクスチャ平均」で掛ける（上限 4）。レンガ・木・タイル・芝生は元の色を残して比率だけ合わせる
+- 芝生は粗さの下限 0.8、法線の強さ 0.35、鏡面 0.1、明るさ 0.55 を素材ごとの値として manifest に持つ。three.js と Blender は同じ manifest と同じ式を使う
+- `scripts/validate_3d_assets.py` が、無彩色であるべき素材の彩度・粗さの範囲・光沢フラグの欠落を検出する
+
+## 71. three.js のローダーや fetch がエラーを出さずに何も表示しない（既定 CSP）（検証済 2026-10-04）
+
+### 症状
+
+`GLTFLoader.load` / `FileLoader` / `fetch('./data.json')` / Draco・KTX2 デコーダーを使った画面が Power Apps 上でだけ空になる。ローカルでは動く。
+
+### 原因
+
+Code Apps の既定 CSP は `connect-src 'none'`、`worker-src` なし、`img-src 'self' data:`（`blob:` なし）。ローダーは XHR / fetch / Worker / blob URL を使うため、すべて止まる。画像を `<img>` で読む `TextureLoader` だけは通る。
+
+### 対処（恒久対策済み）
+
+`npm run predeploy` のチェック 13（`scripts/detect-csp-hazards.mjs`）がデプロイ前に検出する。JSON は import でバンドルし、テクスチャは `public/` に置いて相対パスで読む。CSP を追加した環境では `.env` に `CODE_APP_CSP_ALLOW=connect-src` などを書いて外す。1 行だけ許すときは `// csp-ok: <理由>`。詳細: [CSP 構成](csp.md)。
+
+## 72. 家具の GLB と建物で素材名が衝突し、片方の色が変わる（検証済 2026-10-04）
+
+### 症状
+
+家具を置くと建物の床や壁の色が変わる、または Blender で家具が建物の素材で描かれる。
+
+### 原因
+
+GLB の素材名（`wood` など）と建物側の素材ライブラリのキーが同じで、名前で引くキャッシュや Blender の `bpy.data.materials` で同じものとして扱われる。
+
+### 対処（恒久対策済み）
+
+共通利用する資産は素材名に名前空間の接頭辞（例: `furn_`）を付ける。`scripts/validate_3d_assets.py --material-prefix furn_` が接頭辞の無い素材を検出する。
+
+## 73. 同梱した GLB の家具が白い・テクスチャが無い（Console に `Couldn't load texture blob:`）（検証済 2026-10-04）
+
+### 症状
+
+ローカルではテクスチャ付きで表示される GLB が、Power Apps 上（既定 CSP）では形だけ白く表示される。画面にエラーは出ず、Console に `THREE.GLTFLoader: Couldn't load texture blob:...` が出る。`public/` に置いた GLB は読み込み自体が失敗する。
+
+### 原因
+
+- GLTFLoader は GLB に埋め込まれた画像を `URL.createObjectURL` で `blob:` URL にし、`<img>`（`img-src`）または ImageBitmapLoader（fetch = `connect-src`）で読む。既定 CSP は `img-src 'self' data:`・`connect-src 'none'` なので両方拒否される
+- `public/` の GLB を `GLTFLoader.load(url)` で読むと fetch になり `connect-src 'none'` で拒否される
+- ホスト再現（既定 CSP）で確認: `<img src=blob:>` と `fetch(blob:)` は拒否、`createImageBitmap(Blob)` は成功
+
+### 対処（恒久対策済み）
+
+GLB は `import.meta.glob("./models/*.glb", { query: "?inline" })` で base64 のモジュールにして動的 import し（`assetsInclude: ["**/*.glb"]`）、[templates/csp-safe-gltf.ts](../templates/csp-safe-gltf.ts) の `createCspSafeGltfLoader()` で読む（埋め込み画像を `createImageBitmap(Blob)` でデコードする）。`samples/plant-design-maintenance` の GLB 取り込みもこのローダーに切り替えた（以前は `blob:` を許可する URL 変更で、Power Apps 上ではテクスチャが落ちていた）。同梱前に `scripts/validate_3d_assets.py --allow-embedded-images` で、外部 URI・KTX2 など CSP で読めない形式が無いことを確かめる。
+
+## 74. ソフトウェア描画の内見だけ天井が茶色い（GPU では正常）（検証済 2026-10-04）
+
+### 症状
+
+GPU の無い環境（VDI・ヘッドレス試験）で室内を見ると、天井が床と同じ茶色に染まる。GPU のある PC では白い。
+
+### 原因
+
+#69 の対策で環境マップを外すと、下向きの面（天井）は半球光の地面色だけで照らされる。地面色に床の色を使っていると、天井が床の色になる。
+
+### 対処（恒久対策済み）
+
+ソフトウェア描画のときだけ、半球光の地面色を白へ 65% 寄せる。`scripts/capture_3d.mjs` は既定（ソフトウェア描画）と `--gpu` の両方で撮り、片方だけで起きる差を見つける。
+
+## 75. TypeScript と Python で同じ式なのに寸法が 1mm ずれる（丸め）（検証済 2026-10-04）
+
+### 症状
+
+Three.js と Blender で同じ式から作った部材（段・開口など）の座標が、まれに 0.001 ずれる。材質ごとの頂点数を比べるテストは通る。
+
+### 原因
+
+JS の `Math.round` は四捨五入、Python の `round` は偶数丸め（`round(0.5) == 0`、`round(2.5) == 2`）。
+
+### 対処（恒久対策済み）
+
+Python 側は `math.floor(x * 1000 + 0.5) / 1000` で丸める。寸法を導く関数は、頂点数ではなく両方の出力（座標の配列）そのものを `npm test` で突き合わせる。
+
