@@ -1,6 +1,5 @@
-import { Suspense } from "react"
 import { Canvas } from "@react-three/fiber"
-import { Environment, Grid, OrbitControls } from "@react-three/drei"
+import { Grid, OrbitControls } from "@react-three/drei"
 import type { Task } from "@/services/construction-service"
 
 function ConstructionModel({ tasks }: { tasks: Task[] }) {
@@ -37,11 +36,8 @@ export function ProjectModel3d({ tasks }: { tasks: Task[] }) {
         <color attach="background" args={["#07111f"]} />
         <ambientLight intensity={0.8} />
         <directionalLight position={[5, 10, 5]} intensity={2.2} castShadow />
-        <Suspense fallback={null}>
-          <ConstructionModel tasks={tasks} />
-          <Grid infiniteGrid fadeDistance={20} sectionColor="#22d3ee" cellColor="#334155" />
-          <Environment preset="city" />
-        </Suspense>
+        <ConstructionModel tasks={tasks} />
+        <Grid infiniteGrid fadeDistance={20} sectionColor="#22d3ee" cellColor="#334155" />
         <OrbitControls makeDefault minDistance={4} maxDistance={22} />
       </Canvas>
       <div className="pointer-events-none relative -mt-14 flex flex-wrap gap-3 px-4 text-xs font-bold text-slate-200">
