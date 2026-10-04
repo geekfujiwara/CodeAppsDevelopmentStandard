@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import struct
 import sys
 from pathlib import Path
@@ -99,7 +100,7 @@ def read_glb_json(path: Path) -> dict:
     return json.loads(data[20:20 + chunk_len])
 
 
-def check_glb(path: Path, *, material_keys: set[str] | None, key_prefixes: tuple[str, ...] = (), max_bytes: int, allow_embedded_images: bool = False) -> list[str]:
+def check_glb(path: Path, *, material_keys: set[str] | None, key_prefixes: tuple[str, ...] = (), max_bytes: int, allow_embedded_images: bool = False, strip_blender_suffix: bool = False) -> list[str]:
     errors: list[str] = []
     size = path.stat().st_size
     if size > max_bytes:
@@ -126,6 +127,9 @@ def check_glb(path: Path, *, material_keys: set[str] | None, key_prefixes: tuple
     if material_keys is not None:
         for m in j.get("materials", []):
             name = m.get("name", "")
+            if strip_blender_suffix:
+                # Blender は同名の材質を作れず "floor.001" にする（オブジェクトごとに複製した材質）。読み込み側が末尾を外す前提
+                name = re.sub(r"\.\d{3}$", "", name)
             if name not in material_keys and not name.startswith(key_prefixes):
                 errors.append(f"[glb] {path.name}: 材質名 '{name}' が共有キー・許可した接頭辞にない（読み込み側で差し替えられない）")
     return errors
@@ -144,6 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--max-glb-bytes", type=int, default=8_000_000)
     ap.add_argument("--min-rough", type=float, default=0.45)
     ap.add_argument("--allow-embedded-images", action="store_true", help="埋め込み画像を許す（blob: URL を使わずにデコードするローダーで読む場合）")
+    ap.add_argument("--strip-blender-suffix", action="store_true", help="材質名の末尾 .NNN（Blender の複製）を外してキーと照合する（読み込み側も外す場合）")
     a = ap.parse_args(argv)
     if not a.materials and not a.glb:
         ap.error("--materials か --glb を指定する")
@@ -154,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[material] {a.materials}: {total:,} bytes")
     keys = set(k.strip() for k in a.material_keys.split(",")) if a.material_keys else None
     for g in a.glb:
-        errors += check_glb(g, material_keys=keys, key_prefixes=tuple(a.material_prefix), max_bytes=a.max_glb_bytes, allow_embedded_images=a.allow_embedded_images)
+        errors += check_glb(g, material_keys=keys, key_prefixes=tuple(a.material_prefix), max_bytes=a.max_glb_bytes, allow_embedded_images=a.allow_embedded_images, strip_blender_suffix=a.strip_blender_suffix)
         print(f"[glb] {g}: checked")
     for e in errors:
         print(f"  NG {e}")
