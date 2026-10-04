@@ -673,6 +673,16 @@ SDK の破壊的変更への追従は、この 1 ファイルを直して `pytho
 > `samples/geek-asset` / `geek-hr` / `geek-expense` / `geek-sales` / `geek-fieldservice` は、このラッパーではなく
 > `getClient()` の `*Async` 系・テーブル別生成サービスを使う別パターンの参照実装。上記 3 階層の制約は同じく適用される。
 
+### 3D モデル（GLB）を読む面も 1 ファイルに閉じる
+
+GLB を読むときは **[templates/csp-safe-gltf.ts](templates/csp-safe-gltf.ts) をコピーして `createCspSafeGltfLoader()` を使う**（`new GLTFLoader()` を直接使わない）。
+既定 CSP は `blob:` を `img-src` / `connect-src` で拒否するため、素の GLTFLoader では埋め込みテクスチャが黙って落ちる（troubleshooting #73）。
+同じファイルを使う実装: `samples/plant-design-maintenance/src/lib/csp-safe-gltf.ts`。
+
+```bash
+cp .github/skills/code-apps/templates/csp-safe-gltf.ts src/lib/
+```
+
 ### 構築手順の詳細
 
 詳細な構築手順（初期化・Dataverse 接続・ビルド・デプロイ）は [構築リファレンス](references/build-reference.md) を参照。
@@ -763,6 +773,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [add_data_source.py](scripts/add_data_source.py) | データソースを**非対話**で追加する。コネクタの通称（`sharepoint` 等）を `shared_xxx` に解決し、接続・必須値を確定してから `--non-interactive` で CLI を起動する。Step 3 の標準 |
 | [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` / モック実行基盤の本番混入を検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |
 | [detect-csp-hazards.mjs](scripts/detect-csp-hazards.mjs) | 既定 CSP で無言で失敗する書き方を検出（predeploy チェック 13 が呼ぶ。`pre-deploy-check.mjs` と同じ場所にコピーする） |
+| [templates/csp-safe-gltf.ts](templates/csp-safe-gltf.ts) | 既定 CSP の中で GLB を読む GLTFLoader（埋め込みテクスチャを `createImageBitmap` でデコード・外部参照は明示エラー・同梱 GLB の base64 デコード） |
 | [validate_3d_assets.py](scripts/validate_3d_assets.py) | 素材ライブラリ manifest・テクスチャ・GLB の契約（サイズ・色の偏り・光沢フラグ・ライセンス・名前空間）を検証 |
 | [capture_3d.mjs](scripts/capture_3d.mjs) | ヘッドレス Edge（DevTools プロトコル、Playwright 不要）で 3D 画面を撮り、描画状態を `window.__viewer` などから取得する |
 | [inspect_table_metadata.py](scripts/inspect_table_metadata.py) | 既存テーブルの EntitySetName / 主キー / 列 / 参照先 / 選択肢を調査（既存テーブル接続時は実装前に必須） |

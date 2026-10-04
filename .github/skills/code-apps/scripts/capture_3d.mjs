@@ -2,12 +2,13 @@
 //
 //   node scripts/capture_3d.mjs --url "http://127.0.0.1:5181/#/projects/seed-sample-house?tab=viewer" \
 //     --wait 15000 --eval "window.__viewer?.materialSource" --out .tools/shots/viewer.png [--setup "<JS>"] [--viewport 1400x900]
+//   長いスクリプト（バイナリを base64 で渡すなど）は --eval-file <path>（コマンドラインの長さ制限を避ける）
 //
 // - Edge を --remote-debugging-port で起動し、Node 組み込みの WebSocket で CDP を直接話す（Playwright 不要）
 // - WebGL は既定でソフトウェア描画（SwiftShader）になる。--gpu を付けると GPU を使う
 // - 終了時は同じユーザー データ フォルダーの Edge プロセスをすべて止める
 import { spawn, execSync } from "node:child_process"
-import { mkdtempSync, writeFileSync, rmSync, existsSync, mkdirSync } from "node:fs"
+import { mkdtempSync, writeFileSync, rmSync, existsSync, mkdirSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, dirname } from "node:path"
 
@@ -72,8 +73,9 @@ try {
   await send("Page.navigate", { url }, sessionId)
   await sleep(waitMs)
   let value = null
-  if (args.eval) {
-    const r = await send("Runtime.evaluate", { expression: String(args.eval), awaitPromise: true, returnByValue: true }, sessionId)
+  const expression = args["eval-file"] ? readFileSync(String(args["eval-file"]), "utf8") : args.eval
+  if (expression) {
+    const r = await send("Runtime.evaluate", { expression: String(expression), awaitPromise: true, returnByValue: true }, sessionId)
     value = r.exceptionDetails ? { error: r.exceptionDetails.text } : r.result.value
   }
   if (args.after) {

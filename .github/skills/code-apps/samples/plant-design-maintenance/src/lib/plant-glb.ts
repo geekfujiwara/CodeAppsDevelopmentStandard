@@ -1,6 +1,6 @@
 import * as THREE from "three"
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
 import type { PlantNode } from "@/data/plant-model"
+import { createCspSafeGltfLoader } from "./csp-safe-gltf.ts"
 
 export type ImportedPlant = { id: string; name: string; nodes: PlantNode[]; root: THREE.Group }
 
@@ -69,12 +69,8 @@ export async function loadPlantGlb(file: File): Promise<ImportedPlant> {
   if (!file.name.toLowerCase().endsWith(".glb")) throw new Error("GLB ファイルを選択してください。")
   if (file.size > 50 * 1024 * 1024) throw new Error("GLB は 50 MB 以下に分割してください。")
   const bytes = await file.arrayBuffer()
-  const manager = new THREE.LoadingManager()
-  manager.setURLModifier((url) => {
-    if (url.startsWith("blob:") || url.startsWith("data:")) return url
-    throw new Error("外部ファイル参照は読み込めません。形状・テクスチャを内包した GLB を選択してください。")
-  })
-  const result = await new GLTFLoader(manager).parseAsync(bytes, "")
+  // 埋め込みテクスチャは blob: URL を介さずにデコードする（Code Apps の既定 CSP は img-src / connect-src で blob: を拒否する）
+  const result = await createCspSafeGltfLoader().parseAsync(bytes, "")
   const textures = new Set<THREE.Texture>()
   result.scene.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return

@@ -2868,7 +2868,7 @@ GLB の素材名（`wood` など）と建物側の素材ライブラリのキー
 
 ### 対処（恒久対策済み）
 
-GLB は `import.meta.glob("./models/*.glb", { query: "?inline" })` で base64 のモジュールにして動的 import し（`assetsInclude: ["**/*.glb"]`）、埋め込み画像は `createImageBitmap(Blob)` でデコードする GLTFLoader プラグインで読む（[3D 資産の共通利用](3d-asset-sharing.md) のコード）。同梱前に `scripts/validate_3d_assets.py --allow-embedded-images` で、外部 URI・KTX2 など CSP で読めない形式が無いことを確かめる。
+GLB は `import.meta.glob("./models/*.glb", { query: "?inline" })` で base64 のモジュールにして動的 import し（`assetsInclude: ["**/*.glb"]`）、[templates/csp-safe-gltf.ts](../templates/csp-safe-gltf.ts) の `createCspSafeGltfLoader()` で読む（埋め込み画像を `createImageBitmap(Blob)` でデコードする）。`samples/plant-design-maintenance` の GLB 取り込みもこのローダーに切り替えた（以前は `blob:` を許可する URL 変更で、Power Apps 上ではテクスチャが落ちていた）。同梱前に `scripts/validate_3d_assets.py --allow-embedded-images` で、外部 URI・KTX2 など CSP で読めない形式が無いことを確かめる。
 
 ## 74. ソフトウェア描画の内見だけ天井が茶色い（GPU では正常）（検証済 2026-10-04）
 

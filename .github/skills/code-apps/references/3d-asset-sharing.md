@@ -70,34 +70,18 @@ GLB を正本にすると、寸法の編集・数量計算・ルールに基づ�
 | テクスチャを読む | `TextureLoader`（`<img>`）は可 | `img-src 'self'` の範囲で同梱する |
 | GLB を読む（利用者が選んだファイル） | `GLTFLoader.load(url)` は内部で fetch するので不可 | `File.arrayBuffer()` → `parseAsync` |
 | GLB を読む（アプリに同梱） | 同上。`public/` に置いても fetch できない | `import.meta.glob("./models/*.glb", { query: "?inline" })` で base64 のモジュールにし、使うときに動的 import（`script-src 'self'` で読める）。`vite.config` の `assetsInclude` に `**/*.glb` |
-| テクスチャ埋め込み GLB | GLTFLoader は埋め込み画像を `blob:` URL にして `<img>` / fetch で読む。`img-src` に `blob:` が無く `connect-src 'none'` なので両方拒否され、テクスチャなしの白い表示になる | ① 色だけの材質で書き出し、キーで共有材質に差し替える ② 埋め込み画像を `createImageBitmap(Blob)` でデコードする GLTFLoader プラグインを使う（URL を介さないので CSP の対象外。下のコード） |
+| テクスチャ埋め込み GLB | GLTFLoader は埋め込み画像を `blob:` URL にして `<img>` / fetch で読む。`img-src` に `blob:` が無く `connect-src 'none'` なので両方拒否され、テクスチャなしの白い表示になる | ① 色だけの材質で書き出し、キーで共有材質に差し替える ② `templates/csp-safe-gltf.ts` のローダーで読む（埋め込み画像を `createImageBitmap(Blob)` でデコード。URL を介さないので CSP の対象外） |
 | Draco / KTX2 / meshopt | Web Worker が必要（`worker-src`） | 使わない（JPEG/WebP + 非圧縮）か、CSP を追加する |
 
+実装は [templates/csp-safe-gltf.ts](../templates/csp-safe-gltf.ts) を正とし、コピーして使う（既定 CSP で検証済み: `<img src=blob:>` と `fetch(blob:)` は拒否、`createImageBitmap(Blob)` は成功）。
+
 ```ts
-// 埋め込み画像を blob: URL を介さずにテクスチャにする（既定 CSP で検証済み: <img src=blob:> と fetch(blob:) は拒否、createImageBitmap(Blob) は成功）
-class CspSafeTexturePlugin {
-  readonly name = "CSP_SAFE_EMBEDDED_TEXTURES"
-  private parser: GLTFParser
-  constructor(parser: GLTFParser) { this.parser = parser }
-  loadTexture(index: number): Promise<THREE.Texture> | null {
-    const json = this.parser.json
-    const def = json.textures?.[index]
-    const img = def?.source !== undefined ? json.images?.[def.source] : undefined
-    if (!img || img.bufferView === undefined) return null // 外部 URI は本体に任せる（同梱しない前提）
-    return this.parser.getDependency("bufferView", img.bufferView)
-      .then((buf: ArrayBuffer) => createImageBitmap(new Blob([buf], { type: img.mimeType }), { premultiplyAlpha: "none", colorSpaceConversion: "none" }))
-      .then(bitmap => {
-        const t = new THREE.Texture(bitmap)
-        t.flipY = false // glTF の UV 規約
-        t.wrapS = t.wrapT = THREE.RepeatWrapping // sampler があればそれに合わせる
-        t.needsUpdate = true
-        this.parser.associations.set(t, { textures: index }) // 色空間・UV の割り当てを本体に任せるため
-        return t
-      })
-  }
-}
-const loader = new GLTFLoader()
-loader.register(parser => new CspSafeTexturePlugin(parser))
+import { createCspSafeGltfLoader, decodeDataUrl } from "@/lib/csp-safe-gltf"
+// 利用者が選んだファイル
+const gltf = await createCspSafeGltfLoader().parseAsync(await file.arrayBuffer(), "")
+// アプリに同梱した GLB（?inline の base64）
+const sources = import.meta.glob("../assets/models/*.glb", { query: "?inline", import: "default" }) as Record<string, () => Promise<string>>
+const bundled = await createCspSafeGltfLoader().parseAsync(decodeDataUrl(await sources["../assets/models/sofa.glb"]()), "")
 ```
 
 `npm run predeploy` のチェック 13（`detect-csp-hazards.mjs`）がこれらの書き方を検出する。
