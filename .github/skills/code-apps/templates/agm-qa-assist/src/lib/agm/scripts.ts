@@ -30,8 +30,10 @@ export async function listScripts(): Promise<RehearsalScript[]> {
   const rows = await listAll(ENTITY.script, [idCol, ...["name", "lines", "note", "status", "createdvia"].map(col), "modifiedon"], "modifiedon desc")
   const scripts = rows
     .map((r) => {
-      const { lines, dropped } = parseLines(String(r[col("lines")] ?? ""))
+      const { lines, dropped, repaired } = parseLines(String(r[col("lines")] ?? ""))
       if (dropped) log.warn("台本の行の一部を読めませんでした", { title: r[col("name")], dropped })
+      if (repaired) log.warn("台本の JSON が崩れていたため直して読みました（Cowork で作った台本は保存し直すと直ります）", { title: r[col("name")], lines: lines.length })
+      if (!lines.length) log.warn("台本の JSON を読めないため一覧から外しました", { title: r[col("name")] })
       return { id: String(r[idCol]), title: String(r[col("name")] ?? ""), lines, note: String(r[col("note")] ?? ""), status: String(r[col("status")] ?? ""), createdVia: String(r[col("createdvia")] ?? "") }
     })
     .filter((s) => s.lines.length)

@@ -39,5 +39,18 @@ test('台本の行（JSON）を検証し、役・本文の欠けた行を落と�
   assert.equal(lines[1].speaker, '株主');
   assert.equal(lines[1].number, '0123');
   assert.equal(parseLines(JSON.stringify({ lines: [{ role: 'chair', text: 'a' }] })).lines.length, 1);
-  assert.deepEqual(parseLines('not json'), { lines: [], dropped: 0 });
+  assert.deepEqual(parseLines('not json'), { lines: [], dropped: 0, repaired: false });
+});
+
+test('生成 AI の小さな JSON の崩れ（配列の後ろの余分な文字・1 行 1 オブジェクト）を読み、直したことを返す', () => {
+  // Cowork のリハーサルで実際に保存された形: 正しい配列の後ろに余分な文字が付いた
+  const trailing = parseLines('[{"role":"chair","text":"開始します。[注]"},{"role":"officer","text":"お答えします。"}],');
+  assert.equal(trailing.lines.length, 2);
+  assert.equal(trailing.lines[0].text, '開始します。[注]');
+  assert.equal(trailing.repaired, true);
+  const jsonl = parseLines('{"role":"chair","text":"a"},\n{"role":"shareholder","number":"9001","text":"株主番号9001番の青山です。"}');
+  assert.equal(jsonl.lines.length, 2);
+  assert.equal(jsonl.lines[1].number, '9001');
+  assert.equal(jsonl.repaired, true);
+  assert.equal(parseLines('[{"role":"chair","text":"a"}]').repaired, false);
 });
