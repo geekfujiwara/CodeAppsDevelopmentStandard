@@ -15,6 +15,8 @@ export type Project = {
   siteManager: string
   modelUrl: string
   modelCenter: string
+  modelType: number
+  description: string
 }
 
 export type WorkType = { id: string; name: string; code: string; category: number }
@@ -30,6 +32,10 @@ export type Task = {
   reportedProgress: number
   reviewStatus: number
   reviewComment: string
+  zone: string
+  sequence: number
+  issue: string
+  predecessorId: string
 }
 export type DailyReport = {
   id: string
@@ -103,7 +109,8 @@ const mapProject = (row: DataverseRow): Project => ({
   startDate: text(row, "${PUBLISHER_PREFIX}_startdate"), endDate: text(row, "${PUBLISHER_PREFIX}_enddate"),
   progress: number(row, "${PUBLISHER_PREFIX}_progress"), status: number(row, "${PUBLISHER_PREFIX}_status"),
   siteManager: text(row, "${PUBLISHER_PREFIX}_sitemanager"), modelUrl: text(row, "${PUBLISHER_PREFIX}_modelurl"),
-  modelCenter: text(row, "${PUBLISHER_PREFIX}_modelcenter"),
+  modelCenter: text(row, "${PUBLISHER_PREFIX}_modelcenter"), modelType: number(row, "${PUBLISHER_PREFIX}_modeltype"),
+  description: text(row, "${PUBLISHER_PREFIX}_description"),
 })
 
 export const ConstructionService = {
@@ -127,13 +134,15 @@ export const ConstructionService = {
     }))
   },
   async tasks(): Promise<Task[]> {
-    return (await DataverseService.list("${PUBLISHER_PREFIX}_task")).map((row) => ({
+    return (await DataverseService.list("${PUBLISHER_PREFIX}_task", undefined, undefined, "${PUBLISHER_PREFIX}_sequence asc")).map((row) => ({
       id: text(row, "${PUBLISHER_PREFIX}_taskid"), name: text(row, "${PUBLISHER_PREFIX}_name"),
       projectId: text(row, "_${PUBLISHER_PREFIX}_project_value"), workTypeId: text(row, "_${PUBLISHER_PREFIX}_worktype_value"),
       plannedStart: text(row, "${PUBLISHER_PREFIX}_plannedstart"), plannedEnd: text(row, "${PUBLISHER_PREFIX}_plannedend"),
       progress: number(row, "${PUBLISHER_PREFIX}_progress"), status: number(row, "${PUBLISHER_PREFIX}_status"),
       reportedProgress: number(row, "${PUBLISHER_PREFIX}_reportedprogress"), reviewStatus: number(row, "${PUBLISHER_PREFIX}_reviewstatus"),
-      reviewComment: text(row, "${PUBLISHER_PREFIX}_reviewcomment"),
+      reviewComment: text(row, "${PUBLISHER_PREFIX}_reviewcomment"), zone: text(row, "${PUBLISHER_PREFIX}_zone"),
+      sequence: number(row, "${PUBLISHER_PREFIX}_sequence"), issue: text(row, "${PUBLISHER_PREFIX}_issue"),
+      predecessorId: text(row, "_${PUBLISHER_PREFIX}_predecessor_value"),
     }))
   },
   async reports(): Promise<DailyReport[]> {
@@ -210,4 +219,3 @@ export const ConstructionService = {
     return DataverseService.update("${PUBLISHER_PREFIX}_task", id, body)
   },
 }
-

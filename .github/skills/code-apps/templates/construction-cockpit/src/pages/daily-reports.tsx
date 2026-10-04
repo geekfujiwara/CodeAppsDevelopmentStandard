@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConstructionService } from "@/services/construction-service"
 import { useProject } from "@/state/project-state"
+import { ProjectPicker, SelectProjectNotice } from "@/components/project-picker"
+import { SitePhoto } from "@/components/site-photo"
+
+const REVIEW_LABEL: Record<number, string> = { 100000000: "下書き", 100000001: "提出済（確認待ち）", 100000002: "承認済", 100000003: "差戻し" }
 
 const inputClass = "min-h-11 w-full rounded-md border border-input bg-background px-3 py-2"
 
@@ -56,7 +60,8 @@ export default function DailyReports() {
   }
 
   return <div className="mx-auto max-w-6xl space-y-6">
-    <header><p className="text-sm font-semibold text-primary">夕方の報告</p><h1 className="text-3xl font-bold">日報</h1><p className="text-muted-foreground">本日の実績と明日の予定を記録します。</p></header>
+    <header className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-semibold text-primary">夕方の報告</p><h1 className="text-3xl font-bold">日報</h1><p className="text-muted-foreground">本日の実績と明日の予定を記録します。</p></div><ProjectPicker className="w-full sm:w-[26rem]" /></header>
+    {!selectedProjectId ? <SelectProjectNotice /> :
     <div className="grid grid-cols-[minmax(0,1fr)_minmax(18rem,26rem)] gap-5 max-lg:grid-cols-1">
       <Card className="min-w-0"><CardHeader className="flex-row items-center justify-between"><CardTitle>日報入力</CardTitle><Button variant="outline" className="h-11" onClick={draft}><Sparkles className="mr-2 h-4 w-4" />下書きを作成</Button></CardHeader><CardContent><form className="space-y-4">
         <div className="grid grid-cols-2 gap-3"><label>天候<select className={inputClass} value={weather} onChange={(event) => setWeather(event.target.value)}><option value="100000000">晴れ</option><option value="100000001">曇り</option><option value="100000002">雨</option><option value="100000003">雪</option><option value="100000004">強風</option></select></label><label>作業人員<input type="number" min="0" className={inputClass} value={workers} onChange={(event) => setWorkers(event.target.value)} /></label></div>
@@ -65,7 +70,7 @@ export default function DailyReports() {
         <label className="block">特記事項<textarea className={inputClass} rows={3} value={remarks} onChange={(event) => setRemarks(event.target.value)} /></label>
         <div className="grid grid-cols-2 gap-3"><Button variant="outline" className="h-12" onClick={(event) => submit(event, 100000000)}>下書き保存</Button><Button className="h-12" onClick={(event) => submit(event, 100000001)}>確定</Button></div>
       </form></CardContent></Card>
-      <Card className="min-w-0"><CardHeader><CardTitle>最近の日報</CardTitle></CardHeader><CardContent className="space-y-3">{reports.data?.filter((item) => item.projectId === selectedProjectId).slice(0, 6).map((item) => <div key={item.id} className="rounded-lg border p-4"><div className="flex justify-between"><strong>{item.reportDate.slice(0, 10)}</strong><span>{item.status === 100000001 ? "確定" : "下書き"}</span></div><p className="mt-2 [overflow-wrap:anywhere]">{item.workDetail}</p>{item.aiDrafted && <p className="mt-2 text-xs text-primary">支援下書きを使用</p>}</div>)}</CardContent></Card>
-    </div>
+      <Card className="min-w-0"><CardHeader><CardTitle>最近の日報</CardTitle></CardHeader><CardContent className="space-y-3">{reports.data?.filter((item) => item.projectId === selectedProjectId).slice(0, 6).map((item) => <div key={item.id} className="overflow-hidden rounded-lg border">{item.photoUrl && <SitePhoto photoUrl={item.photoUrl} caption={item.photoCaption} projectName={selectedProject?.name ?? ""} reportDate={item.reportDate} />}<div className="p-4"><div className="flex justify-between gap-2"><strong>{item.reportDate.slice(0, 10)}</strong><span className="text-sm font-bold">{REVIEW_LABEL[item.reviewStatus] ?? (item.status === 100000001 ? "確定" : "下書き")}</span></div><p className="mt-2 whitespace-pre-line text-sm [overflow-wrap:anywhere]">{item.workDetail}</p>{item.reviewComment && <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-900">監督: {item.reviewComment}</p>}{item.aiDrafted && <p className="mt-2 text-xs text-primary">Cowork / 支援下書きを使用</p>}</div></div>)}{!reports.data?.some((item) => item.projectId === selectedProjectId) && <p className="text-muted-foreground">日報はまだありません。</p>}</CardContent></Card>
+    </div>}
   </div>
 }

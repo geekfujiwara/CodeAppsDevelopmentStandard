@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConstructionService } from "@/services/construction-service"
 import { predictKyRisks, type PredictionResult } from "@/services/ky-prediction"
 import { useProject } from "@/state/project-state"
+import { ProjectPicker, SelectProjectNotice } from "@/components/project-picker"
 
 const inputClass = "min-h-11 w-full rounded-md border border-input bg-background px-3 py-2"
 
@@ -67,7 +68,8 @@ export default function KyActivity() {
   }
 
   return <div className="mx-auto max-w-5xl space-y-6">
-    <header><p className="text-sm font-semibold text-primary">朝の安全活動</p><h1 className="text-3xl font-bold">KY 活動</h1><p className="text-muted-foreground">過去のナレッジを根拠に、作業前の危険と対策を確認します。</p></header>
+    <header className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-semibold text-primary">朝の安全活動</p><h1 className="text-3xl font-bold">KY 活動</h1><p className="text-muted-foreground">過去のナレッジを根拠に、作業前の危険と対策を確認します。</p></div><ProjectPicker className="w-full sm:w-[26rem]" /></header>
+    {!selectedProjectId ? <SelectProjectNotice /> :
     <form onSubmit={submit} className="grid grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)] gap-5 max-lg:grid-cols-1">
       <Card className="min-w-0"><CardHeader><CardTitle>作業情報</CardTitle></CardHeader><CardContent className="space-y-4">
         <label className="block">作業 *<select className={inputClass} value={taskId} onChange={(event) => setTaskId(event.target.value)}><option value="">選択してください</option>{projectTasks.map((task) => <option key={task.id} value={task.id}>{task.name}</option>)}</select></label>
@@ -84,6 +86,6 @@ export default function KyActivity() {
         <label className="block">危険度<select className={inputClass} value={risk} onChange={(event) => setRisk(event.target.value)}><option value="100000000">高</option><option value="100000001">中</option><option value="100000002">低</option></select></label>
         <Button className="h-12 w-full" disabled={save.isPending}>{save.isPending ? "保存中..." : "KY 活動を保存"}</Button>
       </CardContent></Card>
-    </form>
+    </form>}
   </div>
 }

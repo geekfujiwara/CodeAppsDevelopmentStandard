@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConstructionService, type Incident } from "@/services/construction-service"
 import { useProject } from "@/state/project-state"
+import { ProjectPicker, SelectProjectNotice } from "@/components/project-picker"
 
 const inputClass = "min-h-11 w-full rounded-md border border-input bg-background px-3 py-2"
 
@@ -62,7 +63,8 @@ export default function Incidents() {
   }
 
   return <div className="mx-auto max-w-6xl space-y-6">
-    <header><p className="text-sm font-semibold text-primary">その場で記録</p><h1 className="text-3xl font-bold">ヒヤリハット</h1><p className="text-muted-foreground">危険な気づきを記録し、次の現場へ活かすナレッジに変換します。</p></header>
+    <header className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-semibold text-primary">その場で記録</p><h1 className="text-3xl font-bold">ヒヤリハット</h1><p className="text-muted-foreground">危険な気づきを記録し、次の現場へ活かすナレッジに変換します。</p></div><ProjectPicker className="w-full sm:w-[26rem]" /></header>
+    {!selectedProjectId ? <SelectProjectNotice /> :
     <div className="grid grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)] gap-5 max-lg:grid-cols-1">
       <Card className="min-w-0"><CardHeader><CardTitle>新規登録</CardTitle></CardHeader><CardContent><form onSubmit={submit} className="space-y-4">
         <label className="block">件名 *<input className={inputClass} value={name} onChange={(event) => setName(event.target.value)} /></label>
@@ -78,6 +80,6 @@ export default function Incidents() {
         {incidents.data?.filter((item) => item.projectId === selectedProjectId).map((item) => <div key={item.id} className="rounded-lg border p-4"><strong>{item.name}</strong><p className="mt-1 text-sm [overflow-wrap:anywhere]">{item.description}</p>{item.knowledgeCreated ? <span className="mt-3 inline-block text-sm text-green-700">ナレッジ化済み</span> : <Button variant="outline" className="mt-3 h-11" onClick={() => convert.mutate(item)}>ナレッジ化</Button>}</div>)}
         {!incidents.data?.some((item) => item.projectId === selectedProjectId) && <p className="text-muted-foreground">記録はありません。</p>}
       </CardContent></Card>
-    </div>
+    </div>}
   </div>
 }
