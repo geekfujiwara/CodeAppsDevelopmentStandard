@@ -122,6 +122,8 @@ python .github/skills/code-apps/scripts/validate_3d_assets.py `
 # テクスチャ埋め込みの GLB を createImageBitmap のローダーで読む場合
 python .github/skills/code-apps/scripts/validate_3d_assets.py --glb src/assets/models/sofa.glb `
   --material-keys "" --material-prefix furn_ --allow-embedded-images --max-glb-bytes 1200000
+# Blender でオブジェクトごとに材質を複製した GLB（例: ライトマップ付き → "floor.001"）。読み込み側も末尾 .NNN を外す
+python .github/skills/code-apps/scripts/validate_3d_assets.py --glb out/model.glb --material-keys floor,ceiling --strip-blender-suffix --allow-embedded-images
 
 # 本番ビルドをヘッドレス Edge で描画し、3D の状態とスクリーンショットを取る（追加インストール不要）
 npx vite build; npx vite preview --port 4173
