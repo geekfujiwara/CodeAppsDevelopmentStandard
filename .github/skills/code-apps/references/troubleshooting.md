@@ -2914,3 +2914,11 @@ Python 側は `math.floor(x * 1000 + 0.5) / 1000` で丸める。寸法を導く
 
 - 実機確認（3D・CSP・データ）は、iframe の `src` を直接開いて行う。`?debug3d` のような明示フラグのクエリも付けられる
 - プレイヤーの枠が出ない件は、別のブラウザ（利用者の通常の Edge）で再生して再現するかを確かめ、再現しなければブラウザ側の問題として扱う
+- この状態ではプレイヤーが新しい版を読み込めず、iframe の `src` は**古い版のまま**のことがある（「You're using an old version of this app」→ Refresh でも変わらない）。デプロイ直後の版を直接開くには、Power Apps API のアプリ情報 `properties.appUris.codeAppPackageUri.value`（`https://<blob>/<パッケージキー>/index.html`）からパッケージキーを取り、`.../runtimeproxy/<パッケージキー>/index.html` に差し替える。
+
+  ```python
+  # GET https://api.powerapps.com/providers/Microsoft.PowerApps/apps/{appId}?api-version=2016-11-01
+  # スコープ: https://service.powerapps.com/.default（standard の auth_helper.get_token）
+  key = app["properties"]["appUris"]["codeAppPackageUri"]["value"].split("/")[-2]
+  runtime = old_src.rsplit("/runtimeproxy/", 1)[0] + f"/runtimeproxy/{key}/index.html"
+  ```
