@@ -37,6 +37,38 @@ def assert_base64_content_contract(definition: dict[str, Any]) -> None:
         raise ValueError("Invalid flow binary-content contract:\n" + "\n".join(errors))
 
 
+def assert_flat_dataverse_item_parameters(definition: dict[str, Any]) -> None:
+    """Reject nested item objects for Dataverse CreateRecord and UpdateRecord."""
+    errors: list[str] = []
+    for path, _, value in _walk(definition):
+        if not isinstance(value, dict):
+            continue
+        inputs = value.get("inputs")
+        if not isinstance(inputs, dict):
+            continue
+        host = inputs.get("host")
+        parameters = inputs.get("parameters")
+        if not isinstance(host, dict) or not isinstance(parameters, dict):
+            continue
+        api_id = host.get("apiId")
+        operation_id = host.get("operationId")
+        if (
+            not isinstance(api_id, str)
+            or not api_id.lower().endswith("/shared_commondataserviceforapps")
+            or operation_id not in {"CreateRecord", "UpdateRecord"}
+        ):
+            continue
+        item = parameters.get("item")
+        if isinstance(item, dict):
+            flat_keys = ", ".join(f"item/{key}" for key in item) or "item/<column>"
+            errors.append(
+                f"{path}.inputs.parameters.item: use flat parameter keys instead "
+                f"({flat_keys})"
+            )
+    if errors:
+        raise ValueError("Invalid Dataverse record parameters:\n" + "\n".join(errors))
+
+
 def assert_required_dataverse_columns(
     available: dict[str, set[str]],
     required: dict[str, set[str]],
@@ -70,6 +102,7 @@ def main() -> int:
     if not isinstance(definition, dict):
         raise SystemExit("Workflow definition must be a JSON object")
     assert_base64_content_contract(definition)
+    assert_flat_dataverse_item_parameters(definition)
     print("OK: flow definition validation passed")
     return 0
 

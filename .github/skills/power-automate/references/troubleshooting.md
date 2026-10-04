@@ -48,6 +48,19 @@ SharePoint の `Get file content` は、利用する operation と実行環境�
 `assert_base64_content_contract()` が、実行時の `contentBase64` 値に `@base64(...)` がない定義を
 デプロイ前に拒否する。定義生成スクリプトから毎回呼び出す。
 
+## Dataverse の Create / Update がデザイナーで必須列エラーになる
+
+`CreateRecord` / `UpdateRecord` の列値を `"item": {"<列名>": "<値>"}` と入れ子で渡すと、
+API では Draft を作成できても Power Automate デザイナーは列値を復元しない。必須列が空になり、
+保存時に「`<列名>` は必須です」「パラメーターが無効です」と表示される。
+
+列値と Lookup は `item/<列名>`、`item/<LookupSchemaName>@odata.bind` のフラットなキーで
+`parameters` 直下へ配置する。
+
+恒久対策済み: `scripts/validate_flow_definition.py` の
+`assert_flat_dataverse_item_parameters()` が、Dataverse の `CreateRecord` / `UpdateRecord` に
+入れ子の `item` オブジェクトがある定義をデプロイ前に拒否する。
+
 ## Dataverse `Could not find a property named ...`
 
 Dataverse コネクタの `$filter` や item で、表示名から推測した列名を使うと実行時に400になる。

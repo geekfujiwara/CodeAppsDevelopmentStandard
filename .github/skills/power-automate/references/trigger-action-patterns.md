@@ -241,6 +241,24 @@ Code Apps 側の生成結果:
 }
 ```
 
+### Dataverse の列値は `item/<列名>` のフラット形式で渡す（CreateRecord / UpdateRecord）
+
+Dataverse の `CreateRecord` / `UpdateRecord` では、列値を `item` オブジェクトに入れ子で渡さず、
+デザイナーが生成する `item/<列名>` キーを列ごとに指定する。
+
+```python
+# ❌ デザイナーでは必須列が空として表示され、保存時に「<列名> は必須です」とエラーになる
+"item": {
+    f"{PREFIX}_name": "@{outputs('Compose_Title')}",
+}
+
+# ✅ 列ごとにフラットなキーで渡す
+f"item/{PREFIX}_name": "@{outputs('Compose_Title')}",
+f"item/{PREFIX}_status": 100000000,
+```
+
+`UpdateRecord` でも `recordId` と同じ `parameters` 直下に `item/<列名>` キーを配置する。
+
 ### Lookup (odata.bind) で関連テーブルを紐付け（CreateRecord）
 
 ```python
@@ -255,15 +273,13 @@ Code Apps 側の生成結果:
         },
         "parameters": {
             "entityName": f"{PREFIX}_records",
-            "item": {
-                f"{PREFIX}_name": "@{outputs('Compose_Title')}",
-                f"{PREFIX}_status": 100000000,
-                # ★ Lookup は odata.bind でエンティティパスを指定
-                f"{PREFIX}_CategoryId@odata.bind": (
-                    f"/{PREFIX}_categories("
-                    f"@{{first(outputs('List_Categories')?['body/value'])?['{PREFIX}_categoryid']}})"
-                ),
-            },
+            f"item/{PREFIX}_name": "@{outputs('Compose_Title')}",
+            f"item/{PREFIX}_status": 100000000,
+            # ★ Lookup も item/ 配下の odata.bind キーでエンティティパスを指定
+            f"item/{PREFIX}_CategoryId@odata.bind": (
+                f"/{PREFIX}_categories("
+                f"@{{first(outputs('List_Categories')?['body/value'])?['{PREFIX}_categoryid']}})"
+            ),
         },
         "authentication": "@parameters('$authentication')",
     },
@@ -272,7 +288,7 @@ Code Apps 側の生成結果:
 
 ```
 ❌ Lookup を通常フィールドとして GUID 文字列で設定 → 紐付かない
-✅ {LookupSchemaName}@odata.bind に /{entitySetName}({recordId}) 式を設定
+✅ item/{LookupSchemaName}@odata.bind に /{entitySetName}({recordId}) 式を設定
 ✅ first() + outputs() で前のアクションの検索結果から ID を取得
 ```
 

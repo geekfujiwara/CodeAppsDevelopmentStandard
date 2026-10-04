@@ -124,7 +124,9 @@ OAuth 完了後は子ページを自動で閉じる。自動クローズでき�
 Python スクリプトで Dataverse Web API を直接操作する。
 
 定義を送信する前に `scripts/validate_flow_definition.py` の
-`assert_base64_content_contract()` を必ず実行する。JSON の `contentBase64` に実行時の本文を渡す場合は
+`assert_base64_content_contract()` と `assert_flat_dataverse_item_parameters()` を必ず実行する。
+Dataverse の `CreateRecord` / `UpdateRecord` は列値を `item/<列名>` のフラットなキーで渡し、
+`item` オブジェクトへ入れ子にしない。JSON の `contentBase64` に実行時の本文を渡す場合は
 `@base64(...)` で明示的にエンコードし、コネクタ出力型の違いによる実行時失敗をデプロイ前に止める。
 Dataverse アクションを含む場合は、参照列をメタデータ API で取得し、
 `assert_required_dataverse_columns()` で列の存在を確認してから既存フローを変更する。
