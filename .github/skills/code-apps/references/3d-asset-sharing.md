@@ -49,16 +49,24 @@ GLB を正本にすると、寸法の編集・数量計算・ルールに基づ�
 ### 生成の進み具合
 
 - [ ] 画像解析・形状の組み立てのような重い同期処理は段に分け、段の間で描画の機会を与える。続けて実行すると画面が固まり、押せたのか分からない。
-      待ちに `requestAnimationFrame` だけを使わない: 画面に見えていないタブ・自動操作のブラウザでは呼ばれず、**処理が永久に止まる**（troubleshooting #86）。タイマーとの早い方で進める
+      待ちに `requestAnimationFrame` やタイマーを使わない: 画面に見えていないタブ・自動操作のブラウザでは `requestAnimationFrame` が呼ばれず、
+      タイマーは 1 分に 1 回まで間引かれ、**処理が止まる**（troubleshooting #86）。見えていないときは `MessageChannel` で次のタスクに回す
 
       ```ts
+      const nextTask = (fn: () => void) => {
+        const ch = new MessageChannel()
+        ch.port1.onmessage = () => { ch.port1.close(); fn() }
+        ch.port2.postMessage(null)
+      }
       export const nextFrame = () => new Promise<void>(resolve => {
+        if (document.visibilityState === "hidden") return nextTask(resolve)
         let done = false
-        const go = () => { if (!done) { done = true; setTimeout(resolve, 0) } }
+        const go = () => { if (!done) { done = true; nextTask(resolve) } }
         requestAnimationFrame(go)
         setTimeout(go, 50)
       })
       ```
+      画面から通す試験は `capture_3d.mjs --simulate-hidden` でも通す
 - [ ] 処理中は、結果を変える操作（例: 縮尺の自動調整中の「生成」ボタン）を押せないようにする
 - [ ] 進み具合の状態はコンポーネントの外（モジュールのストア + `useSyncExternalStore`）に置く。完了後にタブ・画面が切り替わっても表示が続く。最後の段（3D の構築）は表示側が完了にし、知らせが来なくても閉じる時限を付ける
 

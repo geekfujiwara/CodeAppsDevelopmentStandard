@@ -3030,8 +3030,14 @@ R3F の `useFrame`（priority 0）の中で、別カメラで `gl.render(scene, 
 
 ### 原因
 
-段の間の待ちを `requestAnimationFrame` だけで作っていた。画面に見えていないページ（背景のタブ・自動操作のブラウザ）では `requestAnimationFrame` が呼ばれず、待ちが永久に解決しない。ヘッドレスのブラウザは描画を続けるので再現しない。
+段の間の待ちを `requestAnimationFrame` で作っていた。画面に見えていないページ（背景のタブ・自動操作のブラウザ）では
+- `requestAnimationFrame` が呼ばれない（待ちが永久に解決しない）
+- タイマー（`setTimeout`）も間引かれ、数分たつと 1 分に 1 回しか動かない（短いタイマーに切り替えても、候補を 9 回試すだけで 10 分以上かかる）
+
+ヘッドレスのブラウザは描画もタイマーも普通に動くので再現しない。最初は `requestAnimationFrame` と 50ms のタイマーの早い方にしたが、デプロイした版でまだ止まった。
 
 ### 対処
 
-待ちは `requestAnimationFrame` と短いタイマー（50ms）の早い方で進める（[3d-asset-sharing.md](3d-asset-sharing.md)「生成の進み具合」の `nextFrame`）。画面から通す試験は `capture_3d.mjs --pause-raf`（`requestAnimationFrame` を止めた状態）でも通し、この種の停止を検出する。**恒久対策済み** — `scripts/capture_3d.mjs` の `--pause-raf`。
+見えていないページでは `MessageChannel`（間引かれない）で次のタスクに回し、見えているときだけ `requestAnimationFrame` とタイマーの早い方で進める（[3d-asset-sharing.md](3d-asset-sharing.md)「生成の進み具合」の `nextFrame`）。
+画面から通す試験は `capture_3d.mjs --simulate-hidden`（`requestAnimationFrame` を止め、`visibilityState = hidden`、タイマーを 5 秒以上に間引く。`--simulate-hidden 60000` で実際の間引きに近づける）でも通す。
+試験側の待ちは `window.__origSetTimeout` を使う。**恒久対策済み** — `scripts/capture_3d.mjs` の `--simulate-hidden`。

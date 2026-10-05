@@ -2,8 +2,9 @@
 //
 //   node scripts/capture_3d.mjs --url "http://127.0.0.1:5181/#/projects/seed-sample-house?tab=viewer" \
 //     --wait 15000 --eval "window.__viewer?.materialSource" --out .tools/shots/viewer.png [--setup "<JS>"] [--viewport 1400x900]
-//   --pause-raf: requestAnimationFrame を止めた状態で動かす（画面に見えていないタブ・自動操作のブラウザの再現）。
-//     処理の待ちを requestAnimationFrame だけで作っていると、ここで止まる（スクリーンショットの 3D は描かれない）
+//   --simulate-hidden: 画面に見えていないタブ・自動操作のブラウザを再現する（requestAnimationFrame を止め、
+//     visibilityState = hidden、setTimeout を 5 秒以上に間引く。実際のブラウザは数分後に 1 分に 1 回まで間引くので、--simulate-hidden 60000 も試す）。処理の待ちを requestAnimationFrame やタイマーで作っていると、
+//     ここで止まる・極端に遅くなる。試験側の待ちは window.__origSetTimeout（間引かない元のタイマー）を使う。3D は描かれない
 //   長いスクリプト（バイナリを base64 で渡すなど）は --eval-file <path>（コマンドラインの長さ制限を避ける）
 //   描画完了まで待つ: --ready "<真になる JS の式>" [--ready-timeout 180]。条件が満たされないか、--fail-on-error でページのエラーがあれば終了コード 1
 //
@@ -18,6 +19,9 @@ import { join, dirname } from "node:path"
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, v, i, a) => (v.startsWith("--") ? [...acc, [v.slice(2), a[i + 1]?.startsWith("--") || a[i + 1] === undefined ? true : a[i + 1]]] : acc), []),
 )
+// 画面に見えていないページの再現（--simulate-hidden）
+const SIMULATE_HIDDEN = ms =>
+  `window.__origSetTimeout = window.setTimeout.bind(window); Object.defineProperty(document, "visibilityState", { get: () => "hidden" }); Object.defineProperty(document, "hidden", { get: () => true }); window.requestAnimationFrame = () => 0; { const o = window.__origSetTimeout; window.setTimeout = (f, t, ...a) => o(f, Math.max(Number(t) || 0, ${ms}), ...a) }`
 const url = args.url ?? "http://127.0.0.1:5173/"
 const waitMs = Number(args.wait ?? 15000)
 const [vw, vh] = String(args.viewport ?? "1400x900").split("x").map(Number)
@@ -83,7 +87,7 @@ try {
   await send("Log.enable", {}, sessionId)
   await send("Page.enable", {}, sessionId)
   await send("Emulation.setDeviceMetricsOverride", { width: vw, height: vh, deviceScaleFactor: 1, mobile: false }, sessionId)
-  if (args["pause-raf"]) await send("Page.addScriptToEvaluateOnNewDocument", { source: "window.requestAnimationFrame = () => 0" }, sessionId)
+  if (args["simulate-hidden"]) await send("Page.addScriptToEvaluateOnNewDocument", { source: SIMULATE_HIDDEN(args["simulate-hidden"] === true ? 5000 : Number(args["simulate-hidden"]) || 5000) }, sessionId)
   if (args.setup) await send("Page.addScriptToEvaluateOnNewDocument", { source: String(args.setup) }, sessionId)
   await send("Page.navigate", { url }, sessionId)
   // 固定時間だけ待つと、GLB の解析や影の計算が終わる前の空の画面を撮る（低メモリの端末では 25 秒以上かかった）。
