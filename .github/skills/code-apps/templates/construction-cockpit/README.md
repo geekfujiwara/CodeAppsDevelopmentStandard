@@ -82,7 +82,11 @@ npm run deploy
 - Cowork から提出された日報と工程進捗は、監督確認で承認または理由付き差戻しができます。
 - Cowork plugin は現場記録と新規工事登録を確認付きで支援します。本番 ZIP 生成には OAuth registration ID が必要です。
 
-- 3D は工事種別（橋梁・造成・トンネル・建築・水路護岸・道路）ごとに部位単位で生成し、作業の `{prefix}_zone` と進捗で施工済・施工中・遅延・未着手を描きます。外部の HDR・フォント・glTF は読み込みません。
+- 3D は工事種別（橋梁・造成・トンネル・建築・水路護岸・道路）ごとの実寸の高精細モデルです（鋼 I 桁・床版・高欄の橋、NATM の支保と覆工、S 造の柱梁とカーテンウォール、プレキャスト U 型水路と護岸など）。`src/lib/models/` にあり、外部の HDR・フォント・テクスチャは読み込みません。
+- **完成形を点線で常に表示**し、作業の `{prefix}_zone` と進捗に応じて実体化します。施工中の部位はクリッピング平面で施工方向（上方向・トンネルは奥）に立ち上がり、切土・床掘は削られます。足場などの仮設物は完成形に含めません。「完成形（点線）」「地盤を透かす」は画面で切り替えられます。
+- 工事の `{prefix}_modelurl` に `bundled:<名前>` を入れると同梱の glTF（GLB）を読み込みます（デモの橋梁は `bundled:bridge-3span`）。Code Apps の CSP は `connect-src` に `'self'` を含まない場合があるため、同梱 GLB は base64 で埋め込み、通信せずに解析します。`https://` の URL は CSP の `connect-src` で許可したホストだけ使えます。
+- BIM/CIM から書き出した glTF は、glTF の `extras`（`zone` / `segment` / `grow` / `invert` / `temporary`）か、ノード名 `部位キー#順番/総数`・`zone:部位キー` で工程と対応付けます。
+- `npm run export:models` で同梱 GLB を更新し、`npm run export:models -- --all` で全種別を `exports/models/` に書き出します（`exports/` はコミットしない）。Node 24 以降が必要です。
 - 建築は工事の `{prefix}_modelcenter` に `floors=12;width=4;depth=4` の形式で階数とスパン数を指定します。
 - ガントは `{prefix}_predecessor`（先行作業）で因果の矢印を描き、遅延した作業から出る矢印を「遅延が波及」として強調します。
 - KY・ヒヤリハット・日報は各画面の見出しで現場を選びます（選択はブラウザに記憶）。

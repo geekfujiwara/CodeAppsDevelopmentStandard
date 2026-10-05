@@ -34,7 +34,7 @@ import { ProjectRelationshipFlow } from "@/components/project-relationship-flow"
 import { ProjectModel3d } from "@/components/project-model-3d"
 import { SitePhoto } from "@/components/site-photo"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MODEL_TYPE_LABEL } from "@/lib/construction-models"
+import { MODEL_TYPE_LABEL } from "@/lib/models"
 import { expectedProgress, sortTasks, taskState, TASK_STATE_COLOR, TASK_STATE_LABEL } from "@/lib/construction-schedule"
 import { useProject } from "@/state/project-state"
 

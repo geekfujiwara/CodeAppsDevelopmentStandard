@@ -12,6 +12,8 @@ export default defineConfig({
     powerApps()
   ],
   base: "./",
+  // 3D 施工モデル（GLB）をアセットとして扱う。CSP の connect-src を使わないよう ?inline で JS に埋め込む
+  assetsInclude: ["**/*.glb"],
   server: {
     cors: {
       origin: POWER_APPS_CORS_ORIGINS
