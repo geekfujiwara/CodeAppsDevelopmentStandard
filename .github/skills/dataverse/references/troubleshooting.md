@@ -907,3 +907,44 @@ api_patch(f"organizations({org['organizationid']})",
 自己参照の Lookup（例: 作業の先行作業 `<prefix>_predecessor` → 作業）は、全レコードを作った後に 2 巡目で PATCH して結ぶ。作成順に依存しない。
 自己参照の 1:N リレーションも、通常の Lookup と同じく `RelationshipDefinitions` への POST（参照元と参照先が同じテーブル）で作成できる。
 実装例: 同スクリプトの `record_key()` と、工程を作った後の先行作業の結線。
+
+## 27. 画像列に保存した画像が、フルサイズで取得できない（`$value?size=full` が 204）
+
+### 症状
+
+画像列（`ImageAttributeMetadata`）に 1280×720 の JPEG を PATCH すると 204 で成功するが、`GET …/<列>/$value?size=full` は
+**204（本文なし、`Content-Type: text/html`）**。`size` を付けない取得は 953 バイトのサムネイル（144px）だけが返る。
+
+### 原因
+
+列の作成時に `CanStoreFullImage: true` を送っても**無視され、`false` で作られる**。そのテーブルで最初の画像列は
+`IsPrimaryImage: false` を送っても `true` になる。フルサイズを保存しない列には、サムネイルしか残らない。
+
+### 対処（実測 2026-10-05）
+
+作成後に属性を読み、`CanStoreFullImage` が `false` なら PUT で `true` にして読み戻す。
+
+```python
+path = f"EntityDefinitions(LogicalName='{table}')/Attributes(LogicalName='{column}')"
+meta = api_get(f"{path}/Microsoft.Dynamics.CRM.ImageAttributeMetadata")
+if not meta.get("CanStoreFullImage"):
+    meta.pop("@odata.context", None)
+    meta.update({"@odata.type": "Microsoft.Dynamics.CRM.ImageAttributeMetadata", "CanStoreFullImage": True})
+    api_request(path, meta, method="PUT")
+```
+
+変更後に保存した画像から、`$value?size=full` で全体（15,029 バイト）を取得できた。変更前に保存した画像は保存し直す。
+実装例: code-apps の construction-cockpit テンプレート `scripts/setup_construction_dataverse.py` の `ensure_full_images()`。
+
+## 28. ファイル列を Range で分割取得すると、最後の要求だけ 416 になる
+
+### 症状
+
+`GET …/<ファイル列>/$value` を `Range: bytes=<start>-<start + 4 MB - 1>` で繰り返すと、ファイル末尾を超える最後の要求が
+`416 Requested Range Not Satisfiable` になる。一般的な HTTP サーバーのように末尾で切り詰めない。
+
+### 対処
+
+保存時にファイルサイズを記録し、取得側は `min(start + 4 MB, size) - 1` で末尾を止める。1 回の Range は 4 MB 以内にする。
+画像列の `$value?size=full` は大きすぎる Range でも 206 で全体を返すため、この問題は起きない。
+実装例: construction-cockpit テンプレートの `scripts/upload_cad_model.py`（読み戻し）と `src/lib/binary.ts` の `downloadInChunks`。
