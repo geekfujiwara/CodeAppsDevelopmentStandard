@@ -63,6 +63,31 @@ npm run export:models -- --all   # 全種別を exports/models/ に書き出す�
 
 外部 URL を使う場合は CSP の `connect-src` にホストを追加し（その行には `// csp-ok: <理由>`）、読み込めないときは標準モデルに切り替えて理由を画面に出す。
 
+## 一般的な CAD のモデルを取り込む（ファイル列 + 対応付け）
+
+ノード名の規約を CAD 側で守れない場合は、利用者がアプリで部品を作業に対応付ける。construction-cockpit テンプレートの
+`src/lib/models/cad-import.ts`（純粋関数・Node でテスト可能）と `cad-loader.ts`・`components/cad-import-panel.tsx` が実装例。
+
+| 段階 | 要点 |
+|---|---|
+| 受け取り | GLB / OBJ / STL / FBX を `file.arrayBuffer()` で受け取り、`detectCadFormat` で中身から判定する。`fetch`・`blob:` は使わない |
+| 事前検査 | GLB は JSON チャンクだけを読み、Draco・meshopt・KTX2・外部 `.bin`・外部画像・容量超過を解析前に弾く（`inspectGlb`） |
+| 正規化 | Z-up → Y-up（X 軸 -90°）、単位（対角 20 km 以上なら mm と推定、手動で m / cm / mm）、地面を原点。元の階層は pivot の子に残す |
+| 対応付け | キーは**読み込み後のノード名**（#83）。名前（IFC クラス名・英語・日本語・部位キー）から自動で候補を出し、表で修正する |
+| 施工単位 | 同じ作業に割り当てた部品が複数ならそれぞれ、1 つならメッシュを含む直下の子を、下から順（同じ高さは施工方向）の segment にする |
+| 保存 | 本体はファイル列、対応付けと**施工単位の名前の配列**は JSON（Memo）列。取得は 4 MB の Range で末尾を超えない（#82） |
+| 丸め | 整数の進捗率では 1/3 や 1/24 を表せない。進捗 1% の半分（件数/200 単位、最小 0.05）までの端数は丸める。AI エージェント側の換算も同じ規則にする |
+
+施工単位の名前を保存しておくと、Copilot Studio などのエージェントが「3 階の床まで完了」を進捗率に換算できる（テンプレートの
+`agent/cockpit-assistant/skills/progress-3d-report/progress_units.py` と、1〜60 単位の全件でアプリの判定と一致を確かめる `tests/test_progress_units.py`）。
+
+## 選択中の作業を画像にする
+
+`useFrame` の中で別カメラ（部位のバウンディングボックスが収まる距離・仰角 20〜55 度）で描き、直後に `toDataURL` する（#84）。
+この 1 枚だけ他の部位を半透明、未着手の対象を黄色にして、描画後すぐ材質を戻す。画像は Dataverse の画像列に保存できるが、
+**画像列は作成時の `CanStoreFullImage: true` が無視され、サムネイル（144px）しか保存されない**。作成後に属性を PUT して有効化し、
+読み戻して確かめる（テンプレートの `setup_construction_dataverse.py` の `ensure_full_images`）。
+
 ## 目視確認
 
 WebGL は描画完了までが長い（GLB の解析・影の計算）。固定時間で撮ると背景だけの画面になるため、準備完了の条件を待って撮る（#81）。

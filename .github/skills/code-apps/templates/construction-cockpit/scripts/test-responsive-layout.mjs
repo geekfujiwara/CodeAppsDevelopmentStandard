@@ -16,7 +16,20 @@ const bundledModelDir = path.join(root, "src", "assets", "models")
 const bundledModels = fs.existsSync(bundledModelDir) ? fs.readdirSync(bundledModelDir).filter((name) => name.endsWith(".glb")) : []
 const gantt = read("src/components/project-gantt-flow.tsx")
 const photos = read("src/lib/site-photos.ts")
-const pages = ["ky-activity", "incidents", "daily-reports"].map((name) => read(`src/pages/${name}.tsx`))
+const pages = ["ky-new", "incident-new", "report-new"].map((name) => read(`src/pages/${name}.tsx`))
+const recordLists = ["ky-activity", "incidents", "daily-reports", "knowledge"].map((name) => read(`src/pages/${name}.tsx`))
+const recordDetails = read("src/pages/record-details.tsx")
+const explorer = read("src/components/records/record-explorer.tsx")
+const router = read("src/router.tsx")
+const cadImport = read("src/lib/models/cad-import.ts")
+const cadLoader = read("src/lib/models/cad-loader.ts")
+const cadPanel = read("src/components/cad-import-panel.tsx")
+const dataverseClient = read("src/lib/dataverse-client.ts")
+const binary = read("src/lib/binary.ts")
+const snapshot = read("src/lib/models/task-snapshot.ts")
+// ローカル（app/ と agent/ が並ぶ構成）とテンプレート（同じルートに agent/ がある構成）の両方で読む
+const progressUnitsPath = [path.join(root, "agent"), path.join(root, "..", "agent")].map((dir) => path.join(dir, "cockpit-assistant", "skills", "progress-3d-report", "progress_units.py")).find((file) => fs.existsSync(file))
+const progressUnits = progressUnitsPath ? fs.readFileSync(progressUnitsPath, "utf8") : ""
 const photoDir = path.join(root, "src", "assets", "demo-photos")
 const photoCount = fs.existsSync(photoDir) ? fs.readdirSync(photoDir).filter((name) => name.endsWith(".svg")).length : 0
 const styles = read("styles/index.pcss")
@@ -50,7 +63,20 @@ const assertions = [
   [bundledModels.includes("bridge-3span.glb"), "the bridge model ships as a glTF (GLB) file"],
   [gantt.includes("predecessorId") && gantt.includes("遅延が波及"), "gantt draws predecessor edges and delay propagation"],
   [photos.includes("import.meta.glob") && photoCount >= 60, "demo site photos are bundled locally for the img-src 'self' CSP"],
-  [pages.every((page) => page.includes("<ProjectPicker")), "KY, incident, and report pages let users choose the project in-page"],
+  [pages.every((page) => page.includes("<ProjectPicker")), "KY, incident, and report entry forms let users choose the project in-page"],
+  [recordLists.every((page) => page.includes("<RecordExplorer") && page.includes("charts=") && page.includes("filters=") && page.includes("searchText=") && page.includes("rowHref=")), "KY, incident, report, and knowledge pages show charts and a searchable, filterable list"],
+  [explorer.includes("useSearchParams") && explorer.includes("navigate(rowHref(item))") && explorer.includes("isLoading") && explorer.includes("role=\"alert\"") && explorer.includes("emptyText"), "list rows open the detail page and the list shows loading, error, and empty states"],
+  [["ky/:id", "incidents/:id", "reports/:id", "knowledge/:id", "ky/new", "incidents/new", "reports/new"].every((route) => router.includes(`"${route}"`)), "detail and entry routes are registered"],
+  [["export function KyDetail", "export function IncidentDetail", "export function ReportDetail", "export function KnowledgeDetail"].every((name) => recordDetails.includes(name)), "each record type has a detail page"],
+  [recordDetails.includes("reviewReport(id, action, comment)") && recordDetails.includes("incidentToKnowledge") && recordDetails.includes("<EditPanel"), "detail pages support review approval, knowledge conversion, and maintenance edits"],
+  [cadImport.includes("KHR_draco_mesh_compression") && cadImport.includes("外部ファイル") && cadImport.includes("CAD_MAX_BYTES"), "CAD import rejects compressed, externally referenced, and oversized files before parsing"],
+  [["glb", "obj", "stl", "fbx"].every((format) => cadImport.includes(`"${format}"`)), "CAD import supports GLB, OBJ, STL, and FBX"],
+  [cadLoader.includes("parseAsync(buffer") && !cadLoader.includes("fetch(") && !/createObjectURL|new Blob\(/.test(cadLoader + cadImport + cadPanel), "CAD models are parsed from an ArrayBuffer without fetch or blob URLs"],
+  [cadPanel.includes("CAD_ACCEPT") && cadPanel.includes("suggestCadRules") && cadPanel.includes("summarizeCadUnits"), "CAD import panel offers automatic mapping and saves construction units"],
+  [dataverseClient.includes("UpdateEntityFileImageFieldContentWithOrganization") && dataverseClient.includes("GetEntityFileImageFieldContentWithOrganization") && !dataverseClient.includes("fetch("), "file and image columns are accessed only through the generated Dataverse service"],
+  [binary.includes("Math.min(total + chunkBytes, expectedBytes)"), "chunked downloads never request a range past the end of the file (Dataverse returns 416)"],
+  [projectModel.includes("SnapshotCapturer") && snapshot.includes("toDataURL(\"image/jpeg\"") && project.includes("saveTaskLocationImage"), "the selected task image is generated from the 3D view and can be saved to Dataverse"],
+  [projectModel.includes("Math.max(0.05, count / 200) + 1e-6") && progressUnits.includes("max(0.05, count / 200) + 1e-6"), "3D unit rounding matches the Copilot Studio progress conversion"],
   [layout.includes("setCollapsed(true)"), "project detail automatically collapses navigation"],
   [project.includes('data-tour="review-queue"'), "supervisor review queue has a tutorial target"],
   [!siteMap.includes("orbit-") && !project.includes("orbit-"), "rebuilt pages do not depend on the previous Orbit CSS"],

@@ -100,8 +100,9 @@ if (fs.existsSync(configTs) && fs.existsSync(routerPath)) {
   }
 
   // ルーターにあるがナビに無いパス → 隠しページ（warning のみ）
-  // 親パスがナビにある詳細ルート（opportunities/:id 等）は一覧から到達できるため除外する
-  const isDetailOfNav = (p) => p.includes("/:") && navPaths.includes(p.split("/:")[0]);
+  // 親パスがナビにある詳細ルート（opportunities/:id 等）と新規登録ルート（opportunities/new）は一覧から到達できるため除外する
+  const parentOf = (p) => (p.includes("/:") ? p.split("/:")[0] : p.endsWith("/new") ? p.slice(0, -"/new".length) : "")
+  const isDetailOfNav = (p) => { const parent = parentOf(p); return Boolean(parent) && navPaths.includes(parent) };
   const hiddenRoutes = routePaths.filter(p => !navPaths.includes(p) && !isDetailOfNav(p) && p !== "*" && p !== "");
   if (hiddenRoutes.length > 0) {
     console.warn(`⚠ ルーター (router.tsx) にナビから到達できないページがあります: ${hiddenRoutes.join(", ")}`);

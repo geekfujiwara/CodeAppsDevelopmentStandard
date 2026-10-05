@@ -1,85 +1,62 @@
-import { useState, type FormEvent } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useQuery } from "@tanstack/react-query"
 import { ConstructionService, type Incident } from "@/services/construction-service"
-import { useProject } from "@/state/project-state"
-import { ProjectPicker, SelectProjectNotice } from "@/components/project-picker"
+import { RecordExplorer } from "@/components/records/record-explorer"
+import { Breakdown, StackedTrend } from "@/components/records/record-charts"
+import { formatDateTime, optionsOf, useLookups } from "@/components/records/use-lookups"
+import { INCIDENT_TYPE_COLOR, INCIDENT_TYPE_LABEL, PERIOD_OPTIONS, withinDays } from "@/lib/record-labels"
 
-const inputClass = "min-h-11 w-full rounded-md border border-input bg-background px-3 py-2"
+const TYPE_SERIES = Object.entries(INCIDENT_TYPE_LABEL).map(([value, label]) => ({
+  key: `type${value}`, label, color: INCIDENT_TYPE_COLOR[Number(value)], match: (item: Incident) => item.incidentType === Number(value),
+}))
 
 export default function Incidents() {
-  const queryClient = useQueryClient()
-  const { selectedProject, selectedProjectId } = useProject()
-  const tasks = useQuery({ queryKey: ["tasks"], queryFn: ConstructionService.tasks })
   const incidents = useQuery({ queryKey: ["incidents"], queryFn: ConstructionService.incidents })
-  const [taskId, setTaskId] = useState("")
-  const [name, setName] = useState("")
-  const [kind, setKind] = useState("100000000")
-  const [description, setDescription] = useState("")
-  const [cause, setCause] = useState("")
-  const [countermeasure, setCountermeasure] = useState("")
-  const [occurredOn, setOccurredOn] = useState(new Date().toISOString().slice(0, 16))
-  const selectedTask = tasks.data?.find((task) => task.id === taskId)
-
-  const create = useMutation({
-    mutationFn: () => ConstructionService.createIncident({
-      ${PUBLISHER_PREFIX}_name: name, "${PUBLISHER_PREFIX}_project@odata.bind": `/${PUBLISHER_PREFIX}_projects(${selectedProjectId})`,
-      ...(taskId ? { "${PUBLISHER_PREFIX}_task@odata.bind": `/${PUBLISHER_PREFIX}_tasks(${taskId})` } : {}),
-      ...(selectedTask ? { "${PUBLISHER_PREFIX}_worktype@odata.bind": `/${PUBLISHER_PREFIX}_worktypes(${selectedTask.workTypeId})` } : {}),
-      ${PUBLISHER_PREFIX}_occurredon: new Date(occurredOn).toISOString(), ${PUBLISHER_PREFIX}_incidenttype: Number(kind),
-      ${PUBLISHER_PREFIX}_description: description, ${PUBLISHER_PREFIX}_cause: cause, ${PUBLISHER_PREFIX}_countermeasure: countermeasure,
-      ${PUBLISHER_PREFIX}_latitude: selectedProject?.latitude ?? 0, ${PUBLISHER_PREFIX}_longitude: selectedProject?.longitude ?? 0,
-      ${PUBLISHER_PREFIX}_knowledgecreated: false,
-    }),
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ["incidents"] }); toast.success("ヒヤリハットを保存しました") },
-    onError: (error) => toast.error(`保存できませんでした: ${error instanceof Error ? error.message : "不明なエラー"}`),
-  })
-
-  const convert = useMutation({
-    mutationFn: async (incident: Incident) => {
-      await ConstructionService.createKnowledge({
-        ${PUBLISHER_PREFIX}_name: incident.name,
-        "${PUBLISHER_PREFIX}_worktype@odata.bind": `/${PUBLISHER_PREFIX}_worktypes(${incident.workTypeId})`,
-        "${PUBLISHER_PREFIX}_sourceincident@odata.bind": `/${PUBLISHER_PREFIX}_incidents(${incident.id})`,
-        ${PUBLISHER_PREFIX}_knowledgetype: incident.incidentType === 100000002 ? 100000001 : 100000000,
-        ${PUBLISHER_PREFIX}_event: incident.description, ${PUBLISHER_PREFIX}_cause: incident.cause,
-        ${PUBLISHER_PREFIX}_lesson: incident.countermeasure || "再発防止策を現場内で共有する", ${PUBLISHER_PREFIX}_keywords: incident.name,
-      })
-      await ConstructionService.updateIncident(incident.id, { ${PUBLISHER_PREFIX}_knowledgecreated: true })
-    },
-    onSuccess: async () => {
-      await Promise.all([queryClient.invalidateQueries({ queryKey: ["incidents"] }), queryClient.invalidateQueries({ queryKey: ["knowledge"] })])
-      toast.success("ナレッジ化しました")
-    },
-    onError: (error) => toast.error(`ナレッジ化できませんでした: ${error instanceof Error ? error.message : "不明なエラー"}`),
-  })
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    if (!selectedProjectId || !taskId || !name.trim() || !description.trim()) return toast.error("現場・作業・件名・内容は必須です")
-    create.mutate()
-  }
-
-  return <div className="mx-auto max-w-6xl space-y-6">
-    <header className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-semibold text-primary">その場で記録</p><h1 className="text-3xl font-bold">ヒヤリハット</h1><p className="text-muted-foreground">危険な気づきを記録し、次の現場へ活かすナレッジに変換します。</p></div><ProjectPicker className="w-full sm:w-[26rem]" /></header>
-    {!selectedProjectId ? <SelectProjectNotice /> :
-    <div className="grid grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)] gap-5 max-lg:grid-cols-1">
-      <Card className="min-w-0"><CardHeader><CardTitle>新規登録</CardTitle></CardHeader><CardContent><form onSubmit={submit} className="space-y-4">
-        <label className="block">件名 *<input className={inputClass} value={name} onChange={(event) => setName(event.target.value)} /></label>
-        <label className="block">作業 *<select className={inputClass} value={taskId} onChange={(event) => setTaskId(event.target.value)}><option value="">選択してください</option>{tasks.data?.filter((task) => task.projectId === selectedProjectId).map((task) => <option key={task.id} value={task.id}>{task.name}</option>)}</select></label>
-        <div className="grid grid-cols-2 gap-3"><label>区分<select className={inputClass} value={kind} onChange={(event) => setKind(event.target.value)}><option value="100000000">ヒヤリハット</option><option value="100000001">軽微な事故</option><option value="100000002">品質トラブル</option><option value="100000003">設備トラブル</option></select></label><label>発生日時<input type="datetime-local" className={inputClass} value={occurredOn} onChange={(event) => setOccurredOn(event.target.value)} /></label></div>
-        <label className="block">内容 *<textarea className={inputClass} rows={3} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
-        <label className="block">原因<textarea className={inputClass} rows={2} value={cause} onChange={(event) => setCause(event.target.value)} /></label>
-        <label className="block">対策<textarea className={inputClass} rows={2} value={countermeasure} onChange={(event) => setCountermeasure(event.target.value)} /></label>
-        <p className="rounded-lg bg-muted p-3 text-sm">位置: {selectedProject?.latitude}, {selectedProject?.longitude}（選択中の工事位置）</p>
-        <Button className="h-12 w-full" disabled={create.isPending}>{create.isPending ? "保存中..." : "保存"}</Button>
-      </form></CardContent></Card>
-      <Card className="min-w-0"><CardHeader><CardTitle>最近の記録</CardTitle></CardHeader><CardContent className="space-y-3">
-        {incidents.data?.filter((item) => item.projectId === selectedProjectId).map((item) => <div key={item.id} className="rounded-lg border p-4"><strong>{item.name}</strong><p className="mt-1 text-sm [overflow-wrap:anywhere]">{item.description}</p>{item.knowledgeCreated ? <span className="mt-3 inline-block text-sm text-green-700">ナレッジ化済み</span> : <Button variant="outline" className="mt-3 h-11" onClick={() => convert.mutate(item)}>ナレッジ化</Button>}</div>)}
-        {!incidents.data?.some((item) => item.projectId === selectedProjectId) && <p className="text-muted-foreground">記録はありません。</p>}
-      </CardContent></Card>
-    </div>}
-  </div>
+  const lookups = useLookups()
+  return (
+    <RecordExplorer<Incident>
+      tourId="incident-list"
+      eyebrow="その場で記録"
+      title="ヒヤリハット"
+      description="危険な気づき・事故・品質トラブルの記録です。区分ごとの傾向を確認し、記録をクリックすると原因・対策とナレッジ化を確認できます。"
+      items={incidents.data}
+      isLoading={incidents.isLoading || lookups.isLoading}
+      error={incidents.error ?? lookups.error}
+      rowKey={(item) => item.id}
+      rowHref={(item) => `/incidents/${item.id}`}
+      rowLabel={(item) => item.name}
+      newHref="/incidents/new"
+      newLabel="ヒヤリハットを登録"
+      emptyText="ヒヤリハットの記録はまだありません。「ヒヤリハットを登録」または Copilot Studio から登録できます。"
+      searchPlaceholder="件名・内容・原因・対策で検索"
+      searchText={(item) => `${item.name} ${item.description} ${item.cause} ${item.countermeasure} ${lookups.projectName(item.projectId)} ${lookups.workTypeName(item.workTypeId)}`}
+      filters={[
+        { key: "period", label: "期間", options: PERIOD_OPTIONS, defaultValue: "365", match: (item, value) => withinDays(item.occurredOn, Number(value)) },
+        { key: "project", label: "工事", options: lookups.projectOptions, match: (item, value) => item.projectId === value },
+        { key: "type", label: "区分", options: optionsOf(INCIDENT_TYPE_LABEL), match: (item, value) => item.incidentType === Number(value) },
+        { key: "worktype", label: "工種", options: lookups.workTypeOptions, match: (item, value) => item.workTypeId === value },
+        { key: "knowledge", label: "ナレッジ化", options: [{ value: "done", label: "ナレッジ化済み" }, { value: "todo", label: "未ナレッジ化" }], match: (item, value) => item.knowledgeCreated === (value === "done") },
+      ]}
+      summary={(items) => [
+        { label: "記録件数", value: `${items.length} 件` },
+        { label: "事故（軽微な事故）", value: `${items.filter((item) => item.incidentType === 100000001).length} 件`, tone: "danger" },
+        { label: "30 日以内", value: `${items.filter((item) => withinDays(item.occurredOn, 30)).length} 件`, tone: "warn" },
+        { label: "未ナレッジ化", value: `${items.filter((item) => !item.knowledgeCreated).length} 件`, tone: items.some((item) => !item.knowledgeCreated) ? "warn" : "good" },
+      ]}
+      charts={(items) => <>
+        <StackedTrend title="発生件数の推移" items={items} dateOf={(item) => item.occurredOn} series={TYPE_SERIES} />
+        <Breakdown title="工種別の発生件数" items={items} groupOf={(item) => lookups.workTypeName(item.workTypeId)} variant="bar" />
+      </>}
+      columns={[
+        { key: "occurred", header: "発生日時", render: (item) => formatDateTime(item.occurredOn), sortValue: (item) => item.occurredOn, className: "whitespace-nowrap" },
+        { key: "name", header: "件名", render: (item) => item.name, sortValue: (item) => item.name },
+        { key: "project", header: "工事", render: (item) => lookups.projectName(item.projectId), sortValue: (item) => lookups.projectName(item.projectId) },
+        {
+          key: "type", header: "区分", sortValue: (item) => item.incidentType,
+          render: (item) => <span className="rounded-full px-2 py-0.5 text-xs font-black text-white" style={{ background: INCIDENT_TYPE_COLOR[item.incidentType] ?? "#94a3b8" }}>{INCIDENT_TYPE_LABEL[item.incidentType] ?? "-"}</span>,
+        },
+        { key: "worktype", header: "工種", render: (item) => lookups.workTypeName(item.workTypeId) },
+        { key: "knowledge", header: "ナレッジ化", render: (item) => item.knowledgeCreated ? <span className="font-bold text-emerald-600">済</span> : <span className="font-bold text-amber-600">未</span>, sortValue: (item) => Number(item.knowledgeCreated) },
+      ]}
+    />
+  )
 }

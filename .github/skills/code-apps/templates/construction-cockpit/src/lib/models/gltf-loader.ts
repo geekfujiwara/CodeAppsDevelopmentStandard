@@ -2,7 +2,7 @@
 // Code Apps の CSP は connect-src に 'self' を含まないことがあるため、同梱モデルは base64 で JS に埋め込み、
 // fetch を使わずに解析する。GLB は code-apps の共通部品 csp-safe-gltf.ts で読む
 // （埋め込みテクスチャを blob: URL を介さずにデコードする。素の GLTFLoader ではテクスチャが黙って落ちる）。
-import { Group, Mesh } from "three"
+import { Group, Mesh, type Object3D } from "three"
 import type { ConstructionModel, Vec3 } from "@/lib/models"
 import { createCspSafeGltfLoader, decodeDataUrl } from "./csp-safe-gltf.ts"
 
@@ -16,7 +16,7 @@ export function bundledModelNames(): string[] {
  * BIM/CIM から書き出した glTF でも使えるよう、extras が無い場合はノード名から部位を復元する。
  * 規約: 「P1-column#2/5」（部位キー#順番/総数）または「zone:P1-footing」。それ以外のノードは周辺物として扱う。
  */
-function normalize(root: Group): void {
+export function normalize(root: Object3D): void {
   root.traverse((object) => {
     if (!(object instanceof Mesh)) return
     const data = object.userData as Record<string, unknown>

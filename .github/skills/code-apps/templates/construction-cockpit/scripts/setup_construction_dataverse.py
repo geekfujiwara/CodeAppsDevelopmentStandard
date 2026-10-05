@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / ".github" / "skills" / "standard" / "scripts"))
 
-from auth_helper import api_get, api_post, api_patch, retry_metadata
+from auth_helper import api_get, api_patch, api_post, api_request, retry_metadata
 
 SOLUTION = os.environ["SOLUTION_NAME"]
 TEMPLATE_PREFIX = "${PUBLISHER_PREFIX}"
@@ -71,6 +71,9 @@ TABLES = [
                 (100000003, "建築"), (100000004, "水路・護岸"), (100000005, "道路"),
             ]),
             {"logical": "${PUBLISHER_PREFIX}_description", "display": "工事概要", "type": "Memo", "maxLength": 4000},
+            # CAD 取り込み: 本体（GLB / OBJ / STL / FBX）と、座標・単位・部品と作業の対応付け・施工単位（JSON）
+            {"logical": "${PUBLISHER_PREFIX}_modelfile", "display": "CAD モデル", "type": "File", "maxSizeInKB": 51200},
+            {"logical": "${PUBLISHER_PREFIX}_modelmapping", "display": "CAD モデル対応表", "type": "Memo", "maxLength": 100000},
         ],
     },
     {
@@ -91,6 +94,8 @@ TABLES = [
             {"logical": "${PUBLISHER_PREFIX}_zone", "display": "3D 部位", "type": "String", "maxLength": 100},
             {"logical": "${PUBLISHER_PREFIX}_sequence", "display": "工程順", "type": "Integer", "minValue": 0, "maxValue": 1000},
             {"logical": "${PUBLISHER_PREFIX}_issue", "display": "阻害要因", "type": "Memo", "maxLength": 2000},
+            # 3D から自動生成した施工位置イメージ（フルサイズ保存は ensure_full_images が作成後に有効化する）
+            {"logical": "${PUBLISHER_PREFIX}_locationimage", "display": "施工箇所図", "type": "Image", "maxSizeInKB": 10240},
         ],
     },
     {
@@ -238,6 +243,15 @@ def column_body(column: dict) -> dict:
                 "FalseOption": {"Value": 0, "Label": label("いいえ")},
             },
         })
+    elif kind == "File":
+        body.update({"@odata.type": "#Microsoft.Dynamics.CRM.FileAttributeMetadata", "MaxSizeInKB": column.get("maxSizeInKB", 32768)})
+    elif kind == "Image":
+        body.update({
+            "@odata.type": "#Microsoft.Dynamics.CRM.ImageAttributeMetadata",
+            "MaxSizeInKB": column.get("maxSizeInKB", 10240),
+            "CanStoreFullImage": True,
+            "IsPrimaryImage": False,
+        })
     elif kind == "Picklist":
         body.update({
             "@odata.type": "#Microsoft.Dynamics.CRM.PicklistAttributeMetadata",
@@ -326,7 +340,32 @@ def create_schema() -> None:
         )
         print(f"created lookup: {source}.{attribute}")
         time.sleep(5)
+    ensure_full_images()
     api_post("PublishAllXml", {})
+
+
+def ensure_full_images() -> None:
+    """画像列をフルサイズ保存にする。
+
+    作成時に CanStoreFullImage: True を送っても無視され、サムネイル（144px）しか保存されない。
+    その状態では `$value?size=full` が 204（空）を返し、アプリは画像を表示できない。
+    作成後に PUT で設定し直し、読み戻して確かめる（べき等。既に True なら何もしない）。
+    """
+    for table in TABLES:
+        for column in table["columns"]:
+            if column.get("type") != "Image":
+                continue
+            attribute = f"EntityDefinitions(LogicalName='{table['logical']}')/Attributes(LogicalName='{column['logical']}')"
+            path = f"{attribute}/Microsoft.Dynamics.CRM.ImageAttributeMetadata"
+            metadata = api_get(path)
+            if metadata.get("CanStoreFullImage"):
+                continue
+            metadata.pop("@odata.context", None)
+            metadata.update({"@odata.type": "Microsoft.Dynamics.CRM.ImageAttributeMetadata", "CanStoreFullImage": True})
+            retry_metadata(lambda a=attribute, m=metadata: api_request(a, m, method="PUT"), f"full image {column['logical']}")
+            if not api_get(f"{path}?$select=CanStoreFullImage").get("CanStoreFullImage"):
+                raise SystemExit(f"{table['logical']}.{column['logical']} をフルサイズ保存にできませんでした")
+            print(f"enabled full image: {table['logical']}.{column['logical']}")
 
 
 def entity_set(logical: str) -> str:

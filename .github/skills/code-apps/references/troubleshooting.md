@@ -2985,3 +2985,39 @@ drei の `<Html>` はラベルごとに別の React root を作り、親の描�
 ### 対処（恒久対策済み）
 
 `capture_3d.mjs` に `--ready "<JS の式>" [--ready-timeout 180]` を足した。描画の準備完了を確かめてから撮り、条件が満たされなければ終了コード 1 になる。`--fail-on-error` を付けると、ページのエラーが 1 件でもあれば終了コード 1 になる。SwiftShader の起動オプションで接続できないときは、既定の描画経路で 1 回だけ起動し直す。
+
+## 82. Dataverse のファイル列を Range で分割取得すると、最後のチャンクだけ 416 になる（検証済 2026-10-05）
+
+### 症状
+
+4 MB ずつ `Range: bytes=<start>-<start+4MB-1>` で取得すると、ファイル末尾を超える最後の要求が `416 Requested Range Not Satisfiable` になる（4.16 MB の GLB で発生）。一般的な HTTP サーバーのように末尾で切り詰めない。画像列の `$value?size=full` は大きすぎる Range でも 206 で全体を返す。
+
+### 対処（恒久対策済み）
+
+保存時にファイルサイズを記録し（construction-cockpit では `gc_modelmapping.fileSize`）、取得側は `Math.min(start + 4MB, size) - 1` で末尾を止める。テンプレートの `src/lib/binary.ts` の `downloadInChunks` が期待サイズで止め、途中で切れたら例外にする。`scripts/test-cad-import.mjs` は末尾超えを 416 で失敗させる擬似サーバーで検証する。
+
+## 83. GLB の部品名で対応付けたのに、読み込むと一致しない（GLTFLoader がノード名を書き換える）（検証済 2026-10-05）
+
+### 症状
+
+CAD の部品名「IfcSlab 床」で対応付けを保存したのに、読み込んだモデルでは一致しない。階ごとの同名グループ「Columns」が 1 つしか対応付かない。
+
+### 原因
+
+GLTFLoader はノード名を `PropertyBinding.sanitizeNodeName` で整形し（空白 → `_`、`[]\.:/` を除去）、同名ノードに `_1`、`_2` を付けて一意にする。
+
+### 対処（恒久対策済み）
+
+対応付けのキーは **読み込み後のノード名** を使う（取り込み画面の一覧も読み込み後の名前を表示する）。同じ作業に複数の部品を割り当てた場合は、名前ではなく作業ごとに部品を集め、下から順の施工単位にする（`applyCadRules`）。スクリプトで対応付け JSON を作る場合は `PropertyBinding.sanitizeNodeName` で同じ整形をする（`scripts/cad-sample.mjs`）。
+
+## 84. Three.js の画面を画像にしたいが、`preserveDrawingBuffer` を付けずに `toDataURL` すると真っ黒になる（検証済 2026-10-05）
+
+### 対処
+
+R3F の `useFrame`（priority 0）の中で、別カメラで `gl.render(scene, camera)` → 直後に `gl.domElement.toDataURL()` を呼ぶ。同じタスク内で読めば描画バッファはまだ消えておらず、続く通常フレームが上書きするため画面もちらつかない。材質を一時的に差し替える場合は `finally` で必ず戻す。CSP で `blob:` を使えないため、出力は `data:` URL（JPEG）にして `img-src data:` で表示する。テンプレートの `SnapshotCapturer`（`project-model-3d.tsx`）と `task-snapshot.ts` を参照。
+
+## 85. 登録画面（`/xxx/new`）を追加すると、predeploy が「ナビから到達できないページ」と警告する
+
+### 対処（恒久対策済み）
+
+一覧の「登録」ボタンから開く `/<一覧>/new` は、詳細ルート `/<一覧>/:id` と同じく一覧から到達できる。`pre-deploy-check.mjs` の隠しページ判定で、親パスがナビにある `/new` も除外した（3 つのコピーで同一）。

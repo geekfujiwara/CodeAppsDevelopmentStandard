@@ -12,6 +12,10 @@
 - **ナレッジ**: 事象、原因、教訓を工種と関連付けて蓄積
 - **重機稼働**: 日報と重機の稼働実績を表示
 - **Cowork**: 会議、メール、Teams チャット、予定表から情報を整理し、確認付きで Dataverse を更新
+- **記録の一覧と詳細**: KY・ヒヤリハット・日報・ナレッジを集計・グラフ・検索・絞り込み付きの一覧で表示し、行から詳細（関連記録・修正・承認・ナレッジ化）へ移動
+- **CAD モデル取り込み**: GLB / OBJ / STL / FBX を読み込み、部品を作業に対応付けて、承認済みの進捗どおり下から施工単位を 3D に表示（Z-up・mm の正規化、名前からの自動対応付け）
+- **施工位置イメージ**: 選択中の作業の部位を 3D から自動で画像化し、作業の画像列に保存
+- **Copilot Studio**: 「現場コックピット アシスタント」（`agent/cockpit-assistant/`）で、施工単位での進捗報告・記録のまとめ登録・監督の承認を会話から行う
 
 ## 画面
 
@@ -20,10 +24,10 @@
 | 現場マップ | `/site-map` | 稼働中・直近完了の工事ポートフォリオ |
 | 工事オービット | `/projects` | ガント、関係グラフ、ノードインスペクター |
 | 工事ディープリンク | `/projects/:projectId` | 指定工事を選択して開く |
-| KY 活動 | `/ky` | KY の一覧と登録 |
-| ヒヤリハット | `/incidents` | 事象の登録とナレッジ化 |
-| 日報 | `/reports` | 日報の一覧と登録 |
-| ナレッジ | `/knowledge` | 教訓の検索・参照 |
+| KY 活動 | `/ky`・`/ky/new`・`/ky/:id` | グラフ付き一覧、登録、詳細 |
+| ヒヤリハット | `/incidents`・`/incidents/new`・`/incidents/:id` | グラフ付き一覧、登録、詳細とナレッジ化 |
+| 日報 | `/reports`・`/reports/new`・`/reports/:id` | グラフ付き一覧、作成、詳細と承認・差戻し |
+| ナレッジ | `/knowledge`・`/knowledge/:id` | 検索、詳細と修正 |
 | 重機稼働 | `/equipment` | 重機と稼働実績 |
 
 ## Dataverse
@@ -41,6 +45,8 @@
 | `{prefix}_knowledge` | ナレッジ |
 | `{prefix}_equipment` | 重機 |
 | `{prefix}_equipmentusage` | 重機稼働 |
+
+CAD 取り込みは `{prefix}_project.{prefix}_modelfile`（ファイル列）と `{prefix}_modelmapping`（対応付けと施工単位の JSON）、施工位置イメージは `{prefix}_task.{prefix}_locationimage`（画像列）を使います。画像列は作成時の `CanStoreFullImage` 指定が無視されるため、`setup_construction_dataverse.py` が作成後にフルサイズ保存を有効化します。
 
 ## scaffold
 

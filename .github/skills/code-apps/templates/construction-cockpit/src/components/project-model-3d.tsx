@@ -15,7 +15,7 @@ import {
   type Object3D,
 } from "three"
 import { Eye, EyeOff, Layers, Loader2, RotateCcw } from "lucide-react"
-import type { Project, Task } from "@/services/construction-service"
+import { ConstructionService, type Project, type Task } from "@/services/construction-service"
 import {
   buildConstructionModel,
   disposeModel,
@@ -27,10 +27,34 @@ import {
   type ZoneInfo,
 } from "@/lib/models"
 import { loadModelAsset } from "@/lib/models/gltf-loader"
+import { CAD_MODEL_URL, parseCadMapping, type CadMapping } from "@/lib/models/cad-import"
+import { loadCadModel } from "@/lib/models/cad-loader"
+import { composeSnapshot, snapshotCamera, type SnapshotCaption } from "@/lib/models/task-snapshot"
 import { expectedProgress, taskState, TASK_STATE_COLOR, TASK_STATE_LABEL, type TaskState } from "@/lib/construction-schedule"
 
 type Visual = { state: TaskState; ratio: number }
-type LoadedModel = ConstructionModel & { source: "gltf" | "procedural"; notice?: string; key: string }
+type ModelSource = "gltf" | "procedural" | "cad" | "cad-preview"
+type LoadedModel = ConstructionModel & { source: ModelSource; notice?: string; key: string }
+
+export type CadPreview = { buffer: ArrayBuffer; mapping: CadMapping; nonce: number }
+export type SnapshotRequest = { taskId: string; nonce: string }
+export type TaskSnapshot = { taskId: string; key: string; dataUrl?: string; error?: string }
+type SnapshotJob = { key: string; taskId: string; box: Box3; viewFrom: Vec3; viewTarget: Vec3; caption: SnapshotCaption; targets: Mesh[]; others: Mesh[] }
+
+const SOURCE_LABEL: Record<ModelSource, string> = {
+  gltf: "モデルファイル（glTF）",
+  procedural: "標準モデル",
+  cad: "CAD モデル",
+  "cad-preview": "CAD プレビュー（未保存）",
+}
+const SOURCE_STYLE: Record<ModelSource, string> = {
+  gltf: "bg-violet-400 text-slate-950",
+  procedural: "bg-white/10 text-slate-200",
+  cad: "bg-emerald-400 text-slate-950",
+  "cad-preview": "bg-amber-300 text-slate-950",
+}
+/** 点線（EdgesGeometry）を作る三角形数の上限。CAD の重いモデルで初期表示が止まらないようにする */
+const OUTLINE_TRIANGLE_BUDGET = 1_500_000
 
 type Entry = {
   mesh: Mesh
@@ -59,6 +83,12 @@ type Pin = { zone: string; position: Vec3; task: Task; state: TaskState }
 const EMISSIVE: Partial<Record<TaskState, string>> = { active: "#06b6d4", delayed: "#f59e0b" }
 const OUTLINE_COLORS = { planned: "#cbd5e1", active: "#22d3ee", delayed: "#fbbf24", selected: "#fde047" }
 
+/**
+ * 整数の進捗率では 1/3 や 1/24 を正確に表せないため、進捗 1% の半分（件数/200 単位、最小 0.05 単位）までの端数は丸める。
+ * Copilot Studio の換算（progress_units.py）と同じ規則。
+ */
+const segmentTolerance = (count: number) => Math.max(0.05, count / 200) + 1e-6
+
 function partVisual(info: ZoneInfo, task: Task | undefined, completed: boolean): Visual {
   if (!task) return completed ? { state: "done", ratio: 1 } : { state: "planned", ratio: 0 }
   const progress = Math.min(1, Math.max(0, task.progress / 100))
@@ -66,8 +96,9 @@ function partVisual(info: ZoneInfo, task: Task | undefined, completed: boolean):
   if (info.segment) {
     const [index, count] = info.segment
     const built = progress * count
-    if (built >= index + 1 - 1e-6) return { state: "done", ratio: 1 }
-    if (built > index) return { state: working, ratio: Math.max(0.12, built - index) }
+    const tolerance = segmentTolerance(count)
+    if (built >= index + 1 - tolerance) return { state: "done", ratio: 1 }
+    if (built > index + tolerance) return { state: working, ratio: Math.max(0.12, built - index) }
     return { state: "planned", ratio: 0 }
   }
   if (progress >= 1) return { state: "done", ratio: 1 }
@@ -126,9 +157,13 @@ function prepare(model: LoadedModel): Prepared {
     selected: dashed(OUTLINE_COLORS.selected, 1),
   }
   materials.push(...Object.values(outlines))
+  let budget = OUTLINE_TRIANGLE_BUDGET
   for (const entry of entries) {
-    const outline = new LineSegments(new EdgesGeometry(entry.mesh.geometry, 28), outlines.planned)
-    outline.computeLineDistances()
+    const geometry = entry.mesh.geometry
+    const triangles = (geometry.index ? geometry.index.count : geometry.getAttribute("position").count) / 3
+    budget -= triangles
+    const outline = new LineSegments(budget > 0 ? new EdgesGeometry(geometry, 28) : undefined, outlines.planned)
+    if (budget > 0) outline.computeLineDistances()
     outline.userData = { outlineOf: entry.info.zone }
     outline.raycast = () => undefined
     entry.mesh.add(outline)
@@ -138,35 +173,81 @@ function prepare(model: LoadedModel): Prepared {
 }
 
 const GHOST = new MeshBasicMaterial({ color: "#94a3b8", transparent: true, opacity: 0.05, depthWrite: false })
+const SNAPSHOT_CONTEXT = new MeshStandardMaterial({ color: "#cbd5e1", transparent: true, opacity: 0.16, depthWrite: false, roughness: 1 })
+const SNAPSHOT_TARGET = new MeshStandardMaterial({ color: "#facc15", emissive: "#facc15", emissiveIntensity: 0.35, transparent: true, opacity: 0.45, depthWrite: false })
 
-function useConstructionModel(project: Project, tasks: Task[]) {
+function useConstructionModel(project: Project, tasks: Task[], cadPreview?: CadPreview) {
   const [model, setModel] = useState<LoadedModel>()
   const [loading, setLoading] = useState(false)
-  const fallbackKey = project.modelType ? "" : tasks.map((task) => task.id).join(",")
+  const usesCad = Boolean(cadPreview) || project.modelUrl === CAD_MODEL_URL
+  const fallbackKey = project.modelType && !usesCad ? "" : tasks.map((task) => `${task.zone || task.id}:${task.name}`).join(",")
   useEffect(() => {
     let cancelled = false
+    const zones = tasks.map((task) => ({ zone: task.zone || task.id, label: task.name }))
     const procedural = (notice?: string): LoadedModel => ({
-      ...buildConstructionModel(project.modelType, project.modelCenter, tasks.map((task) => ({ zone: task.zone || task.id, label: task.name }))),
+      ...buildConstructionModel(project.modelType, project.modelCenter, zones),
       source: "procedural", notice, key: `${project.id}-procedural`,
     })
-    if (!project.modelUrl) {
+    const fail = (label: string, hint = "") => (error: unknown) => {
+      if (cancelled) return
+      const reason = error instanceof Error ? error.message : "不明なエラー"
+      setModel(procedural(`${label}を読み込めないため標準モデルを表示しています。${hint}（${reason}）`))
+    }
+    if (!project.modelUrl && !cadPreview) {
       setModel(procedural())
       return () => { cancelled = true }
     }
     setLoading(true)
-    loadModelAsset(project.modelUrl)
-      .then((loaded) => { if (!cancelled) setModel({ ...loaded, source: "gltf", key: `${project.id}-gltf` }) })
-      .catch((error: unknown) => {
-        if (cancelled) return
-        const reason = error instanceof Error ? error.message : "不明なエラー"
-        setModel(procedural(`モデルファイル（${project.modelUrl}）を読み込めないため標準モデルを表示しています。外部 URL の場合は Code Apps の CSP の connect-src に許可が必要です。（${reason}）`))
-      })
-      .finally(() => { if (!cancelled) setLoading(false) })
+    let loading: Promise<void>
+    if (cadPreview) {
+      loading = loadCadModel(cadPreview.buffer, cadPreview.mapping, zones)
+        .then((loaded) => { if (!cancelled) setModel({ ...loaded, source: "cad-preview", key: `${project.id}-cad-preview-${cadPreview.nonce}` }) })
+        .catch(fail("取り込み中の CAD モデル"))
+    } else if (project.modelUrl === CAD_MODEL_URL) {
+      const mapping = parseCadMapping(project.modelMapping)
+      loading = (mapping
+        ? ConstructionService.downloadProjectModel(project, mapping.fileSize).then((buffer) => loadCadModel(buffer, mapping, zones))
+        : Promise.reject(new Error("部位の対応付け（${PUBLISHER_PREFIX}_modelmapping）がありません。CAD 取り込みから保存し直してください。")))
+        .then((loaded) => { if (!cancelled) setModel({ ...loaded, source: "cad", key: `${project.id}-cad-${project.modelFileId}-${mapping?.savedAt}` }) })
+        .catch(fail("CAD モデル"))
+    } else {
+      loading = loadModelAsset(project.modelUrl)
+        .then((loaded) => { if (!cancelled) setModel({ ...loaded, source: "gltf", key: `${project.id}-gltf` }) })
+        .catch(fail(`モデルファイル（${project.modelUrl}）`, "外部 URL の場合は Code Apps の CSP の connect-src に許可が必要です。"))
+    }
+    loading.finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id, project.modelType, project.modelCenter, project.modelUrl, fallbackKey])
+  }, [project.id, project.modelType, project.modelCenter, project.modelUrl, project.modelMapping, project.modelFileId, cadPreview, fallbackKey])
   useEffect(() => () => { if (model) disposeModel(model.root) }, [model])
   return { model, loading }
+}
+
+/** 選択中の作業の部位に寄せたカメラで 1 枚描き、画像にする。描画は通常フレームの直前に行うため画面はちらつかない */
+function SnapshotCapturer({ job, onDone }: { job?: SnapshotJob; onDone: (job: SnapshotJob, result: { dataUrl?: string; error?: string }) => void }) {
+  const state = useRef<{ key?: string; frames: number; done?: string }>({ frames: 0 })
+  useFrame(({ gl, scene, size }) => {
+    const current = state.current
+    if (!job || current.done === job.key) return
+    if (current.key !== job.key) { current.key = job.key; current.frames = 0 }
+    // 材質・クリッピング・影の更新が反映されるまで数フレーム待つ
+    current.frames += 1
+    if (current.frames < 4) return
+    current.done = job.key
+    // 対象の部位を目立たせるため、この 1 枚だけ他の部位を半透明にし、未着手の対象は黄色で示す（描画後すぐ戻す）
+    const swaps: Array<[Mesh, Material | Material[]]> = []
+    for (const mesh of job.others) if (mesh.visible) { swaps.push([mesh, mesh.material]); mesh.material = SNAPSHOT_CONTEXT }
+    for (const mesh of job.targets) if (mesh.material === GHOST) { swaps.push([mesh, mesh.material]); mesh.material = SNAPSHOT_TARGET }
+    try {
+      gl.render(scene, snapshotCamera(job.box, job.viewFrom, job.viewTarget, size.width / Math.max(1, size.height)))
+      onDone(job, { dataUrl: composeSnapshot(gl.domElement, job.caption) })
+    } catch (error) {
+      onDone(job, { error: error instanceof Error ? error.message : "画像を作成できませんでした。" })
+    } finally {
+      for (const [mesh, material] of swaps) mesh.material = material
+    }
+  })
+  return null
 }
 
 function ModelScene({ model, onHover, onSelect, pulses }: {
@@ -222,10 +303,15 @@ type Props = {
   tasks: Task[]
   selectedTaskId?: string
   onSelectTask?: (taskId: string) => void
+  /** 取り込み中（未保存）の CAD モデル。指定中は保存済みのモデルの代わりに表示する */
+  cadPreview?: CadPreview
+  /** 指定した作業の施工位置イメージを作成する。nonce を変えると作り直す */
+  snapshotRequest?: SnapshotRequest
+  onSnapshot?: (snapshot: TaskSnapshot) => void
 }
 
-export function ProjectModel3d({ project, tasks, selectedTaskId, onSelectTask }: Props) {
-  const { model, loading } = useConstructionModel(project, tasks)
+export function ProjectModel3d({ project, tasks, selectedTaskId, onSelectTask, cadPreview, snapshotRequest, onSnapshot }: Props) {
+  const { model, loading } = useConstructionModel(project, tasks, cadPreview)
   const [hoveredZone, setHoveredZone] = useState<string | null>(null)
   const [viewKey, setViewKey] = useState(0)
   const [showGhost, setShowGhost] = useState(true)
@@ -325,6 +411,38 @@ export function ProjectModel3d({ project, tasks, selectedTaskId, onSelectTask }:
   }
   const size = prepared?.size ?? 100
 
+  // 施工位置イメージ: 依頼された作業の部位を囲む範囲を求め、Canvas 内の SnapshotCapturer に渡す
+  const snapshotTask = snapshotRequest ? tasks.find((task) => task.id === snapshotRequest.taskId) : undefined
+  const snapshotKey = snapshotTask && model ? `${snapshotTask.id}:${snapshotRequest?.nonce}:${model.key}` : ""
+  const snapshotJob = useMemo<SnapshotJob | undefined>(() => {
+    if (!snapshotTask || !prepared || !model || selectedZone !== zoneOf(snapshotTask)) return undefined
+    const box = new Box3()
+    const targets: Mesh[] = []
+    const others: Mesh[] = []
+    for (const entry of prepared.entries) {
+      if (entry.info.zone === zoneOf(snapshotTask)) { box.union(entry.bounds); targets.push(entry.mesh) } else others.push(entry.mesh)
+    }
+    if (box.isEmpty()) return undefined
+    const state = taskState(snapshotTask)
+    return {
+      key: snapshotKey, taskId: snapshotTask.id, box, viewFrom: model.camera, viewTarget: model.target, targets, others,
+      caption: {
+        projectName: project.name, taskName: snapshotTask.name, modelTitle: model.title,
+        stateLabel: TASK_STATE_LABEL[state], stateColor: TASK_STATE_COLOR[state],
+        progress: snapshotTask.progress, expected: expectedProgress(snapshotTask),
+        period: `${snapshotTask.plannedStart.slice(0, 10)} 〜 ${snapshotTask.plannedEnd.slice(0, 10)}`,
+      },
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshotKey, prepared, selectedZone])
+  // 部位が 3D に無い作業は画像を作れないことを伝える
+  useEffect(() => {
+    if (!snapshotKey || !snapshotTask || !prepared || snapshotJob || selectedZone !== zoneOf(snapshotTask)) return
+    onSnapshot?.({ taskId: snapshotTask.id, key: snapshotKey, error: "この作業は 3D モデルの部位に対応付いていないため、画像を作成できません。CAD 取り込みで部位を割り当ててください。" })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshotKey, prepared, snapshotJob, selectedZone])
+  const finishSnapshot = (job: SnapshotJob, result: { dataUrl?: string; error?: string }) => onSnapshot?.({ taskId: job.taskId, key: job.key, ...result })
+
   return (
     <div className="relative h-[36rem] min-h-80 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950" data-tour="project-3d">
       {model && prepared && (
@@ -355,6 +473,7 @@ export function ProjectModel3d({ project, tasks, selectedTaskId, onSelectTask }:
           />
           <ModelScene model={model} onHover={setHoveredZone} onSelect={select} pulses={pulses} />
           <PinProjector pins={pins} elements={pinElements} />
+          <SnapshotCapturer job={snapshotJob} onDone={finishSnapshot} />
           <OrbitControls makeDefault target={model.target} minDistance={size * 0.05} maxDistance={size * 4} maxPolarAngle={Math.PI / 2.02} enableDamping />
         </Canvas>
       )}
@@ -384,7 +503,7 @@ export function ProjectModel3d({ project, tasks, selectedTaskId, onSelectTask }:
 
       <div className="pointer-events-none absolute left-3 top-3 flex max-w-[70%] flex-wrap items-center gap-2">
         <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white backdrop-blur">{MODEL_TYPE_LABEL[project.modelType] ?? "工程"} · {model?.title ?? "読み込み中"}</span>
-        {model && <span className={`rounded-full px-3 py-1 text-xs font-black ${model.source === "gltf" ? "bg-violet-400 text-slate-950" : "bg-white/10 text-slate-200"}`}>{model.source === "gltf" ? "モデルファイル（glTF）" : "標準モデル"}</span>}
+        {model && <span className={`rounded-full px-3 py-1 text-xs font-black ${SOURCE_STYLE[model.source]}`} data-model-source={model.source}>{SOURCE_LABEL[model.source]}</span>}
         {completed && <span className="rounded-full bg-emerald-400 px-3 py-1 text-xs font-black text-slate-950">竣工済</span>}
       </div>
       <div className="absolute right-3 top-3 flex flex-wrap justify-end gap-1.5">

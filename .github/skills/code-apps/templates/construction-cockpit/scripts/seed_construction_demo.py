@@ -34,6 +34,9 @@ BRIDGE, EARTHWORK, TUNNEL, ARCHITECTURE, CHANNEL, ROAD = (100000000 + i for i in
 SUNNY, CLOUDY, RAIN, SNOW, WIND = (100000000 + i for i in range(5))
 REVIEW_DRAFT, REVIEW_SUBMITTED, REVIEW_APPROVED, REVIEW_RETURNED = (100000000 + i for i in range(4))
 RISK = {"高": 100000000, "中": 100000001, "低": 100000002}
+CAD_MODEL_URL = "dataverse:${PUBLISHER_PREFIX}_modelfile"
+# CAD 取り込み（BIM 書き出しの GLB）のデモに使う工事
+CAD_SAMPLE_PROJECTS = {"P-2026-004"}
 
 
 def rng(*keys: object) -> random.Random:
@@ -663,8 +666,9 @@ def main() -> None:
             "${PUBLISHER_PREFIX}_enddate": (TODAY + timedelta(days=spec.end)).isoformat(),
             "${PUBLISHER_PREFIX}_progress": progress, "${PUBLISHER_PREFIX}_status": spec.status, "${PUBLISHER_PREFIX}_sitemanager": spec.manager,
             "${PUBLISHER_PREFIX}_modeltype": spec.model, "${PUBLISHER_PREFIX}_modelcenter": spec.params, "${PUBLISHER_PREFIX}_description": spec.description,
-            # 橋梁は同梱の glTF（GLB）モデルを読み込む。他の種別は同じ生成コードの標準モデルを使う
-            "${PUBLISHER_PREFIX}_modelurl": "bundled:bridge-3span" if spec.model == BRIDGE else "",
+            # 橋梁は同梱の glTF（GLB）モデルを読み込む。CAD 取り込みのデモ工事は Dataverse のファイル列のモデルを使う
+            # （scripts/upload_cad_model.py で登録する。未登録なら画面は標準モデルに切り替えて理由を表示する）
+            "${PUBLISHER_PREFIX}_modelurl": CAD_MODEL_URL if spec.number in CAD_SAMPLE_PROJECTS else "bundled:bridge-3span" if spec.model == BRIDGE else "",
         })
         counts["projects"] += 1
         print(f"--- {spec.number} {spec.name}（進捗 {progress}%）")
