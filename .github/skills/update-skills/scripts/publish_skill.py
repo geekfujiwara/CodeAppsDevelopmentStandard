@@ -29,6 +29,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 try:
@@ -129,6 +130,16 @@ def staged_problems(name_status: str, removes: list[str]) -> dict[str, list[str]
     return {"deleted": deleted, "build": build}
 
 
+def stale_overwrites(modified: list[tuple[str, float, float]], slack: float = 120.0) -> list[str]:
+    """上書きしようとしているファイルのうち、PR 先（既存 PR のブランチ／ベース）での最後の変更が、手元のファイルの更新より新しいもの。
+
+    modified は (パス, PR 先での最後のコミット時刻, 手元のファイルの更新時刻)（どちらも UNIX 秒）。
+    手元のファイルがその変更より前のままなら、コピーで PR 先の変更を黙って巻き戻す（削除は staged_problems が止めるが、
+    両方にあるファイルの書き換えは止まらない）。手元で後から編集したファイルは通す（slack 秒の時計のずれは許す）。
+    """
+    return [path for path, remote, local in modified if remote > local + slack]
+
+
 # テンプレートの配布用の入口（引数・計画表示・事前チェック）。稼働中のプロジェクトから書き戻すと消えやすい（troubleshooting #27）
 ENTRYPOINT_PATTERNS = re.compile(
     r"add_argument\(|parser\.error\(|ArgumentParser\(|--apply|--dry-run|--seed-demo|TEMPLATE_PREFIX|raise RuntimeError\(|sys\.exit\(|process\.exit\("
@@ -172,6 +183,7 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="push / PR を行わず検証まで")
     ap.add_argument("--allow-delete", action="store_true", help="--remove 以外の削除を許す（既定は削除があれば止める）")
     ap.add_argument("--allow-build-output", action="store_true", help="bin / obj / dll / exe などのビルド出力の追加を許す")
+    ap.add_argument("--allow-overwrite", action="store_true", help="PR 先で手元より後に変更されたファイルの上書きを許す（既定は止める）")
     ap.add_argument("--allow-entrypoint-change", action="store_true", help="templates/ の引数・事前チェックの行の削除を許す（既定は止める）")
     args = ap.parse_args()
 
@@ -286,6 +298,30 @@ def main() -> int:
         shutil.rmtree(tmp, ignore_errors=True)
         sys.exit(f"ビルド出力らしいファイルを {len(problems['build'])} 件追加しようとしています:\n   {shown}\n"
                  "ローカルの .gitignore（bin/ obj/ など）を確認してください。意図した追加なら --allow-build-output を付けます。")
+    # PR 先で手元より後に変更されたファイルの書き換え（他の人・別の端末が既存 PR のブランチに積んだ変更を、古い手元で巻き戻す）
+    if not args.allow_overwrite:
+        ref = branch if exists else base
+        mods: list[tuple[str, float, float]] = []
+        prefix = f"{skills_dir.as_posix().strip('/')}/{args.skill}/"
+        for line in run(["git", "diff", "--cached", "--name-status"], cwd=clone).stdout.splitlines():
+            parts = line.split("\t")
+            if len(parts) < 2 or not parts[0].startswith("M") or not parts[-1].startswith(prefix):
+                continue
+            path = parts[-1]
+            res = gh(["api", f"repos/{repo}/commits?sha={ref}&path={path}&per_page=1", "--jq", ".[0].commit.committer.date"], check=False)
+            stamp = (res.stdout or "").strip()
+            if not stamp:
+                continue
+            remote = datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+            local_file = src_skill / path[len(prefix):]
+            mods.append((path, remote, local_file.stat().st_mtime if local_file.exists() else 0.0))
+        stale = stale_overwrites(mods)
+        if stale:
+            shown = "\n   ".join(stale[:20]) + ("\n   …" if len(stale) > 20 else "")
+            shutil.rmtree(tmp, ignore_errors=True)
+            sys.exit(f"PR 先（{ref}）で手元より後に変更されたファイルを {len(stale)} 件上書きしようとしています:\n   {shown}\n"
+                     "他の人・別の端末の変更を巻き戻す可能性があります。PR 先の最新を手元に取り込んでから再実行してください（troubleshooting #29）。"
+                     "手元の内容で上書きしてよいと確認できたら --allow-overwrite を付けます。")
     entrypoints = removed_template_entrypoints(run(["git", "diff", "--cached", "-U0", "--", "*templates/*"], cwd=clone).stdout)
     if entrypoints and not args.allow_entrypoint_change:
         shown = "\n   ".join(entrypoints[:20]) + ("\n   …" if len(entrypoints) > 20 else "")

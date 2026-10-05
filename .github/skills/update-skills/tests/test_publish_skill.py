@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from publish_skill import removed_template_entrypoints
+from publish_skill import removed_template_entrypoints, stale_overwrites
 
 
 def diff(path: str, removed: list[str], added: list[str]) -> str:
@@ -33,6 +33,23 @@ class RemovedTemplateEntrypointTests(unittest.TestCase):
     def test_ignores_unrelated_removed_lines(self):
         found = removed_template_entrypoints(diff(".github/skills/x/templates/t/app.ts", ["const a = 1"], ["const a = 2"]))
         self.assertEqual(found, [])
+
+
+class StaleOverwriteTests(unittest.TestCase):
+    """PR 先で手元より後に変更されたファイルの上書き（他の人・別の端末の変更を巻き戻す）を止める"""
+
+    def test_flags_files_changed_on_pr_branch_after_local_edit(self):
+        # 手元は 1 日前のまま、PR 先では 1 時間前に変更 → 止める
+        now = 1_800_000_000.0
+        found = stale_overwrites([
+            (".github/skills/code-apps/references/troubleshooting.md", now - 3600, now - 86400),
+            (".github/skills/code-apps/references/csp.md", now - 86400, now - 600),  # 手元で後から編集 → 通す
+        ])
+        self.assertEqual(found, [".github/skills/code-apps/references/troubleshooting.md"])
+
+    def test_allows_clock_skew(self):
+        self.assertEqual(stale_overwrites([("a.md", 1000.0, 950.0)]), [])
+        self.assertEqual(stale_overwrites([("a.md", 1000.0, 800.0)]), ["a.md"])
 
 
 if __name__ == "__main__":
