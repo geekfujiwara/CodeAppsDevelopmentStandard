@@ -1,6 +1,6 @@
 ---
 name: custom-connector
-description: "Entra ID（OAuth 認可コード）で保護された自前の API を、Power Platform のカスタム コネクタとして作成し、on-behalf-of ログインで接続の作成・接続参照へのバインド・操作の呼び出し確認・Code Apps へのデータソース追加までブラウザ操作なしで進める。公開 API の無い接続作成は、画面の要求を観測した非公開 API（plan → hash 承認 → apply → read-back）で行う。on-behalf-of を使えない場合のブラウザ同意・利用者による手動作成も用意する。"
+description: "Entra ID（OAuth 認可コード）で保護された自前の API を、Power Platform のカスタム コネクタとして作成し、on-behalf-of ログインで接続の作成・接続参照へのバインド・操作の呼び出し確認・Code Apps へのデータソース追加までブラウザ操作なしで進める。公開 API の無い接続作成は、画面の要求を観測した非公開 API（plan → hash 承認 → apply → read-back）で行う。on-behalf-of を使えない場合のブラウザ同意・利用者による手動作成も用意する。Code Apps の CSP で直接読めない公開サイト・公開 API は、認証なし・ホスト固定・GET だけのコネクタ（public-site テンプレート）で読む。"
 category: automation
 triggers:
   - "カスタムコネクタ"
@@ -16,6 +16,8 @@ triggers:
   - "Code Apps から自前 API"
   - "on-behalf-of"
   - "createoboconnection"
+  - "外部サイト 取得"
+  - "認証なし コネクタ"
 ---
 
 # カスタム コネクタ作成スキル
@@ -37,7 +39,7 @@ Entra API アプリ（スコープ公開 + Graph User.Read + シークレット 
 | 操作の呼び出し確認 | コネクタのランタイム URL（Code Apps を介さない） | あり |
 | データソース追加 | `pa app add data-source` | あり |
 
-リファレンス: [観測 contract](references/connection-api-contract.md) / [異常系・ブラウザで作る方法](references/troubleshooting.md) / [パラメータ](references/.env.example)
+リファレンス: [観測 contract](references/connection-api-contract.md) / [異常系・ブラウザで作る方法](references/troubleshooting.md) / [公開サイト（認証なし）](references/public-site.md) / [パラメータ](references/.env.example)
 
 ## Step 0: 事前確認（会話の最初に 1 回だけ）
 
@@ -82,6 +84,11 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 ```
 
 `connector/` の `paths` を API に合わせて書き換え、作成する（更新は `--connector-id <GUID>` を付ける）。
+`info.title` は pac がコネクタ名に使うので英数字・ハイフン・アンダースコアだけにする（日本語は `description`）。
+
+> **認証なしの公開サイト・公開 API**（Code Apps の CSP でブラウザから読めない外部ページ）は、テンプレート `public-site` を使い、
+> `--secret-file` を付けずに作成する。Step 1・2 は不要で、Step 6 の plan は `mode: noauth`（同意なしで Connected）になる。
+> ホスト固定・GET だけ・利用者の操作ごとに 1 ページの約束は [public-site.md](references/public-site.md)。
 テンプレートの `apiProperties.json` は on-behalf-of が有効（`IsOnbehalfofLoginSupported: true` と `enableOnbehalfOfLogin: "true"`）。
 
 ```powershell
@@ -168,6 +175,7 @@ python .github/skills/custom-connector/scripts/create_connection.py delete --con
 - [ ] API がコネクタのトークン（`scp=User.Read`、`appid`=API アプリ）を許可し、アプリ専用トークンを拒否する
 - [ ] `deploy_connector.py` が `[sync] ランタイム側に反映済み（on-behalf-of=有効）` とリダイレクト URI を表示した
 - [ ] DLP でホストを分類した（または承認を得て既定のままにした）
+- [ ] 認証なしのコネクタは https・GET だけで、取得先の利用規約を確かめ、取得に失敗したときの代わりの入力（貼り付け）を用意した
 - [ ] plan が `mode: obo`、apply で接続が `Connected` になり、接続参照にバインドされた
 - [ ] `invoke` が 200 を返し、API のログに呼び出し元が出た
 - [ ] 検証用の接続・コネクタを削除した

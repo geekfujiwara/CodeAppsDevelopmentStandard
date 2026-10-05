@@ -7,6 +7,7 @@ Power Automate / Power Apps の接続画面が使う Power Platform API（非公
   obo      コネクタが on-behalf-of ログイン対応（enableOnbehalfOfLogin）のとき。createoboconnection で作成し、
            その場で Connected になる。ブラウザもサインインも不要（標準）
   consent  OBO に対応していないコネクタ。接続を作成 → 同意リンク → localhost で中継してサインイン → Connected
+  noauth   認証なしのコネクタ（connectionParameters が空。公開サイト・公開 API）。空のパラメーターで作成するとその場で Connected
 
 サブコマンド:
   plan    対象を固定して事前検証し、plan とハッシュを出力する（書き込みなし。mode はコネクタの設定から自動判定）
@@ -45,7 +46,7 @@ PP_SCOPE = "https://api.powerplatform.com/.default"
 # 既定の Azure CLI 互換クライアントには Connectivity.Connections.* の委任アクセス許可が無く 403 になる
 PAC_CLIENT_ID = "9cee029c-6210-4654-90bb-17e6e9d36617"
 PLAN_KEYS = {"contractVersion", "mode", "environment", "host", "connector", "connectionName", "displayName", "redirectPort", "connectionReference"}
-MODES = {"obo", "consent"}
+MODES = {"obo", "consent", "noauth"}
 GUID = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 CONNECTOR = re.compile(r"^shared_[A-Za-z0-9][A-Za-z0-9\-_.]{2,200}$")
 CONNECTION_NAME = re.compile(r"^[0-9a-f]{32}$")
@@ -84,7 +85,7 @@ def validate_plan(plan: dict) -> None:
     # obo は接続名をサーバーが決める（例: shared-<connector の先頭>-<GUID>）。consent はクライアントが 32 桁の 16 進数を決める
     if plan["mode"] == "obo" and plan["connectionName"] is not None:
         raise ValueError("obo の connectionName は null（サーバーが採番する）")
-    if plan["mode"] == "consent" and not CONNECTION_NAME.match(plan["connectionName"] or ""):
+    if plan["mode"] in ("consent", "noauth") and not CONNECTION_NAME.match(plan["connectionName"] or ""):
         raise ValueError("connectionName は 32 桁の小文字 16 進数にしてください")
     name = plan["displayName"]
     if not isinstance(name, str) or not 1 <= len(name) <= 128 or any(c in name for c in "\r\n\t"):
@@ -118,6 +119,21 @@ def new_connected(before: list[dict], after: list[dict]) -> list[dict]:
     return [c for c in after if c["name"] not in known and connection_status(c) == "Connected"]
 
 
+def requires_auth(connector_properties: dict) -> bool:
+    """接続パラメーター（OAuth・API キー等）があるか。無ければ認証なしのコネクタ（mode noauth）。"""
+    return bool(connector_properties.get("connectionParameters") or {})
+
+
+# 社内のプロキシ・TLS 検査を通ると、TLS が途中で切れる（SSLEOFError: UNEXPECTED_EOF_WHILE_READING）ことがある。
+# 同じ要求を数秒あけて送り直すと通るので、GET・作成前の確認・作成は 3 回まで試す
+TRANSIENT = ("SSLError", "SSLEOFError", "ConnectionError", "ChunkedEncodingError")
+
+
+def is_transient(exc: BaseException) -> bool:
+    names = {type(e).__name__ for e in (exc, exc.__cause__, exc.__context__) if e is not None}
+    return bool(names & set(TRANSIENT))
+
+
 def supports_obo(connector_properties: dict) -> bool:
     """コネクタの oAuthSettings が on-behalf-of ログインを有効にしているか（画面と同じ判定に enable フラグを加える）。"""
     params = connector_properties.get("connectionParameters") or {}
@@ -143,7 +159,15 @@ def _auth_headers() -> dict[str, str]:
 def _request(method: str, url: str, **kwargs):
     import requests  # noqa: PLC0415
 
-    res = requests.request(method, url, headers=_auth_headers(), timeout=60, **kwargs)
+    for attempt in range(3):
+        try:
+            res = requests.request(method, url, headers=_auth_headers(), timeout=60, **kwargs)
+            break
+        except Exception as exc:  # noqa: BLE001
+            if attempt == 2 or not is_transient(exc):
+                raise
+            print(f"[retry] {method} {url.split('?')[0].rsplit('/', 1)[-1]}: {type(exc).__name__}（{attempt + 1}/3）", flush=True)
+            time.sleep(5)
     if res.status_code >= 400:
         raise SystemExit(f"{method} {url.split('?')[0]} -> {res.status_code} {res.text[:300]}")
     return res
@@ -267,8 +291,14 @@ def connector_properties(environment: str, connector: str) -> dict:
 
 def cmd_plan(args) -> int:
     assert_connector_in_dataverse(args.connector)
-    obo = supports_obo(connector_properties(args.environment, args.connector))
-    mode = args.mode or ("obo" if obo else "consent")
+    props = connector_properties(args.environment, args.connector)
+    obo = supports_obo(props)
+    auth = requires_auth(props)
+    mode = args.mode or ("noauth" if not auth else "obo" if obo else "consent")
+    if mode == "noauth" and auth:
+        raise SystemExit("このコネクタには接続パラメーター（認証）があります。noauth は認証なしのコネクタだけ")
+    if mode != "noauth" and not auth:
+        raise SystemExit("認証なしのコネクタです（--mode noauth、または --mode を省略）")
     if mode == "obo" and not obo:
         raise SystemExit("コネクタが on-behalf-of ログインに対応していません（deploy_connector.py の既定テンプレートで作り直すか --mode consent）")
     plan = {
@@ -292,7 +322,7 @@ def cmd_plan(args) -> int:
     out.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(plan, ensure_ascii=False, indent=2))
     print(f"\nplan: {out.as_posix()}\nsha256: {canonical_hash(plan)}")
-    print(f"mode: {mode}（{'ブラウザ不要' if mode == 'obo' else '所有者のブラウザでサインインが必要'}）")
+    print(f"mode: {mode}（{'所有者のブラウザでサインインが必要' if mode == 'consent' else 'ブラウザ不要'}）")
     return 0
 
 
@@ -314,6 +344,18 @@ def _apply_obo(plan: dict) -> str:
     if not name:
         raise SystemExit("createoboconnection の応答に接続名がありません")
     print(f"[create] on-behalf-of 接続 {name} を作成しました")
+    return name
+
+
+def _apply_noauth(plan: dict) -> str:
+    env, connector, name = plan["environment"], plan["connector"], plan["connectionName"]
+    if requires_auth(connector_properties(env, connector)):
+        raise SystemExit("コネクタに接続パラメーターが追加されています。plan を作り直してください")
+    if any(c["name"] == name for c in list_connections(env, connector)):
+        raise SystemExit(f"接続 {name} は既に存在します。plan を作り直してください")
+    body = {"properties": {"environment": {"name": env}, "connectionParameters": {}, "displayName": plan["displayName"]}}
+    _request("PUT", f"{_connections_url(env, connector)}/{name}?api-version=1", json=body)
+    print(f"[create] 認証なしの接続 {name} を作成しました")
     return name
 
 
@@ -355,7 +397,7 @@ def cmd_apply(args) -> int:
     name = plan["connectionName"]
     succeeded = False
     try:
-        name = _apply_obo(plan) if plan["mode"] == "obo" else _apply_consent(plan, args)
+        name = _apply_obo(plan) if plan["mode"] == "obo" else _apply_noauth(plan) if plan["mode"] == "noauth" else _apply_consent(plan, args)
         connection = wait_connected(env, connector, name)
         print(f"[verify] 接続 {name}（{connection['properties'].get('displayName')}）は Connected")
         if plan["connectionReference"]:
@@ -443,13 +485,22 @@ def cmd_invoke(args) -> int:
         raise SystemExit(f"接続 {args.connection_name} は Connected ではありません（{connection_status(match)}）")
     url = f"{runtime_base(args.environment, args.connector)}/{args.connection_name}{args.path}"
     started = time.perf_counter()
-    res = requests.request(
-        args.method,
-        url,
-        headers={"Authorization": f"Bearer {get_token('https://apihub.azure.com/.default')}", "Content-Type": "application/json"},
-        data=args.body.encode("utf-8") if args.body else None,
-        timeout=120,
-    )
+    # GET だけ送り直す（作成・更新の操作は二重に実行しない）
+    for attempt in range(3 if args.method == "GET" else 1):
+        try:
+            res = requests.request(
+                args.method,
+                url,
+                headers={"Authorization": f"Bearer {get_token('https://apihub.azure.com/.default')}", "Content-Type": "application/json"},
+                data=args.body.encode("utf-8") if args.body else None,
+                timeout=120,
+            )
+            break
+        except Exception as exc:  # noqa: BLE001
+            if attempt == 2 or args.method != "GET" or not is_transient(exc):
+                raise
+            print(f"[retry] {args.method} {args.path}: {type(exc).__name__}（{attempt + 1}/3）", flush=True)
+            time.sleep(5)
     elapsed = int((time.perf_counter() - started) * 1000)
     try:
         shape = describe_shape(res.json())
@@ -475,7 +526,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--port", type=int, default=53682)
     p.add_argument("--out", default=".mcp/connection-plan.json")
     p.add_argument("--allow-duplicate", action="store_true")
-    p.add_argument("--mode", choices=sorted(MODES), help="既定はコネクタの設定から自動判定（OBO 対応なら obo）")
+    p.add_argument("--mode", choices=sorted(MODES), help="既定はコネクタの設定から自動判定（認証なしなら noauth、OBO 対応なら obo）")
     p.set_defaults(func=cmd_plan)
 
     p = sub.add_parser("apply", help="承認済み plan で作成する")

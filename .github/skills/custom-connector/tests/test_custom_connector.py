@@ -208,5 +208,63 @@ class DescribeShapeTest(unittest.TestCase):
         self.assertNotIn("secret-value", str(shape))
 
 
+
+TEMPLATES = SKILL / "templates"
+
+
+def _public_definition(**over):
+    d = json.loads((TEMPLATES / "public-site" / "connector" / "apiDefinition.swagger.json").read_text(encoding="utf-8-sig"))
+    d = json.loads(dc.render(json.dumps(d), {"API_HOST": "example.com", "CONNECTOR_TITLE": "Example-Site", "PUBLISHER": "Example"}))
+    d.update(over)
+    return d
+
+
+class PublicSiteConnectorTest(unittest.TestCase):
+    """認証なし（公開サイト）のコネクタ: 作成前の検査と、接続の mode の判定"""
+
+    def test_template_passes_and_is_no_auth(self):
+        props = json.loads((TEMPLATES / "public-site" / "connector" / "apiProperties.json").read_text(encoding="utf-8-sig"))
+        self.assertTrue(dc.validate_definition(_public_definition(), props))
+
+    def test_title_must_be_alphanumeric(self):
+        # pac はコネクタ名を info.title から作る。日本語・空白は「Connector name must be alphanumeric」で止まる
+        for title in ("物件概要の取り込み", "Example Site", "-start", ""):
+            with self.subTest(title=title), self.assertRaises(SystemExit):
+                dc.validate_definition(_public_definition(info={"title": title}), {"properties": {"connectionParameters": {}}})
+        oauth = json.loads((TEMPLATES / "oauth-api" / "connector" / "apiProperties.json").read_text(encoding="utf-8-sig"))
+        self.assertFalse(dc.validate_definition(_public_definition(info={"title": "Example_API-2"}), oauth))
+
+    def test_no_auth_is_https_get_only(self):
+        props = {"properties": {"connectionParameters": {}}}
+        with self.assertRaises(SystemExit):
+            dc.validate_definition(_public_definition(schemes=["http", "https"]), props)
+        with self.assertRaises(SystemExit):
+            dc.validate_definition(_public_definition(host="https://example.com/x"), props)
+        post = _public_definition()
+        post["paths"]["/items/{id}/"]["post"] = {"operationId": "Write"}
+        with self.assertRaises(SystemExit):
+            dc.validate_definition(post, props)
+
+    def test_requires_auth_and_noauth_plan(self):
+        self.assertFalse(cc.requires_auth({"connectionParameters": {}}))
+        self.assertTrue(cc.requires_auth({"connectionParameters": {"token": {"type": "oauthSetting"}}}))
+        plan = {**PLAN, "mode": "noauth"}
+        cc.validate_plan(plan)
+        with self.assertRaises(ValueError):
+            cc.validate_plan({**plan, "connectionName": None})
+
+    def test_transient_errors(self):
+        class SSLEOFError(Exception):
+            pass
+
+        class SSLError(Exception):
+            pass
+
+        wrapped = SSLError("outer")
+        wrapped.__context__ = SSLEOFError("eof")
+        self.assertTrue(cc.is_transient(wrapped))
+        self.assertTrue(cc.is_transient(SSLEOFError("eof")))
+        self.assertFalse(cc.is_transient(ValueError("bad")))
+
 if __name__ == "__main__":
     unittest.main()

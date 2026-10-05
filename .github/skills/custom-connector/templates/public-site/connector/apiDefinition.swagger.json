@@ -1,0 +1,34 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "{{CONNECTOR_TITLE}}",
+    "description": "公開サイト（{{API_HOST}}）のページを 1 件取得する。ホスト固定・GET だけ・認証なし。利用者の操作ごとに呼ぶ。",
+    "version": "1.0"
+  },
+  "host": "{{API_HOST}}",
+  "basePath": "/",
+  "schemes": ["https"],
+  "consumes": [],
+  "produces": ["text/html"],
+  "paths": {
+    "/items/{id}/": {
+      "get": {
+        "operationId": "GetPage",
+        "summary": "ページを取得",
+        "description": "例: https://{{API_HOST}}/items/<id>/ を取得し、HTML を文字列で返す。",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string", "description": "項目の ID", "x-ms-summary": "ID" }
+        ],
+        "responses": {
+          "200": { "description": "ページの HTML", "schema": { "type": "string" } }
+        }
+      }
+    }
+  },
+  "definitions": {},
+  "parameters": {},
+  "responses": {},
+  "securityDefinitions": {},
+  "security": [],
+  "tags": []
+}
