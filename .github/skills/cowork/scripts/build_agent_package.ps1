@@ -96,9 +96,25 @@ $builtManifest = Join-Path $root "manifest.built.json"
 Set-Content -Path $builtManifest -Value $built -Encoding UTF8
 
 # --- 検証: 必須ファイル ---
-$required = @("color.png", "outline.png", "dataverse-mcp-tools.json")
-foreach ($f in $required) {
+foreach ($f in @("color.png", "outline.png")) {
     if (-not (Test-Path (Join-Path $root $f))) { Write-Error "必須ファイルが見つかりません: $f" }
+}
+# mcpToolDescription は manifest 1.29 以降で任意（省略すると実行時に tools/list で動的検出する）。
+# 参照しているファイルだけを必須にして同梱する。1.28 は省略できない（アップロード検証で拒否される）。
+$manifestObj = $manifest | ConvertFrom-Json
+$toolFiles = @()
+foreach ($connector in @($manifestObj.agentConnectors)) {
+    if (-not $connector) { continue }
+    $remote = $connector.toolSource.remoteMcpServer
+    if (-not $remote) { continue }
+    if ($remote.mcpToolDescription -and $remote.mcpToolDescription.file) {
+        $toolFiles += $remote.mcpToolDescription.file
+    } elseif ([version]$manifestObj.manifestVersion -lt [version]"1.29") {
+        Write-Error "manifestVersion $($manifestObj.manifestVersion) ではコネクタ '$($connector.id)' に mcpToolDescription が必須です。動的ツール検出にするなら manifestVersion を 1.29 以上にしてください。"
+    }
+}
+foreach ($f in $toolFiles) {
+    if (-not (Test-Path (Join-Path $root $f))) { Write-Error "mcpToolDescription のファイルが見つかりません: $f" }
 }
 $skillsDir = Join-Path $root "skills"
 if (-not (Test-Path $skillsDir)) { Write-Error "skills フォルダが見つかりません: $skillsDir" }
@@ -118,7 +134,11 @@ New-Item -ItemType Directory -Force -Path $staging | Out-Null
 Copy-Item $builtManifest (Join-Path $staging "manifest.json")
 Copy-Item (Join-Path $root "color.png") $staging
 Copy-Item (Join-Path $root "outline.png") $staging
-Copy-Item (Join-Path $root "dataverse-mcp-tools.json") $staging
+foreach ($f in $toolFiles) {
+    $dest = Join-Path $staging $f
+    New-Item -ItemType Directory -Force -Path (Split-Path $dest -Parent) | Out-Null
+    Copy-Item (Join-Path $root $f) $dest
+}
 Copy-Item $skillsDir $staging -Recurse
 
 Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zip -Force
@@ -127,4 +147,6 @@ Remove-Item $builtManifest -Force
 
 Write-Host "[OK] パッケージ生成: $zip"
 Write-Host "     referenceId 注入済み (registrationId=…$($regId.Substring([Math]::Max(0,$regId.Length-4))), Base64エンコード済み)"
+if ($toolFiles.Count -eq 0) { Write-Host "     ツール: 動的検出（mcpToolDescription なし。manifest $($manifestObj.manifestVersion)）" }
+else { Write-Host "     ツール: 固定（$($toolFiles -join ', ')）" }
 Write-Host "     次: M365 管理センター -> エージェント -> Add agent -> Upload agent"

@@ -107,7 +107,7 @@ export default function Cockpit() {
   // テスト用ビルドだけ: VITE_DEV_LIBRARY_QUERY があれば想定問答の画面で検索した状態から始める
   const [view, setView] = useState<View>(import.meta.env.VITE_DEV_LIBRARY_QUERY ? "library" : "cockpit")
 
-  // 質疑応答の検索・キーワードに使うのは承認済みの想定問答だけ（Cowork・アプリで作った下書きは承認まで使わない）
+  // 質疑応答の検索・キーワードに使うのは承認済みの想定問答だけ（Copilot Studio・Cowork・アプリで作った下書きは承認まで使わない）
   const approvedCorpus = useMemo(() => (corpus ? { ...corpus, qa: corpus.qa.filter(isApproved) } : null), [corpus])
   const libraryEngine = useMemo(() => (corpus ? createEngine(corpus) : null), [corpus])
   const phraseList = useMemo(() => (approvedCorpus ? ["株主番号", ...new Set(approvedCorpus.qa.flatMap((q) => q.keywords))].slice(0, 400) : ["株主番号"]), [approvedCorpus])

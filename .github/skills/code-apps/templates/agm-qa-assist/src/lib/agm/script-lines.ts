@@ -51,7 +51,7 @@ function lenientParse(raw: string): { value: unknown; repaired: boolean } | null
   return null
 }
 
-/** JSON の行を検証して台本の行にする（Cowork が作った行の役・本文の欠けを落とす） */
+/** JSON の行を検証して台本の行にする（Copilot Studio・Cowork が作った行の役・本文の欠けを落とす） */
 export function parseLines(raw: string): { lines: ScriptLine[]; dropped: number; repaired: boolean } {
   const parsedResult = lenientParse(raw)
   if (!parsedResult) return { lines: [], dropped: 0, repaired: false }
