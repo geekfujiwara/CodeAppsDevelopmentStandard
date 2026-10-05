@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test:layout": "node scripts/test-responsive-layout.mjs",
     "generate:photos": "node scripts/generate-demo-photos.mjs",
+    "export:models": "node scripts/export-construction-models.mjs",
     "preview": "vite preview",
     "predeploy": "node scripts/pre-deploy-check.mjs",
     "deploy": "npm run build && npm run predeploy && pa app push"

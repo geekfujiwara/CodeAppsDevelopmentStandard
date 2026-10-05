@@ -663,6 +663,8 @@ def main() -> None:
             "${PUBLISHER_PREFIX}_enddate": (TODAY + timedelta(days=spec.end)).isoformat(),
             "${PUBLISHER_PREFIX}_progress": progress, "${PUBLISHER_PREFIX}_status": spec.status, "${PUBLISHER_PREFIX}_sitemanager": spec.manager,
             "${PUBLISHER_PREFIX}_modeltype": spec.model, "${PUBLISHER_PREFIX}_modelcenter": spec.params, "${PUBLISHER_PREFIX}_description": spec.description,
+            # 橋梁は同梱の glTF（GLB）モデルを読み込む。他の種別は同じ生成コードの標準モデルを使う
+            "${PUBLISHER_PREFIX}_modelurl": "bundled:bridge-3span" if spec.model == BRIDGE else "",
         })
         counts["projects"] += 1
         print(f"--- {spec.number} {spec.name}（進捗 {progress}%）")
