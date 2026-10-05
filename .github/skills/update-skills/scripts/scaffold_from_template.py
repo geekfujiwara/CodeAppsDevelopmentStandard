@@ -71,6 +71,22 @@ TOKEN_RE = re.compile(r"\$\{([A-Z][A-Z0-9_]*)\}")
 PATH_TOKEN_RE = re.compile(r"__([A-Z][A-Z0-9_]*)__")
 BLOCK_RE = re.compile(r"SCAFFOLD:BLOCK:([A-Z][A-Z0-9]*):(START|END)")
 BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".zip", ".pdf", ".woff", ".woff2", ".glb", ".bin", ".webp"}
+
+
+def is_binary(path: Path) -> bool:
+    """拡張子の一覧に無いバイナリ（.hdr / .ktx2 / .wasm など）も、中身で判定してそのままコピーする。
+    一覧だけに頼ると、新しい素材の種類を足したテンプレートが生成時に UnicodeDecodeError で止まる。"""
+    if path.suffix.lower() in BINARY_SUFFIXES:
+        return True
+    try:
+        with path.open("rb") as handle:
+            head = handle.read(8192)
+        if b"\x00" in head:
+            return True
+        path.read_text(encoding="utf-8")
+        return False
+    except UnicodeDecodeError:
+        return True
 SKIP_NAMES = {MANIFEST_NAME, ".DS_Store"}
 SKIP_DIRS = {"__pycache__", "node_modules", ".git"}
 TARGET_METADATA_NAMES = {".git", ".github", ".vscode", ".env", ".DS_Store"}
@@ -291,7 +307,7 @@ def template_variables(template: Path) -> set[str]:
     found: set[str] = set()
     for path, relative in layered_files(resolve_chain(template)):
         found.update(PATH_TOKEN_RE.findall(str(relative)))
-        if path.suffix.lower() in BINARY_SUFFIXES:
+        if is_binary(path):
             continue
         try:
             found.update(TOKEN_RE.findall(path.read_text(encoding="utf-8")))
@@ -324,7 +340,7 @@ def build_plan(template: Path, target: Path, variables: dict[str, str], blocks: 
         # パスの __VAR__ は常に scaffold 専用。本文は TypeScript の `${CONSTANT}` と
         # 共存できるよう、明示 opt-in 時だけ未宣言トークンを実行時コードとして保持する。
         missing = set(PATH_TOKEN_RE.findall(str(destination_relative)))
-        if path.suffix.lower() not in BINARY_SUFFIXES:
+        if not is_binary(path):
             rendered = substitute(strip_blocks(path.read_text(encoding="utf-8"), blocks), variables)
             content_missing = set(TOKEN_RE.findall(rendered))
             if manifest.preserve_undeclared_variables:
@@ -338,7 +354,7 @@ def build_plan(template: Path, target: Path, variables: dict[str, str], blocks: 
 def write_plan(template: Path, target: Path, variables: dict[str, str], blocks: set[str], plan: Plan) -> None:
     for source, destination in plan.writes:
         destination.parent.mkdir(parents=True, exist_ok=True)
-        if source.suffix.lower() in BINARY_SUFFIXES:
+        if is_binary(source):
             shutil.copyfile(source, destination)
             continue
         rendered = substitute(strip_blocks(source.read_text(encoding="utf-8"), blocks), variables)

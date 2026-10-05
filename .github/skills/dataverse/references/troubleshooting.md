@@ -874,3 +874,77 @@ api_patch(f"organizations({org['organizationid']})",
 
 対象テーブルの論理名ごとに `EntityDefinitions(LogicalName='<name>')` を引き、404 を「存在しない＝衝突なし」として扱う。
 **恒久対策済み** — `scripts/setup_dataverse.py` の `validate_no_foreign_tables()`。
+
+## 25. 列を追加して再実行しても、既存のデモレコードの新しい列が空のまま
+
+### 症状
+
+承認状態や写真 URL の列を追加し、デモデータ投入を再実行した。画面の確認待ち一覧は 0 件のままで、Dataverse でも新しい列が空になっている。
+
+### 原因
+
+投入処理が「同じ名前のレコードがあればスキップ」になっている。新しく作るレコードには値が入るが、前回作ったレコードには何も書かれない。
+
+### 対処
+
+デモデータの投入は「あれば PATCH、無ければ POST」（upsert）にする。日付を実行日基準にしている場合、再実行で当日基準に更新される利点もある。
+投入後に、追加した列が埋まっている件数を読み戻して確かめる（例: 確認待ち 0 件なら失敗とみなす）。
+実装例: `code-apps/templates/construction-cockpit/scripts/seed_construction_demo.py` の `upsert()`。
+
+## 26. 別の親に同じ名前の子レコードがあると、1 件にまとまってしまう（名前で既存判定）
+
+### 症状
+
+工事ごとに「準備工」「仮設撤去」などの同じ名前の作業を作ると、2 件目以降が 1 件目を上書きし、先に作った工事の作業が消えたように見える。
+
+### 原因
+
+既存判定のキーを主列（名前）だけにしていた。子テーブルの名前は親ごとに重複するのが普通。
+
+### 対処
+
+子テーブルの既存判定は「親の ID ＋ 名前」で行う（`_<prefix>_project_value|<name>` のような合成キーで索引を作る）。
+自己参照の Lookup（例: 作業の先行作業 `<prefix>_predecessor` → 作業）は、全レコードを作った後に 2 巡目で PATCH して結ぶ。作成順に依存しない。
+自己参照の 1:N リレーションも、通常の Lookup と同じく `RelationshipDefinitions` への POST（参照元と参照先が同じテーブル）で作成できる。
+実装例: 同スクリプトの `record_key()` と、工程を作った後の先行作業の結線。
+
+## 27. 画像列に保存した画像が、フルサイズで取得できない（`$value?size=full` が 204）
+
+### 症状
+
+画像列（`ImageAttributeMetadata`）に 1280×720 の JPEG を PATCH すると 204 で成功するが、`GET …/<列>/$value?size=full` は
+**204（本文なし、`Content-Type: text/html`）**。`size` を付けない取得は 953 バイトのサムネイル（144px）だけが返る。
+
+### 原因
+
+列の作成時に `CanStoreFullImage: true` を送っても**無視され、`false` で作られる**。そのテーブルで最初の画像列は
+`IsPrimaryImage: false` を送っても `true` になる。フルサイズを保存しない列には、サムネイルしか残らない。
+
+### 対処（実測 2026-10-05）
+
+作成後に属性を読み、`CanStoreFullImage` が `false` なら PUT で `true` にして読み戻す。
+
+```python
+path = f"EntityDefinitions(LogicalName='{table}')/Attributes(LogicalName='{column}')"
+meta = api_get(f"{path}/Microsoft.Dynamics.CRM.ImageAttributeMetadata")
+if not meta.get("CanStoreFullImage"):
+    meta.pop("@odata.context", None)
+    meta.update({"@odata.type": "Microsoft.Dynamics.CRM.ImageAttributeMetadata", "CanStoreFullImage": True})
+    api_request(path, meta, method="PUT")
+```
+
+変更後に保存した画像から、`$value?size=full` で全体（15,029 バイト）を取得できた。変更前に保存した画像は保存し直す。
+実装例: code-apps の construction-cockpit テンプレート `scripts/setup_construction_dataverse.py` の `ensure_full_images()`。
+
+## 28. ファイル列を Range で分割取得すると、最後の要求だけ 416 になる
+
+### 症状
+
+`GET …/<ファイル列>/$value` を `Range: bytes=<start>-<start + 4 MB - 1>` で繰り返すと、ファイル末尾を超える最後の要求が
+`416 Requested Range Not Satisfiable` になる。一般的な HTTP サーバーのように末尾で切り詰めない。
+
+### 対処
+
+保存時にファイルサイズを記録し、取得側は `min(start + 4 MB, size) - 1` で末尾を止める。1 回の Range は 4 MB 以内にする。
+画像列の `$value?size=full` は大きすぎる Range でも 206 で全体を返すため、この問題は起きない。
+実装例: construction-cockpit テンプレートの `scripts/upload_cad_model.py`（読み戻し）と `src/lib/binary.ts` の `downloadInChunks`。
