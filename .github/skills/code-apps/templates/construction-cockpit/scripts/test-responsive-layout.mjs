@@ -9,7 +9,11 @@ const sidebar = read("src/components/sidebar.tsx")
 const siteMap = read("src/pages/site-map.tsx")
 const project = read("src/pages/project-detail.tsx")
 const projectModel = read("src/components/project-model-3d.tsx")
-const models = read("src/lib/construction-models.ts")
+const modelIndex = read("src/lib/models/index.ts")
+const gltfLoader = read("src/lib/models/gltf-loader.ts")
+const modelSources = ["bridge", "earthwork", "tunnel", "building", "channel", "road", "kit"].map((name) => read(`src/lib/models/${name}.ts`)).join("\n")
+const bundledModelDir = path.join(root, "src", "assets", "models")
+const bundledModels = fs.existsSync(bundledModelDir) ? fs.readdirSync(bundledModelDir).filter((name) => name.endsWith(".glb")) : []
 const gantt = read("src/components/project-gantt-flow.tsx")
 const photos = read("src/lib/site-photos.ts")
 const pages = ["ky-activity", "incidents", "daily-reports"].map((name) => read(`src/pages/${name}.tsx`))
@@ -36,8 +40,14 @@ const assertions = [
   [project.includes("searchProjects"), "portfolio uses Dataverse project search"],
   [project.includes("ProjectModel3d"), "workspace includes the Three.js model"],
   [!projectModel.includes("Environment") && !projectModel.includes("raw.githack.com"), "Three.js model has no external HDR dependency"],
-  [!projectModel.includes("<Html") && !/useGLTF|useTexture|<Text\b/.test(projectModel), "Three.js model loads no external fonts, textures, or glTF"],
-  [["bridge()", "earthwork()", "tunnel()", "architecture(", "channel()", "road()"].every((name) => models.includes(name)), "3D scenes exist for all six construction model types"],
+  [!projectModel.includes("<Html") && !/useGLTF|useTexture|<Text\b|<Environment/.test(projectModel), "Three.js model loads no external fonts, textures, or HDR"],
+  [["buildBridge()", "buildEarthwork()", "buildTunnel()", "buildBuilding(", "buildChannel()", "buildRoad()"].every((name) => modelIndex.includes(name)), "high-detail 3D models exist for all six construction types"],
+  [["hSection(", "roundedSlot(", "annulusSector(", "terrain("].every((name) => modelSources.includes(name)), "models use real structural sections and terrain, not plain boxes"],
+  [projectModel.includes("LineDashedMaterial") && projectModel.includes("EdgesGeometry"), "the completed form is drawn as dashed outlines"],
+  [projectModel.includes("clippingPlanes") && projectModel.includes("localClippingEnabled"), "in-progress parts are revealed by progress with clipping planes"],
+  [projectModel.includes("temporary"), "temporary works are excluded from the completed form"],
+  [gltfLoader.includes("parseAsync") && gltfLoader.includes("?inline") && !gltfLoader.includes("fetch("), "bundled glTF models are parsed without network access (CSP connect-src)"],
+  [bundledModels.includes("bridge-3span.glb"), "the bridge model ships as a glTF (GLB) file"],
   [gantt.includes("predecessorId") && gantt.includes("遅延が波及"), "gantt draws predecessor edges and delay propagation"],
   [photos.includes("import.meta.glob") && photoCount >= 60, "demo site photos are bundled locally for the img-src 'self' CSP"],
   [pages.every((page) => page.includes("<ProjectPicker")), "KY, incident, and report pages let users choose the project in-page"],
