@@ -3061,3 +3061,21 @@ R3F の `useFrame`（priority 0）の中で、別カメラで `gl.render(scene, 
 - 発火条件に使う状態は、それを作る**すべての経路**（画面の解析・生成時の解析）で更新する。後から終わった古い解析で上書きしないよう、最後に依頼した設定と一致するときだけ反映する
 - 回数・一度きりの鍵には、**入力の識別**（画像の長さと末尾など、軽い要約）を含める
 - 画面を通す評価（[sample-authoring-guide.md](sample-authoring-guide.md) §6.2）で、自動処理が動いたかを結果に残す（バナーの文言・設定値）。純関数の評価だけで完了にしない
+
+## 88. コネクタで外部ページ（text/html）を取得すると、画面ではどの URL でも失敗する／日本語が化ける（検証済 2026-10-06）
+
+### 症状
+
+カスタム コネクタを直接呼ぶ（`create_connection.py invoke`）と 200 で HTML が返るのに、Code Apps の画面で生成サービスを呼ぶと、どの入力でも `InvalidResponse` で失敗する。
+応答の宣言を直すと成功するが、日本語が化けて解析結果が空になる。Console の `Permissions policy violation: unload`・`webplayer-host-ui.js … React.createElement` はプレイヤー本体の警告で、原因ではない。
+
+### 原因
+
+SDK（`@microsoft/power-apps` の `runtimeDataClient`）は JSON・画像・ファイル以外の応答を 1 バイト = 1 文字の文字列にし、
+生成された `dataSourcesInfo` の操作に状態コードの応答情報（`responseInfo["200"]`。swagger に schema が無くても `void` で生成される）があると `JSON.parse` する。
+
+### 対処
+
+swagger の応答を `"default"` だけにしてデータソースを追加し直し、アプリ側で文字列をバイト列に戻して charset で読み直す
+（custom-connector の [public-site.md](../../custom-connector/references/public-site.md)「受け取り」、troubleshooting #15）。
+**恒久対策済み** — `scripts/pre-deploy-check.mjs` の 15（JSON 以外を返す操作が状態コードで宣言されていたら止める）、custom-connector の `validate_definition()`。
