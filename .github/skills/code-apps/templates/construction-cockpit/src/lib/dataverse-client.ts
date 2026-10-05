@@ -71,6 +71,7 @@ const ENTITY_SET_NAMES = {
   ${PUBLISHER_PREFIX}_knowledge: "${PUBLISHER_PREFIX}_knowledges",
   ${PUBLISHER_PREFIX}_equipment: "${PUBLISHER_PREFIX}_equipments",
   ${PUBLISHER_PREFIX}_equipmentusage: "${PUBLISHER_PREFIX}_equipmentusages",
+  ${PUBLISHER_PREFIX}_kyprediction: "${PUBLISHER_PREFIX}_kypredictions",
 } as const
 
 export type DataverseEntityName = keyof typeof ENTITY_SET_NAMES

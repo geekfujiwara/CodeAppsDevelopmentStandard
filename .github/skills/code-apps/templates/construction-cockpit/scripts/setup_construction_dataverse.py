@@ -193,6 +193,23 @@ TABLES = [
             {"logical": "${PUBLISHER_PREFIX}_hours", "display": "稼働時間", "type": "Decimal", "precision": 1, "minValue": 0, "maxValue": 24},
         ],
     },
+    {
+        # KY の AI 危険予測の要求と結果。アプリが「待機」で作成し、Copilot Studio の Workflow
+        # （行の追加トリガー → KY 危険予測エージェント）が「処理中」→「完了 / 失敗」に更新する
+        "logical": "${PUBLISHER_PREFIX}_kyprediction",
+        "display": "KY 危険予測要求",
+        "plural": "KY 危険予測要求",
+        "columns": [
+            {"logical": "${PUBLISHER_PREFIX}_requestkey", "display": "要求キー", "type": "String", "maxLength": 64},
+            {"logical": "${PUBLISHER_PREFIX}_input", "display": "入力（JSON）", "type": "Memo", "maxLength": 20000},
+            {"logical": "${PUBLISHER_PREFIX}_prompt", "display": "エージェントへの依頼文", "type": "Memo", "maxLength": 20000},
+            choice("${PUBLISHER_PREFIX}_predictionstatus", "状態", [
+                (100000000, "待機"), (100000001, "処理中"), (100000002, "完了"), (100000003, "失敗"),
+            ]),
+            {"logical": "${PUBLISHER_PREFIX}_result", "display": "結果（JSON）", "type": "Memo", "maxLength": 20000},
+            {"logical": "${PUBLISHER_PREFIX}_error", "display": "エラー", "type": "Memo", "maxLength": 2000},
+        ],
+    },
 ]
 
 LOOKUPS = [
@@ -210,6 +227,8 @@ LOOKUPS = [
     ("${PUBLISHER_PREFIX}_knowledge", "${PUBLISHER_PREFIX}_sourceincident", "元のヒヤリハット", "${PUBLISHER_PREFIX}_incident"),
     ("${PUBLISHER_PREFIX}_equipmentusage", "${PUBLISHER_PREFIX}_dailyreport", "日報", "${PUBLISHER_PREFIX}_dailyreport"),
     ("${PUBLISHER_PREFIX}_equipmentusage", "${PUBLISHER_PREFIX}_equipment", "重機", "${PUBLISHER_PREFIX}_equipment"),
+    ("${PUBLISHER_PREFIX}_kyprediction", "${PUBLISHER_PREFIX}_project", "工事", "${PUBLISHER_PREFIX}_project"),
+    ("${PUBLISHER_PREFIX}_kyprediction", "${PUBLISHER_PREFIX}_worktype", "工種", "${PUBLISHER_PREFIX}_worktype"),
 ]
 
 

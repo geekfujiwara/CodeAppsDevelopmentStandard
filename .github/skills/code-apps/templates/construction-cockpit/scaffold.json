@@ -19,6 +19,7 @@
     "python .github/skills/code-apps/scripts/configure_code_app_csp.py --directive Frame-Src --source https://www.google.com --assert",
     "npm run export:cad-sample -- --type building --params \"floors=4;width=9;depth=5\" --name logistics-center-bim  # 任意: CAD 取り込みのデモ用 GLB",
     "python scripts/upload_cad_model.py --project-no P-2026-004 --file exports/cad/logistics-center-bim.glb --mapping exports/cad/logistics-center-bim.mapping.json  # 任意: デモ工事に CAD モデルを登録",
-    "python agent/cockpit-assistant/deploy_assistant.py  # Copilot Studio「現場コックピット アシスタント」を作成・公開（Dataverse MCP ツールは Copilot Studio で追加）"
+    "python agent/cockpit-assistant/deploy_assistant.py  # Copilot Studio「現場コックピット アシスタント」を作成・公開（Dataverse MCP ツールは Copilot Studio で追加）",
+    "python scripts/verify_ky_workflow.py --cleanup  # Copilot Studio で KY の Workflow（README「KY の AI 危険予測」）を作成・公開した後に、1 回実行して output-verified を確認"
   ]
 }

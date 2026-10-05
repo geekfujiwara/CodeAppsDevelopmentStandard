@@ -174,6 +174,16 @@
 - `python agent/cockpit-assistant/deploy_assistant.py` で作成・更新・スキル添付・公開を行う（既存の KY エージェントとは別 ID）。
 - Dataverse の MCP ツールは、接続の作成とサインインが必要なため、copilot-studio-v2 の手順でブラウザから追加する。
 
+### FR-20 KY の AI 危険予測（Copilot Studio「KY 危険予測エージェント」） ✅ アプリ・Dataverse 実装済（Workflow はブラウザでの作成が必要）
+
+- 「危険を予測」で、アプリが `${PUBLISHER_PREFIX}_kyprediction` に要求（状態=待機、依頼文 `${PUBLISHER_PREFIX}_prompt`、入力 JSON `${PUBLISHER_PREFIX}_input`）を作る。
+- Copilot Studio の Workflow（行の追加トリガー、状態=待機）が「処理中」にしてから KY 危険予測エージェント（Agent ノード、既存の発行済み v2）に依頼文を渡し、結果を `${PUBLISHER_PREFIX}_result` に、状態を「完了」（失敗時は「失敗」と `${PUBLISHER_PREFIX}_error`）に書き戻す。
+- アプリは 3 秒ごとに状態を読み、「依頼中 / 応答待ち / 分析中」を表示する。結果は検証してから表示する（JSON・1〜3 件・必須項目・危険度が高中低）。根拠に挙げた過去事例は、依頼に渡したナレッジに実在するものだけを表示し、無いものは除いたことを示す。
+- 次の場合は画面を止めず、過去事例（ナレッジ）の検索結果に切り替えて理由を表示する（クレジットを使わない）: 25 秒たっても Workflow が受け取らない、150 秒で完了しない、失敗、結果が不正、要求を作れない、利用者が「待たずに過去事例で表示」を押した。
+- 依頼文は業務データを `<資料>` で区切り、本文中の命令に従わないよう明示する。過去事例は同じ工種と語の一致で最大 8 件を渡す。
+- `VITE_KY_AI=off` で AI を使わない設定にできる。
+- Workflow の受け入れ確認は `python scripts/verify_ky_workflow.py`（1 回分のクレジットを使う）。
+
 ## 5. Dataverse 追加項目
 
 | テーブル | 列 | 用途 |
@@ -195,6 +205,7 @@
 | `${PUBLISHER_PREFIX}_task` | `${PUBLISHER_PREFIX}_predecessor` | 先行作業（`${PUBLISHER_PREFIX}_task` への自己参照 Lookup） |
 | `${PUBLISHER_PREFIX}_project` | `${PUBLISHER_PREFIX}_modelfile` | CAD モデル本体（ファイル列、50 MB） |
 | `${PUBLISHER_PREFIX}_project` | `${PUBLISHER_PREFIX}_modelmapping` | CAD の座標・単位・部品と作業の対応付け・施工単位（JSON） |
+| `${PUBLISHER_PREFIX}_kyprediction` | （テーブル） | KY の AI 危険予測の要求と結果: `${PUBLISHER_PREFIX}_requestkey`・`${PUBLISHER_PREFIX}_input`・`${PUBLISHER_PREFIX}_prompt`・`${PUBLISHER_PREFIX}_predictionstatus`（待機 / 処理中 / 完了 / 失敗）・`${PUBLISHER_PREFIX}_result`・`${PUBLISHER_PREFIX}_error`・工事・工種 |
 | `${PUBLISHER_PREFIX}_task` | `${PUBLISHER_PREFIX}_locationimage` | 施工位置イメージ（画像列、フルサイズ保存。作成時の指定は無視されるため設定スクリプトが作成後に有効化する） |
 
 `${PUBLISHER_PREFIX}_photourl` は `https://...` の実 URL か、同梱デモ写真を指す `demo:<scene>:<sunny|cloudy|rain>` を受け付ける。
@@ -286,9 +297,13 @@
 | T-68 | 進捗換算 | `pytest agent/cockpit-assistant/tests`: 1〜60 単位の全件で、施工単位 ⇔ 進捗率の換算がアプリの 3D 判定と一致 | ✅ 67 件成功 |
 | T-69 | エージェント | 「現場コックピット アシスタント」が作成・公開され、スキル 3 本が添付されている | 🟡 作成・スキル 3 本の読み戻し・公開・Edit details は成功。Dataverse MCP ツールの追加と会話での実行は未実施（ブラウザでの接続作成が必要） |
 | T-70 | ビルド・デプロイ | lint / tsc / build / predeploy（CSP チェック含む）成功、push 後の公開 URL が HTTP 200 | ✅ |
+| T-71 | KY AI ロジック | `npm run test:ky`: 依頼文の区切り、結果の検証（形式・件数・危険度・根拠の実在）、待機/処理中/完了/失敗/時間切れ/中断 | ✅ 9 件成功 |
+| T-72 | KY AI 画面 | 予測中の状態表示、中断、AI / 過去事例の区別と理由の表示 | ✅ UI 契約テスト（48 件 OK） |
+| T-73 | KY AI テーブル | `${PUBLISHER_PREFIX}_kyprediction` と列・Lookup の作成 | ✅ 作成を確認（0 件） |
+| T-74 | KY AI Workflow | `verify_ky_workflow.py` が output-verified になる | 未実施（Workflow の作成にサインイン済みのブラウザが必要） |
 
 ## 8. 完了条件
 
 - 本文の FR がすべて ✅ 実装済。
-- T-01〜T-70 の実行可能なテストが成功。
+- T-01〜T-74 の実行可能なテストが成功。
 - Cowork の管理者同意・公開が未完の場合は、ソース完成とテナント公開ゲートを明確に分離して報告する。

@@ -27,6 +27,9 @@ const cadPanel = read("src/components/cad-import-panel.tsx")
 const dataverseClient = read("src/lib/dataverse-client.ts")
 const binary = read("src/lib/binary.ts")
 const snapshot = read("src/lib/models/task-snapshot.ts")
+const kyPrediction = read("src/services/ky-prediction.ts")
+const kyAi = read("src/lib/ky-ai.ts")
+const kyNew = read("src/pages/ky-new.tsx")
 // ローカル（app/ と agent/ が並ぶ構成）とテンプレート（同じルートに agent/ がある構成）の両方で読む
 const progressUnitsPath = [path.join(root, "agent"), path.join(root, "..", "agent")].map((dir) => path.join(dir, "cockpit-assistant", "skills", "progress-3d-report", "progress_units.py")).find((file) => fs.existsSync(file))
 const progressUnits = progressUnitsPath ? fs.readFileSync(progressUnitsPath, "utf8") : ""
@@ -77,6 +80,8 @@ const assertions = [
   [binary.includes("Math.min(total + chunkBytes, expectedBytes)"), "chunked downloads never request a range past the end of the file (Dataverse returns 416)"],
   [projectModel.includes("SnapshotCapturer") && snapshot.includes("toDataURL(\"image/jpeg\"") && project.includes("saveTaskLocationImage"), "the selected task image is generated from the 3D view and can be saved to Dataverse"],
   [projectModel.includes("Math.max(0.05, count / 200) + 1e-6") && progressUnits.includes("max(0.05, count / 200) + 1e-6"), "3D unit rounding matches the Copilot Studio progress conversion"],
+  [kyPrediction.includes("requestKyPrediction(dataversePort") && kyPrediction.includes("return fallback(") && kyNew.includes("data-ky-source") && kyNew.includes("cancelPredict"), "KY prediction calls the agent through Dataverse and falls back to knowledge search without blocking the screen"],
+  [kyAi.includes("<資料>") && kyAi.includes("known.has(source)"), "KY prompt fences business data and AI-cited knowledge must exist"],
   [layout.includes("setCollapsed(true)"), "project detail automatically collapses navigation"],
   [project.includes('data-tour="review-queue"'), "supervisor review queue has a tutorial target"],
   [!siteMap.includes("orbit-") && !project.includes("orbit-"), "rebuilt pages do not depend on the previous Orbit CSS"],

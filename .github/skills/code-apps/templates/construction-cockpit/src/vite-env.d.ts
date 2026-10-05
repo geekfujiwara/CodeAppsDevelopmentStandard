@@ -9,5 +9,7 @@ interface ImportMetaEnv {
   readonly VITE_CODEAPPS_THEME_STORAGE_KEY: string
   readonly VITE_FEATURE_STORES: string
   readonly VITE_FEATURE_REPORTS: string
+  /** "off" で KY の AI 危険予測を使わず、過去事例の検索だけで表示する（既定: agent） */
+  readonly VITE_KY_AI?: string
 }
 interface ImportMeta { readonly env: ImportMetaEnv }
