@@ -58,10 +58,10 @@ triggers:
 | スクリプト | 用途 |
 |---|---|
 | [scripts/validate_skill.py](scripts/validate_skill.py) | 構成検証: フォルダ名＝`name` 一致 / Step 番号が整数連番 / `references`・`scripts` の有無 / テンプレート変数の宣言 / 秘匿情報スキャン（Step 4・8） |
-| [scripts/scaffold_from_template.py](scripts/scaffold_from_template.py) | 汎用スキャフォルダー: `templates/` から作業ツリーを生成。`${VAR}`/`__VAR__` 置換、機能ブロック、未解決変数で停止（Step 3） |
+| [scripts/scaffold_from_template.py](scripts/scaffold_from_template.py) | 汎用スキャフォルダー: `templates/` から作業ツリーを生成。`${VAR}`/`__VAR__` 置換、機能ブロック、未解決変数で停止。バイナリ（GLB・HDR 等）は中身で判定してそのままコピー（Step 3） |
 | [scripts/scan_sample.py](scripts/scan_sample.py) | Code Apps サンプルの公開前検証: 実値・秘匿情報・テーブル名直書き・`.gitignore` を検査（Step 1） |
 | [scripts/manage_skill_pr.py](scripts/manage_skill_pr.py) | リモートのオープン PR を走査し、対象スキルに触れる PR を検出して「更新 or 新規」とマージ順を提示（Step 6） |
-| [scripts/publish_skill.py](scripts/publish_skill.py) | 公開を一括自動化: PR 先リポジトリを一時 clone → ブランチ → スキル＋集約ファイルをコピー → 検証 → commit → push → PR 作成/更新（Step 7）。スキル統合時は `--remove` で旧フォルダを削除。`--dry-run` 対応。`--remove` 以外の削除とビルド出力の追加はコミット前に止める（`--allow-delete` / `--allow-build-output` で解除） |
+| [scripts/publish_skill.py](scripts/publish_skill.py) | 公開を一括自動化: PR 先リポジトリを一時 clone → ブランチ → スキル＋集約ファイルをコピー → 検証 → commit → push → PR 作成/更新（Step 7）。スキル統合時は `--remove` で旧フォルダを削除。`--dry-run` 対応。`--remove` 以外の削除とビルド出力の追加、`templates/` の入口（引数・事前チェック）の削除はコミット前に止める（`--allow-delete` / `--allow-build-output` / `--allow-entrypoint-change` で解除） |
 
 ## 標準フォルダ構成
 

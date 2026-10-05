@@ -41,6 +41,20 @@ class ScaffoldFromTemplateTests(unittest.TestCase):
         generated = self.target / "auri_agent" / "app.py"
         self.assertEqual(generated.read_text(encoding="utf-8"), 'NAME = "Auri"\n')
 
+    def test_copies_unknown_binary_suffix_byte_for_byte(self):
+        # 拡張子の一覧に無いバイナリ（3D の HDR・KTX2・wasm など）でも、生成が止まらずそのままコピーされる
+        self.write_manifest()
+        payload = bytes([0x67, 0x6C, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 0xFF, 0xFE, 0x80, 0x81]) * 64
+        (self.template / "assets").mkdir()
+        (self.template / "assets" / "scene.hdr").write_bytes(payload)
+        (self.template / "assets" / "model.glb").write_bytes(payload)
+
+        code = self.run_scaffold()
+
+        self.assertEqual(code, 0)
+        self.assertEqual((self.target / "assets" / "scene.hdr").read_bytes(), payload)
+        self.assertEqual((self.target / "assets" / "model.glb").read_bytes(), payload)
+
     def test_unresolved_variable_stops_before_writing(self):
         self.write_manifest(variables=["AGENT_NAME"])
         (self.template / "app.py").write_text('NAME = "${AGENT_NAME}"\n', encoding="utf-8")

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -128,6 +129,35 @@ def staged_problems(name_status: str, removes: list[str]) -> dict[str, list[str]
     return {"deleted": deleted, "build": build}
 
 
+# テンプレートの配布用の入口（引数・計画表示・事前チェック）。稼働中のプロジェクトから書き戻すと消えやすい（troubleshooting #27）
+ENTRYPOINT_PATTERNS = re.compile(
+    r"add_argument\(|parser\.error\(|ArgumentParser\(|--apply|--dry-run|--seed-demo|TEMPLATE_PREFIX|raise RuntimeError\(|sys\.exit\(|process\.exit\("
+)
+
+
+def removed_template_entrypoints(unified_diff: str) -> list[str]:
+    """`git diff --cached -U0` から、templates/ 配下で削除され、同じファイルに戻っていない入口の行を拾う。"""
+    removed: dict[str, list[str]] = {}
+    added: dict[str, set[str]] = {}
+    current = ""
+    for line in unified_diff.splitlines():
+        if line.startswith("+++ "):
+            current = line[6:] if line.startswith("+++ b/") else ""
+            continue
+        if line.startswith("--- ") or "/templates/" not in f"/{current}":
+            continue
+        if line.startswith("-") and ENTRYPOINT_PATTERNS.search(line):
+            removed.setdefault(current, []).append(line[1:].strip())
+        elif line.startswith("+"):
+            added.setdefault(current, set()).add(line[1:].strip())
+    findings: list[str] = []
+    for path, lines in removed.items():
+        for text in lines:
+            if text not in added.get(path, set()):
+                findings.append(f"{path}: {text[:120]}")
+    return findings
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="スキルを PR 先リポジトリへ公開する")
     ap.add_argument("--skill", required=True, help="公開するスキル名（フォルダ名）")
@@ -142,6 +172,7 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="push / PR を行わず検証まで")
     ap.add_argument("--allow-delete", action="store_true", help="--remove 以外の削除を許す（既定は削除があれば止める）")
     ap.add_argument("--allow-build-output", action="store_true", help="bin / obj / dll / exe などのビルド出力の追加を許す")
+    ap.add_argument("--allow-entrypoint-change", action="store_true", help="templates/ の引数・事前チェックの行の削除を許す（既定は止める）")
     args = ap.parse_args()
 
     here = Path.cwd()
@@ -255,6 +286,13 @@ def main() -> int:
         shutil.rmtree(tmp, ignore_errors=True)
         sys.exit(f"ビルド出力らしいファイルを {len(problems['build'])} 件追加しようとしています:\n   {shown}\n"
                  "ローカルの .gitignore（bin/ obj/ など）を確認してください。意図した追加なら --allow-build-output を付けます。")
+    entrypoints = removed_template_entrypoints(run(["git", "diff", "--cached", "-U0", "--", "*templates/*"], cwd=clone).stdout)
+    if entrypoints and not args.allow_entrypoint_change:
+        shown = "\n   ".join(entrypoints[:20]) + ("\n   …" if len(entrypoints) > 20 else "")
+        shutil.rmtree(tmp, ignore_errors=True)
+        sys.exit(f"テンプレートの入口（引数・事前チェック）の行を {len(entrypoints)} 件削除しようとしています:\n   {shown}\n"
+                 "稼働中のプロジェクトから書き戻して、テンプレート専用の安全装置を消していないか確認してください（troubleshooting #27）。"
+                 "意図した変更なら --allow-entrypoint-change を付けます。")
 
     title = args.title or f"skill({args.skill}): スキルを追加/更新"
     run(["git", "-c", f"user.name={name}", "-c", f"user.email={email}",
