@@ -29,6 +29,8 @@ sys.stderr.reconfigure(encoding="utf-8")
 _STD = Path(__file__).resolve().parents[2] / "standard" / "scripts"
 sys.path.insert(0, str(_STD))
 from auth_helper import api_get, get_session, DATAVERSE_URL  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from agent_env import load_env_file  # noqa: E402
 
 API = f"{DATAVERSE_URL}/api/data/v9.2"
 
@@ -62,10 +64,12 @@ def publish(sess, bot_id: str, retries: int = 3) -> bool:
 
 
 def main() -> None:
+    load_env_file(sys.argv[1:])
     bot_id = resolve_bot()
     sess = get_session()
     print(f"公開: bot={bot_id}")
-    publish(sess, bot_id)
+    if not publish(sess, bot_id):
+        sys.exit(1)
     print("確認: pac copilot list（Published / Active / Provisioned）")
     print("※ MCP tool dialog が未Confirmなら、Confirm → Save → 再公開してください。")
 

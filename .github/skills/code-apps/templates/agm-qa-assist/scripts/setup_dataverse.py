@@ -136,7 +136,7 @@ TABLES = [
             {"logical": f"{PREFIX}_responder", "type": "String", "display": "Responder", "maxLength": 100},
             {"logical": f"{PREFIX}_sourceids", "type": "String", "display": "Source IDs", "maxLength": 500},
             {"logical": f"{PREFIX}_cautions", "type": "Memo", "display": "Cautions", "maxLength": 2000},
-            # 下書き（Cowork・アプリで作成、承認待ち）/ 承認済み。空は承認済みとして扱う（既存データ）
+            # 下書き（Copilot Studio・Cowork・アプリで作成、承認待ち）/ 承認済み。空は承認済みとして扱う（既存データ）
             {"logical": f"{PREFIX}_status", "type": "String", "display": "Status", "maxLength": 20},
             {"logical": f"{PREFIX}_createdvia", "type": "String", "display": "Created via", "maxLength": 50},
         ],
@@ -219,7 +219,7 @@ TABLES = [
             {"logical": f"{PREFIX}_viewers", "type": "Memo", "display": "Viewers", "maxLength": 4000},
         ],
     },
-    # ── リハーサル台本（Cowork・アプリで作成し、台本タブで選ぶ）───────
+    # ── リハーサル台本（Copilot Studio・Cowork・アプリで作成し、台本タブで選ぶ）───────
     {
         "logical": f"{PREFIX}_agmscript", "display": "AGM Rehearsal Script", "plural": "AGM Rehearsal Scripts",
         "name_display": "Title", "description": "Rehearsal script lines for the Q&A session (JSON)",

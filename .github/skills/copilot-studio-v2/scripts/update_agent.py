@@ -24,6 +24,8 @@ deploy_agent.py は create_agent.py から始まるため、実行するたび�
   python update_agent.py                 # 全ステップ
   python update_agent.py --skip-skill     # スキルは触らない
   python update_agent.py --no-publish     # 公開しない（確認だけ）
+  python update_agent.py --env-file agent.env   # エージェントの設定ファイルを読み、そのフォルダで実行
+SKILL_DIR が複数スキルの親フォルダなら、直下の各スキルを同名置換で入れ替える。
 """
 from __future__ import annotations
 
@@ -38,7 +40,9 @@ sys.stderr.reconfigure(encoding="utf-8")
 HERE = Path(__file__).resolve().parent
 _STD = HERE.parents[1] / "standard" / "scripts"
 sys.path.insert(0, str(_STD))
+sys.path.insert(0, str(HERE))
 from auth_helper import api_get  # noqa: E402
+from agent_env import attach_env, load_env_file, skill_dirs  # noqa: E402
 
 PY = sys.executable
 
@@ -81,15 +85,15 @@ def snapshot_tools(bot_id: str) -> dict[str, str]:
     return tools
 
 
-def run(script: str, *args: str) -> None:
+def run(script: str, *args: str, env: dict[str, str] | None = None) -> None:
     print(f"\n{'=' * 64}\n▶ {script} {' '.join(args)}\n{'=' * 64}")
-    r = subprocess.run([PY, str(HERE / script), *args], env=os.environ.copy())
+    r = subprocess.run([PY, str(HERE / script), *args], env=env or os.environ.copy())
     if r.returncode != 0:
         sys.exit(f"❌ {script} が失敗しました（exit={r.returncode}）")
 
 
 def main() -> None:
-    args = sys.argv[1:]
+    args = load_env_file(sys.argv[1:])
     bot_id = resolve_bot_id()
     os.environ["AGENT_BOTID"] = bot_id
 
@@ -118,13 +122,15 @@ def main() -> None:
     else:
         print("\n⏭ 初期メッセージ・推奨プロンプト未指定のため変更しない")
 
-    skill_dir = os.getenv("SKILL_DIR", "skill")
+    skill_dir = Path(os.getenv("SKILL_DIR", "skill"))
+    skills = skill_dirs(skill_dir)
     if "--skip-skill" in args:
         print("\n⏭ --skip-skill 指定のためスキル更新をスキップ")
-    elif (Path.cwd() / skill_dir).is_dir():
-        run("attach_skill.py")
+    elif skills:
+        for skill in skills:
+            run("attach_skill.py", env=attach_env(skill, multi=skill != skill_dir))
     else:
-        print(f"\n⏭ スキルディレクトリ '{skill_dir}' が無いためスキル更新をスキップ")
+        print(f"\n⏭ スキルディレクトリ '{skill_dir}' に SKILL.md が無いためスキル更新をスキップ")
 
     after = snapshot_tools(bot_id)
     print(f"\n{'=' * 64}\nツール（MCP）の保全確認\n{'=' * 64}")

@@ -1,0 +1,49 @@
+{
+  "description": "株主総会 想定問答アシスタント（Copilot Studio v2 エージェント）。Code Apps の agm-qa-assist と同じ Dataverse を Dataverse MCP で読み、想定問答・リハーサル台本の下書きを作り、想定問答を点検する。Cowork の agm-qa-plugin と同じスキル（同期はテストで確認）",
+  "variables": [
+    "PUBLISHER_PREFIX",
+    "AGENT_MODEL_SERIES",
+    "APP_DEVELOPER_NAME",
+    "APP_WEBSITE_URL",
+    "APP_PRIVACY_URL",
+    "APP_TERMS_URL"
+  ],
+  "questions": [
+    {
+      "variable": "PUBLISHER_PREFIX",
+      "question": "テーブルの接頭辞は？（アプリと同じ。例: geek_agmqa の geek）",
+      "detect": ".env の PUBLISHER_PREFIX"
+    },
+    {
+      "variable": "AGENT_MODEL_SERIES",
+      "question": "エージェントのモデルは？（ベンダーのモデル ID 形式。旧命名の Sonnet46 / Opus5 などは廃止扱いになる）",
+      "default": "claude-opus-5"
+    },
+    {
+      "variable": "APP_DEVELOPER_NAME",
+      "question": "開発元の表示名は？（Teams / Microsoft 365 Copilot のエージェント詳細と、各スキルの metadata.author に出ます）",
+      "detect": "python .github/skills/cowork/scripts/get_developer_account.py（開発中のサインイン アカウントの表示名）"
+    },
+    {
+      "variable": "APP_WEBSITE_URL",
+      "question": "開発元の Web サイトの URL は？"
+    },
+    {
+      "variable": "APP_PRIVACY_URL",
+      "question": "プライバシーに関する説明の URL は？（社内の規程のページなど）"
+    },
+    {
+      "variable": "APP_TERMS_URL",
+      "question": "利用規約の URL は？（社内の規程のページなど）"
+    }
+  ],
+  "nextSteps": [
+    "python .github/skills/admin/scripts/check_development_environment.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID  # 環境・DLP・ACP（読み取りのみ）",
+    "python .github/skills/standard/scripts/check_mcp_client.py studio  # Dataverse MCP の許可 MCP クライアントに Copilot Studio が有効か",
+    "python .github/skills/copilot-studio-v2/scripts/deploy_agent.py --defer-publish --env-file <出力先>/agent.env  # 作成・アイコン・スキル 3 つ（Edit details は失敗しても続行）",
+    "Copilot Studio でエージェントを開き Tools → Add tool → Model Context Protocol → Dataverse MCP Server（自分の接続・End user credentials）→ describe / read_query / search_data / create_record / update_record だけオン → Confirm → Save（Save しないと Dataverse に書かれない）。private API で追加するなら references/mcp-servers.md",
+    "python .github/skills/copilot-studio-v2/scripts/publish_agent.py --env-file <出力先>/agent.env",
+    "Channels → Teams and Microsoft 365 Copilot を有効化 → python .github/skills/copilot-studio-v2/scripts/set_app_details.py --env-file <出力先>/agent.env → publish_agent.py --env-file <出力先>/agent.env",
+    "Preview で: describe でスキーマ確認 → 「配当について想定問答を 2 件作って」→ 承認 → 下書き登録の読み戻し → 「想定問答を点検して」。テスト登録はアプリから削除"
+  ]
+}
