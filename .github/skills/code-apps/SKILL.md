@@ -110,6 +110,8 @@ UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の�
 > 既定 CSP で読める資産の持ち方（画像は `img-src 'self'`、JSON は import、GLB の扱い）、素材ライブラリの色合わせ・ライセンス、
 > 契約検証（`scripts/validate_3d_assets.py`）とヘッドレス描画確認（`scripts/capture_3d.mjs`。ソフトウェア描画で黒くなる問題を含む）、
 > 実在の GLB（テクスチャ埋め込み）を既定 CSP の中で表示する方法（`?inline` + `createImageBitmap` のプラグイン）を再利用できる。
+> 工事・設備の**進捗**を 3D で見せる場合（完成形を破線、施工中をクリッピングで立ち上げる、部位と工程の対応、GLB の書き出し）は
+> [3D 施工進捗モデル](references/three-d-progress-model.md) を参照。drei の `<Environment preset>` は CSP で失敗するとアプリ全体が落ちるので使わない（チェック 13 が検出）。
 
 > **図面レビューを非同期会話で回す場合**: [図面コミュニケーション アドオン](templates/drawing-communication/README.md) と
 > [PoC サンプル](samples/drawing-communication-poc/README.md) を参照。版付き図面 JSON と検証器、A3 の SVG 描画、
@@ -744,6 +746,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [日本語サニタイズ](references/japanese-sanitize.md) | 旧ネイティブ add-data-source 方式の日本語 DisplayName 回避 |
 | [CSP 構成](references/csp.md) | iframe 埋め込み・外部 API・WebSocket 接続・録音の再生時の CSP 設定・CSP 安全な SDK メソッド一覧 |
 | [3D 資産の共通利用](references/3d-asset-sharing.md) | 3D モデル・素材ライブラリを複数アプリ / Blender と共通利用する際の CSP・色合わせ・ライセンス・検証（契約検証とヘッドレス描画） |
+| [3D 施工進捗モデル](references/three-d-progress-model.md) | 完成形を破線、施工中をクリッピングで立ち上げる進捗表示・部位と工程の対応・BIM/CIM の glTF・GLB の書き出し |
 | [デバイス・メディア](references/device-media.md) | マイク・`AudioContext`・録音・PCM 変換の正常系、SDK にマイクを直接渡さない理由、CPU 負荷、前提欠落時の開始抑止、Console へのログ集約 |
 | [ホスト再現テスト](references/host-emulation-testing.md) | 別オリジン iframe + Code Apps 既定 CSP + 疑似マイクをローカルで再現し、ヘッドレス Edge の Console ログで判定する |
 | [テレメトリ / 可観測性パターン](references/telemetry-pattern.md) | `initializeLogger` / `Metric` 判別共用体・`sessionLoadSummary` SLI・PII サニタイズ規約・Application Insights 連携時の CSP |
@@ -775,7 +778,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [detect-csp-hazards.mjs](scripts/detect-csp-hazards.mjs) | 既定 CSP で無言で失敗する書き方を検出（predeploy チェック 13 が呼ぶ。`pre-deploy-check.mjs` と同じ場所にコピーする） |
 | [templates/csp-safe-gltf.ts](templates/csp-safe-gltf.ts) | 既定 CSP の中で GLB を読む GLTFLoader（埋め込みテクスチャを `createImageBitmap` でデコード・外部参照は明示エラー・同梱 GLB の base64 デコード） |
 | [validate_3d_assets.py](scripts/validate_3d_assets.py) | 素材ライブラリ manifest・テクスチャ・GLB の契約（サイズ・色の偏り・光沢フラグ・ライセンス・名前空間）を検証 |
-| [capture_3d.mjs](scripts/capture_3d.mjs) | ヘッドレス Edge（DevTools プロトコル、Playwright 不要）で 3D 画面を撮り、描画状態を `window.__viewer` などから取得する |
+| [capture_3d.mjs](scripts/capture_3d.mjs) | ヘッドレス Edge（DevTools プロトコル、Playwright 不要）で 3D 画面を撮り、描画状態を `window.__viewer` などから取得する。`--ready` で描画完了を待ち、`--fail-on-error` でページのエラーを失敗にする |
 | [inspect_table_metadata.py](scripts/inspect_table_metadata.py) | 既存テーブルの EntitySetName / 主キー / 列 / 参照先 / 選択肢を調査（既存テーブル接続時は実装前に必須） |
 | [validate_cli_reference.py](scripts/validate_cli_reference.py) | テンプレート採用版の `pa app share --help` と CLI リファレンスの主要オプション・実行例が一致することを検証 |
 | [validate_sample.py](scripts/validate_sample.py) | `samples/` 配下の完全性と generic-base のテレメトリ契約を検証（必須ファイル・import 先の実在・秘匿情報・SDK の使い方） |

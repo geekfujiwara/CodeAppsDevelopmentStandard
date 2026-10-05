@@ -422,6 +422,42 @@ if (fs.existsSync(pkgPath)) {
   }
 }
 
+// 14. 3D 表示の残骸・不安定な書き方（13 の CSP 検出を補う）
+//     - 本番成果物に drei の HDR 取得先が残っている = <Environment preset> が使われている（CSP で失敗するとアプリ全体が落ちる。troubleshooting #77）
+//     - drei の <Html> はラベルごとに別の React root を作り、再描画で "synchronously unmount a root" を出す（警告。troubleshooting #78）
+{
+  const htmlWarnings = []
+  const pending = fs.existsSync(srcPath) ? [srcPath] : []
+  while (pending.length > 0) {
+    const currentPath = pending.pop()
+    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+      const entryPath = path.join(currentPath, entry.name)
+      if (entry.isDirectory()) {
+        if (entry.name !== "generated") pending.push(entryPath)
+        continue
+      }
+      if (!entry.isFile() || !/\.[jt]sx$/.test(entry.name)) continue
+      const content = fs.readFileSync(entryPath, "utf-8")
+      if (/<Html\b/.test(content) && /from\s+["']@react-three\/drei["']/.test(content)) htmlWarnings.push(path.relative(root, entryPath))
+    }
+  }
+  if (htmlWarnings.length > 0) {
+    console.warn(`\n⚠ drei の <Html> を使っている箇所が ${htmlWarnings.length} 件あります → ラベルは Canvas の外の DOM に置き、useFrame で座標を投影してください（troubleshooting #78）:`)
+    for (const file of htmlWarnings) console.warn(`  ${file}`)
+  }
+  const distFiles = fs.existsSync(distPath) ? [distPath] : []
+  while (distFiles.length > 0) {
+    const currentPath = distFiles.pop()
+    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+      const entryPath = path.join(currentPath, entry.name)
+      if (entry.isDirectory()) { distFiles.push(entryPath); continue }
+      if (entry.isFile() && entry.name.endsWith(".js") && fs.readFileSync(entryPath, "utf-8").includes("pmndrs/drei-assets")) {
+        errors.push(`本番成果物 ${path.relative(root, entryPath)} に drei の HDR 取得先（pmndrs/drei-assets）が含まれています → <Environment preset> を外してください（troubleshooting #77）。`)
+      }
+    }
+  }
+}
+
 // 結果出力
 if (errors.length > 0) {
   console.error("\n❌ デプロイ前チェック失敗:\n");

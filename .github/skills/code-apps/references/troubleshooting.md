@@ -2922,3 +2922,66 @@ Python 側は `math.floor(x * 1000 + 0.5) / 1000` で丸める。寸法を導く
   key = app["properties"]["appUris"]["codeAppPackageUri"]["value"].split("/")[-2]
   runtime = old_src.rsplit("/runtimeproxy/", 1)[0] + f"/runtimeproxy/{key}/index.html"
   ```
+
+## 77. 3D の画面を開くとアプリ全体が「Unexpected Application Error」になる（drei の Environment が HDR を取得）（検証済 2026-10-04）
+
+### 症状
+
+工事画面を開くと React Router の既定のエラー画面に切り替わる。Console に `Connecting to 'https://raw.githack.com/pmndrs/drei-assets/…/potsdamer_platz_1k.hdr' violates … connect-src` と `Could not load potsdamer_platz_1k.hdr: Failed to fetch`。
+
+### 原因
+
+drei の `<Environment preset="city">` は HDR を実行時に CDN から `fetch` する。#71 のローダーと違い、失敗は `Suspense` から ErrorBoundary まで伝わり、画面全体が落ちる。ローカルの `vite` では CSP が無いので再現しない。
+
+### 対処（恒久対策済み）
+
+`<Environment>` を外し、`hemisphereLight` と `directionalLight` で照らす。`detect-csp-hazards.mjs` の `drei-environment`（チェック 13）が `src` の `<Environment preset/files>` を、`pre-deploy-check.mjs` のチェック 14 が `dist` に残った `pmndrs/drei-assets` を、それぞれエラーにする。同じ書き方の drei / R3F のローダー フック（`useGLTF(url)` など）は `three-loader-hook`、`?inline` の無い `.glb` / `.hdr` などの import は `asset-url-import` で検出する。
+
+## 78. 3D のラベルを付けると「Attempted to synchronously unmount a root while React was already rendering」（検証済 2026-10-04）
+
+### 症状
+
+施工中の部位にラベルを出すと、再描画のたびに Console にこのエラーが並ぶ。画面は動くが、切り替えが重くなる。
+
+### 原因
+
+drei の `<Html>` はラベルごとに別の React root を作り、親の描画中にそれを unmount する。
+
+### 対処（恒久対策済み）
+
+ラベルは Canvas の外の DOM（`position: absolute` のボタン）に置き、`useFrame` で 3D 座標を `vector.project(camera)` して `transform` を更新する。`pre-deploy-check.mjs` のチェック 14 が drei の `<Html>` を警告する。→ [3D 施工進捗モデル](three-d-progress-model.md)
+
+## 79. 共通ヘッダーの選択を消したら、別画面の保存先が空になる（暗黙の既定値に依存）（検証済 2026-10-04）
+
+### 症状
+
+ヘッダーの「今の現場」選択を外した後、KY・ヒヤリハット・日報の画面で保存しても「現場は必須です」になる。選ぶ場所も無い。
+
+### 原因
+
+共有の Context が「先頭の工事を自動で選ぶ」処理を持ち、各画面はそれに依存していた。ヘッダーを外すときに自動選択も外したため、選択値が常に空になった。依存している画面は型エラーにならない。
+
+### 対処
+
+共有の選択値を外す前に、使っている画面を `grep`（例: `useProject()` / `selectedProjectId`）で洗い出す。各画面の見出しに選択欄を置き、未選択なら案内を表示する。選択は `localStorage` に記憶し、記憶した ID が一覧に無ければ未選択として扱う。
+
+## 80. `manualChunks` で `@react-three` を分けたら「Circular chunk: three-vendor -> vendor -> three-vendor」（検証済 2026-10-04）
+
+### 原因
+
+`@react-three/fiber` と `drei` は React に依存し、React は別のチャンク（vendor）にある。three 系をまとめて分けると、互いに import し合う。
+
+### 対処
+
+別チャンクに分けるのは React に依存しない `three` 本体だけにする（`if (id.includes("/three/")) return "three-vendor"`）。three 本体だけで約 750 KB あり、分けると 3D を使わない画面の初回読み込みが軽くなる。
+
+## 81. 3D の画面をヘッドレス Edge で撮ると背景だけが写る / Edge に接続できない（検証済 2026-10-05）
+
+### 症状
+
+- 固定時間（25 秒）待って撮っても、GLB の解析が終わらず背景だけが写る（空きメモリ 1 GB 程度の端末）
+- `--use-angle=swiftshader --enable-unsafe-swiftshader` を付けて起動すると、Edge が DevTools の準備前に終了し、接続できないことがある（#69 の黒い画面とは別。起動の段階で失敗する）
+
+### 対処（恒久対策済み）
+
+`capture_3d.mjs` に `--ready "<JS の式>" [--ready-timeout 180]` を足した。描画の準備完了を確かめてから撮り、条件が満たされなければ終了コード 1 になる。`--fail-on-error` を付けると、ページのエラーが 1 件でもあれば終了コード 1 になる。SwiftShader の起動オプションで接続できないときは、既定の描画経路で 1 回だけ起動し直す。

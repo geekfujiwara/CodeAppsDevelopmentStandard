@@ -58,3 +58,34 @@ test("blob: URL を <a download> に渡すだけのダウンロードは検出�
   })
   assert.deepEqual(findCspHazards(root).map(h => h.file), ["src/img.ts"])
 })
+
+test("drei の Environment preset・ローダー フック・?inline の無い 3D 素材の import を検出する", () => {
+  const root = project({
+    "src/env.tsx": "<Environment preset=\"city\" />\n",
+    "src/env-multi.tsx": "<Environment\n  preset=\"sunset\"\n  background\n/>\n",
+    "src/hook.tsx": "const { scene } = useGLTF(modelUrl)\n",
+    "src/asset.ts": "import bridge from \"../assets/bridge.glb\"\n",
+    "src/asset-url.ts": "const hdr = await import(\"./sky.hdr?url\")\n",
+  })
+  const found = findCspHazards(root).map(h => `${h.file}:${h.rule}`).sort()
+  assert.deepEqual(found, [
+    "src/asset-url.ts:asset-url-import",
+    "src/asset.ts:asset-url-import",
+    "src/env-multi.tsx:drei-environment",
+    "src/env.tsx:drei-environment",
+    "src/hook.tsx:three-loader-hook",
+  ])
+})
+
+test("?inline の 3D 素材・照明だけの Canvas・パラメータ名 preset は検出しない", () => {
+  const root = project({
+    "src/ok.tsx": [
+      "import bridge from \"../assets/bridge.glb?inline\"",
+      "const models = import.meta.glob(\"../assets/models/*.glb\", { query: \"?inline\", import: \"default\" })",
+      "<hemisphereLight args={[\"#fff\", \"#333\", 1]} />",
+      "const preset = presets[key]",
+      "<Button preset=\"primary\" />",
+    ].join("\n"),
+  })
+  assert.deepEqual(findCspHazards(root), [])
+})

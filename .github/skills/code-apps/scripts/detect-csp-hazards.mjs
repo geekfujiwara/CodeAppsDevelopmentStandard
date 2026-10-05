@@ -20,6 +20,12 @@ export const CSP_RULES = [
   { id: "worker-decoder", directive: "worker-src", re: /\b(?:DRACOLoader|KTX2Loader|BasisTextureLoader)\b/, hint: "Draco / KTX2 は Web Worker を使う。圧縮しない GLB と JPEG/WebP に寄せるか worker-src を設定する" },
   { id: "worker", directive: "worker-src", re: /\bnew\s+(?:Shared)?Worker\s*\(/, hint: "worker-src を設定するか、Worker を使わない設定にする（references/csp.md）" },
   { id: "blob-url", directive: "img-src/media-src/frame-src", re: /\bURL\.createObjectURL\s*\(/, hint: "画像は FileReader.readAsDataURL で data: URL にする（img-src に data: は含まれる）" },
+  // drei の <Environment preset> は HDR を CDN（raw.githack.com）から取得する。失敗は Suspense から ErrorBoundary まで伝わり、画面全体が落ちる
+  { id: "drei-environment", directive: "connect-src", re: /<Environment\b[^>]*\b(?:preset|files)\s*=|^\s*preset\s*=\s*["'](?:apartment|city|dawn|forest|lobby|night|park|studio|sunset|warehouse)["']/, hint: "<Environment> を外し、hemisphereLight / directionalLight で照らす（troubleshooting #77）" },
+  // drei / R3F のローダー フックは URL を fetch する（同じアプリの assets でも connect-src に 'self' が無いと失敗）
+  { id: "three-loader-hook", directive: "connect-src", re: /\b(?:useGLTF|useFBX|useKTX2|useEnvironment|useLoader)\s*\(/, hint: "?inline で同梱し createCspSafeGltfLoader().parseAsync で解析する（templates/csp-safe-gltf.ts）" },
+  // ?inline の無い 3D 素材の import は URL になり、読み込み時に自オリジンへ fetch される
+  { id: "asset-url-import", directive: "connect-src", re: /\bfrom\s+["'][^"']+\.(?:glb|gltf|hdr|exr|ktx2|fbx|bin)(?:\?url)?["']|import\s*\(\s*["'][^"']+\.(?:glb|gltf|hdr|exr|ktx2|fbx|bin)(?:\?url)?["']\s*\)/, hint: "?inline を付けて base64 で埋め込み、parseAsync で解析する" },
 ]
 
 const SKIP_DIRS = new Set(["node_modules", "dist", "generated", ".power", "test", "tests", "__tests__"])
