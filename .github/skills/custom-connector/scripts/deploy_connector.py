@@ -81,6 +81,21 @@ def validate_definition(definition: dict, properties: dict) -> bool:
             f"info.title「{title}」は pac がコネクタ名に使うため、英数字・ハイフン・アンダースコアだけにしてください"
             "（例: Contoso-Listing。日本語の説明は info.description に書く）"
         )
+    # Code Apps の SDK は JSON 以外の応答（text/html 等）でも、状態コードの応答情報（schema が無くても type "void" で生成される）が
+    # あると本文を JSON.parse し、画面では必ず InvalidResponse で失敗する（troubleshooting #15）。応答は "default" だけで宣言する
+    for path, item in (definition.get("paths") or {}).items():
+        for method, op in item.items():
+            if method.lower() == "parameters" or not isinstance(op, dict):
+                continue
+            types = op.get("produces") or definition.get("produces") or []
+            if not types or any(re.search(r"json|^image/|octet-stream|^multipart/", t) for t in types):
+                continue
+            coded = [s for s in (op.get("responses") or {}) if s != "default"]
+            if coded:
+                raise SystemExit(
+                    f"{method.upper()} {path} は {types} を返すので、応答 {coded} を \"default\" だけにしてください"
+                    "（状態コードで宣言すると Code Apps の SDK が本文を JSON として読み、画面で必ず失敗する）"
+                )
     body = properties.get("properties", properties)
     if body.get("connectionParameters"):
         return False

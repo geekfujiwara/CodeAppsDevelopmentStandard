@@ -20,7 +20,7 @@
           { "name": "id", "in": "path", "required": true, "type": "string", "description": "項目の ID", "x-ms-summary": "ID" }
         ],
         "responses": {
-          "200": { "description": "ページの HTML", "schema": { "type": "string" } }
+          "default": { "description": "ページの HTML（状態コードでは宣言しない。Code Apps の SDK は状態コードの応答情報があると本文を JSON として読んで失敗する）" }
         }
       }
     }

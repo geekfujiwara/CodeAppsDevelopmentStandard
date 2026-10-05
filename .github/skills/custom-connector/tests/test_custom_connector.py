@@ -245,6 +245,22 @@ class PublicSiteConnectorTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             dc.validate_definition(post, props)
 
+    def test_non_json_response_must_be_default_only(self):
+        # text/html を "200" で宣言すると、Code Apps の SDK が本文を JSON.parse して画面で必ず失敗する（troubleshooting #15）
+        props = {"properties": {"connectionParameters": {}}}
+        coded = _public_definition()
+        coded["paths"]["/items/{id}/"]["get"]["responses"] = {"200": {"description": "HTML", "schema": {"type": "string"}}}
+        with self.assertRaises(SystemExit):
+            dc.validate_definition(coded, props)
+        no_schema = _public_definition()
+        no_schema["paths"]["/items/{id}/"]["get"]["responses"] = {"200": {"description": "HTML"}}
+        with self.assertRaises(SystemExit):
+            dc.validate_definition(no_schema, props)
+        # JSON を返す操作は状態コードで宣言してよい
+        as_json = _public_definition(produces=["application/json"])
+        as_json["paths"]["/items/{id}/"]["get"]["responses"] = {"200": {"description": "JSON", "schema": {"type": "object"}}}
+        self.assertTrue(dc.validate_definition(as_json, props))
+
     def test_requires_auth_and_noauth_plan(self):
         self.assertFalse(cc.requires_auth({"connectionParameters": {}}))
         self.assertTrue(cc.requires_auth({"connectionParameters": {"token": {"type": "oauthSetting"}}}))

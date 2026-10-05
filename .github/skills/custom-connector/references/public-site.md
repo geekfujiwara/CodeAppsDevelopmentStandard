@@ -36,6 +36,33 @@ python .github/skills/code-apps/scripts/add_data_source.py --connector <shared_�
 | 待ち時間 | 20〜30 秒かかることがある（troubleshooting #13）。時限（60 秒）と進み具合を表示する |
 | 代わりの入力 | 取得に失敗したとき（掲載終了・構成変更・ホストの外で開いた）に、ページの内容を貼り付けて同じ解析にかけられるようにする |
 | 動く場所 | コネクタは Power Apps のホスト経由でしか呼べない。ローカル開発・アプリの URL を直接開いたときは、貼り付けに切り替える旨を表示する |
+| 受け取り | 応答は swagger で `"default"` だけにする（`"200"` で宣言すると SDK が JSON として読んで必ず失敗する。troubleshooting #15）。SDK は HTML を 1 バイト = 1 文字の文字列で返すので、バイト列に戻して charset で読み直す（下のコード） |
 | 解析 | HTML と貼り付けた文字列の両方から同じ項目を取り出す。貼り付けでは、取り込まない見出しも値の終わりとして扱う（見出しの一覧を持つ） |
 | 試験 | 実際のページはリポジトリに入れない。同じ構造の合成ページで試験し、実ページはローカルにあるときだけ動く試験にする |
 | DLP | ホストは未分類だと既定のグループに入る（troubleshooting #14）。管理者に分類してもらう |
+
+### 受け取り（Code Apps 側）
+
+```ts
+/** SDK が 1 バイト = 1 文字にした HTML を、ページの charset（無ければ UTF-8）で読み直す。既に正しい文字列ならそのまま */
+export function decodeConnectorText(s: string): string {
+  let high = false
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i)
+    if (c > 0xff) return s
+    if (c >= 0x80) high = true
+  }
+  if (!high) return s
+  const bytes = Uint8Array.from(s, ch => ch.charCodeAt(0))
+  const charset = (s.slice(0, 4096).match(/charset\s*=\s*["']?([A-Za-z0-9_-]+)/i)?.[1] ?? "utf-8").toLowerCase()
+  const label = /^(shift[_-]?jis|sjis|x-sjis|windows-31j|cp932|ms932)$/.test(charset) ? "shift_jis" : /^euc-?jp$/.test(charset) ? "euc-jp" : "utf-8"
+  try { return new TextDecoder(label).decode(bytes) } catch { return new TextDecoder("utf-8").decode(bytes) }
+}
+
+// 呼び出し: 生成サービスの戻り値（型は void になる）を文字列として受け取り、読み直してから解析する
+const result = await ExampleService.GetPage(id)
+const data: unknown = result.data
+const html = decodeConnectorText(typeof data === "string" ? data : "")
+```
+
+試験では、合成した HTML を `TextEncoder` で UTF-8 にし、1 バイト = 1 文字の文字列にしてから読み直せることを確かめる（SDK と同じ経路）。

@@ -121,3 +121,28 @@ python .github/skills/custom-connector/scripts/create_connection.py manual --con
 
 表示された URL を所有者が **Microsoft Edge** で開き、「作成」→ サインインする（統合ブラウザはポップアップが開かない。#3）。
 新しい接続が `Connected` になったらバインドまで進む。
+
+## 15. 公開サイトのコネクタが、コネクタを直接呼ぶと 200 なのに、Code Apps の画面ではどのページも取得できない
+
+### 症状
+
+`create_connection.py invoke`（直接呼ぶ）では 200 で HTML が返る。Code Apps の画面で呼ぶと、どの URL でも失敗する（`InvalidResponse`）。
+応答の宣言を直して成功するようになっても、日本語が化けて解析結果が空になる。
+Console に出る `Permissions policy violation: unload` と `webplayer-host-ui.js … React.createElement: type is invalid` はプレイヤー本体の警告で、原因ではない。
+
+### 原因
+
+Code Apps の SDK（`@microsoft/power-apps` の `runtimeDataClient`）は、JSON・画像・ファイル以外の応答（`text/html` など）を次のように扱う。
+
+1. 本文を **1 バイト = 1 文字**で文字列にする（`String.fromCharCode`。UTF-8 の日本語が化ける）
+2. 操作に**状態コードの応答情報**（生成された `dataSourcesInfo` の `responseInfo["200"]`）があると、その文字列を `JSON.parse` し、HTML は必ず失敗する。
+   swagger の応答に `schema` を書かなくても、`"200"` で宣言すると `type: "void"` で生成されるので同じく失敗する
+
+直接呼ぶ確認では SDK を通らないので見えない。
+
+### 対処
+
+- swagger の応答は **`"default"` だけ**で宣言する（テンプレート `public-site` は対応済み）。`add_data_source.py` でデータソースを追加し直し、
+  `dataSourcesInfo` の操作が `"responseInfo": { "default": … }` になったことを確かめる
+- アプリ側で、受け取った文字列をバイト列に戻してページの charset で読み直す（[public-site.md](public-site.md)「受け取り」）
+- **恒久対策済み** — `deploy_connector.py` の `validate_definition()` が、JSON 以外を返す操作を状態コードで宣言していると作成前に止める
