@@ -104,6 +104,7 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
 | [scripts/setup_entra_oauth.ps1](scripts/setup_entra_oauth.ps1) | （代替）az CLI 経由で同等の処理。az login のデバイスコード認証が必要（Step 3） |
 | [scripts/register_mcp_client.py](scripts/register_mcp_client.py) | Client ID を Dataverse 許可 MCP クライアント（`allowedmcpclients`）に登録・有効化・確認（Step 4） |
 | [scripts/diagnose_cowork_connector.py](scripts/diagnose_cowork_connector.py) | アプリ登録・admin consent・allowedmcpclients の3層をまとめて診断（Step 4→5 の間で実行推奨） |
+| [scripts/check_oauth_signins.py](scripts/check_oauth_signins.py) | Entra のサインイン ログから、Cowork がこの OAuth アプリでトークンを取得できたかを集計し、テナント側か Cowork 側かを判定（Step 9 で接続済みなのにツールが使えないとき。読み取りのみ） |
 | [scripts/build_agent_package.ps1](scripts/build_agent_package.ps1) | `.env` の `COWORK_OAUTH_REGISTRATION_ID`（引用符付きでも可）を manifest.json のプレースホルダーに注入し、必須ファイルを検証して .zip を生成（Step 7） |
 | [scripts/manage_agent_package_graph.py](scripts/manage_agent_package_graph.py) | Graph v1.0 で組織アプリを一覧し、Graph で管理している app package を更新（Step 8 代替） |
 | [scripts/build_cowork_publish_payloads.py](scripts/build_cowork_publish_payloads.py) | `stageCustomApp()` の結果から新規公開（finalize / allow / deploy）または更新（UPDATEAPP）の plan payload を生成（Step 8 / 10） |
@@ -597,6 +598,10 @@ API が401/403/404、schema不一致、read-back不一致の場合だけ、次�
 1. Cowork の **Customize → Plugins** でプラグインを有効にし、スキルのトリガー語（例: 「年間レビュー資料を作って」）を入力
 2. 初回は Dataverse MCP コネクタの **OAuth 同意**が走る（Enterprise Token Store 経由）
 3. 同意後、`read_query` 等が実行されデータ取得 → 資料生成
+4. **新しいタスクで `describe` が実際に呼ばれることを確かめる**。詳細画面の「接続済み」表示だけでは、実行時にツールが使える証明にならない。
+   ツールが 0 件なら `check_oauth_signins.py` で切り分け、トークン発行がすべて成功していれば Cowork 側の問題として扱い
+   （troubleshooting #46）、同じスキルを Copilot Studio のエージェントで動かす
+   （[copilot-studio-v2 の agm-qa-author](../copilot-studio-v2/templates/agm-qa-author/README.md) が例）。
 
 ### Step 10: プラグインの更新（再公開）
 
@@ -648,7 +653,7 @@ API が401/403/404、schema不一致、read-back不一致の場合だけ、次�
 - [ ] 新規は `stageCustomApp(DEPLOY)` → `agent-publish`（FINALIZEPACKAGE）→ `agent-allow` → `agent-lifecycle`（DEPLOY）を PLAN_HASH 承認後に順に送り、各 `Success` を確認
 - [ ] 管理センター private API で登録・公開（API 不可のときだけ管理センター fallback）し、Tools → Plugins と Cowork で読み戻した
 - [ ] Agent Registry で Publish→Status=Available（Graph 登録成功とは別に確認）
-- [ ] Cowork に表示 → 初回同意 → データ取得成功
+- [ ] Cowork に表示 → 初回同意 → **新しいタスクで `describe` が呼ばれ**データ取得成功（ツール 0 件なら `check_oauth_signins.py` → #46）
 - [ ] 更新時: version をインクリメント（id 据え置き）→ Graph 更新または管理センター fallback → Publish
 
 ## 参考リンク
