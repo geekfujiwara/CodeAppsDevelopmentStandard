@@ -6,6 +6,7 @@ Copilot Studio v2 (cliagent) エージェントの基礎構成をデプロイす
                              初期メッセージ・推奨プロンプトもここで同時に設定される
   2) set_icon.py         … アイコン登録（240 / Teams color 192 / outline 32）
   3) set_app_details.py  … Edit details(説明文・開発元・リンク・Teams 設定・M365 有効化)を設定
+                           新規エージェントで 404（7513）なら、公開後に再試行して再公開する
   4) attach_skill.py     … フラット Python スキルを添付（type=9 + type=14）
   5) publish_agent.py    … PvaPublish で公開
 
@@ -36,6 +37,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
@@ -75,6 +77,21 @@ def attach_skills() -> None:
         run("attach_skill.py", env=attach_env(skill, multi=skill != skill_dir))
 
 
+def retry_app_details(app_args: list[str], attempts: int = 4, wait_seconds: float = 30) -> bool:
+    """公開後に Edit details を再試行する。
+
+    新規エージェントは公開して Teams チャネルが張られるまで 404（7513）を返す。
+    公開直後は 1 回目が失敗し、30 秒後の 2 回目で通った実例がある（2026-10-05）。
+    """
+    for attempt in range(attempts):
+        if attempt:
+            print(f"⏳ Teams チャネルの準備待ち（{attempt}/{attempts - 1}）。{wait_seconds:.0f} 秒後に再試行します")
+            time.sleep(wait_seconds)
+        if run("set_app_details.py", *app_args, required=False):
+            return True
+    return False
+
+
 def main() -> None:
     argv = load_env_file(sys.argv[1:])
     defer_publish = "--defer-publish" in argv
@@ -89,6 +106,10 @@ def main() -> None:
 
     if not defer_publish:
         run("publish_agent.py")
+        # 公開で Teams チャネルが張られた後に Edit details を保存し直し、もう一度公開して反映する
+        if not details_ok and retry_app_details(app_args):
+            details_ok = True
+            run("publish_agent.py")
 
     print("\n" + "=" * 64)
     if not details_ok:
