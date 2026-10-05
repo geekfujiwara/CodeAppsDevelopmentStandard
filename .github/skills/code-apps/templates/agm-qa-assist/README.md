@@ -11,8 +11,8 @@
 | 記録 | 発言・質問・回答案を Dataverse、録音とまとめを SharePoint に保存。後から株主番号を直せる |
 | 総会・集計 | 総会ごとの KPI・グラフ・回答案の評価、Markdown / CSV でまとめて保存 |
 | LIVE 共有 | 担当者 1 人が操作し、幹部は読み取り専用で同じ画面を見る（Dataverse のレコード共有） |
-| リハーサル | 台本（Dataverse・Cowork で作成可）を Windows の音声で読み上げ／人が読む／文字だけ流す |
-| 想定問答の追加・承認 | アプリから追加・編集。Cowork（[agm-qa-plugin](../../../cowork/templates/agm-qa-plugin/README.md)）で作った下書きを承認すると質疑応答の検索に使われる |
+| リハーサル | 台本（Dataverse・Copilot Studio / Cowork で作成可）を Windows の音声で読み上げ／人が読む／文字だけ流す |
+| 想定問答の追加・承認 | アプリから追加・編集。Copilot Studio のエージェント（[agm-qa-author](../../../copilot-studio-v2/templates/agm-qa-author/README.md)）や Cowork（[agm-qa-plugin](../../../cowork/templates/agm-qa-plugin/README.md)）で作った下書きを承認すると質疑応答の検索に使われる |
 | 文字起こしの比較 | Azure Speech（リアルタイム）の確定文ごとに MAI-Transcribe（既定 2）で認識し直し、置き換え／比較を選べる |
 | 設定 | 文字起こしの接続先・モデル、回答案と株主照合の AI モデル（デプロイ・推論の強さ・最大トークン）。「既定にする」で組織の既定、「この端末だけで試す」 |
 
@@ -50,7 +50,7 @@
 | 7 | Function とコネクタ | `cd azure/speech-token-broker; npm install; npm run build; npm test` → `deploy_mcp_function.py --project azure/speech-token-broker --app $env:FUNCTION_APP_NAME --route speech/token --route answer/ticket --route shareholder/identify --route config --route transcribe` → custom-connector スキル Step 1〜7（`connector/` を登録・OBO で接続・接続参照・Code Apps のデータソース）。`.env` に `AGM_SPEECH_CONNREF` / `AGM_SHAREPOINT_CONNREF` を追記 |
 | 8 | CSP と残りの Dataverse | `configure_code_app_csp.py --directive Connect-Src --source wss://<region>.stt.speech.microsoft.com --apply` と `https://<FUNCTION_APP_NAME>.azurewebsites.net` → `python scripts/setup_dataverse.py --localize-only`（日本語化・デモの想定問答 45 / IR 36 / 名簿 20）→ `python scripts/setup_security_roles.py --assign-operator <UPN> --assign-viewer <UPN> [--assign-author <UPN>]` |
 | 9 | デプロイと確認 | `npm run deploy` → `python scripts/test/verify_answer_stream.py`（チケット・CORS・ストリーム）→ `python scripts/test/fetch_answer_ticket.py --out .mcp/answer-ticket.json; node scripts/test/eval-identify.ts`（照合の評価セット）→ テスト用ビルドを `serve_host_emulation.mjs --dist dist-autotest --connect-src "'self'" --connect-src https://<FUNCTION_APP_NAME>.azurewebsites.net`（`http://localhost:4173`）で配信して `node scripts/test/e2e-cockpit.mjs`、MAI を使うなら `node scripts/test/e2e-stt.mjs --wav <読み上げ WAV>`（どちらも最初にチケットの残りと CORS を確かめる。spec/test-plan.md） |
-| 10 | Cowork で想定問答・台本を作る（任意） | cowork スキルの [agm-qa-plugin](../../../cowork/templates/agm-qa-plugin/README.md) を `--questions` で生成 → 権限は PERMISSIONS.md。作った下書きはアプリの「想定問答」で承認すると検索に使われる |
+| 10 | エージェントで想定問答・台本を作る（任意） | **Copilot Studio（推奨）**: copilot-studio-v2 スキルの [agm-qa-author](../../../copilot-studio-v2/templates/agm-qa-author/README.md) を `--questions` で生成 → `deploy_agent.py --env-file` → Dataverse MCP ツールを追加 → 公開 → Preview で確認。**Cowork**: cowork スキルの [agm-qa-plugin](../../../cowork/templates/agm-qa-plugin/README.md)（権限は PERMISSIONS.md）。Cowork で接続済みなのに実行時にツールが 0 件になる場合は Copilot Studio を使う（cowork の troubleshooting #46）。どちらも作成元が付いた下書きになり、アプリの「想定問答」で承認すると検索に使われる |
 
 ## 置き換える場所
 

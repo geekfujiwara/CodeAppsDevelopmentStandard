@@ -187,6 +187,6 @@
     "python scripts/setup_dataverse.py --skip-localize",
     "python scripts/configure_azure.py（計画を確認）→ --apply",
     "npm run deploy",
-    "（任意）Cowork で想定問答・台本を作る: cowork スキルの templates/agm-qa-plugin を --questions で生成"
+    "（任意）想定問答・台本を作るエージェント: copilot-studio-v2 スキルの templates/agm-qa-author（推奨）または cowork スキルの templates/agm-qa-plugin を --questions で生成"
   ]
 }

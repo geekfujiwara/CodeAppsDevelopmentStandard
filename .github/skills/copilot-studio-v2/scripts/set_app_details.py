@@ -58,7 +58,7 @@ UI 項目 → ペイロード キーの対応:
   PVA_GATEWAY_BASE                    PVA ゲートウェイ URL の明示指定（任意・通常は自動取得）
   BAP_ENVIRONMENT_ID                  BAP 環境 ID の明示指定（任意・通常は自動取得）
 
-実行: python set_app_details.py [--dry-run] [--require-confirm]
+実行: python set_app_details.py [--dry-run] [--require-confirm] [--env-file agent.env]
 """
 from __future__ import annotations
 
@@ -77,6 +77,8 @@ sys.stderr.reconfigure(encoding="utf-8")
 _STD = Path(__file__).resolve().parents[2] / "standard" / "scripts"
 sys.path.insert(0, str(_STD))
 from auth_helper import api_get, get_token, DATAVERSE_URL  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from agent_env import load_env_file  # noqa: E402
 
 API = f"{DATAVERSE_URL}/api/data/v9.2"
 
@@ -378,6 +380,7 @@ def set_app_details(bot_id: str, *, dry_run: bool, require_confirm: bool) -> Non
 
 
 def main() -> None:
+    sys.argv[1:] = load_env_file(sys.argv[1:])
     ap = argparse.ArgumentParser(description="Copilot Studio v2 の Edit details(チャネル メタデータ)を設定")
     ap.add_argument("--dry-run", action="store_true", help="PUT せずプレビューのみ")
     ap.add_argument("--require-confirm", action="store_true",

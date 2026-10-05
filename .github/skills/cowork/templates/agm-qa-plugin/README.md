@@ -11,6 +11,9 @@ Code Apps テンプレート [`code-apps/templates/agm-qa-assist`](../../../code
 
 - 数値は根拠の IR 抜粋にあるものだけを使う。株主は架空の番号・名前で台本を作る（名簿は読まない）。
 - 登録は**下書き**。承認はアプリの「想定問答」画面で事務局が行う（承認するまで質疑応答の検索に使われない）。アプリからも手動で追加・編集・承認できる。
+- 同じ 3 スキルを Copilot Studio のエージェントでも配れる（[copilot-studio-v2 の agm-qa-author](../../../copilot-studio-v2/templates/agm-qa-author/README.md)）。
+  Cowork で接続済みなのに実行時に Dataverse MCP のツールが 0 件になる場合（troubleshooting #46）は、そちらを使う。
+  スキルを直したら `python .github/skills/copilot-studio-v2/tests/test_agm_qa_author_template.py --write` で Copilot Studio 版も作り直す。
 
 ## 生成（変数は AskUserQuestion で 1 問ずつ聞く）
 

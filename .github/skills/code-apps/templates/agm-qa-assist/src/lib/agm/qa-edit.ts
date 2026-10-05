@@ -1,4 +1,4 @@
-// 想定問答をアプリから追加・編集・承認する（Cowork から作られた下書きの承認にも使う）
+// 想定問答をアプリから追加・編集・承認する（Copilot Studio・Cowork で作られた下書きの承認にも使う）
 import { createLogger } from "@/lib/debug-log"
 import { DATAVERSE_URL, ENTITY, col } from "./config"
 import { errorText, withTimeout } from "./corpus"

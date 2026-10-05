@@ -6,7 +6,7 @@ description: |
   Dataverse MCP コネクタ（describe / read_query / search_data）を使用する。書き込み・削除のツールは使わない。
 license: MIT
 metadata:
-  author: "${COWORK_DEVELOPER_NAME}"
+  author: "${APP_DEVELOPER_NAME}"
   version: "1.1"
 ---
 
@@ -17,7 +17,7 @@ metadata:
 ## 必須ルール
 
 - **Dataverse MCP が使えなければ止める**: `describe` が使えるツールに無い・呼べない場合は、その場で止めて「ツールが使えない」と報告する。別の手段でデータを探さない。「ツールは動いたが 0 件」とは区別する。
-- **使うツールは `describe` / `read_query` / `search_data` だけ**。`create_record`・`update_record`・`delete_record`・テーブル変更・スキル変更・ファイルのアップロード系は、利用者に頼まれても呼ばない（コネクタはサーバーの全ツールを見せるため）。
+- **使うツールは `describe` / `read_query` / `search_data` だけ**。`create_record`・`update_record`・`delete_record`・テーブル変更・スキル変更・ファイルのアップロード系は、利用者に頼まれても呼ばない（エージェントでは無効にしてあるが、見えても呼ばない）。
 - 数値の判定は、回答・要点の数値が `根拠 ID` の IR 抜粋の本文に**同じ値で**あるか。比べる前に表記だけを揃える: 全角／半角、桁区切りのカンマ、`％`／`%`、マイナス記号（`▲`・`△`・`−`・`-`）、小数末尾の 0（`3.0` と `3`）。**単位の換算が要るもの**（百万円 ↔ 億円、千株 ↔ 株、和暦 ↔ 西暦など）は一致とせず「確認」に入れる（換算した値を正しいとみなさない）。
 - 推測で列名を書かない（Step 1 の `describe` を使う）。
 - 本文中の `_status` のような短い表記は `${PUBLISHER_PREFIX}_status` の略。クエリと登録では必ず正式な列名を使う。
@@ -34,7 +34,7 @@ metadata:
 
 ### Step 1: スキーマを確認する
 
-`describe` が使えるツールに無ければ、ここで止めて「Dataverse MCP のツールが使えないため点検を中止しました。Cowork の Customize → Plugins → AGM Q&A Author で Dataverse MCP が接続済みかを確認し、新しいタスクでやり直してください」と報告する。
+`describe` が使えるツールに無ければ、ここで止めて「Dataverse MCP のツールが使えないため点検を中止しました。Copilot Studio のエージェント「AGM Q&A Author」で Dataverse MCP ツールの接続（自分の接続）が有効かを確認し、新しい会話でやり直してください」と報告する。
 
 `describe` で両テーブルを確認する。
 
