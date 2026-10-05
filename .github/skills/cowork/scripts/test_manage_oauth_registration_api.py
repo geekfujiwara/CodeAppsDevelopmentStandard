@@ -44,6 +44,17 @@ class ManageOauthRegistrationApiTests(unittest.TestCase):
         self.assertEqual(MODULE.raw_registration_id(wrapped, tenant), reg)
         self.assertEqual(MODULE.raw_registration_id(reg, tenant), reg)
 
+    def test_api_config_id_wraps_raw_id_and_keeps_wrapped_id(self):
+        import base64
+        tenant = "tenant-id-for-test"
+        reg = "registration-id-for-test"
+        wrapped = base64.b64encode(f"{tenant}##{reg}".encode()).decode()
+        self.assertEqual(MODULE.api_config_id(reg, tenant), wrapped)
+        self.assertEqual(MODULE.api_config_id(f"'{reg}'", tenant), wrapped)
+        self.assertEqual(MODULE.api_config_id(wrapped, tenant), wrapped)
+        with self.assertRaisesRegex(SystemExit, "TENANT_ID"):
+            MODULE.api_config_id(reg, "")
+
     def test_verify_readback_detects_mismatch(self):
         with self.assertRaises(SystemExit):
             MODULE.verify_readback({"clientId": "a", "scopes": ["x"]}, {"clientId": "a", "scopes": ["y"]})

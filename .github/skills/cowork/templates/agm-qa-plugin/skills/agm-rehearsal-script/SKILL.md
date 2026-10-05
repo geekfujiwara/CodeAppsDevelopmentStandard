@@ -3,11 +3,11 @@ name: agm-rehearsal-script
 description: |
   株主総会の質疑応答のリハーサル台本（議長・株主・回答役員の読み上げ原稿）を、承認済みの想定問答から作り、Dataverse のリハーサル台本テーブルへ登録するスキル。
   Use when ユーザーが「リハーサルの台本を作って」「QA-001〜QA-010 で読み上げ原稿を作って」「番号を言わない株主も入れた台本を作って」と依頼したとき。
-  Dataverse MCP コネクタ（describe / read_query / search_data / create_record / update_record）を使用する。
+  Dataverse MCP コネクタ（describe / read_query / search_data / create_record / update_record）を使用する。削除・テーブル変更のツールは使わない。
 license: MIT
 metadata:
   author: "${COWORK_DEVELOPER_NAME}"
-  version: "1.0"
+  version: "1.1"
 ---
 
 # リハーサル台本の作成
@@ -17,6 +17,8 @@ metadata:
 
 ## 必須ルール
 
+- **Dataverse MCP が使えなければ止める**: Step 1 の `describe` が使えるツールに無い・呼べない場合は、その場で止めて「ツールが使えない」と報告する。別の手段でデータを探さない。「ツールは動いたが 0 件」とは区別する。
+- **使うツールはこの 5 つだけ**: `describe` / `read_query` / `search_data` / `create_record` / `update_record`。`delete_record`・テーブル変更・スキル変更・ファイルのアップロード系は、利用者に頼まれても呼ばない（コネクタはサーバーの全ツールを見せるため）。
 - **実在の株主を使わない**: 株主番号と名前は架空にする（名簿のテーブルは読まない・読めない）。番号は 4 桁（例: 9001〜9099）、名前は名字だけ（例: 青山・古賀）。
 - **回答役員の発言は承認済みの回答に沿う**: 想定問答の `_answer` を読み上げ向けに 1〜2 文へ短くする。数値は回答にあるものだけ。
 - **株主の質問は想定問答の質問を言い換えて**、話し言葉にする（1 人 1〜2 問）。
@@ -56,7 +58,9 @@ metadata:
 
 ### Step 1: スキーマを確認する
 
-`describe` で `${PUBLISHER_PREFIX}_agmqa` と `${PUBLISHER_PREFIX}_agmscript` を確認する。
+`describe` が使えるツールに無ければ、ここで止めて「Dataverse MCP のツールが使えないため台本の作成を中止しました（登録はしていません）。Cowork の Customize → Plugins → AGM Q&A Author で Dataverse MCP が接続済みかを確認し、新しいタスクでやり直してください」と報告する。
+
+`describe` で `${PUBLISHER_PREFIX}_agmqa` と `${PUBLISHER_PREFIX}_agmscript` を確認する。`${PUBLISHER_PREFIX}_status` / `${PUBLISHER_PREFIX}_createdvia` が選択肢（Choice）なら、ラベル「下書き」「Cowork」に対応する値を describe の結果から取り、登録ではその値を使う。
 
 ### Step 2: 使う想定問答を決める
 
@@ -77,8 +81,20 @@ WHERE (${PUBLISHER_PREFIX}_status IS NULL OR ${PUBLISHER_PREFIX}_status = '承�
 
 ### Step 4: 承認されたら登録する
 
-`create_record(tablename="${PUBLISHER_PREFIX}_agmscript", item={"${PUBLISHER_PREFIX}_name": "<台本名>", "${PUBLISHER_PREFIX}_lines": "<JSON 配列の文字列>", "${PUBLISHER_PREFIX}_note": "<使い方のメモ>", "${PUBLISHER_PREFIX}_status": "下書き", "${PUBLISHER_PREFIX}_createdvia": "Cowork"})`。
-登録後に `read_query` で `_lines` を読み戻し、`[` で始まり `]` で終わる JSON 配列で、行数が提示したとおりかを確かめて報告する。崩れていれば、同じ行を `update_record`（このスキルで作った下書きだけ）で正しい配列に直す。
+登録の前に、台本の行を次の点で確かめる。1 つでも外れたら直して提示し直す（そのまま登録しない）。
+
+| 確認 | 合格 |
+|---|---|
+| JSON | 配列 1 つとして読める（`[` で始まり `]` で終わる） |
+| `id` | すべての行にあり、重複しない（L01, L02, …） |
+| `role` | `chair` / `shareholder` / `officer` のどれか |
+| `number` | `shareholder` の行だけにあり、数字だけの文字列（番号を言わない株主の行は無くてよい） |
+| `text` | 空の行が無い。株主の最初の文が名乗り（「株主番号〇〇番の〇〇です。」または依頼された崩れた名乗り）で始まる |
+| 行数 | 提示した表の行数と同じ |
+| 想定問答 | 使った想定問答を `read_query` で読み直し、すべて承認済み（`_status` が空または「承認済み」）のまま |
+
+`create_record(tablename="${PUBLISHER_PREFIX}_agmscript", item={"${PUBLISHER_PREFIX}_name": "<台本名>", "${PUBLISHER_PREFIX}_lines": "<JSON 配列の文字列>", "${PUBLISHER_PREFIX}_note": "<使い方のメモ>", "${PUBLISHER_PREFIX}_status": "下書き", "${PUBLISHER_PREFIX}_createdvia": "Cowork"})`（Choice 列なら Step 1 で確かめた値）。
+登録後に `read_query` で `_lines` を読み戻し、上の表の確認をもう一度行って報告する。崩れていれば、同じ行を `update_record`（このスキルで作った下書きだけ）で正しい配列に直す。
 
 ### Step 5: 報告する
 

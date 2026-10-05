@@ -366,8 +366,8 @@ Save すると **OAuth client registration ID** が発行される。これを *
 
 ```jsonc
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.28/MicrosoftTeams.schema.json",
-  "manifestVersion": "1.28",
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.29/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.29",
   "version": "1.0.0",
   "id": "<決定的GUID: uuid5 から生成>",
   "developer": { "name": "...", "websiteUrl": "...", "privacyUrl": "...", "termsOfUseUrl": "..." },
@@ -384,7 +384,6 @@ Save すると **OAuth client registration ID** が発行される。これを *
       "toolSource": {
         "remoteMcpServer": {
           "mcpServerUrl": "https://<org>.crm.dynamics.com/api/mcp",
-          "mcpToolDescription": { "file": "dataverse-mcp-tools.json" },
           "authorization": {
             "type": "OAuthPluginVault",
             "referenceId": "__COWORK_OAUTH_REGISTRATION_ID__"
@@ -405,11 +404,22 @@ Save すると **OAuth client registration ID** が発行される。これを *
   併載できる。その場合は各 `description` に **どのコネクタをどの用途で使うか**を明記する
   （エージェントはこの説明でツールを選ぶため）→ [custom-mcp-connector.md](references/custom-mcp-connector.md)。
 - `id` は `python -c "import uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, '<安定URL>'))"` で決定的に生成。
-- **`mcpToolDescription` は必須**（公式 docs の例は省略しているが、M365 管理センターのアップロード検証が必須化）。
-  値は **オブジェクト `{ "file": "<相対パス>" }`**（文字列不可）。参照先ファイルは **JSON 形式の tools 定義**でなければ
-  `is invalid or not found in manifest package` になる（`.md` は invalid）。
+- **manifest は 1.29 にし、`mcpToolDescription` を書かない（動的ツール検出）**。1.29 では `mcpToolDescription` が任意になり、
+  省略すると Cowork が実行時に MCP サーバーの `tools/list` でツールを取得する（`wiqd plugin create` も 1.29 を生成する）。
+  1.28 の固定ツール定義では、アップロード・Connect は成功するのに Cowork の実行時にツールが 0 件になる事例があった
+  （→ troubleshooting #46）。
+  - 動的検出では、サーバーの**全ツール**（`delete_record`・`create_table`・`delete_table` など）が Cowork に見える。
+    各スキルの必須ルールに「使うツール」と「呼ばないツール」を明記し、Dataverse 側は利用者のセキュリティ ロールで
+    書き込み・削除を絞る（[permissions.md](references/permissions.md)）。
+  - スキルの最初の Step に「`describe` が使えなければ止めて報告する（別の手段で探さない）」を入れる。
+  - スキルが挙げたツール名がサーバーにあるかは `rehearse_plugin.py tools`（動的モード）で確かめる。
 
-  `dataverse-mcp-tools.json`（パッケージルートに配置）:
+  **固定ツール定義（1.28 または 1.29 で絞りたい場合）**: 値は **オブジェクト `{ "file": "<相対パス>" }`**（文字列不可。
+  スキーマ上 `description` で包む形ではない）。参照先は **JSON 形式の tools 定義**でなければ
+  `is invalid or not found in manifest package` になる（`.md` は invalid）。1.28 では省略不可。
+  ビルドスクリプトは manifest が参照するファイルだけを同梱する。
+
+  `dataverse-mcp-tools.json`（固定にする場合だけ。パッケージルートに配置）:
   ```json
   {
     "tools": [
@@ -444,7 +454,7 @@ Save すると **OAuth client registration ID** が発行される。これを *
 
 ### Step 7: パッケージ（.zip）をビルド
 
-**manifest.json をルートに**置いて圧縮する（フォルダごと圧縮しない）。ツール説明 JSON も含める。
+**manifest.json をルートに**置いて圧縮する（フォルダごと圧縮しない）。`mcpToolDescription` を書いた場合だけ、そのツール説明 JSON も含める。
 **`.env` から `COWORK_OAUTH_REGISTRATION_ID` を読み `__COWORK_OAUTH_REGISTRATION_ID__` に注入**してから zip 化する
 （手作業で referenceId を manifest に直接埋めない＝取り違え・コミット事故を防ぐ）。
 
@@ -461,12 +471,12 @@ pwsh .github/skills/cowork/scripts/build_agent_package.ps1 -PluginRoot <plugin-r
 ```powershell
 $regId = (Get-Content .env | Select-String '^COWORK_OAUTH_REGISTRATION_ID=').ToString().Split('=',2)[1].Trim("'", '"')
 (Get-Content manifest.json -Raw) -replace '__COWORK_OAUTH_REGISTRATION_ID__', $regId | Set-Content manifest.built.json
-Compress-Archive -Path manifest.built.json, color.png, outline.png, dataverse-mcp-tools.json, skills `
-  -DestinationPath dist/<name>.zip -Force
+Compress-Archive -Path manifest.built.json, color.png, outline.png, skills `
+  -DestinationPath dist/<name>.zip -Force   # 固定ツール定義なら dataverse-mcp-tools.json も加える
 ```
 
-ZIP 検証: ルートに `manifest.json`（build 後、プレースホルダーが実 ID に置換済み）/ `dataverse-mcp-tools.json`、
-`skills/<skill-name>/SKILL.md` が含まれること。
+ZIP 検証: ルートに `manifest.json`（build 後、プレースホルダーが実 ID に置換済み）、
+`skills/<skill-name>/SKILL.md` が含まれること（固定ツール定義なら参照先 JSON も）。
 
 #### 公開前リハーサル（Step 7 の最後）
 
@@ -631,8 +641,9 @@ API が401/403/404、schema不一致、read-back不一致の場合だけ、次�
 - [ ] （自前 MCP Server 併用時）`verify_mcp_server.py` が **Streamable HTTP 準拠 OK** を返し、`tools/list` の実測名と `mcpToolDescription` が一致
 - [ ] 上記3層を `scripts/diagnose_cowork_connector.py` で一括確認（すべて ✅）
 - [ ] Teams ポータル **OAuth client registration**（SSO ではない）: Base URL は `/api/mcp` なし、scope は `.default offline_access`、Restrict by app = Any Teams app → registrationId を manifest に反映
-- [ ] manifest に `mcpToolDescription: { file: "dataverse-mcp-tools.json" }`（JSONツール定義）
-- [ ] ZIP ルートに manifest.json / dataverse-mcp-tools.json、skills/<name>/SKILL.md
+- [ ] manifest 1.29・`mcpToolDescription` なし（動的ツール検出）。固定にする場合だけ `mcpToolDescription: { file: "dataverse-mcp-tools.json" }`（JSONツール定義）
+- [ ] 各スキルに「使うツール / 呼ばないツール」と「`describe` が使えなければ止める」がある — `rehearse_plugin.py tools`
+- [ ] ZIP ルートに manifest.json、skills/<name>/SKILL.md（固定ツール定義なら参照先 JSON も）
 - [ ] 公開前リハーサル（`rehearse_plugin.py tools` と、各スキルの `run`）で、提示 → 承認 → 登録 → 読み戻しが意図どおり
 - [ ] 新規は `stageCustomApp(DEPLOY)` → `agent-publish`（FINALIZEPACKAGE）→ `agent-allow` → `agent-lifecycle`（DEPLOY）を PLAN_HASH 承認後に順に送り、各 `Success` を確認
 - [ ] 管理センター private API で登録・公開（API 不可のときだけ管理センター fallback）し、Tools → Plugins と Cowork で読み戻した
