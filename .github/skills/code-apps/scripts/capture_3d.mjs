@@ -2,6 +2,8 @@
 //
 //   node scripts/capture_3d.mjs --url "http://127.0.0.1:5181/#/projects/seed-sample-house?tab=viewer" \
 //     --wait 15000 --eval "window.__viewer?.materialSource" --out .tools/shots/viewer.png [--setup "<JS>"] [--viewport 1400x900]
+//   --pause-raf: requestAnimationFrame を止めた状態で動かす（画面に見えていないタブ・自動操作のブラウザの再現）。
+//     処理の待ちを requestAnimationFrame だけで作っていると、ここで止まる（スクリーンショットの 3D は描かれない）
 //   長いスクリプト（バイナリを base64 で渡すなど）は --eval-file <path>（コマンドラインの長さ制限を避ける）
 //   描画完了まで待つ: --ready "<真になる JS の式>" [--ready-timeout 180]。条件が満たされないか、--fail-on-error でページのエラーがあれば終了コード 1
 //
@@ -81,6 +83,7 @@ try {
   await send("Log.enable", {}, sessionId)
   await send("Page.enable", {}, sessionId)
   await send("Emulation.setDeviceMetricsOverride", { width: vw, height: vh, deviceScaleFactor: 1, mobile: false }, sessionId)
+  if (args["pause-raf"]) await send("Page.addScriptToEvaluateOnNewDocument", { source: "window.requestAnimationFrame = () => 0" }, sessionId)
   if (args.setup) await send("Page.addScriptToEvaluateOnNewDocument", { source: String(args.setup) }, sessionId)
   await send("Page.navigate", { url }, sessionId)
   // 固定時間だけ待つと、GLB の解析や影の計算が終わる前の空の画面を撮る（低メモリの端末では 25 秒以上かかった）。
