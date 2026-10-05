@@ -1,9 +1,10 @@
 // glTF / GLB の施工モデルを読み込む（ブラウザ専用）。
 // Code Apps の CSP は connect-src に 'self' を含まないことがあるため、同梱モデルは base64 で JS に埋め込み、
-// fetch を使わずに GLTFLoader.parse で解析する。外部 URL は CSP の connect-src に許可が必要。
-import { Group, Mesh } from "three"
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
+// fetch を使わずに解析する。GLB は code-apps の共通部品 csp-safe-gltf.ts で読む
+// （埋め込みテクスチャを blob: URL を介さずにデコードする。素の GLTFLoader ではテクスチャが黙って落ちる）。
+import { Group, Mesh, type Object3D } from "three"
 import type { ConstructionModel, Vec3 } from "@/lib/models"
+import { createCspSafeGltfLoader, decodeDataUrl } from "./csp-safe-gltf.ts"
 
 const BUNDLED = import.meta.glob("../../assets/models/*.glb", { query: "?inline", import: "default" }) as Record<string, () => Promise<string>>
 
@@ -11,18 +12,11 @@ export function bundledModelNames(): string[] {
   return Object.keys(BUNDLED).map((path) => path.replace(/^.*\/(.+)\.glb$/, "$1"))
 }
 
-function decodeDataUrl(dataUrl: string): ArrayBuffer {
-  const binary = atob(dataUrl.slice(dataUrl.indexOf(",") + 1))
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
-  return bytes.buffer
-}
-
 /**
  * BIM/CIM から書き出した glTF でも使えるよう、extras が無い場合はノード名から部位を復元する。
  * 規約: 「P1-column#2/5」（部位キー#順番/総数）または「zone:P1-footing」。それ以外のノードは周辺物として扱う。
  */
-function normalize(root: Group): void {
+export function normalize(root: Object3D): void {
   root.traverse((object) => {
     if (!(object instanceof Mesh)) return
     const data = object.userData as Record<string, unknown>
@@ -44,7 +38,7 @@ function normalize(root: Group): void {
 }
 
 export async function loadModelAsset(url: string): Promise<ConstructionModel> {
-  const loader = new GLTFLoader()
+  const loader = createCspSafeGltfLoader()
   let root: Group
   if (url.startsWith("bundled:")) {
     const name = url.slice("bundled:".length)
@@ -53,6 +47,7 @@ export async function loadModelAsset(url: string): Promise<ConstructionModel> {
     const gltf = await loader.parseAsync(decodeDataUrl(await load()), "")
     root = gltf.scene
   } else {
+    // csp-ok: connect-src に許可したホストの URL だけを読む。読めなければ呼び出し側が標準モデルに切り替える
     const gltf = await loader.loadAsync(url)
     root = gltf.scene
   }

@@ -1,4 +1,5 @@
 import { getContext } from "@microsoft/power-apps/app"
+import { bytesToBase64, bytesToDataUrl, downloadInChunks, responseToBytes } from "@/lib/binary"
 
 const generatedServices = import.meta.glob("../generated/services/MicrosoftDataverseService.ts")
 
@@ -35,6 +36,23 @@ interface GeneratedDataverseService {
     recordId: string,
     item: DataverseRow,
   ): Promise<OperationResult<DataverseRow>>
+  UpdateEntityFileImageFieldContentWithOrganization(
+    contentType: string,
+    organization: string,
+    entityName: string,
+    recordId: string,
+    fileImageFieldName: string,
+    item: string,
+    fileName: string,
+  ): Promise<OperationResult<void>>
+  GetEntityFileImageFieldContentWithOrganization(
+    range: string,
+    organization: string,
+    entityName: string,
+    recordId: string,
+    fileImageFieldName: string,
+    size?: string,
+  ): Promise<OperationResult<unknown>>
 }
 
 const WRITE_PREFER = "return=representation"
@@ -53,6 +71,7 @@ const ENTITY_SET_NAMES = {
   ${PUBLISHER_PREFIX}_knowledge: "${PUBLISHER_PREFIX}_knowledges",
   ${PUBLISHER_PREFIX}_equipment: "${PUBLISHER_PREFIX}_equipments",
   ${PUBLISHER_PREFIX}_equipmentusage: "${PUBLISHER_PREFIX}_equipmentusages",
+  ${PUBLISHER_PREFIX}_kyprediction: "${PUBLISHER_PREFIX}_kypredictions",
 } as const
 
 export type DataverseEntityName = keyof typeof ENTITY_SET_NAMES
@@ -134,5 +153,42 @@ export const DataverseService = {
       recordId,
       body,
     ))
+  },
+  /** ファイル列・画像列へアップロードする（生成サービスが base64 をバイト列に戻して送る） */
+  async uploadFile(entityName: DataverseEntityName, recordId: string, column: string, fileName: string, bytes: Uint8Array) {
+    const [svc, org] = await Promise.all([service(), orgUrl()])
+    unwrap<void>(await svc.UpdateEntityFileImageFieldContentWithOrganization(
+      "application/octet-stream",
+      org,
+      ENTITY_SET_NAMES[entityName],
+      recordId,
+      column,
+      bytesToBase64(bytes),
+      fileName,
+    ))
+  },
+  /** ファイル列を 4 MB ずつ Range で取得して連結する（末尾を超える Range は 416 になるため期待サイズで止める） */
+  async downloadFile(entityName: DataverseEntityName, recordId: string, column: string, expectedBytes?: number) {
+    const [svc, org] = await Promise.all([service(), orgUrl()])
+    return downloadInChunks(async (range) => unwrap<unknown>(await svc.GetEntityFileImageFieldContentWithOrganization(
+      range,
+      org,
+      ENTITY_SET_NAMES[entityName],
+      recordId,
+      column,
+    )), expectedBytes && expectedBytes > 0 ? expectedBytes : undefined)
+  },
+  /** 画像列をフルサイズで取得し、img に渡せる data: URL にする（CSP で blob: は使えない） */
+  async downloadImage(entityName: DataverseEntityName, recordId: string, column: string) {
+    const [svc, org] = await Promise.all([service(), orgUrl()])
+    const bytes = responseToBytes(unwrap<unknown>(await svc.GetEntityFileImageFieldContentWithOrganization(
+      "bytes=0-10485759",
+      org,
+      ENTITY_SET_NAMES[entityName],
+      recordId,
+      column,
+      "full",
+    )))
+    return bytes.length ? bytesToDataUrl(bytes) : ""
   },
 }

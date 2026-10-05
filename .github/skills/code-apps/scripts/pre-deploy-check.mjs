@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { findDirectMcpDataSources } from "./detect-direct-mcp-data-sources.mjs";
+import { findCspHazards, cspAllowFromEnv } from "./detect-csp-hazards.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 // scripts/ の一つ上がプロジェクトルート
@@ -99,8 +100,9 @@ if (fs.existsSync(configTs) && fs.existsSync(routerPath)) {
   }
 
   // ルーターにあるがナビに無いパス → 隠しページ（warning のみ）
-  // 親パスがナビにある詳細ルート（opportunities/:id 等）は一覧から到達できるため除外する
-  const isDetailOfNav = (p) => p.includes("/:") && navPaths.includes(p.split("/:")[0]);
+  // 親パスがナビにある詳細ルート（opportunities/:id 等）と新規登録ルート（opportunities/new）は一覧から到達できるため除外する
+  const parentOf = (p) => (p.includes("/:") ? p.split("/:")[0] : p.endsWith("/new") ? p.slice(0, -"/new".length) : "")
+  const isDetailOfNav = (p) => { const parent = parentOf(p); return Boolean(parent) && navPaths.includes(parent) };
   const hiddenRoutes = routePaths.filter(p => !navPaths.includes(p) && !isDetailOfNav(p) && p !== "*" && p !== "");
   if (hiddenRoutes.length > 0) {
     console.warn(`⚠ ルーター (router.tsx) にナビから到達できないページがあります: ${hiddenRoutes.join(", ")}`);
@@ -402,6 +404,57 @@ if (fs.existsSync(pkgPath)) {
         `package.json の scripts.${name} が "npx pa" を呼びますが、ローカルに pa がありません（npm 上の別パッケージ "pa" が実行されます）。\n` +
         `     → npm install -D @microsoft/power-apps-cli@latest を実行し、scripts では "pa app push" を直接呼んでください。`
       );
+    }
+  }
+}
+
+// 13. Code Apps の既定 CSP で黙って動かない書き方（fetch / three.js の FileLoader 系 / Worker / blob: URL）
+//     既定 CSP は connect-src 'none'。エラー画面にはならず、コンソールに CSP 違反が出てデータが来ないだけになる。
+//     環境に CSP を追加した場合は .env の CODE_APP_CSP_ALLOW（ルール ID か directive 名）で検出から外す
+{
+  const envForCsp = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf-8") : ""
+  const hazards = findCspHazards(root, { allow: cspAllowFromEnv(envForCsp) })
+  if (hazards.length > 0) {
+    errors.push(
+      `Code Apps の既定 CSP でブロックされる書き方が ${hazards.length} 件あります（エラーにならず動かないだけになる）:\n` +
+      hazards.slice(0, 10).map(h => `     ${h.file}:${h.line} [${h.directive}] ${h.text}\n       → ${h.hint}`).join("\n") +
+      `\n     → 環境に CSP を追加した場合は .env に CODE_APP_CSP_ALLOW=${[...new Set(hazards.map(h => h.directive))].join(",")} を書く（references/csp.md）`
+    )
+  }
+}
+
+// 14. 3D 表示の残骸・不安定な書き方（13 の CSP 検出を補う）
+//     - 本番成果物に drei の HDR 取得先が残っている = <Environment preset> が使われている（CSP で失敗するとアプリ全体が落ちる。troubleshooting #77）
+//     - drei の <Html> はラベルごとに別の React root を作り、再描画で "synchronously unmount a root" を出す（警告。troubleshooting #78）
+{
+  const htmlWarnings = []
+  const pending = fs.existsSync(srcPath) ? [srcPath] : []
+  while (pending.length > 0) {
+    const currentPath = pending.pop()
+    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+      const entryPath = path.join(currentPath, entry.name)
+      if (entry.isDirectory()) {
+        if (entry.name !== "generated") pending.push(entryPath)
+        continue
+      }
+      if (!entry.isFile() || !/\.[jt]sx$/.test(entry.name)) continue
+      const content = fs.readFileSync(entryPath, "utf-8")
+      if (/<Html\b/.test(content) && /from\s+["']@react-three\/drei["']/.test(content)) htmlWarnings.push(path.relative(root, entryPath))
+    }
+  }
+  if (htmlWarnings.length > 0) {
+    console.warn(`\n⚠ drei の <Html> を使っている箇所が ${htmlWarnings.length} 件あります → ラベルは Canvas の外の DOM に置き、useFrame で座標を投影してください（troubleshooting #78）:`)
+    for (const file of htmlWarnings) console.warn(`  ${file}`)
+  }
+  const distFiles = fs.existsSync(distPath) ? [distPath] : []
+  while (distFiles.length > 0) {
+    const currentPath = distFiles.pop()
+    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+      const entryPath = path.join(currentPath, entry.name)
+      if (entry.isDirectory()) { distFiles.push(entryPath); continue }
+      if (entry.isFile() && entry.name.endsWith(".js") && fs.readFileSync(entryPath, "utf-8").includes("pmndrs/drei-assets")) {
+        errors.push(`本番成果物 ${path.relative(root, entryPath)} に drei の HDR 取得先（pmndrs/drei-assets）が含まれています → <Environment preset> を外してください（troubleshooting #77）。`)
+      }
     }
   }
 }

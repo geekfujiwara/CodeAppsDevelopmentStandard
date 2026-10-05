@@ -3,13 +3,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import {
   AlertTriangle,
+  Box,
   Camera,
   CheckCircle2,
   ChevronLeft,
   ClipboardCheck,
   Gauge,
+  ImageDown,
   List,
+  Loader2,
   Map,
+  RefreshCw,
   RotateCcw,
   Search,
   ShieldAlert,
@@ -31,7 +35,10 @@ import { GoogleMapEmbed } from "@/components/google-map-embed"
 import { LoadingSkeletonGrid } from "@/components/loading-skeleton"
 import { ProjectGanttFlow, type FlowSelection } from "@/components/project-gantt-flow"
 import { ProjectRelationshipFlow } from "@/components/project-relationship-flow"
-import { ProjectModel3d } from "@/components/project-model-3d"
+import { ProjectModel3d, type CadPreview, type TaskSnapshot } from "@/components/project-model-3d"
+import { CadImportPanel } from "@/components/cad-import-panel"
+import { CAD_MODEL_URL } from "@/lib/models/model-source"
+import { parseCadMapping } from "@/lib/models/cad-import"
 import { SitePhoto } from "@/components/site-photo"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MODEL_TYPE_LABEL } from "@/lib/models"
@@ -46,7 +53,6 @@ const STATUS_STYLE: Record<number, string> = {
   100000002: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
 }
 const SUBMITTED = 100000001
-const APPROVED = 100000002
 const RETURNED = 100000003
 
 type ProjectSignals = { delayed: number; pending: number }
@@ -217,13 +223,8 @@ function ReviewQueue({ reports, tasks }: { reports: DailyReport[]; tasks: Task[]
     mutationFn: async ({ item, action }: { item: ReviewItem; action: "approve" | "return" }) => {
       const key = `${item.kind}-${item.id}`
       const comment = comments[key]?.trim() ?? ""
-      if (action === "return" && !comment) throw new Error("差戻し理由を入力してください。")
-      const body = { ${PUBLISHER_PREFIX}_reviewstatus: action === "approve" ? APPROVED : RETURNED, ${PUBLISHER_PREFIX}_reviewcomment: comment }
-      if (item.kind === "report") return ConstructionService.updateReport(item.id, action === "approve" ? { ...body, ${PUBLISHER_PREFIX}_status: 100000001 } : body)
-      const progress = Math.min(100, Math.max(0, Number(overrides[key] ?? item.progress ?? 0)))
-      return ConstructionService.updateTask(item.id, action === "approve"
-        ? { ...body, ${PUBLISHER_PREFIX}_progress: progress, ${PUBLISHER_PREFIX}_reportedprogress: progress, ${PUBLISHER_PREFIX}_status: progress >= 100 ? 100000002 : 100000001 }
-        : body)
+      if (item.kind === "report") return ConstructionService.reviewReport(item.id, action, comment)
+      return ConstructionService.reviewTask(item.id, action, comment, Number(overrides[key] ?? item.progress ?? 0))
     },
     onSuccess: async (_, { action }) => {
       await queryClient.invalidateQueries()
@@ -277,9 +278,56 @@ type InspectorProps = {
   incidents: Incident[]
   reports: DailyReport[]
   project: Project
+  snapshot?: TaskSnapshot
+  onRegenerate: () => void
 }
 
-function TaskInspector({ task, selection, workTypes, ky, incidents, reports, project }: InspectorProps) {
+/** 施工位置イメージ: 3D から自動で作った画像を表示し、Dataverse（画像列）へ保存できる。保存済みの画像も表示する */
+function LocationImage({ task, snapshot, onRegenerate }: { task: Task; snapshot?: TaskSnapshot; onRegenerate: () => void }) {
+  const queryClient = useQueryClient()
+  const [showSaved, setShowSaved] = useState(false)
+  const saved = useQuery({
+    queryKey: ["task-location-image", task.id, task.locationImageVersion],
+    queryFn: () => ConstructionService.taskLocationImage(task.id),
+    enabled: task.locationImageVersion > 0 && (showSaved || !snapshot?.dataUrl),
+    staleTime: Infinity,
+  })
+  const save = useMutation({
+    mutationFn: (dataUrl: string) => ConstructionService.saveTaskLocationImage(task.id, dataUrl),
+    onSuccess: async () => {
+      toast.success("施工位置イメージを作業に保存しました。日報や Copilot Studio からも参照できます。")
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] })
+    },
+    onError: (error) => toast.error(`保存できませんでした: ${error instanceof Error ? error.message : "不明なエラー"}`),
+  })
+  const current = showSaved ? undefined : snapshot?.dataUrl
+  const image = current ?? saved.data
+  return (
+    <div data-tour="location-image">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-black text-slate-500">施工位置イメージ{current ? "（自動生成）" : image ? "（保存済み）" : ""}</p>
+        {task.locationImageVersion > 0 && snapshot?.dataUrl && (
+          <button type="button" className="text-xs font-bold text-cyan-700 dark:text-cyan-300" onClick={() => setShowSaved((value) => !value)}>{showSaved ? "最新の自動生成を表示" : "保存済みを表示"}</button>
+        )}
+      </div>
+      {image ? (
+        <img src={image} alt={`${task.name} の施工位置イメージ`} className="mt-1 aspect-video w-full rounded-xl border border-slate-200 object-cover dark:border-slate-800" data-location-image={current ? "generated" : "saved"} />
+      ) : snapshot?.error ? (
+        <p className="mt-1 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{snapshot.error}</p>
+      ) : saved.isError ? (
+        <p className="mt-1 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">保存済みの画像を読み込めませんでした。</p>
+      ) : (
+        <div className="mt-1 grid aspect-video place-items-center rounded-xl border border-dashed border-slate-300 text-sm text-slate-500 dark:border-slate-700"><span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />3D から画像を作成中…</span></div>
+      )}
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" onClick={() => { setShowSaved(false); onRegenerate() }}><RefreshCw className="mr-1 h-4 w-4" />作り直す</Button>
+        <Button size="sm" disabled={!current || save.isPending} onClick={() => current && save.mutate(current)}><ImageDown className="mr-1 h-4 w-4" />{save.isPending ? "保存中…" : "作業に保存"}</Button>
+      </div>
+    </div>
+  )
+}
+
+function TaskInspector({ task, selection, workTypes, ky, incidents, reports, project, snapshot, onRegenerate }: InspectorProps) {
   if (!task) {
     if (selection) {
       return <div><p className="text-xs font-black text-cyan-700 dark:text-cyan-300">{selection.kind}</p><p className="mt-1 font-black">{selection.title}</p><p className="mt-2 text-sm text-slate-500">{selection.subtitle}</p><p className="mt-2 text-sm">{selection.detail}</p></div>
@@ -309,7 +357,8 @@ function TaskInspector({ task, selection, workTypes, ky, incidents, reports, pro
         </div>
       </div>
       {task.issue && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900"><AlertTriangle className="mr-1 inline h-4 w-4" />{task.issue}</p>}
-      {photo && <SitePhoto photoUrl={photo.photoUrl} caption={photo.photoCaption} projectName={project.name} reportDate={photo.reportDate} className="rounded-xl" />}
+      <LocationImage task={task} snapshot={snapshot?.taskId === task.id ? snapshot : undefined} onRegenerate={onRegenerate} />
+      {photo && <div><p className="mb-1 text-xs font-black text-slate-500">日報の現場写真</p><SitePhoto photoUrl={photo.photoUrl} caption={photo.photoCaption} projectName={project.name} reportDate={photo.reportDate} className="rounded-xl" /></div>}
       <div>
         <p className="text-xs font-black text-slate-500">直近の KY</p>
         {taskKy.length ? taskKy.map((item) => <p key={item.id} className="mt-1 text-sm"><span className="font-bold">{item.date.slice(5, 10)}</span> {item.hazards} → {item.countermeasures}</p>) : <p className="mt-1 text-sm text-slate-500">記録なし</p>}
@@ -326,6 +375,10 @@ function Workspace({ projectId }: { projectId: string }) {
   const { setSelectedProjectId } = useProject()
   const [selectedTaskId, setSelectedTaskId] = useState<string>()
   const [selection, setSelection] = useState<FlowSelection | null>(null)
+  const [cadOpen, setCadOpen] = useState(false)
+  const [cadPreview, setCadPreview] = useState<CadPreview>()
+  const [snapshot, setSnapshot] = useState<TaskSnapshot>()
+  const [regenerate, setRegenerate] = useState(0)
   const projects = useQuery({ queryKey: ["projects"], queryFn: ConstructionService.projects })
   const tasks = useQuery({ queryKey: ["tasks"], queryFn: ConstructionService.tasks })
   const reports = useQuery({ queryKey: ["reports"], queryFn: ConstructionService.reports })
@@ -338,7 +391,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const queries = [projects, tasks, reports, incidents, ky, knowledge, equipment, equipmentUsage, workTypes]
   const project = projects.data?.find((item) => item.id === projectId)
   useEffect(() => { if (projectId) setSelectedProjectId(projectId) }, [projectId, setSelectedProjectId])
-  useEffect(() => { setSelectedTaskId(undefined); setSelection(null) }, [projectId])
+  useEffect(() => { setSelectedTaskId(undefined); setSelection(null); setCadOpen(false); setCadPreview(undefined); setSnapshot(undefined) }, [projectId])
   const projectTasks = useMemo(() => sortTasks(tasks.data?.filter((item) => item.projectId === projectId) ?? []), [projectId, tasks.data])
   const projectReports = useMemo(() => reports.data?.filter((item) => item.projectId === projectId) ?? [], [projectId, reports.data])
   const projectIncidents = useMemo(() => incidents.data?.filter((item) => item.projectId === projectId) ?? [], [incidents.data, projectId])
@@ -385,8 +438,21 @@ function Workspace({ projectId }: { projectId: string }) {
         <div className={panelClass}>
           <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
             <div><h2 className="text-xl font-black">施工位置と進捗 3D</h2><p className="text-sm text-slate-500">ドラッグで回転、ホイールで拡大。部位や施工中ピンをクリックすると工程と連動します。</p></div>
+            <div className="flex flex-wrap items-center gap-2">
+              {project.modelUrl === CAD_MODEL_URL && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">CAD: {parseCadMapping(project.modelMapping)?.fileName ?? project.modelFileName}</span>}
+              <Button size="sm" variant={cadOpen ? "default" : "outline"} onClick={() => setCadOpen((value) => !value)} aria-expanded={cadOpen} data-tour="cad-import-button"><Box className="mr-1 h-4 w-4" />CAD モデルを取り込む</Button>
+            </div>
           </div>
-          <ProjectModel3d project={project} tasks={projectTasks} selectedTaskId={selectedTaskId} onSelectTask={selectTask} />
+          <ProjectModel3d
+            project={project}
+            tasks={projectTasks}
+            selectedTaskId={selectedTaskId}
+            onSelectTask={selectTask}
+            cadPreview={cadPreview}
+            snapshotRequest={selectedTaskId ? { taskId: selectedTaskId, nonce: `${projectTasks.find((item) => item.id === selectedTaskId)?.progress}-${regenerate}` } : undefined}
+            onSnapshot={setSnapshot}
+          />
+          {cadOpen && <CadImportPanel project={project} tasks={projectTasks} onPreview={setCadPreview} onClose={() => setCadOpen(false)} />}
         </div>
         <div className={panelClass}>
           <Tabs defaultValue="gantt">
@@ -409,9 +475,9 @@ function Workspace({ projectId }: { projectId: string }) {
         </div>
       </section>
       <aside className="min-w-0 space-y-5">
-        <div className={panelClass} data-tour="task-inspector"><h2 className="mb-3 text-xl font-black">選択中の作業</h2><TaskInspector task={projectTasks.find((item) => item.id === selectedTaskId)} selection={selection} workTypes={workTypes.data ?? []} ky={projectKy} incidents={projectIncidents} reports={projectReports} project={project} /></div>
+        <div className={panelClass} data-tour="task-inspector"><h2 className="mb-3 text-xl font-black">選択中の作業</h2><TaskInspector task={projectTasks.find((item) => item.id === selectedTaskId)} selection={selection} workTypes={workTypes.data ?? []} ky={projectKy} incidents={projectIncidents} reports={projectReports} project={project} snapshot={snapshot} onRegenerate={() => setRegenerate((value) => value + 1)} /></div>
         <div className={panelClass} data-tour="review-queue"><h2 className="text-xl font-black">監督確認</h2><p className="mb-4 mt-1 text-sm text-slate-500">Cowork から提出された日報と工程進捗を確認し、承認・修正・差戻しを行います。</p><ReviewQueue reports={projectReports} tasks={projectTasks} /></div>
-        <div className="flex flex-wrap gap-2"><Button asChild><Link to="/ky">KY を開始</Link></Button><Button asChild variant="outline"><Link to="/incidents"><ShieldAlert className="mr-2 h-4 w-4" />ヒヤリハット</Link></Button><Button asChild variant="outline"><Link to="/reports">日報</Link></Button></div>
+        <div className="flex flex-wrap gap-2"><Button asChild><Link to="/ky/new">KY を開始</Link></Button><Button asChild variant="outline"><Link to="/incidents"><ShieldAlert className="mr-2 h-4 w-4" />ヒヤリハット</Link></Button><Button asChild variant="outline"><Link to="/reports">日報</Link></Button></div>
       </aside>
     </div>
   </div>

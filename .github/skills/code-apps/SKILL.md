@@ -106,6 +106,13 @@ UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の�
 > `npm ci` → Python依存導入 → `npm run generate` → `npm run predeploy` で単体検証できる。
 > AI候補は確定まで下書きに適用せず、共有保存と分離する。外部接続は既定無効。Code App は Dataverse と Copilot Studio の生成サービスだけへ接続し、MCP Server は Copilot Studio のツールとして構成する。
 
+> **3D モデル（建物・家具・設備）を扱う場合**: [3D 資産の共通利用](references/3d-asset-sharing.md) を参照。
+> 既定 CSP で読める資産の持ち方（画像は `img-src 'self'`、JSON は import、GLB の扱い）、素材ライブラリの色合わせ・ライセンス、
+> 契約検証（`scripts/validate_3d_assets.py`）とヘッドレス描画確認（`scripts/capture_3d.mjs`。ソフトウェア描画で黒くなる問題を含む）、
+> 実在の GLB（テクスチャ埋め込み）を既定 CSP の中で表示する方法（`?inline` + `createImageBitmap` のプラグイン）を再利用できる。
+> 工事・設備の**進捗**を 3D で見せる場合（完成形を破線、施工中をクリッピングで立ち上げる、部位と工程の対応、GLB の書き出し）は
+> [3D 施工進捗モデル](references/three-d-progress-model.md) を参照。drei の `<Environment preset>` は CSP で失敗するとアプリ全体が落ちるので使わない（チェック 13 が検出）。
+
 > **図面レビューを非同期会話で回す場合**: [図面コミュニケーション アドオン](templates/drawing-communication/README.md) と
 > [PoC サンプル](samples/drawing-communication-poc/README.md) を参照。版付き図面 JSON と検証器、A3 の SVG 描画、
 > 注釈／タスク、候補の差分・採用・Undo、会話の相関コントラクト（会話 ID・ターン ID・編集バージョン・基準ハッシュ、重複ターン拒否）、
@@ -263,6 +270,7 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py \
 # 業務テンプレートから始める場合は --template を差し替える（generic-base を extends 済み。例: 営業支援 CRM）
 #   --template .github/skills/code-apps/templates/sales-crm
 #   --template .github/skills/code-apps/templates/agm-qa-assist   # 株主総会 Q&A アシスト
+#   --template .github/skills/code-apps/templates/construction-cockpit   # 建設現場コックピット（--var PUBLISHER_PREFIX / COWORK_PLUGIN_ID / DATAVERSE_ORIGIN）
 # scaffold.json に questions があるテンプレートは、値を AskUserQuestion で 1 問ずつ聞いてから生成する:
 #   --questions --env <answers.env> で未回答の質問（JSON）を出す → 1 問ずつ聞いて answers.env に追記 → [] になるまで繰り返す
 #   → --env <answers.env> --write-env {TARGET_DIR}/.env で生成（答えが .env にも入る）
@@ -514,6 +522,10 @@ python .github/skills/code-apps/scripts/configure_code_app_csp.py `
   --directive Frame-Src --source https://www.google.com --assert
 ```
 
+`npm run predeploy` のチェック 13（`scripts/detect-csp-hazards.mjs`）は、既定 CSP で**エラーを出さずに動かないだけ**になる書き方
+（`fetch` / `XMLHttpRequest` / `WebSocket` / three.js などのローダー / `Worker` / Draco・KTX2 / `blob:` 画像）をデプロイ前に止める。
+CSP を追加した環境では `.env` に `CODE_APP_CSP_ALLOW=connect-src` のように書いて外す。
+
 → 詳細: **[CSP 構成](references/csp.md)**
 
 ### マイク・録音・音声ストリーミング
@@ -605,7 +617,7 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 |---|---|---|
 | [templates/generic-base](templates/generic-base/) | 完全なベース | 新規プロジェクトの出力先へ生成する |
 | [templates/sales-crm](templates/sales-crm/README.md) | 完全な業務テンプレート（generic-base を `extends`） | 営業支援 CRM（マネージャー ダッシュボード・営業ホーム・CRUD・Outlook/Teams/Cowork 連携）を空のディレクトリから生成する |
-| [templates/construction-cockpit](templates/construction-cockpit/README.md) | 完全な業務テンプレート（generic-base を `extends`） | Google Maps、React Flow ガント/関係グラフ、日報・KY・安全・ナレッジ・重機、Cowork を含む建設現場コックピットを生成する |
+| [templates/construction-cockpit](templates/construction-cockpit/README.md) | 完全な業務テンプレート（generic-base を `extends`・Copilot Studio エージェント同梱） | 建設現場コックピット: Google Maps の工事ポートフォリオ、Three.js の進捗 3D（工事種別 6 種・完成形の点線・CAD の GLB/OBJ/STL/FBX 取り込みと施工単位の対応付け・施工位置イメージ）、React Flow ガント/因果関係、監督の承認・差戻し、KY・ヒヤリハット・日報・ナレッジのグラフ付き一覧と詳細、KY の AI 危険予測（Dataverse 要求/結果 + Workflow）、Copilot Studio「現場コックピット アシスタント」（施工単位での進捗報告・まとめ登録・承認）、Cowork、本格デモデータを生成する |
 | [templates/agm-qa-assist](templates/agm-qa-assist/README.md) | 完全な業務テンプレート（generic-base を `extends`・Azure Functions 同梱） | 株主総会 Q&A アシスト（連続の文字起こし・株主の AI 照合・想定問答の検索と根拠つき回答案・録音と記録・総会の集計・LIVE 共有）。**変数は `--questions` の順に AskUserQuestion で聞いてから生成**する |
 | [templates/account-link-admin](templates/account-link-admin/) | アドオン | 空の作業ディレクトリへ生成し、README に従ってホストへ統合する |
 | [templates/drawing-communication](templates/drawing-communication/) | アドオン | 空の作業ディレクトリへ生成・単体検証後、必要なモジュールをホストへ統合する |
@@ -663,6 +675,16 @@ SDK の破壊的変更への追従は、この 1 ファイルを直して `pytho
 >
 > `samples/geek-asset` / `geek-hr` / `geek-expense` / `geek-sales` / `geek-fieldservice` は、このラッパーではなく
 > `getClient()` の `*Async` 系・テーブル別生成サービスを使う別パターンの参照実装。上記 3 階層の制約は同じく適用される。
+
+### 3D モデル（GLB）を読む面も 1 ファイルに閉じる
+
+GLB を読むときは **[templates/csp-safe-gltf.ts](templates/csp-safe-gltf.ts) をコピーして `createCspSafeGltfLoader()` を使う**（`new GLTFLoader()` を直接使わない）。
+既定 CSP は `blob:` を `img-src` / `connect-src` で拒否するため、素の GLTFLoader では埋め込みテクスチャが黙って落ちる（troubleshooting #73）。
+同じファイルを使う実装: `samples/plant-design-maintenance/src/lib/csp-safe-gltf.ts`。
+
+```bash
+cp .github/skills/code-apps/templates/csp-safe-gltf.ts src/lib/
+```
 
 ### 構築手順の詳細
 
@@ -724,6 +746,8 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [Lookup 名前解決](references/lookup-resolution.md) | クライアントサイド名前解決・OData FormattedValue パターン・所有者（Owner）列の表示 |
 | [日本語サニタイズ](references/japanese-sanitize.md) | 旧ネイティブ add-data-source 方式の日本語 DisplayName 回避 |
 | [CSP 構成](references/csp.md) | iframe 埋め込み・外部 API・WebSocket 接続・録音の再生時の CSP 設定・CSP 安全な SDK メソッド一覧 |
+| [3D 資産の共通利用](references/3d-asset-sharing.md) | 3D モデル・素材ライブラリを複数アプリ / Blender と共通利用する際の CSP・色合わせ・ライセンス・検証（契約検証とヘッドレス描画） |
+| [3D 施工進捗モデル](references/three-d-progress-model.md) | 完成形を破線、施工中をクリッピングで立ち上げる進捗表示・部位と工程の対応・BIM/CIM の glTF・GLB の書き出し |
 | [デバイス・メディア](references/device-media.md) | マイク・`AudioContext`・録音・PCM 変換の正常系、SDK にマイクを直接渡さない理由、CPU 負荷、前提欠落時の開始抑止、Console へのログ集約 |
 | [ホスト再現テスト](references/host-emulation-testing.md) | 別オリジン iframe + Code Apps 既定 CSP + 疑似マイクをローカルで再現し、ヘッドレス Edge の Console ログで判定する |
 | [テレメトリ / 可観測性パターン](references/telemetry-pattern.md) | `initializeLogger` / `Metric` 判別共用体・`sessionLoadSummary` SLI・PII サニタイズ規約・Application Insights 連携時の CSP |
@@ -752,6 +776,10 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
 | [add_data_source.py](scripts/add_data_source.py) | データソースを**非対話**で追加する。コネクタの通称（`sharepoint` 等）を `shared_xxx` に解決し、接続・必須値を確定してから `--non-interactive` で CLI を起動する。Step 3 の標準 |
 | [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` / モック実行基盤の本番混入を検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |
+| [detect-csp-hazards.mjs](scripts/detect-csp-hazards.mjs) | 既定 CSP で無言で失敗する書き方を検出（predeploy チェック 13 が呼ぶ。`pre-deploy-check.mjs` と同じ場所にコピーする） |
+| [templates/csp-safe-gltf.ts](templates/csp-safe-gltf.ts) | 既定 CSP の中で GLB を読む GLTFLoader（埋め込みテクスチャを `createImageBitmap` でデコード・外部参照は明示エラー・同梱 GLB の base64 デコード） |
+| [validate_3d_assets.py](scripts/validate_3d_assets.py) | 素材ライブラリ manifest・テクスチャ・GLB の契約（サイズ・色の偏り・光沢フラグ・ライセンス・名前空間）を検証 |
+| [capture_3d.mjs](scripts/capture_3d.mjs) | ヘッドレス Edge（DevTools プロトコル、Playwright 不要）で 3D 画面を撮り、描画状態を `window.__viewer` などから取得する。`--ready` で描画完了を待ち、`--fail-on-error` でページのエラーを失敗にする |
 | [inspect_table_metadata.py](scripts/inspect_table_metadata.py) | 既存テーブルの EntitySetName / 主キー / 列 / 参照先 / 選択肢を調査（既存テーブル接続時は実装前に必須） |
 | [validate_cli_reference.py](scripts/validate_cli_reference.py) | テンプレート採用版の `pa app share --help` と CLI リファレンスの主要オプション・実行例が一致することを検証 |
 | [validate_sample.py](scripts/validate_sample.py) | `samples/` 配下の完全性と generic-base のテレメトリ契約を検証（必須ファイル・import 先の実在・秘匿情報・SDK の使い方） |

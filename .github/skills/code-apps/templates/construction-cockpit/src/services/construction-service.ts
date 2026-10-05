@@ -1,4 +1,7 @@
 import { DataverseService, type DataverseRow } from "@/lib/dataverse-client"
+import { asciiFileName, base64ToBytes } from "@/lib/binary"
+import type { CadMapping } from "@/lib/models/cad-import"
+import { BUNDLED_BRIDGE_URL, CAD_MODEL_URL, MODEL_TYPE_BRIDGE } from "@/lib/models/model-source"
 
 export type Project = {
   id: string
@@ -16,6 +19,11 @@ export type Project = {
   modelUrl: string
   modelCenter: string
   modelType: number
+  /** CAD モデルの対応付け（cad-import.ts の CadMapping を JSON 化したもの） */
+  modelMapping: string
+  /** ファイル列 ${PUBLISHER_PREFIX}_modelfile のファイル ID（再アップロードで変わるため、取得キャッシュのキーに使う） */
+  modelFileId: string
+  modelFileName: string
   description: string
 }
 
@@ -36,6 +44,8 @@ export type Task = {
   sequence: number
   issue: string
   predecessorId: string
+  /** 施工位置イメージ（画像列 ${PUBLISHER_PREFIX}_locationimage）の更新時刻。未保存なら 0 */
+  locationImageVersion: number
 }
 export type DailyReport = {
   id: string
@@ -110,8 +120,12 @@ const mapProject = (row: DataverseRow): Project => ({
   progress: number(row, "${PUBLISHER_PREFIX}_progress"), status: number(row, "${PUBLISHER_PREFIX}_status"),
   siteManager: text(row, "${PUBLISHER_PREFIX}_sitemanager"), modelUrl: text(row, "${PUBLISHER_PREFIX}_modelurl"),
   modelCenter: text(row, "${PUBLISHER_PREFIX}_modelcenter"), modelType: number(row, "${PUBLISHER_PREFIX}_modeltype"),
+  modelMapping: text(row, "${PUBLISHER_PREFIX}_modelmapping"), modelFileId: text(row, "${PUBLISHER_PREFIX}_modelfile"),
+  modelFileName: text(row, "${PUBLISHER_PREFIX}_modelfile_name"),
   description: text(row, "${PUBLISHER_PREFIX}_description"),
 })
+
+const modelCache = new Map<string, Promise<ArrayBuffer>>()
 
 export const ConstructionService = {
   async projects(): Promise<Project[]> {
@@ -143,6 +157,7 @@ export const ConstructionService = {
       reviewComment: text(row, "${PUBLISHER_PREFIX}_reviewcomment"), zone: text(row, "${PUBLISHER_PREFIX}_zone"),
       sequence: number(row, "${PUBLISHER_PREFIX}_sequence"), issue: text(row, "${PUBLISHER_PREFIX}_issue"),
       predecessorId: text(row, "_${PUBLISHER_PREFIX}_predecessor_value"),
+      locationImageVersion: number(row, "${PUBLISHER_PREFIX}_locationimage_timestamp"),
     }))
   },
   async reports(): Promise<DailyReport[]> {
@@ -217,5 +232,75 @@ export const ConstructionService = {
   },
   updateTask(id: string, body: DataverseRow) {
     return DataverseService.update("${PUBLISHER_PREFIX}_task", id, body)
+  },
+  updateKy(id: string, body: DataverseRow) {
+    return DataverseService.update("${PUBLISHER_PREFIX}_kyactivity", id, body)
+  },
+  updateKnowledge(id: string, body: DataverseRow) {
+    return DataverseService.update("${PUBLISHER_PREFIX}_knowledge", id, body)
+  },
+  /** 日報の監督確認。承認で確定（${PUBLISHER_PREFIX}_status=確定）、差戻しは理由が必須 */
+  reviewReport(id: string, action: "approve" | "return", comment: string) {
+    if (action === "return" && !comment.trim()) throw new Error("差戻し理由を入力してください。")
+    return DataverseService.update("${PUBLISHER_PREFIX}_dailyreport", id, action === "approve"
+      ? { ${PUBLISHER_PREFIX}_reviewstatus: 100000002, ${PUBLISHER_PREFIX}_reviewcomment: comment, ${PUBLISHER_PREFIX}_status: 100000001 }
+      : { ${PUBLISHER_PREFIX}_reviewstatus: 100000003, ${PUBLISHER_PREFIX}_reviewcomment: comment })
+  },
+  /** 工程進捗の監督確認。承認した値が進捗（${PUBLISHER_PREFIX}_progress）になり、3D の出来形に反映される */
+  reviewTask(id: string, action: "approve" | "return", comment: string, progress: number) {
+    if (action === "return" && !comment.trim()) throw new Error("差戻し理由を入力してください。")
+    const value = Math.min(100, Math.max(0, Math.round(progress)))
+    return DataverseService.update("${PUBLISHER_PREFIX}_task", id, action === "approve"
+      ? { ${PUBLISHER_PREFIX}_reviewstatus: 100000002, ${PUBLISHER_PREFIX}_reviewcomment: comment, ${PUBLISHER_PREFIX}_progress: value, ${PUBLISHER_PREFIX}_reportedprogress: value, ${PUBLISHER_PREFIX}_status: value >= 100 ? 100000002 : value > 0 ? 100000001 : 100000000 }
+      : { ${PUBLISHER_PREFIX}_reviewstatus: 100000003, ${PUBLISHER_PREFIX}_reviewcomment: comment })
+  },
+  /** ヒヤリハットからナレッジを作り、元の記録をナレッジ化済みにする */
+  async incidentToKnowledge(incident: Incident) {
+    await DataverseService.create("${PUBLISHER_PREFIX}_knowledge", {
+      ${PUBLISHER_PREFIX}_name: incident.name,
+      ...(incident.workTypeId ? { "${PUBLISHER_PREFIX}_worktype@odata.bind": `/${PUBLISHER_PREFIX}_worktypes(${incident.workTypeId})` } : {}),
+      "${PUBLISHER_PREFIX}_sourceincident@odata.bind": `/${PUBLISHER_PREFIX}_incidents(${incident.id})`,
+      ${PUBLISHER_PREFIX}_knowledgetype: incident.incidentType === 100000002 ? 100000001 : 100000000,
+      ${PUBLISHER_PREFIX}_event: incident.description, ${PUBLISHER_PREFIX}_cause: incident.cause,
+      ${PUBLISHER_PREFIX}_lesson: incident.countermeasure || "再発防止策を現場内で共有する", ${PUBLISHER_PREFIX}_keywords: incident.name,
+    })
+    await DataverseService.update("${PUBLISHER_PREFIX}_incident", incident.id, { ${PUBLISHER_PREFIX}_knowledgecreated: true })
+  },
+  /** CAD モデル本体を取得する（同じファイル ID の間はメモリに保持して再ダウンロードしない） */
+  downloadProjectModel(project: Project, expectedBytes?: number): Promise<ArrayBuffer> {
+    const key = `${project.id}:${project.modelFileId}`
+    let cached = modelCache.get(key)
+    if (!cached) {
+      cached = DataverseService.downloadFile("${PUBLISHER_PREFIX}_project", project.id, "${PUBLISHER_PREFIX}_modelfile", expectedBytes)
+        .then((bytes) => bytes.slice().buffer as ArrayBuffer)
+      cached.catch(() => modelCache.delete(key))
+      modelCache.set(key, cached)
+    }
+    return cached
+  },
+  /** CAD モデルと対応付けを保存する。bytes を省略すると対応付けだけを更新する */
+  async saveProjectCadModel(project: Project, mapping: CadMapping, bytes?: Uint8Array) {
+    if (bytes) {
+      await DataverseService.uploadFile("${PUBLISHER_PREFIX}_project", project.id, "${PUBLISHER_PREFIX}_modelfile", asciiFileName(mapping.fileName, `model.${mapping.format}`), bytes)
+      for (const key of modelCache.keys()) if (key.startsWith(`${project.id}:`)) modelCache.delete(key)
+    }
+    const saved: CadMapping = { ...mapping, savedAt: new Date().toISOString() }
+    await DataverseService.update("${PUBLISHER_PREFIX}_project", project.id, { ${PUBLISHER_PREFIX}_modelmapping: JSON.stringify(saved), ${PUBLISHER_PREFIX}_modelurl: CAD_MODEL_URL })
+    return saved
+  },
+  /** 標準モデル（工事種別の生成モデル）に戻す。ファイルは残すため、再度 CAD モデルに切り替えられる */
+  resetProjectModel(project: Project) {
+    return DataverseService.update("${PUBLISHER_PREFIX}_project", project.id, { ${PUBLISHER_PREFIX}_modelurl: project.modelType === MODEL_TYPE_BRIDGE ? BUNDLED_BRIDGE_URL : "" })
+  },
+  showSavedCadModel(project: Project) {
+    return DataverseService.update("${PUBLISHER_PREFIX}_project", project.id, { ${PUBLISHER_PREFIX}_modelurl: CAD_MODEL_URL })
+  },
+  taskLocationImage(taskId: string) {
+    return DataverseService.downloadImage("${PUBLISHER_PREFIX}_task", taskId, "${PUBLISHER_PREFIX}_locationimage")
+  },
+  saveTaskLocationImage(taskId: string, dataUrl: string) {
+    const bytes = base64ToBytes(dataUrl.slice(dataUrl.indexOf(",") + 1))
+    const ext = dataUrl.startsWith("data:image/png") ? "png" : "jpg"
+    return DataverseService.uploadFile("${PUBLISHER_PREFIX}_task", taskId, "${PUBLISHER_PREFIX}_locationimage", `task-location-${taskId.slice(0, 8)}.${ext}`, bytes)
   },
 }

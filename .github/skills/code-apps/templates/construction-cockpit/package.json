@@ -10,6 +10,9 @@
     "test:layout": "node scripts/test-responsive-layout.mjs",
     "generate:photos": "node scripts/generate-demo-photos.mjs",
     "export:models": "node scripts/export-construction-models.mjs",
+    "export:cad-sample": "node scripts/export-cad-sample.mjs",
+    "test:cad": "node scripts/test-cad-import.mjs",
+    "test:ky": "node scripts/test-ky-ai.mjs",
     "preview": "vite preview",
     "predeploy": "node scripts/pre-deploy-check.mjs",
     "deploy": "npm run build && npm run predeploy && pa app push"

@@ -348,6 +348,21 @@ const view = searchParams.get("view") ?? "all"
 
 詳細は [デザインパターン「ダッシュボードは『数字 → 一覧』の導線として作る」](design-pattern.md)。
 
+### 9. 既定 CSP で無言で失敗する書き方のチェック
+
+Code Apps の既定 CSP（`connect-src 'none'`・`worker-src` なし・`img-src` に `blob:` なし）では、次の書き方が
+**エラー表示なしで空振り**する。`npm run predeploy` のチェック 13（`scripts/detect-csp-hazards.mjs`）が自動検出する。
+
+| 検出する書き方 | 置き換え |
+|---|---|
+| `fetch` / `XMLHttpRequest` / `WebSocket` / `EventSource` | Power Apps の生成サービス、または JSON の import |
+| three.js の `GLTFLoader` / `FileLoader` などの `.load()` | 画像は `TextureLoader`（`<img>` 経由で `img-src 'self'`）。利用者が選んだ GLB は `File.arrayBuffer()` + `parseAsync`。詳細は [3D 資産の共通利用](3d-asset-sharing.md) |
+| `new Worker` / Draco・KTX2 デコーダー | 圧縮しない GLB と JPEG / WebP に寄せる、または `worker-src` を設定する |
+| `URL.createObjectURL` を `<img>` などの表示に使う | `data:` URL。ダウンロード用の `<a download>` は対象外 |
+
+CSP を追加した環境では `.env` の `CODE_APP_CSP_ALLOW`（directive 名かルール ID のカンマ区切り）で外す。
+1 行だけ許すときは `// csp-ok: <理由>` を書く。
+
 ## 実行フロー
 
 ```

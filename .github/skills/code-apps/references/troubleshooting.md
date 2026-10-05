@@ -2793,3 +2793,251 @@ localStorage はオリジンごと。別ページではオリジンが違い、�
 ### 対処（恒久対策済み）
 
 `templates/agm-qa-assist/scripts/export_template.py` が書き出し後と `--check` で、テンプレート内のすべての相対 import がテンプレートか `generic-base` の中で解決できるかを確かめ、解決できなければ終了コード 1。
+
+## 69. 3D 画面がヘッドレス / 仮想デスクトップでだけ真っ黒になる（ソフトウェア描画 + 環境マップ）（検証済 2026-10-04）
+
+### 症状
+
+GPU のある PC では正しく見えるのに、ヘッドレス Edge や GPU の無い仮想デスクトップでは、光が当たる面が黒くなる。エラーも警告も出ない。
+
+### 原因
+
+GPU が無いと Chromium は SwiftShader（ソフトウェア描画）で WebGL を動かす。three.js の `PMREMGenerator` で作った環境マップ（`scene.environment`）がこの経路で正しく作られず、反射の計算が黒になる。
+
+### 対処（恒久対策済み）
+
+`WEBGL_debug_renderer_info` で描画器名を取り、`SwiftShader` / `llvmpipe` / `Software` を含むときは環境マップを使わず、半球光を強めて補う。判定は描画器を作った後に評価する getter にする（クラスのフィールド初期化子は constructor 本体より前に動くため常に偽になる）。`scripts/capture_3d.mjs` は既定でソフトウェア描画、`--gpu` で GPU 経路を撮れるので、両方で確認する。詳細: [3D 資産の共通利用](3d-asset-sharing.md)。
+
+## 70. 写真素材に色を合わせると色かぶりする / 芝生が白っぽく光る（検証済 2026-10-04）
+
+### 症状
+
+- 利用者が選んだ外壁色を写真素材に掛けると、木目やレンガの元の色と混ざって緑や紫に寄る
+- 芝生が白く粉をふいたように見える
+
+### 原因
+
+- 色のある写真テクスチャに指定色をそのまま乗算すると、元の色相と二重に掛かる
+- 芝生は粗さが低い部分が残り、環境光の鏡面反射が強く出る。法線も強すぎる
+
+### 対処（恒久対策済み）
+
+- 塗装・金属・屋根などは取り込み時にテクスチャを無彩色（輝度だけ）にし、指定色を「線形色 ÷ テクスチャ平均」で掛ける（上限 4）。レンガ・木・タイル・芝生は元の色を残して比率だけ合わせる
+- 芝生は粗さの下限 0.8、法線の強さ 0.35、鏡面 0.1、明るさ 0.55 を素材ごとの値として manifest に持つ。three.js と Blender は同じ manifest と同じ式を使う
+- `scripts/validate_3d_assets.py` が、無彩色であるべき素材の彩度・粗さの範囲・光沢フラグの欠落を検出する
+
+## 71. three.js のローダーや fetch がエラーを出さずに何も表示しない（既定 CSP）（検証済 2026-10-04）
+
+### 症状
+
+`GLTFLoader.load` / `FileLoader` / `fetch('./data.json')` / Draco・KTX2 デコーダーを使った画面が Power Apps 上でだけ空になる。ローカルでは動く。
+
+### 原因
+
+Code Apps の既定 CSP は `connect-src 'none'`、`worker-src` なし、`img-src 'self' data:`（`blob:` なし）。ローダーは XHR / fetch / Worker / blob URL を使うため、すべて止まる。画像を `<img>` で読む `TextureLoader` だけは通る。
+
+### 対処（恒久対策済み）
+
+`npm run predeploy` のチェック 13（`scripts/detect-csp-hazards.mjs`）がデプロイ前に検出する。JSON は import でバンドルし、テクスチャは `public/` に置いて相対パスで読む。CSP を追加した環境では `.env` に `CODE_APP_CSP_ALLOW=connect-src` などを書いて外す。1 行だけ許すときは `// csp-ok: <理由>`。詳細: [CSP 構成](csp.md)。
+
+## 72. 家具の GLB と建物で素材名が衝突し、片方の色が変わる（検証済 2026-10-04）
+
+### 症状
+
+家具を置くと建物の床や壁の色が変わる、または Blender で家具が建物の素材で描かれる。
+
+### 原因
+
+GLB の素材名（`wood` など）と建物側の素材ライブラリのキーが同じで、名前で引くキャッシュや Blender の `bpy.data.materials` で同じものとして扱われる。
+
+### 対処（恒久対策済み）
+
+共通利用する資産は素材名に名前空間の接頭辞（例: `furn_`）を付ける。`scripts/validate_3d_assets.py --material-prefix furn_` が接頭辞の無い素材を検出する。
+
+## 73. 同梱した GLB の家具が白い・テクスチャが無い（Console に `Couldn't load texture blob:`）（検証済 2026-10-04）
+
+### 症状
+
+ローカルではテクスチャ付きで表示される GLB が、Power Apps 上（既定 CSP）では形だけ白く表示される。画面にエラーは出ず、Console に `THREE.GLTFLoader: Couldn't load texture blob:...` が出る。`public/` に置いた GLB は読み込み自体が失敗する。
+
+### 原因
+
+- GLTFLoader は GLB に埋め込まれた画像を `URL.createObjectURL` で `blob:` URL にし、`<img>`（`img-src`）または ImageBitmapLoader（fetch = `connect-src`）で読む。既定 CSP は `img-src 'self' data:`・`connect-src 'none'` なので両方拒否される
+- `public/` の GLB を `GLTFLoader.load(url)` で読むと fetch になり `connect-src 'none'` で拒否される
+- ホスト再現（既定 CSP）で確認: `<img src=blob:>` と `fetch(blob:)` は拒否、`createImageBitmap(Blob)` は成功
+
+### 対処（恒久対策済み）
+
+GLB は `import.meta.glob("./models/*.glb", { query: "?inline" })` で base64 のモジュールにして動的 import し（`assetsInclude: ["**/*.glb"]`）、[templates/csp-safe-gltf.ts](../templates/csp-safe-gltf.ts) の `createCspSafeGltfLoader()` で読む（埋め込み画像を `createImageBitmap(Blob)` でデコードする）。`samples/plant-design-maintenance` の GLB 取り込みもこのローダーに切り替えた（以前は `blob:` を許可する URL 変更で、Power Apps 上ではテクスチャが落ちていた）。同梱前に `scripts/validate_3d_assets.py --allow-embedded-images` で、外部 URI・KTX2 など CSP で読めない形式が無いことを確かめる。
+
+## 74. ソフトウェア描画の内見だけ天井が茶色い（GPU では正常）（検証済 2026-10-04）
+
+### 症状
+
+GPU の無い環境（VDI・ヘッドレス試験）で室内を見ると、天井が床と同じ茶色に染まる。GPU のある PC では白い。
+
+### 原因
+
+#69 の対策で環境マップを外すと、下向きの面（天井）は半球光の地面色だけで照らされる。地面色に床の色を使っていると、天井が床の色になる。
+
+### 対処（恒久対策済み）
+
+ソフトウェア描画のときだけ、半球光の地面色を白へ 65% 寄せる。`scripts/capture_3d.mjs` は既定（ソフトウェア描画）と `--gpu` の両方で撮り、片方だけで起きる差を見つける。
+
+## 75. TypeScript と Python で同じ式なのに寸法が 1mm ずれる（丸め）（検証済 2026-10-04）
+
+### 症状
+
+Three.js と Blender で同じ式から作った部材（段・開口など）の座標が、まれに 0.001 ずれる。材質ごとの頂点数を比べるテストは通る。
+
+### 原因
+
+JS の `Math.round` は四捨五入、Python の `round` は偶数丸め（`round(0.5) == 0`、`round(2.5) == 2`）。
+
+### 対処（恒久対策済み）
+
+Python 側は `math.floor(x * 1000 + 0.5) / 1000` で丸める。寸法を導く関数は、頂点数ではなく両方の出力（座標の配列）そのものを `npm test` で突き合わせる。
+
+## 76. Power Apps のプレイヤーでアプリが白紙のまま（アプリの枠が表示されない）（検証済 2026-10-05）
+
+### 症状
+
+`apps.powerapps.com/play/...` を開くと、上部のヘッダーだけが表示され、アプリの領域が白紙のまま。Console に `Refused to` などの CSP 違反は出ない。自動操作のブラウザ（VS Code 統合ブラウザ等）で起きた。
+
+### 切り分け
+
+- アプリを載せる iframe（`id="fullscreen-app-host"`）が `display: none`・0×0 のまま、frame の URL は `about:blank`。iframe の `src`（`https://<env>.environment.api.powerplatformusercontent.com/powerapps/appruntime/<appId>/.../index.html`）への要求は 200
+- iframe の **`src` を直接開くとアプリは正常に表示される**（同じビルド・同じ CSP ヘッダー）。アプリの不具合ではなく、プレイヤー側でアプリの枠を表示する段階で止まっている
+- 同じ Console に出る `React.createElement: type is invalid` は `content.powerapps.com` のプレイヤー自身の警告で、アプリとは無関係
+
+### 対処
+
+- 実機確認（3D・CSP・データ）は、iframe の `src` を直接開いて行う。`?debug3d` のような明示フラグのクエリも付けられる
+- プレイヤーの枠が出ない件は、別のブラウザ（利用者の通常の Edge）で再生して再現するかを確かめ、再現しなければブラウザ側の問題として扱う
+- この状態ではプレイヤーが新しい版を読み込めず、iframe の `src` は**古い版のまま**のことがある（「You're using an old version of this app」→ Refresh でも変わらない）。デプロイ直後の版を直接開くには、Power Apps API のアプリ情報 `properties.appUris.codeAppPackageUri.value`（`https://<blob>/<パッケージキー>/index.html`）からパッケージキーを取り、`.../runtimeproxy/<パッケージキー>/index.html` に差し替える。
+
+  ```python
+  # GET https://api.powerapps.com/providers/Microsoft.PowerApps/apps/{appId}?api-version=2016-11-01
+  # スコープ: https://service.powerapps.com/.default（standard の auth_helper.get_token）
+  key = app["properties"]["appUris"]["codeAppPackageUri"]["value"].split("/")[-2]
+  runtime = old_src.rsplit("/runtimeproxy/", 1)[0] + f"/runtimeproxy/{key}/index.html"
+  ```
+
+## 77. 3D の画面を開くとアプリ全体が「Unexpected Application Error」になる（drei の Environment が HDR を取得）（検証済 2026-10-04）
+
+### 症状
+
+工事画面を開くと React Router の既定のエラー画面に切り替わる。Console に `Connecting to 'https://raw.githack.com/pmndrs/drei-assets/…/potsdamer_platz_1k.hdr' violates … connect-src` と `Could not load potsdamer_platz_1k.hdr: Failed to fetch`。
+
+### 原因
+
+drei の `<Environment preset="city">` は HDR を実行時に CDN から `fetch` する。#71 のローダーと違い、失敗は `Suspense` から ErrorBoundary まで伝わり、画面全体が落ちる。ローカルの `vite` では CSP が無いので再現しない。
+
+### 対処（恒久対策済み）
+
+`<Environment>` を外し、`hemisphereLight` と `directionalLight` で照らす。`detect-csp-hazards.mjs` の `drei-environment`（チェック 13）が `src` の `<Environment preset/files>` を、`pre-deploy-check.mjs` のチェック 14 が `dist` に残った `pmndrs/drei-assets` を、それぞれエラーにする。同じ書き方の drei / R3F のローダー フック（`useGLTF(url)` など）は `three-loader-hook`、`?inline` の無い `.glb` / `.hdr` などの import は `asset-url-import` で検出する。
+
+## 78. 3D のラベルを付けると「Attempted to synchronously unmount a root while React was already rendering」（検証済 2026-10-04）
+
+### 症状
+
+施工中の部位にラベルを出すと、再描画のたびに Console にこのエラーが並ぶ。画面は動くが、切り替えが重くなる。
+
+### 原因
+
+drei の `<Html>` はラベルごとに別の React root を作り、親の描画中にそれを unmount する。
+
+### 対処（恒久対策済み）
+
+ラベルは Canvas の外の DOM（`position: absolute` のボタン）に置き、`useFrame` で 3D 座標を `vector.project(camera)` して `transform` を更新する。`pre-deploy-check.mjs` のチェック 14 が drei の `<Html>` を警告する。→ [3D 施工進捗モデル](three-d-progress-model.md)
+
+## 79. 共通ヘッダーの選択を消したら、別画面の保存先が空になる（暗黙の既定値に依存）（検証済 2026-10-04）
+
+### 症状
+
+ヘッダーの「今の現場」選択を外した後、KY・ヒヤリハット・日報の画面で保存しても「現場は必須です」になる。選ぶ場所も無い。
+
+### 原因
+
+共有の Context が「先頭の工事を自動で選ぶ」処理を持ち、各画面はそれに依存していた。ヘッダーを外すときに自動選択も外したため、選択値が常に空になった。依存している画面は型エラーにならない。
+
+### 対処
+
+共有の選択値を外す前に、使っている画面を `grep`（例: `useProject()` / `selectedProjectId`）で洗い出す。各画面の見出しに選択欄を置き、未選択なら案内を表示する。選択は `localStorage` に記憶し、記憶した ID が一覧に無ければ未選択として扱う。
+
+## 80. `manualChunks` で `@react-three` を分けたら「Circular chunk: three-vendor -> vendor -> three-vendor」（検証済 2026-10-04）
+
+### 原因
+
+`@react-three/fiber` と `drei` は React に依存し、React は別のチャンク（vendor）にある。three 系をまとめて分けると、互いに import し合う。
+
+### 対処
+
+別チャンクに分けるのは React に依存しない `three` 本体だけにする（`if (id.includes("/three/")) return "three-vendor"`）。three 本体だけで約 750 KB あり、分けると 3D を使わない画面の初回読み込みが軽くなる。
+
+## 81. 3D の画面をヘッドレス Edge で撮ると背景だけが写る / Edge に接続できない（検証済 2026-10-05）
+
+### 症状
+
+- 固定時間（25 秒）待って撮っても、GLB の解析が終わらず背景だけが写る（空きメモリ 1 GB 程度の端末）
+- `--use-angle=swiftshader --enable-unsafe-swiftshader` を付けて起動すると、Edge が DevTools の準備前に終了し、接続できないことがある（#69 の黒い画面とは別。起動の段階で失敗する）
+
+### 対処（恒久対策済み）
+
+`capture_3d.mjs` に `--ready "<JS の式>" [--ready-timeout 180]` を足した。描画の準備完了を確かめてから撮り、条件が満たされなければ終了コード 1 になる。`--fail-on-error` を付けると、ページのエラーが 1 件でもあれば終了コード 1 になる。SwiftShader の起動オプションで接続できないときは、既定の描画経路で 1 回だけ起動し直す。
+
+## 82. Dataverse のファイル列を Range で分割取得すると、最後のチャンクだけ 416 になる（検証済 2026-10-05）
+
+### 症状
+
+4 MB ずつ `Range: bytes=<start>-<start+4MB-1>` で取得すると、ファイル末尾を超える最後の要求が `416 Requested Range Not Satisfiable` になる（4.16 MB の GLB で発生）。一般的な HTTP サーバーのように末尾で切り詰めない。画像列の `$value?size=full` は大きすぎる Range でも 206 で全体を返す。
+
+### 対処（恒久対策済み）
+
+保存時にファイルサイズを記録し（construction-cockpit では `gc_modelmapping.fileSize`）、取得側は `Math.min(start + 4MB, size) - 1` で末尾を止める。テンプレートの `src/lib/binary.ts` の `downloadInChunks` が期待サイズで止め、途中で切れたら例外にする。`scripts/test-cad-import.mjs` は末尾超えを 416 で失敗させる擬似サーバーで検証する。
+
+## 83. GLB の部品名で対応付けたのに、読み込むと一致しない（GLTFLoader がノード名を書き換える）（検証済 2026-10-05）
+
+### 症状
+
+CAD の部品名「IfcSlab 床」で対応付けを保存したのに、読み込んだモデルでは一致しない。階ごとの同名グループ「Columns」が 1 つしか対応付かない。
+
+### 原因
+
+GLTFLoader はノード名を `PropertyBinding.sanitizeNodeName` で整形し（空白 → `_`、`[]\.:/` を除去）、同名ノードに `_1`、`_2` を付けて一意にする。
+
+### 対処（恒久対策済み）
+
+対応付けのキーは **読み込み後のノード名** を使う（取り込み画面の一覧も読み込み後の名前を表示する）。同じ作業に複数の部品を割り当てた場合は、名前ではなく作業ごとに部品を集め、下から順の施工単位にする（`applyCadRules`）。スクリプトで対応付け JSON を作る場合は `PropertyBinding.sanitizeNodeName` で同じ整形をする（`scripts/cad-sample.mjs`）。
+
+## 84. Three.js の画面を画像にしたいが、`preserveDrawingBuffer` を付けずに `toDataURL` すると真っ黒になる（検証済 2026-10-05）
+
+### 対処
+
+R3F の `useFrame`（priority 0）の中で、別カメラで `gl.render(scene, camera)` → 直後に `gl.domElement.toDataURL()` を呼ぶ。同じタスク内で読めば描画バッファはまだ消えておらず、続く通常フレームが上書きするため画面もちらつかない。材質を一時的に差し替える場合は `finally` で必ず戻す。CSP で `blob:` を使えないため、出力は `data:` URL（JPEG）にして `img-src data:` で表示する。テンプレートの `SnapshotCapturer`（`project-model-3d.tsx`）と `task-snapshot.ts` を参照。
+
+## 85. 登録画面（`/xxx/new`）を追加すると、predeploy が「ナビから到達できないページ」と警告する
+
+### 対処（恒久対策済み）
+
+一覧の「登録」ボタンから開く `/<一覧>/new` は、詳細ルート `/<一覧>/:id` と同じく一覧から到達できる。`pre-deploy-check.mjs` の隠しページ判定で、親パスがナビにある `/new` も除外した（3 つのコピーで同一）。
+
+## 86. 進み具合のダイアログが最初の段から進まない（ローカルの試験では通る）（検証済 2026-10-05）
+
+### 症状
+
+デプロイした版を自動操作のブラウザで開くと、「3D モデルを生成しています」のダイアログが最初の段（解析）のまま 5 分以上閉じない。縮尺の自動調整も「合わせています…」のまま。Console にエラーは出ない。ローカルのヘッドレス試験では通る。
+
+### 原因
+
+段の間の待ちを `requestAnimationFrame` で作っていた。画面に見えていないページ（背景のタブ・自動操作のブラウザ）では
+- `requestAnimationFrame` が呼ばれない（待ちが永久に解決しない）
+- タイマー（`setTimeout`）も間引かれ、数分たつと 1 分に 1 回しか動かない（短いタイマーに切り替えても、候補を 9 回試すだけで 10 分以上かかる）
+
+ヘッドレスのブラウザは描画もタイマーも普通に動くので再現しない。最初は `requestAnimationFrame` と 50ms のタイマーの早い方にしたが、デプロイした版でまだ止まった。
+
+### 対処
+
+見えていないページでは `MessageChannel`（間引かれない）で次のタスクに回し、見えているときだけ `requestAnimationFrame` とタイマーの早い方で進める（[3d-asset-sharing.md](3d-asset-sharing.md)「生成の進み具合」の `nextFrame`）。
+画面から通す試験は `capture_3d.mjs --simulate-hidden`（`requestAnimationFrame` を止め、`visibilityState = hidden`、タイマーを 5 秒以上に間引く。`--simulate-hidden 60000` で実際の間引きに近づける）でも通す。
+試験側の待ちは `window.__origSetTimeout` を使う。**恒久対策済み** — `scripts/capture_3d.mjs` の `--simulate-hidden`。

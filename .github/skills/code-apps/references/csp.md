@@ -47,6 +47,16 @@ CSP（Content Security Policy）ディレクティブの追加が必要。
 地図を出すためだけに環境全体の CSP を有効化してはいけない。
 → ホスト共通の地図実装は [地図埋め込みパターン](../../standard/references/map-embed-pattern.md)。
 
+## 外部サイトのページ・公開 API を読む
+
+`connect-src` に外部ホストを足すより、**カスタム コネクタ（サーバー側）で取得**して生成サービスで呼ぶほうを先に検討する。
+環境の CSP を変えずに済み、取得先（ホスト・パス）をコネクタの定義で固定できる。認証なしの公開ページは
+[custom-connector の public-site](../../custom-connector/references/public-site.md)（ホスト固定・GET だけ、作成前に検査）。
+
+- 生成サービスはホスト（Power Apps のプレイヤー）経由で呼ばれる。アプリの URL を直接開いたとき・ローカル開発では呼べない前提で、代わりの入力（ページの内容の貼り付け）を用意する
+- 公開ページの取得は 20〜30 秒かかることがある。時限と進み具合を表示する
+- 実際の外部ページはリポジトリに入れず、同じ構造の合成ページで解析を試験する（[サンプル作成ガイド](sample-authoring-guide.md) §6）
+
 ## デフォルト CSP ディレクティブ
 
 Code Apps は以下のデフォルト CSP で動作する:
@@ -317,6 +327,20 @@ iframe 埋め込み（地図等）を実装する場合の手順:
 
 1. Console で `Refused to connect` エラーを確認
 2. **`connect-src`** に API ドメインを追加
+3. 追加したら `.env` に `CODE_APP_CSP_ALLOW=connect-src` を書く（predeploy チェック 13 の除外）
+
+### エラーが出ないのに読み込みだけ失敗する（事前検出: predeploy チェック 13）
+
+既定 CSP では `fetch` / `XMLHttpRequest` / `WebSocket` / three.js の `GLTFLoader.load` などのファイル読み込み /
+`Worker` / Draco・KTX2 デコーダー / `blob:` URL の画像表示が、**画面上は何も起きないまま**失敗する。
+`npm run predeploy` のチェック 13（`scripts/detect-csp-hazards.mjs`）がこれらの書き方をデプロイ前に止める。
+
+| 状況 | 対処 |
+|---|---|
+| 静的な JSON / 設定を `fetch` している | `import data from './x.json'` でバンドルに含める |
+| GLB / テクスチャをローダーで読む | 画像は `img-src 'self'` で読める。GLB は [3D 資産の共通利用](3d-asset-sharing.md) を参照 |
+| 環境に CSP を追加済み（外部 API 等） | `.env` に `CODE_APP_CSP_ALLOW=connect-src`（directive 名かルール ID をカンマ区切り） |
+| 1 行だけ正当な理由がある | 行末に `// csp-ok: <理由>` |
 
 ### CSP 設定が反映されない
 
