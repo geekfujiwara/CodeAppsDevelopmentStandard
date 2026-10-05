@@ -12,7 +12,7 @@
   AGENT_BOTID         対象 Bot の botid（未指定なら agent_botid.txt を読む）
   SKILL_DIR           スキルディレクトリ（既定: skill）
   SKILL_NAME          スキル名（既定: ディレクトリ名）
-  SKILL_DESCRIPTION   スキルの説明（任意）
+  SKILL_DESCRIPTION   スキルの説明（任意。未指定なら SKILL.md の frontmatter の description）
   AGENT_SCHEMA        Bot スキーマ名（skill コンポーネント schemaname 生成に使用）
   PUBLISHER_PREFIX    file コンポーネント schemaname の prefix（既定: geek）
 
@@ -31,6 +31,8 @@ sys.stderr.reconfigure(encoding="utf-8")
 _STD = Path(__file__).resolve().parents[2] / "standard" / "scripts"
 sys.path.insert(0, str(_STD))
 from auth_helper import get_session, DATAVERSE_URL  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from agent_env import skill_description  # noqa: E402
 
 API = f"{DATAVERSE_URL}/api/data/v9.2"
 
@@ -41,7 +43,9 @@ BOT_ID = os.getenv("AGENT_BOTID") or (
 )
 SKILL_DIR = Path(sys.argv[1] if len(sys.argv) > 1 else os.getenv("SKILL_DIR", "skill"))
 SKILL_NAME = os.getenv("SKILL_NAME") or SKILL_DIR.name
-SKILL_DESC = os.getenv("SKILL_DESCRIPTION", f"{SKILL_NAME} (flat Python skill)")
+SKILL_DESC = (os.getenv("SKILL_DESCRIPTION")
+              or (skill_description(SKILL_DIR / "SKILL.md") if (SKILL_DIR / "SKILL.md").is_file() else "")
+              or f"{SKILL_NAME} (flat Python skill)")
 BOT_SCHEMA = os.getenv("AGENT_SCHEMA", "geek_agent")
 PREFIX = os.getenv("PUBLISHER_PREFIX", "geek")
 

@@ -132,6 +132,22 @@ Agent flows の既存 Agent ノードは製品 UI のサポート経路を使い
 > [MCP サーバーの追加](references/mcp-servers.md) と
 > [Connector action の追加と検証](references/connector-tools.md) を参照。
 
+> **エージェントごとの設定は `agent.env` にまとめ、`--env-file` で渡す**（`deploy_agent.py` / `update_agent.py` /
+> `publish_agent.py` / `set_app_details.py`）。そのフォルダで実行するため、`instructions.md` / `prompts.json` / `skills/` の
+> 相対パスと `agent_botid.txt` がエージェントのフォルダに揃う。`SKILL_DIR` が複数スキルの親フォルダなら直下の各スキルを添付し、
+> 説明は各 SKILL.md の frontmatter から取る。Edit details は作成直後だと Teams チャネル未作成で失敗するが、動作に必須ではないため続行する。
+
+## テンプレート
+
+| テンプレート | 内容 |
+|---|---|
+| [agm-qa-author](templates/agm-qa-author/README.md) | 株主総会 想定問答アシスタント。Code Apps の `agm-qa-assist` と同じ Dataverse を本人の接続の Dataverse MCP で読み、想定問答・台本の下書きを作り、点検する。Cowork の `agm-qa-plugin` と同じスキル（Cowork で実行時にツールが 0 件になる場合の代替） |
+
+```powershell
+python .github/skills/update-skills/scripts/scaffold_from_template.py `
+  --template .github/skills/copilot-studio-v2/templates/agm-qa-author --target copilot-studio/agm-qa-author --env <answers.env> --dry-run
+```
+
 > **1 つのエージェントに複数スキルを添付する**場合は、`SKILL_DIR` / `SKILL_NAME` を変えて
 > `attach_skill.py` を必要な回数だけ実行する（削除は同名スキル限定のため、先に添付した分は残る）。
 > 対話系のスキルと、Agentflow から呼ばれる自動処理系のスキルは**分けて書く**。
@@ -327,7 +343,8 @@ MCP サーバーの追加は observed/private gateway API を承認付きで実�
 | [scripts/set_app_details.py](scripts/set_app_details.py) | Edit details 設定（PVA ゲートウェイ）。アイコン・説明文・開発元・リンク・MPN・store表示・Teams scopes・通話・SSO・M365 有効化。未設定はデフォルト補完 |
 | [scripts/attach_skill.py](scripts/attach_skill.py) | フラット Python スキルを添付（type=9 + type=14） |
 | [scripts/publish_agent.py](scripts/publish_agent.py) | PvaPublish で公開（リトライ付き） |
-| [scripts/deploy_agent.py](scripts/deploy_agent.py) | 一括: 作成→アイコン→Edit details→スキル→公開。初回ツールありは `--defer-publish` で公開保留 |
+| [scripts/deploy_agent.py](scripts/deploy_agent.py) | 一括: 作成→アイコン→Edit details→スキル→公開。初回ツールありは `--defer-publish` で公開保留。`--env-file` でエージェントの設定ファイルを読み、親フォルダの複数スキルを添付 |
+| [scripts/agent_env.py](scripts/agent_env.py) | `--env-file` の読み込み、複数スキルの列挙、SKILL.md frontmatter の description 取得（各スクリプト共通） |
 | [scripts/mcp_tool_plan.py](scripts/mcp_tool_plan.py) | 捕捉した `McpTool` / `ConnectorTool` change-set と接続参照を allowlist 検証し、plan / SHA-256 hash を生成 |
 | [scripts/create_initial_tools_manifest.py](scripts/create_initial_tools_manifest.py) | 複数の承認済みplan/hashを同一target・重複なしで検証し、初回投入manifestを生成 |
 | [scripts/mcp_tool_browser_runner.mjs](scripts/mcp_tool_browser_runner.mjs) | Save PUT の非変更捕捉、全plan事前検証、同一browser sessionでtool + connection referenceをapply、Dataverse read-back |

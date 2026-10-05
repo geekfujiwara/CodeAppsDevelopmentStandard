@@ -11,9 +11,10 @@ UI 手動作成は不要。template="cliagent-1.0.0" で POST /bots すると AP
   AGENT_SCHEMA         スキーマ名 {prefix}_{slug}（既定: AGENT_NAME を正規化）
   AGENT_MODEL_SERIES   モデルシリーズ（既定: claude-opus-5。references/model-series.md 参照）
   AGENT_INSTRUCTIONS   指示文（既定: プレースホルダ）
+  AGENT_INSTRUCTIONS_FILE  指示文のファイル（指定時は AGENT_INSTRUCTIONS より優先。update_agent.py と共通）
   AGENT_PROMPTS_FILE   初期メッセージ・推奨プロンプトの JSON（任意。set_prompts.py 参照）
   AGENT_GREETING / AGENT_PROMPTS   同上（ファイルを使わない場合）
-  SOLUTION_NAME        ソリューション名（任意。指定時 MSCRM.SolutionName ヘッダを付与）
+  SOLUTION_NAME        ソリューション一意名（任意。指定時 MSCRM.SolutionUniqueName ヘッダを付与し、作成後に所属を読み戻す）
 
 実行: python create_agent.py
 出力: 作成した botid を標準出力 + agent_botid.txt に保存
@@ -45,7 +46,10 @@ AGENT_SCHEMA = os.getenv("AGENT_SCHEMA") or (
 MODEL_SERIES = os.getenv("AGENT_MODEL_SERIES", "claude-opus-5")
 # 旧命名。POST は通るが UI で「モデルは廃止されました」になる
 DEPRECATED_SERIES = ("Sonnet46", "Sonnet5", "Opus5", "GPT4o")
-INSTRUCTIONS = os.getenv(
+_INSTRUCTIONS_FILE = os.getenv("AGENT_INSTRUCTIONS_FILE", "").strip()
+if _INSTRUCTIONS_FILE and not Path(_INSTRUCTIONS_FILE).is_file():
+    sys.exit(f"AGENT_INSTRUCTIONS_FILE が見つかりません: {_INSTRUCTIONS_FILE}")
+INSTRUCTIONS = (Path(_INSTRUCTIONS_FILE).read_text(encoding="utf-8-sig").strip() if _INSTRUCTIONS_FILE else "") or os.getenv(
     "AGENT_INSTRUCTIONS",
     "ここにエージェントの指示文を記載します。役割・口調・利用するスキルの優先順位を明確に書いてください。"
     "ファイルを出力する際は、毎回異なるファイル名にしてください"
@@ -53,6 +57,33 @@ INSTRUCTIONS = os.getenv(
 )
 SOLUTION_NAME = os.getenv("SOLUTION_NAME", "").strip()
 TEMPLATE = "cliagent-1.0.0"
+
+
+def ensure_in_solution(bot_id: str) -> None:
+    """作成した bot がソリューションに入ったかを読み戻し、無ければ AddSolutionComponent で追加する。"""
+    sess = get_session()
+    sol = api_get(f"solutions?$select=solutionid&$filter=uniquename eq '{SOLUTION_NAME}'").get("value", [])
+    if not sol:
+        print(f"❌ ソリューション {SOLUTION_NAME} が見つかりません（SOLUTION_NAME は一意名）", file=sys.stderr)
+        sys.exit(1)
+    sid = sol[0]["solutionid"]
+    flt = f"_solutionid_value eq {sid} and objectid eq {bot_id}"
+    if api_get(f"solutioncomponents?$select=objectid&$filter={flt}").get("value"):
+        print(f"   ソリューション: {SOLUTION_NAME} に所属（読み戻し確認）")
+        return
+    defs = api_get("solutioncomponentdefinitions?$select=solutioncomponenttype"
+                   "&$filter=primaryentityname eq 'bot'").get("value", [])
+    if len(defs) != 1:
+        print("❌ bot のソリューション コンポーネント種別を特定できません", file=sys.stderr)
+        sys.exit(1)
+    r = sess.post(f"{API}/AddSolutionComponent", json={
+        "ComponentId": bot_id, "ComponentType": defs[0]["solutioncomponenttype"],
+        "SolutionUniqueName": SOLUTION_NAME, "AddRequiredComponents": True, "DoNotIncludeSubcomponents": False,
+    })
+    if r.status_code not in (200, 204) or not api_get(f"solutioncomponents?$select=objectid&$filter={flt}").get("value"):
+        print(f"❌ ソリューション {SOLUTION_NAME} へ追加できません: {r.status_code} {r.text[:300]}", file=sys.stderr)
+        sys.exit(1)
+    print(f"   ソリューション: {SOLUTION_NAME} に追加しました（作成時のヘッダーでは入らなかったため）")
 
 
 def build_configuration() -> dict:
@@ -94,7 +125,8 @@ def main() -> None:
     sess = get_session()
     headers = {"Prefer": "return=representation"}
     if SOLUTION_NAME:
-        headers["MSCRM.SolutionName"] = SOLUTION_NAME
+        # MSCRM.SolutionName は無視され、2xx のまま既定ソリューションに作られる（ソリューションに入らない）
+        headers["MSCRM.SolutionUniqueName"] = SOLUTION_NAME
 
     body = {
         "name": AGENT_NAME,
@@ -120,6 +152,8 @@ def main() -> None:
     print(f"   モデル系列: {saved['model']['series']}（UI の Model 表示が「廃止されたモデル」でないか確認すること）")
     print(f"   初期メッセージ: {saved.get('greetingText') or '(未設定)'}")
     print(f"   推奨プロンプト: {len(saved.get('conversationStarters') or [])} 件")
+    if SOLUTION_NAME:
+        ensure_in_solution(bot_id)
 
     # プロビジョニング状態をポーリング
     for i in range(20):

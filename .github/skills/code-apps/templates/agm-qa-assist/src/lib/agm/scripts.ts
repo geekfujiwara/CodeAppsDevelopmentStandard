@@ -1,4 +1,4 @@
-// リハーサル台本（Dataverse の台本テーブル）。Cowork やアプリで作った台本を選んで、読み上げ・文字だけ再生に使う
+// リハーサル台本（Dataverse の台本テーブル）。Copilot Studio・Cowork・アプリで作った台本を選んで、読み上げ・文字だけ再生に使う
 import { createLogger } from "@/lib/debug-log"
 import type { ScriptLine } from "@/hooks/use-rehearsal"
 import { DATAVERSE_URL, ENTITY, col } from "./config"
@@ -32,7 +32,7 @@ export async function listScripts(): Promise<RehearsalScript[]> {
     .map((r) => {
       const { lines, dropped, repaired } = parseLines(String(r[col("lines")] ?? ""))
       if (dropped) log.warn("台本の行の一部を読めませんでした", { title: r[col("name")], dropped })
-      if (repaired) log.warn("台本の JSON が崩れていたため直して読みました（Cowork で作った台本は保存し直すと直ります）", { title: r[col("name")], lines: lines.length })
+      if (repaired) log.warn("台本の JSON が崩れていたため直して読みました（Copilot Studio・Cowork で作った台本は保存し直すと直ります）", { title: r[col("name")], lines: lines.length })
       if (!lines.length) log.warn("台本の JSON を読めないため一覧から外しました", { title: r[col("name")] })
       return { id: String(r[idCol]), title: String(r[col("name")] ?? ""), lines, note: String(r[col("note")] ?? ""), status: String(r[col("status")] ?? ""), createdVia: String(r[col("createdvia")] ?? "") }
     })
@@ -43,7 +43,7 @@ export async function listScripts(): Promise<RehearsalScript[]> {
 export const storedScriptId = () => localStorage.getItem(STORE_KEY) ?? DEMO_SCRIPT.id
 export const storeScriptId = (id: string) => localStorage.setItem(STORE_KEY, id)
 
-/** 台本を保存する（アプリから作るとき。Cowork は Dataverse MCP で直接作る） */
+/** 台本を保存する（アプリから作るとき。Copilot Studio・Cowork は Dataverse MCP で直接作る） */
 export async function createScript(title: string, lines: ScriptLine[], note = ""): Promise<string> {
   const r = await withTimeout(
     MicrosoftDataverseService.CreateRecordWithOrganization("return=representation", "application/json", DATAVERSE_URL, ENTITY.script, {
