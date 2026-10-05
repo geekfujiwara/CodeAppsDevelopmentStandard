@@ -105,6 +105,19 @@ def raw_registration_id(config_id: str, tenant_id: str) -> str:
     return decoded.split("##", 1)[1] if "##" in decoded else config_id
 
 
+def api_config_id(registration_id: str, tenant_id: str) -> str:
+    """API のパスに使う oAuthConfigId を返す。.env の生の registration ID（GUID）を渡しても 404 にならないよう、
+    Base64("<tenantId>##<registrationId>") に包む。既に包まれた値はそのまま返す。"""
+    import base64  # noqa: PLC0415
+
+    value = registration_id.strip().strip("'\"")
+    if raw_registration_id(value, tenant_id) != value:
+        return value
+    if not tenant_id:
+        raise SystemExit("生の registration ID を API に渡すには TENANT_ID が必要です（.env に設定してください）。")
+    return base64.b64encode(f"{tenant_id}##{value}".encode()).decode()
+
+
 def write_env(path: str, key: str, value: str) -> None:
     env = Path(path)
     lines = env.read_text(encoding="utf-8").splitlines() if env.exists() else []
@@ -201,12 +214,13 @@ def list_registrations(args: argparse.Namespace) -> None:
 
 def get_registration(args: argparse.Namespace) -> None:
     if args.transport == "cli":
-        item = portal_call("GET", "/" + quote(args.registration_id, safe=""))
+        item = portal_call("GET", "/" + quote(api_config_id(args.registration_id, os.getenv("TENANT_ID", "")), safe=""))
         print(json.dumps({**redact(item), "oAuthConfigId": mask(str(item.get("oAuthConfigId", "")))}, ensure_ascii=False, indent=2))
         return
     print(json.dumps({
         "method": "GET",
-        "url": f"{api_base(args.region)}/v1.0/oauthconfigurations/{quote(args.registration_id, safe='')}",
+        "url": f"{api_base(args.region)}/v1.0/oauthconfigurations/"
+               f"{quote(api_config_id(args.registration_id, os.getenv('TENANT_ID', '')), safe='')}",
     }, indent=2))
 
 
@@ -284,7 +298,7 @@ def load_update_payload(path: str) -> dict[str, Any]:
 
 def update_registration(args: argparse.Namespace) -> None:
     payload = load_update_payload(args.payload_file)
-    config_id = quote(args.registration_id, safe="")
+    config_id = quote(api_config_id(args.registration_id, os.getenv("TENANT_ID", "")), safe="")
     plan_payload = redact(payload)
     if payload.get("clientSecret"):
         plan_payload["clientSecretSha256"] = hashlib.sha256(payload["clientSecret"].encode()).hexdigest()
@@ -307,7 +321,8 @@ def update_registration(args: argparse.Namespace) -> None:
 
 
 def delete_registration(args: argparse.Namespace) -> None:
-    config_id = quote(args.registration_id, safe="")
+    wrapped = api_config_id(args.registration_id, os.getenv("TENANT_ID", ""))
+    config_id = quote(wrapped, safe="")
     path = f"/v1.0/oauthconfigurations/{config_id}"
     plan = {
         "operation": "delete-oauth-registration",
@@ -320,7 +335,7 @@ def delete_registration(args: argparse.Namespace) -> None:
     def run() -> None:
         if args.transport == "cli":
             portal_call("DELETE", "/" + config_id)
-            if any(str(i.get("oAuthConfigId")) == args.registration_id for i in list_items()):
+            if any(str(i.get("oAuthConfigId")) == wrapped for i in list_items()):
                 raise SystemExit("削除後も一覧に残っています")
             print("✅ 削除して一覧から消えたことを確認しました")
 

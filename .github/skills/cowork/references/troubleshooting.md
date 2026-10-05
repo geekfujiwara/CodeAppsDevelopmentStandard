@@ -558,3 +558,56 @@ Graph の `appCatalogs/teamsApps` にも現れないため、`appDefinitions` �
 
 - 原因: `top` を省くと 20 行まで。長い結果を途中で切って AI に渡すと、同じく件数を誤る（リハーサルの仕組み側で実際に起きた）。
 - 対処: スキルに「先に `COUNT` で件数を確かめ、`top` に件数以上を指定する」と書く。`rehearse_plugin.py` は結果を切ったときに明示する。
+
+## 46. Connect は成功しているのに、Cowork の実行時に Dataverse MCP のツールが 0 件になる
+
+- 症状: Customize → Plugins でコネクタが「Disconnect」（接続済み）と表示され、Disconnect → Connect の再認証もできる。
+  スキルは読み込まれるが、新しいタスクでも「Dataverse MCP のツールが利用できない」と返り、`describe` が一度も呼ばれない。
+  アプリ登録・管理者同意・allowedmcpclients（`diagnose_cowork_connector.py`）、OAuth registration、
+  サーバーの `tools/list`（`rehearse_plugin.py tools`）はすべて正常。
+- 切り分け済みの非原因: `referenceId` の形式（#23）、OAuth registration の Scope・Base URL、ツール名の不一致（#15）、
+  プラグインの無効化 → 有効化、接続トークンの再発行、**manifest の版（1.28 の固定ツール定義 → 1.29 の動的ツール検出でも同じ）**、
+  プラグイン固有の設定（OAuth アプリ・登録が別の 2 つ目のプラグインでも同じ）。
+- 決め手: **Entra のサインイン ログ**（`check_oauth_signins.py`）。Connect のたびに Cowork のトークン保管庫が
+  このアプリで Dataverse 宛てのトークンを取得し、すべて成功（errorCode 0・条件付きアクセス notApplied）していた。
+  認証は通っているのに、Cowork がそのコネクタのツールを会話に読み込んでいない＝Cowork 側の問題。
+  Microsoft Q&A にも「`OAuthPluginVault` の接続は成功するが、ツール呼び出しにトークンが渡らない」報告がある（公式回答は未確認）。
+- 対処:
+  1. `check_oauth_signins.py` で判定する。失敗（AADSTS）があればテナント側を直す。記録が無ければ Connect と referenceId を確認する。
+  2. すべて成功なら、プラグインやテナントの設定では直らない。会話 ID・トークン発行時刻・再現条件を添えて Microsoft サポートへ上げる。
+  3. 業務を止めないため、**同じスキルを Copilot Studio のエージェントで動かす**（copilot-studio-v2 の
+     [templates/agm-qa-author](../../copilot-studio-v2/templates/agm-qa-author/README.md)。本人の接続の Dataverse MCP で実データの登録まで確認済み）。
+- 版の選び方: manifest 1.29 では `mcpToolDescription` が任意で、省略時は実行時に `tools/list` で取得する（`wiqd plugin create` も 1.29）。
+  動的検出ではサーバーの全ツール（削除・テーブル変更を含む）が見えるため、スキルに「使うツール / 呼ばないツール」を明記し、
+  利用者の Dataverse ロールで書き込み・削除を絞る。
+- 恒久対策済み: `build_agent_package.ps1` が manifest 1.28 で `mcpToolDescription` を省いたパッケージを止め、参照されたツール定義だけを同梱する。
+  `rehearse_plugin.py tools` は動的検出なら「スキルが挙げたツールがサーバーにあるか」を確かめ、`run` は読み取り 5 ツール以外を書き込みとして止める。
+  `check_oauth_signins.py` がトークン発行の成否から、テナント側か Cowork 側かを判定する。
+
+## 47. OAuth registration を `get` すると 404 になり、削除されたと誤認する
+
+- 症状: `manage_oauth_registration_api.py get --registration-id <.env の COWORK_OAUTH_REGISTRATION_ID>` が
+  `404 NotFound`（`Could not retrieve OAuthConfigurationRegistration`）を返すが、`list` には同じ登録が出る。
+- 原因: `.env` には**生の** registration ID（GUID）を保存するが、Developer Portal API のパスは
+  `oAuthConfigId` = `Base64("<tenantId>##<registrationId>")` を要求する。生の GUID をそのまま渡すと 404 になる。
+  404 を「登録が消えた」と読んで、`.env` の差し替えや再作成に進むと遠回りになる。
+- 対処: 404 のときは `list` で clientId・Base URL が一致する登録の有無を先に確かめる。
+- 恒久対策済み: `api_config_id()`（`manage_oauth_registration_api.py`）が `get` / `update` / `delete` で生の ID を自動で包む
+  （既に包まれた値はそのまま）。テスト: `test_manage_oauth_registration_api.py`。
+
+## 48. 自分だけにインストールしたプラグインが、管理センターの Tools → Plugins に出ない
+
+- 症状: Cowork の Customize → Plugins にはあるが、管理センター Agents → Tools → Plugins で名前を検索しても 0 件。
+  Cowork の詳細 URL の ID が `U_...` で始まる（組織に公開したものは `T_...`）。
+- 原因: `install_agent_package_personal.py`（`atk install --scope Personal` 相当）で入れた個人インストールは、
+  組織カタログ（管理センター）に登録されない。
+- 対処: 版の更新は同じ manifest `id` のまま version を上げ、`install_agent_package_personal.py install` を再実行する
+  （plan → hash 承認 → `--apply`。読み戻しの `titleId` が同じ `U_...` で version が上がったことを確認）。
+  管理センターの更新経路（Step 10）は組織に公開したプラグインだけに使う。
+- 確認: 更新後に Cowork の詳細の Version を読み戻し、新しいタスクで `describe` を呼ばせて実行時のツールまで確かめる。
+  詳細画面の「Disconnect」（接続済み）表示は、実行時にツールが使えることの証明にはならない（#46）。
+
+## 49. `check_mcp_client.py` が判定のあと `UnicodeEncodeError: 'cp932'` で落ちる
+
+- 原因: 日本語 Windows の既定コンソールは cp932 で、結果表示の `✅` / `❌` を出力できない。判定自体は済んでいるが終了コード 1 になる。
+- 恒久対策済み: `check_mcp_client.py`（standard スキル）が起動時に標準出力を UTF-8 に切り替える。

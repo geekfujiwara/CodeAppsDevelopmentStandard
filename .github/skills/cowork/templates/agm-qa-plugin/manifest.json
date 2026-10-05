@@ -1,6 +1,6 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.28/MicrosoftTeams.schema.json",
-  "manifestVersion": "1.28",
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.29/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.29",
   "version": "1.0.0",
   "id": "${COWORK_PLUGIN_ID}",
   "developer": {
@@ -35,7 +35,6 @@
       "toolSource": {
         "remoteMcpServer": {
           "mcpServerUrl": "${DATAVERSE_ORIGIN}/api/mcp",
-          "mcpToolDescription": { "file": "dataverse-mcp-tools.json" },
           "authorization": {
             "type": "OAuthPluginVault",
             "referenceId": "__COWORK_OAUTH_REGISTRATION_ID__"

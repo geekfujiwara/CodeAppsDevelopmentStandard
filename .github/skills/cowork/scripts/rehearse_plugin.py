@@ -1,12 +1,15 @@
 """Cowork プラグインのスキルを、公開前に実際の Dataverse MCP で通しで試す（リハーサル）。
 
-Cowork の画面を使わずに、プラグインの SKILL.md（指示）と dataverse-mcp-tools.json（使えるツール）が
+Cowork の画面を使わずに、プラグインの SKILL.md（指示）と使えるツールが
 実際の Dataverse MCP と生成 AI で意図どおり動くかを確かめる。Cowork と同じく
 「スキルの指示 + MCP のツール」でエージェントを動かし、会話とツール呼び出しを記録する。
+使えるツールは manifest に合わせる。mcpToolDescription があればそのファイルのツールだけ（固定）、
+無ければ（manifest 1.29 以降の動的ツール検出）サーバーの tools/list すべてを使う。
 
   setup-client : リハーサル用の公開クライアント（Device Code / localhost）を作り、mcp.tools の管理者同意と
                  allowedmcpclients への登録まで行う（--apply が無ければ計画だけ）。Cowork 本体のアプリとは別
-  tools        : MCP の tools/list と、プラグインの dataverse-mcp-tools.json の差を出す（読み取りのみ）
+  tools        : MCP の tools/list と、プラグインが使うツールの差を出す。動的検出なら、スキル本文が
+                 名前を挙げているツールがサーバーにあるかを確かめる（読み取りのみ）
   run          : スキルを 1 つ選び、--prompt で依頼し、--reply で利用者の返事（確認など）を順に返す。
                  既定は書き込み系ツール（create_record など）を送らずに止める。--allow-write で実際に登録する
 
@@ -39,7 +42,10 @@ sys.path.insert(0, str(STANDARD))
 DYNAMICS_CRM_APP_ID = "00000007-0000-0000-c000-000000000000"
 MCP_TOOLS_PERMISSION_ID = "a4c5bee6-25ff-4bb5-b926-b7eb8062ae7a"
 GRAPH = "https://graph.microsoft.com/v1.0"
-WRITE_TOOLS = {"create_record", "update_record", "delete_record", "upsert_skill", "create_table", "update_table", "delete_table"}
+# 動的検出ではサーバーの全ツールが見えるため、読み取りと確定しているもの以外はすべて書き込みとして止める
+READ_TOOLS = {"describe", "search", "search_data", "read_query", "file_download"}
+KNOWN_TOOL_NAMES = READ_TOOLS | {"create_record", "update_record", "delete_record", "upsert_skill", "delete_skill",
+                                 "create_table", "update_table", "delete_table", "init_file_upload", "commit_file_upload"}
 ENV_KEY = "COWORK_REHEARSAL_CLIENT_ID"
 
 
@@ -171,9 +177,30 @@ class Mcp:
         return ("[isError] " if result.get("isError") else "") + text
 
 
-def plugin_tools(root: Path) -> list[str]:
-    data = json.loads((root / "dataverse-mcp-tools.json").read_text(encoding="utf-8-sig"))
-    return [t["name"] for t in data.get("tools", [])]
+def is_write(name: str) -> bool:
+    return name not in READ_TOOLS
+
+
+def plugin_tools(root: Path) -> list[str] | None:
+    """manifest の mcpToolDescription が指すツール名。無ければ None（動的ツール検出）。"""
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8-sig"))
+    files = [((c.get("toolSource") or {}).get("remoteMcpServer") or {}).get("mcpToolDescription", {}).get("file")
+             for c in manifest.get("agentConnectors", [])]
+    files = [f for f in files if f]
+    if not files:
+        return None
+    names: list[str] = []
+    for f in files:
+        data = json.loads((root / f).read_text(encoding="utf-8-sig"))
+        names += [t["name"] for t in data.get("tools", [])]
+    return names
+
+
+def skill_tool_names(root: Path) -> list[str]:
+    import re  # noqa: PLC0415
+
+    text = "\n".join(p.read_text(encoding="utf-8") for p in (root / "skills").rglob("*.md"))
+    return sorted(n for n in KNOWN_TOOL_NAMES if re.search(rf"`{re.escape(n)}[`(]", text))
 
 
 def tools_diff(args: argparse.Namespace) -> None:
@@ -181,11 +208,21 @@ def tools_diff(args: argparse.Namespace) -> None:
     root = Path(args.plugin_root)
     server = {t["name"] for t in Mcp().tools()}
     declared = plugin_tools(root)
+    if declared is None:
+        used = skill_tool_names(root)
+        missing = [n for n in used if n not in server]
+        print(json.dumps({"mode": "dynamic", "usedBySkills": used, "missingOnServer": missing,
+                          "exposedToCowork": sorted(server), "writeCapable": sorted(n for n in server if is_write(n))},
+                         ensure_ascii=False, indent=2))
+        if missing:
+            raise SystemExit("✖ スキルが使うツールがサーバーにありません（Cowork でそのツールが動かない）")
+        print("✅ 動的ツール検出: スキルが使うツールはすべてサーバーにあります（書き込み系はスキルの禁止事項で制御）")
+        return
     missing = [n for n in declared if n not in server]
-    print(json.dumps({"declared": declared, "missingOnServer": missing, "serverOnly": sorted(server - set(declared))},
-                     ensure_ascii=False, indent=2))
+    print(json.dumps({"mode": "pinned", "declared": declared, "missingOnServer": missing,
+                      "serverOnly": sorted(server - set(declared))}, ensure_ascii=False, indent=2))
     if missing:
-        raise SystemExit("✖ dataverse-mcp-tools.json に、サーバーに無いツール名があります（Cowork でそのツールが動かない）")
+        raise SystemExit("✖ mcpToolDescription に、サーバーに無いツール名があります（Cowork でそのツールが動かない）")
     print("✅ プラグインのツール名はすべてサーバーにあります")
 
 
@@ -240,8 +277,9 @@ def run(args: argparse.Namespace) -> None:
     root = Path(args.plugin_root)
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8-sig"))
     mcp = Mcp()
-    declared = set(plugin_tools(root))
+    pinned = plugin_tools(root)
     server_tools = mcp.tools()
+    declared = set(pinned) if pinned is not None else {t["name"] for t in server_tools}
     missing = declared - {t["name"] for t in server_tools}
     if missing:
         raise SystemExit(f"✖ サーバーに無いツール名: {sorted(missing)}（先に tools で確認）")
@@ -276,11 +314,11 @@ def run(args: argparse.Namespace) -> None:
                 arguments = json.loads(call["function"].get("arguments") or "{}")
             except json.JSONDecodeError:
                 arguments = {}
-            if name in WRITE_TOOLS and not args.allow_write:
+            if is_write(name) and not args.allow_write:
                 result = "[rehearsal] dry-run のため書き込みは送っていません。利用者には「登録は行っていない」と伝えてください。"
             else:
                 result = mcp.call(name, arguments)
-            calls.append({"tool": name, "write": name in WRITE_TOOLS, "sent": not (name in WRITE_TOOLS and not args.allow_write),
+            calls.append({"tool": name, "write": is_write(name), "sent": not (is_write(name) and not args.allow_write),
                           "error": result.startswith("[isError]")})
             print(f"  · {name} {shorten(json.dumps(arguments, ensure_ascii=False), 160)} → {shorten(result, 120)}", flush=True)
             log += [f"### ツール: `{name}`", "", "```json", shorten(json.dumps(arguments, ensure_ascii=False, indent=1), 3000), "```", "",
