@@ -8,6 +8,7 @@ import {
   normalizeVersionSpec,
   npmMarker,
   parseIssueLabels,
+  UPSTREAM_SOURCES,
   upstreamMarker,
 } from './check-sdk-updates.mjs';
 
@@ -22,6 +23,15 @@ test('normalizeVersionSpec handles common package.json ranges', () => {
 test('parseIssueLabels keeps a shared default set and honors env overrides', () => {
   assert.deepEqual(parseIssueLabels('sdk-update, enhancement, release-note '), ['sdk-update', 'enhancement', 'release-note']);
   assert.deepEqual(parseIssueLabels(''), []);
+});
+
+test('upstream checks exclude the public canvas-apps skill', () => {
+  assert.deepEqual(UPSTREAM_SOURCES, [
+    'plugins/code-apps',
+    'plugins/mobile-apps',
+    'plugins/power-automate',
+    'plugins/power-pages',
+  ]);
 });
 
 test('issueCoversNpm accepts source markers and legacy issue text', () => {
