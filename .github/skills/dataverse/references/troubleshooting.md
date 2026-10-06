@@ -961,7 +961,8 @@ if not meta.get("CanStoreFullImage"):
 Dataverse 検索の検索列を増やすためのビュー更新を API で行わない。カスタム テーブルの既定の検索対象は主列（名前）だけなので、
 アプリ側で関連性検索（名前）と OData の `contains`（番号・住所など）を併用し、関連性検索の順位を優先して重複を除く。
 テーブルを検索インデックスに入れること自体は `EntityDefinitions` の `SyncToExternalSearchIndex: true` を PUT すれば API でできる。
-実装例: code-apps の construction-cockpit テンプレート `scripts/setup_dataverse_search.py` と `src/lib/record-search.ts`。
+**恒久対策済み**: 同梱の [scripts/setup_dataverse_search.py](../scripts/setup_dataverse_search.py) は検索インデックスへの登録だけを行い、ビューを変更しない（`test_setup_dataverse_search.py` が `savedqueries(` の呼び出しが無いことを検査）。
+アプリ側の実装例: code-apps の [Dataverse 検索のドロップダウン](../../code-apps/references/dataverse-search.md) と construction-cockpit テンプレートの `src/lib/record-search.ts`。
 
 ## 30. 画像列を作成直後に CanStoreFullImage を有効化すると、読み戻しが false のまま
 

@@ -335,3 +335,18 @@ git diff --no-index --name-status .github/skills/<s> $env:TEMP\main_sync/.github
 **恒久対策済み** — `publish_skill.py` の `stale_overwrites()`。書き換えるファイルごとに PR 先（既存 PR のブランチ／ベース）での最後のコミット時刻を調べ、
 手元のファイルの更新時刻より新しければ止める（`--allow-overwrite` で明示的に許す）。
 
+## 30. 使い方を確かめるつもりで `--help` を付けたら、スクリプトが書き込みまで実行した
+
+### 症状
+
+`python sync_dataverse_client.py --help` を実行したら、使い方は表示されず、samples 配下の 17 個のコピーが上書きされた。
+
+### 原因
+
+`"--check" in sys.argv` のように**引数を直接調べるスクリプト**は、知らない引数（`--help`・打ち間違い）を黙って無視し、既定の動作（書き込み）に進む。
+
+### 対処（恒久対策済み）
+
+書き込みを伴うスクリプトは `argparse` で引数を解釈し、`--help` で使い方を出し、未知の引数は終了コード 2 で止める
+（code-apps `sync_dataverse_client.py` を修正）。新しいスクリプトでも `sys.argv` を直接見ない。
+既存のスクリプトの使い方は、実行する前にファイル先頭の docstring を読んで確かめる。

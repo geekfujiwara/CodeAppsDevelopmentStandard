@@ -56,3 +56,15 @@ MCP tool編集dialogにConfirmが表示された場合は、Inputsの読み込�
 公開する。Confirmクリック自体に独立したnetwork requestはなく、editor内でSaveをenabledにする遷移として
 観測されている。公開後に未Confirm状態が見つかった場合も、同じdialogでConfirm、Save、再公開する。
 詳細は [mcp-servers.md](mcp-servers.md) を参照。
+
+## 公開後に利用者へ配るリンク（Teams / Microsoft 365 Copilot）
+
+公開すると `bots.applicationmanifestinformation`（JSON）の `microsoft365` に Teams のアプリ ID と共有リンクが入る（2026-10-06 実測）。
+
+| 値 | リンク |
+|---|---|
+| `microsoft365.appId`（GUID） | `https://teams.microsoft.com/l/app/<appId>`（Teams で開く） |
+| `microsoft365.shareLink` | Microsoft 365 Copilot で開く |
+
+`publish_agent.py` は公開後にこの 2 つを表示する（`share_links()`）。初回公開の直後は空のことがあり、数分後に再実行すると入る。
+リンクを開ける利用者は、エージェントの共有設定（アクセス制御）と Teams のアプリ ポリシーに従う。

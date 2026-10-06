@@ -661,6 +661,7 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 ページ・コンポーネントからは直接呼ばない（`validate_sample.py` が検出する）。
 
 Dataverse CRUD ラッパーは **[templates/dataverse-client.ts](templates/dataverse-client.ts) を正**とし、手書きせずコピーして使う。
+検索ボックス・ドロップダウンは同ファイルの `Search`（Dataverse 検索）を使う（[Dataverse 検索のドロップダウン](references/dataverse-search.md)）。
 
 ```bash
 cp .github/skills/code-apps/templates/dataverse-client.ts src/lib/
@@ -747,6 +748,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [日本語サニタイズ](references/japanese-sanitize.md) | 旧ネイティブ add-data-source 方式の日本語 DisplayName 回避 |
 | [CSP 構成](references/csp.md) | iframe 埋め込み・外部 API・WebSocket 接続・録音の再生時の CSP 設定・CSP 安全な SDK メソッド一覧 |
 | [3D 資産の共通利用](references/3d-asset-sharing.md) | 3D モデル・素材ライブラリを複数アプリ / Blender と共通利用する際の CSP・色合わせ・ライセンス・検証（契約検証とヘッドレス描画） |
+| [Dataverse 検索のドロップダウン](references/dataverse-search.md) | 工事・ユーザーなどの候補検索。関連性検索（`GetRelevantRows`）と部分一致の統合、簡易検索ビューを API で変えない理由、アクセシブルなコンボボックス |
 | [3D 施工進捗モデル](references/three-d-progress-model.md) | 完成形を破線、施工中をクリッピングで立ち上げる進捗表示・部位と工程の対応・BIM/CIM の glTF・GLB の書き出し |
 | [デバイス・メディア](references/device-media.md) | マイク・`AudioContext`・録音・PCM 変換の正常系、SDK にマイクを直接渡さない理由、CPU 負荷、前提欠落時の開始抑止、Console へのログ集約 |
 | [ホスト再現テスト](references/host-emulation-testing.md) | 別オリジン iframe + Code Apps 既定 CSP + 疑似マイクをローカルで再現し、ヘッドレス Edge の Console ログで判定する |
