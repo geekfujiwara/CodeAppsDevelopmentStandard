@@ -10,6 +10,7 @@ SDK の破壊的変更でラッパーを直すときは、templates/dataverse-cl
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -21,8 +22,11 @@ CANONICAL = BASE / "templates" / "dataverse-client.ts"
 COPY_REL = Path("src/lib/dataverse-client.ts")
 
 
-def main() -> int:
-    check_only = "--check" in sys.argv
+def main(argv: list[str] | None = None) -> int:
+    # 未知の引数（--help の打ち間違いなど）で上書きを始めないよう、引数を厳密に解釈する
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--check", action="store_true", help="上書きせず差分の有無だけを返す（CI 用）")
+    check_only = parser.parse_args(argv).check
 
     if not CANONICAL.is_file():
         print(f"❌ 正となるファイルがありません: {CANONICAL}")

@@ -342,7 +342,7 @@ MCP サーバーの追加は observed/private gateway API を承認付きで実�
 | [scripts/set_icon.py](scripts/set_icon.py) | アイコン登録（iconbase64 / Teams color / outline） |
 | [scripts/set_app_details.py](scripts/set_app_details.py) | Edit details 設定（PVA ゲートウェイ）。アイコン・説明文・開発元・リンク・MPN・store表示・Teams scopes・通話・SSO・M365 有効化。未設定はデフォルト補完 |
 | [scripts/attach_skill.py](scripts/attach_skill.py) | フラット Python スキルを添付（type=9 + type=14） |
-| [scripts/publish_agent.py](scripts/publish_agent.py) | PvaPublish で公開（リトライ付き） |
+| [scripts/publish_agent.py](scripts/publish_agent.py) | PvaPublish で公開（リトライ付き）。公開後に Teams / Microsoft 365 Copilot で開くリンクを表示（`bots.applicationmanifestinformation` の `microsoft365.appId` / `shareLink`） |
 | [scripts/deploy_agent.py](scripts/deploy_agent.py) | 一括: 作成→アイコン→Edit details→スキル→公開。初回ツールありは `--defer-publish` で公開保留。`--env-file` でエージェントの設定ファイルを読み、親フォルダの複数スキルを添付 |
 | [scripts/agent_env.py](scripts/agent_env.py) | `--env-file` の読み込み、複数スキルの列挙、SKILL.md frontmatter の description 取得（各スクリプト共通） |
 | [scripts/mcp_tool_plan.py](scripts/mcp_tool_plan.py) | 捕捉した `McpTool` / `ConnectorTool` change-set と接続参照を allowlist 検証し、plan / SHA-256 hash を生成 |

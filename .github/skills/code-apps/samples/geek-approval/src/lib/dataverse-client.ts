@@ -87,4 +87,16 @@ export const DataverseService = {
     const result = await MicrosoftDataverseService.DeleteRecordWithOrganization(org, entityName, recordId)
     return unwrap<void>(result)
   },
+  /**
+   * Dataverse 検索（関連性検索）。entities は論理名（例: "<prefix>_project", "systemuser"）。
+   * テーブルを検索の対象にしておく必要がある（dataverse スキルの setup_dataverse_search.py）。
+   * 結果は ID とスコアが中心で、列の値は環境によって含まれないため、ID で ListRecords し直す。
+   * 使い方: references/dataverse-search.md
+   */
+  async Search(entities: string[], term: string, top = 10) {
+    const result = await MicrosoftDataverseService.GetRelevantRows({ search: term, entities, top, searchtype: "simple", searchmode: "any" })
+    return (unwrap<{ value?: DataverseRow[] }>(result).value ?? [])
+      .map((row) => ({ id: String(row["@search.objectid"] ?? ""), entity: String(row["@search.entityname"] ?? ""), score: Number(row["@search.score"] ?? 0) }))
+      .filter((hit) => hit.id)
+  },
 }

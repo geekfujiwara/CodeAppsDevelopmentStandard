@@ -336,6 +336,14 @@ SVG WebResource 作成 → `IconVectorName` の PUT 設定パターンが記載�
 > 「〜率 100%」を狙った KPI が達成できず、実装バグと区別がつかなくなる。
 > デモデータ計画の段階で「この KPI が 100% になるための最低件数」を確認する。
 
+### Dataverse 検索（検索ボックス・ドロップダウン）
+
+| ルール | 理由 |
+|--------|------|
+| **検索の対象にするのは API でできる** | `python scripts/setup_dataverse_search.py --table <prefix>_xxx --table systemuser`（`SyncToExternalSearchIndex` を PUT して読み戻す）。反映は数分〜十数分かかるため `--query` で確認する |
+| **簡易検索ビューは API で変更しない** | `fetchxml` の PATCH は内容を変えなくても 400（0x80040216）になる。カスタム テーブルの検索対象は主列だけなので、番号・住所などはアプリ側で `contains` を併用し、関連性検索の順位を優先して重複を除く（[troubleshooting #29](references/troubleshooting.md)） |
+| **画像は JSON の base64 で登録できる** | 画像列は作成・更新の本文に `"<列>": "<base64>"` を入れられ、フルサイズで保存される。AI エージェントの Dataverse ツールから写真を登録する経路に使える（[troubleshooting #30](references/troubleshooting.md)） |
+
 ## テーブル設計テンプレート
 
 ```markdown
@@ -399,6 +407,7 @@ SVG WebResource 作成 → `IconVectorName` の PUT 設定パターンが記載�
 |---|---|
 | [scan_environment.py](scripts/scan_environment.py) | **設計前の環境スキャン**。標準/既存カスタムテーブルを棚卸しし、再利用推奨レポートを出力（Step 1） |
 | [setup_dataverse.py](scripts/setup_dataverse.py) | テーブル・Lookup・ローカライズ・デモデータの一括構築（Step 4） |
+| [setup_dataverse_search.py](scripts/setup_dataverse_search.py) | テーブルを Dataverse 検索（関連性検索）の対象にする・状態確認・検索の動作確認（`--table` 複数可、`--check`、`--query`）。簡易検索ビューは変更しない |
 
 ### テンプレート（プロジェクト用にカスタマイズ）
 

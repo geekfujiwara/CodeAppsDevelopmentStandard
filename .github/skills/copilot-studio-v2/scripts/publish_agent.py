@@ -18,6 +18,7 @@ PvaPublish アクションを呼ぶ。プロビジョニング直後は一時的
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
@@ -63,6 +64,34 @@ def publish(sess, bot_id: str, retries: int = 3) -> bool:
     return False
 
 
+def share_links(manifest: dict) -> dict[str, str]:
+    """公開で払い出される Teams / Microsoft 365 のアプリ情報から、利用者に配るリンクを作る。
+
+    bots.applicationmanifestinformation の microsoft365.appId（Teams のアプリ ID）と shareLink を使う。
+    初回公開の直後は空のことがある（数分後の再公開・再実行で入る）。
+    """
+    m365 = (manifest or {}).get("microsoft365") or {}
+    links: dict[str, str] = {}
+    app_id = str(m365.get("appId") or "").strip()
+    if re.fullmatch(r"[0-9a-fA-F-]{36}", app_id):
+        links["teams"] = f"https://teams.microsoft.com/l/app/{app_id}"
+    share = str(m365.get("shareLink") or "").strip()
+    if share.startswith("https://"):
+        links["m365"] = share
+    return links
+
+
+def print_share_links(bot_id: str) -> None:
+    raw = api_get(f"bots({bot_id})?$select=applicationmanifestinformation").get("applicationmanifestinformation") or "{}"
+    links = share_links(json.loads(raw))
+    if links.get("teams"):
+        print(f"Teams で開く: {links['teams']}")
+    if links.get("m365"):
+        print(f"Microsoft 365 Copilot で開く: {links['m365']}")
+    if not links:
+        print("⚠️ Teams のアプリ ID がまだありません。数分後に publish_agent.py を再実行してください。")
+
+
 def main() -> None:
     load_env_file(sys.argv[1:])
     bot_id = resolve_bot()
@@ -71,6 +100,7 @@ def main() -> None:
     if not publish(sess, bot_id):
         sys.exit(1)
     print("確認: pac copilot list（Published / Active / Provisioned）")
+    print_share_links(bot_id)
     print("※ MCP tool dialog が未Confirmなら、Confirm → Save → 再公開してください。")
 
 
