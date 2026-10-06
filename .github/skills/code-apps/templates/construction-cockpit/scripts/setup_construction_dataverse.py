@@ -210,6 +210,32 @@ TABLES = [
             {"logical": "${PUBLISHER_PREFIX}_error", "display": "エラー", "type": "Memo", "maxLength": 2000},
         ],
     },
+    {
+        # 日報に添付する現場写真。Copilot Studio のアシスタント（Teams）とアプリから登録する
+        "logical": "${PUBLISHER_PREFIX}_reportphoto",
+        "display": "日報写真",
+        "plural": "日報写真",
+        "columns": [
+            {"logical": "${PUBLISHER_PREFIX}_photo", "display": "写真", "type": "Image", "maxSizeInKB": 10240},
+            {"logical": "${PUBLISHER_PREFIX}_caption", "display": "説明", "type": "String", "maxLength": 500},
+            {"logical": "${PUBLISHER_PREFIX}_takenon", "display": "撮影日時", "type": "DateTime"},
+        ],
+    },
+    {
+        # 日報に含まれる工程進捗の報告（下書き）。監督が承認すると作業の進捗（${PUBLISHER_PREFIX}_task.${PUBLISHER_PREFIX}_progress）に反映される
+        "logical": "${PUBLISHER_PREFIX}_progressentry",
+        "display": "進捗報告",
+        "plural": "進捗報告",
+        "columns": [
+            {"logical": "${PUBLISHER_PREFIX}_reportedprogress", "display": "報告進捗", "type": "Integer", "minValue": 0, "maxValue": 100},
+            {"logical": "${PUBLISHER_PREFIX}_previousprogress", "display": "報告前の進捗", "type": "Integer", "minValue": 0, "maxValue": 100},
+            {"logical": "${PUBLISHER_PREFIX}_approvedprogress", "display": "承認した進捗", "type": "Integer", "minValue": 0, "maxValue": 100},
+            {"logical": "${PUBLISHER_PREFIX}_completedunit", "display": "完了した施工単位", "type": "String", "maxLength": 200},
+            {"logical": "${PUBLISHER_PREFIX}_note", "display": "報告内容", "type": "Memo", "maxLength": 4000},
+            choice("${PUBLISHER_PREFIX}_reviewstatus", "監督確認", [(100000000, "下書き"), (100000001, "提出済"), (100000002, "承認"), (100000003, "差戻し")]),
+            {"logical": "${PUBLISHER_PREFIX}_reviewcomment", "display": "監督コメント", "type": "Memo", "maxLength": 4000},
+        ],
+    },
 ]
 
 LOOKUPS = [
@@ -229,6 +255,11 @@ LOOKUPS = [
     ("${PUBLISHER_PREFIX}_equipmentusage", "${PUBLISHER_PREFIX}_equipment", "重機", "${PUBLISHER_PREFIX}_equipment"),
     ("${PUBLISHER_PREFIX}_kyprediction", "${PUBLISHER_PREFIX}_project", "工事", "${PUBLISHER_PREFIX}_project"),
     ("${PUBLISHER_PREFIX}_kyprediction", "${PUBLISHER_PREFIX}_worktype", "工種", "${PUBLISHER_PREFIX}_worktype"),
+    ("${PUBLISHER_PREFIX}_reportphoto", "${PUBLISHER_PREFIX}_dailyreport", "日報", "${PUBLISHER_PREFIX}_dailyreport"),
+    ("${PUBLISHER_PREFIX}_reportphoto", "${PUBLISHER_PREFIX}_task", "作業", "${PUBLISHER_PREFIX}_task"),
+    ("${PUBLISHER_PREFIX}_progressentry", "${PUBLISHER_PREFIX}_dailyreport", "日報", "${PUBLISHER_PREFIX}_dailyreport"),
+    ("${PUBLISHER_PREFIX}_progressentry", "${PUBLISHER_PREFIX}_task", "作業", "${PUBLISHER_PREFIX}_task"),
+    ("${PUBLISHER_PREFIX}_progressentry", "${PUBLISHER_PREFIX}_project", "工事", "${PUBLISHER_PREFIX}_project"),
 ]
 
 
@@ -382,7 +413,12 @@ def ensure_full_images() -> None:
             metadata.pop("@odata.context", None)
             metadata.update({"@odata.type": "Microsoft.Dynamics.CRM.ImageAttributeMetadata", "CanStoreFullImage": True})
             retry_metadata(lambda a=attribute, m=metadata: api_request(a, m, method="PUT"), f"full image {column['logical']}")
-            if not api_get(f"{path}?$select=CanStoreFullImage").get("CanStoreFullImage"):
+            # 作成直後の列は、PUT が成功しても読み戻しに反映されるまで数十秒かかることがある
+            for _ in range(12):
+                if api_get(f"{path}?$select=CanStoreFullImage").get("CanStoreFullImage"):
+                    break
+                time.sleep(10)
+            else:
                 raise SystemExit(f"{table['logical']}.{column['logical']} をフルサイズ保存にできませんでした")
             print(f"enabled full image: {table['logical']}.{column['logical']}")
 

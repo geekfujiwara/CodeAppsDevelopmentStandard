@@ -223,6 +223,10 @@ export function ReportDetail() {
   const sameDayKy = (ky.data ?? []).filter((row) => item && row.projectId === item.projectId && formatDate(row.date) === day)
   const sameDayIncidents = (incidents.data ?? []).filter((row) => item && row.projectId === item.projectId && formatDate(row.occurredOn) === day)
   const machines = (usage.data ?? []).filter((row) => row.reportId === id)
+  const photos = useQuery({ queryKey: ["report-photos"], queryFn: ConstructionService.reportPhotos })
+  const entries = useQuery({ queryKey: ["progress-entries"], queryFn: ConstructionService.progressEntries })
+  const reportPhotos = (photos.data ?? []).filter((row) => row.reportId === id)
+  const reportEntries = (entries.data ?? []).filter((row) => row.reportId === id)
   const project = item ? lookups.project.get(item.projectId) : undefined
   const reviewable = item && (item.reviewStatus === REVIEW_STATUS.submitted || item.reviewStatus === REVIEW_STATUS.returned || item.reviewStatus === REVIEW_STATUS.draft)
   return (
@@ -261,6 +265,26 @@ export function ReportDetail() {
             <Field label="明日の予定" wide>{item.nextPlan}</Field>
             <Field label="特記事項" wide>{item.remarks}</Field>
           </FieldGrid>
+        </Section>
+        <Section title={`現場写真（${reportPhotos.length}）`}>
+          {photos.isError ? <p className="text-sm text-rose-700">写真を読み込めませんでした。</p> : !reportPhotos.length ? <p className="text-sm text-slate-500">写真はありません。</p> : (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {reportPhotos.map((photo) => (
+                <figure key={photo.id} className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+                  {photo.thumbnail ? <img src={`data:image/jpeg;base64,${photo.thumbnail}`} alt={photo.caption || "現場写真"} className="aspect-[4/3] w-full object-cover" /> : <span className="grid aspect-[4/3] place-items-center bg-slate-100 text-xs text-slate-500 dark:bg-slate-800">プレビューなし</span>}
+                  <figcaption className="truncate px-2 py-1 text-xs">{photo.caption || photo.name}</figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
+        </Section>
+        <Section title={`進捗の報告（${reportEntries.length}）`} description="承認・差戻しは「承認待ち」画面で写真と一緒に行います。">
+          {!reportEntries.length ? <p className="text-sm text-slate-500">この日報には進捗の報告がありません。</p> : (
+            <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
+              {reportEntries.map((entry) => <li key={entry.id} className="flex flex-wrap justify-between gap-2 py-2"><span className="font-bold">{lookups.taskName(entry.taskId) || entry.name}</span><span>{entry.previousProgress}% → <b>{entry.reportedProgress}%</b>{entry.completedUnit && `（${entry.completedUnit} まで）`} · {REVIEW_LABEL[entry.reviewStatus] ?? ""}</span></li>)}
+            </ul>
+          )}
+          <p className="mt-2 text-sm"><Link to="/approvals" className="font-bold text-cyan-700 dark:text-cyan-300">承認待ちを開く</Link></p>
         </Section>
         <Section title="重機の稼働">
           {!machines.length ? <p className="text-sm text-slate-500">稼働記録はありません。</p> : (

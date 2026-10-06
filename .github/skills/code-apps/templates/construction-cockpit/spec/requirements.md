@@ -184,6 +184,28 @@
 - `VITE_KY_AI=off` で AI を使わない設定にできる。
 - Workflow の受け入れ確認は `python scripts/verify_ky_workflow.py`（1 回分のクレジットを使う）。
 
+### FR-21 工事・ユーザーのドロップダウン検索（Dataverse 検索） ✅ 実装済
+
+- 工事一覧の検索、各入力画面の「現場」、承認待ちの絞り込みで、入力すると候補をドロップダウンで表示する（300ms 待って検索、上下キー・Enter・Esc、古い応答は捨てる）。
+- 工事は Dataverse 検索（関連性検索、`GetRelevantRows`）の順位を優先し、工事番号・発注者・住所・現場代理人の部分一致で補って重複を除く。ユーザーは氏名・メールで探し、無効化・アプリケーション ユーザーを除く。
+- Dataverse 検索が使えないときは部分一致だけで表示し、その旨を候補の下に表示する。
+- 工事・作業・日報・ユーザーを検索インデックスに入れる設定は `python scripts/setup_dataverse_search.py`（`--query` で動作確認）。
+
+### FR-22 Teams のアシスタントでの日報報告（写真・進捗の下書き） ✅ 実装済（Dataverse ツールの追加はブラウザ操作が必要）
+
+- 「現場コックピット アシスタント」に `daily-report-intake` スキルを追加し、Teams / Microsoft 365 Copilot に公開した。
+- 会話で工事を特定し、日報の項目を聞き取り、添付された写真を確認して説明と作業の案を示し、作業ごとの進捗（% または施工単位）を聞き取る。確認表に「はい」と答えると、日報（提出済）・写真（`${PUBLISHER_PREFIX}_reportphoto`）・進捗報告（`${PUBLISHER_PREFIX}_progressentry`、提出済）を登録する。作業の正式な進捗は変えない。
+- 写真は `photo_payload.py` で長辺 1600px の JPEG に縮小し、撮影日時を取り出してから位置情報などのメタデータを除き、画像列に base64 で登録する。
+- Teams で開くリンクは `deploy_assistant.py` の実行時に表示する。
+
+### FR-23 監督の承認待ち画面 ✅ 実装済
+
+- メニュー「承認待ち」（`/approvals`）で、提出された日報ごとに、作業内容・天候・人員・報告者・現場写真（サムネイル、クリックでフルサイズ）・進捗の報告（作業・現在・報告・施工単位・根拠）を表示する。
+- 確認待ち / 差戻し中 / 承認済みの切替と、工事・報告者のドロップダウン検索で絞り込む。確認待ちは古い提出から並べる。
+- 承認する進捗を監督が修正でき（0〜100 の整数）、「承認して進捗に反映」で作業の進捗と 3D に反映する。差戻しは理由が必須。
+- 注意点（現在値より低い、報告後に進捗が変わった、作業が無い、写真が無い、1 日で 40 ポイント以上の増加）を表示する。
+- 日報に紐づかない工程進捗の提出も同じ画面で承認・差戻しできる。日報の詳細にも写真と進捗の報告を表示する。
+
 ## 5. Dataverse 追加項目
 
 | テーブル | 列 | 用途 |
@@ -205,6 +227,8 @@
 | `${PUBLISHER_PREFIX}_task` | `${PUBLISHER_PREFIX}_predecessor` | 先行作業（`${PUBLISHER_PREFIX}_task` への自己参照 Lookup） |
 | `${PUBLISHER_PREFIX}_project` | `${PUBLISHER_PREFIX}_modelfile` | CAD モデル本体（ファイル列、50 MB） |
 | `${PUBLISHER_PREFIX}_project` | `${PUBLISHER_PREFIX}_modelmapping` | CAD の座標・単位・部品と作業の対応付け・施工単位（JSON） |
+| `${PUBLISHER_PREFIX}_reportphoto` | （テーブル） | 日報の現場写真: `${PUBLISHER_PREFIX}_photo`（画像列、フルサイズ）・`${PUBLISHER_PREFIX}_caption`・`${PUBLISHER_PREFIX}_takenon`・日報・作業 |
+| `${PUBLISHER_PREFIX}_progressentry` | （テーブル） | 日報に含まれる進捗報告（下書き）: 報告前・報告・承認した進捗、完了した施工単位、報告内容、監督確認、日報・作業・工事 |
 | `${PUBLISHER_PREFIX}_kyprediction` | （テーブル） | KY の AI 危険予測の要求と結果: `${PUBLISHER_PREFIX}_requestkey`・`${PUBLISHER_PREFIX}_input`・`${PUBLISHER_PREFIX}_prompt`・`${PUBLISHER_PREFIX}_predictionstatus`（待機 / 処理中 / 完了 / 失敗）・`${PUBLISHER_PREFIX}_result`・`${PUBLISHER_PREFIX}_error`・工事・工種 |
 | `${PUBLISHER_PREFIX}_task` | `${PUBLISHER_PREFIX}_locationimage` | 施工位置イメージ（画像列、フルサイズ保存。作成時の指定は無視されるため設定スクリプトが作成後に有効化する） |
 
@@ -301,9 +325,17 @@
 | T-72 | KY AI 画面 | 予測中の状態表示、中断、AI / 過去事例の区別と理由の表示 | ✅ UI 契約テスト（48 件 OK） |
 | T-73 | KY AI テーブル | `${PUBLISHER_PREFIX}_kyprediction` と列・Lookup の作成 | ✅ 作成を確認（0 件） |
 | T-74 | KY AI Workflow | `verify_ky_workflow.py` が output-verified になる | 未実施（Workflow の作成にサインイン済みのブラウザが必要） |
+| T-75 | 検索ロジック | `npm run test:approvals`: 部分一致の条件・GUID 以外の除外・検索順位の優先と重複除去 | ✅ |
+| T-76 | Dataverse 検索 | 工事「港南」とユーザー「Geek」が検索インデックスから返る | ✅ 1 件 / 2 件 |
+| T-77 | 承認待ちロジック | 日報・写真・進捗のまとめ、並び順、絞り込み、注意点、承認値の検証 | ✅ 5 件成功（T-75 と合わせて 8 件） |
+| T-78 | 日報の登録経路 | `verify_report_intake.py`: スキルと同じ JSON で日報・写真・進捗を登録し、写真がフルサイズで送った JPEG と一致、位置情報の除去、作業の進捗が変わらない | ✅ 4 項目合格（1600×1200・31 KB） |
+| T-79 | 写真の変換 | `pytest agent/cockpit-assistant/tests`: 縮小・向き補正・撮影日時・位置情報の除去・不正な画像 | ✅ 72 件成功（換算を含む） |
+| T-80 | UI 契約 | 検索ドロップダウンと承認待ち画面 | ✅ 51 件 OK |
+| T-81 | 公開 | アシスタントにスキル 4 本を添付して公開し、Teams のリンクを取得 | ✅ |
+| T-82 | Teams での会話 | Teams で日報と写真を報告し、承認待ちに表示されて承認で 3D に反映される | 未実施（エージェントへの Dataverse ツールの追加にサインイン済みのブラウザが必要） |
 
 ## 8. 完了条件
 
 - 本文の FR がすべて ✅ 実装済。
-- T-01〜T-74 の実行可能なテストが成功。
+- T-01〜T-82 の実行可能なテストが成功。
 - Cowork の管理者同意・公開が未完の場合は、ソース完成とテナント公開ゲートを明確に分離して報告する。

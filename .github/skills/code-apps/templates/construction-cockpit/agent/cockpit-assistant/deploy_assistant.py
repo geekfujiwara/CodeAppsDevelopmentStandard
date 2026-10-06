@@ -30,6 +30,7 @@ from auth_helper import api_get  # noqa: E402
 SKILLS = {
     "progress-3d-report": "工程の進捗報告（施工単位で報告→進捗率に換算→監督確認へ提出）と 3D 出来形の確認。Use when: 進捗報告, 何階まで, 出来形, 3D",
     "field-records": "KY・ヒヤリハット・ナレッジ・日報・重機稼働のまとめ登録。Use when: KY を登録, ヒヤリハット, 日報を提出, ナレッジ登録",
+    "daily-report-intake": "Teams の会話で日報を作成し、現場写真と作業ごとの進捗を下書きとして提出する。Use when: 日報, 今日の報告, 現場写真, 写真を登録",
     "review-maintenance": "監督の承認・修正承認・差戻しと記録のメンテナンス・ナレッジ化。Use when: 承認, 差戻し, 確認待ち, 記録の修正",
 }
 
@@ -105,6 +106,20 @@ def main() -> None:
     # 公開で Teams チャネルが有効になった後に Edit details を保存し、もう一度公開して反映する
     if "--skip-details" not in sys.argv[1:] and set_app_details():
         run("publish_agent.py")
+    print_teams_link(bot)
+
+
+def print_teams_link(bot: str) -> None:
+    """公開で払い出される Teams / Microsoft 365 のアプリ ID から、利用者に配るリンクを表示する"""
+    import json
+    manifest = json.loads(api_get(f"bots({bot})?$select=applicationmanifestinformation").get("applicationmanifestinformation") or "{}")
+    m365 = manifest.get("microsoft365") or {}
+    if m365.get("appId"):
+        print(f"\nTeams で開く: https://teams.microsoft.com/l/app/{m365['appId']}")
+    if m365.get("shareLink"):
+        print(f"Microsoft 365 Copilot で開く: {m365['shareLink']}")
+    if not m365.get("appId"):
+        print("\n⚠️ Teams のアプリ ID がまだありません。公開後に数分待って再実行してください。")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  CheckCheck,
   ClipboardCheck,
   FileText,
   HardHat,
@@ -22,6 +23,7 @@ export type NavSection = { title: string; items: NavItem[] }
 const coreItems: NavItem[] = [
   { key: "site-map", label: "現場マップ", path: "/site-map" },
   { key: "project-orbit", label: "工事オービット", path: "/projects" },
+  { key: "approvals", label: "承認待ち", path: "/approvals" },
   { key: "ky", label: "KY 活動", path: "/ky" },
   { key: "incidents", label: "ヒヤリハット", path: "/incidents" },
   { key: "reports", label: "日報", path: "/reports" },
@@ -37,6 +39,7 @@ export const NAV_SECTIONS: NavSection[] = [{ title: "メニュー", items: [...c
 export const ICON_MAP: Record<string, LucideIcon> = {
   "site-map": MapPinned,
   "project-orbit": Orbit,
+  approvals: CheckCheck,
   ky: ClipboardCheck,
   incidents: ShieldAlert,
   reports: FileText,

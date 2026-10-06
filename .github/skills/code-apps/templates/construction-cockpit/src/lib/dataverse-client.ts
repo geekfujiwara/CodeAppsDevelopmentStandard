@@ -45,6 +45,13 @@ interface GeneratedDataverseService {
     item: string,
     fileName: string,
   ): Promise<OperationResult<void>>
+  GetRelevantRows(request: {
+    search: string
+    entities?: string[]
+    top?: number
+    searchtype?: string
+    searchmode?: string
+  }): Promise<OperationResult<{ value?: Array<Record<string, unknown>> }>>
   GetEntityFileImageFieldContentWithOrganization(
     range: string,
     organization: string,
@@ -72,7 +79,12 @@ const ENTITY_SET_NAMES = {
   ${PUBLISHER_PREFIX}_equipment: "${PUBLISHER_PREFIX}_equipments",
   ${PUBLISHER_PREFIX}_equipmentusage: "${PUBLISHER_PREFIX}_equipmentusages",
   ${PUBLISHER_PREFIX}_kyprediction: "${PUBLISHER_PREFIX}_kypredictions",
+  ${PUBLISHER_PREFIX}_reportphoto: "${PUBLISHER_PREFIX}_reportphotos",
+  ${PUBLISHER_PREFIX}_progressentry: "${PUBLISHER_PREFIX}_progressentries",
+  systemuser: "systemusers",
 } as const
+
+export type SearchHit = { id: string; entity: string; score: number; attributes: Record<string, unknown> }
 
 export type DataverseEntityName = keyof typeof ENTITY_SET_NAMES
 
@@ -153,6 +165,26 @@ export const DataverseService = {
       recordId,
       body,
     ))
+  },
+  /**
+   * Dataverse 検索（関連性検索）。テーブルが検索インデックスに入っている必要がある（scripts/setup_dataverse_search.py）。
+   * 結果は ID と検索スコアが中心で、列の値は環境によって含まれないため、呼び出し側で ID から読み直す。
+   */
+  async search(entities: DataverseEntityName[], term: string, top = 10): Promise<SearchHit[]> {
+    const svc = await service()
+    const result = await svc.GetRelevantRows({
+      search: term, entities, top, searchtype: "simple", searchmode: "any",
+    })
+    const rows = (unwrap<{ value?: Array<Record<string, unknown>> }>(result).value ?? [])
+    return rows.map((row) => {
+      const attributes = Object.fromEntries(Object.entries(row).filter(([key]) => !key.startsWith("@")))
+      return {
+        id: String(row["@search.objectid"] ?? ""),
+        entity: String(row["@search.entityname"] ?? ""),
+        score: Number(row["@search.score"] ?? 0),
+        attributes,
+      }
+    }).filter((hit) => hit.id)
   },
   /** ファイル列・画像列へアップロードする（生成サービスが base64 をバイト列に戻して送る） */
   async uploadFile(entityName: DataverseEntityName, recordId: string, column: string, fileName: string, bytes: Uint8Array) {

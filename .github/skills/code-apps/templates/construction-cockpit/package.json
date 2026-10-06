@@ -13,6 +13,7 @@
     "export:cad-sample": "node scripts/export-cad-sample.mjs",
     "test:cad": "node scripts/test-cad-import.mjs",
     "test:ky": "node scripts/test-ky-ai.mjs",
+    "test:approvals": "node scripts/test-approvals.mjs",
     "preview": "vite preview",
     "predeploy": "node scripts/pre-deploy-check.mjs",
     "deploy": "npm run build && npm run predeploy && pa app push"

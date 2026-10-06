@@ -948,3 +948,29 @@ if not meta.get("CanStoreFullImage"):
 保存時にファイルサイズを記録し、取得側は `min(start + 4 MB, size) - 1` で末尾を止める。1 回の Range は 4 MB 以内にする。
 画像列の `$value?size=full` は大きすぎる Range でも 206 で全体を返すため、この問題は起きない。
 実装例: construction-cockpit テンプレートの `scripts/upload_cad_model.py`（読み戻し）と `src/lib/binary.ts` の `downloadInChunks`。
+
+## 29. 簡易検索ビュー（Quick Find）の fetchxml を Web API で更新すると 400（0x80040216）
+
+### 症状
+
+`PATCH savedqueries(<id>)` で `fetchxml` を送ると、内容を変えずに送っても `400 {"code":"0x80040216","message":"An unexpected error occurred."}` になる
+（2026-10-06、カスタム テーブル 2 つで再現。`description` だけの PATCH は 204 で成功し、`layoutxml` の同送・`MSCRM.SolutionUniqueName` でも変わらない）。
+
+### 対処
+
+Dataverse 検索の検索列を増やすためのビュー更新を API で行わない。カスタム テーブルの既定の検索対象は主列（名前）だけなので、
+アプリ側で関連性検索（名前）と OData の `contains`（番号・住所など）を併用し、関連性検索の順位を優先して重複を除く。
+テーブルを検索インデックスに入れること自体は `EntityDefinitions` の `SyncToExternalSearchIndex: true` を PUT すれば API でできる。
+実装例: code-apps の construction-cockpit テンプレート `scripts/setup_dataverse_search.py` と `src/lib/record-search.ts`。
+
+## 30. 画像列を作成直後に CanStoreFullImage を有効化すると、読み戻しが false のまま
+
+### 症状
+
+#27 の手順で `CanStoreFullImage: true` を PUT した直後に読み戻すと `false` が返り、確認で止まる。数十秒後に読み直すと `true` になっている。
+
+### 対処（恒久対策済み）
+
+読み戻しを 10 秒間隔で最大 2 分待つ（construction-cockpit テンプレートの `ensure_full_images()`）。
+なお、画像列は JSON の本文に base64 文字列を入れて作成・更新でき（`"<列>": "<base64>"`）、フルサイズで保存される
+（送った JPEG と `$value?size=full` の取得結果がバイト単位で一致することを確認）。AI エージェントの Dataverse ツールから写真を登録する経路に使える。
