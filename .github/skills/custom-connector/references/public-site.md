@@ -66,3 +66,24 @@ const html = decodeConnectorText(typeof data === "string" ? data : "")
 ```
 
 試験では、合成した HTML を `TextEncoder` で UTF-8 にし、1 バイト = 1 文字の文字列にしてから読み直せることを確かめる（SDK と同じ経路）。
+
+### 画像も取り込む
+
+- 同じホストに画像の配信口（例: `/<path>/resizeImage?src=…`）があれば、ホストを増やさず GET の操作を足す（コネクタのホストは 1 つ。別ホストにすると接続・DLP の分類が増える）
+- 操作の `produces` を `image/jpeg` などにし、応答は `"default"` だけで宣言する。SDK は `image/*` の応答を **base64 の文字列**で返すので、先頭（`/9j/` = JPEG、`iVBOR` = PNG）で種類を確かめて `data:` URL にする
+- 取り込むパスは robots.txt で許可された範囲だけをアプリ側で受け付ける（例: `src` が許可されたディレクトリで始まるか）。1 回の操作で取得する枚数に上限を付ける
+- 画像の一覧はページの HTML から読む（遅延読み込みの画像は `rel` / `data-src` に URL が入る）
+
+### 画面から通しで試す（コネクタの差し替え）
+
+コネクタは Power Apps のホスト経由でしか呼べないので、ローカルのプレビューでは画面の配線（取得 → 解析 → 保存）を試せない。
+**明示的な検証用の URL（例: `?debug3d`）のときだけ**、`window` に置いた差し替えを生成サービスの代わりに使えるようにする。差し替えは、実際にコネクタから取得した応答を **SDK と同じ形**で返す（HTML は `atob(base64)` で 1 バイト = 1 文字の文字列、画像は base64）。
+
+```ts
+type Source = { page: (id: string) => Promise<{ success: boolean; data?: unknown }>; image: (src: string) => Promise<{ success: boolean; data?: unknown }> }
+const connector: Source = { page: id => ExampleService.GetPage(id), image: src => ExampleService.GetImage(src) }
+function source(): Source {
+  const mock = /[?&]debug3d\b/.test(location.search + location.hash) ? (window as unknown as { __sourceMock?: Source }).__sourceMock : undefined
+  return mock ?? connector
+}
+```
