@@ -19,7 +19,6 @@ export const UPSTREAM_SOURCES = [
   'plugins/mobile-apps',
   'plugins/power-automate',
   'plugins/power-pages',
-  'plugins/canvas-apps',
 ];
 
 const UPSTREAM_REPOSITORY = 'microsoft/power-platform-skills';
