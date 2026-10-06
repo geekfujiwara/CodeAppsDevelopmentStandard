@@ -1,5 +1,6 @@
 import { DataverseService, type DataverseRow } from "@/lib/dataverse-client"
 import { asciiFileName, base64ToBytes } from "@/lib/binary"
+import { containsFilter, idFilter, mergeRanked, type Ranked } from "@/lib/record-search"
 import type { CadMapping } from "@/lib/models/cad-import"
 import { BUNDLED_BRIDGE_URL, CAD_MODEL_URL, MODEL_TYPE_BRIDGE } from "@/lib/models/model-source"
 
@@ -63,6 +64,39 @@ export type DailyReport = {
   reviewComment: string
   photoUrl: string
   photoCaption: string
+  /** 作成者（Teams のアシスタントから登録した場合は報告者本人） */
+  createdById: string
+  createdBy: string
+  createdOn: string
+}
+export type AppUser = { id: string; name: string; email: string; title: string }
+export type ReportPhoto = {
+  id: string
+  name: string
+  reportId: string
+  taskId: string
+  caption: string
+  takenOn: string
+  /** 一覧取得で返るサムネイル（base64）。フルサイズは reportPhotoFull で取得する */
+  thumbnail: string
+  version: number
+}
+export type ProgressEntry = {
+  id: string
+  name: string
+  reportId: string
+  taskId: string
+  projectId: string
+  reportedProgress: number
+  previousProgress: number
+  approvedProgress: number
+  completedUnit: string
+  note: string
+  reviewStatus: number
+  reviewComment: string
+  createdById: string
+  createdBy: string
+  createdOn: string
 }
 export type KyActivity = {
   id: string
@@ -111,6 +145,16 @@ const text = (row: DataverseRow, key: string) => String(row[key] ?? "")
 const number = (row: DataverseRow, key: string) => Number(row[key] ?? 0)
 const bool = (row: DataverseRow, key: string) => Boolean(row[key])
 const escapeOData = (value: string) => value.replaceAll("'", "''")
+const formatted = (row: DataverseRow, key: string) => String(row[`${key}@OData.Community.Display.V1.FormattedValue`] ?? "")
+const REVIEW = { submitted: 100000001, approved: 100000002, returned: 100000003 } as const
+const taskStatus = (progress: number) => (progress >= 100 ? 100000002 : progress > 0 ? 100000001 : 100000000)
+
+const mapUser = (row: DataverseRow): AppUser => ({
+  id: text(row, "systemuserid"), name: text(row, "fullname"), email: text(row, "internalemailaddress"), title: text(row, "title"),
+})
+const USER_SELECT = ["systemuserid", "fullname", "internalemailaddress", "title"]
+/** 有効な利用者だけ（無効化・アプリケーション ユーザーを除く） */
+const ACTIVE_USERS = "isdisabled eq false and accessmode ne 4"
 
 const mapProject = (row: DataverseRow): Project => ({
   id: text(row, "${PUBLISHER_PREFIX}_projectid"), name: text(row, "${PUBLISHER_PREFIX}_name"), projectNo: text(row, "${PUBLISHER_PREFIX}_projectno"),
@@ -131,6 +175,85 @@ export const ConstructionService = {
   async projects(): Promise<Project[]> {
     const rows = await DataverseService.list("${PUBLISHER_PREFIX}_project", undefined, undefined, "${PUBLISHER_PREFIX}_name asc")
     return rows.map(mapProject)
+  },
+  /** 工事のドロップダウン検索: Dataverse 検索（名前）と工事番号・発注者・住所の部分一致を統合する */
+  async searchProjectOptions(term: string): Promise<{ items: Ranked<Project>[]; searchError?: string }> {
+    const keyword = term.trim()
+    if (!keyword) return { items: [] }
+    const [hits, contains] = await Promise.allSettled([
+      DataverseService.search(["${PUBLISHER_PREFIX}_project"], keyword, 10),
+      DataverseService.list("${PUBLISHER_PREFIX}_project", undefined, containsFilter(["${PUBLISHER_PREFIX}_name", "${PUBLISHER_PREFIX}_projectno", "${PUBLISHER_PREFIX}_client", "${PUBLISHER_PREFIX}_address", "${PUBLISHER_PREFIX}_sitemanager"], keyword), "${PUBLISHER_PREFIX}_name asc"),
+    ])
+    const ids = hits.status === "fulfilled" ? hits.value.map((hit) => hit.id) : []
+    const searchRows = ids.length ? (await DataverseService.list("${PUBLISHER_PREFIX}_project", undefined, idFilter("${PUBLISHER_PREFIX}_projectid", ids))).map(mapProject) : []
+    const containsRows = contains.status === "fulfilled" ? contains.value.map(mapProject) : []
+    if (hits.status === "rejected" && contains.status === "rejected") throw hits.reason
+    return {
+      items: mergeRanked(ids, searchRows, containsRows, (item) => item.id, 15),
+      searchError: hits.status === "rejected" ? (hits.reason instanceof Error ? hits.reason.message : "Dataverse 検索を使えません") : undefined,
+    }
+  },
+  /** ユーザーのドロップダウン検索: Dataverse 検索と氏名・メールの部分一致を統合する */
+  async searchUsers(term: string): Promise<{ items: Ranked<AppUser>[]; searchError?: string }> {
+    const keyword = term.trim()
+    if (!keyword) return { items: [] }
+    const [hits, contains] = await Promise.allSettled([
+      DataverseService.search(["systemuser"], keyword, 10),
+      DataverseService.list("systemuser", USER_SELECT, `${ACTIVE_USERS} and (${containsFilter(["fullname", "internalemailaddress"], keyword)})`, "fullname asc"),
+    ])
+    const ids = hits.status === "fulfilled" ? hits.value.map((hit) => hit.id) : []
+    const searchRows = ids.length ? (await DataverseService.list("systemuser", USER_SELECT, `${ACTIVE_USERS} and (${idFilter("systemuserid", ids)})`)).map(mapUser) : []
+    const containsRows = contains.status === "fulfilled" ? contains.value.map(mapUser) : []
+    if (hits.status === "rejected" && contains.status === "rejected") throw hits.reason
+    return {
+      items: mergeRanked(ids, searchRows, containsRows, (item) => item.id, 15),
+      searchError: hits.status === "rejected" ? (hits.reason instanceof Error ? hits.reason.message : "Dataverse 検索を使えません") : undefined,
+    }
+  },
+  async reportPhotos(): Promise<ReportPhoto[]> {
+    return (await DataverseService.list("${PUBLISHER_PREFIX}_reportphoto", undefined, undefined, "${PUBLISHER_PREFIX}_takenon asc")).map((row) => ({
+      id: text(row, "${PUBLISHER_PREFIX}_reportphotoid"), name: text(row, "${PUBLISHER_PREFIX}_name"),
+      reportId: text(row, "_${PUBLISHER_PREFIX}_dailyreport_value"), taskId: text(row, "_${PUBLISHER_PREFIX}_task_value"),
+      caption: text(row, "${PUBLISHER_PREFIX}_caption"), takenOn: text(row, "${PUBLISHER_PREFIX}_takenon"),
+      thumbnail: text(row, "${PUBLISHER_PREFIX}_photo"), version: number(row, "${PUBLISHER_PREFIX}_photo_timestamp"),
+    }))
+  },
+  reportPhotoFull(photoId: string) {
+    return DataverseService.downloadImage("${PUBLISHER_PREFIX}_reportphoto", photoId, "${PUBLISHER_PREFIX}_photo")
+  },
+  async progressEntries(): Promise<ProgressEntry[]> {
+    return (await DataverseService.list("${PUBLISHER_PREFIX}_progressentry", undefined, undefined, "createdon desc")).map((row) => ({
+      id: text(row, "${PUBLISHER_PREFIX}_progressentryid"), name: text(row, "${PUBLISHER_PREFIX}_name"),
+      reportId: text(row, "_${PUBLISHER_PREFIX}_dailyreport_value"), taskId: text(row, "_${PUBLISHER_PREFIX}_task_value"), projectId: text(row, "_${PUBLISHER_PREFIX}_project_value"),
+      reportedProgress: number(row, "${PUBLISHER_PREFIX}_reportedprogress"), previousProgress: number(row, "${PUBLISHER_PREFIX}_previousprogress"),
+      approvedProgress: number(row, "${PUBLISHER_PREFIX}_approvedprogress"), completedUnit: text(row, "${PUBLISHER_PREFIX}_completedunit"), note: text(row, "${PUBLISHER_PREFIX}_note"),
+      reviewStatus: number(row, "${PUBLISHER_PREFIX}_reviewstatus"), reviewComment: text(row, "${PUBLISHER_PREFIX}_reviewcomment"),
+      createdById: text(row, "_createdby_value"), createdBy: formatted(row, "_createdby_value"), createdOn: text(row, "createdon"),
+    }))
+  },
+  /**
+   * 日報と、その日報に含まれる進捗報告をまとめて承認する。進捗は監督が修正した値で作業（${PUBLISHER_PREFIX}_task）に反映し、
+   * 3D の出来形が更新される。途中で失敗した場合は、反映済みの作業と失敗した作業を例外の文言で返す。
+   */
+  async approveReportBundle(reportId: string, entries: Array<{ entry: ProgressEntry; value: number }>, comment: string) {
+    const done: string[] = []
+    try {
+      for (const { entry, value } of entries) {
+        const progress = Math.min(100, Math.max(0, Math.round(value)))
+        if (entry.taskId) await DataverseService.update("${PUBLISHER_PREFIX}_task", entry.taskId, { ${PUBLISHER_PREFIX}_progress: progress, ${PUBLISHER_PREFIX}_reportedprogress: progress, ${PUBLISHER_PREFIX}_status: taskStatus(progress) })
+        await DataverseService.update("${PUBLISHER_PREFIX}_progressentry", entry.id, { ${PUBLISHER_PREFIX}_reviewstatus: REVIEW.approved, ${PUBLISHER_PREFIX}_approvedprogress: progress, ${PUBLISHER_PREFIX}_reviewcomment: comment })
+        done.push(entry.name)
+      }
+      await DataverseService.update("${PUBLISHER_PREFIX}_dailyreport", reportId, { ${PUBLISHER_PREFIX}_reviewstatus: REVIEW.approved, ${PUBLISHER_PREFIX}_reviewcomment: comment, ${PUBLISHER_PREFIX}_status: 100000001 })
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "不明なエラー"
+      throw new Error(done.length ? `${done.join("、")} は反映済みですが、その後で失敗しました: ${reason}` : reason)
+    }
+  },
+  async returnReportBundle(reportId: string, entries: ProgressEntry[], comment: string) {
+    if (!comment.trim()) throw new Error("差戻し理由を入力してください。")
+    for (const entry of entries) await DataverseService.update("${PUBLISHER_PREFIX}_progressentry", entry.id, { ${PUBLISHER_PREFIX}_reviewstatus: REVIEW.returned, ${PUBLISHER_PREFIX}_reviewcomment: comment })
+    await DataverseService.update("${PUBLISHER_PREFIX}_dailyreport", reportId, { ${PUBLISHER_PREFIX}_reviewstatus: REVIEW.returned, ${PUBLISHER_PREFIX}_reviewcomment: comment })
   },
   async searchProjects(query: string): Promise<Project[]> {
     const keyword = escapeOData(query.trim())
@@ -168,6 +291,7 @@ export const ConstructionService = {
       aiDrafted: bool(row, "${PUBLISHER_PREFIX}_aidrafted"), status: number(row, "${PUBLISHER_PREFIX}_status"),
       reviewStatus: number(row, "${PUBLISHER_PREFIX}_reviewstatus"), reviewComment: text(row, "${PUBLISHER_PREFIX}_reviewcomment"),
       photoUrl: text(row, "${PUBLISHER_PREFIX}_photourl"), photoCaption: text(row, "${PUBLISHER_PREFIX}_photocaption"),
+      createdById: text(row, "_createdby_value"), createdBy: formatted(row, "_createdby_value"), createdOn: text(row, "createdon"),
     }))
   },
   async kyActivities(): Promise<KyActivity[]> {

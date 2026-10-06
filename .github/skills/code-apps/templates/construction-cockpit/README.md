@@ -15,6 +15,8 @@
 - **記録の一覧と詳細**: KY・ヒヤリハット・日報・ナレッジを集計・グラフ・検索・絞り込み付きの一覧で表示し、行から詳細（関連記録・修正・承認・ナレッジ化）へ移動
 - **CAD モデル取り込み**: GLB / OBJ / STL / FBX を読み込み、部品を作業に対応付けて、承認済みの進捗どおり下から施工単位を 3D に表示（Z-up・mm の正規化、名前からの自動対応付け）
 - **施工位置イメージ**: 選択中の作業の部位を 3D から自動で画像化し、作業の画像列に保存
+- **工事・ユーザーのドロップダウン検索**: Dataverse 検索（関連性検索）の順位を優先し、工事番号・発注者・住所の部分一致で補う。検索インデックスへの登録は `scripts/setup_dataverse_search.py`
+- **承認待ち（現場監督）**: Teams のアシスタントやアプリから提出された日報・現場写真・進捗の下書きを確認し、承認すると作業の進捗と 3D に反映、差戻しは理由必須
 - **Copilot Studio**: 「現場コックピット アシスタント」（`agent/cockpit-assistant/`）で、施工単位での進捗報告・記録のまとめ登録・監督の承認を会話から行う
 
 ## 画面
@@ -28,6 +30,7 @@
 | ヒヤリハット | `/incidents`・`/incidents/new`・`/incidents/:id` | グラフ付き一覧、登録、詳細とナレッジ化 |
 | 日報 | `/reports`・`/reports/new`・`/reports/:id` | グラフ付き一覧、作成、詳細と承認・差戻し |
 | ナレッジ | `/knowledge`・`/knowledge/:id` | 検索、詳細と修正 |
+| 承認待ち | `/approvals` | 日報・写真・進捗の下書きの承認・差戻し |
 | 重機稼働 | `/equipment` | 重機と稼働実績 |
 
 ## Dataverse
@@ -170,3 +173,13 @@ Code Apps から v2 エージェントを直接呼べないため、Copilot Stud
 3. Agent: 既存の発行済み「KY 危険予測エージェント」、メッセージに `{prefix}_prompt`、HITL 無効
 4. 行を更新: `{prefix}_result` に応答、状態を「完了」（100000002）。失敗時の分岐で「失敗」（100000003）と `{prefix}_error`
 5. 公開後、`python scripts/verify_ky_workflow.py --cleanup` が `output-verified` になることを確認
+
+## Teams で日報を報告する
+
+`agent/cockpit-assistant` の `daily-report-intake` スキルで、Teams の会話から日報・現場写真・作業ごとの進捗の下書きを登録します
+（`{prefix}_dailyreport` 提出済・`{prefix}_reportphoto`・`{prefix}_progressentry`）。写真は長辺 1600px の JPEG に縮小し、位置情報を除いて画像列に base64 で入れます。
+監督がアプリの「承認待ち」で承認すると作業の進捗に反映されます。
+
+1. `python agent/cockpit-assistant/deploy_assistant.py` で公開し、最後に表示される Teams のリンクを報告者に配る
+2. Copilot Studio でアシスタントにツール「Dataverse（MCP）」を追加して保存し、もう一度 `deploy_assistant.py` を実行する（接続の作成とサインインが必要）
+3. `python scripts/verify_report_intake.py --cleanup` で、スキルと同じ形の登録と写真の読み戻しを確認する

@@ -30,6 +30,11 @@ const snapshot = read("src/lib/models/task-snapshot.ts")
 const kyPrediction = read("src/services/ky-prediction.ts")
 const kyAi = read("src/lib/ky-ai.ts")
 const kyNew = read("src/pages/ky-new.tsx")
+const approvals = read("src/pages/approvals.tsx")
+const combobox = read("src/components/search-combobox.tsx")
+const picker = read("src/components/project-picker.tsx")
+const dvClient = read("src/lib/dataverse-client.ts")
+const config = read("src/config.ts")
 // ローカル（app/ と agent/ が並ぶ構成）とテンプレート（同じルートに agent/ がある構成）の両方で読む
 const progressUnitsPath = [path.join(root, "agent"), path.join(root, "..", "agent")].map((dir) => path.join(dir, "cockpit-assistant", "skills", "progress-3d-report", "progress_units.py")).find((file) => fs.existsSync(file))
 const progressUnits = progressUnitsPath ? fs.readFileSync(progressUnitsPath, "utf8") : ""
@@ -81,6 +86,9 @@ const assertions = [
   [projectModel.includes("SnapshotCapturer") && snapshot.includes("toDataURL(\"image/jpeg\"") && project.includes("saveTaskLocationImage"), "the selected task image is generated from the 3D view and can be saved to Dataverse"],
   [projectModel.includes("Math.max(0.05, count / 200) + 1e-6") && progressUnits.includes("max(0.05, count / 200) + 1e-6"), "3D unit rounding matches the Copilot Studio progress conversion"],
   [kyPrediction.includes("requestKyPrediction(dataversePort") && kyPrediction.includes("return fallback(") && kyNew.includes("data-ky-source") && kyNew.includes("cancelPredict"), "KY prediction calls the agent through Dataverse and falls back to knowledge search without blocking the screen"],
+  [dvClient.includes("GetRelevantRows") && combobox.includes('role="combobox"') && combobox.includes('role="listbox"') && combobox.includes("request.current"), "project and user search use Dataverse search in an accessible dropdown that ignores stale responses"],
+  [picker.includes("<ProjectSearch") && project.includes("<ProjectSearch") && approvals.includes("<UserSearch"), "project pickers, the portfolio and the approval filters use the search dropdowns"],
+  [approvals.includes("approveReportBundle") && approvals.includes("returnReportBundle") && approvals.includes("data-approval-photo") && config.includes('path: "/approvals"') && router.includes('"approvals"'), "supervisors see submitted reports with photos and progress drafts and can approve or return them"],
   [kyAi.includes("<資料>") && kyAi.includes("known.has(source)"), "KY prompt fences business data and AI-cited knowledge must exist"],
   [layout.includes("setCollapsed(true)"), "project detail automatically collapses navigation"],
   [project.includes('data-tour="review-queue"'), "supervisor review queue has a tutorial target"],

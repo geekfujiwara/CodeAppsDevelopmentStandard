@@ -617,7 +617,7 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 |---|---|---|
 | [templates/generic-base](templates/generic-base/) | 完全なベース | 新規プロジェクトの出力先へ生成する |
 | [templates/sales-crm](templates/sales-crm/README.md) | 完全な業務テンプレート（generic-base を `extends`） | 営業支援 CRM（マネージャー ダッシュボード・営業ホーム・CRUD・Outlook/Teams/Cowork 連携）を空のディレクトリから生成する |
-| [templates/construction-cockpit](templates/construction-cockpit/README.md) | 完全な業務テンプレート（generic-base を `extends`・Copilot Studio エージェント同梱） | 建設現場コックピット: Google Maps の工事ポートフォリオ、Three.js の進捗 3D（工事種別 6 種・完成形の点線・CAD の GLB/OBJ/STL/FBX 取り込みと施工単位の対応付け・施工位置イメージ）、React Flow ガント/因果関係、監督の承認・差戻し、KY・ヒヤリハット・日報・ナレッジのグラフ付き一覧と詳細、KY の AI 危険予測（Dataverse 要求/結果 + Workflow）、Copilot Studio「現場コックピット アシスタント」（施工単位での進捗報告・まとめ登録・承認）、Cowork、本格デモデータを生成する |
+| [templates/construction-cockpit](templates/construction-cockpit/README.md) | 完全な業務テンプレート（generic-base を `extends`・Copilot Studio エージェント同梱） | 建設現場コックピット: Google Maps の工事ポートフォリオ、Three.js の進捗 3D（工事種別 6 種・完成形の点線・CAD の GLB/OBJ/STL/FBX 取り込みと施工単位の対応付け・施工位置イメージ）、React Flow ガント/因果関係、工事・ユーザーの Dataverse 検索ドロップダウン、監督の承認待ち（日報・現場写真・進捗の下書き）、KY・ヒヤリハット・日報・ナレッジのグラフ付き一覧と詳細、KY の AI 危険予測（Dataverse 要求/結果 + Workflow）、Copilot Studio「現場コックピット アシスタント」（Teams での日報と写真の報告・施工単位での進捗報告・まとめ登録・承認）、Cowork、本格デモデータを生成する |
 | [templates/agm-qa-assist](templates/agm-qa-assist/README.md) | 完全な業務テンプレート（generic-base を `extends`・Azure Functions 同梱） | 株主総会 Q&A アシスト（連続の文字起こし・株主の AI 照合・想定問答の検索と根拠つき回答案・録音と記録・総会の集計・LIVE 共有）。**変数は `--questions` の順に AskUserQuestion で聞いてから生成**する |
 | [templates/account-link-admin](templates/account-link-admin/) | アドオン | 空の作業ディレクトリへ生成し、README に従ってホストへ統合する |
 | [templates/drawing-communication](templates/drawing-communication/) | アドオン | 空の作業ディレクトリへ生成・単体検証後、必要なモジュールをホストへ統合する |

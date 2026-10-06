@@ -10,6 +10,7 @@ const IncidentNew = lazy(() => import("@/pages/incident-new"))
 const DailyReports = lazy(() => import("@/pages/daily-reports"))
 const ReportNew = lazy(() => import("@/pages/report-new"))
 const Knowledge = lazy(() => import("@/pages/knowledge"))
+const Approvals = lazy(() => import("@/pages/approvals"))
 const KyDetail = lazy(() => import("@/pages/record-details").then((module) => ({ default: module.KyDetail })))
 const IncidentDetail = lazy(() => import("@/pages/record-details").then((module) => ({ default: module.IncidentDetail })))
 const ReportDetail = lazy(() => import("@/pages/record-details").then((module) => ({ default: module.ReportDetail })))
@@ -34,6 +35,7 @@ export const router = createHashRouter([
       // 業務ページを追加したら、config.ts の NAV_SECTIONS と同じ path でここにも登録する
       { path: "site-map", element: <Suspense fallback={null}><SiteMap /></Suspense> },
       { path: "projects", element: <Suspense fallback={null}><ProjectDetail /></Suspense> },
+      { path: "approvals", element: <Suspense fallback={null}><Approvals /></Suspense> },
       { path: "ky", element: <Suspense fallback={null}><KyActivity /></Suspense> },
       { path: "ky/new", element: <Suspense fallback={null}><KyNew /></Suspense> },
       { path: "ky/:id", element: <Suspense fallback={null}><KyDetail /></Suspense> },

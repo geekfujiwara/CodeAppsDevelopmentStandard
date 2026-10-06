@@ -15,7 +15,6 @@ import {
   Map,
   RefreshCw,
   RotateCcw,
-  Search,
   ShieldAlert,
   type LucideIcon,
 } from "lucide-react"
@@ -35,6 +34,7 @@ import { GoogleMapEmbed } from "@/components/google-map-embed"
 import { LoadingSkeletonGrid } from "@/components/loading-skeleton"
 import { ProjectGanttFlow, type FlowSelection } from "@/components/project-gantt-flow"
 import { ProjectRelationshipFlow } from "@/components/project-relationship-flow"
+import { ProjectSearch } from "@/components/entity-search"
 import { ProjectModel3d, type CadPreview, type TaskSnapshot } from "@/components/project-model-3d"
 import { CadImportPanel } from "@/components/cad-import-panel"
 import { CAD_MODEL_URL } from "@/lib/models/model-source"
@@ -102,7 +102,6 @@ const FILTERS = [
 function ProjectPortfolio() {
   const navigate = useNavigate()
   const { setSelectedProjectId } = useProject()
-  const [query, setQuery] = useState("")
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState<string>("all")
   const [photoProject, setPhotoProject] = useState("")
@@ -136,13 +135,13 @@ function ProjectPortfolio() {
         <h1 className="mt-2 text-3xl font-black">工事ワークスペース</h1>
         <p className="mt-2 text-slate-500">地図、現場写真、一覧から工事を選び、工程と施工状況を確認します。</p>
       </header>
-      <form className={`${panelClass} grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]`} onSubmit={(event) => { event.preventDefault(); setSearch(query) }} data-tour="project-search">
+      <div className={`${panelClass} grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]`} data-tour="project-search">
         <div className="min-w-0">
-          <label className="text-sm font-bold" htmlFor="project-search">Dataverse 工事検索</label>
+          <span className="text-sm font-bold">Dataverse 工事検索</span>
+          <p className="text-xs text-slate-500">入力すると候補を表示します。候補を選ぶと工事を開き、Enter で一覧を絞り込みます。</p>
           <div className="mt-2 flex gap-2">
-            <input id="project-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="工事番号、名称、発注者、住所" className="h-11 min-w-0 flex-1 rounded-xl border border-slate-300 px-3 dark:border-slate-700 dark:bg-slate-950" />
-            <Button type="submit"><Search className="mr-2 h-4 w-4" />検索</Button>
-            {search && <Button type="button" variant="outline" onClick={() => { setQuery(""); setSearch("") }}>解除</Button>}
+            <ProjectSearch className="flex-1" onSelect={(project) => { if (project) navigate(`/projects/${project.id}`) }} onSubmitText={setSearch} />
+            {search && <Button type="button" variant="outline" onClick={() => setSearch("")}>「{search}」の絞り込みを解除</Button>}
           </div>
         </div>
         <div className="min-w-0">
@@ -156,7 +155,7 @@ function ProjectPortfolio() {
             ))}
           </div>
         </div>
-      </form>
+      </div>
 
       <Tabs defaultValue="map">
         <TabsList className="h-auto flex-wrap" data-tour="project-tabs">
