@@ -1,0 +1,29 @@
+{
+  "description": "パース3D内見スタジオ: 2D の間取り図・パース・不動産サイトの物件 URL から 3D 建物を生成し、内見・提案・Blender 出力まで行う Code App。generic-base を継承する完全テンプレート",
+  "extends": "../generic-base",
+  "variables": [
+    "PUBLISHER_PREFIX"
+  ],
+  "preserveUndeclaredVariables": true,
+  "questions": [
+    {
+      "variable": "PUBLISHER_PREFIX",
+      "question": "Dataverse のパブリッシャーの接頭辞は？（テーブルは <接頭辞>_perseproject / <接頭辞>_persecomment）",
+      "detect": "既存の .env の PUBLISHER_PREFIX"
+    }
+  ],
+  "nextSteps": [
+    "Copy-Item .env.example .env  # ENV_ID / DATAVERSE_URL / TENANT_ID / VITE_DATAVERSE_URL を入力",
+    "npm install --no-audit --no-fund",
+    "python -m pip install -r requirements.txt  # 試験・Dataverse 構築・素材の検証が使う",
+    "npm test  # 間取り図解析・3D 組み立て・Three.js と Blender の部材一致の試験",
+    "python scripts/setup_dataverse.py  # ソリューション・テーブル・ローカライズ・サンプル案件（何度実行しても安全）",
+    "python .github/skills/code-apps/scripts/setup_connection_reference.py --write-env .env",
+    "npx --no pa app init --environment-id $env:ENV_ID --display-name \"パース3D内見スタジオ\" --app-type CodeApp --non-interactive",
+    "python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --connection-ref $env:CONNECTION_REFERENCE_LOGICAL_NAME --solution-id $env:SOLUTION_ID",
+    "python scripts/setup_listing_connector.py --add-to-app  # 物件ページ取得のカスタム コネクタ（認証なし・ホスト固定・GET だけ）を作成し、アプリに追加",
+    "npm run deploy  # test → build → predeploy（データソースの実在確認を含む）→ pa app push",
+    "python scripts/fetch_materials.py  # 任意: 仕上げ材テクスチャを取り直す（同梱済み。CC0）",
+    "blender/README.md  # 任意: Blender でフォトリアル画像・GLB を作る"
+  ]
+}

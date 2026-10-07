@@ -459,6 +459,51 @@ if (fs.existsSync(pkgPath)) {
   }
 }
 
+// 15. JSON を返さないコネクタ操作（text/html 等）に状態コードの応答情報がある
+//     SDK は responseInfo["200"] があると（type "void" でも）本文を JSON.parse し、必ず InvalidResponse で失敗する。
+//     画面でだけ全件失敗し、コネクタを直接呼ぶ確認では見えない。応答は "default" だけで宣言する
+{
+  const schemasDir = path.join(root, ".power", "schemas");
+  const infoPath = path.join(schemasDir, "appschemas", "dataSourcesInfo.ts");
+  if (fs.existsSync(schemasDir) && fs.existsSync(infoPath)) {
+    const infoText = fs.readFileSync(infoPath, "utf-8");
+    for (const dir of fs.readdirSync(schemasDir, { withFileTypes: true })) {
+      if (!dir.isDirectory() || dir.name === "appschemas") continue;
+      for (const file of fs.readdirSync(path.join(schemasDir, dir.name)).filter((f) => f.endsWith(".Schema.json"))) {
+        let swagger;
+        try {
+          swagger = JSON.parse(fs.readFileSync(path.join(schemasDir, dir.name, file), "utf-8").replace(/^\uFEFF/, ""))?.properties?.swagger;
+        } catch {
+          continue;
+        }
+        if (!swagger?.paths) continue;
+        for (const ops of Object.values(swagger.paths)) {
+          for (const op of Object.values(ops ?? {})) {
+            if (!op?.operationId) continue;
+            const types = op.produces ?? swagger.produces ?? [];
+            // SDK が専用に扱う種類（JSON・画像・ファイル・Dataverse の一括）は対象外。text/html などだけが JSON.parse の分岐に入る
+            if (!types.length || types.some((t) => /json|^image\/|octet-stream|^multipart\//.test(t))) continue;
+            const coded = Object.keys(op.responses ?? {}).filter((s) => s !== "default");
+            // dataSourcesInfo の生成結果でも確かめる（操作のブロックの中に "responseInfo": { "200": … があるか）
+            const at = infoText.indexOf(`"${op.operationId}": {`);
+            // アプリのデータソースとして生成されていない操作は呼ばれない
+            if (at < 0) continue;
+            const end = at < 0 ? -1 : infoText.indexOf("\n      }", at);
+            const block = at < 0 ? "" : infoText.slice(at, end < 0 ? undefined : end);
+            const generated = block.match(/"responseInfo"\s*:\s*\{\s*"(\d{3})"/)?.[1];
+            if (coded.length || generated) {
+              errors.push(
+                `コネクタ ${dir.name} の操作 ${op.operationId} は ${types.join(", ")} を返すのに、応答が状態コード（${coded.join(", ") || generated}）で宣言されています。` +
+                  `Code Apps の SDK が本文を JSON として読み、画面では必ず失敗します。swagger の応答を "default" だけにして、データソースを追加し直してください。`
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 // 結果出力
 if (errors.length > 0) {
   console.error("\n❌ デプロイ前チェック失敗:\n");

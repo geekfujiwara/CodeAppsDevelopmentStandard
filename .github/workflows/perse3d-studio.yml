@@ -1,0 +1,48 @@
+name: Perse3D Studio template
+
+on:
+  pull_request:
+    paths:
+      - '.github/skills/code-apps/templates/perse3d-studio/**'
+      - '.github/skills/code-apps/templates/generic-base/**'
+      - '.github/skills/update-skills/scripts/scaffold_from_template.py'
+      - '.github/workflows/perse3d-studio.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scaffold-build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.18.0'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      # テンプレート（generic-base を継承）から生成し、そのままビルド・試験が通ること。
+      # データソース追加前（src/generated が無い状態）でもビルドできることもここで確かめる
+      - name: Scaffold
+        run: |
+          python .github/skills/update-skills/scripts/scaffold_from_template.py \
+            --template .github/skills/code-apps/templates/perse3d-studio \
+            --target "$RUNNER_TEMP/perse3d" --var PUBLISHER_PREFIX=ci
+          test ! -e "$RUNNER_TEMP/perse3d/src/generated"
+      - name: Install
+        working-directory: ${{ runner.temp }}/perse3d
+        run: |
+          npm install --no-audit --no-fund
+          python -m pip install -r requirements.txt
+      - name: Test
+        working-directory: ${{ runner.temp }}/perse3d
+        run: npm test
+      - name: Build
+        working-directory: ${{ runner.temp }}/perse3d
+        run: npm run build
+      # Three.js と Blender（Python）の部材一致の試験は Python があるときだけ動く。ここでは必ず動かす
+      - name: Geometry parity (Python)
+        working-directory: ${{ runner.temp }}/perse3d
+        run: node --test tests/geometry-parity.test.mjs

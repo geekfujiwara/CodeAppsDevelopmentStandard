@@ -3041,3 +3041,91 @@ R3F の `useFrame`（priority 0）の中で、別カメラで `gl.render(scene, 
 見えていないページでは `MessageChannel`（間引かれない）で次のタスクに回し、見えているときだけ `requestAnimationFrame` とタイマーの早い方で進める（[3d-asset-sharing.md](3d-asset-sharing.md)「生成の進み具合」の `nextFrame`）。
 画面から通す試験は `capture_3d.mjs --simulate-hidden`（`requestAnimationFrame` を止め、`visibilityState = hidden`、タイマーを 5 秒以上に間引く。`--simulate-hidden 60000` で実際の間引きに近づける）でも通す。
 試験側の待ちは `window.__origSetTimeout` を使う。**恒久対策済み** — `scripts/capture_3d.mjs` の `--simulate-hidden`。
+
+## 87. 自動処理（縮尺の自動調整など）が画面では一度も動かない。単体の試験・純関数の評価は通る（検証済 2026-10-06）
+
+### 症状
+
+物件情報を取り込んで図面を入れると、縮尺の自動調整が動くはずなのに、バナーは「横幅を 7.58 m 前後にすると一致します」のまま変わらない。生成すると既定の横幅（9.1m）の建物になる。単体の試験・Node で解析と生成を直接呼ぶ評価では、正しい縮尺で生成できる。
+また、図面の並びを「入れ替え」ボタンで直した後に、縮尺を合わせ直さない。
+
+### 原因
+
+- 自動処理の条件（表示中の解析結果が、今の設定で解析したものか）を判定する記録を、**生成ボタンの中の解析でしか更新していなかった**。画面の解析（設定が変わるたびに走る）では記録しないので、条件が常に偽になり、一度も発火しない
+- 「同じ入力では 2 回まで」の回数を数える鍵が、階のキーだけだった。入れ替えで図面が変わっても鍵が同じで、入れ替え前の並びで回数を使い切っていた
+
+純関数の評価は画面の状態（記録・回数・発火条件）を通らないので見えない。
+
+### 対処
+
+- 発火条件に使う状態は、それを作る**すべての経路**（画面の解析・生成時の解析）で更新する。後から終わった古い解析で上書きしないよう、最後に依頼した設定と一致するときだけ反映する
+- 回数・一度きりの鍵には、**入力の識別**（画像の長さと末尾など、軽い要約）を含める
+- 画面を通す評価（[sample-authoring-guide.md](sample-authoring-guide.md) §6.2）で、自動処理が動いたかを結果に残す（バナーの文言・設定値）。純関数の評価だけで完了にしない
+
+## 88. コネクタで外部ページ（text/html）を取得すると、画面ではどの URL でも失敗する／日本語が化ける（検証済 2026-10-06）
+
+### 症状
+
+カスタム コネクタを直接呼ぶ（`create_connection.py invoke`）と 200 で HTML が返るのに、Code Apps の画面で生成サービスを呼ぶと、どの入力でも `InvalidResponse` で失敗する。
+応答の宣言を直すと成功するが、日本語が化けて解析結果が空になる。Console の `Permissions policy violation: unload`・`webplayer-host-ui.js … React.createElement` はプレイヤー本体の警告で、原因ではない。
+
+### 原因
+
+SDK（`@microsoft/power-apps` の `runtimeDataClient`）は JSON・画像・ファイル以外の応答を 1 バイト = 1 文字の文字列にし、
+生成された `dataSourcesInfo` の操作に状態コードの応答情報（`responseInfo["200"]`。swagger に schema が無くても `void` で生成される）があると `JSON.parse` する。
+
+### 対処
+
+swagger の応答を `"default"` だけにしてデータソースを追加し直し、アプリ側で文字列をバイト列に戻して charset で読み直す
+（custom-connector の [public-site.md](../../custom-connector/references/public-site.md)「受け取り」、troubleshooting #15）。
+**恒久対策済み** — `scripts/pre-deploy-check.mjs` の 15（JSON 以外を返す操作が状態コードで宣言されていたら止める）、custom-connector の `validate_definition()`。
+
+## 89. 3D の撮影（capture_3d.mjs）を繰り返すと端末が極端に重くなる。以降の試験・コマンドがすべて遅い（検証済 2026-10-07）
+
+### 症状
+
+撮影や画面の通し試験を何度か実行した後、ビルド・試験・簡単なコマンドまで数分かかるようになる。`Edge の CDP に接続できませんでした` で撮影が失敗し始める。
+
+### 原因
+
+撮影のたびに起動したヘッドレスの Edge（1 回あたり 5〜9 プロセス）が終了後も残っていた（6 回分で約 40 プロセス）。
+
+- 停止コマンドが user-data-dir の `\` を `\\` に二重化して PowerShell の `-like` に渡しており、パスが一致せず何も止めていなかった
+- Edge が途中で落ちると評価の応答が返らず、Node は「解決しない top-level await」（`Warning: Detected unsettled top-level await`）のまま終了し、`finally` の後片付けが動かない
+- SwiftShader で接続できず起動し直すとき、最初の Edge の親プロセスだけを止めて子プロセスが残る
+
+### 対処
+
+user-data-dir の部分一致（`$_.CommandLine.Contains('<path>')`）で探して止める。接続が切れたら応答待ちをすべて失敗にする。`process.on("exit")` で必ず止める。全体の時限 `--timeout`（既定 900 秒）。
+後片付けは**実際に残っていないかを数えて**確かめる（正常終了・時限・接続断の 3 通り）。**恒久対策済み** — `scripts/capture_3d.mjs` の `killEdgeSync()`・`--timeout`。
+
+## 90. 画像から作った 3D の外壁に、床から天井までの縦の隙間がある／下の階だけの部分の天井が抜けている（検証済 2026-10-07）
+
+### 症状
+
+外観で、ドアでも窓でもない縦の細い隙間が外壁に見える。上の階が下の階より小さい建物で、バルコニーの下などの天井が無く、外から室内が見える。部屋・設備・階段の数は正しく、解析の指標では見えない。
+
+### 原因
+
+- 開口として拾う下限（0.5m）より狭い外壁の途切れ（トイレ上の 0.33m の小窓、記号で途切れた壁、隅の際の窓）が、窓にも壁にもならずに空きのまま残っていた。実データ 11 件のほぼ全件で、外から部屋の中まで抜けていた
+- 屋根は建物の外接矩形の最上部、天井は最上階の床の範囲にしか作っておらず、下の階だけの部分には何も無かった
+
+### 対処
+
+[3d-asset-sharing.md](3d-asset-sharing.md)「外皮の閉じ」。外壁の途切れを窓か壁に決め、食い違いの抜けを塞ぎ、下の階だけの部分に陸屋根を作る。「外から壁を通らずに部屋へ入れるセルの数」を試験の指標にする（0 であること）。
+
+## 91. テンプレートの試験が手元では通るのに、CI・新しい端末では Python の import で落ちる（検証済 2026-10-07）
+
+### 症状
+
+テンプレートから生成したプロジェクトの `npm test` が、CI で `ModuleNotFoundError: No module named 'numpy'`（`'PIL'`）で落ちる。手元では全件通る。
+
+### 原因
+
+Node の試験の中から Python（Blender と共有の計算・素材の検証）を呼んでおり、その依存を宣言していなかった。開発した端末にはたまたま入っていた。
+
+### 対処
+
+テンプレートに `requirements.txt` を同梱し、`scaffold.json` の `nextSteps` と README の手順に `python -m pip install -r requirements.txt` を入れる。
+**依存の宣言は、何も入っていない環境で確かめる**（`python -m venv` で新しい仮想環境を作り、`requirements.txt` だけを入れて試験を回す）。
+テンプレートの CI（生成 → install → test → build）で毎回確かめる。**恒久対策済み** — `.github/workflows/perse3d-studio.yml`。

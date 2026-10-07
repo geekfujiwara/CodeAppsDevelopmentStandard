@@ -1,0 +1,56 @@
+{
+  "floorArea": 132.86,
+  "floorAreaTsubo": 40.19,
+  "exteriorWallArea": 182.6,
+  "windowCount": 13,
+  "doorCount": 9,
+  "roomCount": 9,
+  "roofArea": 90.5,
+  "rooms": [
+    {
+      "floor": 1,
+      "name": "LDK",
+      "area": 42
+    },
+    {
+      "floor": 1,
+      "name": "玄関・ホール",
+      "area": 8.4
+    },
+    {
+      "floor": 1,
+      "name": "水回り・収納1",
+      "area": 5.7
+    },
+    {
+      "floor": 1,
+      "name": "水回り・収納2",
+      "area": 2.4
+    },
+    {
+      "floor": 2,
+      "name": "洋室1",
+      "area": 13.2
+    },
+    {
+      "floor": 2,
+      "name": "洋室2",
+      "area": 12.8
+    },
+    {
+      "floor": 2,
+      "name": "洋室3",
+      "area": 10.6
+    },
+    {
+      "floor": 2,
+      "name": "廊下",
+      "area": 10.6
+    },
+    {
+      "floor": 2,
+      "name": "洋室4",
+      "area": 10.2
+    }
+  ]
+}

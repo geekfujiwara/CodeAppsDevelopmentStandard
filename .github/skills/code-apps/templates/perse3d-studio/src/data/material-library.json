@@ -1,0 +1,281 @@
+{
+ "version": 1,
+ "_comment": "scripts/fetch_materials.py が生成する。手で編集しない。Code App（src/lib/material-library.ts）と Blender（blender/materials.py）が共有する",
+ "materials": [
+  {
+   "slot": "wall:siding",
+   "asset": "WoodSiding009",
+   "tile": 1.6,
+   "note": "横張りの羽目板。窯業系サイディングの代表として色合わせで使う",
+   "rotate": 0,
+   "tint": "luminance",
+   "path": "materials/wall-siding",
+   "avgLinear": [
+    0.52447,
+    0.52447,
+    0.52447
+   ],
+   "chromaSpread": 0.0,
+   "bytes": 174188,
+   "license": "CC0-1.0",
+   "source": "https://ambientcg.com/view?id=WoodSiding009",
+   "normalStrength": 1.0,
+   "specular": 0.5,
+   "albedoScale": 1.0
+  },
+  {
+   "slot": "wall:plaster",
+   "asset": "Plaster001",
+   "tile": 2.0,
+   "note": "塗り壁",
+   "rotate": 0,
+   "tint": "luminance",
+   "path": "materials/wall-plaster",
+   "avgLinear": [
+    0.65826,
+    0.65826,
+    0.65826
+   ],
+   "chromaSpread": 0.0,
+   "bytes": 160984,
+   "license": "CC0-1.0",
+   "source": "https://ambientcg.com/view?id=Plaster001",
+   "normalStrength": 1.0,
+   "specular": 0.5,
+   "albedoScale": 1.0
+  },
+  {
+   "slot": "wall:brick",
+   "asset": "Bricks101",
+   "tile": 1.2,
+   "note": "レンガタイル（焼きむらを残すため色比で合わせる）",
+   "rotate": 0,
+   "tint": "ratio",
+   "path": "materials/wall-brick",
+   "avgLinear": [
+    0.35981,
+    0.165,
+    0.10142
+   ],
+   "chromaSpread": 0.0362,
+   "bytes": 258549,
+   "license": "CC0-1.0",
+   "source": "https://ambientcg.com/view?id=Bricks101",
+   "normalStrength": 1.0,
+   "specular": 0.5,
+   "albedoScale": 1.0
+  },
+  {
+   "slot": "wall:wood",
+   "asset": "WoodSiding008",
+   "tile": 1.6,
+   "note": "板張り。縦張りにするため 90° 回転",
+   "rotate": 90,
+   "tint": "luminance",
+   "path": "materials/wall-wood",
+   "avgLinear": [
+    0.05357,
+    0.05357,
+    0.05357
+   ],
+   "chromaSpread": 0.0,
+   "bytes": 173434,
+   "license": "CC0-1.0",
+   "source": "https://ambientcg.com/view?id=WoodSiding008",
+   "normalStrength": 1.0,
+   "specular": 0.5,
+   "albedoScale": 1.0
+  },
+  {
+   "slot": "wall:metal",
+   "asset": "CorrugatedSteel005",
+   "tile": 1.2,
+   "note": "ガルバリウム波板・角波",
+   "rotate": 0,
+   "tint": "luminance",
+   "path": "materials/wall-metal",
+   "avgLinear": [
+    0.32796,
+    0.32796,
+    0.32796
+   ],
+   "chromaSpread": 0.0,
+   "bytes": 200242,
+   "license": "CC0-1.0",
+   "source": "https://ambientcg.com/view?id=CorrugatedSteel005",
+   "normalStrength": 1.0,
+   "specular": 0.5,
+   "albedoScale": 1.0
+  },
+  {
+   "slot": "roof:slate",
+   "asset": "RoofingTiles003",
+   "tile": 1.6,
+   "note": "化粧スレート相当（平板の段葺き）",
+   "rotate": 0,
+   "tint": "luminance",
+   "path": "materials/roof-slate",
+   "avgLinear": [
+    0.03684,
+    0.03684,
+    0.03684
+   ],
+   "chromaSpread": 0.0,
+   "bytes": 321928,
+   "license": "CC0-1.0",
+   "source": "https://ambientcg.com/view?id=RoofingTiles003",
+   "normalStrength": 1.0,
+   "specular": 0.5,
+   "albedoScale": 1.0
+  },
+  {
+   "slot": "roof:kawara",
+   "asset": "RoofingTiles006",
+   "tile": 3.2,
+   "note": "瓦（波形）。色は利用者の屋根色で乗算する",
+   "rotate": 0,
+   "tint": "luminance",
+   "path": "materials/roof-kawara",
+   "avgLinear": [
+    0.08384,
+    0.08384,
+    0.08384
+   ],
+   "chromaSpread": 0.0,
+   "bytes": 122992,
+   "license": "CC0-1.0",
+   "source": "https://ambientcg.com/view?id=RoofingTiles006",
+   "normalStrength": 1.0,
+   "specular": 0.5,
+   "albedoScale": 1.0
+  },
+  {
+   "slot": "roof:metal",
+   "asset": "CorrugatedSteel004",
+   "tile": 1.6,
+   "note": "立平葺き相当（流れ方向の筋）",
+   "rotate": 0,
+   "tint": "luminance",
+   "path": "materials/roof-metal",
+   "avgLinear": [
+    0.38053,
+    0.38053,
+    0.38053
+   ],
+   "chromaSpread": 0.0,
+   "bytes": 152696,
+   "license": "CC0-1.0",
+   "source": "https://ambientcg.com/view?id=CorrugatedSteel004",
+   "normalStrength": 1.0,
+   "specular": 0.5,
+   "albedoScale": 1.0
+  },
+  {
+   "slot": "floor:oak",
+   "asset": "WoodFloor051",
+   "tile": 1.8,
+   "note": "フローリング（木目の色差を残す）",
+   "rotate": 0,
+   "tint": "ratio",
+   "path": "materials/floor-oak",
+   "avgLinear": [
+    0.3279,
+    0.19792,
+    0.11185
+   ],
+   "chromaSpread": 0.0068,
+   "bytes": 172931,
+   "license": "CC0-1.0",
+   "source": "https://ambientcg.com/view?id=WoodFloor051",
+   "normalStrength": 1.0,
+   "specular": 0.5,
+   "albedoScale": 1.0,
+   "glossy": true
+  },
+  {
+   "slot": "floor:tile",
+   "asset": "Tiles143",
+   "tile": 2.0,
+   "note": "大判タイル",
+   "rotate": 0,
+   "tint": "ratio",
+   "path": "materials/floor-tile",
+   "avgLinear": [
+    0.69599,
+    0.459,
+    0.26976
+   ],
+   "chromaSpread": 0.0045,
+   "bytes": 188698,
+   "license": "CC0-1.0",
+   "source": "https://ambientcg.com/view?id=Tiles143",
+   "normalStrength": 1.0,
+   "specular": 0.5,
+   "albedoScale": 1.0,
+   "glossy": true
+  },
+  {
+   "slot": "grass",
+   "asset": "Grass004",
+   "tile": 1.4,
+   "note": "芝（素材の粗さ値が低く空を映して白っぽくなるため下限 0.8）",
+   "rotate": 0,
+   "tint": "ratio",
+   "path": "materials/grass",
+   "avgLinear": [
+    0.11836,
+    0.15215,
+    0.03021
+   ],
+   "chromaSpread": 0.0105,
+   "bytes": 396576,
+   "license": "CC0-1.0",
+   "source": "https://ambientcg.com/view?id=Grass004",
+   "normalStrength": 0.35,
+   "specular": 0.1,
+   "albedoScale": 0.55
+  },
+  {
+   "slot": "concrete",
+   "asset": "Concrete034",
+   "tile": 2.2,
+   "note": "土間・基礎・縁石",
+   "rotate": 0,
+   "tint": "luminance",
+   "path": "materials/concrete",
+   "avgLinear": [
+    0.48139,
+    0.48139,
+    0.48139
+   ],
+   "chromaSpread": 0.0,
+   "bytes": 162745,
+   "license": "CC0-1.0",
+   "source": "https://ambientcg.com/view?id=Concrete034",
+   "normalStrength": 1.0,
+   "specular": 0.5,
+   "albedoScale": 1.0
+  },
+  {
+   "slot": "road",
+   "asset": "Asphalt033",
+   "tile": 2.5,
+   "note": "道路",
+   "rotate": 0,
+   "tint": "luminance",
+   "path": "materials/road",
+   "avgLinear": [
+    0.08419,
+    0.08419,
+    0.08419
+   ],
+   "chromaSpread": 0.0,
+   "bytes": 194274,
+   "license": "CC0-1.0",
+   "source": "https://ambientcg.com/view?id=Asphalt033",
+   "normalStrength": 1.0,
+   "specular": 0.5,
+   "albedoScale": 1.0
+  }
+ ]
+}

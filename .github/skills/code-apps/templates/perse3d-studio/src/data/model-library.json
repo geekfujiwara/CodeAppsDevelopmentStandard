@@ -1,0 +1,81 @@
+{
+ "_comment": "家具カタログに追加する 3D モデル（scripts/fetch_models.py が生成）。file は src/assets/models/ からの名前",
+ "models": {
+  "sofaModel": {
+   "label": "ソファ（3D モデル）",
+   "category": "living",
+   "place": "wall",
+   "base": "sofa",
+   "w": 1.571,
+   "d": 0.658,
+   "h": 0.797,
+   "model": {
+    "file": "sofa_01.glb",
+    "license": "CC0-1.0",
+    "author": "Kirill Sannikov",
+    "source": "https://polyhaven.com/a/Sofa_01",
+    "bytes": 211148,
+    "sha256": "b14e798543aebf2bfc746de99bbb0ec7cfe480c1d0c6e731facb4661d7cb8001",
+    "polys": 4101,
+    "materials": [
+     "furn_sofaModel_0"
+    ]
+   },
+   "parts": [
+    {
+     "s": "box",
+     "p": [
+      0,
+      0.399,
+      0
+     ],
+     "z": [
+      1.571,
+      0.797,
+      0.658
+     ],
+     "r": 0.02,
+     "m": "fabric"
+    }
+   ]
+  },
+  "coffeeTableModel": {
+   "label": "センターテーブル（3D モデル）",
+   "category": "living",
+   "place": "free",
+   "base": "coffeeTable",
+   "w": 1.202,
+   "d": 0.6,
+   "h": 0.39,
+   "model": {
+    "file": "modern_coffee_table_01.glb",
+    "license": "CC0-1.0",
+    "author": "Amin",
+    "source": "https://polyhaven.com/a/modern_coffee_table_01",
+    "bytes": 224192,
+    "sha256": "34d3401cc1125e282318f9d4d445d62227d5bcec6259ebef1f9d3a74f2b9b801",
+    "polys": 4504,
+    "materials": [
+     "furn_coffeeTableModel_0"
+    ]
+   },
+   "parts": [
+    {
+     "s": "box",
+     "p": [
+      0,
+      0.195,
+      0
+     ],
+     "z": [
+      1.202,
+      0.39,
+      0.6
+     ],
+     "r": 0.02,
+     "m": "wood"
+    }
+   ]
+  }
+ }
+}
