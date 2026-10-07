@@ -153,6 +153,15 @@ $skills = Get-ChildItem $skillsDir -Directory
 foreach ($s in $skills) {
     if (-not (Test-Path (Join-Path $s.FullName "SKILL.md"))) { Write-Error "SKILL.md が見つかりません: $($s.Name)" }
 }
+# 結果の見せ方（チャットのグラフ・HTML レポート）が省かれない書き方か（troubleshooting.md #52）
+$pythonForCheck = Get-Command python -ErrorAction SilentlyContinue
+if (-not $pythonForCheck) { $pythonForCheck = Get-Command py -ErrorAction SilentlyContinue }
+if ($pythonForCheck) {
+    & $pythonForCheck.Source (Join-Path $PSScriptRoot 'check_visual_output.py') --skills $skillsDir
+    if ($LASTEXITCODE -ne 0) { Write-Error "スキルの結果の見せ方（グラフ・HTML レポート）の書き方に問題があります（上の ✖ を参照）。" }
+} else {
+    Write-Warning "python が見つからないため、結果の見せ方の検査（check_visual_output.py）を省きました。"
+}
 
 # --- zip 生成（manifest.built.json を manifest.json 名でルートに入れる）---
 $dist = Join-Path $root "dist"

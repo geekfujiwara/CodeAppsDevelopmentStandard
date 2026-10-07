@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <!--
-  Cowork スキルの HTML レポートのひな形（cowork スキル同梱。スキルのフォルダに複写して使う）（1 ファイルで完結。外部の CSS・JS・フォント・画像は読み込まない）
+  Cowork スキルの HTML レポートのひな形（cowork スキル同梱。スキルのフォルダに複写して使う。1 ファイルで完結し、スクリプト・外部の CSS・フォント・画像は使わない）
   使い方（スキルが行う）:
-    1. このファイルを複写し、<title>・ヘッダー・各 <section> の文章と表を書き換える。{{…}} はすべて置き換えるか、行ごと消す。
-    2. グラフは下の id="report-data" の JSON だけを書き換える（JS は触らない）。
-    3. Dataverse やメールから取った文字列は、HTML に書くときは & < > " を &amp; &lt; &gt; &quot; に置き換える。
-       JSON に書くときは < を \u003c にする（</script> で JSON が途切れないように）。
-    4. 使わない <section> は削除してよい。
+    1. このファイルを写し、<title>・ヘッダー・各 <section> の文章と表を書き換える。{{…}} はすべて置き換えるか、行ごと消す。
+    2. グラフは id="charts" の中の例を写して書き換える。棒の長さは style="width:NN%"（NN = 値 ÷ その図の最大値 × 100、整数）。
+       スクリプトは使わない（プレビューの画面ではスクリプトが動かないことがあり、グラフが空になるため）。
+    3. Dataverse やメールから取った文字列は & < > " を &amp; &lt; &gt; &quot; に置き換えてから書く。
+    4. 使わない <section> は削除してよい。グラフ・表・チャットの数字はすべて同じ値にする。
 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
 <title>{{レポートの題名}}</title>
 <style>
   :root { --accent:#0E7C66; --accent-soft:#E3F4EF; --warn:#C2410C; --warn-soft:#FFF1E6; --down:#1D4ED8; --down-soft:#E8EEFF; --ink:#1F2933; --muted:#5B6770; --line:#D9E2E7; --bg:#F6F8F9; }
@@ -44,6 +44,13 @@
   .chart .note { color:var(--muted); font-size:.85rem; margin:0; }
   .legend { display:flex; gap:14px; flex-wrap:wrap; font-size:.85rem; color:var(--muted); margin:4px 0; }
   .legend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+  .bars { display:grid; grid-template-columns:minmax(90px,170px) 1fr; gap:3px 10px; align-items:center; font-size:.88rem; }
+  .bars .lbl { text-align:right; }
+  .bars .grp { display:grid; gap:2px; }
+  .bars .bar { display:flex; align-items:center; gap:6px; }
+  .bars .bar b { display:block; height:13px; min-width:2px; border-radius:3px; background:#0E7C66; }
+  .bars .bar span { color:var(--muted); font-size:.8rem; white-space:nowrap; }
+  .s1 { background:#0E7C66 !important; } .s2 { background:#F59E0B !important; } .s3 { background:#1D4ED8 !important; } .s4 { background:#9CA3AF !important; }
   footer { color:var(--muted); font-size:.82rem; text-align:center; padding:12px; }
   @media print { body { background:#fff; } section { break-inside:avoid; } }
 </style>
@@ -75,8 +82,19 @@
 
   <section id="charts">
     <h2>グラフ</h2>
-    <div id="chart-area"></div>
-    <noscript><p>グラフはブラウザで開くと表示されます。数字は下の表にもあります。</p></noscript>
+    <!-- 図 1 つ = div.chart 1 つ。品目 1 つ = .lbl と .grp の組。系列ごとに .bar を 1 行（色は s1〜s4） -->
+    <div class="chart">
+      <h3>{{グラフの題名。例: 項目ごとの現状と提案}}</h3>
+      <p class="note">{{単位と、数字の出どころ}}</p>
+      <div class="legend"><span><i class="s1"></i>{{系列 1。例: 現状}}</span><span><i class="s2"></i>{{系列 2。例: 提案}}</span></div>
+      <div class="bars">
+        <div class="lbl">{{項目}}</div>
+        <div class="grp">
+          <div class="bar"><b class="s1" style="width:{{値÷最大値×100}}%"></b><span>{{値}}{{単位}}</span></div>
+          <div class="bar"><b class="s2" style="width:{{値÷最大値×100}}%"></b><span>{{値}}{{単位}}</span></div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <section id="reasoning">
@@ -103,73 +121,5 @@
 </main>
 <footer>このレポートは Cowork が作成した下書きです。最終判断は利用者が行います。</footer>
 
-<script type="application/json" id="report-data">
-{
-  "charts": [
-    {
-      "title": "例: 項目ごとの現状と提案",
-      "note": "例: 単位と、数字の出どころ",
-      "unit": "",
-      "labels": ["項目 A", "項目 B", "項目 C"],
-      "series": [
-        { "name": "現状", "values": [18, 10, 2] },
-        { "name": "提案", "values": [8, 6, 4] }
-      ]
-    }
-  ]
-}
-</script>
-<script>
-(function () {
-  var COLORS = ["#0E7C66", "#F59E0B", "#1D4ED8", "#9CA3AF", "#C2410C"];
-  var NS = "http://www.w3.org/2000/svg";
-  var HTML_TAGS = { div: 1, h3: 1, p: 1, span: 1, i: 1 };
-  function el(tag, attrs, parent, text) {
-    var n = HTML_TAGS[tag] ? document.createElement(tag) : document.createElementNS(NS, tag);
-    for (var k in attrs) { if (Object.prototype.hasOwnProperty.call(attrs, k)) n.setAttribute(k, attrs[k]); }
-    if (text !== undefined) n.textContent = String(text);
-    if (parent) parent.appendChild(n);
-    return n;
-  }
-  var data;
-  try { data = JSON.parse(document.getElementById("report-data").textContent); } catch (e) { return; }
-  var area = document.getElementById("chart-area");
-  (data.charts || []).forEach(function (c) {
-    var labels = c.labels || [], series = c.series || [];
-    var box = el("div", { "class": "chart" }, area);
-    el("h3", {}, box, c.title || "");
-    if (c.note) el("p", { "class": "note" }, box, c.note);
-    var lg = el("div", { "class": "legend" }, box);
-    series.forEach(function (s, i) {
-      var sp = el("span", {}, lg);
-      el("i", { style: "background:" + COLORS[i % COLORS.length] }, sp);
-      sp.appendChild(document.createTextNode(s.name || ""));
-    });
-    var all = [];
-    series.forEach(function (s) { (s.values || []).forEach(function (v) { if (typeof v === "number" && isFinite(v)) all.push(v); }); });
-    var max = Math.max.apply(null, all.concat([0])), min = Math.min.apply(null, all.concat([0]));
-    var span = (max - min) || 1;
-    var labelW = 170, valueW = 70, chartW = 560, barH = 14, gap = 4, groupGap = 12;
-    var groupH = Math.max(series.length, 1) * (barH + gap) - gap;
-    var h = labels.length * (groupH + groupGap) + 8;
-    var svg = el("svg", { viewBox: "0 0 " + (labelW + chartW + valueW) + " " + h, width: "100%", role: "img", "aria-label": c.title || "chart" }, box);
-    var zeroX = labelW + chartW * (-min / span);
-    el("line", { x1: zeroX, x2: zeroX, y1: 0, y2: h, stroke: "#9AA5AD", "stroke-width": 1 }, svg);
-    labels.forEach(function (lab, li) {
-      var y0 = 4 + li * (groupH + groupGap);
-      el("text", { x: labelW - 8, y: y0 + groupH / 2 + 5, "text-anchor": "end", "font-size": 13, fill: "#1F2933" }, svg, lab);
-      series.forEach(function (s, si) {
-        var v = (s.values || [])[li];
-        if (typeof v !== "number" || !isFinite(v)) return;
-        var w = chartW * Math.abs(v) / span;
-        var x = v >= 0 ? zeroX : zeroX - w;
-        var y = y0 + si * (barH + gap);
-        el("rect", { x: x, y: y, width: Math.max(w, 1), height: barH, rx: 3, fill: COLORS[si % COLORS.length] }, svg);
-        el("text", { x: v >= 0 ? x + w + 4 : x - 4, y: y + barH - 3, "text-anchor": v >= 0 ? "start" : "end", "font-size": 11, fill: "#5B6770" }, svg, v + (c.unit || ""));
-      });
-    });
-  });
-})();
-</script>
 </body>
 </html>
