@@ -558,9 +558,12 @@ Graph の `appCatalogs/teamsApps` にも現れないため、`appDefinitions` �
 
 - 原因: `top` を省くと 20 行まで。長い結果を途中で切って AI に渡すと、同じく件数を誤る（リハーサルの仕組み側で実際に起きた）。
 - 対処: スキルに「先に `COUNT` で件数を確かめ、`top` に件数以上を指定する」と書く。`rehearse_plugin.py` は結果を切ったときに明示する。
-- 補足（実測）: 1 回で返るのは **20 行まで**。`SELECT TOP 50` は `Requested TOP 50 exceeds the maximum of 20 records` でエラーになる。
-  20 行を超える対象は、キーの範囲（例: 商品コード `< 'H'` / `>= 'H' AND < 'O'` / `>= 'O'`）で分けて読み、合計件数を `COUNT` と照合するようスキルに書く。
-  引数名は `querytext`（`describe` は `path`。例 `tables/<prefix>_<table>`）。スキルの SQL を実機で確かめるときは `tools/call read_query {"querytext": ...}` を送る。
+- 補足（実測）: 上限 20 行がかかるのは **`top` 引数を省いたとき**と **SQL の `TOP n`（21 以上はエラー）**。`read_query` の **`top` 引数**（ツールの引数。SQL ではない）に件数を渡すと 20 行を超えて返る
+  （実測: `top`=50 / 1,000 / 5,000 で 50 / 1,000 / 全 4,275 行。SQL の `TOP 20` と `top`=50 を併用すると小さい方の 20 行）。
+  `OFFSET … FETCH` は**エラーにならず無視され、先頭 20 行がまた返る**（ページングしたつもりで同じ行を読む）。
+  スキルには「先に `COUNT` → SQL に `TOP` を書かず `top` 引数に件数以上 → 返った行数を照合 → 足りなければ `WHERE <キー> > '<最後のキー>' ORDER BY <キー>` で続きを読む」を書く。
+  キー範囲を決め打ちで分ける書き方は、件数が変わると黙って取りこぼすので使わない。
+  引数名は `querytext` と `top`（`describe` は `path`。例 `tables/<prefix>_<table>`）。スキルの SQL を実機で確かめるときは、`top` 引数なしでちょうど 20 行返ったクエリを「切れている可能性あり」として失敗にする。
 
 ## 46. Connect は成功しているのに、Cowork の実行時に Dataverse MCP のツールが 0 件になる
 
