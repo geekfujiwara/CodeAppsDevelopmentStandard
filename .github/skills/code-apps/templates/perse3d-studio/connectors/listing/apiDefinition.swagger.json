@@ -1,0 +1,164 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Perse3D-Listing-SUUMO",
+    "description": "不動産ポータル SUUMO の物件概要ページ・物件ページ・物件画像（1 件分）を取得する。利用者が案件に URL を入れて「自動取得」を押したときだけ呼ぶ。ホストは suumo.jp に固定。",
+    "version": "1.0"
+  },
+  "host": "suumo.jp",
+  "basePath": "/",
+  "schemes": [
+    "https"
+  ],
+  "consumes": [],
+  "produces": [
+    "text/html"
+  ],
+  "paths": {
+    "/{kind}/{pref}/{area}/{id}/bukkengaiyo/": {
+      "get": {
+        "operationId": "GetListingOverview",
+        "summary": "物件概要ページを取得",
+        "description": "例: https://suumo.jp/chukoikkodate/tokyo/sc_xxx/nc_12345678/bukkengaiyo/",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "物件の種類（chukoikkodate / ikkodate / tochi）",
+            "x-ms-summary": "種類"
+          },
+          {
+            "name": "pref",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "都道府県（例: tokyo）",
+            "x-ms-summary": "都道府県"
+          },
+          {
+            "name": "area",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "市区町村（例: sc_xxx）",
+            "x-ms-summary": "市区町村"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "物件番号（例: nc_12345678）",
+            "x-ms-summary": "物件番号"
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "物件概要ページの HTML（200 などの状態コードでは宣言しない。Code Apps の SDK は状態コードの応答情報があると本文を JSON として読もうとして失敗する）"
+          }
+        },
+        "produces": [
+          "text/html"
+        ]
+      }
+    },
+    "/{kind}/{pref}/{area}/{id}/": {
+      "get": {
+        "operationId": "GetListingPage",
+        "summary": "物件ページを取得",
+        "description": "例: https://suumo.jp/chukoikkodate/tokyo/sc_xxx/nc_12345678/ （外観写真・間取り図の画像の一覧を読む）",
+        "produces": [
+          "text/html"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "物件の種類（chukoikkodate / ikkodate / tochi）",
+            "x-ms-summary": "種類"
+          },
+          {
+            "name": "pref",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "都道府県（例: tokyo）",
+            "x-ms-summary": "都道府県"
+          },
+          {
+            "name": "area",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "市区町村（例: sc_xxx）",
+            "x-ms-summary": "市区町村"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "物件番号（例: nc_12345678）",
+            "x-ms-summary": "物件番号"
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "物件ページの HTML（状態コードでは宣言しない。Code Apps の SDK が本文を JSON として読んで失敗する）"
+          }
+        }
+      }
+    },
+    "/jj/resizeImage": {
+      "get": {
+        "operationId": "GetListingImage",
+        "summary": "物件画像を取得",
+        "description": "例: https://suumo.jp/jj/resizeImage?src=gazo%2Fbukken%2F…jpg&w=1000&h=1000 （robots.txt で許可された gazo/ 配下だけ）",
+        "produces": [
+          "image/jpeg"
+        ],
+        "parameters": [
+          {
+            "name": "src",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "description": "画像のパス（gazo/ から始まる）",
+            "x-ms-summary": "画像"
+          },
+          {
+            "name": "w",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "description": "幅（px、最大 1000）",
+            "x-ms-summary": "幅"
+          },
+          {
+            "name": "h",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "description": "高さ（px、最大 1000）",
+            "x-ms-summary": "高さ"
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "画像（JPEG）"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {},
+  "parameters": {},
+  "responses": {},
+  "securityDefinitions": {},
+  "security": [],
+  "tags": []
+}
