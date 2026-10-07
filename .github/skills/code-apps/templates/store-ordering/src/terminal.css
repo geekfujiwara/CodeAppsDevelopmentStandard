@@ -1,0 +1,317 @@
+/* 店舗発注システム — 古い業務端末風の見た目（Tailwind のユーティリティは使わず、t- で始まるクラスだけ） */
+:root {
+  --t-navy: #0a246a;
+  --t-navy2: #3a6ea5;
+  --t-face: #d4d0c8;
+  --t-face-dark: #808080;
+  --t-face-light: #ffffff;
+  --t-shadow: #404040;
+  --t-grid: #7f7f7f;
+  --t-head: #00337a;
+  --t-row-alt: #eef4fb;
+  --t-input: #ffffcc;
+  --t-input-focus: #fff27a;
+  --t-error: #c00000;
+  --t-ok: #006400;
+  --t-font: "MS Gothic", "ＭＳ ゴシック", "Osaka-Mono", "Noto Sans Mono CJK JP", monospace;
+}
+
+.t-root {
+  /* 画面の高さに固定し、はみ出しは .t-main の中でスクロールする（F キー列を常に見せる） */
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #2b4f81;
+  color: #000;
+  font-family: var(--t-font);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.t-window {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 6px;
+  min-width: 0;
+  background: var(--t-face);
+  border: 2px solid;
+  border-color: var(--t-face-light) var(--t-shadow) var(--t-shadow) var(--t-face-light);
+}
+
+/* タイトルバー */
+.t-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 6px;
+  color: #fff;
+  font-weight: bold;
+  background: linear-gradient(90deg, var(--t-navy), #a6caf0);
+  letter-spacing: 1px;
+}
+.t-titlebar small { font-weight: normal; letter-spacing: 0; }
+.t-titlebar-btns { display: flex; gap: 2px; }
+.t-titlebar-btns span {
+  display: inline-block;
+  width: 18px;
+  height: 16px;
+  font-size: 11px;
+  line-height: 14px;
+  text-align: center;
+  color: #000;
+  background: var(--t-face);
+  border: 1px solid;
+  border-color: var(--t-face-light) var(--t-shadow) var(--t-shadow) var(--t-face-light);
+}
+
+/* 店舗情報バー */
+.t-infobar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--t-face-dark);
+}
+.t-field {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--t-face-dark);
+}
+.t-field b {
+  padding: 1px 6px;
+  color: #fff;
+  font-weight: normal;
+  background: var(--t-head);
+}
+.t-field span {
+  padding: 1px 8px;
+  min-width: 60px;
+  background: #fff;
+  border-left: 1px solid var(--t-face-dark);
+}
+
+/* 画面名 */
+.t-screenbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  margin: 6px 6px 0;
+  color: #fff;
+  background: var(--t-navy2);
+  border: 1px solid var(--t-shadow);
+}
+.t-screenbar h1 { margin: 0; font-size: 16px; letter-spacing: 2px; }
+.t-screenbar .t-screen-id { font-size: 12px; opacity: .9; }
+
+.t-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px;
+}
+
+/* パネル（溝付きの枠） */
+.t-panel {
+  margin: 0 0 8px;
+  padding: 8px 10px 10px;
+  border: 2px groove var(--t-face-light);
+  min-width: 0;
+}
+.t-panel > legend, .t-panel-title {
+  padding: 0 4px;
+  font-weight: bold;
+}
+.t-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.t-grow { flex: 1; min-width: 0; }
+
+/* 立体ボタン */
+.t-btn {
+  font-family: var(--t-font);
+  font-size: 14px;
+  padding: 4px 12px;
+  color: #000;
+  background: var(--t-face);
+  border: 2px solid;
+  border-color: var(--t-face-light) var(--t-shadow) var(--t-shadow) var(--t-face-light);
+  cursor: pointer;
+}
+.t-btn:active, .t-btn[aria-pressed="true"] {
+  border-color: var(--t-shadow) var(--t-face-light) var(--t-face-light) var(--t-shadow);
+  background: #c0bcb4;
+}
+.t-btn:disabled { color: var(--t-face-dark); cursor: default; }
+.t-btn:focus-visible { outline: 1px dotted #000; outline-offset: -5px; }
+.t-btn-primary { font-weight: bold; }
+
+/* 業務メニュー */
+.t-menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 360px));
+  gap: 10px;
+  justify-content: center;
+  padding: 16px 0;
+}
+.t-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+  font-size: 18px;
+  text-align: left;
+}
+.t-menu-btn .t-num {
+  display: inline-block;
+  width: 34px;
+  height: 34px;
+  line-height: 32px;
+  text-align: center;
+  color: #fff;
+  font-weight: bold;
+  background: var(--t-head);
+  border: 1px solid #000;
+}
+.t-menu-btn small { display: block; font-size: 12px; color: #333; }
+
+/* 分類タブ */
+.t-tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 2px solid var(--t-face-light); }
+.t-tab {
+  font-family: var(--t-font);
+  font-size: 14px;
+  padding: 3px 12px;
+  margin-right: -1px;
+  background: var(--t-face);
+  border: 2px solid;
+  border-color: var(--t-face-light) var(--t-shadow) transparent var(--t-face-light);
+  cursor: pointer;
+}
+.t-tab[aria-selected="true"] { position: relative; top: 2px; font-weight: bold; background: #ece9d8; }
+
+/* 表 */
+.t-table-wrap { overflow: auto; max-width: 100%; border: 2px solid; border-color: var(--t-shadow) var(--t-face-light) var(--t-face-light) var(--t-shadow); background: #fff; }
+.t-table { width: 100%; border-collapse: collapse; background: #fff; }
+.t-table th, .t-table td { border: 1px solid var(--t-grid); padding: 2px 5px; white-space: nowrap; }
+.t-table th { color: #fff; font-weight: normal; background: var(--t-head); position: sticky; top: 0; z-index: 1; }
+.t-table tbody tr:nth-child(even) td { background: var(--t-row-alt); }
+.t-table tbody tr.t-selected td { background: #0a246a; color: #fff; }
+.t-table tbody tr.t-clickable { cursor: pointer; }
+.t-table td.t-num, .t-table th.t-num { text-align: right; }
+.t-table td.t-center { text-align: center; }
+.t-table td.t-wrap { white-space: normal; overflow-wrap: anywhere; min-width: 160px; }
+.t-table tfoot td { font-weight: bold; background: #e7e3da; }
+.t-mini { font-size: 12px; color: #333; }
+.t-table tbody tr.t-selected td .t-mini { color: #dde; }
+
+/* 入力欄（黄色） */
+.t-input {
+  font-family: var(--t-font);
+  font-size: 15px;
+  width: 64px;
+  padding: 1px 4px;
+  text-align: right;
+  background: var(--t-input);
+  border: 2px solid;
+  border-color: var(--t-shadow) var(--t-face-light) var(--t-face-light) var(--t-shadow);
+}
+.t-input:focus { outline: none; background: var(--t-input-focus); }
+.t-input:disabled { background: #e0e0e0; color: #888; }
+.t-input.t-invalid { background: #ffc8c8; }
+.t-input-wide { width: 100%; text-align: left; }
+
+.t-tag { display: inline-block; padding: 0 4px; font-size: 12px; border: 1px solid; }
+.t-tag-ng { color: var(--t-error); border-color: var(--t-error); }
+.t-tag-ok { color: var(--t-ok); border-color: var(--t-ok); }
+.t-tag-warn { color: #8a5a00; border-color: #8a5a00; background: #fff4cc; }
+.t-up { color: var(--t-error); font-weight: bold; }
+.t-down { color: #1d4ed8; font-weight: bold; }
+
+/* 文字の棒グラフ */
+.t-bar { font-family: var(--t-font); letter-spacing: -1px; }
+.t-bar-sales { color: #0a246a; }
+.t-bar-waste { color: var(--t-error); }
+
+/* メッセージ行とファンクションキー */
+.t-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  margin: 0 6px;
+  padding: 2px 8px;
+  background: #000;
+  color: #33ff66;
+  border: 2px solid;
+  border-color: var(--t-shadow) var(--t-face-light) var(--t-face-light) var(--t-shadow);
+}
+.t-message.t-msg-error { color: #ff6666; }
+.t-message.t-msg-warn { color: #ffdd55; }
+.t-fkeys {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 3px;
+  padding: 6px;
+}
+.t-fkey {
+  min-width: 0;
+  padding: 2px 0 3px;
+  font-family: var(--t-font);
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+  background: var(--t-face);
+  border: 2px solid;
+  border-color: var(--t-face-light) var(--t-shadow) var(--t-shadow) var(--t-face-light);
+  cursor: pointer;
+}
+.t-fkey b { display: block; color: var(--t-head); font-size: 12px; }
+.t-fkey:disabled { cursor: default; color: transparent; }
+.t-fkey:disabled b { color: var(--t-face-dark); }
+.t-fkey-gap { margin-left: 8px; }
+
+/* ダイアログ */
+.t-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, .25);
+}
+.t-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  background: var(--t-face);
+  border: 2px solid;
+  border-color: var(--t-face-light) var(--t-shadow) var(--t-shadow) var(--t-face-light);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .4);
+}
+.t-dialog-wide { width: min(760px, calc(100vw - 32px)); }
+.t-dialog-body { padding: 14px 16px; }
+.t-dialog-body p { margin: 0 0 8px; }
+.t-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 0 16px 14px; }
+.t-dialog-icon { float: left; width: 34px; height: 34px; margin: 0 12px 6px 0; line-height: 32px; text-align: center; font-weight: bold; color: #fff; border-radius: 50%; }
+.t-dialog-icon.t-q { background: #1d4ed8; }
+.t-dialog-icon.t-w { background: #b45309; }
+.t-dialog-icon.t-i { background: var(--t-ok); }
+
+.t-help ol, .t-help ul { margin: 4px 0 10px 20px; padding: 0; }
+.t-help kbd { padding: 0 4px; border: 1px solid #666; background: #fff; font-family: var(--t-font); }
+.t-help h3 { margin: 10px 0 4px; font-size: 15px; color: var(--t-head); }
+
+.t-loading { padding: 24px; text-align: center; }
+.t-blink { animation: t-blink 1s steps(1) infinite; }
+@keyframes t-blink { 50% { opacity: 0; } }
+
+@media (max-width: 760px) {
+  .t-menu { grid-template-columns: minmax(0, 1fr); }
+  .t-fkeys { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}

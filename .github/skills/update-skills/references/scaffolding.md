@@ -63,6 +63,7 @@
 |---|---|
 | `variables` | `.env` から取る必須の値。`references/.env.example` にも定義する |
 | `optionalVariables` | 無くても生成できる値（機能ブロックの有効化など）。答えが無ければ空文字で置き換える |
+| `envOnly` | テンプレートのファイルには書かず、`--write-env` で生成先の `.env` にだけ書く値（環境 ID・Dataverse URL など）。`validate_skill.py` の「使われていない」警告から外れる。`variables` / `optionalVariables` にも書く |
 | `derivedVariables` | 呼び出し側が組み立てて `--var` で渡す値（パッケージ名など）。`.env` には現れない |
 | `preserveUndeclaredVariables` | `true` のとき未宣言の `${UPPER_SNAKE}` を実行時コードとして保持する。TypeScript 等で大文字定数のテンプレートリテラルを含む場合だけ使う |
 | `blockFiles` | ファイル名 → 機能ブロック。選ばれていないブロックのファイルは生成しない |

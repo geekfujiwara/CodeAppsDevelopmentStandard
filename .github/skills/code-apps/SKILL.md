@@ -270,6 +270,7 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py \
 # 業務テンプレートから始める場合は --template を差し替える（generic-base を extends 済み。例: 営業支援 CRM）
 #   --template .github/skills/code-apps/templates/sales-crm
 #   --template .github/skills/code-apps/templates/agm-qa-assist   # 株主総会 Q&A アシスト
+#   --template .github/skills/code-apps/templates/store-ordering  # 店舗発注システム（業務端末風 UI ＋ Dataverse ＋ 合成デモデータ）
 #   --template .github/skills/code-apps/templates/construction-cockpit   # 建設現場コックピット（--var PUBLISHER_PREFIX / COWORK_PLUGIN_ID / DATAVERSE_ORIGIN）
 #   --template .github/skills/code-apps/templates/perse3d-studio   # パース3D内見スタジオ（--var PUBLISHER_PREFIX）
 # scaffold.json に questions があるテンプレートは、値を AskUserQuestion で 1 問ずつ聞いてから生成する:
@@ -621,6 +622,7 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 | [templates/construction-cockpit](templates/construction-cockpit/README.md) | 完全な業務テンプレート（generic-base を `extends`・Copilot Studio エージェント同梱） | 建設現場コックピット: Google Maps の工事ポートフォリオ、Three.js の進捗 3D（工事種別 6 種・完成形の点線・CAD の GLB/OBJ/STL/FBX 取り込みと施工単位の対応付け・施工位置イメージ）、React Flow ガント/因果関係、工事・ユーザーの Dataverse 検索ドロップダウン、監督の承認待ち（日報・現場写真・進捗の下書き）、KY・ヒヤリハット・日報・ナレッジのグラフ付き一覧と詳細、KY の AI 危険予測（Dataverse 要求/結果 + Workflow）、Copilot Studio「現場コックピット アシスタント」（Teams での日報と写真の報告・施工単位での進捗報告・まとめ登録・承認）、Cowork、本格デモデータを生成する |
 | [templates/perse3d-studio](templates/perse3d-studio/README.md) | 完全な業務テンプレート（generic-base を `extends`・Blender パイプライン・カスタム コネクタ同梱） | パース3D内見スタジオ: 間取り図・パース・物件 URL から 3D 建物を生成し、内見（ドールハウス・歩行・階段）・家具配置・提案プラン・Blender 出力まで行う。データソース追加前でもビルドでき（生成サービスは遅延読み込み）、`npm run deploy` の predeploy がデータソースの実在を確かめる |
 | [templates/agm-qa-assist](templates/agm-qa-assist/README.md) | 完全な業務テンプレート（generic-base を `extends`・Azure Functions 同梱） | 株主総会 Q&A アシスト（連続の文字起こし・株主の AI 照合・想定問答の検索と根拠つき回答案・録音と記録・総会の集計・LIVE 共有）。**変数は `--questions` の順に AskUserQuestion で聞いてから生成**する |
+| [templates/store-ordering](templates/store-ordering/README.md) | 完全な業務テンプレート（generic-base を `extends`・Dataverse 8 テーブルと合成デモデータの生成器を同梱） | 店舗発注システム: 小売店の発注端末を模した業務端末風 UI（F1〜F10 キー・単品発注 → 確認 → 送信・発注照会と取消・在庫照会・天気と催事）。単位（個・本・パック）つきの合成データ（50 品目 × 90 日・シナリオ切り替え）を Dataverse に作る。Cowork の店長アシスト（cowork スキルの `templates/store-assist-plugin`）と同じテーブル。データソース追加前でもビルドできる遅延版クライアント。**変数は `--questions` の順に AskUserQuestion で聞いてから生成**する |
 | [templates/account-link-admin](templates/account-link-admin/) | アドオン | 空の作業ディレクトリへ生成し、README に従ってホストへ統合する |
 | [templates/drawing-communication](templates/drawing-communication/) | アドオン | 空の作業ディレクトリへ生成・単体検証後、必要なモジュールをホストへ統合する |
 | [templates/modular-plant](templates/modular-plant/) | アドオン | 空の作業ディレクトリへ生成・単体検証後、必要なモジュールをホストへ統合する |

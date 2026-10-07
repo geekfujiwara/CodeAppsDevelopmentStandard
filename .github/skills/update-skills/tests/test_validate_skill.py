@@ -131,5 +131,21 @@ class TemplateManifestTests(unittest.TestCase):
         self.assertIn(".env.example", warnings[0])
 
 
+    def test_unused_variable_warns_unless_env_only(self):
+        self.write_manifest(variables=["AGENT_NAME", "ENV_ID"])
+        (self.template / "app.py").write_text("X = '${AGENT_NAME}'\n", encoding="utf-8")
+        warnings = validate_skill(self.skill).warnings
+        self.assertTrue(any("ENV_ID" in w and "使われていない" in w for w in warnings), warnings)
+
+        self.write_manifest(variables=["AGENT_NAME", "ENV_ID"], envOnly=["ENV_ID"])
+        self.assertFalse(any("使われていない" in w for w in validate_skill(self.skill).warnings))
+
+    def test_env_only_must_be_declared(self):
+        self.write_manifest(variables=["AGENT_NAME"], envOnly=["ENV_ID"])
+        (self.template / "app.py").write_text("X = '${AGENT_NAME}'\n", encoding="utf-8")
+        errors = validate_skill(self.skill).errors
+        self.assertTrue(any("envOnly" in e and "ENV_ID" in e for e in errors), errors)
+
+
 if __name__ == "__main__":
     unittest.main()

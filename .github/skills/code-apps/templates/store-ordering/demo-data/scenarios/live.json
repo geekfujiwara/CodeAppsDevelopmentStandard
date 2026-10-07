@@ -1,0 +1,24 @@
+{
+  "id": "live",
+  "title": "予備：天気だけ実際の予報（品川）を使う",
+  "description": "天気予報だけ外部（Open-Meteo）から品川の実際の予報を取得し、営業日 10/30 の予報として返す。取得に失敗したときは下の固定値を返す。本番では使わない。",
+  "businessDate": "2026-10-30",
+  "demoTime": "08:30",
+  "liveWeather": true,
+  "weather": {
+    "2026-10-30": { "condition": "くもり", "temp_max": 18, "temp_min": 12, "precip_prob": 30 },
+    "2026-10-31": { "condition": "くもり", "temp_max": 18, "temp_min": 12, "precip_prob": 30 },
+    "2026-11-01": { "condition": "晴れ", "temp_max": 19, "temp_min": 11, "precip_prob": 10 },
+    "2026-11-02": { "condition": "晴れ", "temp_max": 19, "temp_min": 11, "precip_prob": 10 },
+    "2026-11-03": { "condition": "くもり", "temp_max": 17, "temp_min": 11, "precip_prob": 30 },
+    "2026-11-04": { "condition": "くもり", "temp_max": 17, "temp_min": 11, "precip_prob": 30 },
+    "2026-11-05": { "condition": "晴れ", "temp_max": 17, "temp_min": 10, "precip_prob": 10 }
+  },
+  "events": [
+    { "date": "2026-10-30", "start": "18:00", "end": "21:00", "venue": "港南ホール", "name": "秋の音楽フェス", "scale": 5000, "distance_m": 350 }
+  ],
+  "inventoryOverrides": {},
+  "storyNotes": [
+    "外部の予報が取れないと固定値（くもり 18℃）になる。ネットワークが不安定な会場では使わない。"
+  ]
+}

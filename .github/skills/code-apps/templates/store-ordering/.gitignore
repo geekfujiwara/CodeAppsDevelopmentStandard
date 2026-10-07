@@ -1,0 +1,6 @@
+
+# 開発用の模擬データ（scripts/build-mock.mjs で生成）
+src/mock/
+# デモデータ（npm run data:seed / data:export で生成）
+demo-data/store.db
+demo-data/export/

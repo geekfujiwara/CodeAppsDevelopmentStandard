@@ -1,0 +1,47 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.29/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.29",
+  "version": "1.0.0",
+  "id": "${COWORK_PLUGIN_ID}",
+  "developer": {
+    "name": "${COWORK_DEVELOPER_NAME}",
+    "websiteUrl": "${COWORK_DEVELOPER_URL}",
+    "privacyUrl": "${COWORK_PRIVACY_URL}",
+    "termsOfUseUrl": "${COWORK_TERMS_URL}"
+  },
+  "name": {
+    "short": "店長アシスト",
+    "full": "店長アシスト — 単品管理・発注・本部通達・週次レポート（デモ）"
+  },
+  "description": {
+    "short": "店長の判断基準で発注案を作り、承認された発注を登録する（架空店舗のデモ）",
+    "full": "架空の店舗の合成データ（Dataverse）を使うデモ用プラグインです。天気・周辺イベント・売れ行き・在庫・廃棄・欠品を Dataverse から読み、店長の判断基準（単品管理スキル）で品目ごとの発注案を作り、店長が承認した発注だけを Dataverse の発注テーブルに登録します。本部通達のメール・Teams から自店のやることを整理し、SV 向けの週次レポートを作ります。"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#0E7C66",
+  "agentSkills": [
+    { "folder": "./skills/tanpin-kanri" },
+    { "folder": "./skills/order-execute" },
+    { "folder": "./skills/hq-notice-triage" },
+    { "folder": "./skills/weekly-store-report" }
+  ],
+  "agentConnectors": [
+    {
+      "id": "tencho-assist-dataverse-mcp",
+      "displayName": "店長アシスト Dataverse MCP（店舗データ・発注）",
+      "description": "店長アシスト デモの Dataverse テーブル（商品・単品の傾向・単品日次実績・天気・周辺イベント・在庫・デモ設定）を describe / read_query で読む。書き込みは、店長が承認した発注を発注テーブルに create_record で登録するときだけ。更新・削除・テーブル変更はしない。",
+      "toolSource": {
+        "remoteMcpServer": {
+          "mcpServerUrl": "${DATAVERSE_ORIGIN}/api/mcp",
+          "authorization": {
+            "type": "OAuthPluginVault",
+            "referenceId": "__COWORK_OAUTH_REGISTRATION_ID__"
+          }
+        }
+      }
+    }
+  ]
+}

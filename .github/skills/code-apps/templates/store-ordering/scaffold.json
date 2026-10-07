@@ -1,0 +1,120 @@
+{
+  "description": "店舗発注システム（小売店の発注端末を模した業務端末風 UI の Code App: 単品発注・発注照会と取消・在庫照会・天気と催事）＋ Dataverse の 8 テーブルと合成デモデータ（50 品目 × 90 日・単位つき・シナリオ切り替え）。generic-base を継承する完全テンプレート。Cowork の店長アシスト（cowork スキルの templates/store-assist-plugin）と同じテーブルを使う",
+  "extends": "../generic-base",
+  "preserveUndeclaredVariables": true,
+  "variables": [
+    "VITE_CODEAPPS_APP_NAME",
+    "VITE_CODEAPPS_DOCUMENT_TITLE",
+    "TENANT_ID",
+    "ENV_ID",
+    "DATAVERSE_URL",
+    "VITE_DATAVERSE_URL",
+    "PUBLISHER_PREFIX",
+    "VITE_PUBLISHER_PREFIX",
+    "VITE_TABLE_PREFIX",
+    "SOLUTION_NAME",
+    "SOLUTION_DISPLAY_NAME"
+  ],
+  "optionalVariables": [
+    "PUBLISHER_UNIQUE_NAME",
+    "SCENARIO"
+  ],
+  "envOnly": [
+    "VITE_CODEAPPS_APP_NAME",
+    "VITE_CODEAPPS_DOCUMENT_TITLE",
+    "TENANT_ID",
+    "ENV_ID",
+    "DATAVERSE_URL",
+    "VITE_DATAVERSE_URL",
+    "VITE_PUBLISHER_PREFIX",
+    "VITE_TABLE_PREFIX",
+    "SOLUTION_NAME",
+    "SOLUTION_DISPLAY_NAME",
+    "PUBLISHER_UNIQUE_NAME",
+    "SCENARIO"
+  ],
+  "questions": [
+    {
+      "variable": "VITE_CODEAPPS_APP_NAME",
+      "question": "アプリの表示名を決めてください（端末のタイトルバーと Power Apps の一覧に出ます）",
+      "choices": [
+        "店舗発注システム"
+      ],
+      "default": "店舗発注システム"
+    },
+    {
+      "variable": "VITE_CODEAPPS_DOCUMENT_TITLE",
+      "question": "（アプリの表示名と同じ）",
+      "sameAs": "VITE_CODEAPPS_APP_NAME"
+    },
+    {
+      "variable": "TENANT_ID",
+      "question": "Entra ID のテナント ID は？",
+      "detect": "az account show --query tenantId -o tsv"
+    },
+    {
+      "variable": "ENV_ID",
+      "question": "作成先の Power Platform 環境はどれですか？（既定環境は使わない。Dataverse・Code Apps が有効な開発用の環境）",
+      "detect": "pac env list（候補を choices にして聞く）。admin スキルの環境チェックで Code Apps の有効化も確認する"
+    },
+    {
+      "variable": "DATAVERSE_URL",
+      "question": "その環境の Dataverse の URL は？（https://<org>.crm.dynamics.com/）",
+      "detect": "pac env list の Environment URL（ENV_ID で選んだ行）"
+    },
+    {
+      "variable": "VITE_DATAVERSE_URL",
+      "question": "（DATAVERSE_URL と同じ）",
+      "sameAs": "DATAVERSE_URL"
+    },
+    {
+      "variable": "PUBLISHER_PREFIX",
+      "question": "テーブルの接頭辞は？（パブリッシャーの接頭辞。テーブルは <接頭辞>_tkitem などになります）",
+      "detect": "既存のパブリッシャーを使うなら Dataverse の publishers の customizationprefix"
+    },
+    {
+      "variable": "VITE_PUBLISHER_PREFIX",
+      "question": "（PUBLISHER_PREFIX と同じ）",
+      "sameAs": "PUBLISHER_PREFIX"
+    },
+    {
+      "variable": "VITE_TABLE_PREFIX",
+      "question": "テーブルの名前空間は？（<接頭辞>_tk。例: 接頭辞が contoso なら contoso_tk）"
+    },
+    {
+      "variable": "SOLUTION_NAME",
+      "question": "ソリューションの一意の名前は？（英数字。例: StoreOrderingDemo。テーブル・アプリ・接続参照をここに入れます）",
+      "default": "StoreOrderingDemo"
+    },
+    {
+      "variable": "SOLUTION_DISPLAY_NAME",
+      "question": "ソリューションの表示名は？",
+      "default": "店舗発注デモ"
+    },
+    {
+      "variable": "PUBLISHER_UNIQUE_NAME",
+      "question": "使うパブリッシャーの一意の名前は？（同じ接頭辞のパブリッシャーが複数あるときだけ。無ければ空）"
+    },
+    {
+      "variable": "SCENARIO",
+      "question": "最初に入れるデモのシナリオは？",
+      "choices": [
+        "demo-1030-rain",
+        "demo-sunny-hot",
+        "live"
+      ],
+      "default": "demo-1030-rain"
+    }
+  ],
+  "nextSteps": [
+    "README.md の「開始の手順」を上から実行する（0〜5）",
+    "npm install --no-audit --no-fund; npm run data:seed; npm run data:export",
+    "npm run dv:setup; npm run dv:verify   # ソリューション・8 テーブル・デモデータ（べき等）",
+    "python .github/skills/code-apps/scripts/setup_connection_reference.py --write-env .env",
+    "npx --no pa app init --environment-id $env:ENV_ID --display-name \"店舗発注システム\" --app-type CodeApp",
+    "npm run deploy -- --solution-id $env:SOLUTION_ID  # 初回。データソース未追加でもビルドできる",
+    "python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --connection-ref $env:CONNECTION_REFERENCE_LOGICAL_NAME --solution-id $env:SOLUTION_ID",
+    "npm run deploy; npm run dv:check-terminal",
+    "（任意）Cowork の店長アシスト: cowork スキルの templates/store-assist-plugin を --questions で生成"
+  ]
+}

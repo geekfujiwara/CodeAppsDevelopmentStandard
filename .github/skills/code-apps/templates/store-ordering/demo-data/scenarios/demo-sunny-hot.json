@@ -1,0 +1,25 @@
+{
+  "id": "demo-sunny-hot",
+  "title": "比較用：10/30（金）晴れ・最高 27℃、イベントなし",
+  "description": "質疑応答で「晴れて暑い日だったらどうなる？」に答えるための比較用シナリオ。季節外れの暑さで冷たい麺・飲料・アイスが伸びる想定。",
+  "businessDate": "2026-10-30",
+  "demoTime": "08:30",
+  "liveWeather": false,
+  "weather": {
+    "2026-10-30": { "condition": "晴れ", "temp_max": 27, "temp_min": 18, "precip_prob": 0 },
+    "2026-10-31": { "condition": "晴れ", "temp_max": 25, "temp_min": 17, "precip_prob": 10 },
+    "2026-11-01": { "condition": "くもり", "temp_max": 21, "temp_min": 14, "precip_prob": 30 },
+    "2026-11-02": { "condition": "晴れ", "temp_max": 20, "temp_min": 12, "precip_prob": 10 },
+    "2026-11-03": { "condition": "晴れ", "temp_max": 19, "temp_min": 11, "precip_prob": 10 },
+    "2026-11-04": { "condition": "くもり", "temp_max": 18, "temp_min": 11, "precip_prob": 30 },
+    "2026-11-05": { "condition": "晴れ", "temp_max": 18, "temp_min": 10, "precip_prob": 10 }
+  },
+  "events": [],
+  "inventoryOverrides": {
+    "U01": 4
+  },
+  "storyNotes": [
+    "雨シナリオとの違い: おでん・ホット飲料を増やさず、冷し中華・ざるそば・スポーツドリンク・アイスを増やす。",
+    "イベントがないので夕方便の追加は不要。"
+  ]
+}
