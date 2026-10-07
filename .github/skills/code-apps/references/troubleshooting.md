@@ -1533,7 +1533,7 @@ Power Apps API 上のアプリの `almMode` が `Environment` になっている
 
 ---
 
-## 29. 接続参照のソリューション コンポーネント種別は 10132（検証済 2026-06-15）
+## 29. 接続参照のソリューション コンポーネント種別は環境ごとに違う（10132 / 10121 など。検証済 2026-10-07）
 
 ### 症状
 
@@ -1544,6 +1544,15 @@ AddSolutionComponent (ComponentType: 10029)
 → Cannot add CustomAPIResponseProperty ... does not exist
 ```
 
+別の環境で検証した `10132` を固定値にしても、環境によっては失敗する（2026-10-07、ある環境の接続参照は `10121`）。
+
+```
+AddSolutionComponent (ComponentType: 10132)
+→ Invalid component type provided
+```
+
+作成時の追加失敗を握りつぶすと、接続参照はソリューションの外に残り、ソリューション内の既存 CR も見つけられない（同じ種別で検索するため、再実行のたびに CR が増える）。
+
 `pac` でも失敗する。
 
 ```
@@ -1553,14 +1562,15 @@ pac solution add-solution-component -ct 10029
 
 ### 原因
 
-- 接続参照（`connectionreference`）の `componenttype` は **`10132`**。`10029` は `CustomAPIResponseProperty`。
+- 接続参照（`connectionreference`）の `componenttype` は、**その環境のエンティティの `ObjectTypeCode`**（10000 以上は環境ごとに採番される）。`10132` も `10121` も「ある環境での値」で、固定値にできない。`10029` は `CustomAPIResponseProperty`。
+- 値は `EntityDefinitions(LogicalName='connectionreference')?$select=ObjectTypeCode` で取得する。
 - `pac solution add-solution-component` は**数値を受け付けない**。`--componentType` には**型名**を渡す。
 
 ### 対処
 
 ```powershell
-# Web API（数値）
-# ComponentType: 10132, SolutionUniqueName: {SOLUTION_NAME}
+# Web API（数値）: スクリプトが ObjectTypeCode を取得して使い、最後にソリューションに入ったことを読み戻す
+# （入っていなければ NG で止まる）
 python .github/skills/code-apps/scripts/setup_connection_reference.py
 
 # pac（型名）

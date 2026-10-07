@@ -64,8 +64,17 @@ for _p in _SCRIPT_DIR.parents:
 
 from auth_helper import api_get, api_post  # noqa: E402
 
-# 接続参照のソリューション コンポーネント種別（10029 は CustomAPIResponseProperty なので誤り）
-COMPONENT_TYPE_CONNECTION_REFERENCE = 10132
+# 接続参照のソリューション コンポーネント種別。10000 以上は環境ごとに採番されるエンティティの ObjectTypeCode なので
+# 固定値にしない（ある環境の 10132 が別の環境では `Invalid component type provided` になる。10029 は別物）。
+_component_type_cache: dict[str, int] = {}
+
+
+def connection_reference_component_type() -> int:
+    """接続参照（connectionreference）のコンポーネント種別を、この環境のメタデータから取得する。"""
+    if "value" not in _component_type_cache:
+        meta = api_get("EntityDefinitions(LogicalName='connectionreference')?$select=ObjectTypeCode")
+        _component_type_cache["value"] = int(meta["ObjectTypeCode"])
+    return _component_type_cache["value"]
 
 # `pa app add data-source --connection-ref` が受け付ける論理名（英字で始まり英数字とアンダースコアのみ）。
 # カスタムコネクタの API ID はハイフンを含む（例: shared_xxx-5fmy-20api-5f…）ため、そのまま使うと拒否される。
@@ -116,7 +125,7 @@ def find_in_solution(solution_id: str, api_id: str) -> dict | None:
     components = api_get(
         "solutioncomponents"
         f"?$filter=_solutionid_value eq {solution_id}"
-        f" and componenttype eq {COMPONENT_TYPE_CONNECTION_REFERENCE}"
+        f" and componenttype eq {connection_reference_component_type()}"
         "&$select=objectid"
     ).get("value", [])
     object_ids = {c["objectid"] for c in components}
@@ -128,12 +137,24 @@ def find_in_solution(solution_id: str, api_id: str) -> dict | None:
     return None
 
 
+def is_in_solution(solution_id: str, component_id: str) -> bool:
+    """接続参照がソリューションのコンポーネントとして登録されているか。"""
+    rows = api_get(
+        "solutioncomponents"
+        f"?$filter=_solutionid_value eq {solution_id}"
+        f" and componenttype eq {connection_reference_component_type()}"
+        f" and objectid eq {component_id}"
+        "&$select=solutioncomponentid"
+    ).get("value", [])
+    return bool(rows)
+
+
 def add_to_solution(component_id: str, solution_name: str) -> None:
     api_post(
         "AddSolutionComponent",
         {
             "ComponentId": component_id,
-            "ComponentType": COMPONENT_TYPE_CONNECTION_REFERENCE,
+            "ComponentType": connection_reference_component_type(),
             "SolutionUniqueName": solution_name,
             "AddRequiredComponents": False,
         },
@@ -238,6 +259,13 @@ def main() -> None:
 
     logical_name = cr["connectionreferencelogicalname"]
     assert_valid_logical_name(logical_name)
+    # 追加の失敗は作成時に握りつぶしているので、ソリューションに入ったことを読み戻して確かめる
+    if not is_in_solution(solution_id, cr["connectionreferenceid"]):
+        raise SystemExit(
+            f"NG: 接続参照 {logical_name} がソリューション {args.solution_name} に入っていません"
+            f"（componenttype={connection_reference_component_type()}）。"
+            " references/troubleshooting.md #29 を参照し、ポータルの「既存を追加 → 接続参照」で追加してから再実行してください。"
+        )
     if not cr.get("connectionid"):
         print(
             "  ! この CR には接続がバインドされていません。`pa app add data-source --connection-ref` は"

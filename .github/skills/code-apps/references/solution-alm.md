@@ -161,11 +161,12 @@ npx pa app add data-source --connector shared_commondataserviceforapps `
 
 | コンポーネント | Web API の `ComponentType` | `pac` の `--componentType` |
 |---|---|---|
-| 接続参照 | `10132` | `connectionreference` |
+| 接続参照 | **環境ごとに違う**（`EntityDefinitions(LogicalName='connectionreference')?$select=ObjectTypeCode`。例 `10132` / `10121`） | `connectionreference` |
 | キャンバス アプリ | `300` | `canvasapp` |
 | テーブル | `1` | `entity` |
 | クラウド フロー | `29` | `workflow` |
 
+> カスタム エンティティ扱いのコンポーネント（10000 以上）は環境ごとに採番されるため、固定値をコードに書かない（troubleshooting #29）。
 > `pac solution add-solution-component` は**数値を受け付けない**（`Component Type Id (10132) is not known`）。
 > **型名**を渡す。逆に Web API は数値のみ。
 
