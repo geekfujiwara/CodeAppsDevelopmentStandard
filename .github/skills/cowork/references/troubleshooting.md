@@ -558,6 +558,12 @@ Graph の `appCatalogs/teamsApps` にも現れないため、`appDefinitions` �
 
 - 原因: `top` を省くと 20 行まで。長い結果を途中で切って AI に渡すと、同じく件数を誤る（リハーサルの仕組み側で実際に起きた）。
 - 対処: スキルに「先に `COUNT` で件数を確かめ、`top` に件数以上を指定する」と書く。`rehearse_plugin.py` は結果を切ったときに明示する。
+- 補足（実測）: 上限 20 行がかかるのは **`top` 引数を省いたとき**と **SQL の `TOP n`（21 以上はエラー）**。`read_query` の **`top` 引数**（ツールの引数。SQL ではない）に件数を渡すと 20 行を超えて返る
+  （実測: `top`=50 / 1,000 / 5,000 で 50 / 1,000 / 全 4,275 行。SQL の `TOP 20` と `top`=50 を併用すると小さい方の 20 行）。
+  `OFFSET … FETCH` は**エラーにならず無視され、先頭 20 行がまた返る**（ページングしたつもりで同じ行を読む）。
+  スキルには「先に `COUNT` → SQL に `TOP` を書かず `top` 引数に件数以上 → 返った行数を照合 → 足りなければ `WHERE <キー> > '<最後のキー>' ORDER BY <キー>` で続きを読む」を書く。
+  キー範囲を決め打ちで分ける書き方は、件数が変わると黙って取りこぼすので使わない。
+  引数名は `querytext` と `top`（`describe` は `path`。例 `tables/<prefix>_<table>`）。スキルの SQL を実機で確かめるときは、`top` 引数なしでちょうど 20 行返ったクエリを「切れている可能性あり」として失敗にする。
 
 ## 46. Connect は成功しているのに、Cowork の実行時に Dataverse MCP のツールが 0 件になる
 
@@ -611,3 +617,58 @@ Graph の `appCatalogs/teamsApps` にも現れないため、`appDefinitions` �
 
 - 原因: 日本語 Windows の既定コンソールは cp932 で、結果表示の `✅` / `❌` を出力できない。判定自体は済んでいるが終了コード 1 になる。
 - 恒久対策済み: `check_mcp_client.py`（standard スキル）が起動時に標準出力を UTF-8 に切り替える。
+
+## 50. 「コネクタの競合 "dataverse-mcp" を指定できるプラグインは 1 つだけです」で、プラグインの MCP が無効になる
+
+- 症状: 新しいプラグインを有効にすると、Cowork に「コネクタの競合」と、両方のプラグイン名・「<プラグイン> を無効にする」ボタンが出る。
+  どちらかを無効にするまで、片方のプラグインのコネクタ（MCP）が使えない。
+- 原因: Cowork は **同じ `agentConnectors[].id` を持つプラグインを 1 つしか有効にできない**。同梱テンプレート（AGM・Sales CRM・現場コックピット）と
+  SKILL.md の例がすべて `dataverse-mcp` だったため、このテンプレートから作ったプラグイン同士が必ず衝突した
+  （実測: 手元の 10 種類のプラグインがすべて `dataverse-mcp`）。接続先 URL が別環境でも、ID が同じなら衝突する。
+- 対処: コネクタ ID をプラグイン固有にする（`<プラグインの kebab 名>-<データ源>-mcp`。例 `agm-qa-dataverse-mcp`）。`displayName` にもプラグイン名を入れる。
+  version を上げて再ビルド → 再インストール（個人なら `install_agent_package_personal.py install`、組織なら Step 10）→ Cowork で Connect し直す。
+- 調べ方: テナントのプラグインのコネクタ ID を一覧する API は無い（Graph の組織カタログは manifest を返さず、MOS の `launchInfo` は取得済みの title だけ）。
+  手元の manifest を `check_connector_ids.py --scan <置き場所>` で突き合わせる。
+- 恒久対策済み: `build_agent_package.ps1` が汎用 ID（`dataverse-mcp` など）・manifest 内の重複・64 文字超を止め、`COWORK_PLUGIN_SCAN_DIRS` があれば
+  `check_connector_ids.py` で手元のほかのプラグインとの衝突も止める。同梱テンプレートの ID はプラグイン固有に変更し、
+  `test_check_connector_ids.py` がテンプレートの ID が汎用 ID に戻っていないこと・テンプレート同士で重ならないことを検査する。
+
+## 51. 日付で絞った `read_query` が 0 件になる・`2026-10-30T09:00:00` のように返る
+
+- 症状: `WHERE <prefix>_date = '2026-10-30'` が 0 件。`>= '2026-10-23' AND <= '2026-10-29'` の集計から最終日が抜ける（合計が合わない）。
+  値は `2026-10-30T09:00:00`（JST に換算した時刻）で返る。
+- 原因: 日付列を `Format=DateOnly` でも `DateTimeBehavior=UserLocal`（既定）で作ると、UTC 0:00 で保存され、比較と表示がタイムゾーン分ずれる。
+- 対処: 日付だけの列は `DateTimeBehavior=DateOnly` にする（既存列は `CanChangeDateTimeBehavior` が true なら属性の PUT で変更できる。
+  UserLocal で入れた値は UTC 0:00 で保存されているので、変更後はそのまま正しい日付になる）。スキルの SQL は日付を `'YYYY-MM-DD'` で比べる。
+- 確かめ方: スキルの SQL を実機の `read_query` で 1 本ずつ流し、集計結果を投入元の合計と照合する（件数だけでなく合計値も見る）。
+
+## 52. スキルに「グラフと HTML レポートを必ず付ける」と書いたのに、Cowork で一度も出ない
+
+- 症状: 必須ルールと Step に「チャットにグラフ（画像）を、最後に HTML レポートを付ける」と書いたスキル（4 本）で、
+  Cowork は表だけを返し、グラフも HTML レポートも出さなかった（提案もしなかった）。スキルとひな形（`report-template.html`）はパッケージに入っていた。
+- 原因: 書き方。
+  1. 表のひな形は具体的なコードブロックで書いたが、グラフとレポートは箇条書きで「作る」と書いただけだった（ひな形に無いものは落ちる）。
+  2. 「コードを実行できるなら PNG」「画像を作れないときは文字の横棒」と条件付きで書いた（省いてよい理由になる）。
+  3. 3 本のスキルが「作り方は <別のスキル> の「グラフとレポートの作り方」と同じ」と、ほかのスキルの節を参照していた（Cowork は依頼に合うスキルだけを読む）。
+  4. 回答の前に 3 点がそろっているかを確かめる節が無かった。
+  5. レポートのグラフを JSON + JS で描くひな形だった（プレビューでスクリプトが動かないと、グラフが空になる）。
+- 対処: [visual-output.md](visual-output.md) の「省かれない書き方」。各スキルに「結果の出し方（毎回・省略しない）」と「返す前の確認（毎回）」の節を置き、
+  回答のひな形の中に文字の棒グラフと `📄 レポート: <ファイル名>.html` の行を入れる。PNG は「追加で」作るものとして分けて書く。
+  ひな形はスクリプトを使わず、グラフを CSS の棒（`style="width:NN%"`）で描く。version を上げて再インストールし、**新しいタスク**で試す。
+- 恒久対策済み: `check_visual_output.py` を追加し、`build_agent_package.ps1` がビルドのたびに上の 1〜5 を検査して止める（`test_check_visual_output.py`）。
+  同梱の [report-template.html](report-template.html) はスクリプトなしに変更。
+
+## 53. チャットにグラフを出したいが、Render UI の仕様・色の選択肢が分からない／グラフ・表・HTML の数字がずれる
+
+- 症状: 提案スキルの結果をチャット内のグラフ（Cowork の組み込みスキル Render UI）で見せたい。公開の Microsoft Learn には Render UI の仕様・色の一覧が無い。
+  また、グラフ・表・HTML をモデルが別々に書くと、数字・単位がずれる（実例: 見本のレポートで傘 4 本を個に足して「34 個」と書いていた）。
+- 対処（2026-10-07、Cowork のチャットに Render UI のグラフが表示されることを確認）:
+  1. 共通ルール [display-rules.md](display-rules.md) を `<!-- include: display-rules.md -->` で各スキルに差し込む。実行時に Render UI の説明を読み、種類・データの形・**正式な色の選択肢だけ**を使う。
+     表示を確かめるまで成功と書かない。失敗したら 1 回だけ直して再表示し、駄目なら文字のグラフと表に切り替える。表示できたグラフと同じ文字のグラフは重ねない。
+  2. 数字は 1 つの計算結果（`results.json`）にまとめ、[report_builder.py](../scripts/report_builder.py) が Render UI 用の図（単位ごとに分割）・文字のグラフと表・HTML を作り、3 つの数字の一致を確かめる。
+  3. 単位はデータの列から読む（無ければデータに単位の列を足す）。単位の違う数は 1 つの図・合計にしない。
+  4. 保存用の HTML には内部識別子（GUID・`<接頭辞>_` のテーブル名・列名・コードの列）を入れない。
+- 恒久対策済み: `build_agent_package.ps1` が include を差し込み、`report_builder.py` とひな形を `scripts/` に同梱する（Learn の progressive loading: `scripts/` は実行するだけでコンテキストに読み込まれない）。
+  `check_visual_output.py` が、description に 提案・助言・打ち手・対策案・推奨 などがあるスキルに Render UI の手順・「このスキルのグラフ」・同梱スクリプトが無ければ止める。
+  同梱テンプレートの提案スキル（目標達成プランナー・現場の次アクション助言・安全シグナルレビュー）にも組み込み済み。テスト `test_report_builder.py`・`test_check_visual_output.py`。
+

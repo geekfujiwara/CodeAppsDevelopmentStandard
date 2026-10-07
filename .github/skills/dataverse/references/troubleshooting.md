@@ -975,3 +975,12 @@ Dataverse 検索の検索列を増やすためのビュー更新を API で行�
 読み戻しを 10 秒間隔で最大 2 分待つ（construction-cockpit テンプレートの `ensure_full_images()`）。
 なお、画像列は JSON の本文に base64 文字列を入れて作成・更新でき（`"<列>": "<base64>"`）、フルサイズで保存される
 （送った JPEG と `$value?size=full` の取得結果がバイト単位で一致することを確認）。AI エージェントの Dataverse ツールから写真を登録する経路に使える。
+
+## 31. 日付だけの列で、Dataverse MCP（read_query）の日付比較が 0 件・時刻付きで返る
+
+- 症状: `Format=DateOnly` の列なのに、`read_query` で `WHERE <prefix>_date = '2026-10-30'` が 0 件、値は `2026-10-30T09:00:00` で返る。期間の集計から最終日が抜ける。
+- 原因: 列の `DateTimeBehavior` が既定の `UserLocal` のまま。UTC 0:00 で保存され、比較・表示がタイムゾーン分ずれる。
+- 対処: 日付だけの列は `DateTimeBehavior=DateOnly` で作る。既存列は `CanChangeDateTimeBehavior` が true なら、属性を GET して
+  `DateTimeBehavior` を書き換えて PUT（`MSCRM.MergeLabels`）→ 公開。
+- 恒久対策済み: `setup_dataverse.py` の `build_column_body()` が `format: DateOnly` の列に `DateTimeBehavior=DateOnly` を付ける。
+  テスト: `test_setup_dataverse_dateonly.py`。Cowork 側の症状は cowork スキルの troubleshooting #51。

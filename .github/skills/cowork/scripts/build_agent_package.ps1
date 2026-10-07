@@ -102,6 +102,37 @@ foreach ($f in @("color.png", "outline.png")) {
 # mcpToolDescription は manifest 1.29 以降で任意（省略すると実行時に tools/list で動的検出する）。
 # 参照しているファイルだけを必須にして同梱する。1.28 は省略できない（アップロード検証で拒否される）。
 $manifestObj = $manifest | ConvertFrom-Json
+
+# --- 検証: コネクタ ID（troubleshooting.md #50）---
+# Cowork は同じ agentConnectors[].id のプラグインを 1 つしか有効にできない（「コネクタの競合」）。
+# どのプラグインでも付けがちな汎用 ID は、同じ ID のプラグインが 1 つでもあれば片方が無効になるので止める。
+$genericConnectorIds = @('dataverse-mcp', 'dataverse', 'dataversemcp', 'dataverse-mcp-server', 'mcp', 'mcp-server', 'remote-mcp', 'backend-mcp', 'custom-mcp', 'my-mcp')
+$connectorIds = @(@($manifestObj.agentConnectors) | Where-Object { $_ } | ForEach-Object { [string]$_.id })
+foreach ($cid in $connectorIds) {
+    if ($genericConnectorIds -contains $cid.ToLowerInvariant()) {
+        Write-Error "コネクタ ID '$cid' は汎用的すぎます。同じ ID のほかのプラグインと同時に有効にできません（Cowork の「コネクタの競合」）。'<プラグイン名>-$cid' のようにプラグイン固有の ID にしてください（troubleshooting.md #50）。"
+    }
+    if ($cid.Length -gt 64) { Write-Error "コネクタ ID '$cid' が 64 文字を超えています。" }
+}
+$dupIds = $connectorIds | Group-Object | Where-Object Count -gt 1 | ForEach-Object Name
+if ($dupIds) { Write-Error "manifest の中でコネクタ ID が重複しています: $($dupIds -join ', ')" }
+# 手元のほかのプラグインとの衝突は、COWORK_PLUGIN_SCAN_DIRS（; 区切り）があれば check_connector_ids.py で確かめる
+$scanDirs = $null
+foreach ($line in Get-Content $EnvPath) {
+    if ($line -match '^\s*COWORK_PLUGIN_SCAN_DIRS\s*=\s*(.+?)\s*$') { $scanDirs = $Matches[1].Trim("'", '"') }
+}
+if (-not $scanDirs) { $scanDirs = $env:COWORK_PLUGIN_SCAN_DIRS }
+if ($scanDirs) {
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $python) { $python = Get-Command py -ErrorAction SilentlyContinue }
+    if ($python) {
+        $scanArgs = @(($scanDirs -split '[;,]') | Where-Object { $_.Trim() } | ForEach-Object { '--scan'; $_.Trim() })
+        & $python.Source (Join-Path $PSScriptRoot 'check_connector_ids.py') --manifest $manifestSrc @scanArgs
+        if ($LASTEXITCODE -ne 0) { Write-Error "コネクタ ID がほかのプラグインと重なっています（上の ✖ を参照）。" }
+    } else {
+        Write-Warning "python が見つからないため、COWORK_PLUGIN_SCAN_DIRS のプラグインとのコネクタ ID の突き合わせを省きました。"
+    }
+}
 $toolFiles = @()
 foreach ($connector in @($manifestObj.agentConnectors)) {
     if (-not $connector) { continue }
@@ -140,6 +171,45 @@ foreach ($f in $toolFiles) {
     Copy-Item (Join-Path $root $f) $dest
 }
 Copy-Item $skillsDir $staging -Recurse
+
+# --- 結果の見せ方の共通部品を差し込む（troubleshooting.md #52・#53）---
+# SKILL.md の <!-- include: display-rules.md --> を共通の表示ルール（チャットのグラフ = Render UI・表・HTML）に置き換え、
+# 計算結果からグラフ・表・HTML を作る report_builder.py とひな形をそのスキルの scripts/ に入れる。
+# プラグインの assets/ に同名のファイルがあればそちらを使う（プラグイン固有の調整）。
+function Resolve-Part([string]$name, [string]$fallback) {
+    $own = Join-Path $root (Join-Path 'assets' $name)
+    if (Test-Path $own) { return $own }
+    return $fallback
+}
+$skillRoot = Split-Path $PSScriptRoot -Parent
+$rulesPath = Resolve-Part 'display-rules.md' (Join-Path $skillRoot 'references' 'display-rules.md')
+$builderPath = Resolve-Part 'report_builder.py' (Join-Path $PSScriptRoot 'report_builder.py')
+$templatePath = Resolve-Part 'report-template.html' (Join-Path $skillRoot 'references' 'report-template.html')
+$includeMarker = '<!-- include: display-rules.md -->'
+$stagedSkills = Join-Path $staging 'skills'
+foreach ($md in Get-ChildItem $stagedSkills -Recurse -Filter 'SKILL.md') {
+    $text = Get-Content $md.FullName -Raw -Encoding utf8
+    if (-not $text.Contains($includeMarker)) { continue }
+    $text = $text.Replace($includeMarker, (Get-Content $rulesPath -Raw -Encoding utf8).TrimEnd())
+    Set-Content -Path $md.FullName -Value $text -Encoding utf8 -NoNewline
+    $scriptsDir = Join-Path $md.DirectoryName 'scripts'
+    New-Item -ItemType Directory -Force -Path $scriptsDir | Out-Null
+    Copy-Item $builderPath (Join-Path $scriptsDir 'report_builder.py') -Force
+    Copy-Item $templatePath (Join-Path $scriptsDir 'report-template.html') -Force
+}
+
+# 結果の見せ方（チャットのグラフ・HTML レポート）が省かれない書き方か。差し込んだ後の本文で確かめる（troubleshooting.md #52・#53）
+$pythonForCheck = Get-Command python -ErrorAction SilentlyContinue
+if (-not $pythonForCheck) { $pythonForCheck = Get-Command py -ErrorAction SilentlyContinue }
+if ($pythonForCheck) {
+    & $pythonForCheck.Source (Join-Path $PSScriptRoot 'check_visual_output.py') --skills $stagedSkills
+    if ($LASTEXITCODE -ne 0) {
+        Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Error "スキルの結果の見せ方（グラフ・HTML レポート）の書き方に問題があります（上の ✖ を参照）。"
+    }
+} else {
+    Write-Warning "python が見つからないため、結果の見せ方の検査（check_visual_output.py）を省きました。"
+}
 
 Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zip -Force
 Remove-Item $staging -Recurse -Force
