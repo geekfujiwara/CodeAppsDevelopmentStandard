@@ -10,7 +10,8 @@
 //
 // - Edge を --remote-debugging-port で起動し、Node 組み込みの WebSocket で CDP を直接話す（Playwright 不要）
 // - WebGL は既定でソフトウェア描画（SwiftShader）になる。--gpu を付けると GPU を使う
-// - 終了時は同じユーザー データ フォルダーの Edge プロセスをすべて止める
+// - 終了時は同じユーザー データ フォルダーの Edge プロセスをすべて止める（応答が返らないまま終わった場合も process の exit で止める）
+// - 全体の時限: --timeout <秒>（既定 900）。超えたら終了コード 1 で止める（評価が返らないと、Edge が生きている限り待ち続ける）
 import { spawn, execSync } from "node:child_process"
 import { mkdtempSync, writeFileSync, rmSync, existsSync, mkdirSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -36,7 +37,26 @@ const launch = (gpu) => spawn(edge, [
   `--window-size=${vw},${vh}`, ...(gpu === "gpu" ? ["--enable-gpu", "--ignore-gpu-blocklist"] : gpu === "swiftshader" ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : []), "about:blank",
 ], { stdio: "ignore", detached: false })
 let proc = launch(args.gpu ? "gpu" : "swiftshader")
-
+/**
+ * この実行で起動した Edge（子プロセスを含む）を user-data-dir で探して止める。同期で動くので process の exit でも使える。
+ * Edge が途中で落ちて評価の応答が返らないと、Node は「解決しない top-level await」のまま終了し finally が動かない。
+ * 残った Edge が積み重なると端末が極端に重くなる（数十プロセス）ので、exit でも必ず呼ぶ
+ */
+let cleaned = false
+function killEdgeSync() {
+  try { proc?.kill() } catch { /* noop */ }
+  try {
+    execSync(`powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"Name='msedge.exe'\\" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains('${userData}') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"`, { stdio: "ignore", timeout: 60000 })
+  } catch { /* noop */ }
+}
+process.on("exit", () => {
+  if (!cleaned) killEdgeSync()
+})
+const overall = setTimeout(() => {
+  console.error(`全体の時限（${args.timeout ?? 900} 秒）を超えたので止めます`)
+  process.exit(1)
+}, Number(args.timeout ?? 900) * 1000)
+overall.unref?.()
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 let ws
 let id = 0
@@ -63,7 +83,8 @@ try {
   // 端末によっては SwiftShader の起動オプションで Edge が DevTools の準備前に終了する。既定の描画経路で 1 回だけ起動し直す
   if (!targets && !args.gpu) {
     console.error("SwiftShader の起動オプションで Edge に接続できないため、既定の描画経路で起動し直します")
-    proc.kill()
+    // 最初の Edge の子プロセスが残らないよう、user-data-dir ごと止めてから起動し直す
+    killEdgeSync()
     await sleep(1500)
     proc = launch("default")
     targets = await connectCdp()
@@ -71,6 +92,11 @@ try {
   if (!targets) throw new Error("Edge の CDP に接続できませんでした")
   ws = new WebSocket(targets.webSocketDebuggerUrl)
   await new Promise((r, j) => { ws.onopen = r; ws.onerror = j })
+  // Edge が落ちて接続が切れたら、応答待ちをすべて失敗にする（待ったまま Node が終了して後片付けが動かないのを防ぐ）
+  ws.onclose = () => {
+    for (const p of pending.values()) p.reject(new Error("Edge との接続が切れました"))
+    pending.clear()
+  }
   ws.onmessage = ev => {
     const m = JSON.parse(ev.data)
     if (m.id && pending.has(m.id)) {
@@ -131,10 +157,8 @@ try {
   if (args["fail-on-error"] && logs.length) process.exitCode = 1
 } finally {
   try { ws?.close() } catch { /* noop */ }
-  proc.kill()
-  try {
-    execSync(`powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"Name='msedge.exe'\\" | Where-Object { $_.CommandLine -like '*${userData.replace(/\\/g, "\\\\")}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"`, { stdio: "ignore" })
-  } catch { /* noop */ }
+  killEdgeSync()
+  cleaned = true
   await sleep(500)
   try { rmSync(userData, { recursive: true, force: true }) } catch { /* Edge がまだ掴んでいる場合は残す */ }
 }
