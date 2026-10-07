@@ -102,6 +102,37 @@ foreach ($f in @("color.png", "outline.png")) {
 # mcpToolDescription は manifest 1.29 以降で任意（省略すると実行時に tools/list で動的検出する）。
 # 参照しているファイルだけを必須にして同梱する。1.28 は省略できない（アップロード検証で拒否される）。
 $manifestObj = $manifest | ConvertFrom-Json
+
+# --- 検証: コネクタ ID（troubleshooting.md #50）---
+# Cowork は同じ agentConnectors[].id のプラグインを 1 つしか有効にできない（「コネクタの競合」）。
+# どのプラグインでも付けがちな汎用 ID は、同じ ID のプラグインが 1 つでもあれば片方が無効になるので止める。
+$genericConnectorIds = @('dataverse-mcp', 'dataverse', 'dataversemcp', 'dataverse-mcp-server', 'mcp', 'mcp-server', 'remote-mcp', 'backend-mcp', 'custom-mcp', 'my-mcp')
+$connectorIds = @(@($manifestObj.agentConnectors) | Where-Object { $_ } | ForEach-Object { [string]$_.id })
+foreach ($cid in $connectorIds) {
+    if ($genericConnectorIds -contains $cid.ToLowerInvariant()) {
+        Write-Error "コネクタ ID '$cid' は汎用的すぎます。同じ ID のほかのプラグインと同時に有効にできません（Cowork の「コネクタの競合」）。'<プラグイン名>-$cid' のようにプラグイン固有の ID にしてください（troubleshooting.md #50）。"
+    }
+    if ($cid.Length -gt 64) { Write-Error "コネクタ ID '$cid' が 64 文字を超えています。" }
+}
+$dupIds = $connectorIds | Group-Object | Where-Object Count -gt 1 | ForEach-Object Name
+if ($dupIds) { Write-Error "manifest の中でコネクタ ID が重複しています: $($dupIds -join ', ')" }
+# 手元のほかのプラグインとの衝突は、COWORK_PLUGIN_SCAN_DIRS（; 区切り）があれば check_connector_ids.py で確かめる
+$scanDirs = $null
+foreach ($line in Get-Content $EnvPath) {
+    if ($line -match '^\s*COWORK_PLUGIN_SCAN_DIRS\s*=\s*(.+?)\s*$') { $scanDirs = $Matches[1].Trim("'", '"') }
+}
+if (-not $scanDirs) { $scanDirs = $env:COWORK_PLUGIN_SCAN_DIRS }
+if ($scanDirs) {
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $python) { $python = Get-Command py -ErrorAction SilentlyContinue }
+    if ($python) {
+        $scanArgs = @(($scanDirs -split '[;,]') | Where-Object { $_.Trim() } | ForEach-Object { '--scan'; $_.Trim() })
+        & $python.Source (Join-Path $PSScriptRoot 'check_connector_ids.py') --manifest $manifestSrc @scanArgs
+        if ($LASTEXITCODE -ne 0) { Write-Error "コネクタ ID がほかのプラグインと重なっています（上の ✖ を参照）。" }
+    } else {
+        Write-Warning "python が見つからないため、COWORK_PLUGIN_SCAN_DIRS のプラグインとのコネクタ ID の突き合わせを省きました。"
+    }
+}
 $toolFiles = @()
 foreach ($connector in @($manifestObj.agentConnectors)) {
     if (-not $connector) { continue }

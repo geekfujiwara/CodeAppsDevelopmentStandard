@@ -29,8 +29,8 @@
   ],
   "agentConnectors": [
     {
-      "id": "dataverse-mcp",
-      "displayName": "Dataverse MCP",
+      "id": "agm-qa-dataverse-mcp",
+      "displayName": "AGM Q&A Dataverse MCP",
       "description": "株主総会 Q&A アシストの想定問答・IR 抜粋・リハーサル台本の Dataverse テーブルを読み、想定問答と台本の下書きを作成・更新する。株主名簿・発言の記録は扱わない。",
       "toolSource": {
         "remoteMcpServer": {

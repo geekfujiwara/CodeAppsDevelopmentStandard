@@ -638,6 +638,10 @@ def build_column_body(col: dict) -> dict:
     elif col["type"] == "DateTime":
         base["@odata.type"] = "#Microsoft.Dynamics.CRM.DateTimeAttributeMetadata"
         base["Format"] = col.get("format", "DateAndTime")
+        if base["Format"] == "DateOnly":
+            # UserLocal（既定）のままだと UTC 0:00 で保存され、Dataverse MCP の read_query で
+            # `= 'YYYY-MM-DD'` が一致しない・JST に換算した時刻で返る（cowork troubleshooting #51）
+            base["DateTimeBehavior"] = {"Value": "DateOnly"}
     elif col["type"] == "String":
         base["@odata.type"] = "#Microsoft.Dynamics.CRM.StringAttributeMetadata"
         base["FormatName"] = {"Value": "Text"}

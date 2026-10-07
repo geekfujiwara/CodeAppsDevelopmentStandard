@@ -29,8 +29,8 @@
   ],
   "agentConnectors": [
     {
-      "id": "dataverse-mcp",
-      "displayName": "Dataverse MCP",
+      "id": "sales-crm-dataverse-mcp",
+      "displayName": "Sales CRM Dataverse MCP",
       "description": "営業 CRM（商談・リード・営業活動・売上目標・会計期間・取引先）の Dataverse テーブルを読み書きする。",
       "toolSource": {
         "remoteMcpServer": {

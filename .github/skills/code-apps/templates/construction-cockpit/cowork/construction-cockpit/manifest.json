@@ -33,7 +33,7 @@
   ],
   "agentConnectors": [
     {
-      "id": "dataverse-mcp",
+      "id": "construction-cockpit-dataverse-mcp",
       "displayName": "現場コックピット Dataverse",
       "description": "現場コックピットの工事、作業、日報、KY、ヒヤリハット、ナレッジ、重機稼働を利用者権限で読み書きする。",
       "toolSource": {

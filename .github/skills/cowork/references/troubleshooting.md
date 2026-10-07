@@ -558,6 +558,9 @@ Graph の `appCatalogs/teamsApps` にも現れないため、`appDefinitions` �
 
 - 原因: `top` を省くと 20 行まで。長い結果を途中で切って AI に渡すと、同じく件数を誤る（リハーサルの仕組み側で実際に起きた）。
 - 対処: スキルに「先に `COUNT` で件数を確かめ、`top` に件数以上を指定する」と書く。`rehearse_plugin.py` は結果を切ったときに明示する。
+- 補足（実測）: 1 回で返るのは **20 行まで**。`SELECT TOP 50` は `Requested TOP 50 exceeds the maximum of 20 records` でエラーになる。
+  20 行を超える対象は、キーの範囲（例: 商品コード `< 'H'` / `>= 'H' AND < 'O'` / `>= 'O'`）で分けて読み、合計件数を `COUNT` と照合するようスキルに書く。
+  引数名は `querytext`（`describe` は `path`。例 `tables/<prefix>_<table>`）。スキルの SQL を実機で確かめるときは `tools/call read_query {"querytext": ...}` を送る。
 
 ## 46. Connect は成功しているのに、Cowork の実行時に Dataverse MCP のツールが 0 件になる
 
@@ -611,3 +614,27 @@ Graph の `appCatalogs/teamsApps` にも現れないため、`appDefinitions` �
 
 - 原因: 日本語 Windows の既定コンソールは cp932 で、結果表示の `✅` / `❌` を出力できない。判定自体は済んでいるが終了コード 1 になる。
 - 恒久対策済み: `check_mcp_client.py`（standard スキル）が起動時に標準出力を UTF-8 に切り替える。
+
+## 50. 「コネクタの競合 "dataverse-mcp" を指定できるプラグインは 1 つだけです」で、プラグインの MCP が無効になる
+
+- 症状: 新しいプラグインを有効にすると、Cowork に「コネクタの競合」と、両方のプラグイン名・「<プラグイン> を無効にする」ボタンが出る。
+  どちらかを無効にするまで、片方のプラグインのコネクタ（MCP）が使えない。
+- 原因: Cowork は **同じ `agentConnectors[].id` を持つプラグインを 1 つしか有効にできない**。同梱テンプレート（AGM・Sales CRM・現場コックピット）と
+  SKILL.md の例がすべて `dataverse-mcp` だったため、このテンプレートから作ったプラグイン同士が必ず衝突した
+  （実測: 手元の 10 種類のプラグインがすべて `dataverse-mcp`）。接続先 URL が別環境でも、ID が同じなら衝突する。
+- 対処: コネクタ ID をプラグイン固有にする（`<プラグインの kebab 名>-<データ源>-mcp`。例 `agm-qa-dataverse-mcp`）。`displayName` にもプラグイン名を入れる。
+  version を上げて再ビルド → 再インストール（個人なら `install_agent_package_personal.py install`、組織なら Step 10）→ Cowork で Connect し直す。
+- 調べ方: テナントのプラグインのコネクタ ID を一覧する API は無い（Graph の組織カタログは manifest を返さず、MOS の `launchInfo` は取得済みの title だけ）。
+  手元の manifest を `check_connector_ids.py --scan <置き場所>` で突き合わせる。
+- 恒久対策済み: `build_agent_package.ps1` が汎用 ID（`dataverse-mcp` など）・manifest 内の重複・64 文字超を止め、`COWORK_PLUGIN_SCAN_DIRS` があれば
+  `check_connector_ids.py` で手元のほかのプラグインとの衝突も止める。同梱テンプレートの ID はプラグイン固有に変更し、
+  `test_check_connector_ids.py` がテンプレートの ID が汎用 ID に戻っていないこと・テンプレート同士で重ならないことを検査する。
+
+## 51. 日付で絞った `read_query` が 0 件になる・`2026-10-30T09:00:00` のように返る
+
+- 症状: `WHERE <prefix>_date = '2026-10-30'` が 0 件。`>= '2026-10-23' AND <= '2026-10-29'` の集計から最終日が抜ける（合計が合わない）。
+  値は `2026-10-30T09:00:00`（JST に換算した時刻）で返る。
+- 原因: 日付列を `Format=DateOnly` でも `DateTimeBehavior=UserLocal`（既定）で作ると、UTC 0:00 で保存され、比較と表示がタイムゾーン分ずれる。
+- 対処: 日付だけの列は `DateTimeBehavior=DateOnly` にする（既存列は `CanChangeDateTimeBehavior` が true なら属性の PUT で変更できる。
+  UserLocal で入れた値は UTC 0:00 で保存されているので、変更後はそのまま正しい日付になる）。スキルの SQL は日付を `'YYYY-MM-DD'` で比べる。
+- 確かめ方: スキルの SQL を実機の `read_query` で 1 本ずつ流し、集計結果を投入元の合計と照合する（件数だけでなく合計値も見る）。
