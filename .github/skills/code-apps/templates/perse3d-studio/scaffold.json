@@ -15,6 +15,7 @@
   "nextSteps": [
     "Copy-Item .env.example .env  # ENV_ID / DATAVERSE_URL / TENANT_ID / VITE_DATAVERSE_URL を入力",
     "npm install --no-audit --no-fund",
+    "python -m pip install -r requirements.txt  # 試験・Dataverse 構築・素材の検証が使う",
     "npm test  # 間取り図解析・3D 組み立て・Three.js と Blender の部材一致の試験",
     "python scripts/setup_dataverse.py  # ソリューション・テーブル・ローカライズ・サンプル案件（何度実行しても安全）",
     "python .github/skills/code-apps/scripts/setup_connection_reference.py --write-env .env",

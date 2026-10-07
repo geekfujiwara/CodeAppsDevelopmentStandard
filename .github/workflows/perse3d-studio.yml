@@ -33,7 +33,9 @@ jobs:
           test ! -e "$RUNNER_TEMP/perse3d/src/generated"
       - name: Install
         working-directory: ${{ runner.temp }}/perse3d
-        run: npm install --no-audit --no-fund
+        run: |
+          npm install --no-audit --no-fund
+          python -m pip install -r requirements.txt
       - name: Test
         working-directory: ${{ runner.temp }}/perse3d
         run: npm test

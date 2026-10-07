@@ -19,7 +19,7 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 | 手順 | コマンド | 外部に作るもの |
 |---|---|---|
 | 1 | `Copy-Item .env.example .env` → `ENV_ID` / `DATAVERSE_URL` / `TENANT_ID` / `VITE_DATAVERSE_URL` を入力 | — |
-| 2 | `npm install --no-audit --no-fund` / `npm test` | — |
+| 2 | `npm install --no-audit --no-fund` / `python -m pip install -r requirements.txt` / `npm test` | — |
 | 3 | `python scripts/setup_dataverse.py` | ソリューション・テーブル `<接頭辞>_perseproject`（案件）/ `<接頭辞>_persecomment`（コメント）・サンプル案件 |
 | 4 | `python .github/skills/code-apps/scripts/setup_connection_reference.py --write-env .env` | Dataverse の接続参照 |
 | 5 | `npx --no pa app init --environment-id $env:ENV_ID --display-name "パース3D内見スタジオ" --app-type CodeApp --non-interactive` | Code App |

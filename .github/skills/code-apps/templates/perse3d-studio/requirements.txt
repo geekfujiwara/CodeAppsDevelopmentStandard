@@ -1,0 +1,7 @@
+# スクリプト・試験が使う Python パッケージ（blender/ の生成スクリプトは Blender 同梱の Python で動く）
+# python -m pip install -r requirements.txt
+numpy>=1.26
+pillow>=10.0
+requests>=2.32.3
+python-dotenv>=1.1.0
+azure-identity>=1.21.0
