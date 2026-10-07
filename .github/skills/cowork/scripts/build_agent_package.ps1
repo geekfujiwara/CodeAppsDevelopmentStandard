@@ -153,15 +153,6 @@ $skills = Get-ChildItem $skillsDir -Directory
 foreach ($s in $skills) {
     if (-not (Test-Path (Join-Path $s.FullName "SKILL.md"))) { Write-Error "SKILL.md が見つかりません: $($s.Name)" }
 }
-# 結果の見せ方（チャットのグラフ・HTML レポート）が省かれない書き方か（troubleshooting.md #52）
-$pythonForCheck = Get-Command python -ErrorAction SilentlyContinue
-if (-not $pythonForCheck) { $pythonForCheck = Get-Command py -ErrorAction SilentlyContinue }
-if ($pythonForCheck) {
-    & $pythonForCheck.Source (Join-Path $PSScriptRoot 'check_visual_output.py') --skills $skillsDir
-    if ($LASTEXITCODE -ne 0) { Write-Error "スキルの結果の見せ方（グラフ・HTML レポート）の書き方に問題があります（上の ✖ を参照）。" }
-} else {
-    Write-Warning "python が見つからないため、結果の見せ方の検査（check_visual_output.py）を省きました。"
-}
 
 # --- zip 生成（manifest.built.json を manifest.json 名でルートに入れる）---
 $dist = Join-Path $root "dist"
@@ -180,6 +171,45 @@ foreach ($f in $toolFiles) {
     Copy-Item (Join-Path $root $f) $dest
 }
 Copy-Item $skillsDir $staging -Recurse
+
+# --- 結果の見せ方の共通部品を差し込む（troubleshooting.md #52・#53）---
+# SKILL.md の <!-- include: display-rules.md --> を共通の表示ルール（チャットのグラフ = Render UI・表・HTML）に置き換え、
+# 計算結果からグラフ・表・HTML を作る report_builder.py とひな形をそのスキルの scripts/ に入れる。
+# プラグインの assets/ に同名のファイルがあればそちらを使う（プラグイン固有の調整）。
+function Resolve-Part([string]$name, [string]$fallback) {
+    $own = Join-Path $root (Join-Path 'assets' $name)
+    if (Test-Path $own) { return $own }
+    return $fallback
+}
+$skillRoot = Split-Path $PSScriptRoot -Parent
+$rulesPath = Resolve-Part 'display-rules.md' (Join-Path $skillRoot 'references' 'display-rules.md')
+$builderPath = Resolve-Part 'report_builder.py' (Join-Path $PSScriptRoot 'report_builder.py')
+$templatePath = Resolve-Part 'report-template.html' (Join-Path $skillRoot 'references' 'report-template.html')
+$includeMarker = '<!-- include: display-rules.md -->'
+$stagedSkills = Join-Path $staging 'skills'
+foreach ($md in Get-ChildItem $stagedSkills -Recurse -Filter 'SKILL.md') {
+    $text = Get-Content $md.FullName -Raw -Encoding utf8
+    if (-not $text.Contains($includeMarker)) { continue }
+    $text = $text.Replace($includeMarker, (Get-Content $rulesPath -Raw -Encoding utf8).TrimEnd())
+    Set-Content -Path $md.FullName -Value $text -Encoding utf8 -NoNewline
+    $scriptsDir = Join-Path $md.DirectoryName 'scripts'
+    New-Item -ItemType Directory -Force -Path $scriptsDir | Out-Null
+    Copy-Item $builderPath (Join-Path $scriptsDir 'report_builder.py') -Force
+    Copy-Item $templatePath (Join-Path $scriptsDir 'report-template.html') -Force
+}
+
+# 結果の見せ方（チャットのグラフ・HTML レポート）が省かれない書き方か。差し込んだ後の本文で確かめる（troubleshooting.md #52・#53）
+$pythonForCheck = Get-Command python -ErrorAction SilentlyContinue
+if (-not $pythonForCheck) { $pythonForCheck = Get-Command py -ErrorAction SilentlyContinue }
+if ($pythonForCheck) {
+    & $pythonForCheck.Source (Join-Path $PSScriptRoot 'check_visual_output.py') --skills $stagedSkills
+    if ($LASTEXITCODE -ne 0) {
+        Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Error "スキルの結果の見せ方（グラフ・HTML レポート）の書き方に問題があります（上の ✖ を参照）。"
+    }
+} else {
+    Write-Warning "python が見つからないため、結果の見せ方の検査（check_visual_output.py）を省きました。"
+}
 
 Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zip -Force
 Remove-Item $staging -Recurse -Force

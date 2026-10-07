@@ -53,7 +53,7 @@ Cowork から Dataverse を直接操作できるようにする。
 | [株主総会 想定問答アシスタント テンプレート](templates/agm-qa-plugin/README.md) | IR 抜粋を根拠に想定問答とリハーサル台本を**下書き**で登録・想定問答の点検。Code Apps の `templates/agm-qa-assist` と同じ Dataverse。変数は `--questions` で AskUserQuestion |
 | [必要な権限の案内](references/permissions.md) | 作る・同意する・登録する・公開する・使う人ごとの最小の権限と、利用者の Dataverse ロールの作り方（scaffold 直後に担当者と確認） |
 | [異常系・トラブルシュート](references/troubleshooting.md) | 実際に踏んだ失敗と恒久対策 |
-| [結果の見せ方（グラフと HTML レポート）](references/visual-output.md) | 数字を扱うスキルの出力（チャットのグラフ・考え方を説明する HTML レポート）と、ひな形 [report-template.html](references/report-template.html) |
+| [結果の見せ方（Render UI のグラフ・表・HTML レポート）](references/visual-output.md) | 提案するスキル・数字を扱うスキルの出力の標準。差し込む共通ルール [display-rules.md](references/display-rules.md)・ひな形 [report-template.html](references/report-template.html) |
 
 ## パッケージ構成（Skills + remote connector）
 
@@ -107,7 +107,8 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
 | [scripts/diagnose_cowork_connector.py](scripts/diagnose_cowork_connector.py) | アプリ登録・admin consent・allowedmcpclients の3層をまとめて診断（Step 4→5 の間で実行推奨） |
 | [scripts/check_oauth_signins.py](scripts/check_oauth_signins.py) | Entra のサインイン ログから、Cowork がこの OAuth アプリでトークンを取得できたかを集計し、テナント側か Cowork 側かを判定（Step 9 で接続済みなのにツールが使えないとき。読み取りのみ） |
 | [scripts/build_agent_package.ps1](scripts/build_agent_package.ps1) | `.env` の `COWORK_OAUTH_REGISTRATION_ID`（引用符付きでも可）を manifest.json のプレースホルダーに注入し、必須ファイルとコネクタ ID（汎用 ID・重複の禁止）を検証して .zip を生成（Step 7） |
-| [scripts/check_visual_output.py](scripts/check_visual_output.py) | スキルの結果の見せ方（チャットのグラフ・HTML レポート）が省かれない書き方かを確かめる（「返す前の確認」の節・ひな形の中のグラフとレポートの行・ほかのスキルへの参照・条件付きの書き方・同梱 HTML のスクリプト）。`build_agent_package.ps1` からも呼ばれる。読み取りのみ |
+| [scripts/check_visual_output.py](scripts/check_visual_output.py) | スキルの結果の見せ方が省かれない書き方かを確かめる（提案するスキルに Render UI のグラフの手順があるか・「このスキルのグラフ」・同梱の report_builder.py・「返す前の確認」・ひな形の図とレポートの行・ほかのスキルへの参照・条件付きの書き方・同梱 HTML のスクリプト）。`--compose` で書き途中の SKILL.md をビルドと同じ差し込みで検査。`build_agent_package.ps1` からも呼ばれる。読み取りのみ |
+| [scripts/report_builder.py](scripts/report_builder.py) | 1 つの計算結果（`results.json`）から、Render UI に写すグラフ（単位ごと）・文字のグラフと表・HTML レポートを作り、3 つの数字の一致・取得不足・単位・単位数・内部識別子を検査する。`build_agent_package.ps1` が include のあるスキルの `scripts/` に同梱する |
 | [scripts/check_connector_ids.py](scripts/check_connector_ids.py) | コネクタ ID が汎用的でないか、手元のほかのプラグイン（`--scan` / `COWORK_PLUGIN_SCAN_DIRS`）と重ならないかを確かめる（Step 6。`build_agent_package.ps1` からも呼ばれる。読み取りのみ） |
 | [scripts/manage_agent_package_graph.py](scripts/manage_agent_package_graph.py) | Graph v1.0 で組織アプリを一覧し、Graph で管理している app package を更新（Step 8 代替） |
 | [scripts/build_cowork_publish_payloads.py](scripts/build_cowork_publish_payloads.py) | `stageCustomApp()` の結果から新規公開（finalize / allow / deploy）または更新（UPDATEAPP）の plan payload を生成（Step 8 / 10） |
@@ -204,14 +205,14 @@ metadata:
 > 「対象テーブルを `describe` でスキーマ確認（列名・FK 列名を確定）」とする。
 > クエリ例の列名は describe で確認済みのものだけを使い、未確認の列を推測で書かない。
 
-**結果の見せ方（数字を扱うスキル）**: 提案・集計・点検の結果は、表だけでなく
-**チャットのグラフ・表・考え方をわかりやすく説明した HTML レポート**（1 ファイル完結）の 3 点セットで返す。
-**書いただけでは出ない**（#52）: 各スキルに「結果の出し方（毎回・省略しない）」と「返す前の確認（毎回）」の節を置き、
-回答のひな形（コードブロック）の中に文字の棒グラフと `📄 レポート: <ファイル名>.html` の行を入れる。ほかのスキルの節は参照しない。
-「できるなら」「作れないときは」のような条件付きで書かない。HTML はスクリプトを使わない（グラフは CSS の棒）。
-レポートは [references/report-template.html](references/report-template.html) をスキルのフォルダに同梱し、
-本文に「同じフォルダの `report-template.html` を土台にする」と書く。節の構成（結論 → 何を見たか → グラフ → なぜそうするか → 明細 → 前提）、
-書き方の例・節の中身・値のエスケープは [references/visual-output.md](references/visual-output.md)。`build_agent_package.ps1` が `check_visual_output.py` で毎回検査する。
+**結果の見せ方（提案するスキルは標準で Render UI のグラフ）**: 提案・助言・打ち手・対策案を出すスキルと、数字を扱うスキル（集計・点検・登録の確認）は、
+答えを **チャットのグラフ（Render UI）・表・保存用の HTML レポート** で返す。スキルに書くのは 3 つだけ:
+① 必須ルールの後に `<!-- include: display-rules.md -->`（ビルドで共通ルール [display-rules.md](references/display-rules.md) に置き換わり、
+`scripts/` に [report_builder.py](scripts/report_builder.py) とひな形が入る）、② 「このスキルのグラフ」の節（図の題名・種類 `stacked_hbar` / `grouped_bar`・元の表・単位）、
+③ 図の位置 `〔Render UI の図: …〕` と `📄 レポート: <ファイル名>.html` を入れた回答のひな形と、「このスキルの確認（返す前・毎回）」。
+グラフ・表・HTML は `report_builder.py` が 1 つの計算結果（`results.json`）から作り、取得不足・単位の混在・内部識別子・3 つの数字の不一致を止める。
+Render UI の仕様と正式な色は公開されていないため、実行時に Render UI の説明を読んで使い、表示を確かめるまで成功と書かず、1 回直して駄目なら文字のグラフに切り替える。
+書き方の例・`results.json` の形は [references/visual-output.md](references/visual-output.md)。`build_agent_package.ps1` が `check_visual_output.py` で毎回検査し、提案するスキルに手順が無ければ止める（#52・#53）。
 
 ### Step 3: Entra アプリ（OAuth クライアント）を作成・構成
 
@@ -672,7 +673,7 @@ API が401/403/404、schema不一致、read-back不一致の場合だけ、次�
 - [ ] Teams ポータル **OAuth client registration**（SSO ではない）: Base URL は `/api/mcp` なし、scope は `.default offline_access`、Restrict by app = Any Teams app → registrationId を manifest に反映
 - [ ] manifest 1.29・`mcpToolDescription` なし（動的ツール検出）。固定にする場合だけ `mcpToolDescription: { file: "dataverse-mcp-tools.json" }`（JSONツール定義）
 - [ ] コネクタ `id` がプラグイン固有（`<plugin-slug>-dataverse-mcp`。汎用の `dataverse-mcp` ではない）で、手元のほかのプラグインと重ならない — `check_connector_ids.py --scan`（#50）
-- [ ] 数字を扱うスキルは、チャットのグラフ・表・考え方を説明した HTML レポート（1 ファイル完結・スクリプトと外部読み込みなし・値はエスケープ）の 3 点セットを、ひな形と「返す前の確認」で省かれない形に書いた — `check_visual_output.py`・[visual-output.md](references/visual-output.md)（#52）
+- [ ] 提案するスキル・数字を扱うスキルは、`<!-- include: display-rules.md -->`・「このスキルのグラフ」・図の位置とレポートの行のあるひな形で、Render UI のグラフ・表・HTML レポートを返す — `check_visual_output.py --compose`・[visual-output.md](references/visual-output.md)（#52・#53）
 - [ ] 各スキルに「使うツール / 呼ばないツール」と「`describe` が使えなければ止める」がある — `rehearse_plugin.py tools`
 - [ ] ZIP ルートに manifest.json、skills/<name>/SKILL.md（固定ツール定義なら参照先 JSON も）
 - [ ] 公開前リハーサル（`rehearse_plugin.py tools` と、各スキルの `run`）で、提示 → 承認 → 登録 → 読み戻しが意図どおり

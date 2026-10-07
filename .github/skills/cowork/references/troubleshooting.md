@@ -657,3 +657,18 @@ Graph の `appCatalogs/teamsApps` にも現れないため、`appDefinitions` �
   ひな形はスクリプトを使わず、グラフを CSS の棒（`style="width:NN%"`）で描く。version を上げて再インストールし、**新しいタスク**で試す。
 - 恒久対策済み: `check_visual_output.py` を追加し、`build_agent_package.ps1` がビルドのたびに上の 1〜5 を検査して止める（`test_check_visual_output.py`）。
   同梱の [report-template.html](report-template.html) はスクリプトなしに変更。
+
+## 53. チャットにグラフを出したいが、Render UI の仕様・色の選択肢が分からない／グラフ・表・HTML の数字がずれる
+
+- 症状: 提案スキルの結果をチャット内のグラフ（Cowork の組み込みスキル Render UI）で見せたい。公開の Microsoft Learn には Render UI の仕様・色の一覧が無い。
+  また、グラフ・表・HTML をモデルが別々に書くと、数字・単位がずれる（実例: 見本のレポートで傘 4 本を個に足して「34 個」と書いていた）。
+- 対処（2026-10-07、Cowork のチャットに Render UI のグラフが表示されることを確認）:
+  1. 共通ルール [display-rules.md](display-rules.md) を `<!-- include: display-rules.md -->` で各スキルに差し込む。実行時に Render UI の説明を読み、種類・データの形・**正式な色の選択肢だけ**を使う。
+     表示を確かめるまで成功と書かない。失敗したら 1 回だけ直して再表示し、駄目なら文字のグラフと表に切り替える。表示できたグラフと同じ文字のグラフは重ねない。
+  2. 数字は 1 つの計算結果（`results.json`）にまとめ、[report_builder.py](../scripts/report_builder.py) が Render UI 用の図（単位ごとに分割）・文字のグラフと表・HTML を作り、3 つの数字の一致を確かめる。
+  3. 単位はデータの列から読む（無ければデータに単位の列を足す）。単位の違う数は 1 つの図・合計にしない。
+  4. 保存用の HTML には内部識別子（GUID・`<接頭辞>_` のテーブル名・列名・コードの列）を入れない。
+- 恒久対策済み: `build_agent_package.ps1` が include を差し込み、`report_builder.py` とひな形を `scripts/` に同梱する（Learn の progressive loading: `scripts/` は実行するだけでコンテキストに読み込まれない）。
+  `check_visual_output.py` が、description に 提案・助言・打ち手・対策案・推奨 などがあるスキルに Render UI の手順・「このスキルのグラフ」・同梱スクリプトが無ければ止める。
+  同梱テンプレートの提案スキル（目標達成プランナー・現場の次アクション助言・安全シグナルレビュー）にも組み込み済み。テスト `test_report_builder.py`・`test_check_visual_output.py`。
+
