@@ -1,0 +1,10 @@
+{
+  "description": "認証なしの公開サイト・公開 API を読み取るカスタム コネクタ定義（ホスト固定・GET だけ）。{{NAME}} は deploy_connector.py がデプロイ時に置き換える",
+  "preserveUndeclaredVariables": false,
+  "nextSteps": [
+    "connector/apiDefinition.swagger.json の paths を、取り込むページ・API の形に合わせて書き換える（パスは固定の部分とパス パラメーターだけにし、任意の URL を取りに行けるようにしない。operationId が Code Apps のメソッド名になる）",
+    "python .github/skills/custom-connector/scripts/deploy_connector.py --connector-dir <この出力先>/connector --var API_HOST=<host> --var CONNECTOR_TITLE=<英数字の名前> --var PUBLISHER=\"<発行元>\"",
+    "python .github/skills/custom-connector/scripts/create_connection.py plan --connector <shared_...> --display-name \"<表示名>\"（mode は noauth に自動判定）→ apply",
+    "取得先の利用規約・robots.txt を確かめ、利用者の操作ごとに 1 ページだけ取得する設計にする（references/public-site.md）"
+  ]
+}

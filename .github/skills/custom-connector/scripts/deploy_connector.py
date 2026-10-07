@@ -1,4 +1,4 @@
-"""OpenAPI 定義からカスタム コネクタ（OAuth: Entra ID）を作成または更新し、コネクタ固有のリダイレクト URI を登録する。
+"""OpenAPI 定義からカスタム コネクタ（OAuth: Entra ID、または認証なし）を作成または更新し、コネクタ固有のリダイレクト URI を登録する。
 
 - `apiDefinition.swagger.json` と `apiProperties.json` の `{{NAME}}` を `--var NAME=VALUE` と OAuth 設定ファイルの値で置き換える
 - クライアント シークレットは一時ディレクトリのファイルにだけ差し込み、表示しない
@@ -6,6 +6,13 @@
   Entra アプリへ `https://global.consent.azure-apim.net/redirect/<shared_ を除いた ID>` を追加する
 - on-behalf-of を有効にする定義では、同じリソースで OBO を有効にした別コネクタが無いことを事前に確認し、
   更新後はランタイム側（PowerApps RP）に OBO フラグが反映されたことを読み戻す
+
+認証なしのコネクタ（apiProperties の connectionParameters が空。公開サイト・公開 API）は --secret-file を省く。
+そのときは、作成前に「GET だけ・https だけ・ホストがテンプレート変数のまま残っていない」ことを確かめる
+（任意の宛先へ書き込めるコネクタを作らない）。
+
+作成前に、pac がコネクタ名に使う info.title が英数字・ハイフン・アンダースコアだけかを確かめる
+（日本語の題名だと pac が「Connector name must be alphanumeric…」で止まる。表示名の日本語は description に書く）。
 
 OAuth 設定ファイルは mcp-server の configure_connector_oauth.py が出力する JSON
 （clientId / clientSecret / scope / resourceUri）。テンプレートで使える値:
@@ -34,6 +41,8 @@ SKILLS = Path(__file__).resolve().parents[2]
 PLACEHOLDER = re.compile(r"\{\{([A-Z][A-Z0-9_]*)\}\}")
 CREATED = re.compile(r"Connector created with ID ([0-9a-fA-F-]{36})")
 VAR = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*)$")
+# pac connector create はコネクタ名を info.title から作る（英数字・-・_ のみ、英数字で始まる）
+TITLE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
 def render(text: str, values: dict[str, str]) -> str:
@@ -58,6 +67,47 @@ def redirect_uri_for(connector_internal_id: str) -> str:
     if not connector_internal_id.startswith("shared_"):
         raise SystemExit(f"connectorinternalid の形式が想定と異なります: {connector_internal_id}")
     return f"https://global.consent.azure-apim.net/redirect/{connector_internal_id.removeprefix('shared_')}"
+
+
+def validate_definition(definition: dict, properties: dict) -> bool:
+    """作成前の検証。認証なしのコネクタなら True を返す。
+
+    - info.title は pac がコネクタ名に使うので英数字・-・_ だけ（日本語は description へ）
+    - 認証なしのコネクタは https・GET だけ（公開ページの読み取り専用。書き込みの操作や http を持たせない）
+    """
+    title = str((definition.get("info") or {}).get("title", ""))
+    if not TITLE.match(title):
+        raise SystemExit(
+            f"info.title「{title}」は pac がコネクタ名に使うため、英数字・ハイフン・アンダースコアだけにしてください"
+            "（例: Contoso-Listing。日本語の説明は info.description に書く）"
+        )
+    # Code Apps の SDK は JSON 以外の応答（text/html 等）でも、状態コードの応答情報（schema が無くても type "void" で生成される）が
+    # あると本文を JSON.parse し、画面では必ず InvalidResponse で失敗する（troubleshooting #15）。応答は "default" だけで宣言する
+    for path, item in (definition.get("paths") or {}).items():
+        for method, op in item.items():
+            if method.lower() == "parameters" or not isinstance(op, dict):
+                continue
+            types = op.get("produces") or definition.get("produces") or []
+            if not types or any(re.search(r"json|^image/|octet-stream|^multipart/", t) for t in types):
+                continue
+            coded = [s for s in (op.get("responses") or {}) if s != "default"]
+            if coded:
+                raise SystemExit(
+                    f"{method.upper()} {path} は {types} を返すので、応答 {coded} を \"default\" だけにしてください"
+                    "（状態コードで宣言すると Code Apps の SDK が本文を JSON として読み、画面で必ず失敗する）"
+                )
+    body = properties.get("properties", properties)
+    if body.get("connectionParameters"):
+        return False
+    if definition.get("schemes") != ["https"]:
+        raise SystemExit("認証なしのコネクタは schemes を [\"https\"] だけにしてください")
+    host = str(definition.get("host", ""))
+    if not host or "/" in host or host.startswith("http"):
+        raise SystemExit(f"host にはホスト名だけを指定してください: {host!r}")
+    methods = {m.lower() for item in (definition.get("paths") or {}).values() for m in item if m.lower() != "parameters"}
+    if not methods or methods != {"get"}:
+        raise SystemExit(f"認証なしのコネクタは GET の操作だけにしてください: {sorted(methods)}")
+    return True
 
 
 def inject_secret(properties: dict, credential: dict) -> dict:
@@ -163,7 +213,7 @@ def main() -> int:
         pass
     parser = argparse.ArgumentParser(description="カスタム コネクタを作成または更新する")
     parser.add_argument("--connector-dir", required=True, type=Path)
-    parser.add_argument("--secret-file", required=True, type=Path, help="configure_connector_oauth.py の出力")
+    parser.add_argument("--secret-file", type=Path, help="configure_connector_oauth.py の出力（認証なしのコネクタでは省く）")
     parser.add_argument("--environment", default=os.getenv("ENV_ID"))
     parser.add_argument("--tenant-id", default=os.getenv("TENANT_ID"))
     parser.add_argument("--solution", default=os.getenv("SOLUTION_NAME"), help="作成時に追加するソリューションの一意名")
@@ -174,10 +224,9 @@ def main() -> int:
 
     if not args.environment or not args.tenant_id:
         raise SystemExit("--environment と --tenant-id（または .env の ENV_ID / TENANT_ID）が必要です")
-    credential = json.loads(args.secret_file.read_text(encoding="utf-8"))
+    credential = json.loads(args.secret_file.read_text(encoding="utf-8")) if args.secret_file else None
     values = {
-        "API_APP_ID": credential["clientId"],
-        "API_SCOPE": credential.get("scope") or f"api://{credential['clientId']}/.default",
+        **({"API_APP_ID": credential["clientId"], "API_SCOPE": credential.get("scope") or f"api://{credential['clientId']}/.default"} if credential else {}),
         "TENANT_ID": args.tenant_id,
         **parse_vars(args.var),
     }
@@ -192,10 +241,17 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="custom-connector-") as temporary:
         root = Path(temporary)
         definition = root / "apiDefinition.swagger.json"
-        definition_text = render((args.connector_dir / "apiDefinition.swagger.json").read_text(encoding="utf-8"), values)
+        definition_text = render((args.connector_dir / "apiDefinition.swagger.json").read_text(encoding="utf-8-sig"), values)
         json.loads(definition_text)
         definition.write_text(definition_text, encoding="utf-8")
-        properties = inject_secret(json.loads(render((args.connector_dir / "apiProperties.json").read_text(encoding="utf-8"), values)), credential)
+        properties = json.loads(render((args.connector_dir / "apiProperties.json").read_text(encoding="utf-8-sig"), values))
+        no_auth = validate_definition(json.loads(definition_text), properties)
+        if not no_auth:
+            if not credential:
+                raise SystemExit("OAuth のコネクタには --secret-file（configure_connector_oauth.py の出力）が必要です")
+            properties = inject_secret(properties, credential)
+        elif credential:
+            raise SystemExit("認証なしのコネクタに --secret-file は使いません（シークレットを渡さない）")
         properties_file = root / "apiProperties.json"
         properties_file.write_text(json.dumps(properties, ensure_ascii=False, indent=2), encoding="utf-8")
         expected_obo, resource = obo_settings(properties)
@@ -226,7 +282,7 @@ def main() -> int:
     print(f"[connector] {'更新' if args.connector_id else '作成'}: {row.get('displayname')} / connectorid={connector_id} / {internal_id}（clientSecret は表示しません）")
     _verify_runtime_sync(args.environment, internal_id, expected_obo)
 
-    if not args.skip_redirect:
+    if not args.skip_redirect and credential:
         audience = credential.get("resourceUri") or f"api://{credential['clientId']}"
         uri = redirect_uri_for(internal_id)
         changed = _add_redirect(audience, uri)

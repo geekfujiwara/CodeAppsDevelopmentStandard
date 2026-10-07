@@ -72,6 +72,39 @@ RP（`api.powerapps.com` の `apis/{connector}`）は `"false"` のまま。RP �
 
 **対処**: プロジェクトの `.env` に `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` を書く。シェルごとに環境変数で渡すと付け忘れる。
 
+## 11. `pac connector create` が「Connector name must be alphanumeric, '-', or '_' and start with alphanumeric」で止まる
+
+**原因**: pac はコネクタ名を `apiDefinition.swagger.json` の `info.title` から作る。日本語や空白を含む題名は使えない。
+
+**対処**: `info.title` を英数字・ハイフン・アンダースコアにし（例: `Contoso-Listing`）、日本語の説明は `info.description` と操作の `summary` に書く。
+Code Apps の生成サービスの名前も題名から作られる（`Contoso_ListingService`）。
+**恒久対策済み** — `deploy_connector.py` の `validate_definition()` が pac を呼ぶ前に題名を検査する。
+
+## 12. 接続の作成・`invoke` が `SSLEOFError: UNEXPECTED_EOF_WHILE_READING` で落ちる
+
+**症状**: 環境の Power Platform API（`*.environment.api.powerplatform.com`）への要求が、TLS の途中で切れる。同じ要求を数秒後に送ると通る。
+
+**原因**: 社内のプロキシ・TLS 検査（Global Secure Access 等）を通る経路で、長い応答や接続の再利用のときに切れることがある。API 側の不具合ではない。
+
+**対処**: 送り直す。コネクタの作成（pac）は終わっていることがあるので、スクリプトを再実行して既存のコネクタ・接続を使う。
+**恒久対策済み** — `create_connection.py` の `_request()` と `invoke`（GET のみ）が一時的な通信エラー（`is_transient()`）を 3 回まで送り直す。
+
+## 13. 公開サイトを取得する操作が 20〜30 秒かかる
+
+**症状**: 認証なしのコネクタで公開ページを取得すると、`invoke` が 200 を返すまで 20〜30 秒かかる（ページ自体は 1 秒程度で返る）。
+
+**原因**: コネクタのランタイム（API Management）経由の初回呼び出しと、取得先の応答の遅さが重なる。
+
+**対処**: Code Apps 側は呼び出しに時限（60 秒など）を付け、待っている間は進み具合を表示する。失敗したときの代わりの入力
+（ページの内容の貼り付け）を用意する（[public-site.md](public-site.md)）。
+
+## 14. DLP の事前確認で、公開サイトのホストが「未分類」で NG になる
+
+**症状**: `check_dlp.py --custom-host <host>` が「`<host>` が未分類です」と NG を出す。既定の分類（例: Non-business）に入る。
+
+**対処**: 標準コネクタ（Dataverse 等）と同じグループに入るかを確かめる。同じなら動作はするが、外部サイトのホストを使うことを
+テナント管理者に伝え、`set_dlp_custom_connector.py`（dry-run → 承認 → `--apply`）で明示的に分類してもらう。分類の変更はテナント全体に効く。
+
 ## ブラウザで接続を作る方法（on-behalf-of を使えない場合）
 
 他社 API など、API アプリに Azure API Connections を事前承認できない場合だけ使う。plan が `mode: consent` を選ぶ（`--mode consent` で明示も可）。
@@ -88,3 +121,28 @@ python .github/skills/custom-connector/scripts/create_connection.py manual --con
 
 表示された URL を所有者が **Microsoft Edge** で開き、「作成」→ サインインする（統合ブラウザはポップアップが開かない。#3）。
 新しい接続が `Connected` になったらバインドまで進む。
+
+## 15. 公開サイトのコネクタが、コネクタを直接呼ぶと 200 なのに、Code Apps の画面ではどのページも取得できない
+
+### 症状
+
+`create_connection.py invoke`（直接呼ぶ）では 200 で HTML が返る。Code Apps の画面で呼ぶと、どの URL でも失敗する（`InvalidResponse`）。
+応答の宣言を直して成功するようになっても、日本語が化けて解析結果が空になる。
+Console に出る `Permissions policy violation: unload` と `webplayer-host-ui.js … React.createElement: type is invalid` はプレイヤー本体の警告で、原因ではない。
+
+### 原因
+
+Code Apps の SDK（`@microsoft/power-apps` の `runtimeDataClient`）は、JSON・画像・ファイル以外の応答（`text/html` など）を次のように扱う。
+
+1. 本文を **1 バイト = 1 文字**で文字列にする（`String.fromCharCode`。UTF-8 の日本語が化ける）
+2. 操作に**状態コードの応答情報**（生成された `dataSourcesInfo` の `responseInfo["200"]`）があると、その文字列を `JSON.parse` し、HTML は必ず失敗する。
+   swagger の応答に `schema` を書かなくても、`"200"` で宣言すると `type: "void"` で生成されるので同じく失敗する
+
+直接呼ぶ確認では SDK を通らないので見えない。
+
+### 対処
+
+- swagger の応答は **`"default"` だけ**で宣言する（テンプレート `public-site` は対応済み）。`add_data_source.py` でデータソースを追加し直し、
+  `dataSourcesInfo` の操作が `"responseInfo": { "default": … }` になったことを確かめる
+- アプリ側で、受け取った文字列をバイト列に戻してページの charset で読み直す（[public-site.md](public-site.md)「受け取り」）
+- **恒久対策済み** — `deploy_connector.py` の `validate_definition()` が、JSON 以外を返す操作を状態コードで宣言していると作成前に止める
