@@ -3113,3 +3113,19 @@ user-data-dir の部分一致（`$_.CommandLine.Contains('<path>')`）で探し�
 ### 対処
 
 [3d-asset-sharing.md](3d-asset-sharing.md)「外皮の閉じ」。外壁の途切れを窓か壁に決め、食い違いの抜けを塞ぎ、下の階だけの部分に陸屋根を作る。「外から壁を通らずに部屋へ入れるセルの数」を試験の指標にする（0 であること）。
+
+## 91. テンプレートの試験が手元では通るのに、CI・新しい端末では Python の import で落ちる（検証済 2026-10-07）
+
+### 症状
+
+テンプレートから生成したプロジェクトの `npm test` が、CI で `ModuleNotFoundError: No module named 'numpy'`（`'PIL'`）で落ちる。手元では全件通る。
+
+### 原因
+
+Node の試験の中から Python（Blender と共有の計算・素材の検証）を呼んでおり、その依存を宣言していなかった。開発した端末にはたまたま入っていた。
+
+### 対処
+
+テンプレートに `requirements.txt` を同梱し、`scaffold.json` の `nextSteps` と README の手順に `python -m pip install -r requirements.txt` を入れる。
+**依存の宣言は、何も入っていない環境で確かめる**（`python -m venv` で新しい仮想環境を作り、`requirements.txt` だけを入れて試験を回す）。
+テンプレートの CI（生成 → install → test → build）で毎回確かめる。**恒久対策済み** — `.github/workflows/perse3d-studio.yml`。
