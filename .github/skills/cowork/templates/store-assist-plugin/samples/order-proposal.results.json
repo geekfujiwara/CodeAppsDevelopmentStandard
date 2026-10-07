@@ -1,0 +1,160 @@
+{
+  "title": "発注案の考え方 10/30(金)",
+  "subtitle": "デモ店 品川港南口店 ／ 10/30(金) 08:30 時点 ／ 作成 2026-10-30 08:34（Cowork 店長アシスト）",
+  "file_name": "発注案_20261030.html",
+  "conclusion": "雨で冷え込み、18 時から近くでライブがあるので、夕方便でおにぎり・弁当・傘を増やし、おでんとホットスナックは仕込みを増やします。明日の朝便は冷たい麺とアイスを減らし、カップ麺を増やします。",
+  "cards": [
+    { "label": "今日の夕方便で追加", "total": "evening", "tone": "up" },
+    { "label": "仕込みを増やす（発注なし）", "value": "おでん・ホットスナック", "tone": "info" },
+    { "label": "明日の朝便", "total": "morning", "tone": "down" }
+  ],
+  "conditions": [
+    { "item": "天気", "content": "雨・最高 14℃・最低 10℃・降水確率 90%", "effect": "判断基準 2（雨の日）に該当" },
+    { "item": "前日との差", "content": "最高気温 −6.4℃（晴れ → 雨）", "effect": "判断基準 3（5℃以上の冷え込み）に該当" },
+    { "item": "周辺イベント", "content": "秋の音楽フェス 18:00〜21:00・港南ホール・約 5,000 人・350m", "effect": "判断基準 4（1,000 人以上・1km 以内）に該当" },
+    { "item": "欠品が続く品目", "content": "特製から揚げ弁当 14 日中 12 日、明太子おにぎり 8 日 ほか", "effect": "判断基準 5 に該当" }
+  ],
+  "reasoning": [
+    { "rule": "判断基準 2　雨の日", "summary": "おでん・カップ麺・ホット飲料は +30%、傘は在庫 5 本以上。冷たい麺・アイスは −30%。", "applied": "傘は雨の日 1 日 3.5 本（晴れ・くもり 0.6 本）売れるのに、今の在庫は 2 本。夕方便で 4 本足します。おでん大根は雨の日 20.2 個 vs 晴れ・くもり 14.5 個。冷凍の仕込み在庫が 39 個あるので発注せず、仕込みを増やします。" },
+    { "rule": "判断基準 3　5℃以上の冷え込み", "summary": "おでん・温かい麺・ホットレモンをさらに +20%。", "applied": "前日より 6.4℃ 低いので、おでんの仕込みは合計 +30〜50% を目安にします。" },
+    { "rule": "判断基準 4　近くのイベント", "summary": "おにぎりは夕方便で +50%、ホットスナックは夕方の仕込みを増やす。", "applied": "鮭おにぎりの 15〜20 時はイベントの日 6.1 個 vs ふだん 4.1 個。骨なしフライドチキンは 9.7 個 vs 5.8 個。夕方に効く分だけ夕方便で足します。" },
+    { "rule": "判断基準 5　欠品が続く品目", "summary": "14 日で 5 日以上売り切れたら、売れなかった数の 1 日平均を夕方便で足す。", "applied": "特製から揚げ弁当は 12 日売り切れ・売れなかった数 88 個（1 日 6.3 個）なので +6。のり弁当は 6 日・25 個で +2。" }
+  ],
+  "notes": [
+    "データはすべて架空店舗の合成データです。",
+    "使ったデータ: デモ設定・天気・周辺イベント・在庫・単品の傾向（10/30 08:30 時点）。",
+    "「現在在庫」は 08:30 時点の数です。納品時点（16:00）の在庫ではありません。グラフの棒の合計（現在在庫 + 追加提案）も、納品までに売れる分を引いていないので、納品時点の予想在庫ではありません。",
+    "「本日残りの販売見込み」は直近 4 週の同じ曜日の平均で、天気・イベントは入っていません。その分を判断基準で足しています。",
+    "仕込み（おでん・ホットスナック）は店内の冷凍在庫から調理する量で、発注数には含めていません。",
+    "数は店長の判断で変えてかまいません。発注は店長が承認してから登録します。"
+  ],
+  "fetch": [
+    { "name": "在庫", "expected": 50, "received": 50 },
+    { "name": "単品の傾向", "expected": 50, "received": 50 }
+  ],
+  "tables": [
+    {
+      "id": "evening",
+      "title": "今日の夕方便（10/30(金) 16:00 納品・締め 10:00）",
+      "kind": "order",
+      "unit_key": "unit",
+      "qty_key": "add",
+      "lot_key": "minlot",
+      "max_qty": 200,
+      "count_label": "品目",
+      "empty_text": "今日の夕方便で増やす品目はありません。",
+      "columns": [
+        { "key": "name", "label": "品目" },
+        { "key": "unit", "label": "単位" },
+        { "key": "stock", "label": "現在在庫（08:30 時点）", "num": true },
+        { "key": "rest", "label": "本日残りの販売見込み", "num": true },
+        { "key": "add", "label": "追加提案（発注数）", "num": true },
+        { "key": "minlot", "label": "発注単位", "num": true },
+        { "key": "reason", "label": "理由" }
+      ],
+      "rows": [
+        { "name": "鮭おにぎり", "unit": "個", "stock": 18, "rest": 16.1, "add": 6, "minlot": 2, "reason": "ライブで夕方が伸びる" },
+        { "name": "ツナマヨおにぎり", "unit": "個", "stock": 19, "rest": 18.0, "add": 6, "minlot": 2, "reason": "ライブで夕方が伸びる" },
+        { "name": "明太子おにぎり", "unit": "個", "stock": 11, "rest": 11.4, "add": 4, "minlot": 2, "reason": "欠品 8 日＋ライブ" },
+        { "name": "焼たらこおにぎり", "unit": "個", "stock": 3, "rest": 7.1, "add": 4, "minlot": 2, "reason": "在庫が見込みより少ない" },
+        { "name": "特製から揚げ弁当", "unit": "個", "stock": 10, "rest": 10.5, "add": 6, "minlot": 1, "reason": "18 時台に毎日売り切れ" },
+        { "name": "のり弁当", "unit": "個", "stock": 8, "rest": 9.3, "add": 2, "minlot": 1, "reason": "欠品 6 日" },
+        { "name": "オムライス", "unit": "個", "stock": 3, "rest": 5.3, "add": 2, "minlot": 1, "reason": "在庫が見込みより少ない" },
+        { "name": "ビニール傘 65cm", "unit": "本", "stock": 2, "rest": 0.8, "add": 4, "minlot": 1, "reason": "雨。雨の日は 1 日 3.5 本" }
+      ]
+    },
+    {
+      "id": "morning",
+      "title": "明日の朝便（10/31(土) 06:00 納品）",
+      "kind": "order",
+      "unit_key": "unit",
+      "qty_key": "proposal",
+      "lot_key": "minlot",
+      "max_qty": 200,
+      "count_label": "品目",
+      "empty_text": "明日の朝便で変える品目はありません。",
+      "columns": [
+        { "key": "name", "label": "品目" },
+        { "key": "unit", "label": "単位" },
+        { "key": "usual", "label": "いつもの数（直近 14 日の平均発注）", "num": true },
+        { "key": "proposal", "label": "提案（発注数）", "num": true },
+        { "key": "minlot", "label": "発注単位", "num": true },
+        { "key": "reason", "label": "理由" }
+      ],
+      "rows": [
+        { "name": "冷し中華", "unit": "個", "usual": 4.8, "proposal": 3, "minlot": 1, "reason": "雨・低温で −30%" },
+        { "name": "ざるそば", "unit": "個", "usual": 5.5, "proposal": 4, "minlot": 1, "reason": "雨・低温で −30%" },
+        { "name": "カップ麺 しょうゆ", "unit": "個", "usual": 8.8, "proposal": 12, "minlot": 3, "reason": "雨の日は 12.8 個 vs 8.8 個" },
+        { "name": "バニラアイスバー", "unit": "本", "usual": 10.3, "proposal": 6, "minlot": 6, "reason": "雨の日は 6.4 本 vs 10.1 本" }
+      ]
+    },
+    {
+      "id": "prep",
+      "title": "仕込み（店内調理・発注なし）",
+      "kind": "prep",
+      "unit_key": "unit",
+      "empty_text": "仕込みを変える品目はありません。",
+      "columns": [
+        { "key": "name", "label": "品目" },
+        { "key": "unit", "label": "単位" },
+        { "key": "frozen", "label": "仕込み用の冷凍在庫", "num": true },
+        { "key": "change", "label": "仕込みの増減" },
+        { "key": "reason", "label": "理由" }
+      ],
+      "rows": [
+        { "name": "おでん 大根", "unit": "個", "frozen": 39, "change": "+30〜50%", "reason": "雨＋冷え込み。雨の日は 20.2 個 vs 14.5 個" },
+        { "name": "おでん たまご", "unit": "個", "frozen": 67, "change": "+30〜50%", "reason": "雨＋冷え込み" },
+        { "name": "骨なしフライドチキン", "unit": "個", "frozen": 56, "change": "17 時から増やす", "reason": "ライブの日の夕方は 9.7 個 vs 5.8 個" }
+      ]
+    },
+    {
+      "id": "basis",
+      "title": "判断の根拠: 天候・イベント別の 1 日平均販売数",
+      "kind": "info",
+      "unit_key": "unit",
+      "empty_text": "天候・イベントで増減した品目はありません。",
+      "columns": [
+        { "key": "name", "label": "品目" },
+        { "key": "unit", "label": "単位" },
+        { "key": "rain", "label": "雨の日", "num": true },
+        { "key": "dry", "label": "晴れ・くもりの日", "num": true },
+        { "key": "event", "label": "イベントの日", "num": true }
+      ],
+      "rows": [
+        { "name": "おでん 大根", "unit": "個", "rain": 20.2, "dry": 14.5, "event": 16.4 },
+        { "name": "カップ麺 しょうゆ", "unit": "個", "rain": 12.8, "dry": 8.8, "event": 8.0 },
+        { "name": "鮭おにぎり", "unit": "個", "rain": 18.4, "dry": 20.9, "event": 23.6 },
+        { "name": "ビニール傘 65cm", "unit": "本", "rain": 3.5, "dry": 0.6, "event": 0.7 },
+        { "name": "バニラアイスバー", "unit": "本", "rain": 6.4, "dry": 10.1, "event": 12.3 }
+      ]
+    }
+  ],
+  "charts": [
+    {
+      "id": "stock-add",
+      "type": "stacked_hbar",
+      "title": "今日の夕方便: 品目別の現在在庫と追加提案",
+      "note": "現在在庫は 08:30 時点。棒の合計は納品時点（16:00）の予想在庫ではありません（納品までに売れる分を引いていない）。",
+      "table": "evening",
+      "label_key": "name",
+      "series": [
+        { "key": "stock", "name": "現在在庫（08:30 時点）" },
+        { "key": "add", "name": "追加提案（発注数）" }
+      ]
+    },
+    {
+      "id": "basis",
+      "type": "grouped_bar",
+      "title": "天候・イベント別の 1 日平均販売数",
+      "note": "直近 60 日の単品の傾向（おでんは販売開始の 9/25 から）。",
+      "table": "basis",
+      "label_key": "name",
+      "series": [
+        { "key": "rain", "name": "雨の日" },
+        { "key": "dry", "name": "晴れ・くもりの日" },
+        { "key": "event", "name": "イベントの日" }
+      ]
+    }
+  ],
+  "footer": "このレポートは Cowork が作成した下書きです。最終判断は店長が行います。"
+}

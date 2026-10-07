@@ -1,0 +1,29 @@
+{
+  "id": "demo-1030-rain",
+  "title": "本番：10/30（金）雨・最高 14℃、夕方に近くでライブ",
+  "description": "本番用の台本。前日（10/29）は晴れ 20℃ から一気に冷え込んで雨になり、夕方 18 時から港南ホールで 5,000 人規模のライブがある。デザート 1 品の廃棄が 2 週間続いている。",
+  "businessDate": "2026-10-30",
+  "demoTime": "08:30",
+  "liveWeather": false,
+  "weather": {
+    "2026-10-30": { "condition": "雨", "temp_max": 14, "temp_min": 10, "precip_prob": 90 },
+    "2026-10-31": { "condition": "くもり", "temp_max": 16, "temp_min": 10, "precip_prob": 40 },
+    "2026-11-01": { "condition": "晴れ", "temp_max": 18, "temp_min": 10, "precip_prob": 10 },
+    "2026-11-02": { "condition": "晴れ", "temp_max": 19, "temp_min": 11, "precip_prob": 10 },
+    "2026-11-03": { "condition": "くもり", "temp_max": 17, "temp_min": 11, "precip_prob": 30 },
+    "2026-11-04": { "condition": "雨", "temp_max": 15, "temp_min": 11, "precip_prob": 80 },
+    "2026-11-05": { "condition": "くもり", "temp_max": 16, "temp_min": 10, "precip_prob": 30 }
+  },
+  "events": [
+    { "date": "2026-10-30", "start": "18:00", "end": "21:00", "venue": "港南ホール", "name": "秋の音楽フェス", "scale": 5000, "distance_m": 350 }
+  ],
+  "inventoryOverrides": {
+    "U01": 2
+  },
+  "storyNotes": [
+    "シーン1: 雨と冷え込みでおでん・カップ麺・傘・ホットドリンクを増やし、冷し中華とざるそばを減らす。夕方のライブに向けておにぎり・飲料・ホットスナックを夕方便で追加する。",
+    "シーン1: 特製から揚げ弁当（B01）は毎日夕方に売り切れているため、夕方便で追加する。",
+    "シーン3: マンゴー杏仁（D02）が 10/16 から毎日 4〜6 個の廃棄。発注は 7 個のまま。",
+    "傘（U01）の在庫は 2 本しかない。"
+  ]
+}

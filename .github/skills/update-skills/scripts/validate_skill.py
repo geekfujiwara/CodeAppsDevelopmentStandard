@@ -243,8 +243,12 @@ def validate_templates(skill_dir: Path, rep: Report) -> None:
             undeclared |= used - declared
         for name in sorted(undeclared):
             rep.err(f"{label}: 変数 ${{{name}}} が {SCAFFOLD_MANIFEST} で宣言されていない")
-        for name in sorted(declared - used):
-            rep.warn(f"{label}: {SCAFFOLD_MANIFEST} の {name} はテンプレートで使われていない")
+        # envOnly: テンプレートのファイルには書かず、--write-env で .env にだけ書く値（環境 ID・URL など）
+        env_only = {str(v) for v in manifest.get("envOnly", [])}
+        for name in sorted(env_only - declared):
+            rep.err(f"{label}: envOnly の {name} が宣言されていない（variables / optionalVariables に書く）")
+        for name in sorted(declared - used - env_only):
+            rep.warn(f"{label}: {SCAFFOLD_MANIFEST} の {name} はテンプレートで使われていない（.env にだけ書く値なら envOnly に入れる）")
         # 質問（AskUserQuestion で聞く値）は宣言済みの変数だけを指す。選択肢は空にしない
         questions = manifest.get("questions", [])
         for question in questions:

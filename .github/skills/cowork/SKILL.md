@@ -51,6 +51,7 @@ Cowork から Dataverse を直接操作できるようにする。
 | [自前 MCP Server をコネクタにする](references/custom-mcp-connector.md) | Dataverse 外のデータ（基幹 DB / ファイルサーバー / 業務 API）を Cowork から扱う場合の差分手順 |
 | [営業支援 CRM プラグイン テンプレート](templates/sales-crm-plugin/README.md) | 予定表・メール・チャットからの活動登録 / 目標達成プラン / マネージャーの障害レビュー。Code Apps の `templates/sales-crm` と同じ Dataverse を共有し、scaffold で生成する |
 | [株主総会 想定問答アシスタント テンプレート](templates/agm-qa-plugin/README.md) | IR 抜粋を根拠に想定問答とリハーサル台本を**下書き**で登録・想定問答の点検。Code Apps の `templates/agm-qa-assist` と同じ Dataverse。変数は `--questions` で AskUserQuestion |
+| [店長アシスト テンプレート](templates/store-assist-plugin/README.md) | 店長の判断基準で品目ごとの発注案（夕方便・朝便・仕込み）→ 承認後だけ発注を登録・本部通達の整理・週次店舗レポート。結果は Render UI のグラフ（単位ごと）・表・HTML レポート（共通ルールの差し込みと `report_builder.py`）。Code Apps の `templates/store-ordering` と同じ Dataverse。変数は `--questions` で AskUserQuestion |
 | [必要な権限の案内](references/permissions.md) | 作る・同意する・登録する・公開する・使う人ごとの最小の権限と、利用者の Dataverse ロールの作り方（scaffold 直後に担当者と確認） |
 | [異常系・トラブルシュート](references/troubleshooting.md) | 実際に踏んだ失敗と恒久対策 |
 | [結果の見せ方（Render UI のグラフ・表・HTML レポート）](references/visual-output.md) | 提案するスキル・数字を扱うスキルの出力の標準。差し込む共通ルール [display-rules.md](references/display-rules.md)・ひな形 [report-template.html](references/report-template.html) |

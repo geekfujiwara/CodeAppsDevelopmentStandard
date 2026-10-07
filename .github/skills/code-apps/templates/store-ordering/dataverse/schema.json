@@ -1,0 +1,149 @@
+{
+  "$comment": "Dataverse のテーブル定義（唯一の定義元）。論理名は「<PUBLISHER_PREFIX>_<logical>」になる。setup_dataverse.py・demo_data.py・tests/skills.test.ts が読む。enum 的な値は read_query で扱いやすいようテキスト列にしている。",
+  "tables": [
+    {
+      "logical": "tkitem", "display": "商品", "plural": "商品", "name_display": "品名",
+      "description": "店長アシスト デモの商品マスタ（架空の 50 品目）",
+      "columns": [
+        { "logical": "sku", "type": "String", "display": "商品コード", "maxLength": 10 },
+        { "logical": "unit", "type": "String", "display": "単位", "maxLength": 10, "description": "数える単位（個・本・パック）" },
+        { "logical": "category", "type": "String", "display": "カテゴリ", "maxLength": 50 },
+        { "logical": "price", "type": "Integer", "display": "売価(円)", "maxValue": 100000 },
+        { "logical": "itemtype", "type": "String", "display": "区分", "maxLength": 50 },
+        { "logical": "shelflifehours", "type": "Integer", "display": "消費期限(時間)", "maxValue": 100000 },
+        { "logical": "ordercutoff", "type": "String", "display": "夕方便の締め時刻", "maxLength": 10 },
+        { "logical": "leadtimedays", "type": "Integer", "display": "リードタイム(日)", "maxValue": 30 },
+        { "logical": "minlot", "type": "Integer", "display": "発注単位", "maxValue": 1000 },
+        { "logical": "salesstart", "type": "DateTime", "display": "販売開始日", "format": "DateOnly" }
+      ]
+    },
+    {
+      "logical": "tktrend", "display": "単品の傾向", "plural": "単品の傾向", "name_display": "品目",
+      "description": "本部の分析基盤が毎晩計算する単品ごとの指標（直近の販売・天気別の平均・廃棄・欠品）",
+      "columns": [
+        { "logical": "sku", "type": "String", "display": "商品コード", "maxLength": 10 },
+        { "logical": "unit", "type": "String", "display": "単位", "maxLength": 10, "description": "数える単位（個・本・パック）" },
+        { "logical": "category", "type": "String", "display": "カテゴリ", "maxLength": 50 },
+        { "logical": "period", "type": "String", "display": "集計期間", "maxLength": 200 },
+        { "logical": "avg7", "type": "Decimal", "display": "直近7日の1日平均販売", "precision": 1, "maxValue": 100000 },
+        { "logical": "weekratio", "type": "String", "display": "前週比", "maxLength": 20 },
+        { "logical": "rainavg", "type": "Decimal", "display": "雨の日の1日平均", "precision": 1, "maxValue": 100000 },
+        { "logical": "dryavg", "type": "Decimal", "display": "晴れ・くもり(25℃未満)の1日平均", "precision": 1, "maxValue": 100000 },
+        { "logical": "hotavg", "type": "Decimal", "display": "25℃以上の日の1日平均", "precision": 1, "maxValue": 100000 },
+        { "logical": "eventavg", "type": "Decimal", "display": "イベントのある日の1日平均", "precision": 1, "maxValue": 100000 },
+        { "logical": "eveningeventavg", "type": "Decimal", "display": "イベント日の15〜20時の平均", "precision": 1, "maxValue": 100000 },
+        { "logical": "eveningnormalavg", "type": "Decimal", "display": "イベントのない日の15〜20時の平均", "precision": 1, "maxValue": 100000 },
+        { "logical": "peakhours", "type": "String", "display": "よく売れる時間帯", "maxLength": 50 },
+        { "logical": "waste14", "type": "Integer", "display": "直近14日の廃棄数", "maxValue": 100000 },
+        { "logical": "wasteamount14", "type": "Integer", "display": "直近14日の廃棄金額(円)", "maxValue": 100000000 },
+        { "logical": "wasterate14", "type": "Decimal", "display": "直近14日の廃棄率(%)", "precision": 1, "maxValue": 100 },
+        { "logical": "wastestreak", "type": "Integer", "display": "廃棄が続いている日数", "maxValue": 1000 },
+        { "logical": "orderavg14", "type": "Decimal", "display": "直近14日の1日平均発注", "precision": 1, "maxValue": 100000 },
+        { "logical": "salesavg14", "type": "Decimal", "display": "直近14日の1日平均販売", "precision": 1, "maxValue": 100000 },
+        { "logical": "stockoutdays14", "type": "Integer", "display": "直近14日の欠品日数", "maxValue": 14 },
+        { "logical": "soldouthour", "type": "Decimal", "display": "平均の売り切れ時刻(時)", "precision": 1, "maxValue": 24 },
+        { "logical": "lost14", "type": "Integer", "display": "直近14日の売れなかった数(推定)", "maxValue": 100000 },
+        { "logical": "lostamount14", "type": "Integer", "display": "直近14日の機会ロス(円)", "maxValue": 100000000 }
+      ]
+    },
+    {
+      "logical": "tkdaily", "display": "単品日次実績", "plural": "単品日次実績", "name_display": "日付と品目",
+      "description": "品目ごと・日ごとの販売・廃棄・欠品・納品（過去 90 日）。天気とイベントも同じ行に持つ",
+      "columns": [
+        { "logical": "sku", "type": "String", "display": "商品コード", "maxLength": 10 },
+        { "logical": "category", "type": "String", "display": "カテゴリ", "maxLength": 50 },
+        { "logical": "date", "type": "DateTime", "display": "日付", "format": "DateOnly" },
+        { "logical": "weekday", "type": "String", "display": "曜日", "maxLength": 5 },
+        { "logical": "weather", "type": "String", "display": "天気", "maxLength": 10 },
+        { "logical": "tempmax", "type": "Decimal", "display": "最高気温", "precision": 1, "minValue": -50, "maxValue": 60 },
+        { "logical": "event", "type": "String", "display": "周辺イベント", "maxLength": 100 },
+        { "logical": "salesqty", "type": "Integer", "display": "販売数", "maxValue": 100000 },
+        { "logical": "salesamount", "type": "Integer", "display": "売上金額(円)", "maxValue": 100000000 },
+        { "logical": "eveningqty", "type": "Integer", "display": "15〜20時の販売数", "maxValue": 100000 },
+        { "logical": "hourly", "type": "String", "display": "時間帯別の販売数(0〜23時)", "maxLength": 200 },
+        { "logical": "wasteqty", "type": "Integer", "display": "廃棄数", "maxValue": 100000 },
+        { "logical": "wasteamount", "type": "Integer", "display": "廃棄金額(円)", "maxValue": 100000000 },
+        { "logical": "wastereason", "type": "String", "display": "廃棄理由", "maxLength": 50 },
+        { "logical": "soldouthour", "type": "Integer", "display": "売り切れ時刻(時台)", "maxValue": 23 },
+        { "logical": "lostqty", "type": "Integer", "display": "売れなかった数(推定)", "maxValue": 100000 },
+        { "logical": "deliverymorning", "type": "Integer", "display": "朝便の納品数", "maxValue": 100000 },
+        { "logical": "deliveryevening", "type": "Integer", "display": "夕方便の納品数", "maxValue": 100000 }
+      ]
+    },
+    {
+      "logical": "tkweather", "display": "天気", "plural": "天気", "name_display": "日付",
+      "description": "店舗周辺（品川駅港南口付近）の天気の実績と予報",
+      "columns": [
+        { "logical": "date", "type": "DateTime", "display": "日付", "format": "DateOnly" },
+        { "logical": "condition", "type": "String", "display": "天気", "maxLength": 10 },
+        { "logical": "tempmax", "type": "Decimal", "display": "最高気温", "precision": 1, "minValue": -50, "maxValue": 60 },
+        { "logical": "tempmin", "type": "Decimal", "display": "最低気温", "precision": 1, "minValue": -50, "maxValue": 60 },
+        { "logical": "precipprob", "type": "Integer", "display": "降水確率(%)", "maxValue": 100 },
+        { "logical": "kind", "type": "String", "display": "区分", "maxLength": 10 },
+        { "logical": "tempdiff", "type": "Decimal", "display": "最高気温の前日差", "precision": 1, "minValue": -60, "maxValue": 60 },
+        { "logical": "prevcondition", "type": "String", "display": "前日の天気", "maxLength": 10 }
+      ]
+    },
+    {
+      "logical": "tkevent", "display": "周辺イベント", "plural": "周辺イベント", "name_display": "イベント名",
+      "description": "店舗から半径 1km のイベント予定（架空）",
+      "columns": [
+        { "logical": "date", "type": "DateTime", "display": "日付", "format": "DateOnly" },
+        { "logical": "starttime", "type": "String", "display": "開始", "maxLength": 10 },
+        { "logical": "endtime", "type": "String", "display": "終了", "maxLength": 10 },
+        { "logical": "venue", "type": "String", "display": "会場", "maxLength": 100 },
+        { "logical": "scale", "type": "Integer", "display": "規模(人)", "maxValue": 1000000 },
+        { "logical": "distancem", "type": "Integer", "display": "距離(m)", "maxValue": 100000 }
+      ]
+    },
+    {
+      "logical": "tkinventory", "display": "在庫", "plural": "在庫", "name_display": "品目",
+      "description": "今朝の時点の在庫と、本日残りの見込み販売数（直近 4 週の同じ曜日の平均。天気・イベントは反映しない）",
+      "columns": [
+        { "logical": "sku", "type": "String", "display": "商品コード", "maxLength": 10 },
+        { "logical": "unit", "type": "String", "display": "単位", "maxLength": 10, "description": "数える単位（個・本・パック）" },
+        { "logical": "category", "type": "String", "display": "カテゴリ", "maxLength": 50 },
+        { "logical": "asof", "type": "String", "display": "時点", "maxLength": 30 },
+        { "logical": "stock", "type": "Integer", "display": "在庫", "maxValue": 100000 },
+        { "logical": "soldtoday", "type": "Integer", "display": "今朝からの販売数", "maxValue": 100000 },
+        { "logical": "expectedrest", "type": "Decimal", "display": "本日残りの見込み", "precision": 1, "maxValue": 100000 },
+        { "logical": "balance", "type": "Decimal", "display": "過不足", "precision": 1, "minValue": -100000, "maxValue": 100000 },
+        { "logical": "status", "type": "String", "display": "判定", "maxLength": 20 },
+        { "logical": "minlot", "type": "Integer", "display": "発注単位", "maxValue": 1000 },
+        { "logical": "eveningorder", "type": "String", "display": "今日の夕方便", "maxLength": 50 }
+      ]
+    },
+    {
+      "logical": "tkorder", "display": "発注", "plural": "発注", "name_display": "発注番号",
+      "description": "店長が承認して Cowork から登録した発注（1 行 = 1 回の発注。明細は本文に 1 行 1 品目）",
+      "columns": [
+        { "logical": "deliverydate", "type": "DateTime", "display": "納品日", "format": "DateOnly" },
+        { "logical": "deliveryslot", "type": "String", "display": "便", "maxLength": 20 },
+        { "logical": "lines", "type": "Memo", "display": "明細", "maxLength": 4000 },
+        { "logical": "itemcount", "type": "Integer", "display": "品目数", "maxValue": 100 },
+        { "logical": "totalqty", "type": "Integer", "display": "合計数量", "maxValue": 100000 },
+        { "logical": "totalamount", "type": "Integer", "display": "合計金額(円)", "maxValue": 100000000 },
+        { "logical": "reason", "type": "Memo", "display": "理由", "maxLength": 500 },
+        { "logical": "status", "type": "String", "display": "状態", "maxLength": 20 },
+        { "logical": "source", "type": "String", "display": "登録元", "maxLength": 50 }
+      ]
+    },
+    {
+      "logical": "tksetting", "display": "デモ設定", "plural": "デモ設定", "name_display": "名前",
+      "description": "デモの「今日」と時刻・シナリオ（1 行だけ）",
+      "columns": [
+        { "logical": "scenario", "type": "String", "display": "シナリオ", "maxLength": 50 },
+        { "logical": "scenariotitle", "type": "String", "display": "シナリオの説明", "maxLength": 200 },
+        { "logical": "businessdate", "type": "DateTime", "display": "今日の日付", "format": "DateOnly" },
+        { "logical": "demotime", "type": "String", "display": "今の時刻", "maxLength": 10 },
+        { "logical": "storename", "type": "String", "display": "店舗名", "maxLength": 100 },
+        { "logical": "storearea", "type": "String", "display": "所在地", "maxLength": 100 }
+      ]
+    }
+  ],
+  "lookups": [
+    { "from_table": "tktrend", "column_logical": "itemid", "display": "商品", "to_table": "tkitem" },
+    { "from_table": "tkdaily", "column_logical": "itemid", "display": "商品", "to_table": "tkitem" },
+    { "from_table": "tkinventory", "column_logical": "itemid", "display": "商品", "to_table": "tkitem" }
+  ]
+}
