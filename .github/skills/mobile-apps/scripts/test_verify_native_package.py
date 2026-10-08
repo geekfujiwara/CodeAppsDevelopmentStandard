@@ -25,7 +25,9 @@ class VerifyNativePackageTests(unittest.TestCase):
             root = Path(directory)
             dist = root / "dist"
             dist.mkdir()
-            (dist / "index.html").write_text("<!doctype html>", encoding="utf-8")
+            web_dist = root / "dist-web"
+            web_dist.mkdir()
+            (web_dist / "index.html").write_text("<!doctype html>", encoding="utf-8")
             for _, bundle_name, manifest_name in verify.ARTIFACTS:
                 (dist / bundle_name).write_bytes(verify.HERMES_MAGIC + b"bundle")
                 manifest = dist / manifest_name
@@ -36,8 +38,8 @@ class VerifyNativePackageTests(unittest.TestCase):
     def test_verify_rejects_web_only_build(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "dist").mkdir()
-            (root / "dist" / "index.html").write_text("<!doctype html>", encoding="utf-8")
+            (root / "dist-web").mkdir()
+            (root / "dist-web" / "index.html").write_text("<!doctype html>", encoding="utf-8")
             self.assertEqual(verify.verify(root), 1)
 
 

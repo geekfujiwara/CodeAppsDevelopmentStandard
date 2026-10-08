@@ -176,6 +176,7 @@ Metro の QR コードを Power Apps Developer app で読み取り、iOS／Andro
 python ../.github/skills/mobile-apps/scripts/verify_native_package.py preflight .
 # exit code 2 (FIRST_DEPLOY) の場合は、以下を2サイクル実行する
 
+npm run generate-schemas
 npm run bundle:web
 npm run bundle:android
 npm run bundle:ios
@@ -183,7 +184,8 @@ python ../.github/skills/mobile-apps/scripts/verify_native_package.py verify .
 npx --yes --package @microsoft/power-apps-cli@1.0.1 pa app push
 ```
 
-1回目の push 後に `appId` が発行されたことを preflight で確認し、Web bundle、Android／iOS の
+各サイクルで connector schema を先に再生成する。1回目の push 後に `appId` が発行されたことを
+preflight で確認し、Web bundle、Android／iOS の
 Hermes bundle と customer assets をすべて再生成してから2回目を push する。片方の native bundle、
 manifest、Hermes magic bytes が欠ける場合は停止し、Web-only build を Wrap に渡さない。
 

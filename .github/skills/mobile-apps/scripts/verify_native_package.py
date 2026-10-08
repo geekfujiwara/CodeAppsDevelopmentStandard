@@ -47,9 +47,10 @@ def preflight(root: Path) -> int:
 
 def verify(root: Path) -> int:
     dist = root / "dist"
+    web_dist = root / "dist-web"
     errors: list[str] = []
-    if not (dist / "index.html").is_file():
-        errors.append("dist/index.html がありません。npm run bundle:web を実行してください")
+    if not (web_dist / "index.html").is_file():
+        errors.append("dist-web/index.html がありません。npm run bundle:web を実行してください")
     for platform, bundle_name, manifest_name in ARTIFACTS:
         bundle = dist / bundle_name
         manifest = dist / manifest_name

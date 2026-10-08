@@ -83,11 +83,13 @@ Power Apps Developer app で Metro の QR を読み取る。確認項目:
 
 公式 template の scripts を正とする。同期時点では `build:android` / `build:ios` が Wrap build、
 `bundle:android` / `bundle:ios` が native Hermes bundle と customer assets、
-`bundle:web` が hosted Code App を担当する。存在しない汎用 `npm run build` を作ったことにしない。
+`bundle:web` が `dist-web/index.html` の hosted Code App を担当する。native artifact は `dist/` に出力される。
+存在しない汎用 `npm run build` を作ったことにしない。
 
 ```powershell
 npm run type-check
 python ../.github/skills/mobile-apps/scripts/verify_native_package.py preflight .
+npm run generate-schemas
 npm run bundle:web
 npm run bundle:android
 npm run bundle:ios
@@ -95,6 +97,7 @@ python ../.github/skills/mobile-apps/scripts/verify_native_package.py verify .
 npx --yes --package @microsoft/power-apps-cli@1.0.1 pa app push
 ```
 
+connector を追加した後の stale schema を bundle しないよう、各サイクルで `generate-schemas` を先に実行する。
 `power.config.json` に `appId` がない初回 deploy は、最初の push で ID を発行した後、上記の
 bundle／verify／push をもう一度実行する。1回目の artifact には app ID が入っていないため、
 2回目の再生成を省略しない。
