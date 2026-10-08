@@ -153,7 +153,7 @@ def add_delegates_and_mcp(out: dict, matrix: dict, requirements: dict) -> None:
 
 
 def _client_matches(skill: str, clients: set[str]) -> bool:
-    aliases = {"copilot-studio": {"copilot-studio", "copilot-studio-v2"}, "cowork": {"cowork"}, "foundry": {"ai-teammate"}}
+    aliases = {"copilot-studio": {"copilot-studio", "copilot-studio-v2"}, "cowork": {"cowork"}, "foundry": {"foundry-autopilot"}}
     return any(skill in aliases.get(client, {client}) for client in clients)
 
 

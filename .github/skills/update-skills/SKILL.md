@@ -220,7 +220,7 @@ python .github/skills/update-skills/scripts/publish_skill.py --skill <skill-name
   内容が矛盾していてもエラーにはならず、古い手順を正常系として拾ってしまう。
 
   ```powershell
-  python .github/skills/update-skills/scripts/publish_skill.py --skill ai-teammate `
+  python .github/skills/update-skills/scripts/publish_skill.py --skill foundry-autopilot `
     --remove .github/skills/copilot-sdk `
     --extra .github/skills/README.md --extra .github/agents/<Agent>.agent.md
   ```

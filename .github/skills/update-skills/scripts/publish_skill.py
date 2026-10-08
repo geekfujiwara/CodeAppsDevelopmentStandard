@@ -9,7 +9,7 @@ PR 先リポジトリを一時 clone し、対象スキルディレクトリと�
 使い方:
   python publish_skill.py --skill copilot-studio-v2
   python publish_skill.py --skill copilot-studio-v2 --extra .github/skills/README.md --extra .github/agents/Foo.agent.md
-  python publish_skill.py --skill ai-teammate --remove .github/skills/copilot-sdk   # スキル統合時の旧フォルダ削除
+  python publish_skill.py --skill foundry-autopilot --remove .github/skills/copilot-sdk   # スキル統合時の旧フォルダ削除
   python publish_skill.py --skill copilot-studio-v2 --dry-run     # push/PR せず検証まで
 
 設定（引数 > .env > 既定）:

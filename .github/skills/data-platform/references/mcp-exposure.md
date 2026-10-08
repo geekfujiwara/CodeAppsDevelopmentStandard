@@ -10,7 +10,7 @@
     "tokenKind": "search",
     "tool": "knowledge_base_retrieve",
     "role": "Search Index Data Reader",
-    "clientSkills": ["copilot-studio", "ai-teammate"]
+    "clientSkills": ["copilot-studio", "foundry-autopilot"]
   }
 }
 ```
@@ -30,7 +30,7 @@
 |---|---|---|
 | Copilot Studio | [copilot-studio](../../copilot-studio/SKILL.md) / [copilot-studio-v2 の MCP](../../copilot-studio-v2/references/mcp-servers.md) | カスタムコネクタの OAuth audience を上表に合わせる。DLP / ACP を admin スキルで確認 |
 | Cowork | [cowork のカスタム MCP コネクタ](../../cowork/references/custom-mcp-connector.md) | Scope を対象 audience の `/.default` にする |
-| Foundry Agent | [ai-teammate](../../ai-teammate/SKILL.md) | Foundry IQ は project connection 経由で接続できる |
+| Foundry Agent | [foundry-autopilot](../../foundry-autopilot/SKILL.md) | Foundry IQ は project connection 経由で接続できる |
 
 ## 検証の原則
 
