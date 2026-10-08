@@ -52,10 +52,11 @@ def register_schedule_routes(app: Application, host: Any) -> None:
         except Exception:
             logger.exception("Schedule tick failed")
         try:
-            # Stopping the session kills the TestWorker mid-case, leaving rows stuck in "running".
-            worker = getattr(host.agent_instance, "_test_worker", None)
-            if worker is not None:
-                await worker.drain_all()
+            # Stopping the session kills hub workers mid-job, leaving rows stuck in "running".
+            for worker_name in ("_test_worker", "_evaluation_worker"):
+                worker = getattr(host.agent_instance, worker_name, None)
+                if worker is not None:
+                    await worker.drain_all()
         except Exception:
             logger.exception("Evaluation drain failed")
         finally:

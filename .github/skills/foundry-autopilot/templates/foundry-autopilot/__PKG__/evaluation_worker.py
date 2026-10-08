@@ -23,6 +23,7 @@ STATUS_PENDING, STATUS_RUNNING, STATUS_DONE, STATUS_FAILED = 1, 2, 3, 4
 SCOPE_UNEVALUATED, SCOPE_ALL, SCOPE_PERIOD = 1, 2, 3
 DEFAULT_POLL_SECONDS = 30
 DEFAULT_STALE_MINUTES = 120
+DEFAULT_DRAIN_SECONDS = 600
 MAX_TEXT = 100_000
 
 JUDGE_PROMPT = """あなたは AI エージェントの応答品質を審査する評価者です。
@@ -111,6 +112,14 @@ class EvaluationWorker:
                 return False
             await self._run_job(job)
             return True
+
+    async def drain_all(self, deadline_seconds: int = DEFAULT_DRAIN_SECONDS) -> int:
+        """Finish queued jobs before a short-lived hosted session stops itself."""
+        deadline = asyncio.get_running_loop().time() + deadline_seconds
+        done = 0
+        while asyncio.get_running_loop().time() < deadline and await self.drain_once():
+            done += 1
+        return done
 
     async def _recover_stale_jobs(self) -> None:
         p, entity = self._prefix, f"{self._prefix}_evaljobs"

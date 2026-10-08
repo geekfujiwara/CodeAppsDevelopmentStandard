@@ -225,6 +225,41 @@ class EvaluationWorkerTests(unittest.TestCase):
         ]
         self.assertEqual(target_updates[0]["p_targetcount"], 0)
 
+    def test_drain_all_processes_every_waiting_job(self) -> None:
+        module = load_worker()
+        store = FakeDataverse()
+        remaining = ["job-1", "job-2"]
+
+        original_get = store.get
+
+        async def queued_get(query: str) -> dict:
+            if "_evaljobs" in query and "p_status eq 1" in query:
+                if not remaining:
+                    return {"value": []}
+                job_id = remaining.pop(0)
+                return {
+                    "value": [
+                        {
+                            "@odata.etag": 'W/"5"',
+                            "p_evaljobid": job_id,
+                            "p_agentkeys": "alpha",
+                            "p_scope": module.SCOPE_UNEVALUATED,
+                            "p_rulekeys": "",
+                        }
+                    ]
+                }
+            return await original_get(query)
+
+        store.get = queued_get
+
+        async def judge(_prompt: str) -> str:
+            return '{"score": 5, "reason": "ok"}'
+
+        worker = module.EvaluationWorker(
+            judge=judge, prefix="p", agent_key="alpha", dataverse=store
+        )
+        self.assertEqual(asyncio.run(worker.drain_all()), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
