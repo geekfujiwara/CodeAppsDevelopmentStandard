@@ -8,8 +8,11 @@ Dataverse MCP が有効か / 監査が有効か / 必要なセキュリティ �
 ```powershell
 python .github/skills/admin/scripts/check_environment.py `
   --environment-id $env:ENV_ID `
-  --require-managed --require-code-apps
+  --require-code-apps
 ```
+
+Code Apps 自体はマネージド環境を必須としない。組織のガバナンス方針で必要な場合だけ
+``--require-managed`` も指定する。
 
 終了コード: 0 = 問題なし / 1 = 開発前に解消が必要な問題を検出。
 """

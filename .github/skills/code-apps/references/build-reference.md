@@ -36,11 +36,12 @@ npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills/code-apps/temp
 pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
 # ↑ 使えない環境ではフォールバック: npm install --no-audit --no-fund
 
-# ①.5 マネージド環境 / Code Apps 許可が有効化済みか確認（pa app init の前に必ず実行。
+# ①.5 Code Apps 許可が有効化済みか確認（pa app init の前に必ず実行。
 #     architecture 提案時に確認済みなら再実行不要）
 python .github/skills/code-apps/scripts/check_code_apps_environment.py
 #     ❌ が出たら出力される管理センター URL で有効化してから先へ進む。
 #     ⚠️ （Power Platform 管理者ロールがなく API で判定できない）は管理センターで目視確認する。
+#     マネージド環境の状態も参考表示するが、Code Apps の必須条件ではない。
 
 # ①.6 ソリューションと接続参照を用意（pa app init より前に実行）
 #     接続 ID 直バインドはソリューションに入らないため、接続参照を先に作る。

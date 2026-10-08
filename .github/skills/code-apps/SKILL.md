@@ -214,6 +214,8 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 > 環境全体の状態（既定環境ではないか / マネージド環境 / Dataverse / Code Apps / MCP / セキュリティ ロール / DLP）は
 > [admin スキル](../admin/SKILL.md) の `check_environment.py` でまとめて確認できる。
 > 開発着手前に一度実行しておくと、デプロイ直前の 403 を避けられる。
+> **Code Apps の必須条件は環境で「コード アプリを許可する」が有効であること**。
+> マネージド環境はガバナンス上の選択肢であり、Code Apps のデプロイ要件ではない。
 > **CLI の実行ファイル名は `pa`**。`@microsoft/power-apps-cli` は bin を `power-apps` から **`pa`** にリネームし、
 > コマンドも group 化した（`init` → `app init`、`push` → `app push`、`auth-status` → `auth status`）。
 > 旧名を呼ぶと `npm error could not determine executable to run` だけが出て原因が見えない。
@@ -777,7 +779,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 
 | スクリプト | 用途 |
 |---|---|
-| [check_code_apps_environment.py](scripts/check_code_apps_environment.py) | マネージド環境 / Code Apps 許可の前提条件を確認（`pa app init` の前に実行） |
+| [check_code_apps_environment.py](scripts/check_code_apps_environment.py) | Code Apps 許可の必須条件を確認し、マネージド環境の状態を参考表示（`pa app init` の前に実行） |
 | [configure_code_app_csp.py](scripts/configure_code_app_csp.py) | Code Apps の CSP（`frame-src` 等）を確認・追加・検証。iframe を使うアプリはデプロイ前に `--assert` を通す |
 | [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
 | [add_data_source.py](scripts/add_data_source.py) | データソースを**非対話**で追加する。コネクタの通称（`sharepoint` 等）を `shared_xxx` に解決し、接続・必須値を確定してから `--non-interactive` で CLI を起動する。Step 3 の標準 |

@@ -367,7 +367,7 @@ def check_evaluation_dataverse(skill_root: Path, env_path: Path, env: dict[str, 
 
 
 def check_environment_dlp(skill_root: Path, env: dict[str, str]) -> list[str]:
-    """Confirms the target Dataverse environment is managed/Code-Apps-ready and that the
+    """Confirms the target Dataverse environment is Code-Apps-ready and that the
     connectors this agent needs are not blocked by a DLP policy, via the shared admin scripts
     (read-only; they call Dataverse/BAP through auth_helper, never MSAL/requests directly)."""
     admin_scripts = skill_root.parent / "admin" / "scripts"
@@ -384,7 +384,7 @@ def check_environment_dlp(skill_root: Path, env: dict[str, str]) -> list[str]:
     if check_environment.is_file():
         ok, output = run(
             [sys.executable, str(check_environment), "--environment-id", env_id,
-             "--require-managed", "--require-code-apps"],
+             "--require-code-apps"],
             skill_root, "check_environment.py", env,
         )
         if not ok:

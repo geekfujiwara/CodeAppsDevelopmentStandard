@@ -137,10 +137,12 @@ python .github/skills/admin/scripts/check_development_environment.py `
 ```powershell
 python .github/skills/admin/scripts/check_environment.py `
   --environment-id $env:ENV_ID `
-  --require-managed --require-code-apps
+  --require-code-apps
 ```
 
 `--require-*` を付けた項目は、満たさないと `NG`（終了コード 1）になる。
+マネージド環境は Code Apps の必須条件ではないため、組織のガバナンス方針で必須とする場合だけ
+`--require-managed` を追加する。
 判定される項目と基準は [environment-check.md](references/environment-check.md) を参照。
 
 出力例（抜粋）:
@@ -175,7 +177,7 @@ Step 1・Step 2 の `NG` / `WARN` を表にして提示し、**実装に入る�
 | 検出 | 典型的な対応 |
 |---|---|
 | 既定環境である | 開発用の専用環境を作成する |
-| マネージド環境が無効 | Step 4 で有効化する（Code Apps のデプロイに必要） |
+| マネージド環境が無効 | Code Apps の必須条件ではない。組織のガバナンス方針で必要なら Step 4 で有効化する |
 | Code Apps が確認できない | 管理センターで「コード アプリを許可する」をオンにする |
 | Dataverse MCP が無効 | 管理センターの環境設定で MCP を有効化する |
 | セキュリティ ロール不足 | 管理者に System Administrator（または必要な最小ロール）の割り当てを依頼 |
@@ -630,7 +632,7 @@ VS Code 統合ブラウザで通信を調査する。Bearer token、Cookie、CSR
 |---|---|---|
 | `architecture` | 構成確定後・実装着手前 | Step 1 → Step 2 |
 | `standard` | 新しい環境で作業を開始するとき | Step 1 |
-| `code-apps` | 初回デプロイ前 | Step 1（`--require-managed --require-code-apps`） |
+| `code-apps` | 初回デプロイ前 | Step 1（`--require-code-apps`。組織方針で必要な場合だけ `--require-managed` も指定） |
 | `copilot-studio` / `copilot-studio-v2` | エージェント作成前・MCP ツール追加前 | Step 1（`--require-mcp`）→ Step 2 → Step 6 |
 | `mcp-server` | カスタムコネクタ登録前後 | Step 2 → Step 5 → Step 6 |
 | ユーザー依頼 | DLP / ACP の推奨設定・移行 | Step 7（推奨プロファイル）/ Step 8（DLP → ACP 移行） |
