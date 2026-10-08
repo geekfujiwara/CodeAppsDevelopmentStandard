@@ -431,16 +431,17 @@ Native を選ぶ場合だけ [`mobile-apps`](../mobile-apps/SKILL.md) を使い�
 明示承認を得る。承認がなければレスポンシブ Web Code App を提案する。
 
 > ★ **Code Apps を適切なソリューションとして提案したら、このタイミングで環境側の前提条件チェックを必ず実行する**。
-> Code Apps のデプロイには「マネージド環境の有効化」と「環境での Code Apps 許可（コード アプリを許可する）」の
-> 2 点が事前に必要で、未有効のまま設計・実装を進めると後工程で `CodeAppOperationNotAllowedInEnvironment` (403) 等の
+> Code Apps のデプロイには「環境での Code Apps 許可（コード アプリを許可する）」が必要で、
+> 未有効のまま設計・実装を進めると後工程で `CodeAppOperationNotAllowedInEnvironment` (403) 等の
 > エラーにより手戻りが発生する。設計フェーズ・実装に入る前に以下を実行し、結果をユーザーに提示する。
+> マネージド環境はガバナンス上の推奨状態として同時に確認するが、Code Apps の必須条件ではない。
 >
 > ```bash
 > python .github/skills/code-apps/scripts/check_code_apps_environment.py
 > ```
 >
-> - ✅ 両方有効 → そのまま設計フェーズ（デザインテンプレート選択）へ進む。
-> - ❌ いずれか未有効 → スクリプトが出力する有効化手順（Power Platform 管理センター）をユーザーに提示し、
+> - ✅ Code Apps 許可が有効 → そのまま設計フェーズ（デザインテンプレート選択）へ進む。
+> - ❌ Code Apps 許可が無効 → スクリプトが出力する有効化手順（Power Platform 管理センター）をユーザーに提示し、
 >   有効化を待ってから設計・実装を続ける。
 > - ⚠️ API で判定できない（Power Platform 管理者ロールがない場合は Code Apps 許可が 403 になる）
 >   → 出力される管理センター URL をユーザーに提示し、目視確認を依頼する。

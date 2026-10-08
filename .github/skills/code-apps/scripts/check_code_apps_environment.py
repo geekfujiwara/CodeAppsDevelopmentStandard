@@ -1,8 +1,8 @@
-"""Code Apps のデプロイ前提条件（マネージド環境 / Code Apps 許可）を確認する。
+"""Code Apps のデプロイ前提条件（Code Apps 許可）を確認する。
 
-`pac code push` は環境が下記 2 条件を満たしていないと
+環境で Code Apps が許可されていない場合、`pac code push` は
 `CodeAppOperationNotAllowedInEnvironment` (403) で失敗する。
-実装に入る前に本スクリプトで確認する。
+マネージド環境はガバナンス上の推奨状態として表示するが、Code Apps の必須条件ではない。
 """
 
 from __future__ import annotations
@@ -96,19 +96,19 @@ def main() -> int:
     print(f"{icon[managed]} マネージド環境        : {managed_detail}")
     print(f"{icon[code_apps]} Code Apps 許可        : {code_apps_detail}")
 
-    if managed and code_apps:
-        print("\n前提条件を満たしています。そのまま設計・実装へ進めます。")
+    if code_apps is True:
+        if managed is not True:
+            print("\nℹ️ マネージド環境は任意です。組織のガバナンス方針に応じて有効化してください。")
+        print("Code Apps の前提条件を満たしています。そのまま設計・実装へ進めます。")
         return 0
 
     print("\n有効化手順（Power Platform 管理センター）:")
     print(f"  {admin_url}")
-    if managed is not True:
-        print("  - [設定] → [監査とログ] 上部の [マネージド環境] を [有効] にする")
     if code_apps is not True:
         print("  - [設定] → [製品] → [機能] → [Power Apps コード アプリ] を [オン] にする")
     print("\n有効化後にもう一度本スクリプトを実行して確認してください。")
-    if managed is None or code_apps is None:
-        print("⚠️ は API で判定できなかった項目です。管理センターで目視確認してください。")
+    if code_apps is None:
+        print("⚠️ Code Apps 許可を API で判定できませんでした。管理センターで目視確認してください。")
         return 0
     return 1
 
