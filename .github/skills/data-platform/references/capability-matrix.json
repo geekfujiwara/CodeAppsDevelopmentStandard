@@ -33,9 +33,9 @@
   },
   "mcp": {
     "dataverse": {"endpoint": "https://{org}.crm.dynamics.com/api/mcp", "audience": "https://{org}.crm.dynamics.com/.default", "clientSkills": ["cowork", "copilot-studio-v2"]},
-    "fabric-ontology": {"endpoint": "https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/{workspaceId}/items/{ontologyId}/ontologyEndpoint", "audience": "https://api.fabric.microsoft.com/.default", "clientSkills": ["cowork", "copilot-studio", "ai-teammate"]},
-    "databricks-genie": {"endpoint": "https://{databricksHost}/api/2.0/mcp/genie/{genieSpaceId}", "audience": "azure-databricks", "clientSkills": ["copilot-studio", "ai-teammate"]},
-    "databricks-sql": {"endpoint": "https://{databricksHost}/api/2.0/mcp/sql", "audience": "azure-databricks", "clientSkills": ["copilot-studio", "ai-teammate"]},
-    "foundry-iq": {"endpoint": "https://{searchService}.search.windows.net/knowledgebases/{knowledgeBase}/mcp?api-version=2026-08-01-preview", "audience": "https://search.azure.com/.default", "clientSkills": ["copilot-studio", "ai-teammate"]}
+    "fabric-ontology": {"endpoint": "https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/{workspaceId}/items/{ontologyId}/ontologyEndpoint", "audience": "https://api.fabric.microsoft.com/.default", "clientSkills": ["cowork", "copilot-studio", "foundry-autopilot"]},
+    "databricks-genie": {"endpoint": "https://{databricksHost}/api/2.0/mcp/genie/{genieSpaceId}", "audience": "azure-databricks", "clientSkills": ["copilot-studio", "foundry-autopilot"]},
+    "databricks-sql": {"endpoint": "https://{databricksHost}/api/2.0/mcp/sql", "audience": "azure-databricks", "clientSkills": ["copilot-studio", "foundry-autopilot"]},
+    "foundry-iq": {"endpoint": "https://{searchService}.search.windows.net/knowledgebases/{knowledgeBase}/mcp?api-version=2026-08-01-preview", "audience": "https://search.azure.com/.default", "clientSkills": ["copilot-studio", "foundry-autopilot"]}
   }
 }

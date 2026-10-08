@@ -234,16 +234,16 @@ def mcp_endpoints(spec: dict) -> dict:
     endpoints = {}
     if env("DATABRICKS_HOST") and env("DATABRICKS_GENIE_SPACE_ID"):
         endpoints["databricks-genie"] = {"endpoint": f"https://{databricks_host()}/api/2.0/mcp/genie/{env('DATABRICKS_GENIE_SPACE_ID')}",
-                                         "tokenKind": "databricks", "clientSkills": ["copilot-studio", "ai-teammate"]}
+                                         "tokenKind": "databricks", "clientSkills": ["copilot-studio", "foundry-autopilot"]}
     if env("FABRIC_WORKSPACE_ID") and env("FABRIC_ONTOLOGY_ID"):
         endpoints["fabric-ontology"] = {
             "endpoint": f"https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/{env('FABRIC_WORKSPACE_ID')}/items/{env('FABRIC_ONTOLOGY_ID')}/ontologyEndpoint",
-            "tokenKind": "fabric", "clientSkills": ["cowork", "copilot-studio", "ai-teammate"]}
+            "tokenKind": "fabric", "clientSkills": ["cowork", "copilot-studio", "foundry-autopilot"]}
     if env("SEARCH_SERVICE_NAME") and spec.get("foundry"):
         endpoints["foundry-iq"] = {
             "endpoint": f"https://{env('SEARCH_SERVICE_NAME')}.search.windows.net/knowledgebases/{spec['foundry']['knowledgeBase']['name']}/mcp?api-version={SEARCH_KB_API}",
             "tokenKind": "search", "tool": "knowledge_base_retrieve", "role": "Search Index Data Reader",
-            "clientSkills": ["copilot-studio", "ai-teammate"]}
+            "clientSkills": ["copilot-studio", "foundry-autopilot"]}
     return endpoints
 
 

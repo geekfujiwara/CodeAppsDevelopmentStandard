@@ -15,7 +15,7 @@ MCP で接続できる状態まで持っていく。
 | 計算リソースの停止・再開 | **data-platform** |
 | Dataverse のテーブル・権限 | dataverse |
 | スキーマ変換・データ投入・照合 | data-migration |
-| MCP のクライアント登録・公開 | cowork / copilot-studio / copilot-studio-v2 / ai-teammate |
+| MCP のクライアント登録・公開 | cowork / copilot-studio / copilot-studio-v2 / foundry-autopilot |
 | VNet / Private Endpoint などのネットワーク統制 | azure-infra |
 
 ## 2. 契約

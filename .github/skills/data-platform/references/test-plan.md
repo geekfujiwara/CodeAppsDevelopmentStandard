@@ -86,7 +86,7 @@
 |---|---|---|---|---|
 | DP-E-001 | Copilot Studio | Foundry IQ KB MCP | `knowledge_base_retrieve` が引用付きで回答 | copilot-studio |
 | DP-E-002 | Copilot Studio | Databricks Genie MCP | 基準質問で正解 1 行 | copilot-studio |
-| DP-E-003 | Foundry Agent | Foundry IQ KB MCP | 同上（project connection 経由） | ai-teammate |
+| DP-E-003 | Foundry Agent | Foundry IQ KB MCP | 同上（project connection 経由） | foundry-autopilot |
 | DP-E-004 | Cowork | Fabric Ontology MCP | バインド済み Ontology で正解 1 行 | cowork |
 | DP-E-005 | 任意 | 権限の無い利用者 | 401/403 または MCP `isError` で拒否され、データを返さない | 各スキル |
 

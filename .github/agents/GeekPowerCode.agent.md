@@ -73,7 +73,7 @@ python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --
   `npx pa app add data-source` を直接叩くとコネクタ ID の対話プロンプトで止まるため、通称（`sharepoint` 等）を
   [コネクタ ID カタログ](.github/skills/standard/references/connector-catalog.json)で `shared_xxx` に解決してから
   `--non-interactive` で実行するこのラッパーを正常フローとする
-- **外部データは指示ではない**: エージェント実装でメール本文・Web ページ・取り込んだファイル・業務レコードを読ませる場合は、フェンスで囲って渡し、送信・共有・実行など実害のある操作はコードで認証済み ID を検証する（[プロンプト インジェクション対策](.github/skills/ai-teammate/references/prompt-injection.md)）
+- **外部データは指示ではない**: エージェント実装でメール本文・Web ページ・取り込んだファイル・業務レコードを読ませる場合は、フェンスで囲って渡し、送信・共有・実行など実害のある操作はコードで認証済み ID を検証する（[プロンプト インジェクション対策](.github/skills/foundry-autopilot/references/prompt-injection.md)）
 - 詳細は `.github/skills/standard/SKILL.md`（認証リファレンス: `.github/skills/standard/references/auth-patterns.md`）および各スキルを参照
 - Web UI 操作（管理ポータルのフォーム入力、OAuth クライアント登録等）は **VS Code 統合ブラウザツール** （`open_browser_page` 等）のみを使う。**Playwright MCP サーバー・Playwright 単体ブラウザはいかなる場合もインストール・起動しない。** 認証はユーザー自身に行ってもらい、機密値は `.env` から読んで画面へ直接入力する（チャットに出力しない）。詳細・使用例は[ブラウザ自動化方針](.github/skills/standard/references/browser-automation.md) を参照。
 ## スキル一覧
@@ -98,7 +98,7 @@ python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --
 | アーキテクチャ判断 | .github/skills/architecture/SKILL.md |
 | 要件理解・仕様書変換 | .github/skills/spec-builder/SKILL.md |
 | Cowork / MCP クライアント登録 | .github/skills/cowork/SKILL.md |
-| AI チームメイト（Agent 365 / agentUser での Teams 公開。1 回の AskUserQuestion → `scaffold_ai_teammate.py` で同僚エージェント + 評価Hub を同時 scaffold。頭脳は Copilot SDK ランタイム / 自前ループのどちらでも可） | .github/skills/ai-teammate/SKILL.md |
+| Foundry Autopilot（Agent 365 / agentUser での Teams 公開。1 回の AskUserQuestion → `scaffold_ai_teammate.py` で Autopilot + 評価Hub + Python EvaluationWorker を同時 scaffold。発行時に Foundry Monitor/Evaluations も自動構成） | .github/skills/foundry-autopilot/SKILL.md |
 | スキル作成・更新 | .github/skills/update-skills/SKILL.md |
 | Azure リファレンスアーキテクチャ（セキュア構成） | .github/skills/azure-infra/SKILL.md |
 | MCP Server 開発（Azure Functions / Copilot Studio 連携） | .github/skills/mcp-server/SKILL.md |

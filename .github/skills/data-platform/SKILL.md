@@ -142,7 +142,7 @@ python $dp/verify_platform.py --check all --spec spec/semantics.json --emit-mcp 
 |---|---|
 | Copilot Studio | [copilot-studio](../copilot-studio/SKILL.md) / [copilot-studio-v2](../copilot-studio-v2/SKILL.md) |
 | Cowork | [cowork](../cowork/SKILL.md) |
-| Foundry Agent / Teams | [ai-teammate](../ai-teammate/SKILL.md) |
+| Foundry Agent / Teams | [foundry-autopilot](../foundry-autopilot/SKILL.md) |
 
 公開後は、公開先の実利用者 ID で [テスト計画 §6](references/test-plan.md#6-e2e-テストmcp-クライアント) を実行する。
 

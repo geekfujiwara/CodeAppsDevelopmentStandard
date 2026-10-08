@@ -42,9 +42,9 @@
 | 基盤 | MCP | 公開先スキル |
 |---|---|---|
 | Dataverse | Dataverse MCP（環境の `allowedmcpclients`） | cowork / copilot-studio-v2 |
-| Fabric IQ Ontology | Ontology MCP エンドポイント | cowork / copilot-studio / ai-teammate |
-| Databricks | managed MCP（Genie Agent / Databricks SQL） | copilot-studio / ai-teammate |
-| Foundry IQ | knowledge base MCP（`knowledge_base_retrieve`） | copilot-studio / ai-teammate |
+| Fabric IQ Ontology | Ontology MCP エンドポイント | cowork / copilot-studio / foundry-autopilot |
+| Databricks | managed MCP（Genie Agent / Databricks SQL） | copilot-studio / foundry-autopilot |
+| Foundry IQ | knowledge base MCP（`knowledge_base_retrieve`） | copilot-studio / foundry-autopilot |
 | 上記以外（基幹 DB・ファイル） | 自前 MCP Server | [mcp-server スキル](../../mcp-server/SKILL.md) |
 
 ## 4. 機械的な判定
@@ -66,4 +66,4 @@ python .github/skills/data-platform/scripts/recommend_platform.py --requirements
 | Dataverse | [dataverse](../../dataverse/SKILL.md) |
 | Fabric / Databricks / Foundry IQ | [data-platform](../../data-platform/SKILL.md) |
 | スキーマ変換・データ投入・照合 | [data-migration](../../data-migration/SKILL.md) |
-| MCP の公開・登録 | cowork / copilot-studio / copilot-studio-v2 / ai-teammate / mcp-server |
+| MCP の公開・登録 | cowork / copilot-studio / copilot-studio-v2 / foundry-autopilot / mcp-server |

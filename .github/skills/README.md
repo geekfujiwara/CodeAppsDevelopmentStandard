@@ -125,7 +125,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 | [update-skills](update-skills/SKILL.md) | スキル（SKILL.md/references/scripts）を作成・更新し、汎用化・秘匿化した上でリモートへ PR を作成・更新する。 |
 | [azure-infra](azure-infra/SKILL.md) | Azure のリファレンスアーキテクチャを選定し、テナントのセキュリティガバナンス（公衆アクセス禁止・共有キー禁止・MFA 必須等）に準拠した構成で構築・デプロイ・検証する。 |
 | [mcp-server](mcp-server/SKILL.md) | Copilot Studio から利用する自前 MCP Server を Azure Functions 上に構築する。JSON-RPC 最小実装・キーレス認証（受信 Entra JWT / 送信 Managed Identity）・Private Endpoint 下でのデータ投入・デプロイの実測検証までを非対話スクリプトで完結する。 |
-| [alm](alm/SKILL.md) | コードファースト資産を秘匿化・汎用化したテンプレートとして Git 管理し、pre-commit ゲート → 自律レビューゲート → 承認・デプロイ → リリース記録までを CI/CD で回す共通基盤。ai-teammate / code-apps などの各プロダクトスキルから利用する。 |
+| [alm](alm/SKILL.md) | コードファースト資産を秘匿化・汎用化したテンプレートとして Git 管理し、pre-commit ゲート → 自律レビューゲート → 承認・デプロイ → リリース記録までを CI/CD で回す共通基盤。foundry-autopilot / code-apps などの各プロダクトスキルから利用する。 |
 | [sharepoint](sharepoint/SKILL.md) | AAD アプリ登録を行わずに、Microsoft Graph API 経由で SharePoint を包括的に操作する（リスト・列・リスト項目の作成、ファイルアップロード、ページ作成、M365 グループ経由のサイト作成）。 |
 
 ### data — データ層
@@ -171,7 +171,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 | [power-automate](power-automate/SKILL.md) | Power Automate クラウドフローをソリューション対応で作成・デプロイする。 |
 | [cowork](cowork/SKILL.md) | 目的特化型の Copilot Cowork プラグイン（Agent Skills + Dataverse MCP）を開発し、Entra ID SSO を構成して M365 管理センターのエージェント画面から公開・更新する。 |
 | [custom-connector](custom-connector/SKILL.md) | Entra ID で保護された自前の API をカスタム コネクタにし、接続の作成（公開 API の無い部分は観測した非公開 API で plan → 承認 → apply → 読み戻し、または利用者の手動作成を API で確認）・接続参照のバインド・Code Apps へのデータソース追加まで進める。 |
-| [ai-teammate](ai-teammate/SKILL.md) | Microsoft Agent SDK アプリを App Service で自己ホストし、Agent 365 のエージェント ID ブループリントと Teams アプリパッケージを介して Teams / Microsoft 365 Copilot に「同僚エージェント（agentUser）」として公開する。1 回の AskUserQuestion の回答から `scaffold_ai_teammate.py` が同僚エージェント（B1〜B17）と AI チームメイト評価Hub（Code Apps）を同時に scaffold し、`deploy_ai_teammate.py` が `--check` → `--execute` の 2 段階でデプロイする。頭脳（B3）は **GitHub Copilot SDK ランタイム（BYOK + Managed Identity、既定）と自前 Chat Completions ループ**のどちらでも scaffold できる。ライト実装（PoC）と本格実装（private リポジトリ + CI/CD）の 2 ルートに対応し、秘匿化・CI/CD は `alm` スキルに委譲する。 |
+| [foundry-autopilot](foundry-autopilot/SKILL.md) | Foundry hosted agent を Agent 365 Autopilot として Teams / Microsoft 365 Copilot に公開する。`scaffold_ai_teammate.py` が Autopilot、AI チームメイト評価Hub（Code Apps）、通常会話を採点する Python `EvaluationWorker` を同時生成し、`publish_foundry_autopilot.py` が Foundry Monitor/Evaluations の日次評価も自動構成する。複数 Autopilot は共通 Hub を `agentkey` で安全に共有できる。自己ホスト経路も互換用途として扱い、CI/CD は `alm` スキルに委譲する。 |
 
 ### ai — AI / プロンプト
 
@@ -213,6 +213,6 @@ Track C（設計承認と同時に着手）:
 ── 全トラック完了後 ──
   8. cowork             → Cowork プラグイン化（Agent Skills + Dataverse MCP）・公開・更新
                            ※ 会社環境で Cowork の利用が許可されている場合のみ推奨
-  9. ai-teammate        → Foundry エージェントを Agent 365 経由で Teams / M365 Copilot に公開
+  9. foundry-autopilot        → Foundry エージェントを Agent 365 経由で Teams / M365 Copilot に公開
                            ※ Foundry プロジェクトと Agent 365 ライセンスがある場合
 ```
