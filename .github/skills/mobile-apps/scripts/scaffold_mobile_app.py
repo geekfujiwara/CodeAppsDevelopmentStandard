@@ -7,6 +7,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -32,6 +33,50 @@ def run(command: list[str], cwd: Path | None = None) -> None:
 
 def load_snapshot() -> dict[str, object]:
     return json.loads(SNAPSHOT.read_text(encoding="utf-8"))
+
+
+def scaffold_pinned_template(repository: str, template_path: str, commit: str, target: Path) -> None:
+    with tempfile.TemporaryDirectory(prefix="power-apps-mobile-") as directory:
+        checkout = Path(directory) / "upstream"
+        run([executable("git"), "init", str(checkout)])
+        run(
+            [
+                executable("git"),
+                "-C",
+                str(checkout),
+                "remote",
+                "add",
+                "origin",
+                f"https://github.com/{repository}.git",
+            ]
+        )
+        run(
+            [
+                executable("git"),
+                "-C",
+                str(checkout),
+                "sparse-checkout",
+                "set",
+                template_path,
+            ]
+        )
+        run(
+            [
+                executable("git"),
+                "-C",
+                str(checkout),
+                "fetch",
+                "--depth",
+                "1",
+                "origin",
+                commit,
+            ]
+        )
+        run([executable("git"), "-C", str(checkout), "checkout", "--detach", "FETCH_HEAD"])
+        source = checkout / template_path
+        if not (source / "package.json").is_file():
+            raise RuntimeError(f"固定 commit に template がありません: {commit}:{template_path}")
+        shutil.copytree(source, target, dirs_exist_ok=True)
 
 
 def parse_args() -> argparse.Namespace:
@@ -70,8 +115,6 @@ def main() -> int:
     template_path = snapshot["templatePath"]
     commit = snapshot["commit"]
     cli_version = snapshot["cliVersion"]
-    degit_version = snapshot["degitVersion"]
-    source = f"{repository}/{template_path}#{commit}"
 
     approval = {
         "previewApproved": True,
@@ -89,7 +132,7 @@ def main() -> int:
 
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
-        run([executable("npx"), "--yes", f"degit@{degit_version}", source, str(target)])
+        scaffold_pinned_template(str(repository), str(template_path), str(commit), target)
         (target / "mobile-preview-approval.json").write_text(
             json.dumps(approval, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",

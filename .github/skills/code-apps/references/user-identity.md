@@ -14,7 +14,8 @@ Code Apps では `Xrm` オブジェクトや `fetch()` が使えない（CSP 制
 ## 解決策
 
 ```
-✅ SDK getContext() → Entra objectId 取得 → systemuser テーブルクエリで systemuserid を解決
+✅ SDK 1.5+ の getContext().user.systemUserId を優先
+✅ 古い host で省略された場合だけ Entra objectId → systemuser テーブルクエリで解決
    → retrieveMultipleRecordsAsync は postMessage ベースのため CSP 安全
 ```
 
@@ -65,6 +66,9 @@ async function getSdkContext(): Promise<IContext | null> {
 export async function getCurrentUserId(): Promise<string | null> {
   try {
     const ctx = await getSdkContext();
+    if (ctx?.user?.systemUserId) {
+      return ctx.user.systemUserId.toLowerCase();
+    }
     if (ctx?.user?.objectId) {
       const entraId = ctx.user.objectId;
       const client = getClient(dataSourcesInfo);
@@ -104,6 +108,7 @@ export function useCurrentUserId() {
 
 - **GUID 比較は `.toLowerCase()` で統一**: Dataverse API は大文字小文字混在で返す
 - **systemuserid が取れない場合は空配列**: null で全データ表示しない（セキュリティリスク）
+- **`systemUserId` は optional**: SDK 1.5+ でも古い host は省略できるため `objectId` fallback を残す
 - **`objectId` は Entra AAD Object ID**: Dataverse の `systemuserid` とは異なる
 - **`executeAsync` も CSP でブロック**: `retrieveMultipleRecordsAsync` だけが CSP 安全
 

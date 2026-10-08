@@ -88,11 +88,14 @@ import { getClient, getSdkContext } from "./sdk-client";
 
 /**
  * ログインユーザーの systemuserid を取得する。
- * SDK getContext() → Entra objectId → systemuser テーブルで解決。
+ * SDK 1.5+ の systemUserId を優先し、古い host では Entra objectId から解決。
  */
 export async function getCurrentUserId(): Promise<string | null> {
   try {
     const ctx = await getSdkContext();
+    if (ctx?.user?.systemUserId) {
+      return ctx.user.systemUserId.toLowerCase();
+    }
     if (!ctx?.user?.objectId) return null;
 
     const entraId = ctx.user.objectId;

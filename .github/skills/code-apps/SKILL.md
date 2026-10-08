@@ -544,7 +544,8 @@ PCM 変換は `public/` に置いた同一オリジンの AudioWorklet で行う
 
 ### ログインユーザーの systemuserid 取得
 
-SDK `getContext().user.objectId`（Entra AAD Object ID）を取得し、`systemuser` テーブルの
+SDK 1.5+ の `getContext().user.systemUserId` を優先する。古い host で省略された場合だけ
+`user.objectId`（Entra AAD Object ID）を取得し、`systemuser` テーブルの
 `azureactivedirectoryobjectid` でマッピングして `systemuserid` を解決する。
 `Xrm`・`fetch`・`executeAsync` は CSP でブロックされるため使用不可。
 
@@ -665,6 +666,10 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 `@microsoft/power-apps` は 2〜4 週ごとに更新され、マイナーバージョンでも破壊的変更が入る。
 影響範囲を押さえるため、**SDK を import してよいのは `src/lib` / `src/services` / `src/providers` の 3 階層だけ**とし、
 ページ・コンポーネントからは直接呼ばない（`validate_sample.py` が検出する）。
+
+SDK 1.4+ では elastic table の update／delete／file 操作と `IOperationOptions` に
+optional `partitionId` が追加された。standard table では省略し、elastic table では対象レコードと同じ
+partition ID を service 層から渡す。SDK 1.5+ のユーザー識別は下記の `systemUserId` 優先パターンを使う。
 
 Dataverse CRUD ラッパーは **[templates/dataverse-client.ts](templates/dataverse-client.ts) を正**とし、手書きせずコピーして使う。
 検索ボックス・ドロップダウンは同ファイルの `Search`（Dataverse 検索）を使う（[Dataverse 検索のドロップダウン](references/dataverse-search.md)）。

@@ -76,9 +76,10 @@ az login --tenant {tenant-id}
 [ブラウザ自動化方針](../../standard/references/browser-automation.md)に従い、
 `AskUserQuestion` で使用する Edge プロファイルを確認する。回答前は実行しない。
 
-> `az login`（Azure CLI 自身の `~/.azure` キャッシュ）は MCP サーバー（Node.js）が使う。
+> `az login`（Azure CLI 自身の `~/.azure` キャッシュ）は Flow RP、Dataverse、Graph が使う。
 > `auth_helper`（`~/.power-platform-cli/` の MSAL キャッシュ）は Python スクリプトが使う。
-> **両者は完全に別の資格情報ストア**で、一方の認証が他方に引き継がれることはない。
+> Connectivity／PPAPI はさらに別の FlowAgent MSAL キャッシュを使う。
+> **3者は別の資格情報ストア**で、一方の認証が他方に引き継がれることはない。
 > ただし `az login` は既存アカウントを上書きしないため、複数テナントを行き来しても
 > `az account list` → `az account set` で対話なしに切り替えられる。
 
@@ -118,7 +119,10 @@ python .github/skills/power-automate/scripts/setup_flow_mcp.py [オプション]
       "env": {
         "DATAVERSE_URL": "https://{org}.crm.dynamics.com/",
         "SOLUTION_NAME": "{YourSolutionName}",
-        "AZURE_TENANT_ID": "{your-tenant-id}"
+        "PA_TENANT_ID": "{your-tenant-id}",
+        "AZURE_TENANT_ID": "{your-tenant-id}",
+        "PA_LOGIN_HINT": "{optional-upn}",
+        "PA_CLOUD": "{optional-cloud}"
       }
     }
   }
@@ -142,7 +146,7 @@ python .github/skills/power-automate/scripts/setup_flow_mcp.py [オプション]
 | `manage-desktop-flows` | デスクトップフロー（RPA）の一覧・実行 |
 | `route-environments` | 環境の解決・ルーティング |
 
-## 認証・ID の診断ツール（v3.0.4+）
+## 認証・ID の診断ツール（v3.1.0+）
 
 FlowAgent は Azure CLI（`az`）のサインイン ID をそのまま使う。意図しないアカウントで
 認証されていると、原因が分かりにくい権限エラーや DNS エラーとして表面化する。
@@ -150,9 +154,19 @@ FlowAgent は Azure CLI（`az`）のサインイン ID をそのまま使う。�
 
 | ツール | 使うタイミング |
 |---|---|
-| `whoami` | 認証系のエラーが出たらまず実行。有効な `az` アカウント、CLI プロファイルのパス（`AZURE_CONFIG_DIR` 反映）、解決済みクラウド、トークンキャッシュの場所、トークンが実際に持つテナントを表示する |
-| `reconnect` | `az login` / `az account set` でアカウントを切り替えた後、または古いトークンで 401/403 が出るとき。キャッシュされたトークンを破棄して再取得する |
+| `whoami` | 認証系のエラーが出たらまず実行。Azure CLI ID に加えて `connectivityIdentity`、`connectivityCacheDir`、`connectivityIdentityMismatch` を確認する |
+| `list_accounts` | Connectivity キャッシュで選択可能なアカウントを確認する |
+| `switch_account` | Connectivity の優先 UPN を保存してキャッシュを切り替える。Azure CLI ID は変更しない |
+| `reconnect` | Azure CLI または Connectivity の古いトークンを破棄して再取得する |
 | `doctor` | 総合チェック（CLI の有無・サインイン状態・config dir・クラウド・トークン取得・トークンと `az` ID の一致・現在の環境・環境への到達性）を一括診断し、それぞれに具体的な対処を提示する |
+
+Connectivity のアカウント選択順は `PA_LOGIN_HINT` → `switch_account` の保存値 →
+`PA_NO_ACCOUNT_PICKER=1` → ブラウザーのアカウント選択画面。テナント切り替え後に
+`connectivityIdentityMismatch` が出た場合、`az account set` だけでは直らない。
+`switch_account` または `reconnect` で Connectivity 側も切り替える。
+
+ソブリンクラウドは `PA_CLOUD=commercial|gcc|gcchigh|dod` で明示できる。
+DoD は組織で確認した `PA_FLOW_RESOURCE` が必須で、推測した audience を設定しない。
 
 ## よくあるトラブル
 
@@ -296,4 +310,3 @@ Manual トリガー）の場合、Power Apps を経由しない直接 API 呼び
 Code Apps から実行してテストする。API 経由の自動テストが必須の場合は、トリガーの
 `kind` を外す（プレーンな Manual/Request トリガーにする）設計に変更する必要があるが、
 その場合 Power Apps 側のスキーマ連携（動的な入力フォーム生成）は失われる点に注意する。
-

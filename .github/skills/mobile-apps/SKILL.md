@@ -169,10 +169,23 @@ Metro の QR コードを Power Apps Developer app で読み取り、iOS／Andro
 
 ### Step 10: build、push、Wrap 導線を確認する
 
+最初に `power.config.json` の `appId` を確認する。未発行の場合、最初の push で ID が発行されるが、
+その ID は native bundle の build 時に埋め込まれるため、**bundle → push を2回**実行する。
+
 ```powershell
-npm run build:android   # 対象 OS に応じて build:ios を選択
+python ../.github/skills/mobile-apps/scripts/verify_native_package.py preflight .
+# exit code 2 (FIRST_DEPLOY) の場合は、以下を2サイクル実行する
+
+npm run bundle:web
+npm run bundle:android
+npm run bundle:ios
+python ../.github/skills/mobile-apps/scripts/verify_native_package.py verify .
 npx --yes --package @microsoft/power-apps-cli@1.0.1 pa app push
 ```
+
+1回目の push 後に `appId` が発行されたことを preflight で確認し、Web bundle、Android／iOS の
+Hermes bundle と customer assets をすべて再生成してから2回目を push する。片方の native bundle、
+manifest、Hermes magic bytes が欠ける場合は停止し、Web-only build を Wrap に渡さない。
 
 push 後は `power.config.json` の app ID と環境 ID を使い、次の Wrap URL を案内する。
 
@@ -199,5 +212,7 @@ https://make.powerapps.com/environments/{ENVIRONMENT_ID}/wrap?appID={APP_ID}
 |---|---|
 | [scaffold_mobile_app.py](scripts/scaffold_mobile_app.py) | pinned upstream template を生成し、任意で install／MobileApp init／type-check |
 | [validate_mobile_project.py](scripts/validate_mobile_project.py) | Preview ガード、依存セット、auth、UI、native wrapper、offline 境界を検証 |
+| [verify_native_package.py](scripts/verify_native_package.py) | app ID preflight と Android／iOS native package を検証 |
 | [test_validate_mobile_project.py](scripts/test_validate_mobile_project.py) | offline runtime 判定の false positive／false negative を回帰テスト |
+| [test_verify_native_package.py](scripts/test_verify_native_package.py) | app ID／Hermes bundle／asset manifest の回帰テスト |
 | [check_upstream.py](scripts/check_upstream.py) | 公式 mobile-apps HEAD と同期済み commit の差分を検出 |
