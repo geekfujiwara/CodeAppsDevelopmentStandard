@@ -125,7 +125,7 @@ class EvaluationWorker:
         p, entity = self._prefix, f"{self._prefix}_evaljobs"
         stale_before = (
             datetime.now(timezone.utc) - timedelta(minutes=self._stale_minutes)
-        ).isoformat()
+        ).isoformat().replace("+00:00", "Z")
         query = (
             f"{entity}?$select={p}_evaljobid,{p}_agentkeys,{p}_startedon"
             f"&$filter={p}_status eq {STATUS_RUNNING}"

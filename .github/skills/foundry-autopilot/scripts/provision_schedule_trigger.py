@@ -156,7 +156,7 @@ def ensure_provider(subscription: str, namespace: str) -> None:
 
 def tick_now() -> None:
     token = auth_helper.get_token(FOUNDRY_SCOPE)
-    resp = requests.post(tick_url(MANUAL_TICK_SESSION), headers={"Authorization": f"Bearer {token}"},
+    resp = requests.post(tick_url(f"{MANUAL_TICK_SESSION}-{uuid.uuid4().hex[:12]}"), headers={"Authorization": f"Bearer {token}"},
                          json={"type": "schedule_tick"}, timeout=180)
     print(f"  tick -> {resp.status_code} {resp.text[:200]}")
     if resp.status_code not in (200, 202):

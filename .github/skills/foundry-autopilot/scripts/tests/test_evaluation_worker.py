@@ -196,6 +196,8 @@ class EvaluationWorkerTests(unittest.TestCase):
 
         stale_query = next(query for query in store.queries if "p_status eq 2" in query)
         self.assertIn("p_agentkeys eq 'alpha'", stale_query)
+        self.assertIn("Z&$top=20", stale_query)
+        self.assertNotIn("+00:00", stale_query)
         recovered = [
             body
             for entity, row, body in store.patches
