@@ -31,6 +31,10 @@ git スパースチェックアウトで取得し、VS Code の `.vscode/mcp.jso
                          未設定だとテナントが "common" 扱いになり、MSAL キャッシュが
                          全テナント共通の単一ファイル（%LOCALAPPDATA%/flowagent/msal-cache/common.json）
                          になり、別テナントの古い認証を誤って使い回す）
+  PA_LOGIN_HINT         - Connectivity 認証で使う UPN。アカウント選択を固定する場合のみ設定
+  PA_NO_ACCOUNT_PICKER  - 1 の場合、Connectivity 認証のアカウント選択画面を省略
+  PA_CLOUD              - commercial / gcc / gcchigh / dod の明示指定
+  PA_FLOW_RESOURCE      - DoD 等で自動解決できない Flow audience の明示値
 """
 
 from __future__ import annotations
@@ -56,6 +60,12 @@ DATAVERSE_URL: str = os.getenv("DATAVERSE_URL", "").rstrip("/")
 SOLUTION_NAME: str = os.getenv("SOLUTION_NAME", "")
 TENANT_ID: str = os.getenv("TENANT_ID", "")
 FLOW_MCP_PLUGIN_ROOT: str = os.getenv("FLOW_MCP_PLUGIN_ROOT", "")
+FLOWAGENT_ENV_NAMES = (
+    "PA_LOGIN_HINT",
+    "PA_NO_ACCOUNT_PICKER",
+    "PA_CLOUD",
+    "PA_FLOW_RESOURCE",
+)
 
 # FlowAgent プラグイン本体の取得元（Claude/Copilot CLI のプラグインマーケットプレイスと同じソース）
 _PLUGIN_REPO_URL = "https://github.com/microsoft/power-platform-skills.git"
@@ -312,6 +322,10 @@ def build_vscode_mcp_entry(plugin_root: Path | None) -> dict:
         env["PA_TENANT_ID"] = TENANT_ID
         # Azure SDK / Azure CLI 系ツールとの互換のため併記（FlowAgent 自体は無視する）
         env["AZURE_TENANT_ID"] = TENANT_ID
+    for name in FLOWAGENT_ENV_NAMES:
+        value = os.getenv(name, "")
+        if value:
+            env[name] = value
 
     if plugin_root:
         args = [str(plugin_root / _PLUGIN_MCP_JS)]
