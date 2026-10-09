@@ -159,6 +159,32 @@ PUBLISHER_PREFIX=geek              ← ソリューション発行者の prefix
 
 ## 必須要件
 
+### ツールにする Power Automate フローは `kind: VirtualAgent`（★ 検証済み教訓 2026-10-09）
+
+エージェントのツールとして追加する Power Automate フローは、
+トリガー・応答ともに `kind: "VirtualAgent"` でなければならない。
+
+```
+❌ トリガー "kind": "PowerAppV2" / 応答 "kind": "PowerApp"
+   → フローのデプロイ・有効化は成功し Power Automate UI にも出るが、
+     「ツールを追加 → フロー」の一覧に**一切表示されない**
+
+✅ トリガー {"type": "Request",  "kind": "VirtualAgent"}
+✅ 応答     {"type": "Response", "kind": "VirtualAgent"}
+```
+
+```
+応答 schema は PowerApp 応答と形式が違う:
+  ✅ プロパティは title + x-ms-dynamically-added のみ
+  ❌ x-ms-content-hint / additionalProperties は付けない
+
+★ フローを再デプロイすると workflow ID が変わる
+  → 追加済みのツールは参照切れになるので削除 → 再追加する
+```
+
+> 実装の詳細は [power-automate スキルの trigger-action-patterns.md](../power-automate/references/trigger-action-patterns.md)
+> 「Copilot Studio トリガー（VirtualAgent）」を参照。
+
 ### Bot 作成は観測済みcontractで承認付き自動化
 
 ```

@@ -33,6 +33,77 @@ except Exception as e:
 | Webhook トリガーが発火しない            | /start 未呼び出し                              | 有効化後に Flow API /start を呼ぶ                              |
 | フロー実行時に接続エラー                | 接続が Error/Disconnected 状態                 | Power Automate UI で接続を再認証                               |
 | `AppLeaseMissing` / `ConnectionNotFound` | 環境が変わった / 接続 ID が古い               | PowerApps API で毎回 Connected 接続を検索                     |
+| Copilot Studio のツール一覧にフローが出ない | トリガーが `kind: PowerAppV2`               | `kind: VirtualAgent` に変更（応答も `kind: VirtualAgent`）     |
+| `DirectApiAuthorizationRequired` / `MisMatchingOAuthClaims` / `TriggerInputSchemaMismatch` | `VirtualAgent` / `PowerApp` トリガーを外部から直接呼び出した | 下記「Copilot Studio トリガーのフローを外部から検証する」参照 |
+
+## Copilot Studio のツール一覧にフローが表示されない
+
+**症状**: フローのデプロイ・有効化は成功し Power Automate UI にも出るのに、
+Copilot Studio の「ツールを追加 → フロー」の一覧に出てこない。
+
+**原因**: トリガーの `kind` が `PowerAppV2`（Power Apps 専用）になっている。
+Copilot Studio は `kind: "VirtualAgent"` のフローだけをツール候補として列挙する。
+
+**対処**:
+
+```python
+# トリガー
+{"type": "Request", "kind": "VirtualAgent", "inputs": {"schema": {...}}}
+# 応答
+{"type": "Response", "kind": "VirtualAgent", "inputs": {...}}
+```
+
+応答 schema のプロパティは `title` + `x-ms-dynamically-added` のみにする
+（`x-ms-content-hint` / `additionalProperties` は付けない）。
+詳細は [trigger-action-patterns.md](trigger-action-patterns.md) を参照。
+
+> **再デプロイでフロー ID が変わる点に注意。**
+> べき等デプロイ（無効化 → 削除 → 再作成）をすると workflow ID が変わるため、
+> Copilot Studio 側に登録済みのツールは参照切れになる。ツールを削除して再追加する。
+
+## Copilot Studio トリガーのフローを外部から検証する
+
+**症状**: `kind: VirtualAgent` / `PowerApp` のフローを Python から直接叩こうとすると
+どのルートでも失敗する。
+
+| 試したルート | 結果 |
+|---|---|
+| `POST /flows/{id}/triggers/manual/run` | body が渡らず `TriggerInputSchemaMismatch` |
+| `listCallbackUrl` + Flow API トークン | `DirectApiAuthorizationRequired` |
+| `listCallbackUrl` + Dataverse トークン | `MisMatchingOAuthClaims` |
+| `flowTriggerUri`（apihub）+ `https://apihub.azure.com/.default` | audience は通るが `missing connection ACL` で 403 |
+
+**原因**: これらの `kind` は「呼び出し元が Power Apps / Copilot Studio であること」を
+前提にした認証スキームを要求する。外部から直接呼べないのは仕様。
+
+**対処（検証用の実務パターン）**: フロー定義ビルダー関数を再利用し、
+**トリガーと応答だけ HTTP 版に差し替えた一時フロー**をデプロイして検証する。
+
+```python
+from deploy_flows import build_flow1_definition  # 本番と同じロジックを再利用
+
+definition = build_flow1_definition(...)
+definition["triggers"] = {
+    "manual": {"type": "Request", "kind": "Http", "inputs": {"schema": {...}}}
+}
+definition["actions"]["応答"]["kind"] = "Http"
+definition["actions"]["応答"]["inputs"]["statusCode"] = 200
+# → デプロイ → listCallbackUrl の SAS URL に認証なしで POST → 検証後に削除
+```
+
+ビジネスロジック部分は本番フローと完全に同一なので、
+採番・分岐・メール送信・後続フローの発火まで一括で検証できる。検証後は必ず一時フローを削除する。
+
+## Webhook トリガーの登録には反映待ちがある
+
+**症状**: Dataverse Webhook トリガーのフローを作り直し、`/start` も成功しているのに
+レコードを作成しても発火しない。
+
+**原因**: フロー再作成直後は webhook 登録がサービス側に反映されるまで時間がかかる（概ね 1〜2 分）。
+
+**対処**: 「発火しない＝定義が壊れている」と即断しない。
+数分待ってからレコードの作成／更新で再試行する。
+それでも発火しない場合に初めて `/start` の呼び出しとトリガー定義を疑う。
 
 ## `contentBase64` が不正、または `$content` を選択できない
 
