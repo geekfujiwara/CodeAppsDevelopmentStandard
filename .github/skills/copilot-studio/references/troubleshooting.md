@@ -325,6 +325,31 @@ Q: どのように起動しますか？
 
 ## トラブルシューティング
 
+### 「ツールを追加 → フロー」の一覧に Power Automate フローが出てこない
+
+デプロイ・有効化に成功し Power Automate UI にも表示されるフローが、
+Copilot Studio のツール候補に出ない場合、原因はほぼトリガーの `kind` である。
+
+| トリガーの `kind` | 用途 | ツール一覧への表示 |
+|---|---|---|
+| `PowerAppV2` | Power Apps / Code Apps から呼ぶ | ❌ 出ない |
+| `VirtualAgent` | Copilot Studio から呼ぶ | ✅ 出る |
+
+応答アクションも `{"type": "Response", "kind": "VirtualAgent"}` に揃える。
+応答 schema のプロパティは `title` + `x-ms-dynamically-added` のみとし、
+`x-ms-content-hint` / `additionalProperties` は付けない。
+
+正解が分からない場合は、環境内で実際に Copilot Studio から呼ばれているフローの
+`workflows.clientdata` を走査して `definition.triggers.*.kind` を実物で確認するのが確実。
+
+```text
+GET {dataverse}/api/data/v9.2/workflows?$select=name,clientdata&$filter=category eq 5
+```
+
+> **フローを再デプロイすると workflow ID が変わる。**
+> べき等デプロイ（無効化 → 削除 → 再作成）後は、追加済みのツールが参照切れになるため
+> ツールを削除してから再追加する。
+
 ### 作成requestをabortしたのにagentが作成された
 
 作成UIは失敗した`POST /api/data/v9.2/bots`を再試行することがある。観測用routeで最初のrequestだけを

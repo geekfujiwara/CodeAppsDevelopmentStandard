@@ -364,6 +364,29 @@ Power Automate UI で手動追加したパラメータと API でデプロイし
 「Power Apps V2 トリガー」「PowerApp 応答アクション」セクションを参照
 ```
 
+### Copilot Studio のツールにするフローは `kind: VirtualAgent`（★ 検証済み教訓 2026-10-09）
+
+```
+❌ "kind": "PowerAppV2" / 応答 "kind": "PowerApp"
+   → デプロイ・有効化は成功するが Copilot Studio の
+     「ツールを追加 → フロー」の一覧にフローが出てこない
+
+✅ トリガー: {"type": "Request", "kind": "VirtualAgent"}
+✅ 応答:     {"type": "Response", "kind": "VirtualAgent"}
+
+応答 schema は PowerApp 応答と形式が違う:
+  ✅ プロパティは title + x-ms-dynamically-added のみ
+  ❌ x-ms-content-hint は付けない
+  ❌ additionalProperties は付けない
+
+迷ったら環境内の既存フローの clientdata を走査して kind を実物で確認する。
+再デプロイでフロー ID が変わると Copilot Studio 側のツールは無効になるため、
+ツール登録済みのフローは削除→再追加が必要。
+
+詳細: references/trigger-action-patterns.md の
+「Copilot Studio トリガー（VirtualAgent）」セクションを参照
+```
+
 ### PowerApps API 接続検索のタイムアウト対策
 
 PowerApps API（`api.powerapps.com`）での接続検索は 504 GatewayTimeout が頻発する。

@@ -120,6 +120,9 @@
 Code Apps から `npx pa app add flow` で呼び出すフローのトリガー。
 パラメータの形式を間違えると Power Automate UI でパラメータが正しく表示されない。
 
+> **Copilot Studio のツールにするフローは `PowerAppV2` ではない。**
+> `kind: "VirtualAgent"` を使う → 下記「Copilot Studio トリガー（VirtualAgent）」セクション参照。
+
 ```
 ★ 正しいパラメータ形式（UI で手動追加した場合と同一）:
   ✅ "x-ms-content-hint": "TEXT"
@@ -181,6 +184,110 @@ Code Apps 側の生成結果:
     text → text (string, required)
     text_1 → text_1 (string, required)
     text_2 → text_2 (string, optional)  ※ required に含まれないもの
+```
+
+### Copilot Studio トリガー（VirtualAgent）— エージェントのツールにするフロー（★ 重要 / 検証済 2026-10-09）
+
+Copilot Studio エージェントの**ツール（フロー）**として呼び出されるフローのトリガー。
+`PowerAppV2` と構造はよく似ているが **`kind` が異なる**。ここを間違えると
+フローは正常にデプロイ・有効化できてしまうのに、
+**Copilot Studio の「ツールを追加 → フロー」の一覧に一切表示されない**。
+
+```
+❌ "kind": "PowerAppV2"  → Power Apps 専用。****** Studio のツール一覧に出ない
+✅ "kind": "VirtualAgent" → ****** Studio のツール一覧に出る
+
+応答アクションも対で合わせる:
+❌ "type": "Response", "kind": "PowerApp"
+✅ "type": "Response", "kind": "VirtualAgent"
+```
+
+```python
+"triggers": {
+    "manual": {
+        "type": "Request",
+        "kind": "VirtualAgent",          # ★ ****** Studio 用
+        "inputs": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "title": "問い合わせ内容",
+                        "type": "string",
+                        "x-ms-content-hint": "TEXT",      # ★ トリガー側は必須
+                        "x-ms-dynamically-added": True,   # ★ 必須
+                        "description": "ユーザーからの問い合わせ本文",
+                    },
+                    "text_1": {
+                        "title": "カテゴリ",
+                        "type": "string",
+                        "x-ms-content-hint": "TEXT",
+                        "x-ms-dynamically-added": True,
+                        "description": "問い合わせカテゴリ",
+                    },
+                },
+                "required": ["text"],
+            },
+        },
+    },
+},
+```
+
+```python
+"応答": {
+    "runAfter": {"Previous_Action": ["Succeeded"]},
+    "type": "Response",
+    "kind": "VirtualAgent",              # ★ ****** Studio 用
+    "inputs": {
+        "statusCode": 200,
+        "body": {
+            "inquiryNumber": "@{outputs('Compose_Number')}",
+            "assignee": "@{outputs('Compose_Assignee')}",
+        },
+        "schema": {
+            "type": "object",
+            "properties": {
+                "inquiryNumber": {
+                    "title": "inquiryNumber",          # ★ camelCase（body のキーと一致）
+                    "type": "string",
+                    "x-ms-dynamically-added": True,
+                },
+                "assignee": {
+                    "title": "assignee",
+                    "type": "string",
+                    "x-ms-dynamically-added": True,
+                },
+            },
+        },
+    },
+},
+```
+
+```
+PowerApp 応答との差分（★ ハマりどころ）:
+  ❌ 応答 schema に "x-ms-content-hint" を付けない
+  ❌ 応答 schema に "additionalProperties": {} を付けない
+  ✅ 応答 schema のプロパティは title + x-ms-dynamically-added のみ
+  ✅ title は body のキー名と同一（camelCase のまま）
+
+トリガー側は PowerAppV2 と同じく x-ms-content-hint / x-ms-dynamically-added / description を付ける。
+```
+
+```
+★ 正解の見つけ方（迷ったら環境内の実物を読む）
+  ****** Studio から呼ばれている既存フローの workflows.clientdata を走査し、
+  definition.triggers.*.kind を見るのが最も確実。
+
+  GET {dv}/api/data/v9.2/workflows?$select=name,clientdata&$filter=category eq 5
+  → json.loads(clientdata)["properties"]["definition"]["triggers"]
+```
+
+```
+★ 再デプロイすると workflow ID が変わる
+  べき等デプロイ（無効化 → 削除 → 再作成）でフローを作り直すと ID が変わるため、
+  ****** Studio にツールとして追加済みの場合は
+  「ツールを削除 → 再追加」が必要。ID を保ちたい場合は
+  削除せず既存 workflow の clientdata を PATCH する。
 ```
 
 ## 代表的アクションパターン
