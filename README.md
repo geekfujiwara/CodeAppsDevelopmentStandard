@@ -66,7 +66,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 - AI チームメイト（Agent 365 / Teams 同僚エージェント）の依頼例: `@GeekPowerCode 予定調整をしてくれる同僚エージェントを Teams に置きたい。` — 1 回の質問確認のあと `scaffold_ai_teammate.py` が同僚エージェントと AI チームメイト評価Hub を同時に scaffold する（[.github/skills/ai-teammate/SKILL.md](.github/skills/ai-teammate/SKILL.md)）
 
 > [!NOTE]
-> 推奨モデルは **Claude Opus 5** です（`.github/agents/GeekPowerCode.agent.md` の既定モデル）。`.gitignore` を配置しないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になるため、必ずコピーしてください。
+> 推奨モデルは **Claude Opus 5.5** です（`.github/agents/GeekPowerCode.agent.md` の既定モデル）。`.gitignore` を配置しないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になるため、必ずコピーしてください。
 
 前提条件・ライセンス要件は GitHub Copilot と共通です（[前提条件](#前提条件) を参照）。
 
