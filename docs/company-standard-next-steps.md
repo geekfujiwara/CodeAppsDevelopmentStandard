@@ -1,8 +1,61 @@
 # 自社標準コピー後に行うこと
 
-[README の作成手順へ戻る](../README.md#自社標準リポジトリを-api-で作成する)
+[READMEへ戻る](../README.md#自社標準の管理者向け)
 
 自社の Organization に開発標準をコピーした後は、アプリ実装より先に、アクセス範囲・社内ルール・運用責任を整えることを推奨します。このリポジトリは標準を管理する場所とし、各業務アプリは別リポジトリで開発すると、標準とアプリ固有コードを分離できます。
+
+## 自社標準リポジトリを API で作成する
+
+この公開リポジトリを基に、会社固有のルールやスキルを追加する非公開の標準リポジトリを作成できます。GitHub Enterprise Cloud の Organization では、Organization 内の全メンバーから参照できる **`internal` を第一候補**とし、`internal` を利用できない場合だけ **`private`** を選択してください。
+
+> [!IMPORTANT]
+> 公開リポジトリを fork すると fork も必ず public になり、fork の可視性を `internal` や `private` に変更できません。そのため、この手順では GitHub の fork 関係を作らず、ファイルを新しい履歴へコピーした独立リポジトリを作成します。公開元は `upstream` remote として登録し、更新の比較元にします。
+
+### GitHub Copilot に作成させる（推奨）
+
+VS Code の GitHub Copilot Chat で `/` を入力し、**Create Company Standard Repository** を選択してください。これは [`.github/prompts/create-company-standard-repository.prompt.md`](../.github/prompts/create-company-standard-repository.prompt.md) に定義されたプロンプトです。
+
+プロンプト一覧に表示されない場合は、次の内容をチャットへ貼り付けても実行できます。
+
+```text
+https://github.com/geekfujiwara/CodeAppsDevelopmentStandard を基に、自社標準用の独立した GitHub リポジトリを REST API で Organization に作成してください。Organization で利用可能なら visibility は internal を推奨し、利用できない場合は私に確認してから private にしてください。公開元のコミット履歴は引き継がず、新しい履歴で開始し、公開元を upstream remote に登録してください。トークンや認証情報は表示しないでください。
+```
+
+エージェントは利用可能な Organization を API で取得し、作成先と `internal` / `private` の選択を別々の `AskUserQuestion` で必ず確認してから、`POST /orgs/{org}/repos` を使用して作成します。`internal` の作成が API で拒否された場合、エラーを表示せずに `private` へ切り替えることはありません。
+
+### API を手動で実行する
+
+次は PowerShell と GitHub CLI の認証を利用する例です。`gh api` は GitHub REST API を呼び出しており、トークンをコマンドや出力へ露出しません。
+
+```powershell
+$Organization = "<your-organization>"
+$Repository = "CompanyDevelopmentStandard"
+
+# 公開元のファイルだけをコピーし、新しい履歴を開始
+npx degit geekfujiwara/CodeAppsDevelopmentStandard $Repository
+Set-Location $Repository
+git init -b main
+git add --all
+git commit -m "Initial company development standard"
+
+# Organization が GitHub Enterprise Cloud 配下なら internal を推奨
+$Body = @{
+  name        = $Repository
+  description = "Internal company development standards"
+  visibility  = "internal"
+} | ConvertTo-Json -Compress
+$Body | gh api --method POST "orgs/$Organization/repos" --input -
+
+git remote add origin "https://github.com/$Organization/$Repository.git"
+git remote add upstream "https://github.com/geekfujiwara/CodeAppsDevelopmentStandard.git"
+git push -u origin main
+```
+
+`visibility: internal` が利用できない場合は、Organization と Enterprise の契約・ポリシー、実行者のリポジトリ作成権限を確認してください。`private` でよいと判断した場合のみ、API payload の `visibility` を `private` に変更して再実行します。作成後は API で `visibility`、`default_branch`、`owner.login` を読み戻し、`git ls-remote origin refs/heads/main` で push を検証してください。
+
+独立した履歴のため、`git pull upstream main` で自動マージはしません。更新時は [上流の開発標準更新を取り込む](#上流の開発標準更新を取り込む) の手順で必要な標準ファイルを同期し、`git diff` で自社変更への影響を確認します。
+
+**作成後の次のステップ:** [自社標準コピー後の推奨事項](#推奨する順序) に沿って、まず上流更新をIssueで通知するGitHub Actions、社内向けのIssue回答ワークフロー、自社名のカスタムエージェントを整備してください。アクセス範囲、社内ルール、環境、更新・承認フローの確認方法に加え、それぞれをCopilotに依頼するサンプルプロンプトと、おすすめの添付資料もまとめています。
 
 ## 推奨する順序
 
@@ -186,66 +239,9 @@ Azure DevOps / 社内Git / ローカルNAS等を使う場合は、そのホス�
 > [!WARNING]
 > `npx degit ... --force` を自社標準に直接実行すると、自社変更を上書きします。元のGeekPowerCodeも再配置されるため、自社名のエージェントと重複する可能性があります。比較用フォルダーへの取得に限定し、自社標準やアプリの作業ツリーには無条件で適用しないでください。`src/` 等のアプリ固有コードは標準同期の対象外です。
 
-## 環境チェック
+## 開発者への案内
 
-### ローカル開発ツールのチェック
-
-標準リポジトリのルートで実行します。アプリ側の `package.json` に同名スクリプトがあるとは限りません。
-
-```bash
-npm run check:env   # Node.js / Python / pac 等の確認のみ
-npm run setup       # 上記 + Python venv bootstrap
-```
-
-`npm run setup` は環境事前チェックとPython bootstrapを実行し、Node.js / npm / Python（`python` or `py -3`）/ pip / `npx power-apps` / `pac` を確認します。`gh` が利用可能かつ認証済みの場合は、デフォルトブランチのCopilot承認バイパス設定も確認します。Pythonとpipが利用可能なら、`spec-builder` 用 `.venv` と依存パッケージの導入を試行します。
-
-不足時の対応:
-
-- Python: Python 3.12を推奨。`python --version` または `py -3 --version` を確認する。
-- pip: `python -m ensurepip --upgrade`（または `py -3 -m ensurepip --upgrade`）。
-- `pac`: PP CLIをMSIまたは `dotnet tool install --global Microsoft.PowerApps.CLI.Tool` で導入し、`pac auth create --environment {ENVIRONMENT_ID}` で認証する。PAC CLIはnpm配布ではない。
-- `npx power-apps`: Code Appsを選定したプロジェクトで `@microsoft/power-apps` の依存定義とインストール結果を確認する。
-
-### Power Platform 環境のチェック（開発着手前に必須）
-
-`.env` に `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` を設定し、対象環境だけを確認します。次のスクリプトは読み取り専用で、環境設定を変更しません。PowerShellの環境変数に設定値が読み込まれていることを確認してください。
-
-```powershell
-python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID
-```
-
-| 項目 | 確認内容 |
-|---|---|
-| 既定環境 | Default環境で開発していないこと |
-| 環境の状態 | Enabledであること |
-| マネージド環境 | 設定状態、共有制限、ソリューションチェッカー |
-| Dataverse | Ready、インスタンスURL、バージョン |
-| 監査 | `isauditenabled` |
-| Dataverse MCP | `IsMCPEnabled` |
-| MCPクライアント許可 | `allowedmcpclients` の状態 |
-| Code Apps | コードアプリが利用可能か |
-| セキュリティロール | System Administrator、または必要なSystem Customizer / Environment Maker等。チーム経由の割り当ても確認 |
-| 管理API | 管理APIアクセスと必要な管理者権限 |
-| DLP | 対象環境に適用されるデータポリシー |
-
-`NG` があれば実装前に解消します。[adminスキル](../.github/skills/admin/SKILL.md) と [管理者ロール一覧](../.github/skills/admin/references/admin-roles.md) を参照し、権限が不足する場合は管理者へ依頼してください。Code Apps・MCP・マネージド環境が必須要件なら、`--require-code-apps` / `--require-mcp` / `--require-managed` で警告をNGに昇格できます。
-
-続けて、Dataverseと新Copilot Studio WorkflowのAgentノードを含む環境・クラシックDLP・ACPを統合チェックします。追加コネクタは `--connector shared_xxx` で指定します。
-
-```powershell
-python .github/skills/admin/scripts/check_development_environment.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID
-```
-
-`shared_agentnode` は標準チェック対象で、自動的に許可を付与しません。未許可なら影響範囲とdry-runを確認し、明示承認後だけ変更します。構成チェック成功後もWorkflowのReviewと最小実行を確認してください。実行時HTTP 442（DLP/ACP）では `Last refresh` を記録して反映・同期状態を確認し、実行成功前に準備完了と断定しません。
-
-自社名のカスタムエージェントに「開発を始める前に環境をチェックして」と依頼すれば、チェック結果とNGの解消方針を整理できます。
-
-## カスタムエージェント前提の利用方法
-
-- 共通の実装・運用ルールは `.github/skills/` に定義されています。
-- Copilotでは自社名に変更したカスタムエージェントを選択し、`在庫管理をもっと効率的に行いたい。` のように要件を伝えます。
-- 既存仕様書がある場合は `spec-builder を実行して` と依頼します。
-- エージェントは該当スキルを読み、設計・承認・環境/DLPチェックを経て実装します。
+ローカル環境・Power Platform環境のチェックとカスタムエージェントの利用方法は、[開発者向けガイド](developer-guide.md)に統合しています。環境や権限の設定担当者は[管理者向けガイド](administrator-guide.md)を参照してください。
 
 ## リポジトリ構成
 
