@@ -37,45 +37,15 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 
 チーム開発でリモートリポジトリを最初から使いたい場合は [チーム開発向けの手順](#チーム開発向けの手順) を、既存仕様書がある場合は `/spec-build` の運用へ進んでください。
 
----
-
-## Claude Code でのクイックスタート
-
-GitHub Copilot だけでなく **Claude Code** からも同じ開発標準をそのまま利用できます。手順は次の 3 ステップです。
-
-**1. 開発標準（スキル）を取得する**
-
-プロジェクトのルートで以下を実行し、`.github/`（エージェント・スキル）と `.gitignore` を配置します。
-
-```bash
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills
-cp .github/skills/standard/references/gitignore-template .gitignore
-```
-
-**2. Claude Code をプロジェクトルートで起動する**
-
-`.github/agents/` と `.github/skills/` を配置したフォルダーで Claude Code を起動します。Claude Code はカスタムエージェント定義（`.claude/agents/`）とスキル群（`.github/skills/`）を参照して開発タスクを進めます。
-
-**3. `@GeekPowerCode` に依頼する**
-
-チャットから **`@GeekPowerCode`** を呼び出し、作りたいテーマを伝えてください。エージェントが `.github/skills/standard/SKILL.md` を読み込み、要件に応じて必要なスキルを選択します。`architecture` スキルがヒアリングを経て Code Apps を選定した場合にのみ、`code-apps` スキルが `package.json` / `package-lock.json` をコピーして `npm install` を実行します（Code Apps 以外のソリューションでは `node_modules` は生成されません）。
-
-- 依頼例: `@GeekPowerCode 在庫管理をもっと効率的に行いたい。`
-- 既存仕様書がある場合の入力例: `spec-builder を実行して`
-- AI チームメイト（Agent 365 / Teams 同僚エージェント）の依頼例: `@GeekPowerCode 予定調整をしてくれる同僚エージェントを Teams に置きたい。` — 1 回の質問確認のあと `scaffold_ai_teammate.py` が同僚エージェントと AI チームメイト評価Hub を同時に scaffold する（[.github/skills/ai-teammate/SKILL.md](.github/skills/ai-teammate/SKILL.md)）
-
-> [!NOTE]
-> `GeekPowerCode` の既定モデルは **Auto** です。GitHub Copilot がタスクと利用可能なモデルに応じてモデルを選択します。`.gitignore` を配置しないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になるため、必ずコピーしてください。
-
-前提条件・ライセンス要件は GitHub Copilot と共通です（[前提条件](#前提条件) を参照）。
+- Claude Code を使う場合: [Claude Code でのクイックスタート](docs/claude-code-quickstart.md)
+- 自社標準としてコピーした場合: [コピー後に行うこと・推奨プロンプトと添付資料](docs/company-standard-next-steps.md)
 
 ---
 
 ## 目次
 
 - [クイックスタート](#クイックスタート)
-- [Claude Code でのクイックスタート](#claude-code-でのクイックスタート)
+- [Claude Code でのクイックスタート](docs/claude-code-quickstart.md)
 - [前提条件](#前提条件)
   - [統合プロンプトで一気に準備する（推奨）](#統合プロンプトで一気に準備する推奨)
   - [ライセンスの準備](#ライセンスの準備)
@@ -108,66 +78,10 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 
 ### 統合プロンプトで一気に準備する（推奨）
 
-ローカル開発環境の準備から Power Platform のクラウド環境準備までを、コマンドを手打ちせずに **1 つのプロンプト**で一気通貫に実行できます。GitHub Copilot / Claude Code のチャットに、以下をそのまま貼り付けて送信してください。
+ローカル開発環境の準備から Power Platform のクラウド環境準備までを、コマンドを手打ちせずに **1 つのプロンプト**で一気通貫に実行できます。VS Code の GitHub Copilot Chat で `/` を入力して **Setup Development Environment** を選択するか、[統合プロンプト](.github/prompts/setup-development-environment.prompt.md)を開いて実行してください。
 
 > [!IMPORTANT]
 > クラウド環境の準備には Power Platform 管理者権限が必要な工程が含まれます。**実行者が管理者権限を持っていないと判明した時点で、エージェントは処理を中断します。** 権限昇格や迂回は行わず、不足しているロールと管理者への依頼内容を報告して終了する前提のプロンプトです。
-
-```text
-ローカル開発環境の準備から、Power Platform のクラウド環境準備まで、一気通貫で実行してください。
-途中で Power Platform 管理者権限が必要な工程に到達し、自分（実行者）がその権限を持っていないと判明した場合は、
-その時点で処理を中断し、不足している権限と管理者への依頼内容を整理して報告し、終了してください。
-無理に権限を回避・昇格しようとしないでください。
-
-## フェーズ 1: ローカル開発環境の準備
-1. Git / Node.js LTS / Python 3.12 を導入する。既定のターミナル（Windows の場合 PowerShell 5.1 で可、追加導入は不要）で動作すればよい。
-2. `npm install -g degit` で degit をグローバル導入する。
-3. Power Platform は PP CLI（pac）のみ導入する（VS Code 拡張は入れない）。
-4. **必要なすべてのツールの PATH を通す**。実体パスを確認したうえで、未登録のものは**ユーザー環境変数 PATH に恒久的に追加**し、さらに現在のセッションの `$env:Path` にも反映して、ターミナルを開き直さずに続行できる状態にする。対象は以下（実際のインストール先に読み替える）。
-   - Git: `%ProgramFiles%\Git\cmd`
-   - Node.js / npm / npx: `%ProgramFiles%\nodejs`
-   - npm グローバル（degit など。`npm config get prefix` で確認）: `%APPDATA%\npm`
-   - Python 3.12 本体とスクリプト: `%LOCALAPPDATA%\Programs\Python\Python312` と `%LOCALAPPDATA%\Programs\Python\Python312\Scripts`
-   - Power Platform CLI（pac）: MSI 版は `%LOCALAPPDATA%\Microsoft\PowerAppsCLI`、dotnet tool 版は `%USERPROFILE%\.dotnet\tools`
-   - GitHub CLI（gh）: `%ProgramFiles%\GitHub CLI`
-   - VS Code CLI（code）: `%LOCALAPPDATA%\Programs\Microsoft VS Code\bin`
-   - 追加時は既存の PATH を上書きせず**追記**し、重複エントリは作らないこと。特に Node.js インストール直後は `npx` が既存ターミナルで認識されないため、この反映を必ず行う。
-5. `gh auth status` で GitHub CLI のログイン状態を確認する（未ログインなら `gh auth login` を案内）。
-6. `npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents` と `npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills` を実行し、admin スキルを含むスキル一式とエージェント定義を取得する。
-7. `python -m pip install -r .github/skills/standard/scripts/requirements.txt` を実行する。
-8. クラウド側の準備に進めるよう、`.env` に設定する `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` の値をユーザーに確認する。
-9. **認証方式はユーザーに確認せず、エージェントが順に検証してキャッシュできる方式を採用する。** まず `.env` に `AUTH_MODE=interactive` を設定し、ローカルブラウザでの**インタラクティブ認証**で `AuthenticationRecord`（認証キャッシュ）が作成できるかを検証する。失敗する、またはブラウザ操作ができない環境（ヘッドレスセッション等）では、`.env` から `AUTH_MODE=interactive` を削除（または `AUTH_MODE=device_code` に変更）し、既定の **DEVICE CODE 認証** で再試行する。どちらの方式でキャッシュに成功したかを結果として報告する。この検証は、フェーズ 2 で最初に認証が行われる前に完了させること。
-
-検証コマンド:
-- git --version / node --version / npm --version / npx --version / degit --version
-- python --version（または py --version）
-- pac help（ヘッダの Version を確認）
-- gh --version / gh auth status
-- where.exe git / where.exe node / where.exe npx / where.exe degit / where.exe python / where.exe pac / where.exe gh（すべて PATH 経由で解決できること）
-- 新規に開いたターミナルでも上記が同じ結果になること（恒久的な PATH 登録の確認）
-
-## フェーズ 2: Power Platform 管理者権限の確認（ここで即座に判断する）
-1. `.github/skills/admin/SKILL.md` と `.github/skills/admin/references/admin-roles.md` を読み込み、これ以降の操作に必要な最小ロール（Power Platform Administrator 等）を把握する。
-2. `python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID` を実行し、「管理 API アクセス」（管理者ロール相当か）の判定を確認する。（フェーズ 1 の手順 9 で採用が確定した認証方式で初回のみ認証が行われる。以降はキャッシュからサイレントに認証され、再実行時は非対話で完走する。）
-3. 管理者権限がない、または判定が NG の場合は、**ここで作業を中断**し、次を報告して終了する。無理に自分の端末や権限で回避しようとしないこと。
-   - 何が不足しているか（必要ロール名）
-   - 管理者に依頼すべき内容（環境作成・セキュリティ ロール割り当て・Copilot Credits 割り当て・ACP 設定など）
-
-## フェーズ 3: 開発環境の確認（管理者権限がある場合のみ。これから開発に使う 1 環境だけが対象）
-`.github/skills/admin/SKILL.md` を読み込む。
-**対象は今回開発に使う 1 つの環境に限定する。テナント全体の環境戦略の棚卸し・環境グループの作成・命名規則に沿った環境の一括作成（`scan_environment_strategy.py` / `apply_environment_strategy.py` / `environment_naming.py` / `create_environments.py`）や、Copilot Credits の配分・ACP の適用・CSP の設定などの構成変更は行わない。これらはユーザーが明示的に依頼した場合にのみ実施する。**
-
-1. 今回開発に使う環境を確認する: 既存の Dataverse 環境から選ぶか、専用の Developer/Sandbox 環境を新規作成するかをユーザーに確認する（新規作成する場合は README の「専用環境を作成する」の手順を管理者へ案内）。決定したら `.env` の `ENV_ID` / `DATAVERSE_URL` / `TENANT_ID` を設定する。
-2. `check_environment.py --environment-id $env:ENV_ID` を実行し、その環境で開発するにあたり最低限解消すべき問題点（既定環境ではないか・マネージド環境・Dataverse / Code Apps / MCP の有効化・セキュリティ ロール・管理 API アクセス・適用される DLP）を確認する。
-3. `python .github/skills/admin/scripts/check_development_environment.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID` を実行する。標準利用対象の Dataverse (`shared_commondataserviceforapps`) と新 Copilot Studio Workflow の Agent ノード (`shared_agentnode`) を、環境チェック・クラシック DLP・環境とグループの ACP のすべてで確認する。追加コネクタは `--connector shared_xxx` で列挙する。このコマンドは読み取り専用で、許可追加はしない。
-4. `NG` や取得エラーがあれば停止し、解消方法を報告する。ACP で `shared_agentnode` が未許可なら、継承元と影響範囲を確認し、既存の許可設定を保持した1件追加の dry-run を提示する。明示承認後だけ適用し、再チェックする。グループから ACP が削除されても環境側に残る場合があるため、グループへの無条件な新設や全許可化はしない。
-5. すべて成功したら構成上の事前チェック完了を報告する。新 Workflow の利用時は、公開前の Review と外部データ・ツールなしの最小実行も確認する。管理画面の Applied やチェック成功だけで実行可能とは断定しない。実行時の DLP/ACP エラーはエラーコードと Last refresh を記録し、追加の権限緩和はしない。
-
-## 完了報告
-- フェーズ 1〜3 それぞれの成否を報告する。
-- フェーズ 3 で問題（NG）がなければ、続けて README の「クイックスタート」に進んでよい旨を案内する。
-- フェーズ 2 で権限不足により中断した場合は、フェーズ 1（ローカル）が完了済みであることと、フェーズ 3 を再開するために必要な条件（誰にどの権限を依頼すべきか）を案内する。
-```
 
 > [!NOTE]
 > テナント全体の環境戦略（環境グループの設計、命名規則に沿った環境の一括作成、不要環境の整理など）や、Copilot Credits の配分・ACP の適用・CSP の設定を実施したい場合は、`@GeekPowerCode` に「テナント全体の環境戦略を確認して」「この環境に Copilot Credits を配分して」のように明示的に依頼してください。admin スキルの読み取り専用スキャン・dry-run から始まり、内容提示 → ユーザー確認 → `--apply` の順で進みます。
@@ -441,7 +355,7 @@ VS Code の GitHub Copilot Chat で `/` を入力し、**Create Company Standard
 https://github.com/geekfujiwara/CodeAppsDevelopmentStandard を基に、自社標準用の独立した GitHub リポジトリを REST API で Organization に作成してください。Organization で利用可能なら visibility は internal を推奨し、利用できない場合は私に確認してから private にしてください。公開元のコミット履歴は引き継がず、新しい履歴で開始し、公開元を upstream remote に登録してください。トークンや認証情報は表示しないでください。
 ```
 
-エージェントは Organization 名とリポジトリ名を確認し、`POST /orgs/{org}/repos` を使用して作成します。`internal` の作成が API で拒否された場合、エラーを表示せずに `private` へ切り替えることはありません。
+エージェントは利用可能な Organization を API で取得し、作成先と `internal` / `private` の選択を別々の `AskUserQuestion` で必ず確認してから、`POST /orgs/{org}/repos` を使用して作成します。`internal` の作成が API で拒否された場合、エラーを表示せずに `private` へ切り替えることはありません。
 
 ### API を手動で実行する
 
@@ -474,6 +388,8 @@ git push -u origin main
 `visibility: internal` が利用できない場合は、Organization と Enterprise の契約・ポリシー、実行者のリポジトリ作成権限を確認してください。`private` でよいと判断した場合のみ、API payload の `visibility` を `private` に変更して再実行します。作成後は API で `visibility`、`default_branch`、`owner.login` を読み戻し、`git ls-remote origin refs/heads/main` で push を検証してください。
 
 独立した履歴のため、`git pull upstream main` で自動マージはしません。更新時は [上流の開発標準更新を取り込む](#上流の開発標準更新を取り込む) の手順で必要な標準ファイルを同期し、`git diff` で自社変更への影響を確認します。
+
+**作成後の次のステップ:** [自社標準コピー後の推奨事項](docs/company-standard-next-steps.md) に沿って、アクセス範囲、社内ルール、環境、更新・承認フローを整備してください。Copilot に依頼するサンプルプロンプトと、おすすめの添付資料もまとめています。
 
 ---
 
