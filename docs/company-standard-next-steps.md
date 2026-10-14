@@ -152,4 +152,137 @@ AskUserQuestionで対象者、受付確認だけか回答案まで生成する�
 - 利用チームは公開元ではなく、自社標準の承認済み版を参照する手順になっている。
 - 上流更新で自社変更を失わないレビュー・承認フローがある。
 
-上流同期の対象については [README の更新手順](../README.md#上流の開発標準更新を取り込む) を参照してください。
+## チーム開発向けの手順
+
+自社標準を管理するリポジトリと、業務アプリのリポジトリを分離します。Organizationと可視性は事前に確認し、Enterpriseで利用可能かつ閲覧範囲が適切なら `internal`、限定されたチームで管理する場合は `private` を選択します。
+
+```powershell
+$Organization = "<your-organization>"
+$Repository = "<your-theme-repo>"
+$Visibility = "internal" # 確認・承認した可視性。必要に応じて private
+$Body = @{ name = $Repository; visibility = $Visibility } | ConvertTo-Json -Compress
+$Body | gh api --method POST "orgs/$Organization/repos" --input -
+if ($LASTEXITCODE -ne 0) { throw "リポジトリ作成に失敗しました。" }
+git clone "https://github.com/$Organization/$Repository.git"
+if ($LASTEXITCODE -ne 0) { throw "クローンに失敗しました。" }
+Set-Location $Repository
+```
+
+続けて、**自社標準の承認済み版**からエージェント・スキルと `.gitignore` を配置します。private/internalの取得には認証済みのGitを使い、別フォルダーへ自社標準をcloneして必要なファイルをコピーしてください。既存の `.gitignore` は必要な設定を統合し、認証情報はコピーしません。公開元の `npx degit` をそのまま再実行すると、自社変更を迂回してしまうため避けます。
+
+自社名のカスタムエージェントにscaffoldを依頼します。Code Appsを選定・承認した場合だけ、`code-apps` スキルがテンプレートの `package.json` / `package-lock.json` を配置して `npm install` を実行します。必要であればインストールと序盤の設計対話を並行できますが、ビルド・テスト前には完了と成功を確認します。
+
+Azure DevOps / 社内Git / ローカルNAS等を使う場合は、そのホスティング先で空のリポジトリを作成し、認証済みGitでcloneするか `git remote add origin <url>` を設定します。GitHub APIでの作成は不要です。
+
+## 上流の開発標準更新を取り込む
+
+自社標準は公開元と独立した履歴なので、`git merge` や `git pull upstream main` で直接同期しません。上流更新通知Issueを起点に、作業ブランチで公開元の基準SHAと対象SHAを比較し、必要な変更だけを適用してPRで承認します。
+
+1. 通知Issueの比較元・比較先SHAを確認し、公開元を別の比較用フォルダーへ取得する。
+2. `.github/agents/` と `.github/skills/` の差分を確認し、自社のルールやエージェント名を維持して適用する。削除・改名されたファイルも確認する。
+3. `.github/prompts/`・`.github/workflows/`・`.github/community-issue-policy.json` は自動同期せず、必要な変更だけ個別にレビューする。
+4. `git diff` と関連テストで検証し、PRの承認後に取り込む。取り込み済みSHAと通知Issueの対応を記録する。
+
+> [!WARNING]
+> `npx degit ... --force` を自社標準に直接実行すると、自社変更を上書きします。元のGeekPowerCodeも再配置されるため、自社名のエージェントと重複する可能性があります。比較用フォルダーへの取得に限定し、自社標準やアプリの作業ツリーには無条件で適用しないでください。`src/` 等のアプリ固有コードは標準同期の対象外です。
+
+## 環境チェック
+
+### ローカル開発ツールのチェック
+
+標準リポジトリのルートで実行します。アプリ側の `package.json` に同名スクリプトがあるとは限りません。
+
+```bash
+npm run check:env   # Node.js / Python / pac 等の確認のみ
+npm run setup       # 上記 + Python venv bootstrap
+```
+
+`npm run setup` は環境事前チェックとPython bootstrapを実行し、Node.js / npm / Python（`python` or `py -3`）/ pip / `npx power-apps` / `pac` を確認します。`gh` が利用可能かつ認証済みの場合は、デフォルトブランチのCopilot承認バイパス設定も確認します。Pythonとpipが利用可能なら、`spec-builder` 用 `.venv` と依存パッケージの導入を試行します。
+
+不足時の対応:
+
+- Python: Python 3.12を推奨。`python --version` または `py -3 --version` を確認する。
+- pip: `python -m ensurepip --upgrade`（または `py -3 -m ensurepip --upgrade`）。
+- `pac`: PP CLIをMSIまたは `dotnet tool install --global Microsoft.PowerApps.CLI.Tool` で導入し、`pac auth create --environment {ENVIRONMENT_ID}` で認証する。PAC CLIはnpm配布ではない。
+- `npx power-apps`: Code Appsを選定したプロジェクトで `@microsoft/power-apps` の依存定義とインストール結果を確認する。
+
+### Power Platform 環境のチェック（開発着手前に必須）
+
+`.env` に `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` を設定し、対象環境だけを確認します。次のスクリプトは読み取り専用で、環境設定を変更しません。PowerShellの環境変数に設定値が読み込まれていることを確認してください。
+
+```powershell
+python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID
+```
+
+| 項目 | 確認内容 |
+|---|---|
+| 既定環境 | Default環境で開発していないこと |
+| 環境の状態 | Enabledであること |
+| マネージド環境 | 設定状態、共有制限、ソリューションチェッカー |
+| Dataverse | Ready、インスタンスURL、バージョン |
+| 監査 | `isauditenabled` |
+| Dataverse MCP | `IsMCPEnabled` |
+| MCPクライアント許可 | `allowedmcpclients` の状態 |
+| Code Apps | コードアプリが利用可能か |
+| セキュリティロール | System Administrator、または必要なSystem Customizer / Environment Maker等。チーム経由の割り当ても確認 |
+| 管理API | 管理APIアクセスと必要な管理者権限 |
+| DLP | 対象環境に適用されるデータポリシー |
+
+`NG` があれば実装前に解消します。[adminスキル](../.github/skills/admin/SKILL.md) と [管理者ロール一覧](../.github/skills/admin/references/admin-roles.md) を参照し、権限が不足する場合は管理者へ依頼してください。Code Apps・MCP・マネージド環境が必須要件なら、`--require-code-apps` / `--require-mcp` / `--require-managed` で警告をNGに昇格できます。
+
+続けて、Dataverseと新Copilot Studio WorkflowのAgentノードを含む環境・クラシックDLP・ACPを統合チェックします。追加コネクタは `--connector shared_xxx` で指定します。
+
+```powershell
+python .github/skills/admin/scripts/check_development_environment.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID
+```
+
+`shared_agentnode` は標準チェック対象で、自動的に許可を付与しません。未許可なら影響範囲とdry-runを確認し、明示承認後だけ変更します。構成チェック成功後もWorkflowのReviewと最小実行を確認してください。実行時HTTP 442（DLP/ACP）では `Last refresh` を記録して反映・同期状態を確認し、実行成功前に準備完了と断定しません。
+
+自社名のカスタムエージェントに「開発を始める前に環境をチェックして」と依頼すれば、チェック結果とNGの解消方針を整理できます。
+
+## カスタムエージェント前提の利用方法
+
+- 共通の実装・運用ルールは `.github/skills/` に定義されています。
+- Copilotでは自社名に変更したカスタムエージェントを選択し、`在庫管理をもっと効率的に行いたい。` のように要件を伝えます。
+- 既存仕様書がある場合は `spec-builder を実行して` と依頼します。
+- エージェントは該当スキルを読み、設計・承認・環境/DLPチェックを経て実装します。
+
+## リポジトリ構成
+
+```text
+.
+├── .github/
+│   ├── agents/       # 自社名のカスタムエージェント
+│   ├── prompts/      # 選択して実行するプロンプト
+│   ├── workflows/    # 上流通知・社内Issue対応等
+│   └── skills/       # 製品・作業単位のスキル
+│       ├── standard/ # 認証・環境設定・共通ルール
+│       ├── admin/    # 環境・DLP・ガバナンス確認
+│       ├── code-apps/
+│       ├── spec-builder/
+│       └── ...       # 詳細はスキルカタログ
+├── docs/             # 導入・運用ガイド
+├── .gitignore
+├── package.json
+├── LICENSE
+└── README.md
+```
+
+スキルが所有するスクリプト・リファレンス・サンプルは、そのスキル配下に配置します。認証は `standard/scripts/auth_helper.py`、環境セットアップは `standard/scripts/bootstrap.mjs`、Code Appsのプレデプロイ確認は `code-apps/scripts/` にあります。
+
+このリポジトリは標準の供給元であり、業務アプリの `src/` / `vite.config.ts` 等を混在させません。リファレンス実装は各スキルの `samples/` に置き、アプリのscaffoldは自社名のエージェントに別リポジトリで依頼します。環境変数テンプレートは [standardの `.env.example`](../.github/skills/standard/references/.env.example) を参照してください。
+
+## 主要ドキュメント
+
+- [Power Platform開発標準](../.github/skills/standard/references/power-platform-development-standard.md)
+- [Microsoft Copilot Managed RuntimeとPower Apps Code Appsの比較](../.github/skills/architecture/references/managed-runtime-vs-code-apps.md)
+- [Dataverseガイド](../.github/skills/dataverse/references/dataverse-guide.md)
+- [Code Appsコネクタリファレンス](../.github/skills/code-apps/references/connector-reference.md)
+- [Code Apps応用パターン](../.github/skills/code-apps/references/advanced-patterns.md)
+- [スキルカタログ・サンプル実装一覧](../.github/skills/README.md#サンプル実装一覧)
+
+## GitHub Copilot / Claude Code 活用
+
+GitHub Copilotでは `.github/agents/` と `.github/skills/` を利用します。Claude CodeではCopilotの定義が自動登録される前提にせず、[Claude Codeクイックスタート](claude-code-quickstart.md) に従って標準ファイルを明示して参照させます。
+
+必要なスキルを選択してエージェント駆動で進めることを基本とします。[スキルカタログ](../.github/skills/README.md) で一覧・説明・推奨フローを管理し、スキルの追加・変更時はカタログも更新してください。

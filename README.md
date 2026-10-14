@@ -395,52 +395,13 @@ git push -u origin main
 
 ## チーム開発向けの手順
 
-<details>
-<summary>最初からチーム用の internal/private リポジトリを作りたい場合はここを開いてください</summary>
-
-```powershell
-# 1. GitHub REST API で空のリポジトリを作成してクローン
-# Organization では internal を推奨。利用できない場合だけ、確認のうえ private に変更する
-$Organization = "<your-organization>"
-$Repository = "<your-theme-repo>"
-$Body = @{ name = $Repository; visibility = "internal" } | ConvertTo-Json -Compress
-$Body | gh api --method POST "orgs/$Organization/repos" --input -
-git clone "https://github.com/$Organization/$Repository.git"
-Set-Location $Repository
-
-# 2. エージェント・スキルと .gitignore を取得
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills
-cp .github/skills/standard/references/gitignore-template .gitignore
-
-# 3. Code Apps 標準の依存関係を先読みインストール（ほとんどのケースで Code Apps を作成するため）
-cp .github/skills/code-apps/references/template-snapshot/package.json .
-cp .github/skills/code-apps/references/template-snapshot/package-lock.json .
-npm install
-
-# 4. npm install の完了を待たず、@GeekPowerCode にプロジェクト scaffold を依頼
-```
-
-> [!TIP]
-> GitHub Copilot, Claude Code などに上記 bash をプロンプトとして入れることで対話型で進めることもできます。その場合、`npm install` は完了を待たずに実行し（非同期・バックグラウンド実行）、続けて手順 4（`@GeekPowerCode` の呼び出し）に進んでください。デザインテンプレート選定などの序盤の対話は `node_modules` を必要としないため、`npm install` はその間に並行して完了します。
->
-> Azure DevOps / 社内 Git / ローカル NAS など GitHub 以外のリモートを使う場合も、同じ手順で `git remote add origin <url>` を実行すれば、GitHub には何も公開せずに運用できます。
-
-</details>
+[自社標準ガイドのチーム開発手順](docs/company-standard-next-steps.md#チーム開発向けの手順) に統合しました。
 
 ---
 
 ## 上流の開発標準更新を取り込む
 
-git merge は不要です。テーマのリポジトリで以下を再実行するだけで、最新の標準（`.github/` のエージェント・スキル）に追従できます。
-
-```bash
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents --force
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills --force
-```
-
-> [!TIP]
-> 同期対象は `.github/agents` と `.github/skills` のみで、テーマ固有のコード（`src/` 等）や `.github/prompts`・`.github/workflows`・`.github/community-issue-policy.json` には触れません。同期後は `git diff` で差分を確認してからコミットしてください。
+[自社標準ガイドの上流更新手順](docs/company-standard-next-steps.md#上流の開発標準更新を取り込む) を参照してください。通知Issueから差分を確認し、自社変更を保護してPRで取り込みます。
 
 ---
 
@@ -448,163 +409,35 @@ npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills
 
 ### ローカル開発ツールのチェック
 
-```bash
-npm run check:env   # Node.js / Python / pac 等の確認のみ
-npm run setup       # 上記 + Python venv bootstrap
-```
-
-<details>
-<summary>詳細・不足時の対応</summary>
-
-`npm run setup` で **環境事前チェック (preflight) + Python bootstrap** をまとめて実行し、Node.js / npm / Python（`python` or `py -3`）/ pip / `npx power-apps` / `pac` を確認します。`gh` が利用可能かつ `gh auth login` 済みの場合は、デフォルトブランチの **Copilot 承認バイパス設定**（Branch protection の bypass app）も確認します。
-
-Python と pip が利用可能な場合は、`spec-builder` 用 `.venv` の作成と `requirements.txt` の導入まで自動で試行します。
-
-不足時の対応:
-
-- Python 未検出: Python 3.10+ を導入して `python --version` または `py -3 --version` を通す
-- pip 未検出: `python -m ensurepip --upgrade`（または `py -3 -m ensurepip --upgrade`）
-- `pac` 未検出: VS Code 拡張機能『Power Platform Tools』または `dotnet tool install --global Microsoft.PowerApps.CLI.Tool` で導入後、`pac auth create --environment {ENVIRONMENT_ID}`（**PAC CLI は npm では配布されていない**）
-- `npx power-apps` 未検出: `npm install` を再実行し `@microsoft/power-apps` 依存を確認
-
-</details>
+[ローカル開発ツールのチェック](docs/company-standard-next-steps.md#ローカル開発ツールのチェック) にコマンドと不足時の対応をまとめています。
 
 ### Power Platform 環境のチェック（開発着手前に必須）
 
-ローカルのツールが揃っても、**環境側の設定が足りないと開発の途中で止まります**（Code Apps が無効、既定環境で作ってしまった、セキュリティ ロールが足りない等）。`.env` に `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` を設定したら、次を実行してください。読み取り専用で、環境の設定は一切変更しません。
-
-```powershell
-python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID
-```
-
-<details>
-<summary>確認する項目の一覧を表示</summary>
-
-| # | 項目 | 判定内容 |
-|---|---|---|
-| 1 | 既定環境ではないか | 既定環境（Default）で開発していないか。既定環境は組織全員が参照できるため `NG` |
-| 2 | 環境の状態 | 環境が `Enabled`（無効化・削除待ちでない）か |
-| 3 | マネージド環境 | マネージド環境か。共有制限・ソリューション チェッカーの設定値も表示 |
-| 4 | Dataverse | Dataverse が有効で `Ready` か。インスタンス URL とバージョンを表示 |
-| 5 | 監査 | 組織の監査（`isauditenabled`）が有効か |
-| 6 | Dataverse MCP | Dataverse MCP（`IsMCPEnabled`）が有効か |
-| 7 | MCP クライアント許可 | `allowedmcpclients` で有効なクライアント数（Cowork 等の利用可否） |
-| 8 | Code Apps | 環境でコード アプリが利用できるか |
-| 9 | セキュリティ ロール | 自分に **System Administrator**（または System Customizer + Environment Maker）が割り当てられているか。チーム経由の割り当ても検出 |
-| 10 | 管理 API アクセス | テナントのデータ ポリシーを参照できるか（管理者ロール相当か） |
-| 11 | 適用される DLP | この環境に適用されるデータ ポリシーの一覧 |
-
-</details>
-
-`NG` が 1 つでもあれば、開発に入る前に解消してください（対処方法は
-[admin スキル](.github/skills/admin/SKILL.md) と
-[管理者ロール一覧](.github/skills/admin/references/admin-roles.md) を参照）。
-Code Apps・MCP・マネージド環境が要件の場合は `--require-code-apps` / `--require-mcp` / `--require-managed`
-を付けると、警告を `NG` に昇格させて確実に止められます。
-
-続けて、標準利用対象の Dataverse と新 Copilot Studio Workflow の Agent ノードを含め、環境・クラシック DLP・ACP をまとめて確認します。追加コネクタは `--connector shared_xxx` で指定します。
-
-```powershell
-python .github/skills/admin/scripts/check_development_environment.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID
-```
-
-`shared_agentnode` は標準チェック対象であり、自動的に許可を付与するものではありません。未許可なら影響範囲と dry-run を確認して明示承認後に追加します。構成チェック成功後も Workflow の Review と最小実行で確認してください。実行時 HTTP 442（DLP/ACP）では `Last refresh` を記録し、反映・同期状態を確認します。実行成功前は準備完了と断定しません。
-
-> [!TIP]
-> Copilot チャットで `@GeekPowerCode` に「開発を始める前に環境をチェックして」と依頼すれば、
-> 上記の統合チェックを実行して結果を要約し、`NG` があれば解消方針まで提示します。
+[Power Platform環境のチェック](docs/company-standard-next-steps.md#power-platform-環境のチェック開発着手前に必須) に確認項目とDLP / ACPの事前チェックをまとめています。
 
 ---
 
 ## カスタムエージェント前提の利用方法
 
-- この開発標準の実装・運用ルールは、GitHub Copilot / Claude Code で共通利用するスキル（`.github/skills/`）に定義されています。
-- 利用者は手順書を読み込んで操作するのではなく、カスタムエージェントに要件を伝えて進める前提です。
-- 依頼例: GeekPowerCode エージェントを選択して `在庫管理をもっと効率的に行いたい。`
-- 既存仕様書がある場合の入力例: `spec-builder を実行して`
+[カスタムエージェント前提の利用方法](docs/company-standard-next-steps.md#カスタムエージェント前提の利用方法) を参照してください。
 
 ---
 
 ## リポジトリ構成
 
-<details>
-<summary>ディレクトリツリーを表示</summary>
-
-```text
-.
-├── .github/
-│   ├── agents/                      # Copilot カスタムエージェント定義
-│   ├── prompts/                     # Copilot から選択して実行する再利用可能なプロンプト
-│   └── skills/                      # 製品単位で統合された 24 スキル
-│       ├── architecture/            # アーキテクチャ設計
-│       ├── standard/                # 共通基盤（認証・アイコン・メールテンプレート）
-│       ├── admin/                   # 環境チェック・DLP 事前チェック・ガバナンス設定
-│       ├── update-skills/           # スキル作成・更新・PR 提出
-│       ├── alm/                     # テンプレート化・pre-commit ゲート・CI/CD デプロイ
-│       ├── azure/                   # Azure リファレンスアーキテクチャ・セキュアデプロイ
-│       ├── dataverse/               # テーブル設計・構築・セキュリティロール
-│       ├── data-platform/           # Fabric / Databricks / Foundry IQ の構築・検証・MCP 引き渡し
-│       ├── data-migration/          # 既存データのマッピング・投入・照合
-│       ├── code-apps/               # Code Apps 開発（UI 設計・CSP・メール送信含む）
-│       ├── mobile-apps/             # Native Mobile Code Apps 開発（Private Preview）
-│       ├── managed-runtime/         # Copilot Managed Runtime アプリ開発（Public Preview）
-│       ├── power-pages/             # Power Pages コードサイト開発・デプロイ
-│       ├── generative-page/         # Generative Pages 開発
-│       ├── model-driven-app/        # モデル駆動型アプリ構築
-│       ├── copilot-studio/          # エージェント構築・トリガー・ニュース配信
-│       ├── copilot-studio-v2/       # 新アーキテクチャ（cliagent）エージェント完全自動構築
-│       ├── power-automate/          # クラウドフロー作成・デプロイ
-│       ├── cowork/                  # Copilot Cowork プラグイン開発・公開
-│       ├── ai-teammate/                # Foundry エージェントを Agent 365 経由で Teams / M365 に公開
-│       ├── ai-builder/              # AI プロンプト作成
-│       ├── spec-builder/            # 一次情報→要件定義書（仕様書）作成
-│       ├── package-sample/          # サンプルのパブリック公開パッケージング
-│       │
-│       │   # スキルが所有するアセットはそのスキル配下に置く（例）:
-│       ├── standard/scripts/auth_helper.py              # MSAL 認証ヘルパー
-│       ├── code-apps/references/patch-nameutils.cjs     # 日本語 DisplayName パッチ
-│       ├── code-apps/references/maps/                   # 日本地図 SVG
-│       └── */samples/                                   # リファレンス実装（同期対象外）
-├── .claude/
-│   └── agents/                      # Claude Code カスタムエージェント定義
-├── .env.example                     # 環境変数テンプレート
-├── .gitignore
-├── package.json
-├── LICENSE
-└── README.md
-```
-
-> **root には慣習的なリポ直下ファイル（README / .env.example / .gitignore / package.json / LICENSE）だけを置く。**
-> 認証ヘルパー・日本語パッチ・地図 SVG など「特定スキルが所有するアセット」はそのスキル配下に置き、`.github/` 同期でテーマに配布する。
-> 環境セットアップ（bootstrap.mjs）は `standard/scripts/`、デプロイ前チェック（pre-deploy-check.mjs）は `code-apps/scripts/` に配置。
-> アプリの実装（`src/` / `vite.config.ts` 等）は本リポジトリには置かない（リファレンス実装は各スキルの `samples/`）。
-> 新規テーマの scaffold は **@GeekPowerCode** がサンプルを参照して生成する。
-
-</details>
-
-このリポジトリは開発標準（スキル・リファレンス）の供給元です。新しいテーマは `npx degit` で `.github/`（エージェント・スキル）を取得し、**@GeekPowerCode** にプロジェクト全体の scaffold を依頼して開発を開始します。
+[リポジトリ構成とアセットの配置方針](docs/company-standard-next-steps.md#リポジトリ構成) を参照してください。
 
 ---
 
 ## 主要ドキュメント
 
-- [.github/skills/standard/references/power-platform-development-standard.md](./.github/skills/standard/references/power-platform-development-standard.md)
-- [Microsoft Copilot Managed Runtime と Power Apps Code Apps の比較](./.github/skills/architecture/references/managed-runtime-vs-code-apps.md)
-- [.github/skills/dataverse/references/dataverse-guide.md](./.github/skills/dataverse/references/dataverse-guide.md)
-- [.github/skills/code-apps/references/connector-reference.md](./.github/skills/code-apps/references/connector-reference.md)
-- [.github/skills/code-apps/references/advanced-patterns.md](./.github/skills/code-apps/references/advanced-patterns.md)
-- [サンプル実装一覧（.github/skills/README.md）](./.github/skills/README.md#サンプル実装一覧)
+[主要ドキュメント一覧](docs/company-standard-next-steps.md#主要ドキュメント) を参照してください。
 
 ---
 
 ## GitHub Copilot / Claude Code 活用
 
-- GitHub Copilot では `.github/agents/` と `.github/skills/` が認識されます
-- Claude Code では `.claude/agents/` を利用して同じスキル群（`.github/skills/`）を参照できます
-- `GeekPowerCode` に実現したい内容を伝えるだけで、必要なスキルが選択されて開発タスクを進められます
-- このリポジトリの開発標準はスキルとして定義済みのため、マニュアル手順ベースではなくエージェント駆動で利用します
-
-スキルの一覧・説明・推奨開発フローは **[スキルカタログ（.github/skills/README.md）](.github/skills/README.md)** で一元管理しています。スキルの追加・変更はまずここを更新してください。
+[GitHub Copilot / Claude Codeの活用方法](docs/company-standard-next-steps.md#github-copilot--claude-code-活用) と [スキルカタログ](.github/skills/README.md) を参照してください。
 
 ---
 
