@@ -66,7 +66,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 - AI チームメイト（Agent 365 / Teams 同僚エージェント）の依頼例: `@GeekPowerCode 予定調整をしてくれる同僚エージェントを Teams に置きたい。` — 1 回の質問確認のあと `scaffold_ai_teammate.py` が同僚エージェントと AI チームメイト評価Hub を同時に scaffold する（[.github/skills/ai-teammate/SKILL.md](.github/skills/ai-teammate/SKILL.md)）
 
 > [!NOTE]
-> 推奨モデルは **Claude Opus 5.5** です（`.github/agents/GeekPowerCode.agent.md` の既定モデル）。`.gitignore` を配置しないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になるため、必ずコピーしてください。
+> `GeekPowerCode` の既定モデルは **Auto** です。GitHub Copilot がタスクと利用可能なモデルに応じてモデルを選択します。`.gitignore` を配置しないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になるため、必ずコピーしてください。
 
 前提条件・ライセンス要件は GitHub Copilot と共通です（[前提条件](#前提条件) を参照）。
 
@@ -89,6 +89,7 @@ cp .github/skills/standard/references/gitignore-template .gitignore
     - [VS Code + GitHub Copilot](#vs-code--github-copilot)
     - [Python パッケージと初回サインイン](#python-パッケージと初回サインイン)
 - [管理者権限（管理者ロール）要件](#管理者権限管理者ロール要件)
+- [自社標準リポジトリを API で作成する](#自社標準リポジトリを-api-で作成する)
 - [チーム開発向けの手順](#チーム開発向けの手順)
 - [上流の開発標準更新を取り込む](#上流の開発標準更新を取り込む)
 - [環境チェック](#環境チェック)
@@ -423,14 +424,73 @@ python -m pip install -r .github/skills/standard/scripts/requirements.txt
 
 ---
 
+## 自社標準リポジトリを API で作成する
+
+この公開リポジトリを基に、会社固有のルールやスキルを追加する非公開の標準リポジトリを作成できます。GitHub Enterprise Cloud の Organization では、Organization 内の全メンバーから参照できる **`internal` を第一候補**とし、`internal` を利用できない場合だけ **`private`** を選択してください。
+
+> [!IMPORTANT]
+> 公開リポジトリを fork すると fork も必ず public になり、fork の可視性を `internal` や `private` に変更できません。そのため、この手順では GitHub の fork 関係を作らず、ファイルを新しい履歴へコピーした独立リポジトリを作成します。公開元は `upstream` remote として登録し、更新の比較元にします。
+
+### GitHub Copilot に作成させる（推奨）
+
+VS Code の GitHub Copilot Chat で `/` を入力し、**Create Company Standard Repository** を選択してください。これは [`.github/prompts/create-company-standard-repository.prompt.md`](.github/prompts/create-company-standard-repository.prompt.md) に定義されたプロンプトです。
+
+プロンプト一覧に表示されない場合は、次の内容をチャットへ貼り付けても実行できます。
+
+```text
+https://github.com/geekfujiwara/CodeAppsDevelopmentStandard を基に、自社標準用の独立した GitHub リポジトリを REST API で Organization に作成してください。Organization で利用可能なら visibility は internal を推奨し、利用できない場合は私に確認してから private にしてください。公開元のコミット履歴は引き継がず、新しい履歴で開始し、公開元を upstream remote に登録してください。トークンや認証情報は表示しないでください。
+```
+
+エージェントは Organization 名とリポジトリ名を確認し、`POST /orgs/{org}/repos` を使用して作成します。`internal` の作成が API で拒否された場合、エラーを表示せずに `private` へ切り替えることはありません。
+
+### API を手動で実行する
+
+次は PowerShell と GitHub CLI の認証を利用する例です。`gh api` は GitHub REST API を呼び出しており、トークンをコマンドや出力へ露出しません。
+
+```powershell
+$Organization = "<your-organization>"
+$Repository = "CompanyDevelopmentStandard"
+
+# 公開元のファイルだけをコピーし、新しい履歴を開始
+npx degit geekfujiwara/CodeAppsDevelopmentStandard $Repository
+Set-Location $Repository
+git init -b main
+git add --all
+git commit -m "Initial company development standard"
+
+# Organization が GitHub Enterprise Cloud 配下なら internal を推奨
+$Body = @{
+  name        = $Repository
+  description = "Internal company development standards"
+  visibility  = "internal"
+} | ConvertTo-Json -Compress
+$Body | gh api --method POST "orgs/$Organization/repos" --input -
+
+git remote add origin "https://github.com/$Organization/$Repository.git"
+git remote add upstream "https://github.com/geekfujiwara/CodeAppsDevelopmentStandard.git"
+git push -u origin main
+```
+
+`visibility: internal` が利用できない場合は、Organization と Enterprise の契約・ポリシー、実行者のリポジトリ作成権限を確認してください。`private` でよいと判断した場合のみ、API payload の `visibility` を `private` に変更して再実行します。作成後は API で `visibility`、`default_branch`、`owner.login` を読み戻し、`git ls-remote origin refs/heads/main` で push を検証してください。
+
+独立した履歴のため、`git pull upstream main` で自動マージはしません。更新時は [上流の開発標準更新を取り込む](#上流の開発標準更新を取り込む) の手順で必要な標準ファイルを同期し、`git diff` で自社変更への影響を確認します。
+
+---
+
 ## チーム開発向けの手順
 
 <details>
-<summary>最初からチーム用の private リポジトリを作りたい場合はここを開いてください</summary>
+<summary>最初からチーム用の internal/private リポジトリを作りたい場合はここを開いてください</summary>
 
-```bash
-# 1. GitHub 上で空の private リポジトリを作成してクローン
-gh repo create <your-account>/<your-theme-repo> --private --clone && cd <your-theme-repo>
+```powershell
+# 1. GitHub REST API で空のリポジトリを作成してクローン
+# Organization では internal を推奨。利用できない場合だけ、確認のうえ private に変更する
+$Organization = "<your-organization>"
+$Repository = "<your-theme-repo>"
+$Body = @{ name = $Repository; visibility = "internal" } | ConvertTo-Json -Compress
+$Body | gh api --method POST "orgs/$Organization/repos" --input -
+git clone "https://github.com/$Organization/$Repository.git"
+Set-Location $Repository
 
 # 2. エージェント・スキルと .gitignore を取得
 npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents
@@ -558,6 +618,7 @@ python .github/skills/admin/scripts/check_development_environment.py --environme
 .
 ├── .github/
 │   ├── agents/                      # Copilot カスタムエージェント定義
+│   ├── prompts/                     # Copilot から選択して実行する再利用可能なプロンプト
 │   └── skills/                      # 製品単位で統合された 24 スキル
 │       ├── architecture/            # アーキテクチャ設計
 │       ├── standard/                # 共通基盤（認証・アイコン・メールテンプレート）
