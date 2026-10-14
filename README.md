@@ -37,45 +37,15 @@ cp .github/skills/standard/references/gitignore-template .gitignore
 
 チーム開発でリモートリポジトリを最初から使いたい場合は [チーム開発向けの手順](#チーム開発向けの手順) を、既存仕様書がある場合は `/spec-build` の運用へ進んでください。
 
----
-
-## Claude Code でのクイックスタート
-
-GitHub Copilot だけでなく **Claude Code** からも同じ開発標準をそのまま利用できます。手順は次の 3 ステップです。
-
-**1. 開発標準（スキル）を取得する**
-
-プロジェクトのルートで以下を実行し、`.github/`（エージェント・スキル）と `.gitignore` を配置します。
-
-```bash
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills
-cp .github/skills/standard/references/gitignore-template .gitignore
-```
-
-**2. Claude Code をプロジェクトルートで起動する**
-
-`.github/agents/` と `.github/skills/` を配置したフォルダーで Claude Code を起動します。Claude Code はカスタムエージェント定義（`.claude/agents/`）とスキル群（`.github/skills/`）を参照して開発タスクを進めます。
-
-**3. `@GeekPowerCode` に依頼する**
-
-チャットから **`@GeekPowerCode`** を呼び出し、作りたいテーマを伝えてください。エージェントが `.github/skills/standard/SKILL.md` を読み込み、要件に応じて必要なスキルを選択します。`architecture` スキルがヒアリングを経て Code Apps を選定した場合にのみ、`code-apps` スキルが `package.json` / `package-lock.json` をコピーして `npm install` を実行します（Code Apps 以外のソリューションでは `node_modules` は生成されません）。
-
-- 依頼例: `@GeekPowerCode 在庫管理をもっと効率的に行いたい。`
-- 既存仕様書がある場合の入力例: `spec-builder を実行して`
-- AI チームメイト（Agent 365 / Teams 同僚エージェント）の依頼例: `@GeekPowerCode 予定調整をしてくれる同僚エージェントを Teams に置きたい。` — 1 回の質問確認のあと `scaffold_ai_teammate.py` が同僚エージェントと AI チームメイト評価Hub を同時に scaffold する（[.github/skills/ai-teammate/SKILL.md](.github/skills/ai-teammate/SKILL.md)）
-
-> [!NOTE]
-> `GeekPowerCode` の既定モデルは **Auto** です。GitHub Copilot がタスクと利用可能なモデルに応じてモデルを選択します。`.gitignore` を配置しないと `node_modules/`・`dist/`・`.power/`・`.env` 等がコミット対象になるため、必ずコピーしてください。
-
-前提条件・ライセンス要件は GitHub Copilot と共通です（[前提条件](#前提条件) を参照）。
+- Claude Code を使う場合: [Claude Code でのクイックスタート](docs/claude-code-quickstart.md)
+- 自社標準としてコピーした場合: [コピー後に行うこと・推奨プロンプトと添付資料](docs/company-standard-next-steps.md)
 
 ---
 
 ## 目次
 
 - [クイックスタート](#クイックスタート)
-- [Claude Code でのクイックスタート](#claude-code-でのクイックスタート)
+- [Claude Code でのクイックスタート](docs/claude-code-quickstart.md)
 - [前提条件](#前提条件)
   - [統合プロンプトで一気に準備する（推奨）](#統合プロンプトで一気に準備する推奨)
   - [ライセンスの準備](#ライセンスの準備)
@@ -418,6 +388,8 @@ git push -u origin main
 `visibility: internal` が利用できない場合は、Organization と Enterprise の契約・ポリシー、実行者のリポジトリ作成権限を確認してください。`private` でよいと判断した場合のみ、API payload の `visibility` を `private` に変更して再実行します。作成後は API で `visibility`、`default_branch`、`owner.login` を読み戻し、`git ls-remote origin refs/heads/main` で push を検証してください。
 
 独立した履歴のため、`git pull upstream main` で自動マージはしません。更新時は [上流の開発標準更新を取り込む](#上流の開発標準更新を取り込む) の手順で必要な標準ファイルを同期し、`git diff` で自社変更への影響を確認します。
+
+**作成後の次のステップ:** [自社標準コピー後の推奨事項](docs/company-standard-next-steps.md) に沿って、アクセス範囲、社内ルール、環境、更新・承認フローを整備してください。Copilot に依頼するサンプルプロンプトと、おすすめの添付資料もまとめています。
 
 ---
 
