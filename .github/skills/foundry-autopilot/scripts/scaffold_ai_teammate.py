@@ -792,10 +792,13 @@ def merge_env(path: Path, values: dict[str, str]) -> None:
 
 DEPLOY_SCRIPT = r'''# Build the container with a unique tag and roll it out as a new agent version.
 # A reused tag produces an identical version body, which Foundry deduplicates (troubleshooting #83).
-#   ./deploy.ps1            code change only: new version + recycle chats pinned to the old one
-#   ./deploy.ps1 -Publish   first time, or when the M365 listing changes (bumps appVersion)
-param([switch]$Publish)
+#   ./deploy.ps1            create and publish an Autopilot Agent template (bumps appVersion)
+#   ./deploy.ps1 -Publish   same as the default; retained for existing callers
+#   ./deploy.ps1 -ContainerOnly -ConfirmExistingTemplate   verified existing templates only
+param([switch]$Publish, [switch]$ContainerOnly, [switch]$ConfirmExistingTemplate)
 $ErrorActionPreference = "Stop"
+if ($ContainerOnly -and $Publish) {{ throw "-ContainerOnly and -Publish cannot be combined" }}
+if ($ContainerOnly -ne $ConfirmExistingTemplate) {{ throw "-ContainerOnly requires -ConfirmExistingTemplate after verifying the existing M365 Agent template" }}
 $envFile = Join-Path $PSScriptRoot ".env"
 $values = @{{}}
 Get-Content $envFile | Where-Object {{ $_ -match '^\s*[^#][^=]*=' }} | ForEach-Object {{
@@ -815,10 +818,10 @@ try {{
 }}
 $env:AGENT_IMAGE_TAG = $tag
 $env:PYTHONIOENCODING = "utf-8"
-$mode = if ($Publish) {{ @("--execute", "--bump-version") }} else {{ @("--execute", "--container-only", "--recycle-sessions") }}
+$mode = if ($ContainerOnly) {{ @("--execute", "--container-only", "--confirm-existing-template", "--recycle-sessions") }} else {{ @("--execute", "--bump-version") }}
 python "{publish}" @mode --env $envFile
 if ($LASTEXITCODE -ne 0) {{ throw "publish failed" }}
-Write-Output "deployed tag $tag"
+Write-Output "Submitted tag $tag. Verify Type=Agent template in M365 and hiring in Teams before reporting completion."
 '''
 
 

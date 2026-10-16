@@ -15,6 +15,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "deploy_ai_teammate.py"
 
@@ -36,6 +37,37 @@ FAKE_ENV = {
 
 def _skill_root() -> Path:
     return SCRIPT_PATH.parent.parent
+
+
+class HostingGuardTests(unittest.TestCase):
+    def test_autopilot_target_never_runs_self_hosted_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            (target / "scaffold-plan.json").write_text(
+                json.dumps({"hosting": "foundry-autopilot"}), encoding="utf-8"
+            )
+            with patch.object(deploy_ai_teammate, "run") as run:
+                self.assertEqual(deploy_ai_teammate.run_check(target, {}), 2)
+                self.assertEqual(deploy_ai_teammate.run_execute(target, {}), 2)
+            run.assert_not_called()
+            self.assertFalse((target / deploy_ai_teammate.CHECKPOINT_NAME).exists())
+            self.assertFalse((target / "evaluation-app").exists())
+
+    def test_explicit_self_hosted_and_legacy_projects_remain_supported(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            self.assertEqual(deploy_ai_teammate.check_self_hosted_target(target), [])
+            (target / "scaffold-plan.json").write_text(
+                json.dumps({"hosting": "self-hosted"}), encoding="utf-8"
+            )
+            self.assertEqual(deploy_ai_teammate.check_self_hosted_target(target), [])
+
+    def test_unreadable_or_unknown_plan_does_not_fall_back(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            for content in ("{", "[]", '{"hosting": "unknown"}'):
+                (target / "scaffold-plan.json").write_text(content, encoding="utf-8")
+                self.assertTrue(deploy_ai_teammate.check_self_hosted_target(target))
 
 
 class PreConnectionStepsTests(unittest.TestCase):

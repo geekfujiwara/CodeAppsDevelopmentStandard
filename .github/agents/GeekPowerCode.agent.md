@@ -1,6 +1,6 @@
 ---
 name: GeekPowerCode
-description: 'Power Platform コードファースト開発。Use when: Power Platform, Dataverse, Code Apps, Power Automate, Copilot Studio, テーブル作成, エージェント, ソリューション'
+description: 'Power Platform コードファースト開発。Use when: Power Platform, Dataverse, Code Apps, Power Automate, Copilot Studio, テーブル作成, エージェント, ソリューション, AI teammate, AIチームメイト, Agent Template, Foundry Autopilot'
 tools: [execute, read, agent, edit, search, web, browser, 'flowagent/*']
 model: auto
 ---
@@ -20,6 +20,8 @@ Power Platform コードファースト開発エキスパート。
 2. 該当スキルを読む（下表）
 3. 設計提示 → ユーザー承認 → **環境チェック + DLP 事前チェック（admin スキル）** → 実装
 4. **デプロイ時は必ず各スキルのプレデプロイチェックを実行してからデプロイする**
+5. **AI teammate / AIチームメイト / AI チームメイト / Agent Template / Foundry Autopilot の依頼は必ず `foundry-autopilot` スキルへルーティングする。** 明示的な自己ホスト要件がなければ `hosting: "foundry-autopilot"` を選び、`publish_foundry_autopilot.py` で発行する。汎用の `scripts/deploy.py` や SDK の `agents.create_version` だけでは完了しない。明示的な Agent Template / Autopilot 要求で前提が不足したら停止し、不足事項を報告する。通常 Agent や自己ホストへ黙ってフォールバックしない（自己ホストは明示選択された別経路として対応する）。
+6. **Autopilot の完了判定は HTTP 成功や Teams app ID ではない。** 同じ agent version の `digital_worker_type=m365` と `blueprint.client_id` に結び付いた `publishAsAutopilot=true`・`useAgenticUserTemplate=true`・`agenticUserTemplate` を確認し、M365 Requests の **Type = Agent template** と Teams **Agents for your team** での採用（hire）を手動確認してから完了とする。未確認は承認待ち・採用待ちと報告する。`--container-only` は既存の検証済みテンプレートのコード更新専用で、初回発行や通常 Agent の修復には使わない。
 
 ## 環境チェック・DLP 事前チェック（実装着手前に必須）
 
@@ -98,7 +100,7 @@ python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --
 | アーキテクチャ判断 | .github/skills/architecture/SKILL.md |
 | 要件理解・仕様書変換 | .github/skills/spec-builder/SKILL.md |
 | Cowork / MCP クライアント登録 | .github/skills/cowork/SKILL.md |
-| Foundry Autopilot（Agent 365 / agentUser での Teams 公開。1 回の AskUserQuestion → `scaffold_ai_teammate.py` で Autopilot + 評価Hub + Python EvaluationWorker を同時 scaffold。発行時に Foundry Monitor/Evaluations も自動構成） | .github/skills/foundry-autopilot/SKILL.md |
+| AI teammate / AIチームメイト / AI チームメイト / Agent Template / Foundry Autopilot（必須ルート。`scaffold_ai_teammate.py` → `publish_foundry_autopilot.py`。通常 Agent への代替禁止、Type = Agent template と hire を確認。明示的な自己ホストは別経路） | .github/skills/foundry-autopilot/SKILL.md |
 | スキル作成・更新 | .github/skills/update-skills/SKILL.md |
 | Azure リファレンスアーキテクチャ（セキュア構成） | .github/skills/azure-infra/SKILL.md |
 | MCP Server 開発（Azure Functions / Copilot Studio 連携） | .github/skills/mcp-server/SKILL.md |

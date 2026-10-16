@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Two-stage deploy for a scaffolded AI teammate (agent + evaluation hub).
+"""Two-stage deploy for an explicitly self-hosted AI teammate (agent + evaluation hub).
+
+Foundry Autopilot targets must use publish_foundry_autopilot.py instead.
 
 Stage 1 (``--check``, always run first): verifies tools, `.env` values, that the agent project
 builds, that the evaluation app's static checks pass, that the existing provision scripts report
@@ -419,7 +421,31 @@ def read_checkpoint(target: Path) -> float | None:
         return None
 
 
+def check_self_hosted_target(target: Path) -> list[str]:
+    plan_path = target / "scaffold-plan.json"
+    if not plan_path.is_file():
+        return []  # Legacy self-hosted projects predate the hosting field.
+    try:
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"Cannot verify deployment hosting from {plan_path}: {exc}"]
+    if not isinstance(plan, dict):
+        return ["scaffold-plan.json must be a JSON object; no hosting fallback is allowed."]
+    hosting = plan.get("hosting")
+    if hosting is not None and hosting != "self-hosted":
+        return [
+            f"hosting={hosting!r} cannot use the self-hosted deployer. "
+            "Use publish_foundry_autopilot.py --check / --execute --env <.env> "
+            "for an Autopilot Agent template. No self-hosted fallback was performed."
+        ]
+    return []
+
+
 def run_check(target: Path, env: dict[str, str]) -> int:
+    hosting_problems = check_self_hosted_target(target)
+    if hosting_problems:
+        print("CHECK FAILED: " + "\n".join(hosting_problems), file=sys.stderr)
+        return 2
     skill_root = Path(__file__).resolve().parents[1]
     env_path = target / ".env"
 
@@ -621,6 +647,10 @@ def run_regression(target: Path, env: dict[str, str], skill_root: Path) -> bool:
 
 
 def run_execute(target: Path, env: dict[str, str], skip_regression: bool = False) -> int:
+    hosting_problems = check_self_hosted_target(target)
+    if hosting_problems:
+        print("DEPLOY BLOCKED: " + "\n".join(hosting_problems), file=sys.stderr)
+        return 2
     checked_at = read_checkpoint(target)
     if checked_at is None or (time.time() - checked_at) > CHECKPOINT_MAX_AGE_SECONDS:
         print(

@@ -1,10 +1,14 @@
 ---
 name: foundry-autopilot
-description: "Foundry hosted agent を Agent 365 Autopilot として発行し、自分のメールアドレス・予定表・権限で働く『デジタルな同僚』を Teams / Microsoft 365 Copilot に公開する。初回 scaffold で AI チームメイト評価Hub（Code Apps）、通常会話を採点する Python EvaluationWorker、回帰テストを同時生成し、publish 時に Foundry Monitor/Evaluations の日次評価も自動構成する。複数 Autopilot は共通 Dataverse Hub を agentkey で安全に共有する。メール応対 / Dataverse 検索 / Web 検索 / 定期実行 / コード実行 / 成果物共有 / Teams プレゼンスの機能ブロックに対応し、自己ホスト経路も互換用途として残す。CI/CD・レビューゲートは alm スキルに委譲する。"
+description: "Use when: AI teammate / AIチームメイト / AI チームメイト / Agent Template / Foundry Autopilot / Agent 365 / 同僚エージェントの開発・公開。既定は Foundry hosted agent を Agent template として発行する経路。publish_foundry_autopilot.py が必須で、汎用 scripts/deploy.py や SDK agents.create_version だけで完了にしない。明示的な Agent Template / Autopilot 要求の前提が不足したら停止し、通常 Agent・自己ホストへの自動フォールバックは禁止。明示選択の自己ホストは別経路として対応する。M365 Requests の Type=Agent template と Teams Agents for your team での hire を手動確認するまで未完了。初回 scaffold で評価Hub（Code Apps）・Python EvaluationWorker・回帰テスト、publish 時に Foundry Monitor/Evaluations を構成する。CI/CD・レビューゲートは alm に委譲する。"
 category: automation
 triggers:
   - "Agent 365"
   - "AI チームメイト"
+  - "AI teammate"
+  - "AIチームメイト"
+  - "Agent Template"
+  - "Foundry Autopilot"
   - "Agent Identity Blueprint"
   - "エージェントテンプレート"
   - "AI 秘書エージェント"
@@ -28,9 +32,33 @@ triggers:
 本 SKILL.md には**正常系フローだけ**を置く。手順の中身・分岐・異常系はすべて `references/`、
 再現可能な操作は `scripts/` にある。
 
+## 必須ルーティング・完了契約
+
+- **AI teammate / AIチームメイト / AI チームメイト / Agent Template / Foundry Autopilot の依頼では本スキルを必ず読む。**
+  明示的な自己ホスト要件がなければ `hosting: "foundry-autopilot"` を decisions JSON に明記し、
+  [references/foundry-autopilot.md](references/foundry-autopilot.md) の手順と
+  `scripts/publish_foundry_autopilot.py --check` → `--execute` を使う。
+  汎用 `scripts/deploy.py` や SDK の `agents.create_version` だけで Agent template を発行したことにしない。
+- **明示的な Agent Template / Autopilot 要求でプレビュー参加・ライセンス・権限・対応リージョンなどの
+  前提が不足／未確認なら停止する。** 不足と必要な担当者を報告し、通常 Agent・共有 bot・自己ホストへ
+  自動で切り替えない。自己ホスト要件はサポートする別経路であり、経路変更には利用者の明示的な合意が必要。
+- Autopilot は **同じ agent version** の `digital_worker_type=m365` と、その応答の
+  `blueprint.client_id` に結び付く `agenticUserTemplate.AgentIdentityBlueprintId` を用い、
+  `publishAsAutopilot=true`・`useAgenticUserTemplate=true`・`agenticUserTemplate` を揃えて発行する。
+- **HTTP 200、通常の Registry 行、`teamsAppId` / `titleId` の取得だけでは完了しない。**
+  M365 管理センター **Requests の対象行の Type = Agent template** を手動確認し、承認後に Teams の
+  **Agents for your team から採用（hire）でき、agent user が払い出されること**を確認してから完了とする。
+  カタログ登録までの依頼でも Type を確認し、採用未確認なら「登録済み・採用未確認」と報告する。
+  UI を確認できない場合は承認待ち／採用待ちとして止め、推測の read-back API で代用しない。
+- **`--container-only` は既存の検証済み Agent template のコード更新だけ。**
+  初回発行、Type 未確認、通常 Agent の修復には使わず、完全な発行と UI 検証を行う。
+  確認済みの場合も `--confirm-existing-template` を明示する。生成 `deploy.ps1` は既定で完全発行し、
+  コードのみ更新する場合だけ `-ContainerOnly -ConfirmExistingTemplate` を指定する。
+  `build_teams_package.py` も Agent template を必須とし、blueprint 不足時の共有 Agent への降格は行わない。
+
 | 原則 | 内容 |
 |---|---|
-| 既定は自己ホスト | 機能ブロックを作り込むなら Agents SDK アプリを App Service で自己ホストする。Autopilot は M365 標準ツールで足りるときの近道 |
+| 既定は Foundry Autopilot | AI チームメイトは `hosting: "foundry-autopilot"` を明記して Agent template として発行する。独自ランタイムなど明示的な自己ホスト要件は別経路で扱い、前提不足時の代替にしない |
 | activityprotocol 直結は不可 | Foundry の `activityprotocol` を Azure Bot のエンドポイントにする旧方式は agentUser チャットが動かない |
 | API 優先 | Azure CLI・`a365` CLI・Agents SDK を優先し、M365 管理センター限定の操作だけ承認済み private API plan をログイン済みブラウザで実行する |
 | テンプレート駆動 | コミットするのは `${VAR}` 入りテンプレートだけ。実値は `.env` / シークレットストアのみ |
@@ -45,7 +73,7 @@ triggers:
 |---|---|
 | [digital-colleague-design.md](references/digital-colleague-design.md) | **何を作るかを決める**（役割カタログ R1〜R6 / 機能ブロック B1〜B17 / 提案条件 / 制約 / 段階導入）。**Step 0 で読む** |
 | [self-hosted-agent.md](references/self-hosted-agent.md) | 自己ホストの完全手順（Azure Bot / App Service / `appsettings.json` / ログの読み方） |
-| [foundry-autopilot.md](references/foundry-autopilot.md) | **ホスティングの第 3 の選択肢**。Foundry hosted agent を Autopilot として発行し、インスタンスごとに agent user アカウントを払い出す（前提 / API 契約 / 承認・採用）。`hosting: "foundry-autopilot"` の本体 |
+| [foundry-autopilot.md](references/foundry-autopilot.md) | **既定の公開経路**。Foundry hosted agent を Agent template として発行し、インスタンスごとに agent user アカウントを払い出す（前提 / API 契約 / 承認・採用）。`hosting: "foundry-autopilot"` の本体 |
 | [regression-tests.md](references/regression-tests.md) | **デプロイのたびに自動で流す回帰テスト**（不変条件の層 + 振る舞いの層 / キュー経由の理由 / ケースの書き方 / CI 組み込み）。**Step 13 で読む** |
 | [foundry-evaluation.md](references/foundry-evaluation.md) | **Foundry 標準の Evaluations にスコアを出す**（継続評価ルール / hosted agent 向けトレース評価 / 評価器と判定モデル / 費用）。**Step 13 で読む** |
 | [cowork-skills.md](references/cowork-skills.md) | **Agent Skills を持たせる**（配布元 / 同梱する理由 / ホスティング別の置き場所 / 評価ハブへの同期）。**Step 3 で読む** |
@@ -81,14 +109,14 @@ triggers:
 | # | 質問 | 選択肢 / 記入例 |
 |---|---|---|
 | 1 | ゴールはどこまでか | (a) ローカル scaffold のみ（Azure 操作なし）<br>(b) 自己ホスト App Service の endpoint を用意するまで（Step 1〜6）<br>(c) M365 管理センターに "Agent template" として登録するまで（Teams チャットはまだ動かない）<br>**(d) Teams で実際に会話できる状態まで（Step 0〜13・Azure 課金あり）** |
-| 2 | Azure サブスクリプション、リソース作成権限、ロール割り当て権限、認証キャッシュは使えるか | App Service B1+、Azure Bot、UAMI の作成可否と Azure RBAC の担当者を確認する |
+| 2 | Azure サブスクリプション、リソース作成権限、ロール割り当て権限、認証キャッシュは使えるか | Autopilot は Foundry hosted agents 対応リージョンと Azure RBAC の担当者を確認する。明示選択の自己ホストでは App Service B1+、Azure Bot、UAMI の作成可否も確認する |
 | 3 | Frontier for Autopilot の前提と割り当て担当者は確認済みか | Foundry Autopilot で採用した agent user に Microsoft 365 Frontier for Autopilot を割り当てる。Agent 365 SKU の空席確認・割り当てはしない |
 | 4 | `devPreview` または別のプレビュー機能を使うか | (c)/(d) は本スキルの `devPreview` Agent template を使うため Frontier が必要。テナントの Frontier 参加と、管理者に必要な Microsoft Copilot ライセンスを確認する |
 | 5 | 各管理操作の担当者とロールは誰か | Agent Registry: `AI Administrator`、blueprint 作成: `Agent ID Developer`、インスタンス同意: `Privileged Role Administrator`、Microsoft 365 Frontier for Autopilot 割当: `License Administrator`。`Global Administrator` は代替に限定する |
 | 6 | 「〇〇を行ってくれる同僚エージェント」の具体的な業務内容は？ | [digital-colleague-design.md](references/digital-colleague-design.md) §2 の役割カタログ（R1〜R6）を選択肢として提示する（複数可・自由記述可） |
 | 7 | エージェント名、表示名、owner / sponsor、公開・テスト対象、アイコンは？ | kebab-case 名、Teams 表示名、ユーザーまたはセキュリティ グループを確認する。希望が無ければ名称を 3 案提案する。アイコンは正方形・背景透過 PNG。**商標・著作権に触れる名称やキャラクターは使わない** |
 | 8 | 頭脳（B3）の実装方式はどちらにするか | **(a) GitHub Copilot SDK ランタイム（BYOK + Managed Identity・既定）** — 計画・ツール反復・コンテキスト圧縮をランタイムに任せる<br>(b) 自前 Chat Completions ループ — 反復回数を自分で抑える。子プロセスを起動できないホスト向け<br>→ 判断材料は [copilot-sdk-runtime.md](references/copilot-sdk-runtime.md) |
-| 9 | どこでホストするか | **(a) 自己ホスト（既定）** — App Service + Azure Bot を自分で持つ。C# / .NET。頭脳は (a)(b) どちらも選べる<br>(b) **Foundry Autopilot** — Foundry がホスティングを持つ。Python。Bot 登録も App Service も不要だが **頭脳は Copilot SDK に固定**される<br>→ 判断材料は [foundry-autopilot.md](references/foundry-autopilot.md) |
+| 9 | どこでホストするか | (a) **自己ホスト（明示選択時のみ）** — App Service + Azure Bot を自分で持つ。C# / .NET。頭脳は (a)(b) どちらも選べる<br>**(b) Foundry Autopilot（既定）** — Foundry がホスティングを持つ。Python。Bot 登録も App Service も不要だが **頭脳は Copilot SDK に固定**される。前提不足なら停止し、(a) へ自動変更しない<br>→ 判断材料は [foundry-autopilot.md](references/foundry-autopilot.md) |
 
 質問 1 の回答が**テナントのアプリカタログへの公開の承認を兼ねる**。
 (a) は課金もカタログ公開も発生せず、(b) は Azure Bot / App Service の課金だけが発生する。
@@ -183,9 +211,11 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 
   | `hosting` | 生成されるもの | `runtime` |
   |---|---|---|
-  | `"self-hosted"`（既定） | C# の Agents SDK プロジェクト + App Service / Azure Bot | `copilot-sdk` / `agents-sdk` |
-  | `"foundry-autopilot"` | Microsoft 公式クイックスタート（Python）を取得し、本スキルのオーバーレイを重ねる | **`copilot-sdk` に固定** |
+  | `"self-hosted"`（明示選択時のみ） | C# の Agents SDK プロジェクト + App Service / Azure Bot | `copilot-sdk` / `agents-sdk` |
+  | `"foundry-autopilot"`（本スキルの既定） | Microsoft 公式クイックスタート（Python）を取得し、本スキルのオーバーレイを重ねる | **`copilot-sdk` に固定** |
 
+  **スクリプトの省略時既定値に依存せず、`hosting` を必ず書く。** Autopilot 要求に
+  `"self-hosted"` を書いたり、`hosting` を省いて自己ホストへ流したりしない。
   `foundry-autopilot` で `runtime` を明示的に `agents-sdk` にすると scaffold はエラーで止まる。
   矛盾した設定を黙って直すと、意図しない頭脳で動くエージェントが出来上がる。
 - **回帰テストのケースは `regression/suite.json` へ出力される**。選ばなかった機能ブロックの
@@ -231,11 +261,13 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
   （デプロイ時にしか埋まらない値は [.env.example](references/.env.example) の説明どおり後回しでよい）。
 - `implementationMode: "full"` を選ぶと ALM の pre-commit ゲートと CI ワークフローも同時に生成される。
 
-**基本フローは「一括 scaffold → 初回 Build + Deploy → 個別開発」の 1 本だけにする。**
+**基本フローは「一括 scaffold → 選択した経路で初回発行・検証 → 個別開発」にする。**
 ゼロから手でファイルを並べる別ルートは正常系に持たない。最初の AskUserQuestion で分かっている要望は
-役割・機能ブロックとしてテンプレートへ反映し、Step 3 でカスタム済みの初期実装を生成する。Step 6 で
-`deploy_ai_teammate.py --check` → `--execute` を通して動く基準点を作った後、追加要望を Step 7〜8 の
-人格・機能ブロックとして実装し、同じ check / execute で再デプロイする。
+役割・機能ブロックとしてテンプレートへ反映し、Step 3 でカスタム済みの初期実装を生成する。
+Autopilot は `publish_foundry_autopilot.py --check` → `--execute` と
+[references/foundry-autopilot.md](references/foundry-autopilot.md) §6 の UI 検証を通す。
+明示選択の自己ホストだけが Step 6 の `deploy_ai_teammate.py --check` → `--execute` を使う。
+追加要望も同じ経路で反映し、コード更新専用の省略手順を初回公開へ流用しない。
 
 ## スキル同梱スクリプト
 
@@ -266,7 +298,7 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 | [run_regression_tests.py](scripts/run_regression_tests.py) | 回帰テスト。`--check` は不変条件だけ（無料・決定的）、`--execute` は評価ハブのキュー経由で実ターンを回す。JUnit XML / Markdown を出力し、`deploy_ai_teammate.py --execute` が最後に自動実行する | 13 |
 | [setup_foundry_evaluation.py](scripts/setup_foundry_evaluation.py) | Foundry 標準の Evaluations を設定する。Autopilot 発行時は `publish_foundry_autopilot.py` が `--mode scheduled` で自動実行し、このスクリプトは単独の確認・修復にも使える | 13 |
 | [fetch_autopilot_quickstart.py](scripts/fetch_autopilot_quickstart.py) | Microsoft 公式の Foundry Autopilot クイックスタートをフォークせずに取得する（`hosting: "foundry-autopilot"` のとき scaffold が自動実行） | 3 |
-| [publish_foundry_autopilot.py](scripts/publish_foundry_autopilot.py) | Foundry hosted agent のバージョン作成、Foundry Monitor/Evaluations の自動構成、M365 publish。`accessBoundaries` の付与・インスタンス ID の有効化・`--bump-version` を含む。`IMAGE_MODEL_DEPLOYMENT` があればコンテナへ渡し、実在を検証し、アカウント スコープのロールも付ける。コード修正だけを反映するときは `--container-only`（再発行も再承認も不要）。`SCHEDULE_ENABLED=true` なら Invocations を公開する（troubleshooting.md #89） | 6・10 |
+| [publish_foundry_autopilot.py](scripts/publish_foundry_autopilot.py) | Autopilot 必須の発行経路。Foundry hosted agent のバージョン作成、Foundry Monitor/Evaluations の自動構成、M365 publish。`accessBoundaries` の付与・インスタンス ID の有効化・`--bump-version` を含む。`IMAGE_MODEL_DEPLOYMENT` があればコンテナへ渡し、実在を検証し、アカウント スコープのロールも付ける。`--container-only` は既存の検証済み Agent template のコード更新専用（初回発行・通常 Agent の修復は禁止）。`SCHEDULE_ENABLED=true` なら Invocations を公開する（troubleshooting.md #89） | 6・10 |
 | [provision_schedule_trigger.py](scripts/provision_schedule_trigger.py) | Foundry Autopilot の定期実行（B11）を起こす Logic App（システム割り当て MI・`Foundry Agent Consumer`・既定 15 分ごと）を作る。`--tick-now` で 1 回だけ起こす（troubleshooting.md #88） | 10 |
 | [setup_autopilot_instance.py](scripts/setup_autopilot_instance.py) | Foundry Autopilot の**採用後の設定を 1 本で**行う（委任スコープ〔リアクションの `ChatMessage.Send` 含む〕・Dataverse 接続・評価ハブのアプリケーション ユーザーとマスター行・顔写真）。既定は計画表示、`--execute` で適用（foundry-autopilot.md §6） | 11 |
 | [generate_profile_image.py](scripts/generate_profile_image.py) | AskUserQuestion で「説明から生成」を選んだプロフィール画像を、テナントの画像モデルで描いて `assets/profile.png` に書く | 12 |
@@ -276,9 +308,13 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 > `discover_foundry_context.py` / `create_blueprint.py` / `create_instance.py` / `deploy.py` は
 > **Foundry 連携の参考スクリプト**で、正常系では使わない
 > （→ [references/foundry-hosted-bot.md](references/foundry-hosted-bot.md)）。
+> とくに `deploy.py` / SDK `agents.create_version` だけで Autopilot / Agent Template の発行を代替しない。
 > ALM 共通スクリプト（`render.py` / `sanitize.py` / `check_secrets.py` 等）は **`alm` スキル**が提供する。
 
 ## 標準フォルダ構成
+
+以下は自己ホストの構成。Autopilot は
+[references/foundry-autopilot.md](references/foundry-autopilot.md) §9 の Python scaffold を使う。
 
 ```
 <repo-root>/
@@ -302,7 +338,10 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 
 ## 正常系フロー
 
-実機で Teams 応答まで到達した手順そのもの。上から順に実行する。
+最初に `hosting` を確定する。**Autopilot は Step 0〜3 の scaffold 後、
+[references/foundry-autopilot.md](references/foundry-autopilot.md) §5〜6 の発行・承認・採用へ進む。**
+以下の Step 4〜12 は明示選択の自己ホスト用で、Autopilot に追加実行しない。
+回帰テスト・評価は選択した経路の参照に従う。
 
 ### Step 0: 役割と機能ブロックを決める
 
@@ -362,8 +401,9 @@ Copy-Item C:/path/to/your-icon.png assets/agent-icon.png
 認証は `standard/scripts/auth_helper.py` が保存したキャッシュを使い、
 `az login` / `a365` の個別ログインを増やさない。
 
-**Foundry プロジェクトの設定は要らない。** `AZURE_AI_ACCOUNT` / `FOUNDRY_PROJECT_ENDPOINT` は
-正常系では未設定のままでよい。
+**自己ホスト経路だけは Foundry プロジェクトの設定が不要。** Autopilot は
+`FOUNDRY_PROJECT_ENDPOINT` など [references/foundry-autopilot.md](references/foundry-autopilot.md) §5 の
+設定が必要で、未設定を自己ホストへの切り替え理由にしない。
 
 ### Step 3: 一括 scaffold する（同僚エージェント + 評価Hub を同時生成）
 
@@ -421,7 +461,7 @@ src/<agent-name>-agent/
 
 ### Step 6: デプロイして messaging endpoint を登録する
 
-**agentUser チャットが動く唯一の構成。** 手順とログの読み方は
+**ここからは明示選択した自己ホスト経路の手順。Autopilot は [references/foundry-autopilot.md](references/foundry-autopilot.md) §5〜6 で発行・承認・採用し、この App Service 手順へ流さない。** 自己ホストの手順とログの読み方は
 [references/self-hosted-agent.md](references/self-hosted-agent.md)。
 
 > ★ **App Service は B1 以上 + Always On**。Free / Shared には Always On が無く、
@@ -713,6 +753,16 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 - [ ] `python scripts/review_sanitization.py` が Pass（本格実装）
 
 **ID 面（Step 4・6・10・11）**
+
+**Autopilot の場合は次を確認する（以下の自己ホスト項目で代替しない）。**
+
+- [ ] decisions JSON に `hosting: "foundry-autopilot"` を明記し、`publish_foundry_autopilot.py --check` → `--execute` を通した
+- [ ] `digital_worker_type=m365` の同じ agent version の `blueprint.client_id` と `agenticUserTemplate.AgentIdentityBlueprintId` が一致し、`publishAsAutopilot=true` / `useAgenticUserTemplate=true` / `agenticUserTemplate` を指定した
+- [ ] M365 Requests の対象行の **Type = Agent template** を手動確認した（HTTP 成功・通常 Registry 行・Teams app ID だけで判定していない）
+- [ ] 承認後に Teams **Agents for your team** から hire し、agent user の払い出しを確認した。未確認なら承認待ち／採用待ちと報告し、完了扱いにしていない
+- [ ] `--container-only` を初回発行・未確認テンプレート・通常 Agent の修復に使っていない
+
+**自己ホストを明示選択した場合のみ:**
 
 - [ ] **Foundry の `activityprotocol` URL を messaging endpoint に設定していない**
 - [ ] `a365.generated.config.json` の `agentBlueprintId` が `.env` の `A365_AGENT_BLUEPRINT_ID` と一致する
