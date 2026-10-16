@@ -98,6 +98,26 @@ class AutopilotPublishBodyTests(unittest.TestCase):
         for blueprint in ("", "<blueprint client id of the new version>"):
             with self.assertRaises(SystemExit):
                 publish.assert_autopilot_body(self.body(blueprint))
+
+
+class PreflightLicenseTests(unittest.TestCase):
+    """The Autopilot agent user gets Frontier for Autopilot after hire, not an Agent 365 seat."""
+
+    def test_preflight_does_not_check_agent_365_seats(self) -> None:
+        env = {
+            **BASE_ENV,
+            "FOUNDRY_PROJECT_ENDPOINT": "https://example.services.ai.azure.com/api/projects/project",
+            "AGENT_NAME": "teammate",
+        }
+        with patch.dict(publish.os.environ, env, clear=True):
+            with patch.object(publish, "build_permission_scopes", return_value=[]):
+                with patch.object(publish, "assert_image_deployment_exists"):
+                    with patch.object(
+                        publish, "graph_get", side_effect=AssertionError("preflight must not query licenses")
+                    ) as graph_get:
+                        publish.preflight("Kai")
+
+        graph_get.assert_not_called()
     """A missing deployment must stop the publish, not surface as a refusal in Teams."""
 
     def run_check(self, status: int, payload: dict | None = None) -> None:

@@ -1,31 +1,20 @@
 # Power Platform 認証パターンリファレンス
 
-## 条件付きアクセスポリシーでデバイスコード認証がブロックされる場合（AUTH_MODE=interactive）
+## インタラクティブ認証
 
-一部のテナントは条件付きアクセスポリシーでデバイスコードフローそのものを禁止している
-（`AADSTS50199` や「このアプリケーションからのアクセスはブロックされています」のようなエラーになる）。
-この場合は `.env` に `AUTH_MODE=interactive` を設定することで、`DeviceCodeCredential` の代わりに
-ローカルブラウザを起動する `InteractiveBrowserCredential` を使うように切り替えられる。
+PAC CLI プロファイルが利用できない場合、`auth_helper.py` は `InteractiveBrowserCredential` を使ってローカルブラウザから認証する。
+デバイスコード認証への切り替えやフォールバックは行わない。初回の認証後は、
+`AuthenticationRecord` と MSAL 永続トークンキャッシュを使ってサイレントにトークンを更新する。
 
-```env
-# .env（既定は device_code。デバイスコードがブロックされるテナントのみ設定する）
-AUTH_MODE=interactive
-```
-
-- 既定値は `AUTH_MODE=device_code`（従来どおりデバイスコード認証）
-- `AUTH_MODE` に `device_code` / `interactive` 以外の値を指定した場合は警告を出して
-  `device_code` にフォールバックする
-- キャッシュの仕組み（`AuthenticationRecord` + MSAL 永続トークンキャッシュ）は両モード共通のため、
-  初回のみブラウザでのインタラクティブ認証が走り、以後はサイレントリフレッシュされる
-- PAC CLI プロファイル（`PAC_AUTH_PROFILE`）が設定されている場合はそちらが優先されるため、
-  `AUTH_MODE` は PAC CLI が使えない・失敗する場合のフォールバック経路にのみ影響する
 - ローカル実行専用（ブラウザを開ける環境が前提）。CI/ヘッドレス環境では使用しない
 
 ## 前提: スクリプトは常に非対話で完走する
 
-新規に作成・実行するスクリプトは、**初回のデバイスコード認証がキャッシュ済みであること**を前提に、以降は認証の対話待ちが一切発生せず最後まで自動実行できるように書く。
+初回はローカルブラウザでのサインインが必要。新規に作成・実行するスクリプトは、
+**初回のインタラクティブ認証がキャッシュ済みであること**を前提に、以降は認証の対話待ちが発生せず
+最後まで自動実行できるように書く。
 
-認証キャッシュ（`AuthenticationRecord`）は **`~/.power-platform-cli/auth_record_{TENANT_ID}.json`（ホームディレクトリ配下、テナント別ファイル）にマシン全体で共有保存**される。そのため、このマシンで一度でもそのテナントでデバイスコード認証を完了していれば、別プロジェクト・別リポジトリのスクリプトからでもデバイスコード認証は不要になる。
+認証キャッシュ（`AuthenticationRecord`）は **`~/.power-platform-cli/auth_record_{TENANT_ID}.json`（ホームディレクトリ配下、テナント別ファイル）にマシン全体で共有保存**される。そのため、このマシンで一度そのテナントのインタラクティブ認証を完了すれば、別プロジェクト・別リポジトリのスクリプトでもキャッシュを再利用できる。
 
 - 認証は必ず `auth_helper.py` 経由（`requests` 直呼び出し・MSAL 直接呼び出しは禁止）
 - `api_get` / `api_post` などは `requests.Response` ではなく解析済みの値（`dict` / `str` / `None`）を返すため、戻り値に `.json()` を呼ばない
@@ -118,7 +107,7 @@ app = graph_get("/applications?$filter=appId eq '{app-id}'")
 #### 認証テスト
 
 ```bash
-# 初回のみデバイスコード認証が走る。以降はサイレント。
+# 初回はローカルブラウザで認証する。以降はサイレント。
 python -c "import sys; sys.path.insert(0, '.github/skills/standard/scripts'); from auth_helper import get_token; print(get_token()[:20] + '...')"
 ```
 
@@ -172,47 +161,46 @@ Python 3.14 では MSAL 内部トークンキャッシュ (`msal/token_cache.py`
 $env:PP_NO_PERSISTENT_CACHE="1"; Remove-Item .auth_record.json -ErrorAction SilentlyContinue; python ./setup_dataverse.py
 ```
 
-#### マルチテナント切り替え時に「キャッシュがあるのにデバイスコード認証を要求される」問題（★ 2026-07 検証済み）
+#### マルチテナント切り替え時の認証キャッシュ分離（★ 2026-07 検証済み）
 
-**症状**: 同一マシンで複数テナント（例: 顧客Aの環境 / 自分の検証用環境）を行き来する際、
-`[auth_helper] 認証キャッシュをロードしました` のログが出ているにもかかわらず、
-直後にデバイスコード認証のプロンプトが表示される。
+**症状**: 同一マシンで複数テナント（例: 顧客Aの環境 / 自分の検証用環境）を行き来すると、
+別テナントの認証レコードが読み込まれ、サイレント認証に失敗する。
 
 **原因**: 旧実装では `AuthenticationRecord` を `~/.power-platform-cli/auth_record.json` という
 **単一の共有ファイル**に保存していた。テナント A で認証 → テナント B に `.env` を切り替えて認証すると、
 テナント B の記録がテナント A の記録を**上書き**してしまう。その後テナント A に戻ると、
 ファイルには存在するがテナント B のレコードが入っているため、MSAL のサイレント認証が失敗し
-再度デバイスコード認証が必要になる。
+再度ブラウザでサインインが必要になる。
 
 **対策**（`auth_helper.py` 実装済み）:
 
 1. `AUTH_RECORD_PATH` を `~/.power-platform-cli/auth_record_{TENANT_ID}.json` のように
    **テナント ID ごとにファイルを分離**する
 2. 旧単一ファイルからの移行時は、中身の `tenantId` が現在の `TENANT_ID` と一致する場合のみ移行する
-   （不一致なら移行せず、そのテナント用に新規デバイスコード認証をさせる）
+   （不一致なら移行せず、そのテナント用にブラウザで再認証する）
 3. ロードした `AuthenticationRecord.tenant_id` が `.env` の `TENANT_ID` と食い違う場合は
    キャッシュを破棄して再認証させる（防御的チェック）
 
 ```
 ❌ 旧パターン: 全テナント共通で ~/.power-platform-cli/auth_record.json 1 本
-   → 後から認証したテナントで上書きされ、テナントを往復するたびにデバイスコード認証が必要
+   → 後から認証したテナントで上書きされ、テナントを往復するたびにブラウザ認証が必要
 
 ✅ 新パターン: ~/.power-platform-cli/auth_record_{TENANT_ID}.json をテナントごとに保持
-   → 各テナントにつき最初の1回だけデバイスコード認証すれば、以降は往復してもキャッシュが残る
+   → 各テナントで最初にブラウザ認証をすれば、以降は往復してもキャッシュが残る
 ```
 
 複数テナントを扱わない（常に単一テナントのみ）場合はこの問題は発生しない。
 
 #### `pac auth token` サブコマンドが存在しない pac CLI ディストリビューションがある
 
-**症状**: `.env` に `PAC_AUTH_PROFILE` を設定していても、毎回 DeviceCode フローにフォールバックする
+**症状**: `.env` に `PAC_AUTH_PROFILE` を設定していても、毎回ブラウザ認証にフォールバックする
 （エラーメッセージは出ないため気づきにくい）。
 
 **原因**: `auth_helper.py` の PAC CLI 経由トークン取得は `pac auth token --resource <resource>` を
 呼び出すが、pac CLI のディストリビューション/バージョンによっては（例: npm 版
 `power-platform-cli` 2.9.3 系 `.NET Framework 4.8` ビルド）`auth token` サブコマンド自体が
-存在せず `Not a valid command` エラーになる。`auth_helper.py` はこれを検知して黙って
-DeviceCodeCredential にフォールバックする（動作はするが高速化の恩恵がない）。
+存在せず `Not a valid command` エラーになる。`auth_helper.py` はこれを検知して InteractiveBrowserCredential にフォールバックする
+（動作はするが高速化の恩恵がない）。
 
 **確認方法**:
 
@@ -222,7 +210,7 @@ pac auth --help
 # ↑ "token" が一覧に無ければこの問題に該当する
 ```
 
-**対策**: 現状は DeviceCode フォールバックで機能上の問題はない（テナント別キャッシュ分離により
+**対策**: 現状はブラウザ認証へのフォールバックで機能上の問題はない（テナント別キャッシュ分離により
 往復しても再認証されない）。`pac auth token` に対応した pac CLI バージョンに更新できる場合は
 更新するとトークン取得が高速化する。
 
@@ -258,12 +246,7 @@ def send(method, url, **kwargs):
 
 **初回だけ対話が必要**: `client_id` を変えると `AuthenticationRecord` も
 `auth_record_{TENANT_ID}_{CLIENT_ID}.json` に分離されるため、そのクライアント初回はサインインが走る。
-**デバイスコードの入力待ちで止まってしまう**ため、その回だけ `AUTH_MODE=interactive` を付けて
-ブラウザ SSO で通す。2 回目以降はキャッシュから無操作で解決される。
-
-```powershell
-$env:AUTH_MODE="interactive"; python scripts/<script>.py; Remove-Item Env:AUTH_MODE
-```
+ローカルブラウザでサインインし、2 回目以降はキャッシュから無操作で解決される。
 
 **実装例**: [Code Apps の CSP 構成スクリプト](../../code-apps/scripts/configure_code_app_csp.py)
 
@@ -350,4 +333,3 @@ az account set --subscription <対象テナントの SubscriptionId>
 - 対象テナント・環境が一意に決まらない場合は、`vscode_askQuestions` ツールが使える場面では
   それでユーザーに選ばせる。利用できないセッションでは、チャット内で候補を提示し
   テキストで確認する。
-

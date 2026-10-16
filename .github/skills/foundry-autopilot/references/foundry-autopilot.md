@@ -17,7 +17,7 @@ Foundry の**ホスト エージェント**（コンテナー）を **Autopilot*
 | Azure Bot リソース | 自分で作る | 不要（発行時に Foundry 側が構成） |
 | M365 ツール | Graph を自分で叩く | **Agent 365 の MCP サーバー**（Mail / Calendar / Teams / Word / Excel / OneDrive）を委任トークンで利用 |
 | スケール・面倒 | 自分で見る | Foundry が見る |
-| 前提 | Agent 365 ライセンス | Agent 365 ライセンス + **Frontier preview** |
+| 前提 | Agent 365 の開発者・管理者要件 | **Microsoft 365 Frontier for Autopilot** を採用した agent user に割り当てる |
 | 向き | 機能ブロック B1〜B17 をフルに作り込む | **素早く「自分のアカウントを持つ同僚」を立てる**、M365 標準ツール中心 |
 
 どちらを選んでも agentUser は手に入る。**作り込みの自由度が要るなら自己ホスト、
@@ -28,7 +28,7 @@ M365 の標準ツールで足りるなら Autopilot** が速い。
 | 前提 | 確認方法 |
 |---|---|
 | Frontier preview program に登録済み | M365 管理センター |
-| Agent 365 のライセンス席に空きがある（**1 インスタンス = 1 席**） | `scripts/publish_foundry_autopilot.py --check` |
+| 採用後、agent user に Microsoft 365 Frontier for Autopilot を割り当てる担当者がいる | `License Administrator` |
 | 承認できる管理者がいる（`Global Administrator` または `AI Administrator`） | 事前確認の質問 5 |
 | サブスクリプション / RG で `Owner`（または `Contributor` + `Role Based Access Control Administrator`） | `az role assignment list` |
 | Foundry アカウントが hosted agents 対応リージョンにある | [Learn: hosted agent quickstart](https://learn.microsoft.com/azure/foundry/agents/quickstarts/quickstart-hosted-agent) |
@@ -215,7 +215,7 @@ python .github/skills/foundry-autopilot/scripts/publish_foundry_autopilot.py
    | 画面 | 操作 |
    |---|---|
    | Publish to users | ホスト（Copilot / Teams）と公開対象を確認。**Activate**（誰が採用できるか）は `All users` か対象のユーザー / グループ |
-   | Apply template | ポリシー テンプレートを選ぶ（既定の Microsoft ポリシーでよい）。残りライセンス数もここで見える |
+   | Apply template | ポリシー テンプレートを選ぶ（既定の Microsoft ポリシーでよい） |
    | Accept permissions | §4 の MCP スコープを確認して **Grant admin consent** |
    | Review and finish | **Publish** |
 
@@ -239,7 +239,11 @@ python .github/skills/foundry-autopilot/scripts/publish_foundry_autopilot.py
      「Classic Teams is no longer available」になり、Microsoft 365 Copilot web もサインインで止まるため自動化できない。
    - 払い出しの確認は Graph の `$search="displayName:<名前>"`（`ConsistencyLevel: eventual`）で `users` に
      agent user が現れるかを見る。以降の Step（スコープ付与・写真）はその UPN で進める。
-3. **採用後の設定**（インスタンスごと。作り直したらやり直す）。1 本のスクリプトで全部行う。
+3. **ライセンス割り当て**: 払い出された agent user に、Microsoft 365 管理センターまたは Entra 管理センターから
+   **Microsoft 365 Frontier for Autopilot** を割り当てる。割り当て先は agent user（人間の管理者や sponsor ではない）。
+   `Agent 365` SKU の空席は確認・割り当てしない。実行担当は `License Administrator` とし、
+   割り当て完了を確認してから次の採用後設定へ進む。
+4. **採用後の設定**（インスタンスごと。作り直したらやり直す）。1 本のスクリプトで全部行う。
 
    ```powershell
    $s = ".github/skills/foundry-autopilot/scripts"

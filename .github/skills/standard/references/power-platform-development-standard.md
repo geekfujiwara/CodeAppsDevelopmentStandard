@@ -303,8 +303,8 @@ Dataverse テーブル作成・フロー・Copilot Studio 等の **Python デプ
 
 | 動作             | 説明                                                                                                                         |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| 初回実行         | `DeviceCodeCredential` でデバイスコード認証 → `AuthenticationRecord` をファイルに保存 + MSAL キャッシュにトークンを永続化    |
-| 2回目以降        | AuthenticationRecord をロード → MSAL キャッシュからリフレッシュトークンを取得 → サイレントリフレッシュ（デバイスコード不要） |
+| 初回実行         | `InteractiveBrowserCredential` でブラウザ認証 → `AuthenticationRecord` をファイルに保存 + MSAL キャッシュにトークンを永続化 |
+| 2回目以降        | AuthenticationRecord をロード → MSAL キャッシュからリフレッシュトークンを取得 → サイレントリフレッシュ |
 | エラー時の再実行 | 両方のキャッシュを再利用するため再認証は不要                                                                                 |
 
 ```python

@@ -6,7 +6,7 @@ An Autopilot blueprint gives every hired instance its **own Entra agent user acc
 self-hosted route in self-hosted-agent.md, but the container runs on Foundry.
 
 Performs, in order:
-  1. Preflight (--check): env vars, Agent 365 license seats, resource-app existence,
+  1. Preflight (--check): env vars, resource-app existence,
      and - when IMAGE_MODEL_DEPLOYMENT is set - that the image deployment really exists.
   2. POST  /agents/{name}/versions          (digital_worker_type=m365) + poll until active.
   3. Enable the instance identity service principal (created disabled - troubleshooting #75).
@@ -173,15 +173,6 @@ def build_permission_scopes() -> list[dict]:
     return kept
 
 
-def agent365_seats() -> tuple[int, int] | None:
-    """Return (consumed, enabled) for the Agent 365 SKU, or None when the SKU is absent."""
-    data = graph_get("/subscribedSkus?$select=skuPartNumber,prepaidUnits,consumedUnits")
-    for sku in data.get("value", []):
-        if (sku.get("skuPartNumber") or "").upper().startswith("AGENT_365"):
-            return int(sku.get("consumedUnits") or 0), int((sku.get("prepaidUnits") or {}).get("enabled") or 0)
-    return None
-
-
 def image_model_deployment() -> str:
     return (os.environ.get("IMAGE_MODEL_DEPLOYMENT") or "").strip()
 
@@ -242,15 +233,6 @@ def preflight(display_name: str) -> list[dict]:
             f"AGENT_DISPLAY_NAME は {AGENT_DISPLAY_NAME_MAX} 文字以内にしてください（現在 {len(display_name)} 文字）"
         )
     print(f"  OK 表示名 '{display_name}'（{len(display_name)}/{AGENT_DISPLAY_NAME_MAX} 文字）")
-
-    seats = agent365_seats()
-    if seats is None:
-        print("  ! Agent 365 の SKU が見つかりません。ライセンスが無いとインスタンス作成で失敗します")
-    else:
-        consumed, enabled = seats
-        free = enabled - consumed
-        marker = "OK" if free > 0 else "!"
-        print(f"  {marker} Agent 365 ライセンス: {consumed}/{enabled} 使用（空き {free} 席。1 インスタンス = 1 席）")
 
     scopes = build_permission_scopes()
     print(f"  OK 要求する resource app: {len(scopes)} 件")

@@ -68,7 +68,7 @@ python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --
 ## 重要制約
 
 - **認証**: Python スクリプトでは必ず `auth_helper.py` の API（`get_token` / `get_session` / `api_get` / `api_post` / `api_patch` / `api_delete` / `retry_metadata`）を使う（`requests` 直呼び・MSAL 直接呼び出し禁止）
-- **認証はスキップ実行が前提**: `auth_helper.py` は 2 層キャッシュ（`.auth_record.json` + OS 資格情報ストア）により初回のみデバイスコード認証が発生し、以降はサイレントに認証が完了する。すべての新規スクリプトは **このキャッシュ済み認証を前提に、対話的な認証待ちなしで最後まで自動実行できる**ように書く。実行中にデバイスコードや資格情報の入力待ちが発生した場合は処理を止めず、`auth_helper.py` の実装（キャッシュ・スコープ）を疑って修正する
+- **認証はスキップ実行が前提**: `auth_helper.py` は初回に `InteractiveBrowserCredential` でローカルブラウザ認証を行い、2 層キャッシュ（`AuthenticationRecord` + OS 資格情報ストア）に保存する。デバイスコード認証は行わない。初回認証後はキャッシュからサイレントに認証が完了するため、すべての新規スクリプトは **キャッシュ済み認証を前提に最後まで自動実行できる**ように書く
 - **データソース**: `python .github/skills/code-apps/scripts/add_data_source.py --connector {通称または shared_xxx}` で追加する（`dataSourcesInfo.ts` 手動追記禁止）。
   `npx pa app add data-source` を直接叩くとコネクタ ID の対話プロンプトで止まるため、通称（`sharepoint` 等）を
   [コネクタ ID カタログ](.github/skills/standard/references/connector-catalog.json)で `shared_xxx` に解決してから

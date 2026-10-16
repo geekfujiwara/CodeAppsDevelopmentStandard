@@ -1,15 +1,15 @@
-"""PAC プロファイルから環境を取得して .env を構成し、デバイスコード認証して auth_helper に保存する。
+"""PAC プロファイルから環境を取得して .env を構成し、インタラクティブ認証して auth_helper に保存する。
 
 標準プロセス（プロジェクト開始時の環境セットアップ）:
   1. ``--list``  : ``pac auth list`` のプロファイルを ``pac org who`` で解決し、環境候補を一覧表示
                    （エージェントはこの一覧を AskUserQuestion でユーザーに選ばせる）。
   2. ``--profile <名前>`` : 選択プロファイルの環境値（URL / 環境 ID / テナント）で ``.env`` を upsert。
-  3. 既定でデバイスコード認証をトリガーし、auth_helper が AuthenticationRecord を保存する。
-     これ以降の Python スクリプトは 2 層キャッシュによりデバイスコード入力なしで認証される。
+  3. 既定でインタラクティブ認証をトリガーし、auth_helper が AuthenticationRecord を保存する。
+     これ以降の Python スクリプトは 2 層キャッシュから認証される。
 
 補足:
   - この PAC CLI バージョンには ``pac auth token`` が無いため、Python の Dataverse 認証は
-    PAC プロファイルではなく **デバイスコード認証（auth_helper）** を正式な経路とする。
+    PAC プロファイルではなく **インタラクティブ認証（auth_helper）** を正式な経路とする。
   - PAC プロファイルは「環境メタデータ（URL / 環境 ID）」の取得元として利用する。
   - テナント GUID は選択プロファイルのユーザーのドメインから OIDC ディスカバリで解決する。
 
@@ -19,7 +19,7 @@
   python setup_environment.py --list
   python setup_environment.py --profile "<ProfileName>" \
       --solution "<SolutionName>" --prefix "<prefix>" --display "<表示名>"
-  python setup_environment.py --auth-only      # 既存 .env でデバイスコード認証のみ実行
+  python setup_environment.py --auth-only      # 既存 .env でインタラクティブ認証のみ実行
   python setup_environment.py --profile "<ProfileName>" --no-auth  # .env 構成のみ（認証しない）
 
 終了コード: 成功 0 / 前提不足・失敗 1。
@@ -129,8 +129,8 @@ def upsert_env(repo_root: Path, mapping: dict[str, str]) -> Path:
     return env_path
 
 
-def trigger_device_code(values: dict[str, str]) -> int:
-    """auth_helper のデバイスコード認証をトリガーし、AuthenticationRecord を保存する。"""
+def trigger_interactive_auth(values: dict[str, str]) -> int:
+    """auth_helper のインタラクティブ認証をトリガーし、AuthenticationRecord を保存する。"""
     if values.get("DATAVERSE_URL"):
         os.environ["DATAVERSE_URL"] = values["DATAVERSE_URL"]
     if values.get("TENANT_ID"):
@@ -143,7 +143,7 @@ def trigger_device_code(values: dict[str, str]) -> int:
         return 1
     who = api_get("WhoAmI")
     print("[setup_environment] 認証成功（WhoAmI）:", who.get("UserId", ""))
-    print("[setup_environment] 認証レコードを保存しました。以降はデバイスコード不要です。")
+    print("[setup_environment] 認証レコードを保存しました。")
     return 0
 
 
@@ -193,18 +193,18 @@ def cmd_profile(args: argparse.Namespace, repo_root: Path) -> int:
         print("[setup_environment] 警告: TENANT_ID を解決できませんでした。.env を手動設定してください。", file=sys.stderr)
     if args.no_auth:
         return 0
-    return trigger_device_code(mapping)
+    return trigger_interactive_auth(mapping)
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="PAC プロファイルから .env 構成 + デバイスコード認証")
+    ap = argparse.ArgumentParser(description="PAC プロファイルから .env 構成 + インタラクティブ認証")
     ap.add_argument("--list", action="store_true", help="環境候補を一覧表示（AskUserQuestion 用）")
     ap.add_argument("--profile", help="利用する PAC プロファイル名")
     ap.add_argument("--solution", help="SOLUTION_NAME（任意）")
     ap.add_argument("--display", help="SOLUTION_DISPLAY_NAME（任意）")
     ap.add_argument("--prefix", help="PUBLISHER_PREFIX（任意）")
-    ap.add_argument("--no-auth", action="store_true", help=".env 構成のみ（デバイスコード認証しない）")
-    ap.add_argument("--auth-only", action="store_true", help="既存 .env でデバイスコード認証のみ実行")
+    ap.add_argument("--no-auth", action="store_true", help=".env 構成のみ（認証しない）")
+    ap.add_argument("--auth-only", action="store_true", help="既存 .env でインタラクティブ認証のみ実行")
     args = ap.parse_args()
 
     repo_root = find_repo_root(Path.cwd())
@@ -219,7 +219,7 @@ def main() -> int:
                 if "=" in line and not line.strip().startswith("#"):
                     k, v = line.split("=", 1)
                     values[k.strip()] = v.strip()
-        return trigger_device_code(values)
+        return trigger_interactive_auth(values)
     if args.profile:
         return cmd_profile(args, repo_root)
 

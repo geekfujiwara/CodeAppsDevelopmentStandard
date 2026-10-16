@@ -82,9 +82,9 @@ triggers:
 |---|---|---|
 | 1 | ゴールはどこまでか | (a) ローカル scaffold のみ（Azure 操作なし）<br>(b) 自己ホスト App Service の endpoint を用意するまで（Step 1〜6）<br>(c) M365 管理センターに "Agent template" として登録するまで（Teams チャットはまだ動かない）<br>**(d) Teams で実際に会話できる状態まで（Step 0〜13・Azure 課金あり）** |
 | 2 | Azure サブスクリプション、リソース作成権限、ロール割り当て権限、認証キャッシュは使えるか | App Service B1+、Azure Bot、UAMI の作成可否と Azure RBAC の担当者を確認する |
-| 3 | Agent 365 の対象ライセンスと利用資格は確認済みか | テナントに qualifying Agent 365 license があり、対象ユーザーが利用可能であることを M365 管理センターで確認する |
-| 4 | `devPreview` または別のプレビュー機能を使うか | (c)/(d) は本スキルの `devPreview` Agent template を使うため Frontier が必要。管理者とテストユーザーの Microsoft Copilot ライセンスおよび Frontier 登録を確認する |
-| 5 | 各管理操作の担当者とロールは誰か | Agent Registry: `AI Administrator`、blueprint 作成: `Agent ID Developer`、インスタンス同意: `Privileged Role Administrator`、ライセンス割当: `License Administrator`。`Global Administrator` は代替に限定する |
+| 3 | Frontier for Autopilot の前提と割り当て担当者は確認済みか | Foundry Autopilot で採用した agent user に Microsoft 365 Frontier for Autopilot を割り当てる。Agent 365 SKU の空席確認・割り当てはしない |
+| 4 | `devPreview` または別のプレビュー機能を使うか | (c)/(d) は本スキルの `devPreview` Agent template を使うため Frontier が必要。テナントの Frontier 参加と、管理者に必要な Microsoft Copilot ライセンスを確認する |
+| 5 | 各管理操作の担当者とロールは誰か | Agent Registry: `AI Administrator`、blueprint 作成: `Agent ID Developer`、インスタンス同意: `Privileged Role Administrator`、Microsoft 365 Frontier for Autopilot 割当: `License Administrator`。`Global Administrator` は代替に限定する |
 | 6 | 「〇〇を行ってくれる同僚エージェント」の具体的な業務内容は？ | [digital-colleague-design.md](references/digital-colleague-design.md) §2 の役割カタログ（R1〜R6）を選択肢として提示する（複数可・自由記述可） |
 | 7 | エージェント名、表示名、owner / sponsor、公開・テスト対象、アイコンは？ | kebab-case 名、Teams 表示名、ユーザーまたはセキュリティ グループを確認する。希望が無ければ名称を 3 案提案する。アイコンは正方形・背景透過 PNG。**商標・著作権に触れる名称やキャラクターは使わない** |
 | 8 | 頭脳（B3）の実装方式はどちらにするか | **(a) GitHub Copilot SDK ランタイム（BYOK + Managed Identity・既定）** — 計画・ツール反復・コンテキスト圧縮をランタイムに任せる<br>(b) 自前 Chat Completions ループ — 反復回数を自分で抑える。子プロセスを起動できないホスト向け<br>→ 判断材料は [copilot-sdk-runtime.md](references/copilot-sdk-runtime.md) |
@@ -117,15 +117,17 @@ triggers:
   （Activate の対象 → ポリシー → Grant admin consent → Publish）。その後 Teams の Agents for your team から採用する
   （→ [foundry-autopilot.md](references/foundry-autopilot.md) §6）。Registry の `AGENT_NAME` の行は削除しない。
 
-> **Agent 365 と Frontier を混同しない。** Agent 365 は GA の製品・ライセンス条件、Frontier は
-> opt-in のプレビュー制度である。本スキルでは (c)/(d) の `devPreview` manifest を使う場合だけ
-> Frontier を必須とし、対象ユーザー単位で登録状況を確認する。
+> **Foundry Autopilot の agent user に Agent 365 SKU を割り当てない。**
+> 採用後の agent user に割り当てるライセンスは **Microsoft 365 Frontier for Autopilot**。
+> Agent 365 は blueprint / agent identity の機能名であり、Autopilot の agent user ライセンス空席を
+> `AGENT_365` SKU で事前確認しない。Frontier プレビューのテナント参加要件とは区別し、
+> agent user が払い出された後に Frontier for Autopilot を割り当てる。
 
 工程別の最小権限:
 
 | 工程 | 推奨ロール | 注記 |
 |---|---|---|
-| Agent 365 / Microsoft Copilot ライセンス割り当て | `License Administrator` | 購入権限とは別。`usageLocation` も確認する |
+| Microsoft 365 Frontier for Autopilot を agent user に割り当てる | `License Administrator` | agent user の払い出し後に割り当てる。`usageLocation` と利用可能 SKU を確認する |
 | Frontier 設定 | `AI Administrator` / `Security Administrator` / `Office Apps Administrator` | 管理者自身にも Microsoft Copilot ライセンスが必要 |
 | Agent ID blueprint 作成 | `Agent ID Developer` | 作成者は blueprint と blueprint principal の owner になる |
 | Agent ID のフル ライフサイクル | `AI Administrator` / `Agent ID Administrator` | instance / agentUser を含む管理 |
@@ -558,12 +560,14 @@ python scripts/plan_agent_template_upload.py `
 4. finalize plan の `AppId`、version、`MosOperationId`、公開範囲（現contractはAll users、Activate None）を確認し、二度目の明示承認を取る。
 5. `finalizeApprovedPackage()` を承認hash付きで実行する。runnerは `FINALIZEPACKAGE` 後に同じTitle ID/versionをread-backする。
 6. Registry の Agent template から agent instance を作成し、instance ID、service principal、UPN、owner / sponsor を記録する。
+7. 払い出された agent user に **Microsoft 365 Frontier for Autopilot** を割り当てる。
+   `Agent 365` のライセンス席は確認・割り当てず、割り当て完了後に採用後設定へ進む。
 
 staging承認はpublish承認を兼ねない。`FINALIZEPACKAGE` は全ユーザーへの公開なので、Step 0の承認が無い場合は実行しない。
 認証、MFA、step-up、consentは自動化せず、利用者がブラウザ上で完了する。
 
-**Add agent が表示されない場合は先へ進まない。** `AI Administrator` の割り当て、Agent 365 の
-利用資格、`devPreview` の場合は管理者自身の Microsoft Copilot ライセンスと Frontier 登録を確認する。
+**Add agent が表示されない場合は先へ進まない。** `AI Administrator` の割り当て、
+`devPreview` の場合は管理者自身の Microsoft Copilot ライセンスと Frontier 登録を確認する。
 
 GA スキーマ（非 devPreview）の共有エージェントのみ `python scripts/publish_teams_app.py`
 （管理者ロールが無い場合は `--requires-review`）で Graph 経由の公開ができる。
@@ -698,7 +702,8 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 
 - [ ] Step 0 で役割・機能ブロック・段階を確定し、制約（メールは push されない / 既読にできない / 他人の予定表は直接読めない / 共有リンクは取り消せない）を依頼者へ共有している
 - [ ] 事前確認の 9 点を 1 回で確認し、以降の Step で聞き直していない
-- [ ] Agent Registry、blueprint、ライセンス、OAuth 同意の各担当者と最小権限を記録している
+- [ ] Agent Registry、blueprint、Microsoft 365 Frontier for Autopilot 割り当て、OAuth 同意の各担当者と最小権限を記録している
+- [ ] 採用後の agent user に Microsoft 365 Frontier for Autopilot が割り当て済みである（Agent 365 SKU は割り当てていない）
 
 **秘匿化**
 
