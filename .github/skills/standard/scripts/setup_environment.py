@@ -130,20 +130,22 @@ def upsert_env(repo_root: Path, mapping: dict[str, str]) -> Path:
 
 
 def trigger_interactive_auth(values: dict[str, str]) -> int:
-    """auth_helper のインタラクティブ認証をトリガーし、AuthenticationRecord を保存する。"""
+    """auth_helper の認証キャッシュを再利用し、未作成なら対話認証して保存する。"""
     if values.get("DATAVERSE_URL"):
         os.environ["DATAVERSE_URL"] = values["DATAVERSE_URL"]
     if values.get("TENANT_ID"):
         os.environ["TENANT_ID"] = values["TENANT_ID"]
     sys.path.insert(0, str(HERE))
     try:
-        from auth_helper import api_get  # type: ignore
+        from auth_helper import AUTH_RECORD_PATH, authenticate, get_token  # type: ignore
     except Exception as exc:  # noqa: BLE001
         print(f"[setup_environment] auth_helper の読み込みに失敗: {exc}", file=sys.stderr)
         return 1
-    who = api_get("WhoAmI")
-    print("[setup_environment] 認証成功（WhoAmI）:", who.get("UserId", ""))
-    print("[setup_environment] 認証レコードを保存しました。")
+    if AUTH_RECORD_PATH.is_file():
+        get_token()
+    else:
+        authenticate()
+    print("[setup_environment] 認証に成功しました（初回はレコードを保存し、既存なら共有キャッシュを再利用）。")
     return 0
 
 

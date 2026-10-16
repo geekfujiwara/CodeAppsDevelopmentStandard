@@ -68,7 +68,7 @@ python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --
 ## 重要制約
 
 - **認証**: Python スクリプトでは必ず `auth_helper.py` の API（`get_token` / `get_session` / `api_get` / `api_post` / `api_patch` / `api_delete` / `retry_metadata`）を使う（`requests` 直呼び・MSAL 直接呼び出し禁止）
-- **認証はスキップ実行が前提**: `auth_helper.py` は初回に `InteractiveBrowserCredential` でローカルブラウザ認証を行い、2 層キャッシュ（`AuthenticationRecord` + OS 資格情報ストア）に保存する。デバイスコード認証は行わない。初回認証後はキャッシュからサイレントに認証が完了するため、すべての新規スクリプトは **キャッシュ済み認証を前提に最後まで自動実行できる**ように書く
+- **認証は共通キャッシュを再利用**: 開発環境の初回セットアップで `auth_helper.authenticate()` によるブラウザー認証を tenant/client ID ごとに 1 回行い、`AuthenticationRecord` をホームディレクトリの JSON に保存する。トークンは OS 資格情報ストアに保存する。デバイスコード認証、リポジトリ内への認証情報保存、スクリプトごとの独自認証は禁止。新規スクリプトは必ず `standard/scripts/auth_helper.py` の API を使い、同じ tenant/client ID のキャッシュでサイレントに完走する。新しい client ID が必要な場合は初回だけ別途ブラウザー認証する
 - **データソース**: `python .github/skills/code-apps/scripts/add_data_source.py --connector {通称または shared_xxx}` で追加する（`dataSourcesInfo.ts` 手動追記禁止）。
   `npx pa app add data-source` を直接叩くとコネクタ ID の対話プロンプトで止まるため、通称（`sharepoint` 等）を
   [コネクタ ID カタログ](.github/skills/standard/references/connector-catalog.json)で `shared_xxx` に解決してから

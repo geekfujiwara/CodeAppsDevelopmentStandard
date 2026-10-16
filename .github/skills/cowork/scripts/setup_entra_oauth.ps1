@@ -87,7 +87,7 @@ $MCP_TOOLS_SCOPE  = "a4c5bee6-25ff-4bb5-b926-b7eb8062ae7a"  # Dynamics CRM /mcp.
 Write-Host "== az ログイン確認 ($TenantId) =="
 $null = az account show 2>$null
 if ($LASTEXITCODE -ne 0) {
-    az login --use-device-code --tenant $TenantId --allow-no-subscriptions --only-show-errors | Out-Null
+    az login --tenant $TenantId --allow-no-subscriptions --only-show-errors | Out-Null
 }
 
 Write-Host "== 1. アプリ登録: $DisplayName =="

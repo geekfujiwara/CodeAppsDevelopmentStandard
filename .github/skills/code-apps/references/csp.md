@@ -346,7 +346,7 @@ iframe 埋め込み（地図等）を実装する場合の手順:
   「You're using an old version of this app」バナーが出る。**Refresh を押してから**確認する
 - `configure_code_app_csp.py`（引数なし）で保存済みディレクティブを再確認する
 
-### CSP 設定を確認しようとして 403 / デバイスコード待ちで止まる
+### CSP 設定を確認しようとして 403 / 初回ブラウザー認証が必要になる
 
 - `403 InsufficientDelegatedPermissions` → 既定クライアントに権限が無い。PAC CLI クライアントへの
   フォールバックが働いているか確認する（スクリプトは自動）

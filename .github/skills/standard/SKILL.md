@@ -155,6 +155,11 @@ BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Copilot Studio Bot ID（URL で�
 PAC CLI プロファイルでトークンを取得できない場合は、ローカルブラウザでのインタラクティブ認証
 （`InteractiveBrowserCredential`）を使用する。デバイスコード認証は行わず、初回の認証後はキャッシュから
 サイレントにトークンを取得する。
+初期セットアップで tenant/client ID ごとにインタラクティブ認証を 1 回行い、
+`AuthenticationRecord` をホームディレクトリの JSON に保存する。トークン自体は JSON に含めず、
+OS 資格情報ストアに保存する。以後のスキルは共通 `auth_helper.py` からキャッシュを再利用し、
+個別の認証フローやプロジェクト内の認証 JSON を作らない。
+Foundry 上で動作するエージェント本体の Managed Identity など、実行環境固有の資格情報はこのローカル開発者認証の共有対象外とする。
 
 認証の公開 API・パターンの詳細実装は [認証リファレンス](references/auth-patterns.md) を参照。
 

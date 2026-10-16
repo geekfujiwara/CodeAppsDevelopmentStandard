@@ -11,12 +11,13 @@ winget で入れた直後の既存ターミナルでは `az` が解決されな�
 $env:PATH = "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin;$env:PATH"
 ```
 
-## 2. `az login` のブラウザフローがハングする
+## 2. `az login` のブラウザー認証で問題が起きる
 
-ブラウザが開いたまま戻らない場合はデバイスコードに切り替える。
+`az login` のブラウザー認証が利用できない場合、デバイスコード認証へ切り替えずに処理を中断する。
+まず共通 `auth_helper.py` を使う手順が利用できないか確認する。
 
 ```powershell
-az login --use-device-code --tenant <TENANT_ID> --allow-no-subscriptions --only-show-errors
+az login --tenant <TENANT_ID> --allow-no-subscriptions --only-show-errors
 ```
 
 ## 3. Graph PATCH: `Invalid property 'oauth2PermissionScopes'`
@@ -491,8 +492,9 @@ Graph の `appCatalogs/teamsApps` にも現れないため、`appDefinitions` �
   `auth_helper` の既定（Azure CLI 互換）クライアントのトークンは出るが 401 / 403、PAC CLI は `AADSTS65002`、
   Graph PowerShell は `AADSTS650057`、専用 portal client は `AADSTS7000218`。
 - 対処（恒久対策済み）: `manage_oauth_registration_api.py` の既定 `--transport cli` が Agents Toolkit の公開クライアント
-  （`7ea7c24c-…`、Device Code。初回だけサインイン）で `https://dev.teams.microsoft.com/api/v1.0/oauthConfigurations` を呼ぶ。
-  `AUTH_MODE=interactive` は `AADSTS70007` になるので Device Code のまま使う。
+  （`7ea7c24c-…`）で `https://dev.teams.microsoft.com/api/v1.0/oauthConfigurations` を呼ぶ。
+  このクライアントでローカルブラウザー認証が利用できず `AADSTS70007` になる場合、デバイスコード認証へ切り替えず、
+  操作を中断して管理者またはサポートへ確認する。
 - 個人テストも同じクライアントで `install_agent_package_personal.py`（Title サービス）から行える。
 
 ## 35. API の `oAuthConfigId` を `.env` にそのまま入れると、ビルドで警告が出る
@@ -671,4 +673,3 @@ Graph の `appCatalogs/teamsApps` にも現れないため、`appDefinitions` �
 - 恒久対策済み: `build_agent_package.ps1` が include を差し込み、`report_builder.py` とひな形を `scripts/` に同梱する（Learn の progressive loading: `scripts/` は実行するだけでコンテキストに読み込まれない）。
   `check_visual_output.py` が、description に 提案・助言・打ち手・対策案・推奨 などがあるスキルに Render UI の手順・「このスキルのグラフ」・同梱スクリプトが無ければ止める。
   同梱テンプレートの提案スキル（目標達成プランナー・現場の次アクション助言・安全シグナルレビュー）にも組み込み済み。テスト `test_report_builder.py`・`test_check_visual_output.py`。
-

@@ -23,7 +23,7 @@ python .github/skills/standard/scripts/setup_environment.py --list
 python .github/skills/standard/scripts/setup_environment.py --profile "<ProfileName>" `
   --solution "<SolutionName>" --prefix "<prefix>" --display "<表示名>"
 
-# 既存 .env でデバイスコード認証だけ実行したいとき
+# 既存 .env で認証キャッシュを確認（未作成ならブラウザー認証して保存）
 python .github/skills/standard/scripts/setup_environment.py --auth-only
 ```
 
@@ -119,7 +119,7 @@ cp .github/skills/standard/references/.env.example .env
 | `TENANT_ID` | ユーザードメインの OIDC ディスカバリ（`token_endpoint` の GUID） |
 | `PAC_AUTH_PROFILE` | 選択したプロファイル名 |
 
-## Step 5: Python 認証環境のセットアップ（デバイスコード認証）
+## Step 5: Python 認証環境のセットアップ（未キャッシュの場合のみインタラクティブ認証）
 
 ```powershell
 cd .github/skills/standard/scripts
@@ -128,27 +128,18 @@ pip install -r requirements.txt
 
 `.env` に `DATAVERSE_URL` と `TENANT_ID` が設定済みなので、auth_helper.py が利用可能になる。
 
-### Python の Dataverse 認証はデバイスコード認証（初回のみ）
+### Python の Dataverse 認証は初回のみブラウザーで対話認証
 
-`setup_environment.py --profile`（または `--auth-only`）はデバイスコード認証をトリガーする。
-ブラウザを開く前に `AskUserQuestion` で使用する Edge プロファイルを確認する。
-**エージェントは回答後に表示されたコードと URL をユーザーに伝え**、選択されたプロファイルで
-サインインしてもらう。
+`setup_environment.py --profile`（または `--auth-only`）は既存の認証レコードがあれば `auth_helper.get_token()` で再利用し、
+無ければ `auth_helper.authenticate()` でローカルブラウザーを開いてインタラクティブ認証を行う。
+認証成功時に `auth_helper.py` が 2 層キャッシュへ保存する:
 
-```
-========================================
-  デバイスコード認証
-  1. ブラウザで https://login.microsoft.com/device を開く
-  2. コード XXXXXXXXX を入力
-========================================
-```
+1. **AuthenticationRecord**（`~/.power-platform-cli/auth_record_{TENANT_ID}.json`）— テナント・アカウント情報の JSON
+2. **MSAL 永続トークンキャッシュ** — アクセストークン・リフレッシュトークン（OS 資格情報ストア）
 
-ブラウザーでのサインインが成功すると `auth_helper.py` が 2 層キャッシュへ認証を保存する:
-
-1. **AuthenticationRecord**（`.auth_record.json`）— アカウント情報
-2. **MSAL 永続トークンキャッシュ** — リフレッシュトークン（OS 資格情報ストア）
-
-これにより 2 回目以降はサイレントリフレッシュとなる。デバイスコード認証は行わない。
+JSON はリポジトリや `.env` に置かず、トークンは JSON に含めない。これにより同じ tenant/client ID では
+別スクリプト・別プロジェクトからもキャッシュを再利用し、2 回目以降はサイレントリフレッシュできる。
+デバイスコード認証は行わない。
 
 > **PAC プロファイルでの Python トークン取得について**: 一部の PAC CLI バージョンには
 > `pac auth token` サブコマンドが無く、PAC プロファイルから Dataverse トークンを直接取得できない。

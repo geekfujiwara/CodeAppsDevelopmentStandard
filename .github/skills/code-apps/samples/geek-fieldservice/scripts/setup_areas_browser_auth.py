@@ -1,23 +1,31 @@
-"""担当エリアテーブル作成 - InteractiveBrowserCredential 使用版"""
-import sys, os, time, requests, json
+"""担当エリアテーブル作成 - 共通 auth_helper 使用版"""
+import os, sys, time, requests, json
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '..', '.env'))
+SCRIPT_DIR = Path(__file__).resolve().parent
+for parent in SCRIPT_DIR.parents:
+    auth_scripts = parent / ".github" / "skills" / "standard" / "scripts"
+    if (auth_scripts / "auth_helper.py").is_file():
+        sys.path.insert(0, str(auth_scripts))
+        env_path = parent / ".env"
+        if env_path.is_file():
+            load_dotenv(env_path)
+        break
+else:
+    raise SystemExit("共通 auth_helper.py が見つかりません（standard/scripts を確認してください）")
+
+from auth_helper import get_token
 
 TENANT_ID = os.getenv("TENANT_ID", "")
 DATAVERSE_URL = os.getenv("DATAVERSE_URL", "").rstrip("/")
 P = os.getenv("PUBLISHER_PREFIX", "geek")
 SOLUTION = os.getenv("SOLUTION_NAME", "RiDS3")
 
-# --- InteractiveBrowserCredential で認証（ブラウザ自動起動）---
-from azure.identity import InteractiveBrowserCredential
-
-print("ブラウザが開きます。サインインしてください...")
-credential = InteractiveBrowserCredential(tenant_id=TENANT_ID)
+# --- 共通 auth_helper の認証キャッシュを利用 ---
 scope = f"{DATAVERSE_URL}/.default"
-token = credential.get_token(scope).token
-print("✅ 認証成功\n")
+token = get_token(scope)
+print("認証成功（auth_helper の共有キャッシュを利用）\n")
 
 # --- API ヘルパー ---
 BASE = f"{DATAVERSE_URL}/api/data/v9.2"
