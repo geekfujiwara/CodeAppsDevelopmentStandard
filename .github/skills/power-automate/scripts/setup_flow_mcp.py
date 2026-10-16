@@ -193,7 +193,7 @@ def check_az_login() -> bool:
 
 
 def auth_with_helper() -> None:
-    """auth_helper（PAC CLI / DeviceCode）で認証し、トークンをキャッシュに乗せる。
+    """auth_helper（PAC CLI / InteractiveBrowserCredential）で認証し、トークンをキャッシュに乗せる。
 
     - DATAVERSE_URL スコープ（Dataverse 操作用）
     - Flow API スコープ（フロー有効化・Webhook 登録用）

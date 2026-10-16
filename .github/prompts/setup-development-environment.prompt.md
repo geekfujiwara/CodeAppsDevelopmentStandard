@@ -28,7 +28,7 @@ agent: agent
 6. `npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/agents .github/agents` と `npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github/skills .github/skills` を実行し、admin スキルを含むスキル一式とエージェント定義を取得する。
 7. `python -m pip install -r .github/skills/standard/scripts/requirements.txt` を実行する。
 8. クラウド側の準備に進めるよう、`.env` に設定する `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` の値をユーザーに確認する。
-9. **認証方式はユーザーに確認せず、エージェントが順に検証してキャッシュできる方式を採用する。** まず `.env` に `AUTH_MODE=interactive` を設定し、ローカルブラウザでの**インタラクティブ認証**で `AuthenticationRecord`（認証キャッシュ）が作成できるかを検証する。失敗する、またはブラウザ操作ができない環境（ヘッドレスセッション等）では、`.env` から `AUTH_MODE=interactive` を削除（または `AUTH_MODE=device_code` に変更）し、既定の **DEVICE CODE 認証** で再試行する。どちらの方式でキャッシュに成功したかを結果として報告する。この検証は、フェーズ 2 で最初に認証が行われる前に完了させること。
+9. **認証はインタラクティブ認証を使用し、デバイス認証は行わない。** `auth_helper.py` がローカルブラウザを起動してサインインし、`AuthenticationRecord`（認証キャッシュ）を保存する。この初回認証は、フェーズ 2 で最初に認証が行われる前に完了させること。ブラウザを開けない環境では処理を中断して原因を報告し、デバイスコード認証へ切り替えない。
 
 検証コマンド:
 

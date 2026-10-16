@@ -5,7 +5,7 @@ Replaces manually copying the subscription id / resource group / Foundry project
 from the Azure or Foundry portal. Foundry is reference-only for this skill
 (see references/foundry-hosted-bot.md); the agentUser happy path does not need these values.
 Uses the same auth_helper.get_token()
-credential (DeviceCodeCredential + persistent cache) as every other script in this repo, so
+credential (InteractiveBrowserCredential + persistent cache) as every other script in this repo, so
 no separate `az login` / portal browsing is required.
 
 Discovers, in order:
@@ -31,7 +31,7 @@ from pathlib import Path
 
 import requests
 
-# Reuse the repo-wide auth_helper (DeviceCodeCredential + persistent cache).
+# Reuse the repo-wide auth_helper (InteractiveBrowserCredential + persistent cache).
 _THIS = Path(__file__).resolve()
 _STANDARD_SCRIPTS: Path | None = None
 for _parent in _THIS.parents:

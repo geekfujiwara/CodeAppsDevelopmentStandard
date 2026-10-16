@@ -27,6 +27,7 @@ import json
 import os
 import re
 import sys
+import uuid
 import zipfile
 from pathlib import Path
 
@@ -41,14 +42,8 @@ DEFAULT_ICON = "assets/agent-icon.png"
 BACKGROUND_TOLERANCE = 16
 
 # Per-install agent instances (each with their own Entra Agent ID) require an
-# Agent 365 blueprint. Without it the package can only be published as a single
-# shared agent, which needs the GA schema because the agentic-user properties
-# exist in devPreview only.
+# Agent 365 blueprint. Missing template prerequisites must never downgrade the package.
 A365_BLUEPRINT_VAR = "A365_AGENT_BLUEPRINT_ID"
-SHARED_MANIFEST_VERSION = "1.22"
-SHARED_MANIFEST_SCHEMA = (
-    "https://developer.microsoft.com/json-schemas/teams/v1.22/MicrosoftTeams.schema.json"
-)
 
 
 def load_env(path: Path) -> None:
@@ -168,14 +163,33 @@ def assert_supports_files(manifest: dict) -> None:
             )
 
 
-def downgrade_to_shared_agent(manifest: dict) -> None:
-    """Strip the Agent 365 instantiation nodes so the app installs as one shared agent."""
-    manifest["$schema"] = SHARED_MANIFEST_SCHEMA
-    manifest["manifestVersion"] = SHARED_MANIFEST_VERSION
-    manifest.pop("agenticUserTemplates", None)
-    for agent in manifest.get("copilotAgents", {}).get("customEngineAgents", []):
-        agent.pop("functionsAs", None)
-        agent.pop("agenticUserTemplateId", None)
+def assert_agent_template(manifest: dict, blueprint: str) -> dict:
+    """Fail before writing a ZIP instead of silently producing an ordinary shared agent."""
+    try:
+        parsed = uuid.UUID(blueprint)
+    except ValueError as exc:
+        raise SystemExit(f"{A365_BLUEPRINT_VAR} must be a valid blueprint GUID.") from exc
+    if parsed.int == 0:
+        raise SystemExit(f"{A365_BLUEPRINT_VAR} must not be the zero GUID.")
+    templates = manifest.get("agenticUserTemplates")
+    if (
+        manifest.get("manifestVersion") != "devPreview"
+        or not isinstance(templates, list)
+        or len(templates) != 1
+        or not isinstance(templates[0], dict)
+        or not templates[0].get("id")
+        or not templates[0].get("file")
+    ):
+        raise SystemExit("An Agent template requires devPreview and one agenticUserTemplates entry.")
+    template = templates[0]
+    agents = (manifest.get("copilotAgents") or {}).get("customEngineAgents") or []
+    if not agents or any(
+        agent.get("agenticUserTemplateId") != template["id"]
+        or agent.get("functionsAs") != "agenticUserOnly"
+        for agent in agents
+    ):
+        raise SystemExit("customEngineAgents must reference the Agent template id with functionsAs=agenticUserOnly.")
+    return template
 
 
 def main() -> int:
@@ -192,10 +206,8 @@ def main() -> int:
         "--require-template",
         action="store_true",
         help=(
-            f"Fail instead of silently downgrading when {A365_BLUEPRINT_VAR} is "
-            "missing. Use this whenever the goal is an Agent template (M365 admin "
-            "center 'Agent template' badge), so a non-template shared-agent package "
-            "can never be built or published by mistake."
+            "Compatibility flag: Agent template validation is now always required. "
+            "Shared-agent downgrade is not supported."
         ),
     )
     parser.add_argument(
@@ -209,6 +221,13 @@ def main() -> int:
     args = parser.parse_args()
 
     load_env(Path(args.env))
+    blueprint = (os.environ.get(A365_BLUEPRINT_VAR) or "").strip()
+    if not blueprint:
+        raise SystemExit(
+            f"{A365_BLUEPRINT_VAR} is required. No shared-agent package will be built. "
+            "For Foundry Autopilot use publish_foundry_autopilot.py; "
+            "for self-hosted Agent templates complete the blueprint setup first."
+        )
 
     template_path = Path(args.template)
     icon = resolve_icon(args.icon)
@@ -220,6 +239,7 @@ def main() -> int:
 
     manifest_text = render(template_path.read_text(encoding="utf-8"))
     manifest = json.loads(manifest_text)
+    template_ref = assert_agent_template(manifest, blueprint)
 
     if not args.allow_no_files:
         assert_supports_files(manifest)
@@ -230,30 +250,19 @@ def main() -> int:
     # Agent 365 provisions a per-install agent instance (its own Entra Agent ID)
     # only when the package carries the agentic user template referenced here.
     extra_files: dict[str, bytes] = {}
-    if not os.environ.get(A365_BLUEPRINT_VAR):
-        if args.require_template:
-            raise SystemExit(
-                f"{A365_BLUEPRINT_VAR} is not set, so this package would install as a "
-                "SHARED agent, not an Agent template. Run 'a365 setup blueprint' first "
-                f"(Step 6), set {A365_BLUEPRINT_VAR} in .env, then re-run with "
-                "--require-template."
-            )
-        print(
-            f"WARNING: {A365_BLUEPRINT_VAR} is not set - building a SHARED agent "
-            "package. Installing it does not create a per-install agent instance.\n"
-            "         Run 'a365 setup blueprint' to obtain the Agent 365 blueprint "
-            f"GUID, then set {A365_BLUEPRINT_VAR}.",
-            file=sys.stderr,
-        )
-        downgrade_to_shared_agent(manifest)
-        manifest_text = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
-
-    for ref in manifest.get("agenticUserTemplates", []):
+    for ref in (template_ref,):
         agentic_path = Path(args.agentic_user_template)
         if not agentic_path.is_file():
             raise SystemExit(f"Agentic user template not found: {agentic_path}")
         agentic_text = render(agentic_path.read_text(encoding="utf-8"))
         agentic = json.loads(agentic_text)
+        if agentic.get("agentIdentityBlueprintId") != blueprint:
+            raise SystemExit("agentIdentityBlueprintId must match A365_AGENT_BLUEPRINT_ID.")
+        if (
+            agentic.get("schemaVersion") != "0.1.0-preview"
+            or agentic.get("communicationProtocol") != "activityProtocol"
+        ):
+            raise SystemExit("The agentic user template requires schemaVersion=0.1.0-preview and activityProtocol.")
         if agentic["id"] != ref["id"]:
             raise SystemExit(
                 f"agenticUserTemplates id '{ref['id']}' does not match "
@@ -276,7 +285,7 @@ def main() -> int:
     print(f"  outline icon : {outline_name} ({OUTLINE_SIZE}x{OUTLINE_SIZE}) from {icon}")
     for name in extra_files:
         print(f"  agentic user : {name}")
-    print("  mode         : " + ("per-install agent instance" if extra_files else "shared agent"))
+    print("  mode         : Agent template (per-install agent instance)")
     print("Bump TEAMS_APP_VERSION in .env before every re-upload.")
     return 0
 

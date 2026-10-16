@@ -129,34 +129,37 @@ BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Copilot Studio Bot ID（URL で�
 | `SOLUTION_NAME`    | ソリューション一意名           | 全フェーズ                 |
 | `PUBLISHER_PREFIX` | テーブル・列のプレフィックス   | 全フェーズ                 |
 | `PAC_AUTH_PROFILE` | PAC CLI の認証プロファイル名   | Phase 6 (Code Apps)        |
-| `AUTH_MODE`        | 認証方式（`device_code` 既定 / `interactive`） | 全フェーズ（条件付きアクセスでデバイスコードがブロックされる場合） |
 | `ADMIN_EMAIL`      | フロー通知先メール             | Phase 5 (Power Automate)   |
 | `BOT_ID`           | Copilot Studio Bot ID or URL   | Phase 7 (Copilot Studio)   |
 
 ### 共通認証: auth_helper.py
 
 `./auth_helper.py` が全デプロイスクリプトの認証を一元管理する。
-**同一マシン上では、どのプロジェクトでもデバイスコード認証は最初の1回だけ**で済む 2 層キャッシュ構成。
+**同一マシン上では、どのプロジェクトでもインタラクティブ認証は最初の1回だけ**で済む 2 層キャッシュ構成。
 
 ```
 層1: AuthenticationRecord (~/.power-platform-cli/auth_record_{TENANT_ID}.json)
   - アカウント情報（テナント・ユーザー ID）を保存
   - ホームディレクトリ配下の固定パスに永続化（プロジェクトフォルダに依存しない）
-  - そのため、別プロジェクトを新規に開いても再度デバイスコード認証を求められない
+  - そのため、別プロジェクトを新規に開いても再度ブラウザ認証を求められない
 
 層2: TokenCachePersistenceOptions (MSAL OS 資格情報ストア)
   - リフレッシュトークン・アクセストークンを永続化（同一マシンで共有）
-  - サイレントリフレッシュでデバイスコード不要
+  - サイレントリフレッシュで再認証不要
 
-初回（このマシンで最初の1回のみ）: DeviceCodeCredential → ブラウザで認証 → グローバルキャッシュに保存
+初回（このマシンで最初の1回のみ）: InteractiveBrowserCredential → ブラウザで認証 → グローバルキャッシュに保存
 2回目以降（別プロジェクトでも）: キャッシュから自動取得（認証プロンプトなし）
 テナント/アカウント切替時のみ: ~/.power-platform-cli/auth_record.json を削除して再認証
 ```
 
-条件付きアクセスポリシーでデバイスコード認証（AADSTS50199 等）がブロックされているテナントでは、
-`.env` に `AUTH_MODE=interactive` を設定するとローカルブラウザでのインタラクティブ認証
-（`InteractiveBrowserCredential`）に切り替わる（既定は `AUTH_MODE=device_code`）。
-キャッシュの仕組みは共通のため、モードを切り替えても初回のみ再認証すればよい。
+PAC CLI プロファイルでトークンを取得できない場合は、ローカルブラウザでのインタラクティブ認証
+（`InteractiveBrowserCredential`）を使用する。デバイスコード認証は行わず、初回の認証後はキャッシュから
+サイレントにトークンを取得する。
+初期セットアップで tenant/client ID ごとにインタラクティブ認証を 1 回行い、
+`AuthenticationRecord` をホームディレクトリの JSON に保存する。トークン自体は JSON に含めず、
+OS 資格情報ストアに保存する。以後のスキルは共通 `auth_helper.py` からキャッシュを再利用し、
+個別の認証フローやプロジェクト内の認証 JSON を作らない。
+Foundry 上で動作するエージェント本体の Managed Identity など、実行環境固有の資格情報はこのローカル開発者認証の共有対象外とする。
 
 認証の公開 API・パターンの詳細実装は [認証リファレンス](references/auth-patterns.md) を参照。
 
@@ -180,7 +183,7 @@ Phase 1（設計）の最初に必ず `architecture` を参照し、IT に詳し
 | テーマ | 内容 |
 |---|---|
 | インタラクティブセットアップ | PAC CLI + Dataverse API で `.env` を対話的に構成。環境選択・パブリッシャー/ソリューション選択を AskUserQuestion で進行。詳細は [インタラクティブ環境セットアップ](references/interactive-setup.md) |
-| 共通認証 | `auth_helper.py` による 2 層キャッシュ認証（デバイスコードを繰り返さない）。詳細は [認証リファレンス](references/auth-patterns.md) |
+| 共通認証 | `auth_helper.py` による 2 層キャッシュ付きインタラクティブ認証。詳細は [認証リファレンス](references/auth-patterns.md) |
 | 環境チェック・DLP 事前チェック | **設計確定後・実装着手前に必ず実行**。`admin` スキルの `check_environment.py`（既定環境 / マネージド環境 / Dataverse / Code Apps / MCP / セキュリティ ロール）と `check_dlp.py`（コネクタの利用可否）を実行する。詳細は [admin スキル](../admin/SKILL.md) |
 | コネクタ ID の解決 | コネクタ ID（`shared_xxx`）を対話プロンプトで聞かずに確定させる。`scripts/connector_catalog.py --resolve sharepoint` で `shared_sharepointonline` を得る。Code Apps のデータソース追加は [`add_data_source.py`](../code-apps/scripts/add_data_source.py) がこれを使って非対話で完走する |
 | Azure リソース操作 | `scripts/azure_helper.py`（ARM / Graph / Azure SQL / 自前 API）。**`az login` 前提の手順は書かない** — 対話が必要でテナント列挙のハングやセッション失効により非対話完走が崩れるため |

@@ -14,7 +14,7 @@ Cowork の画面を使わずに、プラグインの SKILL.md（指示）と使�
                  既定は書き込み系ツール（create_record など）を送らずに止める。--allow-write で実際に登録する
 
 生成 AI は Azure OpenAI（.env の AOAI_RESOURCE_NAME / AOAI_DEPLOYMENT）を利用者のトークンで呼ぶ。
-初回だけ、リハーサル用クライアントのサインインが要る（AUTH_MODE=interactive ならブラウザの SSO で通る）。
+初回だけ、リハーサル用クライアントのサインインが要る。auth_helper はローカルブラウザーでインタラクティブ認証を行い、デバイスコード認証は使わない。
 ツールの結果（業務データ）は指示として扱わないよう、システム プロンプトで明示する。
 
 例:

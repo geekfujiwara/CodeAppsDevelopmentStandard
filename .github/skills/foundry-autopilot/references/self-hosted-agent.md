@@ -1,9 +1,15 @@
-# 自己ホスト エージェント（agentUser チャットを動かす唯一の構成）
+# 自己ホスト エージェント（明示選択時の agentUser チャット構成）
 
 Agent 365 の agentUser（同僚アイデンティティ）が Teams で**実際に応答する**ための構成。
 2026-08-04 に実機で疎通確認済み。
 
-> Foundry ホストの `activityprotocol` エンドポイントでは**動かない**。
+**本書は自己ホスト要件が明示された場合の別経路**であり、Foundry Autopilot の前提不足時の
+自動フォールバックではない。AI teammate / AIチームメイトの既定および明示的な
+Foundry Autopilot 要求は [foundry-autopilot.md](foundry-autopilot.md) を使う。
+Autopilot も Agent template の採用で agentUser を持てる。前提が不足したら停止し、経路変更は明示的に合意する。
+
+> Foundry ホストの `activityprotocol` エンドポイントを **Azure Bot に直結する旧方式では動かない**。
+> これは Foundry Autopilot の発行経路とは別物。
 > Agent 365 が送るトークンは `aud` = ブループリント appId / `azp` =
 > `5a807f24-c9de-44ee-a3a7-329e88a00ffc` で、Foundry 側はこれを
 > 401 `Error parsing client JWT` で拒否し、受理 audience を変更する手段が無い。

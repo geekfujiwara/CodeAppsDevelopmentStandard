@@ -66,6 +66,23 @@ def base_decisions(**overrides: object) -> dict[str, object]:
     return decisions
 
 
+class FoundryDeployScriptTests(unittest.TestCase):
+    def test_default_is_full_publish_and_container_only_requires_confirmation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            scaffold_ai_teammate.write_deploy_script(target, target / "src" / "teammate")
+            script = (target / "deploy.ps1").read_text(encoding="utf-8")
+        self.assertIn(
+            '$mode = if ($ContainerOnly) { @("--execute", "--container-only", '
+            '"--confirm-existing-template", "--recycle-sessions") } else '
+            '{ @("--execute", "--bump-version") }',
+            script,
+        )
+        self.assertIn("if ($ContainerOnly -ne $ConfirmExistingTemplate)", script)
+        self.assertLess(script.index("if ($ContainerOnly"), script.index("az acr build"))
+        self.assertIn("Verify Type=Agent template", script)
+
+
 class HostingTests(unittest.TestCase):
     def test_default_hosting_is_foundry_autopilot(self) -> None:
         decisions = base_decisions()

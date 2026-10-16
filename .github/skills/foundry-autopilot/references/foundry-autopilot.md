@@ -17,23 +17,29 @@ Foundry の**ホスト エージェント**（コンテナー）を **Autopilot*
 | Azure Bot リソース | 自分で作る | 不要（発行時に Foundry 側が構成） |
 | M365 ツール | Graph を自分で叩く | **Agent 365 の MCP サーバー**（Mail / Calendar / Teams / Word / Excel / OneDrive）を委任トークンで利用 |
 | スケール・面倒 | 自分で見る | Foundry が見る |
-| 前提 | Agent 365 ライセンス | Agent 365 ライセンス + **Frontier preview** |
+| 前提 | Agent 365 の開発者・管理者要件 | **Microsoft 365 Frontier for Autopilot** を採用した agent user に割り当てる |
 | 向き | 機能ブロック B1〜B17 をフルに作り込む | **素早く「自分のアカウントを持つ同僚」を立てる**、M365 標準ツール中心 |
 
-どちらを選んでも agentUser は手に入る。**作り込みの自由度が要るなら自己ホスト、
-M365 の標準ツールで足りるなら Autopilot** が速い。
+AI teammate / AIチームメイト / AI チームメイトの既定は **Foundry Autopilot**。
+自己ホストは、独自ランタイム等の**明示的な自己ホスト要件**に応じる別経路としてサポートする。
+明示的な Agent Template / Foundry Autopilot 要求を、通常 Agent や自己ホストへ黙って代替しない。
+前提不足なら停止し、不足・担当者・必要な対応を報告する。経路変更には利用者の明示的な合意が必要。
 
 ## 2. 前提（欠けていると必ず途中で失敗する）
 
 | 前提 | 確認方法 |
 |---|---|
 | Frontier preview program に登録済み | M365 管理センター |
-| Agent 365 のライセンス席に空きがある（**1 インスタンス = 1 席**） | `scripts/publish_foundry_autopilot.py --check` |
+| 採用後、agent user に Microsoft 365 Frontier for Autopilot を割り当てる担当者がいる | `License Administrator` |
 | 承認できる管理者がいる（`Global Administrator` または `AI Administrator`） | 事前確認の質問 5 |
 | サブスクリプション / RG で `Owner`（または `Contributor` + `Role Based Access Control Administrator`） | `az role assignment list` |
 | Foundry アカウントが hosted agents 対応リージョンにある | [Learn: hosted agent quickstart](https://learn.microsoft.com/azure/foundry/agents/quickstarts/quickstart-hosted-agent) |
 
 Docker は**不要**。イメージは ACR Tasks（`az acr build`）でクラウド ビルドする。
+
+前提が不足または未確認のまま発行しない。`--check` が成功しても、プレビュー参加・ライセンス・
+管理者承認など UI / 担当者による確認が必要な前提を満たしたことにはならない。
+確認できなければ停止し、通常 Agent のデプロイや自己ホストで成功扱いにしない。
 
 ## 3. 経路の全体像
 
@@ -47,7 +53,12 @@ Foundry project
 ```
 
 3-1〜3-3 は [`scripts/publish_foundry_autopilot.py`](../scripts/publish_foundry_autopilot.py) が行う。
-3-4・3-5 は管理センター / Teams の UI 操作（下記 §6）。
+管理センターでの承認と Teams での採用は UI 操作（下記 §6）。
+
+**Autopilot の発行には `publish_foundry_autopilot.py` を必ず使う。**
+汎用 `scripts/deploy.py` や SDK `agents.create_version` の実行だけでは M365 Agent template の発行にならない。
+作成・発行する **同じ agent version** の `digital_worker_type=m365` と `blueprint.client_id` を記録し、
+下記 publish のテンプレート指定と突き合わせる。
 
 ### 3-1. agent version を作る
 
@@ -87,7 +98,7 @@ Foundry-Features: DigitalWorker=V1Preview
 | 応答フィールド | 用途 |
 |---|---|
 | `instance_identity.client_id` | この principal に **Foundry User** ロールを与える（3-2 の前に必須） |
-| `blueprint.client_id` | 管理センターの承認要求と突き合わせる |
+| `blueprint.client_id` | **この同じ version** の値を publish の `agenticUserTemplate.AgentIdentityBlueprintId` に設定し、管理センターの承認要求と突き合わせる |
 | `blueprint_reference.blueprint_id` | 同上 |
 
 ### 3-2. `BotServiceRbac` を PATCH する
@@ -133,8 +144,11 @@ POST {FOUNDRY_PROJECT_ENDPOINT}/agents/{AGENT_NAME}/microsoft365/publish?api-ver
 }
 ```
 
-`publishAsAutopilot: true` と **`useAgenticUserTemplate` / `agenticUserTemplate`** が
+`digital_worker_type=m365` で作った **同じ agent version** に対して、
+`publishAsAutopilot: true` と **`useAgenticUserTemplate: true` / `agenticUserTemplate`** が
 **agentUser を持つ「デジタルな同僚」（Agent template）**にする指定。
+`agenticUserTemplate.AgentIdentityBlueprintId` は **その version の応答の `blueprint.client_id` と一致必須**。
+別 version・別エージェント・Bot / Teams app の ID を流用せず、一致を確認できなければ発行を止める。
 後者が無いと発行は 200 になるのに Agent template にならず、採用できない（→ [troubleshooting.md](troubleshooting.md) #91）。
 > **`accessBoundaries` は実質必須**。省くと publish 自体は 200 を返すのに、Teams から話しかけても
 > 無応答になり、コンテナー ログに
@@ -143,6 +157,9 @@ POST {FOUNDRY_PROJECT_ENDPOINT}/agents/{AGENT_NAME}/microsoft365/publish?api-ver
 > そのまま使うと必ず踏む（→ [troubleshooting.md](troubleshooting.md) #74）。
 
 応答の `teamsAppId` / `titleId` を控える。成功しても**まだ誰も使えない**（承認待ち）。
+**HTTP 200 / 通常 Registry 行 / Teams app ID だけでは Agent template の成立や完了を証明しない。**
+§6 の Requests の **Type = Agent template** と、承認後の **Agents for your team** からの hire を
+手動で確認するまで未完了として扱う。
 
 ### 3-4. インスタンス ID のサービス プリンシパルを有効化する
 
@@ -193,6 +210,16 @@ python .github/skills/foundry-autopilot/scripts/publish_foundry_autopilot.py --e
 python .github/skills/foundry-autopilot/scripts/publish_foundry_autopilot.py
 ```
 
+**`--container-only` は既存の検証済み Agent template のコード更新専用。**
+Requests の Type と Agents for your team からの hire を確認済みのテンプレートだけが対象で、
+初回発行・テンプレート未確認・通常 Agent しか無い状態の修復には使わない。
+実行時には `--confirm-existing-template` の明示指定も必要。これは管理画面での確認済み宣言であり、
+スクリプトが Type を自動検証したことにはならない。既存 version が無い場合も変更前に停止する。
+生成される `deploy.ps1` の既定動作は完全な Autopilot 発行であり、コードだけの更新は
+`-ContainerOnly -ConfirmExistingTemplate` を明示する。
+これらは §3 の完全な発行（`digital_worker_type=m365` と同じ version の blueprint による
+テンプレート publish）および §6 の UI 確認が必要。
+
 `--check` は `IMAGE_MODEL_DEPLOYMENT` が指すデプロイメントの実在と
 `provisioningState` まで見る。無ければ発行を止める。ここで止めないと、
 発行は成功したのに Teams で「画像は作れません」と返るだけの状態になり、
@@ -209,13 +236,17 @@ python .github/skills/foundry-autopilot/scripts/publish_foundry_autopilot.py
 
 1. **承認と公開**: M365 管理センター → **エージェント** → **すべてのエージェント** → **Requests**
    （`https://admin.cloud.microsoft/#/agents/all/requested`）。対象は表示名の行で、
-   「This agent template has 0 instances」・状態 `Pending activate`・Request type `Publish` になっている。
+   **Type = Agent template** を手動で確認する。
+   「This agent template has 0 instances」・状態 `Pending activate`・Request type `Publish` も確認する
+   （**Request type = Publish と Type = Agent template は別項目**）。
+   通常 Agent しか無い・Type が違う・確認できない場合は停止し、発行契約を調べる。
+   `--container-only` で修復したり、その通常行を公開して代替したりしない。
    行を開いて **Publish** ウィザードを進める（検証済 2026-09-25）。
 
    | 画面 | 操作 |
    |---|---|
    | Publish to users | ホスト（Copilot / Teams）と公開対象を確認。**Activate**（誰が採用できるか）は `All users` か対象のユーザー / グループ |
-   | Apply template | ポリシー テンプレートを選ぶ（既定の Microsoft ポリシーでよい）。残りライセンス数もここで見える |
+   | Apply template | ポリシー テンプレートを選ぶ（既定の Microsoft ポリシーでよい） |
    | Accept permissions | §4 の MCP スコープを確認して **Grant admin consent** |
    | Review and finish | **Publish** |
 
@@ -223,9 +254,10 @@ python .github/skills/foundry-autopilot/scripts/publish_foundry_autopilot.py
      公開対象と同意の範囲は事前確認の質問 5 の担当者に確認してから進める。
    - 統合ブラウザーで操作するときは、最初に AskUserQuestion で使う Edge プロファイルを確認する。
      背面のタブのままではクリックが届かないので、画面を前面に出してから操作する。
-   - **読み戻し**: 管理センターのセッションで `GET /fd/addins/api/agents` を読み、`titleId` が発行応答と同じ行が
+   - **補助的な読み戻し**: 管理センターのセッションで `GET /fd/addins/api/agents` を読み、`titleId` が発行応答と同じ行が
      `isDigitalWorker=true`・`isActivated=true`・`publishedStatus=Active`・`allowedUsersCategory`（`Everyone` など）に
-     なっていれば完了。後から公開対象だけ変えるときは §6-1 の API。
+     なっていることを確認する。**これだけで完了にせず、Requests の Type の手動確認と下記 hire を必須にする。**
+     未確認の read-back API を推測・新設して代用しない。後から公開対象だけ変えるときは §6-1 の API。
    - **Registry には同じエージェントが 2 行並ぶ。** 表示名の行（Agent template）と、Foundry が自動で登録する
      `AGENT_NAME` の行（通常のエージェント、Not shared）。後者は template の裏にある Foundry エージェントそのものなので
      **Foundry のエージェントを削除してはいけない**（template も止まる）。**Block もしない**。この行はコンテナが使う
@@ -239,7 +271,14 @@ python .github/skills/foundry-autopilot/scripts/publish_foundry_autopilot.py
      「Classic Teams is no longer available」になり、Microsoft 365 Copilot web もサインインで止まるため自動化できない。
    - 払い出しの確認は Graph の `$search="displayName:<名前>"`（`ConsistencyLevel: eventual`）で `users` に
      agent user が現れるかを見る。以降の Step（スコープ付与・写真）はその UPN で進める。
-3. **採用後の設定**（インスタンスごと。作り直したらやり直す）。1 本のスクリプトで全部行う。
+   - **完了証跡**として Requests の Type、承認結果、Agents for your team からの hire と agent user の払い出しを記録する。
+     UI を確認できない／採用を実施できないなら「承認待ち／採用待ち」と報告し、完了とは言わない。
+     登録までの依頼では Type 確認後も「登録済み・採用未確認」と範囲を限定する。
+3. **ライセンス割り当て**: 払い出された agent user に、Microsoft 365 管理センターまたは Entra 管理センターから
+   **Microsoft 365 Frontier for Autopilot** を割り当てる。割り当て先は agent user（人間の管理者や sponsor ではない）。
+   `Agent 365` SKU の空席は確認・割り当てしない。実行担当は `License Administrator` とし、
+   割り当て完了を確認してから次の採用後設定へ進む。
+4. **採用後の設定**（インスタンスごと。作り直したらやり直す）。1 本のスクリプトで全部行う。
 
    ```powershell
    $s = ".github/skills/foundry-autopilot/scripts"
@@ -342,8 +381,11 @@ RUN python -m copilot download-runtime
 > プラットフォーム予約で、agent version の作成が `invalid_payload` で 400 になる
 > （[troubleshooting.md](troubleshooting.md) #73）。切り替えフラグの名前もこれを避ける。
 
-差し替え後は**新しい agent version を作るだけ**でよい。`agent_endpoint.version_selector` は
-既定で `@latest` に 100% 流すので、再発行（`microsoft365/publish`）は要らない。
+**既存の検証済み Agent template のコード差し替えだけ**なら、
+`publish_foundry_autopilot.py --execute --container-only --confirm-existing-template --recycle-sessions --env <.env>` を使える。
+`agent_endpoint.version_selector` は既定で `@latest` に流すが、既存チャットのセッションは
+作成時の version に固定されるため作り直す（troubleshooting.md #83）。
+初回発行や通常 Agent の修復は version 作成だけで済ませず、§3 の完全な発行と §6 の UI 検証を行う。
 
 ## 9. scaffold で一気に用意する（`hosting: "foundry-autopilot"`）
 

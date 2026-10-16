@@ -1680,7 +1680,9 @@ eval_run = {
 
 **恒久対策済み（2026-09-21）**: `publish_foundry_autopilot.py` は PATCH の前に
 `GET /agents/{name}` して `BotServiceRbac` が既にあればスキップする。あわせて
-`--container-only` を追加した。コード修正だけを反映したいときはこれを使う。
+`--container-only` を追加した。M365 管理センターの Type = Agent template と採用可能な状態を
+確認済みの既存テンプレートのコード修正だけに使い、`--confirm-existing-template` も明示する。
+初回公開・通常 Agent しか無い状態・Type 未確認の状態では使わず、完全な Autopilot 発行を行う。
 
 ```powershell
 $tag = Get-Date -Format yyyyMMddHHmmss   # 同じタグだと version が作られない（#83）
@@ -1688,7 +1690,7 @@ cd autopilot/src/hello_world_a365_agent
 az acr build --registry <acr> --image "<image>:$tag" --file foundry-infra/Dockerfile .
 cd ../../..
 $env:AGENT_IMAGE_TAG = $tag
-python .github/skills/foundry-autopilot/scripts/publish_foundry_autopilot.py --execute --container-only --recycle-sessions
+python .github/skills/foundry-autopilot/scripts/publish_foundry_autopilot.py --execute --container-only --confirm-existing-template --recycle-sessions
 ```
 
 M365 への再発行（`appVersion` の +1 と再承認）は不要。ただし**既存のチャットは作成時の
@@ -2060,7 +2062,8 @@ AppTraces | where TimeGenerated > ago(4d)
 
    **古いセッションを削除する**と、次のメッセージで同じ ID のセッションが最新 version で作り直される。
    Teams 側のチャット履歴は消えない（消えるのはセッションの `$HOME`＝ SDK の会話メモリと一時ファイル）。
-   `publish_foundry_autopilot.py --container-only --recycle-sessions` がこれを行う。
+   確認済みの既存 Agent template に対する
+   `publish_foundry_autopilot.py --execute --container-only --confirm-existing-template --recycle-sessions` がこれを行う。
    付けなければ、残っているセッションの件数と固定先の version を表示するだけにとどめる。
 
 2. **同じ定義は重複排除される**。イメージを `:latest` のまま作り直しても version の本文が
@@ -2451,4 +2454,3 @@ Foundry Autopilot のテンプレートにはこれに当たる処理が無か�
 `clean_acknowledgement()` が `NONE` を「送らない」に変える。相手の文の引用も禁止した。
 回帰テストは前置きもテストのターンに含めて記録し、「雑談に前置きを付けない」ケースで検査する。
 続けて利用者のメッセージも同じエラーになる場合だけ、その利用者のロール（[foundry-autopilot.md](foundry-autopilot.md) §6-1）を確認する。
-

@@ -1,6 +1,6 @@
 """Entra OAuth クライアントアプリを Microsoft Graph API 経由で作成する（汎用）。
 
-auth_helper.py の認証キャッシュを利用するため、az CLI のデバイスコード認証が不要。
+standard の auth_helper.py が共有するブラウザー認証キャッシュを利用するため、az CLI で別途サインインする必要がない。
 Cowork プラグイン用の OAuth 2.0 認可コードフロー クライアントを作成し、
 委任権限（既定: Dynamics CRM の mcp.tools / --api-audience 指定時は自前 MCP Server の API スコープ）を
 付与し、クライアントシークレットを .env に保存する。
@@ -29,8 +29,8 @@ Cowork プラグイン用の OAuth 2.0 認可コードフロー クライアン�
 
 教訓:
   元々は az CLI (setup_entra_oauth.ps1) で Entra アプリを作成していたが、
-  auth_helper.py で既にキャッシュ済みの認証情報があるのに毎回 az login の
-  デバイスコード認証を求められる問題があった。
+  auth_helper.py で既にキャッシュ済みの認証情報があるのに毎回 az login を
+  求められる問題があった。
   auth_helper.py の get_token(scope="https://graph.microsoft.com/.default") で
   Microsoft Graph API を直接呼ぶことで、追加の認証なしで Entra アプリ操作が可能になった。
 """

@@ -70,9 +70,9 @@ auth_helper のクライアントで Developer Portal 向けのトークンを�
 | 既定（Azure CLI 互換） | トークンは出る（`scp=user_impersonation`）が、`/cosmicprodamer/v1.0/oauthconfigurations` は 401、`/api/v1.0/oauthConfigurations` は 403 |
 | PAC CLI `9cee029c-…` | `AADSTS65002`（Developer Portal が事前承認していない） |
 | Graph PowerShell `14d82eec-…` | `AADSTS650057`（Graph 以外のリソースは要求できない） |
-| **Agents Toolkit `7ea7c24c-…`**（スコープ `https://dev.teams.microsoft.com/AppDefinitions.ReadWrite`） | **Device Code で取得でき（`scp=AppDefinitions.ReadWrite Cards.ReadWrite`）、`/api/v1.0/oauthConfigurations` の一覧・作成・読み戻しが 200**。`/cosmicprodamer/...` は 403。`AUTH_MODE=interactive` は `AADSTS70007` |
+| **Agents Toolkit `7ea7c24c-…`**（スコープ `https://dev.teams.microsoft.com/AppDefinitions.ReadWrite`） | `/api/v1.0/oauthConfigurations` の一覧・作成・読み戻しが 200（`/cosmicprodamer/...` は 403）。この専用クライアントでブラウザー認証が `AADSTS70007` になる環境では、デバイスコード認証へ切り替えず、この自動化経路を使用しない |
 
-拒否されたクライアントで再試行しても結果は変わらない。OAuth registration は Agents Toolkit クライアントでの CLI 送信を正常系にする。
+拒否されたクライアントで再試行しても結果は変わらない。OAuth registration は、Agents Toolkit クライアントでの CLI 送信が許可されている環境でのみ行う。ブラウザー認証が成立しない場合はデバイスコードで回避しない。
 同じクライアントで M365 Title サービス（`https://titles.prod.mos.microsoft.com/.default`、トークンは暗号化 JWE で中身は読めない）も
 サイレントに取れ、個人インストール（`/dev/v1/users/packages` → `/acquisitions` → `/status/{id}` → `/catalog/v1/users/titles/{titleId}/launchInfo`）
 と取り消し（`DELETE /catalog/v1/users/acquisitions/{titleId}`）が成功する（2026-10-03 実測）。

@@ -1,6 +1,6 @@
 """Azure Storage 静的 Web サイトへ外部公開サイトをデプロイする（汎用）。
 
-認証は standard スキルの auth_helper（DeviceCode / PAC プロファイル）を利用し、
+認証は standard スキルの auth_helper（インタラクティブブラウザー認証 / PAC プロファイル）を利用し、
 `az login` / az CLI は不要。ARM（コントロールプレーン）でリソースグループと
 ストレージアカウントを冪等に作成し、データプレーンは **Entra（AAD）認証** で
 アップロードする（組織の Azure Policy が共有キー認証・公開 BLOB アクセスを

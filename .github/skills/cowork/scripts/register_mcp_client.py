@@ -5,7 +5,7 @@ Cowork プラグインを OAuth 2.0 認可コードフローで動かす場合�
 `allowedmcpclients` テーブルに登録して有効化しないと、認証は通ってもデータ取得で失敗する。
 
 このスクリプトは汎用で、どのテナント／環境でも動く。値は引数または環境変数(.env)から取る。
-認証は standard スキルの auth_helper（DeviceCodeCredential + 永続キャッシュ）を再利用する。
+認証は standard スキルの auth_helper（InteractiveBrowserCredential + 永続キャッシュ）を再利用する。
 
 前提:
   - リポジトリルートの .env に DATAVERSE_URL / TENANT_ID（auth_helper が参照）。

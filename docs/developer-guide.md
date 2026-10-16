@@ -70,7 +70,7 @@ VS Code をインストールすると **GitHub Copilot 拡張機能は最初か
 python -m pip install -r .github/skills/standard/scripts/requirements.txt
 ```
 
-導入されるのは `azure-identity` / `python-dotenv` / `requests` の 3 つだけです。統合プロンプトのフェーズ 1 を実行済みなら、`.env` の設定と初回認証（インタラクティブ→DEVICE CODE の順で自動検証）もすでに完了しています。
+導入されるのは `azure-identity` / `python-dotenv` / `requests` の 3 つだけです。統合プロンプトのフェーズ 1 を実行済みなら、`.env` の設定と初回のインタラクティブ認証もすでに完了しています。
 
 <details>
 <summary>認証キャッシュの仕組みと手動設定の詳細を表示</summary>
@@ -78,8 +78,7 @@ python -m pip install -r .github/skills/standard/scripts/requirements.txt
 - `.env` に **`TENANT_ID`** を設定します。認証キャッシュはテナントごとに
   `~/.power-platform-cli/auth_record_{TENANT_ID}.json` へ分離保存されるため、複数テナントを行き来しても再認証は最小限で済みます。
 - 環境 ID を使うスクリプト（DLP 事前チェックなど）では **`ENV_ID`** も設定します。
-- **初回の認証キャッシュは、ユーザーに確認せず自動で検証します。** まず `.env` に `AUTH_MODE=interactive` を設定してローカルブラウザでの**インタラクティブ認証**を試し、キャッシュ（`AuthenticationRecord`）が作成できるか確認します。ブラウザ操作ができない環境などで失敗した場合は、`AUTH_MODE=interactive` を削除（または `AUTH_MODE=device_code` に変更）し、既定の **DEVICE CODE 認証**（表示されたコードを別のデバイス／ブラウザで入力する方式）にフォールバックします。
-  - どちらの方式でキャッシュされても、**初回のみ**認証画面が表示されます。以降はキャッシュからサイレントに認証され、スクリプトは非対話で完走します。
+- **初回の認証キャッシュはインタラクティブ認証で作成します。** `auth_helper.py` がローカルブラウザを起動し、サインイン後にキャッシュ（`AuthenticationRecord`）を保存します。デバイスコード認証へのフォールバックは行いません。以降はキャッシュからサイレントに認証され、スクリプトは非対話で完走します。
   毎回認証を求められる場合は、`.env` の `TENANT_ID` が未設定でないかを確認してください。
 
 > [!NOTE]

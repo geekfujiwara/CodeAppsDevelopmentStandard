@@ -293,12 +293,8 @@ python .github/skills/code-apps/scripts/configure_code_app_csp.py `
 の委任アクセス許可を要求し、`auth_helper` の既定クライアント（Azure CLI 互換）や `az account get-access-token`
 では `403 InsufficientDelegatedPermissions` になる。スクリプトは 403 を検出したら Power Platform CLI の
 パブリック クライアント（`9cee029c-6210-4654-90bb-17e6e9d36617`）へ自動フォールバックする。
-そのクライアントの認証キャッシュが無い初回だけ、`AUTH_MODE=interactive` を付けてブラウザ SSO で通すと
-デバイスコード入力待ちで止まらない（→ [認証パターン](../../standard/references/auth-patterns.md)）。
-
-```powershell
-$env:AUTH_MODE="interactive"; python .github/skills/code-apps/scripts/configure_code_app_csp.py; Remove-Item Env:AUTH_MODE
-```
+そのクライアントの認証キャッシュが無い初回は、`InteractiveBrowserCredential` がローカルブラウザーを開いて認証する。
+認証方式を環境変数で切り替える必要はない（→ [認証パターン](../../standard/references/auth-patterns.md)）。
 
 **公式ドキュメント**: https://learn.microsoft.com/ja-jp/power-apps/developer/code-apps/how-to/content-security-policy
 
@@ -350,12 +346,11 @@ iframe 埋め込み（地図等）を実装する場合の手順:
   「You're using an old version of this app」バナーが出る。**Refresh を押してから**確認する
 - `configure_code_app_csp.py`（引数なし）で保存済みディレクティブを再確認する
 
-### CSP 設定を確認しようとして 403 / デバイスコード待ちで止まる
+### CSP 設定を確認しようとして 403 / 初回ブラウザー認証が必要になる
 
 - `403 InsufficientDelegatedPermissions` → 既定クライアントに権限が無い。PAC CLI クライアントへの
   フォールバックが働いているか確認する（スクリプトは自動）
-- デバイスコードの入力待ちで止まる → `AUTH_MODE=interactive` を付けてブラウザ SSO で 1 回だけ通す。
-  以降は `~/.power-platform-cli/auth_record_{TENANT_ID}_{CLIENT_ID}.json` から無操作で再利用される
+- 初回認証 → `InteractiveBrowserCredential` がブラウザーを開く。以降は `~/.power-platform-cli/auth_record_{TENANT_ID}_{CLIENT_ID}.json` と永続トークンキャッシュから再利用される
 - `pac auth token` サブコマンドは **PAC CLI 2.8 系には存在しない**ため、PAC からトークンを直接取り出す前提の手順は書かない
 - `pac env list-settings` に出るのは **Dataverse 組織設定**（`iscontentsecuritypolicyenabled` 等 =
   モデル駆動/キャンバス用）で、Code Apps の CSP ではない。混同しない

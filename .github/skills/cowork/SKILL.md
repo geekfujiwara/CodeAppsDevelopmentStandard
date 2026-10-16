@@ -102,8 +102,8 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
 
 | スクリプト | 用途 |
 |---|---|
-| [scripts/setup_entra_oauth_graph.py](scripts/setup_entra_oauth_graph.py) | **（推奨）** Entra OAuth クライアントアプリを Microsoft Graph API 経由で作成。auth_helper.py のキャッシュ済み認証を利用するため追加のデバイスコード認証が不要（Step 3） |
-| [scripts/setup_entra_oauth.ps1](scripts/setup_entra_oauth.ps1) | （代替）az CLI 経由で同等の処理。az login のデバイスコード認証が必要（Step 3） |
+| [scripts/setup_entra_oauth_graph.py](scripts/setup_entra_oauth_graph.py) | **（推奨）** Entra OAuth クライアントアプリを Microsoft Graph API 経由で作成。standard の auth_helper.py が共有するブラウザー認証キャッシュを利用（Step 3） |
+| [scripts/setup_entra_oauth.ps1](scripts/setup_entra_oauth.ps1) | （代替）az CLI 経由で同等の処理。az CLI のブラウザーサインインと独立した資格情報キャッシュを使う（Step 3） |
 | [scripts/register_mcp_client.py](scripts/register_mcp_client.py) | Client ID を Dataverse 許可 MCP クライアント（`allowedmcpclients`）に登録・有効化・確認（Step 4） |
 | [scripts/diagnose_cowork_connector.py](scripts/diagnose_cowork_connector.py) | アプリ登録・admin consent・allowedmcpclients の3層をまとめて診断（Step 4→5 の間で実行推奨） |
 | [scripts/check_oauth_signins.py](scripts/check_oauth_signins.py) | Entra のサインイン ログから、Cowork がこの OAuth アプリでトークンを取得できたかを集計し、テナント側か Cowork 側かを判定（Step 9 で接続済みなのにツールが使えないとき。読み取りのみ） |
@@ -224,10 +224,10 @@ Dataverse 宛のトークンを直接取得させる。**クライアントシ�
 
 **再利用スクリプト（推奨）**: [scripts/setup_entra_oauth_graph.py](scripts/setup_entra_oauth_graph.py) が
 Microsoft Graph API 経由でアプリ登録・`mcp.tools` 権限付与・シークレット作成・`.env` 書き込みを一括で行う。
-**auth_helper.py のキャッシュ済み認証を利用**するため、az CLI の追加デバイスコード認証が不要。
+**standard の auth_helper.py が共有する認証キャッシュを利用**するため、az CLI で別途サインインする必要がない。
 
 ```powershell
-# auth_helper.py のキャッシュ済みトークンで Graph API を呼ぶ（追加認証なし）
+# auth_helper.py のキャッシュ済みトークンで Graph API を呼ぶ
 python .github/skills/cowork/scripts/setup_entra_oauth_graph.py
 # 例: python .github/skills/cowork/scripts/setup_entra_oauth_graph.py --display-name "MyApp-Cowork-OAuth" --secret-years 1
 ```
@@ -241,7 +241,7 @@ python .github/skills/cowork/scripts/setup_entra_oauth_graph.py
 >
 > 併用するなら `--include-dataverse` を足す。詳細は [custom-mcp-connector.md](references/custom-mcp-connector.md)。
 
-**代替（az CLI 版）**: [scripts/setup_entra_oauth.ps1](scripts/setup_entra_oauth.ps1)（`az login` のデバイスコード認証が必要）:
+**代替（az CLI 版）**: [scripts/setup_entra_oauth.ps1](scripts/setup_entra_oauth.ps1)。共通 `auth_helper` のキャッシュを使わず、az CLI のブラウザーサインインと独立した資格情報キャッシュを利用する:
 
 ```powershell
 ./.github/skills/cowork/scripts/setup_entra_oauth.ps1 -DisplayName "Contoso-Cowork-OAuth"
@@ -251,7 +251,7 @@ az CLI で手動で行う場合の同等コマンド:
 
 ```powershell
 $env:PATH = "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin;$env:PATH"
-az login --use-device-code --tenant <TENANT_ID> --allow-no-subscriptions --only-show-errors
+az login --tenant <TENANT_ID> --allow-no-subscriptions --only-show-errors
 
 # 1. アプリ登録（リダイレクト URI は固定値2つ）
 $appId = az ad app create --display-name "Cowork-DataverseMCP-OAuth" `

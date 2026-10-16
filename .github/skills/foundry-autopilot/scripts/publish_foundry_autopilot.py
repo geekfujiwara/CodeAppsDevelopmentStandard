@@ -6,7 +6,7 @@ An Autopilot blueprint gives every hired instance its **own Entra agent user acc
 self-hosted route in self-hosted-agent.md, but the container runs on Foundry.
 
 Performs, in order:
-  1. Preflight (--check): env vars, Agent 365 license seats, resource-app existence,
+  1. Preflight (--check): env vars, resource-app existence,
      and - when IMAGE_MODEL_DEPLOYMENT is set - that the image deployment really exists.
   2. POST  /agents/{name}/versions          (digital_worker_type=m365) + poll until active.
   3. Enable the instance identity service principal (created disabled - troubleshooting #75).
@@ -23,7 +23,8 @@ Usage:
     python scripts/publish_foundry_autopilot.py              # dry-run: print request bodies
     python scripts/publish_foundry_autopilot.py --execute    # create version + patch + publish
     python scripts/publish_foundry_autopilot.py --execute --bump-version   # republish an update
-    python scripts/publish_foundry_autopilot.py --execute --container-only # ship a code fix only
+    # Only after verifying the existing M365 entry is an Agent template:
+    python scripts/publish_foundry_autopilot.py --execute --container-only --confirm-existing-template
 """
 from __future__ import annotations
 
@@ -33,6 +34,7 @@ import os
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 
 import requests
@@ -100,6 +102,12 @@ POLL_MAX_ATTEMPTS = 30
 
 class PreflightError(Exception):
     """A prerequisite that would make a later write call fail."""
+
+
+class FoundryRequestError(SystemExit):
+    def __init__(self, method: str, url: str, status_code: int, text: str) -> None:
+        self.status_code = status_code
+        super().__init__(f"{method} {url} が {status_code} で失敗しました: {text}")
 
 
 def load_env(path: Path) -> None:
@@ -173,15 +181,6 @@ def build_permission_scopes() -> list[dict]:
     return kept
 
 
-def agent365_seats() -> tuple[int, int] | None:
-    """Return (consumed, enabled) for the Agent 365 SKU, or None when the SKU is absent."""
-    data = graph_get("/subscribedSkus?$select=skuPartNumber,prepaidUnits,consumedUnits")
-    for sku in data.get("value", []):
-        if (sku.get("skuPartNumber") or "").upper().startswith("AGENT_365"):
-            return int(sku.get("consumedUnits") or 0), int((sku.get("prepaidUnits") or {}).get("enabled") or 0)
-    return None
-
-
 def image_model_deployment() -> str:
     return (os.environ.get("IMAGE_MODEL_DEPLOYMENT") or "").strip()
 
@@ -243,15 +242,6 @@ def preflight(display_name: str) -> list[dict]:
         )
     print(f"  OK 表示名 '{display_name}'（{len(display_name)}/{AGENT_DISPLAY_NAME_MAX} 文字）")
 
-    seats = agent365_seats()
-    if seats is None:
-        print("  ! Agent 365 の SKU が見つかりません。ライセンスが無いとインスタンス作成で失敗します")
-    else:
-        consumed, enabled = seats
-        free = enabled - consumed
-        marker = "OK" if free > 0 else "!"
-        print(f"  {marker} Agent 365 ライセンス: {consumed}/{enabled} 使用（空き {free} 席。1 インスタンス = 1 席）")
-
     scopes = build_permission_scopes()
     print(f"  OK 要求する resource app: {len(scopes)} 件")
     assert_image_deployment_exists()
@@ -265,7 +255,7 @@ def foundry_request(method: str, url: str, body: dict | None = None) -> dict:
         headers["Content-Type"] = "application/json"
     resp = requests.request(method, url, headers=headers, json=body, timeout=120)
     if not resp.ok:
-        raise SystemExit(f"{method} {url} が {resp.status_code} で失敗しました: {resp.text}")
+        raise FoundryRequestError(method, url, resp.status_code, resp.text)
     return resp.json() if resp.content else {}
 
 
@@ -387,7 +377,7 @@ def ensure_invocations(base: str, agent_name: str, api_version: str, *, publishi
     print("  OK Invocations を公開しました（続く発行で access_boundaries が戻ります）")
 
 
-def build_publish_body(display_name: str, scopes: list[dict], app_version: str, blueprint_client_id: str = "") -> dict:
+def build_publish_body(display_name: str, scopes: list[dict], app_version: str, blueprint_client_id: str) -> dict:
     body = {
         "agentDisplayName": display_name,
         "publishAsAutopilot": True,
@@ -403,29 +393,65 @@ def build_publish_body(display_name: str, scopes: list[dict], app_version: str, 
         "termsOfUseUrl": require("DEVELOPER_TERMS_URL"),
         "optionalPermissionScopes": scopes,
     }
-    if blueprint_client_id:
-        # Without the agent user template the publish succeeds but lands as an ordinary agent:
-        # nothing appears under "Agents for your team" and no instance can be hired.
-        body["useAgenticUserTemplate"] = True
-        body["agenticUserTemplate"] = {
-            "Id": "digitalWorkerTemplate",
-            "File": "agenticUserTemplateManifest.json",
-            "SchemaVersion": "0.1.0-preview",
-            "AgentIdentityBlueprintId": blueprint_client_id,
-            "CommunicationProtocol": "activityProtocol",
-        }
+    body["useAgenticUserTemplate"] = True
+    body["agenticUserTemplate"] = {
+        "Id": "digitalWorkerTemplate",
+        "File": "agenticUserTemplateManifest.json",
+        "SchemaVersion": "0.1.0-preview",
+        "AgentIdentityBlueprintId": blueprint_client_id,
+        "CommunicationProtocol": "activityProtocol",
+    }
     return body
 
 
-def assert_autopilot_body(body: dict) -> None:
+def require_blueprint_client_id(value: object) -> str:
+    if isinstance(value, str):
+        try:
+            parsed = uuid.UUID(value)
+        except ValueError:
+            pass
+        else:
+            if parsed.int != 0 and str(parsed) == value.lower():
+                return value
+    raise SystemExit(
+        "有効な blueprint.client_id がありません。通常の Agent としては発行しません。"
+        "Autopilot version の blueprint を確認してください（troubleshooting.md #91）"
+    )
+
+
+def assert_autopilot_version_body(body: dict) -> None:
+    endpoint = body.get("agent_endpoint") or {}
+    activity = (endpoint.get("protocol_configuration") or {}).get("activity") or {}
+    if not (
+        body.get("digital_worker_type") == "m365"
+        and (body.get("definition") or {}).get("kind") == "hosted"
+        and (body.get("metadata") or {}).get("enableVnextExperience") == "true"
+        and "activity" in (endpoint.get("protocols") or [])
+        and activity.get("enable_m365_public_endpoint") is True
+    ):
+        raise SystemExit("Autopilot 用の version 定義ではありません。通常デプロイは行いません。")
+
+
+def assert_autopilot_body(body: dict, blueprint_client_id: str) -> None:
     """Refuse to send a publish that would land as an ordinary agent (troubleshooting #91)."""
-    template = body.get("agenticUserTemplate") or {}
-    blueprint = str(template.get("AgentIdentityBlueprintId") or "")
-    if not (body.get("publishAsAutopilot") and body.get("useAgenticUserTemplate") and blueprint
-            and not blueprint.startswith("<")):
+    blueprint = require_blueprint_client_id(blueprint_client_id)
+    template = body.get("agenticUserTemplate")
+    expected = {
+        "Id": "digitalWorkerTemplate",
+        "File": "agenticUserTemplateManifest.json",
+        "SchemaVersion": "0.1.0-preview",
+        "AgentIdentityBlueprintId": blueprint,
+        "CommunicationProtocol": "activityProtocol",
+    }
+    if not (
+        body.get("publishAsAutopilot") is True
+        and body.get("useAgenticUserTemplate") is True
+        and isinstance(template, dict)
+        and all(template.get(key) == value for key, value in expected.items())
+    ):
         raise SystemExit(
-            "発行ボディに Autopilot の指定（useAgenticUserTemplate / agenticUserTemplate の blueprint）が"
-            "ありません。このまま送ると Agent template にならず採用できません（troubleshooting.md #91）"
+            "Autopilot の発行指定または同じ version の blueprint が一致しません。"
+            "Agent template ではない発行を中止しました（troubleshooting.md #91）"
         )
 
 
@@ -490,8 +516,10 @@ def enable_instance_identity(app_id: str) -> None:
 def latest_version_number(base: str, agent_name: str, api_version: str) -> int | None:
     try:
         listed = foundry_request("GET", f"{base}/agents/{agent_name}/versions?api-version={api_version}")
-    except SystemExit:
-        return None  # first publish: the agent does not exist yet
+    except FoundryRequestError as exc:
+        if exc.status_code == 404:
+            return None  # first publish: the agent does not exist yet
+        raise
     items = listed.get("data") or listed.get("value") or []
     numbers = [int(item["version"]) for item in items if str(item.get("version", "")).isdigit()]
     return max(numbers) if numbers else None
@@ -631,7 +659,12 @@ def main() -> int:
     parser.add_argument(
         "--container-only",
         action="store_true",
-        help="コード修正を反映するだけの再デプロイ。version だけ作って M365 への再発行はしない",
+        help="確認済みの既存 Agent template のコードだけ更新する（初回公開・通常 Agent の修復には使用不可）",
+    )
+    parser.add_argument(
+        "--confirm-existing-template",
+        action="store_true",
+        help="対象が M365 管理センターで Agent template として承認・採用可能であることを確認済みと宣言する",
     )
     parser.add_argument(
         "--recycle-sessions",
@@ -640,6 +673,15 @@ def main() -> int:
     )
     parser.add_argument("--env", type=Path, help=".env のパス（既定はリポジトリ ルート）")
     args = parser.parse_args()
+    if args.container_only and not args.confirm_existing_template:
+        parser.error(
+            "--container-only は確認済みの既存 Agent template 専用です。"
+            "確認後に --confirm-existing-template を指定するか、通常の Autopilot 発行を実行してください。"
+        )
+    if args.confirm_existing_template and not args.container_only:
+        parser.error("--confirm-existing-template は --container-only と組み合わせてください。")
+    if args.container_only and args.bump_version:
+        parser.error("--container-only と --bump-version は同時に指定できません。")
 
     env_path = args.env or find_repo_env() or Path(".env")
     load_env(env_path)
@@ -665,6 +707,7 @@ def main() -> int:
     agent_name = require("AGENT_NAME")
     api_version = os.environ.get("FOUNDRY_API_VERSION", "2025-11-15-preview")
     version_body = build_version_body()
+    assert_autopilot_version_body(version_body)
     # --container-only never publishes, so it must not demand the developer metadata.
     # The blueprint id is only known once the version exists; dry-run shows a placeholder.
     publish_body = (
@@ -681,8 +724,14 @@ def main() -> int:
             print(json.dumps(publish_body, ensure_ascii=False, indent=2))
         return 0
 
-    print("\n== agent version を作成します ==")
     previous = latest_version_number(base, agent_name, api_version)
+    if args.container_only and previous is None:
+        print(
+            "既存 version がないため --container-only は使用できません。Autopilot の初回発行が必要です。",
+            file=sys.stderr,
+        )
+        return 1
+    print("\n== Autopilot agent version を作成します ==")
     created = foundry_request(
         "POST", f"{base}/agents/{agent_name}/versions?api-version={api_version}", version_body
     )
@@ -698,6 +747,7 @@ def main() -> int:
         return 1
     if created.get("status") != "active":
         created = wait_until_active(base, agent_name, version, api_version)
+    blueprint_client_id = require_blueprint_client_id((created.get("blueprint") or {}).get("client_id"))
 
     identity = created.get("instance_identity") or {}
     print("\n== agent identity を確認します ==")
@@ -742,20 +792,21 @@ def main() -> int:
         return 0
 
     print("\n== Autopilot として M365 に発行します ==")
-    blueprint_client_id = (created.get("blueprint") or {}).get("client_id") or ""
-    if not blueprint_client_id:
-        print("  NG version に blueprint.client_id が無いので Autopilot として発行できません", file=sys.stderr)
-        return 1
     publish_body = build_publish_body(display_name, scopes, app_version, blueprint_client_id)
-    assert_autopilot_body(publish_body)
+    assert_autopilot_body(publish_body, blueprint_client_id)
     published = foundry_request(
         "POST", f"{base}/agents/{agent_name}/microsoft365/publish?api-version={api_version}", publish_body
     )
+    if not published.get("teamsAppId") or not published.get("titleId"):
+        raise SystemExit(
+            "公開応答に teamsAppId / titleId がありません。Agent template の公開は未確認です。"
+            "M365 管理センターで状態を確認してください。通常 Agent へのフォールバックは行いません。"
+        )
     print(f"  teamsAppId={published.get('teamsAppId')} titleId={published.get('titleId')}")
     write_env_value(env_path, "TEAMS_APP_VERSION", app_version)
 
     print(
-        "\n次は管理者の操作です:\n"
+        "\n公開要求を送信しました。Agent template としての利用開始は未確認です。次の確認を必須とします:\n"
         "  1. M365 管理センター → エージェント → すべてのエージェント → Requests → 表示名の行（Agent template、Pending activate）\n"
         "     → Publish ウィザード: Activate の対象（All users など）→ ポリシー → Grant admin consent → Publish\n"
         "  2. Teams デスクトップ → アプリ → Agents for your team → インスタンスを作成（上司を指定）\n"
@@ -765,6 +816,7 @@ def main() -> int:
         "  4. python scripts/run_regression_tests.py --check / --execute で回帰テスト\n"
         "  詳細: references/foundry-autopilot.md §6"
     )
+    print("  Type=Agent template と採用可能であることを確認するまで、デプロイ完了とは報告しないでください。")
     if schedules_enabled():
         print("  定期実行: python scripts/provision_schedule_trigger.py --execute でタイマー（Logic App）を作成")
     return 0

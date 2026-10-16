@@ -21,16 +21,16 @@ Windows での実行にクセがあるため、以下を守る。
 
 参考: Microsoft Learn「custom client app registration」（Agent 365 開発者向けドキュメント）
 
-## 2. ライセンス
+## 2. Autopilot の agent user ライセンス
 
-Agent 365 のライセンス SKU が割り当てられている必要がある。
-CLI にハードコードされた SKU ID が実際に割り当て可能な SKU と異なることがあるため、
-`Get-MgSubscribedSku` 等で自テナントの `skuId` を確認して割り当てる。
-割り当て時は `usageLocation` が必須。
+Foundry Autopilot で hire した agent user に割り当てるライセンスは
+**Microsoft 365 Frontier for Autopilot**。Agent 365 SKU の空席確認や割り当ては行わない。
+agent user が払い出された後、`License Administrator` が Microsoft 365 管理センターまたは
+Entra 管理センターで対象 agent user に Frontier for Autopilot を割り当てる。
+割り当て時は `usageLocation` と、テナントに SKU が用意されていることを確認する。
 
-Microsoft 365 Frontier は Agent 365 ライセンスではなく opt-in のプレビュー制度である。
-`devPreview` の Agent template を使う場合は、管理者とテストユーザーに Microsoft Copilot
-ライセンスを割り当て、対象ユーザーを Frontier に登録する。GA 機能だけを使う場合は不要。
+Frontier プレビューへのテナント参加は別の要件であり、`devPreview` の Agent template を使う場合は
+対象ユーザーを Frontier に登録する。これは agent user に割り当てる製品ライセンスとは別の確認事項。
 
 ## 3. 必要な Microsoft Entra ロール
 

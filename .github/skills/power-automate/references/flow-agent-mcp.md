@@ -204,7 +204,7 @@ az account set --subscription {subscription-id}
 az login --tenant {tenant-id}
 ```
 
-### auth_helper の DeviceCode 認証がテナントを往復するたびに求められる
+### auth_helper の認証がテナントを往復するたびに求められる
 
 `auth_helper.py` は `~/.power-platform-cli/auth_record_{TENANT_ID}.json` のように
 **テナントごとにキャッシュファイルを分離**しているため、同一マシンで一度認証したテナントに

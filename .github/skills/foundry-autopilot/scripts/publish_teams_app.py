@@ -4,7 +4,7 @@
 Replaces the manual "upload in Microsoft 365 / Teams admin center" step with a
 scripted Graph API call. These Graph APIs only support Delegated permissions
 (Application permissions are not supported), so this reuses the same
-DeviceCodeCredential + persistent cache as every other script in this repo
+InteractiveBrowserCredential + persistent cache as every other script in this repo
 (``standard/scripts/auth_helper.py``) instead of inventing a new auth flow.
 
 Flow:
@@ -46,7 +46,7 @@ from pathlib import Path
 
 import requests
 
-# Reuse the repo-wide auth_helper (DeviceCodeCredential + persistent cache).
+# Reuse the repo-wide auth_helper (InteractiveBrowserCredential + persistent cache).
 _THIS = Path(__file__).resolve()
 _STANDARD_SCRIPTS: Path | None = None
 for _parent in _THIS.parents:

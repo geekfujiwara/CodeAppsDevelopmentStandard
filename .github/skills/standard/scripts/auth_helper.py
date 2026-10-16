@@ -6,34 +6,26 @@ Power Platform Dataverse デプロイスクリプト用 共通認証ヘルパー
 ※ Power Apps を利用するエンドユーザーの認証は Power Apps SDK が処理するため、
   本モジュールの対象外。
 
-認証モード（優先順）:
+認証方法（優先順）:
   1. PAC CLI プロファイル（.env に PAC_AUTH_PROFILE が設定されている場合）
      - pac auth select → pac auth token でトークンを取得
      - インタラクティブセットアップで pac auth create 済みの場合に自動利用
-     - デバイスコード認証が不要（インタラクティブ認証済みプロファイルを再利用）
-  2. DeviceCodeCredential（既定・PAC CLI が未設定または失敗した場合のフォールバック）
+     - インタラクティブ認証済みプロファイルを再利用
+  2. InteractiveBrowserCredential（PAC CLI が未設定または失敗した場合）
      - 2 層キャッシュ（AuthenticationRecord + MSAL 永続キャッシュ）
-     - 初回のみデバイスコード認証が走り、以後はサイレントリフレッシュ
-  3. InteractiveBrowserCredential（条件付きアクセスポリシーでデバイスコードフローが
-     ブロックされているテナント向けのオプション）
-     - .env に AUTH_MODE=interactive を設定すると、DeviceCodeCredential の代わりに
-       ローカルブラウザを起動する InteractiveBrowserCredential を使う
-     - 「条件付きアクセスによりこのフローはブロックされています」
-       (AADSTS50199 / device_code flow がテナントポリシーで無効) のエラーが出る場合に使用する
-     - キャッシュの仕組み（AuthenticationRecord + MSAL 永続キャッシュ）は DeviceCodeCredential
-       と共通のため、初回のみブラウザ認証が走り、以後はサイレントリフレッシュされる
+     - 初回のみローカルブラウザでサインインし、以後はサイレントリフレッシュ
 
 PAC CLI 認証の仕組み:
   - PAC_AUTH_PROFILE に pac auth create で作成したプロファイル名を設定
   - get_token() 呼び出し時に pac auth select → pac auth token を実行
   - JWT の exp クレームから有効期限を取得してインメモリキャッシュで管理
-  - pac CLI が見つからない・失敗した場合は DeviceCode フローへ自動フォールバック
+  - pac CLI が見つからない・失敗した場合は InteractiveBrowserCredential へフォールバック
   - ★ 注意: pac CLI のディストリビューション/バージョンによっては `pac auth token`
     サブコマンド自体が存在しない（例: npm 版 power-platform-cli 2.9.3 系）。
-    その場合は毎回サイレントに DeviceCode フローへフォールバックする
+    その場合は毎回 InteractiveBrowserCredential へフォールバックする
     （エラーにはならないが高速化の恩恵は受けられない）。
 
-DeviceCode 認証の仕組み（2 層キャッシュ・マシン全体・テナント別に共有）:
+インタラクティブ認証の仕組み（2 層キャッシュ・マシン全体・テナント別に共有）:
   1. AuthenticationRecord (~/.power-platform-cli/auth_record_{TENANT_ID}.json)
      - アカウント情報（テナント・ユーザー等）を保存
      - プロジェクトフォルダに依存しない固定パス（ホームディレクトリ配下）に保存するため、
@@ -41,7 +33,7 @@ DeviceCode 認証の仕組み（2 層キャッシュ・マシン全体・テナ�
      - ★ テナントごとにファイルを分離している（重要）:
        複数テナントを行き来する開発（例: 検証用テナントと本番顧客テナント）では、
        単一の共有ファイルだと後から認証したテナントで上書きされ、
-       別テナントに戻った際に「キャッシュがあるのにデバイスコード認証を要求される」
+       別テナントに戻った際に認証キャッシュを誤用する
        問題が発生する。TENANT_ID をファイル名に含めることでこれを防いでいる。
      - これだけではトークンは保存されない
   2. TokenCachePersistenceOptions (MSAL 永続トークンキャッシュ)
@@ -49,21 +41,19 @@ DeviceCode 認証の仕組み（2 層キャッシュ・マシン全体・テナ�
      - AuthenticationRecord と組み合わせることでサイレントリフレッシュが可能
 
 動作:
-  - 初回（このマシン・このテナントで最初の1回のみ）: DeviceCodeCredential でデバイスコード認証
+  - 初回（このマシン・このテナントで最初の1回のみ）: InteractiveBrowserCredential でサインイン
          → AuthenticationRecord をテナント別パスに保存
          → MSAL トークンキャッシュにリフレッシュトークンを永続化
   - 2回目以降（別プロジェクトでも、同じテナントなら）: AuthenticationRecord をロード
          → MSAL キャッシュからリフレッシュトークンを取得
-         → サイレントリフレッシュ（デバイスコード不要）
+         → サイレントリフレッシュ
   - 別テナントに切り替えた場合は、そのテナント用のファイルが無ければ最初の1回だけ
-    デバイスコード認証が走る（以後はそのテナント用ファイルにキャッシュされる）
+    ブラウザでサインインする（以後はそのテナント用ファイルにキャッシュされる）
   - 強制的に再認証したい場合のみ、該当テナントの
     ~/.power-platform-cli/auth_record_{TENANT_ID}.json を削除する
 
-条件付きアクセスポリシーでデバイスコード認証がブロックされる場合:
-  .env に AUTH_MODE=interactive を設定するとローカルブラウザでのインタラクティブ認証に切り替わる
-  （既定値は AUTH_MODE=device_code）。両モードとも既存の AuthenticationRecord /
-  MSAL 永続キャッシュを共有するため、モードを切り替えても初回のみ再認証が走る。
+PAC CLI プロファイルからトークンを取得できない場合は、ローカルブラウザを使った
+InteractiveBrowserCredential で認証する。デバイスコード認証への切り替えやフォールバックは行わない。
 
 使い方:
   from auth_helper import get_token, get_session, retry_metadata
@@ -96,7 +86,6 @@ import requests
 from azure.core.exceptions import ClientAuthenticationError
 from azure.identity import (
     AuthenticationRecord,
-    DeviceCodeCredential,
     InteractiveBrowserCredential,
     TokenCachePersistenceOptions,
 )
@@ -110,28 +99,14 @@ TENANT_ID: str = os.getenv("TENANT_ID", "")
 DATAVERSE_URL: str = os.getenv("DATAVERSE_URL", "").rstrip("/")
 PAC_AUTH_PROFILE: str = os.getenv("PAC_AUTH_PROFILE", "")
 
-# 認証モード: "device_code"（既定）または "interactive"。
-# 条件付きアクセスポリシーによりデバイスコードフロー（AADSTS50199 等）が
-# 許可されていないテナントでは、.env に AUTH_MODE=interactive を設定することで
-# ローカルブラウザを使った InteractiveBrowserCredential に切り替えられる。
-AUTH_MODE: str = os.getenv("AUTH_MODE", "device_code").strip().lower()
-if AUTH_MODE not in ("device_code", "interactive"):
-    print(
-        f"[auth_helper] AUTH_MODE '{AUTH_MODE}' は不正な値のため 'device_code' を使用します"
-        " (有効値: device_code / interactive)",
-        file=sys.stderr,
-    )
-    AUTH_MODE = "device_code"
-_USE_INTERACTIVE_AUTH = AUTH_MODE == "interactive"
-
 # AuthenticationRecord の保存先（マシン全体で共有・プロジェクトをまたいで再利用する）
-# ※ プロジェクトごとにディレクトリが変わると毎回デバイスコード認証が必要になるため、
+# ※ プロジェクトごとにディレクトリが変わると毎回ブラウザ認証が必要になるため、
 #   ホームディレクトリ配下の固定パスに保存する（PP_AUTH_RECORD_PATH で上書き可能）。
 #
 # ★ テナント別にファイルを分ける（重要）:
 #   複数テナント（例: 会社Aの環境・自分の検証環境）を同一マシンで行き来する場合、
 #   単一の共有ファイルだと後から認証したテナントのレコードで上書きされてしまい、
-#   別テナントに戻った際に「キャッシュがあるのにデバイスコード認証を要求される」
+#   別テナントに戻った際に認証キャッシュを誤用する
 #   問題が発生する。TENANT_ID ごとにファイルを分離してこれを防ぐ。
 _AUTH_RECORD_DIR = Path.home() / ".power-platform-cli"
 _tenant_key = TENANT_ID or "default"
@@ -158,7 +133,7 @@ if not AUTH_RECORD_PATH.exists() and _LEGACY_SHARED_AUTH_RECORD_PATH.exists():
                 file=sys.stderr,
             )
     except (ValueError, OSError, json.JSONDecodeError):
-        pass  # 移行失敗時は通常どおり新規デバイスコード認証にフォールバック
+        pass  # 移行失敗時は通常どおりブラウザ認証を実行
 
 # さらに旧バージョン（プロジェクトルート直下）との互換: 上記でも見つからない場合。
 _LEGACY_AUTH_RECORD_PATH = Path(__file__).resolve().parent / ".auth_record.json"
@@ -173,7 +148,7 @@ if not AUTH_RECORD_PATH.exists() and _LEGACY_AUTH_RECORD_PATH.exists():
             file=sys.stderr,
         )
     except OSError:
-        pass  # 移行失敗時は通常どおり新規デバイスコード認証にフォールバック
+        pass  # 移行失敗時は通常どおりブラウザ認証を実行
 
 # Dataverse Web API のデフォルトスコープ
 _DEFAULT_SCOPE = f"{DATAVERSE_URL}/.default" if DATAVERSE_URL else ""
@@ -184,7 +159,7 @@ _DEFAULT_SCOPE = f"{DATAVERSE_URL}/.default" if DATAVERSE_URL else ""
 # 既定のクライアントは Graph の固定パーミッションセットしか持たないため、
 # それに無いスコープ（例: AppCatalog.ReadWrite.All）が必要な場合のみ、
 # 呼び出し側で別の well-known パブリッククライアント ID を指定できるようにする。
-_credentials: dict[str, DeviceCodeCredential | InteractiveBrowserCredential] = {}
+_credentials: dict[str, InteractiveBrowserCredential] = {}
 
 
 def _auth_record_path_for(client_id: str | None) -> Path:
@@ -194,21 +169,8 @@ def _auth_record_path_for(client_id: str | None) -> Path:
     return AUTH_RECORD_PATH.with_name(f"{AUTH_RECORD_PATH.stem}_{client_id}{AUTH_RECORD_PATH.suffix}")
 
 
-def _device_code_callback(verification_uri: str, user_code: str, expires_on: object) -> None:
-    """デバイスコード認証のプロンプトを表示する。"""
-    print(
-        "\n========================================\n"
-        "  デバイスコード認証\n"
-        "========================================\n"
-        f"  1. ブラウザで {verification_uri} を開く\n"
-        f"  2. コード {user_code} を入力\n"
-        "========================================\n",
-        file=sys.stderr,
-    )
-
-
-def _build_credential(client_id: str | None = None) -> DeviceCodeCredential | InteractiveBrowserCredential:
-    """DeviceCodeCredential または InteractiveBrowserCredential を構築する（2 層キャッシュ付き）。
+def _build_credential(client_id: str | None = None) -> InteractiveBrowserCredential:
+    """InteractiveBrowserCredential を構築する（2 層キャッシュ付き）。
 
     1. TokenCachePersistenceOptions — MSAL 永続トークンキャッシュ
        リフレッシュトークン・アクセストークンを OS 資格情報ストアに保存。
@@ -223,9 +185,7 @@ def _build_credential(client_id: str | None = None) -> DeviceCodeCredential | In
     クライアント（例: Microsoft Graph PowerShell）が必要なスコープを要求する場合のみ
     client_id を明示的に渡す（キャッシュファイルも client_id 別に分離される）。
 
-    AUTH_MODE=interactive の場合は DeviceCodeCredential の代わりに
-    InteractiveBrowserCredential（ローカルブラウザ + ループバックリダイレクト）を使う。
-    条件付きアクセスポリシーでデバイスコードフローがブロックされているテナント向け。
+    ローカルブラウザとループバックリダイレクトを使い、デバイスコード認証は行わない。
     """
     # OS 永続トークンキャッシュが壊れることがあるため、
     # 環境変数 PP_NO_PERSISTENT_CACHE=1 で無効化可能
@@ -235,9 +195,6 @@ def _build_credential(client_id: str | None = None) -> DeviceCodeCredential | In
         "tenant_id": TENANT_ID or None,
         "client_id": client_id or None,
     }
-    if not _USE_INTERACTIVE_AUTH:
-        kwargs["prompt_callback"] = _device_code_callback
-
     if use_persistent_cache:
         cache_options = TokenCachePersistenceOptions(
             name="power_platform_token_cache_v3",
@@ -281,20 +238,12 @@ def _build_credential(client_id: str | None = None) -> DeviceCodeCredential | In
     return _instantiate_credential(kwargs)
 
 
-def _instantiate_credential(kwargs: dict) -> DeviceCodeCredential | InteractiveBrowserCredential:
-    """AUTH_MODE に応じて DeviceCodeCredential / InteractiveBrowserCredential を生成する。"""
-    if _USE_INTERACTIVE_AUTH:
-        print(
-            "[auth_helper] AUTH_MODE=interactive のためローカルブラウザでの"
-            "インタラクティブ認証を使用します（条件付きアクセスでデバイスコードが"
-            "ブロックされているテナント向け）",
-            file=sys.stderr,
-        )
-        return InteractiveBrowserCredential(**kwargs)
-    return DeviceCodeCredential(**kwargs)
+def _instantiate_credential(kwargs: dict) -> InteractiveBrowserCredential:
+    """ローカルブラウザで認証する credential を生成する。"""
+    return InteractiveBrowserCredential(**kwargs)
 
 
-def _ensure_credential(client_id: str | None = None) -> DeviceCodeCredential | InteractiveBrowserCredential:
+def _ensure_credential(client_id: str | None = None) -> InteractiveBrowserCredential:
     """client_id ごとのシングルトン credential を返す（既定は従来どおり単一の共有 credential）。"""
     key = client_id or ""
     if key not in _credentials:
@@ -344,7 +293,7 @@ def _pac_get_token(scope: str) -> str | None:
     """PAC CLI プロファイルを使ってアクセストークンを取得する。
 
     PAC_AUTH_PROFILE が設定されており、pac CLI が PATH に存在する場合のみ機能する。
-    失敗した場合は None を返し、呼び出し元が DeviceCode フローへフォールバックする。
+    失敗した場合は None を返し、呼び出し元が InteractiveBrowserCredential へフォールバックする。
 
     Args:
         scope: OAuth2 スコープ（例: ``https://org.dynamics.com/.default``）。
@@ -383,18 +332,18 @@ def _pac_get_token(scope: str) -> str | None:
         # pac auth token が失敗した場合は stderr を表示してフォールバック
         if result.stderr.strip():
             print(
-                f"[auth_helper] pac auth token 失敗（DeviceCode フローにフォールバック）: "
+                f"[auth_helper] pac auth token 失敗（ブラウザ認証にフォールバック）: "
                 f"{result.stderr.strip()}",
                 file=sys.stderr,
             )
     except FileNotFoundError:
         print(
-            "[auth_helper] pac コマンドが見つかりません（DeviceCode フローにフォールバック）",
+            "[auth_helper] pac コマンドが見つかりません（ブラウザ認証にフォールバック）",
             file=sys.stderr,
         )
     except subprocess.TimeoutExpired:
         print(
-            "[auth_helper] pac auth token タイムアウト（DeviceCode フローにフォールバック）",
+            "[auth_helper] pac auth token タイムアウト（ブラウザ認証にフォールバック）",
             file=sys.stderr,
         )
 
@@ -413,7 +362,7 @@ def get_token(scope: str | None = None, client_id: str | None = None) -> str:
     """
     指定スコープのアクセストークン文字列を返す。
 
-    初回はデバイスコード認証が走り、AuthenticationRecord が保存される。
+    初回はローカルブラウザでインタラクティブ認証を行い、AuthenticationRecord が保存される。
     2回目以降はインメモリキャッシュから取得する。
 
     Args:
@@ -471,8 +420,6 @@ def get_token(scope: str | None = None, client_id: str | None = None) -> str:
             "tenant_id": TENANT_ID or None,
             "client_id": client_id or None,
         }
-        if not _USE_INTERACTIVE_AUTH:
-            kwargs_nocache["prompt_callback"] = _device_code_callback
         kwargs_nocache = {k: v for k, v in kwargs_nocache.items() if v is not None}
         # 認証レコードは使わない（内部キャッシュが壊れる原因になる）
         credential = _instantiate_credential(kwargs_nocache)
