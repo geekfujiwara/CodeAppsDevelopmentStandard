@@ -140,7 +140,7 @@ Azure Bot Service（課金）・Teams 組織カタログ公開（テナント全
 
 - **Graph の Teams アプリ公開 API は Delegated 権限のみ**（`AppCatalog.ReadWrite.All`）。
   Application 権限（クライアントクレデンシャル）では動かないため、`publish_teams_app.py` も
-  `auth_helper.py` の `DeviceCodeCredential`（永続キャッシュ）を再利用する設計にした。
+  `auth_helper.py` の `InteractiveBrowserCredential`（永続キャッシュ）を再利用する設計にした。
   → [troubleshooting.md](troubleshooting.md) の該当項目。
 - **`auth_helper.py` は `TENANT_ID` を読む**が、`foundry-autopilot` の `.env.example` は
   `AZURE_TENANT_ID` を使っている。他スキルの `.env` を再利用するスクリプトを書くときは、

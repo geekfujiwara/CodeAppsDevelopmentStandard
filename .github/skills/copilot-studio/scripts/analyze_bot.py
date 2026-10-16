@@ -6,7 +6,7 @@ conversationStarters・カスタムトピック一覧・configuration を一覧�
 
 前提:
   - .env に DATAVERSE_URL と BOT_ID（Copilot Studio の URL でも GUID でも可）を設定
-  - 共通認証は standard/scripts/auth_helper.py（DeviceCodeCredential）を利用
+  - 共通認証は standard/scripts/auth_helper.py（InteractiveBrowserCredential）を利用
 
 使い方:
   python .github/skills/copilot-studio/scripts/analyze_bot.py

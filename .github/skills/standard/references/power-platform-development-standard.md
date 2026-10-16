@@ -336,11 +336,11 @@ envs = flow_api_call("GET", "/providers/Microsoft.ProcessSimple/environments")
 ```
 
 ```bash
-# 認証テスト（初回のみデバイスコード認証が走る）
+# 認証テスト（初回のみローカルブラウザーでサインイン）
 python .github/skills/standard/scripts/auth_helper.py
 ```
 
-> **ルール**: 認証レコード（`~/.power-platform-cli/auth_record_{TENANT_ID}.json`）はリポジトリ外（ホームディレクトリ）に保存され、コミット対象にならない。何度もデバイスコード認証を求めるスクリプトは禁止。必ず `auth_helper` 経由で認証し、マシン全体で共有されるキャッシュを再利用すること。
+> **ルール**: 認証レコード（`~/.power-platform-cli/auth_record_{TENANT_ID}.json`）はリポジトリ外（ホームディレクトリ）に保存され、コミット対象にならない。何度もブラウザーサインインを求めるスクリプトは禁止。必ず `auth_helper` 経由で認証し、マシン全体で共有されるキャッシュを再利用すること。
 
 ### 2.4 Dataverse MCP サーバー設定
 
@@ -1536,7 +1536,7 @@ git status --ignored --short | Select-String "^!! src/"
 
 ```mermaid
 flowchart TD
-    P0["🔧 Phase 0: 事前準備\n1. make.powerapps.com > ⚙️ > セッション詳細 > 詳細コピー\n2. コピー内容をチャットに貼り付け（ENV_ID・URL・Prefix確認）\n3. デバイスコードログイン（auth_helper.py）\n4. 既存ソリューション・パブリッシャー確認"]
+    P0["🔧 Phase 0: 事前準備\n1. make.powerapps.com > ⚙️ > セッション詳細 > 詳細コピー\n2. コピー内容をチャットに貼り付け（ENV_ID・URL・Prefix確認）\n3. ブラウザーでインタラクティブ認証（auth_helper.py）\n4. 既存ソリューション・パブリッシャー確認"]
 
     P1["🎨 Phase 1: 設計（ユーザー確認必須）\n0. コンサルタントとして要件ヒアリング（AskUserQuestion）\n   不明な場合は参考資料・ドキュメントの提供を依頼\n1. アーキテクチャ設計（コンポーネント選定）\n2. デザインテンプレート提案（Code Apps の場合）＋近いサンプルを紹介\n3. テーブル設計（スキーマ名・列・型・Choice値）\n4. リレーションシップ設計\n5. デモデータ計画\n6. ★ ユーザーに設計を提示し承認を得る"]
 

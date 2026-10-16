@@ -1,6 +1,6 @@
 """Entra OAuth クライアントアプリを Microsoft Graph API 経由で作成する（汎用）。
 
-auth_helper.py の認証キャッシュを利用するため、az CLI のデバイスコード認証が不要。
+standard の auth_helper.py が共有するブラウザー認証キャッシュを利用するため、az CLI で別途サインインする必要がない。
 Cowork プラグイン用の OAuth 2.0 認可コードフロー クライアントを作成し、
 委任権限（既定: Dynamics CRM の mcp.tools / --api-audience 指定時は自前 MCP Server の API スコープ）を
 付与し、クライアントシークレットを .env に保存する。
