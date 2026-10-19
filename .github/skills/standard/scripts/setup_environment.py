@@ -151,12 +151,30 @@ def trigger_interactive_auth(values: dict[str, str]) -> int:
 
 def cmd_list() -> int:
     profiles = list_profiles()
+    active = next((profile["name"] for profile in profiles if profile["active"]), None)
+    if profiles and not active:
+        print("アクティブな PAC プロファイルを特定できません。先に利用するプロファイルを選択してください。",
+              file=sys.stderr)
+        return 1
     rows = []
-    for p in profiles:
-        info = org_who(p["name"])
-        if info is None:
-            continue
-        rows.append({**p, **info})
+    restored = True
+    try:
+        for p in profiles:
+            info = org_who(p["name"])
+            if info is None:
+                print(f"[setup_environment] プロファイル '{p['name']}' の環境情報を取得できませんでした。",
+                      file=sys.stderr)
+                continue
+            rows.append({**p, **info})
+    finally:
+        if active:
+            result = _run(["pac", "auth", "select", "--name", active])
+            restored = result.returncode == 0
+            if not restored:
+                print("[setup_environment] 元の PAC プロファイルへ復元できませんでした。"
+                      "続行前に対象アカウントを確認してください。", file=sys.stderr)
+    if not restored:
+        return 1
     if not rows:
         print("環境を持つ PAC プロファイルが見つかりません。`pac auth create` で作成してください。")
         return 1

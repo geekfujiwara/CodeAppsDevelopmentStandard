@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: "Power Platform ソリューションの全体アーキテクチャを設計する。Copilot Studio / Power Automate / Code Apps / Copilot Managed Runtime / Power Pages / AI Builder の使い分け判断、コンポーネント選定、統合パターンを決定する。社内向け画面は利用者のライセンス（Power Apps Premium か、Copilot Credits の従量課金か）と利用頻度をヒアリングし、Code Apps と Copilot Managed Runtime を使い分ける。構成が確定したら、実装着手前に admin スキルで環境チェック（既定環境ではないか・マネージド環境・Code Apps / MCP の有効化・セキュリティ ロール）と DLP 事前チェック（使用コネクタがブロックされていないか・Business / Non-business が混在しないか）を実行して結果をユーザーに提示する。Agent 365 の AI チームメイトを採用する場合はライト実装（PoC）と本格実装（private リポジトリ + CI/CD + Agent Evals）を AskUserQuestion で選ばせ、Git ホスティング（GitHub / Azure DevOps Repos / その他）も確定してから実装へ進む。外部の文章を読むエージェントではプロンプト インジェクション対策を設計段階で工数に含める。"
+description: "Power Platform のコンポーネント選定と統合アーキテクチャを設計する。社内画面はライセンスと頻度で Code Apps / Copilot Managed Runtime を選ぶ。SharePoint URL は明示指定がなければ Dataverse への移行元とし、Code Apps の開発・初回デプロイを優先する。環境チェックは明示依頼時・障害時だけ admin へ委譲する。Agent 365 は実装レベルと Git ホスティングを確定し、外部文書を読むエージェントはプロンプト インジェクション対策を含める。"
 category: architecture
 triggers:
   - "アーキテクチャ設計"
@@ -58,16 +58,40 @@ triggers:
 
 > **このスキルの位置づけ**: Phase 1（設計）の最初に実行する。個別コンポーネントのスキルに入る前に、まず要件を深掘りして全体像を確定させる。
 
+**SharePoint URL だけでは直接接続の指示と解釈しない。** Code Apps の業務データは、直接接続・継続利用が
+明示された場合を除き **Dataverse に移行**する。URL は仕様・移行元の参照情報として扱う。
+`dataverse` でスキーマを構築し、`data-migration` で承認付き移行・照合を行う。
+ナレッジとしての文書参照と Code Apps の業務データ保存先は区別する。
+
 ---
 
 ## 0. 要件ヒアリング（Phase 1 の最初に必ず実行）
+
+### クイックスタート時は提案先行モードを優先する
+
+`standard/references/quickstart.md` から来た場合は、環境情報・資料・spec-builder の結果を引き継ぎ、
+以下の通常ヒアリング表を一から質問しない。資料がなければワークスペース名からアプリ案を先に提案し、
+AskUserQuestion で方向性を確認する。
+業界知識とベストプラクティスを使って、事実・仮説・推奨を分けた To-Be 業務、AI 改善、
+Code Apps + Dataverse を既定とする構成、段階的な実装計画まで具体化する。
+未確認の固有規程・人数・価格・契約は創作せず、仮説または要確認とする。
+白紙の要件ヒアリングや既存システムの単純なリフト&シフトで終わらせない。
+
+**業務フロー図とアーキテクチャ図を Mermaid コードブロックでチャットと Markdown の両方へ出力する。**
+業務フローは `spec/output/docs/business-requirements.md`、構成・AI 改善・実装計画は
+`spec/output/docs/design-requirements.md` に既存内容を保護して統合する。
+推奨案・代替案・判断材料を見せてから、本人が決める必要のある事項だけ AskUserQuestion で 1 問ずつ確認する。
+認証や環境選択の回答後に利用者へ工程を投げ返さず、提案・判断確認まで同じタスクで進める。
+設計・実装・デプロイ・移行・追加費用の承認範囲は区別する。
+
+### 通常モードのヒアリング
 
 **IT に詳しくないエンドユーザーに向き合うプロの IT コンサルタントとして振る舞う。**
 専門用語を使わず、業務課題・現状・理想の姿を引き出すことを最優先にする。
 
 ### AskUserQuestion で深掘りする項目
 
-以下をまとめて質問し、一問一答の往復を最小化する。
+既知の情報は再質問せず、必要な不足事項だけを 1 問ずつ確認する。
 
 | 確認項目 | 質問の例 |
 |---|---|
@@ -97,7 +121,9 @@ triggers:
 | 公開範囲 | internal / external / anonymous、対象ユーザーまたはグループ、データ分類 |
 | 運用 | Git provider、secret backend、監視、評価、release、rollback、所有者 |
 
-選定した各専門スキルの事前確認で1項目でも未確認なら、そのコンポーネントの実装を開始しない。
+既知の事項は再質問しない。Code Apps は共通契約の開発優先方針に従い、
+環境設定・DLP・管理者権限の未調査を理由に実装を止めず、必要な実装先・承認範囲だけを確認して進む。
+それ以外の製品固有の公開・プレビュー承認は各専門スキルに従う。
 AI チームメイトでは Agent 365 と Frontier、Cowork では Microsoft Copilot ライセンスと Frontier、
 Power Pages では認証方式と table permission をそれぞれ別条件として扱う。
 
@@ -430,22 +456,10 @@ camera、barcode、location 等の端末ネイティブ機能が必須なら、W
 Native を選ぶ場合だけ [`mobile-apps`](../mobile-apps/SKILL.md) を使い、Private Preview／本番利用禁止への
 明示承認を得る。承認がなければレスポンシブ Web Code App を提案する。
 
-> ★ **Code Apps を適切なソリューションとして提案したら、このタイミングで環境側の前提条件チェックを必ず実行する**。
-> Code Apps のデプロイには「環境での Code Apps 許可（コード アプリを許可する）」が必要で、
-> 未有効のまま設計・実装を進めると後工程で `CodeAppOperationNotAllowedInEnvironment` (403) 等の
-> エラーにより手戻りが発生する。設計フェーズ・実装に入る前に以下を実行し、結果をユーザーに提示する。
-> マネージド環境はガバナンス上の推奨状態として同時に確認するが、Code Apps の必須条件ではない。
->
-> ```bash
-> python .github/skills/code-apps/scripts/check_code_apps_environment.py
-> ```
->
-> - ✅ Code Apps 許可が有効 → そのまま設計フェーズ（デザインテンプレート選択）へ進む。
-> - ❌ Code Apps 許可が無効 → スクリプトが出力する有効化手順（Power Platform 管理センター）をユーザーに提示し、
->   有効化を待ってから設計・実装を続ける。
-> - ⚠️ API で判定できない（Power Platform 管理者ロールがない場合は Code Apps 許可が 403 になる）
->   → 出力される管理センター URL をユーザーに提示し、目視確認を依頼する。
-> - 詳細は [`code-apps` スキル §2 環境の前提条件](../code-apps/SKILL.md#2-初回デプロイ) を参照。
+> **環境チェックを明示的に依頼されない限り、すぐに開発を開始する。**
+> Code Apps 採用後は DLP / ACP・Code Apps 許可・マネージド環境・MCP を先に調べず、
+> scaffold → init → predeploy / build → 初回 push を優先する。全テーブル構築・移行・ローカライズ完了は待たない。
+> 障害時だけ §10 の権限確認付き復旧へ進む。既知の禁止設定や組織ポリシーを回避してはならない。
 
 > **★ Code Apps + Dataverse 並行開発パターン（正常フロー）**
 >
@@ -595,7 +609,7 @@ Dataverse も併用する場合は、`agentConnectors` に Dataverse MCP を**�
 
 | # | 原則 | 決めておく内容 |
 |---|---|---|
-| 1 | **移さずに繋ぐ** | 外部データは Dataverse に移行しない。Dataverse は**台帳**（問い合わせ・ナレッジ・マスタ）に限定し、外部データは MCP で都度読む。移行を選ぶと二重管理と権限の作り直しが発生する |
+| 1 | **用途で移行を分ける** | 既存基幹データを移さずエージェントへ公開する要件なら MCP で読む。ただし Code Apps 向けの SharePoint URL は、直接接続・継続利用の明示がなければ Dataverse への移行元とする |
 | 2 | **1 データソース = 1 MCP Server** | 種類の違うストレージ（ファイル / RDB / 業務 API）を 1 つの Server に同居させない。権限（Managed Identity のロール）とデプロイ単位を分けられなくなる |
 | 3 | **書き込みは 1 か所に集約** | 外部データソース向け MCP は**読み取り専用**にする。書き込みは Dataverse MCP だけに担わせる。読み書き両方を外部に開くと監査（S-05 相当）が Server ごとに分散する |
 | 4 | **事前索引化するか、都度読むか** | 全文検索が要件なら索引化（コストと鮮度ずれが発生）。**該当箇所を辿れれば足りる**なら索引化せず都度読む。後者なら Azure AI Search 等の追加コンポーネントが不要になる |
@@ -833,34 +847,18 @@ AskUserQuestion で次のように尋ねる:
 - [ ] **そのエージェントは外部の文章を読むか？**（メール本文 / Web ページ / 取り込んだファイル / 業務レコード） → YES なら**プロンプト インジェクション対策を設計段階で工数に含める**。agentUser は自分の権限で動くため、未対応だと実データに被害が及ぶ（[foundry-autopilot/references/prompt-injection.md](../foundry-autopilot/references/prompt-injection.md)）
 - [ ] **本格実装を選んだか？** → YES なら **Git ホスティング（GitHub / Azure DevOps Repos / その他 Git）** も確認し、private リポジトリ前提で `SECRET_BACKEND` を決める
 - [ ] **画面設計はブロックの組み合わせで決めたか？** → 同じ CRUD をテーブル数だけ量産しない。可視化ニーズがあれば **ReactFlow を第一候補**に（[設計リファレンス §4](references/design-patterns.md#4-画面設計ブロックの組み合わせテンプレ化しない設計)）
-- [ ] **構成が決まったら環境チェックと DLP 事前チェックを実行したか？** → 実装着手前に §10 を必ず実行する
+- [ ] **SharePoint URL を直接接続の指示と誤解していないか？** → 明示指定がなければ Dataverse 移行 + Code Apps とする
+- [ ] **環境診断を不要な着手条件にしていないか？** → 通常は開発・初回 push を優先。明示依頼時または障害時だけ §10 へ進む
 
 ---
 
-## 10. 環境チェックと DLP 事前チェック（実装着手前に必須）
+## 10. 環境診断は明示依頼時・障害時だけ
 
-構成が確定したら、**実装を始める前に** `admin` スキルで「その環境で作れるか」を確認する。
-設計後に発覚するとコネクタ選定や環境準備からやり直しになるため、必ずこのタイミングで実施する。
+通常は [code-apps](../code-apps/SKILL.md) の初回デプロイへ直行し、環境確認のために `admin` を呼ばない。
+チェックを明示依頼された場合、または実操作が環境・接続・ポリシーの問題で失敗した場合だけ
+[admin](../admin/SKILL.md) と [権限確認付き復旧](../admin/references/development-recovery.md) を使う。
 
-```powershell
-# 1. 環境チェック（既定環境でないか / マネージド環境 / Dataverse / Code Apps / MCP / ロール）
-python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID
-
-# 2. DLP 事前チェック（構成が使うコネクタを列挙する）
-python .github/skills/admin/scripts/check_dlp.py `
-  --environment-id $env:ENV_ID `
-  --tenant-id $env:TENANT_ID `
-  --connector shared_commondataserviceforapps `
-  --custom-host <自前 MCP Server のホスト名>
-```
-
-読み取り専用で、対象環境に**適用される**ポリシーだけを評価する。確認する観点は 3 つ。
-
-| 観点 | 影響 |
-|---|---|
-| ブロックされたコネクタがないか | 使えない。代替コネクタへ設計変更するか、管理者にポリシー変更を依頼する |
-| Business / Non-business が混在していないか | 同一アプリ・フロー・エージェントで併用できない。どちらかに寄せるか構成を分割する |
-| カスタムコネクタが未分類でないか | Copilot Studio でツールがブロック表示になる。ホストを明示分類する |
-
-**結果は必ずユーザーに提示し、問題がある場合は解消方針を合意してから実装に入る。**
-判定基準・コネクタ一覧・変更手順は [admin スキル](../admin/SKILL.md) を参照。
+失敗した操作・対象環境・エラーを固定し、依頼者の現在有効な委任権限と対象範囲を確認する。
+必要な診断を読める場合だけ実行し、修復権限とユーザー承認が揃えば最小変更・読み戻し後に元の操作を 1 回リトライする。
+権限なし・不明なら管理操作は行わず環境管理者へ依頼し、影響しないローカル開発は継続する。
+ポリシー回避、無断の環境変更、管理者ロールの自己付与はしない。

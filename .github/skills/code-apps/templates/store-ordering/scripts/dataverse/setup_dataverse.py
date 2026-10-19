@@ -798,6 +798,10 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="Dataverse table build")
     parser.add_argument(
+        "--solution-only", action="store_true",
+        help="Prepare only the solution for the first Code Apps deployment; do not create tables or data.",
+    )
+    parser.add_argument(
         "--skip-localize", action="store_true",
         help="ローカライズ（Step 5）とデモデータ投入以降をスキップし、テーブル構築（英語のまま）のみ行う。"
              "Code Apps で pac code add-data-source を使う場合、日本語 DisplayName だと "
@@ -810,6 +814,8 @@ def main():
              "--skip-localize でテーブル構築 → add-data-source 完了後にこれを実行する想定",
     )
     args = parser.parse_args()
+    if args.solution_only and (args.skip_localize or args.localize_only):
+        parser.error("--solution-only cannot be combined with localization options")
 
     print("=" * 60)
     print("  Dataverse table build")
@@ -817,6 +823,11 @@ def main():
     print(f"  Environment: {DATAVERSE_URL}")
     print(f"  Solution: {SOLUTION_NAME}")
     print(f"  Prefix: {PREFIX}")
+
+    if args.solution_only:
+        ensure_solution()
+        print("\nSolution ready. Continue with Code Apps init and first push.")
+        return
 
     validate_tables()             # Step 0: TABLES 定義の事前検証（API 呼び出し前）
 

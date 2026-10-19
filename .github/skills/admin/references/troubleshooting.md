@@ -1,5 +1,19 @@
 # 異常系・詰まりどころ
 
+## 開発開始前に管理 API の 403 で止まる・SharePoint URL を直接接続してしまう
+
+通常開発では環境・DLP / ACP・Code Apps 許可の網羅チェックを先行させない。
+SharePoint URL だけなら直接利用の明示がない限り Dataverse への移行元として扱う。
+共通契約と各入口スキル・Code Apps のビルド手順をこの方針へ統一した。
+文書契約の回帰は `tests/test_development_policy.py` で検査する。
+店舗発注テンプレートは `setup_dataverse.py --solution-only` で先にソリューションだけを用意し、
+初回 push が全テーブル・デモデータ作成を待たない。互換性のないローカライズ引数の併用は
+同スクリプトの `main()` で API 呼び出し前に拒否する（恒久対策済み）。
+
+実際の障害時は [development-recovery.md](development-recovery.md) に従い、
+現在有効な委任権限と対象範囲を確認する。権限なし・不明なら管理操作をせず依頼へ分岐し、
+読み取り可能・変更可能・承認済みを区別する。管理 API の 403 は開発不可の証明ではない。
+
 ## HTML レポートのコピー・回答復元が使えない
 
 `file://` やブラウザの権限制限で Clipboard API / sessionStorage が拒否される場合がある。

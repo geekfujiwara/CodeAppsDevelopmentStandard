@@ -38,7 +38,7 @@
     }
   ],
   "nextSteps": [
-    "python .github/skills/admin/scripts/check_development_environment.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID  # 環境・DLP・ACP（読み取りのみ）",
+    "通常は環境・DLP / ACP の事前診断を挟まず開発する。明示依頼時・障害時だけ admin/references/development-recovery.md の委任権限確認付き復旧を使う",
     "python .github/skills/standard/scripts/check_mcp_client.py studio  # Dataverse MCP の許可 MCP クライアントに Copilot Studio が有効か",
     "python .github/skills/copilot-studio-v2/scripts/deploy_agent.py --defer-publish --env-file <出力先>/agent.env  # 作成・アイコン・スキル 3 つ（Edit details は失敗しても続行）",
     "Copilot Studio でエージェントを開き Tools → Add tool → Model Context Protocol → Dataverse MCP Server（自分の接続・End user credentials）→ describe / read_query / search_data / create_record / update_record だけオン → Confirm → Save（Save しないと Dataverse に書かれない）。private API で追加するなら references/mcp-servers.md",

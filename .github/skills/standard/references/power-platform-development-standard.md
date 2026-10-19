@@ -142,9 +142,13 @@ pac code init -env {ENVIRONMENT_ID} -n "AppName"
 | `AppLeaseMissing` (409)                         | 別環境の `appId` がハードコードされている | `pac code init` で新規生成 |
 | `CodeAppOperationNotAllowedInEnvironment` (403) | 環境で Code Apps が未許可                 | §1.5 参照                        |
 
-### 1.5 環境の Code Apps 有効化（前提条件）
+### 1.5 環境の Code Apps 有効化（明示依頼時・障害時）
 
-Code Apps を新しい環境にデプロイするには、環境管理者が事前に Code Apps を許可する必要がある。
+Code Apps の許可は製品上の要件だが、通常は事前診断せず開発・初回 push を優先する。
+以下は明示的な確認依頼または `CodeAppOperationNotAllowedInEnvironment` 発生時だけの手順。
+[admin の権限確認付き復旧](../../admin/references/development-recovery.md) に従い、
+現在有効な委任権限と対象範囲を確認する。権限不足なら操作を試さず管理者へ依頼する。
+設定変更は承認・読み戻し後に元の push を 1 回リトライする。
 
 ```
 ❌ 未許可の場合:
@@ -252,6 +256,9 @@ pip install -r .github/skills/standard/scripts/requirements.txt
 ```
 
 ### 2.4 環境事前チェック（preflight）と bootstrap
+
+この節の preflight はローカル開発ツールの確認であり、Power Platform 環境・DLP / ACP の診断ではない。
+管理 API の環境チェックは明示依頼時・障害時だけとする。
 
 ```bash
 # 新規テーマ開発はフォークしたリポジトリを clone して開始
@@ -499,7 +506,7 @@ api_post("/PublishAllXml", {})
 
 #### 前提条件
 
-- 環境で **Code Apps が有効化**されていること（§1.6 参照）
+- 環境の Code Apps 許可は製品要件だが事前診断は不要。明示依頼時・障害時のみ §1.5 に従う
 - PAC CLI で**対象環境の認証プロファイル**が作成済みであること
 
 ```bash
@@ -1469,7 +1476,7 @@ publish_to_channels(bot_id)
 ❌ Python f-string と通常文字列を混在させて @{{}} を二重ブレースにする（f-string 不要行は @{} 単一ブレース）
 ❌ Dataverse bots テーブルに直接 Bot を作成する（PVA にプロビジョニングされない。Copilot Studio UI で作成せよ）
 ❌ 別環境の appId を power.config.json に残したままデプロイする（AppLeaseMissing エラー。appId を空にせよ）
-❌ 環境の Code Apps 有効化を確認せずにデプロイする（CodeAppOperationNotAllowedInEnvironment エラー）
+❌ 環境診断を通常開発の着手条件にする、または Code Apps 未許可が既知なのに同じ push を繰り返す（障害時は §1.5）
 ❌ git clone 後に dataSourcesInfo.ts を再生成せずにビルドする（`npx pa app add data-source` で全テーブルを再追加）
 ❌ PAC CLI の認証プロファイルを作成せずに push する（pac auth create が必要）
 ❌ get_token() に旧インターフェース（3引数）で呼び出す（auth_helper は .env から自動読み込み。scope のみ指定）
@@ -1884,7 +1891,7 @@ Code Apps を含む構成の場合、テーブル設計と同時に以下を提�
 
 ### Code Apps デプロイ前
 
-- [ ] 環境で **Code Apps が有効化**されている（Power Platform 管理センター → 機能）
+- [ ] 管理 API の事前診断を挟まず初回 push を優先し、明示依頼時・障害時だけ §1.5 の権限確認付き復旧へ分岐する
 - [ ] PAC CLI 認証プロファイルが対象環境用に作成済み（`pac auth create --environment {env-id}`）
 - [ ] `power.config.json` が `npx pa app init` で生成済み
 - [ ] `power.config.json` の `environmentId` が正しい

@@ -1,6 +1,6 @@
 ---
 name: code-apps
-description: "Power Apps Code Apps（コードファースト）の初期化・Dataverse 接続・UI 設計・開発・デプロイ。TypeScript + React + Tailwind CSS で開発する。Copilot Studio v2 Web app iframe、Agent flows 非同期連携、CSP 構成・メール送信パターンも含む。"
+description: "Power Apps Code Apps の初期化・Dataverse 接続・UI 設計・開発・デプロイ。SharePoint URL は明示指定がなければ移行元として扱い、Dataverse ベースで開発する。環境チェックは明示依頼時・障害時だけとし、初回デプロイを優先する。TypeScript + React + Tailwind CSS、Copilot Studio v2 iframe、Agent flows、CSP・メール送信にも対応。"
 category: ui
 triggers:
   - "Code Apps"
@@ -131,6 +131,17 @@ UI 設計・CSP 構成・メール送信パターンまで Code Apps 開発の�
 
 Code Apps 開発は **設計 → 初回デプロイ → データソース接続 → 改善デプロイ** の順に進む。
 
+**既定は Dataverse**。SharePoint URL を渡されても、直接接続・継続利用を明示されない限り
+仕様・移行元の参照情報として扱い、SharePoint コネクタを追加しない。
+[dataverse](../dataverse/SKILL.md) と [data-migration](../data-migration/SKILL.md) で移行し、
+Code Apps は Dataverse の接続参照を使用する。移行元の読み取り権限・移行承認は別途必要。
+
+**環境チェックを明示的に依頼されない限り、すぐに開発を開始する。**
+DLP / ACP・Code Apps 許可・マネージド環境・MCP の診断を開始条件にしない。
+対象環境とデプロイ承認を確認できたら、ローカル predeploy / build を通して初回 push を優先する。
+初回 push はテーブル全件構築・データ移行・ローカライズの完了を待たず、未接続部分を UI に明示する。
+障害時だけ [admin の権限確認付き復旧](../admin/references/development-recovery.md) を使用する。
+
 > [!NOTE]
 > **サブエージェント並行実行パターン**: `architecture` スキルで Code Apps が確定し、`dataverse` スキルで
 > スキーマが承認されたタイミングで、このスキルがサブエージェントとして起動される。
@@ -195,7 +206,11 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
 
 ## 2. 初回デプロイ
 
-### 環境の前提条件（デプロイ前に必ず確認）
+### デプロイ先とローカル構成（管理 API の事前確認は不要）
+
+対象環境・アカウント・ソリューションとローカル構成を確認する。
+Code Apps 許可は製品上の要件だが、通常フローでは管理センターや管理 API で事前診断せず push を試す。
+既に無効と分かっている場合は無駄に push せず、復旧手順へ進む。
 
 ```
 1. Power Platform 管理センターで「コード アプリを許可する」がオン
@@ -211,9 +226,8 @@ Code Apps 開発は **設計 → 初回デプロイ → データソース接続
   → 新規環境では必ず npx pa app init で新規生成
 ```
 
-> 環境全体の状態（既定環境ではないか / マネージド環境 / Dataverse / Code Apps / MCP / セキュリティ ロール / DLP）は
-> [admin スキル](../admin/SKILL.md) の `check_environment.py` でまとめて確認できる。
-> 開発着手前に一度実行しておくと、デプロイ直前の 403 を避けられる。
+> 環境全体のチェックは明示依頼時のみ、障害時は原因に必要な項目だけを
+> [admin スキル](../admin/SKILL.md) で診断する。委任権限がなければ管理操作を試さず管理者へ依頼する。
 > **Code Apps の必須条件は環境で「コード アプリを許可する」が有効であること**。
 > マネージド環境はガバナンス上の選択肢であり、Code Apps のデプロイ要件ではない。
 > **CLI の実行ファイル名は `pa`**。`@microsoft/power-apps-cli` は bin を `power-apps` から **`pa`** にリネームし、
@@ -444,7 +458,7 @@ npx pa app remove data-source --connector <shared_mcp_connector_id> --force --no
 **通称で指定でき、スクリプトが `shared_xxx` に解決**してから `--non-interactive` で CLI を起動する。
 
 ```powershell
-# SharePoint（接続は環境内に 1 つなら自動選択）
+# SharePoint（直接接続・継続利用を明示された場合だけ。URL の提示だけでは実行しない）
 python .github/skills/code-apps/scripts/add_data_source.py --connector sharepoint `
   --dataset "{SITE_URL}" --table "{LIST_ID}"
 # ファイル作成などの操作はテーブルとは別に --as action で追加する（troubleshooting #57）
@@ -784,7 +798,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 
 | スクリプト | 用途 |
 |---|---|
-| [check_code_apps_environment.py](scripts/check_code_apps_environment.py) | Code Apps 許可の必須条件を確認し、マネージド環境の状態を参考表示（`pa app init` の前に実行） |
+| [check_code_apps_environment.py](scripts/check_code_apps_environment.py) | 明示依頼時・Code Apps 許可関連の障害時だけ使用。委任権限を確認して診断し、通常の init / push 前には実行しない |
 | [configure_code_app_csp.py](scripts/configure_code_app_csp.py) | Code Apps の CSP（`frame-src` 等）を確認・追加・検証。iframe を使うアプリはデプロイ前に `--assert` を通す |
 | [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
 | [add_data_source.py](scripts/add_data_source.py) | データソースを**非対話**で追加する。コネクタの通称（`sharepoint` 等）を `shared_xxx` に解決し、接続・必須値を確定してから `--non-interactive` で CLI を起動する。Step 3 の標準 |

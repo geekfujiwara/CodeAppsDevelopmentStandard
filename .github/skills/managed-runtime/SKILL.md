@@ -144,7 +144,8 @@ ms app add data-source --connector <connector-id> --as table --table <table>
 ```
 
 1. `ms connector list` の DLP / ACP 状態で、使うコネクタと操作がブロックされていないことを確認する。
-   特定の環境（`--environment-id`）に作った場合は、[admin スキル](../admin/SKILL.md) の環境チェックと DLP 事前チェックも実行する。
+   環境・DLP の管理 API による事前診断は行わない。明示依頼時・接続障害時だけ
+   [admin の権限確認付き復旧](../admin/references/development-recovery.md) で現在の委任権限を確認し、必要範囲を診断する。
 2. 追加後は `generated/` のサービスを import して呼ぶ。`fetch` / `axios` で直接呼ばない。
 3. 追加後に `ms.config.json` を読み、`sharedConnectionId` が付いた共有接続があれば、
    画面の実装後に `allowedActions` を決めて宣言する（[sdk-usage.md](references/sdk-usage.md#共有接続の-allowedactions唯一の手編集)）。

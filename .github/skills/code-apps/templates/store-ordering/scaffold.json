@@ -55,7 +55,7 @@
     {
       "variable": "ENV_ID",
       "question": "作成先の Power Platform 環境はどれですか？（既定環境は使わない。Dataverse・Code Apps が有効な開発用の環境）",
-      "detect": "pac env list（候補を choices にして聞く）。admin スキルの環境チェックで Code Apps の有効化も確認する"
+      "detect": "既存 .env または pac env list から候補を取得し、不明な環境選択だけ質問する。環境・Code Apps 許可の事前診断は行わない"
     },
     {
       "variable": "DATAVERSE_URL",
@@ -107,12 +107,13 @@
     }
   ],
   "nextSteps": [
-    "README.md の「開始の手順」を上から実行する（0〜5）",
-    "npm install --no-audit --no-fund; npm run data:seed; npm run data:export",
-    "npm run dv:setup; npm run dv:verify   # ソリューション・8 テーブル・デモデータ（べき等）",
+    "README.md の「開始の手順」を上から実行する（0〜6）。明示依頼時・障害時以外は環境診断せず初回 push を優先する",
+    "npm install --no-audit --no-fund",
+    "python scripts/dataverse/setup_dataverse.py --solution-only",
     "python .github/skills/code-apps/scripts/setup_connection_reference.py --write-env .env",
     "npx --no pa app init --environment-id $env:ENV_ID --display-name \"店舗発注システム\" --app-type CodeApp",
     "npm run deploy -- --solution-id $env:SOLUTION_ID  # 初回。データソース未追加でもビルドできる",
+    "npm run data:seed; npm run data:export; npm run dv:setup; npm run dv:verify",
     "python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --connection-ref $env:CONNECTION_REFERENCE_LOGICAL_NAME --solution-id $env:SOLUTION_ID",
     "npm run deploy; npm run dv:check-terminal",
     "（任意）Cowork の店長アシスト: cowork スキルの templates/store-assist-plugin を --questions で生成"

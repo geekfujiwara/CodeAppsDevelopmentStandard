@@ -49,8 +49,17 @@ $dm = ".github/skills/data-migration/scripts"
 
 ### Step 1: 投入先と権限を確認する
 
-1 回の AskUserQuestion で、投入先（Dataverse / Databricks / Fabric Lakehouse）、書き込み権限、
-個人情報の有無、既存データを上書きしてよいかを確認する。投入先が未作成なら先に作る。
+Code Apps 開発で SharePoint URL を受け取った場合、直接接続・継続利用の明示がなければ
+**投入先は Dataverse** とする。移行か直接接続かを毎回聞き直さず、URL は移行元の参照情報として扱う。
+URL を渡されたことだけを読み取り・書き込みの承認とせず、取得範囲と読み取り権限を確認する。
+既存の承認済みエクスポートを再利用するか、読み取り権限内で CSV / JSON を取得し、Step 2 に渡す。
+取得できなければ所有者へエクスポートを依頼し、SharePoint 直接接続へ黙って切り替えない。
+元の SharePoint データは変更・削除せず、移行後の常時同期も明示依頼なしには構築しない。
+
+それ以外は選定済みの投入先（Dataverse / Databricks / Fabric Lakehouse）を再利用する。
+AskUserQuestion では不足している書き込み承認、個人情報の扱い、既存データの上書き可否だけを確認する。
+投入先が未作成なら先に作るが、Code Apps の初回 push は移行完了を待たせない。
+全件検証・hash 承認・投入後の照合は省略しない。
 
 | 投入先 | 事前に必要なもの | 担当 |
 |---|---|---|

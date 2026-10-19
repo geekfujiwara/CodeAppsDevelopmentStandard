@@ -43,16 +43,15 @@ triggers:
 Copilot Studio エージェントを **生成オーケストレーション（Generative Orchestration）モード一択** で構築する。
 外部トリガー・ニュース配信エージェント等の応用パターンまでカバーする統合スキル。
 
-> **構築を始める前に**: [admin スキル](../admin/SKILL.md) で環境チェックと DLP 事前チェックを実行する。
-> エージェントが使うコネクタ（Dataverse / カスタムコネクタ / MCP Server 等）が DLP でブロックされていたり、
-> Business / Non-business が混在していると、公開時に「data loss prevention policy によりブロック」となり
-> ツール構成からやり直しになる。
+> **環境診断は明示依頼時・障害時だけ**。通常は構築を開始し、環境・DLP の事前確認を挟まない。
+> ポリシー関連の拒否が発生したら [admin の権限確認付き復旧](../admin/references/development-recovery.md) に従う。
+> 現在の委任権限で可能な診断・承認済み最小修復・限定リトライを行い、権限不足なら管理者へ依頼する。
 
 ## サブリファレンス（必要に応じて参照）
 
 | リファレンス | 内容 |
 |---|---|
-| [admin スキル（環境・DLP チェック）](../admin/SKILL.md) | 構築前の環境チェックと DLP 事前チェック、カスタムコネクタの DLP 分類変更 |
+| [admin スキル（環境・DLP チェック）](../admin/SKILL.md) | 明示依頼時・障害時だけの権限確認付き診断・修復 |
 | [構築リファレンス](references/build-reference.md) | 構築手順の詳細・Instructions テンプレート・スクリプトコード |
 | [**外部公開 WebChat SDK（標準）**](references/webchat-sdk-embed.md) | **外部公開の標準パターン**。BotFramework WebChat SDK で UI フルカスタマイズ・プログラム的メッセージ送信 |
 | [**外部公開デザインテンプレート（標準 UI）**](references/webchat-sdk-design-template.md) | **標準 UI デザイン**：左パネル（カテゴリ別カード＋プロンプトチップス）＋ 右 WebChat パネル（グラデーション枠・AI タイピング Tips） |
