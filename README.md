@@ -19,15 +19,42 @@ Power Platform / Azure の業務システムを **VS Code + GitHub Copilot / Cla
 
 ## クイックスタート
 
-VS CodeとGitHub Copilotが利用できるフォルダーを開き、チャットで次のように依頼します。ツール・認証の準備がまだなら、先に[開発者向けガイド](docs/developer-guide.md)を確認してください。
+**アプリを作りたいローカルのフォルダーを VS Code で開き、GitHub Copilot Chat の Agent モードに、次をそのままコピーして依頼してください。**
+リポジトリのURLと「クイックスタートして」だけで開始できます。仕様書などの資料があれば、そのフォルダーに置いたままで構いません。
 
 ```text
 https://github.com/geekfujiwara/CodeAppsDevelopmentStandard クイックスタートして
 ```
 
-標準を配置したら、Copilotで **GeekPowerCode** を選択し、作りたいテーマを伝えます。自社標準がある場合は、その承認済み版と自社名のエージェントを使ってください。
+Copilotは[クイックスタート実行手順](.github/skills/standard/references/quickstart.md)に沿って、
+**`.github/agents`・`.github/skills`・テンプレートの`.gitignore`を配置するだけでは止まらず**、次まで一気通貫で進めます。
 
-- 設計・承認・環境/DLPチェックの後に実装します。
+1. 利用可能なPower Platform環境・既存ソリューションの情報を取得し、共通`auth_helper.py`・`.env`と、初回インタラクティブサインインの認証キャッシュを準備します。
+2. ワークスペースの業務資料があれば`spec-builder`で仕様を整理します。なければフォルダー名からアプリ案を先に提案し、選択を確認します。
+3. 業界知識・ベストプラクティスを使い、単なるリフト&シフトではない**業務改善・AI活用・アーキテクチャ提案**をまとめます。
+4. **業務フロー図とアーキテクチャ図をMermaidでチャットとMarkdownの両方に出力**し、推奨案を見せてから、決める必要のある事項だけを`AskUserQuestion`で確認します。
+
+環境スキャンは接続先などを埋めるための情報取得です。通常はDLP・ACP・Code Apps許可の事前診断をしません。
+既存ファイル・社内標準は保護し、認証操作や環境選択など本人の判断が必要なときだけ回答を待ち、回答後は続行します。
+取得できた事実と提案上の仮説は区別し、追加費用やクラウドへの変更は承認なしに実施しません。
+
+詳細な指示も含めたい場合は、次をコピーできます（配置後はCopilotの `/Quickstart` からも実行可能です）。
+
+```text
+https://github.com/geekfujiwara/CodeAppsDevelopmentStandard クイックスタートして。
+.github/agents・.github/skills・テンプレートの.gitignoreを配置しただけで止めず、
+環境候補のスキャン、auth_helper.py・.envとインタラクティブサインインの認証キャッシュを準備して。
+ローカルに業務資料があればspec-builderを実行し、なければフォルダー名からアプリ案を先に提案して。
+業務要件を一から質問せず、プロのコンサルタントとして業界知識とベストプラクティスから補完し、
+業務改善・推奨AI機能・architecture提案までまとめて進めて。
+業務フローとアーキテクチャのMermaid図をチャットとMarkdownの両方に出し、
+事実・仮説を区別した推奨案を提示した後、必要な意思決定だけAskUserQuestionで確認して。
+```
+
+実装へ進む際はCopilotで **GeekPowerCode** を選択します。自社標準がある場合は、その承認済み版と自社名のエージェントを使ってください。ローカルツールの詳細は[開発者向けガイド](docs/developer-guide.md)を参照してください。
+
+- 設計・承認後はすぐに実装し、Code Appsの初回デプロイを優先します。環境・DLPチェックは明示依頼時または障害時だけ行います。
+- SharePoint URLは、直接接続・継続利用の明示がなければ移行元として扱い、Dataverseに移行してCode Appsを開発します。
 - Code Appsが選定された場合だけ、そのスキルが依存関係を配置・インストールします。
 - `.env`・認証情報・生成物をコミットしないよう、`.gitignore`を確認してください。
 - 既存の仕様書から始める場合は [spec-builder](.github/skills/spec-builder/SKILL.md) を利用します。
@@ -44,7 +71,7 @@ https://github.com/geekfujiwara/CodeAppsDevelopmentStandard クイックスタ�
 <a id="カスタムエージェント前提の利用方法"></a>
 <a id="github-copilot--claude-code-活用"></a>
 
-[開発者向けガイド](docs/developer-guide.md)に、ローカルツールの準備、Pythonパッケージ、初回サインイン、環境・DLP事前チェックをまとめています。
+[開発者向けガイド](docs/developer-guide.md)に、ローカルツールの準備、Pythonパッケージ、初回サインイン、明示依頼時の環境チェックと障害時の復旧をまとめています。通常開発では管理APIによる事前診断を挟みません。
 
 一括準備は [Setup Development Environment](.github/prompts/setup-development-environment.prompt.md) をCopilot Chatの `/` から選択できます。管理者権限が不足する工程では停止し、管理者へ依頼する内容を報告します。
 

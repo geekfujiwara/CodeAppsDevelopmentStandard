@@ -18,32 +18,29 @@ Power Platform コードファースト開発エキスパート。
 
 1. 作業開始前に `.github/skills/standard/SKILL.md` を読む
 2. 該当スキルを読む（下表）
-3. 設計提示 → ユーザー承認 → **環境チェック + DLP 事前チェック（admin スキル）** → 実装
+3. 設計提示 → ユーザー承認 → **すぐに実装・初回デプロイ**。環境チェックは明示依頼時または障害時だけ `admin` を使用する
 4. **デプロイ時は必ず各スキルのプレデプロイチェックを実行してからデプロイする**
 5. **AI teammate / AIチームメイト / AI チームメイト / Agent Template / Foundry Autopilot の依頼は必ず `foundry-autopilot` スキルへルーティングする。** 明示的な自己ホスト要件がなければ `hosting: "foundry-autopilot"` を選び、`publish_foundry_autopilot.py` で発行する。汎用の `scripts/deploy.py` や SDK の `agents.create_version` だけでは完了しない。明示的な Agent Template / Autopilot 要求で前提が不足したら停止し、不足事項を報告する。通常 Agent や自己ホストへ黙ってフォールバックしない（自己ホストは明示選択された別経路として対応する）。
 6. **Autopilot の完了判定は HTTP 成功や Teams app ID ではない。** 同じ agent version の `digital_worker_type=m365` と `blueprint.client_id` に結び付いた `publishAsAutopilot=true`・`useAgenticUserTemplate=true`・`agenticUserTemplate` を確認し、M365 Requests の **Type = Agent template** と Teams **Agents for your team** での採用（hire）を手動確認してから完了とする。未確認は承認待ち・採用待ちと報告する。`--container-only` は既存の検証済みテンプレートのコード更新専用で、初回発行や通常 Agent の修復には使わない。
 
-## 環境チェック・DLP 事前チェック（実装着手前に必須）
+## クイックスタートの初動
 
-構成が確定したら、**実装を始める前に** `admin` スキル（`.github/skills/admin/SKILL.md`）で
-「その環境で作れるか」を確認し、**結果をユーザーに提示する**。
+リポジトリ URL と「クイックスタート」の依頼では `.github/skills/standard/references/quickstart.md` を読み、
+標準配置だけで止まらず、環境候補取得・共通認証と `.env`・資料探索・`spec-builder`・`architecture` を一気通貫で進める。
+資料なしならフォルダー名からアプリ案を先に提案して AskUserQuestion で確認する。
+プロのコンサルタントとして業界知識・ベストプラクティスで仮説を補い、業務要件を一から質問しない。
+単なるリフト&シフトではなく To-Be・AI 改善・推奨構成・段階計画を示し、業務フローと構成の Mermaid 図を
+**チャットと Markdown の両方**に出力する。必要な意思決定だけを 1 問ずつ確認し、本人のサインイン・回答後も継続する。
+メタデータ取得の環境スキャンと管理 API の事前診断は区別し、後者は明示依頼時・障害時だけとする。
 
-```powershell
-# 1. 環境チェック（既定環境ではないか / マネージド環境 / Dataverse / Code Apps / MCP / 監査 / セキュリティ ロール / 管理 API）
-python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID
+## 開発優先・環境診断はオンデマンド
 
-# 2. DLP 事前チェック（ソリューションが使うコネクタを列挙する）
-python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID --connector shared_commondataserviceforapps
-```
-
-- どちらも読み取り専用。`NG` が 1 つでもあれば実装に入らない
-- 環境チェックの観点: 既定環境で開発していないか / 環境が Enabled か / マネージド環境か / Dataverse が有効か /
-  Code Apps が使えるか / Dataverse MCP が有効か / 監査が有効か / 必要なセキュリティ ロールがあるか / 管理 API を呼べるか
-- Code Apps・MCP・マネージド環境が要件なら `--require-code-apps` / `--require-mcp` / `--require-managed` を付けて WARN を NG に昇格させる
-- DLP はブロック / Business・Non-business の混在 / カスタムコネクタの未分類を検出する
-- 問題があれば解消方針（代替コネクタ / 環境変更 / 管理者への依頼）を合意してから進む
-- 設定を変更する場合は `set_managed_environment.py` / `set_dlp_custom_connector.py` の dry-run 出力を必ずユーザーに確認してもらう
-- 詳細: `.github/skills/admin/SKILL.md`
+- **SharePoint URL だけでは直接接続の指示と解釈しない。** 明示的な継続利用・直接接続の指定がなければ Dataverse へ移行して Code Apps を開発する。URL は仕様・移行元の参照情報として扱い、SharePoint コネクタを自動追加しない。
+- **環境チェックを明示的に依頼されない限り、すぐに開発を開始する。** DLP / ACP・Code Apps 許可・MCP・管理者ロールの事前調査を挟まない。
+- 既知の対象環境・認証・ソリューションを使い、scaffold → init → predeploy / build → 初回 push を優先する。初回 push はテーブル全件構築・移行・ローカライズ完了を待たない。未接続を成功に見せない。
+- 障害時だけ `admin` を呼ぶ。既存の権限情報と対象 API の最小限の読み取りで**現在の依頼者の委任権限・対象範囲**を確認し、可能な診断 → 承認済みの最小修復 → 限定リトライと進む。
+- 権限なし・不明、または管理 API が 403 なら同じ管理呼び出しを繰り返さず、対象環境・エラー・必要操作・最小権限をまとめて環境管理者へ依頼する。管理者にしか読めない状態を開発不可とは判定しない。
+- 詳細: `.github/skills/standard/SKILL.md` と `.github/skills/admin/references/development-recovery.md`。既知のポリシー、設計・移行・設定変更の承認とローカル predeploy は維持する。
 
 ## 言語設定
 
@@ -72,6 +69,7 @@ python .github/skills/admin/scripts/check_dlp.py --environment-id $env:ENV_ID --
 - **認証**: Python スクリプトでは必ず `auth_helper.py` の API（`get_token` / `get_session` / `api_get` / `api_post` / `api_patch` / `api_delete` / `retry_metadata`）を使う（`requests` 直呼び・MSAL 直接呼び出し禁止）
 - **認証は共通キャッシュを再利用**: 開発環境の初回セットアップで `auth_helper.authenticate()` によるブラウザー認証を tenant/client ID ごとに 1 回行い、`AuthenticationRecord` をホームディレクトリの JSON に保存する。トークンは OS 資格情報ストアに保存する。デバイスコード認証、リポジトリ内への認証情報保存、スクリプトごとの独自認証は禁止。新規スクリプトは必ず `standard/scripts/auth_helper.py` の API を使い、同じ tenant/client ID のキャッシュでサイレントに完走する。新しい client ID が必要な場合は初回だけ別途ブラウザー認証する
 - **データソース**: `python .github/skills/code-apps/scripts/add_data_source.py --connector {通称または shared_xxx}` で追加する（`dataSourcesInfo.ts` 手動追記禁止）。
+  既定は `dataverse`。`sharepoint` は直接利用を明示された場合だけ指定する。
   `npx pa app add data-source` を直接叩くとコネクタ ID の対話プロンプトで止まるため、通称（`sharepoint` 等）を
   [コネクタ ID カタログ](.github/skills/standard/references/connector-catalog.json)で `shared_xxx` に解決してから
   `--non-interactive` で実行するこのラッパーを正常フローとする

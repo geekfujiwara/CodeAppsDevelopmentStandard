@@ -1,6 +1,6 @@
 ---
 name: admin
-description: "Power Platform のテナント / 環境ガバナンスを確認・設定する管理スキル。開発着手前の環境チェック（既定環境ではないか・マネージド環境・Dataverse / Code Apps / MCP の有効化・セキュリティ ロール・管理 API アクセス）と DLP 事前チェックを非対話スクリプトで実行し、必要ならマネージド環境設定・カスタムコネクタの DLP 分類・ACP（Advanced connector policies）の許可コネクタを dry-run 付きで変更する。Microsoft 第一者サービスだけを許可する ACP 推奨プロファイルの適用と、クラシック DLP から ACP への移行も支援する。クラシック DLP と ACP は既定の混成モードで併用され、より制限の厳しい方が適用されるため両方を確認する。オプションとして、既定環境 / 個人開発者環境 / 市民開発者環境 / AI CoE セントラル / AI CoE 内製開発の 5 グループからなるテナント全体の環境戦略を、読み取り専用スキャン → 移行プラン（admin-migration-plan.md）→ レビュー → 適用の順で策定・実行する。設定は環境グループのルールで行うのを原則とし、グループ ルールに無い項目（既定環境ルーティング・Dataverse for Teams 禁止・Dataverse 検索・グループへの割り当て・Copilot クレジット配分）だけをテナント設定・環境個別設定・Dataverse の組織設定で補う。IP 制限・テナント分離・監査ログ・ライセンス配分などの管理設定は references にまとめる。"
+description: "Power Platform のテナント / 環境ガバナンスを確認・設定する。通常開発では事前チェックせず、環境チェックの明示依頼時または開発・デプロイ障害時だけ診断する。依頼者の現在有効な委任権限と対象範囲を確認し、権限内の最小診断・承認済み修復・限定リトライ、権限不足なら管理者への依頼へ分岐する。環境・DLP・ACP・環境グループ・テナント戦略の確認と dry-run 付き管理操作を提供する。"
 category: platform
 triggers:
   - "環境チェック"
@@ -49,18 +49,21 @@ triggers:
 
 # Power Platform 管理・ガバナンススキル
 
-**開発を始める前に環境が使える状態かを確認し**、必要なガバナンス設定を API で整えるためのスキル。
+**明示的な環境チェック・管理依頼、または開発・デプロイ障害時にだけ**、
+必要な診断・ガバナンス設定を API で行うスキル。通常開発の着手ゲートではない。
 他スキル（`architecture` / `standard` / `code-apps` / `copilot-studio` / `mcp-server`）から
-共通ステップとして呼び出される。
+必要時に呼び出される。
 
 | 原則 | 内容 |
 |---|---|
-| 実装前に確認 | 設計が固まったら**実装着手前に** Step 1・Step 2 を実行し、結果をユーザーに提示する |
+| 開発優先 | 明示的なチェック依頼がなければ事前診断しない。開発・初回デプロイを優先し、障害時だけ原因に必要な診断へ分岐する |
+| 権限を先に判定 | 現在の依頼者の委任スコープ・有効ロール・対象範囲を、読み取りと変更に分けて確認。権限なし・不明なら管理操作をせず管理者へ依頼する |
 | 読み取り優先 | 既定は読み取り専用。変更系は必ず **dry-run → ユーザー確認 → `--apply`** の順 |
 | 非対話 | 認証は `auth_helper.py` のキャッシュを使う。`Add-PowerAppsAccount` / `az login` は使わない |
 | 最小変更 | テナント全体に効く設定は、対象ホスト・対象環境だけに絞って変更する |
 
 > 必要なロールは [管理者ロール要件](references/admin-roles.md)、
+> 障害時の分岐・自己修復・リトライは [development-recovery.md](references/development-recovery.md)、
 > 環境チェックの判定基準は [environment-check.md](references/environment-check.md)、
 > テナント全体の環境設計は [environment-strategy.md](references/environment-strategy.md)、
 > 環境グループのルール ID と非公開 API は [rule-catalog.md](references/rule-catalog.md)、
@@ -77,7 +80,7 @@ triggers:
 | [scripts/check_environment.py](scripts/check_environment.py) | 環境チェック一式（既定環境 / マネージド環境 / Dataverse / Code Apps / MCP / 監査 / セキュリティ ロール / 管理 API / 適用 DLP） | なし |
 | [scripts/check_dlp.py](scripts/check_dlp.py) | 使用コネクタが DLP で使えるかの事前チェック | なし |
 | [scripts/set_dlp_custom_connector.py](scripts/set_dlp_custom_connector.py) | カスタムコネクタ（自前 MCP Server 等）の DLP 分類を設定 | `--apply` 時のみ |
-| [scripts/check_development_environment.py](scripts/check_development_environment.py) | 標準事前チェック。環境 + Dataverse / 新 Workflow Agent ノードのクラシック DLP + 環境・グループ ACP を順に検査し、失敗時に停止 | なし |
+| [scripts/check_development_environment.py](scripts/check_development_environment.py) | 環境チェックを明示依頼された場合の統合診断。環境 + Dataverse / 新 Workflow Agent ノードのクラシック DLP + 環境・グループ ACP を検査。通常開発からは呼ばない | なし |
 | [scripts/set_acp_connector.py](scripts/set_acp_connector.py) | ACP の実効設定とグループ設定を確認する（CLI は読み取り専用） | なし |
 | [scripts/add_group_acp_connector.py](scripts/add_group_acp_connector.py) | グループ ACP の既存ルールを保ったままコネクタを 1 件追加（ハッシュ照合と読み戻しあり） | `--apply` 時のみ |
 | [scripts/remove_group_acp_connector.py](scripts/remove_group_acp_connector.py) | グループ ACP からコネクタを 1 件削除（配下環境と既存接続の影響を dry-run で提示） | `--apply` 時のみ |
@@ -119,9 +122,13 @@ triggers:
 
 ### Step 1: 環境チェックを実行する
 
-対象環境が開発してよい状態かを一括で確認する。**新しい環境で作業を始める最初のステップ**。
+**明示的に環境チェックを依頼された場合だけ**、対象環境を一括確認する。
+障害から呼ばれた場合は [development-recovery.md](references/development-recovery.md) に従い、
+網羅チェックを先に実行せず、原因に必要な項目へ絞る。
+いずれの場合も [admin-roles.md](references/admin-roles.md) に従って現在の依頼者の委任権限と対象範囲を確認し、
+読み取り権限がない・確認できない管理 API は呼ばず、管理者へ依頼する。
 
-README の環境準備プロンプトでは、次の統合コマンドを標準とする。
+README の**明示的な環境準備依頼**では、必要な読み取り権限を確認したうえで次の統合コマンドを使う。
 `shared_commondataserviceforapps` と `shared_agentnode` を必ず含め、環境チェックに続いて
 Step 2 のクラシック DLP と Step 6 の ACP 読み取りを実行する。追加コネクタは `--connector` で指定する。
 許可リストを変更するコマンドではない。ブロックや取得エラー時は停止して Step 3 の承認ゲートへ進む。
@@ -159,7 +166,9 @@ python .github/skills/admin/scripts/check_environment.py `
 
 ### Step 2: DLP 事前チェックを実行する
 
-ソリューションが使うコネクタを列挙して実行する。手順は [dlp-precheck.md](references/dlp-precheck.md)。
+明示的な DLP 確認依頼またはポリシー関連の障害時だけ、必要な読み取り権限を確認して
+ソリューションが使うコネクタを列挙し実行する。手順は [dlp-precheck.md](references/dlp-precheck.md)。
+通常のコネクタ追加・開発の前提にはしない。
 
 ```powershell
 python .github/skills/admin/scripts/check_dlp.py `
@@ -171,8 +180,9 @@ python .github/skills/admin/scripts/check_dlp.py `
 
 ### Step 3: 結果をユーザーに提示する
 
-Step 1・Step 2 の `NG` / `WARN` を表にして提示し、**実装に入る前に**解消方針を合意する。
-権限不足で読み取れない項目があれば、管理者に実行を依頼して結果を共有してもらう。
+Step 1・Step 2 を実行した範囲の `NG` / `WARN` / 未確認を提示し、該当操作の解消方針を合意する。
+権限不足で読み取れない項目は「未確認」であり、環境不良・開発不可とは判定しない。
+管理者へ依頼し、影響しないローカル開発は継続する。変更は dry-run → 承認 → apply → 読み戻しの順とする。
 
 | 検出 | 典型的な対応 |
 |---|---|
@@ -630,11 +640,10 @@ VS Code 統合ブラウザで通信を調査する。Bearer token、Cookie、CSR
 
 | 呼び出し元 | タイミング | 実行するもの |
 |---|---|---|
-| `architecture` | 構成確定後・実装着手前 | Step 1 → Step 2 |
-| `standard` | 新しい環境で作業を開始するとき | Step 1 |
-| `code-apps` | 初回デプロイ前 | Step 1（`--require-code-apps`。組織方針で必要な場合だけ `--require-managed` も指定） |
-| `copilot-studio` / `copilot-studio-v2` | エージェント作成前・MCP ツール追加前 | Step 1（`--require-mcp`）→ Step 2 → Step 6 |
-| `mcp-server` | カスタムコネクタ登録前後 | Step 2 → Step 5 → Step 6 |
+| `architecture` / `standard` | 明示的な環境チェック依頼時・開発障害時だけ | 委任権限を確認し、依頼範囲または原因に必要な診断のみ |
+| `code-apps` | 明示依頼時・初回 push / 接続障害時だけ | 権限確認付き復旧。通常の初回デプロイ前には呼ばない |
+| `copilot-studio` / `copilot-studio-v2` | 明示依頼時・エージェント / MCP 障害時だけ | 権限を確認し、原因に応じて Step 1 / Step 2 / Step 6 |
+| `mcp-server` / `custom-connector` / `agent-flows` | 明示依頼時・登録 / 実行障害時だけ | 権限を確認し、原因に応じて Step 2 / Step 5 / Step 6 |
 | ユーザー依頼 | DLP / ACP の推奨設定・移行 | Step 7（推奨プロファイル）/ Step 8（DLP → ACP 移行） |
 | ユーザー依頼 | 環境戦略の策定・環境の見直し | Step 10 |
 | ユーザー依頼 | M365 ユーザー・ライセンス・Frontier・Copilot 管理 | Step 11 |

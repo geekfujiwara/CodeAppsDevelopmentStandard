@@ -28,28 +28,33 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 
 npm install --no-audit --no-fund
 
-# 1. 環境チェック（admin スキル。既定環境でない・Dataverse・Code Apps が有効）
-python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID --require-code-apps
+# 1. 既知の対象環境・認証・ソリューションを再利用（管理 API の事前診断は不要）
+# 環境チェックの明示依頼時・障害時だけ admin/references/development-recovery.md に従う
 
-# 2. デモデータを作る（シードから決まる。数秒）
-npm run data:seed      # 合成データに「気づける癖」が出ているかも表示
-npm run data:export    # Dataverse に入れる形（demo-data/export/<シナリオ>.json）
-
-# 3. Dataverse のソリューション・8 テーブル・デモデータ（べき等）
-npm run dv:setup
-npm run dv:verify
-
-# 4. Code App（code-apps スキルの手順 Step 1〜6）
+# 2. Code App を初回デプロイ（全テーブル・デモデータ投入は待たない）
+python scripts/dataverse/setup_dataverse.py --solution-only
 python .github/skills/code-apps/scripts/setup_connection_reference.py --write-env .env
 npx --no pa app init --environment-id $env:ENV_ID --display-name "店舗発注システム" --app-type CodeApp
 npm run deploy -- --solution-id $env:SOLUTION_ID     # 初回。データソース未追加でもビルドできる
+
+# 3. デモデータを作る（シードから決まる。数秒）
+npm run data:seed      # 合成データに「気づける癖」が出ているかも表示
+npm run data:export    # Dataverse に入れる形（demo-data/export/<シナリオ>.json）
+
+# 4. 同じソリューションに Dataverse の8テーブル・デモデータを構築（べき等）
+npm run dv:setup
+npm run dv:verify
+
+# 5. Dataverse 接続後に改善デプロイ
 python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --connection-ref $env:CONNECTION_REFERENCE_LOGICAL_NAME --solution-id $env:SOLUTION_ID
 npm run deploy
 
-# 5. 実データでの確認（アプリと同じ列・フィルターで取得し、発注の登録 → 取消 → 削除を再現）
+# 6. 実データでの確認（アプリと同じ列・フィルターで取得し、発注の登録 → 取消 → 削除を再現）
 npm run dv:check-terminal
 ```
 
+初回 push は配置確認であり、業務機能の完成ではありません。未接続部分は UI と報告で明示し、
+Dataverse 接続・実データ確認・改善デプロイまで完了させます。
 
 
 ## デモの操作

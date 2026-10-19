@@ -120,8 +120,8 @@ triggers:                      # スキル発動条件キーワード（必須�
 | スキル | 説明 |
 |--------|------|
 | [architecture](architecture/SKILL.md) | Power Platform 全体の構成方針を設計し、最適なコンポーネント構成を決定する。社内向け画面は使う人のライセンス（Power Apps Premium か Copilot Credits の従量課金か）で Code Apps と Copilot Managed Runtime を使い分ける。Agent 365 採用時はライト実装 / 本格実装と Git ホスティングを確定する。 |
-| [standard](standard/SKILL.md) | 共通認証・環境変数・ソリューション運用など、全スキル共通の開発基盤を提供する。 |
-| [admin](admin/SKILL.md) | テナント / 環境ガバナンスを確認・設定する。開発着手前の環境チェック（既定環境 / マネージド環境 / Dataverse・Code Apps・MCP の有効化 / セキュリティ ロール）と DLP 事前チェックを非対話スクリプトで実行する。 |
+| [standard](standard/SKILL.md) | 共通認証・環境変数・ソリューション運用を提供する。クイックスタートは標準配置・環境情報・認証・仕様整理から、AI 改善と Mermaid 図を含む architecture 提案まで一気通貫で進める。 |
+| [admin](admin/SKILL.md) | 明示的な環境チェック・管理依頼時、または開発・デプロイ障害時に使う。現在の委任権限を確認し、最小診断・承認済み修復・限定リトライ、権限不足なら管理者への依頼へ分岐する。通常開発の事前ゲートにはしない。 |
 | [update-skills](update-skills/SKILL.md) | スキル（SKILL.md/references/scripts）を作成・更新し、汎用化・秘匿化した上でリモートへ PR を作成・更新する。 |
 | [azure-infra](azure-infra/SKILL.md) | Azure のリファレンスアーキテクチャを選定し、テナントのセキュリティガバナンス（公衆アクセス禁止・共有キー禁止・MFA 必須等）に準拠した構成で構築・デプロイ・検証する。 |
 | [mcp-server](mcp-server/SKILL.md) | Copilot Studio から利用する自前 MCP Server を Azure Functions 上に構築する。JSON-RPC 最小実装・キーレス認証（受信 Entra JWT / 送信 Managed Identity）・Private Endpoint 下でのデータ投入・デプロイの実測検証までを非対話スクリプトで完結する。 |
@@ -183,6 +183,11 @@ triggers:                      # スキル発動条件キーワード（必須�
 
 ## 推奨開発フロー
 
+**SharePoint URL は明示的な直接接続・継続利用の指定がなければ移行元**とし、
+Dataverse に移行して Code Apps を開発する。通常は環境・DLP / ACP・Code Apps 許可を先に診断せず、
+開発と対象環境への初回 push を優先する。初回 push はデータ移行・全テーブル構築・ローカライズの完了を待たない。
+問題発生時だけ [admin の権限確認付き復旧](admin/references/development-recovery.md) を使う。
+
 Phase 1（設計）承認後は、Dataverse 構築と同時に Code Apps・Copilot Studio の開発も並行して着手する。
 VS Code では 3 トラックをサブエージェントに割り当てて並行実行する（同期点・オーケストレーションは
 [standard §8「開発フロー全体図」](standard/references/power-platform-development-standard.md#8-開発フロー全体図) を参照）。
@@ -191,7 +196,7 @@ VS Code では 3 トラックをサブエージェントに割り当てて並行
 0. spec-builder   → 既存資料から要件定義書（仕様書）を作成（必要時）
 1. architecture       → 全体設計・コンポーネント選定
 2. standard           → 共通基盤の確認（.env・認証）
-2.5 admin             → 環境チェック + DLP 事前チェック（実装着手前に必須）
+   admin（分岐のみ）   → 明示的なチェック依頼時・障害時だけ。委任権限を確認し最小診断・復旧
 ── ここで設計承認 → 以下 3 トラックを並行実行（VS Code サブエージェント）──
 Track A（データ基盤オーナー）:
   3. dataverse          → テーブル設計・構築・セキュリティロール設定

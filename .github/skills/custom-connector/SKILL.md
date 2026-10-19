@@ -106,14 +106,13 @@ python .github/skills/custom-connector/scripts/deploy_connector.py --connector-d
 
 最後に表示される `connector: shared_…` を以降で使う。
 
-## Step 4: DLP でホストを分類する
+## Step 4: 通常は接続作成へ進む
 
-```powershell
-python .github/skills/admin/scripts/check_dlp.py --environment-id <env> --tenant-id <tenant> --custom-host <host>
-python .github/skills/admin/scripts/set_dlp_custom_connector.py --policy <ポリシー名> --host <host> --classification General --apply
-```
-
-未分類のままだと、ほかのコネクタと同じグループかどうかが既定の扱いで決まる。分類の変更はテナント全体に効くため承認を得る。
+環境チェックの明示依頼がなければ、DLP の事前診断・分類変更を挟まず Step 5 へ進む。
+ポリシー関連の拒否が発生した場合だけ [admin の権限確認付き復旧](../admin/references/development-recovery.md) を使う。
+現在の委任権限で読み取り可能な場合だけ `check_dlp.py --custom-host <host>` で診断し、
+変更権限と承認が揃えば dry-run → apply → 読み戻し → 元の操作を 1 回リトライする。
+分類変更はテナント全体に影響するため、権限不足・不明なら操作せず管理者へ依頼する。
 
 ## Step 5: 接続参照を用意する
 

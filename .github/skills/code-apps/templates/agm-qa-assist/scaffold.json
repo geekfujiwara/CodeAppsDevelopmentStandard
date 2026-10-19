@@ -64,7 +64,7 @@
     {
       "variable": "ENV_ID",
       "question": "作成先の Power Platform 環境はどれですか？（既定環境は使わない。Dataverse・Code Apps が有効な開発用の環境）",
-      "detect": "pac env list（候補を choices にして聞く）。admin スキルの環境チェックで Code Apps・マネージド環境の有効化も確認する"
+      "detect": "既存 .env または pac env list から候補を取得し、不明な環境選択だけ質問する。環境・Code Apps 許可の事前診断は行わない"
     },
     {
       "variable": "DATAVERSE_URL",

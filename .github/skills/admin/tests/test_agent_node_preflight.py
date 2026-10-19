@@ -14,7 +14,7 @@ from check_development_environment import check_commands, main
 class DevelopmentPreflightTests(unittest.TestCase):
     def test_documented_preflight_command_and_markdown_fences(self):
         root = SKILL_ROOT.parents[2]
-        for path in (root / "README.md", SKILL_ROOT / "SKILL.md"):
+        for path in (root / "docs/developer-guide.md", SKILL_ROOT / "SKILL.md"):
             text = path.read_text(encoding="utf-8")
             self.assertIn("python .github/skills/admin/scripts/check_development_environment.py", text)
             self.assertIn("shared_agentnode", text)

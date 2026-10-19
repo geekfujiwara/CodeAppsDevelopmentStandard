@@ -21,6 +21,17 @@ Microsoft Graph API で SharePoint を操作する。**新規の Entra アプリ
 一般ユーザーにアプリ登録権限が無いことが多く、そのハードルを避けるため、Microsoft 製の well-known
 パブリッククライアント（Microsoft Graph PowerShell）への委任同意だけで完結させる。
 
+## Code Apps から呼ばれたときの境界
+
+**SharePoint URL だけでは直接接続の指示と解釈しない。**
+明示的な直接接続・継続利用の指定がなければ、URL は仕様・移行元の参照情報であり、
+業務データを **Dataverse に移行して Code Apps を開発**する。
+このスキルのトリガーに URL が一致しても、SharePoint リストの新規作成や書き込み、
+`shared_sharepointonline` の追加を自動実行しない。
+既存データの移行は [dataverse](../dataverse/SKILL.md) と [data-migration](../data-migration/SKILL.md) に渡す。
+移行元の取得には依頼者の読み取り権限・対象範囲の確認が必要で、URL の受領だけを操作承認としない。
+SharePoint 自体の作成・編集を明示依頼された場合は、以下の手順を使う。
+
 ## 対応する操作
 
 | 操作 | スクリプト | Graph API |

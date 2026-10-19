@@ -48,7 +48,7 @@ Copilot Studio のエージェントから **社内の業務データ（DB・フ
 | [File / DB の認可とページ画像](references/indexed-file-db-access.md) | 本人認可、索引 ID、改訂・ページ照合、投入時画像キャッシュ、欠損404と実測ゲート |
 | [Copilot Studio への登録](references/copilot-studio-registration.md) | オンボーディングウィザード、コピペ用 MD 生成、OAuth 接続。OpenAPI 方式もここ |
 | [Copilot Studio の DLP 診断](references/copilot-studio-dlp.md) | MCP ツールが DLP でブロックされた場合の読み取り診断と最小変更 |
-| [admin スキル](../admin/SKILL.md) | 実装着手前の環境チェックと DLP 事前チェック、カスタムコネクタの DLP 分類変更 |
+| [admin スキル](../admin/SKILL.md) | 明示依頼時・障害時だけの権限確認付き環境・DLP 診断、承認済みの最小修復 |
 | [.env サンプル](references/.env.example) | 本スキルのパラメータ |
 | [異常系・トラブルシュート](references/troubleshooting.md) | 実際に踏んだ失敗と恒久対策 |
 
@@ -65,7 +65,7 @@ MCP は「エージェントがツール名と入力スキーマだけを見て�
 3. ツールは **「一覧」「検索」「取得」の 3 系統** を基本形にする。エージェントは一覧で語彙を得てから検索するため、
    `list_*` が無いと的外れな検索語で空振りする。
 4. 各ツールの `name` / `description` / `inputSchema` を確定する。→ [protocol.md](references/protocol.md)
-5. 一覧・検索・取得のすべてで、認証済み利用者が参照できる範囲を決める。MI のデータアクセス権を本人権限と扱わない。設計確定後に admin の環境・DLP/ACP チェックを実行し、NG があれば停止する。索引取得は [認可契約](references/indexed-file-db-access.md) に従う。
+5. 一覧・検索・取得のすべてで、認証済み利用者が参照できる範囲を決める。MI のデータアクセス権を本人権限と扱わない。通常は環境・DLP/ACP の事前診断を挟まず開発する。明示依頼時・障害時だけ [admin の権限確認付き復旧](../admin/references/development-recovery.md) を使う。索引取得は [認可契約](references/indexed-file-db-access.md) に従う。
 
 ```
 例: 部品DB MCP   -> list_categories / search_parts / get_part_inquiries / search_inquiries

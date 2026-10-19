@@ -86,7 +86,10 @@ python -m pip install -r .github/skills/standard/scripts/requirements.txt
 
 </details>
 
-サインインできたら、開発に入る前に [Power Platform 環境のチェック](#power-platform-環境のチェック開発着手前に必須) を実行してください。
+サインインできたら、既知の対象環境・ソリューションを使って開発を開始し、Code Appsの初回デプロイを優先します。
+環境・DLP / ACP・Code Apps許可の事前診断は不要です。明示的にチェックを依頼した場合、または障害時だけ
+[環境診断](#power-platform-環境のチェック明示依頼時障害時だけ)へ進みます。
+SharePoint URLは直接接続・継続利用の明示がなければ移行元とし、Dataverseに移行して利用します。
 
 ## 環境チェック
 
@@ -108,9 +111,16 @@ npm run setup       # 上記 + Python venv bootstrap
 - `pac`: PP CLIをMSIまたは `dotnet tool install --global Microsoft.PowerApps.CLI.Tool` で導入し、`pac auth create --environment {ENVIRONMENT_ID}` で認証する。PAC CLIはnpm配布ではない。
 - `npx power-apps`: Code Appsを選定したプロジェクトで `@microsoft/power-apps` の依存定義とインストール結果を確認する。
 
-### Power Platform 環境のチェック（開発着手前に必須）
+<a id="power-platform-環境のチェック開発着手前に必須"></a>
 
-`.env` に `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` を設定し、対象環境だけを確認します。次のスクリプトは読み取り専用で、環境設定を変更しません。PowerShellの環境変数に設定値が読み込まれていることを確認してください。
+### Power Platform 環境のチェック（明示依頼時・障害時だけ）
+
+明示的な環境チェック依頼時のみ一括確認します。障害時は
+[権限確認付き復旧](../.github/skills/admin/references/development-recovery.md)に従い、原因に必要な診断だけを行います。
+現在有効な委任権限・ロール・対象範囲を確認し、読み取り権限がない・不明ならスクリプトを試さず管理者へ依頼します。
+通常開発の着手条件にはしません。
+
+実行する場合は `.env` に `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` を設定し、対象環境だけを確認します。次のスクリプトは読み取り専用で、環境設定を変更しません。PowerShellの環境変数に設定値が読み込まれていることを確認してください。
 
 ```powershell
 python .github/skills/admin/scripts/check_environment.py --environment-id $env:ENV_ID
@@ -130,9 +140,9 @@ python .github/skills/admin/scripts/check_environment.py --environment-id $env:E
 | 管理API | 管理APIアクセスと必要な管理者権限 |
 | DLP | 対象環境に適用されるデータポリシー |
 
-`NG` があれば実装前に解消します。[adminスキル](../.github/skills/admin/SKILL.md) と [管理者ロール一覧](../.github/skills/admin/references/admin-roles.md) を参照し、権限が不足する場合は管理者へ依頼してください。Code Apps・MCP・マネージド環境が必須要件なら、`--require-code-apps` / `--require-mcp` / `--require-managed` で警告をNGに昇格できます。
+`NG` は該当操作を再開する前に解消し、権限不足で読めない項目は未確認とします。[adminスキル](../.github/skills/admin/SKILL.md) と [管理者ロール一覧](../.github/skills/admin/references/admin-roles.md) を参照し、権限が不足する場合は管理者へ依頼してください。影響しないローカル開発は継続できます。
 
-続けて、Dataverseと新Copilot Studio WorkflowのAgentノードを含む環境・クラシックDLP・ACPを統合チェックします。追加コネクタは `--connector shared_xxx` で指定します。
+明示的な一括環境チェック依頼では、個別チェックの代わりに次の統合診断を使えます。Dataverseと新Copilot Studio WorkflowのAgentノードを含む環境・クラシックDLP・ACPの読み取り権限が必要です。追加コネクタは `--connector shared_xxx` で指定します。
 
 ```powershell
 python .github/skills/admin/scripts/check_development_environment.py --environment-id $env:ENV_ID --tenant-id $env:TENANT_ID
@@ -144,10 +154,12 @@ python .github/skills/admin/scripts/check_development_environment.py --environme
 
 ## カスタムエージェント前提の利用方法
 
+- 最初は [READMEのクイックスタート](../README.md#クイックスタート)をCopilot ChatのAgentモードへコピーしてください。標準配置だけで止まらず、環境情報・共通認証・資料の仕様整理・AI改善を含むarchitecture提案まで継続します。配置後は `/Quickstart` でも実行できます。
 - 共通の実装・運用ルールは `.github/skills/` に定義されています。
 - Copilotでは自社名に変更したカスタムエージェントを選択し、`在庫管理をもっと効率的に行いたい。` のように要件を伝えます。
 - 既存仕様書がある場合は `spec-builder を実行して` と依頼します。
-- エージェントは該当スキルを読み、設計・承認・環境/DLPチェックを経て実装します。
+- エージェントは該当スキルを読み、設計・承認後はすぐに実装・初回デプロイへ進みます。全テーブル構築・移行・ローカライズ完了は初回pushの待ち条件にしません。未接続部分は明示し、接続後に改善デプロイします。
+- 障害時は委任権限を確認して、最小診断・承認済み修復・元の操作を1回リトライします。権限なし・不明なら管理操作をせず環境管理者へ依頼します。
 
 ## 次に読む資料
 

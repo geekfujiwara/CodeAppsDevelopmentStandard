@@ -31,10 +31,10 @@ python .github/skills/standard/scripts/setup_environment.py --auth-only
 
 ## Step 1: .github スキルのダウンロード
 
-```powershell
-npx degit geekfujiwara/CodeAppsDevelopmentStandard/.github .github --force
-cp .github/skills/standard/references/gitignore-template .gitignore
-```
+新規のクイックスタートは [quickstart.md](quickstart.md) Step 1 の
+`scripts/initialize_workspace.py` で `.github/agents` / `.github/skills` / `.gitignore` を安全に配置する。
+既存の標準・社内ルール・`.gitignore` を `--force` や `cp` で上書きしない。
+この配置だけで終了せず、環境候補・認証・仕様整理・architecture 提案まで進む。
 
 > ブラウザ操作（ポータルのフォーム入力等）は **VS Code 統合ブラウザツール**を使う。
 > Playwright MCP のインストール・`.vscode/mcp.json` への登録は行わない

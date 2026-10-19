@@ -43,14 +43,11 @@ triggers:
 
 ## Step 1: 対象と実行ゲートを確認する
 
-[standard](../standard/SKILL.md) の共通認証と `.env` を使い、
-[admin](../admin/SKILL.md) で環境・クラシック DLP・グループ継承を含む ACP を確認する。
-使用コネクタは `shared_agentnode`。ポリシー変更は別の明示承認で行う。
+[standard](../standard/SKILL.md) の共通認証と `.env` を使い、通常は環境・DLP / ACP の事前診断を挟まず作成へ進む。
+使用コネクタは `shared_agentnode`。明示依頼時・障害時だけ
+[admin の権限確認付き復旧](../admin/references/development-recovery.md) で必要範囲を診断する。
+権限不足なら管理 API を繰り返さず管理者へ依頼する。ポリシー変更は別の明示承認で行う。
 設定の読み戻しと実行基盤の判定は別ゲートとして記録する。
-
-```powershell
-python .github/skills/admin/scripts/check_development_environment.py --environment-id $env:ENV_ID --connector shared_agentnode
-```
 
 作成名、テンプレート、ソリューション、モデル、固定応答、実行回数をユーザーに提示する。
 テナント固有値は [references/.env.example](references/.env.example) に従い `.env` へ置く。
