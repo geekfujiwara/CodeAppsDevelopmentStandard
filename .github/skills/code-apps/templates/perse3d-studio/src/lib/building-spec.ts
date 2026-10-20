@@ -416,7 +416,7 @@ const ROT_SIDE: Record<Rot, Record<Side, Side>> = {
   "180": { "+x": "-x", "-x": "+x", "+z": "-z", "-z": "+z" },
 }
 
-function rotRect<T extends Rect>(r: T, rot: Rot, W: number, D: number): T {
+export function rotRect<T extends Rect>(r: T, rot: Rot, W: number, D: number): T {
   const q = (v: number) => Math.round(v * 1000) / 1000
   if (rot === "180") return { ...r, x: q(W - r.x - r.w), z: q(D - r.z - r.d) }
   if (rot === "cw") return { ...r, x: q(D - r.z - r.d), z: q(r.x), w: r.d, d: r.w }

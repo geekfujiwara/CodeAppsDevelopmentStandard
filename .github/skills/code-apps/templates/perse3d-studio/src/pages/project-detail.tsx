@@ -98,15 +98,16 @@ export default function ProjectDetail() {
         <TabsContent value="overview"><Overview project={project} onOpenTab={setTab} /></TabsContent>
         <TabsContent value="analyze">
           <ImageAnalysisPanel
+            key={project.id}
             projectName={project.name}
             images={project.images}
             spec={project.spec}
             listing={project.listing}
             saving={update.isPending}
-            onImagesChange={images => update.mutate({ id: project.id, patch: { images } })}
-            onGenerate={async spec => {
+            onImagesChange={async images => { await update.mutateAsync({ id: project.id, patch: { images } }) }}
+            onGenerate={async (spec, images) => {
               const nextStage: Stage = stageIndex < 2 ? "design-review" : project.stage
-              await update.mutateAsync({ id: project.id, patch: { spec, stage: nextStage } })
+              await update.mutateAsync({ id: project.id, patch: { spec, stage: nextStage, ...(images ? { images } : {}) } })
               toast.success("3D モデルを生成しました。内見できます。")
               setTab("viewer")
             }}

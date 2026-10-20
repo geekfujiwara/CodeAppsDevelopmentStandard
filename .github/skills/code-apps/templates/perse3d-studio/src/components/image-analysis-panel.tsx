@@ -37,13 +37,15 @@ import { generationProgress, nextFrame } from "@/lib/generation-progress"
 import { bedroomsOf, fitFloorWidths, type ListingInfo } from "@/lib/listing"
 import { splitFloorplanSheet } from "@/lib/floorplan-import"
 import { FinishSelects } from "@/components/finish-selects"
+import { FloorplanManualEditor } from "@/components/floorplan-manual-editor"
+import { removePlanImage, replacePlanImages, swapPlanImages, type FloorplanEdit } from "@/lib/floorplan-edits"
 
 type Props = {
   projectName: string
   images: SourceImages
   spec: BuildingSpec | null
-  onImagesChange: (images: SourceImages) => void
-  onGenerate: (spec: BuildingSpec) => void | Promise<void>
+  onImagesChange: (images: SourceImages) => void | Promise<void>
+  onGenerate: (spec: BuildingSpec, images?: SourceImages) => void | Promise<void>
   saving?: boolean
   /** 取り込んだ物件情報（延床面積で縮尺を合わせる） */
   listing?: ListingInfo | null
@@ -65,12 +67,38 @@ export function ImageAnalysisPanel({ projectName, images, spec, onImagesChange, 
     ...(spec ? { roof: spec.roof.type, pitch: spec.roof.pitch, floors: spec.floors.length, width: spec.footprint.width, depth: spec.footprint.depth, materials: spec.materials } : {}),
   }))
   const [palette, setPalette] = useState<string[]>([])
-  const [fpOptions, setFpOptions] = useState<Record<string, FloorplanOptions>>({})
+  const [fpOptions, setFpOptions] = useState<Record<string, FloorplanOptions>>(images.floorplanSettings ?? {})
+  const [manualEdits, setManualEdits] = useState<Record<string, FloorplanEdit[]>>(images.floorplanEdits ?? {})
+  const [savingEdits, setSavingEdits] = useState(false)
+  const [editsDirty, setEditsDirty] = useState(false)
   const [results, setResults] = useState<Record<string, FloorplanResult | string>>({})
   const [jsonText, setJsonText] = useState("")
-  const floorKeys = useMemo(() => Object.keys(images.floorplans).sort(), [images.floorplans])
+  const floorKeys = useMemo(() => Object.keys(images.floorplans).sort((a, b) => Number(a) - Number(b)), [images.floorplans])
 
-  const optionsFor = (key: string): FloorplanOptions => fpOptions[key] ?? { ...DEFAULT_FLOORPLAN_OPTIONS, level: Number(key), widthMeters: massing.width, floorHeight: massing.floorHeight }
+  const optionsFor = (key: string): FloorplanOptions => ({
+    ...(fpOptions[key] ?? { ...DEFAULT_FLOORPLAN_OPTIONS, level: Number(key), widthMeters: massing.width, floorHeight: massing.floorHeight }),
+    edits: manualEdits[key] ?? [],
+  })
+  const correctedImages = (next = images, edits = manualEdits): SourceImages => ({
+    ...next, floorplanEdits: edits,
+    floorplanSettings: Object.fromEntries(Object.keys(next.floorplans).map(k => {
+      const { edits: _edits, ...settings } = optionsFor(k)
+      void _edits
+      return [k, settings]
+    })),
+  })
+  const saveEdits = async () => {
+    setSavingEdits(true)
+    try {
+      await onImagesChange(correctedImages())
+      setEditsDirty(false)
+      toast.success("手動補正と縮尺を案件に保存しました。3D は再生成すると反映されます")
+    } catch (e) {
+      toast.error(`手動補正を保存できませんでした: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSavingEdits(false)
+    }
+  }
 
   const upload = async (file: File | undefined, target: "perspective" | string) => {
     if (!file) return
@@ -78,25 +106,36 @@ export function ImageAnalysisPanel({ projectName, images, spec, onImagesChange, 
       toast.error("画像ファイル（PNG / JPEG）を選択してください")
       return
     }
-    const url = await fileToDataUrl(file, target === "perspective" ? 1200 : 1400)
-    if (target === "perspective") {
-      onImagesChange({ ...images, perspective: url })
-      return
-    }
-    // 1F・2F を並べた 1 枚の間取り図（不動産サイトの図面）は、階ごとに切り出して続きの階にする
-    const pieces = await splitFloorplanSheet(url, listing?.floors)
-    if (pieces) {
-      const start = Number(target)
-      const floorplans = { ...images.floorplans }
-      pieces.forEach((p, i) => (floorplans[String(start + i)] = p))
-      onImagesChange({ ...images, floorplans, floorplanSheet: true })
-      toast.success(`1 枚の間取り図を ${pieces.length} 階分（${pieces.map((_, i) => `${start + i + 1}F`).join("・")}）に分けました。横に並べた図面は左から、縦に積んだ図面は下から 1F としています`)
-      return
-    }
-    onImagesChange({ ...images, floorplans: { ...images.floorplans, [target]: url }, floorplanSheet: false })
-    // 物件は複数階なのに 1 枚の図面から階を分けられなかった（敷地図に重ねた図面・二世帯の図面など）
-    if (listing?.floors && listing.floors >= 2 && Object.keys(images.floorplans).length === 0) {
-      toast.warning(`物件は ${listing.floors} 階建てですが、この図面から階ごとの図面を見つけられませんでした。階ごとに切り抜いた画像を 1 枚ずつ追加してください`)
+    try {
+      const url = await fileToDataUrl(file, target === "perspective" ? 1200 : 1400)
+      if (target === "perspective") {
+        await onImagesChange(correctedImages({ ...images, perspective: url }))
+        setEditsDirty(false)
+        return
+      }
+      // 1F・2F を並べた 1 枚の間取り図（不動産サイトの図面）は、階ごとに切り出して続きの階にする
+      const pieces = await splitFloorplanSheet(url, listing?.floors)
+      if (pieces) {
+        const start = Number(target)
+        const next = replacePlanImages(correctedImages(), Object.fromEntries(pieces.map((p, i) => [String(start + i), p])), true)
+        await onImagesChange(next)
+        setManualEdits(next.floorplanEdits ?? {})
+        setFpOptions(next.floorplanSettings ?? {})
+        setEditsDirty(false)
+        toast.success(`1 枚の間取り図を ${pieces.length} 階分（${pieces.map((_, i) => `${start + i + 1}F`).join("・")}）に分けました。横に並べた図面は左から、縦に積んだ図面は下から 1F としています`)
+        return
+      }
+      const next = replacePlanImages(correctedImages(), { [target]: url }, false)
+      await onImagesChange(next)
+      setManualEdits(next.floorplanEdits ?? {})
+      setFpOptions(next.floorplanSettings ?? {})
+      setEditsDirty(false)
+      // 物件は複数階なのに 1 枚の図面から階を分けられなかった（敷地図に重ねた図面・二世帯の図面など）
+      if (listing?.floors && listing.floors >= 2 && Object.keys(images.floorplans).length === 0) {
+        toast.warning(`物件は ${listing.floors} 階建てですが、この図面から階ごとの図面を見つけられませんでした。階ごとに切り抜いた画像を 1 枚ずつ追加してください`)
+      }
+    } catch (e) {
+      toast.error(`画像を取り込めませんでした: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
 
@@ -136,6 +175,7 @@ export function ImageAnalysisPanel({ projectName, images, spec, onImagesChange, 
       analyzedWith.current[key] = want
       setResults(prev => ({ ...prev, [key]: r }))
     } catch (e) {
+      if (requested.current[key] !== want) return
       setResults(prev => ({ ...prev, [key]: e instanceof Error ? e.message : String(e) }))
     }
   }
@@ -144,7 +184,7 @@ export function ImageAnalysisPanel({ projectName, images, spec, onImagesChange, 
     const timers = floorKeys.map(k => window.setTimeout(() => analyzeOne(k, optionsFor(k)), 150))
     return () => timers.forEach(t => window.clearTimeout(t))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [floorKeys.join("|"), JSON.stringify(fpOptions), images.floorplans])
+  }, [floorKeys.join("|"), JSON.stringify(fpOptions), JSON.stringify(manualEdits), images.floorplans])
 
   // 物件情報の延床面積と、図面から測った床面積（全階の合計）を比べて縮尺を合わせる
   const analyzed = floorKeys.map(k => results[k]).filter((r): r is FloorplanResult => typeof r === "object")
@@ -245,7 +285,8 @@ export function ImageAnalysisPanel({ projectName, images, spec, onImagesChange, 
         generationProgress.done(step++)
       }
       await nextFrame()
-      await onGenerate(next)
+      await onGenerate(next, correctedImages())
+      setEditsDirty(false)
       generationProgress.done(step++)
       // 最後の段は 3D ビューアが構築を終えたときに完了になる
       generationProgress.waitViewer()
@@ -271,18 +312,17 @@ export function ImageAnalysisPanel({ projectName, images, spec, onImagesChange, 
   }
 
   // 階の入れ替え（1 枚の画像を切り出したときの並びが違う図面: 田の字に並べた図面・上下の向き）。画像・解析結果・横幅を入れ替える
-  const swapFloors = (a: string, b: string) => {
-    onImagesChange({ ...images, floorplans: { ...images.floorplans, [a]: images.floorplans[b], [b]: images.floorplans[a] } })
-    setResults(prev => ({ ...prev, [a]: prev[b], [b]: prev[a] }))
-    setFpOptions(prev => {
-      const n = { ...prev }
-      const oa = prev[a], ob = prev[b]
-      if (ob) n[a] = { ...ob, level: Number(a) }
-      else delete n[a]
-      if (oa) n[b] = { ...oa, level: Number(b) }
-      else delete n[b]
-      return n
-    })
+  const swapFloors = async (a: string, b: string) => {
+    try {
+      const next = swapPlanImages(correctedImages(), a, b)
+      await onImagesChange(next)
+      setManualEdits(next.floorplanEdits ?? {})
+      setFpOptions(next.floorplanSettings ?? {})
+      setEditsDirty(false)
+      setResults(prev => ({ ...prev, [a]: prev[b], [b]: prev[a] }))
+    } catch (e) {
+      toast.error(`階を入れ替えられませんでした: ${e instanceof Error ? e.message : String(e)}`)
+    }
   }
 
   const nextFloorKey = String(floorKeys.length ? Math.max(...floorKeys.map(Number)) + 1 : 0)
@@ -300,7 +340,10 @@ export function ImageAnalysisPanel({ projectName, images, spec, onImagesChange, 
             {images.perspective ? (
               <div className="relative">
                 <img src={images.perspective} alt="外観パース" className="max-h-72 w-full rounded-md object-contain bg-muted" />
-                <Button size="icon" variant="secondary" className="absolute right-2 top-2 h-8 w-8" onClick={() => onImagesChange({ ...images, perspective: undefined })} aria-label="パースを削除">
+                <Button size="icon" variant="secondary" className="absolute right-2 top-2 h-8 w-8" onClick={async () => {
+                  try { await onImagesChange(correctedImages({ ...images, perspective: undefined })) }
+                  catch (e) { toast.error(`画像を削除できませんでした: ${e instanceof Error ? e.message : String(e)}`) }
+                }} aria-label="パースを削除">
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -327,6 +370,12 @@ export function ImageAnalysisPanel({ projectName, images, spec, onImagesChange, 
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={saveEdits} disabled={saving || savingEdits || fitting || busy || !floorKeys.length} data-testid="save-corrections">
+                {savingEdits ? "保存中…" : "補正・縮尺を案件に保存"}
+              </Button>
+              <span className="text-xs text-muted-foreground" role="status">{editsDirty ? "未保存の変更があります（3D 生成時にも保存）" : "自動判定を手動で修正できます"}</span>
+            </div>
             {areaFit && (
               <div className="flex flex-wrap items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100" data-testid="area-fit">
                 <span className="min-w-0 flex-1">
@@ -340,23 +389,30 @@ export function ImageAnalysisPanel({ projectName, images, spec, onImagesChange, 
             )}
             {floorKeys.map(key => (
               <FloorplanEditor
-                key={key}
+                key={`${key}:${images.floorplans[key].length}:${images.floorplans[key].slice(-32)}`}
                 floorKey={key}
                 src={images.floorplans[key]}
                 options={optionsFor(key)}
                 result={results[key]}
-                onOptions={o => setFpOptions(prev => ({ ...prev, [key]: o }))}
+                onOptions={o => { setFpOptions(prev => ({ ...prev, [key]: o })); setEditsDirty(true) }}
+                edits={manualEdits[key] ?? []}
+                onEdits={edits => { setManualEdits(prev => ({ ...prev, [key]: edits })); setEditsDirty(true) }}
+                disabled={saving || savingEdits || fitting || busy}
                 onReplace={f => upload(f, key)}
                 onMoveUp={floorKeys.indexOf(key) < floorKeys.length - 1 ? () => swapFloors(key, floorKeys[floorKeys.indexOf(key) + 1]) : undefined}
-                onRemove={() => {
-                  const fp = { ...images.floorplans }
-                  delete fp[key]
-                  onImagesChange({ ...images, floorplans: fp })
-                  setResults(prev => {
-                    const n = { ...prev }
-                    delete n[key]
-                    return n
-                  })
+                onRemove={async () => {
+                  try {
+                    const next = removePlanImage(correctedImages(), key)
+                    await onImagesChange(next)
+                    setManualEdits(next.floorplanEdits ?? {})
+                    setFpOptions(next.floorplanSettings ?? {})
+                    setEditsDirty(false)
+                    setResults(prev => {
+                      const n = { ...prev }
+                      delete n[key]
+                      return n
+                    })
+                  } catch (e) { toast.error(`図面を削除できませんでした: ${e instanceof Error ? e.message : String(e)}`) }
                 }}
               />
             ))}
@@ -423,7 +479,7 @@ export function ImageAnalysisPanel({ projectName, images, spec, onImagesChange, 
                 ))}
               </div>
             </div>
-            <Button className="w-full gap-2" size="lg" onClick={generate} disabled={saving || busy || fitting} data-tour="generate">
+            <Button className="w-full gap-2" size="lg" onClick={generate} disabled={saving || savingEdits || busy || fitting} data-tour="generate">
               <Sparkles className="h-4 w-4" />
               {spec ? "3D モデルを再生成して保存" : "3D モデルを生成して保存"}
             </Button>
@@ -494,6 +550,9 @@ function FloorplanEditor({
   onReplace,
   onRemove,
   onMoveUp,
+  edits,
+  onEdits,
+  disabled,
 }: {
   floorKey: string
   src: string
@@ -504,9 +563,13 @@ function FloorplanEditor({
   onRemove: () => void
   /** 1 つ上の階と入れ替える（最上階では undefined） */
   onMoveUp?: () => void
+  edits: FloorplanEdit[]
+  onEdits: (edits: FloorplanEdit[]) => void
+  disabled?: boolean
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [showOverlay, setShowOverlay] = useState(true)
+  const [size, setSize] = useState({ width: 1000, height: 1000 })
 
   useEffect(() => {
     let cancelled = false
@@ -519,10 +582,11 @@ function FloorplanEditor({
       const h = Math.round(img.height * analysisScale)
       canvas.width = w
       canvas.height = h
+      setSize({ width: w, height: h })
       const ctx = canvas.getContext("2d")!
       ctx.drawImage(img, 0, 0, w, h)
       if (showOverlay && result && typeof result === "object") drawFloorplanOverlay(ctx, result, 1)
-    })
+    }).catch(e => { if (!cancelled) toast.error(e instanceof Error ? e.message : String(e)) })
     return () => {
       cancelled = true
     }
@@ -544,19 +608,22 @@ function FloorplanEditor({
         </div>
         <div className="flex gap-1">
           {onMoveUp && (
-            <Button size="sm" variant="ghost" onClick={onMoveUp} title="この図面と 1 つ上の階の図面を入れ替える">
+            <Button size="sm" variant="ghost" disabled={disabled} onClick={onMoveUp} title="この図面と 1 つ上の階の図面を入れ替える">
               {Number(floorKey) + 2}F と入れ替え
             </Button>
           )}
           <Button size="sm" variant="ghost" onClick={() => setShowOverlay(!showOverlay)}>{showOverlay ? "検出結果を隠す" : "検出結果を表示"}</Button>
           <label className="inline-flex cursor-pointer items-center rounded-md px-3 text-sm hover:bg-accent">
             差し替え
-            <input type="file" accept="image/*" className="hidden" onChange={e => onReplace(e.target.files?.[0])} />
+            <input type="file" accept="image/*" className="hidden" disabled={disabled} onChange={e => onReplace(e.target.files?.[0])} />
           </label>
-          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onRemove} aria-label="間取り図を削除"><Trash2 className="h-4 w-4" /></Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8" disabled={disabled} onClick={onRemove} aria-label="間取り図を削除"><Trash2 className="h-4 w-4" /></Button>
         </div>
       </div>
-      <canvas ref={canvasRef} className="h-auto w-full rounded bg-white" />
+      {r?.manualOnly && <p className="text-xs text-amber-600">自動判定できないため、指定した床範囲と手描きの部材から作成します。壁・窓・扉を追加してください。</p>}
+      <FloorplanManualEditor edits={edits} result={r} size={size} disabled={disabled} onChange={onEdits}>
+        <canvas ref={canvasRef} className="block h-auto w-full rounded bg-white" />
+      </FloorplanManualEditor>
       <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
         {Object.entries({ 壁: KIND_COLORS.wall, 窓: KIND_COLORS.window, 掃き出し窓: KIND_COLORS.glassdoor, ドア: KIND_COLORS.door }).map(([k, c]) => (
           <span key={k} className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: c }} />{k}</span>
