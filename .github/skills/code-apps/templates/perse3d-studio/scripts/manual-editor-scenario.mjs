@@ -3,12 +3,21 @@ import { mkdirSync, writeFileSync } from "node:fs"
 
 // ローカル検証専用。capture_3d --scenario-file で、CDP の実ポインターイベントを使って UI → 保存 → 再読込 → 3D を通す。
 export default async function ({ evaluate, send, sleep }) {
+  const reload = async () => {
+    const u = new URL(await evaluate("location.href"))
+    // 配信済みパッケージの直接URLは表示後にディレクトリURLへ正規化されるが、再取得には index.html が必要。
+    if (u.hostname.endsWith(".powerplatformusercontent.com") && u.pathname.includes("/runtimeproxy/") && u.pathname.endsWith("/")) {
+      u.pathname += "index.html"
+      await send("Page.navigate", { url: u.href })
+    } else await send("Page.reload", {})
+  }
   const wait = async expression => {
-    for (let i = 0; i < 180; i++) {
+    for (let i = 0; i < 400; i++) {
       if (await evaluate(`Boolean(${expression})`)) return
       await sleep(300)
     }
-    throw new Error(`待機の時限: ${expression}`)
+    const state = await evaluate("JSON.stringify({url:location.href,body:document.body?.innerText.slice(-900)})")
+    throw new Error(`待機の時限: ${expression}\n${state}`)
   }
   await wait("document.body && document.querySelector('header')")
   await wait("document.body.innerText.includes('DEMO（ブラウザ保存）')")
@@ -24,7 +33,7 @@ export default async function ({ evaluate, send, sleep }) {
     }]));
     location.hash='#/projects/manual-ui-case?tab=analyze';
   })()`)
-  await send("Page.reload", {})
+  await reload()
   await sleep(700)
   await wait("!window.__manualReloadMark")
   await wait("document.querySelector('[data-testid=manual-toggle]')")
@@ -93,7 +102,7 @@ export default async function ({ evaluate, send, sleep }) {
   assert.ok(storage.w > 0.22, `右下ハンドルでのサイズ変更: ${storage.w}`)
   assert.ok(saved.floorplanSettings["0"].widthMeters > 0)
   await evaluate("window.__manualReloadMark=true")
-  await send("Page.reload", {})
+  await reload()
   await sleep(700)
   await wait("!window.__manualReloadMark")
   await wait("document.querySelector('[data-testid=manual-editor]')?.innerText.includes('手動指定 10 件')")
