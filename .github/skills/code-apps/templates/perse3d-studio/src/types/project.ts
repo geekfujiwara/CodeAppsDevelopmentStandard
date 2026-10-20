@@ -1,6 +1,8 @@
 import type { BuildingSpec, Materials } from "@/lib/building-spec"
 import type { CameraPose } from "@/lib/building-scene"
 import type { ListingInfo } from "@/lib/listing"
+import type { FloorplanEdit } from "@/lib/floorplan-edits"
+import type { FloorplanOptions } from "@/lib/floorplan-analyzer"
 
 export type Stage = "received" | "analyzing" | "design-review" | "proposal" | "won" | "lost"
 
@@ -31,6 +33,9 @@ export type SourceImages = {
   perspective?: string
   /** 間取り図を 1 枚の画像から階ごとに切り出した（縮尺が共通。横幅は画素幅の比を保つ） */
   floorplanSheet?: boolean
+  /** 元画像を基準にした手動補正。図面の入れ替え時は画像と一緒に移動する。 */
+  floorplanEdits?: Record<string, FloorplanEdit[]>
+  floorplanSettings?: Record<string, Omit<FloorplanOptions, "edits">>
 }
 
 export type Variant = {

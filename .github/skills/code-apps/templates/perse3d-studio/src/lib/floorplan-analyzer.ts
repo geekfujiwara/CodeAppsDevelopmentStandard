@@ -1,8 +1,9 @@
 import type { BuildingSpec, FloorSpec, Materials, Rect, RoofType, RoomLabel, Side, WallKind, WallRect } from "@/lib/building-spec"
-import { DEFAULT_MATERIALS, faceEntranceToRoad } from "./building-spec.ts"
+import { DEFAULT_MATERIALS, faceEntranceToRoad, rotRect } from "./building-spec.ts"
 import { roomBox, type FurnitureItem } from "./furniture.ts"
 import { placePlanFixtures } from "./plan-fixtures.ts"
 import { autoStairs, forceStair, stairFromHints, type StairSpec } from "./stairs.ts"
+import { applyFloorplanEdits, manualFloorplan, modelRect, restoreEditedWalls, roomName, validateEdits, type FloorplanEdit, type ImageSize } from "./floorplan-edits.ts"
 
 /**
  * 間取り図（2D 平面図画像）から壁・開口部・部屋を抽出する。ブラウザ内で完結（外部送信なし）。
@@ -23,6 +24,7 @@ export type FloorplanOptions = {
   widthMeters: number
   floorHeight: number
   level: number
+  edits?: FloorplanEdit[]
 }
 
 export const DEFAULT_FLOORPLAN_OPTIONS: FloorplanOptions = {
@@ -35,6 +37,9 @@ export const DEFAULT_FLOORPLAN_OPTIONS: FloorplanOptions = {
 }
 
 export type FloorplanResult = {
+  manualEdits?: FloorplanEdit[]
+  imageSize?: ImageSize
+  manualOnly?: boolean
   floor: FloorSpec
   footprint: { width: number; depth: number }
   bboxPx: { x: number; y: number; w: number; h: number }
@@ -442,6 +447,19 @@ function greedyRects(grid: Grid, keyOf: (i: number) => number): { c: number; r: 
 }
 
 export function analyzeFloorplan(image: ImageData, opts: FloorplanOptions): FloorplanResult {
+  const edits = opts.edits ?? []
+  validateEdits(edits)
+  let base: FloorplanResult
+  try {
+    base = analyzeAutoFloorplan(image, opts)
+  } catch (e) {
+    if (!(e instanceof Error) || !e.message.startsWith("壁を検出できませんでした") || !edits.some(e => e.category === "floor")) throw e
+    base = manualFloorplan(image, opts.widthMeters, opts.level, opts.floorHeight, edits)
+  }
+  return applyFloorplanEdits(base, edits, image)
+}
+
+function analyzeAutoFloorplan(image: ImageData, opts: FloorplanOptions): FloorplanResult {
   const { width: w, height: h, data } = image
   const lum = new Uint8Array(w * h)
   const gray = new Uint8Array(w * h)
@@ -1812,7 +1830,20 @@ export function specFromFloorplans(
     spec.furniture = spec.furniture.filter(it => !stairs.some(st => it.level === st.fromLevel && it.x > st.x && it.x < st.x + st.w && it.z > st.z && it.z < st.z + st.d))
     if (!spec.furniture.length) delete spec.furniture
   }
-  const faced = faceEntranceToRoad(floors.length >= 2 ? { ...spec, stairs } : spec).spec
+  // 設備・階段からの自動補完より、利用者が確定した部材・用途を優先する。
+  floors.forEach((f, i) => {
+    const r = sorted[i]
+    if (r.manualEdits?.length && r.imageSize) floors[i] = applyFloorplanEdits({ ...r, floor: f }, r.manualEdits, r.imageSize).floor
+  })
+  const facing = faceEntranceToRoad(floors.length >= 2 ? { ...spec, stairs } : spec)
+  const faced = facing.spec
+  const confirmed = faced.floors.map(f => ({ ...f, walls: [...f.walls] }))
+  const regions = sorted.map(r => (r.manualEdits ?? [])
+    .filter(e => !roomName(e.category) && e.category !== "floor")
+    .map(e => {
+      const rect = modelRect(e, r.imageSize!, r)
+      return facing.rotated ? rotRect(rect, facing.rotated, width, depth) : rect
+    }))
   // 記号から置けなかった階は自動配置で補う（保存前に決める。読み込み時の補完に頼らない）
   if (floors.length < 2 || opts.autoStairs === false) return faced
   const placed = autoStairs(faced, faced.stairs ?? [])
@@ -1826,7 +1857,8 @@ export function specFromFloorplans(
       placed.push(stair)
     }
   }
-  return { ...faced, stairs: placed.sort((a, b) => a.fromLevel - b.fromLevel) }
+  const finalFloors = faced.floors.map((f, i) => regions[i].length ? restoreEditedWalls(f, confirmed[i], regions[i]) : f)
+  return { ...faced, floors: finalFloors, stairs: placed.sort((a, b) => a.fromLevel - b.fromLevel) }
 }
 
 export const KIND_COLORS: Record<WallKind, string> = {

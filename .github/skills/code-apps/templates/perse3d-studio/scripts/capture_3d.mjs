@@ -6,6 +6,7 @@
 //     visibilityState = hidden、setTimeout を 5 秒以上に間引く。実際のブラウザは数分後に 1 分に 1 回まで間引くので、--simulate-hidden 60000 も試す）。処理の待ちを requestAnimationFrame やタイマーで作っていると、
 //     ここで止まる・極端に遅くなる。試験側の待ちは window.__origSetTimeout（間引かない元のタイマー）を使う。3D は描かれない
 //   長いスクリプト（バイナリを base64 で渡すなど）は --eval-file <path>（コマンドラインの長さ制限を避ける）
+//   実際のポインター操作を伴う試験は --scenario-file <mjs>（default export に { evaluate, send, sleep } を渡す）
 //   描画完了まで待つ: --ready "<真になる JS の式>" [--ready-timeout 180]。条件が満たされないか、--fail-on-error でページのエラーがあれば終了コード 1
 //
 // - Edge を --remote-debugging-port で起動し、Node 組み込みの WebSocket で CDP を直接話す（Playwright 不要）
@@ -15,7 +16,8 @@
 import { spawn, execSync } from "node:child_process"
 import { mkdtempSync, writeFileSync, rmSync, existsSync, mkdirSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join, dirname } from "node:path"
+import { join, dirname, resolve } from "node:path"
+import { pathToFileURL } from "node:url"
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, v, i, a) => (v.startsWith("--") ? [...acc, [v.slice(2), a[i + 1]?.startsWith("--") || a[i + 1] === undefined ? true : a[i + 1]]] : acc), []),
@@ -138,6 +140,17 @@ try {
   if (expression) {
     const r = await send("Runtime.evaluate", { expression: String(expression), awaitPromise: true, returnByValue: true }, sessionId)
     value = r.exceptionDetails ? { error: r.exceptionDetails.text } : r.result.value
+  }
+  if (args["scenario-file"]) {
+    const scenario = await import(pathToFileURL(resolve(String(args["scenario-file"]))).href)
+    value = await scenario.default({
+      send: (method, params) => send(method, params, sessionId), sleep,
+      evaluate: async expression => {
+        const r = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, sessionId)
+        if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text)
+        return r.result.value
+      },
+    })
   }
   if (args.after) {
     await send("Runtime.evaluate", { expression: String(args.after), awaitPromise: true }, sessionId)
