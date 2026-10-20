@@ -1,5 +1,5 @@
 {
-  "description": "パース3D内見スタジオ: 2D の間取り図・パース・不動産サイトの物件 URL から 3D 建物を生成し、内見・提案・Blender 出力まで行う Code App。generic-base を継承する完全テンプレート",
+  "description": "パース3D内見スタジオ: 2D の間取り図・パース・不動産サイトの物件情報から 3D 建物を生成し、内見・提案・販売用の日本語PDF・Blender 出力まで行う Code App。SUUMOは自動取得、他サイトは本文/HTML取り込み。generic-base を継承する完全テンプレート",
   "extends": "../generic-base",
   "variables": [
     "PUBLISHER_PREFIX"

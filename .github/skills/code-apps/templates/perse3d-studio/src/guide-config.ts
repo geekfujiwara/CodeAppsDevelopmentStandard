@@ -1,4 +1,4 @@
-import { Box, Cpu, FileImage, Footprints, LayoutDashboard, MessageSquare, Sofa, type LucideIcon } from "lucide-react"
+import { Box, Cpu, FileDown, FileImage, Footprints, LayoutDashboard, MessageSquare, Sofa, type LucideIcon } from "lucide-react"
 
 /** 初回起動でガイドを出したかどうかを覚えるキー */
 export const GUIDE_STORAGE_KEY = import.meta.env.VITE_GUIDE_STORAGE_KEY?.trim() || "perse3d-guide-seen"
@@ -34,6 +34,7 @@ export const GUIDE_SLIDES: GuideSlide[] = [
       "検出結果（赤=壁、青=窓、緑=掃き出し窓、橙=ドア）を見ながら濃さ・細線除去を調整します",
       "間取り図がなくても、間口・奥行・階数・屋根形状から標準プランを生成できます",
       "画像はブラウザ内で解析し、外部サービスへは送信しません",
+      "HOME'S・at home・Yahoo!不動産のURLとページ内容・保存HTMLも取り込めます（新サイトの自動接続は未追加）",
     ],
   },
   {
@@ -82,6 +83,17 @@ export const GUIDE_SLIDES: GuideSlide[] = [
     ],
   },
   {
+    id: "brochure",
+    icon: FileDown,
+    title: "販売用PDFを作る",
+    lead: "物件概要・外観・各階の間取り図と会社情報を、A4の日本語PDFにまとめます。",
+    points: [
+      "案件の「販売用PDF」で価格・会社名・連絡先・免許番号・取引態様を確認します",
+      "3D内見の「この視点で販売用PDF」から参考3Dイメージを載せられます",
+      "画像・情報の掲載権限と広告内容を確認してから出力します。PDF生成で外部サービスへ情報は送信しません",
+    ],
+  },
+  {
     id: "model",
     icon: Box,
     title: "モデルは JSON で受け渡し",
@@ -106,6 +118,6 @@ export type TourStep = {
 export const TOUR_STEPS: TourStep[] = [
   { id: "nav", path: "/dashboard", target: "sidebar-nav", title: "メニュー", body: "ダッシュボード・案件・Blender 連携の 3 画面です。" },
   { id: "projects", path: "/projects", target: "new-project", title: "案件を作る", body: "依頼主からパースを受け取ったら、まず新規案件を作成します。作成後はそのまま画像の取り込みに進みます。" },
-  { id: "card", path: "/projects", target: "project-card", title: "案件を開く", body: "カードをクリックすると「概要 / 画像から 3D 化 / 3D 内見・提案 / Blender 出力」のタブで作業できます。サンプル邸には 1F・2F の間取り図と外観パースが登録済みです。" },
+  { id: "card", path: "/projects", target: "project-card", title: "案件を開く", body: "カードをクリックすると「概要 / 画像から 3D 化 / 3D 内見・提案 / 販売用PDF / Blender 出力」のタブで作業できます。サンプル邸には 1F・2F の間取り図と外観パースが登録済みです。" },
   { id: "blender", path: "/blender", target: "blender-gallery", title: "Blender 連携", body: "Blender で生成したフォトリアル画像・360° パノラマ・日影図のサンプルと、追加でできることを紹介しています。" },
 ]

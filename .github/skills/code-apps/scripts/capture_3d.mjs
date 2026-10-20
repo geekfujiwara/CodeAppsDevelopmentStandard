@@ -14,7 +14,7 @@
 // - 終了時は同じユーザー データ フォルダーの Edge プロセスをすべて止める（応答が返らないまま終わった場合も process の exit で止める）
 // - 全体の時限: --timeout <秒>（既定 900）。超えたら終了コード 1 で止める（評価が返らないと、Edge が生きている限り待ち続ける）
 import { spawn, execSync } from "node:child_process"
-import { mkdtempSync, writeFileSync, rmSync, existsSync, mkdirSync, readFileSync } from "node:fs"
+import { mkdtempSync, writeFileSync, rmSync, existsSync, mkdirSync, readFileSync, openSync, closeSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, dirname, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -33,11 +33,17 @@ const out = args.out ?? ".tools/shots/capture.png"
 const edge = [`${process.env["ProgramFiles(x86)"]}\\Microsoft\\Edge\\Application\\msedge.exe`, `${process.env.ProgramFiles}\\Microsoft\\Edge\\Application\\msedge.exe`].find(p => existsSync(p))
 if (!edge) throw new Error("Microsoft Edge が見つかりません")
 const userData = mkdtempSync(join(tmpdir(), "capture3d-"))
+let browserLog = null
+if (args["browser-log"]) {
+  mkdirSync(dirname(resolve(String(args["browser-log"]))), { recursive: true })
+  browserLog = openSync(resolve(String(args["browser-log"])), "a")
+}
 const port = 9300 + Math.floor(Math.random() * 500)
 const launch = (gpu) => spawn(edge, [
   "--headless=new", `--user-data-dir=${userData}`, "--no-first-run", `--remote-debugging-port=${port}`,
   `--window-size=${vw},${vh}`, ...(gpu === "gpu" ? ["--enable-gpu", "--ignore-gpu-blocklist"] : gpu === "swiftshader" ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : []), "about:blank",
-], { stdio: "ignore", detached: false })
+  ...(browserLog !== null ? ["--enable-logging=stderr"] : []),
+], { stdio: browserLog === null ? "ignore" : ["ignore", browserLog, browserLog], detached: false })
 let proc = launch(args.gpu ? "gpu" : "swiftshader")
 /**
  * この実行で起動した Edge（子プロセスを含む）を user-data-dir で探して止める。同期で動くので process の exit でも使える。
@@ -107,6 +113,9 @@ try {
       m.error ? p.reject(new Error(m.error.message)) : p.resolve(m.result)
     } else if (m.method === "Runtime.consoleAPICalled" || m.method === "Runtime.exceptionThrown" || m.method === "Log.entryAdded") {
       events.push(m)
+      if (args["live-errors"] && (m.method === "Runtime.exceptionThrown" || m.params.type === "error" || m.params.entry?.level === "error")) {
+        console.error(JSON.stringify(m.params).slice(0, 1600))
+      }
     }
   }
   const { targetId } = await send("Target.createTarget", { url: "about:blank" })
@@ -172,6 +181,7 @@ try {
   try { ws?.close() } catch { /* noop */ }
   killEdgeSync()
   cleaned = true
+  if (browserLog !== null) { closeSync(browserLog); browserLog = null }
   await sleep(500)
   try { rmSync(userData, { recursive: true, force: true }) } catch { /* Edge がまだ掴んでいる場合は残す */ }
 }

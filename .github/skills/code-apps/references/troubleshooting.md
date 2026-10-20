@@ -3139,3 +3139,44 @@ Node の試験の中から Python（Blender と共有の計算・素材の検証
 テンプレートに `requirements.txt` を同梱し、`scaffold.json` の `nextSteps` と README の手順に `python -m pip install -r requirements.txt` を入れる。
 **依存の宣言は、何も入っていない環境で確かめる**（`python -m venv` で新しい仮想環境を作り、`requirements.txt` だけを入れて試験を回す）。
 テンプレートの CI（生成 → install → test → build）で毎回確かめる。**恒久対策済み** — `.github/workflows/perse3d-studio.yml`。
+
+## 92. 日本語PDFは文字抽出できても字形が欠ける・数字の抽出が別の漢字になる
+
+### 症状・原因
+
+`pdf-lib` と `fontkit` でNoto Sans JPをサブセット埋め込みしたPDFが、ToUnicodeの文字抽出では正常でも描画時に字形を欠いた。
+全グリフ埋め込み後も `locl` 等の代替字形により数字のToUnicodeが不一致となり、価格・電話番号等が別の文字に抽出された。
+
+### 対処・恒久対策
+
+静的なRegularフォントをライセンスとともに同梱し、`subset: false` と
+`features: { vert: false, vrt2: false, locl: false, liga: false, clig: false }` で埋め込む。
+対応しない文字・画像は具体的なエラーにする。フォントサイズを削るために、検証せずサブセットへ戻さない。
+
+**恒久対策済み** — `templates/perse3d-studio/src/lib/brochure-pdf.ts` のフォント設定・文字/画像検証と
+`tests/brochure.test.mjs`。PDF構造だけでなく、PyMuPDFで価格・電話・面積・免許番号の抽出、
+各文字を描画した領域の濃淡差、A4範囲内、画像枚数を検査する（抽出/描画試験はPyMuPDFがある場合）。
+
+## 93. 大きなPDFのダウンロード操作でブラウザとの接続が切れる
+
+### 症状・対処
+
+数MBの日本語PDFを巨大なdata URLにしてダウンロードすると、出力クリック後に検証用Edgeとの接続が失われた。
+フォントバイトの復元処理を省メモリ化しても再現した。同じ画面でBlob URLのダウンロードにすると実ファイルを取得できた。
+ブラウザ内部の原因までは断定しない。企業拡張・ポリシーを無効化しない。
+
+**恒久対策済み** — `templates/perse3d-studio/src/components/brochure-panel.tsx` は
+`URL.createObjectURL(new Blob(...))` でダウンロードし、開始後に一時URLを解放する。
+`scripts/portal-brochure-scenario.mjs` は実ダウンロードの完了とPDF実体・ページ数・日本語を確認する。
+画面の「成功」表示やダウンロード用リンクの生成だけでは成功とみなさない。
+
+## 94. 対応サイトを増やしたが、DLP未分類やサイトの認証要求で自動取得できない
+
+HTML解析の不具合と、環境ポリシー/取得制限を区別する。新ホストのDLPチェックがNGなら接続を追加しない。
+管理設定を無承認で変更したり、403・認証要求を迂回したりせず、
+利用者が権限を確認した本文の貼り付け/保存HTML/画像アップロードを代替経路として明示する。
+
+**恒久対策済み** — `templates/perse3d-studio/src/lib/listing.ts` の `normalizePropertyUrl` と
+`components/listing-import.tsx` はサイト別に自動取得の可否を分け、未対応サイトでは外部接続を呼ばない。
+`tests/portal-import.test.mjs` はURL・文字コード・本文/HTML・JSON-LDを検証し、
+`scripts/portal-brochure-scenario.mjs` は新サイトへのリクエストが0件であることを検査する。
