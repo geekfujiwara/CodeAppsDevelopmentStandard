@@ -112,10 +112,10 @@
     "python scripts/dataverse/setup_dataverse.py --solution-only",
     "python .github/skills/code-apps/scripts/setup_connection_reference.py --write-env .env",
     "npx --no pa app init --environment-id $env:ENV_ID --display-name \"店舗発注システム\" --app-type CodeApp",
-    "npm run deploy -- --solution-id $env:SOLUTION_ID  # 初回。データソース未追加でもビルドできる",
+    "npm run deploy -- --solution-id $env:SOLUTION_ID  # 初回。VS Code 統合ターミナルで実行",
     "npm run data:seed; npm run data:export; npm run dv:setup; npm run dv:verify",
     "python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --connection-ref $env:CONNECTION_REFERENCE_LOGICAL_NAME --solution-id $env:SOLUTION_ID",
-    "npm run deploy; npm run dv:check-terminal",
+    "npm run deploy; npm run dv:check-terminal  # deploy は VS Code 統合ターミナルで実行",
     "（任意）Cowork の店長アシスト: cowork スキルの templates/store-assist-plugin を --questions で生成"
   ]
 }

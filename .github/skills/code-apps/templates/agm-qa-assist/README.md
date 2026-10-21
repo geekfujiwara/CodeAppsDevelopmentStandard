@@ -52,6 +52,8 @@
 | 9 | デプロイと確認 | `npm run deploy` → `python scripts/test/verify_answer_stream.py`（チケット・CORS・ストリーム）→ `python scripts/test/fetch_answer_ticket.py --out .mcp/answer-ticket.json; node scripts/test/eval-identify.ts`（照合の評価セット）→ テスト用ビルドを `serve_host_emulation.mjs --dist dist-autotest --connect-src "'self'" --connect-src https://<FUNCTION_APP_NAME>.azurewebsites.net`（`http://localhost:4173`）で配信して `node scripts/test/e2e-cockpit.mjs`、MAI を使うなら `node scripts/test/e2e-stt.mjs --wav <読み上げ WAV>`（どちらも最初にチケットの残りと CORS を確かめる。spec/test-plan.md） |
 | 10 | エージェントで想定問答・台本を作る（任意） | **Copilot Studio（推奨）**: copilot-studio-v2 スキルの [agm-qa-author](../../../copilot-studio-v2/templates/agm-qa-author/README.md) を `--questions` で生成 → `deploy_agent.py --env-file` → Dataverse MCP ツールを追加 → 公開 → Preview で確認。**Cowork**: cowork スキルの [agm-qa-plugin](../../../cowork/templates/agm-qa-plugin/README.md)（権限は PERMISSIONS.md）。Cowork で接続済みなのに実行時にツールが 0 件になる場合は Copilot Studio を使う（cowork の troubleshooting #46）。どちらも作成元が付いた下書きになり、アプリの「想定問答」で承認すると検索に使われる |
 
+初回・再デプロイの `npm run deploy` は VS Code 統合ターミナルから実行してください。`pa auth status` は push 時の認証更新を保証しません。
+
 ## 置き換える場所
 
 - 想定問答・IR 抜粋・名簿・台本は `data/demo/` の架空データ。本番は Dataverse の想定問答・IR 抜粋・株主名簿のテーブルに入れる（data-migration スキル）。

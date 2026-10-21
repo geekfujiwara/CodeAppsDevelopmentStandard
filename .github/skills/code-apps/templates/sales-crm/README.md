@@ -38,6 +38,8 @@ python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse
 npm run deploy                                    # 2 回目以降
 ```
 
+> 初回・再デプロイとも VS Code 統合ターミナルから実行してください。`pa auth status` は push 時の認証更新を保証しません。
+
 > データソース未追加の状態でも初回 push できるよう、`src/lib/dataverse-client.ts` は生成サービスを
 > `import.meta.glob` で遅延解決する。未追加のまま開くと各画面に追加手順が表示される。
 

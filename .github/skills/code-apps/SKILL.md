@@ -219,6 +219,7 @@ Code Apps 許可は製品上の要件だが、通常フローでは管理セン�
 2. npm CLI のアクティブアカウントが対象テナント用
   npx pa auth status
   npx pa auth switch --account user@contoso.com
+  # auth status はキャッシュ済みアカウントの表示で、push のトークン更新成功は保証しない
 
 3. power.config.json は npx pa app init で生成する
    → テンプレートから手動コピーしない
@@ -321,8 +322,8 @@ npx pa app init --environment-id {ENVIRONMENT_ID} --display-name "AppName" --app
 
 # Step 5: 初回ビルド＆デプロイ — ★必ず -s を付ける（almMode が Solution になるのは初回 push だけ）
 #         対象環境は power.config.json の environmentId を使う（push には --environment-id が無い）
-npm run build
-npx pa app push --solution-id {SOLUTION_ID}
+#         必ず VS Code 統合ターミナルから実行する（push 中の対話認証に必要）
+npm run deploy -- --solution-id {SOLUTION_ID}
 
 # Step 6: Dataverse コネクタを 1 回追加（全テーブル共通・接続参照バインド）
 npx pa app add data-source --connector shared_commondataserviceforapps \
@@ -337,8 +338,7 @@ npm run predeploy
 #   → 以降はページを追加するたびに実行する（ナビとルートの不一致はデプロイ後にしか見えない）
 
 # 再ビルド＆デプロイ（反復）
-npm run build
-npx pa app push
+npm run deploy
 
 # Step 8: 最終 push 後に共有（カンマ区切りで複数指定可）
 #   共有先環境は power.config.json で決まる（share に --environment-id は無い）
@@ -365,13 +365,19 @@ npx pa app share --principal "${CODE_APP_PLAY_PRINCIPALS}" \
 | コマンド | 認証基盤 | テナント問題 | 推奨度 |
 |---|---|---|---|
 | `python scripts/setup_connection_reference.py` | auth_helper（PAC プロファイル再利用） | なし | ✅ 標準（init の前に実行） |
-| `npx pa auth status` / `pa auth switch --account {UPN}` | Power Apps npm CLI | アクティブアカウントを明示 | ✅ テナント切り替え時に必須 |
+| `npx pa auth status` / `pa auth switch --account {UPN}` | Power Apps npm CLI | status はキャッシュ済みアカウントの表示で、push のトークン更新成功は保証しない | ✅ テナント切り替え時に必須 |
 | `npx pa app init --environment-id {ID} --display-name "Name" --app-type CodeApp` | Power Apps npm CLI | 上記で確認 | ✅ 標準 |
-| `npx pa app push --solution-id {GUID}` | Power Apps npm CLI | 上記で確認 | ✅ 標準（**初回から GUID 必須**。環境は power.config.json から） |
+| `npx pa app push --solution-id {GUID}` | Power Apps npm CLI | push 時に対話認証チャレンジが発生し得る | △ 原則 `npm run deploy` を VS Code 統合ターミナルから実行 |
 | `npx pa app add data-source --connector shared_commondataserviceforapps --connection-ref {CR} --solution-id {GUID} --org-url {url}` | Power Apps npm CLI + 接続参照 | `pa auth` が別キャッシュ | ✅ 標準（ALM 対応） |
 | `npx pa app add data-source ... --connection-id {id}` | Power Apps npm CLI + 接続 | 同上 | △ ソリューションに入らない（PoC のみ） |
 | `pac code *` | PAC CLI プロファイル | npm CLI と別キャッシュ | △ npm CLI で解決できない場合のみの移行時代替 |
-| `npm run deploy -- --solution-id {GUID}` | Power Apps npm CLI | auth switch で切り替え | ✅ 初回デプロイに推奨（predeploy チェック付き） |
+| `npm run deploy -- --solution-id {GUID}` | Power Apps npm CLI | auth status はトークン更新の可否を検証しない | ✅ 推奨。VS Code 統合ターミナルで実行（TTY 不在ならビルド前に停止） |
+
+> **ユーザー委任認証でのデプロイは対話ターミナルが必要**: `pa auth status` はキャッシュ済みアカウントを
+> 表示するだけで、push 時に必要なトークン更新や追加認証の成功を保証しない。デプロイは VS Code 統合ターミナルの
+> TTY で実行し、認証チャレンジが出た場合はそこで完了させる。エージェントは非対話シェルで同じ push を再試行せず、
+> VS Code の対話ターミナル実行ツールを使う。使用できない場合は、ビルド前のガードで止めて制約を説明する。
+> CI はユーザーの対話サインインに依存せず、CI 向けの非対話認証を構成する。
 
 ### CI/CD・秘匿化（チーム開発で継続的にデプロイする場合）
 
@@ -802,6 +808,7 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 | [configure_code_app_csp.py](scripts/configure_code_app_csp.py) | Code Apps の CSP（`frame-src` 等）を確認・追加・検証。iframe を使うアプリはデプロイ前に `--assert` を通す |
 | [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
 | [add_data_source.py](scripts/add_data_source.py) | データソースを**非対話**で追加する。コネクタの通称（`sharepoint` 等）を `shared_xxx` に解決し、接続・必須値を確定してから `--non-interactive` で CLI を起動する。Step 3 の標準 |
+| [check-deploy-terminal.mjs](templates/generic-base/scripts/check-deploy-terminal.mjs) | delegated-user 認証の deploy が非対話シェルから開始されるのを build 前に検出する（`npm run deploy` が呼び出す） |
 | [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` / モック実行基盤の本番混入を検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |
 | [detect-csp-hazards.mjs](scripts/detect-csp-hazards.mjs) | 既定 CSP で無言で失敗する書き方を検出（predeploy チェック 13 が呼ぶ。`pre-deploy-check.mjs` と同じ場所にコピーする） |
 | [templates/csp-safe-gltf.ts](templates/csp-safe-gltf.ts) | 既定 CSP の中で GLB を読む GLTFLoader（埋め込みテクスチャを `createImageBitmap` でデコード・外部参照は明示エラー・同梱 GLB の base64 デコード） |

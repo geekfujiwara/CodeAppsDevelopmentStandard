@@ -410,7 +410,7 @@ PAC CLI とは**別のトークンキャッシュ**を持つ。`pac auth create`
 |---|---|
 | `pa auth login` | サインインしてアカウントをローカルキャッシュに追加。`--non-interactive` でもブラウザは開く |
 | `pa auth logout` | **キャッシュ済みアカウントを全消去**。アクティブアカウントの切り替え目的で使わない |
-| `pa auth status` | キャッシュ済みアカウント一覧（アクティブなものに印が付く） |
+| `pa auth status` | キャッシュ済みアカウント一覧（アクティブなものに印が付く）。push 時のトークン更新成功は検証しない |
 | `pa auth switch` | アクティブアカウントの切り替え。`--account {email}` 省略時は対話選択、`--non-interactive` では必須 |
 
 ```bash
@@ -420,6 +420,9 @@ npx pa auth switch --account user@contoso.com
 
 > テナントを跨いで作業するときに `auth logout` → `auth login` を繰り返す必要はない。
 > 複数アカウントをキャッシュしておき `auth switch` で切り替える。
+> ユーザー委任認証での `app push` は、追加の認証チャレンジに備えて VS Code 統合ターミナルで実行する。
+> `auth status` の成功だけをデプロイ可能の判定に使わない。詳細は
+> [認証切れで push が非対話シェル内で失敗する](troubleshooting.md#95-認証切れで-push-が非対話シェル内で失敗する)。
 
 ## テレメトリ
 
