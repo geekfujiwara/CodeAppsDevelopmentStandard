@@ -57,7 +57,7 @@ Dataverse Web API と、必要時はログイン済みブラウザの observed/p
 | **Bot 作成** | ❌ API 不可。Copilot Studio UI で手動作成必須 | `POST /bots` を第一候補にし、`pac copilot list` に現れない場合だけ UI 作成へ fallback |
 | 設定の保存先 | GPT コンポーネント（componenttype=15）+ PVA ダブル改行 YAML | `bots.configuration` の **BotConfiguration JSON にインライン** |
 | recognizer | （クラシック PVA） | `CLICopilotRecognizer` |
-| モデル指定 | GPT data の `aISettings.model.modelNameHint` | `agentSettings.model.series`（例 `claude-opus-5`） |
+| モデル指定 | GPT data の `aISettings.model.modelNameHint` | **Auto が標準**。UI 保存構成を再利用し、固定モデルのみ `agentSettings.model.series` |
 | Instructions | GPT data YAML（ダブル改行フォーマット注意） | `agentSettings.instructions.segments[].value`（プレーン文字列） |
 | メモリ | （個別設定） | `agentSettings.enableMemory: true` |
 | スキル | （ナレッジ/トピック） | **フラット Python スキルバンドル**（type=9 + type=14 子ファイル） |
@@ -93,7 +93,7 @@ Agent flows の既存 Agent ノードは製品 UI のサポート経路を使い
 |---|---|---|
 | 1 | v2 の利用経路はどれか | Teams / Copilot Studio、Code Apps iframe、Agent flows、Dataverse 要求/結果を確定。直接 SDK 制御が必須の場合だけ v1 を比較する |
 | 2 | 対象環境で Copilot Studio を作成・公開できるか | 必要なライセンス / capacity と、環境で bot / botcomponent を作成・更新できる権限がある |
-| 3 | 使用モデルは対象環境で選択可能か | `AGENT_MODEL_SERIES` を確定し、廃止表示時の代替モデルも合意している |
+| 3 | モデルは Auto でよいか | 標準は `AGENT_MODEL_SERIES=Auto`。利用者確認済みなら再質問せず、UI 保存構成を取得する。固定モデルは明示指定時だけ |
 | 4 | MCP サーバーを使うか | connector / operation、接続、認証、データ範囲、private API 利用可否と UI fallback が確定している |
 | 5 | 名前、Instructions、メモリ、スキル、アイコン、公開範囲は承認済みか | 設計全文とテスト担当者を記録している |
 
@@ -105,6 +105,8 @@ Agent flows の既存 Agent ノードは製品 UI のサポート経路を使い
 
 ```
 1. .env 準備（DATAVERSE_URL / TENANT_ID / 任意で SOLUTION_NAME・PUBLISHER_PREFIX）
+   - モデルは `AGENT_MODEL_SERIES=Auto`。初回は [Auto 保存構成の取得](references/model-series.md) を行い、
+     `AGENT_AUTO_MODEL_CONFIG_FILE` を指定する。未取得時は書き込み前に停止し、固定モデルに代替しない。
 2. 設計提示 → ユーザー承認（名前・Instructions・モデル・スキル・アイコン・MCP 構成）
    - ファイル出力を伴うスキルを添付する場合は、Instructions に
      「ファイルを出力する際は毎回異なるファイル名にする」旨を含める（同名だと UI でダウンロード不可）
@@ -266,6 +268,9 @@ Bearer token、Cookie、CSRF、session header はブラウザメモリ外へ出�
 
 ### configuration は BotConfiguration JSON
 
+次は固定モデルを明示選択した場合の構造例。標準の Auto はこの series をコピーせず、
+[モデル標準フロー](references/model-series.md) で取得した保存構成を使う。
+
 ```json
 {
   "$kind": "BotConfiguration",
@@ -383,7 +388,8 @@ PUBLISHER_PREFIX=geek
 # create_agent.py 用パラメータ
 AGENT_NAME=my-new-agent
 AGENT_SCHEMA=geek_mynewagent
-AGENT_MODEL_SERIES=claude-opus-5
+AGENT_MODEL_SERIES=Auto
+AGENT_AUTO_MODEL_CONFIG_FILE=.local/auto-model.json
 # set_icon.py 用（任意）
 ICON_TEXT=A
 ICON_BG_COLOR=#2563EB

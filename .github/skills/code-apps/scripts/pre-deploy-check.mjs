@@ -13,12 +13,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { findDirectMcpDataSources } from "./detect-direct-mcp-data-sources.mjs";
 import { findCspHazards, cspAllowFromEnv } from "./detect-csp-hazards.mjs";
+import { findTutorialHazards } from "./detect-tutorial-hazards.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 // scripts/ の一つ上がプロジェクトルート
 const root = path.resolve(path.dirname(__filename), "..");
 
 const errors = [];
+errors.push(...findTutorialHazards(root));
 // config.ts は "/dashboard"、router.tsx の子ルートは "dashboard" と書くため先頭スラッシュを揃える
 const norm = (p) => p.replace(/^\//, "");
 

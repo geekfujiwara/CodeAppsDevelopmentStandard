@@ -6,12 +6,14 @@ bots の PATCH は name カラムを同送しないと 0x80040265 で失敗す�
 
 .env パラメータ:
   AGENT_BOTID          対象 botid（省略時は cwd の agent_botid.txt）
-  AGENT_MODEL_SERIES   設定するモデル系列（例: claude-opus-5）
+  AGENT_MODEL_SERIES   モデル選択（既定: Auto。固定モデルは明示指定）
+  AGENT_AUTO_MODEL_CONFIG_FILE  UI で Auto を保存して取得した構成 JSON
 
 実行:
   python set_model.py                     # .env の AGENT_MODEL_SERIES を適用
   python set_model.py claude-opus-5       # 引数で直接指定
   python set_model.py --show              # 現在値の確認のみ
+  python set_model.py --capture-auto <file> --confirm-ui-auto  # UI 保存済み Auto の読取
 """
 from __future__ import annotations
 
@@ -27,6 +29,7 @@ sys.path.insert(0, str(_STD))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from auth_helper import api_get, get_session, DATAVERSE_URL  # noqa: E402
 from verify_config import assert_intact  # noqa: E402
+from model_policy import apply_model, resolve_model  # noqa: E402
 
 API = f"{DATAVERSE_URL}/api/data/v9.2"
 
@@ -55,7 +58,8 @@ def main() -> None:
     bot_id = resolve_bot_id()
     bot = api_get(f"bots({bot_id})?$select=name,configuration")
     config = json.loads(bot["configuration"])
-    current = config.get("agentSettings", {}).get("model", {}).get("series")
+    current_model = config.get("agentSettings", {}).get("model")
+    current = (current_model or {}).get("series")
     print(f"対象: {bot['name']} ({bot_id})")
     print(f"現在のモデル系列: {current}")
     if current in DEPRECATED_SERIES:
@@ -64,18 +68,33 @@ def main() -> None:
     if show_only:
         return
 
-    series = positional[0] if positional else os.getenv("AGENT_MODEL_SERIES", "").strip()
-    if not series:
-        sys.exit("設定するモデル系列を引数か AGENT_MODEL_SERIES で指定してください。")
-    if series == current:
+    if "--capture-auto" in args:
+        i = args.index("--capture-auto")
+        if "--confirm-ui-auto" not in args or i + 1 >= len(args) or args[i + 1].startswith("--"):
+            sys.exit("--capture-auto <file> --confirm-ui-auto が必要です。UI で Auto を保存した対象 Bot だけを指定してください。")
+        destination = Path(args[i + 1])
+        record = {"selection": "Auto", "model": current_model}
+        with destination.open("x", encoding="utf-8") as stream:
+            json.dump(record, stream, ensure_ascii=False, indent=2)
+        print(f"Auto の UI 保存構成を記録しました: {destination}（変更・公開なし）")
+        return
+
+    series = positional[0] if positional else os.getenv("AGENT_MODEL_SERIES", "").strip() or "Auto"
+    try:
+        desired_model = resolve_model(series, os.getenv("AGENT_AUTO_MODEL_CONFIG_FILE", ""))
+    except (ValueError, OSError) as exc:
+        sys.exit(str(exc))
+    if desired_model == current_model:
         print("変更なし。")
         return
-    if series in DEPRECATED_SERIES:
-        print(f"  ⚠️ '{series}' は旧命名です。UI で廃止扱いになります。", file=sys.stderr)
-    elif series not in VERIFIED_SERIES:
+    if series.casefold() != "auto" and series not in VERIFIED_SERIES:
         print(f"  ℹ️ '{series}' は未検証の値です。設定後に UI の Model 表示を確認してください。")
 
-    config.setdefault("agentSettings", {}).setdefault("model", {"$kind": "ModelConfig"})["series"] = series
+    settings = config.setdefault("agentSettings", {})
+    # Preserve unrelated model options when changing an explicit series.
+    if series.casefold() != "auto":
+        desired_model = {**(current_model or {}), **desired_model}
+    apply_model(settings, desired_model)
     assert_intact(json.loads(bot["configuration"]), config, changing="model")
     body = {"name": bot["name"], "configuration": json.dumps(config, ensure_ascii=False)}
     r = get_session().patch(f"{API}/bots({bot_id})", json=body)
@@ -84,7 +103,9 @@ def main() -> None:
         sys.exit(1)
 
     after = json.loads(api_get(f"bots({bot_id})?$select=configuration")["configuration"])
-    print(f"✅ モデル系列を更新: {current} → {after['agentSettings']['model']['series']}")
+    if after.get("agentSettings", {}).get("model") != desired_model:
+        sys.exit("モデル設定の読み戻しが一致しません。公開せず UI を確認してください。")
+    print(f"✅ モデル選択を更新: {current_model} → {desired_model}（選択: {series}）")
     print("   反映には再公開が必要です: python publish_agent.py")
 
 

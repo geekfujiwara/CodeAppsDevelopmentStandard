@@ -275,6 +275,11 @@ Application Insights 等へ転送する場合は custom sink と CSP の `connec
 
 ### 標準ワークフロー
 
+チュートリアル・画面ツアーを追加するときは、最初から
+[標準チュートリアル構成](references/tutorial-pattern.md) を使う。対象内は透明、枠外だけ暗幕、
+フォーカス後のスクロール、固定ヘッダーと非同期レイアウトの再計測を実装し、
+通常の `npm run predeploy` の既知不具合チェックと実プレイヤーの視覚検証を行う。
+
 上から順に実行すれば動く正常系フロー。各 Step の詳細・必須設定・型定義は [ビルドリファレンス](references/build-reference.md) を参照。
 
 ```bash

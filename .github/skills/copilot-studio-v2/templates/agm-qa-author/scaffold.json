@@ -16,8 +16,8 @@
     },
     {
       "variable": "AGENT_MODEL_SERIES",
-      "question": "エージェントのモデルは？（ベンダーのモデル ID 形式。旧命名の Sonnet46 / Opus5 などは廃止扱いになる）",
-      "default": "claude-opus-5"
+      "question": "エージェントのモデルは？（標準は Auto。固定モデルが必要な場合だけ明示指定）",
+      "default": "Auto"
     },
     {
       "variable": "APP_DEVELOPER_NAME",
