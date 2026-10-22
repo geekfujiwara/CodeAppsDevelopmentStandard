@@ -6,20 +6,23 @@ PAC CLI プロファイルが利用できない場合、`auth_helper.py` は `In
 デバイスコード認証への切り替えやフォールバックは行わない。初回の認証後は、
 `AuthenticationRecord` と MSAL 永続トークンキャッシュを使ってサイレントにトークンを更新する。
 
-- ローカル実行専用（ブラウザを開ける環境が前提）。CI/ヘッドレス環境では使用しない
+- 初回・ポリシーによる追加認証のみブラウザを使う。キャッシュ取得・サイレント更新は非対話プロセスでも利用できる
 - 開発環境の初期セットアップでは、`setup_environment.py --auth-only`（または `--profile`）から
-  `auth_helper.authenticate()` を呼び、対話認証を 1 回実行して認証レコードを保存する
+  `auth_helper.get_token(allow_interactive=True)` を呼び、キャッシュを先に試す。追加認証が必要な場合だけ
+  ブラウザを開いて認証レコードを保存する。別 client ID でも同じ引数で明示的に初期化できる
 - `AuthenticationRecord` は `~/.power-platform-cli/auth_record_{TENANT_ID}.json` に保存する。
   これはアカウント・テナント情報の JSON であり、アクセストークンやリフレッシュトークンは含めない。
   トークンは `TokenCachePersistenceOptions` により OS 資格情報ストアへ永続化する
 - 以降の開発・運用スクリプトは同じ tenant/client ID のキャッシュを `auth_helper.get_token()` 等で再利用し、
   スクリプトごとのサインインや独自の認証キャッシュを実装しない
 
-## 前提: スクリプトは常に非対話で完走する
+## 前提: キャッシュを優先し、追加認証が必要な場合だけ明示的にセットアップする
 
 開発環境のセットアップで tenant/client ID ごとの初回サインインを済ませる。新規に作成・実行するスクリプトは、
-**初回のインタラクティブ認証がキャッシュ済みであること**を前提に、以降は認証の対話待ちが発生せず
-最後まで自動実行できるように書く。新しい client ID が必要な場合のみ、その client ID 用に初回認証を行う。
+**初回のインタラクティブ認証がキャッシュ済みであること**を前提に、以降は共有キャッシュを再利用する。
+`get_token()` と `get_credential()` は自動ブラウザ認証を禁止し、サイレント更新できない場合だけ
+`AuthenticationRequiredError` を返す。初回認証でも、条件付きアクセスのサインイン頻度・失効・同意要求等による
+再認証を永久に不要にはできない。トークンの有効期間は Entra ID が決め、キャッシュ側では延長しない。
 
 認証レコード（`AuthenticationRecord`）は **`~/.power-platform-cli/auth_record_{TENANT_ID}.json`（ホームディレクトリ配下、テナント別ファイル）にマシン全体で共有保存**される。明示した client ID を使う場合はファイル名も client ID ごとに分かれる。そのため、同じ tenant/client ID なら別プロジェクト・別リポジトリのスクリプトでもレコードと OS 資格情報ストアのトークンキャッシュを再利用できる。
 
@@ -28,7 +31,35 @@ PAC CLI プロファイルが利用できない場合、`auth_helper.py` は `In
 - スクリプト内でユーザーに認証情報の入力を求めるプロンプトを出さない
 - 認証レコードやトークンキャッシュをリポジトリ、`.env`、ログへコピーしない。JSON はホームディレクトリ外へ移動しない
 - 実行時に対話待ちが発生した場合は、スクリプトの認証部分を疑い `auth_helper.py` の呼び出し方法を見直す（新しい認証フローを自作しない）
-- テナント・アカウントを切り替えたい場合は `.env` の `TENANT_ID` を変更するだけでよい（テナントごとにキャッシュファイルが分離されているため、他テナントのキャッシュを壊さない）
+- テナント切替は `.env` の `TENANT_ID` を変更し、そのテナントの既存キャッシュを使う（他テナントのキャッシュを壊さない）。
+  同一テナント内の別アカウントへの切替とは区別する。共有対象は同一マシン・同一 OS ユーザーのキャッシュであり、
+  他の OS ユーザーやマシンへ持ち出さない
+
+### キャッシュ継承の検証
+
+```powershell
+python .github/skills/standard/scripts/verify_auth_cache.py --env .env
+# 別 client ID の初回認証（明示的なセットアップでのみ実行）
+# get_token(scope, client_id, allow_interactive=True)
+```
+
+検証は別作業ディレクトリの新規 Python プロセスを 2 回起動し、PAC プロファイルではなく既存の
+OS 保護キャッシュから取得する。トークンを表示・ファイル出力せず、ブラウザも開かない。
+メモリ上の有効期限が 60 秒未満になると、同じ credential からサイレント更新する。
+認証・権限・通信エラーをキャッシュ破損とみなして永続化を無効にしたり、キャッシュを削除したりしない。
+暗号化できない OS では平文トークン保存へフォールバックせず、明示的なエラーとする。
+
+### Power Apps npm CLI との境界
+
+`auth_helper` の共有は同一 tenant/client ID の Python/SDK 間である。Power Apps CLI 1.3.0 は
+別 client ID・専用の暗号化キャッシュを使い、外部アクセストークンを受け取る公開オプションは確認できない。
+`auth_helper` のトークンや更新トークンを CLI キャッシュへコピーしない。
+CLI ではまず既存キャッシュのサイレント取得を使い、実際に追加認証が要求された場合だけ
+`npx --no pa auth login --non-interactive` でブラウザ認証する（device-code は使わない）。
+これは CLI 専用の初回認証であり、`auth_helper` からの直接引き継ぎとは報告しない。
+
+公式 API: [InteractiveBrowserCredential](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.interactivebrowsercredential?view=azure-python)、
+[TokenCachePersistenceOptions](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.tokencachepersistenceoptions?view=azure-python)。
 
 ```python
 from auth_helper import get_token, get_session, api_get, api_post, api_patch, api_delete, retry_metadata
@@ -153,21 +184,18 @@ PowerShell の二重引用符内に書くと、ネストした Python 文字列�
 
 #### MSAL Python 3.14 互換性問題
 
-Python 3.14 では MSAL 内部トークンキャッシュ (`msal/token_cache.py`) が壊れる問題がある。
+MSAL 内部トークンキャッシュ (`msal/token_cache.py`) で以下の症状が報告された。
+型エラーだけでは Python バージョンやキャッシュ破損が原因とは断定できない。
 
 **症状**: 初回 API コールは成功するが、2回目以降で `TypeError: sequence item 0: expected str instance, dict found` が発生。`target=" ".join(target)` で scopes が dict として格納されている。
 
 **対策** (`auth_helper.py` 実装済み):
 
 1. `_inmemory_tokens` dict でスコープ別にトークンをインメモリキャッシュ
-2. `credential.get_token()` は同じスコープで1回だけ呼び、結果をキャッシュ
-3. `TypeError` や `ClientAuthenticationError` 発生時は新しい credential を永続キャッシュなしで再構築
-4. `PP_NO_PERSISTENT_CACHE=1` 環境変数で OS 永続キャッシュを無効化可能
-
-```bash
-# Python 3.14 でキャッシュ破損が発生する場合
-$env:PP_NO_PERSISTENT_CACHE="1"; Remove-Item .auth_record.json -ErrorAction SilentlyContinue; python ./setup_dataverse.py
-```
+2. 期限 60 秒前から同じ永続 credential で再取得し、更新トークンをサイレント利用
+3. `TypeError` / 一般的な認証エラーは送出し、キャッシュを捨てた再構築はしない
+4. `PP_NO_PERSISTENT_CACHE` は既存の診断用オプションとしてのみ保持する。設定すると警告し、
+   プロセス間の再利用は保証しない。通常運用ではこの環境変数を解除し、キャッシュを削除しない
 
 #### マルチテナント切り替え時の認証キャッシュ分離（★ 2026-07 検証済み）
 
@@ -187,7 +215,7 @@ $env:PP_NO_PERSISTENT_CACHE="1"; Remove-Item .auth_record.json -ErrorAction Sile
 2. 旧単一ファイルからの移行時は、中身の `tenantId` が現在の `TENANT_ID` と一致する場合のみ移行する
    （不一致なら移行せず、そのテナント用にブラウザで再認証する）
 3. ロードした `AuthenticationRecord.tenant_id` が `.env` の `TENANT_ID` と食い違う場合は
-   キャッシュを破棄して再認証させる（防御的チェック）
+   ファイルを保持したまま明示的に停止する（防御的チェック）
 
 ```
 ❌ 旧パターン: 全テナント共通で ~/.power-platform-cli/auth_record.json 1 本

@@ -33,7 +33,6 @@ npm install --no-audit --no-fund
 
 # 2. Code App を初回デプロイ（全テーブル・デモデータ投入は待たない）
 python scripts/dataverse/setup_dataverse.py --solution-only
-python .github/skills/code-apps/scripts/setup_connection_reference.py --write-env .env
 npx --no pa app init --environment-id $env:ENV_ID --display-name "店舗発注システム" --app-type CodeApp
 npm run deploy -- --solution-id $env:SOLUTION_ID     # 初回。データソース未追加でもビルドできる
 
@@ -46,7 +45,9 @@ npm run dv:setup
 npm run dv:verify
 
 # 5. Dataverse 接続後に改善デプロイ
-python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --connection-ref $env:CONNECTION_REFERENCE_LOGICAL_NAME --solution-id $env:SOLUTION_ID
+# 専用接続の作成・本人認証・Edge プロファイルの承認後に実行
+python .github/skills/code-apps/scripts/setup_connection_reference.py --create-connection --allow-interactive --write-env .env
+python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --allow-interactive
 npm run deploy
 
 # 6. 実データでの確認（アプリと同じ列・フィルターで取得し、発注の登録 → 取消 → 削除を再現）

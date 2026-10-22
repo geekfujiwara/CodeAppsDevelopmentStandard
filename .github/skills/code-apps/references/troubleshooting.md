@@ -3139,3 +3139,104 @@ Node の試験の中から Python（Blender と共有の計算・素材の検証
 テンプレートに `requirements.txt` を同梱し、`scaffold.json` の `nextSteps` と README の手順に `python -m pip install -r requirements.txt` を入れる。
 **依存の宣言は、何も入っていない環境で確かめる**（`python -m venv` で新しい仮想環境を作り、`requirements.txt` だけを入れて試験を回す）。
 テンプレートの CI（生成 → install → test → build）で毎回確かめる。**恒久対策済み** — `.github/workflows/perse3d-studio.yml`。
+
+## 92. 日本語PDFは文字抽出できても字形が欠ける・数字の抽出が別の漢字になる
+
+### 症状・原因
+
+`pdf-lib` と `fontkit` でNoto Sans JPをサブセット埋め込みしたPDFが、ToUnicodeの文字抽出では正常でも描画時に字形を欠いた。
+全グリフ埋め込み後も `locl` 等の代替字形により数字のToUnicodeが不一致となり、価格・電話番号等が別の文字に抽出された。
+
+### 対処・恒久対策
+
+静的なRegularフォントをライセンスとともに同梱し、`subset: false` と
+`features: { vert: false, vrt2: false, locl: false, liga: false, clig: false }` で埋め込む。
+対応しない文字・画像は具体的なエラーにする。フォントサイズを削るために、検証せずサブセットへ戻さない。
+
+**恒久対策済み** — `templates/perse3d-studio/src/lib/brochure-pdf.ts` のフォント設定・文字/画像検証と
+`tests/brochure.test.mjs`。PDF構造だけでなく、PyMuPDFで価格・電話・面積・免許番号の抽出、
+各文字を描画した領域の濃淡差、A4範囲内、画像枚数を検査する（抽出/描画試験はPyMuPDFがある場合）。
+
+## 93. 大きなPDFのダウンロード操作でブラウザとの接続が切れる
+
+### 症状・対処
+
+数MBの日本語PDFを巨大なdata URLにしてダウンロードすると、出力クリック後に検証用Edgeとの接続が失われた。
+フォントバイトの復元処理を省メモリ化しても再現した。同じ画面でBlob URLのダウンロードにすると実ファイルを取得できた。
+ブラウザ内部の原因までは断定しない。企業拡張・ポリシーを無効化しない。
+
+**恒久対策済み** — `templates/perse3d-studio/src/components/brochure-panel.tsx` は
+`URL.createObjectURL(new Blob(...))` でダウンロードし、開始後に一時URLを解放する。
+`scripts/portal-brochure-scenario.mjs` は実ダウンロードの完了とPDF実体・ページ数・日本語を確認する。
+画面の「成功」表示やダウンロード用リンクの生成だけでは成功とみなさない。
+
+## 94. 対応サイトを増やしたが、DLP未分類やサイトの認証要求で自動取得できない
+
+HTML解析の不具合と、環境ポリシー/取得制限を区別する。新ホストのDLPチェックがNGなら接続を追加しない。
+管理設定を無承認で変更したり、403・認証要求を迂回したりせず、
+利用者が権限を確認した本文の貼り付け/保存HTML/画像アップロードを代替経路として明示する。
+
+**恒久対策済み** — `templates/perse3d-studio/src/lib/listing.ts` の `normalizePropertyUrl` と
+`components/listing-import.tsx` はサイト別に自動取得の可否を分け、未対応サイトでは外部接続を呼ばない。
+`tests/portal-import.test.mjs` はURL・文字コード・本文/HTML・JSON-LDを検証し、
+`scripts/portal-brochure-scenario.mjs` は新サイトへのリクエストが0件であることを検査する。
+
+## 95. キャッシュがあるのに push で追加認証を要求される
+
+`auth status` はアカウント情報の表示にとどまり、push が必要とするすべてのリソースのトークン更新を
+保証しない。CLI はキャッシュからサイレント更新するため、非対話シェルであるだけでは失敗とは限らない。
+TTY を必須とする一律ガードは入れない。
+
+実際に「session has expired and could not be renewed silently」「Interactive sign-in is required」が
+返った場合だけ、`npx --no pa auth login --non-interactive` でブラウザ認証する。
+CLI 1.3.0 の明示的な login は非対話シェルでもブラウザを開く。device-code は使わない。
+再試行して同じ追加認証要求が出た場合は停止し、条件付きアクセス・要求対象リソースを確認する。
+HTTP 403/429 やネットワークエラーをキャッシュ破損として扱わず、キャッシュ削除・logout の反復をしない。
+
+Python/SDK の `auth_helper` は共有 OS キャッシュを再利用するが、CLI は別 client ID・専用キャッシュであり、
+直接引き継ぐ公開オプションは CLI 1.3.0 では確認できない。`CI=true` によるサービスプリンシパル切替で
+ユーザー認証の問題を隠さない。詳しくは [共通認証](../../standard/references/auth-patterns.md) を参照。
+
+## 96. 接続作成と参照解決をキャッシュ優先の正常フローにする
+
+### 症状・原因
+
+`auth login` は成功しても、接続参照解決に必要な追加認証が未完了なことがある。
+Dataverse の `connection create --use-sso` もサービス側で拒否される場合があり、
+非対話シェルでフラグを外すだけではブラウザ作成へ進まない。
+また、最初の既存接続参照は期限切れ接続を指したり、他アプリと共有されていたりする。
+`connection list` / `connector list` は CLI 1.3.0 で `--environment-id` を受け付けず、
+対象はアプリの `power.config.json` から決まる。
+
+### 恒久対策
+
+- `scripts/pa_cli.py`: 実行プロジェクトの `.env` 優先、設定環境との一致、公式ローカルCLIの直接起動。
+  `npx` の誤解決やPACの互換エラーに依存しない。JSON不正・失敗レスポンスを空一覧として扱わない。
+- 認証エラーだけ `--allow-interactive` の承認付きで必要な実コマンドを Windows の独立コンソールへ切り替える。
+  `auth login` を繰り返さない。終了コードのみを返し、CLI出力・トークンを保存しない。
+  timeout・ウィンドウ閉鎖・403・429等は明示的エラー。CIモード切替、device-code、キャッシュ削除はしない。
+- `setup_connection_reference.py`: 専用接続のSSO作成→明示的拒否かつ部分作成無しならブラウザへ。
+  作成前後の差分が一意で `Connected`、対象コネクタ・環境が一致する場合だけ採用する。
+  新IDは読み戻し後に保存して参照作成の途中失敗から再開できる。結果不明時は再作成せずIDを確認する。
+- 接続参照は指定名またはソリューション固有名のみ。同名・同一バインドは再利用し、
+  異なるバインドを変更せず停止する。所属・バインドを読み戻した後に `.env` の3キーを保存する。
+- `add_data_source.py`: 接続と所属を事前検証し、既存の同じDataverseデータソースは再利用する。
+  別バインドや複数バインドは止め、CLIによる重複生成を防ぐ。終了コード0だけでなく設定と生成サービスも確認する。
+- `scripts/test_connection_workflow.py` に回帰試験を追加。
+  SSO拒否後のブラウザ作成はオフライン試験で検証し、全企業の条件付きアクセスで成功すると保証しない。
+  ブラウザ経路でも失敗したら、承認済みEdgeプロファイルの統合ブラウザで
+  **Power Apps → 対象環境 → 接続 → 新しい接続 → Microsoft Dataverse** を開き、
+  `--connection-id` を指定して再開する。ツールが利用不可の場合だけ本人の作成を依頼する。
+
+## 97. CRM CRUD試験の列長・Lookup名・SDK返却形式
+
+contact の `fullname` は計算列なので `lastname` に書き込む。テスト名に更新用suffixを付けると
+MaxLengthを超えることがある。LookupのNavigationPropertyとReferencingAttributeも同じとは限らない。
+SDK 1.1.0 の `records.list()` は旧 `get()` のページ列挙ではなく、平坦な `QueryResult` を返す。
+
+**恒久対策済み**: `templates/sales-crm/scripts/verify_crm_crud.py` が全テーブルの名前列MaxLength、
+EntitySetName、主キー、NavigationProperty/ReferencingAttributeを最初の書き込み前に照合する。
+`read_records()` は平坦なレコードとして照合し、試験固有IDだけを逆順cleanup・不在確認する。
+メタデータ確認は既定で読み取りのみ、CRUDは承認済み `--apply`。
+SDKのCRUD、型チェック/build、配信後の画面CRUDと同意、ロール別アクセス・AI/承認は別ゲートで記録する。
+ソリューションの展開で既存ファイルを削除しない場合は、余剰ファイルの可能性とzipの保存時点を明記する。

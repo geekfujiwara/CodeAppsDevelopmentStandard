@@ -6,8 +6,14 @@
  */
 
 export type Compass = "北" | "北東" | "東" | "南東" | "南" | "南西" | "西" | "北西"
+export type ListingSite = "suumo" | "homes" | "athome" | "yahoo"
+export const LISTING_SITES: Record<ListingSite, string> = {
+  suumo: "SUUMO", homes: "LIFULL HOME'S", athome: "at home", yahoo: "Yahoo!不動産",
+}
 
 export type ListingInfo = {
+  site?: ListingSite
+  warnings?: string[]
   url?: string
   /** ページの題名から取った物件名（例: サンプル市本町1丁目 中古戸建） */
   title?: string
@@ -31,25 +37,33 @@ export type ListingInfo = {
   access?: string
   zoning?: string
   parking?: string
+  tenure?: string
+  available?: string
+  transaction?: string
   /** 取り込んだ日時（ISO） */
   fetchedAt?: string
 }
 
 /** 物件概要の見出し → 項目。SUUMO の表記ゆれ（「ヒント」付き・全角）も含める */
-const LABELS: [RegExp, keyof ListingInfo | "roadRaw" | "areaRaw" | "landRaw" | "coverageRaw"][] = [
-  [/^所在地$/, "address"],
-  [/^交通$/, "access"],
-  [/^価格$/, "price"],
-  [/^間取り$/, "layout"],
-  [/^建物面積$/, "areaRaw"],
-  [/^延床面積$/, "areaRaw"],
-  [/^土地面積$/, "landRaw"],
+const LABELS: [RegExp, keyof ListingInfo | "roadRaw" | "areaRaw" | "landRaw" | "coverageRaw" | "coverageOnlyRaw" | "ratioOnlyRaw"][] = [
+  [/^所在地$|^住所$|^物件所在地$/, "address"],
+  [/^交通$|^アクセス$|^交通機関$/, "access"],
+  [/^価格$|^販売価格$|^物件価格$/, "price"],
+  [/^間取り$|^間取$/, "layout"],
+  [/^建物面積(?:\(.*\))?$/, "areaRaw"],
+  [/^延床面積$|^延べ床面積$/, "areaRaw"],
+  [/^土地面積(?:\(.*\))?$/, "landRaw"],
   [/^建ぺい率・容積率$/, "coverageRaw"],
-  [/^完成時期\(築年月\)$|^築年月$/, "builtYear"],
-  [/^構造・工法$/, "structure"],
-  [/^私道負担・道路$|^接道状況$/, "roadRaw"],
+  [/^建ぺい率$|^建蔽率$/, "coverageOnlyRaw"],
+  [/^容積率$/, "ratioOnlyRaw"],
+  [/^完成時期\(築年月\)$|^築年月$|^完成年月$|^築年数$/, "builtYear"],
+  [/^構造・工法$|^建物構造$|^構造$|^構造・階建$/, "structure"],
+  [/^私道負担・道路$|^接道状況$|^接道$|^道路$/, "roadRaw"],
   [/^用途地域$/, "zoning"],
-  [/^駐車場$/, "parking"],
+  [/^駐車場$|^駐車スペース$/, "parking"],
+  [/^土地の権利形態$|^土地権利$|^権利$/, "tenure"],
+  [/^引渡可能時期$|^引渡し$|^引渡時期$|^引き渡し時期$/, "available"],
+  [/^取引態様$|^取引形態$/, "transaction"],
 ]
 
 const clean = (s: string) =>
@@ -68,7 +82,8 @@ const decode = (s: string) =>
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(Math.min(0x10ffff, parseInt(n, 16))))
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Math.min(0x10ffff, Number(n))))
 
 /** 「64.39m 2 （19.47坪）」「64.39㎡」「64.39m²」→ 64.39。1 階・2 階の内訳が並ぶ場合は合計の値（最初の数値）を使う */
 export function parseArea(s: string | undefined): number | undefined {
@@ -115,6 +130,15 @@ function assign(info: ListingInfo, key: (typeof LABELS)[number][1], value: strin
       if (nums[1]) info.floorAreaRatio = nums[1]
       break
     }
+    case "coverageOnlyRaw":
+    case "ratioOnlyRaw": {
+      const num = Number(v.match(/\d+(?:\.\d+)?/)?.[0])
+      if (Number.isFinite(num) && num >= 0 && num <= 2000) {
+        if (key === "coverageOnlyRaw") info.coverage = num
+        else info.floorAreaRatio = num
+      }
+      break
+    }
     case "roadRaw":
       info.road = parseRoad(v)
       break
@@ -134,7 +158,7 @@ function assign(info: ListingInfo, key: (typeof LABELS)[number][1], value: strin
 }
 
 const labelOf = (th: string) => {
-  const t = clean(th)
+  const t = clean(th).replace(/[：:]\s*$/, "")
   return LABELS.find(([re]) => re.test(t))?.[1]
 }
 
@@ -143,6 +167,8 @@ const OTHER_HEADINGS = new Set([
   "販売スケジュール", "イベント情報", "販売戸数", "総戸数", "最多価格帯", "諸費用", "引渡可能時期", "土地の権利形態",
   "エネルギー消費性能", "断熱性能", "目安光熱費", "施工", "リフォーム", "地目", "その他制限事項", "その他概要・特記事項",
   "会社概要", "問い合わせ先", "情報提供日", "次回更新予定日", "取引条件有効期限", "物件番号", "設備・条件", "備考",
+  "建築確認番号", "現況", "都市計画", "地勢", "私道負担", "情報公開日", "更新日", "取扱い不動産会社", "物件種別",
+  "管理費", "修繕積立金", "共益費", "敷金", "礼金",
 ])
 const isHeading = (line: string) => {
   if (labelOf(line)) return true
@@ -153,6 +179,7 @@ const isHeading = (line: string) => {
 /** 題名「【SUUMO】サンプル市本町1丁目 中古戸建 - 物件概要 | …」→ 物件名 */
 function titleOf(raw: string): string | undefined {
   const t = clean(decode(raw))
+    .replace(/^(?:【(?:SUUMO|ホームズ|HOME'S|HOMES|アットホーム|Yahoo!不動産)】|\[(?:SUUMO|HOME'S)\])\s*/i, "")
     .replace(/^【[^】]*】\s*/, "")
     .replace(/\s*[-|｜].*$/, "")
     .trim()
@@ -171,12 +198,27 @@ function mostFloors(text: string): number | undefined {
 
 /** 物件概要ページの HTML から取り出す（見出し th → 値 td の組） */
 export function parseListingHtml(html: string, url?: string): ListingInfo {
-  const info: ListingInfo = { ...(url ? { url } : {}) }
+  const site = url ? normalizePropertyUrl(url)?.site : undefined
+  const info: ListingInfo = { ...(url ? { url } : {}), ...(site ? { site } : {}) }
   const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
   if (title) info.title = titleOf(title[1])
   for (const m of html.matchAll(/<th[^>]*>([\s\S]*?)<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/gi)) {
     const key = labelOf(decode(m[1]))
     if (key) assign(info, key, decode(m[2]))
+  }
+  for (const m of html.matchAll(/<dt\b[^>]*>([\s\S]*?)<\/dt>\s*<dd\b[^>]*>([\s\S]*?)<\/dd>/gi)) {
+    const key = labelOf(decode(m[1]))
+    if (key) assign(info, key, decode(m[2]))
+  }
+  structuredListing(html, info)
+  // 構造化データが無い保存HTMLでも、本文の見出しと改行を使う。scriptの広告・他物件は本文として読まない。
+  if (!info.address || !info.buildingArea || !info.layout) {
+    const text = html.replace(/<(script|style|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, "")
+      .replace(/<\/(?:div|p|li|tr|th|td|dt|dd|h[1-6])>|<br\s*\/?>/gi, "\n")
+    const fallback = parseListingText(decodeLines(text), url)
+    for (const key of Object.keys(fallback) as (keyof ListingInfo)[]) {
+      if (info[key] == null) Object.assign(info, { [key]: fallback[key] })
+    }
   }
   // 新築の物件概要は「構造・工法」が「-」のことがある。ページの中の「N階建」（最も多いもの）で補う
   // （「２階建」は物件の特徴のタグとして script の中にも入る）
@@ -189,13 +231,18 @@ export function parseListingHtml(html: string, url?: string): ListingInfo {
  * 見出しの行（「所在地」「建物面積 ヒント」など）の後ろ、次の見出しまでを値とする
  */
 export function parseListingText(text: string, url?: string): ListingInfo {
-  const info: ListingInfo = { ...(url ? { url } : {}) }
+  const site = url ? normalizePropertyUrl(url)?.site : undefined
+  const info: ListingInfo = { ...(url ? { url } : {}), ...(site ? { site } : {}) }
   const lines = text
     .split(/\r?\n/)
     .flatMap(l => l.split("\t"))
+    .flatMap(l => {
+      const m = l.normalize("NFKC").match(/^(.{1,24}?)[：:]\s*(.+)$/)
+      return m && labelOf(m[1]) ? [m[1], m[2]] : [l]
+    })
     .map(l => l.trim())
     .filter(Boolean)
-  const first = lines.find(l => /【SUUMO】|中古戸建|新築|一戸建/.test(l))
+  const first = lines.find(l => /【SUUMO】|【ホームズ】|【アットホーム】|中古戸建|新築|一戸建/.test(l))
   if (first) info.title = titleOf(first)
   for (let i = 0; i < lines.length; i++) {
     const key = labelOf(lines[i])
@@ -210,7 +257,71 @@ export function parseListingText(text: string, url?: string): ListingInfo {
 
 /** HTML でも文字列でも受け付ける */
 export function parseListing(content: string, url?: string): ListingInfo {
-  return /<t[hd][\s>]/i.test(content) ? parseListingHtml(content, url) : parseListingText(content, url)
+  return /<(?:html|table|dl|script|div|t[hd])[\s>]/i.test(content) ? parseListingHtml(content, url) : parseListingText(content, url)
+}
+
+function decodeLines(html: string): string {
+  return html.split(/\r?\n/).map(l => decode(l).trim()).join("\n")
+}
+
+/** 公開ページのJSON-LDだけをデータとして読む。エージェントやスクリプトとして実行しない。 */
+function structuredListing(html: string, info: ListingInfo): void {
+  const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v)
+  const str = (v: unknown) => typeof v === "string" ? clean(v) : undefined
+  for (const m of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    let parsed: unknown
+    try { parsed = JSON.parse(m[1]) }
+    catch {
+      info.warnings = [...(info.warnings ?? []), "ページの構造化データの一部を読み取れませんでした。取り込んだ値を確認してください"]
+      continue
+    }
+    const queue: unknown[] = [parsed]
+    for (let i = 0; i < queue.length && i < 512; i++) {
+      const node = queue[i]
+      if (Array.isArray(node)) { queue.push(...node.slice(0, 100)); continue }
+      if (!object(node)) continue
+      if (node["@graph"]) queue.push(node["@graph"])
+      const type = Array.isArray(node["@type"]) ? node["@type"].join(" ") : String(node["@type"] ?? "")
+      if (!/RealEstateListing|Residence|House|Apartment|Product|Offer/.test(type)) continue
+      if (object(node.mainEntity)) queue.push(node.mainEntity)
+      if (object(node.itemOffered)) queue.push(node.itemOffered)
+      if (object(node.offers)) queue.push(node.offers)
+      info.title ??= str(node.name)
+      const address = node.address
+      if (object(address)) {
+        info.address ??= [address.addressRegion, address.addressLocality, address.streetAddress].map(str).filter(Boolean).join("") || undefined
+      } else info.address ??= str(address)
+      if (object(node.floorSize)) {
+        const a = node.floorSize
+        if (/^(?:MTK|m2|m²|㎡|平方メートル)$/i.test(String(a.unitCode ?? a.unitText ?? ""))) info.buildingArea ??= parseArea(`${a.value}m2`)
+      }
+      if (node.priceCurrency === "JPY" && (typeof node.price === "number" || typeof node.price === "string")) {
+        const price = Number(node.price)
+        if (Number.isFinite(price) && price > 0) info.price ??= `${(price / 10000).toLocaleString("ja-JP")}万円`
+      }
+    }
+  }
+}
+
+export type PropertyUrl = { site: ListingSite; url: string; pageUrl: string; automatic: boolean }
+/** URLはサイトと物件詳細のパスを厳密に限定。新サイトはDLP・認証制限を迂回せず、貼り付け/保存HTMLで取り込む。 */
+export function normalizePropertyUrl(raw: string): PropertyUrl | null {
+  let u: URL
+  try { u = new URL(raw.trim()) } catch { return null }
+  if (u.protocol !== "https:" || u.username || u.password || u.port) return null
+  const suumo = normalizeListingUrl(raw)
+  if (suumo) return { site: "suumo", url: suumo.url, pageUrl: suumo.url.replace(/bukkengaiyo\/$/, ""), automatic: true }
+  const site = /^(?:www\.)?homes\.co\.jp$/.test(u.hostname) ? "homes"
+    : /^(?:www\.)?athome\.co\.jp$/.test(u.hostname) ? "athome"
+      : u.hostname === "realestate.yahoo.co.jp" ? "yahoo" : null
+  if (!site) return null
+  const path = u.pathname.endsWith("/") ? u.pathname : u.pathname + "/"
+  const valid = site === "homes" ? /^\/(?:kodate|tochi|mansion)\/b-\d+\/$/.test(path)
+    : site === "athome" ? /^\/(?:kodate|tochi|mansion)\/\d+\/$/.test(path)
+      : /^\/(?:(?:new|used)\/(?:house|mansion)|land)\/detail_cid_[a-zA-Z0-9_-]+\/$/.test(path)
+  if (!valid) return null
+  const host = site === "homes" ? "www.homes.co.jp" : site === "athome" ? "www.athome.co.jp" : "realestate.yahoo.co.jp"
+  return { site, url: `https://${host}${path}`, pageUrl: `https://${host}${path}`, automatic: false }
 }
 
 /**
@@ -246,6 +357,7 @@ export function decodeConnectorText(s: string): string {
     if (c > 0xff) return s
     if (c >= 0x80) high = true
   }
+
   if (!high) return s
   const bytes = Uint8Array.from(s, ch => ch.charCodeAt(0))
   const head = s.slice(0, 4096)
@@ -256,6 +368,15 @@ export function decodeConnectorText(s: string): string {
   } catch {
     return new TextDecoder("utf-8").decode(bytes)
   }
+}
+
+/** 保存HTMLもページで宣言された文字コードで読む（UTF-8 / Shift_JIS / EUC-JP）。不正なバイト列は明示エラー。 */
+export function decodeListingHtmlFile(bytes: Uint8Array): string {
+  const head = new TextDecoder("ascii").decode(bytes.subarray(0, 4096))
+  const charset = (head.match(/charset\s*=\s*["']?([A-Za-z0-9_-]+)/i)?.[1] ?? "utf-8").toLowerCase()
+  const label = /^(shift[_-]?jis|sjis|x-sjis|windows-31j|cp932|ms932)$/.test(charset) ? "shift_jis" : /^euc-?jp$/.test(charset) ? "euc-jp" : "utf-8"
+  try { return new TextDecoder(label, { fatal: true }).decode(bytes) }
+  catch (e) { throw new Error(`保存HTMLを${label}で読み取れません。UTF-8で保存し直すか本文を貼り付けてください`, { cause: e }) }
 }
 
 /** 物件ページの画像（SUUMO の resizeImage の src。robots.txt で許可された gazo/ 配下だけ） */
@@ -318,6 +439,10 @@ export function listingRows(info: ListingInfo): { label: string; value: string }
     ["道路", info.road?.raw],
     ["用途地域", info.zoning],
     ["交通", info.access],
+    ["駐車場", info.parking],
+    ["土地権利", info.tenure],
+    ["引渡時期", info.available],
+    ["取引態様", info.transaction],
   ]
   return rows.filter((r): r is [string, string] => !!r[1]).map(([label, value]) => ({ label, value }))
 }

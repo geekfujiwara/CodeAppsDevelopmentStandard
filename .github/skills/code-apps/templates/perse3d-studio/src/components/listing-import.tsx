@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { listingRows, normalizeListingUrl, parseListing, type ListingInfo } from "@/lib/listing"
+import { LISTING_SITES, decodeListingHtmlFile, listingRows, normalizePropertyUrl, parseListing, type ListingInfo } from "@/lib/listing"
 import { canFetchListing, fetchListing } from "@/lib/listing-source"
 import { importListingImages, type ListingImagesResult } from "@/lib/listing-images"
 
@@ -29,9 +29,14 @@ export function ListingImport({ listing, onImported, defaultUrl, onImages }: Pro
   const [step, setStep] = useState<string | null>(null)
   const [fetched, setFetched] = useState<ListingImagesResult | null>(null)
   const [imageError, setImageError] = useState<string | null>(null)
-  const target = url.trim() ? normalizeListingUrl(url) : null
+  const target = url.trim() ? normalizePropertyUrl(url) : null
 
   const run = async () => {
+    if (target && !target.automatic) {
+      setPasteOpen(true)
+      document.getElementById("listing-paste")?.focus()
+      return
+    }
     setBusy(true)
     setError(null)
     setImageError(null)
@@ -63,8 +68,12 @@ export function ListingImport({ listing, onImported, defaultUrl, onImages }: Pro
     }
   }
 
-  const fromPaste = () => {
-    const info = parseListing(pasted, target?.url)
+  const fromContent = (content: string) => {
+    if (url.trim() && !target) {
+      setError("対応サイトの物件詳細URLを確認してください")
+      return
+    }
+    const info = parseListing(content, target?.url)
     if (!info.address && !info.buildingArea && !info.price) {
       setError("物件概要の項目（所在地・価格・建物面積など）が見つかりませんでした。物件概要のページ全体を選択してコピーしてください")
       return
@@ -77,26 +86,33 @@ export function ListingImport({ listing, onImported, defaultUrl, onImages }: Pro
   const rows = listing ? listingRows(listing) : []
   return (
     <div className="space-y-2 rounded-lg border bg-muted/30 p-3" data-tour="listing-import">
-      <Label htmlFor="listing-url">物件ページの URL（SUUMO）</Label>
+      <Label htmlFor="listing-url">物件ページの URL（SUUMO / HOME'S / at home / Yahoo!不動産）</Label>
       <div className="flex gap-2">
         <Input
           id="listing-url"
           value={url}
-          onChange={e => setUrl(e.target.value)}
+          onChange={e => { setUrl(e.target.value); setFetched(null); setError(null); setImageError(null) }}
           placeholder="https://suumo.jp/chukoikkodate/…/nc_12345678/"
           className="min-w-0 flex-1"
           onKeyDown={e => e.key === "Enter" && target && !busy && run()}
         />
         <Button type="button" className="shrink-0 gap-1" onClick={run} disabled={!target || busy} data-testid="listing-fetch">
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          {busy ? "取得中…" : "自動取得"}
+          {busy ? "取得中…" : target && !target.automatic ? "内容を貼り付けて取り込む" : "自動取得"}
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
         物件概要（所在地・価格・建物面積・階数・道路など）を取り込みます。建物面積は間取り図の縮尺合わせに使い、3D の寸法が正確になります。
-        {url.trim() && !target && <span className="block text-destructive">SUUMO の一戸建て・土地の物件ページの URL を入れてください。</span>}
+        {url.trim() && !target && <span className="block text-destructive">対応サイトの物件詳細URLを入れてください（検索一覧・ログイン用URLは対象外）。</span>}
       </p>
-      {onImages && (
+      {target && !target.automatic && (
+        <div className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-950" data-testid="portal-local-notice">
+          {LISTING_SITES[target.site]} はページ内容の貼り付け・保存HTMLに対応しています。
+          自動接続は未追加です（DLP分類未設定。HOME'S / at home は取得制限も確認しています）。
+          ページを自分のブラウザで開いて内容をコピーしてください。外観・間取り図は、利用権限のある画像を作成後にアップロードすると階別に切り出せます。
+        </div>
+      )}
+      {onImages && (!target || target.automatic) && (
         <label className="flex items-center gap-2 text-xs">
           <input type="checkbox" checked={withImages} onChange={e => setWithImages(e.target.checked)} disabled={busy} data-testid="listing-with-images" />
           外観（完成予想図・外観写真）と間取り図の画像も取り込み、間取り図を階ごとに切り出す
@@ -126,7 +142,7 @@ export function ListingImport({ listing, onImported, defaultUrl, onImages }: Pro
         </div>
       )}
 
-      {pasteOpen ? (
+      {pasteOpen || (target && !target.automatic) ? (
         <div className="space-y-2">
           <Label htmlFor="listing-paste" className="text-xs">
             ページの内容を貼り付け（物件概要のページで全体を選択 → コピー）
@@ -137,9 +153,22 @@ export function ListingImport({ listing, onImported, defaultUrl, onImages }: Pro
             )}
           </Label>
           <Textarea id="listing-paste" rows={4} value={pasted} onChange={e => setPasted(e.target.value)} placeholder="所在地　東京都… / 価格　… / 建物面積　… など" />
-          <Button type="button" size="sm" variant="outline" className="gap-1" onClick={fromPaste} disabled={!pasted.trim()}>
+          <Button type="button" size="sm" variant="outline" className="gap-1" onClick={() => fromContent(pasted)} disabled={busy || !pasted.trim()}>
             <ClipboardPaste className="h-4 w-4" />貼り付けた内容から入力
           </Button>
+          <label className="ml-2 inline-flex cursor-pointer items-center rounded border px-3 py-1.5 text-xs hover:bg-accent">
+            保存したHTMLから入力
+            <input type="file" accept=".html,.htm,text/html" disabled={busy} className="hidden" data-testid="listing-html-file" onChange={async e => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              if (file.size > 3 * 1024 * 1024) { setError("HTMLファイルは3MB以下にしてください"); return }
+              try {
+                const text = decodeListingHtmlFile(new Uint8Array(await file.arrayBuffer()))
+                setPasted(text)
+                fromContent(text)
+              } catch (error) { setError(`HTMLファイルを読めませんでした: ${error instanceof Error ? error.message : String(error)}`) }
+            }} />
+          </label>
         </div>
       ) : (
         <button type="button" className="text-xs text-primary underline-offset-2 hover:underline" onClick={() => setPasteOpen(true)}>
@@ -157,6 +186,7 @@ export function ListingImport({ listing, onImported, defaultUrl, onImages }: Pro
           ))}
         </dl>
       )}
+      {listing?.warnings?.map((w, i) => <p key={i} className="text-xs text-amber-700" role="status">{w}</p>)}
     </div>
   )
 }

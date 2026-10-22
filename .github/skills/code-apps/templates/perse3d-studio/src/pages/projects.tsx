@@ -134,7 +134,7 @@ export default function Projects() {
           if (!o && params.get("new")) setParams({})
         }}
         title="新規案件"
-        description="物件ページの URL から物件情報と外観・間取り図の画像を取り込めます（間取り図は階ごとに切り出します）。作成すると、続けて 3D 化できます。"
+        description="SUUMOはURLから自動取得できます。HOME'S・at home・Yahoo!不動産はURLとページ内容の貼り付け・保存HTMLで物件情報を取り込み、画像は作成後に追加します。"
         onSave={submit}
         saveLabel={form.images && (form.images.perspective || Object.keys(form.images.floorplans).length) ? "作成して 3D 化へ進む" : "作成して画像を取り込む"}
         isSaving={create.isPending}

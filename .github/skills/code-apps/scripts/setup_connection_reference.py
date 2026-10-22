@@ -4,10 +4,9 @@ Code Apps を ALM 対応（ソリューション同梱・環境間移送可能�
 接続 ID 直バインドではなく **接続参照（Connection Reference）** にバインドする必要がある。
 接続そのものはソリューション コンポーネントになれないが、接続参照はなれる。
 
-方針は「既存 CR 流用ファースト」:
-  1. 対象ソリューション内に Dataverse コネクタの CR があれば、それをそのまま使う
-  2. 無ければ環境内の既存 CR を探し、AddSolutionComponent でソリューションへ追加して流用
-  3. それも無ければ Dataverse Web API で CR を新規作成し、ソリューションへ追加
+方針は「対象環境・正常な接続・明示的な選択・冪等性」。
+専用接続は --create-connection、追加認証の承認は --allow-interactive で指定する。
+既存の共有接続・異なる接続へのバインドは勝手に変更しない。
 
 認証は standard スキルの auth_helper を使う（requests / MSAL の直呼びは禁止）。
 
@@ -35,15 +34,20 @@ import re
 import sys
 from pathlib import Path
 
+_SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(_SCRIPT_DIR))
+
 try:
     sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
 except Exception:
     pass
 
-from dotenv import load_dotenv
+from pa_cli import (
+    connected, connection_name, environment_id, list_connections, load_project_env,
+    require_connection, run_console, run_with_recovery,
+)
 
 # --- auth_helper（standard スキル）を import パスに追加 ---
-_SCRIPT_DIR = Path(__file__).resolve().parent
 _CANDIDATES = [
     _SCRIPT_DIR.parent.parent / "standard" / "scripts",  # .github/skills/standard/scripts
     *[p / ".github" / "skills" / "standard" / "scripts" for p in _SCRIPT_DIR.parents],
@@ -57,10 +61,7 @@ for _c in _CANDIDATES:
 else:  # noqa: PLW0120
     sys.exit("auth_helper.py が見つかりません（standard スキルの scripts フォルダを確認）")
 
-for _p in _SCRIPT_DIR.parents:
-    if (_p / ".env").is_file():
-        load_dotenv(_p / ".env")
-        break
+load_project_env()
 
 from auth_helper import api_get, api_post  # noqa: E402
 
@@ -102,8 +103,9 @@ def connector_id(api_id: str) -> str:
 
 
 def get_solution_id(unique_name: str) -> str:
+    escaped = unique_name.replace("'", "''")
     values = api_get(
-        f"solutions?$filter=uniquename eq '{unique_name}'&$select=solutionid"
+        f"solutions?$filter=uniquename eq '{escaped}'&$select=solutionid"
     ).get("value", [])
     if not values:
         raise SystemExit(f"ソリューション '{unique_name}' が見つかりません。先に作成してください。")
@@ -131,10 +133,10 @@ def find_in_solution(solution_id: str, api_id: str) -> dict | None:
     object_ids = {c["objectid"] for c in components}
     if not object_ids:
         return None
-    for cr in list_connection_references(api_id):
-        if cr["connectionreferenceid"] in object_ids:
-            return cr
-    return None
+    matches = [cr for cr in list_connection_references(api_id) if cr["connectionreferenceid"] in object_ids]
+    if len(matches) > 1:
+        raise SystemExit("NG: Multiple references exist in this solution. Specify --logical-name or --connection-id.")
+    return matches[0] if matches else None
 
 
 def is_in_solution(solution_id: str, component_id: str) -> bool:
@@ -162,26 +164,24 @@ def add_to_solution(component_id: str, solution_name: str) -> None:
 
 
 def create_connection_reference(
-    api_id: str, solution_name: str, prefix: str, connection_id: str
+    api_id: str, solution_name: str, prefix: str, connection_id: str,
+    logical_name: str = "",
 ) -> dict:
-    logical_name = build_logical_name(prefix, solution_name, api_id)
+    logical_name = logical_name or build_logical_name(prefix, solution_name, api_id)
+    assert_valid_logical_name(logical_name)
+    if not connection_id:
+        raise SystemExit("NG: A verified Connected connection is required before creating a reference.")
     body = {
         "connectionreferencedisplayname": f"{api_id} ({solution_name})",
         "connectionreferencelogicalname": logical_name,
         "connectorid": connector_id(api_id),
     }
-    if connection_id:
-        body["connectionid"] = connection_id
-    else:
-        print("  ! DATAVERSE_CONNECTION_ID 未設定のため、接続未バインドの CR を作成します。")
+    body["connectionid"] = connection_id
 
     new_id = api_post("connectionreferences", body, solution=solution_name)
     print(f"  + CR を新規作成しました: {logical_name} ({new_id})")
-    # MSCRM ヘッダーが効かない場合に備えて明示的にソリューションへ追加する
-    try:
+    if not is_in_solution(get_solution_id(solution_name), new_id):
         add_to_solution(new_id, solution_name)
-    except Exception as exc:  # noqa: BLE001
-        print(f"  ! AddSolutionComponent をスキップしました: {exc}")
     return {
         "connectionreferenceid": new_id,
         "connectionreferencelogicalname": logical_name,
@@ -206,6 +206,45 @@ def upsert_env(path: Path, values: dict[str, str]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def create_dedicated_connection(api_id: str, display_name: str, timeout: int, allow_interactive: bool) -> str:
+    if api_id != "shared_commondataserviceforapps":
+        raise SystemExit("NG: --create-connection currently supports Dataverse only; pass an approved --connection-id for other connectors.")
+    if not Path("power.config.json").is_file():
+        raise SystemExit("NG: Initialize the app before creating its dedicated connection.")
+    before = list_connections(timeout, allow_interactive)
+    base = ["connection", "create", "--connector", api_id, "--display-name", display_name]
+    result = run_with_recovery([*base, "--use-sso", "--non-interactive"], timeout, allow_interactive)
+    if result.returncode:
+        detail = f"{result.stdout}\n{result.stderr}"
+        print(detail, file=sys.stderr)
+        if not allow_interactive or "connector service rejected the automatic connection request" not in detail.lower():
+            raise SystemExit("NG: Connection creation failed. No automatic retry; inspect connections before retrying.")
+        after = list_connections(timeout, allow_interactive)
+        old_names = {connection_name(row) for row in before}
+        if any(connection_name(row) not in old_names for row in after):
+            raise SystemExit("NG: Connection list changed after rejected SSO. Inspect it before browser creation.")
+        run_console(base, timeout)
+    after = list_connections(timeout, allow_interactive)
+    old_names = {connection_name(row) for row in before}
+    new_rows = [row for row in after if connection_name(row) not in old_names
+                and connected(row, api_id, environment_id())]
+    if len(new_rows) != 1:
+        raise SystemExit("NG: Could not uniquely verify the new Connected connection. Inspect the portal and pass --connection-id; do not create another connection.")
+    return connection_name(new_rows[0])
+
+
+def choose_reference(references: list[dict], logical_name: str, connection_id: str) -> dict | None:
+    matches = [cr for cr in references if cr["connectionreferencelogicalname"] == logical_name]
+    if len(matches) > 1:
+        raise SystemExit("NG: Multiple references match. Specify --logical-name and --connection-id.")
+    if not matches:
+        return None
+    cr = matches[0]
+    if connection_id and cr.get("connectionid") != connection_id:
+        raise SystemExit("NG: Reference already has a different binding. It was not changed. Choose a new --logical-name.")
+    return cr
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="接続参照をソリューションに用意する")
     parser.add_argument(
@@ -216,8 +255,13 @@ def main() -> None:
     parser.add_argument("--solution-name", default=os.getenv("SOLUTION_NAME", ""))
     parser.add_argument("--prefix", default=os.getenv("PUBLISHER_PREFIX", ""))
     parser.add_argument("--connection-id", default=os.getenv("DATAVERSE_CONNECTION_ID", ""))
+    parser.add_argument("--logical-name", default="", help="Explicit reference name; existing bindings are never overwritten")
+    parser.add_argument("--create-connection", action="store_true", help="Approved creation of a dedicated Dataverse connection")
+    parser.add_argument("--display-name", default="", help="New connection display name")
+    parser.add_argument("--allow-interactive", action="store_true", help="Approved browser sign-in in a bounded interactive console")
+    parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument(
-        "--force-create", action="store_true", help="既存 CR を流用せず必ず新規作成する"
+        "--force-create", action="store_true", help="互換オプション。同名・同一バインドは再利用し、異なるバインドは変更しない"
     )
     parser.add_argument(
         "--write-env", type=Path, default=None,
@@ -225,51 +269,55 @@ def main() -> None:
              "（呼び出し側が標準出力をパースしなくて済むようにする）",
     )
     args = parser.parse_args()
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive")
+    if not args.logical_name and args.api_id == "shared_commondataserviceforapps":
+        args.logical_name = os.getenv("CONNECTION_REFERENCE_LOGICAL_NAME", "")
 
     if not args.solution_name:
         raise SystemExit("SOLUTION_NAME が未設定です（.env または --solution-name）")
     if not args.prefix:
         raise SystemExit("PUBLISHER_PREFIX が未設定です（.env または --prefix）")
 
+    environment_id()
     print(f"ソリューション: {args.solution_name} / コネクタ: {args.api_id}")
     solution_id = get_solution_id(args.solution_name)
     print(f"ソリューション ID: {solution_id}")
 
-    cr: dict | None = None
-    if not args.force_create:
-        cr = find_in_solution(solution_id, args.api_id)
-        if cr:
-            print(f"  = ソリューション内の既存 CR を流用: {cr['connectionreferencelogicalname']}")
-        else:
-            # pa CLI で使えない論理名の既存 CR は流用しない
-            candidates = [
-                c for c in list_connection_references(args.api_id)
-                if LOGICAL_NAME_PATTERN.match(c["connectionreferencelogicalname"])
-            ]
-            if candidates:
-                cr = candidates[0]
-                print(f"  > 環境内の既存 CR を流用: {cr['connectionreferencelogicalname']}")
-                add_to_solution(cr["connectionreferenceid"], args.solution_name)
-                print("  + ソリューションへ追加しました。")
-
+    logical_name = args.logical_name or build_logical_name(args.prefix, args.solution_name, args.api_id)
+    assert_valid_logical_name(logical_name)
+    references = list_connection_references(args.api_id)
+    cr = choose_reference(references, logical_name, args.connection_id)
+    if args.create_connection and cr is None and not args.connection_id:
+        args.connection_id = create_dedicated_connection(
+            args.api_id, args.display_name or args.solution_name, args.timeout, args.allow_interactive,
+        )
+        if args.write_env:
+            upsert_env(args.write_env, {"DATAVERSE_CONNECTION_ID": args.connection_id})
+            print("Verified new connection ID saved for safe resume before reference creation.")
+    connection_id = args.connection_id or (cr or {}).get("connectionid", "")
+    if not connection_id:
+        raise SystemExit("NG: Select an approved --connection-id or use --create-connection. No shared connection was selected.")
+    require_connection(list_connections(args.timeout, args.allow_interactive), connection_id, args.api_id, environment_id())
     if cr is None:
         cr = create_connection_reference(
-            args.api_id, args.solution_name, args.prefix, args.connection_id
+            args.api_id, args.solution_name, args.prefix, connection_id, logical_name,
         )
+    elif not is_in_solution(solution_id, cr["connectionreferenceid"]):
+        add_to_solution(cr["connectionreferenceid"], args.solution_name)
 
+    rows = [row for row in list_connection_references(args.api_id)
+            if row["connectionreferenceid"] == cr["connectionreferenceid"]]
+    if len(rows) != 1 or rows[0].get("connectionid") != connection_id:
+        raise SystemExit("NG: Reference binding read-back failed; .env was not changed.")
+    cr = rows[0]
     logical_name = cr["connectionreferencelogicalname"]
     assert_valid_logical_name(logical_name)
-    # 追加の失敗は作成時に握りつぶしているので、ソリューションに入ったことを読み戻して確かめる
     if not is_in_solution(solution_id, cr["connectionreferenceid"]):
         raise SystemExit(
             f"NG: 接続参照 {logical_name} がソリューション {args.solution_name} に入っていません"
             f"（componenttype={connection_reference_component_type()}）。"
             " references/troubleshooting.md #29 を参照し、ポータルの「既存を追加 → 接続参照」で追加してから再実行してください。"
-        )
-    if not cr.get("connectionid"):
-        print(
-            "  ! この CR には接続がバインドされていません。`pa app add data-source --connection-ref` は"
-            " 'Failed to resolve connection ID' で失敗するため、先に接続を作成して --connection-id で再実行してください。"
         )
     print()
     print("=" * 72)
@@ -278,17 +326,17 @@ def main() -> None:
     print("=" * 72)
     print("次のコマンドでデータソースを接続参照バインドできます:")
     print(
-        f"  npx --no pa app add data-source --connector {args.api_id} "
-        f"--connection-ref {logical_name} --solution-id {solution_id} "
-        f"--org-url {os.getenv('DATAVERSE_URL', '{DATAVERSE_URL}')} --non-interactive"
+        f'  python "{Path(__file__).with_name("add_data_source.py")}" --connector {args.api_id} '
+        f"--connection-ref {logical_name} --solution-id {solution_id}"
     )
 
     if args.write_env:
         upsert_env(args.write_env, {
             "SOLUTION_ID": solution_id,
             "CONNECTION_REFERENCE_LOGICAL_NAME": logical_name,
+            "DATAVERSE_CONNECTION_ID": connection_id,
         })
-        print(f"\n  + {args.write_env} に SOLUTION_ID / CONNECTION_REFERENCE_LOGICAL_NAME を書き込みました。")
+        print(f"\n  + {args.write_env} に SOLUTION_ID / CONNECTION_REFERENCE_LOGICAL_NAME / DATAVERSE_CONNECTION_ID を書き込みました。")
 
 
 if __name__ == "__main__":

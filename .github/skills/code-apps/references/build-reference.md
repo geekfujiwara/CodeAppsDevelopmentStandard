@@ -40,11 +40,8 @@ pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
 #     明示的なチェック依頼時・障害時だけ admin/references/development-recovery.md に従う。
 #     現在の委任権限がない・不明なら管理操作を試さず、環境管理者へ依頼する。
 
-# ①.6 ソリューションと接続参照を用意（pa app init より前に実行）
-#     接続 ID 直バインドはソリューションに入らないため、接続参照を先に作る。
-#     既存 CR 流用ファースト → 無ければ Dataverse Web API で新規作成（ポータル操作不要）
-python .github/skills/code-apps/scripts/setup_connection_reference.py
-#     → 出力される {CONNECTION_REFERENCE_LOGICAL_NAME} / {SOLUTION_ID} を Step 4 で使う
+# ソリューションを standard / dataverse スキルで用意し、SOLUTION_ID を .env に保存する。
+# 接続・接続参照は init 後の Step 4 で用意する。
 
 # ② npm CLI の認証先を確認し、power.config.json のみ生成
 npx pa auth status
@@ -240,12 +237,13 @@ npx pa app push --solution-id {SOLUTION_ID}
 ### Step 4: Dataverse コネクタ追加（1 回で全テーブルをカバー）
 
 ```bash
-# 標準: Step 1 で用意した接続参照にバインドする（ソリューション同梱可）
-npx pa app add data-source --connector shared_commondataserviceforapps \
-  --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
-  --solution-id {SOLUTION_ID} \
-  --org-url {DATAVERSE_URL} \
-  --non-interactive
+# 標準: 初期化済みアプリのルートで、専用接続→参照→データソースの順に用意する。
+# 作成・本人認証・Edge プロファイルの承認後のみ --allow-interactive を付ける。
+python .github/skills/code-apps/scripts/setup_connection_reference.py \
+  --create-connection --allow-interactive --write-env .env
+python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --allow-interactive
+# 既存接続なら --create-connection の代わりに --connection-id {APPROVED_CONNECTION_ID}。
+# キャッシュが有効ならブラウザは開かない。手動ターミナルへの移動は要求しない。
 
 # PoC 等でソリューション不要な場合のみ: 接続 ID 直バインド
 npx pa connection list

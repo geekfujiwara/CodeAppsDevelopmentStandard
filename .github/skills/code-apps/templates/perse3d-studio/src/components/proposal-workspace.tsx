@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, CheckCircle2, MapPin, MessageSquarePlus, Save, Trash2, Upload, X } from "lucide-react"
+import { Check, CheckCircle2, FileDown, MapPin, MessageSquarePlus, Save, Trash2, Upload, X } from "lucide-react"
 import { toast } from "sonner"
 import { BuildingViewer3D, type ViewerHandle } from "@/components/building-viewer"
 import { Button } from "@/components/ui/button"
@@ -34,7 +34,7 @@ function loadMe(): { role: Role; name: string } {
   return { role: "design", name: "" }
 }
 
-export function ProposalWorkspace({ project }: { project: Project }) {
+export function ProposalWorkspace({ project, onBrochure }: { project: Project; onBrochure?: (image: string) => void }) {
   const viewer = useRef<ViewerHandle>(null)
   const update = useUpdateProject()
   const { data: comments = [] } = useComments(project.id)
@@ -238,6 +238,11 @@ export function ProposalWorkspace({ project }: { project: Project }) {
           className="h-[min(70vh,640px)] min-h-[420px]"
         />
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {onBrochure && <Button variant="outline" size="sm" className="gap-1" disabled={!spec} data-testid="brochure-capture" onClick={() => {
+            const image = viewer.current?.capture(1600)
+            if (!image) { toast.error("3D画像を取得できませんでした。表示完了後にもう一度試してください"); return }
+            onBrochure(image)
+          }}><FileDown className="h-4 w-4" />この視点で販売用PDF</Button>}
           {q && (
             <>
               <Badge variant="outline" className="max-w-full whitespace-normal break-words">延床 {q.floorArea}㎡（{q.floorAreaTsubo}坪）</Badge>

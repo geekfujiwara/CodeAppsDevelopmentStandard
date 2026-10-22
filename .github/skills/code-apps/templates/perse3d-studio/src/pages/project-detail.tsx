@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { ArrowLeft, Box, Cpu, FileImage, LayoutGrid, Pencil, Share2, Trash2 } from "lucide-react"
+import { ArrowLeft, Box, Cpu, FileDown, FileImage, LayoutGrid, Pencil, Share2, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -16,12 +16,13 @@ import { ProposalWorkspace } from "@/components/proposal-workspace"
 import { BlenderJobPanel } from "@/components/blender-job-panel"
 import { GenerationProgressOverlay } from "@/components/generation-progress-overlay"
 import { ListingImport } from "@/components/listing-import"
+import { BrochurePanel } from "@/components/brochure-panel"
 import { useDeleteProject, useProject, useUpdateProject } from "@/hooks/use-projects"
 import { computeQuantities, ROOF_LABELS } from "@/lib/building-spec"
 import { buildProjectLink } from "@/lib/power-context"
 import { STAGES, stageLabel, type Project, type ProjectInput, type Stage } from "@/types/project"
 
-const TABS = ["overview", "analyze", "viewer", "blender"] as const
+const TABS = ["overview", "analyze", "viewer", "brochure", "blender"] as const
 type Tab = (typeof TABS)[number]
 
 export default function ProjectDetail() {
@@ -32,6 +33,7 @@ export default function ProjectDetail() {
   const update = useUpdateProject()
   const remove = useDeleteProject()
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [brochureImage, setBrochureImage] = useState<{ projectId: string; data: string } | null>(null)
   const tabParam = params.get("tab") as Tab | null
   const tab: Tab = tabParam && TABS.includes(tabParam) ? tabParam : "overview"
 
@@ -93,6 +95,7 @@ export default function ProjectDetail() {
           <TabsTrigger value="overview" className="gap-1"><LayoutGrid className="h-4 w-4" />概要</TabsTrigger>
           <TabsTrigger value="analyze" className="gap-1" data-tour="tab-analyze"><FileImage className="h-4 w-4" />画像から 3D 化</TabsTrigger>
           <TabsTrigger value="viewer" className="gap-1" data-tour="tab-viewer"><Box className="h-4 w-4" />3D 内見・提案</TabsTrigger>
+          <TabsTrigger value="brochure" className="gap-1" data-tour="tab-brochure"><FileDown className="h-4 w-4" />販売用PDF</TabsTrigger>
           <TabsTrigger value="blender" className="gap-1" data-tour="tab-blender"><Cpu className="h-4 w-4" />Blender 出力</TabsTrigger>
         </TabsList>
         <TabsContent value="overview"><Overview project={project} onOpenTab={setTab} /></TabsContent>
@@ -115,8 +118,9 @@ export default function ProjectDetail() {
         </TabsContent>
         <TabsContent value="viewer">
           {/* key で案件・モデル更新時にビューアを作り直す */}
-          {tab === "viewer" && <ProposalWorkspace key={project.id} project={project} />}
+          {tab === "viewer" && <ProposalWorkspace key={project.id} project={project} onBrochure={image => { setBrochureImage({ projectId: project.id, data: image }); setTab("brochure") }} />}
         </TabsContent>
+        <TabsContent value="brochure">{tab === "brochure" && <BrochurePanel key={project.id} project={project} modelImage={brochureImage?.projectId === project.id ? brochureImage.data : null} />}</TabsContent>
         <TabsContent value="blender"><BlenderJobPanel project={project} /></TabsContent>
       </Tabs>
 
