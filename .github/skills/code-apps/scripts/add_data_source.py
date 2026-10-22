@@ -7,7 +7,8 @@
   2. バインド先（接続参照 または 接続 ID）
   3. コネクタが必須とする追加値（`--org-url` / `--dataset` / `--table`）
 
-をすべて確定させ、`--non-interactive` かつ **標準入力を閉じた状態** で CLI を起動する。
+をすべて確定させ、通常は `--non-interactive` かつ標準入力を閉じてCLIを起動する。
+--allow-interactive の承認がある場合だけ、追加認証が必要な実コマンドを別コンソールで実行する。
 値が足りないときはプロンプトを出さずに `NG:` を表示して終了コード 1 で止まるため、
 ターミナルが入力待ちでハングすることはない。
 
@@ -34,18 +35,22 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
+import re
 import subprocess
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
+_SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(_SCRIPT_DIR))
+
+from pa_cli import (
+    connected, connection_name, environment_id, json_items, list_connections,
+    load_project_env, require_connection, run_with_recovery,
+)
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
     sys.stderr.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
-
-_SCRIPT_DIR = Path(__file__).resolve().parent
 
 # --- standard スキルの connector_catalog を import パスへ ---
 for _candidate in (
@@ -58,10 +63,7 @@ for _candidate in (
 else:  # noqa: PLW0120
     sys.exit("NG: connector_catalog.py が見つかりません（standard スキルの scripts を確認）")
 
-for _parent in _SCRIPT_DIR.parents:
-    if (_parent / ".env").is_file():
-        load_dotenv(_parent / ".env")
-        break
+load_project_env()
 
 from connector_catalog import (  # noqa: E402
     ConnectorResolutionError,
@@ -69,52 +71,17 @@ from connector_catalog import (  # noqa: E402
     resolve_connector,
 )
 
-CONNECTION_ID_KEYS = ("name", "id", "connectionId", "connectionName")
 CONNECTOR_KEYS = ("connectorId", "apiId", "apiName", "connector", "connectorName", "connectorType")
 DISPLAY_KEYS = ("displayName", "connectionDisplayName", "name")
 
 
-def _pa_command() -> list[str]:
-    """プロジェクトの pa を優先する。`npx pa` は未導入時に npm 上の無関係な `pa` を取得するため --no を付ける。"""
-    local = Path.cwd() / "node_modules" / ".bin" / ("pa.cmd" if os.name == "nt" else "pa")
-    if local.is_file():
-        return [str(local)]
-    npx = shutil.which("npx")
-    if not npx:
-        sys.exit("NG: npx が見つかりません。Node.js 22 以上をインストールしてください。")
-    return [npx, "--no", "pa"]
+_allow_interactive = False
 
 
 def _run_cli(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
     """CLI を標準入力を閉じて実行する（プロンプトが出ても待ち続けない）。"""
-    command = [*_pa_command(), *args]
     print(f"$ pa {' '.join(args)}")
-    try:
-        return subprocess.run(
-            command,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        sys.exit(
-            f"NG: CLI が {timeout} 秒以内に終了しませんでした。"
-            "対話プロンプト待ちの可能性があります。不足している値をフラグで明示してください。"
-        )
-
-
-def _extract_items(payload: object) -> list[dict]:
-    if isinstance(payload, list):
-        return [item for item in payload if isinstance(item, dict)]
-    if isinstance(payload, dict):
-        for key in ("value", "connections", "connectors", "data", "items", "results"):
-            if isinstance(payload.get(key), list):
-                return [item for item in payload[key] if isinstance(item, dict)]
-    return []
+    return run_with_recovery(args, timeout, _allow_interactive)
 
 
 def _first(item: dict, keys: tuple[str, ...]) -> str:
@@ -138,21 +105,15 @@ def _connector_of(item: dict) -> str:
 
 
 def _list_json(args: list[str], timeout: int) -> list[dict]:
-    result = _run_cli([*args, "--json", "--non-interactive"], timeout)
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "").strip()
-        sys.exit(f"NG: `pa {' '.join(args)}` が失敗しました。\n{detail}")
-    stdout = (result.stdout or "").strip()
-    start = min((i for i in (stdout.find("["), stdout.find("{")) if i >= 0), default=-1)
-    if start < 0:
-        return []
-    try:
-        return _extract_items(json.loads(stdout[start:]))
-    except json.JSONDecodeError:
-        return []
+    command = [*args, "--json", "--non-interactive"]
+    result = _run_cli(command, timeout)
+    if result.returncode == 0 and not result.stdout:
+        # Interactive output stays in its console; repeat this read-only query.
+        result = _run_cli(command, timeout)
+    return json_items(result)
 
 
-def resolve_connector_id(name: str, env_id: str, timeout: int) -> str:
+def resolve_connector_id(name: str, timeout: int) -> str:
     """カタログで解決し、無ければ環境のコネクタ一覧から一意に解決する。"""
     try:
         entry = resolve_connector(name)
@@ -161,8 +122,6 @@ def resolve_connector_id(name: str, env_id: str, timeout: int) -> str:
         print(f"  カタログでは解決できませんでした。環境のコネクタ一覧を検索します。\n  {exc}")
 
     args = ["connector", "list", "--search", name]
-    if env_id:
-        args += ["--environment-id", env_id]
     matches = {
         _connector_of(item): _first(item, DISPLAY_KEYS)
         for item in _list_json(args, timeout)
@@ -180,13 +139,10 @@ def resolve_connector_id(name: str, env_id: str, timeout: int) -> str:
 
 def resolve_connection_id(connector_id: str, env_id: str, timeout: int) -> str:
     """コネクタに紐づく接続が 1 つだけならその ID を返す。複数・0 なら停止する。"""
-    args = ["connection", "list", "--search", connector_id]
-    if env_id:
-        args += ["--environment-id", env_id]
     matches = {
-        _first(item, CONNECTION_ID_KEYS): _first(item, DISPLAY_KEYS)
-        for item in _list_json(args, timeout)
-        if _connector_of(item) == connector_id and _first(item, CONNECTION_ID_KEYS)
+        connection_name(item): _first(item, DISPLAY_KEYS)
+        for item in list_connections(timeout, _allow_interactive)
+        if connected(item, connector_id, env_id)
     }
     if len(matches) == 1:
         connection_id, display = next(iter(matches.items()))
@@ -224,7 +180,46 @@ def validate_kind(as_kind: str, dataset: str, table: str) -> None:
         raise SystemExit("NG: --as action では --dataset / --table を指定しない（操作の引数として実行時に渡す）。")
 
 
+def validate_reference(name: str, solution_id: str, api_id: str, timeout: int) -> None:
+    from setup_connection_reference import is_in_solution, list_connection_references
+    rows = [row for row in list_connection_references(api_id)
+            if row["connectionreferencelogicalname"] == name]
+    if len(rows) != 1 or not is_in_solution(solution_id, rows[0]["connectionreferenceid"]):
+        raise SystemExit("NG: Reference is missing or not in the specified solution.")
+    require_connection(list_connections(timeout, _allow_interactive),
+                       rows[0].get("connectionid", ""), api_id, environment_id())
+
+
+def configured_references(api_id: str) -> list[dict]:
+    config = json.loads(Path("power.config.json").read_text(encoding="utf-8"))
+    return [row for row in config.get("connectionReferences", {}).values()
+            if row.get("id", "").rsplit("/", 1)[-1] == api_id]
+
+
+def verify_generated(api_id: str, reference: str) -> None:
+    refs = configured_references(api_id)
+    if not refs or (reference and not all(row.get("xrmConnectionReferenceLogicalName") == reference for row in refs)):
+        raise SystemExit("NG: CLI exited successfully but expected connector/reference is missing from power.config.json.")
+    if api_id == "shared_commondataserviceforapps" and len(refs) != 1:
+        raise SystemExit("NG: Multiple Dataverse connector bindings exist. Inspect and remove unintended duplicates via CLI.")
+    schema = Path(".power/schemas/appschemas/dataSourcesInfo.ts")
+    if not schema.is_file() or not schema.stat().st_size:
+        raise SystemExit("NG: Generated dataSourcesInfo.ts is missing or empty.")
+    names = [name for row in refs for name in row.get("dataSources", [])]
+    text = schema.read_text(encoding="utf-8")
+    if not names or not all(re.search(rf"""["']{re.escape(name)}["']\s*:""", text) for name in names):
+        raise SystemExit("NG: Connector data source names are missing from generated dataSourcesInfo.ts.")
+    if api_id == "shared_commondataserviceforapps":
+        service = Path("src/generated/services/MicrosoftDataverseService.ts")
+        model = Path("src/generated/models/MicrosoftDataverseModel.ts")
+        methods = ("ListRecordsWithOrganization", "GetItemWithOrganization", "CreateRecordWithOrganization",
+                   "UpdateRecordWithOrganization", "DeleteRecordWithOrganization")
+        if not model.is_file() or not service.is_file() or not all(method in service.read_text(encoding="utf-8") for method in methods):
+            raise SystemExit("NG: Generated Dataverse service or required CRUD methods are missing.")
+
+
 def main() -> int:
+    global _allow_interactive
     parser = argparse.ArgumentParser(
         description="Code Apps のデータソースを対話プロンプトなしで追加する",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -242,8 +237,12 @@ def main() -> int:
     parser.add_argument("--environment-id", default=os.getenv("ENV_ID", ""), help="接続・コネクタ一覧の検索対象環境")
     parser.add_argument("--timeout", type=int, default=600, help="CLI 1 回あたりの上限秒数（既定 600）")
     parser.add_argument("--dry-run", action="store_true", help="実行せずコマンドだけ表示する")
+    parser.add_argument("--allow-interactive", action="store_true", help="Approve browser sign-in only when the real command needs it")
     parser.add_argument("--list-connectors", action="store_true", help="コネクタ ID カタログを表示して終了する")
     args = parser.parse_args()
+    _allow_interactive = args.allow_interactive
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive")
 
     if args.list_connectors:
         print(format_catalog())
@@ -253,8 +252,14 @@ def main() -> int:
 
     if not Path("power.config.json").is_file():
         sys.exit("NG: power.config.json が見つかりません。Code App のルートで実行してください。")
+    target = environment_id()
+    if args.environment_id and args.environment_id.lower() != target.lower():
+        parser.error("--environment-id does not match power.config.json")
+    args.environment_id = target
+    if args.connection_ref and args.connection_id:
+        parser.error("--connection-ref and --connection-id are mutually exclusive")
 
-    connector_id = resolve_connector_id(args.connector, args.environment_id, args.timeout)
+    connector_id = resolve_connector_id(args.connector, args.timeout)
     try:
         entry = resolve_connector(connector_id)
     except ConnectorResolutionError:
@@ -279,7 +284,7 @@ def main() -> int:
     if args.connection_ref is None:
         # .env の接続参照は setup_connection_reference.py が作る Dataverse 用。他コネクタへ流用すると誤バインドになる
         dataverse = connector_id == "shared_commondataserviceforapps"
-        args.connection_ref = os.getenv("CONNECTION_REFERENCE_LOGICAL_NAME", "") if dataverse else ""
+        args.connection_ref = os.getenv("CONNECTION_REFERENCE_LOGICAL_NAME", "") if dataverse and not args.connection_id else ""
 
     if args.connection_ref:
         if not args.solution_id:
@@ -298,13 +303,26 @@ def main() -> int:
         print(f"\n[dry-run] pa {' '.join(command)}")
         return 0
 
+    if args.connection_ref:
+        validate_reference(args.connection_ref, args.solution_id, connector_id, args.timeout)
+    else:
+        require_connection(list_connections(args.timeout, _allow_interactive),
+                           binding[1], connector_id, target)
+    existing = configured_references(connector_id)
+    if existing and connector_id == "shared_commondataserviceforapps":
+        if not args.connection_ref:
+            raise SystemExit("NG: Dataverse already configured. Inspect the existing binding before adding a direct connection.")
+        verify_generated(connector_id, args.connection_ref)
+        print("OK: Existing Dataverse data source and verified binding reused; no duplicate was added.")
+        return 0
     result = _run_cli(command, args.timeout)
     print((result.stdout or "").strip())
     if result.returncode != 0:
         print((result.stderr or "").strip(), file=sys.stderr)
         print(f"\nNG: データソースの追加に失敗しました（exit={result.returncode}）", file=sys.stderr)
         return 1
-    print(f"\nOK: {connector_id} をデータソースに追加しました。src/generated/ を確認してください。")
+    verify_generated(connector_id, args.connection_ref)
+    print(f"\nOK: {connector_id} を追加し、生成物と接続参照を確認しました。画面経由のCRUDは別途検証してください。")
     return 0
 
 

@@ -73,11 +73,11 @@ Copy-Item .env.example .env
 python scripts/setup_construction_dataverse.py
 python scripts/setup_construction_dataverse.py --apply --seed-demo
 npm install --no-audit --no-fund
-python .github/skills/code-apps/scripts/setup_connection_reference.py --write-env .env
 npx --no pa app init --environment-id $env:ENV_ID --display-name "Construction Cockpit" --app-type CodeApp --non-interactive
 npm run deploy -- --solution-id $env:SOLUTION_ID
-python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse `
-  --connection-ref $env:CONNECTION_REFERENCE_LOGICAL_NAME --solution-id $env:SOLUTION_ID
+# 専用接続の作成・本人認証・Edge プロファイルの承認後に実行
+python .github/skills/code-apps/scripts/setup_connection_reference.py --create-connection --allow-interactive --write-env .env
+python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --allow-interactive
 npm run deploy
 ```
 

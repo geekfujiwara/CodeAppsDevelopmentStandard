@@ -44,9 +44,9 @@ node scripts/capture_3d.mjs --url "http://127.0.0.1:5186/?debug3d#/projects" `
 | 1 | `Copy-Item .env.example .env` → `ENV_ID` / `DATAVERSE_URL` / `TENANT_ID` / `VITE_DATAVERSE_URL` を入力 | — |
 | 2 | `npm install --no-audit --no-fund` / `python -m pip install -r requirements.txt` / `npm test` | — |
 | 3 | `python scripts/setup_dataverse.py` | ソリューション・テーブル `<接頭辞>_perseproject`（案件）/ `<接頭辞>_persecomment`（コメント）・サンプル案件 |
-| 4 | `python .github/skills/code-apps/scripts/setup_connection_reference.py --write-env .env` | Dataverse の接続参照 |
-| 5 | `npx --no pa app init --environment-id $env:ENV_ID --display-name "パース3D内見スタジオ" --app-type CodeApp --non-interactive` | Code App |
-| 6 | `python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --connection-ref $env:CONNECTION_REFERENCE_LOGICAL_NAME --solution-id $env:SOLUTION_ID` | Dataverse のデータソース |
+| 4 | `npx --no pa app init --environment-id $env:ENV_ID --display-name "パース3D内見スタジオ" --app-type CodeApp --non-interactive` | Code App |
+| 5 | `python .github/skills/code-apps/scripts/setup_connection_reference.py --create-connection --allow-interactive --write-env .env`（作成・本人認証・Edge プロファイルの承認後） | 専用接続・Dataverse の接続参照 |
+| 6 | `python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --allow-interactive` | Dataverse のデータソース |
 | 7 | `python scripts/setup_listing_connector.py --add-to-app` | 物件ページ取得のカスタム コネクタ（認証なし・ホスト `suumo.jp` 固定・GET だけ）と接続、アプリのデータソース |
 | 8 | `npm run deploy` | test → build → predeploy → `pa app push` |
 

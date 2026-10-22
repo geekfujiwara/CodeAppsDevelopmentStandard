@@ -156,13 +156,13 @@ DLP / ACP・Code Apps 許可・マネージド環境・MCP の診断を開始条
           │
 [§2 初回デプロイ]
         ③ テンプレート scaffold + npm install（業務テンプレートがあれば templates/sales-crm 等から生成。Dataverse 構築 Phase 2 と並行して即着手／VS Code では Code Apps サブエージェントとして起動）
-        ④ ソリューション + 接続参照を用意（setup_connection_reference.py）★init より前
+        ④ ソリューションの ID を確定（初回 push で使用）
         ⑤ npx pa app init（power.config.json 生成）
         ⑥ vite.config.ts 必須設定の確認 / .env 設定
         ⑦ npm run deploy -- --solution-id {GUID}（build + pa app push）★初回 push でソリューション所属が確定
           │
 [§3 データソース接続]
-        ⑧ npx pa app add data-source --connector shared_commondataserviceforapps --connection-ref ... -s ...（1 回だけ）
+        ⑧ 専用接続 + 接続参照を用意 → add_data_source.py（初期化したアプリのルートで実行）
         ⑨ MicrosoftDataverseService + *WithOrganization ラッパーを実装
           │
 [§4 改善デプロイ]
@@ -261,8 +261,9 @@ Code Apps 許可は製品上の要件だが、通常フローでは管理セン�
 
 **認証はキャッシュ優先**。`pa auth status` はアカウント表示で、push 時の更新成功を保証しない。
 TTY が無いだけでは停止せず、CLI 自身の暗号化キャッシュからのサイレント取得・更新を使う。
-実際に追加認証が要求された場合だけ `npx --no pa auth login --non-interactive` でブラウザ認証する。
-このコマンドは非対話シェルからでもブラウザを開く。device-code は使わず、同じ認証エラーを繰り返さない。
+接続セットアップは下記のラッパーを使い、本人の認証・Edge プロファイルを確認した場合だけ
+`--allow-interactive` を付ける。必要な実コマンドを対話コンソールで実行し、手動ターミナルへの移動を要求しない。
+device-code は使わず、通常のキャッシュ再利用を先に試す。
 Python/SDK は `auth_helper` の共有キャッシュを使うが、npm CLI は別 client ID・専用キャッシュである。
 外部トークンを受け取る公開オプションが無いため、CLI へ直接共有できたとは報告しない。
 詳細は [認証・キャッシュ境界](references/cli-reference.md#認証)。
@@ -310,12 +311,8 @@ npx pa --help          # ★ bin 名は pa。コマンドは auth / app / connec
 npm run build
 # バージョン方針と検証項目: references/cli-reference.md#バージョン方針
 
-# Step 1: ソリューションと接続参照を用意（init より前に必須）
-# 接続 ID 直バインドはソリューションに入らないため、接続参照（Connection Reference）を先に作る。
-# 既存 CR 流用ファースト → 無ければ Dataverse Web API で新規作成（ポータル操作不要）。
-python .github/skills/code-apps/scripts/setup_connection_reference.py
-#   → 出力される {CONNECTION_REFERENCE_LOGICAL_NAME} と {SOLUTION_ID} を控える
-#   → 詳細は references/solution-alm.md
+# Step 1: ソリューションを用意し、SOLUTION_ID / SOLUTION_NAME / PUBLISHER_PREFIX を .env に保存
+# standard / dataverse スキルで承認済みのものを使う。初回 push 前に GUID を確定する。
 
 # Step 2: npm CLI の認証先を確認して初期化
 npx pa auth status
@@ -325,7 +322,7 @@ npx pa app init --environment-id {ENVIRONMENT_ID} --display-name "AppName" --app
 # Step 3: vite.config.ts 必須設定を確認（base: "./" / external に @microsoft/power-apps を含めない）
 #         → references/build-reference.md Step 2
 
-# Step 4: .env.example を .env にコピーしてテーマ固有の値を設定
+# Step 4: 作成済み .env を保持し、.env.example を参照してテーマ固有の不足値を補う
 
 # Step 5: 初回ビルド＆デプロイ — ★必ず -s を付ける（almMode が Solution になるのは初回 push だけ）
 #         対象環境は power.config.json の environmentId を使う（push には --environment-id が無い）
@@ -333,11 +330,12 @@ npm run build
 npx pa app push --solution-id {SOLUTION_ID}
 
 # Step 6: Dataverse コネクタを 1 回追加（全テーブル共通・接続参照バインド）
-npx pa app add data-source --connector shared_commondataserviceforapps \
-  --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
-  --solution-id {SOLUTION_ID} \
-  --org-url {DATAVERSE_URL} \
-  --non-interactive
+# ここからは初期化済みアプリのルートで実行。スキルが別階層ならスクリプトのパスを読み替える。
+# 専用接続の作成とブラウザ認証・Edge プロファイルの承認を得てから実行。
+python .github/skills/code-apps/scripts/setup_connection_reference.py \
+  --create-connection --allow-interactive --write-env .env
+# 作成済み接続を使う場合は --create-connection の代わりに --connection-id {APPROVED_CONNECTION_ID}。
+python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --allow-interactive
 
 # Step 7: src/ を実装（MicrosoftDataverseService を薄くラップ）
 #   業務ロジックに入る前に 1 回 predeploy を通し、config.ts と router.tsx の不整合を早期検知する
@@ -372,7 +370,7 @@ npx pa app share --principal "${CODE_APP_PLAY_PRINCIPALS}" \
 
 | コマンド | 認証基盤 | テナント問題 | 推奨度 |
 |---|---|---|---|
-| `python scripts/setup_connection_reference.py` | auth_helper（PAC プロファイル再利用） | なし | ✅ 標準（init の前に実行） |
+| `python scripts/setup_connection_reference.py` | auth_helper + npm CLI（接続の正常性照合） | 対象環境を照合 | ✅ 標準（専用接続を作る場合は init 後） |
 | `npx pa auth status` / `pa auth switch --account {UPN}` | Power Apps npm CLI | アクティブアカウントを明示 | ✅ テナント切り替え時に必須 |
 | `npx pa app init --environment-id {ID} --display-name "Name" --app-type CodeApp` | Power Apps npm CLI | 上記で確認 | ✅ 標準 |
 | `npx pa app push --solution-id {GUID}` | Power Apps npm CLI | 上記で確認 | ✅ 標準（**初回から GUID 必須**。環境は power.config.json から） |
@@ -475,7 +473,7 @@ python .github/skills/code-apps/scripts/add_data_source.py --connector sharepoin
 
 # Dataverse（ALM 標準: 接続参照バインド。--org-url は .env の DATAVERSE_URL を既定値にする）
 python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse `
-  --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} --solution-id {SOLUTION_ID}
+  --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} --solution-id {SOLUTION_ID} --allow-interactive
 
 # 使えるコネクタの通称一覧 / 実行せずコマンドだけ確認
 python .github/skills/code-apps/scripts/add_data_source.py --list-connectors
@@ -493,6 +491,16 @@ python .github/skills/code-apps/scripts/add_data_source.py --connector teams --d
 > `NG:` と不足項目・取得コマンドを表示して終了コード 1 で止まる。
 > **候補が複数のときも勝手に選ばず**、候補一覧を出して止める（誤ったコネクタへのバインドを防ぐため）。
 
+**正常系の接続準備**: アプリのルートで `.env` と `power.config.json` の環境を照合し、
+`setup_connection_reference.py --create-connection --allow-interactive --write-env .env` で専用接続を用意する。
+承認済みの既存接続なら `--connection-id` を使う。`Connected`・コネクタ・環境・参照のバインド・
+ソリューション所属を読み戻してから `.env` へ保存する。同名・同一バインドは再利用し、異なるバインドは変更しない。
+`--allow-interactive` は本人の認証と Edge プロファイルの事前承認がある場合のみ使用する。
+通常は非対話、認証が必要な実コマンドだけ Windows の別コンソールへ切り替え、タイムアウト付きで終了を確認する。
+`auth status` / `auth login` の成功を接続参照解決の成功とは扱わない。
+CLI はインストール済みの公式パッケージを Node.js で直接実行し、生成サービス・設定を検証する。
+ビルド、バックエンド CRUD、配信後の画面 CRUD は別々に記録する。
+
 > **カタログに無いコネクタ**: `--connector shared_xxx` のように ID を直接渡せばそのまま通る。
 > 繰り返し使うものは [connector-catalog.json](../standard/references/connector-catalog.json) に
 > `id` / `displayName` / `aliases` / `requires` を追記する（他スキルの DLP 事前チェックでも同じ通称が使える）。
@@ -506,7 +514,7 @@ Dataverse 接続は **`shared_commondataserviceforapps` を 1 回だけ追加す
 バインド先は **接続 ID ではなく接続参照（`--connection-ref`）を標準**とする。接続はソリューション コンポーネントになれないが、接続参照はなれるため、環境間移送ができる。
 
 ```bash
-# Step 1 で作成済みの接続参照にバインドする（add_data_source.py が内部で実行するコマンド）
+# Step 6 で作成済みの接続参照にバインドする（add_data_source.py が内部で実行するコマンド）
 npx pa app add data-source --connector shared_commondataserviceforapps \
   --connection-ref {CONNECTION_REFERENCE_LOGICAL_NAME} \
   --solution-id {SOLUTION_ID} \
@@ -808,8 +816,9 @@ Copilot Studio 応答は JSON 配列文字列で返るため `JSON.parse()` → 
 |---|---|
 | [check_code_apps_environment.py](scripts/check_code_apps_environment.py) | 明示依頼時・Code Apps 許可関連の障害時だけ使用。委任権限を確認して診断し、通常の init / push 前には実行しない |
 | [configure_code_app_csp.py](scripts/configure_code_app_csp.py) | Code Apps の CSP（`frame-src` 等）を確認・追加・検証。iframe を使うアプリはデプロイ前に `--assert` を通す |
-| [setup_connection_reference.py](scripts/setup_connection_reference.py) | 接続参照をソリューションに用意する（既存流用ファースト→Web API で新規作成）。Step 1 で実行 |
+| [setup_connection_reference.py](scripts/setup_connection_reference.py) | 専用接続の作成・正常性確認→冪等な参照作成→バインド/所属の読み戻し→ `.env` 保存。init 後に実行 |
 | [add_data_source.py](scripts/add_data_source.py) | データソースを**非対話**で追加する。コネクタの通称（`sharepoint` 等）を `shared_xxx` に解決し、接続・必須値を確定してから `--non-interactive` で CLI を起動する。Step 3 の標準 |
+| [pa_cli.py](scripts/pa_cli.py) | 公式ローカル CLI 解決、プロジェクト `.env` 優先、環境・接続の検証、承認付き追加認証。上記2スクリプトで共用 |
 | [pre-deploy-check.mjs](scripts/pre-deploy-check.mjs) | `.env` / `power.config.json` / モック実行基盤の本番混入を検証（`npm run predeploy`）。プロジェクト直下の `scripts/` にコピーして使う |
 | [detect-csp-hazards.mjs](scripts/detect-csp-hazards.mjs) | 既定 CSP で無言で失敗する書き方を検出（predeploy チェック 13 が呼ぶ。`pre-deploy-check.mjs` と同じ場所にコピーする） |
 | [templates/csp-safe-gltf.ts](templates/csp-safe-gltf.ts) | 既定 CSP の中で GLB を読む GLTFLoader（埋め込みテクスチャを `createImageBitmap` でデコード・外部参照は明示エラー・同梱 GLB の base64 デコード） |

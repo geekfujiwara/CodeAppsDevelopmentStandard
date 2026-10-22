@@ -429,6 +429,26 @@ PAC CLI とは**別のトークンキャッシュ**を持つ。`pac auth create`
 - `app list --json --non-interactive` は実際の読み取りを伴う確認になるが、成功しても push の
   全リソース・権限・条件付きアクセスを保証しない。HTTP 429/403 等を再認証要求と取り違えない。
 
+### 接続の正常フロー（CLI 1.3.0 実測）
+
+`auth login` が成功しても、`app add data-source --connection-ref` の解決中に別の追加認証が要求される場合がある。
+同じ login を繰り返さず、`add_data_source.py --allow-interactive` を使う。
+実コマンドをキャッシュ優先で試し、明示的な認証要求だけ対話コンソールで実行する。
+Windows では公式ローカル CLI の Node エントリを独立したコンソールで起動し、終了コードのみ一時ファイルで受け取り、
+生成物を読み戻す。CLI 出力・トークンは一時ファイルに保存しない。タイムアウト時は結果不明として停止する。
+macOS/Linux は利用可能なTTYがあるときだけ承認済み認証へ進む。TTYが無ければ統合ブラウザへ案内する。
+
+`connection create --use-sso` は Dataverse でもサービスに拒否される場合がある。
+`setup_connection_reference.py --create-connection --allow-interactive --write-env .env` は、
+明示的拒否かつ部分作成無しの場合だけ `--use-sso` を外して対話コンソールへ進む。
+ポータルで作った場合も `Connected`・対象環境・コネクタを確認してから `--connection-id` で再開する。
+`--allow-interactive` は作成・認証・Edge プロファイルの事前承認を代替しない。
+
+公式の接続作成手順（初期化したアプリのルートで実行）:
+[Create a connection](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-connection) /
+[Connect to data](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/connect-to-data)。
+Learn MCP が利用できない場合はこれらのWebページとインストール済みCLIのhelpを確認する。
+
 ```bash
 npx pa auth status --json
 npx pa auth switch --account user@contoso.com

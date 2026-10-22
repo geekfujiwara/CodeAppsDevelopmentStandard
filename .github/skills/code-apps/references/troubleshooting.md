@@ -3196,3 +3196,47 @@ HTTP 403/429 やネットワークエラーをキャッシュ破損として扱�
 Python/SDK の `auth_helper` は共有 OS キャッシュを再利用するが、CLI は別 client ID・専用キャッシュであり、
 直接引き継ぐ公開オプションは CLI 1.3.0 では確認できない。`CI=true` によるサービスプリンシパル切替で
 ユーザー認証の問題を隠さない。詳しくは [共通認証](../../standard/references/auth-patterns.md) を参照。
+
+## 96. 接続作成と参照解決をキャッシュ優先の正常フローにする
+
+### 症状・原因
+
+`auth login` は成功しても、接続参照解決に必要な追加認証が未完了なことがある。
+Dataverse の `connection create --use-sso` もサービス側で拒否される場合があり、
+非対話シェルでフラグを外すだけではブラウザ作成へ進まない。
+また、最初の既存接続参照は期限切れ接続を指したり、他アプリと共有されていたりする。
+`connection list` / `connector list` は CLI 1.3.0 で `--environment-id` を受け付けず、
+対象はアプリの `power.config.json` から決まる。
+
+### 恒久対策
+
+- `scripts/pa_cli.py`: 実行プロジェクトの `.env` 優先、設定環境との一致、公式ローカルCLIの直接起動。
+  `npx` の誤解決やPACの互換エラーに依存しない。JSON不正・失敗レスポンスを空一覧として扱わない。
+- 認証エラーだけ `--allow-interactive` の承認付きで必要な実コマンドを Windows の独立コンソールへ切り替える。
+  `auth login` を繰り返さない。終了コードのみを返し、CLI出力・トークンを保存しない。
+  timeout・ウィンドウ閉鎖・403・429等は明示的エラー。CIモード切替、device-code、キャッシュ削除はしない。
+- `setup_connection_reference.py`: 専用接続のSSO作成→明示的拒否かつ部分作成無しならブラウザへ。
+  作成前後の差分が一意で `Connected`、対象コネクタ・環境が一致する場合だけ採用する。
+  新IDは読み戻し後に保存して参照作成の途中失敗から再開できる。結果不明時は再作成せずIDを確認する。
+- 接続参照は指定名またはソリューション固有名のみ。同名・同一バインドは再利用し、
+  異なるバインドを変更せず停止する。所属・バインドを読み戻した後に `.env` の3キーを保存する。
+- `add_data_source.py`: 接続と所属を事前検証し、既存の同じDataverseデータソースは再利用する。
+  別バインドや複数バインドは止め、CLIによる重複生成を防ぐ。終了コード0だけでなく設定と生成サービスも確認する。
+- `scripts/test_connection_workflow.py` に回帰試験を追加。
+  SSO拒否後のブラウザ作成はオフライン試験で検証し、全企業の条件付きアクセスで成功すると保証しない。
+  ブラウザ経路でも失敗したら、承認済みEdgeプロファイルの統合ブラウザで
+  **Power Apps → 対象環境 → 接続 → 新しい接続 → Microsoft Dataverse** を開き、
+  `--connection-id` を指定して再開する。ツールが利用不可の場合だけ本人の作成を依頼する。
+
+## 97. CRM CRUD試験の列長・Lookup名・SDK返却形式
+
+contact の `fullname` は計算列なので `lastname` に書き込む。テスト名に更新用suffixを付けると
+MaxLengthを超えることがある。LookupのNavigationPropertyとReferencingAttributeも同じとは限らない。
+SDK 1.1.0 の `records.list()` は旧 `get()` のページ列挙ではなく、平坦な `QueryResult` を返す。
+
+**恒久対策済み**: `templates/sales-crm/scripts/verify_crm_crud.py` が全テーブルの名前列MaxLength、
+EntitySetName、主キー、NavigationProperty/ReferencingAttributeを最初の書き込み前に照合する。
+`read_records()` は平坦なレコードとして照合し、試験固有IDだけを逆順cleanup・不在確認する。
+メタデータ確認は既定で読み取りのみ、CRUDは承認済み `--apply`。
+SDKのCRUD、型チェック/build、配信後の画面CRUDと同意、ロール別アクセス・AI/承認は別ゲートで記録する。
+ソリューションの展開で既存ファイルを削除しない場合は、余剰ファイルの可能性とzipの保存時点を明記する。

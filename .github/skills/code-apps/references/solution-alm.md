@@ -9,7 +9,7 @@ Code App を **ソリューション同梱**にして環境間で移送できる
 
 - [なぜ接続参照が必要か](#なぜ接続参照が必要か)
 - [almMode は初回 push でしか決まらない](#almmode-は初回-push-でしか決まらない)
-- [接続参照の用意（既存流用ファースト）](#接続参照の用意既存流用ファースト)
+- [専用接続と接続参照の用意](#専用接続と接続参照の用意)
 - [接続参照バインドの効果](#接続参照バインドの効果)
 - [ソリューション コンポーネント種別](#ソリューション-コンポーネント種別)
 - [確認コマンド](#確認コマンド)
@@ -85,7 +85,7 @@ npx pa app push --solution-id {SOLUTION_ID}
 
 ---
 
-## 接続参照の用意（既存流用ファースト）
+## 専用接続と接続参照の用意
 
 接続参照を**新規作成できる CLI コマンドは存在しない**（検証済み）。
 
@@ -100,17 +100,32 @@ npx pa app push --solution-id {SOLUTION_ID}
 したがって [scripts/setup_connection_reference.py](../scripts/setup_connection_reference.py) を正常系とする。
 処理順は次のとおり。
 
-1. 対象ソリューション内に対象コネクタの接続参照があれば**そのまま流用**
-2. 無ければ環境内の既存接続参照を探し、`AddSolutionComponent` で**ソリューションへ追加して流用**
-3. それも無ければ `POST /connectionreferences` で**新規作成**してソリューションへ追加
+1. アプリのルートから実行し、プロジェクト `.env` と `power.config.json` の対象環境を照合する。
+2. `--logical-name`（または `.env` の指定、未設定ならソリューション固有の生成名）だけを選ぶ。
+   環境の最初の接続参照や別アプリの共有接続を自動選択しない。
+3. 承認済みの `--connection-id`、または専用参照の既存バインドを使用。
+   初回の専用接続作成を承認された場合は `--create-connection`。SSO が明示的に拒否された場合だけ、
+   部分作成が無いことを照合してブラウザ作成へ進む。
+4. 接続の `Connected`、コネクタ、対象環境を読み戻して確認。
+5. 参照が無ければ作成。同名・同一バインドなら再利用。異なるバインドは変更せず停止する。
+   `--force-create` も重複作成しない。別の専用参照を作る場合は新しい `--logical-name` を明示する。
+6. バインドとソリューション所属を読み戻し、3つの非秘匿キーを `.env` に保存する。
 
 ```powershell
-python .github/skills/code-apps/scripts/setup_connection_reference.py
-# 流用せず必ず新規作成したいとき
-python .github/skills/code-apps/scripts/setup_connection_reference.py --force-create
+# 初期化済みアプリのルート。作成・認証・Edge プロファイルの承認後だけ --allow-interactive を付ける
+python .github/skills/code-apps/scripts/setup_connection_reference.py `
+  --create-connection --allow-interactive --write-env .env
+# 承認された既存接続を使う場合
+python .github/skills/code-apps/scripts/setup_connection_reference.py `
+  --connection-id {APPROVED_CONNECTION_ID} --logical-name {DEDICATED_REFERENCE} --write-env .env
+python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --allow-interactive
 ```
 
-出力の末尾に、そのまま実行できる `pa app add data-source` コマンドが表示される。
+`.env` に保存するキーは `SOLUTION_ID` / `CONNECTION_REFERENCE_LOGICAL_NAME` / `DATAVERSE_CONNECTION_ID`。
+同じコマンドの再実行は検証済みのバインドを再利用する。作成途中で失敗した場合は接続一覧を確認して
+`--connection-id` を指定して再開し、無条件に新しい接続を作り直さない。
+SSO 拒否後のブラウザ作成は環境によって失敗し得る。失敗時は統合ブラウザの接続画面で作成し、IDを指定して再開する。
+タイムアウト・403・429・通信エラーを認証要求とみなして再試行しない。
 
 ---
 
