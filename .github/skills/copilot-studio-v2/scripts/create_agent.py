@@ -9,7 +9,8 @@ UI 手動作成は不要。template="cliagent-1.0.0" で POST /bots すると AP
   TENANT_ID            テナント ID（必須・auth_helper が使用）
   AGENT_NAME           エージェント名（既定: my-new-agent）
   AGENT_SCHEMA         スキーマ名 {prefix}_{slug}（既定: AGENT_NAME を正規化）
-  AGENT_MODEL_SERIES   モデルシリーズ（既定: claude-opus-5。references/model-series.md 参照）
+  AGENT_MODEL_SERIES   モデル選択（既定: Auto。references/model-series.md 参照）
+  AGENT_AUTO_MODEL_CONFIG_FILE  UI で Auto を保存して取得した構成 JSON
   AGENT_INSTRUCTIONS   指示文（既定: プレースホルダ）
   AGENT_INSTRUCTIONS_FILE  指示文のファイル（指定時は AGENT_INSTRUCTIONS より優先。update_agent.py と共通）
   AGENT_PROMPTS_FILE   初期メッセージ・推奨プロンプトの JSON（任意。set_prompts.py 参照）
@@ -36,6 +37,7 @@ sys.path.insert(0, str(_STD))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from auth_helper import api_get, get_session, DATAVERSE_URL  # noqa: E402
 from set_prompts import load_desired  # noqa: E402
+from model_policy import apply_model, resolve_model  # noqa: E402
 
 API = f"{DATAVERSE_URL}/api/data/v9.2"
 
@@ -43,7 +45,7 @@ AGENT_NAME = os.getenv("AGENT_NAME", "my-new-agent")
 AGENT_SCHEMA = os.getenv("AGENT_SCHEMA") or (
     "geek_" + re.sub(r"[^a-z0-9]+", "", AGENT_NAME.lower())
 )
-MODEL_SERIES = os.getenv("AGENT_MODEL_SERIES", "claude-opus-5")
+MODEL_SERIES = os.getenv("AGENT_MODEL_SERIES", "").strip() or "Auto"
 # 旧命名。POST は通るが UI で「モデルは廃止されました」になる
 DEPRECATED_SERIES = ("Sonnet46", "Sonnet5", "Opus5", "GPT4o")
 _INSTRUCTIONS_FILE = os.getenv("AGENT_INSTRUCTIONS_FILE", "").strip()
@@ -90,13 +92,13 @@ def build_configuration() -> dict:
     """cliagent の BotConfiguration JSON を組み立てる。"""
     agent_settings = {
         "$kind": "AgentSettings",
-        "model": {"$kind": "ModelConfig", "series": MODEL_SERIES},
         "instructions": {
             "$kind": "Instructions",
             "segments": [{"$kind": "StaticSegment", "value": INSTRUCTIONS}],
         },
         "enableMemory": True,
     }
+    apply_model(agent_settings, resolve_model(MODEL_SERIES, os.getenv("AGENT_AUTO_MODEL_CONFIG_FILE", "")))
     greeting, prompts = load_desired(None)
     if greeting:
         agent_settings["greetingText"] = greeting
@@ -122,6 +124,11 @@ def main() -> None:
         )
         sys.exit(1)
 
+    # Resolve Auto before authentication or any server-side write.
+    try:
+        configuration = build_configuration()
+    except (ValueError, OSError) as exc:
+        sys.exit(str(exc))
     sess = get_session()
     headers = {"Prefer": "return=representation"}
     if SOLUTION_NAME:
@@ -136,7 +143,7 @@ def main() -> None:
         "authenticationtrigger": 1,
         "accesscontrolpolicy": 2,
         "template": TEMPLATE,
-        "configuration": json.dumps(build_configuration(), ensure_ascii=False),
+        "configuration": json.dumps(configuration, ensure_ascii=False),
     }
 
     print(f"作成: name={AGENT_NAME} schema={AGENT_SCHEMA} model={MODEL_SERIES} template={TEMPLATE}")
@@ -149,7 +156,9 @@ def main() -> None:
     print(f"\n✅ Bot 作成: {bot_id} (agent_botid.txt に保存)")
 
     saved = json.loads(r.json()["configuration"])["agentSettings"]
-    print(f"   モデル系列: {saved['model']['series']}（UI の Model 表示が「廃止されたモデル」でないか確認すること）")
+    if saved.get("model") != configuration["agentSettings"].get("model"):
+        sys.exit("モデル設定の読み戻しが一致しません。保存済み Bot ID で調査し、新規作成・公開を繰り返さないでください。")
+    print(f"   モデル選択: {MODEL_SERIES} / 保存構成: {saved.get('model')}（UI の Model 表示も確認すること）")
     print(f"   初期メッセージ: {saved.get('greetingText') or '(未設定)'}")
     print(f"   推奨プロンプト: {len(saved.get('conversationStarters') or [])} 件")
     if SOLUTION_NAME:

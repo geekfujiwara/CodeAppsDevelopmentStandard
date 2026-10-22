@@ -1,67 +1,65 @@
-# モデル系列（`agentSettings.model.series`）の指定
+# モデル選択: Auto を標準にする
 
-cliagent の BotConfiguration にある `agentSettings.model.series` が、Copilot Studio の
-**Build ＞ Model** ドロップダウンに対応する。値が古い命名だと作成自体は成功するが、
-UI に「**モデルは廃止されました。エージェントで別のモデルが使用されるようになりました。**」
-と警告が出て、意図したモデルで動かない。
+新規エージェントは **Auto** を標準とする。特定ベンダー・固定モデルが要件の場合だけ明示指定する。
+利用者が対象環境で Auto を選べると確認した後は、モデル選択の質問を繰り返さない。
+UI の表示名と内部の `agentSettings.model` の保存形式は別であり、`Auto` / `auto` を
+未確認のまま `series` に送ったり、model の省略を Auto と決め付けたりしない。
 
-## 現行の命名規則
+## Step 1: UI の Auto 保存構成を取得する
 
-**ベンダーのモデル ID をそのまま使う（小文字 + ハイフン）。**
+統合ブラウザーで対象環境のエージェントを開き、Build ＞ Model の Auto を選択して保存する。
+新規 Bot の初回で API 作成用の保存形式がまだない場合は、承認済みの専用 Bot を UI で作成して Auto を保存し、
+その ID を `AGENT_BOTID` / `agent_botid.txt` に記録する。既存の無関係な Bot は変更しない。
+その後は `update_agent.py` を使い、`deploy_agent.py` で同名 Bot を再作成しない。
 
-| 状態 | 値 | 備考 |
-|---|---|---|
-| ✅ 現行 | `claude-opus-5` | 実機で設定し、UI の Model 表示が正常になることを確認済み |
-| ❌ 廃止 | `Sonnet46` / `Sonnet5` / `Opus5` | 旧命名（PascalCase + 数字連結）。POST は 201 で通るが UI で廃止扱い |
+対象 Bot の UI 保存完了を確認してから、同じ環境・Bot ID の構成を取得する。
+次のコマンドは読み取りだけで、モデルの変更・公開をしない。ファイルの親フォルダーを先に作成する。
 
-> 旧命名で作成された既存エージェントはテナントに多数残っているため、
-> **既存エージェントの値をコピーすると廃止モデルを引き継いでしまう**。参考にしない。
+```powershell
+python .github/skills/copilot-studio-v2/scripts/set_model.py --capture-auto .local/auto-model.json --confirm-ui-auto
+```
 
-## 有効な値の調べ方
+出力は `{"selection":"Auto","model":<実際のmodelオブジェクトまたはnull>}` のみ。
+null は UI 保存後の構成に model がなかった場合だけ記録する。
+`--confirm-ui-auto` は呼出者による UI 確認の表明であり、自動的にモデル一覧を検証する機能ではない。
+ファイルにはトークン・Bot ID・接続を含めない。別環境・別リリースへ流用せず、UI 表示が変わったら再取得する。
+既存ファイルは上書きしない。更新時は別名で取得し、差分と UI を確認して設定パスを切り替える。
 
-モデル一覧を返す API は存在しない（PVA ゲートウェイの `/api/botmanagement/v1/models`
-などはすべて 404）。次のいずれかで確認する。
-
-1. **UI で確認する（確実）** — Copilot Studio でエージェントを開き、Build ＞ Model の
-   ドロップダウンから目的のモデルを選択して保存する。その後 API で読み戻すと、
-   実際に有効な `series` 文字列が分かる。
-
-   ```bash
-   python set_model.py --show
-   ```
-
-2. **推定する** — 現行はベンダーのモデル ID 形式。`claude-opus-5` が確認済みのため、
-   同系統は `claude-<ファミリ>-<バージョン>` と推定できる。**未検証の値を使ったら必ず
-   UI の Model 表示を確認する**（警告が出ていなければ有効）。
-
-## 作成時の指定
-
-`.env`:
+## Step 2: 作成・更新時に再利用する
 
 ```dotenv
-AGENT_MODEL_SERIES=claude-opus-5
+AGENT_MODEL_SERIES=Auto
+AGENT_AUTO_MODEL_CONFIG_FILE=.local/auto-model.json
 ```
 
-`create_agent.py` は旧命名（`Sonnet46` / `Sonnet5` / `Opus5` / `GPT4o`）が指定された場合、
-**作成前にエラーで停止する**。また作成直後に保存された `series` を出力する。
+`create_agent.py` は未指定・空欄も Auto として解決し、
+保存構成がなければ **認証・Bot 作成前**にエラーで停止する。
+`model_policy.py` が毎回このチェックを実行する。固定モデルへの暗黙フォールバックはしない。
+`set_model.py` は Auto 指定時に同じ保存構成を使い、他の Instructions・メモリ・チャネルを保持する。
+`update_agent.py` は既存動作を維持し、モデルが未指定なら現在の設定を変更しない。
 
-## 後から変更する
-
-`configuration` は 1 つの JSON 文字列カラムなので、**GET → deep-merge → PATCH** で更新する
-（丸ごと上書きすると instructions / channels / スキル設定が消える）。
-`bots` の PATCH は `name` カラムを同送しないと `0x80040265` で失敗する。
-
-```bash
-python set_model.py --show              # 現在値の確認
-python set_model.py claude-opus-5       # 変更
-python publish_agent.py                 # 反映には再公開が必要
+```powershell
+python .github/skills/copilot-studio-v2/scripts/deploy_agent.py --env-file agent.env --defer-publish
+# 既存 Bot は update。Auto を選んだ UI 初回作成後もこちらを使う。
+python .github/skills/copilot-studio-v2/scripts/update_agent.py --env-file agent.env --no-publish
 ```
 
-スクリプト: [scripts/set_model.py](../scripts/set_model.py)
+## Step 3: 読み戻しと UI を確認する
 
-## チェックリスト
+API に保存された構成と UI の Model 表示を両方確認する。
+保存成功だけでは Auto の実効動作・利用可能性を保証しない。初回ツール・本人認可を確認後に公開し、
+Preview で最小の質問を試験する。
 
-- [ ] `.env` の `AGENT_MODEL_SERIES` がベンダーのモデル ID 形式になっている
-- [ ] `create_agent.py` の出力で保存された `series` を確認した
-- [ ] Copilot Studio の Build ＞ Model に「廃止されたモデル」警告が出ていない
-- [ ] 変更した場合は `publish_agent.py` で再公開した
+```powershell
+python .github/skills/copilot-studio-v2/scripts/set_model.py --show
+```
+
+## 固定モデルを明示する場合
+
+利用する環境の Model 選択 UI で現行の保存値を確認し、`AGENT_MODEL_SERIES` に指定する。
+`claude-opus-5` は過去に確認した例で、全環境の現在の利用可能性を保証しない。
+旧命名 `Sonnet46` / `Sonnet5` / `Opus5` / `GPT4o` は作成・変更前に拒否する。
+既存の Bot の値をコピーしてモデルの有効性を判断しない。
+
+参考: [Microsoft Learn: モデルの選択](https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-select-agent-model)。
+これは公開製品仕様の参考であり、cliagent の内部保存値の根拠にはしない。

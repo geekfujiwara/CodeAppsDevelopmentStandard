@@ -4,6 +4,10 @@ Code Apps テンプレート [`code-apps/templates/agm-qa-assist`](../../../code
 同じ Dataverse を、Copilot Studio のエージェントから Dataverse MCP で読み書きし、事務局（IR・総務）が想定問答とリハーサル台本を作れるようにする。
 Teams / Microsoft 365 Copilot で使う。
 
+モデルは **Auto が標準**。初回は [モデル選択の標準手順](../../references/model-series.md) で
+UI 保存後の構成を取得し、`AGENT_AUTO_MODEL_CONFIG_FILE` を設定する。
+専用 Bot を UI で初回作成した場合は、その ID を使って update し、deploy で再作成しない。
+
 | スキル | 内容 | トリガー例 |
 |---|---|---|
 | `agm-qa-authoring` | IR 抜粋を根拠に想定問答の下書きを作り、確認後に「下書き」で登録（既存との重複は言い換えに統合） | 「配当について想定問答を 3 件作って」 |

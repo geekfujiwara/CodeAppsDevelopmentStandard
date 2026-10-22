@@ -43,6 +43,7 @@ sys.path.insert(0, str(_STD))
 sys.path.insert(0, str(HERE))
 from auth_helper import api_get  # noqa: E402
 from agent_env import attach_env, load_env_file, skill_dirs  # noqa: E402
+from model_policy import resolve_model  # noqa: E402
 
 PY = sys.executable
 
@@ -94,6 +95,12 @@ def run(script: str, *args: str, env: dict[str, str] | None = None) -> None:
 
 def main() -> None:
     args = load_env_file(sys.argv[1:])
+    series = os.getenv("AGENT_MODEL_SERIES", "").strip()
+    if series:
+        try:
+            resolve_model(series, os.getenv("AGENT_AUTO_MODEL_CONFIG_FILE", ""))
+        except (ValueError, OSError) as exc:
+            sys.exit(str(exc))
     bot_id = resolve_bot_id()
     os.environ["AGENT_BOTID"] = bot_id
 
