@@ -47,6 +47,10 @@ class DeployAgentDetailsTests(unittest.TestCase):
         self.assertNotIn("publish_agent.py", calls)
         self.assertEqual(calls.count("set_app_details.py"), 1)
 
+    def test_manual_tools_builds_without_browser_channel_changes_or_publication(self):
+        calls = self.run_main({}, argv=["--manual-tools"])
+        self.assertEqual(calls, ["create_agent.py", "set_icon.py"])
+
 
 if __name__ == "__main__":
     unittest.main()

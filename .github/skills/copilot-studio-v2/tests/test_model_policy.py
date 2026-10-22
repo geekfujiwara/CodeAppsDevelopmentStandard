@@ -14,10 +14,10 @@ from model_policy import apply_model, resolve_model
 
 
 class ModelPolicyTests(unittest.TestCase):
-    def test_auto_and_empty_fail_before_guessing_a_series(self):
+    def test_auto_and_empty_leave_selection_to_platform_without_browser(self):
         for series in ["", "Auto", "auto", " AUTO "]:
-            with self.subTest(series=series), self.assertRaisesRegex(ValueError, "未取得"):
-                resolve_model(series)
+            with self.subTest(series=series):
+                self.assertIsNone(resolve_model(series))
 
     def test_observed_model_or_absence_is_replayed_exactly(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -69,14 +69,33 @@ class ModelPolicyTests(unittest.TestCase):
             spec.loader.exec_module(module)
         return module, auth
 
-    def test_create_defaults_to_auto_and_stops_before_authentication(self):
+    def test_create_defaults_to_auto_without_model_pin(self):
         with mock.patch.dict(os.environ, {}, clear=True):
             module, auth = self.load_script("create_agent")
             self.assertEqual(module.MODEL_SERIES, "Auto")
-            with self.assertRaisesRegex(SystemExit, "未取得"):
+            self.assertNotIn("model", module.build_configuration()["agentSettings"])
+            auth.get_session.assert_not_called()
+            auth.api_get.assert_not_called()
+
+    def test_invalid_explicit_capture_stops_before_authentication(self):
+        with mock.patch.dict(os.environ, {"AGENT_AUTO_MODEL_CONFIG_FILE": "missing-capture.json"}, clear=True):
+            module, auth = self.load_script("create_agent")
+            with self.assertRaises(SystemExit):
                 module.main()
             auth.get_session.assert_not_called()
             auth.api_get.assert_not_called()
+
+    def test_memory_setting_and_duplicate_guard(self):
+        with mock.patch.dict(os.environ, {"AGENT_ENABLE_MEMORY": "false"}, clear=True):
+            module, auth = self.load_script("create_agent")
+            self.assertFalse(module.build_configuration()["agentSettings"]["enableMemory"])
+            auth.api_get.return_value = {"value": [{"botid": "existing"}]}
+            with self.assertRaisesRegex(SystemExit, "既にあります"):
+                module.main()
+            auth.get_session.return_value.post.assert_not_called()
+            with mock.patch.dict(os.environ, {"AGENT_ENABLE_MEMORY": "invalid"}):
+                with self.assertRaises(ValueError):
+                    module.build_configuration()
 
     def test_capture_is_read_only_requires_confirmation_and_never_overwrites(self):
         module, auth = self.load_script("set_model")
@@ -96,10 +115,10 @@ class ModelPolicyTests(unittest.TestCase):
 
     def test_update_preflight_stops_before_instructions_or_tools_change(self):
         module, auth = self.load_script("update_agent")
-        with mock.patch.dict(os.environ, {"AGENT_MODEL_SERIES": "Auto", "AGENT_AUTO_MODEL_CONFIG_FILE": ""}), \
+        with mock.patch.dict(os.environ, {"AGENT_MODEL_SERIES": "Auto", "AGENT_AUTO_MODEL_CONFIG_FILE": "missing-capture.json"}), \
                 mock.patch.object(module, "load_env_file", return_value=[]), \
                 mock.patch.object(module, "run") as run:
-            with self.assertRaisesRegex(SystemExit, "未取得"):
+            with self.assertRaises(SystemExit):
                 module.main()
             run.assert_not_called()
             auth.api_get.assert_not_called()

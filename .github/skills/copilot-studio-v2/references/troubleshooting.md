@@ -3,12 +3,12 @@
 新アーキテクチャ（cliagent）でのデプロイ・公開時に遭遇しやすいエラーと対処。
 正常系の手順は [SKILL.md](../SKILL.md) を参照。
 
-## Auto の保存構成が未取得
+## Auto の UI 捕捉待ちで API 構築が止まる
 
-モデルを Auto と決めたことと、内部の保存値を取得したことは別。
-固定モデルや推測の series で作成せず、[モデル標準フロー](model-series.md)で UI 保存後の構成を取得する。
-恒久対策は `scripts/model_policy.py` の `resolve_model`。
-作成時は認証・POST 前、変更時は PATCH 前に毎回検証する。未指定・空欄も固定モデルに戻さない。
+UI 保存構成の取得を必須にした旧フローが原因。標準は Auto で model を送らず API 新規作成し、
+ツールだけ利用者へ手動追加を引き継ぐ。`AGENT_AUTO_MODEL_CONFIG_FILE` は通常空欄。
+恒久対策は `scripts/model_policy.py` の `resolve_model` と `deploy_agent.py --manual-tools`。
+明示した保存構成ファイルが壊れている場合は停止する。未指定と不正な明示設定を混同しない。
 
 ## よくあるエラー
 
