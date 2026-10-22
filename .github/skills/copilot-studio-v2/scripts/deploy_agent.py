@@ -27,7 +27,8 @@ initial tool manifest を apply/read-back してから publish_agent.py を実�
   PVA_GATEWAY_BASE / BAP_ENVIRONMENT_ID   省略可（BAP API から自動取得）
   APP_DETAILS_REQUIRE_CONFIRM   true なら自動補完が発生した時点で停止（公開前に確認）
 
-実行: python deploy_agent.py [--defer-publish] [--env-file <エージェントの設定ファイル>]
+実行: python deploy_agent.py [--manual-tools | --defer-publish] [--env-file <エージェントの設定ファイル>]
+  --manual-tools: 標準。ツールは手動追加。本体・アイコン・スキルを構築し、チャネル共有変更・公開なし。
   --env-file を付けると、そのファイルの KEY=VALUE を読み、ファイルのあるフォルダで実行する
   （テンプレートから生成したエージェント フォルダの agent.env を想定）。
   SKILL_DIR が複数スキルの親フォルダなら、直下の各スキルを添付する（説明は各 SKILL.md の frontmatter）。
@@ -94,13 +95,16 @@ def retry_app_details(app_args: list[str], attempts: int = 4, wait_seconds: floa
 
 def main() -> None:
     argv = load_env_file(sys.argv[1:])
-    defer_publish = "--defer-publish" in argv
+    manual_tools = "--manual-tools" in argv
+    defer_publish = "--defer-publish" in argv or manual_tools
     run("create_agent.py")
     run("set_icon.py")
 
     app_args = ["--require-confirm"] if _truthy(os.getenv("APP_DETAILS_REQUIRE_CONFIRM", "")) else []
     # Edit details は作成直後だと Teams チャネル未作成で 404（7513）になりやすい。動作に必須ではないので止めない
-    details_ok = run("set_app_details.py", *app_args, required=bool(app_args))
+    details_ok = False
+    if not manual_tools:
+        details_ok = run("set_app_details.py", *app_args, required=bool(app_args))
 
     attach_skills()
 
@@ -112,11 +116,15 @@ def main() -> None:
             run("publish_agent.py")
 
     print("\n" + "=" * 64)
-    if not details_ok:
+    if not details_ok and not manual_tools:
         print("⚠️ Edit details は未設定です。pac copilot list で Provisioned を確認後、"
               "必要なら UI で Teams + Microsoft 365 チャネルを有効にして set_app_details.py を再実行してください。")
     if defer_publish:
         print("✅ 基礎構築完了。初回ツール投入後に publish_agent.py を実行してください。")
+        if manual_tools:
+            print("   ツールは利用者が手動追加します。Bot 作成・指示・アイコン・スキルは構築済みです。")
+            print("   ツール追加と本人認可の検証後にチャネル設定・公開を行ってください。")
+            return
         print("   1. 各 Save を captureToolSave で捕捉し、mcp_tool_plan.py で plan/hash を作成")
         print("   2. create_initial_tools_manifest.py で承認済み plan/hash を集約")
         print("   3. 統合ブラウザの同一 page で runInitialToolProvisioning を実行")

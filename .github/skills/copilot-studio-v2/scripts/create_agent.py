@@ -10,7 +10,8 @@ UI 手動作成は不要。template="cliagent-1.0.0" で POST /bots すると AP
   AGENT_NAME           エージェント名（既定: my-new-agent）
   AGENT_SCHEMA         スキーマ名 {prefix}_{slug}（既定: AGENT_NAME を正規化）
   AGENT_MODEL_SERIES   モデル選択（既定: Auto。references/model-series.md 参照）
-  AGENT_AUTO_MODEL_CONFIG_FILE  UI で Auto を保存して取得した構成 JSON
+  AGENT_AUTO_MODEL_CONFIG_FILE  UI 保存構成を明示的に再利用する場合のみ（任意）
+  AGENT_ENABLE_MEMORY  true / false（既定 true）
   AGENT_INSTRUCTIONS   指示文（既定: プレースホルダ）
   AGENT_INSTRUCTIONS_FILE  指示文のファイル（指定時は AGENT_INSTRUCTIONS より優先。update_agent.py と共通）
   AGENT_PROMPTS_FILE   初期メッセージ・推奨プロンプトの JSON（任意。set_prompts.py 参照）
@@ -90,13 +91,16 @@ def ensure_in_solution(bot_id: str) -> None:
 
 def build_configuration() -> dict:
     """cliagent の BotConfiguration JSON を組み立てる。"""
+    memory = os.getenv("AGENT_ENABLE_MEMORY", "true").strip().lower()
+    if memory not in ("true", "false"):
+        raise ValueError("AGENT_ENABLE_MEMORY は true または false を指定してください。")
     agent_settings = {
         "$kind": "AgentSettings",
         "instructions": {
             "$kind": "Instructions",
             "segments": [{"$kind": "StaticSegment", "value": INSTRUCTIONS}],
         },
-        "enableMemory": True,
+        "enableMemory": memory == "true",
     }
     apply_model(agent_settings, resolve_model(MODEL_SERIES, os.getenv("AGENT_AUTO_MODEL_CONFIG_FILE", "")))
     greeting, prompts = load_desired(None)
@@ -130,6 +134,10 @@ def main() -> None:
     except (ValueError, OSError) as exc:
         sys.exit(str(exc))
     sess = get_session()
+    schema_filter = AGENT_SCHEMA.replace("'", "''")
+    existing = api_get(f"bots?$select=botid&$filter=schemaname eq '{schema_filter}'").get("value", [])
+    if existing:
+        sys.exit("同じスキーマの Bot が既にあります。Bot ID を確認して update_agent.py を使用してください。")
     headers = {"Prefer": "return=representation"}
     if SOLUTION_NAME:
         # MSCRM.SolutionName は無視され、2xx のまま既定ソリューションに作られる（ソリューションに入らない）

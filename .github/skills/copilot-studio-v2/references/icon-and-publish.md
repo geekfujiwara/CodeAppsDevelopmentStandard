@@ -1,5 +1,10 @@
 # アイコン登録と公開（API）
 
+基礎構築の標準は `deploy_agent.py --manual-tools`。ツールの手動追加前でも、
+アイコンを生成し、240px・192px・32pxをAPIで登録する。
+`set_icon.py` はHTTPエラーで停止し、3箇所の保存内容が生成したPNGと完全一致することを読み戻す。
+アイコン登録の完了と、ツール接続・チャネル設定・公開・実会話成功は別々に報告する。（API）
+
 cliagent エージェントにアイコンを登録し、公開（PvaPublish）するまでの実機検証済みリファレンス。
 スクリプトは [scripts/set_icon.py](../scripts/set_icon.py) と
 [scripts/publish_agent.py](../scripts/publish_agent.py)。

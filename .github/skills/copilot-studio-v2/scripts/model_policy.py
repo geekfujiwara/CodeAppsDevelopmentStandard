@@ -1,4 +1,4 @@
-"""Resolve Auto from an observed UI configuration, never a guessed series."""
+"""Leave Auto to the platform unless an observed configuration is supplied."""
 from __future__ import annotations
 
 import copy
@@ -15,11 +15,7 @@ def resolve_model(series: str, auto_config_file: str = "") -> dict | None:
     if series.casefold() != "auto":
         return {"$kind": "ModelConfig", "series": series}
     if not auto_config_file:
-        raise ValueError(
-            "Auto の保存構成が未取得です。UI で Auto を保存後、set_model.py "
-            "--capture-auto <file> --confirm-ui-auto を実行し、"
-            "AGENT_AUTO_MODEL_CONFIG_FILE に指定してください。固定モデルへは代替しません。"
-        )
+        return None
     record = json.loads(Path(auto_config_file).read_text(encoding="utf-8-sig"))
     if not isinstance(record, dict) or set(record) != {"selection", "model"} or record["selection"] != "Auto":
         raise ValueError("Auto 構成は selection=Auto と model のみを持つ JSON が必要です。")

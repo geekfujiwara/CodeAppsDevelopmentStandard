@@ -130,6 +130,7 @@ def set_icon(sess, bot_id: str, text: str | None = None) -> None:
 
     r = sess.patch(f"{API}/bots({bot_id})", json={"name": name, "iconbase64": icon_main})
     print(f"  iconbase64(240): {r.status_code}")
+    r.raise_for_status()
 
     bd = api_get(f"bots({bot_id})?$select=name,applicationmanifestinformation")
     ami = json.loads(bd.get("applicationmanifestinformation") or "{}")
@@ -140,6 +141,13 @@ def set_icon(sess, bot_id: str, text: str | None = None) -> None:
     r = sess.patch(f"{API}/bots({bot_id})",
                    json={"name": name, "applicationmanifestinformation": json.dumps(ami)})
     print(f"  Teams colorIcon/outlineIcon: {r.status_code}")
+    r.raise_for_status()
+    saved = api_get(f"bots({bot_id})?$select=iconbase64,applicationmanifestinformation")
+    saved_teams = json.loads(saved.get("applicationmanifestinformation") or "{}").get("teams", {})
+    if (saved.get("iconbase64") != icon_main or saved_teams.get("colorIcon") != icon_color
+            or saved_teams.get("outlineIcon") != icon_outline):
+        raise RuntimeError("アイコンの読み戻しが一致しません。成功扱いせず対象 Bot を確認してください。")
+    print("  3 サイズのアイコンを読み戻し確認しました。")
 
 
 def main() -> None:

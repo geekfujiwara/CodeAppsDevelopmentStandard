@@ -57,7 +57,7 @@ Dataverse Web API と、必要時はログイン済みブラウザの observed/p
 | **Bot 作成** | ❌ API 不可。Copilot Studio UI で手動作成必須 | `POST /bots` を第一候補にし、`pac copilot list` に現れない場合だけ UI 作成へ fallback |
 | 設定の保存先 | GPT コンポーネント（componenttype=15）+ PVA ダブル改行 YAML | `bots.configuration` の **BotConfiguration JSON にインライン** |
 | recognizer | （クラシック PVA） | `CLICopilotRecognizer` |
-| モデル指定 | GPT data の `aISettings.model.modelNameHint` | **Auto が標準**。UI 保存構成を再利用し、固定モデルのみ `agentSettings.model.series` |
+| モデル指定 | GPT data の `aISettings.model.modelNameHint` | **Auto が標準**。model を省略してプラットフォームに任せ、固定モデルのみ series 指定 |
 | Instructions | GPT data YAML（ダブル改行フォーマット注意） | `agentSettings.instructions.segments[].value`（プレーン文字列） |
 | メモリ | （個別設定） | `agentSettings.enableMemory: true` |
 | スキル | （ナレッジ/トピック） | **フラット Python スキルバンドル**（type=9 + type=14 子ファイル） |
@@ -93,29 +93,33 @@ Agent flows の既存 Agent ノードは製品 UI のサポート経路を使い
 |---|---|---|
 | 1 | v2 の利用経路はどれか | Teams / Copilot Studio、Code Apps iframe、Agent flows、Dataverse 要求/結果を確定。直接 SDK 制御が必須の場合だけ v1 を比較する |
 | 2 | 対象環境で Copilot Studio を作成・公開できるか | 必要なライセンス / capacity と、環境で bot / botcomponent を作成・更新できる権限がある |
-| 3 | モデルは Auto でよいか | 標準は `AGENT_MODEL_SERIES=Auto`。利用者確認済みなら再質問せず、UI 保存構成を取得する。固定モデルは明示指定時だけ |
-| 4 | MCP サーバーを使うか | connector / operation、接続、認証、データ範囲、private API 利用可否と UI fallback が確定している |
+| 3 | モデルは Auto でよいか | 標準は `AGENT_MODEL_SERIES=Auto`。利用者確認済みなら再質問しない。UI 保存構成は不要。固定モデルは明示指定時だけ |
+| 4 | ツールは誰が追加するか | 標準は利用者が手動追加。本体構築後に必要な connector / operation・本人接続・範囲を引き継ぐ |
 | 5 | 名前、Instructions、メモリ、スキル、アイコン、公開範囲は承認済みか | 設計全文とテスト担当者を記録している |
 
 `System Administrator` を前提にせず、対象環境で必要な Dataverse テーブル権限と Copilot Studio
 作成・公開権限を持つロールを確認する。MCP 追加を含む場合は接続の作成・共有権限も別途確認する。
-いずれかが未確認なら `scripts/deploy_agent.py` を実行しない。
+未確定のツール・接続は基礎構築と切り離す。手動ツール追加の合意があれば
+`scripts/deploy_agent.py --manual-tools` で API 構築を実行する。
+ツール追加・本人認可・公開範囲の確認前には公開しない。
 
 ## 構築フロー
 
 ```
 1. .env 準備（DATAVERSE_URL / TENANT_ID / 任意で SOLUTION_NAME・PUBLISHER_PREFIX）
-   - モデルは `AGENT_MODEL_SERIES=Auto`。初回は [Auto 保存構成の取得](references/model-series.md) を行い、
-     `AGENT_AUTO_MODEL_CONFIG_FILE` を指定する。未取得時は書き込み前に停止し、固定モデルに代替しない。
+   - モデルは `AGENT_MODEL_SERIES=Auto`、`AGENT_AUTO_MODEL_CONFIG_FILE` は通常空欄。
+     固定モデルを送らずプラットフォームに任せる。UI やブラウザーを作成の前提にしない。
 2. 設計提示 → ユーザー承認（名前・Instructions・モデル・スキル・アイコン・MCP 構成）
    - ファイル出力を伴うスキルを添付する場合は、Instructions に
      「ファイルを出力する際は毎回異なるファイル名にする」旨を含める（同名だと UI でダウンロード不可）
    - 初期メッセージ（greeting）と推奨プロンプトを agent/prompts.json に用意し、AGENT_PROMPTS_FILE で指定する
-3. scripts/deploy_agent.py --defer-publish
-  … Bot 作成、icon、Edit details、skill を構築。初回ツール投入まで公開を保留
+3. scripts/deploy_agent.py --manual-tools --env-file agent.env
+  … cliagent Bot を API 新規作成、指示・prompts、3 サイズのアイコン生成・登録、skill を構築。
+    ツール追加・チャネル共有変更・公開は行わない。既存 Bot は update_agent.py --no-publish。
 4. pac copilot list
   … 対象 Bot が Active / Provisioned であることを確認。存在しなければ UI で専用 v2 agent を作成
-5. 統合ブラウザで各 MCP / ConnectorTool の Add + Save PUT を captureToolSave で非変更捕捉
+5. 標準: 利用者が手動で MCP / ConnectorTool を追加。必要な本人用接続・操作・範囲を引き継ぐ。
+   自動追加を明示承認された場合のみ、以下 6〜8 の private API 経路を利用する。
 6. scripts/mcp_tool_plan.py
   … 各 capture の tool + ConnectionReferenceInsert を検証し、plan / PLAN_HASH を作成して承認
 7. scripts/create_initial_tools_manifest.py
@@ -128,9 +132,10 @@ Agent flows の既存 Agent ノードは製品 UI のサポート経路を使い
 11. UI で Build ＞ Model と Tools を確認し、Preview で最小データの golden question を実行
 ```
 
-> **ツールなし**: `python scripts/deploy_agent.py` で作成→アイコン→Edit details→スキル→公開を
-> ワンショット実行する。**初回ツールあり**: `--defer-publish` で基礎構築し、承認済みmanifestを
-> 同一browser sessionで投入してから公開する。詳細は
+> **標準は手動ツール追加**: `python scripts/deploy_agent.py --manual-tools --env-file agent.env` で
+> 本体→アイコン→スキルまで実行・読み戻し検証して完了を通知する。ツール未追加でも本体開発は止めない。
+> 未接続を実用可能とは報告しない。ツール追加後に認可・チャネル設定・公開・実会話を検証する。
+> **自動追加を承認された場合のみ**: `--defer-publish` と承認済みmanifestを使用する。詳細は
 > [MCP サーバーの追加](references/mcp-servers.md) と
 > [Connector action の追加と検証](references/connector-tools.md) を参照。
 
@@ -269,7 +274,7 @@ Bearer token、Cookie、CSRF、session header はブラウザメモリ外へ出�
 ### configuration は BotConfiguration JSON
 
 次は固定モデルを明示選択した場合の構造例。標準の Auto はこの series をコピーせず、
-[モデル標準フロー](references/model-series.md) で取得した保存構成を使う。
+model を省略する（[モデル標準フロー](references/model-series.md)）。
 
 ```json
 {
@@ -389,7 +394,7 @@ PUBLISHER_PREFIX=geek
 AGENT_NAME=my-new-agent
 AGENT_SCHEMA=geek_mynewagent
 AGENT_MODEL_SERIES=Auto
-AGENT_AUTO_MODEL_CONFIG_FILE=.local/auto-model.json
+AGENT_AUTO_MODEL_CONFIG_FILE=
 # set_icon.py 用（任意）
 ICON_TEXT=A
 ICON_BG_COLOR=#2563EB

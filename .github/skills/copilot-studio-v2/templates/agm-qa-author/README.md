@@ -4,9 +4,10 @@ Code Apps テンプレート [`code-apps/templates/agm-qa-assist`](../../../code
 同じ Dataverse を、Copilot Studio のエージェントから Dataverse MCP で読み書きし、事務局（IR・総務）が想定問答とリハーサル台本を作れるようにする。
 Teams / Microsoft 365 Copilot で使う。
 
-モデルは **Auto が標準**。初回は [モデル選択の標準手順](../../references/model-series.md) で
-UI 保存後の構成を取得し、`AGENT_AUTO_MODEL_CONFIG_FILE` を設定する。
-専用 Bot を UI で初回作成した場合は、その ID を使って update し、deploy で再作成しない。
+モデルは **Auto が標準**。[モデル選択の標準手順](../../references/model-series.md) に従い、
+固定モデルを指定せず API で新規作成する。UI での初回 Bot 作成や保存構成の捕捉は不要。
+ツールの追加は手動を標準とし、`deploy_agent.py --manual-tools --env-file agent.env` で
+本体・指示・アイコン・スキルを構築してから利用者へ引き継ぐ。既存 Bot は update し、重複作成しない。
 
 | スキル | 内容 | トリガー例 |
 |---|---|---|
