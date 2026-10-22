@@ -15,10 +15,12 @@
   "nextSteps": [
     "Copy-Item .env.example .env  # ENV_ID / DATAVERSE_URL / TENANT_ID / VITE_DATAVERSE_URL を入力",
     "npm install --no-audit --no-fund",
+    "python .github/skills/code-apps/scripts/setup_code_app_auth.py --account <approved-upn> --edge-profile \"Profile N\" --approve-interactive  # 本人のアカウント・プロファイル・継続許可を確認後",
     "python -m pip install -r requirements.txt  # 試験・Dataverse 構築・素材の検証が使う",
     "npm test  # 間取り図解析・3D 組み立て・Three.js と Blender の部材一致の試験",
     "python scripts/setup_dataverse.py  # ソリューション・テーブル・ローカライズ・サンプル案件（何度実行しても安全）",
     "npx --no pa app init --environment-id $env:ENV_ID --display-name \"パース3D内見スタジオ\" --app-type CodeApp --non-interactive",
+    "python .github/skills/code-apps/scripts/setup_code_app_auth.py --approve-interactive  # 接続resourceまで確認。キャッシュ優先",
     "python .github/skills/code-apps/scripts/setup_connection_reference.py --create-connection --allow-interactive --write-env .env  # 作成・本人認証・Edgeプロファイルの承認後",
     "python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --allow-interactive",
     "python scripts/setup_listing_connector.py --add-to-app  # 物件ページ取得のカスタム コネクタ（認証なし・ホスト固定・GET だけ）を作成し、アプリに追加",

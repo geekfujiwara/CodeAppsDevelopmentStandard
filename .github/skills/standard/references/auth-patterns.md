@@ -16,12 +16,18 @@ PAC CLI プロファイルが利用できない場合、`auth_helper.py` は `In
 - 以降の開発・運用スクリプトは同じ tenant/client ID のキャッシュを `auth_helper.get_token()` 等で再利用し、
   スクリプトごとのサインインや独自の認証キャッシュを実装しない
 
-## 前提: キャッシュを優先し、追加認証が必要な場合だけ明示的にセットアップする
+## 前提: キャッシュを優先し、承認済み追加認証だけ復旧する
 
 開発環境のセットアップで tenant/client ID ごとの初回サインインを済ませる。新規に作成・実行するスクリプトは、
 **初回のインタラクティブ認証がキャッシュ済みであること**を前提に、以降は共有キャッシュを再利用する。
-`get_token()` と `get_credential()` は自動ブラウザ認証を禁止し、サイレント更新できない場合だけ
-`AuthenticationRequiredError` を返す。初回認証でも、条件付きアクセスのサインイン頻度・失効・同意要求等による
+本人がアカウント・Edgeプロファイル・継続許可を確認したら、
+`.env` の `PP_AUTH_MODE=browser` / `PP_AUTH_ACCOUNT` / `PP_AUTH_EDGE_PROFILE` /
+`PP_AUTH_ALLOW_INTERACTIVE=true` に保存する。
+`get_token()` は追加認証要求を受けた場合だけこの許可で復旧する。
+CIと許可なしではブラウザーを開かず、SDK credentialの自動対話も無効のままにする。
+設定保存とPython/npm CLI両キャッシュの準備は
+[Code Apps認証運用](../../code-apps/references/authentication-lifecycle.md)を参照する。
+初回認証でも、条件付きアクセスのサインイン頻度・失効・同意要求等による
 再認証を永久に不要にはできない。トークンの有効期間は Entra ID が決め、キャッシュ側では延長しない。
 
 認証レコード（`AuthenticationRecord`）は **`~/.power-platform-cli/auth_record_{TENANT_ID}.json`（ホームディレクトリ配下、テナント別ファイル）にマシン全体で共有保存**される。明示した client ID を使う場合はファイル名も client ID ごとに分かれる。そのため、同じ tenant/client ID なら別プロジェクト・別リポジトリのスクリプトでもレコードと OS 資格情報ストアのトークンキャッシュを再利用できる。
@@ -30,10 +36,12 @@ PAC CLI プロファイルが利用できない場合、`auth_helper.py` は `In
 - `api_get` / `api_post` などは `requests.Response` ではなく解析済みの値（`dict` / `str` / `None`）を返すため、戻り値に `.json()` を呼ばない
 - スクリプト内でユーザーに認証情報の入力を求めるプロンプトを出さない
 - 認証レコードやトークンキャッシュをリポジトリ、`.env`、ログへコピーしない。JSON はホームディレクトリ外へ移動しない
-- 実行時に対話待ちが発生した場合は、スクリプトの認証部分を疑い `auth_helper.py` の呼び出し方法を見直す（新しい認証フローを自作しない）
+- 追加認証要求は共通helperで正常運用として扱う。403・通信障害・キャッシュ読み取り失敗はブラウザー認証に変換しない
 - テナント切替は `.env` の `TENANT_ID` を変更し、そのテナントの既存キャッシュを使う（他テナントのキャッシュを壊さない）。
   同一テナント内の別アカウントへの切替とは区別する。共有対象は同一マシン・同一 OS ユーザーのキャッシュであり、
   他の OS ユーザーやマシンへ持ち出さない
+- `PP_AUTH_ACCOUNT` が同一テナントの既存レコードと異なる場合は停止する。
+  別アカウントは承認済みの別 `PP_AUTH_RECORD_PATH` を選択し、既存レコードを削除しない
 
 ### キャッシュ継承の検証
 
@@ -55,8 +63,11 @@ OS 保護キャッシュから取得する。トークンを表示・ファイ�
 別 client ID・専用の暗号化キャッシュを使い、外部アクセストークンを受け取る公開オプションは確認できない。
 `auth_helper` のトークンや更新トークンを CLI キャッシュへコピーしない。
 CLI ではまず既存キャッシュのサイレント取得を使い、実際に追加認証が要求された場合だけ
-`npx --no pa auth login --non-interactive` でブラウザ認証する（device-code は使わない）。
-これは CLI 専用の初回認証であり、`auth_helper` からの直接引き継ぎとは報告しない。
+保存済み許可に従って `pa_cli.py` が実コマンドを対話コンソールで実行する。
+初回は `setup_code_app_auth.py` で指定アカウントを準備し、app init後に接続resourceも確認する。
+これはCLI専用キャッシュであり、`auth_helper` からの直接引き継ぎとは報告しない。
+CLIはOS既定ブラウザーを開き、保存したEdgeプロファイルを強制指定する公開機能はない。
+必要なら本人が保存済みプロファイルを選ぶ。device-codeは使わない。
 
 公式 API: [InteractiveBrowserCredential](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.interactivebrowsercredential?view=azure-python)、
 [TokenCachePersistenceOptions](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.tokencachepersistenceoptions?view=azure-python)。

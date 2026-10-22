@@ -47,8 +47,9 @@ PAC CLI 認証の仕組み:
   - 2回目以降（別プロジェクトでも、同じテナントなら）: AuthenticationRecord をロード
          → MSAL キャッシュからリフレッシュトークンを取得
          → サイレントリフレッシュ
-  - 通常の get_token() / SDK credential はブラウザを自動起動しない
-  - 条件付きアクセス等が追加認証を要求した場合は、初期セットアップで明示的にブラウザ認証する
+  - get_token() はキャッシュ優先。保存済み PP_AUTH_ALLOW_INTERACTIVE=true の許可がある場合、
+    追加認証要求だけブラウザ認証で復旧する。SDK credential の自動対話は無効
+  - CI では保存済み許可があってもブラウザを起動しない
   - 認証エラーを理由に永続キャッシュを無効化・削除しない
 
 PAC CLI プロファイルからトークンを取得できない場合は、ローカルブラウザを使った
@@ -94,6 +95,8 @@ from azure.identity import (
     TokenCachePersistenceOptions,
 )
 from dotenv import load_dotenv
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from auth_preferences import configure_python_browser, interactive_allowed
 
 # ---------- 設定 ----------
 
@@ -198,6 +201,7 @@ def _build_credential(client_id: str | None = None) -> InteractiveBrowserCredent
         "tenant_id": TENANT_ID or None,
         "client_id": client_id or None,
         "disable_automatic_authentication": True,
+        "login_hint": os.getenv("PP_AUTH_ACCOUNT") or None,
     }
     if use_persistent_cache:
         cache_options = TokenCachePersistenceOptions(
@@ -226,6 +230,9 @@ def _build_credential(client_id: str | None = None) -> InteractiveBrowserCredent
             raise ValueError("認証レコードのテナントが一致しません。キャッシュは変更しません。")
         if client_id and auth_record.client_id.lower() != client_id.lower():
             raise ValueError("認証レコードの client ID が一致しません。キャッシュは変更しません。")
+        expected_account = os.getenv("PP_AUTH_ACCOUNT", "")
+        if expected_account and auth_record.username.lower() != expected_account.lower():
+            raise ValueError("認証レコードのアカウントが PP_AUTH_ACCOUNT と一致しません。キャッシュは変更しません。")
         print(
             f"[auth_helper] 共有認証レコードをロードしました: {auth_record_path}",
             file=sys.stderr,
@@ -378,7 +385,7 @@ def get_token(
     指定スコープのアクセストークン文字列を返す。
 
     永続キャッシュから取得し、有効期限が近い場合はサイレント更新する。
-    対話認証は初期セットアップで allow_interactive=True を明示した場合だけ行う。
+    対話認証は明示許可または保存済みの継続許可があり、追加認証要求を受けた場合だけ行う。
 
     Args:
         scope: OAuth2 スコープ。省略時は ``{DATAVERSE_URL}/.default``。
@@ -386,7 +393,7 @@ def get_token(
             例: Azure CLI の Graph 項目にないスコープ（`AppCatalog.ReadWrite.All` 等）が必要な場合は
             Microsoft Graph PowerShell の well-known ID `14d82eec-204b-4c2f-b7e8-296a70dab67e` を指定する。
             キャッシュ（AuthenticationRecord ・ credential）は client_id ごとに分離される。
-        allow_interactive: 初期セットアップ専用。追加認証が必要な場合だけブラウザを開く。
+        allow_interactive: 対話認証の明示許可。保存済み許可も利用するがCIでは無効。
 
     Returns:
         Bearer トークン文字列。
@@ -407,7 +414,7 @@ def get_token(
             return token_str
 
     # PAC CLI プロファイルが設定されている場合は先に試みる（既定 client_id の場合のみ）
-    if PAC_AUTH_PROFILE and not client_id:
+    if PAC_AUTH_PROFILE and not client_id and not os.getenv("PP_AUTH_ACCOUNT"):
         pac_token = _pac_get_token(scope)
         if pac_token:
             expires_on = _decode_jwt_exp(pac_token) or (time.time() + 3000)
@@ -418,10 +425,10 @@ def get_token(
     try:
         token = credential.get_token(scope)
     except AuthenticationRequiredError as exc:
-        if not allow_interactive:
+        if not interactive_allowed(allow_interactive):
             print(
                 "[auth_helper] サイレント更新に追加認証が必要です。キャッシュは保持しています。"
-                " 初期セットアップから get_token(..., allow_interactive=True) を実行してください。"
+                " 保存済みの認証設定を確認するか、承認後に allow_interactive=True で再実行してください。"
                 " device-code は使用しません。",
                 file=sys.stderr,
             )
@@ -464,7 +471,13 @@ def authenticate(
         )
 
     credential = _ensure_credential(client_id)
+    if not interactive_allowed(True):
+        raise RuntimeError("CI では対話認証できません。既存キャッシュまたは CI 専用認証を使用してください。")
+    configure_python_browser()
     record = credential.authenticate(scopes=[scope], claims=claims)
+    expected_account = os.getenv("PP_AUTH_ACCOUNT", "")
+    if expected_account and record.username.lower() != expected_account.lower():
+        raise ValueError("サインインしたアカウントが PP_AUTH_ACCOUNT と一致しません。認証レコードは更新しません。")
     _save_auth_record(record, client_id)
     for key in list(_inmemory_tokens):
         if key[1] == (client_id or ""):

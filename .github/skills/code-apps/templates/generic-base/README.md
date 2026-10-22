@@ -44,8 +44,8 @@ Application Insights 等へ転送するときは `initializeTelemetry(customSink
 
 1. `.env.example` を `.env` にコピーして値を入力
 2. `npm install`
-3. `npx pa auth status` で認証先を確認し、必要なら `pa auth switch --account {UPN}` で切り替える
+3. [認証運用](../../references/authentication-lifecycle.md)に従い `setup_code_app_auth.py` で承認済みアカウント・Edgeプロファイル・継続許可を `.env` に保存し、Python/CLIのキャッシュを準備する
 4. `npx pa app init --environment-id {ENVIRONMENT_ID} --display-name "AppName"`
-5. 初回は `npm run deploy -- --solution-id {SOLUTION_ID}`（GUID）でソリューションへ追加する
-6. `npx pa app add data-source`（`src/generated/` が生成される）
+5. app init後に同じ認証セットアップを再実行し、接続resourceのキャッシュも確認する。初回は `npm run deploy -- --solution-id {SOLUTION_ID}`（GUID）でソリューションへ追加する
+6. `setup_connection_reference.py` → `add_data_source.py --connector dataverse` で専用接続参照を設定する（`src/generated/` が生成される）
 7. 業務ページを追加したら `src/config.ts` と `src/router.tsx` に**同じ path** で登録し、`npm run predeploy` で整合を確認する

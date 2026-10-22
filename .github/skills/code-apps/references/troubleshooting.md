@@ -3240,3 +3240,11 @@ EntitySetName、主キー、NavigationProperty/ReferencingAttributeを最初の�
 メタデータ確認は既定で読み取りのみ、CRUDは承認済み `--apply`。
 SDKのCRUD、型チェック/build、配信後の画面CRUDと同意、ロール別アクセス・AI/承認は別ゲートで記録する。
 ソリューションの展開で既存ファイルを削除しない場合は、余剰ファイルの可能性とzipの保存時点を明記する。
+## キャッシュ更新が追加認証を要求する場合
+
+Python共有キャッシュが使えてもnpm CLIの別resource認証が必要な場合がある。
+恒久対策は `setup_code_app_auth.py` による初回設定保存と接続resourceの確認、
+`pa_cli.interactive_allowed` / `auth_preferences.interactive_allowed` による
+保存済み承認・CI禁止の毎回判定、`verify_cli_account` によるアカウント照合。
+通常運用は [認証運用](authentication-lifecycle.md) に従う。
+キャッシュ破棄・device-code・トークン寿命延長で回避しない。

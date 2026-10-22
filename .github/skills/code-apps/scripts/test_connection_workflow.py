@@ -14,6 +14,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pa_cli as cli
 import add_data_source as add
+import deploy_code_app as deploy
+import setup_code_app_auth as auth_setup
 with patch.dict(sys.modules, {"auth_helper": Mock()}):
     import setup_connection_reference as setup
     spec = importlib.util.spec_from_file_location(
@@ -138,6 +140,100 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(run.call_count, 2)
             self.assertNotIn("--environment-id", run.call_args.args[0])
             console.assert_called_once()
+
+    def saved_approval(self):
+        return patch.dict(os.environ, {"PP_AUTH_MODE": "browser", "PP_AUTH_ACCOUNT": "maker@example.com",
+                                     "PP_AUTH_EDGE_PROFILE": "Profile 2", "PP_AUTH_ALLOW_INTERACTIVE": "true"})
+
+    def test_saved_permission_recovers_without_flag(self):
+        with self.saved_approval(), patch.object(cli, "verify_cli_account") as verify, \
+             patch.object(cli, "run_cli", return_value=result(2, err="Interactive sign-in is required")) as run, \
+             patch.object(cli, "run_console") as console:
+            self.assertEqual(cli.run_with_recovery(["app", "push"]).returncode, 0)
+            console.assert_called_once()
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(verify.call_count, 2)
+
+    def test_saved_permission_never_opens_browser_in_ci(self):
+        with self.saved_approval(), patch.dict(os.environ, {"CI": "true"}), \
+             patch.object(cli, "verify_cli_account"), \
+             patch.object(cli, "run_cli", return_value=result(2, err="Interactive sign-in is required")), \
+             patch.object(cli, "run_console") as console:
+            self.assertEqual(cli.run_with_recovery(["app", "push"], allow_interactive=True).returncode, 2)
+            console.assert_not_called()
+
+    def test_wrong_cli_account_stops_before_write(self):
+        payload = {"success": True, "activeAccount": {"username": "other@example.com"}}
+        with self.saved_approval(), patch.object(cli, "run_cli", return_value=result(out=json.dumps(payload))) as run, \
+             patch.object(cli, "run_console") as console, self.assertRaises(SystemExit):
+            cli.run_with_recovery(["app", "push"])
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.args[0][:2], ["auth", "status"])
+        console.assert_not_called()
+
+    def test_deploy_auth_check_is_read_only(self):
+        with patch("sys.argv", ["deploy", "--check-auth"]), \
+             patch.object(deploy, "verify_cli_account"), patch.object(deploy, "list_connections") as connections, \
+             patch.object(deploy.subprocess, "run") as npm, patch.object(deploy, "run_with_recovery") as push:
+            deploy.main()
+        connections.assert_called_once()
+        npm.assert_not_called()
+        push.assert_not_called()
+
+    def test_deploy_predeploy_failure_never_pushes(self):
+        with patch("sys.argv", ["deploy"]), patch.object(deploy, "verify_cli_account"), \
+             patch.object(deploy.subprocess, "run", return_value=result(1)), \
+             patch.object(deploy, "run_with_recovery") as push, self.assertRaises(SystemExit):
+            deploy.main()
+        push.assert_not_called()
+
+    def test_deploy_solution_and_noninteractive_arguments(self):
+        with patch("sys.argv", ["deploy", "--solution-id", "approved-solution"]), \
+             patch.object(deploy, "verify_cli_account"), \
+             patch.object(deploy.subprocess, "run", return_value=result()), \
+             patch.object(deploy, "run_with_recovery", return_value=result()) as push:
+            deploy.main()
+        self.assertEqual(push.call_args.args[0],
+                         ["app", "push", "--non-interactive", "--solution-id", "approved-solution"])
+
+    def test_auth_setup_save_only_preserves_env_and_does_not_login(self):
+        Path(".env").write_text("# existing\nSOLUTION_NAME=Keep\n")
+        with patch("sys.argv", ["auth", "--account", "maker@example.com", "--edge-profile", "Profile 2",
+                               "--approve-interactive", "--save-only"]), \
+             patch("auth_preferences.subprocess.run", return_value=result(128)), \
+             patch.object(auth_setup, "run_console") as console, patch.object(auth_setup, "run_cli") as run:
+            auth_setup.main()
+        self.assertIn("SOLUTION_NAME=Keep", Path(".env").read_text())
+        self.assertEqual(os.getenv("PP_AUTH_ALLOW_INTERACTIVE"), "true")
+        console.assert_not_called()
+        run.assert_not_called()
+
+    def test_auth_setup_requires_explicit_approval(self):
+        with patch("sys.argv", ["auth", "--account", "maker@example.com", "--edge-profile", "Profile 2"]), \
+             contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            auth_setup.main()
+        self.assertFalse(Path(".env").exists())
+
+    def test_auth_setup_rejects_tracked_env_before_writing(self):
+        Path(".env").write_text("SOLUTION_NAME=Keep\n")
+        with patch("sys.argv", ["auth", "--account", "maker@example.com", "--edge-profile", "Profile 2",
+                               "--approve-interactive", "--save-only"]), \
+             patch("auth_preferences.subprocess.run", return_value=result()), self.assertRaises(ValueError):
+            auth_setup.main()
+        self.assertEqual(Path(".env").read_text(), "SOLUTION_NAME=Keep\n")
+
+    def test_scaffold_auth_setup_follows_dependencies_and_warms_after_init(self):
+        root = Path(__file__).resolve().parents[1] / "templates"
+        for name in ("generic-base", "sales-crm", "store-ordering", "construction-cockpit", "perse3d-studio"):
+            with self.subTest(template=name):
+                steps = json.loads((root / name / "scaffold.json").read_text(encoding="utf-8"))["nextSteps"]
+                dependencies = next(i for i, step in enumerate(steps) if "npm install" in step)
+                initial_auth = next(i for i, step in enumerate(steps) if "setup_code_app_auth.py --account" in step)
+                init = next(i for i, step in enumerate(steps) if "pa app init" in step)
+                warm = next(i for i, step in enumerate(steps) if "setup_code_app_auth.py --approve" in step)
+                self.assertLess(dependencies, initial_auth)
+                self.assertLess(initial_auth, init)
+                self.assertLess(init, warm)
 
     def test_reference_is_idempotent_even_force_create(self):
         row = {"connectionreferencelogicalname": "your_ref", "connectionid": "new"}

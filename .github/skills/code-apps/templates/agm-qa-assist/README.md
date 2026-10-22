@@ -62,3 +62,8 @@
 
 元のプロジェクトで `python scripts/export_template.py` を実行すると、generic-base と違うファイルだけを書き出し、
 環境に固有の値（プレフィックス・リソース名・テナント等）を `${VAR}` に戻す。`--check` で実値が残っていないか、src の外を含む相対 import がすべてテンプレート内で解決できるかを確認する。
+> **認証の正常フロー**: `.env`・依存準備後、業務APIや初回デプロイより前に
+> [認証運用](../../references/authentication-lifecycle.md)でアカウント・Edgeプロファイル・
+> 必要時の追加認証許可を保存する。app init後に接続resourceまでキャッシュを確認する。
+> 以後の `npm run deploy` はキャッシュ優先。npm CLIはOS既定ブラウザーを開くため、
+> プロファイル選択が必要なら本人が保存済みのものを選ぶ。

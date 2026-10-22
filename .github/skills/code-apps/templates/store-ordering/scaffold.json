@@ -109,8 +109,10 @@
   "nextSteps": [
     "README.md の「開始の手順」を上から実行する（0〜6）。明示依頼時・障害時以外は環境診断せず初回 push を優先する",
     "npm install --no-audit --no-fund",
+    "python .github/skills/code-apps/scripts/setup_code_app_auth.py --account <approved-upn> --edge-profile \"Profile N\" --approve-interactive  # 本人のアカウント・プロファイル・継続許可を確認後",
     "python scripts/dataverse/setup_dataverse.py --solution-only",
     "npx --no pa app init --environment-id $env:ENV_ID --display-name \"店舗発注システム\" --app-type CodeApp",
+    "python .github/skills/code-apps/scripts/setup_code_app_auth.py --approve-interactive  # 接続resourceまで確認。キャッシュ優先",
     "npm run deploy -- --solution-id $env:SOLUTION_ID  # 初回。データソース未追加でもビルドできる",
     "npm run data:seed; npm run data:export; npm run dv:setup; npm run dv:verify",
     "python .github/skills/code-apps/scripts/setup_connection_reference.py --create-connection --allow-interactive --write-env .env  # 作成・本人認証・Edgeプロファイルの承認後",

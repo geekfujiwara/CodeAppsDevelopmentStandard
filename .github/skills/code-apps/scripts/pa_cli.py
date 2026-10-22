@@ -12,6 +12,9 @@ import tempfile
 
 from dotenv import load_dotenv
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
+from auth_preferences import interactive_allowed
+
 
 def load_project_env() -> None:
     for root in (Path.cwd(), *Path.cwd().parents, *Path(__file__).resolve().parents):
@@ -64,6 +67,12 @@ def needs_interaction(result: subprocess.CompletedProcess[str]) -> bool:
 
 
 def run_console(args: list[str], timeout: int) -> None:
+    if not interactive_allowed(True):
+        raise SystemExit("NG: Interactive authentication is disabled in CI.")
+    profile = os.getenv("PP_AUTH_EDGE_PROFILE", "")
+    if profile:
+        print(f"Approved Edge profile: {profile}. The npm CLI opens the OS default browser; "
+              "select this profile there if needed. It cannot force a browser profile.", flush=True)
     command = [*cli_command(), *[a for a in args if a != "--non-interactive"]]
     print("Opening the approved interactive command; complete browser sign-in if requested.", flush=True)
     if os.name != "nt":
@@ -95,10 +104,12 @@ def run_console(args: list[str], timeout: int) -> None:
 
 
 def run_with_recovery(args: list[str], timeout: int = 600, allow_interactive: bool = False) -> subprocess.CompletedProcess[str]:
+    verify_cli_account(timeout)
     result = run_cli(args, timeout)
-    if not needs_interaction(result) or not allow_interactive:
+    if not needs_interaction(result) or not interactive_allowed(allow_interactive):
         return result
     run_console(args, timeout)
+    verify_cli_account(timeout)
     # Do not repeat a potentially state-changing command just to test the cache.
     # Callers must read back their own expected output/state.
     return subprocess.CompletedProcess(args, 0, "", "")
@@ -128,12 +139,31 @@ def list_connections(timeout: int = 600, allow_interactive: bool = False) -> lis
     if not Path("power.config.json").is_file():
         raise SystemExit("NG: Run from an initialized app root before listing connections.")
     environment_id()
+    verify_cli_account(timeout)
     args = ["connection", "list", "--json", "--non-interactive"]
     result = run_cli(args, timeout)
-    if needs_interaction(result) and allow_interactive:
+    if needs_interaction(result) and interactive_allowed(allow_interactive):
         run_console(args, timeout)
+        verify_cli_account(timeout)
         result = run_cli(args, timeout)
     return json_items(result)
+
+
+def verify_cli_account(timeout: int = 600) -> None:
+    expected = os.getenv("PP_AUTH_ACCOUNT", "")
+    if not expected:
+        return
+    result = run_cli(["auth", "status", "--json", "--non-interactive"], timeout)
+    if result.returncode:
+        raise SystemExit(f"NG: Cannot verify the CLI account.\n{result.stderr}")
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise SystemExit("NG: Cannot parse CLI auth status.") from exc
+    active = payload.get("activeAccount") or {}
+    if not payload.get("success") or str(active.get("username", "")).lower() != expected.lower():
+        raise SystemExit("NG: CLI active account differs from PP_AUTH_ACCOUNT. "
+                         "Select the approved account with pa auth switch --account; no cache was deleted.")
 
 
 def connection_name(row: dict) -> str:
