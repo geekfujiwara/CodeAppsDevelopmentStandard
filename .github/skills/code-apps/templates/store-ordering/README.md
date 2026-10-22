@@ -105,3 +105,8 @@ npm run predeploy
 | `.env` | `VITE_*`（接頭辞・Dataverse URL・アプリ名）と共通の環境値。コミットしない |
 | `power.config.json` / `.power/` / `src/generated/` | `pa app init` / `add data-source` の生成物。手で直さない |
 | `demo-data/store.db`・`demo-data/export/` | 合成データ（生成物。コミットしない） |
+> **認証の正常フロー**: `.env`・依存準備後、業務APIや初回デプロイより前に
+> [認証運用](../../references/authentication-lifecycle.md)でアカウント・Edgeプロファイル・
+> 必要時の追加認証許可を保存する。app init後に接続resourceまでキャッシュを確認する。
+> 以後の `npm run deploy` はキャッシュ優先。npm CLIはOS既定ブラウザーを開くため、
+> プロファイル選択が必要なら本人が保存済みのものを選ぶ。

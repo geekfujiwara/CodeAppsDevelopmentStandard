@@ -439,6 +439,37 @@ python scripts/review_report.py --verdict-dir .gate --out .gate/review-report.md
 
 ## 3. データソース接続
 
+### 正常系: 初回に認証設定を保存し、更新時はキャッシュ優先
+
+最初に本人の使用アカウント・Edgeプロファイル・必要時の追加認証への継続許可を確認する。
+確認済み設定はアプリの Git 除外済み `.env` に保存し、同一タスクで聞き直さない。
+`PP_AUTH_MODE=browser` / `PP_AUTH_ACCOUNT` / `PP_AUTH_EDGE_PROFILE` /
+`PP_AUTH_ALLOW_INTERACTIVE=true` が保存対象。トークン・パスワード・Cookie は保存しない。
+
+```powershell
+# 初回: 承認済み UPN と edge://version のプロファイルパス末尾を指定する
+python .github/skills/code-apps/scripts/setup_code_app_auth.py `
+  --account <approved-upn> --edge-profile "Profile N" --approve-interactive
+# app init 後にも同コマンドを再実行して接続一覧の resource までキャッシュを確認する
+# 更新前の読み取り専用確認（push しない）
+python .github/skills/code-apps/scripts/deploy_code_app.py --check-auth
+# デプロイ承認後: predeploy → deploy。保存済み設定でサイレント優先
+npm run predeploy
+npm run deploy
+```
+
+Python共有キャッシュとnpm CLIキャッシュは別のクライアントが管理するため、双方を初回に確認する。
+PythonはWindowsの指定Edgeプロファイルで認証する。npm CLIはOS既定ブラウザーを開き、
+プロファイル指定機能はないため、保存したプロファイルを表示し本人に選択してもらう。
+強制適用できたと報告しない。設定の詳細は [認証運用](references/authentication-lifecycle.md)。
+
+時間経過・失効・条件付きアクセスによる追加認証も正常フローに含める。
+保存済み許可があれば毎回の `--allow-interactive` は不要。まずキャッシュから取得・サイレント更新し、
+追加認証が必要な場合だけブラウザーへ一度切り替え、本人のサインイン後に続行する。
+CIでは保存済み許可・明示フラグがあってもブラウザーを開かない。
+403・通信障害・タイムアウトでは再認証や書き込み再試行を行わず停止する。
+認証の許可はデプロイや接続作成の許可とは別。キャッシュ寿命延長やMFA省略を保証しない。
+
 ### MCP Server は Copilot Studio 経由に統一する
 
 Code App に MCP カスタムコネクタを直接追加しない。会話・検索・原本取得は

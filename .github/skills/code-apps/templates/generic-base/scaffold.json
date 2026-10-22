@@ -4,7 +4,9 @@
   "nextSteps": [
     "Copy-Item .env.example .env",
     "npm install --no-audit --no-fund",
+    "python .github/skills/code-apps/scripts/setup_code_app_auth.py --account <approved-upn> --edge-profile \"Profile N\" --approve-interactive  # 本人のアカウント・プロファイル・継続許可を確認後",
     "npx --no pa app init --environment-id {ENVIRONMENT_ID} --display-name \"AppName\" --app-type CodeApp",
+    "python .github/skills/code-apps/scripts/setup_code_app_auth.py --approve-interactive  # 接続resourceまで確認。キャッシュ優先",
     "npm run predeploy"
   ]
 }

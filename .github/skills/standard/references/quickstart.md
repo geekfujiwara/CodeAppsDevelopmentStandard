@@ -58,17 +58,26 @@ PAC がなければ [interactive-setup.md](interactive-setup.md) のローカル
 2. 不足する Python 依存だけ、ローカルの仮想環境と `standard/scripts/requirements.txt` で準備する。
 3. `.env` が追跡されていないことと ignore されることを確認してから生成・更新する。
    既存値とコメントを保持し、値・認証情報をチャットへ出力しない。
-4. 選択されたプロファイルで設定を生成し、初回だけインタラクティブサインインする。
+4. 選択されたPACプロファイルで `.env` を生成する段階では `--no-auth` を使い、
+   **最初のブラウザー認証より先に**本人が承認したアカウント・Edgeプロファイル・継続許可を保存する。
 
 ```powershell
-python .github/skills/standard/scripts/setup_environment.py --profile "<selected-profile>"
-# 既存 .env を使用する場合
+python .github/skills/standard/scripts/setup_environment.py --profile "<selected-profile>" --no-auth
+# 初回のみ。使用アカウント・Edgeプロファイル・必要時の追加認証許可を本人に確認後
+python .github/skills/standard/scripts/auth_preferences.py `
+  --account <approved-upn> --edge-profile "Profile N" --approve-interactive
+# 保存設定と共有キャッシュを使い、必要時だけブラウザー認証（既存 .env でも同じ）
 python .github/skills/standard/scripts/setup_environment.py --auth-only
 ```
 
 `TENANT_ID` / `ENV_ID` / `DATAVERSE_URL` / `PAC_AUTH_PROFILE` は取得結果から埋める。
 `AuthenticationRecord` はホームディレクトリ、トークンは OS 資格情報ストアの共通キャッシュで管理し、
 次回から再利用する。本人のサインイン待ちは必要だが、終了後は Step 4 へ自動的に続行する。
+Code Appsを使う場合は [キャッシュ優先の認証運用](../../code-apps/references/authentication-lifecycle.md) に従い、
+初回に承認済みアカウント・Edgeプロファイル・追加認証への継続許可を `.env` に保存する。
+Python共有認証とnpm CLIは別キャッシュとして準備し、app init後に実際の接続一覧まで確認する。
+時間経過後もまずサイレント更新し、必要時だけ保存済み許可でブラウザー認証へ戻る。
+トークンは `.env` に保存せず、CIでの対話認証やdevice-codeへの切り替えは行わない。
 認証できない場合は未完了を明記し、進められるローカル仕様整理・提案は継続する。
 
 認証後は Dataverse API の `publishers` / `solutions` を読み取り、既存の prefix / solution の候補を提示する

@@ -183,3 +183,8 @@ Code Apps から v2 エージェントを直接呼べないため、Copilot Stud
 1. `python agent/cockpit-assistant/deploy_assistant.py` で公開し、最後に表示される Teams のリンクを報告者に配る
 2. Copilot Studio でアシスタントにツール「Dataverse（MCP）」を追加して保存し、もう一度 `deploy_assistant.py` を実行する（接続の作成とサインインが必要）
 3. `python scripts/verify_report_intake.py --cleanup` で、スキルと同じ形の登録と写真の読み戻しを確認する
+> **認証の正常フロー**: `.env`・依存準備後、業務APIや初回デプロイより前に
+> [認証運用](../../references/authentication-lifecycle.md)でアカウント・Edgeプロファイル・
+> 必要時の追加認証許可を保存する。app init後に接続resourceまでキャッシュを確認する。
+> 以後の `npm run deploy` はキャッシュ優先。npm CLIはOS既定ブラウザーを開くため、
+> プロファイル選択が必要なら本人が保存済みのものを選ぶ。

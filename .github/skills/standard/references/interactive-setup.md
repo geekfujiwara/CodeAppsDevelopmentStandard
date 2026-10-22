@@ -12,20 +12,27 @@
 
 1. **PAC プロファイルから環境を取得** — `pac auth list` のプロファイルを `pac org who` で解決し、環境候補（URL / 環境 ID）を一覧化する。
 2. **どの環境にするか AskUserQuestion** — エージェントが一覧をユーザーに提示し、利用環境を選ばせる。
-3. **インタラクティブ認証** — 選択環境で `.env` を構成し、`auth_helper.py` の `InteractiveBrowserCredential` でローカルブラウザー認証を行う。デバイスコード認証は使わない。
+3. **設定保存 → キャッシュ優先認証** — `.env` を `--no-auth` で構成し、本人が承認したアカウント・Edgeプロファイル・追加認証の継続許可を保存してから、必要時だけブラウザー認証する。デバイスコード認証は使わない。
 4. **auth_helper に認証を保存** — 認証成功時に `AuthenticationRecord`（`~/.power-platform-cli/auth_record_{TENANT_ID}.json`、ホームディレクトリ配下でマシン全体共有）と MSAL 永続キャッシュへ保存され、以降は**このマシン上のどのプロジェクトでも** Python スクリプトはキャッシュから認証される。
 
 ```powershell
 # 1〜2: 環境候補を一覧表示（この出力を AskUserQuestion で提示する）
 python .github/skills/standard/scripts/setup_environment.py --list
 
-# 3〜4: 選択した環境で .env を構成し、ブラウザー認証 → 認証レコード保存
+# 3〜4: 認証前に環境設定と承認済みブラウザー設定を保存
 python .github/skills/standard/scripts/setup_environment.py --profile "<ProfileName>" `
-  --solution "<SolutionName>" --prefix "<prefix>" --display "<表示名>"
+  --solution "<SolutionName>" --prefix "<prefix>" --display "<表示名>" --no-auth
+python .github/skills/standard/scripts/auth_preferences.py `
+  --account <approved-upn> --edge-profile "Profile N" --approve-interactive
 
 # 既存 .env で認証キャッシュを確認（未作成ならブラウザー認証して保存）
 python .github/skills/standard/scripts/setup_environment.py --auth-only
 ```
+
+`auth_preferences.py` は設定保存専用でブラウザーを開かない。トークンは `.env` に保存しない。
+以後は保存済み許可で追加認証から復旧し、CIではブラウザーを開かない。
+PythonはWindowsの指定Edgeプロファイルを使用する。npm CLIは別キャッシュとOS既定ブラウザーを使い、
+プロファイルを強制指定できないため、[Code Apps認証運用](../../code-apps/references/authentication-lifecycle.md)も確認する。
 
 > 以降の Step 1〜8 は、この自動フローの各段階の詳細・手動フォールバックである。
 
@@ -128,10 +135,12 @@ pip install -r requirements.txt
 
 `.env` に `DATAVERSE_URL` と `TENANT_ID` が設定済みなので、auth_helper.py が利用可能になる。
 
-### Python の Dataverse 認証は初回のみブラウザーで対話認証
+### Python の Dataverse 認証はキャッシュ優先、必要時だけブラウザー
 
-`setup_environment.py --profile`（または `--auth-only`）は既存の認証レコードがあれば `auth_helper.get_token()` で再利用し、
-無ければ `auth_helper.authenticate()` でローカルブラウザーを開いてインタラクティブ認証を行う。
+`setup_environment.py --profile ... --no-auth` と設定保存を先に実行し、
+`--auth-only` で `auth_helper.get_token(allow_interactive=True)` を呼ぶ。
+既存キャッシュからサイレント取得し、追加認証が必要な場合だけ承認済みブラウザー設定を使う。
+通常の更新でも保存済み継続許可で復旧できるが、再認証不要を永久には保証しない。
 認証成功時に `auth_helper.py` が 2 層キャッシュへ保存する:
 
 1. **AuthenticationRecord**（`~/.power-platform-cli/auth_record_{TENANT_ID}.json`）— テナント・アカウント情報の JSON

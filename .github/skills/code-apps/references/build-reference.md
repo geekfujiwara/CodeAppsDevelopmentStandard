@@ -43,10 +43,10 @@ pwsh .github/skills/code-apps/scripts/scaffold_from_cache.ps1 -ProjectDir .
 # ソリューションを standard / dataverse スキルで用意し、SOLUTION_ID を .env に保存する。
 # 接続・接続参照は init 後の Step 4 で用意する。
 
-# ② npm CLI の認証先を確認し、power.config.json のみ生成
-npx pa auth status
-npx pa auth switch --account user@contoso.com
+# ② 承認済みアカウント・Edgeプロファイル・追加認証許可を保存し、両キャッシュを準備
+python .github/skills/code-apps/scripts/setup_code_app_auth.py --account <approved-upn> --edge-profile "Profile N" --approve-interactive
 npx pa app init --environment-id {ENVIRONMENT_ID} --display-name "AppName"
+python .github/skills/code-apps/scripts/setup_code_app_auth.py --approve-interactive
 # ↑ vite.config.ts や plugins/ は生成しない（①のテンプレート由来）
 # ↑ init にソリューション指定オプションは無い。ソリューション所属は Step 3 の初回 push で決まる
 ```
@@ -208,8 +208,8 @@ export default defineConfig({
 ```bash
 # 検証済み最新版の npm CLI 1.0.1 を使用。Step 1 で取得したソリューション GUID を渡す
 # push は --environment-id を受け付けない。対象環境は power.config.json の内容で決まる
-npm run build
-npx pa app push --solution-id {SOLUTION_ID}
+npm run predeploy
+npm run deploy -- --solution-id {SOLUTION_ID}
 ```
 
 > **`-s` は初回 push でしか効かない（検証済 2026-06-15）**

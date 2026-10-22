@@ -126,3 +126,8 @@ node scripts/capture_3d.mjs --url "http://127.0.0.1:5188/?debug3d#/projects" `
 - 既定 CSP は `connect-src 'none'` のため `fetch` は使わない（サンプル JSON はバンドル、GLB はファイル選択で読み込み）。
 - テクスチャを含む GLB はテクスチャが blob: URL 経由になるため既定 CSP では表示されない。Blender 出力は色のみのマテリアル。
 - iframe 内で localStorage・クリップボード・全画面が制限される場合のフォールバックを実装済み。
+> **認証の正常フロー**: `.env`・依存準備後、業務APIや初回デプロイより前に
+> [認証運用](../../references/authentication-lifecycle.md)でアカウント・Edgeプロファイル・
+> 必要時の追加認証許可を保存する。app init後に接続resourceまでキャッシュを確認する。
+> 以後の `npm run deploy` は既存test/buildを保持し、キャッシュ優先でpushする。
+> npm CLIにプロファイル強制指定はなく、必要なら本人が保存済みプロファイルを選ぶ。

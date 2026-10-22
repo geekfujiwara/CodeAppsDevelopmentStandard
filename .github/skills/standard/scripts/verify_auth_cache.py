@@ -25,6 +25,7 @@ def main() -> int:
         load_dotenv(args.env.resolve(), override=True)
     # Exercise the shared OS cache, not a PAC CLI profile or inherited in-memory state.
     os.environ["PAC_AUTH_PROFILE"] = ""
+    os.environ["PP_AUTH_ALLOW_INTERACTIVE"] = "false"
     if args.worker:
         from azure.core.exceptions import ClientAuthenticationError
         from azure.identity import AuthenticationRequiredError

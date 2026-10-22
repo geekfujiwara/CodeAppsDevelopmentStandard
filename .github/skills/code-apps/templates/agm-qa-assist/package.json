@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "node scripts/pre-deploy-check.mjs",
-    "deploy": "npm run build && npm run predeploy && pa app push",
+    "deploy": "npm run build && npm run predeploy && node scripts/deploy.mjs",
     "test": "node --test \"tests/*.test.ts\"",
     "eval:search": "node scripts/eval-search.ts --json spec/eval/in-browser.json"
   },

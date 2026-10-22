@@ -81,6 +81,14 @@ triggers:
 
 ## 大前提: 一つのソリューション内に開発
 
+初回に本人が承認したアカウント・Edgeプロファイル・必要時の追加認証許可を
+Git除外済み `.env` の `PP_AUTH_*` 設定へ記録する。
+トークンはOS暗号化キャッシュ、AuthenticationRecordはホームで管理し、`.env` に保存しない。
+`auth_helper.get_token()` は保存済み許可がある場合に限り、追加認証要求からブラウザー認証へ戻る。
+SDK credentialの自動対話は無効のままなので、SDK操作前に共通get_tokenで必要scopeを準備する。
+Code Appsのnpm CLIは別キャッシュとして [認証運用](../code-apps/references/authentication-lifecycle.md) で準備する。
+認証許可は業務書き込みやデプロイの許可を兼ねず、CIでは対話を禁止する。
+
 Dataverse テーブル・Code Apps・Power Automate フロー・Copilot Studio エージェントは **すべて同一のソリューション内** に含める。
 `.env` の `SOLUTION_NAME` と `PUBLISHER_PREFIX` を全フェーズで統一して使用する。
 
@@ -177,7 +185,7 @@ BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Copilot Studio Bot ID（URL で�
 
 初期セットアップ: get_token(allow_interactive=True) → キャッシュを優先 → 必要時だけブラウザで認証
 2回目以降（別プロジェクトでも）: キャッシュから自動取得（認証プロンプトなし）
-追加認証が必要な場合: AuthenticationRequiredError → キャッシュを保持し、明示的なセットアップでブラウザ認証
+追加認証が必要な場合: AuthenticationRequiredError → キャッシュを保持し、保存済み継続許可または明示許可でブラウザ認証
 テナント切替: テナント別の既存キャッシュを使い、他テナントのファイルは削除しない
 ```
 
@@ -188,7 +196,9 @@ PAC CLI プロファイルでトークンを取得できない場合は、ロー
 `AuthenticationRecord` をホームディレクトリの JSON に保存する。トークン自体は JSON に含めず、
 OS 資格情報ストアに保存する。以後のスキルは共通 `auth_helper.py` からキャッシュを再利用し、
 個別の認証フローやプロジェクト内の認証 JSON を作らない。
-`get_credential()` も同じ credential を SDK に渡す。通常の `get_token()` はブラウザを自動起動しない。
+`get_credential()` も同じ credential を SDK に渡す。`get_token()` はまずサイレント取得し、
+追加認証要求だけ `PP_AUTH_ALLOW_INTERACTIVE=true` の保存済み継続許可で復旧する。
+許可なし・CIではブラウザを開かない。SDK credential自体の自動対話は無効のままにする。
 `python .github/skills/standard/scripts/verify_auth_cache.py --env .env` で、別作業ディレクトリの
 新規プロセス 2 回からサイレント取得できることを検証する（トークン非表示）。
 Power Apps npm CLI は別 client ID・専用キャッシュのため、直接共有とは区別する
