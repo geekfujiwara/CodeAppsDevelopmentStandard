@@ -1,10 +1,11 @@
 import importlib.util
 import io
+import sys
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts/setup_environment.py"
@@ -62,6 +63,21 @@ class EnvironmentDiscoveryTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 subject.cmd_list()
         run.assert_called_once_with(["pac", "auth", "select", "--name", "Selected"])
+
+
+class AuthenticationSetupTests(unittest.TestCase):
+    def test_setup_prefers_cache_and_only_allows_browser_when_required(self):
+        get_token = Mock()
+        helper = SimpleNamespace(get_token=get_token)
+        with patch.dict(sys.modules, {"auth_helper": helper}), redirect_stdout(io.StringIO()):
+            self.assertEqual(subject.trigger_interactive_auth({}), 0)
+        get_token.assert_called_once_with(allow_interactive=True)
+
+    def test_setup_does_not_mask_policy_or_cache_errors(self):
+        helper = SimpleNamespace(get_token=Mock(side_effect=RuntimeError("cache unavailable")))
+        with patch.dict(sys.modules, {"auth_helper": helper}):
+            with self.assertRaisesRegex(RuntimeError, "cache unavailable"):
+                subject.trigger_interactive_auth({})
 
 
 if __name__ == "__main__":

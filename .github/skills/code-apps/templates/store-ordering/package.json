@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "node scripts/pre-deploy-check.mjs",
-    "deploy": "node scripts/check-deploy-terminal.mjs && npm run build && npm run predeploy && pa app push",
+    "deploy": "npm run build && npm run predeploy && pa app push",
     "data:seed": "node demo-data/generate.ts",
     "data:export": "node demo-data/export.ts",
     "dv:setup": "python -u scripts/dataverse/setup_dataverse.py",

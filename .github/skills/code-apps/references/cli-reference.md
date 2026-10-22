@@ -410,8 +410,24 @@ PAC CLI とは**別のトークンキャッシュ**を持つ。`pac auth create`
 |---|---|
 | `pa auth login` | サインインしてアカウントをローカルキャッシュに追加。`--non-interactive` でもブラウザは開く |
 | `pa auth logout` | **キャッシュ済みアカウントを全消去**。アクティブアカウントの切り替え目的で使わない |
-| `pa auth status` | キャッシュ済みアカウント一覧（アクティブなものに印が付く）。push 時のトークン更新成功は検証しない |
+| `pa auth status` | キャッシュ済みアカウント一覧（アクティブなものに印が付く） |
 | `pa auth switch` | アクティブアカウントの切り替え。`--account {email}` 省略時は対話選択、`--non-interactive` では必須 |
+
+### 永続キャッシュとブラウザ認証（CLI 1.3.0 実装・help 確認）
+
+- 通常の操作は専用暗号化キャッシュからサイレント取得・更新する。TTY の有無だけで拒否しない。
+- `auth status` はキャッシュ済みアカウント表示であり、操作が必要とする全リソースのトークン更新を検証しない。
+- 追加認証が必要な場合だけ `npx --no pa auth login --non-interactive` を実行する。
+  この明示的な login は非対話シェルからでもブラウザを開く。条件付きアクセスを満たすブラウザ認証を使い、
+  `--device-code` へフォールバックしない。
+  Windows で `npx` の解決に失敗した場合は、アプリディレクトリからインストール済みの
+  `.\node_modules\.bin\pa.cmd auth login --non-interactive` を使う。別パッケージの取得や手動ターミナルへの移動は不要。
+- CLI は `auth_helper` と別 client ID・専用キャッシュを使う。CLI 1.3.0 に外部トークン受け渡しの
+  公開オプションは確認できない。更新トークンや暗号化キャッシュをコピー・改変しない。
+- `CI=true` は CLI をサービスプリンシパル認証へ切り替える。ユーザーキャッシュを使うローカル実行で
+  対話チェックを回避するために設定しない。
+- `app list --json --non-interactive` は実際の読み取りを伴う確認になるが、成功しても push の
+  全リソース・権限・条件付きアクセスを保証しない。HTTP 429/403 等を再認証要求と取り違えない。
 
 ```bash
 npx pa auth status --json
@@ -420,9 +436,6 @@ npx pa auth switch --account user@contoso.com
 
 > テナントを跨いで作業するときに `auth logout` → `auth login` を繰り返す必要はない。
 > 複数アカウントをキャッシュしておき `auth switch` で切り替える。
-> ユーザー委任認証での `app push` は、追加の認証チャレンジに備えて VS Code 統合ターミナルで実行する。
-> `auth status` の成功だけをデプロイ可能の判定に使わない。詳細は
-> [認証切れで push が非対話シェル内で失敗する](troubleshooting.md#95-認証切れで-push-が非対話シェル内で失敗する)。
 
 ## テレメトリ
 

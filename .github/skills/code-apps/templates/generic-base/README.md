@@ -44,8 +44,8 @@ Application Insights 等へ転送するときは `initializeTelemetry(customSink
 
 1. `.env.example` を `.env` にコピーして値を入力
 2. `npm install`
-3. `npx pa auth status` で認証先を確認し、必要なら `pa auth switch --account {UPN}` で切り替える（status はキャッシュ済みアカウントを表示するだけで、push 時の認証更新成功は保証しない）
+3. `npx pa auth status` で認証先を確認し、必要なら `pa auth switch --account {UPN}` で切り替える
 4. `npx pa app init --environment-id {ENVIRONMENT_ID} --display-name "AppName"`
-5. 初回は VS Code 統合ターミナルから `npm run deploy -- --solution-id {SOLUTION_ID}`（GUID）を実行してソリューションへ追加する。非対話シェルでは認証チャレンジを完了できないため、deploy は build 前に停止する
+5. 初回は `npm run deploy -- --solution-id {SOLUTION_ID}`（GUID）でソリューションへ追加する
 6. `npx pa app add data-source`（`src/generated/` が生成される）
 7. 業務ページを追加したら `src/config.ts` と `src/router.tsx` に**同じ path** で登録し、`npm run predeploy` で整合を確認する

@@ -81,8 +81,6 @@ python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse
 npm run deploy
 ```
 
-> 初回・再デプロイの `npm run deploy` は VS Code 統合ターミナルから実行してください。`pa auth status` は push 時の認証更新を保証しません。
-
 `src/lib/dataverse-client.ts` は生成サービスを遅延解決するため、Dataverse data source を追加する前でも初回 build と push ができます。
 
 ## 工事ワークスペース

@@ -52,7 +52,6 @@ node scripts/capture_3d.mjs --url "http://127.0.0.1:5186/?debug3d#/projects" `
 
 - データソースを追加する前でもビルドできます（生成サービスは遅延読み込み）。追加前は DEMO（ブラウザ保存）で動きます
 - `npm run deploy` の predeploy（`scripts/check-data-sources.mjs`）は、`VITE_DATA_MODE=dataverse` なのに Dataverse のデータソースが無いと止めます。物件ページ取得のコネクタが無いときは警告します（URL からの自動取得の代わりに、ページの内容の貼り付けで取り込めます）
-- `npm run deploy` は VS Code 統合ターミナルから実行してください。`pa auth status` は push 時の認証更新を保証しません
 - 物件ページの取得は、利用者の操作ごとに 1 件分だけです（巡回・一括取得はしない）。取得先の利用規約・robots.txt を確認してから使ってください。DLP では取得先のホストを分類してもらいます
 - 共有: `npx pa app share --principal "<UPN またはグループ>" --access play --non-interactive --json`
 ## 主な機能

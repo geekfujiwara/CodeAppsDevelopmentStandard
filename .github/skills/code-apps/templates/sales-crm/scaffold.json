@@ -8,8 +8,8 @@
     "npm install --no-audit --no-fund",
     "python .github/skills/code-apps/scripts/setup_connection_reference.py --write-env .env",
     "npx --no pa app init --environment-id $env:ENV_ID --display-name \"Sales Command Center\" --app-type CodeApp --non-interactive",
-    "npm run deploy -- --solution-id $env:SOLUTION_ID  # 初回。VS Code 統合ターミナルで実行",
+    "npm run deploy -- --solution-id $env:SOLUTION_ID  # 初回。データソース未接続でもビルドできる",
     "python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --connection-ref $env:CONNECTION_REFERENCE_LOGICAL_NAME --solution-id $env:SOLUTION_ID",
-    "npm run deploy  # VS Code 統合ターミナルで実行"
+    "npm run deploy"
   ]
 }

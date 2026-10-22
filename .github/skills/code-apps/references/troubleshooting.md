@@ -3180,29 +3180,19 @@ HTML解析の不具合と、環境ポリシー/取得制限を区別する。新
 `components/listing-import.tsx` はサイト別に自動取得の可否を分け、未対応サイトでは外部接続を呼ばない。
 `tests/portal-import.test.mjs` はURL・文字コード・本文/HTML・JSON-LDを検証し、
 `scripts/portal-brochure-scenario.mjs` は新サイトへのリクエストが0件であることを検査する。
-## 95. 認証切れで push が非対話シェル内で失敗する
 
-### 症状
+## 95. キャッシュがあるのに push で追加認証を要求される
 
-`pa auth status` では正しいアカウントが active と表示されるが、`pa app push` が
-「session has expired and could not be renewed silently」「CLI is running in non-interactive mode」
-などを出して失敗する。`pa auth login` や device-code サインインを完了した後も、エージェントの
-バックグラウンドシェルからの push が失敗することがある。
+`auth status` はアカウント情報の表示にとどまり、push が必要とするすべてのリソースのトークン更新を
+保証しない。CLI はキャッシュからサイレント更新するため、非対話シェルであるだけでは失敗とは限らない。
+TTY を必須とする一律ガードは入れない。
 
-### 原因
+実際に「session has expired and could not be renewed silently」「Interactive sign-in is required」が
+返った場合だけ、`npx --no pa auth login --non-interactive` でブラウザ認証する。
+CLI 1.3.0 の明示的な login は非対話シェルでもブラウザを開く。device-code は使わない。
+再試行して同じ追加認証要求が出た場合は停止し、条件付きアクセス・要求対象リソースを確認する。
+HTTP 403/429 やネットワークエラーをキャッシュ破損として扱わず、キャッシュ削除・logout の反復をしない。
 
-`pa auth status` はローカルにキャッシュされたアカウントを表示するだけで、push が必要とする
-トークン更新の成功を検証しない。push 時に追加の対話認証が必要になった場合、非対話シェルでは
-CLI がそのチャレンジを完了できない。事前の `auth login` や device-code 認証が成功していても、
-push 時の追加チャレンジを満たすとは限らない。
-
-### 対処
-
-デプロイは `npm run deploy` を VS Code 統合ターミナルで実行する。エージェントは対話ターミナル実行
-ツールを使い、非対話シェルからの再試行や `auth status` / `auth login` の反復をしない。
-対話ターミナルを使えない環境では、テンプレートの `check-deploy-terminal.mjs` が build 前に止める。
-CI は別途、サポートされる非対話認証を構成する。
-
-**恒久対策済み** — `templates/generic-base/scripts/check-deploy-terminal.mjs` を各完全テンプレートの
-`deploy` の先頭で実行し、ローカル TTY が無い状態を build 前に検出する。
-`scripts/check-deploy-terminal.test.mjs` が対話シェル・非対話シェル・CI の各経路を検証する。
+Python/SDK の `auth_helper` は共有 OS キャッシュを再利用するが、CLI は別 client ID・専用キャッシュであり、
+直接引き継ぐ公開オプションは CLI 1.3.0 では確認できない。`CI=true` によるサービスプリンシパル切替で
+ユーザー認証の問題を隠さない。詳しくは [共通認証](../../standard/references/auth-patterns.md) を参照。

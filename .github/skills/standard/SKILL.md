@@ -161,7 +161,9 @@ BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Copilot Studio Bot ID（URL で�
 ### 共通認証: auth_helper.py
 
 `./auth_helper.py` が全デプロイスクリプトの認証を一元管理する。
-**同一マシン上では、どのプロジェクトでもインタラクティブ認証は最初の1回だけ**で済む 2 層キャッシュ構成。
+**同一マシン・同一 OS ユーザー・同一 tenant/client ID のプロジェクト間でキャッシュを共有**する 2 層構成。
+通常は初回だけブラウザ認証し、以後はサイレント更新する。条件付きアクセスのサインイン頻度・
+失効・同意要求で再認証が必要になることはある。有効期間をクライアント側で延長しない。
 
 ```
 層1: AuthenticationRecord (~/.power-platform-cli/auth_record_{TENANT_ID}.json)
@@ -171,20 +173,26 @@ BOT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Copilot Studio Bot ID（URL で�
 
 層2: TokenCachePersistenceOptions (MSAL OS 資格情報ストア)
   - リフレッシュトークン・アクセストークンを永続化（同一マシンで共有）
-  - サイレントリフレッシュで再認証不要
+  - 更新トークンが利用可能ならサイレントリフレッシュ（暗号化必須、平文保存へフォールバックしない）
 
-初回（このマシンで最初の1回のみ）: InteractiveBrowserCredential → ブラウザで認証 → グローバルキャッシュに保存
+初期セットアップ: get_token(allow_interactive=True) → キャッシュを優先 → 必要時だけブラウザで認証
 2回目以降（別プロジェクトでも）: キャッシュから自動取得（認証プロンプトなし）
-テナント/アカウント切替時のみ: ~/.power-platform-cli/auth_record.json を削除して再認証
+追加認証が必要な場合: AuthenticationRequiredError → キャッシュを保持し、明示的なセットアップでブラウザ認証
+テナント切替: テナント別の既存キャッシュを使い、他テナントのファイルは削除しない
 ```
 
 PAC CLI プロファイルでトークンを取得できない場合は、ローカルブラウザでのインタラクティブ認証
 （`InteractiveBrowserCredential`）を使用する。デバイスコード認証は行わず、初回の認証後はキャッシュから
 サイレントにトークンを取得する。
-初期セットアップで tenant/client ID ごとにインタラクティブ認証を 1 回行い、
+初期セットアップで tenant/client ID ごとに `get_token(..., allow_interactive=True)` を実行し、
 `AuthenticationRecord` をホームディレクトリの JSON に保存する。トークン自体は JSON に含めず、
 OS 資格情報ストアに保存する。以後のスキルは共通 `auth_helper.py` からキャッシュを再利用し、
 個別の認証フローやプロジェクト内の認証 JSON を作らない。
+`get_credential()` も同じ credential を SDK に渡す。通常の `get_token()` はブラウザを自動起動しない。
+`python .github/skills/standard/scripts/verify_auth_cache.py --env .env` で、別作業ディレクトリの
+新規プロセス 2 回からサイレント取得できることを検証する（トークン非表示）。
+Power Apps npm CLI は別 client ID・専用キャッシュのため、直接共有とは区別する
+（[キャッシュ境界](references/auth-patterns.md#power-apps-npm-cli-との境界)）。
 Foundry 上で動作するエージェント本体の Managed Identity など、実行環境固有の資格情報はこのローカル開発者認証の共有対象外とする。
 
 認証の公開 API・パターンの詳細実装は [認証リファレンス](references/auth-patterns.md) を参照。

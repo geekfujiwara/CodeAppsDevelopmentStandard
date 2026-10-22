@@ -22,7 +22,7 @@
     "npx --no pa app init --environment-id $env:ENV_ID --display-name \"パース3D内見スタジオ\" --app-type CodeApp --non-interactive",
     "python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --connection-ref $env:CONNECTION_REFERENCE_LOGICAL_NAME --solution-id $env:SOLUTION_ID",
     "python scripts/setup_listing_connector.py --add-to-app  # 物件ページ取得のカスタム コネクタ（認証なし・ホスト固定・GET だけ）を作成し、アプリに追加",
-    "npm run deploy  # VS Code 統合ターミナルで実行。test → build → predeploy → pa app push",
+    "npm run deploy  # test → build → predeploy（データソースの実在確認を含む）→ pa app push",
     "python scripts/fetch_materials.py  # 任意: 仕上げ材テクスチャを取り直す（同梱済み。CC0）",
     "blender/README.md  # 任意: Blender でフォトリアル画像・GLB を作る"
   ]

@@ -36,3 +36,18 @@ PAC のプロファイルを横断して `org who` を読むには、一時的�
 変換待ちの placeholder を完成した仕様と扱わず、事実・仮説・未確認を区別して提案する。
 業務フロー図と構成図は、リンクだけではなくチャットと Markdown の両方へ Mermaid で出す。
 入口と引き継ぎ契約は `tests/test_quickstart_contract.py` で検査する。
+
+## 認証エラー後、次のプロセスでも再サインインになる
+
+以前の `get_token()` は `ClientAuthenticationError` / `TypeError` を一律にキャッシュ破損とみなし、
+永続キャッシュを無効にした credential で再認証していた。その結果、認証レコードだけが保存され、
+更新トークンが次のプロセスへ引き継がれない経路があった。
+
+**恒久対策済み** — `auth_helper.py` は同じ永続 credential を保持し、サイレント取得を優先する。
+`AuthenticationRequiredError` の場合だけ、セットアップの明示的な `allow_interactive=True` により
+同じ credential でブラウザ認証し、claims challenge を渡す。権限拒否・通信・型エラーは再認証せず送出する。
+認証レコードは一時ファイルから原子的に置換し、中断による破損を防ぐ。
+暗号化できない場合は平文保存に切り替えない。壊れたレコード・tenant/client ID 不一致も削除せず停止する。
+`tests/test_auth_cache.py` と `verify_auth_cache.py` で回帰・プロセス間再利用を検証する。
+
+条件付きアクセスの再認証要求はキャッシュ障害ではない。device-code やポリシー緩和で迂回しない。

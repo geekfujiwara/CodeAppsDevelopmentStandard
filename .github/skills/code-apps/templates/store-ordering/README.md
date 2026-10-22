@@ -53,8 +53,6 @@ npm run deploy
 npm run dv:check-terminal
 ```
 
-> 初回・再デプロイの `npm run deploy` は VS Code 統合ターミナルから実行してください。`pa auth status` は push 時の認証更新を保証しません。
-
 初回 push は配置確認であり、業務機能の完成ではありません。未接続部分は UI と報告で明示し、
 Dataverse 接続・実データ確認・改善デプロイまで完了させます。
 

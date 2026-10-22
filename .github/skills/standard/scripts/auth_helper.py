@@ -41,25 +41,28 @@ PAC CLI 認証の仕組み:
      - AuthenticationRecord と組み合わせることでサイレントリフレッシュが可能
 
 動作:
-  - 初回（このマシン・このテナントで最初の1回のみ）: InteractiveBrowserCredential でサインイン
+  - 初期セットアップ: get_token(allow_interactive=True) でキャッシュを優先し、必要時だけサインイン
          → AuthenticationRecord をテナント別パスに保存
          → MSAL トークンキャッシュにリフレッシュトークンを永続化
   - 2回目以降（別プロジェクトでも、同じテナントなら）: AuthenticationRecord をロード
          → MSAL キャッシュからリフレッシュトークンを取得
          → サイレントリフレッシュ
-  - 別テナントに切り替えた場合は、そのテナント用のファイルが無ければ最初の1回だけ
-    ブラウザでサインインする（以後はそのテナント用ファイルにキャッシュされる）
-  - 強制的に再認証したい場合のみ、該当テナントの
-    ~/.power-platform-cli/auth_record_{TENANT_ID}.json を削除する
+  - 通常の get_token() / SDK credential はブラウザを自動起動しない
+  - 条件付きアクセス等が追加認証を要求した場合は、初期セットアップで明示的にブラウザ認証する
+  - 認証エラーを理由に永続キャッシュを無効化・削除しない
 
 PAC CLI プロファイルからトークンを取得できない場合は、ローカルブラウザを使った
 InteractiveBrowserCredential で認証する。デバイスコード認証への切り替えやフォールバックは行わない。
 
 使い方:
-  from auth_helper import get_token, get_session, retry_metadata
+  from auth_helper import get_credential, get_token, get_session, retry_metadata
 
   # Dataverse Web API 用トークン
   token = get_token()
+
+  # Dataverse SDK 用 credential
+  from PowerPlatform.Dataverse.client import DataverseClient
+  client = DataverseClient(DATAVERSE_URL, get_credential())
 
   # Flow API 用トークン
   token = get_token(scope="https://service.flow.microsoft.com/.default")
@@ -79,12 +82,13 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 import requests
-from azure.core.exceptions import ClientAuthenticationError
 from azure.identity import (
+    AuthenticationRequiredError,
     AuthenticationRecord,
     InteractiveBrowserCredential,
     TokenCachePersistenceOptions,
@@ -187,20 +191,26 @@ def _build_credential(client_id: str | None = None) -> InteractiveBrowserCredent
 
     ローカルブラウザとループバックリダイレクトを使い、デバイスコード認証は行わない。
     """
-    # OS 永続トークンキャッシュが壊れることがあるため、
-    # 環境変数 PP_NO_PERSISTENT_CACHE=1 で無効化可能
+    # 既存の明示的な診断オプションは保持するが、通常運用では永続化を使う。
     use_persistent_cache = not os.environ.get("PP_NO_PERSISTENT_CACHE")
 
     kwargs: dict = {
         "tenant_id": TENANT_ID or None,
         "client_id": client_id or None,
+        "disable_automatic_authentication": True,
     }
     if use_persistent_cache:
         cache_options = TokenCachePersistenceOptions(
             name="power_platform_token_cache_v3",
-            allow_unencrypted_storage=True,
+            allow_unencrypted_storage=False,
         )
         kwargs["cache_persistence_options"] = cache_options
+    else:
+        print(
+            "[auth_helper] 警告: PP_NO_PERSISTENT_CACHE により永続化が無効です。"
+            " 次のプロセスへトークンを引き継ぐには、この診断用設定を解除してください。",
+            file=sys.stderr,
+        )
 
     auth_record_path = _auth_record_path_for(client_id)
     auth_record: AuthenticationRecord | None = None
@@ -208,26 +218,18 @@ def _build_credential(client_id: str | None = None) -> InteractiveBrowserCredent
         try:
             serialized = auth_record_path.read_text(encoding="utf-8")
             auth_record = AuthenticationRecord.deserialize(serialized)
-            # ★ 防御チェック: ファイル名はテナント別だが、万一 TENANT_ID と
-            #   レコードの tenant_id が食い違っていたら破棄して再認証させる
-            #   （誤ったテナントでサイレント認証してしまうのを防ぐ）。
-            if TENANT_ID and auth_record.tenant_id != TENANT_ID:
-                print(
-                    f"[auth_helper] 認証キャッシュのテナントが不一致のため破棄します "
-                    f"(cache={auth_record.tenant_id}, .env={TENANT_ID})",
-                    file=sys.stderr,
-                )
-                auth_record = None
-            else:
-                print(
-                    f"[auth_helper] 認証キャッシュをロードしました: {auth_record_path}",
-                    file=sys.stderr,
-                )
         except (ValueError, OSError, json.JSONDecodeError) as exc:
-            print(
-                f"[auth_helper] 認証キャッシュの読み込みに失敗（初回認証に切り替え）: {exc}",
-                file=sys.stderr,
-            )
+            raise RuntimeError(
+                f"認証レコードを読み込めません。既存キャッシュは保持しました: {auth_record_path}"
+            ) from exc
+        if TENANT_ID and auth_record.tenant_id.lower() != TENANT_ID.lower():
+            raise ValueError("認証レコードのテナントが一致しません。キャッシュは変更しません。")
+        if client_id and auth_record.client_id.lower() != client_id.lower():
+            raise ValueError("認証レコードの client ID が一致しません。キャッシュは変更しません。")
+        print(
+            f"[auth_helper] 共有認証レコードをロードしました: {auth_record_path}",
+            file=sys.stderr,
+        )
 
     # None の値を除外（未設定パラメータはライブラリの既定値を使う）
     kwargs = {k: v for k, v in kwargs.items() if v is not None}
@@ -255,7 +257,17 @@ def _save_auth_record(record: AuthenticationRecord, client_id: str | None = None
     """AuthenticationRecord を永続化する（他プロジェクトからも再利用される）。"""
     path = _auth_record_path_for(client_id)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(record.serialize(), encoding="utf-8")
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, prefix=path.name, delete=False
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+            temporary.write(record.serialize())
+        os.replace(temporary_path, path)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
     print(
         f"[auth_helper] 認証レコードを保存しました（マシン全体で共有）: {path}",
         file=sys.stderr,
@@ -332,18 +344,18 @@ def _pac_get_token(scope: str) -> str | None:
         # pac auth token が失敗した場合は stderr を表示してフォールバック
         if result.stderr.strip():
             print(
-                f"[auth_helper] pac auth token 失敗（ブラウザ認証にフォールバック）: "
+                f"[auth_helper] pac auth token 失敗（共有認証キャッシュにフォールバック）: "
                 f"{result.stderr.strip()}",
                 file=sys.stderr,
             )
     except FileNotFoundError:
         print(
-            "[auth_helper] pac コマンドが見つかりません（ブラウザ認証にフォールバック）",
+            "[auth_helper] pac コマンドが見つかりません（共有認証キャッシュにフォールバック）",
             file=sys.stderr,
         )
     except subprocess.TimeoutExpired:
         print(
-            "[auth_helper] pac auth token タイムアウト（ブラウザ認証にフォールバック）",
+            "[auth_helper] pac auth token タイムアウト（共有認証キャッシュにフォールバック）",
             file=sys.stderr,
         )
 
@@ -352,18 +364,21 @@ def _pac_get_token(scope: str) -> str | None:
 
 # ---------- 公開 API ----------
 
-# Python 3.14 で MSAL 内部トークンキャッシュが壊れる問題の回避策:
-# 自前でスコープ別のインメモリキャッシュを管理する。
-# credential.get_token() は同じスコープで 1 回だけ呼び、結果をキャッシュする。
+# 有効期限までは同じスコープ・client ID の取得結果を再利用する。
 _inmemory_tokens: dict[tuple[str, str], tuple[str, float]] = {}  # (scope, client_id) -> (token_str, expires_on)
 
 
-def get_token(scope: str | None = None, client_id: str | None = None) -> str:
+def get_token(
+    scope: str | None = None,
+    client_id: str | None = None,
+    *,
+    allow_interactive: bool = False,
+) -> str:
     """
     指定スコープのアクセストークン文字列を返す。
 
-    初回はローカルブラウザでインタラクティブ認証を行い、AuthenticationRecord が保存される。
-    2回目以降はインメモリキャッシュから取得する。
+    永続キャッシュから取得し、有効期限が近い場合はサイレント更新する。
+    対話認証は初期セットアップで allow_interactive=True を明示した場合だけ行う。
 
     Args:
         scope: OAuth2 スコープ。省略時は ``{DATAVERSE_URL}/.default``。
@@ -371,6 +386,7 @@ def get_token(scope: str | None = None, client_id: str | None = None) -> str:
             例: Azure CLI の Graph 項目にないスコープ（`AppCatalog.ReadWrite.All` 等）が必要な場合は
             Microsoft Graph PowerShell の well-known ID `14d82eec-204b-4c2f-b7e8-296a70dab67e` を指定する。
             キャッシュ（AuthenticationRecord ・ credential）は client_id ごとに分離される。
+        allow_interactive: 初期セットアップ専用。追加認証が必要な場合だけブラウザを開く。
 
     Returns:
         Bearer トークン文字列。
@@ -399,45 +415,40 @@ def get_token(scope: str | None = None, client_id: str | None = None) -> str:
             return pac_token
 
     credential = _ensure_credential(client_id)
-    auth_record_path = _auth_record_path_for(client_id)
-
-    # キャッシュが存在しない場合は明示的に authenticate() を呼んで
-    # AuthenticationRecord を永続化してからトークンを取得する
-    if not auth_record_path.exists():
-        record = credential.authenticate(scopes=[scope])
-        _save_auth_record(record, client_id)
-
     try:
         token = credential.get_token(scope)
-    except (ClientAuthenticationError, TypeError) as exc:
-        # MSAL 内部キャッシュ破損時のフォールバック:
-        # 新しい credential を永続キャッシュなしで構築し直す
-        print(
-            f"[auth_helper] MSAL キャッシュ破損を検出 — 再構築中: {type(exc).__name__}",
-            file=sys.stderr,
-        )
-        kwargs_nocache: dict = {
-            "tenant_id": TENANT_ID or None,
-            "client_id": client_id or None,
-        }
-        kwargs_nocache = {k: v for k, v in kwargs_nocache.items() if v is not None}
-        # 認証レコードは使わない（内部キャッシュが壊れる原因になる）
-        credential = _instantiate_credential(kwargs_nocache)
-        _credentials[client_id or ""] = credential
-        record = credential.authenticate(scopes=[scope])
-        _save_auth_record(record, client_id)
+    except AuthenticationRequiredError as exc:
+        if not allow_interactive:
+            print(
+                "[auth_helper] サイレント更新に追加認証が必要です。キャッシュは保持しています。"
+                " 初期セットアップから get_token(..., allow_interactive=True) を実行してください。"
+                " device-code は使用しません。",
+                file=sys.stderr,
+            )
+            raise
+        authenticate(scope, client_id=client_id, claims=exc.claims)
         token = credential.get_token(scope)
 
     _inmemory_tokens[cache_key] = (token.token, token.expires_on)
     return token.token
 
 
-def authenticate(scope: str | None = None) -> AuthenticationRecord:
+def get_credential(client_id: str | None = None) -> InteractiveBrowserCredential:
+    """SDK にも同じサイレント認証・永続キャッシュ付き credential を渡す。"""
+    return _ensure_credential(client_id)
+
+
+def authenticate(
+    scope: str | None = None,
+    client_id: str | None = None,
+    *,
+    claims: str | None = None,
+) -> AuthenticationRecord:
     """
     明示的に対話認証を実行し、AuthenticationRecord を保存して返す。
 
-    通常は get_token() を呼ぶだけで十分だが、
-    スクリプトの冒頭で確実に認証を通したい場合にはこの関数を使う。
+    通常のセットアップは get_token(allow_interactive=True) でキャッシュを優先する。
+    この関数は明示的にブラウザ認証を要求する場合だけ使う。
 
     Args:
         scope: OAuth2 スコープ。省略時は ``{DATAVERSE_URL}/.default``。
@@ -452,9 +463,12 @@ def authenticate(scope: str | None = None) -> AuthenticationRecord:
             "スコープが未指定です。DATAVERSE_URL を .env に設定するか scope 引数を渡してください。"
         )
 
-    credential = _ensure_credential()
-    record = credential.authenticate(scopes=[scope])
-    _save_auth_record(record)
+    credential = _ensure_credential(client_id)
+    record = credential.authenticate(scopes=[scope], claims=claims)
+    _save_auth_record(record, client_id)
+    for key in list(_inmemory_tokens):
+        if key[1] == (client_id or ""):
+            del _inmemory_tokens[key]
     return record
 
 
@@ -778,7 +792,5 @@ if __name__ == "__main__":
         print("DATAVERSE_URL is not set in .env.", file=sys.stderr)
         sys.exit(1)
 
-    record = authenticate()
-    print(f"Authenticated: {record.username}")
-    print(f"Tenant: {record.tenant_id}")
-    print(f"Auth record saved to: {AUTH_RECORD_PATH}")
+    get_token(allow_interactive=True)
+    print("Authenticated using the shared cache (browser only when required).")
