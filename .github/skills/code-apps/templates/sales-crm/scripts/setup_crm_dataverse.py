@@ -23,6 +23,7 @@ except Exception:
     pass
 
 from dotenv import load_dotenv
+from requests.exceptions import HTTPError
 
 load_dotenv(Path.cwd() / ".env")
 
@@ -152,10 +153,25 @@ def column_body(col: dict) -> dict:
 
 def table_exists(name: str) -> bool:
     try:
-        api_get(f"EntityDefinitions(LogicalName='{name}')?$select=LogicalName")
+        meta = api_get(f"EntityDefinitions(LogicalName='{name}')"
+                       "?$select=LogicalName,IsBPFEntity,IsActivity,TableType")
+        if meta.get("IsBPFEntity") is not False or meta.get("IsActivity") is not False or meta.get("TableType") != "Standard":
+            raise ValueError(f"{name}: sales-crm requires a Standard, non-BPF, non-activity table. "
+                             "Do not convert or delete an existing table automatically.")
         return True
-    except Exception:
-        return False
+    except HTTPError as error:
+        if error.response is not None and error.response.status_code == 404:
+            return False
+        raise
+
+
+def validate_stage_column() -> None:
+    table = c("crmopportunity")
+    if table_exists(table) and c("stage") in attribute_names(table):
+        meta = api_get(f"EntityDefinitions(LogicalName='{table}')"
+                       f"/Attributes(LogicalName='{c('stage')}')?$select=AttributeType")
+        if meta.get("AttributeType") != "Picklist":
+            raise ValueError(f"{table}.{c('stage')}: stage must be a Choice (Picklist), not a BPF lookup.")
 
 
 def attribute_names(table: str) -> set[str]:
@@ -168,6 +184,7 @@ def entity_set(table: str) -> str:
 
 
 def check() -> list[str]:
+    validate_stage_column()
     missing: list[str] = []
     for table in TABLES:
         if not table_exists(table["name"]):
@@ -190,6 +207,10 @@ def report_counts() -> None:
 
 
 def apply() -> None:
+    # Validate every existing table before the first metadata write.
+    for table in TABLES:
+        table_exists(table["name"])
+    validate_stage_column()
     if not api_get(f"solutions?$filter=uniquename eq '{SOLUTION}'&$select=solutionid").get("value"):
         sys.exit(f"ソリューション {SOLUTION} がありません。dataverse スキルの Step 0-1 で作成してから再実行してください。")
     for table in TABLES:
@@ -198,7 +219,8 @@ def apply() -> None:
             body = {
                 "@odata.type": "#Microsoft.Dynamics.CRM.EntityMetadata", "SchemaName": name,
                 "DisplayName": label(table["en"], table["ja"]), "DisplayCollectionName": label(table["en"] + "s", table["ja"]),
-                "OwnershipType": "UserOwned", "IsActivity": False, "HasActivities": False, "HasNotes": False,
+                "OwnershipType": "UserOwned", "IsBPFEntity": False, "IsActivity": False,
+                "HasActivities": False, "HasNotes": False,
                 "PrimaryNameAttribute": c("name"),
                 "Attributes": [{"@odata.type": "#Microsoft.Dynamics.CRM.StringAttributeMetadata", "SchemaName": c("name"),
                                 "DisplayName": label("Name", "名前"), "IsPrimaryName": True, "RequiredLevel": {"Value": "ApplicationRequired"},

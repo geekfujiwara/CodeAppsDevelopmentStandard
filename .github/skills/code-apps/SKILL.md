@@ -661,6 +661,10 @@ SDK 生成サービスは Lookup 名フィールド（`createdbyname` 等）を�
 
 商談ステージ・リードステータス等、順序を持つ OptionSet を Salesforce 風の矢羽（シェブロン）で表示する。`onSelect` でその場ステージ変更（patch）も可能。失注・不認定など否定的終端は `negativeValue` で赤表示。
 
+既定は通常テーブルのChoice列でありBPFではない。`sales-crm` の構築スクリプトは
+`IsBPFEntity=false`・`TableType=Standard`・ステージ列のPicklist型を構築前に検証する。
+Code AppsもCopilot Studioも商談本体のステージ列を更新し、自動進捗履歴を直接編集しない。
+
 → 詳細: **[ステージ矢羽パターン](references/stage-path-pattern.md)**
 
 ### 使い方ガイド（オンボーディング）— 全アプリ標準

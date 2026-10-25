@@ -3257,3 +3257,16 @@ Python共有キャッシュが使えてもnpm CLIの別resource認証が必要�
 保存済み承認・CI禁止の毎回判定、`verify_cli_account` によるアカウント照合。
 通常運用は [認証運用](authentication-lifecycle.md) に従う。
 キャッシュ破棄・device-code・トークン寿命延長で回避しない。
+
+## CRMのステージ矢羽をBPFと誤認する場合
+
+ステージ矢羽は通常テーブルのChoice列を表示するReact部品で、BPFではない。
+履歴保護プラグインの「進捗履歴は…直接変更できません」はBPFの製品エラーではない。
+商談本体と履歴の実メタデータ、呼び出したテーブル・操作・送信列を確認する。
+正しい商談更新から内部エラーが伝播する可能性もあるため、エラー文だけで直接編集と断定しない。
+正しい本体更新でも失敗する場合はツール入出力・プラグイントレースを取得し、保護解除で回避しない。
+
+**恒久対策済み**: `templates/sales-crm/scripts/setup_crm_dataverse.py` の `table_exists()` と
+`validate_stage_column()` が通常のcheck/apply経路で種類・列型を検証する。
+全既存テーブルを最初のメタデータ書き込み前に検証し、404以外の取得失敗を伝播する。
+`scripts/test_sales_crm_table_types.py` で誤種別、Choice以外、403/500、書込前停止を回帰検証する。
