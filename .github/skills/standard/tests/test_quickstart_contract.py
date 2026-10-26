@@ -54,6 +54,40 @@ class QuickstartContractTests(unittest.TestCase):
                 self.assertIn("spec-builder", text)
                 self.assertIn("Mermaid", text)
 
+    def test_entrypoints_require_waiting_for_intent_after_authentication(self):
+        paths = (
+            STANDARD / "SKILL.md",
+            ROOT / ".github/agents/GeekPowerCode.agent.md",
+            ROOT / ".github/prompts/quickstart.prompt.md",
+        )
+        for path in paths:
+            with self.subTest(path=str(path)):
+                text = path.read_text(encoding="utf-8")
+                self.assertIn("認証準備後は AskUserQuestion で要望確認", text)
+                self.assertIn("必ず回答待ちで一旦停止", text)
+                self.assertIn("回答前に資料変換・仕様作成・設計提案へ進ま", text)
+
+    def test_checkpoint_follows_cache_verification_and_precedes_conversion(self):
+        text = (STANDARD / "references/quickstart.md").read_text(encoding="utf-8")
+        setup = text.split("## Step 3:", 1)[1].split("## Step 4:", 1)[0]
+        checkpoint = text.split("## Step 4:", 1)[1].split("## Step 5:", 1)[0]
+        self.assertLess(
+            setup.index("setup_environment.py --auth-only"),
+            setup.index("verify_auth_cache.py --env .env"),
+        )
+        self.assertLess(
+            checkpoint.index("必ず回答待ちで一旦停止"),
+            checkpoint.index("変換・統合まで実行"),
+        )
+        for requirement in (
+            "2〜3 個の具体的なアプリ案", "想定利用者・主要機能・推奨 AI 機能・推奨理由",
+            "今は準備までにする", "同じ方向性を聞き直さない",
+            "AskUserQuestion が提供されていない", "回答を待つ",
+        ):
+            with self.subTest(requirement=requirement):
+                self.assertIn(requirement, checkpoint)
+        self.assertIn("回答を待ちます", (ROOT / "README.md").read_text(encoding="utf-8"))
+
     def test_spec_and_architecture_preserve_fact_and_hypothesis_boundary(self):
         for skill in ("spec-builder", "architecture"):
             with self.subTest(skill=skill):

@@ -1,6 +1,6 @@
 ---
 name: standard
-description: "Power Platform 共通開発基盤。クイックスタートは標準配置・環境情報取得・共通認証と .env・仕様整理から、AI 改善と Mermaid 図を含む architecture 提案まで一気通貫で進める。通常開発は Dataverse を既定とし、環境診断は明示依頼時・障害時だけ。共通認証（auth_helper.py）・ソリューション運用と横断ユーティリティを提供する。"
+description: "Power Platform 共通開発基盤。クイックスタートは標準配置・環境情報取得・共通認証と .env を準備後、要望確認で一旦停止し、回答後に仕様整理・AI 改善と Mermaid 図を含む architecture 提案へ進む。通常開発は Dataverse を既定とし、環境診断は明示依頼時・障害時だけ。共通認証（auth_helper.py）・ソリューション運用と横断ユーティリティを提供する。"
 category: architecture
 triggers:
   - "Power Platform 開発"
@@ -45,8 +45,11 @@ triggers:
 
 リポジトリ URL と「クイックスタート」を依頼されたら [quickstart.md](references/quickstart.md) を優先する。
 `.github/agents` / `.github/skills` / `.gitignore` を安全に配置しただけでは停止せず、
-利用可能な環境情報取得 → 共通認証・`.env` → ローカル資料の `spec-builder`
-（資料なしならフォルダー名からアプリ案を提案して AskUserQuestion）→ `architecture` まで継続する。
+利用可能な環境情報取得 → 共通認証・`.env`・認証キャッシュの再利用検証まで実行する。
+**認証準備後は AskUserQuestion で要望確認し、必ず回答待ちで一旦停止する。**
+資料があれば対象資料からの継続・対象変更・準備までを選べる形にし、
+資料なしならフォルダー名から具体的なアプリ案を複数提示して選んでもらう。
+回答前に資料変換・仕様作成・設計提案へ進まず、継続回答後にローカル資料の `spec-builder` → `architecture` へ進む。
 白紙の業務ヒアリングではなく、事実・仮説を分けた業務改善と AI 活用の推奨を先に示す。
 業務フローと構成の Mermaid 図をチャットと Markdown の両方へ出し、必要な意思決定だけを質問する。
 環境スキャンは接続先等のメタデータ取得であり、DLP / ACP・Code Apps 許可の事前診断とは分ける。

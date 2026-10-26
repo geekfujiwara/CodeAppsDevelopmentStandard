@@ -154,7 +154,7 @@ python .github/skills/admin/scripts/check_development_environment.py --environme
 
 ## カスタムエージェント前提の利用方法
 
-- 最初は [READMEのクイックスタート](../README.md#クイックスタート)をCopilot ChatのAgentモードへコピーしてください。標準配置だけで止まらず、環境情報・共通認証・資料の仕様整理・AI改善を含むarchitecture提案まで継続します。配置後は `/Quickstart` でも実行できます。
+- 最初は [READMEのクイックスタート](../README.md#クイックスタート)をCopilot ChatのAgentモードへコピーしてください。標準配置だけで止まらず、環境情報・共通認証を準備した後、要望確認で一旦停止して回答を待ちます。継続回答後に資料の仕様整理・AI改善を含むarchitecture提案へ進みます。配置後は `/Quickstart` でも実行できます。
 - 共通の実装・運用ルールは `.github/skills/` に定義されています。
 - Copilotでは自社名に変更したカスタムエージェントを選択し、`在庫管理をもっと効率的に行いたい。` のように要件を伝えます。
 - 既存仕様書がある場合は `spec-builder を実行して` と依頼します。
