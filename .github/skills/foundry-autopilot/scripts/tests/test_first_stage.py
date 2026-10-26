@@ -5,6 +5,8 @@ import importlib.util
 import asyncio
 import base64
 import json
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -26,6 +28,7 @@ def answers(**updates):
         "agentName": "sample-colleague", "displayName": "Sample",
         "externalEmailEnabled": False, "imageGenerationEnabled": False,
         "profileImage": {"mode": "file", "path": "icon.png"},
+        "resourceGroup": {"mode": "new", "name": ""},
         "communicationStyle": {"internal": {"tone": "friendly", "emoji": True},
                                "external": {"tone": "formal", "emoji": False}},
     }
@@ -48,6 +51,12 @@ class DecisionTests(unittest.TestCase):
         for change in ({"hosting": "self-hosted"}, {"runtime": "agents-sdk"}):
             with self.assertRaises(ValueError):
                 runner.validate_decisions(answers(**change))
+
+    def test_resource_group_choice_must_be_confirmed(self):
+        for choice in (None, {}, {"mode": "reuse"}, {"mode": "existing", "name": ""}):
+            with self.subTest(choice=choice), self.assertRaisesRegex(ValueError, "resourceGroup"):
+                runner.validate_decisions(answers(resourceGroup=choice))
+        runner.validate_decisions(answers(resourceGroup={"mode": "existing", "name": "confirmed-rg"}))
 
     def test_no_optional_reduction_of_standard_features(self):
         blocks = scaffold.resolve_blocks(answers(blocks=["B1"], preset="role"))
@@ -77,9 +86,88 @@ class DecisionTests(unittest.TestCase):
             target = Path(temporary)
             scaffold.write_deploy_script(target, target / "src" / "package")
             generated = (target / "deploy.ps1").read_text()
+            infrastructure = (target / "infra/foundry-public.json").read_bytes()
         self.assertIn("build_autopilot_image.py", generated)
         self.assertIn("--check --env $envFile", generated)
         self.assertIn("$ConfirmExistingTemplate", generated)
+        self.assertIn("provision_foundry.py", generated)
+        self.assertNotIn("$ReuseFoundry", generated)
+        self.assertLess(generated.index("provision_foundry.py"), generated.index("--check --env $envFile"))
+        self.assertLess(generated.index("--check --env $envFile"), generated.index("build_autopilot_image.py"))
+        self.assertEqual(infrastructure, (SCRIPTS.parent / "templates/foundry-public/azuredeploy.json").read_bytes())
+
+    def test_scaffold_persists_confirmed_group_and_default_image_without_cloud_access(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary).resolve()
+            decisions = answers(resourceGroup={"mode": "existing", "name": "confirmed-rg"})
+            plan = scaffold.build_plan(decisions, target)
+            with (patch.object(scaffold, "scaffold_foundry_autopilot", return_value=set()),
+                  patch.object(scaffold, "place_profile_image"),
+                  patch.object(scaffold, "render_tree", return_value=set())):
+                scaffold.scaffold(plan, {}, False, decisions)
+            values = scaffold.load_dotenv(target / ".env")
+            self.assertEqual(values["AZURE_RESOURCE_GROUP_MODE"], "existing")
+            self.assertEqual(values["AZURE_RESOURCE_GROUP"], "confirmed-rg")
+            self.assertEqual(values["AGENT_IMAGE_NAME"], decisions["agentName"])
+
+    @unittest.skipUnless(shutil.which("powershell"), "Windows PowerShell is not installed")
+    def test_generated_powershell_has_valid_syntax(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary).resolve()
+            scaffold.write_deploy_script(target, target / "src" / "package")
+            path = str(target / "deploy.ps1").replace("'", "''")
+            command = (
+                "$tokens = $null; $errors = $null; "
+                f"[void][System.Management.Automation.Language.Parser]::ParseFile('{path}', "
+                "[ref]$tokens, [ref]$errors); "
+                "if ($errors.Count) { $errors | Write-Error; exit 1 }"
+            )
+            result = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", command],
+                                    capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    @unittest.skipUnless(shutil.which("powershell"), "Windows PowerShell is not installed")
+    def test_generated_powershell_runs_with_quoted_env_and_mocked_cloud_commands(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary).resolve()
+            package = target / "src" / "package"
+            package.mkdir(parents=True)
+            scaffold.write_deploy_script(target, package)
+            (target / ".env").write_text(
+                'AZURE_RESOURCE_GROUP_MODE="new"\nACR_LOGIN_SERVER="newregistry.azurecr.io"\n'
+                'AGENT_IMAGE_NAME="newagent"\n', encoding="utf-8")
+            script = r'''
+$ErrorActionPreference = "Stop"
+$script:calls = @()
+function python {
+    if ($args[0] -eq "-c") {
+        & '__PYTHON__' @args
+        if ($LASTEXITCODE -ne 0) { throw "dotenv reader failed" }
+        return
+    }
+    $script:calls += ,@($args)
+    $global:LASTEXITCODE = 0
+}
+function az {
+    $registryIndex = [array]::IndexOf($args, "--registry") + 1
+    $imageIndex = [array]::IndexOf($args, "--image") + 1
+    if ($args[$registryIndex] -ne "newregistry") { throw "Registry includes quotes" }
+    if ($args[$imageIndex] -notmatch "^newagent:\d+$") { throw "Invalid image tag" }
+    $global:LASTEXITCODE = 0
+}
+& '__DEPLOY__' -UseAzureCli
+if ($script:calls.Count -ne 4) { throw "Unexpected cloud command sequence" }
+if ($script:calls[0][0] -notlike "*provision_foundry.py") { throw "Provision must come first" }
+if ($script:calls[1][1] -ne "--check") { throw "Preflight must precede build" }
+if ($script:calls[3][1] -ne "--execute") { throw "Publish was not reached" }
+'''
+            script = script.replace("__PYTHON__", sys.executable.replace("'", "''"))
+            script = script.replace("__DEPLOY__", str(target / "deploy.ps1").replace("'", "''"))
+            result = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                                    capture_output=True, text=True, encoding="utf-8")
+            if result.returncode and "FullyQualifiedErrorId : UnauthorizedAccess" in result.stderr:
+                self.skipTest("System execution policy disallows script files; no policy bypass attempted")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 class ApprovalTests(unittest.TestCase):
@@ -157,12 +245,39 @@ class ExecutionTests(unittest.TestCase):
                   patch.object(runner.subprocess, "run", return_value=Mock(returncode=0)) as execute):
                 self.assertEqual(runner.main(), 2)
             commands = [call.args[0] for call in execute.call_args_list]
-            self.assertTrue(commands[0][1].endswith("prepare_first_stage.py"))
-            self.assertIn("--check", commands[1])
-            self.assertIn("-File", commands[2])
+            self.assertTrue(commands[0][1].endswith("provision_foundry.py"))
+            self.assertIn("--execute", commands[0])
+            self.assertTrue(commands[1][1].endswith("prepare_first_stage.py"))
+            self.assertIn("--check", commands[2])
+            self.assertIn("-File", commands[3])
+            self.assertIn("--new-foundation", commands[1])
+            self.assertNotIn("-ReuseFoundry", commands[3])
             state = json.loads((target / "first-stage-state.json").read_text())
             self.assertEqual(state["status"], "awaiting-approval-and-hire")
             self.assertNotEqual(state["status"], "passed")
+
+    def test_existing_group_choice_and_model_arguments_reach_provision_and_prepare(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = (Path(temporary) / "agent").resolve()
+            decision_file = Path(temporary) / "answers.json"
+            decision_file.write_text(json.dumps(answers(
+                resourceGroup={"mode": "existing", "name": "confirmed-rg"})), encoding="utf-8")
+            with (patch.object(sys, "argv", ["run_first_stage.py", "--target", str(target),
+                                            "--decisions", str(decision_file), "--model", "selected",
+                                            "--model-version", "selected-version", "--model-sku", "GlobalStandard"]),
+                  patch.object(runner.importlib, "import_module", return_value=scaffold),
+                  patch.object(scaffold, "scaffold"), patch.object(scaffold, "install_skills"),
+                  patch.object(scaffold, "skills_root", return_value=target / "skills"),
+                  patch.object(runner, "apply_decision_env") as apply,
+                  patch.object(runner, "deploy_hub"),
+                  patch.object(runner.subprocess, "run", return_value=Mock(returncode=0)) as execute):
+                self.assertEqual(runner.main(), 2)
+            apply.assert_any_call(target / ".env", {"AZURE_RESOURCE_GROUP_MODE": "existing",
+                                                    "AZURE_RESOURCE_GROUP": "confirmed-rg"})
+            command = execute.call_args_list[1].args[0]
+            self.assertIn("--new-foundation", command)
+            self.assertEqual(command[-6:], ["--model", "selected", "--model-version", "selected-version",
+                                           "--model-sku", "GlobalStandard"])
 
     def test_plan_has_no_cloud_or_filesystem_writes(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -73,6 +73,10 @@ ALLOWLIST = {
     "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",  # Azure 組み込みロール Storage Blob Data Owner のロール定義 ID（固定）
     "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d",  # Azure Databricks 第一者 resource app ID（全テナント共通）
     "a97b65f3-24c7-4388-baec-2e87135dc908",  # Azure 組み込みロール Cognitive Services User のロール定義 ID（固定）
+    "7f951dda-4ed3-4680-a7ca-43fe172d538d",  # Azure built-in AcrPull
+    "3913510d-42f4-4e42-8a64-420c390055eb",  # Azure built-in Monitoring Metrics Publisher
+    "73c42c96-874c-492b-b04d-ab87d138a893",  # Azure built-in Log Analytics Reader
+    "dbc9c667-e97f-4491-aee6-90b9cf960190",  # Azure built-in Privileged Monitoring Data Reader
     "8ebe5a00-799e-43f5-93ac-243d3dce84a7",  # Azure 組み込みロール Search Index Data Contributor のロール定義 ID（固定）
     "7ca78c08-252a-4471-8644-bb5ff32d4ba0",  # Azure 組み込みロール Search Service Contributor のロール定義 ID（固定）
     "9cee029c-6210-4654-90bb-17e6e9d36617",  # Power Platform CLI のパブリック クライアント ID（固定）
