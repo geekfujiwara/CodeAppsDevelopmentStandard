@@ -28,10 +28,16 @@
     "未発表の業績・価格・契約条件",
     "「社外秘」「関係者限り」と書かれた資料"
   ],
-  "emailEnabled": false,
+  "emailEnabled": true,
+  "externalEmailEnabled": false,
+  "imageGenerationEnabled": false,
+  "communicationStyle": {
+    "internal": {"tone": "friendly", "emoji": true},
+    "external": {"tone": "formal", "emoji": false}
+  },
   "profileImage": {
-    "mode": "generate",
-    "prompt": "落ち着いた緑のジャケットを着た、優しい表情の若い女性のイラスト"
+    "mode": "file",
+    "path": "assets/agent-icon.png"
   },
   "goal": "d",
   "poc": {

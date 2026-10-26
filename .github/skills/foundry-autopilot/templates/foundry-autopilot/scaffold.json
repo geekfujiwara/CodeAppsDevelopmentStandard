@@ -5,10 +5,16 @@
     "AGENT_ROLE",
     "AGENT_PERSONALITY",
     "EMAIL_POLICY",
+    "COMMUNICATION_STYLE",
+    "EXTERNAL_EMAIL_POLICY",
+    "IMAGE_POLICY",
     "SHARING_POLICY",
     "SENSITIVE_DATA_POLICY"
   ],
   "derivedVariables": [
-    "PKG"
+    "PKG",
+    "COMMUNICATION_STYLE",
+    "EXTERNAL_EMAIL_POLICY",
+    "IMAGE_POLICY"
   ]
 }

@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import importlib
 import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -49,8 +51,57 @@ def model_details(entry: dict[str, object]) -> tuple[str | None, str | None, str
     )
 
 
-def available_versions(resource_group: str, account: str, requested: str) -> list[tuple[str, str]]:
-    entries = run_az(
+def run_arm(*arguments: str) -> object:
+    """Transport for the initial stage; legacy callers may still explicitly use Azure CLI."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "standard" / "scripts"))
+    auth = importlib.import_module("auth_helper")
+    options = {arguments[index]: arguments[index + 1] for index in range(len(arguments) - 1)
+               if arguments[index].startswith("--")}
+    subscription = os.environ.get("AZURE_SUBSCRIPTION_ID")
+    if not subscription:
+        raise ValueError("AZURE_SUBSCRIPTION_ID is required for shared authentication.")
+    base = (f"https://management.azure.com/subscriptions/{subscription}/resourceGroups/"
+            f"{options['--resource-group']}/providers/Microsoft.CognitiveServices/accounts/{options['--name']}")
+    session = auth.get_session("https://management.azure.com/.default")
+    api = "?api-version=2024-10-01"
+    if arguments[2] == "list-models":
+        response = session.get(f"{base}/models{api}", timeout=60)
+        response.raise_for_status()
+        body = response.json()
+        if body.get("nextLink"):
+            raise RuntimeError("Image model catalogue is paginated; refusing an incomplete candidate list.")
+        return body["value"]
+    endpoint = f"{base}/deployments/{options['--deployment-name']}{api}"
+    if arguments[3] == "show":
+        response = session.get(endpoint, timeout=60)
+        if response.status_code == 404:
+            raise RuntimeError("ResourceNotFound")
+        response.raise_for_status()
+        return response.json()
+    if arguments[3] != "create":
+        raise ValueError("Unsupported image deployment operation.")
+    body = {
+        "sku": {"name": options["--sku-name"], "capacity": int(options["--sku-capacity"])},
+        "properties": {"model": {"name": options["--model-name"], "version": options["--model-version"],
+                                 "format": options["--model-format"]}},
+    }
+    response = session.put(endpoint, json=body, timeout=120)
+    response.raise_for_status()
+    for _ in range(120):
+        response = session.get(endpoint, timeout=60)
+        response.raise_for_status()
+        deployed = response.json()
+        state = deployed.get("properties", {}).get("provisioningState")
+        if state == "Succeeded":
+            return deployed
+        if state in {"Failed", "Canceled"}:
+            raise RuntimeError(f"Image model provisioning {state}.")
+        time.sleep(5)
+    raise TimeoutError("Image model provisioning did not finish within 10 minutes.")
+
+
+def available_versions(resource_group: str, account: str, requested: str, transport=None) -> list[tuple[str, str]]:
+    entries = (transport or run_az)(
         "cognitiveservices", "account", "list-models",
         "--resource-group", resource_group,
         "--name", account,
@@ -79,12 +130,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sku", help="Defaults to IMAGE_GENERATION_SKU or GlobalStandard.")
     parser.add_argument("--capacity", type=int, help="Defaults to IMAGE_GENERATION_CAPACITY or 1.")
     parser.add_argument("--check", action="store_true", help="Verify only; never create or update a deployment.")
+    parser.add_argument("--execute", action="store_true", help="Explicit apply (legacy default also applies).")
+    parser.add_argument("--shared-auth", action="store_true", help="Use auth_helper ARM calls instead of Azure CLI.")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     load_env(Path(args.env))
+    transport = run_arm if getattr(args, "shared_auth", False) else run_az
     resource_group = (
         args.resource_group
         or os.environ.get("AZURE_OPENAI_RESOURCE_GROUP")
@@ -100,17 +154,51 @@ def main() -> int:
     )
     sku = args.sku or os.environ.get("IMAGE_GENERATION_SKU") or "GlobalStandard"
     capacity = args.capacity or int(os.environ.get("IMAGE_GENERATION_CAPACITY", "1"))
+    existing_version = None
+    if getattr(args, "shared_auth", False) and resource_group and account and not model:
+        if deployment:
+            try:
+                current = transport("cognitiveservices", "account", "deployment", "show",
+                                    "--resource-group", resource_group, "--name", account,
+                                    "--deployment-name", deployment)
+            except RuntimeError as error:
+                if "resourcenotfound" not in str(error).lower():
+                    raise
+                current = None
+            if isinstance(current, dict):
+                current_model = current.get("properties", {}).get("model", {})
+                model, existing_version = current_model.get("name"), current_model.get("version")
+                if not args.sku and not os.environ.get("IMAGE_GENERATION_SKU"):
+                    sku = current.get("sku", {}).get("name") or sku
+        if not model:
+            offered = transport("cognitiveservices", "account", "list-models",
+                                "--resource-group", resource_group, "--name", account)
+            candidates = []
+            for entry in offered:
+                details = entry.get("model", entry)
+                capabilities = details.get("capabilities") or {}
+                if (str(capabilities.get("imageGeneration", "")).lower() == "true"
+                        or str(details.get("name", "")).startswith("gpt-image")):
+                    candidates.append({"model": details.get("name"), "version": details.get("version"),
+                                       "skus": details.get("skus", [])})
+            print(json.dumps({"status": "image-model-selection-required", "account": account,
+                              "candidates": candidates}, ensure_ascii=False, indent=2))
+            print("Choose an offered image model/version/SKU and record IMAGE_GENERATION_MODEL, "
+                  "IMAGE_GENERATION_MODEL_VERSION, IMAGE_GENERATION_SKU and IMAGE_MODEL_DEPLOYMENT in .env.",
+                  file=sys.stderr)
+            return 2
     if not all((resource_group, account, model, deployment)):
         raise ValueError("resource group, account, model, and deployment are required (arguments or .env).")
     if capacity < 1:
         raise ValueError("capacity must be at least 1.")
 
-    versions = available_versions(resource_group, account, model)
+    versions = available_versions(resource_group, account, model, transport)
     if not versions:
         print(f"Model '{model}' is not offered by account '{account}'. No deployment was changed.", file=sys.stderr)
         return 2
 
-    selected_version = args.model_version or versions[0][0]
+    selected_version = (args.model_version or os.environ.get("IMAGE_GENERATION_MODEL_VERSION")
+                        or existing_version or versions[0][0])
     matches = [entry for entry in versions if entry[0] == selected_version]
     if not matches:
         offered = ", ".join(version for version, _ in versions)
@@ -123,7 +211,7 @@ def main() -> int:
     model_format = matches[0][1]
 
     try:
-        existing = run_az(
+        existing = transport(
             "cognitiveservices", "account", "deployment", "show",
             "--resource-group", resource_group,
             "--name", account,
@@ -154,7 +242,7 @@ def main() -> int:
         print(f"Deployment '{deployment}' does not exist. No deployment was changed.", file=sys.stderr)
         return 4
 
-    created = run_az(
+    created = transport(
         "cognitiveservices", "account", "deployment", "create",
         "--resource-group", resource_group,
         "--name", account,
@@ -169,6 +257,10 @@ def main() -> int:
     properties = created_value.get("properties") if isinstance(created_value.get("properties"), dict) else {}
     deployed_model = properties.get("model") if isinstance(properties.get("model"), dict) else {}
     created_sku = created_value.get("sku") if isinstance(created_value.get("sku"), dict) else {}
+    if (deployed_model.get("name"), deployed_model.get("version"), created_sku.get("name")) != (model, selected_version, sku):
+        print("Created image deployment does not match the selected model/version/SKU. Verification failed.",
+              file=sys.stderr)
+        return 3
     print(
         f"Created: {deployment} -> {deployed_model.get('name')} {deployed_model.get('version')} "
         f"({created_sku.get('name')}, capacity {created_sku.get('capacity')})"

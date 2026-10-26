@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "conversation",
+      "prompt": "初回受入テストです。自己紹介を一文で返してください。回答に識別子 {marker} を含めてください。",
+      "tools": []
+    },
+    {
+      "id": "workiq-calendar",
+      "prompt": "Work IQ の予定表ツールを実際に使って、次の平日9時から18時の間で私とあなたの30分の会議候補を2つ調べてください。まだ招待は送らないでください。日時は HH:mm 形式、タイムゾーンは JST（日本時間）で明記し、識別子 {marker} を回答に含めてください。",
+      "tools": ["Calendar"]
+    },
+    {
+      "id": "news-web",
+      "prompt": "Web検索を実際に使い、今日のMicrosoftの公開ニュースを2件調べ、公開日と出典リンクを付けてください。識別子 {marker} を回答に含めてください。",
+      "tools": ["search|browse|web"],
+      "links": true
+    },
+    {
+      "id": "skills-document",
+      "prompt": "文書作成スキルを実際に読み、最新の公開ニュース2件をWebで調べ、美しい日本語のHTML資料を作成してください。余白、配色、見出し、比較表、出典へのリンク、viewportを持つレスポンシブデザインにし、JavaScriptは含めません。資料のタイトルと本文に {marker} を含めてください。ファイルをOneDriveに保存し、匿名でない組織内の共有リンクをこの会話に返してください。リンクはHTMLファイルそのものを指すようにしてください。",
+      "tools": ["skill", "deliver_file|upload|create_file"],
+      "document": true
+    },
+    {
+      "id": "image",
+      "enabledBy": "IMAGE_GENERATION_ENABLED",
+      "prompt": "識別子 {marker} の受入テストとして、青い幾何学模様のオリジナル画像を1枚生成し、この会話に画像として投稿してください。実在の人物や既存キャラクターは描きません。",
+      "tools": ["generate_image"],
+      "image": true
+    },
+    {
+      "id": "schedule",
+      "prompt": "識別子 {marker} の初回受入テストです。今から2分後に一度だけ、この会話に最新の公開ニュースを1件、Web検索した出典リンク付きで届けてください。定期実行を登録してください。予定のタイトルと実行時の依頼文にも識別子 {marker} を入れてください。これは登録の承認も含みます。",
+      "tools": ["create_schedule"],
+      "schedule": true
+    }
+  ]
+}
