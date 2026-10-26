@@ -100,7 +100,8 @@ def main() -> int:
     if report["conflicts"]:
         print("Local files were preserved. Review and merge relevant differences before continuing.")
         return 2
-    print("Workspace files ready. Continue with authentication, document discovery and architecture; do not stop here."
+    print("Workspace files ready. Authenticate, pause for intent confirmation, then continue with "
+          "documentation, architecture, full development deployment and runtime verification; do not stop here."
           if args.apply else "Plan only. Re-run with --apply to install.")
     return 0
 

@@ -144,15 +144,18 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 
 `--dry-run` で生成計画を確認 → 問題なければ外して実行、を既定の流れにする。
 
-## 8. 変数を AskUserQuestion で聞いてから生成する（`questions`）
+## 8. 未解決の変数を調査し、必要な判断だけ質問する（`questions`）
 
 環境ごとに違う値（環境 ID・プレフィックス・リソース名など）が多いテンプレートは、`scaffold.json` に `questions` を書き、
-エージェントが**1 問ずつ AskUserQuestion で聞いてから**生成する。手順を読ませて値を探させるより漏れが無い。
+エージェントが既存 `.env`・資料・承認済み設定・環境 API・`detect`・`sameAs`・安全な既定値から解決して生成する。
+`questions` は変数を漏らさないための一覧であり、各項目でポップアップを出す指示ではない。
+クイックスタートでは認証後の要望確認で必ず一度停止し、その回答後は自分で分かることを調べて進む。
+本人の判断が不可欠な未解決値・承認範囲外の操作だけを AskUserQuestion で確認する。
 
 ```powershell
 # 1. まだ答えの無い質問（JSON）。detect があれば先に調べて choices に並べ、default は推奨として先頭に置く
 python .github/skills/update-skills/scripts/scaffold_from_template.py --template <dir> --questions --env answers.env
-# 2. 1 問ずつ聞いて answers.env に KEY=VALUE を追記 → 1. が [] になるまで繰り返す
+# 2. 調査結果を answers.env に KEY=VALUE で保存。調べられない必須判断だけ質問 → 1. が [] になるまで解決
 # 3. 生成し、答えをアプリの .env にも書く（既にあるキーは上書きしない）
 python .github/skills/update-skills/scripts/scaffold_from_template.py --template <dir> --target <out> --env answers.env --write-env <out>/.env
 ```

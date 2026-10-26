@@ -128,8 +128,11 @@ triggers:
 2. `templates/<template-name>/scaffold.json` に変数・機能ブロック・次の手順を宣言する。
    マニフェストを置くと `validate_skill.py` の**未宣言変数チェックが有効**になる。
 3. `SKILL.md` には生成コマンド 1 行だけ書く（テンプレートの中身は説明しない）。
-4. 環境ごとに違う値が多いときは `scaffold.json` に `questions` を書き、`--questions` の順に AskUserQuestion で 1 問ずつ聞いてから生成する
-   （`--write-env` で答えをアプリの `.env` にも書く。詳細は [scaffolding.md](references/scaffolding.md) の 8 節）。
+4. 環境ごとに違う値が多いときは `scaffold.json` に `questions` を書く。
+   `--questions` は未解決値の一覧として使い、既存 `.env`・資料・環境 API・`detect`・`sameAs`・安全な既定値から先に解決する。
+   クイックスタートの認証後の要望確認以降は、各変数を AskUserQuestion で逐一聞かず、
+   承認範囲外または本人の決定が不可欠な未解決値だけを質問する
+   （`--write-env` で設定をアプリの `.env` にも書く。詳細は [scaffolding.md](references/scaffolding.md) の 8 節）。
 
 ```powershell
 # 生成計画の確認 → 問題なければ --dry-run を外す

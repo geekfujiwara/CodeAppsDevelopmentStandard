@@ -3,6 +3,13 @@
 プロジェクト新規開始時に **PAC CLI** と **Dataverse API** を使って `.env` を対話的に構成する。
 手動でセッション詳細を開く必要がなく、エージェントがユーザーに選択肢を提示して進める。
 
+**クイックスタートでは [quickstart.md](quickstart.md) Step 0〜3 を優先する。**
+認証後の要望確認では必ず一度停止するが、その回答後は既存 `.env`・資料・テンプレート・読み取り API で
+分かる環境・publisher・solution 等を自分で調べて選ぶ。
+以下の通常対話モードの「選択・名前入力」は各項目で必ず AskUserQuestion を出す指示ではない。
+承認範囲外・本番しかない・テナント不明など、本人の判断が不可欠な不足事項だけ確認する。
+新しい開発構成の名前は既存命名規則から提案・決定し、既知の値を聞き直さない。
+
 > 前提: PAC CLI がインストール済み（VS Code 拡張機能『Power Platform Tools』 or `dotnet tool install --global Microsoft.PowerApps.CLI.Tool`）。
 > PAC CLI は npm では配布されていない。`@microsoft/power-apps-cli` は別物（Code Apps 用の `power-apps` コマンド）なので混同しないこと。
 
@@ -38,10 +45,10 @@ PythonはWindowsの指定Edgeプロファイルを使用する。npm CLIは別�
 
 ## Step 1: .github スキルのダウンロード
 
-新規のクイックスタートは [quickstart.md](quickstart.md) Step 1 の
+新規のクイックスタートは [quickstart.md](quickstart.md) Step 0 の
 `scripts/initialize_workspace.py` で `.github/agents` / `.github/skills` / `.gitignore` を安全に配置する。
 既存の標準・社内ルール・`.gitignore` を `--force` や `cp` で上書きしない。
-この配置だけで終了せず、環境候補・認証・仕様整理・architecture 提案まで進む。
+この配置だけで終了せず、認証後の要望確認を経て、仕様整理・architecture・フル構成の開発デプロイ・実動作検証まで進む。
 
 > ブラウザ操作（ポータルのフォーム入力等）は **VS Code 統合ブラウザツール**を使う。
 > Playwright MCP のインストール・`.vscode/mcp.json` への登録は行わない
