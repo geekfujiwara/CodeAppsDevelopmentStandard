@@ -100,6 +100,7 @@ export const ENTITIES: Record<EntityKey, EntityDef> = {
       { name: p("accountid"), label: "取引先企業", type: "lookup", target: "account", nav: p("accountid"), inList: true },
       { name: p("contactid"), label: "主担当者", type: "lookup", target: "contact", nav: p("contactid") },
       { name: p("stage"), label: "ステージ", type: "picklist", options: STAGE_OPTIONS, inList: true },
+      { name: p("lossreason"), label: "失注理由", type: "memo" },
       { name: p("amount"), label: "金額", type: "money", inList: true },
       { name: p("probability"), label: "確度(%)", type: "number", inList: true },
       { name: p("estimatedclosedate"), label: "クローズ予定日", type: "date", inList: true },

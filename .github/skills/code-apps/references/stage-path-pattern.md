@@ -11,6 +11,10 @@
 `processstage`やBPFインスタンスを新設せず、AIエージェントにも同じ本体列を更新させる。
 自動生成する進捗履歴は変更先ではない。テーブル種別と列型は
 `sales-crm/scripts/setup_crm_dataverse.py` の事前検証を通す。
+営業CRM scaffoldには同期商談規則と自動履歴を標準同梱する。
+`build_opportunity_rules.ps1` → 承認付き`deploy_opportunity_rules.py` → `verify_stage_update.py`で構築・検証する。
+履歴要求は署名列で搬送して保存前に除去する。親writerコンテキストやtagの追加に依存しない。
+失注矢羽では理由入力を促し、理由とステージを同じ更新で送る。確度とクローズ日補完はサーバーに任せる。
 
 > プレースホルダー `{prefix}` とテーブル名・OptionSet 値はプロジェクトに読み替える。コンポーネント本体はそのまま流用できる。
 

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net462</TargetFramework>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\SalesCrm.Plugins\HistoryPermit.cs" Link="HistoryPermit.cs" />
+    <Compile Include="..\SalesCrm.Plugins\OpportunityRules.cs" Link="OpportunityRules.cs" />
+    <Reference Include="Microsoft.Xrm.Sdk">
+      <HintPath>..\SalesCrm.Plugins\bin\Release\net462\Microsoft.Xrm.Sdk.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.ServiceModel" />
+  </ItemGroup>
+</Project>

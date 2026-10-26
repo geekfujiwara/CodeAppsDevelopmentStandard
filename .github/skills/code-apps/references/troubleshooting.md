@@ -3260,6 +3260,20 @@ Python共有キャッシュが使えてもnpm CLIの別resource認証が必要�
 
 ## CRMのステージ矢羽をBPFと誤認する場合
 
+営業CRMの自動履歴は標準scaffoldの同期プラグインで生成する。
+MCPでは内部Createの親チェーンから商談writerが省略される場合があるため、
+親stepだけの許可判定や祖先SharedVariablesへの許可格納に依存しない。
+tag方式でSandboxFabricの重複キー例外が発生した例もあるが、重複キー名は未確認で原因を断定しない。
+標準はHMAC署名を任意の`{prefix}_historypermit`列で渡して保存前に除去する。
+偽造・別本人・別correlation・期限切れを拒否し、直接履歴編集の保護を解除しない。
+要求署名鍵はsecure configurationで再利用する。exportには含まれないので移行先で別途登録する。
+
+**恒久対策済み**: `deploy_opportunity_rules.py`の`preflight()`が既存テーブル種別・Choice列・署名列型・
+他プラグインを含むassemblyと署名identityを配備前に検証する。
+`test_sales_crm_stage_history.py`とC#34項目が省略親・署名除去・偽造拒否を回帰検証する。
+`verify_stage_update.py`の実環境13項目では署名列の明示null読み戻し・同値再送・rollback・cleanupを確認する。
+本人MCPの成功はSDK成功とは別に検証し、一時トレース設定は実会話照合後に復元する。
+
 ステージ矢羽は通常テーブルのChoice列を表示するReact部品で、BPFではない。
 履歴保護プラグインの「進捗履歴は…直接変更できません」はBPFの製品エラーではない。
 商談本体と履歴の実メタデータ、呼び出したテーブル・操作・送信列を確認する。

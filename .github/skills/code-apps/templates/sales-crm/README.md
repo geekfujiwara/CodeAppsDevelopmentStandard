@@ -30,8 +30,8 @@ Outlook / Teams への連携は **下書きを開くディープリンク**（�
 `setup_crm_dataverse.py` は確認時・構築前に既存テーブルの種類とステージ列を検証し、
 BPF・活動・非StandardテーブルやChoice以外のステージ列を検出すると書き込み前に停止する。
 既存の別種テーブルを自動変換・削除しない。APIの403/500も「テーブルなし」と扱わない。
-このテンプレート自体には履歴プラグインは含まれない。別途自動履歴を導入した場合も、
-履歴は通常の従属テーブルとし、本体更新時にサーバー側で生成する。
+同期商談規則と自動履歴プラグインを標準同梱する（`server/SalesCrm.Plugins`）。
+履歴は通常の従属テーブル `{prefix}_crmstagehistory` で、本体更新と同じトランザクションで生成する。
 「進捗履歴は…直接変更できません」という独自プラグインのエラーはBPF使用の証拠ではない。
 実際の更新テーブル・操作・送信列を確認し、正しい商談更新でも失敗する場合は
 プラグイントレースと実ツールの入出力で調査する。履歴保護を解除して回避しない。
@@ -56,6 +56,52 @@ python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse
   --allow-interactive
 npm run deploy                                    # 2 回目以降
 ```
+
+## 標準の商談規則・自動履歴を配備する
+
+初回Code Apps pushを止めず、その後の標準工程として実行する。scaffoldはソースを生成するだけで、
+Dataverseへの配備は変更承認後に行う。WindowsのPowerShellと.NET SDKが必要。
+
+```powershell
+# 新規配備のみ: ローカルで署名鍵を生成し、プラグインと34項目のC#試験をビルド・実行
+powershell -NoProfile -File scripts/build_opportunity_rules.ps1 -InitializeSigningKey
+# 既存配備では元のSalesCrm.Plugins.snkを安全に復元して、同フラグなしでビルド
+python scripts/deploy_opportunity_rules.py --expected-url <DATAVERSE_URL>
+# スキーマ・7同期step・プラグイン更新の承認後
+python scripts/deploy_opportunity_rules.py --expected-url <DATAVERSE_URL> --apply
+# 合成商談の作成・更新・削除の承認後（既存業務商談は変更しない）
+python scripts/verify_stage_update.py --expected-url <DATAVERSE_URL> --apply
+```
+
+- Createでステージ省略/nullなら見込み。明示ステージは維持し、初期履歴も生成する。
+- ステージ変更時のみ履歴を1件生成。同値再送では追加せず、失敗時は本体・履歴ともrollbackする。
+- 受注は確度100、失注は0で理由必須。実クローズ日を補完し、再開時はクリアする。
+- UIの失注矢羽は理由入力の編集へ移り、理由とステージを一緒に保存する。
+- 履歴の直接Create/Update/Deleteを保護し、本体削除・所有者連動だけ従来のcascadeを許可する。
+- 自動Createの正当性はHMAC-SHA256で履歴GUID・内容・本人・correlation・5分の期限に束縛する。
+  搬送専用の任意String(128)列 `{prefix}_historypermit` をPreOperationで検証・除去する。
+  フォーム・AIの更新列に含めず、監査無効、保存値はnull。tagや祖先SharedVariablesには書き込まない。
+- 要求署名鍵はDataverse secure configurationにランダム生成し、7stepで共有・再利用する。
+  `.env`・ソース・ログ・検証JSON・Gitへ鍵を書かない。ビルド用の`.snk`もGit除外・安全にバックアップする。
+- secure configurationはソリューションexportに含まれない。移行先は承認後に登録スクリプトで生成・結線する。
+- 再配備は既存の通常テーブル種別・Choice列・署名列型・鍵構成・assembly署名identityを事前検証する。
+  他プラグインを含む既存assemblyは上書きせず停止する。元ソースを含む専用配備手順を使う。
+- 権限は本人contextを維持する。履歴のCreate・Read・関連商談へのAppend/AppendTo等は
+  Dataverseのセキュリティロール設計で付与し、管理者権限やプラグイン回避を利用者に要求しない。
+
+仕様根拠: [プラグイン登録・secure configuration・同期ステージ](https://learn.microsoft.com/power-apps/developer/data-platform/register-plug-in)。
+secure configurationはstepのconstructor引数で受け取り、PreOperationでTargetを変更する。
+
+### Copilot Studio / Coworkのステージ更新契約
+
+本人接続のDataverse MCPから商談LogicalName `{prefix}_crmopportunity` を検索し、
+依頼されたID・変更先・失注理由を確定後、`{prefix}_stage`（失注時は`{prefix}_lossreason`も）を更新する。
+BPF・表示ラベル・履歴・署名列は更新しない。
+履歴検索は `_{prefix}_opportunityid_value` のLookup列で絞り、
+`{prefix}_fromstage` / `{prefix}_tostage` / `createdon` を読む。
+読み戻しで本体と履歴1件の一致を確認する。応答エラー時は再更新せず状態照合・調査に止める。
+SDKの13項目成功はMCPの実会話成功ではない。本人接続でのCreate・ステージ変更・同値再送・
+履歴保護を実環境の受け入れゲートとする。診断で一時的に有効化したtraceは検証後に元へ戻す。
 
 > データソース未追加の状態でも初回 push できるよう、`src/lib/dataverse-client.ts` は生成サービスを
 > `import.meta.glob` で遅延解決する。未追加のまま開くと各画面に追加手順が表示される。

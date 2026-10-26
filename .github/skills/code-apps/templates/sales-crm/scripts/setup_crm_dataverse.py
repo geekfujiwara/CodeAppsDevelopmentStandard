@@ -86,6 +86,7 @@ TABLES = [
     {"name": c("crmopportunity"), "en": "CRM Opportunity", "ja": "商談", "columns": [
         {"name": c("amount"), "type": "Money", "en": "Amount", "ja": "金額"},
         picklist("stage", "Stage", "ステージ", STAGES),
+        {"name": c("lossreason"), "type": "Memo", "en": "Loss Reason", "ja": "失注理由"},
         {"name": c("probability"), "type": "Integer", "en": "Probability", "ja": "確度", "min": 0, "max": 100},
         {"name": c("estimatedclosedate"), "type": "Date", "en": "Estimated Close Date", "ja": "クローズ予定日"},
         {"name": c("actualclosedate"), "type": "Date", "en": "Actual Close Date", "ja": "実クローズ日"},
