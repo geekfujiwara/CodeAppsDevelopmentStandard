@@ -19,6 +19,23 @@ Outlook / Teams への連携は **下書きを開くディープリンク**（�
 標準の `account` / `contact` / `systemuser`（上長 = `parentsystemuserid` で「自分のチーム」を判定）。
 既存テーブルがあればそのまま使い、無ければ `scripts/setup_crm_dataverse.py --apply` で作成する。
 
+### ステージはBPFではなく通常テーブルのChoice列
+
+業務テーブルは通常のDataverseテーブル（`TableType=Standard`、`IsBPFEntity=false`、
+`IsActivity=false`）。商談の `{prefix}_stage` はChoice（Picklist）列であり、
+矢羽はReactの表示部品で、Business Process Flow（BPF）ではない。
+ステージ変更は商談本体の該当列だけを更新する。`processstage`、BPFインスタンス、
+`activestageid`、進捗履歴を変更先にしない。Code AppsとCopilot Studioの両方で同じ更新先を使う。
+
+`setup_crm_dataverse.py` は確認時・構築前に既存テーブルの種類とステージ列を検証し、
+BPF・活動・非StandardテーブルやChoice以外のステージ列を検出すると書き込み前に停止する。
+既存の別種テーブルを自動変換・削除しない。APIの403/500も「テーブルなし」と扱わない。
+このテンプレート自体には履歴プラグインは含まれない。別途自動履歴を導入した場合も、
+履歴は通常の従属テーブルとし、本体更新時にサーバー側で生成する。
+「進捗履歴は…直接変更できません」という独自プラグインのエラーはBPF使用の証拠ではない。
+実際の更新テーブル・操作・送信列を確認し、正しい商談更新でも失敗する場合は
+プラグイントレースと実ツールの入出力で調査する。履歴保護を解除して回避しない。
+
 ## 空のディレクトリから始める
 
 ```powershell

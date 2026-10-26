@@ -6,6 +6,12 @@
 - 「失注」「不認定」など否定的な終端ステージは赤系で表示（`negativeValue`）
 - `onSelect` を渡すとクリックで `value` を返す（詳細画面でその場ステージ変更 → patch）。省略すると読み取り専用表示
 
+これはReactの表示部品であり、DataverseのBusiness Process Flow（BPF）ではない。
+既定は通常テーブル（`TableType=Standard`、`IsBPFEntity=false`）のChoice列を更新する。
+`processstage`やBPFインスタンスを新設せず、AIエージェントにも同じ本体列を更新させる。
+自動生成する進捗履歴は変更先ではない。テーブル種別と列型は
+`sales-crm/scripts/setup_crm_dataverse.py` の事前検証を通す。
+
 > プレースホルダー `{prefix}` とテーブル名・OptionSet 値はプロジェクトに読み替える。コンポーネント本体はそのまま流用できる。
 
 ---
