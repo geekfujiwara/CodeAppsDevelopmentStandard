@@ -6,7 +6,9 @@ agentUser（自分のメールアドレスと予定表を持つ ID）が払い�
 同僚として呼べるようになります。
 
 頭脳は **GitHub Copilot SDK**（`runtime=copilot-sdk` に固定）で、モデルは**このテナント自身の
-Foundry デプロイ**を BYOK で使います。追加のモデル クォータも API キーも登場しません。
+Foundry デプロイ**を BYOK で使います。API キーではなく Entra ID / Managed Identity で認証します。
+ライブカタログからモデルを選び、新規 Foundry 内へデプロイします。既存 Azure 資産は流用しません。
+新規モデルには利用可能なクォータ・容量が必要です。
 
 ## このディレクトリの構成
 
@@ -31,19 +33,39 @@ Foundry デプロイ**を BYOK で使います。追加のモデル クォータ
 
 ## 動かすまで
 
-```powershell
-# 1. Azure 側（Foundry アカウント / プロジェクト / ACR / Toolbox）を作る（既存を使うなら不要）
-azd up
+初回のフル構成は、標準の `run_first_stage.py --decisions <回答JSON> --target <配置先>` が
+新規基盤 → コンテキスト探索・モデル準備 → scaffold → 評価Hub → ビルド・発行まで進めます。
+認証は `auth_helper.py` の共通キャッシュを使い、追加の `azd up` / `az login` は不要です。
+必要な本人認証・管理者同意・M365 承認・Teams 採用は省略しません。
 
-# 2. 初回: ビルド → version 作成 → Autopilot として発行
+生成されたこのプロジェクトのデプロイスクリプトも、既定で同梱
+`infra/foundry-public.json` から新規公開基盤を準備します。
+Foundry account / project・Basic ACR・Log Analytics / Application Insights・project MI の
+必要な RBAC を含み、VNet / Firewall / Private DNS の構築を待ちません。
+公開は匿名ではなく Entra 認証です。同じ bootstrap 所有資産なら再実行でき、
+別の既存資産の取り込みや既存 private 設定の公開化はしません。
+格納先の RG だけは新規作成／既存利用を本人に確認し、全 Azure 資産をその1つに集約します。
+回答は decisions JSON の `resourceGroup`、生成後は `.env` の
+`AZURE_RESOURCE_GROUP_MODE=new` または `existing` と `AZURE_RESOURCE_GROUP` に保存します。
+モード未確認・既存 RG 名未確認では基盤作成しません。
+
+```powershell
+# 1. 初回: 新規公開基盤 → 発行前チェック → ビルド → version 作成 → Autopilot として発行
+# .env に AGENT_NAME・共通認証・モデル・公開設定等を準備済みで実行する
 ./deploy.ps1 -Publish
 
-# 3. 定期実行のタイマー（SCHEDULE_ENABLED=true のとき）
+# 2. 定期実行のタイマー（SCHEDULE_ENABLED=true のとき）
 python <skill>/scripts/provision_schedule_trigger.py --execute --env .env
 
-# 4. コードを直したとき: 新しい version を作り、古い version に固定されたチャットを作り直す
-./deploy.ps1
+# 3. 検証済み Agent template のコードだけを直したとき
+./deploy.ps1 -ContainerOnly -ConfirmExistingTemplate
 ```
+
+`AZURE_LOCATION` は未指定なら `japaneast`。ポリシーで public が禁止されている場合や
+RBAC 割当権限が不足する場合は停止し、設定の緩和や別 hosting への切替はしません。
+モデル・Toolbox・ライセンスの準備は、基盤作成だけで完了したことにはなりません。
+発行後も M365 Requests の **Type = Agent template** と Teams **Agents for your team** の
+採用を確認するまで未完了です。
 
 > **publish をやり直すときは `--bump-version` を付けてください。** 同じ `appVersion` の再送は
 > `UserError: version already exists` で落ちます。また `accessBoundaries` を変更した場合は、

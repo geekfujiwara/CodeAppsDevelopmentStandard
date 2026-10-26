@@ -9,6 +9,10 @@
   "preset": "role",
   "runtime": "copilot-sdk",
   "hosting": "foundry-autopilot",
+  "resourceGroup": {
+    "mode": "new",
+    "name": ""
+  },
   "roles": ["R1"],
   "blocks": ["B9", "B10"],
   "entryPoints": {

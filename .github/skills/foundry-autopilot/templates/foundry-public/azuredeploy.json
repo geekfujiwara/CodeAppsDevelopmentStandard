@@ -1,0 +1,161 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": { "type": "string", "defaultValue": "japaneast" },
+    "accountName": { "type": "string" },
+    "projectName": { "type": "string" },
+    "registryName": { "type": "string" },
+    "bootstrapId": { "type": "string" },
+    "ownerObjectId": { "type": "string" },
+    "ownerRoleDefinitionId": { "type": "string" }
+  },
+  "variables": {
+    "tags": { "aiTeammateBootstrap": "[parameters('bootstrapId')]" },
+    "projectId": "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('accountName'), parameters('projectName'))]",
+    "workspaceName": "[concat(parameters('accountName'), '-logs')]",
+    "insightsName": "[concat(parameters('accountName'), '-insights')]",
+    "monitoringRoles": [
+      "3913510d-42f4-4e42-8a64-420c390055eb",
+      "73c42c96-874c-492b-b04d-ab87d138a893",
+      "dbc9c667-e97f-4491-aee6-90b9cf960190"
+    ]
+  },
+  "resources": [
+    {
+      "type": "Microsoft.CognitiveServices/accounts",
+      "apiVersion": "2025-09-01",
+      "name": "[parameters('accountName')]",
+      "location": "[parameters('location')]",
+      "kind": "AIServices",
+      "sku": { "name": "S0" },
+      "identity": { "type": "SystemAssigned" },
+      "tags": "[variables('tags')]",
+      "properties": {
+        "allowProjectManagement": true,
+        "customSubDomainName": "[parameters('accountName')]",
+        "publicNetworkAccess": "Enabled",
+        "disableLocalAuth": true,
+        "networkAcls": { "defaultAction": "Allow", "ipRules": [], "virtualNetworkRules": [] }
+      }
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts/projects",
+      "apiVersion": "2026-03-01",
+      "name": "[concat(parameters('accountName'), '/', parameters('projectName'))]",
+      "location": "[parameters('location')]",
+      "kind": "AIServices",
+      "sku": { "name": "S0" },
+      "identity": { "type": "SystemAssigned" },
+      "tags": "[variables('tags')]",
+      "dependsOn": ["[resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName'))]"],
+      "properties": { "displayName": "[parameters('projectName')]" }
+    },
+    {
+      "type": "Microsoft.ContainerRegistry/registries",
+      "apiVersion": "2023-07-01",
+      "name": "[parameters('registryName')]",
+      "location": "[parameters('location')]",
+      "sku": { "name": "Basic" },
+      "tags": "[variables('tags')]",
+      "properties": { "adminUserEnabled": false, "publicNetworkAccess": "Enabled" }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('workspaceName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": { "retentionInDays": 30, "sku": { "name": "PerGB2018" } }
+    },
+    {
+      "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
+      "name": "[variables('insightsName')]",
+      "location": "[parameters('location')]",
+      "kind": "web",
+      "tags": "[variables('tags')]",
+      "dependsOn": ["[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"],
+      "properties": {
+        "Application_Type": "web",
+        "DisableLocalAuth": true,
+        "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"
+      }
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts/projects/connections",
+      "apiVersion": "2025-09-01",
+      "name": "[concat(parameters('accountName'), '/', parameters('projectName'), '/telemetry')]",
+      "dependsOn": [
+        "[variables('projectId')]",
+        "[resourceId('Microsoft.Insights/components', variables('insightsName'))]"
+      ],
+      "properties": {
+        "category": "AppInsights",
+        "authType": "ProjectManagedIdentity",
+        "isSharedToAll": false,
+        "target": "[resourceId('Microsoft.Insights/components', variables('insightsName'))]",
+        "metadata": {
+          "ApiType": "Azure",
+          "ResourceId": "[resourceId('Microsoft.Insights/components', variables('insightsName'))]",
+          "ApplicationInsightsConnectionString": "[reference(resourceId('Microsoft.Insights/components', variables('insightsName')), '2020-02-02').ConnectionString]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName')), variables('projectId'), 'model-access')]",
+      "scope": "[concat('Microsoft.CognitiveServices/accounts/', parameters('accountName'))]",
+      "dependsOn": ["[variables('projectId')]"],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')]",
+        "principalId": "[reference(variables('projectId'), '2026-03-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.Insights/components', variables('insightsName')), variables('projectId'), variables('monitoringRoles')[copyIndex()])]",
+      "scope": "[concat('Microsoft.Insights/components/', variables('insightsName'))]",
+      "copy": { "name": "monitoringRoleAssignments", "count": "[length(variables('monitoringRoles'))]" },
+      "dependsOn": [
+        "[variables('projectId')]",
+        "[resourceId('Microsoft.Insights/components', variables('insightsName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('monitoringRoles')[copyIndex()])]",
+        "principalId": "[reference(variables('projectId'), '2026-03-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName')), variables('projectId'), 'image-pull')]",
+      "scope": "[concat('Microsoft.ContainerRegistry/registries/', parameters('registryName'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName'))]",
+        "[variables('projectId')]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+        "principalId": "[reference(variables('projectId'), '2026-03-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName')), parameters('ownerObjectId'), parameters('ownerRoleDefinitionId'))]",
+      "scope": "[concat('Microsoft.CognitiveServices/accounts/', parameters('accountName'))]",
+      "dependsOn": ["[resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName'))]"],
+      "properties": {
+        "roleDefinitionId": "[parameters('ownerRoleDefinitionId')]",
+        "principalId": "[parameters('ownerObjectId')]",
+        "principalType": "User"
+      }
+    }
+  ]
+}

@@ -178,6 +178,36 @@ class DiscoveryTests(unittest.TestCase):
         self.assertNotIn(jwt(), json.dumps(result))
         self.helper.authenticate.assert_not_called()
 
+    def setup_new_foundation(self):
+        self.args.new_foundation = True
+        self.config = {"FOUNDRY_ACCOUNT_NAME": "host", "AZURE_RESOURCE_GROUP": "host-rg"}
+        host = self.data[ACCOUNTS_URL]["value"][0]
+        host["location"] = "japaneast"
+        host["properties"]["endpoints"] = {"Azure OpenAI": "https://host.openai.azure.com"}
+        self.data[stage.ARM + ACCOUNT_ID + "/deployments"] = {"value": []}
+
+    def test_new_foundation_never_uses_another_accounts_existing_chat_model(self):
+        self.setup_new_foundation()
+        result = self.discover()
+        self.assertEqual(result["status"], "model-selection-required")
+        self.assertFalse(any(MODEL_ID + "/deployments" in url for _, url, _ in self.transport.calls))
+
+    def test_new_foundation_model_is_created_in_the_same_group_and_account(self):
+        self.setup_new_foundation()
+        self.explicit_model()
+        result = self.discover()
+        self.assertTrue(result["model_deployment"]["url"].startswith(stage.ARM + ACCOUNT_ID + "/deployments/"))
+        self.assertEqual(result["values"]["AZURE_OPENAI_ENDPOINT"], "https://host.openai.azure.com")
+        self.assertEqual(result["values"]["AZURE_RESOURCE_GROUP"], "host-rg")
+
+    def test_new_foundation_rejects_acr_in_another_group(self):
+        self.setup_new_foundation()
+        self.data[REGISTRIES_URL]["value"][0]["id"] = (
+            "/subscriptions/sub-one/resourceGroups/other-rg/providers/Microsoft.ContainerRegistry/registries/registry")
+        self.config["ACR_RESOURCE_GROUP"] = "other-rg"
+        with self.assertRaisesRegex(stage.ContextError, "single resource group"):
+            self.discover()
+
     def test_tenant_alias_and_owner_pins_are_verified(self):
         for key in ("TENANT_ID", "AZURE_TENANT_ID", "AGENT_OWNER_ID", "AGENT_OWNER_UPN", "PP_AUTH_ACCOUNT"):
             with self.subTest(key=key):

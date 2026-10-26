@@ -3,6 +3,29 @@
 > 秘匿化・汎用化・CI/CD・レビューゲートの問題は **`alm` スキル**を参照
 > → [ALM — 異常系・トラブルシュート](../../alm/references/troubleshooting.md)
 
+## 新規公開 Foundry 基盤の初回作成が停止する
+
+- 初回ランナー／生成 `deploy.ps1` は新規 public 基盤を作成する。Azure 資産は流用しない。
+  RG だけ新規作成／既存利用を本人に確認し、全資産の格納先をその1つに限定する。
+  `AZURE_RESOURCE_GROUP_MODE` が未確認、既存 RG が不明・不存在、別 RG の ACR / モデル設定は停止する。
+- `not owned by this bootstrap` は既存資産の取り込み防止。所有タグを書き換えて回避せず、
+  新規名を指定する。同じ bootstrap が今回作成した資産の再実行だけを許可する。
+- 同じ所有タグでも private / キー認証 / ACR admin の設定変更は拒否する。
+  既存設定を public へ自動変更しない。非公開の要件は Azure 基盤設計へ引き継ぐ。
+- HTTP 403、Policy 拒否、リソースプロバイダー未登録、roleAssignments 書込み不可は停止する。
+  対象スコープとエラーを管理者へ渡し、必要な権限・許可を依頼する。
+  Contributor だけでは RBAC 割当できない。組織ポリシーの緩和や別認証による迂回は禁止。
+- ARM deployment 失敗／タイムアウトでは部分作成が残り得る。deployment operations を確認し、
+  修復後は同じ agent・subscription・owner で再実行する。共有 RG を削除しない。
+- 成功扱いは deployment の `Succeeded` と全主要リソースの読戻し・設定一致後だけ。
+  project endpoint / ACR login server は実応答から取得し、欠落時に URL を推測しない。
+- 生成 `deploy.ps1` は共通 dotenv reader で検証済みのビルド設定だけを読み、
+  `.env` writer が付ける引用符を ACR 名・image 名に混入させない。
+  発行前チェックは高コストな image build の前にも実行する。
+- PowerShell の実行ポリシーがスクリプトを拒否した場合は、署名や組織で許可された実行環境を準備する。
+  `ExecutionPolicy Bypass` 等で迂回しない。回帰テストでは構文解析を別途実施し、
+  実スクリプトのモック実行が拒否された場合は、その検証だけ明示的に skip する。
+
 ## 1. Teams アップロードで「Must upload a newer version of the title than what is already present.」
 
 - 原因: manifest の `version` が既にアップロード済みのバージョンと同じ。

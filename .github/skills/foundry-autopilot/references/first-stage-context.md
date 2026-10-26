@@ -1,5 +1,46 @@
 # First-stage context discovery
 
+The first-stage runner now defaults to **new public Foundry infrastructure**, before
+this discovery step. It runs `provision_foundry.py --execute` using the shared auth cache
+and the bundled [ARM template](../templates/foundry-public/azuredeploy.json).
+This creates a dedicated account/project, Basic ACR, Log Analytics, Application Insights,
+the project telemetry connection and RBAC. Public access still requires Entra ID /
+Managed Identity; account keys and ACR admin credentials are disabled.
+No VNet, firewall or private DNS is required. Existing Azure resources are never adopted.
+Confirm whether the single destination resource group is new or existing before any
+creation. Save the answer as `resourceGroup.mode` (`new` / `existing`) and, for an
+existing group, `resourceGroup.name` in the decisions JSON. All Azure resources,
+including model deployments, live in that one group. Only resources created by this
+same bootstrap can be resumed or updated.
+
+To inspect the infrastructure plan separately, omit `--execute`:
+
+```powershell
+python .github\skills\foundry-autopilot\scripts\provision_foundry.py `
+  --env .env --agent-name sample-colleague --resource-group-mode new
+```
+
+The default region is `japaneast`; `AZURE_LOCATION` overrides it. Names are deterministic
+per subscription, owner and agent; explicit names can be provided in `.env`.
+`--resource-group-mode` can instead come from `AZURE_RESOURCE_GROUP_MODE` in `.env`;
+there is no silent default for this confirmation. `existing` requires the confirmed
+`AZURE_RESOURCE_GROUP` to exist. `new` rejects a pre-existing group unless this
+bootstrap created it. ACR and model resource-group overrides must match that group.
+Existing resources must carry this bootstrap's ownership tag and retain the expected
+public/keyless configuration, otherwise creation stops before the ARM deployment.
+403 is never treated as 404. Policy, RBAC, deployment failure, timeout or missing
+read-back metadata is an explicit failure; no alternate hosting or security downgrade
+is attempted. Successful verified IDs/endpoints are persisted using the same atomic
+`.env` writer as discovery. A failed deployment may leave partial Azure resources:
+inspect deployment operations and rerun with the same context, rather than deleting
+shared resources or changing organizational policy.
+
+The runner passes `--new-foundation` to discovery: models can only be discovered or
+created in the newly provisioned Foundry account. Other Azure accounts' existing
+models are not fallback candidates. An interrupted run can retain the model it created.
+The following commands remain the legacy standalone **discovery** interface, not an
+instruction to reuse existing Azure resources in a new AI teammate:
+
 Run from the repository containing the standard authentication helper:
 
 ```powershell
@@ -32,7 +73,8 @@ shell settings. No unrelated `.env` is loaded by the authentication helper.
   toolbox is reported as an explicit web/code readiness gap, never invented.
 - Missing or ambiguous prerequisites stop with exit code 2 and concrete candidates.
   Set the corresponding `.env` values and rerun. Accounts, projects, registries,
-  environments, solutions and publishers are **not** created.
+  environments, solutions and publishers are **not** created by this discovery command.
+  The first-stage runner provisions the Foundry foundation separately as described above.
 
 Authentication uses only standard `auth_helper.get_token` / `get_session`. The initial
 Graph token request calls `get_token(..., allow_interactive=True)`: the cache is tried
@@ -75,11 +117,20 @@ python .github\skills\foundry-autopilot\scripts\prepare_first_stage.py `
 `--model-location REGION` overrides the new-model region policy only. Otherwise Japan East,
 then Japan West, is preferred. A matching **existing** OpenAI-capable account is required;
 pin `AZURE_OPENAI_ENDPOINT` or `AZURE_OPENAI_ACCOUNT` if several accounts qualify.
+The newly provisioned AIServices account can supply this account; creation of the
+foundation itself does not deploy a hard-coded model or reserve capacity.
 The deployment name is `AZURE_OPENAI_DEPLOYMENT` if pinned, otherwise the selected model name.
 An existing deployment is never replaced implicitly. The script rechecks absence before
 PUT and verifies the exact model/version/SKU after provisioning before persisting context.
 
 ## API grounding and boundaries
+
+The foundation follows the official Foundry Autopilot quickstart's
+[public-account](https://github.com/microsoft-foundry/foundry-samples/blob/main/samples/python/foundry-autopilot-agent/infra/modules/public-account.bicep),
+[project](https://github.com/microsoft-foundry/foundry-samples/blob/main/samples/python/foundry-autopilot-agent/infra/modules/project.bicep)
+and [monitoring](https://github.com/microsoft-foundry/foundry-samples/blob/main/samples/python/foundry-autopilot-agent/infra/modules/monitoring.bicep)
+resources. The local overlay enforces keyless authentication and omits the sample's
+fixed model/version in favor of the live catalogue selection below.
 
 The model catalogue uses the documented `2024-10-01` `Models_List` operation:
 
@@ -110,6 +161,8 @@ a Hub or claim that a new teammate needs a separate Hub.
 ```powershell
 python -m unittest discover -s .github\skills\foundry-autopilot\scripts\tests `
   -p test_prepare_first_stage.py
+python -m unittest discover -s .github\skills\foundry-autopilot\scripts\tests `
+  -p test_provision_foundry.py
 ```
 
 Tests use fake delegated tokens and mocked metadata/ARM sessions only. Test files live in

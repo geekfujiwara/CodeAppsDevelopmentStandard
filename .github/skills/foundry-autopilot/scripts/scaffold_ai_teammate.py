@@ -829,14 +829,19 @@ $ErrorActionPreference = "Stop"
 if ($ContainerOnly -and $Publish) {{ throw "-ContainerOnly and -Publish cannot be combined" }}
 if ($ContainerOnly -ne $ConfirmExistingTemplate) {{ throw "-ContainerOnly requires -ConfirmExistingTemplate after verifying the existing M365 Agent template" }}
 $envFile = Join-Path $PSScriptRoot ".env"
-$values = @{{}}
-Get-Content $envFile | Where-Object {{ $_ -match '^\s*[^#][^=]*=' }} | ForEach-Object {{
-    $key, $value = $_ -split '=', 2
-    $values[$key.Trim()] = $value.Trim()
+$env:PYTHONIOENCODING = "utf-8"
+if (-not $ContainerOnly) {{
+    python "{provision}" --env $envFile --template (Join-Path $PSScriptRoot "infra/foundry-public.json") --execute
+    if ($LASTEXITCODE -ne 0) {{ throw "New public Foundry infrastructure failed; existing security settings were not changed" }}
 }}
+python "{publish}" --check --env $envFile
+if ($LASTEXITCODE -ne 0) {{ throw "preflight failed before image build" }}
+$settings = python -c "import json, sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); from prepare_first_stage import read_env; values = read_env(Path(sys.argv[2])); print(json.dumps({{key: values.get(key, '') for key in ('ACR_LOGIN_SERVER', 'AGENT_IMAGE_NAME')}}))" "{scripts}" $envFile
+if ($LASTEXITCODE -ne 0) {{ throw "Reading verified build settings failed" }}
+$values = $settings | ConvertFrom-Json
 $tag = Get-Date -Format "yyyyMMddHHmmss"
-$registry = $values["ACR_LOGIN_SERVER"].Split(".")[0]
-$image = $values["AGENT_IMAGE_NAME"]
+$registry = $values.ACR_LOGIN_SERVER.Split(".")[0]
+$image = $values.AGENT_IMAGE_NAME
 $package = Join-Path $PSScriptRoot "src/{package}"
 Push-Location $package
 try {{
@@ -864,7 +869,13 @@ Write-Output "Submitted tag $tag. Verify Type=Agent template in M365 and hiring 
 def write_deploy_script(target: Path, package_dir: Path) -> None:
     publish = Path(__file__).resolve().parent / "publish_foundry_autopilot.py"
     build = Path(__file__).resolve().parent / "build_autopilot_image.py"
-    content = DEPLOY_SCRIPT.format(package=package_dir.name, publish=publish, build=build)
+    provision = Path(__file__).resolve().parent / "provision_foundry.py"
+    infrastructure = target / "infra" / "foundry-public.json"
+    infrastructure.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(Path(__file__).resolve().parents[1] / "templates/foundry-public/azuredeploy.json",
+                 infrastructure)
+    content = DEPLOY_SCRIPT.format(package=package_dir.name, publish=publish, build=build,
+                                  provision=provision, scripts=provision.parent)
     (target / "deploy.ps1").write_text(content, encoding="utf-8", newline="\n")
 
 
@@ -1051,10 +1062,24 @@ def scaffold(
 
     unresolved: set[str] = set()
     if plan.hosting == "foundry-autopilot":
+        infrastructure = {}
+        resource_group = decisions.get("resourceGroup")
+        if resource_group is not None:
+            if (not isinstance(resource_group, dict)
+                    or resource_group.get("mode") not in ("new", "existing")):
+                raise ValueError("Confirm resourceGroup.mode (new/existing) before deployment.")
+            infrastructure["AZURE_RESOURCE_GROUP_MODE"] = resource_group["mode"]
+            if resource_group.get("name"):
+                infrastructure["AZURE_RESOURCE_GROUP"] = str(resource_group["name"])
+            elif resource_group["mode"] == "existing":
+                raise ValueError("Confirm the existing resourceGroup.name.")
         unresolved |= scaffold_foundry_autopilot(skill_root, plan, variables, force)
         # The evaluation hub scripts run against the new teammate's .env, not the scaffold's.
         hub = {k: env[k] for k in ("DATAVERSE_URL", "PUBLISHER_PREFIX", "SOLUTION_NAME") if env.get(k)}
-        merge_env(plan.target / ".env", {**runtime_settings(plan, decisions), **hub})
+        merge_env(plan.target / ".env", {
+            **runtime_settings(plan, decisions), **hub, **infrastructure,
+            "AGENT_IMAGE_NAME": env.get("AGENT_IMAGE_NAME") or plan.agent_name,
+        })
         place_profile_image(decisions, plan.target, decisions_dir or Path.cwd())
     else:
         # The runtime marker rides along with the feature blocks so the existing GEEK:BLOCK

@@ -7,6 +7,10 @@
 回答は [decisions の例](scaffold-decisions.example.json) へエージェントが保存する。
 `hosting=foundry-autopilot` / `runtime=copilot-sdk` / `goal=d` は固定。
 費用の確認、機能の採否や推奨構成の確認は追加しない。
+Azure の格納先は新規 RG／既存 RG のどちらかを必ず確認し、
+`resourceGroup: {"mode": "new" または "existing", "name": "<RG名>"}` に保存する。
+新規の名前は省略して自動導出できる。既存 RG は対象名を確認する。
+RG 以外の Azure リソースは流用せず、全てその1つの RG 内に新規作成する。
 
 メール受信と社外送信は別設定。初回ランナーは受信を既定で有効にする。
 社外送信不可のときは全宛先が社内と検証できない送信・転送・返信もコードで拒否する。
@@ -22,11 +26,17 @@ python .github\skills\foundry-autopilot\scripts\run_first_stage.py `
 
 `--plan` だけはローカルの計画表示。通常実行は以下を順に行う。
 
-1. `prepare_first_stage.py --execute` で認証プロファイルと共通キャッシュを利用し、
-   本人・owner・サブスクリプション・既存 Foundry・モデル・Power Platform・solution・publisher を探索する。
+1. `provision_foundry.py --execute` で認証プロファイルと共通キャッシュを利用し、
+   本人・owner・サブスクリプションを検証して**新規の公開 Foundry 基盤**を作成する。
+   未指定の RG / account / project / ACR 名は agent 名・subscription・owner から安定して導出する。
+   `AZURE_LOCATION` は未指定なら `japaneast`。API キーと ACR 管理者認証は無効、
+   Entra ID / Managed Identity で認証し、VNet / Firewall / Private DNS は作成しない。
+   Log Analytics / Application Insights と project MI の image pull・モデル利用・監視用 RBAC も含む。
    ユーザー本人の初回インタラクティブ認証、MFA、必要な追加同意は省略できない。
-2. 既存設定を検証して再利用する。未指定で候補が一意なら設定し、曖昧なら候補を示して止める。
-   モデルが無い場合だけ日本の実カタログ候補から選択してデプロイする。カタログの提供は容量保証ではない。
+2. `prepare_first_stage.py --execute --new-foundation` で作成した Foundry・Power Platform・solution・publisher を探索する。
+   既存設定を検証して再利用する。未指定で候補が一意なら設定し、曖昧なら候補を示して止める。
+   日本の実カタログ候補からモデルを選択し、新規 Foundry 内へデプロイする。
+   別アカウントの既存モデル・ACR は利用しない。カタログの提供は容量保証ではない。
 3. Autopilot・全標準機能・Agent Skills・評価Hub・回帰テスト・第1段階の Python ランナーと受入ケースを生成する。
    画像生成を断った場合だけ B17 を除き、古い画像モデル設定が残っても画像生成を無効にする。
 4. Hub の Dataverse スキーマ・接続参照・データソースを作り、`npm run predeploy` 成功後だけデプロイする。
@@ -36,6 +46,24 @@ python .github\skills\foundry-autopilot\scripts\run_first_stage.py `
 5. 画像生成を許可した場合は画像モデルを準備する。発行前チェック後にコンテナーをビルドし、
    `publish_foundry_autopilot.py` で `digital_worker_type=m365` の hosted agent を発行する。
    通常 Agent・共有 bot・自己ホストへのフォールバックは禁止。
+
+既存 Azure 基盤の流用オプションは設けない。同じ bootstrap が今回作成した資産だけは、
+中断からの再実行・コード更新の対象にでき、他の既存資産を取り込まない。
+既存 RG を選択してもその中の既存資産は再利用しない。新規 RG と同名の他者所有 RG は拒否する。
+同じ所有タグでも非公開化・キー認証有効化などの設定変更は上書きせず停止する。
+作成・読戻しに失敗したらエラーと対象工程を報告し、Policy の緩和、別ログイン、別 hosting は試さない。
+新規リソース作成と RBAC 割当には対象スコープの権限が必要。Contributor 単独ではロール割当できない。
+リソースプロバイダーの未登録や権限不足は担当管理者に依頼する。
+この処理はガバナンスの事前診断ではなく、実際の基盤作成と最小限の設定検証である。
+
+モデルが無いときはライブカタログの実値を選び、同じランナーへ転送できる。
+基盤作成だけでモデル容量・quota・Frontier の利用可否は保証しない。
+
+```powershell
+python .github\skills\foundry-autopilot\scripts\run_first_stage.py `
+  --decisions C:\work\answers.json --target C:\work\teammate `
+  --model "<candidate name>" --model-version "<candidate version>" --model-sku "<candidate SKU>"
+```
 
 ACR のビルドは `build_autopilot_image.py` が共通認証で ARM の ACR Tasks を呼び、
 成功状態だけでなく指定タグの image digest を検証する。別の `az login` は増やさない。
@@ -52,8 +80,8 @@ ACR Tasks の契約:
 `awaiting-approval-and-hire` とし、`autopilot-publication.json` に同じ version の公開識別子を保存する。
 この段階で費用や「残りも行うか」を聞き直さない。
 既存リソース・権限・接続が不足する場合も非ゼロで停止し、未実施を成功扱いしない。
-Foundry アカウント／プロジェクト／ACR 自体が存在しない場合は、探索結果に従って
-Azure 基盤を準備してから再開する。探索だけで未確認の基盤を作成しない。
+新規基盤は初回ランナーが準備する。`prepare_first_stage.py` 単体は探索・選択したモデルの準備だけで、
+Foundry アカウント／プロジェクト／ACR は作成しない。
 
 ## Step 3: 必須の承認・採用を完了する
 

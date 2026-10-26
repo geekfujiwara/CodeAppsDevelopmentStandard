@@ -322,7 +322,7 @@ def model_candidates(entries: list[dict], location: str) -> list[dict]:
     return sorted(candidates, key=lambda item: (not item["latest"], item["name"], item["version"], item["sku"]))
 
 
-def discover(api: Metadata, config: dict[str, str], args: argparse.Namespace) -> dict:
+def discover_identity(api: Metadata, config: dict[str, str]) -> tuple[dict[str, str], str]:
     values: dict[str, str] = {}
 
     def put(key: str, actual: str):
@@ -360,6 +360,17 @@ def discover(api: Metadata, config: dict[str, str], args: argparse.Namespace) ->
                                canonical(item["subscriptionId"]) == canonical(config["AZURE_SUBSCRIPTION_ID"])))
     put("AZURE_SUBSCRIPTION_ID", subscription["subscriptionId"])
     root = ARM + "/subscriptions/" + quote(subscription["subscriptionId"], safe="")
+    return values, root
+
+
+def discover(api: Metadata, config: dict[str, str], args: argparse.Namespace) -> dict:
+    values, root = discover_identity(api, config)
+    tenant = values["TENANT_ID"]
+    arm_scope = ARM + "/.default"
+
+    def put(key: str, actual: str):
+        values[key] = verify(key, config.get(key), actual)
+
     accounts = api.listing(root + "/providers/Microsoft.CognitiveServices/accounts",
                            arm_scope, COGNITIVE_VERSION)
     foundry_accounts = [item for item in accounts if item.get("kind") == "AIServices"]
@@ -445,6 +456,8 @@ def discover(api: Metadata, config: dict[str, str], args: argparse.Namespace) ->
     put("AZURE_CONTAINER_REGISTRY", registry_pin or name(registry))
     put("ACR_LOGIN_SERVER", registry.get("properties", {}).get("loginServer", ""))
     put("ACR_RESOURCE_GROUP", group(registry))
+    if getattr(args, "new_foundation", False):
+        verify("single resource group for ACR", group(account), group(registry))
 
     environments = api.listing(PP + "/providers/Microsoft.PowerApps/environments",
                                "https://service.powerapps.com/.default", "2016-11-01")
@@ -493,7 +506,15 @@ def discover(api: Metadata, config: dict[str, str], args: argparse.Namespace) ->
     put("SOLUTION_NAME", solution["uniquename"])
     put("PUBLISHER_NAME", publisher.get("uniquename", ""))
     put("PUBLISHER_PREFIX", publisher.get("customizationprefix", ""))
-    deployment, candidates = discover_model(api, accounts, root, config, args)
+    model_accounts = [account] if getattr(args, "new_foundation", False) else accounts
+    if getattr(args, "new_foundation", False):
+        if not config.get("FOUNDRY_ACCOUNT_NAME") or not config.get("AZURE_RESOURCE_GROUP"):
+            raise ContextError("New-foundation discovery requires the verified provisioned account and resource group.")
+        for key, actual in (("AZURE_OPENAI_ACCOUNT", name(account)),
+                            ("AZURE_OPENAI_RESOURCE_GROUP", group(account))):
+            if config.get(key):
+                verify(key, config[key], actual)
+    deployment, candidates = discover_model(api, model_accounts, root, config, args)
     if deployment:
         put("AZURE_OPENAI_ENDPOINT", deployment["endpoint"])
         put("AZURE_OPENAI_DEPLOYMENT", deployment["name"])
@@ -644,7 +665,8 @@ def interactive_consent(config: dict[str, str], execute: bool) -> bool:
 
 
 def persist(path: Path, values: dict[str, str], original: str | None, *,
-            allow_interactive_consent: bool = False, approved_edge_profile: str = "") -> None:
+            allow_interactive_consent: bool = False, approved_edge_profile: str = "",
+            resource_group_mode: str = "") -> None:
     """Preserve all existing lines (including secrets); append verified public context only."""
     current = path.read_text(encoding="utf-8-sig") if path.exists() else None
     if current != original:
@@ -653,6 +675,10 @@ def persist(path: Path, values: dict[str, str], original: str | None, *,
     lines = (current or "").splitlines(keepends=True)
     added = []
     public_values = dict(values)
+    if resource_group_mode:
+        if resource_group_mode not in ("new", "existing"):
+            raise ContextError("Cannot persist an unconfirmed resource group mode.")
+        public_values["AZURE_RESOURCE_GROUP_MODE"] = resource_group_mode
     if allow_interactive_consent:
         owner = public_values.get("PP_AUTH_ACCOUNT", "")
         if (not re.fullmatch(r"[^@\s]+@[^@\s]+", owner)
@@ -664,7 +690,8 @@ def persist(path: Path, values: dict[str, str], original: str | None, *,
     for key, value in public_values.items():
         consent = key == "PP_AUTH_ALLOW_INTERACTIVE" and allow_interactive_consent and value == "true"
         profile = key == "PP_AUTH_EDGE_PROFILE" and allow_interactive_consent and value == approved_edge_profile
-        if ((key not in OUTPUT_KEYS and not consent and not profile)
+        group_choice = key == "AZURE_RESOURCE_GROUP_MODE" and value == resource_group_mode
+        if ((key not in OUTPUT_KEYS and not consent and not profile and not group_choice)
                 or not value or any(char in value for char in "\r\n\x00")):
             raise ContextError("Refusing to persist an unexpected context key or invalid value.")
         if existing.get(key) and not consent:
@@ -700,6 +727,8 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--env", type=Path, required=True)
     parser.add_argument("--execute", action="store_true", help="Persist verified context; deploy only an explicitly selected model.")
+    parser.add_argument("--new-foundation", action="store_true",
+                        help="Confine model discovery/deployment to the newly provisioned Foundry account and one resource group.")
     parser.add_argument("--model")
     parser.add_argument("--model-version")
     parser.add_argument("--model-sku")

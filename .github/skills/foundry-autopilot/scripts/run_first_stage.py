@@ -37,6 +37,13 @@ def validate_decisions(decisions: dict) -> None:
         raise ValueError("agentName and displayName are required (derive kebab-case from the supplied name).")
     if any(character in str(decisions["displayName"]) for character in "\r\n"):
         raise ValueError("The display name must be a single line.")
+    resource_group = decisions.get("resourceGroup")
+    if (not isinstance(resource_group, dict)
+            or resource_group.get("mode") not in ("new", "existing")):
+        raise ValueError("Confirm resourceGroup.mode (new/existing). All Azure resources are new in one group.")
+    group_name = resource_group.get("name", "")
+    if not isinstance(group_name, str) or (resource_group["mode"] == "existing" and not group_name.strip()):
+        raise ValueError("Confirm the existing resourceGroup.name.")
     image = decisions.get("profileImage") or {}
     if not isinstance(image, dict) or image.get("mode") != "file" or not image.get("path"):
         raise ValueError("Supply the user's profile icon as profileImage={mode:file,path:...}.")
@@ -75,6 +82,10 @@ def main() -> int:
     parser.add_argument("--decisions", type=Path)
     parser.add_argument("--plan", action="store_true")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--model", help="New chat model selected from the live catalogue")
+    parser.add_argument("--model-version")
+    parser.add_argument("--model-sku")
+    parser.add_argument("--model-location")
     args = parser.parse_args()
     target = args.target.resolve()
     try:
@@ -90,7 +101,10 @@ def main() -> int:
         scaffold.communication_style(decisions)
         if args.plan:
             print(json.dumps({"hosting": "foundry-autopilot", "goal": "d",
-                              "steps": ["discover", "scaffold", "hub", "publish", "approve/hire",
+                              "infrastructure": "new-public",
+                              "resourceGroup": decisions["resourceGroup"],
+                              "steps": ["provision-new-public-foundry", "discover",
+                                        "scaffold", "hub", "publish", "approve/hire",
                                         "instance", "logic-app", "Teams API + Hub acceptance"]}, indent=2))
             return 0
 
@@ -114,7 +128,19 @@ def main() -> int:
             if state.get("status") not in ("scaffolded", "deploying"):
                 if any(target.iterdir()) and not args.resume and not env_path.is_file():
                     raise ValueError("Use an empty target or an explicitly prepared .env; existing files are protected.")
-                run("prepare_first_stage.py", "--env", str(env_path), "--execute")
+                resource_group = decisions["resourceGroup"]
+                group_values = {"AZURE_RESOURCE_GROUP_MODE": resource_group["mode"]}
+                if resource_group.get("name"):
+                    group_values["AZURE_RESOURCE_GROUP"] = resource_group["name"].strip()
+                apply_decision_env(env_path, group_values)
+                run("provision_foundry.py", "--env", str(env_path),
+                    "--agent-name", decisions["agentName"], "--execute")
+                model_args = [argument for flag, value in (
+                    ("--model", args.model), ("--model-version", args.model_version),
+                    ("--model-sku", args.model_sku), ("--model-location", args.model_location),
+                ) if value for argument in (flag, value)]
+                run("prepare_first_stage.py", "--env", str(env_path), "--execute",
+                    "--new-foundation", *model_args)
                 plan = scaffold.build_plan(decisions, target)
                 scaffold.scaffold(plan, scaffold.load_dotenv(env_path), True, decisions, decisions_file.parent)
                 scaffold.install_skills(scaffold.skills_root(plan), scaffold.load_dotenv(env_path), env_path)

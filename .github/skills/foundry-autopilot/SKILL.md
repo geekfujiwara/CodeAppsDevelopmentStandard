@@ -19,6 +19,10 @@ triggers:
 **Foundry hosted agent** を **Agent 365 Autopilot** として発行し、Teams / Microsoft 365 Copilot の
 **同僚エージェント（agentUser）**として実際に会話できる状態にする。評価Hub、Python
 `EvaluationWorker`、Foundry Monitor/Evaluations まで初回 scaffold / publish の標準範囲に含める。
+初回の Azure 基盤は**新規 Foundry アカウント・プロジェクト・ACR をパブリックエンドポイントで作成**する。
+公開は匿名アクセスではなく Entra ID / Managed Identity 認証。**既存 Azure リソースは流用しない。**
+格納先のリソースグループだけは新規作成／既存利用を本人に確認し、全 Azure 資産をその1つへ集約する。
+構築済みの非公開設定や組織ポリシーは変更しない。
 
 > **agentUser を持たせる経路は 2 つある。** 既定は Foundry Autopilot（hire したインスタンスごとに
 > agent user アカウントが払い出される。Frontier preview が前提）
@@ -125,8 +129,10 @@ triggers:
   サインイン・MFA・同意は本人が実行する。キャッシュの失効や権限不足を無人で回避しない。
 - アカウント・owner・Azure サブスクリプション・Power Platform 環境・solution・publisher はスキャンする。
   既知の値を優先し、一意なら自動設定する。複数候補で実装先が特定できない場合だけ選択を求める。
-- モデルは既存を使う。無ければ実際のモデルカタログから日本リージョンへデプロイ可能な最新候補を提示し、
-  **その場合だけモデルを選んでもらう**。固定のモデル名を「最新」として扱わない。
+- Azure の格納先だけは**新規 RG／既存 RG のどちらかを確認**し、`resourceGroup` に保存する。
+  既存利用では対象 RG 名も確認する。Foundry・ACR・監視・モデル等は全て新規作成し、既存を流用しない。
+- モデルは新規 Foundry に作成する。実際のモデルカタログから日本リージョンへデプロイ可能な最新候補を提示し、
+  モデルを選んでもらう。固定のモデル名を「最新」として扱わない。
   モデルの日本リージョンと hosted agent の対応リージョンは別条件で、非対応地へ移動しない。
 - 費用の再確認はしないが、実装先・公開範囲、組織ポリシー、管理者同意、private API の hash 承認は省略しない。
   権限・プレビュー・ライセンス・承認・採用が必要なら該当工程だけ停止し、通常 Agent へ降格しない。
@@ -134,6 +140,9 @@ triggers:
 回答を [設定例](references/scaffold-decisions.example.json) の JSON にエージェントが保存し、
 [run_first_stage.py](scripts/run_first_stage.py) から開始する。通常実行はデプロイまで進み、
 `--plan` だけが変更なし。承認・採用後は `--resume` で続ける。
+新規公開基盤は [provision_foundry.py](scripts/provision_foundry.py) と同梱 ARM テンプレートで準備し、
+VNet・Firewall・Private DNS の構築を初回の前提にしない。既存 Azure 基盤の流用オプションは設けない。
+認証は共通キャッシュを使い、基盤の作成後は探索・モデル準備・scaffold・品質チェック・発行を続ける。
 詳細と実際の検証範囲は [第1段階の実行契約](references/first-stage.md) を参照する。
 
 > **Foundry Autopilot の agent user に Agent 365 SKU を割り当てない。**
@@ -267,8 +276,9 @@ Autopilot は `publish_foundry_autopilot.py --check` → `--execute` と
 
 | スクリプト | 用途 | Step |
 |---|---|---|
-| [run_first_stage.py](scripts/run_first_stage.py) | 最小回答から探索・scaffold・Hub 展開・Autopilot 発行を実行し、承認・採用後は `--resume` で Teams API 受入まで続ける | 0〜13 |
-| [prepare_first_stage.py](scripts/prepare_first_stage.py) | 共通認証とアカウント・Azure・Power Platform・既存モデルのメタデータ探索。既存値を検証して再利用し、不足・曖昧さを明示する | 0〜3 |
+| [run_first_stage.py](scripts/run_first_stage.py) | 最小回答から新規公開 Foundry 基盤作成・探索・scaffold・Hub 展開・Autopilot 発行を実行し、承認・採用後は `--resume` で Teams API 受入まで続ける | 0〜13 |
+| [provision_foundry.py](scripts/provision_foundry.py) | 新規公開・Entra 認証の Foundry / project / ACR / 監視・RBAC を同梱 ARM テンプレートから作成。所有タグ・設定を再確認し、実応答の endpoint を保存。`--execute` なしは読み取りのみ | 0〜3 |
+| [prepare_first_stage.py](scripts/prepare_first_stage.py) | 共通認証と環境のメタデータ探索。初回ランナーは `--new-foundation` でモデルを新規 Foundry に限定し、別 Azure 資産を流用しない | 0〜3 |
 | [build_autopilot_image.py](scripts/build_autopilot_image.py) | 共通認証の ACR Tasks ビルド。別の Azure CLI ログインを増やさず、指定タグの digest を確認する | 6 |
 | [test_first_stage.py](scripts/test_first_stage.py) | Teams Graph API で会話し、本人への最終返信・ツール実行・OneDrive 資料・Logic App 実行・同じ会話の Hub ログを照合する | 13 |
 | [scaffold_ai_teammate.py](scripts/scaffold_ai_teammate.py) | 1 回の AskUserQuestion の回答（decisions JSON）から同僚エージェント + 評価Hub を同時 scaffold する | 0〜3 |
