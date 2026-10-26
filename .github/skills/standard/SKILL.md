@@ -1,6 +1,6 @@
 ---
 name: standard
-description: "Power Platform 共通開発基盤。クイックスタートは標準配置・環境情報取得・共通認証と .env を準備後、要望確認で一旦停止し、回答後に仕様整理・AI 改善と Mermaid 図を含む architecture 提案へ進む。通常開発は Dataverse を既定とし、環境診断は明示依頼時・障害時だけ。共通認証（auth_helper.py）・ソリューション運用と横断ユーティリティを提供する。"
+description: "Power Platform 共通開発基盤。クイックスタートは標準更新・共通認証後に要望確認で一旦停止し、回答後は自律調査で仕様・architecture・テンプレート選定から開発環境へのフル構成デプロイ・実動作検証まで進む。通常開発は Dataverse を既定とし、環境診断は明示依頼時・障害時だけ。共通認証（auth_helper.py）・ソリューション運用と横断ユーティリティを提供する。"
 category: architecture
 triggers:
   - "Power Platform 開発"
@@ -41,7 +41,7 @@ triggers:
 全スキル共通の開発基盤。このスキルが扱うのは **認証 / .env / ソリューション運用** の 3 テーマのみ。
 個別コンポーネントの設計・構築ルールは各専門スキルが持つ（→ [スキルカタログ README](https://github.com/geekfujiwara/CodeAppsDevelopmentStandard/blob/main/.github/skills/README.md)）。
 
-## クイックスタートは配置から提案まで継続する
+## クイックスタートは認証後の一度の確認から開発デプロイ・検証まで継続する
 
 リポジトリ URL と「クイックスタート」を依頼されたら [quickstart.md](references/quickstart.md) を優先する。
 `.github/agents` / `.github/skills` / `.gitignore` を安全に配置しただけでは停止せず、
@@ -49,9 +49,16 @@ triggers:
 **認証準備後は AskUserQuestion で要望確認し、必ず回答待ちで一旦停止する。**
 資料があれば対象資料からの継続・対象変更・準備までを選べる形にし、
 資料なしならフォルダー名から具体的なアプリ案を複数提示して選んでもらう。
-回答前に資料変換・仕様作成・設計提案へ進まず、継続回答後にローカル資料の `spec-builder` → `architecture` へ進む。
+回答前に資料変換・仕様作成・設計提案へ進まず、継続回答後は Step 0〜3 の契約に従い、
+ルートの業務資料を `spec/input/` へ整理 → `spec-builder` → `architecture`・既存テンプレート提案 →
+認証キャッシュで既存環境・必要時の Azure を調査 → フル構成の開発デプロイ・実動作検証まで進む。
+以降は自分で分かることを調べ、既知事項や通常の実装判断で AskUserQuestion を繰り返さない。
+要望確認の選択肢には、資料・テンプレートに基づく開発デプロイ・テストまでの範囲を明記する。
 白紙の業務ヒアリングではなく、事実・仮説を分けた業務改善と AI 活用の推奨を先に示す。
-業務フローと構成の Mermaid 図をチャットと Markdown の両方へ出し、必要な意思決定だけを質問する。
+業務フローと構成の Mermaid 図をチャットと Markdown の両方へ出す。図は質問ポップアップ内に入れない。
+例外的に本人の判断が不可欠な事項だけ質問し、承認済みの開発範囲では提案の都度停止しない。
+各専門スキルのプレデプロイ・品質テスト・デプロイ後の検証を行い、実際の構成・各 URL・文書を報告する。
+必須構成が全て検証済みの場合だけ「全て完了」とし、未検証・承認待ちは明示する。
 環境スキャンは接続先等のメタデータ取得であり、DLP / ACP・Code Apps 許可の事前診断とは分ける。
 共通認証・承認・既存ファイル保護は省略せず、サインインや回答待ちの後は同じタスクを再開する。
 
@@ -59,7 +66,7 @@ triggers:
 
 | リファレンス | 内容 |
 |---|---|
-| [一気通貫クイックスタート](references/quickstart.md) | 標準配置、環境情報・認証、資料探索、仕様整理、AI 改善と Mermaid 図を含む architecture 提案まで実行する。配置は `scripts/initialize_workspace.py` |
+| [一気通貫クイックスタート](references/quickstart.md) | Step 0〜3: 標準更新・認証後に要望確認で一旦停止し、回答後は仕様・テンプレート・環境調査からフル構成の開発デプロイ・実動作検証まで自律実行する。配置は `scripts/initialize_workspace.py` |
 | [クイックスタートの異常系](references/troubleshooting.md) | 配置の競合・権限不足・資料なしの場合の継続方法と恒久対策 |
 | [Power Platform 開発標準](references/power-platform-development-standard.md) | 設計原則・Phase 別手順・チェックリストをまとめた全体ガイド |
 | [インタラクティブ環境セットアップ](references/interactive-setup.md) | PAC CLI + Dataverse API で `.env` を対話的に構成する手順（**プロジェクト開始時に最初に参照**） |
@@ -109,6 +116,8 @@ Dataverse テーブル・Code Apps・Power Automate フロー・Copilot Studio �
 依頼文・既存 `.env`・認証プロファイルから分かる事項は再質問せず使う。
 **Code Apps では上の既定の開発契約を優先**し、ローカル開発に不要な管理者確認やライセンス棚卸の回答を待たない。
 実操作に必要な実装先や承認範囲が不明な場合だけ、AskUserQuestion で不足事項を 1 問ずつ確認する。
+クイックスタートでは認証後の要望確認を必ず行い、回答後は既存設定・資料・テンプレート・API 調査で
+分かる事項を自律的に解決する。以下の分類ごとの質問や承認を必須にせず、既存の承認範囲を超える判断だけを確認する。
 以下は確認事項の分類であり、全項目の調査完了を一律の着手条件にしない。以降の Step で同じ内容を聞き直さない。
 
 ```text

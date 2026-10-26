@@ -3,38 +3,16 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-SUPPORTED_EXTENSIONS = {
-    ".pdf",
-    ".ppt",
-    ".pptx",
-    ".xls",
-    ".xlsx",
-    ".doc",
-    ".docx",
-    ".md",
-    ".txt",
-    ".html",
-    ".htm",
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif",
-    ".bmp",
-    ".webp",
-    ".tiff",
-    ".tif",
-}
+from document_io import SUPPORTED_EXTENSIONS, sha256_of
 
 TEXT_EXTENSIONS = {".md", ".txt", ".html", ".htm"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"}
-HASH_CHUNK_SIZE = 8192
 PENDING_OCR_MARKER = "<!-- pending-ocr -->"
 PENDING_SKILLS_MARKER = "<!-- pending-skills -->"
 OCR_PROMPT_HINT = (
@@ -188,15 +166,6 @@ def scan_workspace_for_candidates(
             continue
         candidates.append(path)
     return candidates
-
-
-
-def sha256_of(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(HASH_CHUNK_SIZE), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 
