@@ -2,6 +2,7 @@
 
 import importlib.util
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 MODULE = (
@@ -78,7 +79,22 @@ class GuardTests(unittest.TestCase):
         )
 
     def test_mail_channel_can_still_reply_by_mail(self):
-        self.assertIsNone(uc.guard_tool_use("mcp_MailTools-SendEmail", {}, channel="agents:email"))
+        with patch.dict(uc.os.environ, {"ORGANIZATION_INTERNAL_DOMAINS": "contoso.com",
+                                       "EXTERNAL_EMAIL_ENABLED": "false"}):
+            self.assertIsNone(uc.guard_tool_use("mcp_MailTools-SendEmail",
+                                              {"to": "colleague@contoso.com"}, channel="agents:email"))
+
+    def test_external_mail_and_unresolved_reply_are_blocked(self):
+        with patch.dict(uc.os.environ, {"ORGANIZATION_INTERNAL_DOMAINS": "contoso.com",
+                                       "EXTERNAL_EMAIL_ENABLED": "false"}):
+            for args in ({}, {"to": "other@example.com"}, {"messageId": "id"},
+                         {"messageId": "id", "body": "colleague@contoso.com"}):
+                self.assertIsNotNone(uc.guard_tool_use("mcp_MailTools-ReplyEmail", args, channel="msteams"))
+
+    def test_explicit_external_mail_opt_in(self):
+        with patch.dict(uc.os.environ, {"EXTERNAL_EMAIL_ENABLED": "true"}):
+            self.assertIsNone(uc.guard_tool_use("mcp_MailTools-SendEmail",
+                                              {"to": "other@example.com"}, channel="msteams"))
 
     def test_teams_channel_can_message_others(self):
         self.assertIsNone(uc.guard_tool_use("mcp_TeamsServer-SendChatMessage", {}, channel="msteams"))

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import secrets
 from typing import Any
@@ -123,6 +124,31 @@ _OUTBOUND_TOOL = re.compile(r"teams.*(send|post|create|reply)|share|createlink|i
 # Deleting rows or changing schema is never a teammate's job, whatever its role allows.
 _DATAVERSE_DESTRUCTIVE = re.compile(r"^dataverse-(delete_\w*|\w*_table|\w*_skill|\w*_file\w*)$", re.IGNORECASE)
 _EMAIL_CHANNELS = frozenset({"email", "agents:email"})
+_MAIL_SEND_TOOL = re.compile(r"mail.*(send|reply|forward)|(?:send|reply|forward).*mail", re.IGNORECASE)
+
+
+def mail_recipient_error(args: Any) -> str | None:
+    if os.getenv("EXTERNAL_EMAIL_ENABLED", "").lower() == "true":
+        return None
+    domains = {item.strip().lower() for item in os.getenv("ORGANIZATION_INTERNAL_DOMAINS", "").split(",") if item.strip()}
+    recipient_keys = {"to", "cc", "bcc", "torecipients", "ccrecipients", "bccrecipients", "recipients"}
+
+    def recipients(value: Any):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key.lower() in recipient_keys:
+                    yield from _string_values(item)
+                elif isinstance(item, (dict, list)):
+                    yield from recipients(item)
+        elif isinstance(value, list):
+            for item in value:
+                yield from recipients(item)
+
+    addresses = {address.lower() for text in recipients(args)
+                 for address in re.findall(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", text)}
+    if not domains or not addresses or any(address.rsplit("@", 1)[1] not in domains for address in addresses):
+        return "社外メール送信は禁止です。全宛先が社内であることを検証できない送信・返信・転送も実行しません。"
+    return None
 
 
 def _string_values(value: Any):
@@ -142,6 +168,10 @@ def guard_tool_use(tool_name: str, args: Any, *, channel: str) -> str | None:
     Enforced in code because L1-L3 depend on the model complying.
     """
     name = tool_name or ""
+    if _MAIL_SEND_TOOL.search(name):
+        error = mail_recipient_error(args)
+        if error:
+            return error
     if _DATAVERSE_DESTRUCTIVE.match(name):
         return "レコードの削除やテーブル・スキルの変更は行わない。必要なら担当者に依頼するよう案内すること。"
     if _SHARE_TOOL.search(name) and any(v.lower() == "anonymous" for v in _string_values(args)):

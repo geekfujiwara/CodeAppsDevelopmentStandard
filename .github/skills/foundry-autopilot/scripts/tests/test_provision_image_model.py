@@ -8,6 +8,7 @@ import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from unittest.mock import Mock
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "provision_image_model.py"
 
@@ -19,6 +20,22 @@ _spec.loader.exec_module(provision_image_model)
 
 
 class AzureCommandTests(unittest.TestCase):
+    def test_shared_auth_uses_arm_without_azure_cli(self) -> None:
+        session = Mock()
+        response = Mock()
+        response.json.return_value = {"value": [{"model": {"name": "image", "version": "v1"}}]}
+        session.get.return_value = response
+        auth = Mock()
+        auth.get_session.return_value = session
+        with (patch.dict(provision_image_model.os.environ, {"AZURE_SUBSCRIPTION_ID": "subscription"}),
+              patch.object(provision_image_model.importlib, "import_module", return_value=auth),
+              patch.object(provision_image_model.subprocess, "run") as cli):
+            result = provision_image_model.run_arm("cognitiveservices", "account", "list-models",
+                                                   "--resource-group", "rg-test", "--name", "ai-test")
+        cli.assert_not_called()
+        auth.get_session.assert_called_once_with("https://management.azure.com/.default")
+        self.assertEqual(result[0]["model"]["version"], "v1")
+
     @patch.object(provision_image_model.shutil, "which", return_value="C:/tools/az.cmd")
     @patch.object(provision_image_model.subprocess, "run")
     def test_run_az_uses_argv_without_shell(self, run_mock, _which_mock) -> None:
@@ -50,6 +67,7 @@ class AzureCommandTests(unittest.TestCase):
 
     @patch.object(provision_image_model, "run_az")
     @patch.object(provision_image_model, "parse_args")
+    @patch.dict(provision_image_model.os.environ, {}, clear=True)
     def test_create_uses_selected_version_and_numeric_capacity(self, parse_args_mock, run_az_mock) -> None:
         parse_args_mock.return_value = type("Args", (), {
             "env": "missing.env",
@@ -77,6 +95,11 @@ class AzureCommandTests(unittest.TestCase):
         self.assertIn("--model-version", create_command)
         self.assertEqual(create_command[create_command.index("--model-version") + 1], "2026-06-01")
         self.assertEqual(create_command[create_command.index("--sku-capacity") + 1], "2")
+        run_az_mock.side_effect = [
+            [{"model": {"name": "gpt-image-1.5", "version": "2026-06-01", "format": "OpenAI"}}],
+            RuntimeError("ResourceNotFound"), {},
+        ]
+        self.assertEqual(provision_image_model.main(), 3)
 
 
 if __name__ == "__main__":

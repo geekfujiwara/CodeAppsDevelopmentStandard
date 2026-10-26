@@ -38,7 +38,10 @@ GRAPH = "https://graph.microsoft.com"
 BAP = "https://api.bap.microsoft.com/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments"
 DATAVERSE_APP_ID = "00000007-0000-0000-c000-000000000000"
 # ChatMessage.Send: reactions (setReaction is delegated-only). Chat.Read: pasted images.
-GRAPH_SCOPES = "User.Read Chat.Read ChatMessage.Send Files.Read.All Files.ReadWrite"
+GRAPH_SCOPES = (
+    "User.Read Chat.Create Chat.Read ChatMessage.Send Files.Read.All Files.ReadWrite "
+    "Calendars.ReadWrite Mail.ReadWrite Mail.Send Presence.ReadWrite"
+)
 DATAVERSE_SCOPES = "mcp.tools user_impersonation"
 
 

@@ -182,6 +182,8 @@ def build_permission_scopes() -> list[dict]:
 
 
 def image_model_deployment() -> str:
+    if os.environ.get("IMAGE_GENERATION_ENABLED", "").lower() == "false":
+        return ""
     return (os.environ.get("IMAGE_MODEL_DEPLOYMENT") or "").strip()
 
 
@@ -307,6 +309,8 @@ def build_version_body() -> dict:
         "USAGE_WORKSPACE_ID", "USAGE_ALL_VISIBLE", "USAGE_ADMIN_IDS",
         "USAGE_PRICE_INPUT_PER_1M", "USAGE_PRICE_OUTPUT_PER_1M", "USAGE_PRICE_CACHED_PER_1M",
         "SCHEDULE_ENABLED", "EMAIL_CHANNEL_ENABLED", "REACTIONS_ENABLED",
+        "EXTERNAL_EMAIL_ENABLED", "IMAGE_GENERATION_ENABLED", "ORGANIZATION_INTERNAL_DOMAINS",
+        "AGENTIC_USER_ID",
     ):
         value = (os.environ.get(name) or "").strip()
         if value:
@@ -804,6 +808,12 @@ def main() -> int:
         )
     print(f"  teamsAppId={published.get('teamsAppId')} titleId={published.get('titleId')}")
     write_env_value(env_path, "TEAMS_APP_VERSION", app_version)
+    (env_path.parent / "autopilot-publication.json").write_text(
+        json.dumps({
+            "agentName": agent_name, "version": str(version), "blueprintClientId": blueprint_client_id,
+            "teamsAppId": published["teamsAppId"], "titleId": published["titleId"],
+        }, indent=2) + "\n", encoding="utf-8",
+    )
 
     print(
         "\n公開要求を送信しました。Agent template としての利用開始は未確認です。次の確認を必須とします:\n"

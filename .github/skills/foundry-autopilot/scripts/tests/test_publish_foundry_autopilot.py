@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
+import tempfile
 import unittest
 from contextlib import ExitStack
 from pathlib import Path
@@ -161,6 +163,7 @@ class AutopilotDeploymentFlowTests(unittest.TestCase):
     def setUp(self) -> None:
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
+        self.env_path = Path(self.stack.enter_context(tempfile.TemporaryDirectory())) / "test.env"
         self.stack.enter_context(patch.dict(
             publish.os.environ,
             {**BASE_ENV, **AutopilotPublishBodyTests.PUBLISH_ENV, "AGENT_NAME": "teammate",
@@ -201,7 +204,7 @@ class AutopilotDeploymentFlowTests(unittest.TestCase):
         raise AssertionError(f"Unexpected request: {method} {url}")
 
     def run_main(self, *args: str) -> int:
-        with patch.object(sys, "argv", [str(SCRIPT_PATH), "--env", "test.env", *args]):
+        with patch.object(sys, "argv", [str(SCRIPT_PATH), "--env", str(self.env_path), *args]):
             return publish.main()
 
     def writes(self) -> list:
@@ -209,6 +212,9 @@ class AutopilotDeploymentFlowTests(unittest.TestCase):
 
     def test_normal_execution_always_creates_and_publishes_autopilot(self) -> None:
         self.assertEqual(self.run_main("--execute"), 0)
+        receipt = json.loads((self.env_path.parent / "autopilot-publication.json").read_text(encoding="utf-8"))
+        self.assertEqual(receipt["version"], "2")
+        self.assertEqual(receipt["blueprintClientId"], self.BLUEPRINT)
         version_call, publish_call = self.writes()
         publish.assert_autopilot_version_body(version_call.args[2])
         publish.assert_autopilot_body(publish_call.args[2], self.BLUEPRINT)

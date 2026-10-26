@@ -175,6 +175,9 @@ def normalize_namespace(agent_name: str) -> str:
 
 
 def resolve_blocks(decisions: dict[str, object]) -> tuple[str, ...]:
+    if decisions.get("hosting", "foundry-autopilot") == "foundry-autopilot":
+        return tuple(block for block in ALL_BLOCKS
+                     if block != "B17" or decisions.get("imageGenerationEnabled") is not False)
     preset = str(decisions.get("preset", "role"))
     if preset == "full":
         return ALL_BLOCKS
@@ -764,7 +767,30 @@ def policy_variables(decisions: dict[str, object]) -> dict[str, str]:
         "EMAIL_POLICY": EMAIL_ON if email_enabled else EMAIL_OFF,
         "SHARING_POLICY": as_bullets(decisions.get("sharingPolicy"), DEFAULT_SHARING),
         "SENSITIVE_DATA_POLICY": as_bullets(decisions.get("sensitiveData"), DEFAULT_SENSITIVE),
+        "COMMUNICATION_STYLE": communication_style(decisions),
+        "EXTERNAL_EMAIL_POLICY": (
+            "社外へのメール送信は、認証済み利用者が Teams で宛先と内容を承認した場合だけ実行します。"
+            if decisions.get("externalEmailEnabled") is True else
+            "社外へのメール送信は禁止です。社外への予定調整も送信せず、社内向けの下書きに留めます。"
+        ),
+        "IMAGE_POLICY": (
+            "`generate_image` がある場合だけ画像を生成します。"
+            if decisions.get("imageGenerationEnabled") is not False else
+            "画像生成は無効です。画像生成を申し出たり、別の経路で画像モデルを呼んだりしません。"
+        ),
     }
+
+
+def communication_style(decisions: dict[str, object]) -> str:
+    styles = decisions.get("communicationStyle") or {}
+    lines = []
+    for audience, label in (("internal", "社内"), ("external", "社外")):
+        style = styles.get(audience) or {"tone": "formal", "emoji": False}
+        if style.get("tone") not in {"friendly", "formal"} or type(style.get("emoji")) is not bool:
+            raise ValueError(f"communicationStyle.{audience} requires tone=friendly|formal and emoji=boolean")
+        tone = "フレンドリー" if style["tone"] == "friendly" else "フォーマル"
+        lines.append(f"- {label}: {tone}。絵文字は{'使用可' if style['emoji'] else '使わない'}。")
+    return "\n".join(lines)
 
 
 def runtime_settings(plan: "ScaffoldPlan", decisions: dict[str, object]) -> dict[str, str]:
@@ -777,6 +803,9 @@ def runtime_settings(plan: "ScaffoldPlan", decisions: dict[str, object]) -> dict
         "REACTIONS_ENABLED": "false" if decisions.get("reactionsEnabled") is False else "true",
         "SCHEDULE_ENABLED": "true" if "B11" in plan.blocks else "false",
         "EVAL_AGENT_KEY": plan.agent_name,
+        "EXTERNAL_EMAIL_ENABLED": "true" if decisions.get("externalEmailEnabled") is True else "false",
+        "IMAGE_GENERATION_ENABLED": "false" if decisions.get("imageGenerationEnabled") is False else "true",
+        "DEFAULT_TIMEZONE": "Asia/Tokyo",
     }
 
 
@@ -795,7 +824,7 @@ DEPLOY_SCRIPT = r'''# Build the container with a unique tag and roll it out as a
 #   ./deploy.ps1            create and publish an Autopilot Agent template (bumps appVersion)
 #   ./deploy.ps1 -Publish   same as the default; retained for existing callers
 #   ./deploy.ps1 -ContainerOnly -ConfirmExistingTemplate   verified existing templates only
-param([switch]$Publish, [switch]$ContainerOnly, [switch]$ConfirmExistingTemplate)
+param([switch]$Publish, [switch]$ContainerOnly, [switch]$ConfirmExistingTemplate, [switch]$UseAzureCli)
 $ErrorActionPreference = "Stop"
 if ($ContainerOnly -and $Publish) {{ throw "-ContainerOnly and -Publish cannot be combined" }}
 if ($ContainerOnly -ne $ConfirmExistingTemplate) {{ throw "-ContainerOnly requires -ConfirmExistingTemplate after verifying the existing M365 Agent template" }}
@@ -811,13 +840,20 @@ $image = $values["AGENT_IMAGE_NAME"]
 $package = Join-Path $PSScriptRoot "src/{package}"
 Push-Location $package
 try {{
-    az acr build --registry $registry --image "${{image}}:$tag" --file foundry-infra/Dockerfile . | Out-Null
-    if ($LASTEXITCODE -ne 0) {{ throw "az acr build failed" }}
+    if ($UseAzureCli) {{
+        az acr build --registry $registry --image "${{image}}:$tag" --file foundry-infra/Dockerfile . | Out-Null
+        if ($LASTEXITCODE -ne 0) {{ throw "az acr build failed" }}
+    }} else {{
+        python "{build}" --env $envFile --source $package --tag $tag
+        if ($LASTEXITCODE -ne 0) {{ throw "ACR shared-auth build failed" }}
+    }}
 }} finally {{
     Pop-Location
 }}
 $env:AGENT_IMAGE_TAG = $tag
 $env:PYTHONIOENCODING = "utf-8"
+python "{publish}" --check --env $envFile
+if ($LASTEXITCODE -ne 0) {{ throw "preflight failed" }}
 $mode = if ($ContainerOnly) {{ @("--execute", "--container-only", "--confirm-existing-template", "--recycle-sessions") }} else {{ @("--execute", "--bump-version") }}
 python "{publish}" @mode --env $envFile
 if ($LASTEXITCODE -ne 0) {{ throw "publish failed" }}
@@ -827,8 +863,34 @@ Write-Output "Submitted tag $tag. Verify Type=Agent template in M365 and hiring 
 
 def write_deploy_script(target: Path, package_dir: Path) -> None:
     publish = Path(__file__).resolve().parent / "publish_foundry_autopilot.py"
-    content = DEPLOY_SCRIPT.format(package=package_dir.name, publish=publish)
+    build = Path(__file__).resolve().parent / "build_autopilot_image.py"
+    content = DEPLOY_SCRIPT.format(package=package_dir.name, publish=publish, build=build)
     (target / "deploy.ps1").write_text(content, encoding="utf-8", newline="\n")
+
+
+def copy_first_stage(skill_root: Path, plan: ScaffoldPlan, decisions: dict[str, object]) -> None:
+    destination = plan.target / "scripts"
+    destination.mkdir(exist_ok=True)
+    for name in ("run_first_stage.py", "test_first_stage.py"):
+        shutil.copy2(skill_root / "scripts" / name, destination / name)
+    (plan.target / "first-stage.local.json").write_text(
+        json.dumps({"skillRoot": str(skill_root.resolve())}, indent=2) + "\n", encoding="utf-8"
+    )
+    saved_decisions = dict(decisions)
+    if (plan.target / "assets" / "profile.png").is_file():
+        saved_decisions["profileImage"] = {"mode": "file", "path": "assets/profile.png"}
+    (plan.target / "first-stage.decisions.json").write_text(
+        json.dumps(saved_decisions, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    shutil.copy2(skill_root / "templates" / "regression" / "first-stage.json",
+                 plan.target / "regression" / "first-stage.json")
+    ignore_file = plan.target / ".gitignore"
+    content = ignore_file.read_text(encoding="utf-8") if ignore_file.is_file() else ""
+    entries = (".env", "first-stage.local.json", "first-stage.decisions.json", "first-stage-state.json",
+               "autopilot-publication.json", "autopilot-approval.json", "regression/first-stage-results.json")
+    missing = [entry for entry in entries if entry not in content.splitlines()]
+    if missing:
+        ignore_file.write_text(content.rstrip("\n") + "\n" + "\n".join(missing) + "\n", encoding="utf-8")
 
 
 def place_profile_image(decisions: dict[str, object], target: Path, decisions_dir: Path) -> str:
@@ -844,7 +906,8 @@ def place_profile_image(decisions: dict[str, object], target: Path, decisions_di
             raise ValueError(f"profileImage.path not found: {source}")
         destination = target / "assets" / "profile.png"
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, destination)
+        if source.resolve() != destination.resolve():
+            shutil.copy2(source, destination)
         return "file"
     if mode == "generate":
         prompt = str(choice.get("prompt", "")).strip()
@@ -1013,6 +1076,8 @@ def scaffold(
         substitute_tokens=False,
     )
     copy_regression_suite(skill_root, plan)
+    if plan.hosting == "foundry-autopilot":
+        copy_first_stage(skill_root, plan, decisions)
 
     if plan.implementation_mode == "full":
         copy_alm_scaffold(skill_root, plan.target)
@@ -1092,28 +1157,10 @@ def print_next_steps(plan: ScaffoldPlan, env: dict[str, str]) -> None:
     """
     print("Next:")
     if plan.hosting == "foundry-autopilot":
-        scripts = Path(__file__).resolve().parent
-        env_file = plan.target / ".env"
-        steps = []
-        if "B17" in plan.blocks:
-            steps.append(f"python {scripts / 'provision_image_model.py'} --execute --env {env_file}")
-        steps += [
-            f"python {scripts / 'publish_foundry_autopilot.py'} --check --env {env_file}",
-            f"python {scripts / 'publish_foundry_autopilot.py'} --execute --env {env_file}   # 承認 → 採用（references/foundry-autopilot.md §6）",
-        ]
-        if "B11" in plan.blocks:
-            steps.append(f"python {scripts / 'provision_schedule_trigger.py'} --execute --env {env_file}   # 定期実行のタイマー")
-        prompt_file = plan.target / "assets" / "profile-prompt.txt"
-        photo = plan.target / "assets" / "profile.png"
-        if prompt_file.is_file():
-            steps.append(f"python {scripts / 'generate_profile_image.py'} --env {env_file} --prompt-file {prompt_file} --out {photo}")
-        steps += [
-            f"python {scripts / 'setup_autopilot_instance.py'} --env {env_file} --execute   # 採用後: スコープ・Dataverse・評価Hub・写真",
-            f"python {scripts / 'run_regression_tests.py'} --target {plan.target} --env {env_file} --check   # Teams で 1 通話しかけてから",
-            f"python {scripts / 'run_regression_tests.py'} --target {plan.target} --env {env_file} --execute   # 別ターミナルで --tick-now",
-        ]
-        for number, step in enumerate(steps, start=1):
-            print(f"  {number}. {step}")
+        runner = plan.target / "scripts" / "run_first_stage.py"
+        print(f'  python "{runner}" --target "{plan.target}"')
+        print("  M365 Type=Agent template を確認・承認・採用後、同じコマンドに --resume を付ける。")
+        print("  最小回答と認証プロファイルを再利用し、Teams API と Hub ログの受入まで実行する。")
         return
     if "B17" in plan.blocks:
         deployment = (env.get("IMAGE_MODEL_DEPLOYMENT") or "").strip()

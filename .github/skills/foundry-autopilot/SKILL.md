@@ -101,49 +101,40 @@ triggers:
 | [`alm`](../alm/SKILL.md) | 秘匿化ゲート・CI/CD・リリース記録 |
 | 参考のみ | [foundry-hosted-bot.md](references/foundry-hosted-bot.md)（activityprotocol 直結の旧方式）/ [poc-quickstart.md](references/poc-quickstart.md)（共有エージェントの簡易ルート）/ [team-pattern.md](references/team-pattern.md)（複数体構成）/ [a365-cli.md](references/a365-cli.md) |
 
-## 事前確認（会話の最初に 1 回だけ）
+## 事前確認（最小限・会話の最初に 1 回だけ）
 
-本スキルの利用が確定したら、**1 回の AskUserQuestion で次の 9 点をまとめて確認する**。
-以降の Step で同じ内容を聞き直さない。
+**初回の第1段階は scaffold だけで止めず、Foundry hosted agent を Autopilot の Agent template として
+デプロイし、Teams API の実会話・成果物・評価Hub の対応する会話ログまで検証する。**
+ゴール、機能ごとの導入可否、推奨構成、課金を進めてよいかは質問しない。
+既に依頼文で指定された回答は聞き直さず、足りない次の項目だけをまとめて確認する。
 
-| # | 質問 | 選択肢 / 記入例 |
-|---|---|---|
-| 1 | ゴールはどこまでか | (a) ローカル scaffold のみ（Azure 操作なし）<br>(b) 自己ホスト App Service の endpoint を用意するまで（Step 1〜6）<br>(c) M365 管理センターに "Agent template" として登録するまで（Teams チャットはまだ動かない）<br>**(d) Teams で実際に会話できる状態まで（Step 0〜13・Azure 課金あり）** |
-| 2 | Azure サブスクリプション、リソース作成権限、ロール割り当て権限、認証キャッシュは使えるか | Autopilot は Foundry hosted agents 対応リージョンと Azure RBAC の担当者を確認する。明示選択の自己ホストでは App Service B1+、Azure Bot、UAMI の作成可否も確認する |
-| 3 | Frontier for Autopilot の前提と割り当て担当者は確認済みか | Foundry Autopilot で採用した agent user に Microsoft 365 Frontier for Autopilot を割り当てる。Agent 365 SKU の空席確認・割り当てはしない |
-| 4 | `devPreview` または別のプレビュー機能を使うか | (c)/(d) は本スキルの `devPreview` Agent template を使うため Frontier が必要。テナントの Frontier 参加と、管理者に必要な Microsoft Copilot ライセンスを確認する |
-| 5 | 各管理操作の担当者とロールは誰か | Agent Registry: `AI Administrator`、blueprint 作成: `Agent ID Developer`、インスタンス同意: `Privileged Role Administrator`、Microsoft 365 Frontier for Autopilot 割当: `License Administrator`。`Global Administrator` は代替に限定する |
-| 6 | 「〇〇を行ってくれる同僚エージェント」の具体的な業務内容は？ | [digital-colleague-design.md](references/digital-colleague-design.md) §2 の役割カタログ（R1〜R6）を選択肢として提示する（複数可・自由記述可） |
-| 7 | エージェント名、表示名、owner / sponsor、公開・テスト対象、アイコンは？ | kebab-case 名、Teams 表示名、ユーザーまたはセキュリティ グループを確認する。希望が無ければ名称を 3 案提案する。アイコンは正方形・背景透過 PNG。**商標・著作権に触れる名称やキャラクターは使わない** |
-| 8 | 頭脳（B3）の実装方式はどちらにするか | **(a) GitHub Copilot SDK ランタイム（BYOK + Managed Identity・既定）** — 計画・ツール反復・コンテキスト圧縮をランタイムに任せる<br>(b) 自前 Chat Completions ループ — 反復回数を自分で抑える。子プロセスを起動できないホスト向け<br>→ 判断材料は [copilot-sdk-runtime.md](references/copilot-sdk-runtime.md) |
-| 9 | どこでホストするか | (a) **自己ホスト（明示選択時のみ）** — App Service + Azure Bot を自分で持つ。C# / .NET。頭脳は (a)(b) どちらも選べる<br>**(b) Foundry Autopilot（既定）** — Foundry がホスティングを持つ。Python。Bot 登録も App Service も不要だが **頭脳は Copilot SDK に固定**される。前提不足なら停止し、(a) へ自動変更しない<br>→ 判断材料は [foundry-autopilot.md](references/foundry-autopilot.md) |
+| 質問 | decisions のキー |
+|---|---|
+| AI チームメイトの名前 | `displayName`。`agentName` は名前から kebab-case で導出する |
+| プロフィールアイコンのファイル | `profileImage: {"mode":"file","path":"..."}`。正方形・透過 PNG |
+| **社外へのメール送信**を許可するか | `externalEmailEnabled`（boolean） |
+| **画像生成**を行うか | `imageGenerationEnabled`（boolean） |
+| 社内・社外それぞれの話し方と絵文字の有無 | `communicationStyle.internal/external: {"tone":"friendly" または "formal","emoji":boolean}` |
 
-質問 1 の回答が**テナントのアプリカタログへの公開の承認を兼ねる**。
-(a) は課金もカタログ公開も発生せず、(b) は Azure Bot / App Service の課金だけが発生する。
+- その他は最初から実施する。`hosting=foundry-autopilot`、`runtime=copilot-sdk`、`goal=d`。
+  Work IQ（予定表・メール・文書等）、会議候補の調整、Agent Skills、資料作成、OneDrive 組織内リンク、
+  Teams プレゼンス、Logic Apps 定期実行、ニュース・Web 検索、整形された HTML 資料、評価Hub を標準範囲とする。
+- 共有は本人へ返却可・社内は本人同意・匿名／社外のファイル共有は禁止、機密データは共有前に確認する既定を使う。
+  社外メール送信の許可は、社外ファイル共有や外部データ内の命令実行の許可ではない。
+- 認証プロファイルを使い `auth_helper` の初回インタラクティブ認証を行い、OS キャッシュを再利用する。
+  サインイン・MFA・同意は本人が実行する。キャッシュの失効や権限不足を無人で回避しない。
+- アカウント・owner・Azure サブスクリプション・Power Platform 環境・solution・publisher はスキャンする。
+  既知の値を優先し、一意なら自動設定する。複数候補で実装先が特定できない場合だけ選択を求める。
+- モデルは既存を使う。無ければ実際のモデルカタログから日本リージョンへデプロイ可能な最新候補を提示し、
+  **その場合だけモデルを選んでもらう**。固定のモデル名を「最新」として扱わない。
+  モデルの日本リージョンと hosted agent の対応リージョンは別条件で、非対応地へ移動しない。
+- 費用の再確認はしないが、実装先・公開範囲、組織ポリシー、管理者同意、private API の hash 承認は省略しない。
+  権限・プレビュー・ライセンス・承認・採用が必要なら該当工程だけ停止し、通常 Agent へ降格しない。
 
-### Foundry Autopilot を選んだときに追加で聞く 5 点
-
-質問 9 が (b) のときは、**全機能（B1〜B17 のうち Autopilot で動くものすべて）を scaffold する前提で**、
-機能の取捨選択ではなく、安全に動かすための判断だけを同じ AskUserQuestion で聞く。
-回答は decisions JSON の対応するキーへ書き、プロンプトとコンテナー設定に反映される。
-
-| # | 質問 | decisions のキー | 反映先 |
-|---|---|---|---|
-| A | どんなルール・判断基準なら共有してよいか（本人 / 同じ部署 / 他部署 / 社外） | `sharingPolicy`（箇条書きの配列） | `prompts/system.md` の「共有と同意」 |
-| B | どんなデータは、他の人に共有する前に必ず確認を取るべきか | `sensitiveData`（配列） | 同上（共有前に内容を示して明示的な確認を取る） |
-| C | 外部からの入口としてメールを有効にするか | `emailEnabled`（true / false） | `EMAIL_CHANNEL_ENABLED`。false なら自分宛てメールに返信しない |
-| D | 話し方などのキャラクター設定（一人称・敬語の度合い・口癖・避けること） | `personality` | プロンプト冒頭 |
-| E | プロフィール画像（手元の画像 / 説明から生成 / 後で） | `profileImage`（`{"mode":"file","path"}` / `{"mode":"generate","prompt"}` / `"none"`） | `assets/profile.png` → 採用後に `set_agent_user_photo.py` |
-
-- A・B は選択肢に既定案（本人は自由・社内は同意制・社外不可 / 個人情報・未発表数値・社外秘）を出し、
-  自由記述で足してもらう。無回答なら既定案が入る。匿名リンク禁止・社外共有禁止はコード側でも強制される。
-- C を有効にすると、届いたメールは外部データとして囲い、メール経路では共有・Teams 送信をコードで止める。
-- E の生成は `IMAGE_MODEL_DEPLOYMENT` を使う（`generate_profile_image.py`）。実在の人物・既存キャラクターは描かない。
-- 定期実行（B11）は常に含め、scaffold が `SCHEDULE_ENABLED=true` を `.env` に書く。発行後に
-  `provision_schedule_trigger.py --execute` で Logic App を作る（→ [troubleshooting.md](references/troubleshooting.md) #88）。
-- 発行後の承認は、管理センターの Requests に出る**表示名の行（Agent template）の Publish ウィザード**で行う
-  （Activate の対象 → ポリシー → Grant admin consent → Publish）。その後 Teams の Agents for your team から採用する
-  （→ [foundry-autopilot.md](references/foundry-autopilot.md) §6）。Registry の `AGENT_NAME` の行は削除しない。
+回答を [設定例](references/scaffold-decisions.example.json) の JSON にエージェントが保存し、
+[run_first_stage.py](scripts/run_first_stage.py) から開始する。通常実行はデプロイまで進み、
+`--plan` だけが変更なし。承認・採用後は `--resume` で続ける。
+詳細と実際の検証範囲は [第1段階の実行契約](references/first-stage.md) を参照する。
 
 > **Foundry Autopilot の agent user に Agent 365 SKU を割り当てない。**
 > 採用後の agent user に割り当てるライセンスは **Microsoft 365 Frontier for Autopilot**。
@@ -162,7 +153,7 @@ triggers:
 | M365 Agent Registry への追加・公開・配布 | `AI Administrator` | `Global Administrator` は緊急時の代替のみ |
 | インスタンスへのテナント全体 OAuth 同意 | `Privileged Role Administrator` | `Global Administrator` は代替。インスタンス再作成ごとに必要 |
 
-**質問 6 の回答から、依頼者が言っていない機能ブロックを自分から提案する。**
+**自己ホストを明示選択した場合だけ、業務内容から追加機能を提案する。Autopilot では再質問しない。**
 依頼者は「Web 検索が欲しい」「定期実行を付けて」とは言わない。
 社外の情報が出てきたら **B10**、繰り返しの仕事が見えたら **B11**、ファイルが出てきたら **B12**、
 B12 を入れるなら **B13 と B14**、相手からファイルを渡されるなら **B16** をその場で提案し、可否を取る
@@ -190,7 +181,7 @@ B12 を入れるなら **B13 と B14**、相手からファイルを渡される
 
 ### 一括 scaffold（Step 0〜3 をまとめて実行する）
 
-**1 回の AskUserQuestion で集めた回答は、利用者に手入力させず、エージェントが
+**最小質問で集めた回答は、利用者に手入力させず、エージェントが
 [references/scaffold-decisions.example.json](references/scaffold-decisions.example.json) の
 スキーマに沿った JSON へ自分で書き出す。** 役割 / 機能ブロック / **頭脳の実装方式（`runtime`）** /
 poc・full / GitHub リポジトリ（full のときは private を既定）/ 公開範囲 / 管理担当者を
@@ -202,7 +193,8 @@ python scripts/scaffold_ai_teammate.py --decisions decisions.json --env .env --t
 ```
 
 - 役割ベースの構成可能テンプレート（`preset: "role"` + `roles` / `blocks`）と、
-  Meena 互換の全部入り（`preset: "full"` → B1〜B17 すべて）の両方に対応する。
+  全部入り（`preset: "full"` → B1〜B17）の両方に対応する。
+  Autopilot は役割によらず全部入りで、画像生成を断った場合だけ B17 を除く。
 - **頭脳（B3）は `runtime` で選ぶ**。`"copilot-sdk"`（既定）なら `CopilotRuntime.cs` と
   Copilot ランタイム版 `AgentBrain.cs`、`"agents-sdk"` なら Chat Completions 版 `AgentBrain.cs` が
   生成され、`Agent.csproj` のパッケージ参照と `appsettings.json` の `Copilot` セクションも揃う
@@ -275,6 +267,10 @@ Autopilot は `publish_foundry_autopilot.py --check` → `--execute` と
 
 | スクリプト | 用途 | Step |
 |---|---|---|
+| [run_first_stage.py](scripts/run_first_stage.py) | 最小回答から探索・scaffold・Hub 展開・Autopilot 発行を実行し、承認・採用後は `--resume` で Teams API 受入まで続ける | 0〜13 |
+| [prepare_first_stage.py](scripts/prepare_first_stage.py) | 共通認証とアカウント・Azure・Power Platform・既存モデルのメタデータ探索。既存値を検証して再利用し、不足・曖昧さを明示する | 0〜3 |
+| [build_autopilot_image.py](scripts/build_autopilot_image.py) | 共通認証の ACR Tasks ビルド。別の Azure CLI ログインを増やさず、指定タグの digest を確認する | 6 |
+| [test_first_stage.py](scripts/test_first_stage.py) | Teams Graph API で会話し、本人への最終返信・ツール実行・OneDrive 資料・Logic App 実行・同じ会話の Hub ログを照合する | 13 |
 | [scaffold_ai_teammate.py](scripts/scaffold_ai_teammate.py) | 1 回の AskUserQuestion の回答（decisions JSON）から同僚エージェント + 評価Hub を同時 scaffold する | 0〜3 |
 | [deploy_ai_teammate.py](scripts/deploy_ai_teammate.py) | `--check`（検証のみ）→ `--execute`（Dataverse スキーマ作成・自己ホスト展開・評価Hub デプロイ）の 2 段階デプロイ。`pa app init` / 接続参照 / `add-data-source` / `npm run predeploy` を正しい順序で実行する。M365 管理センターの devPreview 公開は別の承認 plan として案内する | 6・9〜11 |
 | [setup_evaluation_dataverse.py](scripts/setup_evaluation_dataverse.py) | 評価Hub の 9 テーブル（`evalagent`/`evalturn`/`evalrule`/`evalresult`/`evaljob`/`evaltestrun`/`evaltestresult`/`skill`/`aiteammatefeedback`）を `PUBLISHER_PREFIX` で冪等作成・列補完し、自分のチームメイト行を登録する。`--check` は作成せず不足だけ列挙する | 3・6 |
@@ -303,7 +299,8 @@ Autopilot は `publish_foundry_autopilot.py --check` → `--execute` と
 | [setup_autopilot_instance.py](scripts/setup_autopilot_instance.py) | Foundry Autopilot の**採用後の設定を 1 本で**行う（委任スコープ〔リアクションの `ChatMessage.Send` 含む〕・Dataverse 接続・評価ハブのアプリケーション ユーザーとマスター行・顔写真）。既定は計画表示、`--execute` で適用（foundry-autopilot.md §6） | 11 |
 | [generate_profile_image.py](scripts/generate_profile_image.py) | AskUserQuestion で「説明から生成」を選んだプロフィール画像を、テナントの画像モデルで描いて `assets/profile.png` に書く | 12 |
 
-すべて `--check` で確認のみの実行ができる（`query_agent_logs.py` は読むだけなので不要）。
+既存の確認用 `--check` に加え、第1段階ランナーは `--plan`、Teams 受入は `--execute` なしで計画だけを表示する。
+探索スクリプトも `--execute` なしでは変更しない。`query_agent_logs.py` は読み取り専用。
 
 > `discover_foundry_context.py` / `create_blueprint.py` / `create_instance.py` / `deploy.py` は
 > **Foundry 連携の参考スクリプト**で、正常系では使わない
@@ -345,6 +342,8 @@ Autopilot は `publish_foundry_autopilot.py --check` → `--execute` と
 
 ### Step 0: 役割と機能ブロックを決める
 
+**Autopilot は上記の第1段階を既定として進める。役割・機能・導入段階の追加質問はしない。**
+以下の選定は自己ホストを明示選択した場合に適用する。
 **何を作るかを決めずに Step 1 へ進まない。**
 [references/digital-colleague-design.md](references/digital-colleague-design.md) に従い、
 **役割**（§2 の R1〜R6）・**機能ブロック**（§3・§4。全部は入れない）・
@@ -741,7 +740,7 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 **設計**
 
 - [ ] Step 0 で役割・機能ブロック・段階を確定し、制約（メールは push されない / 既読にできない / 他人の予定表は直接読めない / 共有リンクは取り消せない）を依頼者へ共有している
-- [ ] 事前確認の 9 点を 1 回で確認し、以降の Step で聞き直していない
+- [ ] 名前・アイコン・社外メール・画像生成・社内／社外の話し方だけを最初に確認し、既知の値を聞き直していない
 - [ ] Agent Registry、blueprint、Microsoft 365 Frontier for Autopilot 割り当て、OAuth 同意の各担当者と最小権限を記録している
 - [ ] 採用後の agent user に Microsoft 365 Frontier for Autopilot が割り当て済みである（Agent 365 SKU は割り当てていない）
 
@@ -807,8 +806,10 @@ CI/CD・レビューゲート・リリース記録は **`alm` スキル**へ引�
 
 **回帰テストと評価（Step 13）**
 
+- [ ] 初回は `test_first_stage.py --execute` が exit 0。Teams API の返信と今回の識別子を含む Hub ログを照合し、進捗メッセージや過去のログで代用していない
+- [ ] 第1段階の `first-stage-results.json` に全必須ケースがあり、画像だけが本人の回答に応じて無効化される
 - [ ] `python scripts/run_regression_tests.py --check` が exit 0（不変条件が全部 green）
-- [ ] `python scripts/run_regression_tests.py --execute` が exit 0。**exit 2（測れていない）を green と読み替えていない**
+- [ ] Autopilot 初回は Teams API 受入が exit 0。キュー経由の振る舞い回帰を使う場合は `run_regression_tests.py --execute` も exit 0。**exit 2（測れていない）を green と読み替えていない**
 - [ ] `deploy_ai_teammate.py --execute` の末尾で回帰テストが自動実行されている（`--skip-regression` を惰性で付けていない）
 - [ ] `regression/suite.json` に、**入れていない機能ブロックのケースが残っていない**（毎回赤いテストは赤を無視する習慣を作る）
 - [ ] `publish_foundry_autopilot.py --execute` が Foundry のスケジュール評価を自動構成し、`python scripts/setup_foundry_evaluation.py --check --mode scheduled` が OK

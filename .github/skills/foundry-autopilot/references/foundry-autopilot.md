@@ -389,6 +389,11 @@ RUN python -m copilot download-runtime
 
 ## 9. scaffold で一気に用意する（`hosting: "foundry-autopilot"`）
 
+初回の標準入口は [run_first_stage.py](../scripts/run_first_stage.py)。
+最小の質問から発行・採用後設定・Teams API 会話と Hub ログの受入まで進める。
+scaffold 単体を呼んだ場合も、第1段階の Python ランナー・回答 JSON・受入ケースを生成する。
+実行契約と承認後の再開は [first-stage.md](first-stage.md) を参照する。
+
 §8 の差し替えを手で行う必要はない。`decisions.json` に `"hosting": "foundry-autopilot"` を入れると
 [scaffold_ai_teammate.py](../scripts/scaffold_ai_teammate.py) が次を順に行う。
 

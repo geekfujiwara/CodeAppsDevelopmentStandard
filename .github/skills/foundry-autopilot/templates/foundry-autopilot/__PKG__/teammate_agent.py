@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
+import aiohttp
 from azure.ai.projects.aio import AIProjectClient
 from azure.identity.aio import DefaultAzureCredential, ManagedIdentityCredential
 from microsoft_agents.activity import Activity, Attachment
@@ -283,6 +284,16 @@ class TeammateAgent(AgentInterface):
         async def graph_token(scope: str) -> Optional[str]:
             return await self._acquire_mcp_token(auth, auth_handler_name, context, scope=scope)
 
+        if str(channel).startswith("msteams"):
+            from .presence import refresh
+
+            presence_token = await graph_token("https://graph.microsoft.com/.default")
+            if presence_token:
+                try:
+                    await refresh(presence_token)
+                except (ValueError, IndexError, aiohttp.ClientError, asyncio.TimeoutError):
+                    logger.exception("Agent Teams presence refresh failed")
+
         from . import reactions
 
         if reactions.enabled():
@@ -350,6 +361,12 @@ class TeammateAgent(AgentInterface):
             logger.info("Email notification ignored (EMAIL_CHANNEL_ENABLED is not true)")
             return ""
         sender = getattr(notification_activity, "from_property", None) or getattr(notification_activity, "from", None)
+        if os.getenv("EXTERNAL_EMAIL_ENABLED", "").lower() != "true":
+            from .untrusted_content import mail_recipient_error
+
+            if mail_recipient_error({"to": getattr(sender, "id", "")}):
+                logger.warning("Email reply blocked: sender is not a verified internal recipient")
+                return ""
         dump = getattr(notification_activity, "model_dump_json", None)
         body = dump(indent=2) if callable(dump) else str(notification_activity)
         message = (
@@ -436,6 +453,8 @@ class TeammateAgent(AgentInterface):
     def _headless_tools(self) -> list[Any]:
         """Tools that run on the agent's own identity, so a test turn can exercise them too."""
         deployment = os.getenv("IMAGE_MODEL_DEPLOYMENT", "").strip()
+        if os.getenv("IMAGE_GENERATION_ENABLED", "").lower() == "false":
+            return []
         if not deployment:
             return []
         from .image_tools import build_image_tool
@@ -583,6 +602,8 @@ class TeammateAgent(AgentInterface):
         if usage_tool is not None:
             tools.append(usage_tool)
         deployment = os.getenv("IMAGE_MODEL_DEPLOYMENT", "").strip()
+        if os.getenv("IMAGE_GENERATION_ENABLED", "").lower() == "false":
+            return tools
         if not deployment:
             return tools
         from .image_tools import build_image_tool
