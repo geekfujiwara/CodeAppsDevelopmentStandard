@@ -1,6 +1,6 @@
 ---
 name: azure-infra
-description: "Azure の基盤（ネットワーク・ID・ストレージ・コンピュート・デプロイ）をリファレンスアーキテクチャから選定し、テナントのセキュリティガバナンスに準拠した構成で構築・デプロイ・検証する。組織ポリシー（公衆ネットワークアクセス禁止・共有キー禁止・MFA 必須等）の下でも動作する構成を、Private Link / Managed Identity / VNet 統合を用いて実装する。"
+description: "Azure の基盤（ネットワーク・ID・ストレージ・コンピュート・デプロイ）をリファレンスアーキテクチャから選定し、テナントのセキュリティガバナンスに準拠した構成で構築・デプロイ・検証する。Azure Web アプリ / SPA の Microsoft Entra ID ログインは同一タブの redirect を標準にする。組織ポリシー（公衆ネットワークアクセス禁止・共有キー禁止・MFA 必須等）の下でも動作する構成を、Private Link / Managed Identity / VNet 統合を用いて実装する。"
 category: architecture
 triggers:
   - "Azure 構築"
@@ -15,6 +15,9 @@ triggers:
   - "セキュアな Web サイト"
   - "linked backend"
   - "Azure ガバナンス準拠"
+  - "Azure Web ログイン"
+  - "Entra SPA 認証"
+  - "MSAL redirect"
 ---
 
 # Azure 基盤（azure-infra）スキル
@@ -50,6 +53,7 @@ Policy、MFA、Private DNS のいずれかが不明なら Step 4 の構築へ進
 | リファレンス | 用途 | ドキュメント |
 |---|---|---|
 | セキュアな Web × ストレージ | 公衆アクセス禁止ストレージのコンテンツを Web で安全配信 | [references/secure-website.md](references/secure-website.md) |
+| Web / SPA の Entra ID ログイン | 同一タブ redirect、API access token、認証後の実機検証 | [references/browser-auth.md](references/browser-auth.md) |
 | Microsoft Foundry エージェント | Web 組み込みエージェント / 知識グラウンディング(Work IQ・Foundry IQ・Fabric IQ) / AI Gateway ガバナンス | [references/foundry-agent.md](references/foundry-agent.md) |
 | MCP Server（Azure Functions） | 社内データを Copilot Studio エージェントへ公開する自前 MCP Server | [mcp-server スキル](../mcp-server/SKILL.md) |
 | 短期トークン発行（トークン ブローカー） | ブラウザから Azure サービスへ直結する（WebSocket 等）ための短期トークンを、Managed Identity で発行してカスタム コネクタ経由で渡す | [references/token-broker.md](references/token-broker.md) |
@@ -97,10 +101,12 @@ Azure 上で Web サイト/フロントを作る際、UI は**新規に定義せ
 1. `scripts/setup_private_endpoint.ps1` を **段階（Stage）実行**する（ポリシーでの失敗を切り分けるため）。
 2. VNet/サブネット → Private DNS → Private Endpoint → バックエンドストレージ → コンピュート（VNet 統合・**MI デプロイ認証を作成時に指定**）→ RBAC → アプリ設定 → フロント連携 の順。
 3. パラメータは引数か `.env`（[references/.env.example](references/.env.example)）から取得する。
+4. Azure 上のトップレベル Web / SPA が自前で Entra 認証する場合は、[ブラウザ認証標準](references/browser-auth.md)と同梱テンプレートを使う。対話認証は **同一タブの `loginRedirect`** を既定とし、起動時に `initialize` → `handleRedirectPromise` の完了を待ってから保護 API / ルーターを開始する。API スコープの access token とサーバー側認可を維持する。ホスト認証を使う Code Apps、Easy Auth / BFF、埋め込みは同資料の適用範囲に従う。
 
 ### Step 5: アプリをデプロイする
 1. **企業ネットワークからの大容量デプロイはリセットされる**ため、CI からデプロイする（`scripts/deploy_functionapp.yml`）。
 2. コンテンツ配信はブラウザ直アクセスをやめ、**API プロキシ（HTTP Range 対応）**に変更する（詳細は各リファレンス）。
+3. 自前 MSAL SPA はデプロイ前に `node .github/skills/azure-infra/scripts/check_browser_auth.mjs --project <APP_DIR> --auth-file src/auth.ts --callback-file public/auth-callback.html` を実行する（既存アプリは入口ファイルを指定）。静的チェックの合格と実際のログイン成功は分けて記録する。
 
 ### Step 6: 検証する
 1. 未認証で保護エンドポイントが `401` を返す（配信・認証保護の確認）。
@@ -109,6 +115,7 @@ Azure 上で Web サイト/フロントを作る際、UI は**新規に定義せ
 4. [ブラウザ自動化方針](../standard/references/browser-automation.md)に従い、起動前に
   `AskUserQuestion` で Edge プロファイルを確認してから、ブラウザ E2E を
   **VS Code 統合ブラウザ**で自動化する（Playwright 単体・MCP は使わない）。
+5. 自前 MSAL SPA は本人がサインイン / MFA を操作し、**同一タブで復帰 → 保護 API が `200` → 許可された役割の画面表示**まで確認する。未認証の `401`、モックや CLI トークンによる `200` だけで対話認証を完了扱いにしない。未確認なら未検証と明示する。
 
 ### Step 7: クリーンアップとセキュリティ
 1. 旧「公開切替」自動化（Automation runbook / スケジュール / CI）は不要かつ無効のため削除する。
@@ -119,6 +126,7 @@ Azure 上で Web サイト/フロントを作る際、UI は**新規に定義せ
 
 ## 参考リンク
 - [セキュアな Web × ストレージ構成](references/secure-website.md)
+- [Web / SPA のブラウザ認証標準](references/browser-auth.md)
 - [Microsoft Foundry エージェント開発](references/foundry-agent.md)
 - [事前確認チェックリスト](references/preflight-checklist.md)
 - [異常系・トラブルシュート](references/troubleshooting.md)

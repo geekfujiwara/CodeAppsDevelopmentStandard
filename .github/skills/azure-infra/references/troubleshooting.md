@@ -40,6 +40,17 @@
 
 ## 認証 (MFA)
 
+- **Microsoft 認証後も `/api/me` が `401` / popup が閉じない / `window.closed` の COOP 警告**
+  - popup の戻りで SPA が再起動すると、子ウィンドウに再びログイン画面が出る。静的 callback と `same-origin-allow-popups` だけではブラウザの opener 分離を解決できない場合もある。
+  - 対処: [ブラウザ認証標準](browser-auth.md)の **同一タブ `loginRedirect`** にする。戻り先は MSAL を初期化する SPA、静的 callback はサイレント更新だけに使う。起動時に `handleRedirectPromise` を完了してから API を呼ぶ。
+  - COOP は `same-origin` を維持する。ブラウザ保護 / CSP の無効化、無条件の管理者付与、ID token の API 流用、401 の握り潰しはしない。
+  - 古い popup を閉じ、元タブを更新して再試行。JWT の署名 / issuer / audience / tenant / scope と役割、実際に送られる API access token を確認する。トークンや認可コードは表示・記録しない。
+  - 未認証の最初の `401` は想定内。認証後の `401` は別問題として通知する。恒久チェックは `scripts/check_browser_auth.mjs`、本人の対話ログインと保護 API の `200` は別ゲート。
+
+- **`interaction_in_progress` / 認証戻りでループする**
+  - 初期化の Promise を共有し、`initialize` → `handleRedirectPromise` を待つ。React 再レンダーやルーターから並行して login を開始しない。SPA の戻り先と静的 callback の両方を Entra の SPA redirect URI に登録し、静的 callback を SPA の fallback で置換しない。
+  - iframe 内の対話ログインは行わない。トップレベルで開くか、ホストが提供する認証契約を使う。再認証は画面遷移するため、未保存データが保持されるとは案内しない。
+
 - **`RequestDisallowedByAzure: ... without authenticating through MFA`**
   - 原因: トークンが MFA 未実施（`amr=pwd`）。SSO キャッシュで MFA プロンプトが出ないことがある。
   - 対処: 実際に MFA を完了する。`scripts/ensure_az_mfa.ps1` はトークンの `amr` を判定し、
