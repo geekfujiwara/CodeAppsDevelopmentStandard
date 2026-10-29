@@ -7,6 +7,10 @@
 >
 > プレースホルダ `<...>` は環境値に置換する（[.env.example](.env.example) 参照）。
 
+ブラウザ利用者 → API の認証は、バックエンド → ストレージの Managed Identity とは別である。
+自前 SPA の Microsoft ログインは [ブラウザ認証標準](browser-auth.md) の同一タブ redirect と API access token を使い、
+API は JWT と利用者の権限を検証する。Managed Identity だけで公開 API が保護されるわけではない。
+
 ---
 
 ## 1. 適用シナリオ / 前提となる制約

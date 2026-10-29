@@ -1,0 +1,10 @@
+{
+  "description": "Entra MSAL Browser 4.x same-tab redirect authentication adapter",
+  "variables": [],
+  "nextSteps": [
+    "npm install",
+    "npm run check",
+    "npm test",
+    "Register SPA root and /auth-callback.html redirect URIs additively, then integrate the adapter following README.md."
+  ]
+}
