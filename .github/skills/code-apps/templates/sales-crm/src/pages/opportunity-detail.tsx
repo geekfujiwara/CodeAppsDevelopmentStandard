@@ -15,7 +15,6 @@ import { formatDateTime, optionLabel } from "@/crm/format"
 import { nextBusinessSlot, openExternal, outlookMailUrl, outlookMeetingUrl, teamsChatUrl } from "@/crm/links"
 import { coworkPrompts } from "@/crm/prompts"
 import { ACTIVITY_STATUS_OPTIONS, ACTIVITY_TYPE_OPTIONS, ActivityStatus, ActivityType, col, ENTITIES, OpportunityStage, STAGE_OPTIONS } from "@/crm/schema"
-import { todayIso } from "@/crm/metrics"
 import {
   useActivities, useContacts, useDeleteEntity, useEntityRow, useLookupChoices, useOpportunities, usePatchOpportunity, useSaveEntity, useUserMap,
 } from "@/hooks/use-crm"
@@ -48,10 +47,14 @@ export default function OpportunityDetail() {
   )
 
   const changeStage = async (stage: number) => {
-    if (!id) return
+    if (!id || patch.isPending) return
+    if (stage === OpportunityStage.Lost) {
+      setValues({ ...toFormValues(def, row.data), [col("stage")]: stage })
+      setEditing(true)
+      toast.info("失注理由を入力して保存してください")
+      return
+    }
     const body: Record<string, unknown> = { [col("stage")]: stage }
-    if (stage === OpportunityStage.Won) Object.assign(body, { [col("probability")]: 100, [col("actualclosedate")]: todayIso() })
-    if (stage === OpportunityStage.Lost) Object.assign(body, { [col("probability")]: 0, [col("actualclosedate")]: todayIso() })
     try {
       await patch.mutateAsync({ id, body })
       toast.success(`ステージを「${STAGE_OPTIONS.find((s) => s.value === stage)?.label}」に更新しました`)
@@ -118,7 +121,7 @@ export default function OpportunityDetail() {
               </div>
             </div>
 
-            <StagePath stages={STAGE_OPTIONS} current={opp.stage} negativeValue={OpportunityStage.Lost} onSelect={(s) => void changeStage(s)} />
+            <StagePath stages={STAGE_OPTIONS} current={opp.stage} negativeValue={OpportunityStage.Lost} onSelect={patch.isPending ? undefined : (s) => void changeStage(s)} />
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
               <Card className="min-w-0">

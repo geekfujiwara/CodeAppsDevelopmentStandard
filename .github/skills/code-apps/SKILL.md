@@ -664,6 +664,10 @@ SDK 生成サービスは Lookup 名フィールド（`createdbyname` 等）を�
 既定は通常テーブルのChoice列でありBPFではない。`sales-crm` の構築スクリプトは
 `IsBPFEntity=false`・`TableType=Standard`・ステージ列のPicklist型を構築前に検証する。
 Code AppsもCopilot Studioも商談本体のステージ列を更新し、自動進捗履歴を直接編集しない。
+`sales-crm` は同期商談規則・初期見込み・自動履歴・署名要求列と回帰試験を標準同梱する。
+初回push後、テンプレートの`nextSteps`に従ってビルド・変更承認・サーバー配備・試験を行う。
+HMAC鍵はsecure configurationで再利用し、履歴の要求署名列は保存前に除去する。
+本人MCPの読み戻し成功をAPI試験とは別に確認する（[標準工程](templates/sales-crm/README.md)）。
 
 → 詳細: **[ステージ矢羽パターン](references/stage-path-pattern.md)**
 

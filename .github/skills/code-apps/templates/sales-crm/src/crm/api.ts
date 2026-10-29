@@ -1,5 +1,5 @@
 import { createRecord, deleteRecord, getRecord, listRecords, updateRecord, type DataverseRow } from "@/lib/dataverse-client"
-import { col, ENTITIES, type EntityDef, type FieldDef } from "@/crm/schema"
+import { col, ENTITIES, OpportunityStage, type EntityDef, type FieldDef } from "@/crm/schema"
 
 export type FormValue = string | number | boolean | null
 export type FormValues = Record<string, FormValue>
@@ -74,7 +74,10 @@ function toBody(def: EntityDef, values: FormValues, isCreate: boolean): Datavers
 }
 
 export function missingRequired(def: EntityDef, values: FormValues): string[] {
-  return def.fields.filter((f) => f.required && !f.readOnly && (values[f.name] === null || values[f.name] === "")).map((f) => f.label)
+  const missing = def.fields.filter((f) => f.required && !f.readOnly && (values[f.name] === null || values[f.name] === "")).map((f) => f.label)
+  if (def.key === "opportunity" && Number(values[col("stage")]) === OpportunityStage.Lost &&
+      !String(values[col("lossreason")] ?? "").trim()) missing.push("失注理由")
+  return missing
 }
 
 export async function saveEntity(def: EntityDef, values: FormValues, id?: string): Promise<void> {

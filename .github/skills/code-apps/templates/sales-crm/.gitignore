@@ -33,3 +33,10 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 *.log
+
+# Plugin private signing key, build output and environment verification reports
+*.snk
+server/**/bin/
+server/**/obj/
+server/*-registration.json
+server/*-verification.json
