@@ -1,3 +1,122 @@
+[![日本語](https://img.shields.io/badge/%E6%97%A5%E6%9C%AC%E8%AA%9E-%E6%97%A5%E6%9C%AC%E8%AA%9E%E3%82%BB%E3%82%AF%E3%82%B7%E3%83%A7%E3%83%B3%E3%81%B8-blue?style=for-the-badge)](#japanese)
+
+# AI-First Development Standard
+
+This repository provides skills, agents, and references for building business systems on Power Platform and Azure with **VS Code + GitHub Copilot / Claude Code**. It supports Power Apps Code Apps, Dataverse, Power Automate, Power Pages, Copilot Studio, Cowork, and more. The Code Apps implementation standard is **TypeScript + React + Tailwind CSS**.
+
+[![Open in VS Code](https://img.shields.io/badge/Open%20in%20VS%20Code-007ACC?style=for-the-badge&logo=visual-studio-code&logoColor=white)](https://vscode.dev/github/geekfujiwara/CodeAppsDevelopmentStandard)
+[![GitHub Copilot](https://img.shields.io/badge/GitHub%20Copilot-supported-blueviolet?style=for-the-badge&logo=github)](https://github.com/features/copilot)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+
+[Watch the introduction video on YouTube](https://youtu.be/-BU7KnjvYoc?si=iO8MtVLq__gOfTqw)
+
+## Get started by role
+
+| For | Start with | Topics |
+|---|---|---|
+| Business app developers | [Developer guide](docs/developer-guide.md) | Tool setup, authentication, environment checks, and working with agents |
+| Tenant and environment administrators | [Administrator guide](docs/administrator-guide.md) | Licensing, dedicated environments, developer roles, Credits, DLP / ACP |
+| Owners of company development standards | [Company standard adoption and operations guide](docs/company-standard-next-steps.md) | Creating internal/private repositories, initial setup, company policies, update notifications, issue handling, and team rollout |
+| Claude Code users | [Claude Code quickstart](docs/claude-code-quickstart.md) | Getting and referencing the standard files and starting development |
+
+## Quickstart
+
+**Open the local folder where you want to build your app in VS Code. In GitHub Copilot Chat's Agent mode, copy and submit the following prompt.**
+You can start with just the repository URL and “Quickstart.” If you have specifications or other materials, leave them in that folder.
+
+```text
+https://github.com/geekfujiwara/CodeAppsDevelopmentStandard Quickstart
+```
+
+Following the [quickstart procedure](.github/skills/standard/references/quickstart.md), Copilot does not stop after placing `.github/agents`, `.github/skills`, and the template `.gitignore`; it proceeds through the following steps.
+
+| Step | What it does |
+|---|---|
+| 0 | Places or updates the development standard, prepares the shared `auth_helper.py`, `.env`, and interactive sign-in authentication cache, and verifies cache reuse. **After authentication, it pauses to ask about your needs and scope with `AskUserQuestion` and waits for your response.** If materials are present, it offers choices such as continuing through development, deployment, and testing based on those materials; otherwise it presents several concrete app ideas based on the folder name. |
+| 1 | After you choose to continue, safely moves and organizes business materials from the root into `spec/input/`, then uses `spec-builder` to create specifications. `architecture` proposes business improvements, recommended AI features, and a suitable existing template, and outputs **business workflow and architecture diagrams in Mermaid both in chat and in Markdown**. Diagrams are not placed inside question pop-ups. |
+| 2 | Uses the authentication cache to inspect Power Platform environments and Dataverse tables, publishers, and solutions. When needed, it also inspects Azure subscriptions, resource groups, AI models, and regions, then finalizes the configuration with rationale. |
+| 3 | Implements the **full configuration based on the materials and template, runs quality tests and pre-deployment checks, deploys to the development environment, and verifies actual operation**. It shares the actual architecture diagram, URLs, and test results, and updates documentation and implementation status. It reports “all complete” only when every required item has been verified. |
+
+The one-time requirements check after authentication is retained. **After you respond, Copilot investigates what it can determine on its own and does not keep asking about known details or routine implementation decisions.** If there are no materials, it develops the selected idea with its assumptions stated. Requests limited to proposals or preparation are respected.
+
+Environment scanning gathers information such as connection targets. It does not normally perform advance checks for DLP, ACP, or Code Apps permissions.
+Existing files and company standards are protected. Copilot waits for your response only when your judgment is needed for authentication, environment selection, or similar actions, then continues.
+Observed facts are distinguished from proposed assumptions. The development scope approved during the requirements check is carried forward, while out-of-scope decisions such as production, external publication, destructive changes, real-data migration, additional costs, or permission grants require separate confirmation.
+
+For a more detailed prompt, copy the following (after setup, you can also run it from Copilot using `/Quickstart`).
+
+```text
+https://github.com/geekfujiwara/CodeAppsDevelopmentStandard Quickstart.
+Do not stop after placing .github/agents, .github/skills, and the template .gitignore.
+Scan candidate environments, prepare auth_helper.py and .env, and set up an authentication cache using interactive sign-in.
+Pause here, ask about my needs with AskUserQuestion, and wait for my response.
+If materials are present, offer choices to continue based on those materials, change the scope, or stop after preparation.
+If there are no materials, first suggest multiple app ideas based on the folder name and let me choose.
+For the continue option, state that it covers development, deployment, and testing in the development environment based on the materials and template.
+After I choose to continue, safely move and organize business materials from the root into spec/input/ and run spec-builder.
+If there are no materials, flesh out the selected idea. Then investigate what you can determine on your own and do not ask me again about known details.
+Do not ask me to define business requirements from scratch. As a professional consultant, use industry knowledge and best practices to fill gaps,
+and propose business improvements, recommended AI features, architecture, and a suitable existing template in this repository.
+Output Mermaid diagrams for the business workflow and architecture both in chat and Markdown.
+Do not put diagrams inside question pop-ups. Present recommended proposals in chat and distinguish facts from assumptions.
+Use the authentication cache to inspect existing Power Platform environments and inspect Azure only when needed, then finalize the configuration.
+Within the approved development scope, implement the full configuration, run quality tests, deploy, and verify actual operation.
+Finally, share the actual architecture diagram, URLs, and verification results, and update the documentation.
+Ask additional questions only for unresolved matters that require my judgment or actions outside the approved scope.
+```
+
+When proceeding with implementation, select **GeekPowerCode** in Copilot. If your company has its own standard, use its approved version and company-specific agent. For local tool details, see the [developer guide](docs/developer-guide.md).
+
+- After design and approval, proceed directly to implementation and prioritize the initial Code Apps deployment. Check environments or DLP only when explicitly requested or when troubleshooting an issue.
+- Unless direct connection or continued use is explicitly requested, treat SharePoint URLs as migration sources, move the data to Dataverse, and build Code Apps.
+- The relevant skill installs dependencies only when Code Apps is selected.
+- Check `.gitignore` to ensure `.env`, credentials, and generated files are not committed.
+- To start from existing specifications, use [spec-builder](.github/skills/spec-builder/SKILL.md).
+- For Claude Code setup, see the [dedicated guide](docs/claude-code-quickstart.md).
+
+## For developers
+
+[Developer guide](docs/developer-guide.md) covers local tool setup, Python packages, first sign-in, environment checks when explicitly requested, and troubleshooting. Routine development does not include advance diagnostics through administration APIs.
+
+For one-step setup, select [Setup Development Environment](.github/prompts/setup-development-environment.prompt.md) from the `/` menu in Copilot Chat. If an operation requires administrator permissions that are not available, it stops and reports what to ask an administrator to do.
+
+## For tenant and environment administrators
+
+[Administrator guide](docs/administrator-guide.md) covers licensing, dedicated environments, security roles, Copilot Credits, ACP, enabling Code Apps, and the required administrator roles.
+
+Do not develop in the Default environment. Limit configuration to the target environment and apply only the minimum required permissions and policies. Review impact and dry-run results, and obtain explicit approval before changing settings.
+
+## For company standard owners
+
+[Company standard adoption and operations guide](docs/company-standard-next-steps.md) covers creating a repository in an Organization through the REST API and the work to do after copying the standard.
+
+1. Use [Create Company Standard Repository](.github/prompts/create-company-standard-repository.prompt.md) to confirm the Organization and visibility, then create an independent repository.
+2. Set up Actions to notify your team of upstream updates through issues, along with an issue-response workflow for internal users.
+3. Rename GeekPowerCode to your company name and incorporate internal policies.
+4. Roll out the approved standard to your team, and bring in upstream changes through PRs while protecting company changes.
+
+The guide includes prompts and recommended supporting materials for each task. Public repository forks cannot be made private, so create an independent copy for an internal/private standard.
+
+## Find skills and related resources
+
+- [Skills catalog and sample implementations](.github/skills/README.md)
+- [Repository structure and placement policy](docs/company-standard-next-steps.md#リポジトリ構成)
+- [Key documents](docs/company-standard-next-steps.md#主要ドキュメント)
+- [Using Claude Code](docs/claude-code-quickstart.md)
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
+
+## Feedback
+
+- [Issues](https://github.com/geekfujiwara/CodeAppsDevelopmentStandard/issues)
+- [X](https://twitter.com/geekfujiwara)
+
+<a id="japanese"></a>
+
+## 日本語
+
 # AI ファースト開発標準
 
 Power Platform / Azure の業務システムを **VS Code + GitHub Copilot / Claude Code** で開発するための、スキル・エージェント・リファレンスを提供するリポジトリです。Power Apps Code Apps、Dataverse、Power Automate、Power Pages、Copilot Studio、Cowork等に対応します。Code Appsの実装標準は **TypeScript + React + Tailwind CSS** です。
