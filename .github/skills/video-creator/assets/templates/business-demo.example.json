@@ -1,0 +1,56 @@
+{
+  "voice": "en-US-AriaNeural",
+  "language": "eng",
+  "max_duration": 90,
+  "opening": {
+    "kicker": "BUSINESS DEMO | Fictional data",
+    "title": "One request. A clearer handover.",
+    "subtitle": "Follow one customer request from intake to a reviewed response.",
+    "benefits": [
+      {"title": "Less searching", "detail": "Keep the available records together"},
+      {"title": "Clearer decisions", "detail": "See what is known and missing"},
+      {"title": "People stay in control", "detail": "Review the response before handover"}
+    ]
+  },
+  "workflow": [
+    {"name": "Open request", "purpose": "Understand the question"},
+    {"name": "Gather records", "purpose": "Bring the facts together"},
+    {"name": "Compare options", "purpose": "Check possible answers"},
+    {"name": "Human review", "purpose": "Check and correct"},
+    {"name": "Prepare response", "purpose": "Create a clear handover"}
+  ],
+  "scenes": [
+    {
+      "start": 0, "duration": 7, "step": null, "position": "bottom",
+      "text": "Follow one request to a reviewed response, with less searching and clear human control."
+    },
+    {
+      "start": 7, "duration": 10, "step": 1, "position": "bottom",
+      "text": "A customer needs an answer. The analyst opens the request to understand what happened and why it matters."
+    },
+    {
+      "start": 17, "duration": 12, "step": 2, "position": "bottom",
+      "text": "The analyst brings the available records together, so the team can see the facts without searching across separate screens."
+    },
+    {
+      "start": 29, "duration": 15, "step": 3, "position": "bottom",
+      "text": "The team compares possible answers. Missing information stays visible, rather than being replaced with an assumption. Any explanation still needs supporting evidence."
+    },
+    {
+      "start": 44, "duration": 14, "step": 4, "position": "top",
+      "text": "A person checks the proposed response and corrects it with a reason. The draft is support for the reviewer, not a decision made on their behalf."
+    },
+    {
+      "start": 58, "duration": 15, "step": 5, "position": "top",
+      "text": "The reviewed facts become a clear handover. Preparing or copying a response does not prove that it was sent, approved, or saved in another system."
+    },
+    {
+      "start": 73, "duration": 12, "step": 4, "position": "bottom",
+      "text": "If a fact changes, check whether the previous review is still valid. Show the real application behavior and explain who needs to review the change."
+    },
+    {
+      "start": 85, "duration": 3, "step": null, "position": "bottom",
+      "text": "A clear handover, with human control."
+    }
+  ]
+}

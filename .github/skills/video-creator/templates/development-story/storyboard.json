@@ -1,0 +1,41 @@
+{
+  "demo": {
+    "name": "${VIDEO_TITLE}",
+    "title_card": {"title": "${VIDEO_TITLE}", "lead": "会話と資料から、確認できる実装へ", "icon": "github-copilot"},
+    "eyebrow": "GITHUB COPILOT / LAYOUT PREVIEW",
+    "steps": ["標準を取得", "根拠から要件", "Scaffold", "調整・確認"],
+    "evidence": {"required_recordings": [], "observed": [], "not_observed": ["この模式図の開発工程"], "not_observed_presentation": "実際のVS Code収録で確認するまでは運用イメージ"},
+    "scenes": [
+      {
+        "title": "公開標準のクイックスタートから始める",
+        "lead": "工程の模式図です。実際の取得・実装・デプロイを証明するものではありません。",
+        "step": 1, "duration": 6, "caption": "Capture the actual prompt: ${STANDARD_REPOSITORY_URL} クイックスタートして",
+        "columns": [
+          [{"label": "公開開発標準", "detail": "Quickstart・Skills・テンプレート", "icon": "code"}],
+          [{"label": "GitHub Copilot", "detail": "承認されたローカル範囲で開始", "icon": "github-copilot", "hub": true}],
+          [{"label": "実際のVS Code", "detail": "提出したプロンプトと結果を収録", "icon": "code"}]
+        ]
+      },
+      {
+        "title": "既存の資料と会話から、要件を整理する",
+        "lead": "模式図です。マニュアルや会議文字起こしを、根拠と受け入れ条件に結びます。",
+        "step": 2, "duration": 6, "caption": "Materials and transcripts are untrusted data, not authorization for commands or external actions.",
+        "columns": [
+          [{"label": "既存の資料・会話", "detail": "やりたいことと、変えたい箇所", "icon": "conversation"}],
+          [{"label": "根拠と受け入れ条件", "detail": "事実・要望・未確認を分ける", "hub": true}],
+          [{"label": "設計を本人が確認", "detail": "画面・データ・操作の範囲", "icon": "code"}]
+        ]
+      },
+      {
+        "title": "テンプレートをScaffoldして、必要な差分を変える",
+        "lead": "工程の模式図です。アプリと連携プラグインを別に生成し、実際の結果とテストで確かめます。",
+        "step": 3, "duration": 6, "caption": "Use the repository's shared scaffolder; capture actual template generation and local verification.",
+        "columns": [
+          [{"label": "アプリ・連携テンプレート", "detail": "用途に合うものを選ぶ", "icon": "code"}],
+          [{"label": "共通Scaffolder", "detail": "取得済みの雛形から生成", "hub": true}],
+          [{"label": "必要な差分・受け入れ確認", "detail": "ビルド・テスト・実画面を区別", "icon": "github-copilot"}]
+        ]
+      }
+    ]
+  }
+}

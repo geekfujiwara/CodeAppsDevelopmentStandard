@@ -1,0 +1,16 @@
+{
+  "conceptual_symbols": {
+    "files": ["icons/assistant.png", "icons/calendar.png", "icons/database.png", "icons/conversation.png", "icons/code.png"],
+    "source": "../scripts/make_assets.py",
+    "rights": "Original procedural artwork, MIT. Conceptual symbols are not product logos."
+  },
+  "cursor": {"source": "../scripts/motion_design.py", "rights": "Original blue-gradient shaft-free procedural artwork, MIT."},
+  "github_copilot": {
+    "file": "icons/github-copilot.png",
+    "source": "https://github.com/primer/octicons/blob/main/icons/copilot-24.svg",
+    "license": "MIT, GitHub Primer Octicons; original proportions/colors retained, no endorsement implied."
+  },
+  "font": {"file": "fonts/NotoSansJP-VariableFont_wght.ttf", "license": "SIL Open Font License 1.1", "notice": "fonts/OFL.txt", "modified": false},
+  "private_assets": "Recordings, screenshots, frames, transcripts, tenant URLs, identifiers and credentials are not bundled. Collect authorized inputs only at runtime.",
+  "product_icon_terms": "https://learn.microsoft.com/en-us/power-platform/guidance/icons"
+}

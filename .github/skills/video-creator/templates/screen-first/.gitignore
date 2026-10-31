@@ -1,0 +1,7 @@
+.env
+capture/
+inputs/
+work/
+output/
+__pycache__/
+*.pyc

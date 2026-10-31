@@ -1,0 +1,9 @@
+{
+  "extends": "../screen-first",
+  "description": "Standards quickstart, evidence-based requirements, common scaffold and validation story.",
+  "variables": ["VIDEO_TITLE", "STANDARD_REPOSITORY_URL"],
+  "questions": [
+    {"variable": "VIDEO_TITLE", "question": "動画のタイトルは？", "default": "業務デモ"},
+    {"variable": "STANDARD_REPOSITORY_URL", "question": "利用する公開開発標準のURLは？", "default": "https://github.com/geekfujiwara/CodeAppsDevelopmentStandard"}
+  ]
+}

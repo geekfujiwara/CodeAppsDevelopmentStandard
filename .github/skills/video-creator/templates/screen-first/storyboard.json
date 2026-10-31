@@ -1,0 +1,41 @@
+{
+  "demo": {
+    "name": "${VIDEO_TITLE}",
+    "title_card": {"title": "${VIDEO_TITLE}", "lead": "誰の仕事が、どう変わるか", "icon": "assistant"},
+    "eyebrow": "SCREEN-FIRST / LAYOUT PREVIEW",
+    "steps": ["全体像", "実画面", "本人確認", "次の仕事"],
+    "evidence": {"required_recordings": [], "observed": [], "not_observed": ["模式図に示した作業"], "not_observed_presentation": "実演ではなく、運用イメージとして表示"},
+    "scenes": [
+      {
+        "title": "仕事の全体像を、先に見る",
+        "lead": "これは運用イメージの模式図です。実際の実行や処理時間を示すものではありません。",
+        "step": 1, "duration": 6, "caption": "Layout preview only; add actual application captures before production verification.",
+        "columns": [
+          [{"label": "必要な情報", "detail": "予定・文書・既存の記録", "icon": "calendar"}],
+          [{"label": "準備を支援", "detail": "収集・整理・確認案", "icon": "assistant", "hub": true}],
+          [{"label": "人が確認", "detail": "根拠・対象・次の作業", "icon": "conversation"}]
+        ]
+      },
+      {
+        "title": "確認してから、次の仕事へ",
+        "lead": "模式図です。変更・登録・送信は、それぞれ対象と内容の明示承認を挟みます。",
+        "step": 3, "duration": 6, "caption": "Design illustration, not a recorded write or external action.",
+        "columns": [
+          [{"label": "内容を整理", "detail": "事実・未確認・提案を分ける", "icon": "assistant"}],
+          [{"label": "本人が明示承認", "detail": "何を、どこへ、どう変更するか", "hub": true}],
+          [{"label": "次の担当者へ", "detail": "確認できる成果物を渡す", "icon": "conversation"}]
+        ]
+      },
+      {
+        "title": "準備の先に、人との対話を",
+        "lead": "情報を集める負担を減らし、判断・提案・支援に時間を使う運用イメージです。",
+        "step": 4, "duration": 6, "caption": "Qualitative value proposition, not a measured time-saving claim.",
+        "columns": [
+          [{"label": "準備した情報", "detail": "出典・確認状態・論点", "icon": "database"}],
+          [{"label": "人が判断", "detail": "必要な修正と、次の一手", "hub": true}],
+          [{"label": "人と人の対話", "detail": "顧客への提案・チームへの支援", "icon": "conversation"}]
+        ]
+      }
+    ]
+  }
+}

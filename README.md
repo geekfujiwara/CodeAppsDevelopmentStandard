@@ -72,6 +72,7 @@ When proceeding with implementation, select **GeekPowerCode** in Copilot. If you
 - The relevant skill installs dependencies only when Code Apps is selected.
 - Check `.gitignore` to ensure `.env`, credentials, and generated files are not committed.
 - To start from existing specifications, use [spec-builder](.github/skills/spec-builder/SKILL.md).
+- To produce a verified screen-first demo from actual recordings or the shared VS Code browser, use [video-creator](.github/skills/video-creator/SKILL.md). It includes three common-scaffold templates; silent, subtitle-free output is the default.
 - For Claude Code setup, see the [dedicated guide](docs/claude-code-quickstart.md).
 
 ## For developers
@@ -192,6 +193,7 @@ https://github.com/geekfujiwara/CodeAppsDevelopmentStandard クイックスタ�
 - Code Appsが選定された場合だけ、そのスキルが依存関係を配置・インストールします。
 - `.env`・認証情報・生成物をコミットしないよう、`.gitignore`を確認してください。
 - 既存の仕様書から始める場合は [spec-builder](.github/skills/spec-builder/SKILL.md) を利用します。
+- 実録画・VS Code統合ブラウザーから検証済みの画面中心デモ動画を制作する場合は [video-creator](.github/skills/video-creator/SKILL.md) を利用します。共通Scaffolder用3雛形を同梱し、既定は無音・字幕なしです。
 - Claude Codeの開始手順は [専用ガイド](docs/claude-code-quickstart.md) を参照してください。
 
 ## 開発者向け
