@@ -13,6 +13,7 @@ from motion_design import ROOT, SKILL, SCREEN_GUTTER, SCREEN_MATTE, motion_frame
 
 sys.path.insert(0, str(SKILL / 'scripts'))
 from video_media import ffmpeg, probe
+from prepare_video import validate_duration
 
 
 def verify_loaded_result(frame, region):
@@ -46,6 +47,9 @@ def verify_plan(plan_path, layout_preview=False):
     work = Path(plan_path).resolve().parent
     plan = json.loads(Path(plan_path).read_text(encoding='utf-8'))
     segments = plan['segments']
+    for segment in segments:
+        validate_duration(segment['duration'], {})
+    validate_duration(sum(segment['duration'] for segment in segments), plan.get('evidence', {}))
     source_checks = []
     assert segments[0]['motion']['kind'] == 'title', 'Start with a standalone title'
     assert segments[0]['duration'] == 5
@@ -69,8 +73,9 @@ def verify_plan(plan_path, layout_preview=False):
             frame = motion_frame(base, motion, min(6, segment['duration'] / 2))
             assert all(call.args[1] != motion.get('caption') for call in drawing.call_args_list), 'Do not draw bottom captions'
         if motion['kind'] in ('screen', 'recording'):
-            for seconds in (1, 3.5, 4.5, 6):
-                verify_screen_gutter(base, motion, min(seconds, segment['duration'] / 2))
+            for seconds in (1, 3.5, 4.5, 6, segment['duration'] - 1):
+                # Compare exact matte pixels before the final 0.45-second fade.
+                verify_screen_gutter(base, motion, min(seconds, segment['duration'] - .5))
         assert frame.size == (1920, 1080)
         assert segment['review']['expected_content']
         if motion['kind'] == 'title':
@@ -172,6 +177,7 @@ def main():
             continue
         path = args.video
         info = probe(str(path))
+        validate_duration(info['duration'], plan.get('evidence', {}))
         if (info['width'], info['height'], info['fps']) != (1920, 1080, 30):
             raise ValueError(f'Unexpected format: {name} {info}')
         if abs(info['duration'] - duration) > .1:
@@ -182,9 +188,9 @@ def main():
         elapsed = 0
         result_checkpoints = {}
         for segment in plan['segments']:
-            checkpoints.extend([elapsed + 1, elapsed + min(6, segment['duration'] / 2)])
+            checkpoints.extend([elapsed + 1, elapsed + min(6, segment['duration'] / 2),
+                                elapsed + segment['duration'] - 1])
             if segment['motion']['kind'] == 'recording':
-                checkpoints.append(elapsed + segment['duration'] - 1)
                 if segment['motion'].get('result_region'):
                     result_checkpoints[elapsed + segment['duration'] - 1] = segment
             elapsed += segment['duration']

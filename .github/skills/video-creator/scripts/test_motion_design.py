@@ -73,8 +73,8 @@ class StoryRequirementsTests(unittest.TestCase):
             manifest = json.loads((folder / 'scaffold.json').read_text(encoding='utf-8'))
             self.assertIn('VIDEO_TITLE', manifest['variables'])
             story = json.loads((folder / 'storyboard.json').read_text(encoding='utf-8'))['demo']
-            self.assertIn('columns', story['scenes'][0])
-            self.assertTrue(all('columns' in scene for scene in story['scenes']))
+            self.assertIn('rows' if name == 'two-personas' else 'columns', story['scenes'][0])
+            self.assertTrue(all(any(key in scene for key in ('columns', 'rows')) for scene in story['scenes']))
             self.assertIn('模式図', story['scenes'][0]['lead'])
             expected_icon = 'github-copilot' if name == 'development-story' else 'assistant'
             self.assertEqual(story['title_card']['icon'], expected_icon)
@@ -84,6 +84,81 @@ class StoryRequirementsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaisesRegex(ValueError, 'reconstructed UI'):
                 make_scene({}, 0, {'prompt': 'invented input'}, Path(folder), 1)
+
+
+class ShortWorkflowTests(unittest.TestCase):
+    def test_role_rows_have_only_adjacent_same_role_edges(self):
+        from prepare_video import build_role_rows
+        for counts in ((4, 4), (2, 3)):
+            rows = [{'role': role, 'steps': [{'label': str(index), 'id': 'ignored'}
+                                           for index in range(count)]}
+                    for role, count in zip(('First role', 'Second role'), counts)]
+            motion = build_role_rows(rows, 'Independent workflows')
+            self.assertEqual(len(motion['nodes']), sum(counts))
+            self.assertEqual(len(motion['edges']), sum(counts) - 2)
+            self.assertEqual(len({node['id'] for node in motion['nodes']}), sum(counts))
+            for edge in motion['edges']:
+                first_row, first_column = map(int, edge['from'].split('-'))
+                second_row, second_column = map(int, edge['to'].split('-'))
+                self.assertEqual(first_row, second_row)
+                self.assertEqual(second_column, first_column + 1)
+            for node in motion['nodes']:
+                left, top, width, height = node['rect']
+                self.assertGreaterEqual(left, 64)
+                self.assertLessEqual(left + width, 1856)
+                self.assertIn(top, (350, 660))
+                self.assertLessEqual(top + height, 920)
+
+    def test_invalid_role_rows_fail_explicitly(self):
+        from prepare_video import build_role_rows
+        valid = {'role': 'First', 'steps': [{'label': 'Prepare'}, {'label': 'Result'}]}
+        for rows in ([], [valid], [valid, valid],
+                     [valid, {'role': '', 'steps': valid['steps']}],
+                     [valid, {'role': 'Second', 'steps': [{'label': 'Only one'}]}],
+                     [valid, {'role': 'Second', 'steps': [{'label': 'Stage'}] * 5}],
+                     [valid, {'role': 'Second', 'steps': [{}, {'label': 'Result'}]}]):
+            with self.subTest(rows=rows), self.assertRaises(ValueError):
+                build_role_rows(rows, 'Independent workflows')
+
+    def test_requested_duration_range_is_inclusive_and_optional(self):
+        from prepare_video import validate_duration
+        for seconds in (60, 81, 81.02, 90):
+            validate_duration(seconds, {'duration_range_seconds': [60, 90]})
+        validate_duration(254, {})
+        for seconds in (59.98, 90.02, 254):
+            with self.subTest(seconds=seconds), self.assertRaisesRegex(ValueError, 'outside the requested'):
+                validate_duration(seconds, {'duration_range_seconds': [60, 90]})
+        for limits in ([90, 60], [0, 90], [60], [60, float('inf')], [True, 90], '60-90'):
+            with self.subTest(limits=limits), self.assertRaisesRegex(ValueError, 'ordered bounds'):
+                validate_duration(81, {'duration_range_seconds': limits})
+        for seconds in (0, -1, float('nan'), float('inf'), True):
+            with self.subTest(seconds=seconds), self.assertRaisesRegex(ValueError, 'positive and finite'):
+                validate_duration(seconds, {})
+
+    def test_overlong_story_fails_before_creating_work_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            job = Path(temporary)
+            stories = json.loads((SKILL / 'templates' / 'two-personas' / 'storyboard.json').read_text(encoding='utf-8'))
+            stories['demo']['evidence']['duration_range_seconds'] = [60, 90]
+            stories['demo']['scenes'][0]['duration'] = 100
+            (job / 'storyboard.json').write_text(json.dumps(stories), encoding='utf-8')
+            result = subprocess.run([
+                sys.executable, '-B', str(SCRIPTS / 'prepare_video.py'), '--project', str(job),
+            ], capture_output=True, text=True, encoding='utf-8')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('outside the requested', result.stderr)
+            self.assertFalse((job / 'work').exists())
+
+    def test_actual_mp4_duration_is_checked_not_only_the_plan(self):
+        import verify_video
+        plan = {'segments': [{'duration': 90}], 'evidence': {'duration_range_seconds': [60, 90]}}
+        with patch.object(sys, 'argv', ['verify_video.py', 'plan.json', '--video', 'final.mp4']), \
+                patch.object(verify_video, 'verify_plan', return_value=plan), \
+                patch.object(verify_video, 'probe', return_value={'duration': 90.02}), \
+                patch.object(verify_video.subprocess, 'run') as decode:
+            with self.assertRaisesRegex(ValueError, 'outside the requested'):
+                verify_video.main()
+            decode.assert_not_called()
 
 
 class RecordingImportTests(unittest.TestCase):
@@ -177,6 +252,8 @@ class TemplatePipelineTests(unittest.TestCase):
             'recording': manifest.name, 'duration': 4, 'max_gap_seconds': .05,
             'result_region': [0, 0, 320, 180],
         })
+        planned_duration = 5 + sum(scene['duration'] for scene in stories['demo']['scenes'])
+        stories['demo']['evidence']['duration_range_seconds'] = [planned_duration - .5, planned_duration + .5]
         story_path.write_text(json.dumps(stories, ensure_ascii=False), encoding='utf-8')
         commands = [
             [str(SCRIPTS / 'prepare_video.py'), '--project', str(job), '--revision', 'v2', '--source'],
@@ -195,6 +272,11 @@ class TemplatePipelineTests(unittest.TestCase):
         self.assertEqual(len(verified['source_frame_checks']), 3)
         self.assertTrue(verified['actual_recording'])
         self.assertFalse(verified['layout_preview'])
+        self.assertGreaterEqual(verified['duration'], planned_duration - .5)
+        self.assertLessEqual(verified['duration'], planned_duration + .5)
+        with Image.open(job / 'output' / 'calibration-v2.check.png') as contact:
+            scene_count = len(stories['demo']['scenes']) + 1
+            self.assertEqual(contact.height, 360 * ((3 * scene_count + 4) // 3))
 
 if __name__ == '__main__':
     unittest.main()
