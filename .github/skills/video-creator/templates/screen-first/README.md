@@ -14,3 +14,5 @@ python <skill>/scripts/verify_video.py <job>/work/demo-v1/edit-plan.json --proje
 ```
 
 Remove `--layout-preview` after adding approved actual captures. See the installed skill's `references/screen-first-workflow.md` and `references/storyboard-format.md` for scene shapes, crop margins, trims and evidence checks.
+
+For a requested short cut, add `duration_range_seconds` (for example `[60, 90]`) inside the series' `evidence`, including the inserted five-second title in the budget. The diagram-only starter is not a finished short demo: add approved excerpts before setting production bounds. Prefer separate trimmed manifests over accelerating the whole recording. For two personas, keep independent role rows in the introduction. Review the final encoded focus frame of each still/recording, not only its midpoint; see `references/short-demos.md` in the installed skill.

@@ -8,6 +8,8 @@ The preset is 1920x1080, 30 fps, H.264 with silent AAC, without narration or sub
 
 For two roles, introduce both after the title, finish the first scenario, then explicitly introduce the second. Use the actual recordings supplied by the user instead of requesting new operations. Missing actions may be described only as clearly labeled operational diagrams if the user agrees; never fabricate the composer, typing, service calls, charts or final application result.
 
+The `two-personas` introduction uses two independent `rows`, each with its own role heading and left-to-right stages. Do not collapse them into a shared assistant hub. For a requested short cut, use [short-demo pacing](short-demos.md) and record the requested bounds in `evidence.duration_range_seconds`; 60-90 seconds is an example, not a forced limit on every video.
+
 ## Private job and common scaffold
 
 Use `templates/screen-first`, `templates/two-personas` or `templates/development-story`, each with `scaffold.json`. They are diagram-only **layout previews**, not synthetic application demonstrations. All variables are declared in `references/.env.example`.
@@ -34,6 +36,8 @@ Review the **last** native frame of every excerpt. End before the next blank/loa
 
 Without edits, source timestamps control playback. `max_gap_seconds` caps every inter-frame duration while retaining all imported frames. If evenly sampled frames are accelerated, disclose excerpting and **playback-speed editing**, not “only waiting was removed.” Diagrams and edited timings are not measured service latency.
 
+Prefer separate trimmed manifests and scene cuts to shortening the entire recording by acceleration. Omit long generation waits and repeated navigation between excerpts, while preserving preparation, approval and completed-result evidence. Inside each chosen excerpt retain all imported samples and their original timestamps.
+
 ## Frame the original, not an intermediate
 
 Hold the whole application for 3 seconds, zoom smoothly over 2 seconds, and render every zoom frame directly from the original image. Never upscale a low-resolution capture and call it high resolution. Keep whole relevant headings, buttons, cards and tables plus native context margins. Inspect both overview and detail; 32 output pixels of inner matte on every edge are mandatory throughout motion and pointer placement. Matte padding is not a fix for a clipped source crop.
@@ -53,5 +57,7 @@ python <skill>/scripts/verify_video.py <job>/work/demo-v1/edit-plan.json --proje
 For the initial diagram-only starter, add `--layout-preview` to verification. Production verification without that flag requires real captures. Regenerate source and plans if base images change; motion-only changes may reuse an unchanged still-image source. Renderer and asset hashes invalidate stale cached parts. Do not bypass the cache signature. Use `--only-part K` / `--list-parts` for bounded resumable jobs, not competing workers for the same part or simultaneous concatenation.
 
 Verify expected duration within 0.1 seconds, exact format, full decoding, every scene's visible pixels, 32-pixel gutters, source/renderer hashes, fixed recording dimensions, source timestamps and first/middle/last source-frame fidelity (mean RGB error at most 4 for JPEG encoding). Finally review the encoded overview, zoom and result frames, not merely the edit plan. Automated checks do not replace semantic review or actual listening in an explicitly requested audio mode.
+
+Requested duration bounds are checked independently of the 0.1-second plan/encode tolerance. The contact sheet includes the last-second frame of **every** scene, including still-image zooms. Review that final focus state as well as the overview and transition: a mid-scene frame of a seven-second shot can precede the completed zoom. Inspect complete headings/bullets and native context; added matte alone cannot repair a clipped crop.
 
 Complete output before packaging reusable lessons. Share only requested deliverables; public templates must not contain private screenshots, original recordings, cache directories, tenant URLs, record IDs or credentials.

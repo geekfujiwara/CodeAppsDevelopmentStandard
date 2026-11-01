@@ -8,7 +8,51 @@ import subprocess
 import sys
 from pathlib import Path
 
-from motion_design import ROOT, SKILL, BG, ACCENT, base_scene, motion_frame, icon_path, recording_timeline
+from PIL import ImageDraw
+
+from motion_design import ROOT, SKILL, BG, ACCENT, base_scene, motion_frame, icon_path, recording_timeline, text
+
+
+def validate_duration(duration, evidence):
+    if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not math.isfinite(duration) or duration <= 0:
+        raise ValueError('Duration must be positive and finite')
+    limits = evidence.get('duration_range_seconds')
+    if limits is None:
+        return
+    if (not isinstance(limits, list) or len(limits) != 2
+            or any(isinstance(value, bool) or not isinstance(value, (int, float))
+                   or not math.isfinite(value) or value <= 0 for value in limits)
+            or limits[0] > limits[1]):
+        raise ValueError('duration_range_seconds requires two positive finite ordered bounds')
+    if not limits[0] <= duration <= limits[1]:
+        raise ValueError(f'Duration {duration:.3f}s is outside the requested {limits[0]}-{limits[1]}s range')
+
+
+def build_role_rows(rows, caption):
+    if not isinstance(rows, list) or len(rows) != 2:
+        raise ValueError('Use two named role rows with 2-4 ordered stages each')
+    roles = []
+    nodes, edges = [], []
+    for row_index, row in enumerate(rows):
+        if (not isinstance(row, dict) or not isinstance(row.get('role'), str) or not row['role'].strip()
+                or not isinstance(row.get('steps'), list) or not 2 <= len(row['steps']) <= 4):
+            raise ValueError('Use two named role rows with 2-4 ordered stages each')
+        roles.append(row['role'].strip())
+        width = 400 if len(row['steps']) == 4 else 460
+        stride = (1792 - width) / (len(row['steps']) - 1)
+        for column_index, entry in enumerate(row['steps']):
+            if not isinstance(entry, dict) or not isinstance(entry.get('label'), str) or not entry['label'].strip():
+                raise ValueError('Every role stage requires a nonempty label')
+            if entry.get('icon'):
+                icon_path(entry['icon'])
+            node_id = f'{row_index}-{column_index}'
+            nodes.append({**entry, 'id': node_id,
+                          'rect': [round(64 + stride * column_index), 350 + 310 * row_index, width, 160]})
+            if column_index:
+                edges.append({'from': f'{row_index}-{column_index - 1}', 'to': node_id})
+    if roles[0] == roles[1]:
+        raise ValueError('Role rows must have distinct names')
+    return {'kind': 'flow', 'nodes': nodes, 'edges': edges, 'caption': caption}
 
 
 def build_flow(columns, caption):
@@ -33,8 +77,8 @@ def make_scene(series, index, scene, folder, count):
     if 'ref' in scene or 'prompt' in scene:
         raise ValueError('Use explicit wording and genuine captures; inherited business stories and reconstructed UI are not permitted')
     if scene.get('kind') not in (None, 'title'):
-        raise ValueError('Scene content must be title, columns, shot or recording')
-    if sum(key in scene for key in ('shot', 'recording', 'columns')) + (scene.get('kind') == 'title') != 1:
+        raise ValueError('Scene content must be title, columns, rows, shot or recording')
+    if sum(key in scene for key in ('shot', 'recording', 'columns', 'rows')) + (scene.get('kind') == 'title') != 1:
         raise ValueError('A scene requires exactly one explicit content form')
     base = base_scene(series, scene, index, count)
     duration = scene.get('duration', 12)
@@ -55,6 +99,13 @@ def make_scene(series, index, scene, folder, count):
             raise ValueError(f'Scene {index + 1} must cover playback plus the initial hold ({playback + 2:.3f}s)')
     elif 'columns' in scene:
         motion = build_flow(scene['columns'], scene['caption'])
+    elif 'rows' in scene:
+        motion = build_role_rows(scene['rows'], scene['caption'])
+        draw = ImageDraw.Draw(base)
+        for row_index, row in enumerate(scene['rows']):
+            top = 285 + 310 * row_index
+            text(draw, row['role'], (64, top), 36, ACCENT, width=1792, weight='Bold')
+            draw.line((64, top + 49, 1856, top + 49), fill='#46616d', width=2)
     elif 'shot' in scene:
         path = (ROOT / 'capture' / scene['shot']).resolve()
         motion = {'kind': 'screen', 'path': str(path), 'crop': scene.get('crop', []), 'caption': scene['caption'],
@@ -87,9 +138,12 @@ def main():
     if args.series not in stories:
         parser.error(f'Unknown series: {args.series}; available: {", ".join(stories)}')
     series = stories[args.series]
-    if not series['scenes'] or 'columns' not in series['scenes'][0]:
+    if not series['scenes'] or not any(key in series['scenes'][0] for key in ('columns', 'rows')):
         parser.error('Explain the process before showing detailed application screens')
     series['scenes'].insert(0, {'kind': 'title', 'duration': 5, **series['title_card']})
+    for scene in series['scenes']:
+        validate_duration(scene.get('duration', 12), {})
+    validate_duration(sum(scene.get('duration', 12) for scene in series['scenes']), series.get('evidence', {}))
     work = ROOT / 'work' / f'{args.series}-{args.revision}'
     images = work / 'images'
     images.mkdir(parents=True, exist_ok=True)

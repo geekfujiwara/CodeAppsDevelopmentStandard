@@ -9,11 +9,20 @@
       {
         "title": "これから、2人の仕事を紹介します",
         "lead": "模式図です。最初の役割を紹介してから、次の役割へ切り替えます。",
-        "duration": 6, "caption": "Two independent scenarios, not fabricated execution.",
-        "columns": [
-          [{"label": "${PERSONA_ONE}", "detail": "情報を集め、記録を準備"}, {"label": "${PERSONA_TWO}", "detail": "確認し、次の判断を支援"}],
-          [{"label": "準備を支援", "detail": "根拠を集約し、確認案へ", "icon": "assistant", "hub": true}],
-          [{"label": "担当者の成果物", "detail": "記録・提案・次の約束"}, {"label": "上司の成果物", "detail": "助言・レポート・対話"}]
+        "duration": 8, "caption": "Two independent role rows, without a shared hub or cross-role execution edges.",
+        "rows": [
+          {"role": "${PERSONA_ONE}", "steps": [
+            {"label": "予定・関連情報", "detail": "取得できた出典を集める", "icon": "calendar"},
+            {"label": "記録案の準備", "detail": "根拠をひとつに整理", "icon": "assistant", "hub": true},
+            {"label": "本人が確認", "detail": "内容と登録する範囲"},
+            {"label": "記録と次の作業", "detail": "完了は収録結果で確認", "icon": "database"}
+          ]},
+          {"role": "${PERSONA_TWO}", "steps": [
+            {"label": "実績・見込み", "detail": "期間・対象・出典をそろえる", "icon": "database"},
+            {"label": "質問・助言", "detail": "不明な理由は確認する", "icon": "assistant", "hub": true},
+            {"label": "支援の準備", "detail": "働きかけと次の一手"},
+            {"label": "成果物と対話", "detail": "レポート・本人との会話", "icon": "conversation"}
+          ]}
         ]
       },
       {
