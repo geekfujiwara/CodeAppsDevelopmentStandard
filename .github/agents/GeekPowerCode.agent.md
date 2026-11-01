@@ -126,6 +126,7 @@ Power Platform コードファースト開発エキスパート。
 | モデル駆動型アプリ | .github/skills/model-driven-app/SKILL.md |
 | アーキテクチャ判断 | .github/skills/architecture/SKILL.md |
 | 要件理解・仕様書変換 | .github/skills/spec-builder/SKILL.md |
+| 実録画・業務デモ動画の制作・編集・圧縮 | .github/skills/video-creator/SKILL.md |
 | Cowork / MCP クライアント登録 | .github/skills/cowork/SKILL.md |
 | AI teammate / AIチームメイト / AI チームメイト / Agent Template / Foundry Autopilot（必須ルート。`scaffold_ai_teammate.py` → `publish_foundry_autopilot.py`。通常 Agent への代替禁止、Type = Agent template と hire を確認。明示的な自己ホストは別経路） | .github/skills/foundry-autopilot/SKILL.md |
 | スキル作成・更新 | .github/skills/update-skills/SKILL.md |

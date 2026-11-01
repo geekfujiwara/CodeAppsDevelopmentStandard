@@ -1,0 +1,10 @@
+{
+  "description": "Offline screen-first video job; diagrams are a layout preview, not application evidence.",
+  "variables": ["VIDEO_TITLE"],
+  "questions": [{"variable": "VIDEO_TITLE", "question": "動画のタイトルは？", "default": "業務デモ"}],
+  "nextSteps": [
+    "Inspect approved recordings locally and add actual capture scenes to storyboard.json.",
+    "Use --layout-preview only for the initial diagram-only preview; production verification requires actual captures.",
+    "Run prepare_video.py --project <job> --series demo --revision v1 --source, then render_video.py and verify_video.py."
+  ]
+}

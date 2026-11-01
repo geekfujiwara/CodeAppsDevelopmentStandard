@@ -1,0 +1,48 @@
+{
+  "name": "Sample Slide Walkthrough",
+  "source": "source.mp4",
+  "images_meta": "source.meta.json",
+  "output": {"width": 1920, "height": 1080, "fps": 30},
+  "style": {
+    "font_family": "Noto Sans JP",
+    "accent": "#3fb8af",
+    "highlight": "#f2b134",
+    "background": "#13294b",
+    "callout_accent_bar": false,
+    "zoom_seconds": 0.9,
+    "zoom_margin": 40
+  },
+  "title": {
+    "duration": 3,
+    "kicker": "SYNTHETIC SAMPLE",
+    "title": "Sample Slide Walkthrough",
+    "sub": "Replace all text and coordinates using the actual images"
+  },
+  "segments": [
+    {
+      "image": 0,
+      "duration": 12,
+      "zoom": [[0, "full"], [1, [20, 40, 300, 180]], [10, "full"]],
+      "callouts": [
+        {"t": [1.5, 6], "step": "01", "title": "Overview", "sub": "Sample heading", "position": "top-right"}
+      ],
+      "highlights": [{"t": [2, 5], "rect": [40, 60, 200, 140]}],
+      "subtitles": [
+        {"t": [0.2, 5], "text": "The first image introduces the topic."},
+        {"t": [5.5, 10], "text": "Replace this sample with facts visible in the image.", "position": "top"}
+      ]
+    },
+    {
+      "image": 1,
+      "duration": 12,
+      "zoom": [[0, "full"]],
+      "subtitles": [{"t": [0.2, 10], "text": "The second image shows the next step."}]
+    }
+  ],
+  "end": {
+    "duration": 3,
+    "kicker": "SYNTHETIC SAMPLE",
+    "title": "Next Steps",
+    "sub": "Use only facts confirmed in the source images"
+  }
+}

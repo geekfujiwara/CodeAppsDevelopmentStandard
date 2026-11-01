@@ -113,7 +113,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 
 ---
 
-## スキル一覧（27 スキル）
+## スキル一覧（28 スキル）
 
 ### architecture — アーキテクチャ・基盤
 
@@ -141,6 +141,7 @@ triggers:                      # スキル発動条件キーワード（必須�
 | スキル | 説明 |
 |--------|------|
 | [code-apps](code-apps/SKILL.md) | Code Apps を TypeScript/React ベースで開発し、UI 設計からデプロイまで対応する。 |
+| [video-creator](video-creator/SKILL.md) | 実録画・VS Code統合ブラウザーから、5秒タイトル・工程図・2役割・32px余白付きズーム・原本/完成結果検証を備えた動画を制作する。既定は無音・字幕なし。共通Scaffolderと3雛形で開始する。 |
 | [mobile-apps](mobile-apps/SKILL.md) | Native Mobile Code Apps（Private Preview）を Expo/React Native で開発し、端末機能、実機 preview、Wrap まで対応する。本番利用は禁止。 |
 | [managed-runtime](managed-runtime/SKILL.md) | Copilot Managed Runtime（Public Preview）のアプリを ms CLI と @microsoft/managed-apps SDK で作成する。使う人は Power Apps Premium か Copilot Credits の従量課金で利用できる。リポジトリ方式を作成前に確定し、ローカル開発・コネクタ・preview・live・共有・CI まで対応する。 |
 | [power-pages](power-pages/SKILL.md) | Power Pages コードサイトを pac pages CLI で開発・ビルド・デプロイし、参照可能範囲（Self / Account）に応じたテーブル権限まで構成する。 |

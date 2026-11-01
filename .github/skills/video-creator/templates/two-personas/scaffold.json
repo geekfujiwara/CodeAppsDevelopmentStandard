@@ -1,0 +1,10 @@
+{
+  "extends": "../screen-first",
+  "description": "Introduce two independent personas, then replace diagram placeholders with their actual recordings.",
+  "variables": ["VIDEO_TITLE", "PERSONA_ONE", "PERSONA_TWO"],
+  "questions": [
+    {"variable": "VIDEO_TITLE", "question": "動画のタイトルは？", "default": "業務デモ"},
+    {"variable": "PERSONA_ONE", "question": "最初に紹介する役割は？", "default": "営業担当者"},
+    {"variable": "PERSONA_TWO", "question": "次に紹介する役割は？", "default": "マネージャー"}
+  ]
+}

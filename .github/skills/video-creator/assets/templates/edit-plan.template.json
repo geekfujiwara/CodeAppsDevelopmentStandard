@@ -1,0 +1,84 @@
+{
+  "name": "<動画タイトル>",
+  "source": "<元動画ファイルのパス>",
+  "output": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30
+  },
+  "style": {
+    "font_family": "Noto Sans JP",
+    "accent": "#4cc2ff",
+    "highlight": "#ffc83d",
+    "background": "#080d1a",
+    "callout_accent_bar": false,
+    "zoom_seconds": 0.9,
+    "zoom_margin": 24
+  },
+  "title": {
+    "duration": 3.5,
+    "kicker": "<上の小見出し>",
+    "title": "<タイトル>",
+    "sub": "<サブタイトル>"
+  },
+  "end": {
+    "duration": 3.5,
+    "kicker": "<小見出し>",
+    "title": "<製品・ソリューション名>",
+    "sub": "<締めの一文>"
+  },
+  "segments": [
+    {
+      "src": [
+        0.0,
+        10.0
+      ],
+      "mute": false,
+      "zoom": [
+        [
+          0,
+          "full"
+        ],
+        [
+          1.0,
+          [
+            100,
+            200,
+            900,
+            700
+          ]
+        ],
+        [
+          8.5,
+          "full"
+        ]
+      ],
+      "callouts": [
+        {
+          "t": [
+            1.5,
+            8.5
+          ],
+          "step": "STEP 1",
+          "title": "<要点（20字程度）>",
+          "sub": "<補足（40字程度）>",
+          "position": "bottom-left"
+        }
+      ],
+      "highlights": [
+        {
+          "t": [
+            2.5,
+            8.0
+          ],
+          "rect": [
+            120,
+            220,
+            880,
+            680
+          ]
+        }
+      ]
+    }
+  ]
+}

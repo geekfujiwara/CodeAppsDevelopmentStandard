@@ -1,0 +1,41 @@
+{
+  "demo": {
+    "name": "${VIDEO_TITLE}",
+    "title_card": {"title": "${VIDEO_TITLE}", "lead": "2人の仕事を、順に紹介します", "icon": "assistant"},
+    "eyebrow": "TWO PERSONAS / LAYOUT PREVIEW",
+    "steps": ["${PERSONA_ONE}", "本人確認", "${PERSONA_TWO}", "人との対話"],
+    "evidence": {"required_recordings": [], "observed": [], "not_observed": ["模式図に示した作業"], "not_observed_presentation": "収録で確認できた操作とは区別"},
+    "scenes": [
+      {
+        "title": "これから、2人の仕事を紹介します",
+        "lead": "模式図です。最初の役割を紹介してから、次の役割へ切り替えます。",
+        "duration": 6, "caption": "Two independent scenarios, not fabricated execution.",
+        "columns": [
+          [{"label": "${PERSONA_ONE}", "detail": "情報を集め、記録を準備"}, {"label": "${PERSONA_TWO}", "detail": "確認し、次の判断を支援"}],
+          [{"label": "準備を支援", "detail": "根拠を集約し、確認案へ", "icon": "assistant", "hub": true}],
+          [{"label": "担当者の成果物", "detail": "記録・提案・次の約束"}, {"label": "上司の成果物", "detail": "助言・レポート・対話"}]
+        ]
+      },
+      {
+        "title": "${PERSONA_ONE}の仕事",
+        "lead": "運用イメージです。この後に、確認済みの実録画と完成結果を追加します。",
+        "step": 1, "duration": 6, "caption": "Replace with actual first-persona clips; distinguish preparation, approval and completion.",
+        "columns": [
+          [{"label": "予定・関連情報", "detail": "取得できた出典だけを使う", "icon": "calendar"}],
+          [{"label": "本人が確認", "detail": "対象・内容・登録する範囲", "hub": true}],
+          [{"label": "記録と次の作業", "detail": "完了は収録結果で確認", "icon": "database"}]
+        ]
+      },
+      {
+        "title": "次は、${PERSONA_TWO}の支援です",
+        "lead": "模式図です。実績と見込み、未確認の理由を分け、質問や支援の準備につなげます。",
+        "step": 3, "duration": 6, "caption": "Replace with actual second-persona clips and a readable loaded result.",
+        "columns": [
+          [{"label": "同じ条件の情報", "detail": "期間・対象・出典をそろえる", "icon": "database"}],
+          [{"label": "質問・支援の準備", "detail": "不明な理由を推測で埋めない", "hub": true}],
+          [{"label": "人と人の対話", "detail": "助言・働きかけ・次の一手", "icon": "conversation"}]
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+name: Validate video creator
+
+on:
+  pull_request:
+    paths:
+      - ".github/skills/video-creator/**"
+      - ".github/skills/update-skills/scripts/scaffold_from_template.py"
+      - ".github/skills/update-skills/scripts/validate_skill.py"
+      - ".github/workflows/validate-video-creator.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/skills/video-creator/**"
+      - ".github/workflows/validate-video-creator.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install declared video dependencies
+        run: python -m pip install -r .github/skills/video-creator/scripts/requirements.txt
+      - name: Validate skill and template contracts
+        run: python -B .github/skills/update-skills/scripts/validate_skill.py .github/skills/video-creator
+      - name: Test creation, editing, compression and optional narration
+        run: python -B -m unittest discover -s .github/skills/video-creator/scripts -p "test_*.py"
