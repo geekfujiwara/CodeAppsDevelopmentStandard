@@ -299,6 +299,7 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py \
   --template .github/skills/code-apps/templates/generic-base --target {TARGET_DIR}
 # 業務テンプレートから始める場合は --template を差し替える（generic-base を extends 済み。例: 営業支援 CRM）
 #   --template .github/skills/code-apps/templates/sales-crm
+#   --template .github/skills/code-apps/templates/field-service --var PUBLISHER_PREFIX=fsdemo  # フィールドサービス管理（右上の使い方ガイド・スケジューリング・デモ予定補充）
 #   --template .github/skills/code-apps/templates/agm-qa-assist   # 株主総会 Q&A アシスト
 #   --template .github/skills/code-apps/templates/store-ordering  # 店舗発注システム（業務端末風 UI ＋ Dataverse ＋ 合成デモデータ）
 #   --template .github/skills/code-apps/templates/construction-cockpit   # 建設現場コックピット（--var PUBLISHER_PREFIX / COWORK_PLUGIN_ID / DATAVERSE_ORIGIN）
@@ -695,6 +696,7 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 | テンプレート | 種別 | 開始方法 |
 |---|---|---|
 | [templates/generic-base](templates/generic-base/) | 完全なベース | 新規プロジェクトの出力先へ生成する |
+| [templates/field-service](templates/field-service/README.md) | 完全な業務テンプレート（generic-base を `extends`） | フィールドサービス管理。コール・作業オーダー・担当者スケジュール・署名付き日報・カテゴリ別 React Flow・右上の使い方ガイド。Dataverse スキーマと合成デモ、担当者ごと未来 2 件／未割当 3 件の日次補充フローを同梱。接続前にビルド可。`--var PUBLISHER_PREFIX=<prefix>` で生成 |
 | [templates/sales-crm](templates/sales-crm/README.md) | 完全な業務テンプレート（generic-base を `extends`） | 営業支援 CRM（マネージャー ダッシュボード・営業ホーム・CRUD・Outlook/Teams/Cowork 連携）を空のディレクトリから生成する |
 | [templates/construction-cockpit](templates/construction-cockpit/README.md) | 完全な業務テンプレート（generic-base を `extends`・Copilot Studio エージェント同梱） | 建設現場コックピット: Google Maps の工事ポートフォリオ、Three.js の進捗 3D（工事種別 6 種・完成形の点線・CAD の GLB/OBJ/STL/FBX 取り込みと施工単位の対応付け・施工位置イメージ）、React Flow ガント/因果関係、工事・ユーザーの Dataverse 検索ドロップダウン、監督の承認待ち（日報・現場写真・進捗の下書き）、KY・ヒヤリハット・日報・ナレッジのグラフ付き一覧と詳細、KY の AI 危険予測（Dataverse 要求/結果 + Workflow）、Copilot Studio「現場コックピット アシスタント」（Teams での日報と写真の報告・施工単位での進捗報告・まとめ登録・承認）、Cowork、本格デモデータを生成する |
 | [templates/perse3d-studio](templates/perse3d-studio/README.md) | 完全な業務テンプレート（generic-base を `extends`・Blender パイプライン・カスタム コネクタ同梱） | パース3D内見スタジオ: 間取り図・パース・物件 URL から 3D 建物を生成し、内見（ドールハウス・歩行・階段）・家具配置・提案プラン・Blender 出力まで行う。データソース追加前でもビルドでき（生成サービスは遅延読み込み）、`npm run deploy` の predeploy がデータソースの実在を確かめる |

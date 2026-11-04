@@ -1,0 +1,63 @@
+name: Validate field-service scaffold
+
+on:
+  pull_request:
+    paths:
+      - ".github/skills/code-apps/templates/field-service/**"
+      - ".github/skills/code-apps/templates/generic-base/**"
+      - ".github/skills/update-skills/scripts/scaffold_from_template.py"
+      - ".github/workflows/validate-field-service.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/skills/code-apps/templates/field-service/**"
+      - ".github/workflows/validate-field-service.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scaffold:
+    runs-on: windows-latest
+    env:
+      VITE_PUBLISHER_PREFIX: acme
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Scan distributable sources
+        run: python .github\skills\update-skills\scripts\scan_sample.py .github\skills\code-apps\templates\field-service
+      - name: Generate with an alternate publisher prefix
+        run: |
+          python .github\skills\update-skills\scripts\scaffold_from_template.py `
+            --template .github\skills\code-apps\templates\field-service `
+            --target "$env:RUNNER_TEMP\field-service" --var PUBLISHER_PREFIX=acme
+      - name: Install declared dependencies
+        working-directory: ${{ runner.temp }}\field-service
+        run: |
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip install -r scripts\requirements.txt
+      - name: Build before connecting data
+        working-directory: ${{ runner.temp }}\field-service
+        run: npm run build
+      - name: Lint generated application
+        working-directory: ${{ runner.temp }}\field-service
+        run: npm run lint
+      - name: Test template contracts
+        working-directory: ${{ runner.temp }}\field-service
+        run: npm run test:template
+      - name: Test schema and flow without authentication
+        working-directory: ${{ runner.temp }}\field-service
+        run: python -B -m unittest discover -s scripts\tests -p "test_*.py"
+      - name: Reject deployment of an unconfigured scaffold
+        working-directory: ${{ runner.temp }}\field-service
+        run: |
+          npm run predeploy
+          if ($LASTEXITCODE -eq 0) { throw "Unconfigured scaffold unexpectedly passed predeploy." }
+          exit 0
