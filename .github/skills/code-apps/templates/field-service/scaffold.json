@@ -1,0 +1,27 @@
+{
+  "description": "フィールドサービス管理: 受付・作業オーダー・担当者スケジュール・署名付き日報・サービスフロー・使い方ガイド・デモ予定補充",
+  "extends": "../generic-base",
+  "variables": ["PUBLISHER_PREFIX"],
+  "preserveUndeclaredVariables": true,
+  "questions": [
+    {
+      "variable": "PUBLISHER_PREFIX",
+      "question": "Dataverse の発行者プレフィックス",
+      "detect": ".env の PUBLISHER_PREFIX または承認済みソリューションの発行者から取得"
+    }
+  ],
+  "nextSteps": [
+    "Copy-Item .env.example .env  # 対象環境・テナント・ソリューションの値を入力",
+    "npm install --no-audit --no-fund",
+    "python -m pip install -r scripts/requirements.txt",
+    "python .github/skills/code-apps/scripts/setup_code_app_auth.py --account <approved-upn> --edge-profile \"Profile N\" --approve-interactive  # 本人のアカウント・プロファイル・継続許可を確認後",
+    "python scripts/setup_field_service.py  # 読み取り専用でスキーマ確認。承認後 --apply、合成デモは --apply --seed-demo",
+    "npx --no pa app init --environment-id <ENV_ID> --display-name \"フィールドサービス管理\" --app-type CodeApp --non-interactive",
+    "npm run deploy -- --solution-id <SOLUTION_ID>  # 初回はデータソース未接続でもビルド可",
+    "python .github/skills/code-apps/scripts/setup_connection_reference.py --create-connection --allow-interactive --write-env .env",
+    "python .github/skills/code-apps/scripts/add_data_source.py --connector dataverse --allow-interactive",
+    "npm run deploy",
+    "python scripts/deploy_demo_schedule_flow.py  # 計画確認。承認後 --apply --run で日次補充を有効化して初回実行",
+    "npm run test:template  # 右上の使い方ボタンとテンプレート契約を確認"
+  ]
+}
