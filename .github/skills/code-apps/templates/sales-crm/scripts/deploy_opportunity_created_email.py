@@ -143,7 +143,7 @@ def ensure_connection_reference(connector: str, display: str, env_id: str, apply
 
 def _escaped_trigger_value(field: str, fallback: str = "未設定") -> str:
     source = f"triggerOutputs()?['body/{field}']"
-    raw = f"coalesce({source},'{fallback}')"
+    raw = f"string(coalesce({source},'{fallback}'))"
     return f"replace(replace(replace({raw},'&','&amp;'),'<','&lt;'),'>','&gt;')"
 
 

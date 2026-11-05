@@ -65,6 +65,11 @@ class OpportunityCreatedFlowTests(unittest.TestCase):
             self.assertIn(f"Compose_{field}", actions)
         self.assertIn("replace(replace(replace(", actions["Compose_Opportunity_Name"]["inputs"])
 
+    def test_numeric_probability_is_converted_before_html_escaping(self):
+        expression = self.definition["actions"]["Compose_Probability"]["inputs"]
+        self.assertIn("string(coalesce(triggerOutputs()?['body/test_probability']", expression)
+        self.assertIn("replace(replace(replace(", expression)
+
     def test_email_is_sent_to_the_resolved_recipient(self):
         params = self.definition["actions"]["Send_Opportunity_Email"]["inputs"]["parameters"]
         self.assertEqual(params["emailMessage/To"], "owner@example.com")
