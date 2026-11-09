@@ -31,14 +31,18 @@ Azure 開発を、**テナントのセキュリティガバナンスに準拠**�
 > Azure の個別サービスを使うアプリ側の実装（MCP Server、データ基盤、音声認識など）は各専門スキルが持ち、基盤部分だけをこのスキルに委譲する。
 > `publicNetworkAccess=Disabled` でも Private Link は常に到達可能——これを土台にする。
 
-## Step 0: 事前確認（会話の最初に 1 回だけ）
+## Step 0: 実装先と承認境界を確定する
 
 本スキルの利用が確定したら、[standard の共通契約](../standard/SKILL.md#共通の事前確認契約会話の最初に-1-回だけ)に加え、
-**1 回の AskUserQuestion で次をまとめて確認する**。
+[開発デプロイと費用の共通契約](../standard/SKILL.md#開発デプロイと費用の共通契約)を適用する。
+**月額上限の確定を開始条件にしない。** 開発依頼の範囲に必要な Azure リソース作成・モデルのデプロイ・
+従量課金の動作検証は、予算額や課金可否の追加質問を挟まず進める。費用の見込みと停止方法は説明・記録する。
+依頼文・既存設定・認証済み API から次を先に調べ、既知事項は聞き直さない。
+本人の決定が不可欠な実装先・承認境界だけが残る場合に、AskUserQuestion でまとめて確認する。
 
-| # | 質問 | 合格条件 |
+| # | 確認対象 | 構築に必要な条件 |
 |---|---|---|
-| 1 | 対象 subscription、resource group、region、予算はどれか | 実装先と課金上限、作成 / 削除の承認範囲が確定している |
+| 1 | 対象 subscription、resource group、region | 実装先と作成 / 削除の承認範囲が確定している。予算未確定は停止理由にしない |
 | 2 | リソース作成と RBAC 割り当ての担当者は誰か | リソース作成は対象 scope の `Contributor` 相当、role assignment は `Role Based Access Control Administrator` / `User Access Administrator` / `Owner` の担当者を記録している |
 | 3 | 適用される Azure Policy と Conditional Access は何か | public network、shared key、allowed regions / SKUs、private endpoint、MFA の制約を確認している |
 | 4 | ネットワーク変更の担当者は誰か | VNet、subnet、Private DNS、private endpoint に必要な権限と既存ネットワーク所有者の承認がある |
@@ -46,6 +50,7 @@ Azure 開発を、**テナントのセキュリティガバナンスに準拠**�
 | 6 | 検証とクリーンアップを誰が行うか | security test、cost確認、削除期限、保持対象を記録している |
 
 広い `Owner` を既定にせず、リソース作成と role assignment を分離する。
+明示された予算上限・課金禁止、組織の支出制限・ライセンス条件は遵守し、超過する操作だけを止める。
 Policy、MFA、Private DNS のいずれかが不明なら Step 4 の構築へ進まない。
 
 ## リファレンスアーキテクチャ一覧（メニュー）

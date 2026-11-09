@@ -138,6 +138,46 @@ class QuickstartContractTests(unittest.TestCase):
                 self.assertIn("AskUserQuestion", text)
                 self.assertIn("ワークスペース名", text)
 
+    def test_deployment_entrypoints_do_not_require_a_monthly_budget(self):
+        for relative in (
+            "skills/standard/SKILL.md",
+            "skills/standard/references/quickstart.md",
+            "skills/azure-infra/SKILL.md",
+            "skills/azure-infra/references/preflight-checklist.md",
+            "skills/azure-infra/references/foundry-agent.md",
+            "skills/architecture/SKILL.md",
+            "skills/foundry-autopilot/SKILL.md",
+            "agents/GeekPowerCode.agent.md",
+            "prompts/quickstart.prompt.md",
+        ):
+            with self.subTest(path=relative):
+                text = (ROOT / ".github" / relative).read_text(encoding="utf-8")
+                for requirement in (
+                    "開発デプロイと費用の共通契約", "月額上限の確定を開始条件にしない",
+                    "モデルのデプロイ", "従量課金",
+                ):
+                    self.assertIn(requirement, text)
+        azure = (ROOT / ".github/skills/azure-infra/SKILL.md").read_text(encoding="utf-8")
+        self.assertNotIn("実装先と課金上限", azure)
+
+    def test_cost_contract_preserves_explicit_limits_and_security_boundaries(self):
+        text = (STANDARD / "SKILL.md").read_text(encoding="utf-8")
+        contract = text.split("## 開発デプロイと費用の共通契約", 1)[1].split("\n## ", 1)[0]
+        for requirement in (
+            "予算未回答・未確定だけを理由に停止しない",
+            "必要最小限の容量と検証回数", "停止・削除方法",
+            "明示された予算上限・課金禁止", "組織の支出制限・ライセンス条件",
+            "予約／専用容量・長期契約", "該当操作だけを止め",
+            "本番・外部公開", "RBAC", "Azure Policy", "MFA", "hash 承認",
+        ):
+            with self.subTest(requirement=requirement):
+                self.assertIn(requirement, contract)
+        workflow = (STANDARD / "references/quickstart.md").read_text(encoding="utf-8")
+        exceptions = workflow.split("### 追加の質問が必要な例外", 1)[1]
+        self.assertIn("依頼範囲外の追加費用", exceptions)
+        self.assertIn("開発依頼に必要な従量課金", exceptions)
+        self.assertIn("明示された予算上限・課金禁止", exceptions)
+
 
 if __name__ == "__main__":
     unittest.main()

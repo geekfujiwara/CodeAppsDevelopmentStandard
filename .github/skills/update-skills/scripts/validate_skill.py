@@ -7,6 +7,7 @@
   4. references/ と scripts/ の有無（無ければ警告）。
   5. 秘匿情報スキャン（実 GUID / *.crm*.dynamics.com / 実メール / クライアントシークレット様）。
   6. templates/<name>/scaffold.json があれば、使っている ${VAR} が宣言されているか。
+  7. 開発デプロイを扱う主要スキルの費用契約（予算未確定を開始条件にしない）があるか。
 
 依存なし（標準ライブラリのみ）。どのリポジトリでも動く。
 
@@ -313,6 +314,13 @@ def validate_skill(skill_dir: Path) -> Report:
         rep.warn("references/ が無い（参考情報・異常系の置き場）")
     if not (skill_dir / "scripts").is_dir():
         rep.warn("scripts/ が無い（利用スクリプトの置き場）")
+
+    if folder in {"standard", "azure-infra", "architecture", "foundry-autopilot"}:
+        for requirement in ("開発デプロイと費用の共通契約", "月額上限の確定を開始条件にしない"):
+            if requirement not in text:
+                rep.err(f"開発費用の契約が不足: {requirement}")
+        if folder == "azure-infra" and "実装先と課金上限" in text:
+            rep.err("課金上限の確定を構築の合格条件に戻さない")
 
     validate_templates(skill_dir, rep)
 
