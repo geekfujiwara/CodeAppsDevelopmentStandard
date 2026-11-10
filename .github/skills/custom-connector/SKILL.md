@@ -41,17 +41,22 @@ Entra API アプリ（スコープ公開 + Graph User.Read + シークレット 
 
 リファレンス: [観測 contract](references/connection-api-contract.md) / [異常系・ブラウザで作る方法](references/troubleshooting.md) / [公開サイト（認証なし）](references/public-site.md) / [パラメータ](references/.env.example)
 
-## Step 0: 事前確認（会話の最初に 1 回だけ）
+## Step 0: 依存関係と承認境界を自動解決する
 
-[standard の共通契約](../standard/SKILL.md#共通の事前確認契約会話の最初に-1-回だけ)に加え、1 回の AskUserQuestion で確認する。
+[standard の E2E デリバリー契約](../standard/references/end-to-end-delivery.md)に従い、以下の値は質問する前に
+`.env`、OpenAPI、既存ソリューション、接続一覧、認証プロファイル、読み取り API / CLI から解決する。
+環境・API ホスト・ソリューション・所有者・既存コネクタ・DLP 分類を質問票として一律に確認しない。
 
-| # | 質問 | 合格条件 |
+| 自動確認するもの | 解決方法 |
 |---|---|---|
-| 1 | 対象の環境・ソリューション・API のホスト名 | `ENV_ID` / `DATAVERSE_URL` / `SOLUTION_NAME` と API のホストが決まっている |
-| 2 | Entra アプリ登録とシークレット発行の担当者 | アプリ登録の作成・更新権限がある。シークレットの保存先（`.secrets/`、Git 除外）を合意 |
-| 3 | 接続の所有者（誰の権限で API を呼ぶか） | スクリプトを実行するサインイン ユーザーが所有者になる。別の人が所有者なら、その人が実行する |
-| 4 | 同じ Entra アプリを使う既存コネクタ | 同じ環境で同じ API アプリに on-behalf-of を有効にできるコネクタは 1 つだけ。検証用の複製は作らない |
-| 5 | DLP の分類 | API のホストをどのグループ（Business / Non-business）に入れるか、変更の承認者 |
+| 対象環境・ソリューション | 既存 `.env`、アクティブ環境、アプリ・テーブルの所属 |
+| API ホストとスコープ | API の OpenAPI / 設定。既存 API がなければ依頼範囲のデプロイ構成 |
+| Entra アプリ・接続所有者 | 対象アプリの読み取り結果と、認証済みユーザー。新規同意が必要なら権限を確認 |
+| 既存コネクタ・接続参照 | 対象環境のコネクタ一覧、同一アプリ ID、接続参照の読み戻し |
+| DLP | 通常は事前診断しない。実際の接続／データソース登録がポリシーで拒否された時だけ対象を診断 |
+
+追加確認は、本人のブラウザー認証・管理者同意、他人名義の接続、DLP の分類変更など、本人または管理者の明示的判断が必要な操作に限る。
+質問が必要なら関連項目を一度にまとめ、ブロック対象の操作だけ止めて、コネクタ定義・UI・テストなど無関係な作業を進める。
 
 ## Step 1: Entra API アプリを用意する
 
@@ -106,13 +111,13 @@ python .github/skills/custom-connector/scripts/deploy_connector.py --connector-d
 
 最後に表示される `connector: shared_…` を以降で使う。
 
-## Step 4: 通常は接続作成へ進む
+## Step 4: 接続を試し、ポリシー拒否がある場合だけ調べる
 
 環境チェックの明示依頼がなければ、DLP の事前診断・分類変更を挟まず Step 5 へ進む。
-ポリシー関連の拒否が発生した場合だけ [admin の権限確認付き復旧](../admin/references/development-recovery.md) を使う。
-現在の委任権限で読み取り可能な場合だけ `check_dlp.py --custom-host <host>` で診断し、
-変更権限と承認が揃えば dry-run → apply → 読み戻し → 元の操作を 1 回リトライする。
-分類変更はテナント全体に影響するため、権限不足・不明なら操作せず管理者へ依頼する。
+接続またはデータソース追加がポリシー理由で拒否された場合だけ [admin の権限確認付き復旧](../admin/references/development-recovery.md) を使い、
+対象コネクタとAPIホストのポリシー状態を必要範囲に限定して確認する。既存ポリシーに従う代替経路があれば先に試す。
+Business / Non-business 分類の変更は、影響範囲を確認し、権限と管理者承認がある場合に限り dry-run → apply → 読み戻し → 元の操作を 1 回リトライする。
+分類変更を無断で行わず、DLP を無効化・回避しない。変更権限や承認がない場合は、その変更だけを保留して必要なロール・承認者を示す。
 
 ## Step 5: 接続参照を用意する
 
@@ -146,6 +151,8 @@ python .github/skills/custom-connector/scripts/create_connection.py invoke --con
 ```
 
 `200` と応答の形が出れば、コネクタ → 接続 → API の認可までつながっている。API のログで呼び出し元（`oid`）も確認する。
+Foundry モデルを呼び出す API の場合も、エージェント／モデルの実応答と失敗時の契約を検証する。モデルのデプロイやコネクタ単体呼び出しだけで終わらず、
+次の Step 8 で実際の Code Apps 画面から推論結果まで確認する。
 
 ## Step 8: Code Apps に追加して呼ぶ
 
@@ -169,12 +176,13 @@ python .github/skills/custom-connector/scripts/create_connection.py delete --con
 
 ## 検証チェックリスト
 
-- [ ] Step 0 を 1 回の質問で確認し、接続の所有者と同じ API アプリを使う既存コネクタを把握した
+- [ ] 環境・ソリューション・接続・既存アプリ・API ホストを `.env` / API / CLI で解決し、質問を真の承認ブロッカーに限定した
 - [ ] アプリに自分自身のスコープ・Graph `User.Read`・Azure API Connections の事前承認があり、シークレットは `.secrets/` にだけある
 - [ ] API がコネクタのトークン（`scp=User.Read`、`appid`=API アプリ）を許可し、アプリ専用トークンを拒否する
 - [ ] `deploy_connector.py` が `[sync] ランタイム側に反映済み（on-behalf-of=有効）` とリダイレクト URI を表示した
-- [ ] DLP でホストを分類した（または承認を得て既定のままにした）
+- [ ] DLP 事前診断を行わず接続を試した。拒否された場合のみ最小範囲を診断し、必要な分類変更は承認後に読み戻した（拒否がなければDLP変更なし）
 - [ ] 認証なしのコネクタは https・GET だけで、取得先の利用規約を確かめ、取得に失敗したときの代わりの入力（貼り付け）を用意した
 - [ ] plan が `mode: obo`、apply で接続が `Connected` になり、接続参照にバインドされた
 - [ ] `invoke` が 200 を返し、API のログに呼び出し元が出た
+- [ ] Foundry連携では、デプロイ済み Code Apps の操作から Foundry の実推論と結果表示／保存までを E2E で確認した。未接続モックは完了扱いしていない
 - [ ] 検証用の接続・コネクタを削除した

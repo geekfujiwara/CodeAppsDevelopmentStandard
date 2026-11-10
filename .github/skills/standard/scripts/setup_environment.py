@@ -2,7 +2,7 @@
 
 標準プロセス（プロジェクト開始時の環境セットアップ）:
   1. ``--list``  : ``pac auth list`` のプロファイルを ``pac org who`` で解決し、環境候補を一覧表示
-                   （エージェントはこの一覧を AskUserQuestion でユーザーに選ばせる）。
+                   （既存設定・依頼・資料と照合し、必要な場合だけ本人に選択を確認する）。
   2. ``--profile <名前>`` : 選択プロファイルの環境値（URL / 環境 ID / テナント）で ``.env`` を upsert。
   3. 既定でインタラクティブ認証をトリガーし、auth_helper が AuthenticationRecord を保存する。
      これ以降の Python スクリプトは 2 層キャッシュから認証される。
@@ -180,7 +180,8 @@ def cmd_list() -> int:
         active = " (active)" if r["active"] else ""
         print(f"{i} | {r['name']}{active} | {r['friendly']} | {r['env_id']} | {r['url']}")
     print("\nJSON:", json.dumps(rows, ensure_ascii=False))
-    print("\n→ この一覧を AskUserQuestion で提示し、選択後に --profile <名前> を実行してください。")
+    print("\n→ 依頼・既存設定・資料から対象を特定して --profile <名前> を実行してください。"
+          "本人しか決められない選択が残る場合だけ確認してください。")
     return 0
 
 
@@ -215,7 +216,7 @@ def cmd_profile(args: argparse.Namespace, repo_root: Path) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="PAC プロファイルから .env 構成 + インタラクティブ認証")
-    ap.add_argument("--list", action="store_true", help="環境候補を一覧表示（AskUserQuestion 用）")
+    ap.add_argument("--list", action="store_true", help="環境候補を一覧表示して依頼・設定と照合する")
     ap.add_argument("--profile", help="利用する PAC プロファイル名")
     ap.add_argument("--solution", help="SOLUTION_NAME（任意）")
     ap.add_argument("--display", help="SOLUTION_DISPLAY_NAME（任意）")

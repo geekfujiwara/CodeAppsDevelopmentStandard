@@ -141,6 +141,8 @@ DLP / ACP・Code Apps 許可・マネージド環境・MCP の診断を開始条
 対象環境とデプロイ承認を確認できたら、ローカル predeploy / build を通して初回 push を優先する。
 初回 push はテーブル全件構築・データ移行・ローカライズの完了を待たず、未接続部分を UI に明示する。
 障害時だけ [admin の権限確認付き復旧](../admin/references/development-recovery.md) を使用する。
+開発・デプロイ・AI / custom connector 連携まで依頼された場合は、[standard の E2E デリバリー契約](../standard/references/end-to-end-delivery.md)に従い、
+ローカル build のみで止めず、承認済み開発環境で画面から実データ／接続／Foundry 応答まで通して検証する。
 
 > [!NOTE]
 > **サブエージェント並行実行パターン**: `architecture` スキルで Code Apps が確定し、`dataverse` スキルで
@@ -185,14 +187,16 @@ DLP / ACP・Code Apps 許可・マネージド環境・MCP の診断を開始条
 > 実際のテーブル名・型名は、あなたのプロジェクトのエンティティに読み替えてください。
 > パターン（Lookup 名前解決、SDK ラッパー、useMemo マップ等）はそのまま適用できます。
 
-### 設計フェーズ（実装前に必須）
+### 設計フェーズ（既存要件を優先し、質問で停止しない）
 
-**コードを書く前に、デザインテンプレートの選択と UI 設計を行い、ユーザーの承認を得ること。** 手順:
+**コードを書く前に、要件に最適なテンプレートと UI を選定する。** 既存資料・既存画面・依頼に具体的な方針があればそれを優先し、
+テンプレート一覧の提示や通常の UI 判断の承認待ちを挟まず、選定理由を記録して実装する。明示的に複数案の比較を求められた場合、
+または選択によって対象業務・データ・公開範囲が大きく変わる場合だけ一度に確認する。手順:
 
-1. [デザインテンプレート集](references/design-templates.md) の 6 種を一覧＋プレビューで提示し、ユーザーに 1 つ選んでもらう（デプロイされるアプリは常に 1 テンプレート。dark/light は `ThemeProvider` + `ModeToggle`）。
-2. [デザインシステム](references/design-pattern.md) を読み込み、画面構成・コンポーネント選定・Lookup 名前解決パターンを設計する。
-3. 設計（選択テンプレート＋画面設計）を提示し、「この設計で進めてよいですか？」と承認を得る。承認の証跡を残す場合は、[設計承認 Issue テンプレート](references/design-approval.yml) を対象プロジェクトの `.github/ISSUE_TEMPLATE/` にコピーして Issue を作成する。
-4. 承認後、選択テンプレートの CSS Variables を `styles/index.pcss` に適用してから実装する（変数一式・適用手順は [デザインテンプレート集](references/design-templates.md)）。
+1. [デザインテンプレート集](references/design-templates.md) から既存 UX と業務要件に最も合う 1 種を選ぶ（dark/light は `ThemeProvider` + `ModeToggle`）。
+2. [デザインシステム](references/design-pattern.md) を読み、画面構成・コンポーネント・Lookup 名前解決を決める。
+3. 非破壊な通常設計は選定理由と受け入れ条件を記録してすぐ実装する。設計承認が必要な本番公開・データ移行・権限変更等はその操作だけ保留する。承認の証跡を残す場合は、[設計承認 Issue テンプレート](references/design-approval.yml) を使う。
+4. 選択テンプレートの CSS Variables を `styles/index.pcss` に適用し、既存 predeploy・型・テスト・E2E の流れへ進む（変数一式・適用手順は [デザインテンプレート集](references/design-templates.md)）。
 
 > **CRUD 画面は [CRUD UI 標準パターン](references/crud-ui-pattern.md) に必ず従う**: 一覧は行／カード全体をクリックして詳細を開く（目アイコン等の小さなクリック領域は使わない）、詳細の編集はモーダルではなくインライン編集モード、行内の削除・クイック操作は `e.stopPropagation()`、削除確認はブラウザの `confirm()` ではなくモーダル（`useConfirm()` / AlertDialog）。**指示がなくても、テーブルごとに「一覧・詳細（インライン編集）・作成・削除」を標準実装すること。**
 

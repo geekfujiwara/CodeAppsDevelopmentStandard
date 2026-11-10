@@ -149,8 +149,9 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 環境ごとに違う値（環境 ID・プレフィックス・リソース名など）が多いテンプレートは、`scaffold.json` に `questions` を書き、
 エージェントが既存 `.env`・資料・承認済み設定・環境 API・`detect`・`sameAs`・安全な既定値から解決して生成する。
 `questions` は変数を漏らさないための一覧であり、各項目でポップアップを出す指示ではない。
-クイックスタートでは認証後の要望確認で必ず一度停止し、その回答後は自分で分かることを調べて進む。
-本人の判断が不可欠な未解決値・承認範囲外の操作だけを AskUserQuestion で確認する。
+クイックスタートでは明示済みの意図を聞き直さず、既存設定・資料・環境 API・安全な既定値から解決して進む。
+本人の判断が不可欠な未解決値・承認範囲外の操作だけを AskUserQuestion でまとめて確認し、
+回答が必要な操作だけを保留して独立作業を続ける。
 
 ```powershell
 # 1. まだ答えの無い質問（JSON）。detect があれば先に調べて choices に並べ、default は推奨として先頭に置く
