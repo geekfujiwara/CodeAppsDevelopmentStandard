@@ -9,7 +9,10 @@ STANDARD = ROOT / ".github/skills/standard"
 
 class QuickstartContractTests(unittest.TestCase):
     def test_readme_has_copyable_short_prompt_and_full_handoff(self):
-        text = (ROOT / "README.md").read_text(encoding="utf-8")
+        readme = ROOT / "README.md"
+        if not readme.exists():
+            self.skipTest("README.md is not included in this workspace")
+        text = readme.read_text(encoding="utf-8")
         self.assertIn(
             "```text\nhttps://github.com/geekfujiwara/CodeAppsDevelopmentStandard クイックスタートして\n```",
             text,
@@ -21,6 +24,8 @@ class QuickstartContractTests(unittest.TestCase):
         ):
             with self.subTest(requirement=requirement):
                 self.assertIn(requirement, text)
+        self.assertNotIn("認証後は`AskUserQuestion`で要望と実施範囲を確認して一旦停止", text)
+        self.assertNotIn("認証後の一度の要望確認は維持", text)
 
     def test_workflow_covers_setup_documents_environment_and_deployment_in_order(self):
         text = (STANDARD / "references/quickstart.md").read_text(encoding="utf-8")
@@ -55,7 +60,7 @@ class QuickstartContractTests(unittest.TestCase):
                 self.assertIn("spec-builder", text)
                 self.assertIn("Mermaid", text)
 
-    def test_entrypoints_require_waiting_for_intent_after_authentication(self):
+    def test_entrypoints_continue_without_mandatory_intent_checkpoint(self):
         paths = (
             STANDARD / "SKILL.md",
             ROOT / ".github/agents/GeekPowerCode.agent.md",
@@ -64,11 +69,11 @@ class QuickstartContractTests(unittest.TestCase):
         for path in paths:
             with self.subTest(path=str(path)):
                 text = path.read_text(encoding="utf-8")
-                self.assertIn("認証準備後は AskUserQuestion で要望確認", text)
-                self.assertIn("必ず回答待ちで一旦停止", text)
-                self.assertIn("回答前に資料変換・仕様作成・設計提案へ進ま", text)
+                self.assertIn("既知事項や通常の実装判断で AskUserQuestion を繰り返さない", text)
+                self.assertNotIn("必ず回答待ちで一旦停止", text)
+                self.assertNotIn("認証準備後は AskUserQuestion で要望確認", text)
 
-    def test_checkpoint_follows_cache_verification_and_precedes_documentation(self):
+    def test_any_blocker_question_follows_cache_verification_and_only_blocks_affected_actions(self):
         text = (STANDARD / "references/quickstart.md").read_text(encoding="utf-8")
         setup = text.split("## Step 0:", 1)[1].split("## Step 1:", 1)[0]
         self.assertLess(
@@ -77,18 +82,17 @@ class QuickstartContractTests(unittest.TestCase):
         )
         self.assertLess(
             setup.index("verify_auth_cache.py --env .env"),
-            setup.index("必ず回答待ちで一旦停止"),
+            setup.index("### 対象が明確なら質問せず構築を開始する"),
         )
         for requirement in (
-            "2〜3 個の具体的なアプリ案", "想定利用者・主要機能・推奨 AI 機能・推奨理由",
-            "今は準備までにする", "開発環境へのデプロイ・テストまで進める",
-            "AskUserQuestion が提供されていない", "回答を待つ",
+            "本人しか決められない事項が残る場合", "回答を要する操作だけを保留",
+            "独立作業を継続", "安全な開発用の既定案",
         ):
             with self.subTest(requirement=requirement):
                 self.assertIn(requirement, setup)
-        self.assertIn("回答を待ちます", (ROOT / "README.md").read_text(encoding="utf-8"))
+        self.assertNotIn("必ず回答待ち", setup)
 
-    def test_entrypoints_continue_autonomously_after_the_single_checkpoint(self):
+    def test_entrypoints_continue_autonomously_without_mandatory_checkpoint(self):
         for path in (
             STANDARD / "SKILL.md",
             ROOT / ".github/agents/GeekPowerCode.agent.md",
@@ -101,6 +105,19 @@ class QuickstartContractTests(unittest.TestCase):
                 self.assertIn("既知事項や通常の実装判断で AskUserQuestion を繰り返さない", text)
                 self.assertIn("フル構成", text)
                 self.assertIn("実動作検証", text)
+
+    def test_scaffolding_and_environment_discovery_do_not_force_questions(self):
+        scaffolding = (
+            ROOT / ".github/skills/update-skills/references/scaffolding.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("明示済みの意図を聞き直さず", scaffolding)
+        self.assertNotIn("認証後の要望確認で必ず一度停止", scaffolding)
+
+        setup_script = (
+            ROOT / ".github/skills/standard/scripts/setup_environment.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("本人しか決められない選択が残る場合だけ確認", setup_script)
+        self.assertNotIn("AskUserQuestion でユーザーに選ばせる", setup_script)
 
     def test_documentation_and_environment_selection_precede_full_deployment(self):
         text = (STANDARD / "references/quickstart.md").read_text(encoding="utf-8")
@@ -136,7 +153,47 @@ class QuickstartContractTests(unittest.TestCase):
                 self.assertIn("クイックスタート", text)
                 self.assertIn("仮説", text)
                 self.assertIn("AskUserQuestion", text)
-                self.assertIn("ワークスペース名", text)
+                self.assertIn("ワークスペース", text)
+
+    def test_deployment_entrypoints_do_not_require_a_monthly_budget(self):
+        for relative in (
+            "skills/standard/SKILL.md",
+            "skills/standard/references/quickstart.md",
+            "skills/azure-infra/SKILL.md",
+            "skills/azure-infra/references/preflight-checklist.md",
+            "skills/azure-infra/references/foundry-agent.md",
+            "skills/architecture/SKILL.md",
+            "skills/foundry-autopilot/SKILL.md",
+            "agents/GeekPowerCode.agent.md",
+            "prompts/quickstart.prompt.md",
+        ):
+            with self.subTest(path=relative):
+                text = (ROOT / ".github" / relative).read_text(encoding="utf-8")
+                for requirement in (
+                    "開発デプロイと費用の共通契約", "月額上限の確定を開始条件にしない",
+                    "モデルのデプロイ", "従量課金",
+                ):
+                    self.assertIn(requirement, text)
+        azure = (ROOT / ".github/skills/azure-infra/SKILL.md").read_text(encoding="utf-8")
+        self.assertNotIn("実装先と課金上限", azure)
+
+    def test_cost_contract_preserves_explicit_limits_and_security_boundaries(self):
+        text = (STANDARD / "SKILL.md").read_text(encoding="utf-8")
+        contract = text.split("## 開発デプロイと費用の共通契約", 1)[1].split("\n## ", 1)[0]
+        for requirement in (
+            "予算未回答・未確定だけを理由に停止しない",
+            "必要最小限の容量と検証回数", "停止・削除方法",
+            "明示された予算上限・課金禁止", "組織の支出制限・ライセンス条件",
+            "予約／専用容量・長期契約", "該当操作だけを止め",
+            "本番・外部公開", "RBAC", "Azure Policy", "MFA", "hash 承認",
+        ):
+            with self.subTest(requirement=requirement):
+                self.assertIn(requirement, contract)
+        workflow = (STANDARD / "references/quickstart.md").read_text(encoding="utf-8")
+        exceptions = workflow.split("### 追加の質問が必要な例外", 1)[1]
+        self.assertIn("依頼範囲外の追加費用", exceptions)
+        self.assertIn("開発依頼に必要な従量課金", exceptions)
+        self.assertIn("明示された予算上限・課金禁止", exceptions)
 
 
 if __name__ == "__main__":

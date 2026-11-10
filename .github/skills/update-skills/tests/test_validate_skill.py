@@ -59,6 +59,31 @@ class ValidateSkillTests(unittest.TestCase):
         self.assertEqual(len(report.errors), 1)
         self.assertIn(REAL_GUID, report.errors[0])
 
+    def test_deployment_skills_require_nonblocking_cost_contract(self):
+        for name in ("standard", "azure-infra", "architecture", "foundry-autopilot"):
+            with self.subTest(skill=name):
+                skill = Path(self.temp.name) / name
+                skill.mkdir()
+                path = skill / "SKILL.md"
+                text = SKILL.replace("sample-skill", name)
+                path.write_text(text, encoding="utf-8")
+                self.assertEqual(len(validate_skill(skill).errors), 2)
+
+                contract = "\n開発デプロイと費用の共通契約\n月額上限の確定を開始条件にしない\n"
+                path.write_text(text + contract, encoding="utf-8")
+                self.assertEqual(validate_skill(skill).errors, [])
+
+    def test_azure_rejects_restored_budget_gate_even_with_contract_present(self):
+        skill = Path(self.temp.name) / "azure-infra"
+        skill.mkdir()
+        (skill / "SKILL.md").write_text(
+            SKILL.replace("sample-skill", "azure-infra")
+            + "\n開発デプロイと費用の共通契約\n月額上限の確定を開始条件にしない\n"
+            + "| 1 | 対象の予算 | 実装先と課金上限が確定している |\n",
+            encoding="utf-8",
+        )
+        self.assertIn("課金上限の確定を構築の合格条件に戻さない", validate_skill(skill).errors)
+
 
 class TemplateManifestTests(unittest.TestCase):
     def setUp(self):
