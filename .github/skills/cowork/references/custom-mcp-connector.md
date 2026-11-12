@@ -1,5 +1,10 @@
 # 自前 MCP Server を Cowork プラグインのコネクタにする
 
+**Dataverse は [Microsoft 標準プラグイン](standard-dataverse-plugin.md)を第一候補**にする。
+本手順は、標準接続で要件を満たせない場合の承認済みフォールバック、または Dataverse 外のデータを扱う場合に使う。
+標準プラグインと Dataverse へ直接つなぐカスタム MCP コネクタ、自前 MCP Server は別の経路であり、
+標準経路に本手順の OAuth 設定を追加しない。ポリシーや利用者の権限を迂回するためには使わない。
+
 Cowork プラグインの `agentConnectors` は **remote MCP server** を指すため、Dataverse MCP だけでなく
 [mcp-server スキル](../../mcp-server/SKILL.md) で構築した **自前 MCP Server（Azure Functions）** も
 そのままコネクタとして登録できる。基幹 DB・ファイルサーバー・業務 API など **Dataverse に無いデータ**を

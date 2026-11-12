@@ -33,6 +33,11 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 
 ## 公開
 
+Dataverse 接続は [Microsoft 標準プラグイン](../../references/standard-dataverse-plugin.md)が第一候補。
+このテンプレートの manifest・ツール名は**カスタム MCP フォールバック用**として保持している。
+標準経路では同リファレンスに従い、生成後にコネクタを外して実測ツールへスキルを合わせ、業務スキルだけを配布する。
+以下はカスタム接続を選んだ場合のみ実施する。
+
 [cowork スキル](../../SKILL.md) の Step 3〜8（Entra OAuth アプリ → `allowedmcpclients` → OAuth client registration → ビルド → 管理センター private API）。
 OAuth client registration は CLI から作れる（`manage_oauth_registration_api.py create ... --write-env .env`）。組織に公開する前に、
 作成者が `install_agent_package_personal.py install` で自分だけに入れて、Cowork で下書きの作成を確かめる。
