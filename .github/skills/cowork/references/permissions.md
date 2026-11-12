@@ -1,6 +1,11 @@
 # 必要な権限の案内（Cowork プラグイン + Dataverse MCP）
 
-プラグインを作る・公開する・使う人ごとに、必要な権限をまとめる。scaffold の直後に**担当者と照らし合わせて**から Step 3 へ進む。
+標準経路は [Microsoft Dataverse プラグイン](standard-dataverse-plugin.md)の管理者インストールと本人の環境接続を使う。
+独自 OAuth アプリ・シークレット・OAuth registration・カスタム Client ID の許可登録は不要。
+下表の Step 3〜5 とその専用コマンドは**カスタム MCP フォールバックのみ**。
+業務スキルのみを配布する場合も、そのパッケージの公開権限と利用者の Dataverse ロールは必要。
+
+プラグインを作る・公開する・使う人ごとに、必要な権限をまとめる。カスタム接続では scaffold の直後に**担当者と照らし合わせて**から Step 3 へ進む。
 コネクタは**利用者本人の委任**（OAuth 認可コード）で Dataverse を呼ぶため、プラグインが読める・書けるのは**その人の Dataverse の権限の範囲だけ**。
 
 ## 1. 担当ごとの権限
@@ -34,6 +39,8 @@
 | 株主名簿・発言・質問・LIVE | なし |
 
 ## 3. 確認のコマンド
+
+以下はカスタム接続の診断用。標準経路では Cowork で接続先環境と実際のツール実行を確認する。
 
 ```powershell
 python .github/skills/standard/scripts/check_mcp_client.py cowork          # Dataverse MCP と Cowork クライアント

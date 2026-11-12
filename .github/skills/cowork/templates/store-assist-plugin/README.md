@@ -33,6 +33,11 @@ python .github/skills/update-skills/scripts/scaffold_from_template.py `
 
 ## 公開
 
+Dataverse 接続は [Microsoft 標準プラグイン](../../references/standard-dataverse-plugin.md)が第一候補。
+このテンプレートの manifest・ツール名は**カスタム MCP フォールバック用**として保持している。
+標準経路では同リファレンスに従い、生成後にコネクタを外して実測ツールへスキルを合わせ、業務スキルだけを配布する。
+以下はカスタム接続を選んだ場合のみ実施する。
+
 1. Dataverse（8 テーブルとデモデータ）とロール「店長アシスト デモ利用者」は、`code-apps/templates/store-ordering` から作ったアプリで `npm run dv:setup` → `npm run dv:role`。
 2. [cowork スキル](../../SKILL.md) の Step 3〜5（Entra OAuth アプリ → `allowedmcpclients` → OAuth client registration）。既存の Cowork 用 OAuth 登録が同じ環境にあれば再利用できる。
 3. ビルドする。共通の表示ルール・`report_builder.py` の差し込みと、結果の見せ方の検査（`check_visual_output.py`）もここで行う:

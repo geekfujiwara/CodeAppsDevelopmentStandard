@@ -1,6 +1,6 @@
 ---
 name: cowork
-description: "目的特化型の Copilot Cowork プラグイン（M365 アプリパッケージ）を開発する。Agent Skills（SKILL.md）と Dataverse MCP コネクタをセットにし、Entra ID の OAuth 2.0 認可コードフロー認証を構成して Teams 開発者ポータルで registrationId を取得、M365 管理センターのエージェント画面からアップロード・公開して Cowork から Dataverse を利用可能にする。"
+description: "Copilot Cowork で Microsoft 標準の Dataverse プラグインを第一候補に使い、業務の Agent Skills を開発・配布する。標準経路で要件を満たせない場合は、既存のカスタム MCP コネクタ（Entra OAuth・M365 アプリパッケージ）をフォールバックとして利用する。"
 category: automation
 triggers:
   - "Cowork"
@@ -13,6 +13,8 @@ triggers:
   - "Agent Skills"
   - "SKILL.md"
   - "Dataverse MCP コネクタ"
+  - "Microsoft Dataverse プラグイン"
+  - "Dataverse Cowork"
   - "自前 MCP を Cowork で使いたい"
   - "Cowork に MCP Server を追加"
   - "remoteMcpServer"
@@ -28,11 +30,21 @@ triggers:
   - "Cowork スキル"
 ---
 
-# Cowork プラグイン開発（Dataverse MCP セット）
+# Cowork 開発（標準 Dataverse プラグイン優先）
 
-目的特化型の **Copilot Cowork プラグイン**（M365 アプリパッケージ `.zip`）を作る。
-ビジネススキル（`SKILL.md`）と **Dataverse MCP コネクタ**をセットにし、**Entra ID の OAuth 2.0 認可コードフロー認証**で
-Cowork から Dataverse を直接操作できるようにする。
+Dataverse への接続は **Microsoft 標準の Microsoft Dataverse プラグイン（プレビュー）を第一候補**にする。
+管理者が対象者へインストールし、利用者本人が環境 URL を指定して接続する。
+開発者は業務固有の **Agent Skills** に集中し、標準経路では接続を再実装しない。
+
+| 経路 | 接続と配布 | 手順 |
+|---|---|---|
+| **標準（既定）** | Microsoft Dataverse プラグイン + 必要なら業務スキルのみのパッケージ。独自の `agentConnectors`・Entra OAuth アプリ・シークレット・OAuth registration・`allowedmcpclients` 追加登録は不要 | [標準プラグインの利用と業務スキルの配布](references/standard-dataverse-plugin.md) |
+| **フォールバック** | 標準経路で満たせない要件について、承認された既存カスタム MCP 接続を利用。独自コネクタを含む M365 アプリパッケージを配布 | 本文 Step 3〜10。自前サーバーの場合は [custom-mcp-connector.md](references/custom-mcp-connector.md) も参照 |
+
+標準経路を使えない理由と必要な操作を記録してからフォールバックを選ぶ。
+ポリシー・権限の拒否を迂回するためには切り替えない。判断基準と異常系は
+[トラブルシュート](references/troubleshooting.md#標準-dataverse-プラグインの切り分けとフォールバック)を参照。
+**今回はスキル更新だけの場合、テナント操作・アプリ登録・公開・利用者接続は実行しない。**
 
 > **データ先は Dataverse だけではない**: `agentConnectors` は remote MCP server を指すため、
 > [mcp-server スキル](../mcp-server/SKILL.md) で構築した **自前 MCP Server（Azure Functions）** も
@@ -48,6 +60,7 @@ Cowork から Dataverse を直接操作できるようにする。
 
 | リファレンス | 内容 |
 |---|---|
+| [標準 Dataverse プラグイン](references/standard-dataverse-plugin.md) | 管理者のインストール → 本人の環境接続 → 実行確認。業務スキルのみの配布と既存テンプレートの扱い |
 | [自前 MCP Server をコネクタにする](references/custom-mcp-connector.md) | Dataverse 外のデータ（基幹 DB / ファイルサーバー / 業務 API）を Cowork から扱う場合の差分手順 |
 | [営業支援 CRM プラグイン テンプレート](templates/sales-crm-plugin/README.md) | 予定表・メール・チャットからの活動登録 / 目標達成プラン / マネージャーの障害レビュー。Code Apps の `templates/sales-crm` と同じ Dataverse を共有し、scaffold で生成する |
 | [株主総会 想定問答アシスタント テンプレート](templates/agm-qa-plugin/README.md) | IR 抜粋を根拠に想定問答とリハーサル台本を**下書き**で登録・想定問答の点検。Code Apps の `templates/agm-qa-assist` と同じ Dataverse。変数は `--questions` で AskUserQuestion |
@@ -56,11 +69,11 @@ Cowork から Dataverse を直接操作できるようにする。
 | [異常系・トラブルシュート](references/troubleshooting.md) | 実際に踏んだ失敗と恒久対策 |
 | [結果の見せ方（Render UI のグラフ・表・HTML レポート）](references/visual-output.md) | 提案するスキル・数字を扱うスキルの出力の標準。差し込む共通ルール [display-rules.md](references/display-rules.md)・ひな形 [report-template.html](references/report-template.html) |
 
-## パッケージ構成（Skills + remote connector）
+## パッケージ構成（業務 Skills。remote connector はフォールバックのみ）
 
 ```
 <plugin-root>/
-├── manifest.json                 # M365 Unified App Manifest v1.28
+├── manifest.json                 # M365 Unified App Manifest v1.29
 ├── color.png                     # 192×192 フルカラーアイコン
 ├── outline.png                   # 32×32 アウトラインアイコン
 ├── build-package.ps1             # .zip 生成（検証付き）
@@ -71,8 +84,9 @@ Cowork から Dataverse を直接操作できるようにする。
 
 ## 事前確認（会話の最初に 1 回だけ）
 
-本スキルの利用が確定したら、[standard の共通契約](../standard/SKILL.md#共通の事前確認契約会話の最初に-1-回だけ)に加え、
-**1 回の AskUserQuestion で次をまとめて確認する**。
+実際の開発・接続時は、[standard の共通契約](../standard/SKILL.md#共通の事前確認契約会話の最初に-1-回だけ)に加え、
+既存設定・依頼内容で確定できる項目を先に埋める。不足する本人の判断だけ AskUserQuestion で確認する。
+**標準経路は下表の 1・2・6 と、標準プラグインを配布する管理者を確認する。3〜5 はカスタム接続・独自パッケージの公開時だけ必要。**
 
 | # | 質問 | 合格条件 |
 |---|---|---|
@@ -91,13 +105,15 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
 
 前提チェック:
 
-1. `python .github/skills/standard/scripts/check_mcp_client.py cowork` が ✅ であること。
-2. Python 3（auth_helper.py / アイコン生成）と PowerShell（パッケージビルド）が利用可能であること。
+1. 標準経路は管理者によるプラグインの配布と、本人の対象環境への接続を確認する。
+   `check_mcp_client.py cowork` やカスタム Client ID の登録は標準経路の前提にしない。
+2. 独自パッケージを作る場合は Python 3（アイコン生成・検証）と PowerShell（ビルド）が利用可能であること。
 3. いずれかの前提が未確認なら、アプリ登録・シークレット作成・公開へ進まないこと。
 
 ## スキル同梱スクリプト（再利用）
 
-`scripts/` のスクリプトは汎用化されており、どのテナント・環境でも `.env`（`TENANT_ID` /
+OAuth 作成・クライアント登録・接続診断・専用クライアントによるリハーサルは**カスタム接続向け**。
+標準プラグインの認証・接続確認を代替しない。`scripts/` は汎用化されており、カスタム接続では `.env`（`TENANT_ID` /
 `DATAVERSE_URL` / `PUBLISHER_PREFIX` / `COWORK_OAUTH_CLIENT_ID`）を参照して動作する。
 
 | スクリプト | 用途 |
@@ -122,7 +138,13 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
 
 ## ワークフロー（正常系）
 
-### Step 0: ヒアリング（プラグイン構想の提案）
+### Step 0: 接続経路と業務スキルの構想を決める
+
+まず [標準 Dataverse プラグインの手順](references/standard-dataverse-plugin.md)で接続する。
+標準プラグインだけで依頼を満たせるなら独自パッケージは作らず、対象環境・権限・実行結果を確認して終了する。
+業務スキルが必要な場合は以下の構想と Step 1〜2 に進む。
+**Step 3〜6 のカスタム接続設定はフォールバック専用**。
+標準経路でスキルのみを配る場合は同リファレンスの manifest を使い、Step 7〜10 のビルド・公開・更新だけを適用する。
 
 ユーザーが「プラグインを作りたい」「Cowork で〜したい」と相談してきたら、**いきなり実装に入らず**
 まず構想を提案する。以下の流れで会話を始める。
@@ -154,12 +176,15 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
 > [sales-crm-plugin](templates/sales-crm-plugin/README.md) を `scaffold_from_template.py` で生成して Step 1 の `describe` 確認から続ける。
 > Code Apps の [templates/sales-crm](../code-apps/templates/sales-crm/README.md) と同じ Dataverse を共有する。
 
-> 最初は **1スキル + Dataverse MCP コネクタ**の最小構成で公開・疎通確認し、動いたら
-> 残りのスキルを追加する流れが安全（コネクタ認証の検証を先に済ませられる）。
+> 最初は **標準プラグイン + 1 業務スキル**で検証する。フォールバック時だけ
+> **1 スキル + 1 カスタム MCP コネクタ**を最小構成にする。
 
 ### Step 1: 対象テーブルを `describe` でスキーマ確認（クエリを書く前に必須）
 
-**スキル本文にクエリを書く前に、必ず `describe` で対象テーブルの実スキーマを確認する。**
+**スキル本文にクエリを書く前に、必ずメタデータ取得操作で対象テーブルの実スキーマを確認する。**
+標準プラグインでは実行時に提供されるツールの説明を先に読み、対応するメタデータ取得操作で確認する。
+以下の `describe`・`read_query` 等は既存カスタム MCP の名称であり、標準経路で同名があると仮定しない。
+生成するスキルと既存テンプレートのツール名・引数も実測に合わせ、対応操作が無ければ停止して報告する。
 テーブル名・列名・**ルックアップ（外部キー）列の正確な名前**を推測で書かない（推測は実行時の
 `Read query Failed` の主因。特に FK 列は環境やクエリ方式で表記が異なる）。
 
@@ -171,8 +196,9 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
      SQL/論理名 `xxxid` は別物。**describe が返す名前をそのまま使う**）。
    - **選択肢（Picklist）の値とラベル**の対応
 2. 確認できたスキーマだけを使ってクエリを書く。describe に無い列・テーブルは使わない。
-3. スキル本文の冒頭にも「Step 1: 対象テーブルを `describe` で確認してからクエリする」を入れ、
-   **生成するスキル自身も実行時に describe で裏取りする**手順にする（下のテンプレート参照）。
+3. スキル本文の冒頭にも「Step 1: 対象テーブルの実スキーマを確認してからクエリする」を入れ、
+   **生成するスキル自身も実行時にメタデータで裏取りする**手順にする。
+   カスタム接続では `describe`、標準接続では実測した対応操作を明記する。
 
 > 確認結果は「対象データ（テーブル）」表に**論理名で**まとめる。表示名は補足に留める。
 
@@ -186,7 +212,7 @@ OAuth 同意が必要な場合は `Privileged Role Administrator` を担当工�
 name: annual-customer-review
 description: |
   <何をするスキルか>。Use when ユーザーが「<トリガー語1>」「<トリガー語2>」と依頼したとき。
-  Dataverse MCP コネクタ（read_query / search_data / search / describe）を使用する。
+  Microsoft 標準の Dataverse 接続を使用する（操作名は実行時に確認）。
 license: MIT
 metadata:
   author: <作成者>   # 開発中のサインイン アカウントの表示名（manifest の developer.name と同じ値）
@@ -203,8 +229,9 @@ metadata:
 本文は約 1,500〜2,000 語以内。詳細は `references/` に逃がす（コンパニオンファイルは最大20・各5MB）。
 
 > **生成するスキル本文の必須ルール**: ワークフローの最初の Step を
-> 「対象テーブルを `describe` でスキーマ確認（列名・FK 列名を確定）」とする。
-> クエリ例の列名は describe で確認済みのものだけを使い、未確認の列を推測で書かない。
+> 「対象テーブルのメタデータでスキーマ確認（列名・FK 列名を確定）」とする。
+> 標準接続は実測の操作名、カスタム接続は `describe` を使い、確認できなければ停止する。
+> クエリ例の列名は確認済みのものだけを使い、未確認の列を推測で書かない。
 
 **結果の見せ方（提案するスキルは標準で Render UI のグラフ）**: 提案・助言・打ち手・対策案を出すスキルと、数字を扱うスキル（集計・点検・登録の確認）は、
 答えを **チャットのグラフ（Render UI）・表・保存用の HTML レポート** で返す。スキルに書くのは 3 つだけ:
@@ -215,7 +242,9 @@ metadata:
 Render UI の仕様と正式な色は公開されていないため、実行時に Render UI の説明を読んで使い、表示を確かめるまで成功と書かず、1 回直して駄目なら文字のグラフに切り替える。
 書き方の例・`results.json` の形は [references/visual-output.md](references/visual-output.md)。`build_agent_package.ps1` が `check_visual_output.py` で毎回検査し、提案するスキルに手順が無ければ止める（#52・#53）。
 
-### Step 3: Entra アプリ（OAuth クライアント）を作成・構成
+### Step 3: カスタム接続用 Entra アプリ（OAuth クライアント）を作成・構成
+
+**ここから Step 6 まではフォールバック専用。標準プラグインには適用しない。**
 
 Dataverse MCP は Microsoft ファーストパーティ API のため、トークンの **audience が Dataverse 自身**
 （`https://<org>.crm.dynamics.com`）である必要がある。**SSO 方式は audience が「自前アプリ」になり失敗する**
@@ -481,6 +510,11 @@ Save すると **OAuth client registration ID** が発行される。これを *
 
 ### Step 7: パッケージ（.zip）をビルド
 
+**スキルのみのパッケージ**は [標準経路のパッケージ手順](references/standard-dataverse-plugin.md#4-必要な場合だけ業務スキルを配布する)でビルドする。
+既存の `build_agent_package.ps1` は OAuth 用 `.env` を必須とする**カスタム接続専用**であり、
+標準経路のためにダミーの registration ID・テナント ID を設定して使わない。
+以下の OAuth 注入・カスタムクライアントのリハーサルはフォールバック時だけ適用する。
+
 **manifest.json をルートに**置いて圧縮する（フォルダごと圧縮しない）。`mcpToolDescription` を書いた場合だけ、そのツール説明 JSON も含める。
 **`.env` から `COWORK_OAUTH_REGISTRATION_ID` を読み `__COWORK_OAUTH_REGISTRATION_ID__` に注入**してから zip 化する
 （手作業で referenceId を manifest に直接埋めない＝取り違え・コミット事故を防ぐ）。
@@ -621,6 +655,9 @@ API が401/403/404、schema不一致、read-back不一致の場合だけ、次�
 
 ### Step 9: Cowork で利用・初回同意
 
+**標準経路**では [標準プラグインの実行確認](references/standard-dataverse-plugin.md)を行う。
+以下はカスタム接続の場合。接続済み表示だけで成功にせず、新しいタスクで実際の取得・承認・読み戻しを確かめる。
+
 1. Cowork の **Customize → Plugins** でプラグインを有効にし、スキルのトリガー語（例: 「年間レビュー資料を作って」）を入力
 2. 初回は Dataverse MCP コネクタの **OAuth 同意**が走る（Enterprise Token Store 経由）
 3. 同意後、`read_query` 等が実行されデータ取得 → 資料生成
@@ -661,6 +698,15 @@ API が401/403/404、schema不一致、read-back不一致の場合だけ、次�
 
 ## 検証チェックリスト
 
+**標準経路**:
+
+- [ ] 管理者が Microsoft Dataverse プラグインを対象者へインストールし、本人が正しい環境 URL へ接続した
+- [ ] 独自 OAuth アプリ・シークレット・OAuth registration・MCP クライアント許可登録を標準経路のために作っていない
+- [ ] 実行時のツール名・引数とスキーマを確認し、新しいタスクで取得できた。書き込みは承認後だけ行い読み戻した
+- [ ] 業務スキルのみの配布は `agentConnectors`・OAuth プレースホルダーなし。標準プラグインと併用して検証した
+
+**以下はカスタム MCP フォールバック時のチェック（スキルの品質・ZIP・公開確認は両経路共通）**:
+
 - [ ] `check_mcp_client.py cowork` が ✅
 - [ ] **対象テーブルを `describe` で確認**し、テーブル名・列名・**FK 列名**を確定（推測でクエリを書かない）
 - [ ] 生成したスキル本文の最初の Step が「`describe` でスキーマ確認」になっている
@@ -686,6 +732,8 @@ API が401/403/404、schema不一致、read-back不一致の場合だけ、次�
 
 ## 参考リンク
 
+- [Use the Microsoft Dataverse plugin in Cowork (preview)](https://learn.microsoft.com/en-us/copilot/cowork/dataverse-plugin)
+- [Microsoft Dataverse Plugin for AI Agents](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/agents-plugin/)
 - [Build plugins for Cowork (Frontier)](https://learn.microsoft.com/en-us/microsoft-365/copilot/cowork/cowork-plugin-development)
 - [Configure authentication for MCP and API plugins](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/plugin-authentication)
 - [ポータル API 自動化](references/portal-api-automation.md)
