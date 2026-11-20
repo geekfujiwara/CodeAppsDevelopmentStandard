@@ -6,10 +6,11 @@ triggers:
   - 2つのシナリオを動画にして
   - 動画を編集して
   - 動画を圧縮して
+  - テックイベントのSNS動画を作って
   - create a screen-first demo
 description: |
   実録画・スクリーンショットから、タイトル・工程図・余白付きズーム・成果物確認を備えた業務デモを制作する。既定は無音・字幕なし。2役割、テンプレート、編集・圧縮、明示希望時の音声字幕に対応。
-  Use for screen-first demos, recorded workflows, video editing and compression. Not for meeting summaries or fabricated application screens.
+  Use for screen-first demos, tech-event interviews and Q&A clips, recorded workflows, video editing and compression. Not for meeting summaries or fabricated application screens.
 license: MIT
 ---
 
@@ -29,6 +30,10 @@ GitHub Copilot / VS Codeで実録画・実画面から業務デモを制作す�
 依頼文、収集、本人承認、登録・変更の完了を区別する。未収録機能は、追加素材を待つ・省略する・
 「運用イメージ」と明示する選択を確認し、実行済みと偽らない。
 Python / Pillow / numpy / ffmpeg が必要。不足時は明示し、[依存](scripts/requirements.txt)に沿って承認を得る。
+
+テックイベントのインタビュー・Q&A・セッション紹介をSNS向けに編集する場合は、
+[テックイベント](references/tech-event.md)を選ぶ。以降の画面中心の構成ではなく、
+同テーマの編集・音声・書き出し手順を使う。画面中心デモの既定は変えない。
 
 ## Step 2. 共通テンプレートから開始
 
