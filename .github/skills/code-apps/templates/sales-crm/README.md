@@ -130,8 +130,13 @@ Python SDKが未導入の場合は実際のimport失敗を確認した後、
 
 | 機能 | コマンド | 内容 |
 |---|---|---|
+| 新規商談メール通知 | `python scripts/deploy_opportunity_created_email.py`（計画のみ） / `--apply` | Dataverseの商談作成Webhookから商談名・取引先・ステージ・金額・確度・クローズ予定・次のアクション・作成者をカード型HTMLメールで通知。宛先は `.env` の `CRM_OPPORTUNITY_CREATED_TO`（省略時は配備時のDataverse実行ユーザー）。Dataverse/Outlook接続参照をCRMソリューションで再利用し、有効化する |
 | 朝の営業ダイジェスト | `python scripts/deploy_manager_digest_flow.py --apply --run-now` | 平日朝に、期限超過・次アクション未設定の商談と期限切れの活動をマネージャーへメール。Power Automate の定期フローをソリューション内に作成し、Outlook 接続参照は既存を流用する。障害 0 件の日は送らない |
 | 上長の同期 | `python scripts/sync_manager_hierarchy.py`（反映は `--apply`） | Entra ID の上長を Dataverse の `parentsystemuserid` へ同期。「自分のチーム」表示と、Dataverse の階層セキュリティ（上長が部下のレコードを参照）の前提になる |
+
+通知を有効化する前に `.env.example` の宛先・タイムゾーン設定を確認し、読み取り専用計画を実行する。
+`--apply` は商談作成ごとにメールを自動送信するフローを有効化するため、Outlook接続と配信先を確認してから実行する。
+動作確認のために商談を作成すると実際にメールが送られる。テスト用レコードを使う場合は、事前に配信先とcleanupを確認する。
 
 > 階層セキュリティ自体の有効化とセキュリティ ロールの設計は [dataverse スキルのセキュリティ ロール](../../../dataverse/references/security-role.md) で行う。
 > 営業は「ユーザー（自分のレコード）」、マネージャーは「階層（部下のレコード）」で参照できる構成を基本にする。
@@ -149,7 +154,7 @@ Python SDKが未導入の場合は実際のimport失敗を確認した後、
 ## セキュリティ
 
 - 行の可視範囲は Dataverse のセキュリティ ロールに従う（アプリ側でデータを絞っても権限の代わりにはならない）。
-- メール・予定の自動送信は行わない。Cowork 側も書き込み・送信前に確認を取る。
+- 新規商談メール通知は、明示的に配備・有効化した場合に限り商談作成後のメールを自動送信する。その他のメール・予定送信は行わず、Cowork 側も書き込み・送信前に確認を取る。
 > **認証の正常フロー**: 開始手順の `.env`・依存準備後、業務APIや初回デプロイより前に
 > [認証運用](../../references/authentication-lifecycle.md)の `setup_code_app_auth.py` を実行し、
 > 本人が承認したアカウント・Edgeプロファイル・必要時の追加認証許可を保存する。
